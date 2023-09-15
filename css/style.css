@@ -9765,7 +9765,7 @@ textarea {
         display: flex; padding: 15px 20px;}
       .menu-bg-wrap a {flex-grow:2; }
       .menu-bg-wrap div {margin:auto; }
-/*      .logo-media {}*/
+      .logo-media {width: 100%;}
       }
 
 .testimonial blockquote {
