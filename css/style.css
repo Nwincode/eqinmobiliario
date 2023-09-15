@@ -9762,8 +9762,10 @@ textarea {
       .section .heading {
         font-size: 36px; }
       .menu-bg-wrap {
-        display: flex; }
-      .logo-media { width: 65% !important; }
+        display: flex; padding: 10px;}
+      .menu-bg-wrap a { flex-grow:2; }
+      .menu-bg-wrap div { margin:auto; }
+      .logo-media {}
       }
 
 .testimonial blockquote {
