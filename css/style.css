@@ -9759,21 +9759,21 @@ textarea {
   .section .heading {
     font-weight: 500; }
 
+@media (max-width: 812px) and (orientation: landscape), (max-width: 767.98px) and (orientation: portrait) { 
+    .menu-bg-wrap {
+    padding: 15px 20px;}
+    
+  }
+
 @media (max-width: 767.98px) {
   .section .heading {
     font-size: 36px; }
   .menu-bg-wrap {
-    display: flex; padding: 15px 20px;}
+    display: flex;}
   .menu-bg-wrap a {
     flex-grow:2;}
   .menu-bg-wrap div {
     margin:auto;}
-}
-
-@media (orientation: landscape) and (max-width: 812px) {
-  .menu-bg-wrap {
-    padding: 15px 20px;}
-  .col-lg-6 { text-align:center; margin-bottom: 1rem; }
 }
 
 .testimonial blockquote {
@@ -10396,7 +10396,7 @@ nav[aria-label="breadcrumb"] li:before {
       .site-footer .social li a:hover {
         background: #00204a;
         color: #fff; }
-  @media screen and (max-width: 768px) {
-      .col-lg-6 {text-align:center; align-items:center; }
+  @media (max-width: 812px) and (orientation: landscape), (max-width: 768.98px) and (orientation: portrait) {
+      .col-lg-6 {text-align:center; align-items:center; margin-bottom: 1rem;}
       
   }
