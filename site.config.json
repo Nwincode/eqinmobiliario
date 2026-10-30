@@ -1,11 +1,12 @@
 {
   "siteUrl": "https://eqinmobiliario.gt",
   "firebase": {
-    "apiKey": "",
+    "apiKey": "AIzaSyAUxWHj99g8FEShAt0Xw_wJ8WMxP4ikE2Y",
     "authDomain": "eqinmobiliariobd.firebaseapp.com",
     "projectId": "eqinmobiliariobd",
-    "storageBucket": "",
-    "messagingSenderId": "",
-    "appId": ""
+    "storageBucket": "eqinmobiliariobd.firebasestorage.app",
+    "messagingSenderId": "239655630069",
+    "appId": "1:239655630069:web:7b9a2f2597d5f0e52041bc",
+    "measurementId": "G-92V2PW6L9N"
   }
 }
