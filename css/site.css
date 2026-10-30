@@ -746,3 +746,10 @@ h2.heading::after,
 	background: var(--eq-white);
 	color: var(--eq-dark);
 }
+.nav-logo-img {
+	display: block;
+	height: 40px;
+	width: auto;
+	max-width: 220px;
+	object-fit: contain;
+}

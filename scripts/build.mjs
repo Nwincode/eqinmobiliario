@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder } from './lib/util.mjs';
 import * as T from './lib/templates.mjs';
+import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -152,6 +153,16 @@ function normalizePosts(list) {
 }
 
 // Una página por zona con al menos una propiedad publicada (búsquedas locales: "casas en zona 16").
+// Contenido de una zona desde settings/site → zonas (lista); la versión en inglés va en el campo "en".
+function guiaZona(site, nombre, lang = 'es') {
+	const z = (site.zonas || []).find((x) => slugify(x.nombre || '') === slugify(nombre || ''));
+	if (!z) return {};
+	const base = { h1: z.h1, titulo: z.titulo, descripcion: z.descripcion, intro: z.intro, contenido: z.contenido, imagen: z.imagen };
+	if (lang !== 'en') return base;
+	const en = z.en || {};
+	return { h1: en.h1, titulo: en.titulo, descripcion: en.descripcion, intro: en.intro, contenido: en.contenido, imagen: z.imagen };
+}
+
 function buildZonas(properties, base = '/propiedades/') {
 	const counts = new Map();
 	for (const p of properties) if (p.zona) counts.set(p.zona, (counts.get(p.zona) || 0) + 1);
@@ -271,6 +282,9 @@ async function main() {
 	const config = await readJson('site.config.json');
 	const data = await loadData(config);
 	const site = deepMerge(data.defaults, data.settings);
+	// Textos del sitio: se guardan los originales para el panel y se aplican los personalizados.
+	const textosOriginales = textosPorDefecto();
+	aplicarTextos(site.textos);
 	const agents = data.agents.slice().sort(byOrder);
 	const properties = normalizeProperties(data.properties);
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
@@ -343,13 +357,17 @@ async function main() {
 
 	const zonaOpts = new Map();
 	for (const z of ctx.zonas) {
+		// Texto propio de la zona editado en el panel (Contenido del sitio → Zonas); si no hay, se usa uno automático.
+		const g = guiaZona(site, z.nombre);
 		zonaOpts.set(z.nombre, {
 			path: z.url,
 			zona: z.nombre,
-			heading: `Propiedades en ${z.nombre}`,
-			title: `Casas y apartamentos en ${z.nombre}, Guatemala | ${nombre}`,
-			description: `Propiedades en venta y renta en ${z.nombre}, Guatemala. ${z.total === 1 ? '1 propiedad disponible' : `${z.total} propiedades disponibles`} con asesoría personalizada.`,
-			intro: `Casas, apartamentos y terrenos en ${z.nombre}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`
+			heading: g.h1 || `Propiedades en ${z.nombre}`,
+			title: g.titulo || `Casas y apartamentos en ${z.nombre}, Guatemala | ${nombre}`,
+			description: g.descripcion || `Propiedades en venta y renta en ${z.nombre}, Guatemala. ${z.total === 1 ? '1 propiedad disponible' : `${z.total} propiedades disponibles`} con asesoría personalizada.`,
+			intro: g.intro || `Casas, apartamentos y terrenos en ${z.nombre}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`,
+			contenido: g.contenido || '',
+			imagen: g.imagen || ''
 		});
 		await writePage(z.url, T.listingPage(ctx, zonaOpts.get(z.nombre)));
 		urls.push({ path: z.url, priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.zona === z.nombre)) });
@@ -442,14 +460,17 @@ async function main() {
 		for (const z of ctxEn.zonas) {
 			const es = ctx.zonas.find((x) => x.nombre === z.nombre);
 			const alternates = es ? { es: es.url, en: z.url } : null;
+			const g = guiaZona(site, z.nombre, 'en');
 			await writePage(z.url, T.listingPage(ctxEn, {
 				path: z.url,
 				alternates,
 				zona: z.nombre,
-				heading: `Homes in ${z.nombre}, Guatemala City`,
-				title: `Homes in ${z.nombre}, Guatemala City | ${nombre}`,
-				description: `${z.total === 1 ? '1 property' : `${z.total} properties`} for sale and rent in ${z.nombre}, Guatemala City. USD prices, live video tours and support for buyers in the US.`,
-				intro: `Houses, condos and land in ${z.nombre}. Can't find what you need? Tell us and we'll send you options that aren't listed yet.`
+				heading: g.h1 || `Homes in ${z.nombre}, Guatemala City`,
+				title: g.titulo || `Homes in ${z.nombre}, Guatemala City | ${nombre}`,
+				description: g.descripcion || `${z.total === 1 ? '1 property' : `${z.total} properties`} for sale and rent in ${z.nombre}, Guatemala City. USD prices, live video tours and support for buyers in the US.`,
+				intro: g.intro || `Houses, condos and land in ${z.nombre}. Can't find what you need? Tell us and we'll send you options that aren't listed yet.`,
+				contenido: g.contenido || '',
+				imagen: g.imagen || ''
 			}));
 			if (es) {
 				registrarPar(es.url, z.url);
@@ -490,6 +511,7 @@ async function main() {
 
 	await writePage('/404.html', T.notFoundPage(ctx));
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
+	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
 
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, urls));
 	await writeFile(path.join(DIST, '_redirects'), redirects(ctx));

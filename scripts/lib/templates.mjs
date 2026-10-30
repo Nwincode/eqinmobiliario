@@ -3,7 +3,7 @@ import {
 	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown,
 	videoEmbedUrl, mapEmbedUrl, whatsappLink
 } from './util.mjs';
-import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2 } from './i18n.mjs';
+import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
@@ -136,7 +136,7 @@ function head(ctx, page) {
 	<noscript><link rel="stylesheet" href="${FONTS_URL}"></noscript>
 	${trackingHead(site)}
 	${(page.jsonLd || []).map(jsonLd).join('\n\t')}
-	<script>window.EQ_CONFIG=${JSON.stringify(ctx.publicConfig).replace(/</g, '\\u003c')};</script>
+	<script>window.EQ_CONFIG=${JSON.stringify({ ...ctx.publicConfig, t: textosCliente(ctx.lang || 'es') }).replace(/</g, '\\u003c')};</script>
 </head>`;
 }
 
@@ -182,7 +182,9 @@ function nav(ctx, active) {
 	<nav class="site-nav" aria-label="${ctx.lang === 'en' ? 'Main' : 'Principal'}">
 		<div class="container">
 			<div class="menu-bg-wrap">
-				<a href="${rt(ctx).inicio}" class="logo nav-brand"><svg class="nav-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="5"/><path fill="currentColor" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/></svg><span>${esc(site.general.nombre.replace(/\s*S\.A\.?$/i, ""))}</span></a>
+				<a href="${rt(ctx).inicio}" class="logo nav-brand">${site.general.logoMenu
+					? `<img class="nav-logo-img" src="${esc(site.general.logoMenu)}" alt="${esc(site.general.nombre)}" height="40">`
+					: `<svg class="nav-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="5"/><path fill="currentColor" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/></svg><span>${esc(site.general.nombre.replace(/\s*S\.A\.?$/i, ""))}</span>`}</a>
 				<div class="site-navigation">
 					<ul class="js-clone-nav d-none d-lg-flex site-menu">
 						${items.join('\n\t\t\t\t\t\t')}
@@ -261,7 +263,7 @@ function footer(ctx) {
 			<div class="row mt-5">
 				<div class="col-12 text-center">
 					<p>Copyright &copy; ${new Date().getFullYear()} ${esc(String(site.general.nombre).replace(/\.$/, ''))}. ${t.derechos}
-					<small class="d-block mt-2 text-black-50">${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a></small></p>
+					${site.footer.mostrarCredito === false ? '' : `<small class="d-block mt-2 text-black-50">${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a></small>`}</p>
 				</div>
 			</div>
 		</div>
@@ -366,7 +368,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
-	const msg = property ? t.msgInteres(property.titulo) : '';
+	const msg = property ? fmt(t.msgInteres, { titulo: property.titulo }) : '';
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
@@ -386,7 +388,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 function agentBox(ctx, agent, property) {
 	if (!agent) return '';
 	const t = tr(ctx);
-	const msg = property ? t.msgAsesor(agent.nombre, property.titulo) : '';
+	const msg = property ? fmt(t.msgAsesor, { nombre: agent.nombre, titulo: property.titulo }) : '';
 	const wa = whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
 	return `<div class="d-block agent-box p-4">
 						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy" width="80" height="80"></div>
@@ -662,7 +664,8 @@ export function homePage(ctx) {
 
 // ---------------------------------------------------------------- Listado
 
-export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null }) {
+export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
+	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
 	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
@@ -675,7 +678,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	};
 
 	const body = `
-	${pageHero(ctx, heading, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
+	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
 			<form class="listing-filters row g-2 align-items-end mb-5" id="listing-filters" role="search" aria-label="${t.filtrar}">
@@ -750,6 +753,13 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
 		</div>
 	</div>
+	${contenido ? `<div class="section pt-0">
+		<div class="container">
+			<div class="row justify-content-center">
+				<article class="col-lg-8 content-page zona-guia">${markdown(contenido)}</article>
+			</div>
+		</div>
+	</div>` : ''}
 
 	<div class="section bg-light" id="contacto-listado">
 		<div class="container">
@@ -767,7 +777,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		description,
 		alternates,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
-		preloadImage: ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp',
+		image: imagen || undefined,
+		preloadImage: heroImg,
 		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"`
 	}, body);
 }
@@ -927,7 +938,7 @@ export function propertyPage(ctx, p) {
 	const related = ctx.properties
 		.filter((o) => o.id !== p.id && (o.zona === p.zona || o.operacion === p.operacion))
 		.slice(0, 3);
-	const waMsg = t.msgWaFicha(p.titulo, absUrl(ctx, propertyUrl(p)));
+	const waMsg = fmt(t.msgWaFicha, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
 
 	const body = `
 	${pageHero(ctx, p.titulo, firstPhoto(p), crumbs)}
@@ -1038,7 +1049,7 @@ export function vipLandingPage(ctx, p) {
 	const mapa = (v.mapa || p.mapa) ? mapEmbedUrl(v.mapa || p.mapa) : '';
 	const precio = v.ocultarPrecio ? t.precioConsultar : price(p);
 	const waNumber = (agent && agent.whatsapp) || s.contacto.whatsapp;
-	const wa = whatsappLink(waNumber, t.msgWaVip(p.titulo, absUrl(ctx, propertyUrl(p))));
+	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));
 	const cta = v.ctaTexto || t.agendarPrivada;
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedadesVip, url: r.vip }, { name: p.titulo, url: propertyUrl(p) }];
 	const en = ctx.lang === 'en';
@@ -1184,7 +1195,7 @@ export function vipLandingPage(ctx, p) {
 		bare: true,
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: `class="vip-page" ${viewContentAttrs(p)}`,
-		waMensaje: t.msgWaVip(p.titulo, absUrl(ctx, propertyUrl(p)))
+		waMensaje: fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) })
 	}, body);
 }
 

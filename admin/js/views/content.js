@@ -13,7 +13,8 @@ const GROUPS = [
 		id: 'general', label: 'General', keys: ['general', 'whatsappFlotante'], fields: [
 			{ name: 'general.nombre', label: 'Nombre de la empresa', cols: 6, required: true },
 			{ name: 'general.nombreCorto', label: 'Nombre corto', cols: 6, help: 'Se usa en los títulos de las páginas.' },
-			{ name: 'general.logo', label: 'Logo', type: 'image', cols: 6 },
+			{ name: 'general.logo', label: 'Logo (Google y redes sociales)', type: 'image', cols: 6, help: 'Versión cuadrada o con fondo, la que Google muestra junto a tu negocio.' },
+			{ name: 'general.logoMenu', label: 'Logo del menú (opcional)', type: 'image', cols: 6, help: 'Vacío = imagotipo de la marca con el nombre. Si subes uno, usa versión blanca o clara (el menú es negro), en PNG o SVG.' },
 			{ name: 'general.favicon', label: 'Ícono de pestaña (favicon)', type: 'image', cols: 6 },
 			{ type: 'section', label: 'Botón flotante de WhatsApp' },
 			{ name: 'whatsappFlotante.visible', label: 'Mostrar el botón', type: 'checkbox', cols: 4 },
@@ -60,6 +61,13 @@ const GROUPS = [
 		id: 'ingles', label: 'Sitio en inglés', keys: ['en'], fields: [
 			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (botón "Traducir al inglés" en cada propiedad).' },
 			{ name: 'en.activo', label: 'Publicar el sitio en inglés', type: 'checkbox', default: true },
+			{ type: 'section', label: 'Secciones visibles en inglés', help: 'Por defecto se muestran las mismas que en español. Apágalas aquí para ocultarlas solo en /en/.' },
+			{ name: 'en.features.visible', label: 'Tarjetas destacadas', type: 'checkbox', default: true, cols: 4 },
+			{ name: 'en.servicios.visible', label: 'Servicios', type: 'checkbox', default: true, cols: 4 },
+			{ name: 'en.contadores.visible', label: 'Contadores', type: 'checkbox', default: true, cols: 4 },
+			{ name: 'en.testimonios.visible', label: 'Reseñas', type: 'checkbox', default: true, cols: 4 },
+			{ name: 'en.cta.visible', label: 'Llamado a la acción', type: 'checkbox', default: true, cols: 4 },
+			{ name: 'en.asesores.visible', label: 'Asesores', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.seo.titulo', label: 'Google title (home)', maxlength: 70, cols: 6 },
 			{ name: 'en.seo.descripcion', label: 'Google description (home)', maxlength: 160, cols: 6 },
 			{ name: 'en.hero.titulo', label: 'Hero headline', cols: 6 },
@@ -218,14 +226,61 @@ const GROUPS = [
 		]
 	},
 	{
+		id: 'zonas', label: 'Zonas', keys: ['zonas'], fields: [
+			{ type: 'section', label: 'Páginas por zona', help: 'Cada zona con propiedades tiene su página (p. ej. /propiedades/zona-16/). Un texto propio de cada zona —qué la hace atractiva, colonias, accesos, colegios, precios típicos— es lo que más ayuda a aparecer en Google cuando buscan "casas en zona 16". El nombre debe escribirse igual que en las propiedades.' },
+			{ name: 'zonas', label: 'Zonas', type: 'list', itemLabel: 'Zona', fields: [
+				{ name: 'nombre', label: 'Nombre de la zona', cols: 4, required: true, placeholder: 'Zona 16' },
+				{ name: 'h1', label: 'Título visible (H1)', cols: 8, placeholder: 'Casas y apartamentos en zona 16' },
+				{ name: 'titulo', label: 'Título para Google', cols: 6, maxlength: 70 },
+				{ name: 'descripcion', label: 'Descripción para Google', cols: 6, maxlength: 160 },
+				{ name: 'intro', label: 'Introducción (sobre el listado)', type: 'textarea', rows: 2 },
+				{ name: 'contenido', label: 'Guía de la zona (debajo del listado)', type: 'markdown', rows: 8, help: 'Usa subtítulos con ## y al menos 300 palabras.' },
+				{ name: 'imagen', label: 'Imagen de portada', type: 'image' },
+				{ type: 'section', label: 'En inglés (/en/properties/…)' },
+				{ name: 'en.h1', label: 'H1', cols: 6 },
+				{ name: 'en.titulo', label: 'Google title', cols: 6, maxlength: 70 },
+				{ name: 'en.descripcion', label: 'Google description', maxlength: 160 },
+				{ name: 'en.intro', label: 'Intro', type: 'textarea', rows: 2 },
+				{ name: 'en.contenido', label: 'Area guide', type: 'markdown', rows: 6 }
+			] }
+		]
+	},
+	{
 		id: 'menu', label: 'Menú y pie', keys: ['navegacion', 'footer'], fields: [
 			{ name: 'navegacion', label: 'Menú principal', type: 'list', itemLabel: 'Enlace', fields: link, help: 'El menú "Propiedades" (Comprar, Rentar, VIP) se agrega automáticamente.' },
 			{ type: 'section', label: 'Pie de página' },
 			{ name: 'footer.texto', label: 'Texto', type: 'textarea', rows: 2 },
+			{ name: 'footer.mostrarCredito', label: 'Mostrar el crédito de la plantilla de diseño (Untree.co)', type: 'checkbox', default: true },
 			{ name: 'footer.enlaces', label: 'Enlaces', type: 'list', itemLabel: 'Enlace', fields: link, help: 'Las páginas marcadas "Mostrar en el pie" se agregan automáticamente.' }
 		]
 	}
 ];
+
+// Pestaña "Textos del sitio": cada botón, etiqueta y mensaje en español e inglés.
+// Vacío = texto original (se muestra como ejemplo). Los textos originales los genera la publicación.
+async function textosGrupo() {
+	let def;
+	try {
+		def = await (await fetch('/admin/textos.json', { cache: 'no-store' })).json();
+	} catch {
+		return null;
+	}
+	const corto = (v) => (v.length > 60 ? `${v.slice(0, 57)}…` : v);
+	const usados = new Set(def.grupos.flatMap(([, keys]) => keys));
+	const otros = Object.keys(def.es).filter((k) => !usados.has(k));
+	const fields = [{ type: 'section', label: 'Textos del sitio', help: 'Cambia cualquier botón, etiqueta o mensaje. Deja el campo vacío para usar el texto original (aparece en gris). En los mensajes de WhatsApp puedes usar {titulo}, {nombre} y {url}.' }];
+	for (const [nombre, keys] of [...def.grupos, ['Otros (accesibilidad y detalles)', otros]]) {
+		const validas = keys.filter((k) => def.es[k] !== undefined);
+		if (!validas.length) continue;
+		fields.push({ type: 'section', label: nombre });
+		for (const k of validas) {
+			const largo = (def.es[k] || '').length > 70;
+			fields.push({ name: `textos.es.${k}`, label: `ES · ${corto(def.es[k] || k)}`, placeholder: def.es[k], cols: 6, type: largo ? 'textarea' : undefined, rows: 2 });
+			fields.push({ name: `textos.en.${k}`, label: `EN · ${corto(def.en[k] || k)}`, placeholder: def.en[k], cols: 6, type: largo ? 'textarea' : undefined, rows: 2 });
+		}
+	}
+	return { id: 'textos', label: 'Textos del sitio', keys: ['textos'], fields };
+}
 
 export async function render(container) {
 	const ref = doc(db, 'settings', 'site');
@@ -239,7 +294,10 @@ export async function render(container) {
 	const heroImgs = (data.hero?.imagenes || []).map((url) => ({ url }));
 	data = { ...data, hero: { ...data.hero, imagenes: heroImgs } };
 
-	const forms = GROUPS.map((g) => ({ g, form: renderForm(g.fields, data, { folder: 'site' }) }));
+	const grupos = [...GROUPS];
+	const textos = await textosGrupo();
+	if (textos) grupos.push(textos);
+	const forms = grupos.map((g) => ({ g, form: renderForm(g.fields, data, { folder: 'site' }) }));
 	const tabs = h('ul', { class: 'nav nav-pills flex-wrap gap-1 mb-3', role: 'tablist' });
 	const panes = h('div');
 	const show = (id) => {
@@ -250,7 +308,7 @@ export async function render(container) {
 		tabs.append(h('li', { class: 'nav-item' }, h('button', { type: 'button', class: 'nav-link', dataset: { id: g.id }, onclick: () => show(g.id) }, g.label)));
 		panes.append(h('div', { class: 'card', dataset: { id: g.id } }, h('div', { class: 'card-body' }, form.el)));
 	});
-	show(GROUPS[0].id);
+	show(grupos[0].id);
 
 	const save = async (btn) => {
 		for (const { g, form } of forms) {
@@ -260,7 +318,11 @@ export async function render(container) {
 		// Campo por campo: varias pestañas editan partes distintas de la misma sección (p. ej. "seo").
 		forms.forEach(({ g, form }) => {
 			const d = form.getData();
-			g.fields.filter((f) => f.name).forEach((f) => setPath(out, f.name, getPath(d, f.name)));
+			g.fields.filter((f) => f.name).forEach((f) => {
+				const v = getPath(d, f.name);
+				// Firestore no acepta undefined: los campos nunca llenados no se guardan.
+				if (v !== undefined) setPath(out, f.name, v);
+			});
 		});
 		out.hero.imagenes = (out.hero.imagenes || []).map((i) => i.url).filter(Boolean);
 		out.updatedAt = serverTimestamp();

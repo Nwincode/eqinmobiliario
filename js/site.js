@@ -18,6 +18,13 @@
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
 
+	// Textos personalizados desde el panel (config.t.jsGracias → T.gracias, etc.).
+	var textosPanel = config.t || {};
+	Object.keys(T).forEach(function (k) {
+		var clave = k === 'escribenos' ? k : 'js' + k.charAt(0).toUpperCase() + k.slice(1);
+		if (typeof textosPanel[clave] === 'string') T[k] = textosPanel[clave];
+	});
+
 	// ------------------------------------------------------------ Campañas (Google Ads, Meta, UTM)
 	// Se guarda la última visita que llegó desde una campaña para atribuir el lead al anuncio.
 	var CAMPOS_CAMPANA = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];

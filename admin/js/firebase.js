@@ -5,7 +5,7 @@ import {
 	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-	getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
+	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
 	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, Timestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
@@ -19,7 +19,8 @@ export const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projec
 
 export const app = configured ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+// ignoreUndefinedProperties: un campo sin valor no hace fallar el guardado.
+export const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null;
 export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : null;
 
 // Crea una cuenta sin cerrar la sesión del administrador (usa una app secundaria).

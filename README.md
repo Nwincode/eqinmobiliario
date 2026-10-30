@@ -65,6 +65,20 @@ En el sitio público, la **búsqueda inteligente** convierte una frase ("casa de
 panel (verifica el inicio de sesión de Firebase) y nunca inventa propiedades: solo usa el inventario publicado.
 Costo orientativo: centavos de dólar por tarea; conviene fijar un límite de gasto mensual en la consola de Anthropic.
 
+## Qué se administra desde el panel
+
+| Sección del panel | Qué controla |
+|---|---|
+| Propiedades | Fichas, fotos, video, mapa, precio, estado, VIP y su landing, traducción al inglés, SEO de cada ficha |
+| Leads | Contactos recibidos, estado, asesor asignado, notas, campaña de origen, exportación |
+| Asesores / Reseñas | Equipo con foto y contacto; testimonios (con versión en inglés) |
+| Páginas / Blog | Páginas libres (legales, guías) y artículos, en español o inglés |
+| Contenido del sitio | General y logos, Google y anuncios, compradores en EE. UU., sitio en inglés, IA y calculadora, SEO de la portada, títulos de listados, portada, secciones, contacto y redes, **zonas** (texto propio de cada página de zona), menú y pie, y **textos del sitio** (cada botón, etiqueta y mensaje en español e inglés, incluidos los mensajes de WhatsApp con `{titulo}`, `{nombre}` y `{url}`) |
+| Google | Search Console, oportunidades, inspector de URL y revisión SEO del inventario |
+| Usuarios / Publicar | Accesos y roles; publicación del sitio |
+
+Fijo en el código a propósito: colores y tipografía de la marca (ver `docs/marca/`), estructura de las páginas y rutas.
+
 ## SEO y herramientas de Google
 
 Todo se configura en el panel → *Contenido del sitio → Google y anuncios*:
