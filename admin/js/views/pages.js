@@ -13,7 +13,7 @@ export const render = crudView({
 	defaults: { publicado: false, enFooter: true },
 	columns: [
 		['Título', (p) => h('span', { class: 'fw-semibold' }, p.titulo)],
-		['URL', (p) => h('code', {}, `/${p.slug}/`)],
+		['URL', (p) => h('code', {}, `${p.idioma === 'en' ? '/en' : ''}/${p.slug}/`)],
 		['Pie de página', (p) => (p.enFooter ? 'Sí' : 'No')],
 		['Estado', (p) => (p.publicado ? badge('Publicada', 'success') : badge('Borrador', 'secondary'))]
 	],
@@ -25,13 +25,15 @@ export const render = crudView({
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4 },
 		{ name: 'enFooter', label: 'Mostrar en el pie de página', type: 'checkbox', cols: 4 },
 		{ name: 'publicado', label: 'Publicada', type: 'checkbox', cols: 4 },
+		{ name: 'idioma', label: 'Idioma', type: 'select', options: [['es', 'Español (sitio principal)'], ['en', 'Inglés (/en/)']], cols: 6 },
+		{ name: 'traduccion', label: 'URL (slug) de la versión en el otro idioma', cols: 6, help: 'Opcional. Une ambas versiones para Google (hreflang). Ej.: buying-property-in-guatemala' },
 		{ type: 'section', label: 'SEO (opcional)' },
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70 },
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
 			title: (d) => d.seo?.titulo || `${d.titulo || ''} | Equipo Inmobiliario`,
 			description: (d) => d.seo?.descripcion || stripMd(d.contenido),
-			path: (d) => `/${slugify(d.slug || d.titulo || '')}/`
+			path: (d) => `${d.idioma === 'en' ? '/en' : ''}/${slugify(d.slug || d.titulo || '')}/`
 		})
 	],
 	beforeSave: (d, ref, all) => {
@@ -40,7 +42,7 @@ export const render = crudView({
 			toast(`"${d.slug}" es una dirección reservada del sitio; elige otra.`, 'warning');
 			return false;
 		}
-		if (all.some((p) => p.id !== ref.id && p.slug === d.slug)) {
+		if (all.some((p) => p.id !== ref.id && p.slug === d.slug && (p.idioma || 'es') === (d.idioma || 'es'))) {
 			toast(`Ya existe una página con la URL "${d.slug}".`, 'warning');
 			return false;
 		}

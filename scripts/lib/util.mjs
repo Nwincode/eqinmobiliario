@@ -37,10 +37,10 @@ export function deepMerge(base, override) {
 
 const CURRENCY_PREFIX = { USD: 'US$', GTQ: 'Q' };
 
-export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
-	if (!precio) return 'Precio a consultar';
+export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
+	if (!precio) return lang === 'en' ? 'Price on request' : 'Precio a consultar';
 	const n = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 0 });
-	const suffix = operacion === 'renta' ? ' /mes' : '';
+	const suffix = operacion === 'renta' ? (lang === 'en' ? ' /mo' : ' /mes') : '';
 	return `${CURRENCY_PREFIX[moneda] || moneda} ${n}${suffix}`;
 }
 

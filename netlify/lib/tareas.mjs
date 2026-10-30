@@ -89,6 +89,29 @@ Si el lead preguntó por una propiedad que ya no está disponible o hay otras qu
 		})
 	},
 
+	// Versión en inglés de una propiedad para compradores de Estados Unidos.
+	traducir: {
+		effort: 'low',
+		staff: true,
+		instrucciones: `Traduce la propiedad al inglés de Estados Unidos para compradores estadounidenses y guatemaltecos que viven en EE. UU.
+- No traduzcas palabra por palabra: escribe como un anuncio inmobiliario profesional en EE. UU. (p. ej. "3-bedroom house", "gated community", "HOA fee").
+- Conserva los nombres propios (residenciales, zonas como "Zona 16").
+- Junto a los m² agrega los pies cuadrados (1 m² = 10.764 sq ft).
+- No agregues datos que no estén en el original.
+- El título SEO debe tener máx. 65 caracteres e incluir el tipo de inmueble y "Guatemala" o la zona; la descripción SEO máx. 155.`,
+		schema: obj({
+			titulo: str('Título en inglés'),
+			descripcion: str('Descripción en markdown simple'),
+			amenidades: strArr('Amenidades en inglés'),
+			seoTitulo: str('Título para Google'),
+			seoDescripcion: str('Descripción para Google'),
+			vipTitular: str('Titular VIP en inglés (vacío si no hay)'),
+			vipSubtitular: str('Subtítulo VIP en inglés (vacío si no hay)'),
+			puntosClave: strArr('Puntos clave en inglés'),
+			ctaTexto: str('Texto del botón en inglés (vacío si no hay)')
+		})
+	},
+
 	// Clientes que buscan algo parecido a una propiedad (al captar o publicar una nueva).
 	coincidencias: {
 		effort: 'low',

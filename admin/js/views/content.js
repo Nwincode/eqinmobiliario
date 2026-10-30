@@ -42,6 +42,66 @@ const GROUPS = [
 		]
 	},
 	{
+		id: 'exterior', label: 'Compradores en EE. UU.', keys: ['bloqueExterior'], fields: [
+			{ type: 'section', label: 'Bloque en la portada (español)', help: 'Para guatemaltecos que viven en Estados Unidos. Enlaza a la guía "Compra desde EE. UU.".' },
+			{ name: 'bloqueExterior.visible', label: 'Mostrar', type: 'checkbox' },
+			{ name: 'bloqueExterior.etiqueta', label: 'Etiqueta', cols: 6 },
+			{ name: 'bloqueExterior.titulo', label: 'Título', cols: 6 },
+			{ name: 'bloqueExterior.texto', label: 'Texto', type: 'textarea', rows: 3 },
+			{ name: 'bloqueExterior.puntos', label: 'Puntos', type: 'tags' },
+			{ name: 'bloqueExterior.boton', label: 'Texto del botón', cols: 6 },
+			{ name: 'bloqueExterior.enlace', label: 'Enlace', cols: 6 }
+		]
+	},
+	{
+		id: 'ingles', label: 'Sitio en inglés', keys: ['en'], fields: [
+			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (botón "Traducir al inglés" en cada propiedad).' },
+			{ name: 'en.activo', label: 'Publicar el sitio en inglés', type: 'checkbox', default: true },
+			{ name: 'en.seo.titulo', label: 'Google title (home)', maxlength: 70, cols: 6 },
+			{ name: 'en.seo.descripcion', label: 'Google description (home)', maxlength: 160, cols: 6 },
+			{ name: 'en.hero.titulo', label: 'Hero headline', cols: 6 },
+			{ name: 'en.hero.placeholderBusqueda', label: 'Search placeholder', cols: 6 },
+			{ name: 'en.destacadas.titulo', label: 'Featured title', cols: 6 },
+			{ name: 'en.destacadas.boton', label: 'Featured button', cols: 6 },
+			{ type: 'section', label: 'Buying from the US block' },
+			{ name: 'en.bloqueExterior.visible', label: 'Show', type: 'checkbox' },
+			{ name: 'en.bloqueExterior.etiqueta', label: 'Label', cols: 6 },
+			{ name: 'en.bloqueExterior.titulo', label: 'Title', cols: 6 },
+			{ name: 'en.bloqueExterior.texto', label: 'Text', type: 'textarea', rows: 3 },
+			{ name: 'en.bloqueExterior.puntos', label: 'Bullet points', type: 'tags' },
+			{ name: 'en.bloqueExterior.boton', label: 'Button', cols: 6 },
+			{ name: 'en.bloqueExterior.enlace', label: 'Link', cols: 6 },
+			{ type: 'section', label: 'Feature cards' },
+			{ name: 'en.features.items', label: 'Cards', type: 'list', itemLabel: 'Card', max: 4, fields: [
+				{ name: 'icono', label: 'Icon', type: 'select', options: FLATICONS, cols: 4 },
+				{ name: 'titulo', label: 'Title', cols: 8 },
+				{ name: 'texto', label: 'Text', type: 'textarea', rows: 2 },
+				{ name: 'enlace', label: 'Link' }] },
+			{ type: 'section', label: 'Services' },
+			{ name: 'en.servicios.titulo', label: 'Title', cols: 6 },
+			{ name: 'en.servicios.subtitulo', label: 'Subtitle', cols: 6 },
+			{ name: 'en.servicios.items', label: 'Services', type: 'list', itemLabel: 'Service', fields: [
+				{ name: 'icono', label: 'Icon', type: 'select', options: ICONS, cols: 4 },
+				{ name: 'titulo', label: 'Title', cols: 8 },
+				{ name: 'texto', label: 'Text', type: 'textarea', rows: 2 }] },
+			{ name: 'en.contadores.items', label: 'Counters', type: 'list', itemLabel: 'Counter', max: 4, fields: [
+				{ name: 'valor', label: 'Number', type: 'number', cols: 4 },
+				{ name: 'etiqueta', label: 'Label', cols: 8 }] },
+			{ type: 'section', label: 'Reviews, team and contact' },
+			{ name: 'en.testimonios.titulo', label: 'Reviews title', cols: 6 },
+			{ name: 'en.asesores.titulo', label: 'Team title', cols: 6 },
+			{ name: 'en.asesores.subtitulo', label: 'Team text', type: 'textarea', rows: 2 },
+			{ name: 'en.contacto.titulo', label: 'Contact title', cols: 6 },
+			{ name: 'en.contacto.horario', label: 'Business hours', cols: 6 },
+			{ name: 'en.contacto.subtitulo', label: 'Contact text', type: 'textarea', rows: 2 },
+			{ name: 'en.whatsappFlotante.mensaje', label: 'WhatsApp button message' },
+			{ type: 'section', label: 'Menu and footer' },
+			{ name: 'en.navegacion', label: 'Menu', type: 'list', itemLabel: 'Link', fields: link },
+			{ name: 'en.footer.texto', label: 'Footer text', type: 'textarea', rows: 2 },
+			{ name: 'en.footer.enlaces', label: 'Footer links', type: 'list', itemLabel: 'Link', fields: link }
+		]
+	},
+	{
 		id: 'herramientas', label: 'IA y herramientas', keys: ['ia', 'calculadora'], fields: [
 			{ type: 'section', label: 'Búsqueda inteligente en el sitio', help: 'Los visitantes describen lo que buscan con sus palabras y la IA aplica los filtros. Requiere configurar ANTHROPIC_API_KEY en Netlify (ver README). Cada búsqueda cuesta aprox. US$ 0.01.' },
 			{ name: 'ia.busquedaPublica', label: 'Activar la búsqueda con IA en los listados', type: 'checkbox' },

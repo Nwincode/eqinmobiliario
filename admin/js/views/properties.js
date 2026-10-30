@@ -7,6 +7,8 @@ import {
 import { renderForm, deleteImage } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
+import { pedirIA } from '../ia.js';
+import { updateDoc } from '../firebase.js';
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
@@ -153,6 +155,17 @@ function schema(agentOpts, isNew) {
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
+		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Si llenas título y descripción, la propiedad se publica también en el sitio en inglés (/en/). Usa "Traducir con IA" arriba para hacerlo en segundos.' },
+		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
+		{ name: 'en.descripcion', label: 'Description (English)', type: 'markdown', rows: 6 },
+		{ name: 'en.amenidades', label: 'Amenities (English)', type: 'tags' },
+		{ name: 'en.vipLanding.titular', label: 'VIP headline (English)', cols: 6, when: vip },
+		{ name: 'en.vipLanding.ctaTexto', label: 'VIP button (English)', cols: 6, when: vip },
+		{ name: 'en.vipLanding.subtitular', label: 'VIP subtitle (English)', type: 'textarea', rows: 2, when: vip },
+		{ name: 'en.vipLanding.puntosClave', label: 'VIP highlights (English)', type: 'tags', when: vip },
+		{ name: 'en.seo.titulo', label: 'Google title (English)', maxlength: 70, cols: 6 },
+		{ name: 'en.seo.descripcion', label: 'Google description (English)', maxlength: 160, cols: 6 },
+
 		{ type: 'section', label: 'SEO (opcional)', help: 'Si los dejas vacíos se generan automáticamente.' },
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70, cols: 12 },
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
@@ -277,10 +290,39 @@ async function renderEditor(container, id) {
 		}
 	};
 
+	// Traduce con IA y guarda la versión en inglés; luego recarga el editor.
+	const traducir = async (btn) => {
+		btn.disabled = true;
+		btn.textContent = 'Traduciendo…';
+		try {
+			const datos = { ...form.getData() };
+			delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt;
+			const r = await pedirIA('traducir', { propiedad: datos });
+			await updateDoc(ref, {
+				en: {
+					titulo: r.titulo, descripcion: r.descripcion, amenidades: r.amenidades || [],
+					seo: { titulo: r.seoTitulo, descripcion: r.seoDescripcion },
+					vipLanding: { titular: r.vipTitular, subtitular: r.vipSubtitular, puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto }
+				},
+				updatedAt: serverTimestamp()
+			});
+			await markPending(`Traducción al inglés: ${datos.titulo}`);
+			toast('Versión en inglés lista. Revísala abajo y publica.');
+			const view = document.getElementById('view').firstElementChild;
+			view.replaceChildren();
+			await render(view, [id]);
+		} catch (err) {
+			showError(err);
+			btn.disabled = false;
+			btn.textContent = '🌎 Traducir al inglés (IA)';
+		}
+	};
+
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
 	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
 			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, '✨ Redactar con IA') : null,
+			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, '🌎 Traducir al inglés (IA)') : null,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,

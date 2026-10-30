@@ -22,7 +22,10 @@ export const render = crudView({
 		{ name: 'estrellas', label: 'Estrellas', type: 'select', options: [['5', '5'], ['4', '4'], ['3', '3']], cols: 3 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 3 },
 		{ name: 'activo', label: 'Visible en el sitio', type: 'checkbox', cols: 6 },
-		{ name: 'foto', label: 'Foto (opcional)', type: 'image' }
+		{ name: 'foto', label: 'Foto (opcional)', type: 'image' },
+		{ type: 'section', label: 'Sitio en inglés', help: 'Si la dejas vacía, la reseña no aparece en el sitio en inglés.' },
+		{ name: 'en.texto', label: 'Review (English)', type: 'textarea', rows: 3 },
+		{ name: 'en.rol', label: 'Client type (English)', cols: 6, placeholder: 'Buyer' }
 	],
 	beforeSave: (d) => { d.estrellas = Number(d.estrellas) || 5; }
 });

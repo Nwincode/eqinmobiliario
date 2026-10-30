@@ -1,7 +1,7 @@
 import { db, getDocs, collection } from '../firebase.js';
 import { h, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
-import { loadLeads, estadoBadge, ESTADOS, ORIGENES } from './leads.js';
+import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 
 function stat(label, value, href) {
 	return h('div', { class: 'col-6 col-lg-3' },
@@ -23,7 +23,7 @@ export async function render(container) {
 	const last30 = leads.filter((l) => (toDate(l.createdAt)?.getTime() || 0) > monthAgo);
 	const nuevos = leads.filter((l) => (l.estado || 'nuevo') === 'nuevo');
 	const byEstado = ESTADOS.map(([v, l]) => [l, leads.filter((x) => (x.estado || 'nuevo') === v).length]);
-	const byOrigen = Object.entries(last30.reduce((acc, l) => { acc[l.origen || 'otro'] = (acc[l.origen || 'otro'] || 0) + 1; return acc; }, {}));
+	const byOrigen = Object.entries(last30.reduce((acc, l) => { const k = fuenteLead(l).split(' · ')[0]; acc[k] = (acc[k] || 0) + 1; return acc; }, {}));
 	const max = Math.max(1, ...byEstado.map(([, n]) => n));
 
 	mount(container, 
@@ -55,7 +55,7 @@ export async function render(container) {
 						h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, label), h('strong', {}, n)),
 						h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` })))))),
 				h('div', { class: 'card' },
-					h('div', { class: 'card-header bg-white fw-semibold' }, 'Origen de leads (30 días)'),
+					h('div', { class: 'card-header bg-white fw-semibold' }, 'Fuente de leads (30 días)'),
 					h('div', { class: 'card-body' }, byOrigen.length
 						? byOrigen.map(([o, n]) => h('div', { class: 'd-flex justify-content-between small mb-1' }, h('span', {}, ORIGENES[o] || o), h('strong', {}, n)))
 						: h('span', { class: 'text-muted small' }, 'Sin datos todavía.'))))) : null);

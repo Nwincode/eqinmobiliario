@@ -24,7 +24,10 @@ export const render = crudView({
 		{ name: 'bio', label: 'Descripción breve', type: 'textarea', rows: 3 },
 		{ name: 'foto', label: 'Foto', type: 'image' },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 3 },
-		{ name: 'activo', label: 'Visible en el sitio', type: 'checkbox', cols: 9 }
+		{ name: 'activo', label: 'Visible en el sitio', type: 'checkbox', cols: 9 },
+		{ type: 'section', label: 'Sitio en inglés' },
+		{ name: 'en.cargo', label: 'Title (English)', cols: 6, placeholder: 'Real estate advisor' },
+		{ name: 'en.bio', label: 'Bio (English)', type: 'textarea', rows: 3 }
 	],
 	afterSave: invalidateAgents
 });

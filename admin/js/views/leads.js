@@ -15,6 +15,15 @@ export const ESTADOS = [
 ];
 export const ORIGENES = { contacto: 'Formulario de contacto', propiedad: 'Ficha de propiedad', vip: 'Landing VIP', listado: 'Listado', blog: 'Blog' };
 
+// Fuente del lead: campaña de anuncios si la hay; si no, el formulario de origen.
+export function fuenteLead(l) {
+	const c = l.campana || {};
+	if (c.gclid || /google/i.test(c.utm_source || '')) return `Google Ads${c.utm_campaign ? ` · ${c.utm_campaign}` : ''}`;
+	if (c.fbclid || /facebook|instagram|meta/i.test(c.utm_source || '')) return `Meta Ads${c.utm_campaign ? ` · ${c.utm_campaign}` : ''}`;
+	if (c.utm_source) return `${c.utm_source}${c.utm_campaign ? ` · ${c.utm_campaign}` : ''}`;
+	return 'Orgánico / directo';
+}
+
 export function estadoBadge(estado) {
 	const e = ESTADOS.find(([v]) => v === estado) || ESTADOS[0];
 	return badge(e[1], e[2]);
@@ -83,7 +92,11 @@ function openLead(lead, agents, onChange) {
 				h('dt', { class: 'col-sm-3' }, 'Recibido'), h('dd', { class: 'col-sm-9' }, formatDate(lead.createdAt)),
 				h('dt', { class: 'col-sm-3' }, 'Origen'), h('dd', { class: 'col-sm-9' }, ORIGENES[lead.origen] || lead.origen || '—', lead.pagina ? ` (${lead.pagina})` : ''),
 				lead.propertyTitulo ? [h('dt', { class: 'col-sm-3' }, 'Propiedad'), h('dd', { class: 'col-sm-9' }, lead.propertyId ? h('a', { href: `#/propiedades/${lead.propertyId}` }, lead.propertyTitulo) : lead.propertyTitulo)] : null,
-				lead.fechaVisita ? [h('dt', { class: 'col-sm-3' }, 'Visita preferida'), h('dd', { class: 'col-sm-9 fw-semibold' }, formatDate(`${lead.fechaVisita}T12:00:00`, false))] : null,
+				lead.fechaVisita || lead.tipoVisita ? [h('dt', { class: 'col-sm-3' }, 'Visita preferida'), h('dd', { class: 'col-sm-9 fw-semibold' },
+					[lead.tipoVisita === 'videollamada' ? 'Videollamada' : lead.tipoVisita === 'presencial' ? 'Presencial' : '', lead.fechaVisita ? formatDate(`${lead.fechaVisita}T12:00:00`, false) : ''].filter(Boolean).join(' · '))] : null,
+				lead.idioma === 'en' ? [h('dt', { class: 'col-sm-3' }, 'Idioma'), h('dd', { class: 'col-sm-9' }, badge('Inglés (sitio en inglés)', 'info'))] : null,
+				lead.campana ? [h('dt', { class: 'col-sm-3' }, 'Campaña'), h('dd', { class: 'col-sm-9 small' },
+					[lead.campana.gclid ? 'Google Ads' : lead.campana.fbclid ? 'Meta Ads' : '', lead.campana.utm_source, lead.campana.utm_campaign, lead.campana.utm_term].filter(Boolean).join(' · ') || '—')] : null,
 				h('dt', { class: 'col-sm-3' }, 'Mensaje'), h('dd', { class: 'col-sm-9', style: 'white-space:pre-wrap' }, lead.mensaje || '—')),
 			h('div', { class: 'row g-3 mb-3' },
 				h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Estado'), estado),
@@ -123,7 +136,8 @@ export async function render(container) {
 		tbody.replaceChildren(...filtered().map((l) => h('tr', { class: 'clickable', onclick: () => openLead(l, agents, () => render(container.replaceChildren() || container)) },
 			h('td', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
 			h('td', {}, h('div', { class: 'fw-semibold' }, l.nombre), h('div', { class: 'small text-muted' }, l.telefono)),
-			h('td', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—'),
+			h('td', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? h('span', { class: 'badge text-bg-info ms-1' }, 'EN') : null),
+			h('td', { class: 'small text-muted' }, fuenteLead(l)),
 			h('td', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
 			h('td', {}, estadoBadge(l.estado)))));
 	};
@@ -131,8 +145,8 @@ export async function render(container) {
 	draw();
 
 	const exportCsv = () => downloadCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`, [
-		['Fecha', 'Nombre', 'Teléfono', 'Correo', 'Mensaje', 'Propiedad', 'Origen', 'Asesor', 'Estado'],
-		...filtered().map((l) => [formatDate(l.createdAt), l.nombre, l.telefono, l.email, l.mensaje, l.propertyTitulo, ORIGENES[l.origen] || l.origen, agentName[l.agentId] || '', ESTADOS.find(([v]) => v === l.estado)?.[1] || l.estado])
+		['Fecha', 'Nombre', 'Teléfono', 'Correo', 'Mensaje', 'Propiedad', 'Origen', 'Fuente', 'Campaña', 'Idioma', 'Asesor', 'Estado'],
+		...filtered().map((l) => [formatDate(l.createdAt), l.nombre, l.telefono, l.email, l.mensaje, l.propertyTitulo, ORIGENES[l.origen] || l.origen, fuenteLead(l), l.campana?.utm_campaign || '', l.idioma || 'es', agentName[l.agentId] || '', ESTADOS.find(([v]) => v === l.estado)?.[1] || l.estado])
 	]);
 
 	mount(container, 
@@ -144,7 +158,7 @@ export async function render(container) {
 				h('div', { class: 'col-6 col-md-3' }, fAgent)),
 			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
 				h('table', { class: 'table table-hover table-admin' },
-					h('thead', {}, h('tr', {}, ['Fecha', 'Contacto', 'Interés', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
+					h('thead', {}, h('tr', {}, ['Fecha', 'Contacto', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
 					tbody))))
 			: emptyState(session.isAdmin ? 'Todavía no han llegado leads. Aparecerán aquí cuando alguien llene un formulario del sitio.' : 'No tienes leads asignados todavía.'));
 }

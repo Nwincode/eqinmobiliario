@@ -82,6 +82,7 @@ function construirPrompt(tarea, datos) {
 			bloques.push(`<lead>\n${JSON.stringify({ ...datos.lead, mensaje: cut(datos.lead?.mensaje, 2000) }).slice(0, 8000)}\n</lead>`);
 			if (datos.propiedad) bloques.push(`<propiedad_de_interes>\n${JSON.stringify(inventario([datos.propiedad])[0])}\n</propiedad_de_interes>`);
 			break;
+		case 'traducir':
 		case 'descripcion':
 			bloques.push(`<propiedad>\n${JSON.stringify(datos.propiedad || {}).slice(0, 6000)}\n</propiedad>`);
 			bloques.push(`<notas_del_asesor>\n${cut(datos.notas, 3000)}\n</notas_del_asesor>`);

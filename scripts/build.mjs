@@ -96,13 +96,44 @@ function normalizeProperties(list) {
 		.sort((a, b) => (b.destacada === true) - (a.destacada === true) || byOrder(a, b) || b.fechaOrden - a.fechaOrden);
 }
 
-function normalizePages(list) {
+function normalizePages(list, base = '') {
 	return list
 		.map((p) => {
 			const slug = slugify(p.slug || p.titulo) || p.id;
-			return { ...p, slug, url: RESERVED.has(slug) ? `/pagina/${slug}/` : `/${slug}/` };
+			return { ...p, slug, url: `${base}${RESERVED.has(slug) ? `/pagina/${slug}` : `/${slug}`}/` };
 		})
 		.sort(byOrder);
+}
+
+// Versión en inglés de una propiedad (solo si tiene título y descripción en inglés).
+function propiedadEn(p) {
+	const e = p.en || {};
+	if (!e.titulo || !e.descripcion) return null;
+	return {
+		...p,
+		_lang: 'en',
+		slug: slugify(e.slug || e.titulo) || p.slug,
+		titulo: e.titulo,
+		descripcion: e.descripcion,
+		amenidades: e.amenidades || [],
+		seo: e.seo || {},
+		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
+		fotos: (p.fotos || []).map((f) => ({ url: f.url }))
+	};
+}
+
+// Une cada página con su traducción (campo "traduccion" = slug de la otra versión).
+function enlazarTraducciones(es, en) {
+	const bySlugEn = Object.fromEntries(en.map((p) => [p.slug, p]));
+	const bySlugEs = Object.fromEntries(es.map((p) => [p.slug, p]));
+	for (const p of es) {
+		const otra = p.traduccion && bySlugEn[slugify(p.traduccion)];
+		if (otra) p._alternates = otra._alternates = { es: p.url, en: otra.url };
+	}
+	for (const p of en) {
+		const otra = p.traduccion && bySlugEs[slugify(p.traduccion)];
+		if (otra && !p._alternates) p._alternates = otra._alternates = { es: otra.url, en: p.url };
+	}
 }
 
 function normalizePosts(list) {
@@ -182,6 +213,7 @@ function redirects(ctx) {
 		const to = String(r.hacia || '').trim();
 		if (from.startsWith('/') && to) add(from, to);
 	}
+	if (ctx.enActivo) lines.push('/en/* /en/404.html 404');
 	return lines.join('\n') + '\n';
 }
 
@@ -198,7 +230,16 @@ async function main() {
 	const site = deepMerge(data.defaults, data.settings);
 	const agents = data.agents.slice().sort(byOrder);
 	const properties = normalizeProperties(data.properties);
-	const pages = normalizePages(data.pages);
+	// Las páginas y artículos con idioma "en" van al sitio en inglés.
+	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');
+	data.postsEn = (data.posts || []).filter((p) => p.idioma === 'en');
+	const pages = normalizePages(data.pages.filter((p) => p.idioma !== 'en'));
+	const enActivo = Boolean(site.en) && site.en.activo !== false;
+	// Pares de URLs español ↔ inglés para el selector de idioma.
+	const altMap = new Map();
+	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
+	[['/', '/en/'], ['/propiedades/', '/en/properties/'], ['/propiedades/venta/', '/en/properties/for-sale/'],
+		['/propiedades/renta/', '/en/properties/for-rent/'], ['/vip/', '/en/luxury/']].forEach(([a, b]) => registrarPar(a, b));
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const L = site.listados || {};
 	const nombre = site.general.nombreCorto;
@@ -213,7 +254,9 @@ async function main() {
 		agentsById: Object.fromEntries(agents.map((a) => [a.id, a])),
 		testimonials: data.testimonials.slice().sort(byOrder),
 		pages,
-		posts: normalizePosts(data.posts || []),
+		posts: normalizePosts((data.posts || []).filter((p) => p.idioma !== 'en')),
+		enActivo,
+		altLang: enActivo ? (ruta) => altMap.get(ruta) || '/en/' : null,
 		zonas: buildZonas(properties),
 		mobileVariant: (url) => {
 			const m = /^\/images\/(.+)\.webp$/.exec(url || '');
@@ -243,9 +286,9 @@ async function main() {
 		intro: (L[key] && L[key].intro) || defaults.intro || ''
 	});
 	const listings = [
-		listing('todas', { path: '/propiedades/', heading: 'Propiedades', title: `Propiedades en venta y renta en Guatemala | ${nombre}`, description: 'Casas, apartamentos, terrenos y oficinas en venta y renta en Guatemala. Filtra por zona, precio y número de habitaciones.' }),
-		listing('venta', { path: '/propiedades/venta/', operacion: 'venta', heading: 'Propiedades en venta', title: `Casas y apartamentos en venta en Guatemala | ${nombre}`, description: 'Propiedades en venta en Guatemala: casas, apartamentos y terrenos verificados, con asesoría en financiamiento.' }),
-		listing('renta', { path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${nombre}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' })
+		listing('todas', { alternates: enActivo ? { es: '/propiedades/', en: '/en/properties/' } : null, path: '/propiedades/', heading: 'Propiedades', title: `Propiedades en venta y renta en Guatemala | ${nombre}`, description: 'Casas, apartamentos, terrenos y oficinas en venta y renta en Guatemala. Filtra por zona, precio y número de habitaciones.' }),
+		listing('venta', { alternates: enActivo ? { es: '/propiedades/venta/', en: '/en/properties/for-sale/' } : null, path: '/propiedades/venta/', operacion: 'venta', heading: 'Propiedades en venta', title: `Casas y apartamentos en venta en Guatemala | ${nombre}`, description: 'Propiedades en venta en Guatemala: casas, apartamentos y terrenos verificados, con asesoría en financiamiento.' }),
+		listing('renta', { alternates: enActivo ? { es: '/propiedades/renta/', en: '/en/properties/for-rent/' } : null, path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${nombre}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' })
 	];
 	for (const l of listings) {
 		await writePage(l.path, T.listingPage(ctx, l));
@@ -288,6 +331,78 @@ async function main() {
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
 		urls.push({ path: page.url, priority: '0.4' });
+	}
+
+	// ------------------------------------------------ Sitio en inglés (/en/)
+	if (ctx.enActivo) {
+		const siteEn = deepMerge(site, site.en || {});
+		const propsEn = properties.map(propiedadEn).filter(Boolean);
+		const pagesEn = normalizePages(data.pagesEn, '/en');
+		const postsEn = normalizePosts(data.postsEn).map((p) => ({ ...p, url: `/en/blog/${p.slug}/` }));
+		enlazarTraducciones(pages, pagesEn);
+		enlazarTraducciones(ctx.posts, postsEn);
+		[...pages, ...ctx.posts].filter((x) => x._alternates).forEach((x) => registrarPar(x._alternates.es, x._alternates.en));
+		if (postsEn.length) registrarPar('/blog/', '/en/blog/');
+		const ctxEn = {
+			...ctx,
+			lang: 'en',
+			site: siteEn,
+			altLang: (ruta) => altMap.get(ruta) || '/',
+			properties: propsEn,
+			agents: agents.map((a) => ({ ...a, cargo: (a.en && a.en.cargo) || 'Real estate advisor', bio: (a.en && a.en.bio) || '' })),
+			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
+			pages: pagesEn,
+			posts: postsEn,
+			zonas: []
+		};
+		ctxEn.agentsById = Object.fromEntries(ctxEn.agents.map((a) => [a.id, a]));
+		const LE = siteEn.listados || {};
+		const listingEn = (key, defaults) => ({
+			...defaults,
+			heading: (LE[key] && LE[key].h1) || defaults.heading,
+			title: (LE[key] && LE[key].titulo) || defaults.title,
+			description: (LE[key] && LE[key].descripcion) || defaults.description,
+			intro: (LE[key] && LE[key].intro) || ''
+		});
+		await writePage('/en/', T.homePage(ctxEn));
+		urls.push({ path: '/en/', priority: '1.0' });
+		for (const l of [
+			listingEn('todas', { path: '/en/properties/', alternates: { es: '/propiedades/', en: '/en/properties/' }, heading: 'Properties in Guatemala', title: `Homes for sale and rent in Guatemala | ${nombre}`, description: 'Houses, condos and land for sale and rent in Guatemala City and beyond. Prices in USD, video tours and support for buyers in the US.' }),
+			listingEn('venta', { path: '/en/properties/for-sale/', operacion: 'venta', alternates: { es: '/propiedades/venta/', en: '/en/properties/for-sale/' }, heading: 'Homes for sale in Guatemala', title: `Homes for sale in Guatemala | ${nombre}`, description: 'Houses and condos for sale in Guatemala with verified titles, USD prices, live video tours and remote closing support for US buyers.' }),
+			listingEn('renta', { path: '/en/properties/for-rent/', operacion: 'renta', alternates: { es: '/propiedades/renta/', en: '/en/properties/for-rent/' }, heading: 'Homes for rent in Guatemala', title: `Homes for rent in Guatemala | ${nombre}`, description: 'Houses, condos and offices for rent in Guatemala City, with clear contracts and an English-speaking point of contact.' })
+		]) {
+			await writePage(l.path, T.listingPage(ctxEn, l));
+			urls.push({ path: l.path, priority: '0.9' });
+		}
+		await writePage('/en/luxury/', T.vipIndexPage(ctxEn));
+		urls.push({ path: '/en/luxury/', priority: '0.8' });
+		for (const p of propsEn) {
+			const es = properties.find((x) => x.id === p.id);
+			es._alternates = p._alternates = { es: T.propertyUrl(es), en: T.propertyUrl(p) };
+			registrarPar(T.propertyUrl(es), T.propertyUrl(p));
+			await writePage(T.propertyUrl(p), p.vip ? T.vipLandingPage(ctxEn, p) : T.propertyPage(ctxEn, p));
+			urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
+		}
+		for (const page of pagesEn) {
+			await writePage(page.url, T.contentPage(ctxEn, page));
+			urls.push({ path: page.url, priority: '0.6' });
+		}
+		if (postsEn.length) {
+			await writePage('/en/blog/', T.blogIndexPage(ctxEn));
+			urls.push({ path: '/en/blog/', priority: '0.6' });
+			for (const post of postsEn) {
+				await writePage(post.url, T.blogPostPage(ctxEn, post));
+				urls.push({ path: post.url, priority: '0.6' });
+			}
+		}
+		await writePage('/en/404.html', T.notFoundPage(ctxEn));
+		// Las fichas en español con traducción se regeneran con su enlace hreflang.
+		for (const es of properties.filter((x) => x._alternates)) {
+			await writePage(T.propertyUrl(es), es.vip ? T.vipLandingPage(ctx, es) : T.propertyPage(ctx, es));
+		}
+		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
+		for (const post of ctx.posts.filter((x) => x._alternates)) await writePage(post.url, T.blogPostPage(ctx, post));
+		console.log(`· Sitio en inglés: ${propsEn.length} propiedades traducidas, ${pagesEn.length} páginas, ${postsEn.length} artículos`);
 	}
 
 	await writePage('/404.html', T.notFoundPage(ctx));

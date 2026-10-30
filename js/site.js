@@ -3,6 +3,36 @@
 	'use strict';
 
 	var config = window.EQ_CONFIG || {};
+	var EN = document.documentElement.lang === 'en';
+	var T = EN ? {
+		errorDatos: 'Please enter your name and a valid phone number (8+ digits).',
+		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
+		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
+		una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
+		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
+	} : {
+		errorDatos: 'Escribe tu nombre y un teléfono válido (8 dígitos o más).',
+		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
+		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
+		una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
+		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
+	};
+
+	// ------------------------------------------------------------ Campañas (Google Ads, Meta, UTM)
+	// Se guarda la última visita que llegó desde una campaña para atribuir el lead al anuncio.
+	var CAMPOS_CAMPANA = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
+	var campana = null;
+	try {
+		var qs = new URLSearchParams(location.search);
+		var nueva = {};
+		CAMPOS_CAMPANA.forEach(function (k) { if (qs.get(k)) nueva[k] = qs.get(k).slice(0, 150); });
+		if (Object.keys(nueva).length) {
+			nueva.landing = location.pathname.slice(0, 150);
+			localStorage.setItem('eq_campana', JSON.stringify({ datos: nueva, t: Date.now() }));
+		}
+		var guardada = JSON.parse(localStorage.getItem('eq_campana') || 'null');
+		if (guardada && Date.now() - guardada.t < 30 * 24 * 3600 * 1000) campana = guardada.datos;
+	} catch (e) { /* almacenamiento no disponible */ }
 
 	// ------------------------------------------------------------ Seguimiento (Meta Pixel + GTM)
 
@@ -62,6 +92,13 @@
 			estado: str('nuevo')
 		};
 		if (lead.fechaVisita) fields.fechaVisita = str(lead.fechaVisita);
+		if (lead.tipoVisita) fields.tipoVisita = str(lead.tipoVisita);
+		fields.idioma = str(lead.idioma);
+		if (lead.campana) {
+			var mapa = {};
+			Object.keys(lead.campana).slice(0, 8).forEach(function (k) { mapa[k] = str(lead.campana[k]); });
+			fields.campana = { mapValue: { fields: mapa } };
+		}
 		var body = {
 			writes: [{
 				update: { name: base + '/leads/' + randomId(), fields: fields },
@@ -75,7 +112,7 @@
 	}
 
 	function whatsappFallback(lead) {
-		var text = 'Hola, soy ' + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? ' Me gustaría visitarla el ' + lead.fechaVisita + '.' : '') + ' Mi teléfono: ' + lead.telefono;
+		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + lead.fechaVisita + '.' : '') + T.tel + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
 	}
 
@@ -101,8 +138,11 @@
 				agentId: form.getAttribute('data-agent-id') || ''
 			};
 			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
+			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
+			lead.idioma = EN ? 'en' : 'es';
+			if (campana) lead.campana = campana;
 			if (!lead.nombre || lead.telefono.replace(/\D/g, '').length < 8) {
-				setStatus(form, 'Escribe tu nombre y un teléfono válido (8 dígitos o más).', false);
+				setStatus(form, T.errorDatos, false);
 				return;
 			}
 			var button = form.querySelector('button[type=submit]');
@@ -111,11 +151,11 @@
 			var done = function () {
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [] });
 				form.reset();
-				setStatus(form, '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.', true);
+				setStatus(form, T.gracias, true);
 			};
 			var fail = function () {
-				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>.' : '';
-				setStatus(form, 'No pudimos enviar el formulario.' + wa, false);
+				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
+				setStatus(form, T.fallo + wa, false);
 			};
 
 			if (!config.projectId) {
@@ -144,6 +184,7 @@
 		var emptyEl = document.getElementById('listing-empty');
 		var pager = document.getElementById('listing-pagination');
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
+		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/' };
 		var presetZona = document.body.getAttribute('data-preset-zona') || '';
 		var page = 1;
 		var lastSearch = '';
@@ -191,7 +232,7 @@
 				c.hidden = i < (page - 1) * PER_PAGE || i >= page * PER_PAGE;
 			});
 
-			countEl.textContent = visible.length === 1 ? '1 propiedad' : visible.length + ' propiedades';
+			countEl.textContent = visible.length === 1 ? T.una : visible.length + T.varias;
 			emptyEl.hidden = visible.length > 0;
 			pager.innerHTML = '';
 			if (pages > 1) {
@@ -225,14 +266,14 @@
 			var op = form.elements.operacion.value;
 			if (op === preset) return;
 			var qs = location.search;
-			location.href = '/propiedades/' + (op ? op + '/' : '') + qs;
+			location.href = rutas[op] + qs;
 		});
 
 		// En la página de una zona, elegir otra zona lleva al listado general filtrado.
 		if (presetZona) {
 			form.elements.zona.addEventListener('change', function () {
 				var z = form.elements.zona.value;
-				location.href = '/propiedades/' + (preset ? preset + '/' : '') + (z ? '?zona=' + encodeURIComponent(z) : '');
+				location.href = rutas[preset] + (z ? '?zona=' + encodeURIComponent(z) : '');
 			});
 		}
 
@@ -272,9 +313,9 @@
 			};
 			var buscarIA = function () {
 				var texto = iaInput.value.trim();
-				if (texto.length < 4) { iaStatus.textContent = 'Escribe qué estás buscando.'; return; }
+				if (texto.length < 4) { iaStatus.textContent = T.escribe; return; }
 				iaBtn.disabled = true;
-				iaStatus.textContent = 'Buscando…';
+				iaStatus.textContent = T.buscando;
 				fetch('/api/ia', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -288,7 +329,7 @@
 						if (r.operacion && r.operacion !== preset) {
 							var qs = new URLSearchParams();
 							Object.keys(valores).forEach(function (k) { if (valores[k]) qs.set(k, valores[k]); });
-							location.href = '/propiedades/' + r.operacion + '/' + (qs.toString() ? '?' + qs : '');
+							location.href = rutas[r.operacion] + (qs.toString() ? '?' + qs : '');
 							return;
 						}
 						Object.keys(valores).forEach(function (k) { if (f[k] && !(presetZona && k === 'zona')) f[k].value = valores[k]; });
@@ -296,7 +337,7 @@
 						apply(true);
 						iaStatus.textContent = r.respuesta || '';
 					})
-					.catch(function (err) { iaStatus.textContent = err.message === 'Failed to fetch' ? 'No pudimos conectar. Usa los filtros de abajo.' : err.message; })
+					.catch(function (err) { iaStatus.textContent = err.message === 'Failed to fetch' ? T.sinConexion : err.message; })
 					.then(function () { iaBtn.disabled = false; });
 			};
 			iaBtn.addEventListener('click', buscarIA);
@@ -317,7 +358,7 @@
 			var meses = Math.max(1, parseInt(box.querySelector('[name=anios]').value, 10) || 1) * 12;
 			var prestamo = precio * (1 - enganche / 100);
 			var cuota = tasa ? prestamo * tasa / (1 - Math.pow(1 + tasa, -meses)) : prestamo / meses;
-			out.innerHTML = 'Cuota aproximada: <strong>' + fmt(cuota) + ' al mes</strong><br><span class="small">Enganche ' + fmt(precio * enganche / 100) + ' · Préstamo ' + fmt(prestamo) + '</span>';
+			out.innerHTML = T.cuota + '<strong>' + fmt(cuota) + T.alMes + '</strong><br><span class="small">' + T.enganche + fmt(precio * enganche / 100) + T.prestamo + fmt(prestamo) + '</span>';
 		};
 		box.addEventListener('input', calc);
 		calc();
