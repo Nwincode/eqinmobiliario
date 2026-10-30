@@ -9758,15 +9758,23 @@ textarea {
   padding-bottom: 4rem; }
   .section .heading {
     font-weight: 500; }
-    @media (max-width: 767.98px) {
-      .section .heading {
-        font-size: 36px; }
-      .menu-bg-wrap {
-        display: flex; padding: 15px 20px;}
-      .menu-bg-wrap a { flex-grow: 2; }
-      .menu-bg-wrap div { margin:auto; }
-/*      .logo-media {}*/
-      }
+
+@media (max-width: 812px) and (orientation: landscape), (max-width: 767.98px) and (orientation: portrait) { 
+    .menu-bg-wrap {
+    padding: 15px 20px;}
+    
+  }
+
+@media (max-width: 767.98px) {
+  .section .heading {
+    font-size: 36px; }
+  .menu-bg-wrap {
+    display: flex;}
+  .menu-bg-wrap a {
+    flex-grow:2;}
+  .menu-bg-wrap div {
+    margin:auto;}
+}
 
 .testimonial blockquote {
   font-style: 18px;
@@ -9776,7 +9784,7 @@ textarea {
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  background-attachment: fixed; }
+  background-attachment: fixed;}
   .bg-image.overlay {
     position: relative; }
     .bg-image.overlay:before {
@@ -10388,7 +10396,7 @@ nav[aria-label="breadcrumb"] li:before {
       .site-footer .social li a:hover {
         background: #00204a;
         color: #fff; }
-  @media screen and (max-width: 768px) {
-      .col-lg-6 {text-align:center; align-items:center; }
+  @media (max-width: 812px) and (orientation: landscape), (max-width: 768.98px) and (orientation: portrait) {
+      .col-lg-6 {text-align:center; align-items:center; margin-bottom: 1rem;}
       
   }
