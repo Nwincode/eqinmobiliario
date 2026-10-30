@@ -1,13 +1,13 @@
 /* Estilos propios del sitio (complementan css/style.css de la plantilla). */
 
 :root {
-	--eq-primary: #1565c0;
+	--eq-primary: #0e5e8a;
 	--eq-cyan: #00b7e7;
-	--eq-mist: #ebf8fd;
+	--eq-mist: #e8f7fd;
 	--eq-white: #ffffff;
-	--eq-dark: #101317;
-	--eq-blue-dark: #0f4f9e;
-	--eq-ink: #4a5560;
+	--eq-dark: #0e1920;
+	--eq-blue-dark: #004a72;
+	--eq-ink: #5b666f;
 	--eq-gold: #c9a45c;
 }
 
@@ -84,19 +84,19 @@
 .prop-facts dt {
 	font-size: 12px;
 	font-weight: 500;
-	color: #4a5560;
+	color: #5b666f;
 	text-transform: uppercase;
 	letter-spacing: .04em;
 }
 .prop-facts dd {
 	margin: 0;
 	font-weight: 600;
-	color: #101317;
+	color: #0e1920;
 }
 .prop-description p,
 .content-page p,
 .content-page li {
-	color: #4a5560;
+	color: #5b666f;
 	line-height: 1.75;
 }
 .amenities-list {
@@ -124,7 +124,7 @@
 .lead-form .form-label {
 	font-size: 13px;
 	font-weight: 500;
-	color: #4a5560;
+	color: #5b666f;
 	margin-bottom: .25rem;
 }
 .lead-form .form-control {
@@ -168,7 +168,7 @@
 .listing-filters .form-label {
 	font-size: 12px;
 	font-weight: 600;
-	color: #4a5560;
+	color: #5b666f;
 	margin-bottom: .25rem;
 }
 .custom-pagination a {
@@ -295,7 +295,7 @@
 	padding: 20px 24px 24px;
 }
 .post-card h2 a {
-	color: #101317;
+	color: #0e1920;
 	text-decoration: none;
 }
 .post-card h2 a:hover {
@@ -320,11 +320,11 @@
    cuerpo en gris al 50 % con !important; aquí se mantiene el gris pero legible. */
 .text-black-50,
 body {
-	color: #4a5560 !important;
+	color: #5b666f !important;
 }
 .property-item .property-content .specs .caption,
 .meta {
-	color: #4a5560;
+	color: #5b666f;
 }
 .logo-media {
 	height: auto;
@@ -334,20 +334,20 @@ body {
 .site-footer,
 .site-footer p,
 .site-footer li {
-	color: #4a5560;
+	color: #5b666f;
 }
 .site-footer a {
-	color: #4a5560;
+	color: #5b666f;
 }
 .box-feature p,
 .testimonial p,
 .person p {
-	color: #4a5560;
+	color: #5b666f;
 }
 
 /* Calculadora de cuota */
 .calc-card {
-	background: #ebf8fd;
+	background: #e8f7fd;
 	border-radius: 8px;
 	padding: 20px;
 }
@@ -370,7 +370,7 @@ body {
 
 .content-note {
 	border-left: 3px solid var(--eq-primary);
-	background: #ebf8fd;
+	background: #e8f7fd;
 	padding: 12px 16px;
 	margin: 1.5rem 0;
 	border-radius: 0 6px 6px 0;
@@ -381,7 +381,7 @@ body {
 
 /* Bloque para compradores en el extranjero */
 .exterior-block {
-	background: linear-gradient(135deg, #ebf8fd 0%, #ffffff 100%);
+	background: linear-gradient(135deg, #e8f7fd 0%, #ffffff 100%);
 }
 .exterior-kicker {
 	display: inline-block;
@@ -408,7 +408,7 @@ body {
 	padding: 14px 18px;
 	box-shadow: 0 8px 24px -18px rgba(0, 32, 74, .4);
 	font-weight: 500;
-	color: #101317;
+	color: #0e1920;
 }
 .exterior-list li span {
 	color: var(--eq-primary);
@@ -416,7 +416,7 @@ body {
 
 /* Selector de idioma en el menú */
 
-/* Paleta: negro #101317, blanco, celeste #00b7e7 (acento) y azul #1565c0 (acciones).
+/* Paleta derivada del celeste del logo en OKLCH (tono 225°–240°): tinta #0e1920, azul profundo #0e5e8a (acciones), celeste #00b7e7 (acento), piedra #5b666f, línea #e0e5e8, niebla #f6f8fb.
    El celeste va sobre negro o como acento decorativo; sobre fondo claro se usa
    el azul Equipo (--eq-primary) para que los textos cumplan contraste AA. */
 body {
@@ -482,7 +482,7 @@ h2.heading::after,
 	float: none;
 	padding: 10px 14px 10px 20px;
 	border-radius: 999px;
-	background: rgba(16, 19, 23, .72);
+	background: rgba(14, 25, 32, .72);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
 	backdrop-filter: blur(14px) saturate(140%);
 	border: 1px solid rgba(255, 255, 255, .08);
@@ -494,7 +494,7 @@ h2.heading::after,
 }
 .site-nav.is-scrolled .menu-bg-wrap {
 	background: var(--eq-dark);
-	box-shadow: 0 10px 30px -12px rgba(16, 19, 23, .55);
+	box-shadow: 0 10px 30px -12px rgba(14, 25, 32, .55);
 }
 .nav-brand {
 	display: inline-flex;
@@ -575,7 +575,7 @@ h2.heading::after,
 	border-radius: 14px;
 	padding: 8px;
 	margin-top: 10px;
-	box-shadow: 0 18px 40px -14px rgba(16, 19, 23, .6);
+	box-shadow: 0 18px 40px -14px rgba(14, 25, 32, .6);
 	min-width: 210px;
 }
 .site-nav .site-navigation .site-menu .has-children .dropdown > li > a {
@@ -783,7 +783,7 @@ a {
 /* Portada y cabeceras: velo azul noche en lugar de negro */
 .hero.overlay:before,
 .hero-slide .img.overlay:before {
-	background: linear-gradient(180deg, rgba(16, 19, 23, .55) 0%, rgba(16, 19, 23, .35) 45%, rgba(16, 19, 23, .7) 100%) !important;
+	background: linear-gradient(180deg, rgba(14, 25, 32, .55) 0%, rgba(14, 25, 32, .35) 45%, rgba(14, 25, 32, .7) 100%) !important;
 }
 
 /* Botones */
@@ -814,8 +814,8 @@ a {
 	background: #fff;
 	border-radius: 14px;
 	overflow: hidden;
-	box-shadow: 0 1px 2px rgba(16, 19, 23, .06), 0 10px 30px -18px rgba(16, 19, 23, .35);
-	border: 1px solid rgba(16, 19, 23, .06);
+	box-shadow: 0 1px 2px rgba(14, 25, 32, .06), 0 10px 30px -18px rgba(14, 25, 32, .35);
+	border: 1px solid rgba(14, 25, 32, .06);
 }
 .property-item .img img {
 	border-radius: 0;
@@ -850,7 +850,7 @@ a {
 	background: #fff;
 	border-radius: 14px;
 	padding: 32px 24px;
-	box-shadow: 0 10px 30px -20px rgba(16, 19, 23, .45);
+	box-shadow: 0 10px 30px -20px rgba(14, 25, 32, .45);
 	height: 100%;
 }
 .features-1 .box-feature span[class^="flaticon"],
@@ -919,7 +919,7 @@ a {
 .section-5 .person {
 	background: #fff;
 	border-radius: 14px;
-	box-shadow: 0 10px 30px -22px rgba(16, 19, 23, .5);
+	box-shadow: 0 10px 30px -22px rgba(14, 25, 32, .5);
 }
 
 /* Pie de página azul noche */
@@ -974,10 +974,10 @@ a {
 }
 .property-slider .property-item > .property-content {
 	background: #fff;
-	border: 1px solid rgba(16, 19, 23, .06);
+	border: 1px solid rgba(14, 25, 32, .06);
 	border-top: 0;
 	border-radius: 0 0 14px 14px;
-	box-shadow: 0 14px 28px -20px rgba(16, 19, 23, .4);
+	box-shadow: 0 14px 28px -20px rgba(14, 25, 32, .4);
 }
 
 /* ================================================================
@@ -987,7 +987,7 @@ a {
    pesadas, sin degradados, sin decoración que no informe.
    ================================================================ */
 :root {
-	--eq-line: #e7eaed;
+	--eq-line: #e0e5e8;
 }
 .section {
 	padding-top: 6rem;
@@ -1006,7 +1006,7 @@ h2.heading::after,
 /* Portada: velo negro uniforme */
 .hero.overlay:before,
 .hero-slide .img.overlay:before {
-	background: rgba(16, 19, 23, .45) !important;
+	background: rgba(14, 25, 32, .45) !important;
 }
 
 /* Botones: rectángulos suaves, planos */
@@ -1152,7 +1152,7 @@ h2.heading::after,
 
 /* Menú: negro sólido y sin línea celeste inferior */
 .site-nav .menu-bg-wrap {
-	background: rgba(16, 19, 23, .82);
+	background: rgba(14, 25, 32, .82);
 	border: 0;
 }
 .site-nav.is-scrolled .menu-bg-wrap {
@@ -1422,7 +1422,7 @@ h2.heading::after,
 	justify-content: center;
 }
 .ficha-similares {
-	background: #f6f7f8;
+	background: #f6f8fb;
 }
 
 /* Visor de fotos a pantalla completa */
@@ -1434,11 +1434,11 @@ h2.heading::after,
 	margin: 0;
 	padding: 0;
 	border: 0;
-	background: rgba(16, 19, 23, .96);
+	background: rgba(14, 25, 32, .96);
 	color: #fff;
 }
 .ficha-lightbox::backdrop {
-	background: rgba(16, 19, 23, .96);
+	background: rgba(14, 25, 32, .96);
 }
 .ficha-lightbox[open] {
 	display: flex;
@@ -1518,7 +1518,7 @@ h2.heading::after,
 		bottom: 12px;
 		padding: 4px 10px;
 		border-radius: 6px;
-		background: rgba(16, 19, 23, .7);
+		background: rgba(14, 25, 32, .7);
 		color: #fff;
 		font-size: 12px;
 	}
@@ -1542,12 +1542,12 @@ h2.heading::after,
 
 /* Sobrio: fondos neutros; el celeste queda solo en detalles mínimos */
 :root {
-	--eq-mist: #f6f7f8;
+	--eq-mist: #f6f8fb;
 }
 .bg-light,
 .features-1,
 .exterior-block {
-	background: #f6f7f8 !important;
+	background: #f6f8fb !important;
 }
 .site-nav .site-navigation .site-menu > li.nav-cta > a {
 	background: transparent;
@@ -1638,7 +1638,7 @@ h2.heading::after,
 		border: 0;
 		border-bottom: 1px solid rgba(255, 255, 255, .12);
 		/* Vidrio: deja ver la foto de la portada */
-		background: rgba(16, 19, 23, .28);
+		background: rgba(14, 25, 32, .28);
 		-webkit-backdrop-filter: blur(18px) saturate(160%);
 		backdrop-filter: blur(18px) saturate(160%);
 		transition: background-color .3s ease, border-color .3s ease;
@@ -1646,7 +1646,7 @@ h2.heading::after,
 	.site-nav.is-scrolled .menu-bg-wrap,
 	.pagina-ficha .site-nav .menu-bg-wrap,
 	.offcanvas-menu .site-nav .menu-bg-wrap {
-		background: rgba(16, 19, 23, .86);
+		background: rgba(14, 25, 32, .86);
 		border-bottom-color: transparent;
 		box-shadow: none;
 	}
@@ -1695,7 +1695,7 @@ h2.heading::after,
 		right: 0;
 		z-index: 999;
 		padding: 88px 0 32px;
-		background: rgba(16, 19, 23, .94) !important;
+		background: rgba(14, 25, 32, .94) !important;
 		-webkit-backdrop-filter: blur(20px);
 		backdrop-filter: blur(20px);
 		transform: none !important;
@@ -1806,4 +1806,10 @@ h2.heading::after,
 body.offcanvas-menu .wa-float {
 	opacity: 0;
 	visibility: hidden;
+}
+/* En escritorio el menú de celular no existe (antes quedaba fuera de pantalla pero recibía el foco con Tab) */
+@media (min-width: 992px) {
+	.site-mobile-menu {
+		display: none !important;
+	}
 }
