@@ -1,5 +1,6 @@
 import { h, badge, slugify, toast } from '../ui.js';
 import { crudView } from '../crud.js';
+import { seoPreviewField, stripMd } from '../seo.js';
 
 const RESERVED = ['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404'];
 
@@ -26,7 +27,12 @@ export const render = crudView({
 		{ name: 'publicado', label: 'Publicada', type: 'checkbox', cols: 4 },
 		{ type: 'section', label: 'SEO (opcional)' },
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70 },
-		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 }
+		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+		seoPreviewField({
+			title: (d) => d.seo?.titulo || `${d.titulo || ''} | Equipo Inmobiliario`,
+			description: (d) => d.seo?.descripcion || stripMd(d.contenido),
+			path: (d) => `/${slugify(d.slug || d.titulo || '')}/`
+		})
 	],
 	beforeSave: (d, ref, all) => {
 		d.slug = slugify(d.slug || d.titulo);

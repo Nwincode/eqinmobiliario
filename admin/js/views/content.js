@@ -1,6 +1,6 @@
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader } from '../ui.js';
-import { renderForm } from '../form.js';
+import { renderForm, getPath, setPath } from '../form.js';
 import { markPending } from '../session.js';
 
 const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
@@ -21,14 +21,62 @@ const GROUPS = [
 		]
 	},
 	{
-		id: 'seo', label: 'SEO y seguimiento', keys: ['seo', 'tracking'], fields: [
+		id: 'google', label: 'Google y anuncios', keys: ['seo', 'tracking'], fields: [
+			{ type: 'section', label: 'Google Search Console', help: 'Para que Google indexe el sitio y ver cómo te encuentran. En search.google.com/search-console agrega el dominio con "Prefijo de URL", elige el método "Etiqueta HTML" y pega aquí solo el código del atributo content. Luego envía el sitemap: /sitemap.xml' },
+			{ name: 'seo.googleVerification', label: 'Código de verificación de Google', cols: 6, placeholder: 'p. ej. AbC123xyz…' },
+			{ name: 'seo.bingVerification', label: 'Código de verificación de Bing (opcional)', cols: 6 },
+			{ name: 'seo.indexar', label: 'Permitir que Google indexe el sitio', type: 'checkbox', default: true, help: 'Desactívalo solo si el sitio no debe aparecer en buscadores.' },
+			{ type: 'section', label: 'Google Analytics 4', help: 'Mide visitas y conversiones. Si ya configuraste GA4 dentro de Google Tag Manager, deja este campo vacío para no contar doble.' },
+			{ name: 'tracking.ga4Id', label: 'ID de medición de GA4', cols: 6, placeholder: 'G-XXXXXXXXXX' },
+			{ type: 'section', label: 'Google Ads', help: 'Para medir qué anuncios generan clientes. En Google Ads → Objetivos → Conversiones crea una acción "Enviar formulario de clientes potenciales" (y opcional otra de "Contacto"), elige "Configurar con Google tag" y copia el ID (AW-…) y la etiqueta de conversión.' },
+			{ name: 'tracking.adsId', label: 'ID de Google Ads', cols: 4, placeholder: 'AW-123456789' },
+			{ name: 'tracking.adsLeadLabel', label: 'Etiqueta de conversión: formulario', cols: 4, placeholder: 'AbCdEfGh123' },
+			{ name: 'tracking.adsContactLabel', label: 'Etiqueta de conversión: WhatsApp / llamada', cols: 4 },
+			{ type: 'section', label: 'Meta (Facebook / Instagram) y Tag Manager' },
+			{ name: 'tracking.pixelId', label: 'Meta Pixel (ID)', cols: 6, placeholder: '212605361803683', help: 'Envía PageView, ViewContent, Search, Contact y Lead automáticamente.' },
+			{ name: 'tracking.gtmId', label: 'Google Tag Manager (ID)', cols: 6, placeholder: 'GTM-XXXXXXX' },
+			{ type: 'section', label: 'Redirecciones 301', help: 'Para URLs viejas que ya están en Google (p. ej. de la web anterior). Los cambios de URL de propiedades se redirigen solos.' },
+			{ name: 'seo.redirecciones', label: 'Redirecciones', type: 'list', itemLabel: 'Redirección', fields: [
+				{ name: 'desde', label: 'Desde', cols: 6, placeholder: '/casa-zona-16-vieja/' },
+				{ name: 'hacia', label: 'Hacia', cols: 6, placeholder: '/propiedad/casa-residencial-san-antonio-zona-16/' }] }
+		]
+	},
+	{
+		id: 'seo', label: 'SEO de la portada', keys: ['seo'], fields: [
 			{ name: 'seo.titulo', label: 'Título de la portada (Google)', maxlength: 70, required: true },
 			{ name: 'seo.descripcion', label: 'Descripción (Google)', type: 'textarea', rows: 3, maxlength: 160, required: true, help: 'Máximo 160 caracteres. Aparece debajo del título en Google.' },
 			{ name: 'seo.keywords', label: 'Palabras clave', type: 'textarea', rows: 2 },
-			{ name: 'seo.imagen', label: 'Imagen al compartir en redes (1200×630 ideal)', type: 'image' },
-			{ type: 'section', label: 'Seguimiento' },
-			{ name: 'tracking.gtmId', label: 'Google Tag Manager (ID)', cols: 6, placeholder: 'GTM-XXXXXXX' },
-			{ name: 'tracking.pixelId', label: 'Meta Pixel (ID)', cols: 6, placeholder: '212605361803683', help: 'El sitio envía PageView, ViewContent, Search, Contact y Lead automáticamente.' }
+			{ name: 'seo.imagen', label: 'Imagen al compartir en redes (1200×630 ideal)', type: 'image' }
+		]
+	},
+	{
+		id: 'listados', label: 'Títulos de listados', keys: ['listados'], fields: [
+			{ type: 'section', label: 'Listados', help: 'Títulos y descripciones de las páginas de listado. Si los dejas vacíos se usan unos predeterminados optimizados.' },
+			{ type: 'section', label: 'Todas las propiedades (/propiedades/)' },
+			{ name: 'listados.todas.h1', label: 'Título visible (H1)', cols: 6 },
+			{ name: 'listados.todas.titulo', label: 'Título para Google', maxlength: 70, cols: 6 },
+			{ name: 'listados.todas.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+			{ name: 'listados.todas.intro', label: 'Texto de introducción', type: 'textarea', rows: 2 },
+			{ type: 'section', label: 'En venta (/propiedades/venta/)' },
+			{ name: 'listados.venta.h1', label: 'Título visible (H1)', cols: 6 },
+			{ name: 'listados.venta.titulo', label: 'Título para Google', maxlength: 70, cols: 6 },
+			{ name: 'listados.venta.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+			{ name: 'listados.venta.intro', label: 'Texto de introducción', type: 'textarea', rows: 2 },
+			{ type: 'section', label: 'En renta (/propiedades/renta/)' },
+			{ name: 'listados.renta.h1', label: 'Título visible (H1)', cols: 6 },
+			{ name: 'listados.renta.titulo', label: 'Título para Google', maxlength: 70, cols: 6 },
+			{ name: 'listados.renta.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+			{ name: 'listados.renta.intro', label: 'Texto de introducción', type: 'textarea', rows: 2 },
+			{ type: 'section', label: 'Propiedades VIP (/vip/)' },
+			{ name: 'listados.vip.h1', label: 'Título visible (H1)', cols: 6 },
+			{ name: 'listados.vip.titulo', label: 'Título para Google', maxlength: 70, cols: 6 },
+			{ name: 'listados.vip.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+			{ name: 'listados.vip.intro', label: 'Texto de introducción', type: 'textarea', rows: 2 },
+			{ type: 'section', label: 'Blog (/blog/)' },
+			{ name: 'listados.blog.h1', label: 'Título visible (H1)', cols: 6 },
+			{ name: 'listados.blog.titulo', label: 'Título para Google', maxlength: 70, cols: 6 },
+			{ name: 'listados.blog.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+			{ name: 'listados.blog.intro', label: 'Texto de introducción', type: 'textarea', rows: 2 },
 		]
 	},
 	{
@@ -134,8 +182,12 @@ export async function render(container) {
 		for (const { g, form } of forms) {
 			if (!form.validate()) { show(g.id); return; }
 		}
-		const out = { ...data };
-		forms.forEach(({ g, form }) => g.keys.forEach((k) => { out[k] = form.getData()[k]; }));
+		const out = structuredClone(data);
+		// Campo por campo: varias pestañas editan partes distintas de la misma sección (p. ej. "seo").
+		forms.forEach(({ g, form }) => {
+			const d = form.getData();
+			g.fields.filter((f) => f.name).forEach((f) => setPath(out, f.name, getPath(d, f.name)));
+		});
 		out.hero.imagenes = (out.hero.imagenes || []).map((i) => i.url).filter(Boolean);
 		out.updatedAt = serverTimestamp();
 		btn.disabled = true;

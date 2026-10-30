@@ -1,6 +1,7 @@
 import { h, badge, slugify, toast, formatDate } from '../ui.js';
 import { crudView } from '../crud.js';
 import { session } from '../session.js';
+import { seoPreviewField, stripMd } from '../seo.js';
 
 export const render = crudView({
 	collection: 'posts',
@@ -26,7 +27,17 @@ export const render = crudView({
 		{ name: 'publicado', label: 'Publicado', type: 'checkbox', cols: 4 },
 		{ type: 'section', label: 'SEO (opcional)' },
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70 },
-		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 }
+		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+		seoPreviewField({
+			title: (d) => d.seo?.titulo || `${d.titulo || ''} | Blog Equipo Inmobiliario`,
+			description: (d) => d.seo?.descripcion || d.resumen || stripMd(d.contenido),
+			path: (d) => `/blog/${slugify(d.slug || d.titulo || '')}/`,
+			checks: (d) => [
+				[stripMd(d.contenido).split(/\s+/).filter(Boolean).length >= 300, 'Artículo de al menos 300 palabras.'],
+				[Boolean(d.imagen), 'Tiene imagen principal.'],
+				[/^##\s/m.test(d.contenido || ''), 'Usa subtítulos (## …) para organizar el texto.']
+			]
+		})
 	],
 	beforeSave: (d, ref, all) => {
 		d.slug = slugify(d.slug || d.titulo);

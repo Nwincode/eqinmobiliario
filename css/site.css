@@ -45,7 +45,7 @@
 	border-radius: 20px;
 }
 .prop-badge-vip {
-	background: var(--eq-gold);
+	background: #85662b;
 	color: #fff;
 }
 .prop-badge-estado {
@@ -79,7 +79,7 @@
 .prop-facts dt {
 	font-size: 12px;
 	font-weight: 500;
-	color: #888;
+	color: #5c6670;
 	text-transform: uppercase;
 	letter-spacing: .04em;
 }
@@ -295,4 +295,47 @@
 }
 .post-card h2 a:hover {
 	color: var(--eq-primary);
+}
+
+/* Fondos de portada: versión liviana en celulares cuando existe */
+.hero-slide .img,
+.hero.page-inner,
+.vip-hero {
+	background-image: var(--bg);
+}
+@media (max-width: 800px) {
+	.hero-slide .img,
+	.hero.page-inner,
+	.vip-hero {
+		background-image: var(--bg-m, var(--bg));
+	}
+}
+
+/* Contraste suficiente para textos secundarios (WCAG AA). style.css pone el
+   cuerpo en gris al 50 % con !important; aquí se mantiene el gris pero legible. */
+.text-black-50,
+body {
+	color: #5c6670 !important;
+}
+.property-item .property-content .specs .caption,
+.meta {
+	color: #5c6670;
+}
+.logo-media {
+	height: auto;
+}
+
+/* Contraste del pie de página y textos de la plantilla */
+.site-footer,
+.site-footer p,
+.site-footer li {
+	color: #555b61;
+}
+.site-footer a {
+	color: #4a5056;
+}
+.box-feature p,
+.testimonial p,
+.person p {
+	color: #555b61;
 }

@@ -72,9 +72,11 @@ export function renderForm(schema, data, options = {}) {
 	const folder = options.folder || 'uploads';
 	const conditionals = [];
 	const required = [];
+	const customs = [];
 
 	const refresh = () => {
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
+		customs.forEach(({ el, update }) => update(el, state));
 		if (options.onChange) options.onChange(state);
 	};
 
@@ -93,6 +95,14 @@ export function renderForm(schema, data, options = {}) {
 		let control;
 
 		switch (field.type) {
+			// Bloque informativo que se recalcula con cada cambio (p. ej. vista previa de Google).
+			case 'custom': {
+				const el = h('div');
+				customs.push({ el, update: field.update });
+				return h('div', { class: `col-12 col-md-${field.cols || 12}` },
+					field.label ? h('div', { class: 'form-label' }, field.label) : null, el);
+			}
+
 			case 'section':
 				return h('div', { class: 'col-12 form-section' },
 					h('h2', { class: 'h6 text-uppercase text-muted mb-0 mt-3' }, field.label),

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder } from './lib/util.mjs';
 import * as T from './lib/templates.mjs';
+import { buildAssets } from './lib/assets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -152,10 +153,43 @@ function sitemap(ctx, urls) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
 	const today = new Date().toISOString().slice(0, 10);
 	return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `	<url><loc>${base}${u.path}</loc><lastmod>${u.lastmod || today}</lastmod>${u.priority ? `<priority>${u.priority}</priority>` : ''}</url>`).join('\n')}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${urls.map((u) => `	<url><loc>${base}${u.path}</loc><lastmod>${u.lastmod || today}</lastmod>${u.priority ? `<priority>${u.priority}</priority>` : ''}${imageEntries(ctx, u)}</url>`).join('\n')}
 </urlset>
 `;
+}
+
+// Redirecciones 301 para no perder posicionamiento: URLs anteriores de cada
+// propiedad, cambio entre ficha normal y landing VIP, y las que se agreguen en el panel.
+function redirects(ctx) {
+	const lines = [];
+	const add = (from, to) => {
+		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
+	};
+	for (const p of ctx.properties) {
+		const url = T.propertyUrl(p);
+		add(p.vip ? `/propiedad/${p.slug}/` : `/vip/${p.slug}/`, url);
+		for (const old of p.slugsAnteriores || []) {
+			const s = slugify(old);
+			if (s && s !== p.slug) {
+				add(`/propiedad/${s}/`, url);
+				add(`/vip/${s}/`, url);
+			}
+		}
+	}
+	for (const r of ctx.site.seo.redirecciones || []) {
+		const from = String(r.desde || '').trim();
+		const to = String(r.hacia || '').trim();
+		if (from.startsWith('/') && to) add(from, to);
+	}
+	return lines.join('\n') + '\n';
+}
+
+function imageEntries(ctx, u) {
+	return (u.images || []).slice(0, 20).map((img) => {
+		const loc = /^https?:/.test(img) ? img : ctx.siteUrl.replace(/\/$/, '') + img;
+		return `<image:image><image:loc>${loc.replace(/&/g, '&amp;')}</image:loc></image:image>`;
+	}).join('');
 }
 
 async function main() {
@@ -165,9 +199,14 @@ async function main() {
 	const agents = data.agents.slice().sort(byOrder);
 	const properties = normalizeProperties(data.properties);
 	const pages = normalizePages(data.pages);
+	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
+	const L = site.listados || {};
+	const nombre = site.general.nombreCorto;
 
 	const ctx = {
-		siteUrl: process.env.URL && process.env.CONTEXT !== 'production' ? process.env.DEPLOY_PRIME_URL || process.env.URL : config.siteUrl,
+		siteUrl: isProduction ? config.siteUrl : process.env.DEPLOY_PRIME_URL || process.env.URL || config.siteUrl,
+		// Vistas previas de Netlify o sitio marcado "no indexar": Google no debe indexarlas.
+		noindex: !isProduction || site.seo.indexar === false,
 		site,
 		properties,
 		agents,
@@ -176,11 +215,16 @@ async function main() {
 		pages,
 		posts: normalizePosts(data.posts || []),
 		zonas: buildZonas(properties),
+		mobileVariant: (url) => {
+			const m = /^\/images\/(.+)\.webp$/.exec(url || '');
+			return m && existsSync(path.join(ROOT, 'images', `${m[1]}-800.webp`)) ? `/images/${m[1]}-800.webp` : null;
+		},
 		publicConfig: {
 			projectId: config.firebase.projectId || '',
 			apiKey: config.firebase.apiKey || '',
-			pixel: Boolean(site.tracking && site.tracking.pixelId),
-			whatsapp: site.contacto.whatsapp || ''
+			whatsapp: site.contacto.whatsapp || '',
+			adsLead: site.tracking.adsId && site.tracking.adsLeadLabel ? `${site.tracking.adsId}/${site.tracking.adsLeadLabel}` : '',
+			adsContact: site.tracking.adsId && site.tracking.adsContactLabel ? `${site.tracking.adsId}/${site.tracking.adsContactLabel}` : ''
 		}
 	};
 
@@ -188,13 +232,20 @@ async function main() {
 	await mkdir(DIST, { recursive: true });
 	await copyAssets();
 
-	const urls = [{ path: '/', priority: '1.0' }];
+	const urls = [{ path: '/', priority: '1.0', images: (site.hero.imagenes || []).slice(0, 1) }];
 	await writePage('/', T.homePage(ctx));
 
+	const listing = (key, defaults) => ({
+		...defaults,
+		heading: (L[key] && L[key].h1) || defaults.heading,
+		title: (L[key] && L[key].titulo) || defaults.title,
+		description: (L[key] && L[key].descripcion) || defaults.description,
+		intro: (L[key] && L[key].intro) || defaults.intro || ''
+	});
 	const listings = [
-		{ path: '/propiedades/', heading: 'Propiedades', title: `Propiedades en venta y renta en Guatemala | ${site.general.nombreCorto}`, description: 'Casas, apartamentos, terrenos y oficinas en venta y renta en Guatemala. Filtra por zona, precio y número de habitaciones.' },
-		{ path: '/propiedades/venta/', operacion: 'venta', heading: 'Propiedades en venta', title: `Casas y apartamentos en venta en Guatemala | ${site.general.nombreCorto}`, description: 'Propiedades en venta en Guatemala: casas, apartamentos y terrenos verificados, con asesoría en financiamiento.' },
-		{ path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${site.general.nombreCorto}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' }
+		listing('todas', { path: '/propiedades/', heading: 'Propiedades', title: `Propiedades en venta y renta en Guatemala | ${nombre}`, description: 'Casas, apartamentos, terrenos y oficinas en venta y renta en Guatemala. Filtra por zona, precio y número de habitaciones.' }),
+		listing('venta', { path: '/propiedades/venta/', operacion: 'venta', heading: 'Propiedades en venta', title: `Casas y apartamentos en venta en Guatemala | ${nombre}`, description: 'Propiedades en venta en Guatemala: casas, apartamentos y terrenos verificados, con asesoría en financiamiento.' }),
+		listing('renta', { path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${nombre}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' })
 	];
 	for (const l of listings) {
 		await writePage(l.path, T.listingPage(ctx, l));
@@ -206,7 +257,7 @@ async function main() {
 			path: z.url,
 			zona: z.nombre,
 			heading: `Propiedades en ${z.nombre}`,
-			title: `Casas y apartamentos en ${z.nombre}, Guatemala | ${site.general.nombreCorto}`,
+			title: `Casas y apartamentos en ${z.nombre}, Guatemala | ${nombre}`,
 			description: `Propiedades en venta y renta en ${z.nombre}, Guatemala. ${z.total === 1 ? '1 propiedad disponible' : `${z.total} propiedades disponibles`} con asesoría personalizada.`,
 			intro: `Casas, apartamentos y terrenos en ${z.nombre}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`
 		}));
@@ -217,7 +268,7 @@ async function main() {
 	urls.push({ path: '/blog/', priority: '0.6' });
 	for (const post of ctx.posts) {
 		await writePage(post.url, T.blogPostPage(ctx, post));
-		urls.push({ path: post.url, priority: '0.6', lastmod: String(post.fecha || '').slice(0, 10) || undefined });
+		urls.push({ path: post.url, priority: '0.6', lastmod: String(post.fecha || '').slice(0, 10) || undefined, images: post.imagen ? [post.imagen] : [] });
 	}
 
 	await writePage('/vip/', T.vipIndexPage(ctx));
@@ -226,7 +277,12 @@ async function main() {
 	for (const p of properties) {
 		const html = p.vip ? T.vipLandingPage(ctx, p) : T.propertyPage(ctx, p);
 		await writePage(T.propertyUrl(p), html);
-		urls.push({ path: T.propertyUrl(p), priority: p.vip ? '0.9' : '0.8', lastmod: (p.updatedAt || '').slice(0, 10) || undefined });
+		urls.push({
+			path: T.propertyUrl(p),
+			priority: p.vip ? '0.9' : '0.8',
+			lastmod: String(p.updatedAt || '').slice(0, 10) || undefined,
+			images: (p.fotos || []).map((f) => f.url)
+		});
 	}
 
 	for (const page of pages) {
@@ -235,10 +291,16 @@ async function main() {
 	}
 
 	await writePage('/404.html', T.notFoundPage(ctx));
-	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, urls));
-	await writeFile(path.join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /admin/\n\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
+	const assets = await buildAssets({ root: ROOT, dist: DIST });
 
-	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades, ${pages.length} páginas, ${urls.length} URLs en el sitemap`);
+	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, urls));
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx));
+	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
+		? 'User-agent: *\nDisallow: /\n'
+		: `User-agent: *\nAllow: /\nDisallow: /admin/\n\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
+
+	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
+	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);
 }
 
 main().catch((err) => {

@@ -6,10 +6,20 @@
 
 	// ------------------------------------------------------------ Seguimiento (Meta Pixel + GTM)
 
+	// Nombres equivalentes en Google Analytics 4.
+	var GA4_EVENTS = { Lead: 'generate_lead', Contact: 'contact', Search: 'search', ViewContent: 'view_item' };
+
 	function track(event, params) {
-		if (window.fbq) window.fbq('track', event, params || {});
+		params = params || {};
+		if (window.fbq) window.fbq('track', event, params);
 		window.dataLayer = window.dataLayer || [];
-		window.dataLayer.push(Object.assign({ event: 'eq_' + event.toLowerCase() }, params || {}));
+		window.dataLayer.push(Object.assign({ event: 'eq_' + event.toLowerCase() }, params));
+		if (window.gtag) {
+			window.gtag('event', GA4_EVENTS[event] || event, params);
+			// Conversiones de Google Ads configuradas en el panel.
+			var conversion = event === 'Lead' ? config.adsLead : event === 'Contact' ? config.adsContact : '';
+			if (conversion) window.gtag('event', 'conversion', { send_to: conversion });
+		}
 	}
 
 	var viewContent = document.body.getAttribute('data-view-content');

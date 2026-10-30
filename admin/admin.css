@@ -302,3 +302,42 @@ a {
 	height: 100%;
 	background: var(--adm-primary);
 }
+
+/* Vista previa de Google */
+.serp {
+	background: #fff;
+	border: 1px solid var(--adm-border);
+	border-radius: 8px;
+	padding: 14px 16px;
+	font-family: Arial, sans-serif;
+	max-width: 640px;
+}
+.serp-url {
+	font-size: 13px;
+	color: #202124;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.serp-title {
+	font-size: 19px;
+	color: #1a0dab;
+	margin: 4px 0;
+}
+.serp-desc {
+	font-size: 14px;
+	color: #4d5156;
+	line-height: 1.5;
+}
+.seo-checks {
+	list-style: none;
+	padding: 0;
+	margin: 10px 0 0;
+	font-size: 13px;
+}
+.seo-checks .ok {
+	color: #1e7e34;
+}
+.seo-checks .warn {
+	color: #a35d00;
+}

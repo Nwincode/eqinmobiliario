@@ -46,11 +46,28 @@ Panel /admin  ──guarda──▶  Firebase (proyecto eqinmobiliariobd)
 - **Administrador**: todo (contenido, propiedades, leads, usuarios, publicación).
 - **Asesor**: crea y edita sus propiedades, ve y gestiona sus leads. Debe estar vinculado a un asesor en *Usuarios*.
 
-## Seguimiento
+## SEO y herramientas de Google
 
-Meta Pixel y Google Tag Manager se configuran en *Contenido del sitio → SEO y seguimiento*. El sitio envía
-`PageView`, `ViewContent` (fichas), `Search` (filtros), `Contact` (WhatsApp/teléfono/correo) y `Lead` (formularios).
-Los mismos eventos se envían a `dataLayer` como `eq_*` para GTM.
+Todo se configura en el panel → *Contenido del sitio → Google y anuncios*:
+
+| Herramienta | Qué poner | Para qué |
+|---|---|---|
+| **Google Search Console** | Código de la "Etiqueta HTML" (solo el valor de `content`) | Verificar el sitio, enviar `/sitemap.xml` y ver búsquedas |
+| **Bing Webmaster** | Código `msvalidate.01` | Lo mismo en Bing |
+| **Google Analytics 4** | ID `G-XXXXXXX` | Visitas y conversiones (dejar vacío si GA4 ya está en GTM) |
+| **Google Ads** | ID `AW-…` + etiquetas de conversión | Medir leads (formularios) y contactos (WhatsApp/llamada) |
+| **Meta Pixel / GTM** | IDs | Facebook/Instagram Ads y etiquetas adicionales |
+
+Eventos que envía el sitio: `PageView`, `ViewContent` (fichas), `Search` (filtros), `Contact` (WhatsApp/teléfono/correo)
+y `Lead` (formularios). En GA4 llegan como `view_item`, `search`, `contact` y `generate_lead`; a GTM como `eq_*`.
+
+Lo que el sitio hace solo:
+- Títulos, descripciones, canonical, Open Graph y datos estructurados (JSON-LD) en cada página.
+- Vista previa de Google con consejos en el editor de propiedades, páginas y artículos.
+- `sitemap.xml` con imágenes, `robots.txt` y páginas por zona (`/propiedades/zona-16/`).
+- Redirecciones 301 automáticas al cambiar la URL de una propiedad o pasarla a VIP, y manuales desde el panel.
+- Las vistas previas de Netlify (deploy previews) no se indexan.
+- CSS y JS empaquetados y sin código sobrante, fotos en WebP, versión liviana de las portadas para celulares.
 
 ## Desarrollo local
 

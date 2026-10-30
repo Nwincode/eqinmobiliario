@@ -11,19 +11,27 @@
       "titulo": "Equipo Inmobiliario S.A. | Bienes Raíces en Guatemala",
       "descripcion": "Compra, venta y renta de casas, apartamentos y terrenos en Guatemala. Asesores inmobiliarios con experiencia y propiedades verificadas.",
       "imagen": "/images/hero_bg_3.jpg",
-      "keywords": "bienes raíces Guatemala, casas en venta zona 16, apartamentos en renta Guatemala, inmobiliaria Guatemala"
+      "keywords": "bienes raíces Guatemala, casas en venta zona 16, apartamentos en renta Guatemala, inmobiliaria Guatemala",
+      "indexar": true,
+      "googleVerification": "",
+      "bingVerification": "",
+      "redirecciones": []
     },
     "tracking": {
       "gtmId": "GTM-N49PFVKK",
-      "pixelId": "212605361803683"
+      "pixelId": "212605361803683",
+      "ga4Id": "",
+      "adsId": "",
+      "adsLeadLabel": "",
+      "adsContactLabel": ""
     },
     "hero": {
       "titulo": "La manera más fácil de encontrar tu propiedad",
       "placeholderBusqueda": "Ingresa la zona de tu interés",
       "imagenes": [
-        "/images/hero_bg_3.jpg",
-        "/images/hero_bg_2.jpg",
-        "/images/hero_bg_1.jpg"
+        "/images/hero_bg_3.webp",
+        "/images/hero_bg_2.webp",
+        "/images/hero_bg_1.webp"
       ]
     },
     "destacadas": {
@@ -67,7 +75,7 @@
       "visible": true,
       "titulo": "Te ayudaremos a...",
       "subtitulo": "Encontrar la propiedad perfecta para tus gustos y necesidades",
-      "imagen": "/images/hero_bg_3.jpg",
+      "imagen": "/images/hero_bg_3.webp",
       "items": [
         {
           "icono": "icon-home2",
@@ -180,6 +188,38 @@
     "whatsappFlotante": {
       "visible": true,
       "mensaje": "Hola, me interesa información sobre sus propiedades."
+    },
+    "listados": {
+      "todas": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "venta": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "renta": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "vip": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "blog": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      }
     }
   },
   "properties": [
@@ -203,7 +243,7 @@
       "amenidades": [],
       "fotos": [
         {
-          "url": "/images/img_1.jpg"
+          "url": "/images/img_1.webp"
         }
       ],
       "destacada": true,
@@ -235,7 +275,7 @@
       "amenidades": [],
       "fotos": [
         {
-          "url": "/images/img_3.jpg"
+          "url": "/images/img_3.webp"
         }
       ],
       "destacada": true,
@@ -254,7 +294,7 @@
       "nombre": "Joaquin Arriola",
       "cargo": "Agente de Bienes Raíces",
       "bio": "Tiene gran instinto para los negocios y una excelente capacidad de comunicación. Su trato con los clientes es cercano y profesional, y siempre está dispuesto a ayudar.",
-      "foto": "/images/person_1-min.jpg",
+      "foto": "/images/person_1-min.webp",
       "whatsapp": "50259131276",
       "email": "",
       "orden": 1,
@@ -265,7 +305,7 @@
       "nombre": "Miriam García",
       "cargo": "Agente de Bienes Raíces",
       "bio": "Es una profesional con un amplio conocimiento del mercado y capacidad de negociación, y siempre se esfuerza por encontrar la mejor solución para sus clientes.",
-      "foto": "/images/person_5-min.jpg",
+      "foto": "/images/person_5-min.webp",
       "whatsapp": "",
       "email": "",
       "orden": 2,
@@ -276,7 +316,7 @@
       "nombre": "Alex Pérez",
       "cargo": "Agente de Bienes Raíces",
       "bio": "Prometedor comercial con gran capacidad de aprendizaje y experiencia previa en ventas y marketing.",
-      "foto": "/images/person_3-min.jpg",
+      "foto": "/images/person_3-min.webp",
       "whatsapp": "",
       "email": "",
       "orden": 3,
@@ -289,7 +329,7 @@
       "nombre": "Fam. Rodas",
       "rol": "Compradores",
       "texto": "Los agentes de la empresa son muy amables y atentos. Siempre estuvieron disponibles para responder a mis dudas y ayudarme en todo lo que necesité.",
-      "foto": "/images/person_1-min.jpg",
+      "foto": "/images/person_1-min.webp",
       "estrellas": 5,
       "orden": 1,
       "activo": true
@@ -299,7 +339,7 @@
       "nombre": "Mario Calvet",
       "rol": "Comprador",
       "texto": "Es una empresa inmobiliaria de confianza. Ofrece un servicio de calidad y personalizado, que se adaptó a mis necesidades.",
-      "foto": "/images/person_2-min.jpg",
+      "foto": "/images/person_2-min.webp",
       "estrellas": 5,
       "orden": 2,
       "activo": true
@@ -309,7 +349,7 @@
       "nombre": "Josselin L.",
       "rol": "Propietaria",
       "texto": "Los agentes son muy profesionales y están muy bien informados sobre el mercado inmobiliario. Son justos y conscientes a la hora de la negociación.",
-      "foto": "/images/person_4-min.jpg",
+      "foto": "/images/person_4-min.webp",
       "estrellas": 5,
       "orden": 3,
       "activo": true
@@ -319,7 +359,7 @@
       "nombre": "Alejandro Herrera",
       "rol": "Comprador",
       "texto": "El proceso de compra fue un poco complicado, ya que hubo algunos problemas con la documentación de la propiedad. Sin embargo, los agentes fueron muy profesionales y estuvieron dispuestos a trabajar conmigo para solucionar todos los problemas. Gracias a su ayuda, pude terminar la compra de mi casa sin problemas.",
-      "foto": "/images/person_3-min.jpg",
+      "foto": "/images/person_3-min.webp",
       "estrellas": 5,
       "orden": 4,
       "activo": true

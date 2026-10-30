@@ -6,6 +6,24 @@ import {
 } from '../ui.js';
 import { renderForm, deleteImage } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
+import { seoPreviewField, stripMd } from '../seo.js';
+
+// Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
+function autoTitle(d) {
+	const op = d.operacion === 'renta' ? 'Renta' : 'Venta';
+	const titulo = d.titulo || '';
+	const candidates = [
+		`${titulo} | ${op} en ${[d.zona, d.ciudad].filter(Boolean).join(', ')}`,
+		d.zona && `${titulo} | ${op} en ${d.zona}`,
+		`${titulo} | ${op}`,
+		titulo
+	].filter(Boolean);
+	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
+}
+function autoDescription(d) {
+	const specs = [d.habitaciones && `${d.habitaciones} habitaciones`, d.banos && `${d.banos} baños`, d.m2Construccion && `${d.m2Construccion} m²`].filter(Boolean).join(', ');
+	return `${formatPrice(d.precio, d.moneda, d.operacion)}.${specs ? ` ${specs}.` : ''} ${stripMd(d.descripcion)}`.trim();
+}
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
 const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
@@ -96,7 +114,7 @@ function schema(agentOpts, isNew) {
 	return [
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
-		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título.', ref: (el) => { schema.slugInput = el; } },
+		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3 },
@@ -137,7 +155,18 @@ function schema(agentOpts, isNew) {
 
 		{ type: 'section', label: 'SEO (opcional)', help: 'Si los dejas vacíos se generan automáticamente.' },
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70, cols: 12 },
-		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 }
+		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
+		seoPreviewField({
+			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
+			description: (d) => d.seo?.descripcion || (d.vip && d.vipLanding?.subtitular) || autoDescription(d),
+			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
+			checks: (d) => [
+				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
+				[(d.fotos || []).length > 0 && d.fotos.every((f) => f.alt), 'Todas las fotos tienen descripción.'],
+				[stripMd(d.descripcion).split(/\s+/).filter(Boolean).length >= 80, 'Descripción de al menos 80 palabras (Google premia el contenido original).'],
+				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).']
+			]
+		})
 	];
 }
 
@@ -183,6 +212,10 @@ async function renderEditor(container, id) {
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
+		// Si cambia la URL, se guarda la anterior para redirigirla (no se pierde el posicionamiento).
+		if (!isNew && data.slug && data.slug !== d.slug) {
+			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
+		}
 		d.updatedAt = serverTimestamp();
 		d.updatedBy = session.user.uid;
 		if (isNew) {

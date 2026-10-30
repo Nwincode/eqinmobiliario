@@ -2,6 +2,8 @@
 
 .vip-page {
 	--vip-gold: #c9a45c;
+	--vip-gold-ink: #85662b; /* dorado oscuro: contraste AA sobre fondos claros */
+	color: #3d4650 !important;
 	--vip-ink: #0d1b2a;
 	background: #fff;
 }
@@ -70,16 +72,16 @@
 }
 
 .btn-vip {
-	background: var(--vip-gold);
-	border-color: var(--vip-gold);
+	background: var(--vip-gold-ink);
+	border-color: var(--vip-gold-ink);
 	color: #fff;
 	padding: .9rem 1.8rem;
 	font-weight: 600;
 }
 .btn-vip:hover,
 .btn-vip:focus {
-	background: #b38d45;
-	border-color: #b38d45;
+	background: #6e5423;
+	border-color: #6e5423;
 	color: #fff;
 }
 .vip-hero .btn-outline-light {
@@ -124,7 +126,7 @@
 	text-transform: uppercase;
 	letter-spacing: .2em;
 	font-size: 12px;
-	color: var(--vip-gold);
+	color: var(--vip-gold-ink);
 	margin-bottom: .75rem;
 }
 .vip-h2 {
@@ -164,7 +166,7 @@
 }
 .vip-highlights li span,
 .vip-amenities li span {
-	color: var(--vip-gold);
+	color: var(--vip-gold-ink);
 	margin-top: 3px;
 }
 
@@ -173,6 +175,9 @@
 }
 .vip-dark .vip-h2 {
 	color: #fff;
+}
+.vip-dark .vip-kicker {
+	color: var(--vip-gold);
 }
 .vip-gallery {
 	display: grid;
@@ -275,7 +280,7 @@
 	display: block;
 }
 .vip-agent small {
-	color: #777;
+	color: #5c6670;
 }
 
 .vip-footer {

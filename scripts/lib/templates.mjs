@@ -4,8 +4,6 @@ import {
 	videoEmbedUrl, mapEmbedUrl, whatsappLink
 } from './util.mjs';
 
-const ASSET_VERSION = Date.now().toString(36);
-
 export function propertyUrl(p) {
 	return p.vip ? `/vip/${p.slug}/` : `/propiedad/${p.slug}/`;
 }
@@ -17,12 +15,26 @@ function absUrl(ctx, path) {
 }
 
 function firstPhoto(p) {
-	return (p.fotos && p.fotos[0] && p.fotos[0].url) || '/images/hero_bg_1.jpg';
+	return (p.fotos && p.fotos[0] && p.fotos[0].url) || '/images/hero_bg_1.webp';
 }
 
 function photoAlt(p, i = 0) {
 	const foto = p.fotos && p.fotos[i];
 	return (foto && foto.alt) || `${p.titulo} – foto ${i + 1}`;
+}
+
+// Fondo con variante liviana para celulares cuando existe (/images/x-800.webp).
+function bgStyle(ctx, url) {
+	const mobile = ctx.mobileVariant(url);
+	return `--bg:url('${esc(url)}')${mobile ? `;--bg-m:url('${esc(mobile)}')` : ''}`;
+}
+
+function preloadTags(ctx, url) {
+	if (!url) return '';
+	const mobile = ctx.mobileVariant(url);
+	if (!mobile) return `<link rel="preload" as="image" href="${esc(url)}" fetchpriority="high">`;
+	return `<link rel="preload" as="image" href="${esc(mobile)}" media="(max-width: 800px)" fetchpriority="high">
+	<link rel="preload" as="image" href="${esc(url)}" media="(min-width: 801px)" fetchpriority="high">`;
 }
 
 function jsonLd(data) {
@@ -40,8 +52,14 @@ function breadcrumbLd(ctx, items) {
 }
 
 function trackingHead(site) {
-	const { gtmId, pixelId } = site.tracking || {};
+	const { gtmId, pixelId, ga4Id, adsId } = site.tracking || {};
 	let out = '';
+	// Google Analytics 4 y Google Ads comparten la misma etiqueta (gtag.js).
+	const gtagIds = [ga4Id, adsId].filter(Boolean);
+	if (gtagIds.length) {
+		out += `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(gtagIds[0])}"></script>\n`;
+		out += `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());${gtagIds.map((id) => `gtag('config',${JSON.stringify(id)});`).join('')}</script>\n`;
+	}
 	if (gtmId) {
 		out += `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(gtmId)});</script>\n`;
 	}
@@ -59,12 +77,16 @@ function trackingBody(site) {
 	return out;
 }
 
+const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap';
+
 function head(ctx, page) {
 	const site = ctx.site;
 	const title = page.title || site.seo.titulo;
 	const description = truncate(page.description || site.seo.descripcion, 160);
 	const image = absUrl(ctx, page.image || site.seo.imagen);
 	const url = absUrl(ctx, page.path);
+	const seo = site.seo || {};
+	const noindex = page.noindex || ctx.noindex;
 	return `<!doctype html>
 <html lang="es">
 <head>
@@ -73,7 +95,9 @@ function head(ctx, page) {
 	<title>${esc(title)}</title>
 	<meta name="description" content="${esc(description)}">
 	${site.seo.keywords ? `<meta name="keywords" content="${esc(site.seo.keywords)}">` : ''}
-	<meta name="robots" content="${page.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large'}">
+	<meta name="robots" content="${noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large'}">
+	${seo.googleVerification ? `<meta name="google-site-verification" content="${esc(seo.googleVerification)}">` : ''}
+	${seo.bingVerification ? `<meta name="msvalidate.01" content="${esc(seo.bingVerification)}">` : ''}
 	<link rel="canonical" href="${esc(url)}">
 	<link rel="icon" href="${esc(site.general.favicon || '/favicon.png')}">
 	<meta property="og:locale" content="es_GT">
@@ -88,17 +112,13 @@ function head(ctx, page) {
 	<meta name="twitter:description" content="${esc(description)}">
 	<meta name="twitter:image" content="${esc(image)}">
 	<meta name="theme-color" content="#005555">
-	${trackingHead(site)}
+	${preloadTags(ctx, page.preloadImage)}
+	<link rel="stylesheet" href="__CSS_BUNDLE__">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="/fonts/icomoon/style.css">
-	<link rel="stylesheet" href="/fonts/flaticon/font/flaticon.css">
-	<link rel="stylesheet" href="/css/tiny-slider.css">
-	<link rel="stylesheet" href="/css/aos.css">
-	<link rel="stylesheet" href="/css/style.css?v=${ASSET_VERSION}">
-	<link rel="stylesheet" href="/css/site.css?v=${ASSET_VERSION}">
-	${page.extraCss ? `<link rel="stylesheet" href="${page.extraCss}?v=${ASSET_VERSION}">` : ''}
+	<link rel="preload" as="style" href="${FONTS_URL}" onload="this.onload=null;this.rel='stylesheet'">
+	<noscript><link rel="stylesheet" href="${FONTS_URL}"></noscript>
+	${trackingHead(site)}
 	${(page.jsonLd || []).map(jsonLd).join('\n\t')}
 	<script>window.EQ_CONFIG=${JSON.stringify(ctx.publicConfig).replace(/</g, '\\u003c')};</script>
 </head>`;
@@ -134,7 +154,7 @@ function nav(ctx, active) {
 	<nav class="site-nav">
 		<div class="container">
 			<div class="menu-bg-wrap">
-				<a href="/" class="logo m-0 float-start"><img class="logo-media w-50" src="${esc(site.general.logo)}" alt="${esc(site.general.nombre)}"></a>
+				<a href="/" class="logo m-0 float-start"><img class="logo-media w-50" src="${esc(site.general.logo)}" alt="${esc(site.general.nombre)}" width="340" height="82"></a>
 				<div class="site-navigation">
 					<ul class="js-clone-nav d-none d-lg-inline-block text-start site-menu float-end">
 						${items.join('\n\t\t\t\t\t\t')}
@@ -228,13 +248,7 @@ function whatsappFloat(ctx, mensaje) {
 }
 
 function scripts(extra = '') {
-	return `<script src="/js/bootstrap.bundle.min.js"></script>
-	<script src="/js/tiny-slider.js"></script>
-	<script src="/js/aos.js"></script>
-	<script src="/js/navbar.js"></script>
-	<script src="/js/counter.js"></script>
-	<script src="/js/custom.js?v=${ASSET_VERSION}"></script>
-	<script src="/js/site.js?v=${ASSET_VERSION}"></script>
+	return `<script src="__JS_BUNDLE__" defer></script>
 	${extra}`;
 }
 
@@ -253,8 +267,8 @@ function layout(ctx, page, body) {
 `;
 }
 
-function pageHero(title, image, crumbs) {
-	return `<div class="hero page-inner overlay" style="background-image: url('${esc(image)}');">
+function pageHero(ctx, title, image, crumbs) {
+	return `<div class="hero page-inner overlay" style="${bgStyle(ctx, image)}">
 		<div class="container">
 			<div class="row justify-content-center align-items-center">
 				<div class="col-lg-9 text-center mt-5">
@@ -317,7 +331,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = 'Soli
 	const ptitle = property ? property.titulo : '';
 	const msg = property ? `Hola, me interesa la propiedad "${property.titulo}". ¿Me pueden dar más información?` : '';
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" novalidate>
-		${titulo ? `<h3 class="h5 mb-3">${esc(titulo)}</h3>` : ''}
+		${titulo ? `<h2 class="h5 mb-3">${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">Nombre *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">Teléfono / WhatsApp *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"></div>
 		<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">Correo electrónico</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
@@ -333,7 +347,7 @@ function agentBox(ctx, agent, property) {
 	const msg = property ? `Hola ${agent.nombre}, me interesa la propiedad "${property.titulo}".` : '';
 	const wa = whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
 	return `<div class="d-block agent-box p-4">
-						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.jpg')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy"></div>
+						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy" width="80" height="80"></div>
 						<div class="text">
 							<h3 class="mb-0">${esc(agent.nombre)}</h3>
 							<div class="meta mb-3">${esc(agent.cargo || 'Asesor inmobiliario')}</div>
@@ -380,7 +394,7 @@ export function homePage(ctx) {
 	const body = `
 	<div class="hero">
 		<div class="hero-slide">
-			${heroImgs.map((img) => `<div class="img overlay" style="background-image: url('${esc(img)}')"></div>`).join('\n\t\t\t')}
+			${heroImgs.map((img) => `<div class="img overlay" style="${bgStyle(ctx, img)}"></div>`).join('\n\t\t\t')}
 		</div>
 		<div class="container">
 			<div class="row justify-content-center align-items-center">
@@ -430,7 +444,7 @@ export function homePage(ctx) {
 						<span class="${esc(f.icono || 'flaticon-house')}"></span>
 						<h3 class="mb-3">${esc(f.titulo)}</h3>
 						<p>${esc(f.texto)}</p>
-						${f.enlace ? `<p><a href="${esc(f.enlace)}" class="learn-more">Más información</a></p>` : ''}
+						${f.enlace ? `<p><a href="${esc(f.enlace)}" class="learn-more">Más información<span class="visually-hidden"> sobre ${esc(f.titulo)}</span></a></p>` : ''}
 					</div>
 				</div>`).join('\n')}
 			</div>
@@ -454,8 +468,8 @@ export function homePage(ctx) {
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((t) => `<div class="item">
 						<div class="testimonial">
-							${t.foto ? `<img src="${esc(t.foto)}" alt="${esc(t.nombre)}" class="img-fluid rounded-circle w-25 mb-4" loading="lazy">` : ''}
-							<div class="rate" aria-label="${esc(t.estrellas || 5)} de 5 estrellas">
+							${t.foto ? `<img src="${esc(t.foto)}" alt="${esc(t.nombre)}" class="img-fluid rounded-circle w-25 mb-4" loading="lazy" width="120" height="120">` : ''}
+							<div class="rate" role="img" aria-label="${esc(t.estrellas || 5)} de 5 estrellas">
 								${'<span class="icon-star text-warning"></span>'.repeat(Math.max(1, Math.min(5, Number(t.estrellas) || 5)))}
 							</div>
 							<h3 class="h5 text-primary mb-4">${esc(t.nombre)}</h3>
@@ -479,7 +493,7 @@ export function homePage(ctx) {
 			<div class="row justify-content-between mb-5">
 				<div class="col-lg-7 mb-5 mb-lg-0 order-lg-2">
 					<div class="img-about dots">
-						<img src="${esc(s.servicios.imagen)}" alt="${esc(s.servicios.titulo)}" class="img-fluid" loading="lazy">
+						<img src="${esc(s.servicios.imagen)}" alt="${esc(s.servicios.titulo)}" class="img-fluid" loading="lazy" width="1200" height="800">
 					</div>
 				</div>
 				<div class="col-lg-4">
@@ -525,7 +539,7 @@ export function homePage(ctx) {
 					const wa = whatsappLink(a.whatsapp);
 					return `<div class="col-sm-6 col-lg-4 mb-5">
 					<div class="h-100 person">
-						<img src="${esc(a.foto || '/images/person_1-min.jpg')}" alt="${esc(a.nombre)}" class="img-fluid" loading="lazy">
+						<img src="${esc(a.foto || '/images/person_1-min.webp')}" alt="${esc(a.nombre)}" class="img-fluid" loading="lazy" width="90" height="90">
 						<div class="person-contents">
 							<h3 class="h2 mb-0">${esc(a.nombre)}</h3>
 							<span class="meta d-block mb-3">${esc(a.cargo)}</span>
@@ -562,6 +576,7 @@ export function homePage(ctx) {
 
 	return layout(ctx, {
 		path: '/',
+		preloadImage: heroImgs[0],
 		title: s.seo.titulo,
 		description: s.seo.descripcion,
 		image: s.seo.imagen,
@@ -583,7 +598,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	};
 
 	const body = `
-	${pageHero(heading, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.jpg', crumbs)}
+	${pageHero(ctx, heading, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
 	<div class="section">
 		<div class="container">
 			<form class="listing-filters row g-2 align-items-end mb-5" id="listing-filters" role="search" aria-label="Filtrar propiedades">
@@ -666,6 +681,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		title,
 		description,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
+		preloadImage: ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp',
 		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}"`
 	}, body);
 }
@@ -714,8 +730,20 @@ function listingLd(ctx, p) {
 	};
 }
 
+// Título automático que cabe en Google (~65 caracteres): se acorta quitando detalles.
+export function autoSeoTitle(p) {
+	const op = p.operacion === 'renta' ? 'Renta' : 'Venta';
+	const candidates = [
+		`${p.titulo} | ${op} en ${[p.zona, p.ciudad].filter(Boolean).join(', ')}`,
+		p.zona && `${p.titulo} | ${op} en ${p.zona}`,
+		`${p.titulo} | ${op}`,
+		p.titulo
+	].filter(Boolean);
+	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
+}
+
 function seoTitle(p) {
-	return (p.seo && p.seo.titulo) || `${p.titulo} | ${p.operacion === 'renta' ? 'Renta' : 'Venta'} en ${[p.zona, p.ciudad].filter(Boolean).join(', ')}`;
+	return (p.seo && p.seo.titulo) || autoSeoTitle(p);
 }
 
 function seoDescription(p) {
@@ -753,7 +781,7 @@ export function propertyPage(ctx, p) {
 	const waMsg = `Hola, me interesa la propiedad "${p.titulo}" (${absUrl(ctx, propertyUrl(p))}).`;
 
 	const body = `
-	${pageHero(p.titulo, firstPhoto(p), crumbs)}
+	${pageHero(ctx, p.titulo, firstPhoto(p), crumbs)}
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-between">
@@ -796,6 +824,7 @@ export function propertyPage(ctx, p) {
 
 	return layout(ctx, {
 		path: propertyUrl(p),
+		preloadImage: firstPhoto(p),
 		title: seoTitle(p),
 		description: seoDescription(p),
 		image: firstPhoto(p),
@@ -810,14 +839,15 @@ export function propertyPage(ctx, p) {
 
 export function vipIndexPage(ctx) {
 	const vips = ctx.properties.filter((p) => p.vip);
+	const L = (ctx.site.listados && ctx.site.listados.vip) || {};
 	const crumbs = [{ name: 'Inicio', url: '/' }, { name: 'Propiedades VIP', url: '/vip/' }];
 	const body = `
-	${pageHero('Propiedades VIP', vips[0] ? firstPhoto(vips[0]) : '/images/hero_bg_2.jpg', crumbs)}
+	${pageHero(ctx, L.h1 || 'Propiedades VIP', vips[0] ? firstPhoto(vips[0]) : '/images/hero_bg_2.webp', crumbs)}
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-center text-center mb-5">
 				<div class="col-lg-7">
-					<p class="text-black-50">Una selección exclusiva de residencias y proyectos con atención personalizada de principio a fin.</p>
+					<p class="text-black-50">${esc(L.intro || 'Una selección exclusiva de residencias y proyectos con atención personalizada de principio a fin.')}</p>
 				</div>
 			</div>
 			<div class="row">
@@ -836,8 +866,8 @@ export function vipIndexPage(ctx) {
 	</div>`;
 	return layout(ctx, {
 		path: '/vip/',
-		title: `Propiedades VIP y exclusivas | ${ctx.site.general.nombreCorto}`,
-		description: 'Residencias exclusivas en Guatemala con atención personalizada. Conoce nuestra selección de propiedades VIP.',
+		title: L.titulo || `Propiedades VIP y exclusivas | ${ctx.site.general.nombreCorto}`,
+		description: L.descripcion || 'Residencias exclusivas en Guatemala con atención personalizada. Conoce nuestra selección de propiedades VIP.',
 		jsonLd: [breadcrumbLd(ctx, crumbs)]
 	}, body);
 }
@@ -867,7 +897,7 @@ export function vipLandingPage(ctx, p) {
 	const body = `
 	<header class="vip-header">
 		<div class="container d-flex align-items-center justify-content-between">
-			<a href="/" class="vip-logo"><img src="${esc(s.general.logo)}" alt="${esc(s.general.nombre)}"></a>
+			<a href="/" class="vip-logo"><img src="${esc(s.general.logo)}" alt="${esc(s.general.nombre)}" width="340" height="82"></a>
 			<div class="d-flex gap-2">
 				<a href="/vip/" class="btn btn-sm btn-outline-light d-none d-md-inline-block">Más propiedades VIP</a>
 				${wa ? `<a href="${esc(wa)}" class="btn btn-sm btn-light" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a>` : ''}
@@ -875,7 +905,7 @@ export function vipLandingPage(ctx, p) {
 		</div>
 	</header>
 
-	<section class="vip-hero" style="background-image:url('${esc(portada)}')">
+	<section class="vip-hero" style="${bgStyle(ctx, portada)}">
 		<div class="vip-hero-inner container">
 			<span class="vip-eyebrow" data-aos="fade-up">Propiedad exclusiva · ${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
 			<h1 data-aos="fade-up" data-aos-delay="100">${esc(v.titular || p.titulo)}</h1>
@@ -962,7 +992,7 @@ export function vipLandingPage(ctx, p) {
 					<h2 class="vip-h2">${esc(cta)}</h2>
 					<p class="mb-4">Déjanos tus datos y un asesor te contactará para coordinar una visita a tu conveniencia.</p>
 					${agent ? `<div class="vip-agent">
-						<img src="${esc(agent.foto || '/images/person_1-min.jpg')}" alt="${esc(agent.nombre)}" loading="lazy">
+						<img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" loading="lazy" width="64" height="64">
 						<div><strong>${esc(agent.nombre)}</strong><small>${esc(agent.cargo || 'Asesor inmobiliario')}</small></div>
 					</div>` : ''}
 				</div>
@@ -987,12 +1017,12 @@ export function vipLandingPage(ctx, p) {
 
 	return layout(ctx, {
 		path: propertyUrl(p),
+		preloadImage: portada,
 		title: (p.seo && p.seo.titulo) || `${v.titular || p.titulo} | Propiedad exclusiva`,
 		description: (p.seo && p.seo.descripcion) || v.subtitular || seoDescription(p),
 		image: portada,
 		ogType: 'article',
 		bare: true,
-		extraCss: '/css/vip.css',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: `class="vip-page" ${viewContentAttrs(p)}`,
 		waMensaje: `Hola, me interesa la propiedad exclusiva "${p.titulo}".`
@@ -1004,7 +1034,7 @@ export function vipLandingPage(ctx, p) {
 export function contentPage(ctx, page) {
 	const crumbs = [{ name: 'Inicio', url: '/' }, { name: page.titulo, url: page.url }];
 	const body = `
-	${pageHero(page.titulo, page.imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.jpg', crumbs)}
+	${pageHero(ctx, page.titulo, page.imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-center">
@@ -1029,15 +1059,16 @@ function postDate(post) {
 }
 
 export function blogIndexPage(ctx) {
+	const L = (ctx.site.listados && ctx.site.listados.blog) || {};
 	const crumbs = [{ name: 'Inicio', url: '/' }, { name: 'Blog', url: '/blog/' }];
 	const body = `
-	${pageHero('Blog', ctx.site.hero.imagenes[1] || ctx.site.hero.imagenes[0] || '/images/hero_bg_2.jpg', crumbs)}
+	${pageHero(ctx, L.h1 || 'Blog', ctx.site.hero.imagenes[1] || ctx.site.hero.imagenes[0] || '/images/hero_bg_2.webp', crumbs)}
 	<div class="section">
 		<div class="container">
 			<div class="row">
 				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
 					<article class="post-card">
-						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.jpg')}" alt="${esc(post.titulo)}" loading="lazy"></a>
+						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.webp')}" alt="${esc(post.titulo)}" loading="lazy"></a>
 						<div class="post-card-body">
 							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${esc(postDate(post))}</time>
 							<h2 class="h5 mt-2"><a href="${esc(post.url)}">${esc(post.titulo)}</a></h2>
@@ -1051,8 +1082,8 @@ export function blogIndexPage(ctx) {
 	</div>`;
 	return layout(ctx, {
 		path: '/blog/',
-		title: `Blog inmobiliario | ${ctx.site.general.nombreCorto}`,
-		description: 'Consejos para comprar, vender y rentar propiedades en Guatemala: financiamiento, zonas, trámites y tendencias del mercado.',
+		title: L.titulo || `Blog inmobiliario | ${ctx.site.general.nombreCorto}`,
+		description: L.descripcion || 'Consejos para comprar, vender y rentar propiedades en Guatemala: financiamiento, zonas, trámites y tendencias del mercado.',
 		jsonLd: [breadcrumbLd(ctx, crumbs)]
 	}, body);
 }
@@ -1074,7 +1105,7 @@ export function blogPostPage(ctx, post) {
 	};
 	const others = ctx.posts.filter((o) => o.id !== post.id).slice(0, 3);
 	const body = `
-	${pageHero(post.titulo, post.imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.jpg', crumbs)}
+	${pageHero(ctx, post.titulo, post.imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-center">
@@ -1104,7 +1135,7 @@ export function blogPostPage(ctx, post) {
 
 export function notFoundPage(ctx) {
 	const body = `
-	${pageHero('Página no encontrada', ctx.site.hero.imagenes[0] || '/images/hero_bg_1.jpg', [{ name: 'Inicio', url: '/' }, { name: 'Error 404', url: '/404.html' }])}
+	${pageHero(ctx, 'Página no encontrada', ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: 'Inicio', url: '/' }, { name: 'Error 404', url: '/404.html' }])}
 	<div class="section">
 		<div class="container text-center">
 			<p class="mb-4">La página que buscas no existe o la propiedad ya no está disponible.</p>
