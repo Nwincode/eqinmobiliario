@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual de Identidad de Marca · Equipo Inmobiliario</title>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,200;0,300;0,400;0,500;0,600;1,200;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+	--negro: #101317;
+	--cian: #00b7e7;
+	--blanco: #fcffff;
+	--cian-profundo: #0077a3;
+	--bruma: #e6f8fd;
+	--grafito: #5c6670;
+	--linea: #d7e3e8;
+	--oro: #c9a45c;
+}
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html { background: #c9d2d6; }
+body {
+	margin: 0;
+	font-family: 'Work Sans', system-ui, sans-serif;
+	font-weight: 300;
+	color: var(--negro);
+	background: #c9d2d6;
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+.page {
+	width: 210mm;
+	height: 297mm;
+	margin: 10mm auto;
+	padding: 18mm 18mm 16mm;
+	background: var(--blanco);
+	position: relative;
+	overflow: hidden;
+	page-break-after: always;
+	break-after: page;
+}
+@media print { html, body { background: none; } .page { margin: 0; } }
+@media screen and (max-width: 230mm) {
+	.page { width: auto; height: auto; min-height: 0; margin: 0 0 12px; padding: 24px 16px 48px; }
+}
+.page::after {
+	content: attr(data-n);
+	position: absolute;
+	right: 18mm;
+	bottom: 9mm;
+	font-size: 9pt;
+	color: var(--grafito);
+}
+.page::before {
+	content: "Equipo Inmobiliario · Manual de identidad · v2.0";
+	position: absolute;
+	left: 18mm;
+	bottom: 9mm;
+	font-size: 9pt;
+	color: var(--grafito);
+}
+.cover::before, .cover::after { content: none; }
+
+h1, h2, h3 { font-weight: 400; margin: 0; letter-spacing: .01em; }
+.kicker {
+	font-size: 8.5pt;
+	font-weight: 500;
+	letter-spacing: .22em;
+	text-transform: uppercase;
+	color: var(--cian-profundo);
+	margin-bottom: 4mm;
+}
+h2 { font-size: 24pt; font-weight: 300; margin-bottom: 3mm; }
+h2::after { content: ""; display: block; width: 14mm; height: 1mm; background: var(--cian); margin-top: 4mm; border-radius: 1mm; }
+h3 { font-size: 11.5pt; font-weight: 500; margin: 7mm 0 2.5mm; }
+p, li { font-size: 9.6pt; line-height: 1.55; }
+p { margin: 0 0 3mm; }
+ul { margin: 0; padding-left: 4.5mm; }
+.lead { font-size: 11pt; color: #2b3138; max-width: 150mm; }
+.muted { color: var(--grafito); }
+.small { font-size: 8.4pt; line-height: 1.45; }
+.grid { display: grid; gap: 5mm; }
+.g2 { grid-template-columns: 1fr 1fr; }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g4 { grid-template-columns: repeat(4, 1fr); }
+@media screen and (max-width: 230mm) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+.box { border: 1px solid var(--linea); border-radius: 3mm; padding: 5mm; }
+.panel { border-radius: 3mm; padding: 7mm; display: flex; align-items: center; justify-content: center; min-height: 40mm; }
+.panel.dark { background: var(--negro); }
+.panel.light { background: #fff; border: 1px solid var(--linea); }
+.panel.gray { background: #8e959b; }
+.panel.cyan { background: var(--cian); }
+.panel.photo { background: linear-gradient(rgba(16,19,23,.45), rgba(16,19,23,.45)), url('../../images/hero_bg_1-800.webp') center/cover; }
+.cap { font-size: 8.4pt; color: var(--grafito); margin-top: 2mm; }
+
+/* Imagotipo y logotipo */
+.mark { width: 26mm; height: 26mm; flex: none; }
+.logo { display: inline-flex; align-items: center; gap: 3.5mm; }
+.logo .mark { width: 11mm; height: 11mm; }
+.logo span { font-size: 17pt; font-weight: 300; letter-spacing: .01em; }
+.logo.on-dark span { color: var(--blanco); }
+.logo.sm .mark { width: 7mm; height: 7mm; }
+.logo.sm span { font-size: 11pt; }
+
+/* Construcción */
+.construct { position: relative; width: 62mm; height: 62mm; margin: 0 auto; border: 1px dashed var(--cian); display: flex; align-items: center; justify-content: center; }
+.construct .mark { width: 38mm; height: 38mm; }
+.construct .x { position: absolute; font-size: 8pt; color: var(--cian-profundo); font-weight: 500; }
+.construct .x.t { top: 2mm; left: 50%; transform: translateX(-50%); }
+.construct .x.l { left: 2mm; top: 50%; transform: translateY(-50%); }
+.minsize { display: flex; align-items: flex-end; gap: 8mm; }
+
+/* Incorrecto */
+.wrong { position: relative; }
+.wrong .panel { min-height: 32mm; }
+.wrong .panel::after { content: "✕"; position: absolute; top: 2mm; right: 3mm; color: #d92d20; font-size: 13pt; font-weight: 600; }
+.wrong p { font-size: 8.4pt; margin: 2mm 0 0; }
+
+/* Colores */
+.swatch { border-radius: 3mm; overflow: hidden; border: 1px solid var(--linea); }
+.swatch .chip { height: 30mm; display: flex; align-items: flex-end; padding: 3mm 4mm; font-size: 8.5pt; font-weight: 500; }
+.swatch .data { padding: 3.5mm 4mm; font-size: 8.3pt; line-height: 1.6; }
+.swatch .data b { font-weight: 600; display: block; font-size: 9.6pt; margin-bottom: 1mm; }
+.swatch.sm .chip { height: 16mm; }
+.ratio { display: flex; height: 7mm; border-radius: 2mm; overflow: hidden; margin: 2mm 0 5mm; }
+.ratio div { display: flex; align-items: center; padding-left: 2mm; font-size: 7.5pt; font-weight: 500; }
+table { width: 100%; border-collapse: collapse; font-size: 8.6pt; }
+th, td { text-align: left; padding: 2.2mm 2.5mm; border-bottom: 1px solid var(--linea); vertical-align: middle; }
+th { font-weight: 500; color: var(--grafito); font-size: 7.8pt; text-transform: uppercase; letter-spacing: .08em; }
+.pair { display: inline-block; padding: 1.2mm 3mm; border-radius: 1.5mm; font-weight: 500; }
+.ok { color: #067647; font-weight: 600; }
+.no { color: #b42318; font-weight: 600; }
+
+/* Tipografía */
+.specimen { font-size: 30pt; line-height: 1; margin: 2mm 0 3mm; }
+.alpha { font-size: 9.5pt; letter-spacing: .06em; word-break: break-all; color: #2b3138; }
+.sweet { font-family: 'Sweet Sans Pro', 'Work Sans', sans-serif; }
+.sc { font-variant: small-caps; letter-spacing: .08em; }
+.scale div { display: flex; align-items: baseline; gap: 5mm; border-bottom: 1px solid var(--linea); padding: 2mm 0; }
+.scale small { width: 30mm; flex: none; font-size: 7.8pt; color: var(--grafito); }
+
+/* Aplicaciones */
+.card-biz { width: 85mm; height: 55mm; border-radius: 2mm; padding: 6mm; position: relative; box-shadow: 0 2mm 6mm rgba(16,19,23,.18); }
+.card-biz.front { background: var(--negro); color: var(--blanco); display: flex; align-items: center; justify-content: center; }
+.card-biz.back { background: #fff; }
+.card-biz.back::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2mm; background: var(--cian); border-radius: 2mm 0 0 2mm; }
+.card-biz .name { font-size: 12pt; font-weight: 500; }
+.card-biz .role { font-size: 8pt; font-style: italic; font-weight: 200; color: var(--grafito); margin-bottom: 4mm; }
+.card-biz .line { font-size: 7.6pt; line-height: 1.7; }
+.sign { background: var(--negro); color: var(--blanco); border-radius: 2mm; padding: 7mm; text-align: center; border-bottom: 4mm solid var(--cian); }
+.sign .big { font-size: 30pt; font-weight: 600; letter-spacing: .04em; color: var(--cian); margin: 3mm 0; }
+.post { aspect-ratio: 1; border-radius: 2mm; position: relative; overflow: hidden; color: var(--blanco); background: linear-gradient(transparent 35%, rgba(16,19,23,.92)), url('../../images/img_1.webp') center/cover; display: flex; flex-direction: column; justify-content: flex-end; padding: 5mm; }
+.post .tag { position: absolute; top: 4mm; left: 4mm; background: var(--cian); color: var(--negro); font-size: 7pt; font-weight: 600; padding: 1mm 2.5mm; border-radius: 1mm; letter-spacing: .08em; }
+.post .price { font-size: 15pt; font-weight: 600; }
+.post .where { font-size: 8pt; font-style: italic; font-weight: 200; }
+.btns { display: flex; flex-wrap: wrap; gap: 3mm; align-items: center; }
+.btn { border-radius: 10mm; padding: 2.5mm 6mm; font-size: 9pt; font-weight: 500; border: 1.5px solid transparent; }
+.btn.p { background: var(--cian-profundo); color: #fff; }
+.btn.c { background: var(--cian); color: var(--negro); }
+.btn.o { border-color: var(--cian-profundo); color: var(--cian-profundo); }
+.btn.d { background: var(--negro); color: var(--blanco); }
+.mail { border: 1px solid var(--linea); border-radius: 2mm; padding: 5mm; font-size: 8.6pt; line-height: 1.6; }
+.icons { display: flex; gap: 3mm; flex-wrap: wrap; }
+.icons span { width: 9mm; height: 9mm; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.icons svg { width: 4.6mm; height: 4.6mm; }
+.do li::marker { content: "✓  "; color: #067647; }
+.dont li::marker { content: "✕  "; color: #b42318; }
+.change td:first-child { color: var(--grafito); width: 45mm; }
+
+/* Portada */
+.cover { background: var(--negro); color: var(--blanco); display: flex; flex-direction: column; justify-content: space-between; padding: 22mm; }
+.cover .mark { width: 34mm; height: 34mm; }
+.cover h1 { font-size: 40pt; font-weight: 200; line-height: 1.05; }
+.cover h1 b { font-weight: 500; color: var(--cian); }
+.cover .bar { height: 1.2mm; width: 30mm; background: var(--cian); margin: 8mm 0; }
+.toc { columns: 2; column-gap: 10mm; font-size: 9.6pt; line-height: 2; padding: 0; list-style: none; counter-reset: t; }
+.toc li { counter-increment: t; }
+.toc li::before { content: counter(t, decimal-leading-zero) "  "; color: var(--cian); font-weight: 500; }
+@media screen and (max-width: 230mm) { .cover { min-height: 100vh; padding: 32px 16px; } .cover h1 { font-size: 30pt; } .toc { columns: 1; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<path id="casa" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/>
+		<symbol id="i-color" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#101317"/><use href="#casa" fill="#00b7e7"/></symbol>
+		<symbol id="i-negro" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#101317" stroke-width="5"/><use href="#casa" fill="#101317"/></symbol>
+		<symbol id="i-blanco" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#fcffff" stroke-width="5"/><use href="#casa" fill="#fcffff"/></symbol>
+		<symbol id="i-cian-sobre-negro" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#00b7e7" stroke-width="5"/><use href="#casa" fill="#00b7e7"/></symbol>
+	</defs>
+</svg>
+
+<!-- 1. Portada -->
+<section class="page cover">
+	<svg class="mark"><use href="#i-cian-sobre-negro"/></svg>
+	<div>
+		<div class="kicker" style="color:var(--cian)">Manual de identidad de marca · versión 2.0</div>
+		<h1>Equipo<br><b>Inmobiliario</b></h1>
+		<div class="bar"></div>
+		<p style="max-width:120mm;font-size:11pt;color:#c4ccd2">Cómo se ve, cómo suena y cómo se aplica la marca en el sitio web, redes sociales, anuncios, rótulos y papelería. Para el equipo, diseñadores, imprentas y agencias.</p>
+	</div>
+	<div class="small" style="color:#8e98a1">Equipo Inmobiliario S.A. · Ciudad de Guatemala · eqinmobiliario.gt · @eqinmobiliariogt</div>
+</section>
+
+<!-- 2. Índice y esencia -->
+<section class="page" data-n="02">
+	<div class="kicker">Contenido</div>
+	<ol class="toc">
+		<li>Esencia de la marca</li>
+		<li>Imagotipo</li>
+		<li>Construcción y área de protección</li>
+		<li>Logotipo</li>
+		<li>Usos incorrectos</li>
+		<li>Paleta de colores</li>
+		<li>Combinaciones y accesibilidad</li>
+		<li>Tipografía</li>
+		<li>Iconos y redes sociales</li>
+		<li>Fotografía</li>
+		<li>Aplicaciones</li>
+		<li>Línea VIP y cambios de esta versión</li>
+	</ol>
+
+	<div style="margin-top:12mm" class="kicker">01 · Esencia</div>
+	<h2>Una casa, un equipo</h2>
+	<p class="lead">El imagotipo es una casa dentro de un círculo: el hogar protegido por un equipo. Todo lo que comunicamos debe transmitir eso: confianza, acompañamiento y claridad en una de las decisiones más importantes de una familia.</p>
+
+	<div class="grid g3" style="margin-top:6mm">
+		<div class="box"><h3 style="margin-top:0">Propósito</h3><p class="small">Hacer que comprar, vender o rentar una propiedad en Guatemala sea simple y seguro, incluso desde el extranjero.</p></div>
+		<div class="box"><h3 style="margin-top:0">Promesa</h3><p class="small">Inmuebles verificados, asesores capacitados y respuesta rápida por el canal que el cliente prefiera.</p></div>
+		<div class="box"><h3 style="margin-top:0">Personalidad</h3><p class="small">Cercana, profesional, transparente y moderna. Nunca agresiva ni exagerada.</p></div>
+	</div>
+
+	<h3>Tono de voz</h3>
+	<div class="grid g2">
+		<ul class="do">
+			<li>Tutear con respeto en redes y web («te ayudamos a…»); usar «usted» si el cliente lo usa.</li>
+			<li>Datos concretos: zona, metros, precio, parqueos.</li>
+			<li>Frases cortas y verbos claros: «Agenda tu visita», «Escríbenos».</li>
+			<li>En inglés, tono cálido y directo para compradores en EE. UU.</li>
+		</ul>
+		<ul class="dont">
+			<li>Superlativos vacíos («la mejor casa del mundo»).</li>
+			<li>MAYÚSCULAS sostenidas o exceso de signos (¡¡¡!!!).</li>
+			<li>Precios «a consultar» cuando el cliente ya autorizó publicarlos.</li>
+			<li>Prometer plusvalías o rendimientos garantizados.</li>
+		</ul>
+	</div>
+
+	<h3>Frases de marca</h3>
+	<table>
+		<tr><th>Uso</th><th>Español</th><th>Inglés</th></tr>
+		<tr><td>Principal</td><td>La manera más fácil de encontrar tu propiedad</td><td>The easiest way to find your property in Guatemala</td></tr>
+		<tr><td>Compradores en el extranjero</td><td>Compra tu casa en Guatemala sin viajar</td><td>Buy your home in Guatemala without flying in</td></tr>
+		<tr><td>Captación</td><td>Vende tu propiedad con un equipo</td><td>Sell your property with a team behind you</td></tr>
+	</table>
+</section>
+
+<!-- 3. Imagotipo -->
+<section class="page" data-n="03">
+	<div class="kicker">02 · Imagotipo</div>
+	<h2>El símbolo</h2>
+	<p class="lead">Casa con chimenea dentro de un círculo. Se usa solo cuando la marca ya está presente o el espacio es reducido: foto de perfil, favicon, marca de agua, sello en fotografías.</p>
+
+	<div class="grid g3" style="margin-top:6mm">
+		<div><div class="panel dark"><svg class="mark"><use href="#i-color"/></svg></div><div class="cap"><b>Color (principal).</b> Círculo negro, casa cian. Versión plana para pantalla y redes.</div></div>
+		<div><div class="panel light"><svg class="mark"><use href="#i-negro"/></svg></div><div class="cap"><b>Negro.</b> Fondos claros, impresión a una tinta, sellos, facturas.</div></div>
+		<div><div class="panel gray"><svg class="mark"><use href="#i-blanco"/></svg></div><div class="cap"><b>Blanco.</b> Sobre fotografía oscura, fondo negro o cian.</div></div>
+	</div>
+
+	<div class="grid g2" style="margin-top:8mm">
+		<div><div class="panel dark" style="min-height:34mm"><svg class="mark" style="width:20mm;height:20mm"><use href="#i-cian-sobre-negro"/></svg></div><div class="cap"><b>Cian sobre negro.</b> Portadas y piezas premium (uso secundario).</div></div>
+		<div><div class="panel photo" style="min-height:34mm"><svg class="mark" style="width:20mm;height:20mm"><use href="#i-blanco"/></svg></div><div class="cap"><b>Sobre fotografía.</b> Solo la versión blanca, con la foto oscurecida al menos 40 %.</div></div>
+	</div>
+
+	<div class="box" style="margin-top:8mm">
+		<h3 style="margin-top:0">Versión con brillo (3D)</h3>
+		<p class="small" style="margin:0">La versión con reflejo del manual anterior se conserva solo para piezas impresas grandes (rótulos, lonas). En pantalla, redes y tamaños menores a 3 cm se usa siempre la versión plana: se lee mejor, pesa menos y no se ve desactualizada.</p>
+	</div>
+	<p class="small muted" style="margin-top:4mm">Archivos: <code>docs/marca/imagotipo.svg</code>, <code>imagotipo-negro.svg</code>, <code>imagotipo-blanco.svg</code> (vectoriales, escalan sin perder calidad).</p>
+</section>
+
+<!-- 4. Construcción -->
+<section class="page" data-n="04">
+	<div class="kicker">03 · Construcción</div>
+	<h2>Área de protección y tamaño mínimo</h2>
+	<p class="lead">Alrededor de la marca siempre queda un espacio libre igual a <b>X</b>, donde X es la altura de la puerta de la casa. Ningún texto, borde o elemento gráfico entra en esa zona.</p>
+
+	<div class="grid g2" style="margin-top:8mm;align-items:center">
+		<div class="construct"><span class="x t">X</span><span class="x l">X</span><svg class="mark"><use href="#i-color"/></svg></div>
+		<div style="display:flex;justify-content:center"><div style="border:1px dashed var(--cian);padding:6mm"><span class="logo"><svg class="mark"><use href="#i-color"/></svg><span>Equipo Inmobiliario</span></span></div></div>
+	</div>
+
+	<h3 style="margin-top:12mm">Tamaño mínimo</h3>
+	<div class="grid g2">
+		<div class="box">
+			<div class="minsize">
+				<svg style="width:10mm;height:10mm"><use href="#i-color"/></svg>
+				<svg style="width:6mm;height:6mm"><use href="#i-color"/></svg>
+			</div>
+			<p class="small" style="margin-top:3mm"><b>Imagotipo:</b> 10 mm impreso · 24 px en pantalla (favicon: versión simplificada de 16 px sin chimenea).</p>
+		</div>
+		<div class="box">
+			<span class="logo sm"><svg class="mark"><use href="#i-color"/></svg><span>Equipo Inmobiliario</span></span>
+			<p class="small" style="margin-top:3mm"><b>Logotipo horizontal:</b> 35 mm de ancho impreso · 140 px en pantalla. Por debajo de eso usar solo el imagotipo.</p>
+		</div>
+	</div>
+
+	<h3>Proporciones</h3>
+	<table>
+		<tr><th>Elemento</th><th>Regla</th></tr>
+		<tr><td>Imagotipo ↔ nombre</td><td>Separación = 1/3 del diámetro del círculo.</td></tr>
+		<tr><td>Altura del nombre</td><td>Altura de mayúscula = 40 % del diámetro del círculo; centrado verticalmente.</td></tr>
+		<tr><td>Grosor del círculo (versiones de línea)</td><td>5 % del diámetro; nunca más delgado (se pierde al imprimir).</td></tr>
+	</table>
+</section>
+
+<!-- 5. Logotipo -->
+<section class="page" data-n="05">
+	<div class="kicker">04 · Logotipo</div>
+	<h2>Imagotipo + nombre</h2>
+	<p class="lead">El nombre se escribe en Work Sans Light, con «E» e «I» mayúsculas: <b style="font-weight:400">Equipo Inmobiliario</b>. En textos legales se usa la razón social completa: Equipo Inmobiliario S.A.</p>
+
+	<div class="grid" style="margin-top:6mm">
+		<div class="panel light" style="min-height:30mm"><span class="logo"><svg class="mark"><use href="#i-color"/></svg><span>Equipo Inmobiliario</span></span></div>
+		<div class="grid g2">
+			<div class="panel dark" style="min-height:30mm"><span class="logo on-dark"><svg class="mark"><use href="#i-cian-sobre-negro"/></svg><span>Equipo Inmobiliario</span></span></div>
+			<div class="panel gray" style="min-height:30mm"><span class="logo on-dark"><svg class="mark"><use href="#i-blanco"/></svg><span>Equipo Inmobiliario</span></span></div>
+		</div>
+		<div class="panel light" style="min-height:30mm"><span class="logo"><svg class="mark"><use href="#i-negro"/></svg><span>Equipo Inmobiliario</span></span></div>
+	</div>
+
+	<h3>Versión vertical</h3>
+	<div class="grid g2">
+		<div class="panel light" style="flex-direction:column;gap:3mm"><svg class="mark" style="width:16mm;height:16mm"><use href="#i-color"/></svg><span style="font-size:13pt">Equipo Inmobiliario</span></div>
+		<p class="small" style="align-self:center">Para formatos cuadrados o verticales (post de Instagram, rótulo vertical, sello de agua centrado). El nombre va debajo, centrado, a una distancia de 1/4 del diámetro.</p>
+	</div>
+</section>
+
+<!-- 6. Usos incorrectos -->
+<section class="page" data-n="06">
+	<div class="kicker">05 · Usos incorrectos</div>
+	<h2>Lo que no se hace</h2>
+	<p class="lead">Cualquier alteración debilita el reconocimiento. Estos son los errores más comunes; el manual anterior los mostraba sin explicar el porqué.</p>
+
+	<div class="grid g3" style="margin-top:6mm">
+		<div class="wrong"><div class="panel light"><svg class="mark" style="width:22mm;height:22mm"><circle cx="50%" cy="50%" r="45%" fill="none" stroke="#101317" stroke-width="1"/><g transform="scale(.83)"><use href="#casa" fill="none" stroke="#101317" stroke-width="1.2"/></g></svg></div><p><b>Solo contorno o líneas delgadas.</b> Se pierde a distancia y en impresión.</p></div>
+		<div class="wrong"><div class="panel light"><svg class="mark" style="width:22mm;height:22mm" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#101317" stroke-width="5"/><use href="#casa" fill="#00b7e7"/></svg></div><p><b>Mezclar versiones.</b> Casa cian con círculo de línea negra no existe.</p></div>
+		<div class="wrong"><div class="panel light"><svg class="mark" style="width:22mm;height:22mm" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#101317"/><g transform="translate(0 6) scale(1 1.15)"><use href="#casa" fill="#00b7e7"/></g></svg></div><p><b>Deformar o sacar la casa del círculo.</b> Respetar proporciones originales.</p></div>
+		<div class="wrong"><div class="panel light"><span class="logo"><svg class="mark" style="width:8mm;height:8mm"><use href="#i-negro"/></svg><span style="font-size:12pt;font-family:Courier,monospace">Equipo Inmobiliario</span></span></div><p><b>Cambiar la tipografía</b> del nombre.</p></div>
+		<div class="wrong"><div class="panel light" style="flex-direction:column;align-items:flex-start"><svg class="mark" style="width:8mm;height:8mm"><use href="#i-negro"/></svg><span style="font-size:12pt;margin-left:4mm">Equipo Inmobiliario</span></div><p><b>Desalinear</b> el nombre del imagotipo.</p></div>
+		<div class="wrong"><div class="panel light"><span class="logo" style="position:relative"><svg class="mark" style="width:10mm;height:10mm;position:relative;z-index:1"><use href="#i-color"/></svg><span style="font-size:12pt;margin-left:-6mm">Equipo Inmobiliario</span></span></div><p><b>Superponer</b> el imagotipo al texto.</p></div>
+		<div class="wrong"><div class="panel cyan"><span class="logo"><svg class="mark" style="width:8mm;height:8mm"><use href="#i-negro"/></svg><span style="font-size:12pt;color:#fcffff">Equipo Inmobiliario</span></span></div><p><b>Texto blanco sobre cian.</b> Contraste 2.3:1, ilegible. Sobre cian: todo en negro.</p></div>
+		<div class="wrong"><div class="panel" style="background:url('../../images/img_3.webp') center/cover"><span class="logo"><svg class="mark" style="width:8mm;height:8mm"><use href="#i-negro"/></svg><span style="font-size:12pt">Equipo Inmobiliario</span></span></div><p><b>Sobre fotos sin oscurecer</b> o con muchos detalles.</p></div>
+		<div class="wrong"><div class="panel light"><span class="logo" style="filter:drop-shadow(2mm 2mm 1mm rgba(0,0,0,.6))"><svg class="mark" style="width:8mm;height:8mm"><use href="#i-color"/></svg><span style="font-size:12pt;color:#c0392b">Equipo Inmobiliario</span></span></div><p><b>Sombras, efectos o colores</b> fuera de la paleta.</p></div>
+	</div>
+</section>
+
+<!-- 7. Paleta -->
+<section class="page" data-n="07">
+	<div class="kicker">06 · Paleta de colores</div>
+	<h2>Colores principales</h2>
+	<p class="lead">Negro, cian y blanco. El negro da seriedad, el cian da energía y frescura, el blanco da aire. Valores corregidos y verificados.</p>
+
+	<div class="grid g3" style="margin-top:6mm">
+		<div class="swatch"><div class="chip" style="background:#101317;color:#fcffff">Negro Equipo</div><div class="data"><b>#101317</b>RGB 16 · 19 · 23<br>CMYK 87 · 84 · 70 · 72 (negro enriquecido)<br>HSB 214° · 30 % · 9 %<br>Pantone ≈ Black 6 C</div></div>
+		<div class="swatch"><div class="chip" style="background:#00b7e7;color:#101317">Cian Equipo</div><div class="data"><b>#00B7E7</b>RGB 0 · 183 · 231<br>CMYK 70 · 5 · 2 · 0<br>HSB 192° · 100 % · 91 %<br>Pantone ≈ 801 C / 306 C</div></div>
+		<div class="swatch"><div class="chip" style="background:#fcffff;color:#101317;border-bottom:1px solid var(--linea)">Blanco Equipo</div><div class="data"><b>#FCFFFF</b>RGB 252 · 255 · 255<br>CMYK 0 · 0 · 0 · 0 (papel)<br>HSB 180° · 1 % · 100 %<br>Blanco ligeramente frío</div></div>
+	</div>
+
+	<h3>Proporción de uso</h3>
+	<div class="ratio">
+		<div style="flex:60;background:#fcffff;border:1px solid var(--linea)">Blanco 60 %</div>
+		<div style="flex:30;background:#101317;color:#fcffff">Negro 30 %</div>
+		<div style="flex:10;background:#00b7e7;color:#101317">Cian 10 %</div>
+	</div>
+	<p class="small muted">El cian es el acento: botones de acción, detalles, iconos, la línea bajo los títulos. Si todo es cian, nada destaca.</p>
+
+	<h3>Colores de apoyo (nuevos)</h3>
+	<div class="grid g4">
+		<div class="swatch sm"><div class="chip" style="background:#0077a3;color:#fff">Cian profundo</div><div class="data"><b>#0077A3</b>RGB 0 · 119 · 163<br>Textos, enlaces y botones con texto blanco sobre fondo claro.</div></div>
+		<div class="swatch sm"><div class="chip" style="background:#e6f8fd;color:#101317">Bruma</div><div class="data"><b>#E6F8FD</b>RGB 230 · 248 · 253<br>Fondos de secciones y tarjetas.</div></div>
+		<div class="swatch sm"><div class="chip" style="background:#5c6670;color:#fff">Grafito</div><div class="data"><b>#5C6670</b>RGB 92 · 102 · 112<br>Texto secundario, notas, pies de foto.</div></div>
+		<div class="swatch sm"><div class="chip" style="background:#c9a45c;color:#101317">Oro VIP</div><div class="data"><b>#C9A45C</b>RGB 201 · 164 · 92<br>Solo para la línea VIP de propiedades exclusivas.</div></div>
+	</div>
+	<p class="small muted" style="margin-top:4mm">¿Por qué el cian profundo? El cian original sobre blanco tiene un contraste de 2.35:1 y no se puede leer como texto (la norma WCAG pide 4.5:1). El cian profundo es el mismo tono, más oscuro, y llega a 5.04:1. Así la web cumple accesibilidad y Google lo valora.</p>
+</section>
+
+<!-- 8. Combinaciones -->
+<section class="page" data-n="08">
+	<div class="kicker">07 · Combinaciones y accesibilidad</div>
+	<h2>Qué va sobre qué</h2>
+	<p class="lead">Contraste medido según WCAG 2.2. Para texto normal se necesita 4.5:1 o más; para títulos grandes, 3:1.</p>
+
+	<table style="margin-top:5mm">
+		<tr><th>Combinación</th><th>Muestra</th><th>Contraste</th><th>Texto normal</th><th>Títulos / iconos</th></tr>
+		<tr><td>Blanco sobre negro</td><td><span class="pair" style="background:#101317;color:#fcffff">Agenda tu visita</span></td><td>18.7:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Cian sobre negro</td><td><span class="pair" style="background:#101317;color:#00b7e7">Agenda tu visita</span></td><td>7.9:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Negro sobre cian</td><td><span class="pair" style="background:#00b7e7;color:#101317">Agenda tu visita</span></td><td>7.9:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Blanco sobre cian profundo</td><td><span class="pair" style="background:#0077a3;color:#fff">Agenda tu visita</span></td><td>5.0:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Cian profundo sobre blanco</td><td><span class="pair" style="background:#fcffff;color:#0077a3;border:1px solid var(--linea)">Agenda tu visita</span></td><td>5.0:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Grafito sobre blanco</td><td><span class="pair" style="background:#fcffff;color:#5c6670;border:1px solid var(--linea)">Agenda tu visita</span></td><td>5.8:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Negro sobre bruma</td><td><span class="pair" style="background:#e6f8fd;color:#101317">Agenda tu visita</span></td><td>17.0:1</td><td class="ok">Sí</td><td class="ok">Sí</td></tr>
+		<tr><td>Cian sobre blanco</td><td><span class="pair" style="background:#fcffff;color:#00b7e7;border:1px solid var(--linea)">Agenda tu visita</span></td><td>2.3:1</td><td class="no">No</td><td>Solo iconos y líneas decorativas</td></tr>
+		<tr><td>Blanco sobre cian</td><td><span class="pair" style="background:#00b7e7;color:#fff">Agenda tu visita</span></td><td>2.3:1</td><td class="no">No</td><td class="no">No</td></tr>
+	</table>
+
+	<h3>Botones del sitio web</h3>
+	<div class="btns">
+		<span class="btn p">Ver detalles</span>
+		<span class="btn c">Buscar</span>
+		<span class="btn o">Ver todas las propiedades</span>
+		<span class="btn d">Contactar</span>
+	</div>
+	<p class="small muted" style="margin-top:3mm">Botones redondeados (radio completo). Principal: cian profundo con texto blanco. Sobre fotos o fondos oscuros: cian con texto negro. El sitio web y el panel ya usan esta paleta.</p>
+
+	<h3>Variables para desarrolladores</h3>
+	<pre class="small" style="background:#101317;color:#e6f8fd;padding:4mm;border-radius:2mm;margin:0">--eq-dark: #101317;  --eq-cyan: #00b7e7;  --eq-white: #fcffff;
+--eq-primary: #0077a3;  --eq-mist: #e6f8fd;  --eq-gold: #c9a45c;  /* css/site.css */</pre>
+</section>
+
+<!-- 9. Tipografía -->
+<section class="page" data-n="09">
+	<div class="kicker">08 · Tipografía</div>
+	<h2>Familias tipográficas</h2>
+	<p class="lead">Dos familias: Work Sans para el nombre y la web; Sweet Sans Pro para títulos y subtítulos en piezas impresas y diseño gráfico.</p>
+
+	<div class="grid g2" style="margin-top:5mm">
+		<div class="box">
+			<div class="kicker" style="margin:0">Work Sans · gratuita (Google Fonts)</div>
+			<div class="specimen" style="font-weight:300">Aa Bb Cc</div>
+			<div class="alpha">a b c d e f g h i j k l m n ñ o p q r s t u v w x y z<br>A B C D E F G H I J K L M N Ñ O P Q R S T U V W X Y Z<br>0 1 2 3 4 5 6 7 8 9 ! ¡ ? ¿ « » # $ % & @ ( ) .,</div>
+			<p class="small" style="margin-top:3mm"><b>Light 300:</b> nombre de la empresa. <b>Regular 400 / Medium 500 / SemiBold 600:</b> todo el sitio web, redes sociales y documentos de Office.</p>
+		</div>
+		<div class="box">
+			<div class="kicker" style="margin:0">Sweet Sans Pro · licencia comercial</div>
+			<div class="specimen sweet sc">Casa Jardines</div>
+			<div class="alpha sweet sc">a b c d e f g h i j k l m n ñ o p q r s t u v w x y z</div>
+			<div class="alpha sweet" style="font-style:italic;font-weight:200;margin-top:2mm">a b c d e f g h i j k l m n ñ o p q r s t u v w x y z</div>
+			<p class="small" style="margin-top:3mm"><b>Regular (versalitas):</b> títulos de propiedades. <b>Extra Light Italic:</b> ubicación, subtítulos y enlaces. Si no se cuenta con la licencia, sustituir por Work Sans con versalitas.</p>
+		</div>
+	</div>
+
+	<h3>Jerarquía</h3>
+	<div class="scale">
+		<div><small>Título H1 · 32–40 pt</small><span style="font-size:24pt;font-weight:500">Casa en Encinos Cayalá</span></div>
+		<div><small>Título H2 · 24 pt</small><span style="font-size:17pt;font-weight:500">Propiedades populares</span></div>
+		<div><small>Subtítulo · 14 pt itálica</small><span style="font-size:12pt;font-style:italic;font-weight:200">Zona 16, Ciudad de Guatemala</span></div>
+		<div><small>Precio · 16 pt SemiBold</small><span style="font-size:13pt;font-weight:600;color:var(--cian-profundo)">US$ 1,291,000</span></div>
+		<div><small>Texto · 10–11 pt</small><span style="font-size:10pt">3 habitaciones · 3 baños · 2 parqueos · 450 m²</span></div>
+		<div><small>Etiqueta · 8 pt mayúsc.</small><span style="font-size:8pt;font-weight:600;letter-spacing:.12em">EN VENTA</span></div>
+	</div>
+
+	<h3>Ejemplo de ficha</h3>
+	<div class="box" style="text-align:center">
+		<span class="logo sm"><svg class="mark"><use href="#i-negro"/></svg><span>Equipo Inmobiliario</span></span>
+		<div class="sweet sc" style="font-size:13pt;margin-top:3mm">Casa Jardines | Encinos Cayalá</div>
+		<div class="sweet" style="font-style:italic;font-weight:200;font-size:9pt">Zona 16, Ciudad de Guatemala</div>
+	</div>
+</section>
+
+<!-- 10. Iconos, redes y fotografía -->
+<section class="page" data-n="10">
+	<div class="kicker">09 · Iconos y redes sociales</div>
+	<h2>Iconos</h2>
+	<p class="lead">Iconos lineales simples en un círculo. Tres variantes, igual que el imagotipo. Usuario único en todas las redes: <b>@eqinmobiliariogt</b>.</p>
+
+	<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+		<symbol id="s-wa" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.6a2.8 2.8 0 0 0 1.8-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.2-.2-.4-.3Z"/></symbol>
+		<symbol id="s-ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></symbol>
+		<symbol id="s-fb" viewBox="0 0 24 24"><path fill="currentColor" d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H8v4h2v8h4v-8h3l1-4h-4V8.5c0-.3.2-.5.5-.5Z"/></symbol>
+		<symbol id="s-in" viewBox="0 0 24 24"><path fill="currentColor" d="M4 9h3.5v11H4zM5.7 3.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4ZM10 9h3.4v1.6c.5-.9 1.7-1.9 3.5-1.9 3.7 0 4.1 2.4 4.1 5.5V20h-3.5v-5.1c0-1.3 0-2.9-1.8-2.9s-2.1 1.4-2.1 2.8V20H10z"/></symbol>
+		<symbol id="s-yt" viewBox="0 0 24 24"><path fill="currentColor" d="M22 8.2a3 3 0 0 0-2-2C18.2 5.7 12 5.7 12 5.7s-6.2 0-8 .5a3 3 0 0 0-2 2A31 31 0 0 0 1.6 12 31 31 0 0 0 2 15.8a3 3 0 0 0 2 2c1.8.5 8 .5 8 .5s6.2 0 8-.5a3 3 0 0 0 2-2 31 31 0 0 0 .4-3.8 31 31 0 0 0-.4-3.8ZM10 15V9l5.2 3Z"/></symbol>
+		<symbol id="s-tt" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 3a4.5 4.5 0 0 0 4 4v3.3a7.7 7.7 0 0 1-4-1.2v6.4A5.6 5.6 0 1 1 10.9 10v3.4a2.3 2.3 0 1 0 2.3 2.3V3Z"/></symbol>
+	</defs></svg>
+	<div class="grid g3" style="margin-top:5mm">
+		<div class="panel gray" style="min-height:24mm"><div class="icons" style="color:#fcffff"><span style="border:1.5px solid #fcffff"><svg><use href="#s-wa"/></svg></span><span style="border:1.5px solid #fcffff"><svg><use href="#s-ig"/></svg></span><span style="border:1.5px solid #fcffff"><svg><use href="#s-fb"/></svg></span><span style="border:1.5px solid #fcffff"><svg><use href="#s-in"/></svg></span><span style="border:1.5px solid #fcffff"><svg><use href="#s-yt"/></svg></span><span style="border:1.5px solid #fcffff"><svg><use href="#s-tt"/></svg></span></div></div>
+		<div class="panel light" style="min-height:24mm"><div class="icons" style="color:#101317"><span style="border:1.5px solid #101317"><svg><use href="#s-wa"/></svg></span><span style="border:1.5px solid #101317"><svg><use href="#s-ig"/></svg></span><span style="border:1.5px solid #101317"><svg><use href="#s-fb"/></svg></span><span style="border:1.5px solid #101317"><svg><use href="#s-in"/></svg></span><span style="border:1.5px solid #101317"><svg><use href="#s-yt"/></svg></span><span style="border:1.5px solid #101317"><svg><use href="#s-tt"/></svg></span></div></div>
+		<div class="panel dark" style="min-height:24mm"><div class="icons" style="color:#101317"><span style="background:#00b7e7"><svg><use href="#s-wa"/></svg></span><span style="background:#00b7e7"><svg><use href="#s-ig"/></svg></span><span style="background:#00b7e7"><svg><use href="#s-fb"/></svg></span><span style="background:#00b7e7"><svg><use href="#s-in"/></svg></span><span style="background:#00b7e7"><svg><use href="#s-yt"/></svg></span><span style="background:#00b7e7"><svg><use href="#s-tt"/></svg></span></div></div>
+	</div>
+	<p class="small muted" style="margin-top:3mm">Blanco: sobre fotos o gris. Negro: papelería y fondos claros. Marca (nuevo): cian con icono negro, para piezas propias. Los colores oficiales de cada red (rojo YouTube, verde WhatsApp…) solo se usan en el botón flotante de WhatsApp del sitio, donde el usuario ya lo reconoce. Se agregó TikTok.</p>
+
+	<h3>Perfiles</h3>
+	<div class="grid g2">
+		<div class="box small"><b>Foto de perfil:</b> imagotipo color (círculo negro, casa cian) centrado, sin texto. Se recorta bien en el círculo de todas las redes.<br><b>Portada:</b> fotografía de propiedad oscurecida + logotipo blanco a la izquierda + frase principal.</div>
+		<div class="box small"><b>Bio (ES):</b> Compra, venta y renta de propiedades en Guatemala 🏡 Asesoría para compradores en EE. UU. 📲 WhatsApp +502 5913-1276<br><b>Link:</b> eqinmobiliario.gt (con UTM por red para medir resultados).</div>
+	</div>
+
+	<div class="kicker" style="margin-top:9mm">10 · Fotografía</div>
+	<h2>Fotografía</h2>
+	<div class="grid g2">
+		<ul class="do">
+			<li>Luz natural, de día o «hora dorada»; fachadas al atardecer con luces encendidas.</li>
+			<li>Horizontal 3:2 o 4:3; mínimo 1600 px de ancho. Portada siempre la fachada o el mejor ambiente.</li>
+			<li>Espacios ordenados, líneas verticales rectas, sin personas identificables.</li>
+			<li>Marca de agua: imagotipo blanco al 60 %, esquina inferior derecha, 8 % del ancho.</li>
+		</ul>
+		<ul class="dont">
+			<li>Fotos con flash, nocturnas sin luz o tomadas con zoom digital.</li>
+			<li>Filtros de color, marcos o textos encima de la foto de la ficha.</li>
+			<li>Gran angular extremo que deforme los espacios.</li>
+			<li>Placas de vehículos, rostros o datos personales visibles.</li>
+		</ul>
+	</div>
+</section>
+
+<!-- 11. Aplicaciones -->
+<section class="page" data-n="11">
+	<div class="kicker">11 · Aplicaciones</div>
+	<h2>La marca en uso</h2>
+
+	<h3>Tarjeta de presentación (85 × 55 mm)</h3>
+	<div class="grid g2" style="justify-items:center">
+		<div class="card-biz front"><span class="logo on-dark"><svg class="mark"><use href="#i-cian-sobre-negro"/></svg><span style="font-size:13pt">Equipo Inmobiliario</span></span></div>
+		<div class="card-biz back">
+			<div class="name">Joaquín Arriola</div>
+			<div class="role">Asesor de bienes raíces</div>
+			<div class="line">+502 5913-1276 · WhatsApp<br>atencioncliente@eqinmobiliario.gt<br>eqinmobiliario.gt · @eqinmobiliariogt</div>
+			<svg style="position:absolute;right:6mm;bottom:6mm;width:9mm;height:9mm"><use href="#i-color"/></svg>
+		</div>
+	</div>
+
+	<div class="grid g2" style="margin-top:8mm">
+		<div>
+			<h3 style="margin-top:0">Rótulo «Se vende»</h3>
+			<div class="sign">
+				<span class="logo on-dark"><svg class="mark" style="width:9mm;height:9mm"><use href="#i-cian-sobre-negro"/></svg><span style="font-size:12pt">Equipo Inmobiliario</span></span>
+				<div class="big">SE VENDE</div>
+				<div style="font-size:15pt;font-weight:500">5913-1276</div>
+				<div class="small" style="color:#c4ccd2;margin-top:1mm">eqinmobiliario.gt</div>
+			</div>
+			<p class="small muted" style="margin-top:2mm">Teléfono a la altura de lectura desde un carro: mínimo 12 cm en un rótulo de 60 × 90 cm. Agregar código QR a la ficha de la propiedad.</p>
+		</div>
+		<div>
+			<h3 style="margin-top:0">Publicación en redes (1080 × 1080)</h3>
+			<div class="post">
+				<span class="tag">EN VENTA</span>
+				<svg style="position:absolute;top:4mm;right:4mm;width:8mm;height:8mm"><use href="#i-blanco"/></svg>
+				<div class="sweet sc" style="font-size:12pt">Casa Jardines | Encinos Cayalá</div>
+				<div class="where">Zona 16, Ciudad de Guatemala</div>
+				<div class="price" style="color:var(--cian)">US$ 1,291,000</div>
+			</div>
+		</div>
+	</div>
+
+	<h3>Firma de correo</h3>
+	<div class="mail">
+		<div style="display:flex;gap:4mm;align-items:center">
+			<svg style="width:12mm;height:12mm;flex:none"><use href="#i-color"/></svg>
+			<div><b style="font-weight:600">Joaquín Arriola</b> · <span class="muted">Asesor de bienes raíces</span><br><span style="color:var(--cian-profundo)">+502 5913-1276</span> · eqinmobiliario.gt · @eqinmobiliariogt</div>
+		</div>
+	</div>
+</section>
+
+<!-- 12. VIP y cambios -->
+<section class="page" data-n="12">
+	<div class="kicker">12 · Línea VIP</div>
+	<h2>Propiedades exclusivas</h2>
+	<p class="lead">Las propiedades VIP tienen su propia página de aterrizaje. Mantienen el negro de marca y cambian el acento cian por oro para comunicar exclusividad, sin crear una marca distinta.</p>
+	<div class="grid g2" style="margin-top:5mm">
+		<div class="panel dark" style="flex-direction:column;gap:3mm;min-height:44mm">
+			<span class="logo on-dark"><svg class="mark" style="width:9mm;height:9mm"><use href="#i-blanco"/></svg><span style="font-size:12pt">Equipo Inmobiliario</span></span>
+			<span style="color:#c9a45c;letter-spacing:.3em;font-size:8pt;font-weight:500">COLECCIÓN VIP</span>
+		</div>
+		<ul class="small" style="align-self:center">
+			<li>Oro <b>#C9A45C</b> solo en detalles: línea, etiqueta, botón principal con texto negro.</li>
+			<li>El imagotipo nunca se pinta en oro: se usa en blanco.</li>
+			<li>Fotografía de mayor calidad (profesional, video o recorrido 360°).</li>
+		</ul>
+	</div>
+
+	<div class="kicker" style="margin-top:10mm">Control de cambios</div>
+	<h2>Qué cambió en la versión 2.0</h2>
+	<table class="change" style="margin-top:4mm">
+		<tr><td>Título</td><td>«Manual Identida de Marca» → «Manual de identidad de marca».</td></tr>
+		<tr><td>Negro</td><td>RGB corregido a 16 · 19 · 23 (decía 16 19 25 con 40 % de opacidad, que no corresponde al HEX); HSB corregido a 214° 30 % 9 % (decía brillo 0 %).</td></tr>
+		<tr><td>Blanco</td><td>HEX completo #FCFFFF (aparecía como «#fc»); HSB corregido a 180° 1 % 100 %.</td></tr>
+		<tr><td>Cian</td><td>HSB ajustado a 192° 100 % 91 %. Se agregan referencias Pantone aproximadas.</td></tr>
+		<tr><td>Colores de apoyo</td><td>Nuevos: cian profundo, bruma, grafito y oro VIP, con proporción de uso.</td></tr>
+		<tr><td>Accesibilidad</td><td>Tabla de contraste WCAG; se prohíbe texto blanco sobre cian y cian sobre blanco para texto.</td></tr>
+		<tr><td>Imagotipo</td><td>Versión plana para pantallas; el brillo 3D queda solo para impresión grande. Archivos SVG vectoriales.</td></tr>
+		<tr><td>Construcción</td><td>Nuevas reglas de área de protección, tamaño mínimo y proporciones; versión vertical.</td></tr>
+		<tr><td>Usos incorrectos</td><td>De 6 ejemplos sin explicación a 9 explicados.</td></tr>
+		<tr><td>Tipografía</td><td>Abecedarios completos (faltaban la «e» y la «ñ»), mayúsculas y números; jerarquía con tamaños; sustituto gratuito para Sweet Sans Pro.</td></tr>
+		<tr><td>Nuevo</td><td>Esencia y tono de voz, frases en español e inglés, fotografía, iconos color de marca + TikTok, tarjeta, rótulo, post, firma de correo y línea VIP.</td></tr>
+	</table>
+</section>
+
+</body>
+</html>

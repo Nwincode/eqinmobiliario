@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Equipo Inmobiliario">
+  <circle cx="50" cy="50" r="45" fill="none" stroke="#fcffff" stroke-width="5"/>
+  <path fill="#fcffff" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/>
+</svg>
