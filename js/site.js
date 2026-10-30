@@ -408,4 +408,12 @@
 		});
 	}
 
+	// Barra de navegación: fondo sólido al bajar de la portada.
+	var siteNav = document.querySelector('.site-nav');
+	if (siteNav) {
+		var marcarScroll = function () { siteNav.classList.toggle('is-scrolled', window.scrollY > 40); };
+		marcarScroll();
+		window.addEventListener('scroll', marcarScroll, { passive: true });
+	}
+
 })();

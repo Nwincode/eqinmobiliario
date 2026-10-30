@@ -143,9 +143,10 @@ function head(ctx, page) {
 function nav(ctx, active) {
 	const site = ctx.site;
 	const hasVip = ctx.properties.some((p) => p.vip);
+	// El enlace de contacto se muestra como el botón de acción de la barra.
 	const items = (site.navegacion || []).map((it) => {
-		const cls = it.enlace === active ? ' class="active"' : '';
-		return `<li${cls}><a href="${esc(it.enlace)}">${esc(it.texto)}</a></li>`;
+		const cls = [it.enlace === active ? 'active' : '', /#conta/.test(it.enlace || '') ? 'nav-cta' : ''].filter(Boolean).join(' ');
+		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${esc(it.texto)}</a></li>`;
 	});
 	const t = tr(ctx);
 	const r = rt(ctx);
@@ -160,7 +161,15 @@ function nav(ctx, active) {
 								</ul>
 							</li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);
-	if (ctx.altLang) items.push(`<li class="lang-switch"><a href="${esc(ctx.altLang(active))}" hreflang="${ctx.lang === 'en' ? 'es' : 'en'}" aria-label="${t.otroIdiomaLabel}">${t.otroIdioma}</a></li>`);
+	// Selector de idioma segmentado: el idioma actual queda marcado y el otro enlaza a la página equivalente.
+	const cta = items.findIndex((it) => it.includes('nav-cta'));
+	const ctaItem = cta >= 0 ? items.splice(cta, 1)[0] : '';
+	if (ctx.altLang) {
+		const otro = `<a href="${esc(ctx.altLang(active))}" hreflang="${ctx.lang === 'en' ? 'es' : 'en'}" lang="${ctx.lang === 'en' ? 'es' : 'en'}" aria-label="${t.otroIdiomaLabel}">${t.otroIdioma}</a>`;
+		const actual = `<span aria-current="true">${ctx.lang === 'en' ? 'EN' : 'ES'}</span>`;
+		items.push(`<li class="lang-switch">${ctx.lang === 'en' ? otro + actual : actual + otro}</li>`);
+	}
+	if (ctaItem) items.push(ctaItem);
 	return `<div class="site-mobile-menu site-navbar-target">
 		<div class="site-mobile-menu-header">
 			<div class="site-mobile-menu-close">
@@ -170,15 +179,15 @@ function nav(ctx, active) {
 		<div class="site-mobile-menu-body"></div>
 	</div>
 
-	<nav class="site-nav">
+	<nav class="site-nav" aria-label="${ctx.lang === 'en' ? 'Main' : 'Principal'}">
 		<div class="container">
 			<div class="menu-bg-wrap">
-				<a href="${rt(ctx).inicio}" class="logo m-0 float-start"><img class="logo-media w-50" src="${esc(site.general.logo)}" alt="${esc(site.general.nombre)}" width="340" height="82"></a>
+				<a href="${rt(ctx).inicio}" class="logo nav-brand"><svg class="nav-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="5"/><path fill="currentColor" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/></svg><span>${esc(site.general.nombre.replace(/\s*S\.A\.?$/i, ""))}</span></a>
 				<div class="site-navigation">
-					<ul class="js-clone-nav d-none d-lg-inline-block text-start site-menu float-end">
+					<ul class="js-clone-nav d-none d-lg-flex site-menu">
 						${items.join('\n\t\t\t\t\t\t')}
 					</ul>
-					<a href="#" class="burger light me-auto float-end mt-1 site-menu-toggle js-menu-toggle d-inline-block d-lg-none" aria-label="${tr(ctx).abrirMenu}">
+					<a href="#" class="burger light site-menu-toggle js-menu-toggle d-inline-block d-lg-none" aria-label="${tr(ctx).abrirMenu}">
 						<span></span>
 					</a>
 				</div>
