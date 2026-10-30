@@ -114,6 +114,7 @@ function head(ctx, page) {
 	${seo.bingVerification ? `<meta name="msvalidate.01" content="${esc(seo.bingVerification)}">` : ''}
 	<link rel="canonical" href="${esc(url)}">
 	<link rel="icon" href="${esc(site.general.favicon || '/favicon.png')}">
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 	<meta property="og:locale" content="${tr(ctx).ogLocale}">
 	${Object.entries(page.alternates || {}).map(([l, u]) => `<link rel="alternate" hreflang="${l}" href="${esc(absUrl(ctx, u))}">`).join('\n\t')}
 	${page.alternates && page.alternates.es ? `<link rel="alternate" hreflang="x-default" href="${esc(absUrl(ctx, page.alternates.es))}">` : ''}
@@ -184,7 +185,7 @@ function nav(ctx, active) {
 			<div class="menu-bg-wrap">
 				<a href="${rt(ctx).inicio}" class="logo nav-brand">${site.general.logoMenu
 					? `<img class="nav-logo-img" src="${esc(site.general.logoMenu)}" alt="${esc(site.general.nombre)}" height="40">`
-					: `<svg class="nav-mark" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="5"/><path fill="currentColor" d="M50 24 77 50h-8v25H56V61H44v14H31V50h-8Z M61 29h7v13l-7-6.5Z"/></svg><span>${esc(site.general.nombre.replace(/\s*S\.A\.?$/i, ""))}</span>`}</a>
+					: `<svg class="nav-mark" viewBox="0 0 110 110" aria-hidden="true"><g transform="translate(-49.847218,-93.347217)"><path class="nav-mark-aro" d="m 0,0 c -74.439,0 -135,-60.561 -135,-135 0,-74.439 60.561,-135 135,-135 74.439,0 135,60.561 135,135 C 135,-60.561 74.439,0 0,0 m 0,-280 c -79.953,0 -145,65.047 -145,145 0,79.953 65.047,145 145,145 79.953,0 145,-65.047 145,-145 0,-79.953 -65.047,-145 -145,-145" transform="matrix(0.35172414,0,0,-0.35172414,104.84722,100.86446)"/><path class="nav-mark-casa" d="m 0,0 -21.857,-0.254 c -1.469,-0.017 -2.65,-1.212 -2.65,-2.681 V -53.64 c 0,-4.451 -3.608,-8.058 -8.058,-8.058 h -50.297 l -0.017,50.26 c 0,4.977 -2.021,9.489 -5.281,12.75 -3.26,3.265 -7.766,5.28 -12.749,5.286 -9.953,-0.006 -18.023,-8.077 -18.023,-18.036 l 0.042,-50.26 h -50.266 c -4.454,0 -8.064,3.61 -8.064,8.064 V -2.94 c 0,1.468 -1.181,2.664 -2.65,2.68 L -201.913,0 c -9.213,0 -13.529,11.699 -6.776,17.963 l 100.777,93.524 c 3.958,3.672 10.085,3.672 14.048,0 l 37.125,-34.639 -0.018,5.054 c -0.012,3.486 2.81,6.318 6.296,6.318 h 19.618 c 3.487,0 6.306,-2.825 6.3,-6.306 L -24.585,46.768 6.908,17.963 C 13.667,11.699 9.22,0 0,0" transform="matrix(0.35239486,0,0,-0.35239486,140.40585,157.60516)"/></g></svg><span>${esc(site.general.nombre.replace(/\s*S\.A\.?$/i, ""))}</span>`}</a>
 				<div class="site-navigation">
 					<ul class="js-clone-nav d-none d-lg-flex site-menu">
 						${items.join('\n\t\t\t\t\t\t')}
@@ -441,7 +442,7 @@ export function homePage(ctx) {
 		name: s.general.nombre,
 		alternateName: s.general.nombreCorto || undefined,
 		url: absUrl(ctx, r.inicio),
-		logo: absUrl(ctx, s.general.logo),
+		logo: absUrl(ctx, s.general.logoGoogle || '/logo-equipo-inmobiliario.png'),
 		areaServed: { '@type': 'Country', name: 'Guatemala' },
 		knowsLanguage: ['es', 'en'],
 		image: absUrl(ctx, s.seo.imagen),
@@ -1322,7 +1323,7 @@ export function blogPostPage(ctx, post) {
 		datePublished: post.fecha || post.createdAt || undefined,
 		dateModified: post.updatedAt || post.fecha || undefined,
 		author: { '@type': post.autor ? 'Person' : 'Organization', name: post.autor || ctx.site.general.nombre },
-		publisher: { '@type': 'Organization', '@id': orgId(ctx), name: ctx.site.general.nombre, logo: { '@type': 'ImageObject', url: absUrl(ctx, ctx.site.general.logo) } },
+		publisher: { '@type': 'Organization', '@id': orgId(ctx), name: ctx.site.general.nombre, logo: { '@type': 'ImageObject', url: absUrl(ctx, ctx.site.general.logoGoogle || '/logo-equipo-inmobiliario.png') } },
 		mainEntityOfPage: absUrl(ctx, post.url)
 	};
 	const others = ctx.posts.filter((o) => o.id !== post.id).slice(0, 3);

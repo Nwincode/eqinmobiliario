@@ -24,7 +24,7 @@ const STATIC_ASSETS = [
 	'fonts/icomoon/style.css', 'fonts/icomoon/fonts',
 	'fonts/flaticon/font/flaticon.css', 'fonts/flaticon/font/Flaticon.eot', 'fonts/flaticon/font/Flaticon.svg',
 	'fonts/flaticon/font/Flaticon.ttf', 'fonts/flaticon/font/Flaticon.woff', 'fonts/flaticon/font/Flaticon.woff2',
-	'favicon.png', 'Icono_Equipoinmobiliario@0.75x.png', 'site.config.json',
+	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'Icono_Equipoinmobiliario@0.75x.png', 'site.config.json',
 	'data/seed.json' // el panel lo usa para "Importar datos iniciales"
 ];
 

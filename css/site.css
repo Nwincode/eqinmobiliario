@@ -1813,3 +1813,13 @@ body.offcanvas-menu .wa-float {
 		display: none !important;
 	}
 }
+/* Logotipo en el menú: aro celeste y casa blanca sobre tinta */
+.nav-mark {
+	color: inherit;
+}
+.nav-mark .nav-mark-aro {
+	fill: var(--eq-cyan);
+}
+.nav-mark .nav-mark-casa {
+	fill: #fff;
+}
