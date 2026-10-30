@@ -1,6 +1,6 @@
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader , mount } from '../ui.js';
-import { renderForm, getPath, setPath } from '../form.js';
+import { renderForm, getPath, setPath, clonar } from '../form.js';
 import { markPending } from '../session.js';
 
 const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
@@ -328,7 +328,7 @@ export async function render(container) {
 		for (const { g, form } of forms) {
 			if (!form.validate()) { show(g.id); return; }
 		}
-		const out = structuredClone(data);
+		const out = clonar(data);
 		// Campo por campo: varias pestañas editan partes distintas de la misma sección (p. ej. "seo").
 		forms.forEach(({ g, form }) => {
 			const d = form.getData();

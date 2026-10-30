@@ -415,3 +415,121 @@ a {
 .nav-pills a.nav-link {
 	text-decoration: none;
 }
+
+/* CRM: tablero por etapas */
+.crm-tablero {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(220px, 1fr));
+	gap: 12px;
+	overflow-x: auto;
+	padding-bottom: 8px;
+}
+.crm-columna {
+	background: var(--adm-bg);
+	border: 1px solid var(--adm-border);
+	border-radius: 10px;
+	padding: 10px;
+	min-height: 180px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	transition: background-color .15s ease, border-color .15s ease;
+}
+.crm-columna.sobre {
+	background: #e8f7fd;
+	border-color: var(--adm-cyan);
+}
+.crm-columna-cabecera {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 8px;
+	padding: 2px 4px 6px;
+	font-size: 14px;
+}
+.crm-card {
+	background: #fff;
+	border: 1px solid var(--adm-border);
+	border-radius: 8px;
+	padding: 10px 12px;
+	cursor: grab;
+}
+.crm-card.arrastrando {
+	opacity: .5;
+}
+.crm-card-nombre {
+	font-weight: 600;
+	color: var(--adm-dark);
+	text-decoration: none;
+}
+.crm-card-nombre:hover {
+	color: var(--adm-primary);
+	text-decoration: underline;
+}
+
+/* CRM: historial del cliente */
+.crm-historial {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	position: relative;
+}
+.crm-historial::before {
+	content: "";
+	position: absolute;
+	left: 15px;
+	top: 6px;
+	bottom: 6px;
+	width: 1px;
+	background: var(--adm-border);
+}
+.crm-evento {
+	position: relative;
+	display: flex;
+	gap: 12px;
+	padding: 0 0 16px;
+}
+.crm-evento-icono {
+	flex: none;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: #fff;
+	border: 1px solid var(--adm-border);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	z-index: 1;
+}
+
+/* Bootstrap 5.0 no incluye las utilidades gap-* (llegaron en 5.1): el panel las usa en todas las vistas. */
+.gap-0 { gap: 0 !important; }
+.gap-1 { gap: .25rem !important; }
+.gap-2 { gap: .5rem !important; }
+.gap-3 { gap: 1rem !important; }
+.gap-4 { gap: 1.5rem !important; }
+.gap-5 { gap: 3rem !important; }
+
+/* El panel carga Bootstrap 5.0.0-alpha2, que aún usaba nombres anteriores (mr-/ml-, text-right…).
+   Equivalencias de las utilidades de Bootstrap 5 que usan las vistas. */
+.me-auto { margin-right: auto !important; }
+.ms-auto { margin-left: auto !important; }
+.me-1 { margin-right: .25rem !important; }
+.me-2 { margin-right: .5rem !important; }
+.me-3 { margin-right: 1rem !important; }
+.ms-1 { margin-left: .25rem !important; }
+.ms-2 { margin-left: .5rem !important; }
+.ms-3 { margin-left: 1rem !important; }
+.ps-3 { padding-left: 1rem !important; }
+.pe-3 { padding-right: 1rem !important; }
+.text-start { text-align: left !important; }
+.text-end { text-align: right !important; }
+.fw-normal { font-weight: 400 !important; }
+.fw-semibold { font-weight: 600 !important; }
+.fw-bold { font-weight: 700 !important; }
+.fs-5 { font-size: 1.25rem !important; }
+.fs-6 { font-size: 1rem !important; }
+@media (min-width: 992px) {
+	.text-lg-end { text-align: right !important; }
+}

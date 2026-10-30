@@ -111,6 +111,36 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // CRM: clientes, actividades (agenda e historial) y propietarios.
+    // El asesor solo ve y edita lo que tiene asignado; el administrador, todo.
+    function propio() {
+      return isAdmin() || (isStaff() && resource.data.agentId == myAgentId());
+    }
+    function nuevoPropio() {
+      return isStaff() && (isAdmin() || request.resource.data.agentId == myAgentId());
+    }
+    function conservaAsesor() {
+      return isAdmin() || request.resource.data.agentId == resource.data.agentId;
+    }
+    match /clientes/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+    match /actividades/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
+    match /propietarios/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
       allow create: if request.resource.data.keys().hasOnly([

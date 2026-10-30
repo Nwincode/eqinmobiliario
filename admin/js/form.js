@@ -11,6 +11,18 @@ export function getPath(obj, path) {
 	return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 }
 
+// Copia profunda que conserva tal cual las fechas de Firestore (Timestamp) y los valores especiales
+// (serverTimestamp). structuredClone las convertía en objetos sueltos {seconds, nanoseconds} y,
+// al guardar, Firestore las almacenaba como mapas en lugar de fechas.
+export function clonar(v) {
+	if (Array.isArray(v)) return v.map(clonar);
+	if (v && typeof v === 'object') {
+		if (typeof v.toDate === 'function' || Object.getPrototypeOf(v) !== Object.prototype) return v;
+		return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clonar(x)]));
+	}
+	return v;
+}
+
 export function setPath(obj, path, value) {
 	const keys = path.split('.');
 	let o = obj;
@@ -68,7 +80,7 @@ function fileInput(multiple, onFiles) {
 }
 
 export function renderForm(schema, data, options = {}) {
-	const state = structuredClone(data || {});
+	const state = clonar(data || {});
 	const folder = options.folder || 'uploads';
 	const conditionals = [];
 	const required = [];
@@ -310,7 +322,7 @@ export function renderForm(schema, data, options = {}) {
 			}
 			return true;
 		},
-		getData: () => structuredClone(state),
+		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.
 		async flushDeletes() {
 			await Promise.all(pendingDeletes.splice(0).map(deleteImage));

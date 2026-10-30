@@ -79,6 +79,25 @@ Costo orientativo: centavos de dólar por tarea; conviene fijar un límite de ga
 
 Fijo en el código a propósito: colores y tipografía de la marca (ver `docs/marca/`), estructura de las páginas y rutas.
 
+## Clientes, agenda y propietarios (CRM del equipo)
+
+Cada asesor entra con su usuario y ve **solo lo suyo** (lo exigen las reglas de Firestore); el administrador ve todo.
+
+- **Clientes**: una ficha por persona. Los leads del sitio se unen solos a su ficha al abrir la sección
+  (por teléfono o correo, aunque el teléfono venga escrito distinto). Tablero por etapas
+  (Nuevo → Contactado → Visita → Oferta → Cierre / Perdido) con arrastrar y soltar, lista, búsqueda y exportación.
+  La ficha reúne historial (llamadas, WhatsApp, visitas, notas y los mensajes que dejó en el sitio),
+  pendientes, propiedades de interés, presupuesto, monto del negocio y comisión.
+- **Agenda**: seguimientos, visitas y tareas por fecha (vencidas, hoy, próximos días), con «Hecho»,
+  «+1 día» y «+7». El inicio del panel muestra «Para hoy»: vencidos, clientes sin seguimiento y exclusivas por vencer.
+- **Propietarios**: contacto, propiedades (con precio mínimo aceptado), exclusiva con fechas, comisión y
+  enlace al contrato. Aviso cuando una exclusiva vence en 30 días o menos.
+- **Reportes** (administrador): por asesor, leads, leads sin atender, tiempo de primera respuesta, actividades,
+  visitas, seguimientos vencidos, negocios en proceso, cierres, monto cerrado y comisión; embudo de clientes.
+
+Colecciones nuevas: `clientes`, `actividades`, `propietarios` (reglas en `firestore.rules`: vuelve a publicarlas
+en Firebase después de actualizar).
+
 ## Difusión en portales y redes (sección "Difusión" del panel)
 
 Para no redactar cada anuncio a mano en cada plataforma:

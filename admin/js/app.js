@@ -10,6 +10,9 @@ const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', load: () => import('./views/properties.js') },
 	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', load: () => import('./views/leads.js') },
+	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', load: () => import('./views/clientes.js') },
+	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', load: () => import('./views/agenda.js') },
+	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', load: () => import('./views/propietarios.js') },
 	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', load: () => import('./views/ia.js') },
 	{ path: 'google', label: 'Google', icon: 'icon-search', load: () => import('./views/google.js') },
 	{ path: 'difusion', label: 'Difusión', icon: 'icon-bullhorn', load: () => import('./views/difusion.js') },
@@ -18,6 +21,7 @@ const ROUTES = [
 	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', load: () => import('./views/pages.js'), admin: true },
 	{ path: 'blog', label: 'Blog', icon: 'icon-rss-square', load: () => import('./views/blog.js'), admin: true },
 	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', load: () => import('./views/content.js'), admin: true },
+	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', load: () => import('./views/reportes.js'), admin: true },
 	{ path: 'usuarios', label: 'Usuarios', icon: 'icon-vcard', load: () => import('./views/users.js'), admin: true },
 	{ path: 'publicar', label: 'Publicar', icon: 'icon-external-link-square', load: () => import('./views/publish.js') }
 ];
