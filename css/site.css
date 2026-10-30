@@ -1615,3 +1615,195 @@ h2.heading::after,
 		font-size: 20px;
 	}
 }
+
+/* ================================================================
+   Menú en celular y tablet: barra de vidrio de lado a lado y
+   menú a pantalla completa (auditoría: botón de 28×32 px, dos ✕,
+   panel de 300 px, enlaces de 31 px de alto).
+   ================================================================ */
+@media (max-width: 991.98px) {
+	.site-nav,
+	.site-nav.is-scrolled {
+		padding: 0;
+	}
+	.site-nav > .container {
+		max-width: none;
+		padding: 0;
+	}
+	.site-nav .menu-bg-wrap,
+	.pagina-ficha .site-nav .menu-bg-wrap {
+		border-radius: 0;
+		height: 64px;
+		padding: 0 8px 0 18px;
+		border: 0;
+		border-bottom: 1px solid rgba(255, 255, 255, .12);
+		/* Vidrio: deja ver la foto de la portada */
+		background: rgba(16, 19, 23, .28);
+		-webkit-backdrop-filter: blur(18px) saturate(160%);
+		backdrop-filter: blur(18px) saturate(160%);
+		transition: background-color .3s ease, border-color .3s ease;
+	}
+	.site-nav.is-scrolled .menu-bg-wrap,
+	.pagina-ficha .site-nav .menu-bg-wrap,
+	.offcanvas-menu .site-nav .menu-bg-wrap {
+		background: rgba(16, 19, 23, .86);
+		border-bottom-color: transparent;
+		box-shadow: none;
+	}
+	.nav-mark {
+		width: 28px;
+		height: 28px;
+	}
+	.nav-brand span {
+		font-size: 16px;
+	}
+	.pagina-ficha {
+		padding-top: 64px;
+	}
+
+	/* Botón de menú: área táctil de 44×44 y tres líneas que pasan a ✕ */
+	.site-nav .burger {
+		width: 44px;
+		height: 44px;
+		display: inline-flex !important;
+		position: relative;
+	}
+	.site-nav .burger:before,
+	.site-nav .burger span,
+	.site-nav .burger:after {
+		left: 11px;
+		width: 22px;
+		height: 1.5px;
+		background: #fff !important;
+		transition: transform .3s ease, top .3s ease, opacity .2s ease;
+	}
+	.site-nav .burger:before { top: 15px; }
+	.site-nav .burger span { top: 21px; }
+	.site-nav .burger:after { top: 27px; }
+	.site-nav .burger:hover:before { top: 15px; }
+	.site-nav .burger:hover:after { top: 27px; }
+	.site-nav .burger.active span { opacity: 0; }
+	.site-nav .burger.active:before { top: 21px; transform: rotate(45deg); }
+	.site-nav .burger.active:after { top: 21px; transform: rotate(-45deg); }
+
+	/* Menú a pantalla completa, bajo la barra (la ✕ de la barra lo cierra) */
+	.site-mobile-menu {
+		width: 100% !important;
+		height: 100vh;
+		height: 100dvh;
+		top: 0;
+		right: 0;
+		z-index: 999;
+		padding: 88px 0 32px;
+		background: rgba(16, 19, 23, .94) !important;
+		-webkit-backdrop-filter: blur(20px);
+		backdrop-filter: blur(20px);
+		transform: none !important;
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity .3s ease, visibility .3s ease;
+		overflow-y: auto;
+	}
+	.offcanvas-menu .site-mobile-menu {
+		opacity: 1;
+		visibility: visible;
+		box-shadow: none;
+	}
+	.site-mobile-menu .site-mobile-menu-header {
+		display: none;
+	}
+	.site-mobile-menu .site-mobile-menu-body {
+		padding: 0 24px;
+		height: auto;
+		overflow: visible;
+	}
+	.site-mobile-menu .site-nav-wrap {
+		padding: 0;
+		margin: 0;
+	}
+	.site-mobile-menu .site-nav-wrap > li {
+		position: relative;
+		border-bottom: 1px solid rgba(255, 255, 255, .1);
+	}
+	.site-mobile-menu .site-nav-wrap > li > a {
+		display: flex;
+		align-items: center;
+		min-height: 60px;
+		padding: 0 !important;
+		font-size: 22px !important;
+		font-weight: 300;
+		color: #fff !important;
+		letter-spacing: -0.01em;
+	}
+	.site-mobile-menu .site-nav-wrap > li.active > a {
+		color: var(--eq-cyan) !important;
+	}
+	/* Submenú de Propiedades: flecha sin círculo, área de 44×44 */
+	.site-mobile-menu .site-nav-wrap .arrow-collapse {
+		top: 8px !important;
+		right: -8px !important;
+		width: 44px !important;
+		height: 44px !important;
+		border: 0 !important;
+		background: transparent !important;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: rgba(255, 255, 255, .7) !important;
+	}
+	.site-mobile-menu .site-nav-wrap .arrow-collapse:before {
+		font-size: 18px;
+	}
+	.site-mobile-menu .site-nav-wrap .collapse a,
+	.site-mobile-menu .site-nav-wrap .collapsing a {
+		display: block;
+		padding: 10px 0 10px 16px !important;
+		font-size: 17px !important;
+		color: rgba(255, 255, 255, .75) !important;
+	}
+	.site-mobile-menu .site-nav-wrap .collapse,
+	.site-mobile-menu .site-nav-wrap .collapsing {
+		padding-bottom: 12px;
+	}
+	/* Idioma y contacto al final, sobrios */
+	.site-mobile-menu .site-nav-wrap li.lang-switch {
+		margin: 28px 0 0 !important;
+		border: 1px solid rgba(255, 255, 255, .25) !important;
+	}
+	.site-mobile-menu .site-nav-wrap li.lang-switch a,
+	.site-mobile-menu .site-nav-wrap li.lang-switch span {
+		min-height: 0;
+		font-size: 14px !important;
+		padding: 8px 16px !important;
+	}
+	.site-mobile-menu .site-nav-wrap .nav-cta {
+		padding: 20px 0 0 !important;
+	}
+	.site-mobile-menu .site-nav-wrap .nav-cta > a {
+		justify-content: center;
+		min-height: 52px;
+		font-size: 16px !important;
+		font-weight: 500;
+		background: transparent !important;
+		border: 1px solid rgba(255, 255, 255, .6);
+		border-radius: 8px;
+		color: #fff !important;
+	}
+	/* Sin desplazamiento de la página detrás del menú */
+	body.offcanvas-menu {
+		overflow: hidden;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.site-mobile-menu,
+	.site-nav .burger:before,
+	.site-nav .burger span,
+	.site-nav .burger:after {
+		transition: none;
+	}
+}
+/* Con el menú abierto no se muestra el botón flotante de WhatsApp */
+body.offcanvas-menu .wa-float {
+	opacity: 0;
+	visibility: hidden;
+}
