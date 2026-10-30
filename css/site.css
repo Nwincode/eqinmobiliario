@@ -3,11 +3,11 @@
 :root {
 	--eq-primary: #1565c0;
 	--eq-cyan: #00b7e7;
-	--eq-mist: #e8f1fb;
+	--eq-mist: #ebf8fd;
 	--eq-white: #ffffff;
-	--eq-dark: #0b2545;
-	--eq-navy-2: #13315c;
-	--eq-ink: #4a5b75;
+	--eq-dark: #101317;
+	--eq-blue-dark: #0f4f9e;
+	--eq-ink: #4a5560;
 	--eq-gold: #c9a45c;
 }
 
@@ -84,19 +84,19 @@
 .prop-facts dt {
 	font-size: 12px;
 	font-weight: 500;
-	color: #4a5b75;
+	color: #4a5560;
 	text-transform: uppercase;
 	letter-spacing: .04em;
 }
 .prop-facts dd {
 	margin: 0;
 	font-weight: 600;
-	color: #0b2545;
+	color: #101317;
 }
 .prop-description p,
 .content-page p,
 .content-page li {
-	color: #4a5b75;
+	color: #4a5560;
 	line-height: 1.75;
 }
 .amenities-list {
@@ -124,7 +124,7 @@
 .lead-form .form-label {
 	font-size: 13px;
 	font-weight: 500;
-	color: #4a5b75;
+	color: #4a5560;
 	margin-bottom: .25rem;
 }
 .lead-form .form-control {
@@ -168,7 +168,7 @@
 .listing-filters .form-label {
 	font-size: 12px;
 	font-weight: 600;
-	color: #4a5b75;
+	color: #4a5560;
 	margin-bottom: .25rem;
 }
 .custom-pagination a {
@@ -295,7 +295,7 @@
 	padding: 20px 24px 24px;
 }
 .post-card h2 a {
-	color: #0b2545;
+	color: #101317;
 	text-decoration: none;
 }
 .post-card h2 a:hover {
@@ -320,11 +320,11 @@
    cuerpo en gris al 50 % con !important; aquí se mantiene el gris pero legible. */
 .text-black-50,
 body {
-	color: #4a5b75 !important;
+	color: #4a5560 !important;
 }
 .property-item .property-content .specs .caption,
 .meta {
-	color: #4a5b75;
+	color: #4a5560;
 }
 .logo-media {
 	height: auto;
@@ -334,20 +334,20 @@ body {
 .site-footer,
 .site-footer p,
 .site-footer li {
-	color: #4a5b75;
+	color: #4a5560;
 }
 .site-footer a {
-	color: #4a5b75;
+	color: #4a5560;
 }
 .box-feature p,
 .testimonial p,
 .person p {
-	color: #4a5b75;
+	color: #4a5560;
 }
 
 /* Calculadora de cuota */
 .calc-card {
-	background: #e8f1fb;
+	background: #ebf8fd;
 	border-radius: 8px;
 	padding: 20px;
 }
@@ -370,7 +370,7 @@ body {
 
 .content-note {
 	border-left: 3px solid var(--eq-primary);
-	background: #e8f1fb;
+	background: #ebf8fd;
 	padding: 12px 16px;
 	margin: 1.5rem 0;
 	border-radius: 0 6px 6px 0;
@@ -381,7 +381,7 @@ body {
 
 /* Bloque para compradores en el extranjero */
 .exterior-block {
-	background: linear-gradient(135deg, #e8f1fb 0%, #ffffff 100%);
+	background: linear-gradient(135deg, #ebf8fd 0%, #ffffff 100%);
 }
 .exterior-kicker {
 	display: inline-block;
@@ -408,7 +408,7 @@ body {
 	padding: 14px 18px;
 	box-shadow: 0 8px 24px -18px rgba(0, 32, 74, .4);
 	font-weight: 500;
-	color: #0b2545;
+	color: #101317;
 }
 .exterior-list li span {
 	color: var(--eq-primary);
@@ -416,8 +416,8 @@ body {
 
 /* Selector de idioma en el menú */
 
-/* Paleta: azul noche #0b2545, azul Equipo #1565c0, cian #00b7e7 (acento) y blanco.
-   El cian puro va sobre fondos oscuros o como acento; sobre fondo claro se usa
+/* Paleta: negro #101317, blanco, celeste #00b7e7 (acento) y azul #1565c0 (acciones).
+   El celeste va sobre negro o como acento decorativo; sobre fondo claro se usa
    el azul Equipo (--eq-primary) para que los textos cumplan contraste AA. */
 body {
 	background-color: var(--eq-white);
@@ -482,7 +482,7 @@ h2.heading::after,
 	float: none;
 	padding: 10px 14px 10px 20px;
 	border-radius: 999px;
-	background: rgba(11, 37, 69, .72);
+	background: rgba(16, 19, 23, .72);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
 	backdrop-filter: blur(14px) saturate(140%);
 	border: 1px solid rgba(255, 255, 255, .08);
@@ -494,7 +494,7 @@ h2.heading::after,
 }
 .site-nav.is-scrolled .menu-bg-wrap {
 	background: var(--eq-dark);
-	box-shadow: 0 10px 30px -12px rgba(11, 37, 69, .55);
+	box-shadow: 0 10px 30px -12px rgba(16, 19, 23, .55);
 }
 .nav-brand {
 	display: inline-flex;
@@ -575,7 +575,7 @@ h2.heading::after,
 	border-radius: 14px;
 	padding: 8px;
 	margin-top: 10px;
-	box-shadow: 0 18px 40px -14px rgba(11, 37, 69, .6);
+	box-shadow: 0 18px 40px -14px rgba(16, 19, 23, .6);
 	min-width: 210px;
 }
 .site-nav .site-navigation .site-menu .has-children .dropdown > li > a {
@@ -783,7 +783,7 @@ a {
 /* Portada y cabeceras: velo azul noche en lugar de negro */
 .hero.overlay:before,
 .hero-slide .img.overlay:before {
-	background: linear-gradient(180deg, rgba(11, 37, 69, .55) 0%, rgba(11, 37, 69, .35) 45%, rgba(11, 37, 69, .7) 100%) !important;
+	background: linear-gradient(180deg, rgba(16, 19, 23, .55) 0%, rgba(16, 19, 23, .35) 45%, rgba(16, 19, 23, .7) 100%) !important;
 }
 
 /* Botones */
@@ -814,8 +814,8 @@ a {
 	background: #fff;
 	border-radius: 14px;
 	overflow: hidden;
-	box-shadow: 0 1px 2px rgba(11, 37, 69, .06), 0 10px 30px -18px rgba(11, 37, 69, .35);
-	border: 1px solid rgba(11, 37, 69, .06);
+	box-shadow: 0 1px 2px rgba(16, 19, 23, .06), 0 10px 30px -18px rgba(16, 19, 23, .35);
+	border: 1px solid rgba(16, 19, 23, .06);
 }
 .property-item .img img {
 	border-radius: 0;
@@ -850,7 +850,7 @@ a {
 	background: #fff;
 	border-radius: 14px;
 	padding: 32px 24px;
-	box-shadow: 0 10px 30px -20px rgba(11, 37, 69, .45);
+	box-shadow: 0 10px 30px -20px rgba(16, 19, 23, .45);
 	height: 100%;
 }
 .features-1 .box-feature span[class^="flaticon"],
@@ -885,7 +885,7 @@ a {
 
 /* Llamado a la acción: bloque azul */
 .footer-cta {
-	background: linear-gradient(135deg, var(--eq-dark) 0%, var(--eq-navy-2) 100%);
+	background: linear-gradient(135deg, var(--eq-dark) 0%, var(--eq-blue-dark) 100%);
 	border-radius: 18px;
 	padding: 56px 24px;
 	margin: 0 auto;
@@ -919,7 +919,7 @@ a {
 .section-5 .person {
 	background: #fff;
 	border-radius: 14px;
-	box-shadow: 0 10px 30px -22px rgba(11, 37, 69, .5);
+	box-shadow: 0 10px 30px -22px rgba(16, 19, 23, .5);
 }
 
 /* Pie de página azul noche */
@@ -974,8 +974,188 @@ a {
 }
 .property-slider .property-item > .property-content {
 	background: #fff;
-	border: 1px solid rgba(11, 37, 69, .06);
+	border: 1px solid rgba(16, 19, 23, .06);
 	border-top: 0;
 	border-radius: 0 0 14px 14px;
-	box-shadow: 0 14px 28px -20px rgba(11, 37, 69, .4);
+	box-shadow: 0 14px 28px -20px rgba(16, 19, 23, .4);
+}
+
+/* ================================================================
+   Minimalista: cuatro colores con funciones fijas.
+   Negro = estructura (menú, pie). Blanco = fondo. Azul = acciones.
+   Celeste = acento mínimo (líneas, cifras, búsqueda). Sin sombras
+   pesadas, sin degradados, sin decoración que no informe.
+   ================================================================ */
+:root {
+	--eq-line: #e7eaed;
+}
+.section {
+	padding-top: 6rem;
+	padding-bottom: 6rem;
+}
+h1, h2, .heading {
+	letter-spacing: -0.01em;
+}
+h2.heading::after,
+.section-title::after {
+	width: 32px;
+	height: 2px;
+	margin-top: 16px;
+}
+
+/* Portada: velo negro uniforme */
+.hero.overlay:before,
+.hero-slide .img.overlay:before {
+	background: rgba(16, 19, 23, .45) !important;
+}
+
+/* Botones: rectángulos suaves, planos */
+.btn {
+	border-radius: 8px !important;
+	box-shadow: none !important;
+	font-weight: 500;
+}
+.btn.btn-primary:hover,
+.btn-primary:hover,
+.btn-primary:focus {
+	background: var(--eq-blue-dark) !important;
+	border-color: var(--eq-blue-dark) !important;
+}
+
+/* Fondos: blanco casi siempre; el celeste claro solo en secciones de apoyo */
+.bg-light,
+.features-1,
+.exterior-block {
+	background: var(--eq-mist) !important;
+}
+.sec-testimonials,
+.section-4 {
+	background: #fff !important;
+}
+
+/* Sin decoración de la plantilla */
+.dots::before,
+.dots::after,
+.img-about.dots::before,
+.img-about.dots::after {
+	display: none !important;
+}
+
+/* Tarjetas: borde fino, sin sombra */
+.property-item,
+.property-slider .property-item > .property-content,
+.features-1 .box-feature,
+.person,
+.section-5 .person,
+.lead-card,
+.calc-card {
+	box-shadow: none !important;
+}
+.property-item {
+	border: 1px solid var(--eq-line);
+	border-radius: 10px;
+}
+.property-slider .property-item {
+	border: 0;
+}
+.property-slider .property-item > .img {
+	border-radius: 10px 10px 0 0;
+}
+.property-slider .property-item > .property-content {
+	border: 1px solid var(--eq-line);
+	border-top: 0;
+	border-radius: 0 0 10px 10px;
+}
+.property-item .property-content .price span::after {
+	height: 2px !important;
+}
+.prop-badge {
+	background: #fff;
+	color: var(--eq-dark);
+	border-radius: 6px;
+}
+.features-1 .box-feature,
+.person,
+.section-5 .person {
+	border: 1px solid var(--eq-line);
+	border-radius: 10px;
+	background: #fff;
+}
+.features-1 .box-feature span[class^="flaticon"],
+.features-1 .box-feature [class*=" flaticon"] {
+	color: var(--eq-dark);
+}
+
+/* Servicios: icono de línea, sin círculo de color */
+.feature-h .wrap-icon {
+	background: transparent !important;
+	color: var(--eq-primary) !important;
+	border: 1px solid var(--eq-line);
+}
+
+/* Cifras: limpias sobre blanco, número negro y línea celeste */
+.section-counter {
+	background: transparent;
+	border-top: 1px solid var(--eq-line);
+	border-bottom: 1px solid var(--eq-line);
+	border-radius: 0;
+	padding: 40px 0 8px;
+}
+.section-counter .counter-wrap .number,
+.section-counter .countup {
+	color: var(--eq-dark) !important;
+	font-weight: 600;
+}
+.section-counter .counter-wrap .number::after {
+	content: "";
+	display: block;
+	width: 24px;
+	height: 2px;
+	margin: 10px 0 8px;
+	background: var(--eq-cyan);
+}
+.section-counter .caption {
+	color: var(--eq-ink) !important;
+}
+
+/* Bloque destacado: azul plano, texto blanco, botón blanco */
+.footer-cta {
+	background: var(--eq-primary);
+	border-radius: 12px;
+}
+.footer-cta .btn.btn-primary {
+	background: #fff !important;
+	border-color: #fff !important;
+	color: var(--eq-primary) !important;
+}
+.footer-cta .btn.btn-primary:hover {
+	background: var(--eq-dark) !important;
+	border-color: var(--eq-dark) !important;
+	color: #fff !important;
+}
+
+/* Bloque para compradores en EE. UU.: sin degradado ni sombras */
+.exterior-block .exterior-list li {
+	box-shadow: none !important;
+	border: 1px solid var(--eq-line);
+	background: #fff;
+}
+
+/* Pie: negro, sin la franja de color superior */
+.site-footer {
+	border-top: 0;
+}
+.site-footer .social li a {
+	background: transparent !important;
+	border: 1px solid rgba(255, 255, 255, .25);
+}
+
+/* Menú: negro sólido y sin línea celeste inferior */
+.site-nav .menu-bg-wrap {
+	background: rgba(16, 19, 23, .82);
+	border: 0;
+}
+.site-nav.is-scrolled .menu-bg-wrap {
+	background: var(--eq-dark);
+	box-shadow: none;
 }
