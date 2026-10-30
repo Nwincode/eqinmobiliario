@@ -87,6 +87,36 @@ Lo que el sitio hace solo:
 - Redirecciones 301 automáticas al cambiar la URL de una propiedad o pasarla a VIP, y manuales desde el panel.
 - Las vistas previas de Netlify (deploy previews) no se indexan.
 - CSS y JS empaquetados y sin código sobrante, fotos en WebP, versión liviana de las portadas para celulares.
+- Precarga de la imagen de portada en todas las páginas y caché de un año para los archivos con hash (`/assets/`).
+- Fichas con datos estructurados completos: habitaciones, baños, m², amenidades, coordenadas (si el enlace de Google Maps
+  las trae), asesor, video y fecha de actualización. La organización tiene un `@id` único que enlazan fichas y artículos.
+- Migas de pan con la zona (Inicio › Propiedades › Zona 16 › Casa…), páginas por zona en inglés (`/en/properties/zona-16/`)
+  con hreflang, y páginas zona + operación (`/propiedades/venta/zona-16/`) cuando hay al menos 2 propiedades y no repiten
+  el listado de la zona.
+- `FAQPage` en las páginas de preguntas frecuentes (cada `## ¿Pregunta?` del contenido).
+- `lastmod` reales en el sitemap (fecha de la última modificación; se omite si no se conoce).
+- `llms.txt` con el resumen del sitio y el inventario para buscadores con IA (ChatGPT, Perplexity, Copilot).
+- Conversiones mejoradas de Google Ads: el correo y el teléfono del lead se envían cifrados (SHA-256) por gtag.
+  Actívalas también en Google Ads → Objetivos → Configuración → Conversiones mejoradas.
+
+### Search Console dentro del panel (sección "Google")
+
+Muestra clics, impresiones, CTR y posición; las búsquedas y páginas que traen tráfico; **oportunidades** (búsquedas
+en posición 4–20 o con pocos clics, ordenadas por clics que podrías ganar); búsquedas desde EE. UU.; páginas que
+pierden clics; un inspector de URL ("¿está en Google?") y una revisión SEO de cada ficha.
+
+Para activarla (una vez):
+1. En Google Cloud Console, en el proyecto de Firebase, activa **Google Search Console API**.
+2. Crea una cuenta de servicio y descarga su clave JSON (no la compartas).
+3. En Netlify agrega las variables `GOOGLE_SA_EMAIL` (`client_email`) y `GOOGLE_SA_KEY` (`private_key`).
+4. En Search Console → Configuración → Usuarios y permisos, agrega ese correo con permiso **Completo**.
+5. Opcional: `GSC_PROPERTY` si la propiedad no es `sc-domain:` del dominio (también se cambia en el panel).
+
+### Aviso automático a buscadores
+
+Después de cada publicación en producción, la función `deploy-succeeded` envía todas las URLs del sitemap a
+**IndexNow** (Bing, Copilot, Yandex) y, si Search Console está conectado, vuelve a enviar el sitemap a Google.
+Google no admite IndexNow ni su API de indexación para inmuebles: para Google, el sitemap y Search Console son la vía.
 
 ## Desarrollo local
 

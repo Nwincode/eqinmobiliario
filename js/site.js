@@ -48,7 +48,7 @@
 			window.gtag('event', GA4_EVENTS[event] || event, params);
 			// Conversiones de Google Ads configuradas en el panel.
 			var conversion = event === 'Lead' ? config.adsLead : event === 'Contact' ? config.adsContact : '';
-			if (conversion) window.gtag('event', 'conversion', { send_to: conversion });
+			if (conversion) window.gtag('event', 'conversion', { send_to: conversion, transaction_id: params.transaction_id });
 		}
 	}
 
@@ -149,7 +149,16 @@
 			button.disabled = true;
 
 			var done = function () {
-				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [] });
+				// Conversiones mejoradas de Google Ads: gtag cifra (SHA-256) el correo y el teléfono
+				// antes de enviarlos; mejoran la atribución de anuncios sin exponer los datos.
+				if (window.gtag) {
+					var tel = lead.telefono.replace(/\D/g, '');
+					if (tel.length === 8) tel = '502' + tel;
+					var userData = { phone_number: '+' + tel };
+					if (lead.email) userData.email = lead.email.trim().toLowerCase();
+					window.gtag('set', 'user_data', userData);
+				}
+				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				setStatus(form, T.gracias, true);
 			};

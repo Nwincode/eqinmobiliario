@@ -2,6 +2,7 @@
 // mientras Firebase no esté configurado). Netlify lo ejecuta en cada publicación.
 import { readFile, writeFile, mkdir, rm, cp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
@@ -11,6 +12,8 @@ import { buildAssets } from './lib/assets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
+// Mínimo de propiedades para generar una página de zona + operación (evita páginas con poco contenido).
+const MIN_LISTADO = 2;
 
 // Rutas que no pueden usar las páginas de contenido.
 const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404']);
@@ -149,16 +152,17 @@ function normalizePosts(list) {
 }
 
 // Una página por zona con al menos una propiedad publicada (búsquedas locales: "casas en zona 16").
-function buildZonas(properties) {
+function buildZonas(properties, base = '/propiedades/') {
 	const counts = new Map();
 	for (const p of properties) if (p.zona) counts.set(p.zona, (counts.get(p.zona) || 0) + 1);
 	return [...counts.entries()]
 		.map(([nombre, total]) => {
 			let slug = slugify(nombre);
-			if (['venta', 'renta'].includes(slug)) slug = `zona-${slug}`;
-			return { nombre, total, url: `/propiedades/${slug}/` };
+			if (['venta', 'renta', 'for-sale', 'for-rent'].includes(slug)) slug = `zona-${slug}`;
+			const venta = properties.filter((p) => p.zona === nombre && p.operacion === 'venta').length;
+			return { nombre, slug, total, venta, renta: total - venta, url: `${base}${slug}/` };
 		})
-		.filter((z) => z.url !== '/propiedades//')
+		.filter((z) => z.slug)
 		.sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
 }
 
@@ -180,12 +184,51 @@ async function copyAssets() {
 	}
 }
 
+export function indexNowKey(siteUrl) {
+	return createHash('sha256').update(`indexnow:${siteUrl}`).digest('hex').slice(0, 32);
+}
+
+// llms.txt: resumen del sitio para asistentes y buscadores con IA (ChatGPT, Perplexity, Copilot, AI Overviews).
+function llmsTxt(ctx, properties, pages) {
+	const base = ctx.siteUrl.replace(/\/$/, '');
+	const s = ctx.site;
+	const c = s.contacto || {};
+	const lineas = [
+		`# ${s.general.nombre}`,
+		'',
+		`> ${s.seo.descripcion}`,
+		'',
+		`Agencia inmobiliaria en Ciudad de Guatemala: compra, venta y renta de casas, apartamentos y terrenos. Atención en español e inglés, recorridos por videollamada y cierre a distancia para compradores en Estados Unidos.${c.telefono ? ` Teléfono / WhatsApp: ${c.telefono}.` : ''}${c.email ? ` Correo: ${c.email}.` : ''}`,
+		'',
+		'## Propiedades',
+		'',
+		`- [Todas las propiedades](${base}/propiedades/)`,
+		`- [En venta](${base}/propiedades/venta/)`,
+		`- [En renta](${base}/propiedades/renta/)`,
+		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
+		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${p.m2Construccion} m²` : ''}`),
+		'',
+		'## Guías',
+		'',
+		...ctx.posts.map((p) => `- [${p.titulo}](${base}${p.url})${p.resumen ? `: ${p.resumen}` : ''}`),
+		...pages.map((p) => `- [${p.titulo}](${base}${p.url})`),
+		'',
+		'## English',
+		'',
+		`- [Homes for sale and rent in Guatemala](${base}/en/properties/)`,
+		`- [Buying property in Guatemala from the US](${base}/en/buying-property-in-guatemala/)`,
+		''
+	];
+	return lineas.join('\n');
+}
+
 function sitemap(ctx, urls) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
-	const today = new Date().toISOString().slice(0, 10);
+	// Sin fecha conocida se omite lastmod: una fecha falsa hace que Google deje de confiar en ellas.
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-${urls.map((u) => `	<url><loc>${base}${u.path}</loc><lastmod>${u.lastmod || today}</lastmod>${u.priority ? `<priority>${u.priority}</priority>` : ''}${imageEntries(ctx, u)}</url>`).join('\n')}
+${urls.map((u) => `	<url><loc>${base}${u.path}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}${u.priority ? `<priority>${u.priority}</priority>` : ''}${imageEntries(ctx, u)}</url>`).join('\n')}
 </urlset>
 `;
 }
@@ -275,7 +318,10 @@ async function main() {
 	await mkdir(DIST, { recursive: true });
 	await copyAssets();
 
-	const urls = [{ path: '/', priority: '1.0', images: (site.hero.imagenes || []).slice(0, 1) }];
+	// Fecha de la última modificación real del inventario: Google ignora el lastmod si cambia en cada build.
+	const ultimaFecha = (list) => list.map((p) => String(p.updatedAt || p.createdAt || '').slice(0, 10)).filter(Boolean).sort().pop();
+	const inventarioMod = ultimaFecha(properties) || String(site.updatedAt || '').slice(0, 10) || undefined;
+	const urls = [{ path: '/', priority: '1.0', lastmod: inventarioMod, images: (site.hero.imagenes || []).slice(0, 1) }];
 	await writePage('/', T.homePage(ctx));
 
 	const listing = (key, defaults) => ({
@@ -292,30 +338,48 @@ async function main() {
 	];
 	for (const l of listings) {
 		await writePage(l.path, T.listingPage(ctx, l));
-		urls.push({ path: l.path, priority: '0.9' });
+		urls.push({ path: l.path, priority: '0.9', lastmod: ultimaFecha(properties.filter((p) => !l.operacion || p.operacion === l.operacion)) });
 	}
 
+	const zonaOpts = new Map();
 	for (const z of ctx.zonas) {
-		await writePage(z.url, T.listingPage(ctx, {
+		zonaOpts.set(z.nombre, {
 			path: z.url,
 			zona: z.nombre,
 			heading: `Propiedades en ${z.nombre}`,
 			title: `Casas y apartamentos en ${z.nombre}, Guatemala | ${nombre}`,
 			description: `Propiedades en venta y renta en ${z.nombre}, Guatemala. ${z.total === 1 ? '1 propiedad disponible' : `${z.total} propiedades disponibles`} con asesoría personalizada.`,
 			intro: `Casas, apartamentos y terrenos en ${z.nombre}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`
-		}));
-		urls.push({ path: z.url, priority: '0.8' });
+		});
+		await writePage(z.url, T.listingPage(ctx, zonaOpts.get(z.nombre)));
+		urls.push({ path: z.url, priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.zona === z.nombre)) });
+		// Zona + operación ("casas en venta en zona 16"): solo si hay suficientes propiedades
+		// y la página no repite exactamente el listado de la zona (evita contenido duplicado).
+		for (const [op, base, verbo] of [['venta', '/propiedades/venta/', 'en venta'], ['renta', '/propiedades/renta/', 'en renta']]) {
+			if (z[op] < MIN_LISTADO || z[op] === z.total) continue;
+			const url = `${base}${z.slug}/`;
+			await writePage(url, T.listingPage(ctx, {
+				path: url,
+				zona: z.nombre,
+				operacion: op,
+				heading: `Propiedades ${verbo} en ${z.nombre}`,
+				title: `Casas y apartamentos ${verbo} en ${z.nombre}, Guatemala | ${nombre}`,
+				description: `${z[op]} propiedades ${verbo} en ${z.nombre}, Guatemala. Fotos, precios y asesoría personalizada para agendar tu visita.`,
+				intro: `Propiedades ${verbo} en ${z.nombre}. Escríbenos si buscas algo específico: tenemos opciones que aún no están publicadas.`
+			}));
+			urls.push({ path: url, priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.zona === z.nombre && p.operacion === op)) });
+		}
 	}
 
 	await writePage('/blog/', T.blogIndexPage(ctx));
-	urls.push({ path: '/blog/', priority: '0.6' });
+	urls.push({ path: '/blog/', priority: '0.6', lastmod: ctx.posts.map((x) => String(x.fecha || '').slice(0, 10)).filter(Boolean).sort().pop() });
 	for (const post of ctx.posts) {
 		await writePage(post.url, T.blogPostPage(ctx, post));
 		urls.push({ path: post.url, priority: '0.6', lastmod: String(post.fecha || '').slice(0, 10) || undefined, images: post.imagen ? [post.imagen] : [] });
 	}
 
 	await writePage('/vip/', T.vipIndexPage(ctx));
-	urls.push({ path: '/vip/', priority: '0.8' });
+	urls.push({ path: '/vip/', priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.vip)) });
 
 	for (const p of properties) {
 		const html = p.vip ? T.vipLandingPage(ctx, p) : T.propertyPage(ctx, p);
@@ -330,7 +394,7 @@ async function main() {
 
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
-		urls.push({ path: page.url, priority: '0.4' });
+		urls.push({ path: page.url, priority: '0.4', lastmod: String(page.updatedAt || '').slice(0, 10) || undefined });
 	}
 
 	// ------------------------------------------------ Sitio en inglés (/en/)
@@ -353,7 +417,7 @@ async function main() {
 			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
 			pages: pagesEn,
 			posts: postsEn,
-			zonas: []
+			zonas: buildZonas(propsEn, '/en/properties/')
 		};
 		ctxEn.agentsById = Object.fromEntries(ctxEn.agents.map((a) => [a.id, a]));
 		const LE = siteEn.listados || {};
@@ -373,6 +437,24 @@ async function main() {
 		]) {
 			await writePage(l.path, T.listingPage(ctxEn, l));
 			urls.push({ path: l.path, priority: '0.9' });
+		}
+		for (const z of ctxEn.zonas) {
+			const es = ctx.zonas.find((x) => x.nombre === z.nombre);
+			const alternates = es ? { es: es.url, en: z.url } : null;
+			await writePage(z.url, T.listingPage(ctxEn, {
+				path: z.url,
+				alternates,
+				zona: z.nombre,
+				heading: `Homes in ${z.nombre}, Guatemala City`,
+				title: `Homes in ${z.nombre}, Guatemala City | ${nombre}`,
+				description: `${z.total === 1 ? '1 property' : `${z.total} properties`} for sale and rent in ${z.nombre}, Guatemala City. USD prices, live video tours and support for buyers in the US.`,
+				intro: `Houses, condos and land in ${z.nombre}. Can't find what you need? Tell us and we'll send you options that aren't listed yet.`
+			}));
+			if (es) {
+				registrarPar(es.url, z.url);
+				await writePage(es.url, T.listingPage(ctx, { ...zonaOpts.get(z.nombre), alternates }));
+			}
+			urls.push({ path: z.url, priority: '0.8', lastmod: ultimaFecha(propsEn.filter((p) => p.zona === z.nombre)) });
 		}
 		await writePage('/en/luxury/', T.vipIndexPage(ctxEn));
 		urls.push({ path: '/en/luxury/', priority: '0.8' });
@@ -413,6 +495,12 @@ async function main() {
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `User-agent: *\nAllow: /\nDisallow: /admin/\n\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
+
+	if (!ctx.noindex) {
+		// Clave de IndexNow (Bing, Copilot, Yandex): es pública por diseño; la función deploy-succeeded la usa.
+		await writeFile(path.join(DIST, `${indexNowKey(config.siteUrl)}.txt`), indexNowKey(config.siteUrl));
+		await writeFile(path.join(DIST, 'llms.txt'), llmsTxt(ctx, properties, pages));
+	}
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);

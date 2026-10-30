@@ -72,7 +72,7 @@ function trackingHead(site) {
 	const gtagIds = [ga4Id, adsId].filter(Boolean);
 	if (gtagIds.length) {
 		out += `<script async src="https://www.googletagmanager.com/gtag/js?id=${esc(gtagIds[0])}"></script>\n`;
-		out += `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());${gtagIds.map((id) => `gtag('config',${JSON.stringify(id)});`).join('')}</script>\n`;
+		out += `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());${gtagIds.map((id) => `gtag('config',${JSON.stringify(id)}${/^AW-/.test(id) ? ',{allow_enhanced_conversions:true}' : ''});`).join('')}</script>\n`;
 	}
 	if (gtmId) {
 		out += `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(gtmId)});</script>\n`;
@@ -283,6 +283,11 @@ function scripts(extra = '') {
 
 function layout(ctx, page, body) {
 	const bodyAttrs = page.bodyAttrs ? ` ${page.bodyAttrs}` : '';
+	// La imagen de portada (LCP) se precarga aunque la página no la indique.
+	if (!page.preloadImage) {
+		const hero = /--bg:url\('([^']+)'\)/.exec(body);
+		if (hero) page = { ...page, preloadImage: hero[1] };
+	}
 	return `${head(ctx, page)}
 <body${bodyAttrs}>
 	${trackingBody(ctx.site)}
@@ -430,7 +435,9 @@ export function homePage(ctx) {
 	const orgLd = {
 		'@context': 'https://schema.org',
 		'@type': 'RealEstateAgent',
+		'@id': orgId(ctx),
 		name: s.general.nombre,
+		alternateName: s.general.nombreCorto || undefined,
 		url: absUrl(ctx, r.inicio),
 		logo: absUrl(ctx, s.general.logo),
 		areaServed: { '@type': 'Country', name: 'Guatemala' },
@@ -439,7 +446,10 @@ export function homePage(ctx) {
 		telephone: s.contacto.telefono || undefined,
 		email: s.contacto.email || undefined,
 		address: { '@type': 'PostalAddress', streetAddress: s.contacto.direccion || undefined, addressLocality: 'Guatemala', addressCountry: 'GT' },
-		sameAs: Object.values(s.redes || {}).filter(Boolean)
+		geo: geoDe(s.contacto.mapa),
+		hasMap: s.tracking && s.tracking.googleBusinessUrl ? s.tracking.googleBusinessUrl : undefined,
+		contactPoint: s.contacto.telefono ? { '@type': 'ContactPoint', telephone: s.contacto.telefono, contactType: 'sales', availableLanguage: ['Spanish', 'English'], areaServed: ['GT', 'US'] } : undefined,
+		sameAs: [...Object.values(s.redes || {}), s.tracking && s.tracking.googleBusinessUrl].filter(Boolean)
 	};
 	const webLd = {
 		'@context': 'https://schema.org',
@@ -807,11 +817,27 @@ function factsList(p) {
 	return `<dl class="prop-facts">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
 }
 
+// Coordenadas a partir del enlace de Google Maps (…@14.6,-90.5… o …q=14.6,-90.5…).
+function geoDe(mapa) {
+	const m = /(?:@|[?&](?:q|ll|query)=)(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(String(mapa || ''));
+	return m ? { '@type': 'GeoCoordinates', latitude: Number(m[1]), longitude: Number(m[2]) } : undefined;
+}
+
+export function orgId(ctx) {
+	return `${ctx.siteUrl.replace(/\/$/, '')}/#organizacion`;
+}
+
 function listingLd(ctx, p) {
+	const agent = ctx.agentsById && ctx.agentsById[p.agentId];
+	const video = videoEmbedUrl(p.video);
 	const offer = {
 		'@type': 'Offer',
-		price: p.precio || undefined,
+		url: absUrl(ctx, propertyUrl(p)),
+		price: p.vipLanding && p.vipLanding.ocultarPrecio ? undefined : (p.precio || undefined),
 		priceCurrency: p.moneda || 'USD',
+		offeredBy: agent
+			? { '@type': 'RealEstateAgent', name: agent.nombre, telephone: agent.telefono || undefined, worksFor: { '@id': orgId(ctx) } }
+			: { '@id': orgId(ctx) },
 		availability: p.estado === 'disponible' ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
 		businessFunction: p.operacion === 'renta' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell'
 	};
@@ -823,13 +849,25 @@ function listingLd(ctx, p) {
 		url: absUrl(ctx, propertyUrl(p)),
 		image: (p.fotos || []).map((f) => absUrl(ctx, f.url)),
 		datePosted: p.createdAt || undefined,
+		dateModified: p.updatedAt || undefined,
+		inLanguage: lng(p),
+		identifier: propertyCode(p),
 		offers: offer,
+		video: video ? { '@type': 'VideoObject', name: p.titulo, description: truncate(stripMarkdown(p.descripcion), 200), embedUrl: video, thumbnailUrl: absUrl(ctx, firstPhoto(p)), uploadDate: p.updatedAt || p.createdAt || undefined } : undefined,
 		about: {
-			'@type': p.tipo === 'apartamento' ? 'Apartment' : p.tipo === 'casa' ? 'SingleFamilyResidence' : 'Place',
+			'@type': p.tipo === 'apartamento' ? 'Apartment' : p.tipo === 'casa' ? 'SingleFamilyResidence' : p.tipo === 'terreno' ? 'Landform' : 'Accommodation',
+			name: p.titulo,
 			numberOfRooms: p.habitaciones || undefined,
+			numberOfBedrooms: p.habitaciones || undefined,
 			numberOfBathroomsTotal: p.banos || undefined,
 			floorSize: p.m2Construccion ? { '@type': 'QuantitativeValue', value: p.m2Construccion, unitCode: 'MTK' } : undefined,
-			address: { '@type': 'PostalAddress', streetAddress: p.direccion || undefined, addressLocality: [p.zona, p.ciudad].filter(Boolean).join(', '), addressCountry: 'GT' }
+			amenityFeature: [
+				...(p.amenidades || []).map((a) => ({ '@type': 'LocationFeatureSpecification', name: a, value: true })),
+				p.parqueos ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Parking spaces' : 'Parqueos', value: p.parqueos } : null,
+				p.m2Terreno ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Lot size (m²)' : 'Terreno (m²)', value: p.m2Terreno } : null
+			].filter(Boolean),
+			geo: geoDe(p.mapa),
+			address: { '@type': 'PostalAddress', streetAddress: p.direccion || undefined, addressLocality: [p.zona, p.ciudad].filter(Boolean).join(', '), addressRegion: 'Guatemala', addressCountry: 'GT' }
 		}
 	};
 }
@@ -882,7 +920,8 @@ export function propertyPage(ctx, p) {
 	const r = rt(ctx);
 	const agent = ctx.agentsById[p.agentId];
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
-	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, { name: p.titulo, url: propertyUrl(p) }];
+	const zona = (ctx.zonas || []).find((z) => z.nombre === p.zona);
+	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, zona ? { name: zona.nombre, url: zona.url } : null, { name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
 	const video = videoEmbedUrl(p.video);
 	const mapa = p.mapa ? mapEmbedUrl(p.mapa) : '';
 	const related = ctx.properties
@@ -1168,8 +1207,22 @@ export function contentPage(ctx, page) {
 		title: (page.seo && page.seo.titulo) || `${page.titulo} | ${ctx.site.general.nombreCorto}`,
 		description: (page.seo && page.seo.descripcion) || stripMarkdown(page.contenido),
 		image: page.imagen,
-		jsonLd: [breadcrumbLd(ctx, crumbs)]
+		jsonLd: [breadcrumbLd(ctx, crumbs), faqLd(page)].filter(Boolean)
 	}, body);
+}
+
+function faqLd(page) {
+	if (!/preguntas|faq/i.test(page.slug || page.url || '')) return null;
+	const items = String(page.contenido || '').split(/^##\s+/m).slice(1).map((bloque) => {
+		const [pregunta, ...resto] = bloque.split('\n');
+		return { pregunta: pregunta.trim(), respuesta: stripMarkdown(resto.join('\n')).trim() };
+	}).filter((x) => x.pregunta.endsWith('?') && x.respuesta);
+	if (items.length < 2) return null;
+	return {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: items.map((x) => ({ '@type': 'Question', name: x.pregunta, acceptedAnswer: { '@type': 'Answer', text: x.respuesta } }))
+	};
 }
 
 // ---------------------------------------------------------------- Blog
@@ -1224,7 +1277,7 @@ export function blogPostPage(ctx, post) {
 		datePublished: post.fecha || post.createdAt || undefined,
 		dateModified: post.updatedAt || post.fecha || undefined,
 		author: { '@type': post.autor ? 'Person' : 'Organization', name: post.autor || ctx.site.general.nombre },
-		publisher: { '@type': 'Organization', name: ctx.site.general.nombre, logo: { '@type': 'ImageObject', url: absUrl(ctx, ctx.site.general.logo) } },
+		publisher: { '@type': 'Organization', '@id': orgId(ctx), name: ctx.site.general.nombre, logo: { '@type': 'ImageObject', url: absUrl(ctx, ctx.site.general.logo) } },
 		mainEntityOfPage: absUrl(ctx, post.url)
 	};
 	const others = ctx.posts.filter((o) => o.id !== post.id).slice(0, 3);
