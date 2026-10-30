@@ -104,6 +104,10 @@ export function markdown(md) {
 		if (!line) {
 			flushPara();
 			flushList();
+		} else if ((m = line.match(/^>\s?(.*)$/))) {
+			flushPara();
+			flushList();
+			html.push(`<blockquote class="content-note"><p>${inlineMarkdown(m[1])}</p></blockquote>`);
 		} else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) {
 			flushPara();
 			flushList();
