@@ -314,7 +314,7 @@ async function renderEditor(container, id) {
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;
-			btn.textContent = '🌎 Traducir al inglés (IA)';
+			btn.textContent = 'EN · Traducir al inglés (IA)';
 		}
 	};
 
@@ -322,7 +322,7 @@ async function renderEditor(container, id) {
 	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
 			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, '✨ Redactar con IA') : null,
-			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, '🌎 Traducir al inglés (IA)') : null,
+			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, 'EN · Traducir al inglés (IA)') : null,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,

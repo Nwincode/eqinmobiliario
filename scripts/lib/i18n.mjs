@@ -57,7 +57,7 @@ const ES = {
 	blogTitulo: 'Blog inmobiliario', blogDesc: 'Consejos para comprar, vender y rentar propiedades en Guatemala: financiamiento, zonas, trámites y tendencias del mercado.',
 	blogLead: '¿Buscas una propiedad? Te asesoramos sin costo', masArticulos: 'Más artículos',
 	noEncontrada: 'Página no encontrada', noExiste: 'La página que buscas no existe o la propiedad ya no está disponible.', verPropiedades: 'Ver propiedades',
-	otroIdioma: 'English', otroIdiomaLabel: 'View this page in English'
+	otroIdioma: 'EN', otroIdiomaLabel: 'View this page in English'
 };
 
 const EN = {
@@ -100,7 +100,7 @@ const EN = {
 	blogTitulo: 'Guatemala real estate blog', blogDesc: 'Guides for US buyers: owning property in Guatemala as a foreigner, buying remotely, costs, areas and financing.',
 	blogLead: 'Looking for a home in Guatemala? Get free advice', masArticulos: 'More articles',
 	noEncontrada: 'Page not found', noExiste: "The page you're looking for doesn't exist or the property is no longer available.", verPropiedades: 'View properties',
-	otroIdioma: 'Español', otroIdiomaLabel: 'Ver esta página en español'
+	otroIdioma: 'ES', otroIdiomaLabel: 'Ver esta página en español'
 };
 
 export const TEXTOS = { es: ES, en: EN };
