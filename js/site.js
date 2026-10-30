@@ -274,8 +274,11 @@
 		form.elements.operacion.addEventListener('change', function () {
 			var op = form.elements.operacion.value;
 			if (op === preset) return;
-			var qs = location.search;
-			location.href = rutas[op] + qs;
+			// En la página de una zona se conserva la zona como filtro del nuevo listado.
+			var params = new URLSearchParams(location.search);
+			if (presetZona) params.set('zona', presetZona);
+			var qs = params.toString();
+			location.href = rutas[op] + (qs ? '?' + qs : '');
 		});
 
 		// En la página de una zona, elegir otra zona lleva al listado general filtrado.

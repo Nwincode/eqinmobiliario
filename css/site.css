@@ -718,7 +718,7 @@ h2.heading::after,
 }
 @media (min-width: 992px) and (max-width: 1199.98px) {
 	/* El logotipo ya lleva al inicio: se oculta "Inicio" para ganar espacio */
-	.site-nav .site-navigation .site-menu > li:first-child:not(.has-children) { display: none; }
+	.site-nav .site-navigation .site-menu > li.nav-home { display: none; }
 }
 .site-mobile-menu .site-nav-wrap li.lang-switch {
 	display: inline-flex !important;

@@ -18,7 +18,7 @@
 		
 
 		if ( heroSlider.length > 0 ) {
-			var tnsHeroSlider = tns({
+			tns({
 				container: '.hero-slide',
 				mode: 'carousel',
 				speed: 700,
@@ -32,7 +32,7 @@
 
 
 		if ( imgPropertySlider.length > 0 ) {
-			var tnsPropertyImageSlider = tns({
+			tns({
 				container: '.img-property-slide',
 				mode: 'carousel',
 				speed: 700,
@@ -46,7 +46,7 @@
 		}
 
 		if ( propertySlider.length> 0 ) {
-			var tnsSlider = tns({
+			tns({
 				container: '.property-slider',
 				mode: 'carousel',
 				speed: 700,
@@ -71,7 +71,7 @@
 
 
 		if ( testimonialSlider.length> 0 ) {
-			var tnsSlider = tns({
+			tns({
 				container: '.testimonial-slider',
 				mode: 'carousel',
 				speed: 700,

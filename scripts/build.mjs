@@ -363,7 +363,8 @@ async function main() {
 				zona: z.nombre,
 				operacion: op,
 				heading: `Propiedades ${verbo} en ${z.nombre}`,
-				title: `Casas y apartamentos ${verbo} en ${z.nombre}, Guatemala | ${nombre}`,
+				title: [`Casas y apartamentos ${verbo} en ${z.nombre}, Guatemala | ${nombre}`, `Casas ${verbo} en ${z.nombre}, Guatemala | ${nombre}`, `Casas ${verbo} en ${z.nombre} | ${nombre}`]
+					.find((t) => t.length <= 65) || `Casas ${verbo} en ${z.nombre}`,
 				description: `${z[op]} propiedades ${verbo} en ${z.nombre}, Guatemala. Fotos, precios y asesoría personalizada para agendar tu visita.`,
 				intro: `Propiedades ${verbo} en ${z.nombre}. Escríbenos si buscas algo específico: tenemos opciones que aún no están publicadas.`
 			}));

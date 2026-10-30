@@ -145,7 +145,7 @@ function nav(ctx, active) {
 	const hasVip = ctx.properties.some((p) => p.vip);
 	// El enlace de contacto se muestra como el botón de acción de la barra.
 	const items = (site.navegacion || []).map((it) => {
-		const cls = [it.enlace === active ? 'active' : '', /#conta/.test(it.enlace || '') ? 'nav-cta' : ''].filter(Boolean).join(' ');
+		const cls = [it.enlace === active ? 'active' : '', /#conta/.test(it.enlace || '') ? 'nav-cta' : '', it.enlace === rt(ctx).inicio ? 'nav-home' : ''].filter(Boolean).join(' ');
 		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${esc(it.texto)}</a></li>`;
 	});
 	const t = tr(ctx);
@@ -855,7 +855,7 @@ function listingLd(ctx, p) {
 		offers: offer,
 		video: video ? { '@type': 'VideoObject', name: p.titulo, description: truncate(stripMarkdown(p.descripcion), 200), embedUrl: video, thumbnailUrl: absUrl(ctx, firstPhoto(p)), uploadDate: p.updatedAt || p.createdAt || undefined } : undefined,
 		about: {
-			'@type': p.tipo === 'apartamento' ? 'Apartment' : p.tipo === 'casa' ? 'SingleFamilyResidence' : p.tipo === 'terreno' ? 'Landform' : 'Accommodation',
+			'@type': p.tipo === 'apartamento' ? 'Apartment' : p.tipo === 'casa' ? 'SingleFamilyResidence' : p.tipo === 'terreno' ? 'Place' : 'Accommodation',
 			name: p.titulo,
 			numberOfRooms: p.habitaciones || undefined,
 			numberOfBedrooms: p.habitaciones || undefined,
