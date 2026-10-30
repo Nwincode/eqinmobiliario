@@ -1,7 +1,7 @@
 // CRM: clientes, actividades (agenda e historial) y propietarios.
 // El asesor solo consulta lo suyo (lo exigen las reglas de Firestore); el administrador, todo.
 import {
-	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, writeBatch
+	db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, writeBatch
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
@@ -60,6 +60,33 @@ export async function loadPropiedades() {
 }
 
 export const ms = (v) => toDate(v)?.getTime() || 0;
+
+// Regla general de comisión (settings/crm): se usa cuando el cliente no tiene una comisión propia.
+export const REGLAS_POR_DEFECTO = { comisionVentaPct: 5, comisionRentaMeses: 1, parteAsesorPct: 50 };
+
+export async function loadReglas() {
+	try {
+		const snap = await getDoc(doc(db, 'settings', 'crm'));
+		const d = snap.exists() ? snap.data() : {};
+		return Object.fromEntries(Object.entries(REGLAS_POR_DEFECTO).map(([k, v]) => [k, Number.isFinite(Number(d[k])) && d[k] !== '' && d[k] != null ? Number(d[k]) : v]));
+	} catch {
+		return { ...REGLAS_POR_DEFECTO };
+	}
+}
+
+// Comisión de un negocio: la propia del cliente o la regla general
+// (venta: % del precio; renta: meses de renta, con el monto como renta mensual).
+export function comisionDe(c, reglas = REGLAS_POR_DEFECTO) {
+	const monto = Number(c.montoEstimado) || 0;
+	if (c.comisionPct !== undefined && c.comisionPct !== null && c.comisionPct !== '') return monto * Number(c.comisionPct) / 100;
+	if (c.operacion === 'renta') return monto * reglas.comisionRentaMeses;
+	return monto * reglas.comisionVentaPct / 100;
+}
+
+export function textoRegla(reglas = REGLAS_POR_DEFECTO) {
+	const meses = reglas.comisionRentaMeses;
+	return `${reglas.comisionVentaPct} % en venta · ${meses} ${meses === 1 ? 'mes' : 'meses'} de renta en alquiler`;
+}
 
 // Estado de una actividad pendiente respecto a hoy.
 export function vencimiento(a) {

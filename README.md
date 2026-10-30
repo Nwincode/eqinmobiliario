@@ -94,6 +94,8 @@ Cada asesor entra con su usuario y ve **solo lo suyo** (lo exigen las reglas de 
   enlace al contrato. Aviso cuando una exclusiva vence en 30 días o menos.
 - **Reportes** (administrador): por asesor, leads, leads sin atender, tiempo de primera respuesta, actividades,
   visitas, seguimientos vencidos, negocios en proceso, cierres, monto cerrado y comisión; embudo de clientes.
+  Ahí mismo se fija la **regla general de comisión** (`settings/crm`): % en venta, meses de renta en alquiler y
+  parte del asesor. Se aplica a todo cliente o propietario sin comisión propia.
 
 Colecciones nuevas: `clientes`, `actividades`, `propietarios` (reglas en `firestore.rules`: vuelve a publicarlas
 en Firebase después de actualizar).

@@ -4,7 +4,7 @@ import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badg
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl } from '../ia.js';
-import { loadPropietarios, loadPropiedades, telNorm } from '../crm.js';
+import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
 function diasExclusiva(p) {
@@ -22,7 +22,7 @@ export function estadoExclusiva(p) {
 }
 
 async function renderLista(container) {
-	const [lista, propiedades, agentes] = await Promise.all([loadPropietarios(), loadPropiedades(), loadAgents()]);
+	const [lista, propiedades, agentes, reglas] = await Promise.all([loadPropietarios(), loadPropiedades(), loadAgents(), loadReglas()]);
 	const tituloProp = Object.fromEntries(propiedades.map((p) => [p.id, p.titulo]));
 	const nombreAsesor = Object.fromEntries(agentes.map((a) => [a.id, a.nombre]));
 	const porVencer = lista.filter((p) => { const d = diasExclusiva(p); return d !== null && d <= 30; });
@@ -38,7 +38,7 @@ async function renderLista(container) {
 				h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre), h('div', { class: 'small text-muted' }, p.telefono || p.email || '')),
 				h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 				h('td', {}, estadoExclusiva(p)),
-				h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : '—'),
+				h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
 				session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || 'Sin asignar') : null))))))
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
 }
@@ -46,7 +46,7 @@ async function renderLista(container) {
 async function renderEditor(container, id) {
 	const nuevo = id === 'nuevo';
 	const ref = nuevo ? doc(collection(db, 'propietarios')) : doc(db, 'propietarios', id);
-	const [snap, agentes, propiedades] = await Promise.all([nuevo ? null : getDoc(ref), agentOptions(), loadPropiedades()]);
+	const [snap, agentes, propiedades, reglas] = await Promise.all([nuevo ? null : getDoc(ref), agentOptions(), loadPropiedades(), loadReglas()]);
 	if (!nuevo && !snap.exists()) {
 		mount(container, emptyState('No se encontró.', h('a', { href: '#/propietarios', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -67,7 +67,7 @@ async function renderEditor(container, id) {
 		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4 },
 		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4 },
 		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4 },
-		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4 },
+		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
 		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, placeholder: 'https://…' },
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });

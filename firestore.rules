@@ -69,6 +69,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Regla general de comisión del CRM: la ve el equipo, la cambia el administrador.
+    match /settings/crm {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+
     match /properties/{id} {
       allow get: if resource.data.publicado == true || isStaff();
       allow list: if resource.data.publicado == true || isStaff();

@@ -1,8 +1,9 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
-import { h, pageHeader, mount, downloadCsv } from '../ui.js';
+import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
+import { h, pageHeader, mount, downloadCsv, toast, showError } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
-import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS } from '../crm.js';
+import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDe } from '../crm.js';
 
 function horas(msx) {
 	if (!Number.isFinite(msx)) return '—';
@@ -11,7 +12,7 @@ function horas(msx) {
 }
 
 export async function render(container) {
-	const [agentes, leads, clientes, actividades] = await Promise.all([loadAgents(), loadLeads(), loadClientes(), loadActividades()]);
+	const [agentes, leads, clientes, actividades, reglas] = await Promise.all([loadAgents(), loadLeads(), loadClientes(), loadActividades(), loadReglas()]);
 	let dias = 30;
 	const cuerpo = h('div');
 	const selector = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Periodo' },
@@ -32,7 +33,7 @@ export async function render(container) {
 			}).filter((t) => t !== null);
 			const cierres = misClientes.filter((c) => c.etapa === 'cierre' && ms(c.updatedAt) >= desde);
 			const montoCerrado = cierres.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
-			const comision = cierres.reduce((s, c) => s + (Number(c.montoEstimado) || 0) * (Number(c.comisionPct) || 0) / 100, 0);
+			const comision = cierres.reduce((s, c) => s + comisionDe(c, reglas), 0);
 			const enProceso = misClientes.filter((c) => ['visita', 'oferta'].includes(c.etapa));
 			return {
 				...a,
@@ -46,7 +47,8 @@ export async function render(container) {
 				pipeline: enProceso.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0),
 				cierres: cierres.length,
 				montoCerrado,
-				comision
+				comision,
+				parteAsesor: comision * reglas.parteAsesorPct / 100
 			};
 		}).filter((f) => f.id || f.leads || f.actividades);
 
@@ -61,7 +63,7 @@ export async function render(container) {
 			h('div', { class: 'card mb-4 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
 				h('div', { class: 'table-responsive' }, h('table', { class: 'table table-admin mb-0' },
-					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Sin atender', 'Respuesta (mediana)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión'].map((t, i) => h('th', { class: i ? 'text-end' : '' }, t)))),
+					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Sin atender', 'Respuesta (mediana)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión', 'Parte asesor'].map((t, i) => h('th', { class: i ? 'text-end' : '' }, t)))),
 					h('tbody', {}, filas.map((f) => h('tr', {},
 						h('td', { class: 'fw-semibold' }, f.nombre),
 						h('td', { class: 'text-end' }, f.leads),
@@ -73,22 +75,49 @@ export async function render(container) {
 						h('td', { class: 'text-end' }, `${f.enProceso}${f.pipeline ? ` · ${money(f.pipeline)}` : ''}`),
 						h('td', { class: 'text-end' }, f.cierres),
 						h('td', { class: 'text-end' }, money(f.montoCerrado)),
-						h('td', { class: 'text-end' }, money(Math.round(f.comision))))))))),
+						h('td', { class: 'text-end' }, money(Math.round(f.comision))),
+							h('td', { class: 'text-end' }, money(Math.round(f.parteAsesor))))))))),
 			h('div', { class: 'card' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
 				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },
 					h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, l), h('strong', {}, n)),
 					h('div', { class: 'bar' }, h('span', { style: `width:${(n / maxE) * 100}%` })))))),
-			h('p', { class: 'small text-muted mt-3' }, 'Respuesta: tiempo entre que llega el lead y la primera llamada, mensaje o visita registrada con ese cliente. Monto y comisión salen de los clientes en etapa "Cierre".'));
+			h('p', { class: 'small text-muted mt-3' }, 'Respuesta: tiempo entre que llega el lead y la primera llamada, mensaje o visita registrada con ese cliente. Monto y comisión salen de los clientes en etapa "Cierre"; si el cliente no tiene comisión propia se aplica la regla general.'));
 		cuerpo._filas = filas;
 	};
 	selector.addEventListener('change', () => { dias = Number(selector.value); calcular(); });
 	calcular();
 
 	const exportar = h('button', { class: 'btn btn-sm btn-outline-primary', onclick: () => downloadCsv(`reporte-equipo-${dias}d.csv`, [
-		['Asesor', 'Leads', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión'],
-		...cuerpo._filas.map((f) => [f.nombre, f.leads, f.sinRespuesta, Number.isFinite(f.respuesta) ? (f.respuesta / 3600000).toFixed(1) : '', f.actividades, f.visitas, f.vencidas, f.enProceso, f.cierres, f.montoCerrado, Math.round(f.comision)])
+		['Asesor', 'Leads', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión', 'Parte asesor'],
+		...cuerpo._filas.map((f) => [f.nombre, f.leads, f.sinRespuesta, Number.isFinite(f.respuesta) ? (f.respuesta / 3600000).toFixed(1) : '', f.actividades, f.visitas, f.vencidas, f.enProceso, f.cierres, f.montoCerrado, Math.round(f.comision), Math.round(f.parteAsesor)])
 	]) }, 'Exportar (CSV)');
 
-	mount(container, pageHeader('Reportes del equipo', h('div', { class: 'd-flex gap-2' }, selector, exportar)), cuerpo);
+	// Regla general de comisión: aplica a todo cliente o propietario sin comisión propia.
+	const campos = [['comisionVentaPct', 'Venta', '%'], ['comisionRentaMeses', 'Renta', 'meses de renta'], ['parteAsesorPct', 'Parte del asesor', '% de la comisión']]
+		.map(([k, label, sufijo]) => {
+			const input = h('input', { class: 'form-control', type: 'number', min: 0, step: 'any', value: reglas[k], id: `regla-${k}` });
+			return { k, input, col: h('div', { class: 'col-sm-4' }, h('label', { class: 'form-label small', for: input.id }, label),
+				h('div', { class: 'input-group' }, input, h('span', { class: 'input-group-text' }, sufijo))) };
+		});
+	const guardarReglas = async (btn) => {
+		const nuevas = Object.fromEntries(campos.map(({ k, input }) => [k, input.value === '' ? NaN : Number(input.value)]));
+		if (Object.values(nuevas).some((v) => !Number.isFinite(v) || v < 0)) { toast('Revisa los valores.', 'danger'); return; }
+		btn.disabled = true;
+		try {
+			await setDoc(doc(db, 'settings', 'crm'), { ...nuevas, updatedAt: serverTimestamp() }, { merge: true });
+			Object.assign(reglas, nuevas);
+			toast('Regla de comisión guardada.');
+			calcular();
+		} catch (err) { showError(err); } finally { btn.disabled = false; }
+	};
+	const tarjetaReglas = h('div', { class: 'card mb-4' },
+		h('div', { class: 'card-header bg-white fw-semibold' }, 'Regla general de comisión'),
+		h('div', { class: 'card-body' },
+			h('div', { class: 'row g-3 align-items-end' }, campos.map((c) => c.col)),
+			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-3' },
+				h('span', { class: 'small text-muted me-auto' }, 'Se aplica a los clientes y propietarios sin comisión propia. Recomendado: 5 % en venta, 1 mes de renta y 50 % para el asesor.'),
+				h('button', { class: 'btn btn-primary btn-sm', onclick: (e) => guardarReglas(e.currentTarget) }, 'Guardar regla'))));
+
+	mount(container, pageHeader('Reportes del equipo', h('div', { class: 'd-flex gap-2' }, selector, exportar)), tarjetaReglas, cuerpo);
 }

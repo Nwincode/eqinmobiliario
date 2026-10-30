@@ -8,12 +8,12 @@ import { whatsappUrl } from '../ia.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	fechaCorta, chipVencimiento, ms
+	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
 } from '../crm.js';
 
 const VISTA_KEY = 'eq-clientes-vista';
 
-function esquema(agentes) {
+function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 	return [
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		{ name: 'tipo', label: 'Tipo de cliente', type: 'select', options: TIPOS_CLIENTE, cols: 3 },
@@ -30,8 +30,8 @@ function esquema(agentes) {
 		{ name: 'zonas', label: 'Zonas de interés', cols: 6, placeholder: 'Zona 16, Carretera a El Salvador…' },
 		{ name: 'requerimiento', label: 'Requerimiento', type: 'textarea', rows: 3, placeholder: 'Casa de 3 habitaciones, jardín, cerca de colegios…' },
 		{ type: 'section', label: 'Negocio' },
-		{ name: 'montoEstimado', label: 'Monto del negocio', type: 'number', cols: 4, help: 'Precio de la operación esperada.' },
-		{ name: 'comisionPct', label: 'Comisión %', type: 'number', cols: 4 },
+		{ name: 'montoEstimado', label: 'Monto del negocio', type: 'number', cols: 4, help: 'Precio de venta; en renta, la renta mensual.' },
+		{ name: 'comisionPct', label: 'Comisión % (solo si es distinta)', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
 		{ name: 'motivoPerdida', label: 'Motivo si se perdió', cols: 4 }
 	].filter(Boolean);
 }
@@ -204,16 +204,16 @@ function formularioActividad(c, alGuardar) {
 async function renderFicha(container, id) {
 	const nuevo = id === 'nuevo';
 	const ref = nuevo ? doc(collection(db, 'clientes')) : doc(db, 'clientes', id);
-	const [snap, agentes, actividades, propiedades, leads] = await Promise.all([
+	const [snap, agentes, actividades, propiedades, leads, reglas] = await Promise.all([
 		nuevo ? null : getDoc(ref), agentOptions(), nuevo ? [] : loadActividades(), loadPropiedades(),
-		nuevo ? [] : loadLeads().catch(() => [])
+		nuevo ? [] : loadLeads().catch(() => []), loadReglas()
 	]);
 	if (!nuevo && !snap.exists()) {
 		mount(container, emptyState('No se encontró el cliente.', h('a', { href: '#/clientes', class: 'btn btn-primary' }, 'Volver')));
 		return;
 	}
 	const c = nuevo ? { etapa: 'nuevo', tipo: 'comprador', idioma: 'es', moneda: 'USD', agentId: session.isAdmin ? '' : session.agentId } : { id, ...snap.data() };
-	const form = renderForm(esquema(agentes), c, { folder: `clientes/${ref.id}` });
+	const form = renderForm(esquema(agentes, reglas), c, { folder: `clientes/${ref.id}` });
 	const recargar = () => { container.replaceChildren(); renderFicha(container, id); };
 
 	const guardar = async (btn) => {
