@@ -280,6 +280,7 @@ async function renderEditor(container, id) {
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
 	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
+			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, '✨ Redactar con IA') : null,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,

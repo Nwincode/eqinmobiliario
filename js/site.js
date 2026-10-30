@@ -61,6 +61,7 @@
 			agentId: str(lead.agentId),
 			estado: str('nuevo')
 		};
+		if (lead.fechaVisita) fields.fechaVisita = str(lead.fechaVisita);
 		var body = {
 			writes: [{
 				update: { name: base + '/leads/' + randomId(), fields: fields },
@@ -74,7 +75,7 @@
 	}
 
 	function whatsappFallback(lead) {
-		var text = 'Hola, soy ' + lead.nombre + '. ' + (lead.mensaje || '') + ' Mi teléfono: ' + lead.telefono;
+		var text = 'Hola, soy ' + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? ' Me gustaría visitarla el ' + lead.fechaVisita + '.' : '') + ' Mi teléfono: ' + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
 	}
 
@@ -99,6 +100,7 @@
 				propertyTitulo: form.getAttribute('data-property-titulo') || '',
 				agentId: form.getAttribute('data-agent-id') || ''
 			};
+			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
 			if (!lead.nombre || lead.telefono.replace(/\D/g, '').length < 8) {
 				setStatus(form, 'Escribe tu nombre y un teléfono válido (8 dígitos o más).', false);
 				return;
@@ -259,7 +261,67 @@
 		});
 
 		apply(false);
+
+		// Búsqueda inteligente: la IA convierte la frase del visitante en filtros.
+		var iaBtn = document.getElementById('ia-buscar');
+		if (iaBtn) {
+			var iaInput = document.getElementById('ia-texto');
+			var iaStatus = document.querySelector('.ia-search-status');
+			var opciones = function (sel) {
+				return Array.prototype.slice.call(sel.options).map(function (o) { return o.value; }).filter(Boolean);
+			};
+			var buscarIA = function () {
+				var texto = iaInput.value.trim();
+				if (texto.length < 4) { iaStatus.textContent = 'Escribe qué estás buscando.'; return; }
+				iaBtn.disabled = true;
+				iaStatus.textContent = 'Buscando…';
+				fetch('/api/ia', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ tarea: 'busquedaPublica', datos: { texto: texto, zonas: opciones(form.elements.zona), tipos: opciones(form.elements.tipo) } })
+				}).then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.error || 'Error'); return b; }); })
+					.then(function (r) {
+						track('Search', { search_string: texto });
+						var f = form.elements;
+						var hab = Math.min(4, r.habitaciones || 0);
+						var valores = { tipo: r.tipo || '', zona: r.zona || '', habitaciones: hab ? String(hab) : '', max: r.precioMaximo ? String(Math.round(r.precioMaximo)) : '', min: '', q: r.texto || '' };
+						if (r.operacion && r.operacion !== preset) {
+							var qs = new URLSearchParams();
+							Object.keys(valores).forEach(function (k) { if (valores[k]) qs.set(k, valores[k]); });
+							location.href = '/propiedades/' + r.operacion + '/' + (qs.toString() ? '?' + qs : '');
+							return;
+						}
+						Object.keys(valores).forEach(function (k) { if (f[k] && !(presetZona && k === 'zona')) f[k].value = valores[k]; });
+						page = 1;
+						apply(true);
+						iaStatus.textContent = r.respuesta || '';
+					})
+					.catch(function (err) { iaStatus.textContent = err.message === 'Failed to fetch' ? 'No pudimos conectar. Usa los filtros de abajo.' : err.message; })
+					.then(function () { iaBtn.disabled = false; });
+			};
+			iaBtn.addEventListener('click', buscarIA);
+			iaInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); buscarIA(); } });
+		}
 	}
+
+	// ------------------------------------------------------------ Calculadora de cuota
+
+	document.querySelectorAll('[data-calc]').forEach(function (box) {
+		var precio = parseFloat(box.getAttribute('data-precio')) || 0;
+		var prefijo = box.getAttribute('data-moneda') === 'GTQ' ? 'Q' : 'US$';
+		var out = box.querySelector('.calc-result');
+		var fmt = function (n) { return prefijo + ' ' + Math.round(n).toLocaleString('en-US'); };
+		var calc = function () {
+			var enganche = Math.min(90, Math.max(0, parseFloat(box.querySelector('[name=enganche]').value) || 0));
+			var tasa = Math.max(0, parseFloat(box.querySelector('[name=tasa]').value) || 0) / 100 / 12;
+			var meses = Math.max(1, parseInt(box.querySelector('[name=anios]').value, 10) || 1) * 12;
+			var prestamo = precio * (1 - enganche / 100);
+			var cuota = tasa ? prestamo * tasa / (1 - Math.pow(1 + tasa, -meses)) : prestamo / meses;
+			out.innerHTML = 'Cuota aproximada: <strong>' + fmt(cuota) + ' al mes</strong><br><span class="small">Enganche ' + fmt(precio * enganche / 100) + ' · Préstamo ' + fmt(prestamo) + '</span>';
+		};
+		box.addEventListener('input', calc);
+		calc();
+	});
 
 	// ------------------------------------------------------------ Copiar enlace de una propiedad
 

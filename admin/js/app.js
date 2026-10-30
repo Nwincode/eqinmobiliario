@@ -10,6 +10,7 @@ const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', load: () => import('./views/properties.js') },
 	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', load: () => import('./views/leads.js') },
+	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', load: () => import('./views/ia.js') },
 	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', load: () => import('./views/agents.js'), admin: true },
 	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', load: () => import('./views/testimonials.js'), admin: true },
 	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', load: () => import('./views/pages.js'), admin: true },

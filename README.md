@@ -46,6 +46,25 @@ Panel /admin  ──guarda──▶  Firebase (proyecto eqinmobiliariobd)
 - **Administrador**: todo (contenido, propiedades, leads, usuarios, publicación).
 - **Asesor**: crea y edita sus propiedades, ve y gestiona sus leads. Debe estar vinculado a un asesor en *Usuarios*.
 
+## Asistente IA
+
+Sección **Asistente IA** del panel (usa Claude, de Anthropic, a través de la función `netlify/functions/ia.mjs` en `/api/ia`):
+
+| Herramienta | Qué hace |
+|---|---|
+| Buscar para un cliente | Pegas el mensaje del cliente; la IA entiende el pedido, revisa el inventario, explica qué encaja y qué no, y deja listo el WhatsApp con enlaces. Puedes guardar al cliente. |
+| Redactar ficha y redes | Escribe descripción, título, SEO, textos de la landing VIP y posts de Instagram/Facebook; se aplican a la propiedad con un clic. |
+| Seguimiento de leads | Resume el caso, lo clasifica (caliente/tibio/frío), dice el siguiente paso y redacta WhatsApp y correo. |
+| Clientes que buscan | Al captar una propiedad, encuentra entre los clientes guardados a quién ofrecérsela, con un mensaje para cada uno. |
+| Asistente | Chat para el día a día: mensajes, objeciones, comparaciones, cálculos y organización. |
+
+En el sitio público, la **búsqueda inteligente** convierte una frase ("casa de 3 habitaciones en zona 16 hasta 300 mil") en filtros. Se activa en *Contenido del sitio → IA y herramientas*.
+
+**Activación:** crea una clave en [console.anthropic.com](https://console.anthropic.com) (requiere método de pago) y agrégala en Netlify →
+*Site configuration → Environment variables* como `ANTHROPIC_API_KEY`. Vuelve a publicar. La IA solo funciona para usuarios activos del
+panel (verifica el inicio de sesión de Firebase) y nunca inventa propiedades: solo usa el inventario publicado.
+Costo orientativo: centavos de dólar por tarea; conviene fijar un límite de gasto mensual en la consola de Anthropic.
+
 ## SEO y herramientas de Google
 
 Todo se configura en el panel → *Contenido del sitio → Google y anuncios*:

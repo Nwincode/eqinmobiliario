@@ -326,7 +326,7 @@ export function propertyCard(p, { lazy = true } = {}) {
 							</div>`;
 }
 
-export function leadForm({ origen, property = null, agentId = '', titulo = 'Solicita información', boton = 'Enviar', dark = false }) {
+export function leadForm({ origen, property = null, agentId = '', titulo = 'Solicita información', boton = 'Enviar', dark = false, visita = false }) {
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
 	const msg = property ? `Hola, me interesa la propiedad "${property.titulo}". ¿Me pueden dar más información?` : '';
@@ -336,6 +336,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = 'Soli
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">Teléfono / WhatsApp *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"></div>
 		<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">Correo electrónico</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
 		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">Mensaje</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>
+		${visita ? `<div class="mb-3"><label class="form-label" for="lf-fecha-${esc(origen)}">Fecha preferida para visitar (opcional)</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>Empresa<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
 		<button type="submit" class="btn btn-primary w-100 py-3">${esc(boton)}</button>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
@@ -602,6 +603,14 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	<div class="section">
 		<div class="container">
 			<form class="listing-filters row g-2 align-items-end mb-5" id="listing-filters" role="search" aria-label="Filtrar propiedades">
+				${ctx.site.ia && ctx.site.ia.busquedaPublica ? `<div class="col-12 ia-search">
+					<label class="form-label" for="ia-texto">Búsqueda inteligente</label>
+					<div class="input-group">
+						<input class="form-control" id="ia-texto" maxlength="300" placeholder="Describe lo que buscas: casa de 3 habitaciones en zona 16 hasta US$ 300,000">
+						<button class="btn btn-primary" type="button" id="ia-buscar">Buscar con IA</button>
+					</div>
+					<p class="ia-search-status small mt-2 mb-0" aria-live="polite"></p>
+				</div>` : ''}
 				<div class="col-12 col-md-6 col-lg-4">
 					<label class="form-label" for="f-q">Buscar</label>
 					<input class="form-control" id="f-q" name="q" type="search" placeholder="Zona, residencial, tipo…">
@@ -688,6 +697,27 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 
 // ---------------------------------------------------------------- Detalle
 
+// Código corto para que el cliente cite la propiedad por teléfono o WhatsApp.
+export function propertyCode(p) {
+	return `EQ-${String(p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
+}
+
+// Calculadora de cuota (sistema francés), referencial. Valores por defecto editables en el panel.
+function mortgageCalculator(ctx, p) {
+	const c = ctx.site.calculadora || {};
+	if (c.visible === false || p.operacion === 'renta' || !p.precio) return '';
+	return `<div class="calc-card mt-4" data-calc data-precio="${esc(p.precio)}" data-moneda="${esc(p.moneda || 'USD')}">
+						<h3 class="h5 mb-3">Calcula tu cuota mensual</h3>
+						<div class="row g-2">
+							<div class="col-4"><label class="form-label" for="calc-enganche">Enganche %</label><input id="calc-enganche" class="form-control" type="number" min="0" max="90" step="1" value="${esc(c.enganche ?? 20)}" name="enganche"></div>
+							<div class="col-4"><label class="form-label" for="calc-tasa">Tasa anual %</label><input id="calc-tasa" class="form-control" type="number" min="0" max="30" step="0.1" value="${esc(c.tasa ?? 8.5)}" name="tasa"></div>
+							<div class="col-4"><label class="form-label" for="calc-anios">Años</label><input id="calc-anios" class="form-control" type="number" min="1" max="40" step="1" value="${esc(c.anios ?? 20)}" name="anios"></div>
+						</div>
+						<p class="calc-result mt-3 mb-1" aria-live="polite"></p>
+						<p class="small text-black-50 mb-0">Cálculo referencial; la cuota final depende del banco. Te ayudamos con el financiamiento.</p>
+					</div>`;
+}
+
 function factsList(p) {
 	const rows = [
 		['Tipo', TIPOS[p.tipo] || p.tipo],
@@ -698,7 +728,10 @@ function factsList(p) {
 		['Parqueos', p.parqueos],
 		['Construcción', p.m2Construccion ? `${p.m2Construccion} m²` : ''],
 		['Terreno', p.m2Terreno ? `${p.m2Terreno} m²` : ''],
-		['Ubicación', [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')]
+		['Ubicación', [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
+		['Precio por m²', p.operacion !== 'renta' && p.precio && (p.m2Construccion || p.m2Terreno)
+			? formatPrice(Math.round(p.precio / (p.m2Construccion || p.m2Terreno)), p.moneda) : ''],
+		['Código', propertyCode(p)]
 	].filter(([, v]) => v);
 	return `<dl class="prop-facts">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
 }
@@ -809,8 +842,9 @@ export function propertyPage(ctx, p) {
 					${shareButtons(ctx, p)}
 					${estadoBadge(p, true)}
 					${factsList(p)}
+					${mortgageCalculator(ctx, p)}
 					${agentBox(ctx, agent, p)}
-					<div class="lead-card mt-4">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: 'Agenda una visita', boton: 'Quiero más información' })}</div>
+					<div class="lead-card mt-4">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: 'Agenda una visita', boton: 'Quiero más información', visita: true })}</div>
 				</div>
 			</div>
 		</div>
@@ -997,7 +1031,7 @@ export function vipLandingPage(ctx, p) {
 					</div>` : ''}
 				</div>
 				<div class="col-lg-6 offset-lg-1">
-					<div class="lead-card">${leadForm({ origen: 'vip', property: p, agentId: p.agentId, titulo: '', boton: cta })}</div>
+					<div class="lead-card">${leadForm({ origen: 'vip', property: p, agentId: p.agentId, titulo: '', boton: cta, visita: true })}</div>
 				</div>
 			</div>
 		</div>

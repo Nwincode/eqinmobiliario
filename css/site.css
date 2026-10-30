@@ -339,3 +339,26 @@ body {
 .person p {
 	color: #555b61;
 }
+
+/* Calculadora de cuota */
+.calc-card {
+	background: #f4f8f8;
+	border-radius: 8px;
+	padding: 20px;
+}
+.calc-card .form-label {
+	font-size: 12px;
+	font-weight: 600;
+	margin-bottom: .25rem;
+}
+.calc-result strong {
+	color: var(--eq-primary);
+	font-size: 1.15rem;
+}
+
+/* Búsqueda inteligente */
+.ia-search {
+	border-bottom: 1px solid #eee;
+	padding-bottom: 14px;
+	margin-bottom: 6px;
+}

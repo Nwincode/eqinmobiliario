@@ -42,6 +42,17 @@ const GROUPS = [
 		]
 	},
 	{
+		id: 'herramientas', label: 'IA y herramientas', keys: ['ia', 'calculadora'], fields: [
+			{ type: 'section', label: 'Búsqueda inteligente en el sitio', help: 'Los visitantes describen lo que buscan con sus palabras y la IA aplica los filtros. Requiere configurar ANTHROPIC_API_KEY en Netlify (ver README). Cada búsqueda cuesta aprox. US$ 0.01.' },
+			{ name: 'ia.busquedaPublica', label: 'Activar la búsqueda con IA en los listados', type: 'checkbox' },
+			{ type: 'section', label: 'Calculadora de cuota', help: 'Aparece en las propiedades en venta. Estos son los valores iniciales; el visitante puede cambiarlos.' },
+			{ name: 'calculadora.visible', label: 'Mostrar la calculadora', type: 'checkbox', default: true },
+			{ name: 'calculadora.enganche', label: 'Enganche %', type: 'number', cols: 4 },
+			{ name: 'calculadora.tasa', label: 'Tasa anual %', type: 'number', step: 0.1, cols: 4 },
+			{ name: 'calculadora.anios', label: 'Plazo (años)', type: 'number', cols: 4 }
+		]
+	},
+	{
 		id: 'seo', label: 'SEO de la portada', keys: ['seo'], fields: [
 			{ name: 'seo.titulo', label: 'Título de la portada (Google)', maxlength: 70, required: true },
 			{ name: 'seo.descripcion', label: 'Descripción (Google)', type: 'textarea', rows: 3, maxlength: 160, required: true, help: 'Máximo 160 caracteres. Aparece debajo del título en Google.' },

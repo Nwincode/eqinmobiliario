@@ -220,6 +220,15 @@
         "descripcion": "",
         "intro": ""
       }
+    },
+    "ia": {
+      "busquedaPublica": false
+    },
+    "calculadora": {
+      "visible": true,
+      "enganche": 20,
+      "tasa": 8.5,
+      "anios": 20
     }
   },
   "properties": [

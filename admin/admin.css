@@ -363,3 +363,54 @@ a {
 .admin-brand img {
 	height: 34px;
 }
+
+/* Asistente IA */
+.ia-prop {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	background: #fff;
+	border: 1px solid var(--adm-border);
+	border-radius: 8px;
+	padding: 10px;
+	margin-bottom: 8px;
+}
+.ia-prop img {
+	width: 88px;
+	height: 66px;
+	object-fit: cover;
+	border-radius: 6px;
+	background: #e9ecef;
+	flex-shrink: 0;
+}
+.ia-chat-log {
+	max-height: 55vh;
+	min-height: 160px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.ia-burbuja {
+	max-width: 85%;
+	padding: 10px 14px;
+	border-radius: 12px;
+	line-height: 1.5;
+}
+.ia-user {
+	align-self: flex-end;
+	background: var(--adm-primary);
+	color: #fff;
+	white-space: pre-wrap;
+}
+.ia-assistant {
+	align-self: flex-start;
+	background: var(--adm-bg);
+}
+.ia-assistant ul {
+	margin: 4px 0;
+	padding-left: 18px;
+}
+.nav-pills a.nav-link {
+	text-decoration: none;
+}
