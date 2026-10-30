@@ -1,10 +1,7 @@
 /* Landing pages de propiedades VIP */
 
 .vip-page {
-	--vip-gold: #c9a45c;
-	--vip-gold-ink: #85662b; /* dorado oscuro: contraste AA sobre fondos claros */
 	color: #3d4650 !important;
-	--vip-ink: #0e1920;
 	background: #fff;
 }
 
@@ -71,22 +68,6 @@
 	margin: 1.5rem 0 2rem;
 }
 
-.btn-vip {
-	background: var(--vip-gold-ink);
-	border-color: var(--vip-gold-ink);
-	color: #fff;
-	padding: .9rem 1.8rem;
-	font-weight: 600;
-}
-.btn-vip:hover,
-.btn-vip:focus {
-	background: #6e5423;
-	border-color: #6e5423;
-	color: #fff;
-}
-.vip-hero .btn-outline-light {
-	padding: .9rem 1.8rem;
-}
 
 .vip-facts {
 	background: var(--vip-ink);

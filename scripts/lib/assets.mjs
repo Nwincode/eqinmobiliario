@@ -7,13 +7,15 @@ import { PurgeCSS } from 'purgecss';
 import { transform } from 'esbuild';
 
 const CSS_FILES = [
+	'css/tema.css',
 	'fonts/icomoon/style.css',
 	'fonts/flaticon/font/flaticon.css',
 	'css/tiny-slider.css',
 	'css/aos.css',
 	'css/style.css',
 	'css/site.css',
-	'css/vip.css'
+	'css/vip.css',
+	'css/botones.css'
 ];
 
 // El orden importa: custom.js usa tns() y AOS; site.js va al final.

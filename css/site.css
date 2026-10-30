@@ -1,15 +1,6 @@
 /* Estilos propios del sitio (complementan css/style.css de la plantilla). */
 
-:root {
-	--eq-primary: #0e5e8a;
-	--eq-cyan: #00b7e7;
-	--eq-mist: #e8f7fd;
-	--eq-white: #ffffff;
-	--eq-dark: #0e1920;
-	--eq-blue-dark: #004a72;
-	--eq-ink: #5b666f;
-	--eq-gold: #c9a45c;
-}
+/* Los colores y medidas se definen en css/tema.css. */
 
 /* Tarjetas de propiedad: fotos con proporción uniforme aunque vengan de distintos tamaños */
 .property-item .img {
@@ -50,7 +41,7 @@
 	border-radius: 20px;
 }
 .prop-badge-vip {
-	background: #85662b;
+	background: var(--eq-gold);
 	color: #fff;
 }
 .prop-badge-estado {
@@ -84,19 +75,19 @@
 .prop-facts dt {
 	font-size: 12px;
 	font-weight: 500;
-	color: #5b666f;
+	color: var(--eq-ink);
 	text-transform: uppercase;
 	letter-spacing: .04em;
 }
 .prop-facts dd {
 	margin: 0;
 	font-weight: 600;
-	color: #0e1920;
+	color: var(--eq-dark);
 }
 .prop-description p,
 .content-page p,
 .content-page li {
-	color: #5b666f;
+	color: var(--eq-ink);
 	line-height: 1.75;
 }
 .amenities-list {
@@ -119,12 +110,12 @@
 	background: #fff;
 	border-radius: 8px;
 	padding: 28px;
-	box-shadow: 0 15px 40px -20px rgba(0, 32, 74, .25);
+	box-shadow: 0 15px 40px -20px color-mix(in srgb, var(--eq-dark) 25%, transparent);
 }
 .lead-form .form-label {
 	font-size: 13px;
 	font-weight: 500;
-	color: #5b666f;
+	color: var(--eq-ink);
 	margin-bottom: .25rem;
 }
 .lead-form .form-control {
@@ -168,7 +159,7 @@
 .listing-filters .form-label {
 	font-size: 12px;
 	font-weight: 600;
-	color: #5b666f;
+	color: var(--eq-ink);
 	margin-bottom: .25rem;
 }
 .custom-pagination a {
@@ -221,7 +212,7 @@
 	width: 56px;
 	height: 56px;
 	border-radius: 50%;
-	background: #25d366;
+	background: var(--eq-whatsapp);
 	color: #fff;
 	display: flex;
 	align-items: center;
@@ -295,7 +286,7 @@
 	padding: 20px 24px 24px;
 }
 .post-card h2 a {
-	color: #0e1920;
+	color: var(--eq-dark);
 	text-decoration: none;
 }
 .post-card h2 a:hover {
@@ -320,11 +311,11 @@
    cuerpo en gris al 50 % con !important; aquí se mantiene el gris pero legible. */
 .text-black-50,
 body {
-	color: #5b666f !important;
+	color: var(--eq-ink) !important;
 }
 .property-item .property-content .specs .caption,
 .meta {
-	color: #5b666f;
+	color: var(--eq-ink);
 }
 .logo-media {
 	height: auto;
@@ -334,20 +325,20 @@ body {
 .site-footer,
 .site-footer p,
 .site-footer li {
-	color: #5b666f;
+	color: var(--eq-ink);
 }
 .site-footer a {
-	color: #5b666f;
+	color: var(--eq-ink);
 }
 .box-feature p,
 .testimonial p,
 .person p {
-	color: #5b666f;
+	color: var(--eq-ink);
 }
 
 /* Calculadora de cuota */
 .calc-card {
-	background: #e8f7fd;
+	background: var(--eq-primary-soft);
 	border-radius: 8px;
 	padding: 20px;
 }
@@ -370,7 +361,7 @@ body {
 
 .content-note {
 	border-left: 3px solid var(--eq-primary);
-	background: #e8f7fd;
+	background: var(--eq-primary-soft);
 	padding: 12px 16px;
 	margin: 1.5rem 0;
 	border-radius: 0 6px 6px 0;
@@ -381,7 +372,7 @@ body {
 
 /* Bloque para compradores en el extranjero */
 .exterior-block {
-	background: linear-gradient(135deg, #e8f7fd 0%, #ffffff 100%);
+	background: linear-gradient(135deg, var(--eq-primary-soft) 0%, #ffffff 100%);
 }
 .exterior-kicker {
 	display: inline-block;
@@ -406,9 +397,9 @@ body {
 	background: #fff;
 	border-radius: 8px;
 	padding: 14px 18px;
-	box-shadow: 0 8px 24px -18px rgba(0, 32, 74, .4);
+	box-shadow: 0 8px 24px -18px color-mix(in srgb, var(--eq-dark) 40%, transparent);
 	font-weight: 500;
-	color: #0e1920;
+	color: var(--eq-dark);
 }
 .exterior-list li span {
 	color: var(--eq-primary);
@@ -416,7 +407,7 @@ body {
 
 /* Selector de idioma en el menú */
 
-/* Paleta derivada del celeste del logo en OKLCH (tono 225°–240°): tinta #0e1920, azul profundo #0e5e8a (acciones), celeste #00b7e7 (acento), piedra #5b666f, línea #e0e5e8, niebla #f6f8fb.
+/* Paleta derivada del celeste del logo en OKLCH (tono 225°–240°): tinta var(--eq-dark), azul profundo var(--eq-primary) (acciones), celeste var(--eq-cyan) (acento), piedra var(--eq-ink), línea var(--eq-line), niebla var(--eq-mist).
    El celeste va sobre negro o como acento decorativo; sobre fondo claro se usa
    el azul Equipo (--eq-primary) para que los textos cumplan contraste AA. */
 body {
@@ -450,17 +441,6 @@ h2.heading::after,
 .site-footer a:hover {
 	color: var(--eq-cyan) !important;
 }
-/* Botón de búsqueda: cian puro con texto negro (contraste 7.9:1). */
-.hero .form-search .btn {
-	background-color: var(--eq-cyan);
-	border-color: var(--eq-cyan);
-	color: var(--eq-dark);
-	font-weight: 600;
-}
-.hero .form-search .btn:hover {
-	background-color: #ffffff;
-	color: var(--eq-dark);
-}
 
 /* ---------- Barra de navegación (identidad de marca) ----------
    Una fila: marca a la izquierda, enlaces, selector ES | EN y botón de contacto.
@@ -482,7 +462,7 @@ h2.heading::after,
 	float: none;
 	padding: 10px 14px 10px 20px;
 	border-radius: 999px;
-	background: rgba(14, 25, 32, .72);
+	background: color-mix(in srgb, var(--eq-dark) 72%, transparent);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
 	backdrop-filter: blur(14px) saturate(140%);
 	border: 1px solid rgba(255, 255, 255, .08);
@@ -494,7 +474,7 @@ h2.heading::after,
 }
 .site-nav.is-scrolled .menu-bg-wrap {
 	background: var(--eq-dark);
-	box-shadow: 0 10px 30px -12px rgba(14, 25, 32, .55);
+	box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--eq-dark) 55%, transparent);
 }
 .nav-brand {
 	display: inline-flex;
@@ -575,7 +555,7 @@ h2.heading::after,
 	border-radius: 14px;
 	padding: 8px;
 	margin-top: 10px;
-	box-shadow: 0 18px 40px -14px rgba(14, 25, 32, .6);
+	box-shadow: 0 18px 40px -14px color-mix(in srgb, var(--eq-dark) 60%, transparent);
 	min-width: 210px;
 }
 .site-nav .site-navigation .site-menu .has-children .dropdown > li > a {
@@ -585,7 +565,7 @@ h2.heading::after,
 	font-size: 14px;
 }
 .site-nav .site-navigation .site-menu .has-children .dropdown > li > a:hover {
-	background: rgba(0, 183, 231, .12);
+	background: color-mix(in srgb, var(--eq-cyan) 12%, transparent);
 	color: var(--eq-cyan);
 }
 /* Selector de idioma ES | EN */
@@ -686,7 +666,7 @@ h2.heading::after,
 	color: var(--eq-cyan);
 }
 .site-mobile-menu .site-nav-wrap .arrow-collapse:hover {
-	background: rgba(0, 183, 231, .12);
+	background: color-mix(in srgb, var(--eq-cyan) 12%, transparent);
 }
 .site-mobile-menu .site-nav-wrap > li {
 	border-bottom: 1px solid rgba(255, 255, 255, .08);
@@ -783,39 +763,17 @@ a {
 /* Portada y cabeceras: velo azul noche en lugar de negro */
 .hero.overlay:before,
 .hero-slide .img.overlay:before {
-	background: linear-gradient(180deg, rgba(14, 25, 32, .55) 0%, rgba(14, 25, 32, .35) 45%, rgba(14, 25, 32, .7) 100%) !important;
+	background: linear-gradient(180deg, color-mix(in srgb, var(--eq-dark) 55%, transparent) 0%, color-mix(in srgb, var(--eq-dark) 35%, transparent) 45%, color-mix(in srgb, var(--eq-dark) 70%, transparent) 100%) !important;
 }
 
-/* Botones */
-.btn.btn-primary,
-.btn-primary {
-	background: var(--eq-primary) !important;
-	border-color: var(--eq-primary) !important;
-	color: #fff !important;
-}
-.btn.btn-primary:hover,
-.btn-primary:hover,
-.btn-primary:focus {
-	background: var(--eq-dark) !important;
-	border-color: var(--eq-dark) !important;
-	color: #fff !important;
-}
-.btn-outline-primary {
-	color: var(--eq-primary) !important;
-	border-color: var(--eq-primary) !important;
-}
-.btn-outline-primary:hover {
-	background: var(--eq-primary) !important;
-	color: #fff !important;
-}
 
 /* Tarjetas de propiedad */
 .property-item {
 	background: #fff;
 	border-radius: 14px;
 	overflow: hidden;
-	box-shadow: 0 1px 2px rgba(14, 25, 32, .06), 0 10px 30px -18px rgba(14, 25, 32, .35);
-	border: 1px solid rgba(14, 25, 32, .06);
+	box-shadow: 0 1px 2px color-mix(in srgb, var(--eq-dark) 6%, transparent), 0 10px 30px -18px color-mix(in srgb, var(--eq-dark) 35%, transparent);
+	border: 1px solid color-mix(in srgb, var(--eq-dark) 6%, transparent);
 }
 .property-item .img img {
 	border-radius: 0;
@@ -837,7 +795,7 @@ a {
 	color: #fff;
 }
 .prop-badge-vip {
-	background: var(--eq-gold);
+	background: var(--vip-gold);
 	color: var(--eq-dark);
 }
 
@@ -850,7 +808,7 @@ a {
 	background: #fff;
 	border-radius: 14px;
 	padding: 32px 24px;
-	box-shadow: 0 10px 30px -20px rgba(14, 25, 32, .45);
+	box-shadow: 0 10px 30px -20px color-mix(in srgb, var(--eq-dark) 45%, transparent);
 	height: 100%;
 }
 .features-1 .box-feature span[class^="flaticon"],
@@ -894,17 +852,6 @@ a {
 .footer-cta h2 {
 	color: #fff;
 }
-.footer-cta .btn.btn-primary {
-	background: var(--eq-cyan) !important;
-	border-color: var(--eq-cyan) !important;
-	color: var(--eq-dark) !important;
-	font-weight: 600;
-}
-.footer-cta .btn.btn-primary:hover {
-	background: #fff !important;
-	border-color: #fff !important;
-	color: var(--eq-dark) !important;
-}
 
 /* Reseñas y asesores */
 .sec-testimonials {
@@ -919,7 +866,7 @@ a {
 .section-5 .person {
 	background: #fff;
 	border-radius: 14px;
-	box-shadow: 0 10px 30px -22px rgba(14, 25, 32, .5);
+	box-shadow: 0 10px 30px -22px color-mix(in srgb, var(--eq-dark) 50%, transparent);
 }
 
 /* Pie de página azul noche */
@@ -974,10 +921,10 @@ a {
 }
 .property-slider .property-item > .property-content {
 	background: #fff;
-	border: 1px solid rgba(14, 25, 32, .06);
+	border: 1px solid color-mix(in srgb, var(--eq-dark) 6%, transparent);
 	border-top: 0;
 	border-radius: 0 0 14px 14px;
-	box-shadow: 0 14px 28px -20px rgba(14, 25, 32, .4);
+	box-shadow: 0 14px 28px -20px color-mix(in srgb, var(--eq-dark) 40%, transparent);
 }
 
 /* ================================================================
@@ -986,9 +933,6 @@ a {
    Celeste = acento mínimo (líneas, cifras, búsqueda). Sin sombras
    pesadas, sin degradados, sin decoración que no informe.
    ================================================================ */
-:root {
-	--eq-line: #e0e5e8;
-}
 .section {
 	padding-top: 6rem;
 	padding-bottom: 6rem;
@@ -1006,21 +950,9 @@ h2.heading::after,
 /* Portada: velo negro uniforme */
 .hero.overlay:before,
 .hero-slide .img.overlay:before {
-	background: rgba(14, 25, 32, .45) !important;
+	background: color-mix(in srgb, var(--eq-dark) 45%, transparent) !important;
 }
 
-/* Botones: rectángulos suaves, planos */
-.btn {
-	border-radius: 8px !important;
-	box-shadow: none !important;
-	font-weight: 500;
-}
-.btn.btn-primary:hover,
-.btn-primary:hover,
-.btn-primary:focus {
-	background: var(--eq-blue-dark) !important;
-	border-color: var(--eq-blue-dark) !important;
-}
 
 /* Fondos: blanco casi siempre; el celeste claro solo en secciones de apoyo */
 .bg-light,
@@ -1123,16 +1055,6 @@ h2.heading::after,
 	background: var(--eq-primary);
 	border-radius: 12px;
 }
-.footer-cta .btn.btn-primary {
-	background: #fff !important;
-	border-color: #fff !important;
-	color: var(--eq-primary) !important;
-}
-.footer-cta .btn.btn-primary:hover {
-	background: var(--eq-dark) !important;
-	border-color: var(--eq-dark) !important;
-	color: #fff !important;
-}
 
 /* Bloque para compradores en EE. UU.: sin degradado ni sombras */
 .exterior-block .exterior-list li {
@@ -1152,7 +1074,7 @@ h2.heading::after,
 
 /* Menú: negro sólido y sin línea celeste inferior */
 .site-nav .menu-bg-wrap {
-	background: rgba(14, 25, 32, .82);
+	background: color-mix(in srgb, var(--eq-dark) 82%, transparent);
 	border: 0;
 }
 .site-nav.is-scrolled .menu-bg-wrap {
@@ -1422,7 +1344,7 @@ h2.heading::after,
 	justify-content: center;
 }
 .ficha-similares {
-	background: #f6f8fb;
+	background: var(--eq-mist);
 }
 
 /* Visor de fotos a pantalla completa */
@@ -1434,11 +1356,11 @@ h2.heading::after,
 	margin: 0;
 	padding: 0;
 	border: 0;
-	background: rgba(14, 25, 32, .96);
+	background: color-mix(in srgb, var(--eq-dark) 96%, transparent);
 	color: #fff;
 }
 .ficha-lightbox::backdrop {
-	background: rgba(14, 25, 32, .96);
+	background: color-mix(in srgb, var(--eq-dark) 96%, transparent);
 }
 .ficha-lightbox[open] {
 	display: flex;
@@ -1518,7 +1440,7 @@ h2.heading::after,
 		bottom: 12px;
 		padding: 4px 10px;
 		border-radius: 6px;
-		background: rgba(14, 25, 32, .7);
+		background: color-mix(in srgb, var(--eq-dark) 70%, transparent);
 		color: #fff;
 		font-size: 12px;
 	}
@@ -1541,13 +1463,10 @@ h2.heading::after,
 }
 
 /* Sobrio: fondos neutros; el celeste queda solo en detalles mínimos */
-:root {
-	--eq-mist: #f6f8fb;
-}
 .bg-light,
 .features-1,
 .exterior-block {
-	background: #f6f8fb !important;
+	background: var(--eq-mist) !important;
 }
 .site-nav .site-navigation .site-menu > li.nav-cta > a {
 	background: transparent;
@@ -1559,15 +1478,6 @@ h2.heading::after,
 	background: #fff;
 	color: var(--eq-dark);
 	transform: none;
-}
-.hero .form-search .btn {
-	background-color: var(--eq-primary);
-	border-color: var(--eq-primary);
-	color: #fff;
-}
-.hero .form-search .btn:hover {
-	background-color: var(--eq-blue-dark);
-	color: #fff;
 }
 /* Ajustes de la ficha */
 .ficha-lightbox figure {
@@ -1638,7 +1548,7 @@ h2.heading::after,
 		border: 0;
 		border-bottom: 1px solid rgba(255, 255, 255, .12);
 		/* Vidrio: deja ver la foto de la portada */
-		background: rgba(14, 25, 32, .28);
+		background: color-mix(in srgb, var(--eq-dark) 28%, transparent);
 		-webkit-backdrop-filter: blur(18px) saturate(160%);
 		backdrop-filter: blur(18px) saturate(160%);
 		transition: background-color .3s ease, border-color .3s ease;
@@ -1646,7 +1556,7 @@ h2.heading::after,
 	.site-nav.is-scrolled .menu-bg-wrap,
 	.pagina-ficha .site-nav .menu-bg-wrap,
 	.offcanvas-menu .site-nav .menu-bg-wrap {
-		background: rgba(14, 25, 32, .86);
+		background: color-mix(in srgb, var(--eq-dark) 86%, transparent);
 		border-bottom-color: transparent;
 		box-shadow: none;
 	}
@@ -1695,7 +1605,7 @@ h2.heading::after,
 		right: 0;
 		z-index: 999;
 		padding: 88px 0 32px;
-		background: rgba(14, 25, 32, .94) !important;
+		background: color-mix(in srgb, var(--eq-dark) 94%, transparent) !important;
 		-webkit-backdrop-filter: blur(20px);
 		backdrop-filter: blur(20px);
 		transform: none !important;

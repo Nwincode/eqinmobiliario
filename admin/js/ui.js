@@ -157,3 +157,9 @@ export function downloadCsv(filename, rows) {
 	a.click();
 	a.remove();
 }
+
+// La barra fija de acciones (Guardar…): al presionar, el navegador desplaza la página para
+// enfocar el botón y el clic cae fuera de él. Sin mover el foco con el mouse el clic llega siempre.
+document.addEventListener('mousedown', (e) => {
+	if (e.button === 0 && e.target.closest('.sticky-actions button')) e.preventDefault();
+});

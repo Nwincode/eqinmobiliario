@@ -2,6 +2,8 @@ import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader , mount } from '../ui.js';
 import { renderForm, getPath, setPath, clonar } from '../form.js';
 import { markPending } from '../session.js';
+import { aplicarTema } from '../tema.js';
+import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, colorTema, contraste, variablesTema } from '../tema-def.js';
 
 const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
 const ICONS = [['icon-home2', 'Casa'], ['icon-person', 'Persona'], ['icon-security', 'Seguridad'], ['icon-check', 'Check'], ['icon-star', 'Estrella'], ['icon-map-marker', 'Ubicación'], ['icon-phone', 'Teléfono'], ['icon-credit-card', 'Financiamiento']];
@@ -270,6 +272,42 @@ const GROUPS = [
 	}
 ];
 
+// Pestaña "Colores": cada color de marca es una variable de css/tema.css.
+// Vista previa en vivo y aviso si alguna combinación de texto no se lee bien.
+function vistaPreviaTema(el, state) {
+	const tema = state.tema || {};
+	const c = (k) => colorTema(tema, k);
+	const estilo = Object.entries({ ...Object.fromEntries(COLORES_TEMA.map((x) => [x.variable, x.defecto])), ...variablesTema(tema) })
+		.map(([k, v]) => `${k}:${v}`).join(';');
+	const malos = PARES_CONTRASTE.map(([t, f, uso]) => [uso, contraste(c(t), c(f))]).filter(([, r]) => r < 4.5);
+	el.replaceChildren(
+		h('div', { class: 'tema-preview', style: estilo },
+			h('div', { class: 'tp-nav' }, h('strong', {}, 'Equipo Inmobiliario'), h('span', {}, 'Propiedades · Vende · Contacto'), h('span', { class: 'tp-btn tp-outline-light' }, 'Contacto')),
+			h('div', { class: 'tp-body' },
+				h('div', { class: 'tp-kicker' }, 'Zona 16 · Venta'),
+				h('div', { class: 'tp-title' }, 'Casa en Jardines de Mirabel'),
+				h('div', { class: 'tp-price' }, 'US$ 650,000'),
+				h('p', { class: 'tp-muted' }, '4 habitaciones · 4.5 baños · 520 m²'),
+				h('div', { class: 'tp-btns' },
+					h('span', { class: 'tp-btn tp-primary' }, 'Quiero más información'),
+					h('span', { class: 'tp-btn tp-outline' }, 'Ver detalles'),
+					h('span', { class: 'tp-btn tp-whatsapp' }, 'WhatsApp'),
+					h('span', { class: 'tp-btn tp-vip' }, 'VIP'))),
+			h('div', { class: 'tp-foot' }, 'Pie de página · © Equipo Inmobiliario')),
+		malos.length
+			? h('div', { class: 'alert alert-warning small mt-3 mb-0' }, 'Poco contraste (difícil de leer): ', malos.map(([uso, r]) => `${uso} ${(Math.floor(r * 10) / 10).toFixed(1)}:1`).join(' · '), '. Lo recomendable es 4.5:1 o más.')
+			: h('div', { class: 'small text-success mt-3' }, 'Todas las combinaciones de texto se leen bien (contraste 4.5:1 o más).'));
+}
+
+const GRUPO_COLORES = {
+	id: 'colores', label: 'Colores', keys: ['tema'], fields: [
+		{ type: 'section', label: 'Colores de la página', help: 'Cambia un color y se actualiza en todo el sitio al publicar: botones, menú, enlaces, tonos al pasar el mouse y transparencias. "Original" vuelve al color de la marca.' },
+		...COLORES_TEMA.map((x) => ({ name: `tema.${x.clave}`, label: x.label, type: 'color', default: x.defecto, help: x.ayuda, cols: 6 })),
+		{ name: `tema.${RADIO_TEMA.clave}`, label: RADIO_TEMA.label, type: 'number', min: RADIO_TEMA.min, placeholder: String(RADIO_TEMA.defecto), cols: 6, help: '0 = esquinas rectas · 8 = original · 24 = redondeados.' },
+		{ type: 'custom', label: 'Vista previa', update: vistaPreviaTema }
+	]
+};
+
 // Pestaña "Textos del sitio": cada botón, etiqueta y mensaje en español e inglés.
 // Vacío = texto original (se muestra como ejemplo). Los textos originales los genera la publicación.
 async function textosGrupo() {
@@ -308,7 +346,7 @@ export async function render(container) {
 	const heroImgs = (data.hero?.imagenes || []).map((url) => ({ url }));
 	data = { ...data, hero: { ...data.hero, imagenes: heroImgs } };
 
-	const grupos = [...GROUPS];
+	const grupos = [...GROUPS, GRUPO_COLORES];
 	const textos = await textosGrupo();
 	if (textos) grupos.push(textos);
 	const forms = grupos.map((g) => ({ g, form: renderForm(g.fields, data, { folder: 'site' }) }));
@@ -345,6 +383,7 @@ export async function render(container) {
 			await setDoc(ref, out);
 			await Promise.all(forms.map(({ form }) => form.flushDeletes()));
 			await markPending('Contenido del sitio');
+			aplicarTema(out.tema);
 			toast('Contenido guardado. Publica para ver los cambios en el sitio.');
 		} catch (err) {
 			showError(err);

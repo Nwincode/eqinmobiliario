@@ -4,6 +4,7 @@ import {
 	videoEmbedUrl, mapEmbedUrl, whatsappLink
 } from './util.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
+import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
@@ -128,9 +129,10 @@ function head(ctx, page) {
 	<meta name="twitter:title" content="${esc(title)}">
 	<meta name="twitter:description" content="${esc(description)}">
 	<meta name="twitter:image" content="${esc(image)}">
-	<meta name="theme-color" content="#0e1920">
+	<meta name="theme-color" content="${colorTema(site.tema, 'dark')}">
 	${preloadTags(ctx, page.preloadImage)}
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
+	${cssTema(site.tema) ? `<style id="eq-tema">${cssTema(site.tema)}</style>` : ''}
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="preload" as="style" href="${FONTS_URL}" onload="this.onload=null;this.rel='stylesheet'">
@@ -359,7 +361,7 @@ export function propertyCard(p, { lazy = true } = {}) {
 										<span class="d-block mb-2 text-black-50">${esc(p.titulo)}</span>
 										<span class="city d-block mb-3">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
 										${specs(p)}
-										<a href="${url}" class="btn btn-primary py-2 px-3">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span></a>
+										<a href="${url}" class="btn btn-primary btn-sm">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span></a>
 									</div>
 								</div>
 							</div>`;
@@ -381,7 +383,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<button type="submit" class="btn btn-primary w-100 py-3">${esc(boton || t.enviar)}</button>
+		<button type="submit" class="btn btn-primary btn-lg w-100">${esc(boton || t.enviar)}</button>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }
@@ -416,7 +418,7 @@ function bloqueExterior(ctx) {
 					<span class="exterior-kicker">${esc(b.etiqueta || '')}</span>
 					<h2 class="font-weight-bold heading text-primary mb-3">${esc(b.titulo)}</h2>
 					<p class="text-black-50 mb-4">${esc(b.texto)}</p>
-					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary py-3 px-4">${esc(b.boton)}</a>` : ''}
+					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${esc(b.boton)}</a>` : ''}
 				</div>
 				<div class="col-lg-6">
 					<ul class="exterior-list">${(b.puntos || []).map((pt) => `<li><span class="icon-check"></span>${esc(pt)}</li>`).join('')}</ul>
@@ -493,7 +495,7 @@ export function homePage(ctx) {
 					<h2 class="font-weight-bold text-primary heading">${esc(s.destacadas.titulo)}</h2>
 				</div>
 				<div class="col-lg-6 text-lg-end">
-					<p><a href="${r.propiedades}" class="btn btn-primary text-white py-3 px-4">${esc(s.destacadas.boton)}</a></p>
+					<p><a href="${r.propiedades}" class="btn btn-primary btn-lg">${esc(s.destacadas.boton)}</a></p>
 				</div>
 			</div>
 			<div class="row">
@@ -597,7 +599,7 @@ export function homePage(ctx) {
 		<div class="row justify-content-center footer-cta" data-aos="fade-up">
 			<div class="col-lg-7 mx-auto text-center">
 				<h2 class="mb-4">${esc(s.cta.titulo)}</h2>
-				<p><a href="${esc(s.cta.enlace)}" class="btn btn-primary text-white py-3 px-4">${esc(s.cta.boton)}</a></p>
+				<p><a href="${esc(s.cta.enlace)}" class="btn btn-primary btn-lg">${esc(s.cta.boton)}</a></p>
 			</div>
 		</div>
 	</div>` : ''}
@@ -1116,8 +1118,8 @@ export function vipLandingPage(ctx, p) {
 			${v.subtitular ? `<p class="vip-sub" data-aos="fade-up" data-aos-delay="200">${esc(v.subtitular)}</p>` : ''}
 			<p class="vip-price" data-aos="fade-up" data-aos-delay="250">${esc(precio)}</p>
 			<div class="d-flex flex-wrap gap-3" data-aos="fade-up" data-aos-delay="300">
-				<a href="#vip-contacto" class="btn btn-vip">${esc(cta)}</a>
-				${wa ? `<a href="${esc(wa)}" class="btn btn-outline-light" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> ${t.hablarAsesor}</a>` : ''}
+				<a href="#vip-contacto" class="btn btn-vip btn-lg">${esc(cta)}</a>
+				${wa ? `<a href="${esc(wa)}" class="btn btn-outline-light btn-lg" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> ${t.hablarAsesor}</a>` : ''}
 			</div>
 		</div>
 	</section>
@@ -1364,7 +1366,7 @@ export function notFoundPage(ctx) {
 	<div class="section">
 		<div class="container text-center">
 			<p class="mb-4">${t.noExiste}</p>
-			<a href="${rt(ctx).propiedades}" class="btn btn-primary py-3 px-4">${t.verPropiedades}</a>
+			<a href="${rt(ctx).propiedades}" class="btn btn-primary btn-lg">${t.verPropiedades}</a>
 		</div>
 	</div>`;
 	return layout(ctx, { path: '/404.html', title: `${t.noEncontrada} | ${ctx.site.general.nombreCorto}`, noindex: true }, body);

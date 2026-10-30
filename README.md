@@ -79,6 +79,17 @@ Costo orientativo: centavos de dólar por tarea; conviene fijar un límite de ga
 
 Fijo en el código a propósito: colores y tipografía de la marca (ver `docs/marca/`), estructura de las páginas y rutas.
 
+## Colores y botones
+
+- **Desde el panel**: Contenido → Colores. Siete colores de marca y las esquinas de los botones,
+  con vista previa y aviso de contraste. Al publicar se aplican en todo el sitio (y en el panel).
+- **En código**: `css/tema.css` tiene todas las variables (`--eq-primary`, `--eq-dark`, `--eq-cyan`…).
+  Los tonos de hover, fondos suaves, bordes y transparencias se calculan a partir de esos colores.
+- **Botones**: `css/botones.css` es el único lugar donde se definen. Usa `.btn` con una variante
+  (`btn-primary`, `btn-outline-primary`, `btn-outline-secondary`, `btn-light`, `btn-outline-light`,
+  `btn-success` para WhatsApp, `btn-vip`) y, si hace falta, un tamaño (`btn-sm` 38 px, normal 48 px,
+  `btn-lg` 56 px). No uses `py-*`/`px-*` ni colores sueltos en los botones.
+
 ## Clientes, agenda y propietarios (CRM del equipo)
 
 Cada asesor entra con su usuario y ve **solo lo suyo** (lo exigen las reglas de Firestore); el administrador ve todo.

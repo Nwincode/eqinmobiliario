@@ -155,6 +155,24 @@ export function renderForm(schema, data, options = {}) {
 				control.addEventListener('input', () => set(control.value === '' ? null : Number(control.value)));
 				break;
 
+			// Selector de color con su código hex y botón para volver al original (field.default).
+			case 'color': {
+				const valido = (v) => /^#[0-9a-fA-F]{6}$/.test(v || '');
+				const actual = () => (valido(get()) ? get() : field.default);
+				const picker = h('input', { type: 'color', class: 'form-control form-control-color', 'aria-label': field.label });
+				const texto = h('input', { class: 'form-control font-monospace', maxlength: 7, placeholder: field.default, 'aria-label': `${field.label} (código)` });
+				const pintar = () => { picker.value = actual(); texto.value = valido(get()) ? get() : ''; };
+				picker.addEventListener('input', () => { set(picker.value); texto.value = picker.value; });
+				texto.addEventListener('input', () => {
+					const v = texto.value.trim();
+					if (valido(v)) { set(v.toLowerCase()); picker.value = v; } else if (!v) { set(''); picker.value = field.default; }
+				});
+				const restaurar = h('button', { type: 'button', class: 'btn btn-light btn-sm', title: 'Volver al color original', onclick: () => { set(''); pintar(); } }, 'Original');
+				pintar();
+				control = h('div', { class: 'input-group input-color' }, picker, texto, restaurar);
+				break;
+			}
+
 			case 'tags': {
 				const list = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' });
 				const input = h('input', { class: 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter' });

@@ -5,6 +5,7 @@ import {
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { session, getPublishState } from './session.js';
+import { aplicarTema } from './tema.js';
 
 const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', load: () => import('./views/dashboard.js') },
@@ -202,6 +203,7 @@ if (!configured) {
 			session.profile = profile;
 			shell();
 			route();
+			aplicarTema();
 		} catch (err) {
 			noAccess(errorMessage(err));
 		}
