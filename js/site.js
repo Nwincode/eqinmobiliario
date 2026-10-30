@@ -427,6 +427,55 @@
 		});
 	}
 
+	// ------------------------------------------------------------ Galería de la ficha
+
+	var fichaLb = document.getElementById('ficha-lightbox');
+	if (fichaLb && fichaLb.showModal) {
+		var fotosFicha = Array.prototype.slice.call(fichaLb.querySelectorAll('.flb-fotos span'));
+		var lbImg = fichaLb.querySelector('img');
+		var lbPie = fichaLb.querySelector('figcaption');
+		var actual = 0;
+		var mostrar = function (i) {
+			actual = (i + fotosFicha.length) % fotosFicha.length;
+			lbImg.src = fotosFicha[actual].getAttribute('data-src');
+			lbImg.alt = fotosFicha[actual].getAttribute('data-alt');
+			lbPie.textContent = (actual + 1) + ' / ' + fotosFicha.length;
+		};
+		document.querySelectorAll('.ficha-foto, .ficha-ver-todas').forEach(function (btn) {
+			btn.addEventListener('click', function () {
+				mostrar(parseInt(btn.getAttribute('data-index'), 10) || 0);
+				fichaLb.showModal();
+			});
+		});
+		fichaLb.querySelector('.flb-cerrar').addEventListener('click', function () { fichaLb.close(); });
+		fichaLb.querySelector('.flb-prev').addEventListener('click', function () { mostrar(actual - 1); });
+		fichaLb.querySelector('.flb-next').addEventListener('click', function () { mostrar(actual + 1); });
+		fichaLb.addEventListener('click', function (e) { if (e.target === fichaLb) fichaLb.close(); });
+		document.addEventListener('keydown', function (e) {
+			if (!fichaLb.open) return;
+			if (e.key === 'ArrowLeft') mostrar(actual - 1);
+			if (e.key === 'ArrowRight') mostrar(actual + 1);
+		});
+		// Deslizar con el dedo dentro del visor.
+		var inicioX = null;
+		fichaLb.addEventListener('touchstart', function (e) { inicioX = e.touches[0].clientX; }, { passive: true });
+		fichaLb.addEventListener('touchend', function (e) {
+			if (inicioX === null) return;
+			var dx = e.changedTouches[0].clientX - inicioX;
+			if (Math.abs(dx) > 40) mostrar(actual + (dx < 0 ? 1 : -1));
+			inicioX = null;
+		});
+		// Contador del carrusel en celular.
+		var galeria = document.querySelector('.ficha-galeria');
+		var contador = document.querySelector('.ficha-contador');
+		if (galeria && contador) {
+			galeria.addEventListener('scroll', function () {
+				var i = Math.round(galeria.scrollLeft / galeria.clientWidth);
+				contador.textContent = (i + 1) + ' / ' + fotosFicha.length;
+			}, { passive: true });
+		}
+	}
+
 	// Barra de navegación: fondo sólido al bajar de la portada.
 	var siteNav = document.querySelector('.site-nav');
 	if (siteNav) {

@@ -940,45 +940,79 @@ export function propertyPage(ctx, p) {
 		.slice(0, 3);
 	const waMsg = fmt(t.msgWaFicha, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
 
+	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
+	const datosClave = [
+		[p.habitaciones, t.fHabitaciones],
+		[p.banos, t.fBanos],
+		[p.parqueos, t.fParqueos],
+		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion],
+		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno]
+	].filter(([v]) => v);
+	const visibles = fotos;
+	const galeria = `<div class="ficha-galeria-wrap">
+	<section class="ficha-galeria ficha-galeria-${Math.min(fotos.length, 5)}" aria-label="${t.galeriaFotos}">
+		${visibles.map((f, i) => `<button type="button" class="ficha-foto" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">
+			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
+		</button>`).join('')}
+	</section>
+	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${fmt(t.verFotosN, { n: fotos.length })}</button>
+	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
+	</div>
+	<dialog class="ficha-lightbox" id="ficha-lightbox" aria-label="${t.galeriaFotos}">
+		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">&times;</button>
+		<button type="button" class="flb-prev" aria-label="${t.anteriorFoto}">&#8249;</button>
+		<figure><img alt=""><figcaption></figcaption></figure>
+		<button type="button" class="flb-next" aria-label="${t.siguienteFoto}">&#8250;</button>
+		<div class="flb-fotos" hidden>${fotos.map((f, i) => `<span data-src="${esc(f.url)}" data-alt="${esc(photoAlt(p, i))}"></span>`).join('')}</div>
+	</dialog>`;
+
 	const body = `
-	${pageHero(ctx, p.titulo, firstPhoto(p), crumbs)}
-	<div class="section">
+	${galeria}
+	<div class="ficha">
 		<div class="container">
+			<nav aria-label="breadcrumb" class="ficha-migas">
+				<ol class="breadcrumb">${crumbs.map((c, i) => i === crumbs.length - 1
+					? `<li class="breadcrumb-item active" aria-current="page">${esc(c.name)}</li>`
+					: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${esc(c.name)}</a></li>`).join('')}</ol>
+			</nav>
 			<div class="row justify-content-between">
-				<div class="col-lg-7 mb-5">
-					<div class="img-property-slide-wrap">
-						<div class="img-property-slide">
-							${fotos.map((f, i) => `<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}" class="img-fluid"${i ? ' loading="lazy"' : ''}>`).join('\n')}
-						</div>
-					</div>
-					<div class="mt-5">
-						<h2 class="h4 text-primary mb-3">${t.descripcion}</h2>
+				<div class="col-lg-7">
+					<header class="ficha-cabecera">
+						<p class="ficha-tipo">${esc(tipoLabel(p))} · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}</p>
+						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
+						${lugar ? `<p class="ficha-lugar">${esc(lugar)}</p>` : ''}
+						<p class="ficha-precio">${esc(price(p))}</p>
+					</header>
+					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k]) => `<li><strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
+					<section class="ficha-bloque">
+						<h2>${t.descripcion}</h2>
 						<div class="prop-description">${markdown(p.descripcion)}</div>
+					</section>
+					<section class="ficha-bloque">
+						<h2>${t.caracteristicas}</h2>
+						${factsList(p)}
+					</section>
+					${(p.amenidades || []).length ? `<section class="ficha-bloque">
+						<h2>${t.amenidades}</h2>
+						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
+					</section>` : ''}
+					${video ? `<section class="ficha-bloque"><h2>${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
+					${mapa ? `<section class="ficha-bloque"><h2>${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
+					${mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
+				</div>
+				<aside class="col-lg-4">
+					<div class="ficha-contacto">
+						${agentBox(ctx, agent, p)}
+						<div class="lead-card">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>
+						${shareButtons(ctx, p)}
 					</div>
-					${(p.amenidades || []).length ? `<div class="mt-4">
-						<h2 class="h4 text-primary mb-3">${t.amenidades}</h2>
-						<ul class="amenities-list">${p.amenidades.map((a) => `<li><span class="icon-check text-primary me-2"></span>${esc(a)}</li>`).join('')}</ul>
-					</div>` : ''}
-					${video ? `<div class="mt-4"><h2 class="h4 text-primary mb-3">${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></div>` : ''}
-					${mapa ? `<div class="mt-4"><h2 class="h4 text-primary mb-3">${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div>` : ''}
-				</div>
-				<div class="col-lg-4">
-					<h2 class="heading text-primary">${esc(p.titulo)}</h2>
-					<p class="meta">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</p>
-					<p class="prop-price">${esc(price(p))}</p>
-					${shareButtons(ctx, p)}
-					${estadoBadge(p, true)}
-					${factsList(p)}
-					${mortgageCalculator(ctx, p)}
-					${agentBox(ctx, agent, p)}
-					<div class="lead-card mt-4">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>
-				</div>
+				</aside>
 			</div>
 		</div>
 	</div>
-	${related.length ? `<div class="section bg-light">
+	${related.length ? `<div class="section ficha-similares">
 		<div class="container">
-			<h2 class="font-weight-bold text-primary heading mb-5">${t.similares}</h2>
+			<h2 class="heading mb-5">${t.similares}</h2>
 			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
@@ -992,7 +1026,7 @@ export function propertyPage(ctx, p) {
 		image: firstPhoto(p),
 		ogType: 'article',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
-		bodyAttrs: viewContentAttrs(p),
+		bodyAttrs: `class="pagina-ficha" ${viewContentAttrs(p)}`,
 		waMensaje: waMsg
 	}, body);
 }
