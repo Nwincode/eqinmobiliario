@@ -1,8 +1,11 @@
 /* Estilos propios del sitio (complementan css/style.css de la plantilla). */
 
 :root {
-	--eq-primary: #005555;
-	--eq-dark: #00204a;
+	--eq-primary: #0077a3;
+	--eq-cyan: #00b7e7;
+	--eq-mist: #e6f8fd;
+	--eq-white: #fcffff;
+	--eq-dark: #101317;
 	--eq-gold: #c9a45c;
 }
 
@@ -342,7 +345,7 @@ body {
 
 /* Calculadora de cuota */
 .calc-card {
-	background: #f4f8f8;
+	background: #e6f8fd;
 	border-radius: 8px;
 	padding: 20px;
 }
@@ -365,7 +368,7 @@ body {
 
 .content-note {
 	border-left: 3px solid var(--eq-primary);
-	background: #f4f8f8;
+	background: #e6f8fd;
 	padding: 12px 16px;
 	margin: 1.5rem 0;
 	border-radius: 0 6px 6px 0;
@@ -376,7 +379,7 @@ body {
 
 /* Bloque para compradores en el extranjero */
 .exterior-block {
-	background: linear-gradient(135deg, #f4f8f8 0%, #eef3f7 100%);
+	background: linear-gradient(135deg, #e6f8fd 0%, #fcffff 100%);
 }
 .exterior-kicker {
 	display: inline-block;
@@ -414,4 +417,69 @@ body {
 	border: 1px solid rgba(255, 255, 255, .5);
 	border-radius: 20px;
 	padding: 4px 12px !important;
+}
+
+/* Identidad de marca (manual): negro #101317, cian #00b7e7, blanco #fcffff.
+   El cian puro va sobre fondos oscuros o como acento; sobre fondo claro se usa
+   el cian profundo (--eq-primary) para que los textos cumplan contraste AA. */
+body {
+	background-color: var(--eq-white);
+}
+::selection {
+	background: var(--eq-cyan);
+	color: var(--eq-dark);
+}
+:focus-visible {
+	outline: 2px solid var(--eq-cyan);
+	outline-offset: 2px;
+}
+.site-nav .site-navigation .site-menu > li > a:hover,
+.site-nav .site-navigation .site-menu > li.active > a {
+	color: var(--eq-cyan) !important;
+}
+.site-nav .site-navigation .site-menu > li.active > a:before {
+	background: var(--eq-cyan);
+}
+h2.heading::after,
+.section-title::after {
+	content: "";
+	display: block;
+	width: 48px;
+	height: 3px;
+	margin-top: 14px;
+	background: var(--eq-cyan);
+	border-radius: 2px;
+}
+.text-center h2.heading::after,
+.text-center .section-title::after {
+	margin-inline: auto;
+}
+.site-footer {
+	border-top: 3px solid var(--eq-cyan);
+}
+.site-footer a:hover {
+	color: var(--eq-cyan) !important;
+}
+/* Barra de navegación en negro de marca; el cian resalta la sección activa. */
+.menu-bg-wrap {
+	background-color: var(--eq-dark);
+	border-bottom: 3px solid var(--eq-cyan);
+}
+.site-nav .site-navigation .site-menu > li > a {
+	color: rgba(252, 255, 255, .75);
+}
+.site-menu .lang-switch a {
+	border-color: var(--eq-cyan) !important;
+	color: var(--eq-cyan) !important;
+}
+/* Botón de búsqueda: cian puro con texto negro (contraste 7.9:1). */
+.hero .form-search .btn {
+	background-color: var(--eq-cyan);
+	border-color: var(--eq-cyan);
+	color: var(--eq-dark);
+	font-weight: 600;
+}
+.hero .form-search .btn:hover {
+	background-color: #fcffff;
+	color: var(--eq-dark);
 }

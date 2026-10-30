@@ -127,7 +127,7 @@ function head(ctx, page) {
 	<meta name="twitter:title" content="${esc(title)}">
 	<meta name="twitter:description" content="${esc(description)}">
 	<meta name="twitter:image" content="${esc(image)}">
-	<meta name="theme-color" content="#005555">
+	<meta name="theme-color" content="#101317">
 	${preloadTags(ctx, page.preloadImage)}
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
