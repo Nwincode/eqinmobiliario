@@ -234,6 +234,117 @@ function llmsTxt(ctx, properties, pages) {
 	return lineas.join('\n');
 }
 
+// ------------------------------------------------ Catálogos para portales (/feeds/)
+const xmlEsc = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+const textoPlano = (md) => String(md || '').replace(/[#*_>`\[\]]/g, '').replace(/\(https?:[^)]+\)/g, '').replace(/\n{3,}/g, '\n\n').trim();
+const coordenadas = (mapa) => {
+	const m = /(?:@|[?&](?:q|ll|query)=)(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(String(mapa || ''));
+	return m ? { lat: m[1], lng: m[2] } : null;
+};
+
+function feeds(ctx, properties, propsEn) {
+	const base = ctx.siteUrl.replace(/\/$/, '');
+	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible');
+	const enPorId = Object.fromEntries((propsEn || []).map((p) => [p.id, p]));
+	const abs = (u) => (/^https?:/.test(u) ? u : `${base}${u}`);
+	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
+	// Los catálogos piden JPG: el CDN de imágenes de Netlify convierte las fotos WebP al vuelo.
+	const fotos = (p) => (p.fotos || []).map((f) => f.url).filter(Boolean)
+		.map((u) => `${base}/.netlify/images?url=${encodeURIComponent(u)}&fm=jpg&w=1600&q=85`);
+	const sinPrecio = (p) => !p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio);
+
+	// Meta (Facebook/Instagram): catálogo de inmuebles ("home listings").
+	const tipoMeta = { casa: 'house', apartamento: 'apartment', terreno: 'land', oficina: 'other', local: 'other', bodega: 'other', finca: 'other' };
+	const meta = `<?xml version="1.0" encoding="UTF-8"?>
+<listings>
+	<title>${xmlEsc(ctx.site.general.nombre)}</title>
+	<link rel="self" href="${base}/feeds/meta-inmuebles.xml"/>
+${disponibles.filter((p) => !sinPrecio(p) && fotos(p).length).map((p) => {
+		const geo = coordenadas(p.mapa);
+		return `	<listing>
+		<home_listing_id>${xmlEsc(p.id)}</home_listing_id>
+		<name>${xmlEsc(p.titulo)}</name>
+		<availability>${p.operacion === 'renta' ? 'for_rent' : 'for_sale'}</availability>
+		<listing_type>${p.operacion === 'renta' ? 'for_rent_by_agent' : 'for_sale_by_agent'}</listing_type>
+		<description>${xmlEsc(textoPlano(p.descripcion).slice(0, 5000))}</description>
+		<address format="simple">
+			<component name="addr1">${xmlEsc(p.direccion || p.zona || '')}</component>
+			<component name="city">${xmlEsc(p.ciudad || 'Guatemala')}</component>
+			<component name="region">Guatemala</component>
+			<component name="country">Guatemala</component>
+		</address>
+		<neighborhood>${xmlEsc(p.zona || '')}</neighborhood>${geo ? `
+		<latitude>${geo.lat}</latitude>
+		<longitude>${geo.lng}</longitude>` : ''}
+${fotos(p).slice(0, 20).map((f) => `		<image><url>${xmlEsc(f)}</url></image>`).join('\n')}
+		<price>${Number(p.precio)} ${xmlEsc(p.moneda || 'USD')}</price>
+		<property_type>${tipoMeta[p.tipo] || 'other'}</property_type>${p.habitaciones ? `
+		<num_beds>${Number(p.habitaciones)}</num_beds>` : ''}${p.banos ? `
+		<num_baths>${Number(p.banos)}</num_baths>` : ''}${p.m2Construccion ? `
+		<area_size>${Number(p.m2Construccion)}</area_size>
+		<area_unit>sq_m</area_unit>` : ''}
+		<url>${xmlEsc(url(p, 'facebook'))}</url>
+	</listing>`;
+	}).join('\n')}
+</listings>
+`;
+
+	// Kyero v3: formato XML que aceptan muchos portales y agregadores internacionales.
+	const tipoKyero = { casa: 'house', apartamento: 'apartment', terreno: 'land', oficina: 'commercial', local: 'commercial', bodega: 'commercial', finca: 'country house' };
+	const kyero = `<?xml version="1.0" encoding="UTF-8"?>
+<root>
+	<kyero><feed_version>3</feed_version></kyero>
+${disponibles.filter((p) => fotos(p).length).map((p) => {
+		const en = enPorId[p.id];
+		const geo = coordenadas(p.mapa);
+		const fecha = String(p.updatedAt || p.createdAt || '').replace('T', ' ').slice(0, 19);
+		return `	<property>
+		<id>${xmlEsc(p.id)}</id>${fecha ? `
+		<date>${xmlEsc(fecha)}</date>` : ''}
+		<ref>${xmlEsc(T.propertyCode(p))}</ref>
+		<price>${sinPrecio(p) ? 0 : Number(p.precio)}</price>
+		<currency>${xmlEsc(p.moneda || 'USD')}</currency>
+		<price_freq>${p.operacion === 'renta' ? 'month' : 'sale'}</price_freq>
+		<new_build>0</new_build>
+		<type>${tipoKyero[p.tipo] || 'house'}</type>
+		<town>${xmlEsc([p.zona, p.ciudad].filter(Boolean).join(', ') || 'Guatemala')}</town>
+		<province>Guatemala</province>
+		<country>Guatemala</country>${geo ? `
+		<location><latitude>${geo.lat}</latitude><longitude>${geo.lng}</longitude></location>` : ''}
+		<beds>${Number(p.habitaciones) || 0}</beds>
+		<baths>${Number(p.banos) || 0}</baths>
+		<pool>${(p.amenidades || []).some((a) => /piscina|pool/i.test(a)) ? 1 : 0}</pool>
+		<surface_area>${p.m2Construccion ? `<built>${Number(p.m2Construccion)}</built>` : ''}${p.m2Terreno ? `<plot>${Number(p.m2Terreno)}</plot>` : ''}</surface_area>
+		<url><es>${xmlEsc(url(p, 'kyero'))}</es>${en ? `<en>${xmlEsc(url(en, 'kyero'))}</en>` : ''}</url>
+		<desc><es>${xmlEsc(textoPlano(p.descripcion))}</es>${en ? `<en>${xmlEsc(textoPlano(en.descripcion))}</en>` : ''}</desc>
+		<features>${(en ? en.amenidades : p.amenidades || []).map((a) => `<feature>${xmlEsc(a)}</feature>`).join('')}</features>
+		<images>${fotos(p).slice(0, 30).map((f, i) => `<image id="${i + 1}"><url>${xmlEsc(f)}</url></image>`).join('')}</images>
+	</property>`;
+	}).join('\n')}
+</root>
+`;
+
+	const json = JSON.stringify({
+		generado: new Date().toISOString(),
+		empresa: ctx.site.general.nombre,
+		propiedades: disponibles.map((p) => {
+			const en = enPorId[p.id];
+			const originales = (p.fotos || []).map((f) => abs(f.url)).filter(Boolean);
+			return {
+				id: p.id, codigo: T.propertyCode(p), titulo: p.titulo, operacion: p.operacion, tipo: p.tipo,
+				precio: sinPrecio(p) ? null : p.precio, moneda: p.moneda || 'USD',
+				zona: p.zona || '', ciudad: p.ciudad || '', direccion: p.direccion || '', coordenadas: coordenadas(p.mapa),
+				habitaciones: p.habitaciones || 0, banos: p.banos || 0, parqueos: p.parqueos || 0,
+				m2Construccion: p.m2Construccion || 0, m2Terreno: p.m2Terreno || 0, amenidades: p.amenidades || [],
+				descripcion: textoPlano(p.descripcion), fotos: originales, fotosJpg: fotos(p), video: p.video || '',
+				url: `${base}${T.propertyUrl(p)}`, actualizado: p.updatedAt || null,
+				en: en ? { titulo: en.titulo, descripcion: textoPlano(en.descripcion), url: `${base}${T.propertyUrl(en)}` } : null
+			};
+		})
+	}, null, 1);
+	return { meta, kyero, json };
+}
+
 function sitemap(ctx, urls) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
 	// Sin fecha conocida se omite lastmod: una fecha falsa hace que Google deje de confiar en ellas.
@@ -335,6 +446,7 @@ async function main() {
 	// Fecha de la última modificación real del inventario: Google ignora el lastmod si cambia en cada build.
 	const ultimaFecha = (list) => list.map((p) => String(p.updatedAt || p.createdAt || '').slice(0, 10)).filter(Boolean).sort().pop();
 	const inventarioMod = ultimaFecha(properties) || String(site.updatedAt || '').slice(0, 10) || undefined;
+	let propsEnGlobal = [];
 	const urls = [{ path: '/', priority: '1.0', lastmod: inventarioMod, images: (site.hero.imagenes || []).slice(0, 1) }];
 	await writePage('/', T.homePage(ctx));
 
@@ -420,6 +532,7 @@ async function main() {
 	if (ctx.enActivo) {
 		const siteEn = deepMerge(site, site.en || {});
 		const propsEn = properties.map(propiedadEn).filter(Boolean);
+		propsEnGlobal = propsEn;
 		const pagesEn = normalizePages(data.pagesEn, '/en');
 		const postsEn = normalizePosts(data.postsEn).map((p) => ({ ...p, url: `/en/blog/${p.slug}/` }));
 		enlazarTraducciones(pages, pagesEn);
@@ -524,6 +637,12 @@ async function main() {
 		await writeFile(path.join(DIST, `${indexNowKey(config.siteUrl)}.txt`), indexNowKey(config.siteUrl));
 		await writeFile(path.join(DIST, 'llms.txt'), llmsTxt(ctx, properties, pages));
 	}
+	// Los catálogos se generan siempre: los portales los leen aunque el sitio aún no se indexe en Google.
+	const catalogos = feeds(ctx, properties, propsEnGlobal);
+	await mkdir(path.join(DIST, 'feeds'), { recursive: true });
+	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
+	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
+	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);

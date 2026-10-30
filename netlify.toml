@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# CDN de imágenes de Netlify: permite convertir a JPG las fotos guardadas en Firebase Storage
+# (los catálogos de Meta y de portales usan /.netlify/images?url=…&fm=jpg).
+[images]
+  remote_images = ["https://firebasestorage\\.googleapis\\.com/.*"]
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
@@ -48,6 +53,13 @@
   for = "/sitemap.xml"
   [headers.values]
     Cache-Control = "public, max-age=3600"
+
+# Catálogos para portales: se leen por enlace, no deben aparecer en Google.
+[[headers]]
+  for = "/feeds/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+    Cache-Control = "public, max-age=900"
 
 [[headers]]
   for = "/llms.txt"

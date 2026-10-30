@@ -226,6 +226,20 @@ const GROUPS = [
 		]
 	},
 	{
+		id: 'portales', label: 'Portales', keys: ['portales'], fields: [
+			{ type: 'section', label: 'Plataformas donde publican', help: 'Lista de portales y redes de la sección "Difusión". Si la dejas vacía se usan: Encuentra24, Facebook Marketplace, Grupos de Facebook, Instagram, WhatsApp y portales en inglés. Los límites de caracteres son aproximados: si una plataforma corta el texto, bájalos aquí.' },
+			{ name: 'portales', label: 'Plataformas', type: 'list', itemLabel: 'Plataforma', fields: [
+				{ name: 'nombre', label: 'Nombre', cols: 4, required: true, placeholder: 'Encuentra24' },
+				{ name: 'url', label: 'Enlace para publicar', cols: 8, placeholder: 'https://…' },
+				{ name: 'idioma', label: 'Idioma', type: 'select', options: [['es', 'Español'], ['en', 'Inglés']], cols: 3 },
+				{ name: 'estilo', label: 'Estilo del texto', type: 'select', options: [['portal', 'Portal (datos completos)'], ['social', 'Red social (emojis y hashtags)'], ['mensaje', 'Mensaje corto (WhatsApp)']], cols: 3 },
+				{ name: 'tituloMax', label: 'Máx. título', type: 'number', cols: 2, help: '0 = sin título' },
+				{ name: 'textoMax', label: 'Máx. texto', type: 'number', cols: 2 },
+				{ name: 'enlaces', label: 'Permite enlaces', type: 'checkbox', default: true, cols: 2 }
+			] }
+		]
+	},
+	{
 		id: 'zonas', label: 'Zonas', keys: ['zonas'], fields: [
 			{ type: 'section', label: 'Páginas por zona', help: 'Cada zona con propiedades tiene su página (p. ej. /propiedades/zona-16/). Un texto propio de cada zona —qué la hace atractiva, colonias, accesos, colegios, precios típicos— es lo que más ayuda a aparecer en Google cuando buscan "casas en zona 16". El nombre debe escribirse igual que en las propiedades.' },
 			{ name: 'zonas', label: 'Zonas', type: 'list', itemLabel: 'Zona', fields: [

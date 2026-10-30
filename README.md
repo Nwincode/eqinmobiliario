@@ -79,6 +79,31 @@ Costo orientativo: centavos de dólar por tarea; conviene fijar un límite de ga
 
 Fijo en el código a propósito: colores y tipografía de la marca (ver `docs/marca/`), estructura de las páginas y rutas.
 
+## Difusión en portales y redes (sección "Difusión" del panel)
+
+Para no redactar cada anuncio a mano en cada plataforma:
+
+- **Kit por propiedad** (botón "📣 Difundir en portales" en la propiedad): título y texto ya adaptados a cada
+  plataforma —Encuentra24, Facebook Marketplace, grupos de Facebook, Instagram, WhatsApp y portales en inglés—,
+  respetando su límite de caracteres, con botones para copiar. Las plataformas y sus límites se cambian en
+  *Contenido del sitio → Portales*.
+- **Fotos en ZIP**: originales en JPG (muchos portales no aceptan WebP), cuadradas 1080×1080, verticales
+  1080×1350 e historias 1080×1920, estas tres con el logo de marca de agua.
+- **Enlaces con seguimiento**: cada texto lleva el enlace a la ficha con `utm_source=<plataforma>`, así cada lead
+  muestra de qué plataforma vino (columna "Fuente" de Leads).
+- **Tablero**: dónde está publicada cada propiedad; avisa qué anuncios **actualizar** (la propiedad cambió después
+  de publicarla) y cuáles **dar de baja** (vendida, rentada o despublicada).
+- **Catálogos automáticos** (se regeneran en cada publicación):
+  - `/feeds/meta-inmuebles.xml`: catálogo de inmuebles de Meta (Commerce Manager → Fuentes de datos → Feed
+    programado) para anuncios dinámicos en Facebook e Instagram.
+  - `/feeds/kyero.xml`: formato Kyero v3, aceptado por varios portales y agregadores internacionales.
+  - `/feeds/propiedades.json`: para cualquier integración a la medida.
+  Las fotos de los catálogos se sirven en JPG con el CDN de imágenes de Netlify.
+
+Encuentra24, Marketplace e Instagram no ofrecen publicación automática para cuentas comunes; por eso el kit deja
+todo listo para copiar y pegar en segundos. Si un portal ofrece carga por XML a tu cuenta de agencia, dale la URL
+del catálogo.
+
 ## SEO y herramientas de Google
 
 Todo se configura en el panel → *Contenido del sitio → Google y anuncios*:

@@ -12,6 +12,7 @@ const ROUTES = [
 	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', load: () => import('./views/leads.js') },
 	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', load: () => import('./views/ia.js') },
 	{ path: 'google', label: 'Google', icon: 'icon-search', load: () => import('./views/google.js') },
+	{ path: 'difusion', label: 'Difusión', icon: 'icon-bullhorn', load: () => import('./views/difusion.js') },
 	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', load: () => import('./views/agents.js'), admin: true },
 	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', load: () => import('./views/testimonials.js'), admin: true },
 	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', load: () => import('./views/pages.js'), admin: true },
