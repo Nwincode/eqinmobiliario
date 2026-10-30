@@ -1,0 +1,11 @@
+{
+  "siteUrl": "https://eqinmobiliario.gt",
+  "firebase": {
+    "apiKey": "",
+    "authDomain": "eqinmobiliariobd.firebaseapp.com",
+    "projectId": "eqinmobiliariobd",
+    "storageBucket": "",
+    "messagingSenderId": "",
+    "appId": ""
+  }
+}

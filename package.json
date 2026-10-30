@@ -1,0 +1,13 @@
+{
+  "name": "eqinmobiliario",
+  "private": true,
+  "type": "module",
+  "description": "Sitio y panel de administración de Equipo Inmobiliario S.A.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

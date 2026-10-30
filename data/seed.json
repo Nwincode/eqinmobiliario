@@ -1,0 +1,215 @@
+{
+  "settings": {
+    "general": {
+      "nombre": "Equipo Inmobiliario S.A.",
+      "nombreCorto": "Equipo Inmobiliario",
+      "logo": "/Icono_Equipoinmobiliario@0.75x.png",
+      "favicon": "/favicon.png",
+      "moneda": "USD"
+    },
+    "seo": {
+      "titulo": "Equipo Inmobiliario S.A. | Bienes Raíces en Guatemala",
+      "descripcion": "Compra, venta y renta de casas, apartamentos y terrenos en Guatemala. Asesores inmobiliarios con experiencia y propiedades verificadas.",
+      "imagen": "/images/hero_bg_3.jpg",
+      "keywords": "bienes raíces Guatemala, casas en venta zona 16, apartamentos en renta Guatemala, inmobiliaria Guatemala"
+    },
+    "tracking": {
+      "gtmId": "GTM-N49PFVKK",
+      "pixelId": "212605361803683"
+    },
+    "hero": {
+      "titulo": "La manera más fácil de encontrar tu propiedad",
+      "placeholderBusqueda": "Ingresa la zona de tu interés",
+      "imagenes": ["/images/hero_bg_3.jpg", "/images/hero_bg_2.jpg", "/images/hero_bg_1.jpg"]
+    },
+    "destacadas": {
+      "titulo": "Propiedades populares",
+      "boton": "Ver todas las propiedades"
+    },
+    "features": {
+      "visible": true,
+      "items": [
+        { "icono": "flaticon-house", "titulo": "Nuestras Propiedades", "texto": "Casas, apartamentos y terrenos verificados en las mejores zonas de Guatemala.", "enlace": "/propiedades/" },
+        { "icono": "flaticon-building", "titulo": "Apartamentos en Venta", "texto": "Opciones para vivir o invertir, con acompañamiento en todo el proceso.", "enlace": "/propiedades/venta/" },
+        { "icono": "flaticon-house-3", "titulo": "Agentes Inmobiliarios", "texto": "Un equipo con experiencia en ventas, negociación y financiamiento bancario.", "enlace": "/#asesores" },
+        { "icono": "flaticon-house-1", "titulo": "Propiedades en Renta", "texto": "Encuentra tu próximo hogar u oficina con contratos claros y seguros.", "enlace": "/propiedades/renta/" }
+      ]
+    },
+    "testimonios": {
+      "visible": true,
+      "titulo": "Reseñas"
+    },
+    "servicios": {
+      "visible": true,
+      "titulo": "Te ayudaremos a...",
+      "subtitulo": "Encontrar la propiedad perfecta para tus gustos y necesidades",
+      "imagen": "/images/hero_bg_3.jpg",
+      "items": [
+        { "icono": "icon-home2", "titulo": "Cartera de inmuebles", "texto": "Contamos con cartera de inmuebles tanto propios como de alianzas con otras empresas y corredores." },
+        { "icono": "icon-person", "titulo": "Agentes Capacitados", "texto": "Contamos con agentes con experiencia en ventas, atención al cliente y sector bancario." },
+        { "icono": "icon-security", "titulo": "Inmuebles Verificados", "texto": "Cada inmueble, al ingresar, pasa por una investigación para verificar que todo esté en orden." }
+      ]
+    },
+    "contadores": {
+      "visible": true,
+      "items": [
+        { "valor": 106, "etiqueta": "Propiedades vendidas" },
+        { "valor": 80, "etiqueta": "Propiedades alquiladas" },
+        { "valor": 186, "etiqueta": "Inmuebles atendidos" },
+        { "valor": 3, "etiqueta": "Agentes inmobiliarios" }
+      ]
+    },
+    "cta": {
+      "visible": true,
+      "titulo": "Sé parte de nuestro equipo de asesores",
+      "boton": "Aplica para ser asesor",
+      "enlace": "/#contacto"
+    },
+    "asesores": {
+      "visible": true,
+      "titulo": "Nuestros Asesores Inmobiliarios",
+      "subtitulo": "Un equipo de agentes inmobiliarios con experiencia, pasión y compromiso, que trabaja de forma coordinada para satisfacer las necesidades de los clientes."
+    },
+    "contacto": {
+      "titulo": "Contáctanos",
+      "subtitulo": "Déjanos tus datos y un asesor te escribirá a la brevedad.",
+      "telefono": "+502 5913-1276",
+      "whatsapp": "50259131276",
+      "email": "atencioncliente@eqinmobiliario.gt",
+      "direccion": "",
+      "horario": "Lunes a sábado, 8:00 a 18:00"
+    },
+    "redes": {
+      "instagram": "https://instagram.com/eqinmobilariogt",
+      "facebook": "https://facebook.com/eqinmobilariogt",
+      "linkedin": "",
+      "tiktok": "",
+      "youtube": ""
+    },
+    "navegacion": [
+      { "texto": "Inicio", "enlace": "/" },
+      { "texto": "Servicios", "enlace": "/#servicios" },
+      { "texto": "Nosotros", "enlace": "/#asesores" },
+      { "texto": "Contacto", "enlace": "/#contacto" }
+    ],
+    "footer": {
+      "texto": "Asesoría inmobiliaria en Guatemala: compra, venta y renta de propiedades.",
+      "enlaces": [
+        { "texto": "Propiedades en venta", "enlace": "/propiedades/venta/" },
+        { "texto": "Propiedades en renta", "enlace": "/propiedades/renta/" },
+        { "texto": "Propiedades VIP", "enlace": "/vip/" },
+        { "texto": "Servicios", "enlace": "/#servicios" },
+        { "texto": "Contacto", "enlace": "/#contacto" }
+      ]
+    },
+    "whatsappFlotante": {
+      "visible": true,
+      "mensaje": "Hola, me interesa información sobre sus propiedades."
+    }
+  },
+  "properties": [
+    {
+      "id": "residencial-san-antonio",
+      "titulo": "Casa en Residencial San Antonio",
+      "slug": "casa-residencial-san-antonio-zona-16",
+      "operacion": "venta",
+      "tipo": "casa",
+      "precio": 1291000,
+      "moneda": "USD",
+      "zona": "Zona 16",
+      "ciudad": "Guatemala",
+      "direccion": "Residencial San Antonio",
+      "habitaciones": 2,
+      "banos": 2,
+      "parqueos": 0,
+      "m2Construccion": 0,
+      "m2Terreno": 0,
+      "descripcion": "Propiedad en Residencial San Antonio, zona 16. Contacta a un asesor para conocer todos los detalles y agendar una visita.",
+      "amenidades": [],
+      "fotos": [{ "url": "/images/img_1.jpg" }],
+      "destacada": true,
+      "vip": false,
+      "vipLanding": {},
+      "estado": "disponible",
+      "publicado": true,
+      "agentId": "joaquin-arriola",
+      "orden": 1,
+      "seo": {}
+    },
+    {
+      "id": "jardines-de-mirabel",
+      "titulo": "Casa en Residencial Jardines de Mirabel",
+      "slug": "casa-jardines-de-mirabel-zona-16",
+      "operacion": "venta",
+      "tipo": "casa",
+      "precio": 250000,
+      "moneda": "USD",
+      "zona": "Zona 16",
+      "ciudad": "Guatemala",
+      "direccion": "Residencial Jardines de Mirabel",
+      "habitaciones": 3,
+      "banos": 3.5,
+      "parqueos": 0,
+      "m2Construccion": 0,
+      "m2Terreno": 0,
+      "descripcion": "Casa de 3 habitaciones y 3.5 baños en Residencial Jardines de Mirabel, zona 16. Contacta a un asesor para conocer todos los detalles y agendar una visita.",
+      "amenidades": [],
+      "fotos": [{ "url": "/images/img_3.jpg" }],
+      "destacada": true,
+      "vip": false,
+      "vipLanding": {},
+      "estado": "disponible",
+      "publicado": true,
+      "agentId": "miriam-garcia",
+      "orden": 2,
+      "seo": {}
+    }
+  ],
+  "agents": [
+    {
+      "id": "joaquin-arriola",
+      "nombre": "Joaquin Arriola",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Tiene gran instinto para los negocios y una excelente capacidad de comunicación. Su trato con los clientes es cercano y profesional, y siempre está dispuesto a ayudar.",
+      "foto": "/images/person_1-min.jpg",
+      "whatsapp": "50259131276",
+      "email": "",
+      "orden": 1,
+      "activo": true
+    },
+    {
+      "id": "miriam-garcia",
+      "nombre": "Miriam García",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Es una profesional con un amplio conocimiento del mercado y capacidad de negociación, y siempre se esfuerza por encontrar la mejor solución para sus clientes.",
+      "foto": "/images/person_5-min.jpg",
+      "whatsapp": "",
+      "email": "",
+      "orden": 2,
+      "activo": true
+    },
+    {
+      "id": "alex-perez",
+      "nombre": "Alex Pérez",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Prometedor comercial con gran capacidad de aprendizaje y experiencia previa en ventas y marketing.",
+      "foto": "/images/person_3-min.jpg",
+      "whatsapp": "",
+      "email": "",
+      "orden": 3,
+      "activo": true
+    }
+  ],
+  "testimonials": [
+    { "id": "fam-rodas", "nombre": "Fam. Rodas", "rol": "Compradores", "texto": "Los agentes de la empresa son muy amables y atentos. Siempre estuvieron disponibles para responder a mis dudas y ayudarme en todo lo que necesité.", "foto": "/images/person_1-min.jpg", "estrellas": 5, "orden": 1, "activo": true },
+    { "id": "mario-calvet", "nombre": "Mario Calvet", "rol": "Comprador", "texto": "Es una empresa inmobiliaria de confianza. Ofrece un servicio de calidad y personalizado, que se adaptó a mis necesidades.", "foto": "/images/person_2-min.jpg", "estrellas": 5, "orden": 2, "activo": true },
+    { "id": "josselin-l", "nombre": "Josselin L.", "rol": "Propietaria", "texto": "Los agentes son muy profesionales y están muy bien informados sobre el mercado inmobiliario. Son justos y conscientes a la hora de la negociación.", "foto": "/images/person_4-min.jpg", "estrellas": 5, "orden": 3, "activo": true },
+    { "id": "alejandro-herrera", "nombre": "Alejandro Herrera", "rol": "Comprador", "texto": "El proceso de compra fue un poco complicado, ya que hubo algunos problemas con la documentación de la propiedad. Sin embargo, los agentes fueron muy profesionales y estuvieron dispuestos a trabajar conmigo para solucionar todos los problemas. Gracias a su ayuda, pude terminar la compra de mi casa sin problemas.", "foto": "/images/person_3-min.jpg", "estrellas": 5, "orden": 4, "activo": true }
+  ],
+  "pages": [
+    { "id": "privacidad", "titulo": "Política de privacidad", "slug": "privacidad", "contenido": "Escribe aquí la política de privacidad del sitio.", "publicado": false, "enFooter": true, "orden": 1, "seo": {} },
+    { "id": "terminos", "titulo": "Términos y condiciones", "slug": "terminos", "contenido": "Escribe aquí los términos y condiciones.", "publicado": false, "enFooter": true, "orden": 2, "seo": {} },
+    { "id": "mision-vision", "titulo": "Misión y visión", "slug": "mision-vision", "contenido": "## Misión\n\nEscribe aquí la misión.\n\n## Visión\n\nEscribe aquí la visión.", "publicado": false, "enFooter": true, "orden": 3, "seo": {} },
+    { "id": "preguntas-frecuentes", "titulo": "Preguntas frecuentes", "slug": "preguntas-frecuentes", "contenido": "## ¿Cómo agendo una visita?\n\nEscríbenos por WhatsApp o llena el formulario de la propiedad.", "publicado": false, "enFooter": true, "orden": 4, "seo": {} }
+  ]
+}

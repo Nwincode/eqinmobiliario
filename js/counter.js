@@ -1,6 +1,6 @@
 (function () {
 
-	'use trict';
+	'use strict';
 // How long you want the animation to take, in ms
 const animationDuration = 2000;
 // Calculate how long each ‘frame’ should last if we want to update the animation 60 times per second

@@ -1,0 +1,247 @@
+/* Estilos propios del sitio (complementan css/style.css de la plantilla). */
+
+:root {
+	--eq-primary: #005555;
+	--eq-dark: #00204a;
+	--eq-gold: #c9a45c;
+}
+
+/* Tarjetas de propiedad: fotos con proporción uniforme aunque vengan de distintos tamaños */
+.property-item .img {
+	display: block;
+	overflow: hidden;
+}
+.property-item .img img {
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	transition: transform .4s ease;
+}
+.property-item .img:hover img {
+	transform: scale(1.04);
+}
+
+.prop-badges {
+	position: absolute;
+	top: 14px;
+	left: 14px;
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	z-index: 3;
+}
+.prop-badges-inline {
+	position: static;
+	margin-bottom: 1rem;
+}
+.prop-badge {
+	background: rgba(255, 255, 255, .92);
+	color: var(--eq-primary);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+	padding: 4px 10px;
+	border-radius: 20px;
+}
+.prop-badge-vip {
+	background: var(--eq-gold);
+	color: #fff;
+}
+.prop-badge-estado {
+	background: #b42318;
+	color: #fff;
+}
+
+/* Detalle de propiedad */
+.img-property-slide img {
+	width: 100%;
+	aspect-ratio: 3 / 2;
+	object-fit: cover;
+	border-radius: 4px;
+}
+.prop-price {
+	font-size: 1.75rem;
+	font-weight: 700;
+	color: var(--eq-primary);
+	margin-bottom: .75rem;
+}
+.prop-facts {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: .75rem 1.25rem;
+	margin: 1.25rem 0 0;
+}
+.prop-facts div {
+	border-bottom: 1px solid #eee;
+	padding-bottom: .5rem;
+}
+.prop-facts dt {
+	font-size: 12px;
+	font-weight: 500;
+	color: #888;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+}
+.prop-facts dd {
+	margin: 0;
+	font-weight: 600;
+	color: #222;
+}
+.prop-description p,
+.content-page p,
+.content-page li {
+	color: #555;
+	line-height: 1.75;
+}
+.amenities-list {
+	list-style: none;
+	padding: 0;
+	columns: 2;
+	column-gap: 2rem;
+}
+.amenities-list li {
+	margin-bottom: .5rem;
+	break-inside: avoid;
+}
+.agent-box .social {
+	padding: 0;
+}
+
+/* Formularios de contacto */
+.lead-card {
+	text-align: left;
+	background: #fff;
+	border-radius: 8px;
+	padding: 28px;
+	box-shadow: 0 15px 40px -20px rgba(0, 32, 74, .25);
+}
+.lead-form .form-label {
+	font-size: 13px;
+	font-weight: 500;
+	color: #444;
+	margin-bottom: .25rem;
+}
+.lead-form .form-control {
+	border-radius: 6px;
+}
+.hp-field {
+	position: absolute !important;
+	left: -9999px !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+.lead-form-status:empty {
+	display: none;
+}
+
+.contact-list li {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 14px;
+	font-size: 16px;
+}
+.contact-list [class^="icon-"] {
+	color: var(--eq-primary);
+	font-size: 20px;
+	width: 24px;
+	text-align: center;
+}
+
+/* Listado con filtros */
+.listing-filters {
+	background: #fff;
+	padding: 20px;
+	border-radius: 8px;
+	box-shadow: 0 10px 30px -20px rgba(0, 0, 0, .3);
+	margin-top: -80px;
+	position: relative;
+	z-index: 3;
+}
+.listing-filters .form-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: #555;
+	margin-bottom: .25rem;
+}
+.custom-pagination a {
+	cursor: pointer;
+}
+
+/* Tarjetas VIP en /vip/ */
+.vip-card {
+	display: block;
+	position: relative;
+	overflow: hidden;
+	border-radius: 10px;
+	color: #fff;
+	text-decoration: none;
+}
+.vip-card img {
+	width: 100%;
+	aspect-ratio: 16 / 10;
+	object-fit: cover;
+	transition: transform .5s ease;
+}
+.vip-card:hover img {
+	transform: scale(1.05);
+}
+.vip-card-body {
+	position: absolute;
+	inset: auto 0 0 0;
+	padding: 24px;
+	background: linear-gradient(transparent, rgba(0, 0, 0, .8));
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+}
+.vip-card-title {
+	font-size: 1.4rem;
+	font-weight: 600;
+	color: #fff;
+}
+.vip-card-meta {
+	color: rgba(255, 255, 255, .8);
+	font-size: 14px;
+}
+
+/* Botón flotante de WhatsApp */
+.wa-float {
+	position: fixed;
+	right: 20px;
+	bottom: 20px;
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: #25d366;
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 28px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+	z-index: 1000;
+	transition: transform .2s ease;
+}
+.wa-float:hover,
+.wa-float:focus {
+	color: #fff;
+	transform: scale(1.08);
+}
+.vip-page .wa-float {
+	bottom: 84px;
+}
+@media (min-width: 768px) {
+	.vip-page .wa-float {
+		bottom: 20px;
+	}
+}
+
+.content-page h2,
+.content-page h3 {
+	color: var(--eq-primary);
+	margin-top: 2rem;
+}

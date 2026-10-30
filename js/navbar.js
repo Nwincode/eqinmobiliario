@@ -6,7 +6,9 @@
 	var siteMenuClone = function() {
 		var jsCloneNavs = document.querySelectorAll('.js-clone-nav');
 		var siteMobileMenuBody = document.querySelector('.site-mobile-menu-body');
-		
+		// Las landing VIP no tienen menú.
+		if (!siteMobileMenuBody) return;
+
 
 
 		jsCloneNavs.forEach(nav => {

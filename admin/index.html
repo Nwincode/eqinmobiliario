@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="noindex, nofollow">
+	<title>Panel · Equipo Inmobiliario</title>
+	<link rel="icon" href="/favicon.png">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="/css/bootstrap.css">
+	<link rel="stylesheet" href="/fonts/icomoon/style.css">
+	<link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+	<div id="app">
+		<div class="d-flex align-items-center justify-content-center gap-2 text-muted" style="min-height:100vh">
+			<div class="spinner-border spinner-border-sm" role="status"></div> Cargando panel…
+		</div>
+	</div>
+	<noscript>Este panel necesita JavaScript.</noscript>
+	<script src="/js/bootstrap.bundle.min.js"></script>
+	<script type="module" src="/admin/js/app.js"></script>
+	<script>
+		// Si Firebase no carga (sin internet o bloqueado por la red), avisar en vez de quedarse cargando.
+		setTimeout(function () {
+			var app = document.getElementById('app');
+			if (app && /Cargando panel/.test(app.textContent)) {
+				app.innerHTML = '<div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height:100vh"><p class="mb-3">No se pudo cargar el panel. Revisa tu conexión a internet o que la red no bloquee www.gstatic.com.</p><button class="btn btn-primary" onclick="location.reload()">Reintentar</button></div>';
+			}
+		}, 20000);
+	</script>
+</body>
+</html>
