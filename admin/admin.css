@@ -1,7 +1,7 @@
 :root {
-	--adm-primary: #0077a3;
+	--adm-primary: #1565c0;
 	--adm-cyan: #00b7e7;
-	--adm-dark: #101317;
+	--adm-dark: #0b2545;
 	--adm-bg: #f4f6f8;
 	--adm-border: #e3e7eb;
 }
@@ -15,9 +15,9 @@ body {
 .btn-primary {
 	--bs-btn-bg: var(--adm-primary);
 	--bs-btn-border-color: var(--adm-primary);
-	--bs-btn-hover-bg: #00668c;
-	--bs-btn-hover-border-color: #00668c;
-	--bs-btn-active-bg: #005878;
+	--bs-btn-hover-bg: #0f4f9e;
+	--bs-btn-hover-border-color: #0f4f9e;
+	--bs-btn-active-bg: #0b4285;
 	--bs-btn-disabled-bg: var(--adm-primary);
 	--bs-btn-disabled-border-color: var(--adm-primary);
 }

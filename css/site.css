@@ -1,11 +1,13 @@
 /* Estilos propios del sitio (complementan css/style.css de la plantilla). */
 
 :root {
-	--eq-primary: #0077a3;
+	--eq-primary: #1565c0;
 	--eq-cyan: #00b7e7;
-	--eq-mist: #e6f8fd;
-	--eq-white: #fcffff;
-	--eq-dark: #101317;
+	--eq-mist: #e8f1fb;
+	--eq-white: #ffffff;
+	--eq-dark: #0b2545;
+	--eq-navy-2: #13315c;
+	--eq-ink: #4a5b75;
 	--eq-gold: #c9a45c;
 }
 
@@ -82,19 +84,19 @@
 .prop-facts dt {
 	font-size: 12px;
 	font-weight: 500;
-	color: #5c6670;
+	color: #4a5b75;
 	text-transform: uppercase;
 	letter-spacing: .04em;
 }
 .prop-facts dd {
 	margin: 0;
 	font-weight: 600;
-	color: #222;
+	color: #0b2545;
 }
 .prop-description p,
 .content-page p,
 .content-page li {
-	color: #555;
+	color: #4a5b75;
 	line-height: 1.75;
 }
 .amenities-list {
@@ -122,7 +124,7 @@
 .lead-form .form-label {
 	font-size: 13px;
 	font-weight: 500;
-	color: #444;
+	color: #4a5b75;
 	margin-bottom: .25rem;
 }
 .lead-form .form-control {
@@ -166,7 +168,7 @@
 .listing-filters .form-label {
 	font-size: 12px;
 	font-weight: 600;
-	color: #555;
+	color: #4a5b75;
 	margin-bottom: .25rem;
 }
 .custom-pagination a {
@@ -293,7 +295,7 @@
 	padding: 20px 24px 24px;
 }
 .post-card h2 a {
-	color: #222;
+	color: #0b2545;
 	text-decoration: none;
 }
 .post-card h2 a:hover {
@@ -318,11 +320,11 @@
    cuerpo en gris al 50 % con !important; aquí se mantiene el gris pero legible. */
 .text-black-50,
 body {
-	color: #5c6670 !important;
+	color: #4a5b75 !important;
 }
 .property-item .property-content .specs .caption,
 .meta {
-	color: #5c6670;
+	color: #4a5b75;
 }
 .logo-media {
 	height: auto;
@@ -332,20 +334,20 @@ body {
 .site-footer,
 .site-footer p,
 .site-footer li {
-	color: #555b61;
+	color: #4a5b75;
 }
 .site-footer a {
-	color: #4a5056;
+	color: #4a5b75;
 }
 .box-feature p,
 .testimonial p,
 .person p {
-	color: #555b61;
+	color: #4a5b75;
 }
 
 /* Calculadora de cuota */
 .calc-card {
-	background: #e6f8fd;
+	background: #e8f1fb;
 	border-radius: 8px;
 	padding: 20px;
 }
@@ -368,7 +370,7 @@ body {
 
 .content-note {
 	border-left: 3px solid var(--eq-primary);
-	background: #e6f8fd;
+	background: #e8f1fb;
 	padding: 12px 16px;
 	margin: 1.5rem 0;
 	border-radius: 0 6px 6px 0;
@@ -379,7 +381,7 @@ body {
 
 /* Bloque para compradores en el extranjero */
 .exterior-block {
-	background: linear-gradient(135deg, #e6f8fd 0%, #fcffff 100%);
+	background: linear-gradient(135deg, #e8f1fb 0%, #ffffff 100%);
 }
 .exterior-kicker {
 	display: inline-block;
@@ -406,7 +408,7 @@ body {
 	padding: 14px 18px;
 	box-shadow: 0 8px 24px -18px rgba(0, 32, 74, .4);
 	font-weight: 500;
-	color: #2b3036;
+	color: #0b2545;
 }
 .exterior-list li span {
 	color: var(--eq-primary);
@@ -414,9 +416,9 @@ body {
 
 /* Selector de idioma en el menú */
 
-/* Identidad de marca (manual): negro #101317, cian #00b7e7, blanco #fcffff.
+/* Paleta: azul noche #0b2545, azul Equipo #1565c0, cian #00b7e7 (acento) y blanco.
    El cian puro va sobre fondos oscuros o como acento; sobre fondo claro se usa
-   el cian profundo (--eq-primary) para que los textos cumplan contraste AA. */
+   el azul Equipo (--eq-primary) para que los textos cumplan contraste AA. */
 body {
 	background-color: var(--eq-white);
 }
@@ -456,7 +458,7 @@ h2.heading::after,
 	font-weight: 600;
 }
 .hero .form-search .btn:hover {
-	background-color: #fcffff;
+	background-color: #ffffff;
 	color: var(--eq-dark);
 }
 
@@ -480,10 +482,10 @@ h2.heading::after,
 	float: none;
 	padding: 10px 14px 10px 20px;
 	border-radius: 999px;
-	background: rgba(16, 19, 23, .72);
+	background: rgba(11, 37, 69, .72);
 	-webkit-backdrop-filter: blur(14px) saturate(140%);
 	backdrop-filter: blur(14px) saturate(140%);
-	border: 1px solid rgba(252, 255, 255, .08);
+	border: 1px solid rgba(255, 255, 255, .08);
 	box-shadow: none;
 	transition: background-color .25s ease, box-shadow .25s ease, border-radius .25s ease;
 }
@@ -492,7 +494,7 @@ h2.heading::after,
 }
 .site-nav.is-scrolled .menu-bg-wrap {
 	background: var(--eq-dark);
-	box-shadow: 0 10px 30px -12px rgba(16, 19, 23, .55);
+	box-shadow: 0 10px 30px -12px rgba(11, 37, 69, .55);
 }
 .nav-brand {
 	display: inline-flex;
@@ -533,7 +535,7 @@ h2.heading::after,
 	padding: 8px 12px;
 	font-size: 14.5px;
 	font-weight: 400;
-	color: rgba(252, 255, 255, .78);
+	color: rgba(255, 255, 255, .78);
 	transition: color .2s ease;
 }
 .site-nav .site-navigation .site-menu > li > a:hover,
@@ -569,15 +571,15 @@ h2.heading::after,
 /* Desplegable de Propiedades */
 .site-nav .site-navigation .site-menu .has-children .dropdown {
 	background: var(--eq-dark);
-	border: 1px solid rgba(252, 255, 255, .1);
+	border: 1px solid rgba(255, 255, 255, .1);
 	border-radius: 14px;
 	padding: 8px;
 	margin-top: 10px;
-	box-shadow: 0 18px 40px -14px rgba(16, 19, 23, .6);
+	box-shadow: 0 18px 40px -14px rgba(11, 37, 69, .6);
 	min-width: 210px;
 }
 .site-nav .site-navigation .site-menu .has-children .dropdown > li > a {
-	color: rgba(252, 255, 255, .8);
+	color: rgba(255, 255, 255, .8);
 	border-radius: 8px;
 	padding: 9px 14px;
 	font-size: 14px;
@@ -593,7 +595,7 @@ h2.heading::after,
 	margin-left: 10px;
 	padding: 3px;
 	border-radius: 999px;
-	border: 1px solid rgba(252, 255, 255, .22);
+	border: 1px solid rgba(255, 255, 255, .22);
 }
 .site-menu .lang-switch a,
 .site-menu .lang-switch span {
@@ -612,7 +614,7 @@ h2.heading::after,
 	color: var(--eq-dark);
 }
 .site-menu .lang-switch a {
-	color: rgba(252, 255, 255, .7) !important;
+	color: rgba(255, 255, 255, .7) !important;
 }
 .site-menu .lang-switch a::after {
 	content: none !important;
@@ -673,7 +675,7 @@ h2.heading::after,
 	display: block !important;
 }
 .site-mobile-menu .site-nav-wrap a {
-	color: rgba(252, 255, 255, .85) !important;
+	color: rgba(255, 255, 255, .85) !important;
 	font-size: 16px;
 }
 .site-mobile-menu .site-nav-wrap li.active > a,
@@ -687,14 +689,14 @@ h2.heading::after,
 	background: rgba(0, 183, 231, .12);
 }
 .site-mobile-menu .site-nav-wrap > li {
-	border-bottom: 1px solid rgba(252, 255, 255, .08);
+	border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
 .site-mobile-menu .site-nav-wrap .lang-switch {
 	margin: 18px 20px 0;
 	border-bottom: 0;
 }
 .site-mobile-menu .site-nav-wrap .lang-switch a {
-	color: rgba(252, 255, 255, .7) !important;
+	color: rgba(255, 255, 255, .7) !important;
 }
 .site-mobile-menu .site-nav-wrap .nav-cta {
 	border-bottom: 0;
@@ -733,7 +735,7 @@ h2.heading::after,
 .site-mobile-menu .site-nav-wrap li.lang-switch {
 	align-items: center;
 	padding: 3px;
-	border: 1px solid rgba(252, 255, 255, .22) !important;
+	border: 1px solid rgba(255, 255, 255, .22) !important;
 	border-radius: 999px;
 }
 .site-mobile-menu .site-nav-wrap li.lang-switch span,
@@ -752,4 +754,228 @@ h2.heading::after,
 	width: auto;
 	max-width: 220px;
 	object-fit: contain;
+}
+
+/* ================================================================
+   Paleta azul: azul noche (estructura), azul Equipo (acciones),
+   cian (acento sobre azul) y bruma (fondos suaves). Sin grises lavados.
+   ================================================================ */
+body {
+	color: var(--eq-ink) !important;
+}
+h1, h2, h3, h4, h5, h6,
+.heading, .h1, .h2, .h3, .h4, .h5 {
+	color: var(--eq-dark);
+}
+.text-black-50 {
+	color: var(--eq-ink) !important;
+}
+.text-primary {
+	color: var(--eq-dark) !important;
+}
+a {
+	color: var(--eq-primary);
+}
+.bg-light {
+	background-color: var(--eq-mist) !important;
+}
+
+/* Portada y cabeceras: velo azul noche en lugar de negro */
+.hero.overlay:before,
+.hero-slide .img.overlay:before {
+	background: linear-gradient(180deg, rgba(11, 37, 69, .55) 0%, rgba(11, 37, 69, .35) 45%, rgba(11, 37, 69, .7) 100%) !important;
+}
+
+/* Botones */
+.btn.btn-primary,
+.btn-primary {
+	background: var(--eq-primary) !important;
+	border-color: var(--eq-primary) !important;
+	color: #fff !important;
+}
+.btn.btn-primary:hover,
+.btn-primary:hover,
+.btn-primary:focus {
+	background: var(--eq-dark) !important;
+	border-color: var(--eq-dark) !important;
+	color: #fff !important;
+}
+.btn-outline-primary {
+	color: var(--eq-primary) !important;
+	border-color: var(--eq-primary) !important;
+}
+.btn-outline-primary:hover {
+	background: var(--eq-primary) !important;
+	color: #fff !important;
+}
+
+/* Tarjetas de propiedad */
+.property-item {
+	background: #fff;
+	border-radius: 14px;
+	overflow: hidden;
+	box-shadow: 0 1px 2px rgba(11, 37, 69, .06), 0 10px 30px -18px rgba(11, 37, 69, .35);
+	border: 1px solid rgba(11, 37, 69, .06);
+}
+.property-item .img img {
+	border-radius: 0;
+}
+.property-item .property-content {
+	padding: 22px 22px 24px;
+}
+.property-item .property-content .price {
+	color: var(--eq-primary);
+}
+.property-item .property-content .price span::after {
+	background: var(--eq-cyan) !important;
+}
+.property-item .property-content .city {
+	color: var(--eq-dark);
+}
+.prop-badge {
+	background: var(--eq-dark);
+	color: #fff;
+}
+.prop-badge-vip {
+	background: var(--eq-gold);
+	color: var(--eq-dark);
+}
+
+/* Tarjetas destacadas (features): blancas sobre bruma, icono en azul */
+.features-1 {
+	background-color: var(--eq-mist) !important;
+	padding-bottom: 40px;
+}
+.features-1 .box-feature {
+	background: #fff;
+	border-radius: 14px;
+	padding: 32px 24px;
+	box-shadow: 0 10px 30px -20px rgba(11, 37, 69, .45);
+	height: 100%;
+}
+.features-1 .box-feature span[class^="flaticon"],
+.features-1 .box-feature [class*=" flaticon"] {
+	color: var(--eq-primary);
+}
+.features-1 .box-feature h3 {
+	color: var(--eq-dark);
+}
+
+/* Servicios: iconos en círculo azul */
+.feature-h .wrap-icon {
+	background: var(--eq-dark) !important;
+	color: var(--eq-cyan) !important;
+}
+
+/* Contadores: franja azul noche con cifras en cian */
+.section-counter {
+	background: var(--eq-dark);
+	border-radius: 18px;
+	padding: 44px 24px 12px;
+	margin-left: 0;
+	margin-right: 0;
+}
+.section-counter .counter-wrap .number,
+.section-counter .countup {
+	color: var(--eq-cyan) !important;
+}
+.section-counter .caption {
+	color: rgba(255, 255, 255, .82) !important;
+}
+
+/* Llamado a la acción: bloque azul */
+.footer-cta {
+	background: linear-gradient(135deg, var(--eq-dark) 0%, var(--eq-navy-2) 100%);
+	border-radius: 18px;
+	padding: 56px 24px;
+	margin: 0 auto;
+	max-width: 1110px;
+}
+.footer-cta h2 {
+	color: #fff;
+}
+.footer-cta .btn.btn-primary {
+	background: var(--eq-cyan) !important;
+	border-color: var(--eq-cyan) !important;
+	color: var(--eq-dark) !important;
+	font-weight: 600;
+}
+.footer-cta .btn.btn-primary:hover {
+	background: #fff !important;
+	border-color: #fff !important;
+	color: var(--eq-dark) !important;
+}
+
+/* Reseñas y asesores */
+.sec-testimonials {
+	background: #fff;
+}
+.testimonial .name,
+.person h2,
+.person .h5 {
+	color: var(--eq-dark);
+}
+.person,
+.section-5 .person {
+	background: #fff;
+	border-radius: 14px;
+	box-shadow: 0 10px 30px -22px rgba(11, 37, 69, .5);
+}
+
+/* Pie de página azul noche */
+.site-footer {
+	background: var(--eq-dark) !important;
+	color: rgba(255, 255, 255, .75);
+}
+.site-footer h3,
+.site-footer .widget h3 {
+	color: #fff !important;
+}
+.site-footer,
+.site-footer p,
+.site-footer li,
+.site-footer .text-black-50,
+.site-footer small {
+	color: rgba(255, 255, 255, .72) !important;
+}
+.site-footer a {
+	color: rgba(255, 255, 255, .88) !important;
+}
+.site-footer a:hover {
+	color: var(--eq-cyan) !important;
+}
+.site-footer .social li a {
+	background: rgba(255, 255, 255, .1) !important;
+	color: #fff !important;
+}
+.property-item .img,
+.property-item .img img {
+	display: block;
+	width: 100% !important;
+	max-width: none;
+}
+.site-footer a {
+	text-decoration: none !important;
+}
+.site-footer a:hover {
+	text-decoration: underline !important;
+}
+/* En el carrusel, tiny-slider usa padding como separación: la tarjeta se dibuja en el contenido. */
+.property-slider .property-item {
+	background: none;
+	box-shadow: none;
+	border: 0;
+	border-radius: 0;
+	overflow: visible;
+}
+.property-slider .property-item > .img {
+	border-radius: 14px 14px 0 0;
+	overflow: hidden;
+}
+.property-slider .property-item > .property-content {
+	background: #fff;
+	border: 1px solid rgba(11, 37, 69, .06);
+	border-top: 0;
+	border-radius: 0 0 14px 14px;
+	box-shadow: 0 14px 28px -20px rgba(11, 37, 69, .4);
 }

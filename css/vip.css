@@ -4,7 +4,7 @@
 	--vip-gold: #c9a45c;
 	--vip-gold-ink: #85662b; /* dorado oscuro: contraste AA sobre fondos claros */
 	color: #3d4650 !important;
-	--vip-ink: #101317;
+	--vip-ink: #0b2545;
 	background: #fff;
 }
 
@@ -280,7 +280,7 @@
 	display: block;
 }
 .vip-agent small {
-	color: #5c6670;
+	color: #4a5b75;
 }
 
 .vip-footer {
