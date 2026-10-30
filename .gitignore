@@ -3,3 +3,7 @@ dist/
 .DS_Store
 .firebase/
 *.log
+
+# Respaldos locales
+*.bundle
+eqinmobiliario-sitio.zip

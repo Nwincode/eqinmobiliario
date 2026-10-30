@@ -20,6 +20,7 @@ async function importSeed(btn) {
 		add('agents', seed.agents);
 		add('testimonials', seed.testimonials);
 		add('pages', seed.pages);
+		add('posts', seed.posts || []);
 		batch.set(doc(db, 'meta', 'publish'), { pendiente: true, ultimoCambio: now, ultimoCambioDesc: 'Importación inicial' }, { merge: true });
 		await batch.commit();
 		toast('Datos importados. Ya puedes editarlos y publicar.');

@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
 
 // Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404']);
+const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -36,7 +36,8 @@ async function loadData(config) {
 		properties: seed.properties.filter((p) => p.publicado),
 		agents: seed.agents.filter((a) => a.activo),
 		testimonials: seed.testimonials.filter((t) => t.activo),
-		pages: seed.pages.filter((p) => p.publicado)
+		pages: seed.pages.filter((p) => p.publicado),
+		posts: (seed.posts || []).filter((p) => p.publicado)
 	});
 
 	if (!fb.projectId || !fb.apiKey) {
@@ -58,14 +59,15 @@ async function loadData(config) {
 		console.log('· Firestore aún no tiene settings/site (importa los datos iniciales desde el panel): se usa data/seed.json');
 		return { ...fromSeed(), defaults: seed.settings };
 	}
-	const [properties, agents, testimonials, pages] = await Promise.all([
+	const [properties, agents, testimonials, pages, posts] = await Promise.all([
 		db.queryTrue('properties', 'publicado'),
 		db.queryTrue('agents', 'activo'),
 		db.queryTrue('testimonials', 'activo'),
-		db.queryTrue('pages', 'publicado')
+		db.queryTrue('pages', 'publicado'),
+		db.queryTrue('posts', 'publicado')
 	]);
 	console.log(`· Datos leídos de Firestore (${fb.projectId})`);
-	return { source: 'firestore', settings, properties, agents, testimonials, pages, defaults: seed.settings };
+	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults: seed.settings };
 }
 
 function toMillis(v) {
@@ -100,6 +102,32 @@ function normalizePages(list) {
 			return { ...p, slug, url: RESERVED.has(slug) ? `/pagina/${slug}/` : `/${slug}/` };
 		})
 		.sort(byOrder);
+}
+
+function normalizePosts(list) {
+	const used = new Set();
+	return list
+		.map((p) => {
+			let slug = slugify(p.slug || p.titulo) || p.id;
+			if (used.has(slug)) slug = `${slug}-${slugify(p.id).slice(0, 8)}`;
+			used.add(slug);
+			return { ...p, slug, url: `/blog/${slug}/` };
+		})
+		.sort((a, b) => toMillis(b.fecha || b.createdAt) - toMillis(a.fecha || a.createdAt));
+}
+
+// Una página por zona con al menos una propiedad publicada (búsquedas locales: "casas en zona 16").
+function buildZonas(properties) {
+	const counts = new Map();
+	for (const p of properties) if (p.zona) counts.set(p.zona, (counts.get(p.zona) || 0) + 1);
+	return [...counts.entries()]
+		.map(([nombre, total]) => {
+			let slug = slugify(nombre);
+			if (['venta', 'renta'].includes(slug)) slug = `zona-${slug}`;
+			return { nombre, total, url: `/propiedades/${slug}/` };
+		})
+		.filter((z) => z.url !== '/propiedades//')
+		.sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
 }
 
 async function writePage(urlPath, html) {
@@ -146,6 +174,8 @@ async function main() {
 		agentsById: Object.fromEntries(agents.map((a) => [a.id, a])),
 		testimonials: data.testimonials.slice().sort(byOrder),
 		pages,
+		posts: normalizePosts(data.posts || []),
+		zonas: buildZonas(properties),
 		publicConfig: {
 			projectId: config.firebase.projectId || '',
 			apiKey: config.firebase.apiKey || '',
@@ -169,6 +199,25 @@ async function main() {
 	for (const l of listings) {
 		await writePage(l.path, T.listingPage(ctx, l));
 		urls.push({ path: l.path, priority: '0.9' });
+	}
+
+	for (const z of ctx.zonas) {
+		await writePage(z.url, T.listingPage(ctx, {
+			path: z.url,
+			zona: z.nombre,
+			heading: `Propiedades en ${z.nombre}`,
+			title: `Casas y apartamentos en ${z.nombre}, Guatemala | ${site.general.nombreCorto}`,
+			description: `Propiedades en venta y renta en ${z.nombre}, Guatemala. ${z.total === 1 ? '1 propiedad disponible' : `${z.total} propiedades disponibles`} con asesoría personalizada.`,
+			intro: `Casas, apartamentos y terrenos en ${z.nombre}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`
+		}));
+		urls.push({ path: z.url, priority: '0.8' });
+	}
+
+	await writePage('/blog/', T.blogIndexPage(ctx));
+	urls.push({ path: '/blog/', priority: '0.6' });
+	for (const post of ctx.posts) {
+		await writePage(post.url, T.blogPostPage(ctx, post));
+		urls.push({ path: post.url, priority: '0.6', lastmod: String(post.fecha || '').slice(0, 10) || undefined });
 	}
 
 	await writePage('/vip/', T.vipIndexPage(ctx));

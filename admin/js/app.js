@@ -13,9 +13,10 @@ const ROUTES = [
 	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', load: () => import('./views/agents.js'), admin: true },
 	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', load: () => import('./views/testimonials.js'), admin: true },
 	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', load: () => import('./views/pages.js'), admin: true },
+	{ path: 'blog', label: 'Blog', icon: 'icon-rss-square', load: () => import('./views/blog.js'), admin: true },
 	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', load: () => import('./views/content.js'), admin: true },
 	{ path: 'usuarios', label: 'Usuarios', icon: 'icon-vcard', load: () => import('./views/users.js'), admin: true },
-	{ path: 'publicar', label: 'Publicar', icon: 'icon-rss-square', load: () => import('./views/publish.js') }
+	{ path: 'publicar', label: 'Publicar', icon: 'icon-external-link-square', load: () => import('./views/publish.js') }
 ];
 
 const root = document.getElementById('app');

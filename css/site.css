@@ -245,3 +245,54 @@
 	color: var(--eq-primary);
 	margin-top: 2rem;
 }
+
+/* Compartir propiedad */
+.share-buttons {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.share-buttons a,
+.share-buttons button {
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	border: 1px solid #e3e3e3;
+	background: #fff;
+	color: var(--eq-primary);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	transition: background .2s ease, color .2s ease;
+}
+.share-buttons a:hover,
+.share-buttons button:hover,
+.share-buttons button.copied {
+	background: var(--eq-primary);
+	color: #fff;
+}
+
+/* Blog */
+.post-card {
+	background: #fff;
+	border-radius: 8px;
+	overflow: hidden;
+	height: 100%;
+	box-shadow: 0 10px 30px -20px rgba(0, 0, 0, .35);
+}
+.post-card-img img {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	object-fit: cover;
+}
+.post-card-body {
+	padding: 20px 24px 24px;
+}
+.post-card h2 a {
+	color: #222;
+	text-decoration: none;
+}
+.post-card h2 a:hover {
+	color: var(--eq-primary);
+}

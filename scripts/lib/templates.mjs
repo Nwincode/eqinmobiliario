@@ -169,6 +169,7 @@ function footer(ctx) {
 	const hasVip = ctx.properties.some((p) => p.vip);
 	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== '/vip/');
 	const pageLinks = ctx.pages.filter((p) => p.enFooter);
+	if (ctx.posts.length) pageLinks.unshift({ url: '/blog/', titulo: 'Blog' });
 	const wa = whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje);
 	return `<div class="site-footer">
 		<div class="container">
@@ -201,12 +202,16 @@ function footer(ctx) {
 					<div class="widget">
 						<h3>Síguenos</h3>
 						<ul class="list-unstyled social">${socialLinks(site)}</ul>
+						${ctx.zonas.length ? `<h3 class="mt-4">Zonas</h3>
+						<ul class="list-unstyled links">
+							${ctx.zonas.slice(0, 8).map((z) => `<li><a href="${esc(z.url)}" title="Propiedades en ${esc(z.nombre)}">${esc(z.nombre)}</a></li>`).join('')}
+						</ul>` : ''}
 					</div>
 				</div>
 			</div>
 			<div class="row mt-5">
 				<div class="col-12 text-center">
-					<p>Copyright &copy; ${new Date().getFullYear()} ${esc(site.general.nombre)}. Todos los derechos reservados.
+					<p>Copyright &copy; ${new Date().getFullYear()} ${esc(String(site.general.nombre).replace(/\.$/, ''))}. Todos los derechos reservados.
 					<small class="d-block mt-2 text-black-50">Diseño basado en una plantilla de <a href="https://untree.co" rel="noopener">Untree.co</a></small></p>
 				</div>
 			</div>
@@ -566,8 +571,8 @@ export function homePage(ctx) {
 
 // ---------------------------------------------------------------- Listado
 
-export function listingPage(ctx, { path, title, heading, description, operacion = '' }) {
-	const list = operacion ? ctx.properties.filter((p) => p.operacion === operacion) : ctx.properties;
+export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '' }) {
+	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
 	const crumbs = [{ name: 'Inicio', url: '/' }, { name: heading, url: path }];
@@ -605,7 +610,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<label class="form-label" for="f-zona">Zona</label>
 					<select class="form-select" id="f-zona" name="zona">
 						<option value="">Todas</option>
-						${zonas.map((z) => `<option value="${esc(z)}">${esc(z)}</option>`).join('')}
+						${zonas.map((z) => `<option value="${esc(z)}"${z === zona ? ' selected' : ''}>${esc(z)}</option>`).join('')}
 					</select>
 				</div>
 				<div class="col-6 col-md-4 col-lg-2">
@@ -635,6 +640,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 				</div>
 			</form>
 
+			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
 			<p class="text-black-50 mb-4" id="listing-count" aria-live="polite">${plural(list.length, 'propiedad', 'propiedades')}</p>
 
 			<div class="row" id="listing-grid">
@@ -660,7 +666,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		title,
 		description,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
-		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}"`
+		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}"`
 	}, body);
 }
 
@@ -724,6 +730,17 @@ function viewContentAttrs(p) {
 	return `data-view-content='${esc(JSON.stringify({ content_ids: [p.id], content_name: p.titulo, content_type: 'home_listing', value: p.precio || 0, currency: p.moneda || 'USD' }))}'`;
 }
 
+function shareButtons(ctx, p) {
+	const url = absUrl(ctx, propertyUrl(p));
+	const text = `${p.titulo} – ${formatPrice(p.precio, p.moneda, p.operacion)}`;
+	return `<div class="share-buttons mb-3" aria-label="Compartir">
+						<span class="small text-black-50 me-1">Compartir:</span>
+						<a href="https://wa.me/?text=${esc(encodeURIComponent(`${text} ${url}`))}" target="_blank" rel="noopener" aria-label="Compartir por WhatsApp"><span class="icon-whatsapp"></span></a>
+						<a href="https://www.facebook.com/sharer/sharer.php?u=${esc(encodeURIComponent(url))}" target="_blank" rel="noopener" aria-label="Compartir en Facebook"><span class="icon-facebook"></span></a>
+						<button type="button" class="js-copy-link" data-url="${esc(url)}" aria-label="Copiar enlace"><span class="icon-external-link-square"></span></button>
+					</div>`;
+}
+
 export function propertyPage(ctx, p) {
 	const agent = ctx.agentsById[p.agentId];
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
@@ -761,6 +778,7 @@ export function propertyPage(ctx, p) {
 					<h2 class="heading text-primary">${esc(p.titulo)}</h2>
 					<p class="meta">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</p>
 					<p class="prop-price">${esc(formatPrice(p.precio, p.moneda, p.operacion))}</p>
+					${shareButtons(ctx, p)}
 					${estadoBadge(p, true)}
 					${factsList(p)}
 					${agentBox(ctx, agent, p)}
@@ -1000,6 +1018,87 @@ export function contentPage(ctx, page) {
 		description: (page.seo && page.seo.descripcion) || stripMarkdown(page.contenido),
 		image: page.imagen,
 		jsonLd: [breadcrumbLd(ctx, crumbs)]
+	}, body);
+}
+
+// ---------------------------------------------------------------- Blog
+
+function postDate(post) {
+	const d = new Date(post.fecha || post.createdAt || Date.now());
+	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export function blogIndexPage(ctx) {
+	const crumbs = [{ name: 'Inicio', url: '/' }, { name: 'Blog', url: '/blog/' }];
+	const body = `
+	${pageHero('Blog', ctx.site.hero.imagenes[1] || ctx.site.hero.imagenes[0] || '/images/hero_bg_2.jpg', crumbs)}
+	<div class="section">
+		<div class="container">
+			<div class="row">
+				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
+					<article class="post-card">
+						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.jpg')}" alt="${esc(post.titulo)}" loading="lazy"></a>
+						<div class="post-card-body">
+							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${esc(postDate(post))}</time>
+							<h2 class="h5 mt-2"><a href="${esc(post.url)}">${esc(post.titulo)}</a></h2>
+							<p class="text-black-50 small">${esc(truncate(post.resumen || stripMarkdown(post.contenido), 150))}</p>
+							<a href="${esc(post.url)}" class="small fw-semibold">Leer más →</a>
+						</div>
+					</article>
+				</div>`).join('\n') : '<p class="text-center text-black-50">Pronto publicaremos artículos sobre el mercado inmobiliario en Guatemala.</p>'}
+			</div>
+		</div>
+	</div>`;
+	return layout(ctx, {
+		path: '/blog/',
+		title: `Blog inmobiliario | ${ctx.site.general.nombreCorto}`,
+		description: 'Consejos para comprar, vender y rentar propiedades en Guatemala: financiamiento, zonas, trámites y tendencias del mercado.',
+		jsonLd: [breadcrumbLd(ctx, crumbs)]
+	}, body);
+}
+
+export function blogPostPage(ctx, post) {
+	const crumbs = [{ name: 'Inicio', url: '/' }, { name: 'Blog', url: '/blog/' }, { name: post.titulo, url: post.url }];
+	const description = (post.seo && post.seo.descripcion) || post.resumen || stripMarkdown(post.contenido);
+	const articleLd = {
+		'@context': 'https://schema.org',
+		'@type': 'BlogPosting',
+		headline: post.titulo,
+		description: truncate(description, 300),
+		image: post.imagen ? absUrl(ctx, post.imagen) : undefined,
+		datePublished: post.fecha || post.createdAt || undefined,
+		dateModified: post.updatedAt || post.fecha || undefined,
+		author: { '@type': post.autor ? 'Person' : 'Organization', name: post.autor || ctx.site.general.nombre },
+		publisher: { '@type': 'Organization', name: ctx.site.general.nombre, logo: { '@type': 'ImageObject', url: absUrl(ctx, ctx.site.general.logo) } },
+		mainEntityOfPage: absUrl(ctx, post.url)
+	};
+	const others = ctx.posts.filter((o) => o.id !== post.id).slice(0, 3);
+	const body = `
+	${pageHero(post.titulo, post.imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.jpg', crumbs)}
+	<div class="section">
+		<div class="container">
+			<div class="row justify-content-center">
+				<article class="col-lg-8 content-page">
+					<p class="small text-black-50 mb-4">${esc(postDate(post))}${post.autor ? ` · ${esc(post.autor)}` : ''}</p>
+					${markdown(post.contenido)}
+					<div class="lead-card mt-5">${leadForm({ origen: 'blog', titulo: '¿Buscas una propiedad? Te asesoramos sin costo' })}</div>
+				</article>
+			</div>
+		</div>
+	</div>
+	${others.length ? `<div class="section bg-light">
+		<div class="container">
+			<h2 class="font-weight-bold text-primary heading mb-5">Más artículos</h2>
+			<div class="row">${others.map((o) => `<div class="col-md-4 mb-4"><a class="d-block fw-semibold" href="${esc(o.url)}">${esc(o.titulo)}</a><span class="small text-black-50">${esc(postDate(o))}</span></div>`).join('')}</div>
+		</div>
+	</div>` : ''}`;
+	return layout(ctx, {
+		path: post.url,
+		title: (post.seo && post.seo.titulo) || `${post.titulo} | Blog ${ctx.site.general.nombreCorto}`,
+		description,
+		image: post.imagen,
+		ogType: 'article',
+		jsonLd: [articleLd, breadcrumbLd(ctx, crumbs)]
 	}, body);
 }
 

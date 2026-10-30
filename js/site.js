@@ -132,6 +132,7 @@
 		var emptyEl = document.getElementById('listing-empty');
 		var pager = document.getElementById('listing-pagination');
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
+		var presetZona = document.body.getAttribute('data-preset-zona') || '';
 		var page = 1;
 		var lastSearch = '';
 
@@ -215,9 +216,17 @@
 			location.href = '/propiedades/' + (op ? op + '/' : '') + qs;
 		});
 
+		// En la página de una zona, elegir otra zona lleva al listado general filtrado.
+		if (presetZona) {
+			form.elements.zona.addEventListener('change', function () {
+				var z = form.elements.zona.value;
+				location.href = '/propiedades/' + (preset ? preset + '/' : '') + (z ? '?zona=' + encodeURIComponent(z) : '');
+			});
+		}
+
 		var timer;
 		form.addEventListener('input', function (e) {
-			if (e.target.name === 'operacion') return;
+			if (e.target.name === 'operacion' || (presetZona && e.target.name === 'zona')) return;
 			clearTimeout(timer);
 			timer = setTimeout(function () { page = 1; apply(true); }, 250);
 		});
@@ -225,6 +234,7 @@
 		form.addEventListener('reset', function () {
 			setTimeout(function () {
 				form.elements.operacion.value = preset;
+				if (presetZona) form.elements.zona.value = presetZona;
 				page = 1;
 				apply(true);
 			});
@@ -240,6 +250,21 @@
 
 		apply(false);
 	}
+
+	// ------------------------------------------------------------ Copiar enlace de una propiedad
+
+	document.querySelectorAll('.js-copy-link').forEach(function (btn) {
+		btn.addEventListener('click', function () {
+			var url = btn.getAttribute('data-url');
+			var ok = function () {
+				btn.classList.add('copied');
+				btn.setAttribute('aria-label', 'Enlace copiado');
+				setTimeout(function () { btn.classList.remove('copied'); btn.setAttribute('aria-label', 'Copiar enlace'); }, 2000);
+			};
+			if (navigator.clipboard) navigator.clipboard.writeText(url).then(ok, function () { window.prompt('Copia el enlace:', url); });
+			else window.prompt('Copia el enlace:', url);
+		});
+	});
 
 	// ------------------------------------------------------------ Galería de la landing VIP
 

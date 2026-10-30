@@ -216,6 +216,34 @@ async function renderEditor(container, id) {
 		}
 	};
 
+	// La copia reutiliza las fotos sin su ruta de almacenamiento, para que borrar
+	// fotos de la copia no elimine las de la original.
+	const duplicate = async (btn) => {
+		btn.disabled = true;
+		try {
+			const copy = collection(db, 'properties');
+			const newRef = doc(copy);
+			const titulo = `${data.titulo} (copia)`;
+			await setDoc(newRef, {
+				...data,
+				titulo,
+				slug: slugify(titulo),
+				publicado: false,
+				destacada: false,
+				fotos: (data.fotos || []).map(({ url, alt }) => ({ url, alt: alt || '' })),
+				agentId: session.isAdmin ? data.agentId || '' : session.agentId,
+				createdAt: serverTimestamp(),
+				updatedAt: serverTimestamp(),
+				createdBy: session.user.uid
+			});
+			toast('Copia creada como borrador. Ajusta los datos y guarda.');
+			location.hash = `#/propiedades/${newRef.id}`;
+		} catch (err) {
+			showError(err);
+			btn.disabled = false;
+		}
+	};
+
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
 	container.append(
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
@@ -226,6 +254,7 @@ async function renderEditor(container, id) {
 		h('div', { class: 'sticky-actions' },
 			saveBtn,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Cancelar'),
+			!isNew ? h('button', { class: 'btn btn-outline-secondary', onclick: (e) => duplicate(e.currentTarget) }, 'Duplicar') : null,
 			!isNew && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: remove }, 'Eliminar') : null));
 }
 

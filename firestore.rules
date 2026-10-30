@@ -94,6 +94,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /posts/{id} {
+      allow read: if resource.data.publicado == true || isStaff();
+      allow write: if isAdmin();
+    }
+
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
       allow create: if request.resource.data.keys().hasOnly([

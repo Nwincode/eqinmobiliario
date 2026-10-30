@@ -1,7 +1,7 @@
 import { h, badge, slugify, toast } from '../ui.js';
 import { crudView } from '../crud.js';
 
-const RESERVED = ['propiedades', 'propiedad', 'vip', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404'];
+const RESERVED = ['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404'];
 
 export const render = crudView({
 	collection: 'pages',
