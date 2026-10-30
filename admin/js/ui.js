@@ -25,6 +25,11 @@ export function h(tag, attrs = {}, ...children) {
 	return el;
 }
 
+// Agrega hijos a un elemento ignorando los vacíos (null, false, undefined).
+export function mount(el, ...children) {
+	el.append(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+}
+
 export function slugify(text) {
 	return String(text || '')
 		.normalize('NFD').replace(/[̀-ͯ]/g, '')

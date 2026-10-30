@@ -1,7 +1,7 @@
 import { db, getDocs, collection } from '../firebase.js';
-import { h, pageHeader, formatDate, toDate } from '../ui.js';
+import { h, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
-import { loadLeads, estadoBadge, ESTADOS } from './leads.js';
+import { loadLeads, estadoBadge, ESTADOS, ORIGENES } from './leads.js';
 
 function stat(label, value, href) {
 	return h('div', { class: 'col-6 col-lg-3' },
@@ -26,11 +26,11 @@ export async function render(container) {
 	const byOrigen = Object.entries(last30.reduce((acc, l) => { acc[l.origen || 'otro'] = (acc[l.origen || 'otro'] || 0) + 1; return acc; }, {}));
 	const max = Math.max(1, ...byEstado.map(([, n]) => n));
 
-	container.append(
+	mount(container, 
 		pageHeader(`Hola, ${(session.profile.nombre || '').split(' ')[0] || 'bienvenido'}`,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
-			h('span', { class: 'me-auto' }, `Hay cambios sin publicar (último: ${publish.ultimoCambioDesc || '—'}, ${formatDate(publish.ultimoCambio)}).`),
+			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
 		h('div', { class: 'row g-3 mb-4' },
 			stat(session.isAdmin ? 'Propiedades publicadas' : 'Mis propiedades publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
@@ -44,7 +44,7 @@ export async function render(container) {
 					h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 						h('div', { class: 'me-auto' },
 							h('div', { class: 'fw-semibold' }, l.nombre),
-							h('div', { class: 'small text-muted' }, `${l.propertyTitulo || l.origen || ''} · ${formatDate(l.createdAt)}`)),
+							h('div', { class: 'small text-muted' }, `${l.propertyTitulo || ORIGENES[l.origen] || l.origen || ''} · ${formatDate(l.createdAt)}`)),
 						estadoBadge(l.estado))))
 					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
 				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),
@@ -57,6 +57,6 @@ export async function render(container) {
 				h('div', { class: 'card' },
 					h('div', { class: 'card-header bg-white fw-semibold' }, 'Origen de leads (30 días)'),
 					h('div', { class: 'card-body' }, byOrigen.length
-						? byOrigen.map(([o, n]) => h('div', { class: 'd-flex justify-content-between small mb-1' }, h('span', {}, o), h('strong', {}, n)))
+						? byOrigen.map(([o, n]) => h('div', { class: 'd-flex justify-content-between small mb-1' }, h('span', {}, ORIGENES[o] || o), h('strong', {}, n)))
 						: h('span', { class: 'text-muted small' }, 'Sin datos todavía.'))))) : null);
 }

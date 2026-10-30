@@ -1,7 +1,7 @@
 import {
 	auth, db, doc, getDocs, setDoc, updateDoc, collection, serverTimestamp, createAccount, sendPasswordResetEmail
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, modal, formatDate } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, modal, formatDate , mount } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 
 const ROLES = [['asesor', 'Asesor (sus propiedades y leads)'], ['admin', 'Administrador (acceso total)']];
@@ -111,7 +111,7 @@ export async function render(container) {
 		});
 	};
 
-	container.append(
+	mount(container, 
 		pageHeader('Usuarios', h('button', { class: 'btn btn-primary', onclick: create }, '+ Nuevo usuario')),
 		h('p', { class: 'text-muted' }, 'Los administradores gestionan todo el sitio. Los asesores solo ven y editan sus propiedades y sus leads. Para quitar el acceso a alguien, desactívalo.'),
 		h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },

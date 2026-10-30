@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
-} from '../ui.js';
+, mount } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 
 export const ESTADOS = [
@@ -13,7 +13,7 @@ export const ESTADOS = [
 	['cerrado', 'Cerrado (ganado)', 'success'],
 	['descartado', 'Descartado', 'secondary']
 ];
-const ORIGENES = { contacto: 'Formulario de contacto', propiedad: 'Ficha de propiedad', vip: 'Landing VIP', listado: 'Listado' };
+export const ORIGENES = { contacto: 'Formulario de contacto', propiedad: 'Ficha de propiedad', vip: 'Landing VIP', listado: 'Listado', blog: 'Blog' };
 
 export function estadoBadge(estado) {
 	const e = ESTADOS.find(([v]) => v === estado) || ESTADOS[0];
@@ -98,7 +98,7 @@ function openLead(lead, agents, onChange) {
 
 export async function render(container) {
 	if (!session.isAdmin && !session.agentId) {
-		container.append(h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor, así que no tienes leads asignados.'));
+		mount(container, h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor, así que no tienes leads asignados.'));
 		return;
 	}
 	const [leads, agents] = await Promise.all([loadLeads(), loadAgents()]);
@@ -133,7 +133,7 @@ export async function render(container) {
 		...filtered().map((l) => [formatDate(l.createdAt), l.nombre, l.telefono, l.email, l.mensaje, l.propertyTitulo, ORIGENES[l.origen] || l.origen, agentName[l.agentId] || '', ESTADOS.find(([v]) => v === l.estado)?.[1] || l.estado])
 	]);
 
-	container.append(
+	mount(container, 
 		pageHeader('Leads', leads.length ? h('button', { class: 'btn btn-outline-primary', onclick: exportCsv }, 'Exportar a Excel (CSV)') : null),
 		leads.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },

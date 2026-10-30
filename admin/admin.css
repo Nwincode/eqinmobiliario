@@ -341,3 +341,25 @@ a {
 .seo-checks .warn {
 	color: #a35d00;
 }
+
+/* El panel usa Bootstrap 5.0: estas utilidades llegaron en 5.2 */
+.text-bg-primary { color: #fff !important; background-color: var(--adm-primary) !important; }
+.text-bg-secondary { color: #fff !important; background-color: #6c757d !important; }
+.text-bg-success { color: #fff !important; background-color: #198754 !important; }
+.text-bg-info { color: #000 !important; background-color: #9eeaf9 !important; }
+.text-bg-warning { color: #000 !important; background-color: #ffc107 !important; }
+.text-bg-danger { color: #fff !important; background-color: #dc3545 !important; }
+.text-bg-light { color: #212529 !important; background-color: #f8f9fa !important; }
+.nav-pills .nav-link {
+	border: 0;
+	background: #fff;
+	color: #3e4c59;
+	font-weight: 500;
+}
+.nav-pills .nav-link.active {
+	background: var(--adm-primary);
+	color: #fff;
+}
+.admin-brand img {
+	height: 34px;
+}

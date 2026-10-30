@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-} from '../ui.js';
+, mount } from '../ui.js';
 import { renderForm, deleteImage } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -93,7 +93,7 @@ export async function render(container, [id]) {
 	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
 	draw();
 
-	container.append(
+	mount(container, 
 		pageHeader('Propiedades', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
@@ -175,7 +175,7 @@ async function renderEditor(container, id) {
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
 	const [snap, agentOpts, all] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll()]);
 	if (!isNew && !snap.exists()) {
-		container.append(emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
+		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
 	}
 	const data = isNew
@@ -183,13 +183,13 @@ async function renderEditor(container, id) {
 		: snap.data();
 
 	if (!isNew && !canEdit(data)) {
-		container.append(pageHeader(data.titulo, h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
+		mount(container, pageHeader(data.titulo, h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 			h('div', { class: 'alert alert-info' }, 'Esta propiedad pertenece a otro asesor; solo puedes verla.'),
 			h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio'));
 		return;
 	}
 	if (!session.isAdmin && !session.agentId) {
-		container.append(h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor. Pide a un administrador que lo vincule en "Usuarios".'));
+		mount(container, h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor. Pide a un administrador que lo vincule en "Usuarios".'));
 		return;
 	}
 
@@ -278,7 +278,7 @@ async function renderEditor(container, id) {
 	};
 
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
-	container.append(
+	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),

@@ -1,5 +1,5 @@
 import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, formatDate, confirmDialog } from '../ui.js';
+import { h, toast, showError, pageHeader, formatDate, confirmDialog , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 
 // Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
@@ -71,7 +71,7 @@ export async function render(container) {
 		} catch (err) { showError(err); }
 	};
 
-	container.append(
+	mount(container, 
 		pageHeader('Publicar el sitio'),
 		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
 			h('p', {}, 'Los cambios que haces en el panel se guardan al instante, pero el sitio público se regenera al publicar. Así las páginas cargan rápido y Google las indexa completas.'),

@@ -128,7 +128,7 @@ function shell() {
 	const publishBadge = h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning d-none', id: 'publish-pending' }, 'Cambios sin publicar');
 	const main = h('main', { class: 'admin-main', id: 'view' });
 	const sidebar = h('aside', { class: 'admin-sidebar', id: 'sidebar' },
-		h('a', { href: '#/inicio', class: 'admin-brand' }, h('img', { src: '/Icono_Equipoinmobiliario@0.75x.png', alt: '' }), 'Administración'),
+		h('a', { href: '#/inicio', class: 'admin-brand', 'aria-label': 'Panel de administración' }, h('img', { src: '/Icono_Equipoinmobiliario@0.75x.png', alt: 'Equipo Inmobiliario' })),
 		nav,
 		h('div', { class: 'admin-user' },
 			h('div', { class: 'small fw-semibold text-truncate' }, session.profile.nombre || session.user.email),

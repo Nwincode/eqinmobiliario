@@ -1,5 +1,5 @@
 import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader } from '../ui.js';
+import { h, toast, showError, pageHeader , mount } from '../ui.js';
 import { renderForm, getPath, setPath } from '../form.js';
 import { markPending } from '../session.js';
 
@@ -203,7 +203,7 @@ export async function render(container) {
 		}
 	};
 
-	container.append(
+	mount(container, 
 		pageHeader('Contenido del sitio'),
 		snap.exists() ? null : h('div', { class: 'alert alert-info' }, 'Todavía no has guardado el contenido. Se muestran los textos actuales del sitio; al guardar quedarán en la base de datos. También puedes importar todo desde "Publicar".'),
 		tabs, panes,

@@ -1,6 +1,6 @@
 // Listado + editor genérico para colecciones simples (asesores, reseñas, páginas).
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp } from './firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState } from './ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount } from './ui.js';
 import { renderForm } from './form.js';
 import { markPending } from './session.js';
 
@@ -14,7 +14,7 @@ export function crudView(cfg) {
 
 	async function list(container) {
 		const items = await loadAll();
-		container.append(
+		mount(container, 
 			pageHeader(cfg.title, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `+ ${cfg.singular}`)),
 			cfg.intro ? h('p', { class: 'text-muted' }, cfg.intro) : null,
 			items.length
@@ -31,7 +31,7 @@ export function crudView(cfg) {
 		const ref = isNew ? doc(collection(db, cfg.collection)) : doc(db, cfg.collection, id);
 		const [snap, all] = await Promise.all([isNew ? null : getDoc(ref), loadAll()]);
 		if (!isNew && !snap.exists()) {
-			container.append(emptyState('No existe.', h('a', { href: `#/${cfg.route}`, class: 'btn btn-primary' }, 'Volver')));
+			mount(container, emptyState('No existe.', h('a', { href: `#/${cfg.route}`, class: 'btn btn-primary' }, 'Volver')));
 			return;
 		}
 		const data = isNew ? structuredClone(cfg.defaults || {}) : snap.data();
@@ -70,7 +70,7 @@ export function crudView(cfg) {
 			}
 		};
 
-		container.append(
+		mount(container, 
 			pageHeader(isNew ? `Nuevo: ${cfg.singular.toLowerCase()}` : (data.nombre || data.titulo),
 				h('a', { href: `#/${cfg.route}`, class: 'btn btn-light' }, 'Volver')),
 			h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
