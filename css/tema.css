@@ -15,12 +15,15 @@
 	--eq-ink: #5b666f;       /* Gris: textos secundarios */
 	--eq-gold: #85662b;      /* Dorado: sello y botones de la sección VIP */
 	--eq-whatsapp: #1e7e4a;  /* Verde de los botones de WhatsApp */
+	--eq-danger: #b42318;    /* Rojo: eliminar y errores */
+	--eq-warning: #f5b301;   /* Amarillo: avisos */
 
 	/* 2. Derivados (no hace falta tocarlos) ------------------------- */
 	--eq-primary-hover: color-mix(in oklab, var(--eq-primary) 78%, var(--eq-dark));
 	--eq-blue-dark: var(--eq-primary-hover);
 	--eq-gold-hover: color-mix(in oklab, var(--eq-gold) 80%, var(--eq-dark));
 	--eq-whatsapp-hover: color-mix(in oklab, var(--eq-whatsapp) 80%, var(--eq-dark));
+	--eq-danger-hover: color-mix(in oklab, var(--eq-danger) 80%, var(--eq-dark));
 	--eq-text: var(--eq-dark);
 	--eq-line: color-mix(in oklab, var(--eq-dark) 12%, var(--eq-white));
 	--eq-mist: color-mix(in oklab, var(--eq-primary) 3%, var(--eq-white));

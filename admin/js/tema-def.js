@@ -3,9 +3,9 @@
 // Sin dependencias del navegador para que también lo importe scripts/build.mjs.
 
 export const COLORES_TEMA = [
-	{ clave: 'dark', variable: '--eq-dark', label: 'Negro de marca', defecto: '#0e1920', ayuda: 'Menú, pie de página, títulos y texto.' },
-	{ clave: 'primary', variable: '--eq-primary', label: 'Azul principal', defecto: '#0e5e8a', ayuda: 'Botones, enlaces y precios. El tono al pasar el mouse se calcula solo.' },
-	{ clave: 'cyan', variable: '--eq-cyan', label: 'Celeste del logo', defecto: '#00b7e7', ayuda: 'Acentos: líneas, cifras y el borde de foco.' },
+	{ clave: 'dark', variable: '--eq-dark', label: 'Color oscuro', defecto: '#0e1920', ayuda: 'Original: negro azulado. Menú, pie, títulos y texto.' },
+	{ clave: 'primary', variable: '--eq-primary', label: 'Color principal', defecto: '#0e5e8a', ayuda: 'Original: azul. Botones, enlaces y precios; el tono al pasar el mouse se calcula solo.' },
+	{ clave: 'cyan', variable: '--eq-cyan', label: 'Color de acento', defecto: '#00b7e7', ayuda: 'Original: celeste del logo. Líneas, cifras y borde de foco.' },
 	{ clave: 'white', variable: '--eq-white', label: 'Fondo', defecto: '#ffffff', ayuda: 'Fondo general de las páginas y texto de los botones.' },
 	{ clave: 'ink', variable: '--eq-ink', label: 'Gris de textos secundarios', defecto: '#5b666f', ayuda: 'Descripciones, fechas y detalles.' },
 	{ clave: 'gold', variable: '--eq-gold', label: 'Dorado VIP', defecto: '#85662b', ayuda: 'Sello y botones de las propiedades VIP.' },
@@ -54,11 +54,24 @@ export function contraste(a, b) {
 
 // Combinaciones de texto que usa el sitio; el panel avisa si alguna no se lee bien.
 export const PARES_CONTRASTE = [
-	['white', 'primary', 'Texto de los botones azules'],
+	['white', 'primary', 'Texto de los botones principales'],
 	['white', 'dark', 'Texto del menú y del pie'],
 	['dark', 'white', 'Texto general'],
 	['ink', 'white', 'Textos secundarios'],
 	['primary', 'white', 'Enlaces y precios'],
 	['white', 'gold', 'Botones VIP'],
 	['white', 'whatsapp', 'Botones de WhatsApp']
+];
+
+// Combinaciones listas para elegir con un clic (todas con contraste 4.5:1 o más en los textos).
+// Lo que no se indica queda con el color original de la marca.
+export const PALETAS = [
+	{ nombre: 'Marca (original)', descripcion: 'Negro azulado, azul y celeste del logo.', tema: {} },
+	{ nombre: 'Azul océano', descripcion: 'Azul más vivo, sobrio y corporativo.', tema: { dark: '#0b1a2c', primary: '#1d4f91', ink: '#566273' } },
+	{ nombre: 'Grafito', descripcion: 'Casi monocromo: negro, gris carbón y celeste.', tema: { dark: '#161718', primary: '#2d3a45', ink: '#5f6368' } },
+	{ nombre: 'Petróleo', descripcion: 'Azul verdoso, fresco y elegante.', tema: { dark: '#0c1f24', primary: '#0f6670', cyan: '#3cc8d4', ink: '#55666a' } },
+	{ nombre: 'Verde bosque', descripcion: 'Natural, para casas con jardín y terrenos.', tema: { dark: '#0f1d17', primary: '#1d5e45', cyan: '#5cc29a', ink: '#56645d' } },
+	{ nombre: 'Arena', descripcion: 'Cálido: café, beige y dorado.', tema: { dark: '#231e1a', primary: '#7d5530', cyan: '#d4a85f', white: '#fffdf9', ink: '#6a6058', gold: '#7a5c26' } },
+	{ nombre: 'Terracota', descripcion: 'Cálido y mediterráneo.', tema: { dark: '#221714', primary: '#9a3f24', cyan: '#e49a6a', white: '#fffcfa', ink: '#6c5e58' } },
+	{ nombre: 'Vino', descripcion: 'Elegante, para propiedades de lujo.', tema: { dark: '#1d1216', primary: '#7a1f3d', cyan: '#d88ba4', ink: '#685a60' } }
 ];

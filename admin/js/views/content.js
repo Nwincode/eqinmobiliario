@@ -3,7 +3,7 @@ import { h, toast, showError, pageHeader , mount } from '../ui.js';
 import { renderForm, getPath, setPath, clonar } from '../form.js';
 import { markPending } from '../session.js';
 import { aplicarTema } from '../tema.js';
-import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, colorTema, contraste, variablesTema } from '../tema-def.js';
+import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, PALETAS, colorTema, contraste, variablesTema } from '../tema-def.js';
 
 const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
 const ICONS = [['icon-home2', 'Casa'], ['icon-person', 'Persona'], ['icon-security', 'Seguridad'], ['icon-check', 'Check'], ['icon-star', 'Estrella'], ['icon-map-marker', 'Ubicación'], ['icon-phone', 'Teléfono'], ['icon-credit-card', 'Financiamiento']];
@@ -299,8 +299,25 @@ function vistaPreviaTema(el, state) {
 			: h('div', { class: 'small text-success mt-3' }, 'Todas las combinaciones de texto se leen bien (contraste 4.5:1 o más).'));
 }
 
+// Combinaciones listas: al elegir una se llenan todos los colores (luego se pueden ajustar).
+function selectorPaletas(el, state) {
+	const actual = JSON.stringify(variablesTema(state.tema || {}));
+	el.replaceChildren(h('div', { class: 'paletas' }, PALETAS.map((p) => {
+		const elegida = JSON.stringify(variablesTema(p.tema)) === actual;
+		return h('button', {
+			type: 'button', class: `paleta${elegida ? ' is-active' : ''}`, 'aria-pressed': String(elegida),
+			onclick: (e) => e.currentTarget.dispatchEvent(new CustomEvent('eq-paleta', { bubbles: true, detail: { ...p.tema, radio: state.tema?.radio ?? null } }))
+		},
+		h('span', { class: 'paleta-muestras' }, ['dark', 'primary', 'cyan', 'white'].map((k) => h('span', { style: `background:${colorTema(p.tema, k)}` }))),
+		h('strong', {}, p.nombre),
+		h('span', { class: 'small text-muted' }, p.descripcion));
+	})));
+}
+
 const GRUPO_COLORES = {
 	id: 'colores', label: 'Colores', keys: ['tema'], fields: [
+		{ type: 'section', label: 'Combinaciones', help: 'Elige una combinación lista y, si quieres, ajusta después cualquier color. Todas se leen bien.' },
+		{ type: 'custom', update: selectorPaletas },
 		{ type: 'section', label: 'Colores de la página', help: 'Cambia un color y se actualiza en todo el sitio al publicar: botones, menú, enlaces, tonos al pasar el mouse y transparencias. "Original" vuelve al color de la marca.' },
 		...COLORES_TEMA.map((x) => ({ name: `tema.${x.clave}`, label: x.label, type: 'color', default: x.defecto, help: x.ayuda, cols: 6 })),
 		{ name: `tema.${RADIO_TEMA.clave}`, label: RADIO_TEMA.label, type: 'number', min: RADIO_TEMA.min, placeholder: String(RADIO_TEMA.defecto), cols: 6, help: '0 = esquinas rectas · 8 = original · 24 = redondeados.' },
@@ -359,6 +376,14 @@ export async function render(container) {
 	forms.forEach(({ g, form }) => {
 		tabs.append(h('li', { class: 'nav-item' }, h('button', { type: 'button', class: 'nav-link', dataset: { id: g.id }, onclick: () => show(g.id) }, g.label)));
 		panes.append(h('div', { class: 'card', dataset: { id: g.id } }, h('div', { class: 'card-body' }, form.el)));
+	});
+	// Elegir una combinación vuelve a dibujar la pestaña Colores con esos valores.
+	panes.addEventListener('eq-paleta', (e) => {
+		const i = forms.findIndex((f) => f.g.id === GRUPO_COLORES.id);
+		const anterior = forms[i].form;
+		const nuevo = renderForm(GRUPO_COLORES.fields, { ...anterior.getData(), tema: e.detail }, { folder: 'site' });
+		anterior.el.replaceWith(nuevo.el);
+		forms[i] = { g: GRUPO_COLORES, form: nuevo };
 	});
 	show(grupos[0].id);
 

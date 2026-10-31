@@ -165,6 +165,68 @@
 	color: var(--eq-white);
 }
 
+/* Variantes del panel y de mensajes */
+.btn-danger {
+	background-color: var(--eq-danger);
+	border-color: var(--eq-danger);
+	color: var(--eq-white);
+}
+.btn-danger:hover,
+.btn-danger:focus {
+	background-color: var(--eq-danger-hover);
+	border-color: var(--eq-danger-hover);
+	color: var(--eq-white);
+}
+.btn-outline-danger {
+	background-color: transparent;
+	border-color: var(--eq-danger);
+	color: var(--eq-danger);
+}
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+	background-color: var(--eq-danger);
+	border-color: var(--eq-danger);
+	color: var(--eq-white);
+}
+.btn-outline-success {
+	background-color: transparent;
+	border-color: var(--eq-whatsapp);
+	color: var(--eq-whatsapp);
+}
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+	background-color: var(--eq-whatsapp);
+	border-color: var(--eq-whatsapp);
+	color: var(--eq-white);
+}
+.btn-warning {
+	background-color: var(--eq-warning);
+	border-color: var(--eq-warning);
+	color: var(--eq-dark);
+}
+.btn-warning:hover,
+.btn-warning:focus {
+	background-color: color-mix(in oklab, var(--eq-warning) 85%, var(--eq-dark));
+	border-color: color-mix(in oklab, var(--eq-warning) 85%, var(--eq-dark));
+	color: var(--eq-dark);
+}
+.btn-link {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--eq-primary);
+	font-weight: 500;
+	text-decoration: underline !important;
+	text-underline-offset: 3px;
+}
+.btn-link:hover,
+.btn-link:focus {
+	color: var(--eq-primary-hover);
+}
+.btn.text-start {
+	justify-content: flex-start;
+	text-align: left;
+}
+
 /* Sobre el bloque azul del pie, el botón principal pasa a blanco */
 .footer-cta .btn-primary {
 	background-color: var(--eq-white);

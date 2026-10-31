@@ -13,21 +13,30 @@ body {
 	color: #1f2933;
 }
 
-.btn-primary {
-	--bs-btn-bg: var(--adm-primary);
-	--bs-btn-border-color: var(--adm-primary);
-	--bs-btn-hover-bg: var(--eq-primary-hover);
-	--bs-btn-hover-border-color: var(--eq-primary-hover);
-	--bs-btn-active-bg: var(--eq-primary-hover);
-	--bs-btn-disabled-bg: var(--adm-primary);
-	--bs-btn-disabled-border-color: var(--adm-primary);
+/* Botones: mismo diseño que el sitio (/css/botones.css), un poco más compactos.
+   En el panel "light" es el botón neutro (Volver, Cancelar) sobre tarjetas blancas. */
+:root {
+	--eq-btn-height: 42px;
+	--eq-btn-height-sm: 34px;
+	--eq-btn-padding-x: 1.1rem;
 }
-.btn-outline-primary {
-	--bs-btn-color: var(--adm-primary);
-	--bs-btn-border-color: var(--adm-primary);
-	--bs-btn-hover-bg: var(--adm-primary);
-	--bs-btn-hover-border-color: var(--adm-primary);
-	--bs-btn-active-bg: var(--adm-primary);
+.btn {
+	font-size: .9375rem;
+}
+.btn-sm {
+	font-size: .8125rem;
+}
+.btn-light {
+	background-color: var(--eq-white);
+	border-color: var(--adm-border);
+	color: var(--eq-dark);
+}
+.btn-light:hover,
+.btn-light:focus,
+.btn-light:active {
+	background-color: var(--adm-bg);
+	border-color: var(--eq-ink);
+	color: var(--eq-dark);
 }
 a {
 	color: var(--adm-primary);
@@ -614,4 +623,50 @@ a {
 	background: var(--eq-dark);
 	color: color-mix(in srgb, var(--eq-white) 70%, transparent);
 	font-size: .8rem;
+}
+
+/* Contenido → Colores: combinaciones listas */
+.paletas {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: .75rem;
+}
+.paleta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: .35rem;
+	padding: .75rem;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius-card);
+	background: #fff;
+	text-align: left;
+	font: inherit;
+	color: var(--adm-dark);
+	transition: border-color .2s ease, box-shadow .2s ease;
+}
+.paleta:hover {
+	border-color: var(--eq-ink);
+}
+.paleta:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.paleta.is-active {
+	border-color: var(--adm-primary);
+	box-shadow: 0 0 0 1px var(--adm-primary);
+}
+.paleta-muestras {
+	display: flex;
+	width: 100%;
+	height: 28px;
+	border-radius: 6px;
+	overflow: hidden;
+	border: 1px solid var(--adm-border);
+}
+.paleta-muestras span {
+	flex: 1;
+}
+.paleta-muestras span:first-child {
+	flex: 1.4;
 }
