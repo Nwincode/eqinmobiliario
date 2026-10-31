@@ -1,0 +1,57 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--tinta:#0e1920;--azul:#0e5e8a;--azulH:#004a72;--celeste:#00b7e7;--cc:#e8f7fd;--piedra:#5b666f;--linea:#e0e5e8;--niebla:#f6f8fb}
+body{margin:0;font-family:'Work Sans',sans-serif;color:var(--tinta);background:#fff;width:1200px}
+.wrap{padding:56px}
+h1{font-weight:400;font-size:34px;margin:0 0 6px}h2{font-weight:500;font-size:18px;margin:40px 0 16px}
+p{color:var(--piedra);margin:0}
+.sw{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.c{border:1px solid var(--linea);border-radius:10px;overflow:hidden}
+.c i{display:block;height:110px}.c div{padding:12px 14px;font-size:13px;line-height:1.5}.c b{display:block;font-weight:600;font-size:14px}
+.prop{display:flex;height:22px;border-radius:6px;overflow:hidden;font-size:11px;color:#fff}.prop span{display:flex;align-items:center;padding-left:8px}
+.combo{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.k{border-radius:10px;padding:22px;min-height:150px;display:flex;flex-direction:column;justify-content:space-between;font-size:13px}
+.k strong{font-size:20px;font-weight:500}
+.btn{display:inline-block;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:500}
+.mock{border:1px solid var(--linea);border-radius:12px;overflow:hidden}
+.nav{background:var(--tinta);color:#fff;display:flex;align-items:center;gap:24px;padding:16px 28px;font-size:14px}
+.nav .act{color:var(--celeste)}.nav .ct{margin-left:auto;border:1px solid rgba(255,255,255,.5);padding:6px 14px;border-radius:8px}
+.body{display:grid;grid-template-columns:1.3fr 1fr;gap:32px;padding:28px}
+.price{font-size:28px;font-weight:600}.facts{display:flex;gap:24px;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:14px 0;margin:16px 0}
+.facts b{display:block;font-size:20px;font-weight:500}.facts span{font-size:12px;color:var(--piedra)}
+.card{border:1px solid var(--linea);border-radius:10px;padding:18px}
+.field{border:1px solid var(--linea);border-radius:8px;height:34px;margin:8px 0}
+.foot{background:var(--niebla);padding:18px 28px;font-size:13px;color:var(--piedra);display:flex;justify-content:space-between}
+</style></head><body><div class="wrap">
+<h1>Paleta Equipo Inmobiliario</h1>
+<p>Toda la paleta nace del celeste del logo (tono 225°–240° en OKLCH): mismos tonos, distinta luz. Por eso los colores combinan entre sí en lugar de competir.</p>
+<h2>Colores</h2>
+<div class="sw">
+<div class="c"><i style="background:#ffffff;border-bottom:1px solid var(--linea)"></i><div><b>Blanco</b>#FFFFFF · fondo</div></div>
+<div class="c"><i style="background:var(--tinta)"></i><div><b>Tinta</b>#0E1920 · texto, menú, pie</div></div>
+<div class="c"><i style="background:var(--azul)"></i><div><b>Azul profundo</b>#0E5E8A · acciones (7.0:1)</div></div>
+<div class="c"><i style="background:var(--celeste)"></i><div><b>Celeste logo</b>#00B7E7 · acento mínimo</div></div>
+</div>
+<div class="sw" style="margin-top:16px">
+<div class="c"><i style="background:var(--piedra);height:54px"></i><div><b>Piedra</b>#5B666F · texto secundario</div></div>
+<div class="c"><i style="background:var(--linea);height:54px"></i><div><b>Línea</b>#E0E5E8 · bordes</div></div>
+<div class="c"><i style="background:var(--niebla);height:54px;border-bottom:1px solid var(--linea)"></i><div><b>Niebla</b>#F6F8FB · secciones</div></div>
+<div class="c"><i style="background:var(--cc);height:54px"></i><div><b>Celeste claro</b>#E8F7FD · avisos suaves</div></div>
+</div>
+<h2>Proporción</h2>
+<div class="prop"><span style="flex:62;background:#fff;color:var(--tinta);border:1px solid var(--linea)">Blanco 62%</span><span style="flex:20;background:var(--tinta)">Tinta 20%</span><span style="flex:8;background:var(--niebla);color:var(--tinta)">Niebla 8%</span><span style="flex:7;background:var(--azul)">Azul 7%</span><span style="flex:3;background:var(--celeste);padding-left:3px">3%</span></div>
+<h2>Combinaciones</h2>
+<div class="combo">
+<div class="k" style="background:var(--tinta);color:#fff"><strong>Tinta + celeste</strong><span><span style="color:var(--celeste)">Inicio</span> · Propiedades · Contacto</span><span style="opacity:.7">Menú y pie</span></div>
+<div class="k" style="background:#fff;border:1px solid var(--linea)"><strong>Blanco + azul</strong><span><span class="btn" style="background:var(--azul);color:#fff">Ver detalles</span></span><span style="color:var(--azul);font-weight:600">US$ 250,000</span></div>
+<div class="k" style="background:var(--azul);color:#fff"><strong>Azul + blanco</strong><span><span class="btn" style="background:#fff;color:var(--azul)">Agenda una visita</span></span><span style="opacity:.8">Un bloque destacado</span></div>
+<div class="k" style="background:var(--niebla)"><strong>Niebla + tinta</strong><span style="color:var(--piedra)">Secciones de apoyo, texto secundario en piedra</span><span style="display:block;width:28px;height:2px;background:var(--celeste)"></span></div>
+</div>
+<h2>Aplicado a una ficha</h2>
+<div class="mock"><div class="nav"><b>⌂ Equipo Inmobiliario</b><span class="act">Inicio</span><span>Propiedades</span><span>Servicios</span><span class="ct">Contacto</span></div>
+<div class="body"><div><p style="font-size:13px">Casa · En venta</p><div style="font-size:30px;font-weight:500;margin:6px 0">Casa en Jardines de Mirabel</div><p>Zona 16, Guatemala</p><div class="price" style="margin-top:14px">US$ 250,000</div>
+<div class="facts"><div><b>3</b><span>Habitaciones</span></div><div><b>3.5</b><span>Baños</span></div><div><b>280 m²</b><span>Construcción</span></div></div>
+<p style="color:var(--tinta)">Casa luminosa con jardín privado, en residencial con garita las 24 horas.</p></div>
+<div class="card"><b>Agenda una visita</b><div class="field"></div><div class="field"></div><span class="btn" style="background:var(--azul);color:#fff;display:block;text-align:center;margin-top:12px">Quiero más información</span></div></div>
+<div class="foot"><span>© Equipo Inmobiliario</span><span style="color:var(--azul)">Ver todas las propiedades</span></div></div>
+</div></body></html>

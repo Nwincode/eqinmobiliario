@@ -1,0 +1,180 @@
+rules_version = '2';
+
+// Roles:
+//  - admin:  todo.
+//  - asesor: sus propiedades y sus leads (los que tienen su agentId).
+//  - público: lee contenido publicado y puede crear leads desde los formularios.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.activo == true;
+    }
+    function isAdmin() {
+      return isStaff() && userDoc().data.rol == 'admin';
+    }
+    function myAgentId() {
+      return userDoc().data.agentId;
+    }
+    function isNonEmptyString(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+    function isShortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // Primer administrador: solo se puede crear mientras meta/bootstrap no exista.
+    match /meta/bootstrap {
+      allow get: if true;
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/meta/bootstrap)
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    // Estado de publicación (cambios pendientes, última publicación).
+    match /meta/publish {
+      allow read, write: if isStaff();
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        || (request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/meta/bootstrap)
+            && existsAfter(/databases/$(database)/documents/meta/bootstrap)
+            && request.resource.data.rol == 'admin'
+            && request.resource.data.activo == true);
+      allow update: if isAdmin()
+        && !(uid == request.auth.uid && (request.resource.data.rol != 'admin' || request.resource.data.activo != true));
+      allow delete: if isAdmin() && uid != request.auth.uid;
+    }
+
+    match /settings/site {
+      allow get: if true;
+      allow write: if isAdmin();
+    }
+
+    // Datos internos (p. ej. el build hook de Netlify): solo el equipo.
+    match /settings/private {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Regla general de comisión del CRM: la ve el equipo, la cambia el administrador.
+    match /settings/crm {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /properties/{id} {
+      allow get: if resource.data.publicado == true || isStaff();
+      allow list: if resource.data.publicado == true || isStaff();
+      allow create: if isAdmin()
+        || (isStaff() && request.resource.data.agentId == myAgentId());
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId());
+      allow delete: if isAdmin();
+    }
+
+    match /agents/{id} {
+      allow read: if resource.data.activo == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /testimonials/{id} {
+      allow read: if resource.data.activo == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /pages/{id} {
+      allow read: if resource.data.publicado == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /posts/{id} {
+      allow read: if resource.data.publicado == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Requerimientos de clientes (búsquedas guardadas por los asesores).
+    match /requerimientos/{id} {
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow create: if isStaff()
+        && (isAdmin() || request.resource.data.agentId == myAgentId());
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == resource.data.agentId);
+      allow delete: if isAdmin();
+    }
+
+    // CRM: clientes, actividades (agenda e historial) y propietarios.
+    // El asesor solo ve y edita lo que tiene asignado; el administrador, todo.
+    function propio() {
+      return isAdmin() || (isStaff() && resource.data.agentId == myAgentId());
+    }
+    function nuevoPropio() {
+      return isStaff() && (isAdmin() || request.resource.data.agentId == myAgentId());
+    }
+    function conservaAsesor() {
+      return isAdmin() || request.resource.data.agentId == resource.data.agentId;
+    }
+    match /clientes/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+    match /actividades/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
+    match /propietarios/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+
+    match /leads/{id} {
+      // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
+      allow create: if request.resource.data.keys().hasOnly([
+            'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
+            'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
+            'tipoVisita', 'idioma', 'campana'])
+        && isNonEmptyString(request.resource.data.nombre, 100)
+        && isNonEmptyString(request.resource.data.telefono, 30)
+        && isShortString(request.resource.data.email, 120)
+        && isShortString(request.resource.data.mensaje, 2000)
+        && isShortString(request.resource.data.origen, 30)
+        && isShortString(request.resource.data.pagina, 200)
+        && isShortString(request.resource.data.propertyId, 60)
+        && isShortString(request.resource.data.propertyTitulo, 200)
+        && isShortString(request.resource.data.agentId, 60)
+        && (!('fechaVisita' in request.resource.data) || isShortString(request.resource.data.fechaVisita, 20))
+        && (!('tipoVisita' in request.resource.data) || request.resource.data.tipoVisita in ['presencial', 'videollamada'])
+        && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
+        && (!('campana' in request.resource.data)
+            || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
+        && request.resource.data.estado == 'nuevo'
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == resource.data.agentId);
+      allow delete: if isAdmin();
+    }
+  }
+}

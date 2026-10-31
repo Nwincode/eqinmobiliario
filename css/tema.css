@@ -1,0 +1,51 @@
+/* ================================================================
+   TEMA DEL SITIO: todas las variables de color, forma y botones.
+
+   Para cambiar los colores de la página edita solo la sección 1
+   (o desde el panel: Contenido → Colores, que sobrescribe estos
+   valores sin tocar archivos). Todo lo demás se calcula solo:
+   tonos de hover, transparencias, fondos suaves y bordes.
+   ================================================================ */
+:root {
+	/* 1. Colores de marca ------------------------------------------ */
+	--eq-dark: #0e1920;      /* Negro azulado: menú, pie, títulos y texto */
+	--eq-primary: #0e5e8a;   /* Azul: botones, enlaces y precios */
+	--eq-cyan: #00b7e7;      /* Celeste del logo: acentos, líneas y foco */
+	--eq-white: #ffffff;     /* Blanco: fondo general */
+	--eq-ink: #5b666f;       /* Gris: textos secundarios */
+	--eq-gold: #85662b;      /* Dorado: sello y botones de la sección VIP */
+	--eq-whatsapp: #1e7e4a;  /* Verde de los botones de WhatsApp */
+	--eq-danger: #b42318;    /* Rojo: eliminar y errores */
+	--eq-warning: #f5b301;   /* Amarillo: avisos */
+
+	/* 2. Derivados (no hace falta tocarlos) ------------------------- */
+	--eq-primary-hover: color-mix(in oklab, var(--eq-primary) 78%, var(--eq-dark));
+	--eq-blue-dark: var(--eq-primary-hover);
+	--eq-gold-hover: color-mix(in oklab, var(--eq-gold) 80%, var(--eq-dark));
+	--eq-whatsapp-hover: color-mix(in oklab, var(--eq-whatsapp) 80%, var(--eq-dark));
+	--eq-danger-hover: color-mix(in oklab, var(--eq-danger) 80%, var(--eq-dark));
+	--eq-text: var(--eq-dark);
+	--eq-line: color-mix(in oklab, var(--eq-dark) 12%, var(--eq-white));
+	--eq-mist: color-mix(in oklab, var(--eq-primary) 3%, var(--eq-white));
+	--eq-primary-soft: color-mix(in oklab, var(--eq-primary) 8%, var(--eq-white));
+	--eq-focus: var(--eq-cyan);
+
+	/* 3. Forma ------------------------------------------------------ */
+	--eq-radius: 8px;          /* Esquinas de botones y campos */
+	--eq-radius-card: 12px;    /* Esquinas de tarjetas y bloques */
+
+	/* 4. Botones ---------------------------------------------------- */
+	--eq-btn-font-weight: 600;
+	--eq-btn-height: 48px;
+	--eq-btn-height-sm: 38px;
+	--eq-btn-height-lg: 56px;
+	--eq-btn-padding-x: 1.5rem;
+
+	/* Compatibilidad: la sección VIP y Bootstrap leen estos nombres */
+	--vip-ink: var(--eq-dark);
+	--vip-gold: color-mix(in oklab, var(--eq-gold) 70%, var(--eq-white));
+	--vip-gold-ink: var(--eq-gold);
+	--bs-primary: var(--eq-primary);
+	--bs-body-color: var(--eq-text);
+	--bs-body-bg: var(--eq-white);
+}
