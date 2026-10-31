@@ -1733,3 +1733,133 @@ body.offcanvas-menu .wa-float {
 .nav-mark .nav-mark-casa {
 	fill: #fff;
 }
+
+/* ================================================================
+   Íconos: acompañan al texto, nunca lo reemplazan (son decorativos
+   para lectores de pantalla). Azul en datos, color del texto en el
+   resto, celeste solo sobre fondos oscuros.
+   ================================================================ */
+.eq-ic {
+	display: inline-block;
+	line-height: 1;
+	margin-right: .45em;
+	vertical-align: -.06em;
+}
+.eq-ic-fin {
+	margin-right: 0;
+	margin-left: .45em;
+	transition: transform .2s ease;
+}
+a:hover > .eq-ic-fin,
+.btn:hover > .eq-ic-fin {
+	transform: translateX(3px);
+}
+.btn .eq-ic {
+	margin: 0;
+	vertical-align: 0;
+}
+
+/* Datos de la propiedad */
+.property-item .city .eq-ic,
+.ficha-lugar .eq-ic,
+.prop-facts dt .eq-ic,
+.ficha-amenidades .eq-ic,
+.ficha-bloque h2 .eq-ic,
+.ficha-similares .heading .eq-ic,
+.lead-form h2 .eq-ic,
+.calc-card h3 .eq-ic,
+.post-card time .eq-ic,
+.section .heading .eq-ic {
+	color: var(--eq-primary);
+}
+.prop-facts dt .eq-ic {
+	width: 1.15em;
+	text-align: center;
+}
+.ficha-bloque h2 .eq-ic,
+.heading .eq-ic {
+	font-size: .8em;
+	margin-right: .5em;
+}
+.ficha-datos .eq-ic {
+	font-size: 20px;
+	color: var(--eq-primary);
+	margin: 0 0 8px;
+}
+.ficha-amenidades li {
+	padding-left: 0;
+}
+.ficha-amenidades li::before {
+	display: none;
+}
+
+/* Menú, pie y migas */
+.site-nav .site-navigation .site-menu .has-children .dropdown .eq-ic {
+	width: 1.25em;
+	opacity: .75;
+}
+.site-nav .site-navigation .site-menu .has-children .dropdown a:hover .eq-ic {
+	opacity: 1;
+}
+.site-footer .links .eq-ic {
+	width: 1.2em;
+	color: var(--eq-cyan);
+}
+.breadcrumb .eq-ic {
+	margin-right: .35em;
+}
+
+/* Portada: reseñas, contadores */
+.testimonial-comillas {
+	display: block;
+	font-size: 28px;
+	line-height: 1;
+	color: var(--eq-cyan);
+	margin-bottom: 18px;
+}
+.counter-icono {
+	display: block;
+	font-size: 26px;
+	line-height: 1;
+	color: var(--eq-primary);
+	margin-bottom: 14px;
+}
+.pagina-404-icono {
+	display: block;
+	font-size: 56px;
+	line-height: 1;
+	color: var(--eq-primary);
+	margin-bottom: 20px;
+}
+
+/* Visores de fotos: flechas y cerrar con íconos */
+.ficha-lightbox button .eq-ic {
+	margin: 0;
+	font-size: 26px;
+}
+.vip-lightbox button .eq-ic {
+	margin: 0;
+	font-size: 18px;
+}
+#property-nav .eq-ic,
+#testimonial-nav .eq-ic {
+	font-size: .8em;
+}
+.lead-form-status .eq-ic {
+	margin-right: .4em;
+}
+.site-footer .widget .links li:has(.eq-ic),
+.site-footer .widget .links li > a:has(.eq-ic) {
+	display: flex;
+	align-items: baseline;
+}
+.site-footer .widget .links .eq-ic {
+	flex: none;
+}
+.site-footer .widget .links li > a:has(.eq-ic) {
+	min-width: 0;
+	overflow-wrap: break-word;
+}
+.prop-facts dt {
+	white-space: nowrap;
+}

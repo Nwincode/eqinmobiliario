@@ -6,7 +6,12 @@ import { aplicarTema } from '../tema.js';
 import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, PALETAS, colorTema, contraste, variablesTema } from '../tema-def.js';
 
 const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
-const ICONS = [['icon-home2', 'Casa'], ['icon-person', 'Persona'], ['icon-security', 'Seguridad'], ['icon-check', 'Check'], ['icon-star', 'Estrella'], ['icon-map-marker', 'Ubicación'], ['icon-phone', 'Teléfono'], ['icon-credit-card', 'Financiamiento']];
+const ICONS = [['icon-home2', 'Casa'], ['icon-building', 'Edificio'], ['icon-key', 'Llave (renta)'], ['icon-trophy', 'Trofeo (logros)'], ['icon-handshake-o', 'Apretón de manos (negocio)'],
+	['icon-person', 'Persona'], ['icon-users', 'Equipo'], ['icon-briefcase', 'Maletín (asesoría)'], ['icon-security', 'Seguridad'], ['icon-shield', 'Escudo (garantía)'],
+	['icon-check', 'Check'], ['icon-check-circle', 'Verificado'], ['icon-star', 'Estrella'], ['icon-map-marker', 'Ubicación'], ['icon-map', 'Mapa'], ['icon-compass', 'Brújula'],
+	['icon-phone', 'Teléfono'], ['icon-comments', 'Conversación'], ['icon-calendar', 'Calendario'], ['icon-clock-o', 'Reloj'], ['icon-credit-card', 'Financiamiento'],
+	['icon-usd', 'Dinero'], ['icon-calculator', 'Calculadora'], ['icon-balance-scale', 'Legal'], ['icon-file-text-o', 'Documento'], ['icon-globe', 'Mundo'], ['icon-plane', 'Avión (extranjero)'],
+	['icon-camera', 'Cámara (fotos)'], ['icon-video-camera', 'Video'], ['icon-tree', 'Árbol (jardín)'], ['icon-car', 'Carro (parqueo)'], ['icon-expand', 'Área']];
 const link = [{ name: 'texto', label: 'Texto', cols: 6 }, { name: 'enlace', label: 'Enlace', cols: 6, placeholder: '/propiedades/ o https://…' }];
 
 // Cada grupo es una pestaña; `keys` son las claves de settings/site que edita.
@@ -197,8 +202,9 @@ const GROUPS = [
 			{ type: 'section', label: 'Contadores' },
 			{ name: 'contadores.visible', label: 'Mostrar', type: 'checkbox' },
 			{ name: 'contadores.items', label: 'Contadores', type: 'list', itemLabel: 'Contador', max: 4, fields: [
-				{ name: 'valor', label: 'Número', type: 'number', cols: 4 },
-				{ name: 'etiqueta', label: 'Etiqueta', cols: 8 }] },
+				{ name: 'icono', label: 'Ícono', type: 'select', options: [['', 'Sin ícono'], ...ICONS], cols: 4 },
+				{ name: 'valor', label: 'Número', type: 'number', cols: 3 },
+				{ name: 'etiqueta', label: 'Etiqueta', cols: 5 }] },
 			{ type: 'section', label: 'Llamado a la acción (reclutamiento)' },
 			{ name: 'cta.visible', label: 'Mostrar', type: 'checkbox' },
 			{ name: 'cta.titulo', label: 'Título', cols: 6 },

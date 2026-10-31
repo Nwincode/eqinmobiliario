@@ -8,6 +8,8 @@ import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
+// Ícono decorativo (el texto de al lado ya dice lo mismo). `fin` = va después del texto (flechas).
+const ic = (nombre, fin = false) => `<span class="icon-${nombre} eq-ic${fin ? ' eq-ic-fin' : ''}" aria-hidden="true"></span>`;
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
 const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
@@ -149,7 +151,8 @@ function nav(ctx, active) {
 	// El enlace de contacto se muestra como el botón de acción de la barra.
 	const items = (site.navegacion || []).map((it) => {
 		const cls = [it.enlace === active ? 'active' : '', /#conta/.test(it.enlace || '') ? 'nav-cta' : '', it.enlace === rt(ctx).inicio ? 'nav-home' : ''].filter(Boolean).join(' ');
-		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${esc(it.texto)}</a></li>`;
+		const icono = /#conta/.test(it.enlace || '') ? ic('comments') : '';
+		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${icono}${esc(it.texto)}</a></li>`;
 	});
 	const t = tr(ctx);
 	const r = rt(ctx);
@@ -157,10 +160,10 @@ function nav(ctx, active) {
 	const propMenu = `<li class="has-children${propActive}">
 								<a href="${r.propiedades}">${t.propiedades}</a>
 								<ul class="dropdown">
-									<li><a href="${r.venta}">${t.comprar}</a></li>
-									<li><a href="${r.renta}">${t.rentar}</a></li>
-									${hasVip ? `<li><a href="${r.vip}">${t.propiedadesVip}</a></li>` : ''}
-									<li><a href="${r.propiedades}">${t.verTodas}</a></li>
+									<li><a href="${r.venta}">${ic('home')}${t.comprar}</a></li>
+									<li><a href="${r.renta}">${ic('key')}${t.rentar}</a></li>
+									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
+									<li><a href="${r.propiedades}">${ic('th-large')}${t.verTodas}</a></li>
 								</ul>
 							</li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);
@@ -233,11 +236,11 @@ function footer(ctx) {
 						<h3>${esc(site.general.nombre)}</h3>
 						${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
 						<ul class="list-unstyled links">
-							${c.telefono ? `<li><a href="tel:${esc(c.telefono.replace(/[^\d+]/g, ''))}">${esc(c.telefono)}</a></li>` : ''}
-							${wa ? `<li><a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a></li>` : ''}
-							${c.email ? `<li><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></li>` : ''}
-							${c.direccion ? `<li>${esc(c.direccion)}</li>` : ''}
-							${c.horario ? `<li>${esc(c.horario)}</li>` : ''}
+							${c.telefono ? `<li><a href="tel:${esc(c.telefono.replace(/[^\d+]/g, ''))}">${ic('phone')}${esc(c.telefono)}</a></li>` : ''}
+							${wa ? `<li><a href="${esc(wa)}" target="_blank" rel="noopener">${ic('whatsapp')}WhatsApp</a></li>` : ''}
+							${c.email ? `<li><a href="mailto:${esc(c.email)}">${ic('envelope-o')}${esc(c.email)}</a></li>` : ''}
+							${c.direccion ? `<li>${ic('map-marker')}${esc(c.direccion)}</li>` : ''}
+							${c.horario ? `<li>${ic('clock-o')}${esc(c.horario)}</li>` : ''}
 						</ul>
 					</div>
 				</div>
@@ -258,7 +261,7 @@ function footer(ctx) {
 						<ul class="list-unstyled social">${socialLinks(site)}</ul>
 						${ctx.zonas.length ? `<h3 class="mt-4">${t.zonas}</h3>
 						<ul class="list-unstyled links">
-							${ctx.zonas.slice(0, 8).map((z) => `<li><a href="${esc(z.url)}" title="${t.propiedades} ${esc(z.nombre)}">${esc(z.nombre)}</a></li>`).join('')}
+							${ctx.zonas.slice(0, 8).map((z) => `<li><a href="${esc(z.url)}" title="${t.propiedades} ${esc(z.nombre)}">${ic('map-marker')}${esc(z.nombre)}</a></li>`).join('')}
 						</ul>` : ''}
 					</div>
 				</div>
@@ -316,7 +319,7 @@ function pageHero(ctx, title, image, crumbs) {
 						<ol class="breadcrumb text-center justify-content-center">
 							${crumbs.map((c, i) => i === crumbs.length - 1
 								? `<li class="breadcrumb-item active text-white-50" aria-current="page">${esc(c.name)}</li>`
-								: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${esc(c.name)}</a></li>`).join('')}
+								: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${i === 0 ? ic('home') : ''}${esc(c.name)}</a></li>`).join('')}
 						</ol>
 					</nav>
 				</div>
@@ -330,6 +333,7 @@ function specs(p) {
 	const out = [];
 	if (p.habitaciones) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bed me-2"></span><span class="caption">${plural(p.habitaciones, t.habitacion, t.habitaciones)}</span></span>`);
 	if (p.banos) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bath me-2"></span><span class="caption">${plural(p.banos, t.bano, t.banos)}</span></span>`);
+	if (p.m2Construccion && out.length) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-home2 me-2"></span><span class="caption">${esc(area(p.m2Construccion, lng(p)))}</span></span>`);
 	if (!out.length && p.m2Terreno) out.push(`<span class="d-block d-flex align-items-center"><span class="icon-expand me-2"></span><span class="caption">${esc(area(p.m2Terreno, lng(p)))}</span></span>`);
 	return out.length ? `<div class="specs d-flex flex-wrap mb-4">${out.join('')}</div>` : '';
 }
@@ -359,9 +363,9 @@ export function propertyCard(p, { lazy = true } = {}) {
 									<div class="price mb-2"><span>${esc(price(p))}</span></div>
 									<div>
 										<span class="d-block mb-2 text-black-50">${esc(p.titulo)}</span>
-										<span class="city d-block mb-3">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
+										<span class="city d-block mb-3">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
 										${specs(p)}
-										<a href="${url}" class="btn btn-primary btn-sm">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span></a>
+										<a href="${url}" class="btn btn-primary btn-sm">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span>${ic('arrow-right', true)}</a>
 									</div>
 								</div>
 							</div>`;
@@ -373,7 +377,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	const ptitle = property ? property.titulo : '';
 	const msg = property ? fmt(t.msgInteres, { titulo: property.titulo }) : '';
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" data-lang="${lang}" novalidate>
-		${titulo ? `<h2 class="h5 mb-3">${esc(titulo)}</h2>` : ''}
+		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
 		<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
@@ -383,7 +387,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<button type="submit" class="btn btn-primary btn-lg w-100">${esc(boton || t.enviar)}</button>
+		<button type="submit" class="btn btn-primary btn-lg w-100">${ic('paper-plane')}${esc(boton || t.enviar)}</button>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }
@@ -401,7 +405,7 @@ function agentBox(ctx, agent, property) {
 							${agent.bio ? `<p>${esc(agent.bio)}</p>` : ''}
 							<ul class="list-unstyled d-flex flex-wrap gap-2 mb-0">
 								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-sm" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a></li>` : ''}
-								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-sm" data-track="Contact">${t.correoBtn}</a></li>` : ''}
+								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-sm" data-track="Contact">${ic('envelope-o')}${t.correoBtn}</a></li>` : ''}
 							</ul>
 						</div>
 					</div>`;
@@ -415,10 +419,10 @@ function bloqueExterior(ctx) {
 		<div class="container">
 			<div class="row align-items-center g-4">
 				<div class="col-lg-6">
-					<span class="exterior-kicker">${esc(b.etiqueta || '')}</span>
+					<span class="exterior-kicker">${ic('plane')}${esc(b.etiqueta || '')}</span>
 					<h2 class="font-weight-bold heading text-primary mb-3">${esc(b.titulo)}</h2>
 					<p class="text-black-50 mb-4">${esc(b.texto)}</p>
-					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${esc(b.boton)}</a>` : ''}
+					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
 				</div>
 				<div class="col-lg-6">
 					<ul class="exterior-list">${(b.puntos || []).map((pt) => `<li><span class="icon-check"></span>${esc(pt)}</li>`).join('')}</ul>
@@ -481,7 +485,7 @@ export function homePage(ctx) {
 					<form action="${r.propiedades}" method="get" class="narrow-w form-search d-flex align-items-stretch mb-3" data-aos="fade-up" data-aos-delay="200" role="search">
 						<label class="visually-hidden" for="hero-q">${t.buscarPropiedades}</label>
 						<input id="hero-q" type="search" name="q" class="form-control px-4" placeholder="${esc(s.hero.placeholderBusqueda)}">
-						<button type="submit" class="btn btn-primary">${t.buscar}</button>
+						<button type="submit" class="btn btn-primary">${ic('search')}${t.buscar}</button>
 					</form>
 				</div>
 			</div>
@@ -495,7 +499,7 @@ export function homePage(ctx) {
 					<h2 class="font-weight-bold text-primary heading">${esc(s.destacadas.titulo)}</h2>
 				</div>
 				<div class="col-lg-6 text-lg-end">
-					<p><a href="${r.propiedades}" class="btn btn-primary btn-lg">${esc(s.destacadas.boton)}</a></p>
+					<p><a href="${r.propiedades}" class="btn btn-primary btn-lg">${esc(s.destacadas.boton)}${ic('arrow-right', true)}</a></p>
 				</div>
 			</div>
 			<div class="row">
@@ -505,8 +509,8 @@ export function homePage(ctx) {
 							${slider.map((p, i) => propertyCard(p, { lazy: i > 2 })).join('\n')}
 						</div>
 						${slider.length > 1 ? `<div id="property-nav" class="controls" tabindex="0" aria-label="${t.navCarrusel}">
-							<span class="prev" data-controls="prev" aria-controls="property" tabindex="-1">${t.anterior}</span>
-							<span class="next" data-controls="next" aria-controls="property" tabindex="-1">${t.siguiente}</span>
+							<span class="prev" data-controls="prev" aria-controls="property" tabindex="-1">${ic('chevron-left')}${t.anterior}</span>
+							<span class="next" data-controls="next" aria-controls="property" tabindex="-1">${t.siguiente}${ic('chevron-right', true)}</span>
 						</div>` : ''}
 					</div>
 				</div>
@@ -522,7 +526,7 @@ export function homePage(ctx) {
 						<span class="${esc(f.icono || 'flaticon-house')}"></span>
 						<h3 class="mb-3">${esc(f.titulo)}</h3>
 						<p>${esc(f.texto)}</p>
-						${f.enlace ? `<p><a href="${esc(f.enlace)}" class="learn-more">${t.masInfo}<span class="visually-hidden"> ${t.sobre} ${esc(f.titulo)}</span></a></p>` : ''}
+						${f.enlace ? `<p><a href="${esc(f.enlace)}" class="learn-more">${t.masInfo}<span class="visually-hidden"> ${t.sobre} ${esc(f.titulo)}</span>${ic('arrow-right', true)}</a></p>` : ''}
 					</div>
 				</div>`).join('\n')}
 			</div>
@@ -537,8 +541,8 @@ export function homePage(ctx) {
 				</div>
 				<div class="col-md-6 text-md-end">
 					<div id="testimonial-nav">
-						<span class="prev" data-controls="prev">${t.anterior}</span>
-						<span class="next" data-controls="next">${t.siguiente}</span>
+						<span class="prev" data-controls="prev">${ic('chevron-left')}${t.anterior}</span>
+						<span class="next" data-controls="next">${t.siguiente}${ic('chevron-right', true)}</span>
 					</div>
 				</div>
 			</div>
@@ -546,6 +550,7 @@ export function homePage(ctx) {
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((tm) => `<div class="item">
 						<div class="testimonial">
+								<span class="icon-quote-left testimonial-comillas" aria-hidden="true"></span>
 							${tm.foto ? `<img src="${esc(tm.foto)}" alt="${esc(tm.nombre)}" class="img-fluid rounded-circle w-25 mb-4" loading="lazy" width="120" height="120">` : ''}
 							<div class="rate" role="img" aria-label="${esc(tm.estrellas || 5)} ${t.deEstrellas}">
 								${'<span class="icon-star text-warning"></span>'.repeat(Math.max(1, Math.min(5, Number(tm.estrellas) || 5)))}
@@ -587,6 +592,7 @@ export function homePage(ctx) {
 			${s.contadores.visible ? `<div class="row section-counter mt-5">
 				${(s.contadores.items || []).map((c, i) => `<div class="col-6 col-lg-3" data-aos="fade-up" data-aos-delay="${300 + i * 100}">
 					<div class="counter-wrap mb-5 mb-lg-0">
+						${c.icono ? `<span class="${esc(c.icono)} counter-icono" aria-hidden="true"></span>` : ''}
 						<span class="number"><span class="countup text-primary">${esc(c.valor)}</span></span>
 						<span class="caption text-black-50">${esc(c.etiqueta)}</span>
 					</div>
@@ -599,7 +605,7 @@ export function homePage(ctx) {
 		<div class="row justify-content-center footer-cta" data-aos="fade-up">
 			<div class="col-lg-7 mx-auto text-center">
 				<h2 class="mb-4">${esc(s.cta.titulo)}</h2>
-				<p><a href="${esc(s.cta.enlace)}" class="btn btn-primary btn-lg">${esc(s.cta.boton)}</a></p>
+				<p><a href="${esc(s.cta.enlace)}" class="btn btn-primary btn-lg">${ic('briefcase')}${esc(s.cta.boton)}</a></p>
 			</div>
 		</div>
 	</div>` : ''}
@@ -642,9 +648,9 @@ export function homePage(ctx) {
 					<ul class="list-unstyled contact-list">
 						${s.contacto.telefono ? `<li><span class="icon-phone"></span><a href="tel:${esc(s.contacto.telefono.replace(/[^\d+]/g, ''))}" data-track="Contact">${esc(s.contacto.telefono)}</a></li>` : ''}
 						${s.contacto.whatsapp ? `<li><span class="icon-whatsapp"></span><a href="${esc(whatsappLink(s.contacto.whatsapp))}" target="_blank" rel="noopener" data-track="Contact">WhatsApp</a></li>` : ''}
-						${s.contacto.email ? `<li><span class="icon-envelope-square"></span><a href="mailto:${esc(s.contacto.email)}" data-track="Contact">${esc(s.contacto.email)}</a></li>` : ''}
+						${s.contacto.email ? `<li><span class="icon-envelope-o"></span><a href="mailto:${esc(s.contacto.email)}" data-track="Contact">${esc(s.contacto.email)}</a></li>` : ''}
 						${s.contacto.direccion ? `<li><span class="icon-map-marker"></span>${esc(s.contacto.direccion)}</li>` : ''}
-						${s.contacto.horario ? `<li><span class="icon-calendar-check-o"></span>${esc(s.contacto.horario)}</li>` : ''}
+						${s.contacto.horario ? `<li><span class="icon-clock-o"></span>${esc(s.contacto.horario)}</li>` : ''}
 					</ul>
 				</div>
 				<div class="col-lg-6">
@@ -689,7 +695,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<label class="form-label" for="ia-texto">${t.busquedaInteligente}</label>
 					<div class="input-group">
 						<input class="form-control" id="ia-texto" maxlength="300" placeholder="${esc(t.iaPh)}">
-						<button class="btn btn-primary" type="button" id="ia-buscar">${t.buscarIA}</button>
+						<button class="btn btn-primary" type="button" id="ia-buscar">${ic('search')}${t.buscarIA}</button>
 					</div>
 					<p class="ia-search-status small mt-2 mb-0" aria-live="polite"></p>
 				</div>` : ''}
@@ -742,7 +748,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
 				<div class="col-12 col-md-3 col-lg-3">
-					<button type="reset" class="btn btn-outline-secondary w-100">${t.limpiar}</button>
+					<button type="reset" class="btn btn-outline-secondary w-100">${ic('refresh')}${t.limpiar}</button>
 				</div>
 			</form>
 
@@ -799,7 +805,7 @@ function mortgageCalculator(ctx, p) {
 	const t = tr(ctx);
 	if (c.visible === false || p.operacion === 'renta' || !p.precio) return '';
 	return `<div class="calc-card mt-4" data-calc data-precio="${esc(p.precio)}" data-moneda="${esc(p.moneda || 'USD')}" data-lang="${ctx.lang || 'es'}">
-						<h3 class="h5 mb-3">${t.calcTitulo}</h3>
+						<h3 class="h5 mb-3">${ic('calculator')}${t.calcTitulo}</h3>
 						<div class="row g-2">
 							<div class="col-4"><label class="form-label" for="calc-enganche">${t.enganche}</label><input id="calc-enganche" class="form-control" type="number" min="0" max="90" step="1" value="${esc(c.enganche ?? 20)}" name="enganche"></div>
 							<div class="col-4"><label class="form-label" for="calc-tasa">${t.tasa}</label><input id="calc-tasa" class="form-control" type="number" min="0" max="30" step="0.1" value="${esc(c.tasa ?? 8.5)}" name="tasa"></div>
@@ -815,20 +821,20 @@ function factsList(p) {
 	const en = lng(p) === 'en';
 	const m2 = p.m2Construccion || p.m2Terreno;
 	const rows = [
-		[t.fTipo, tipoLabel(p)],
-		[t.fOperacion, p.operacion === 'renta' ? t.renta : t.venta],
-		[t.fEstado, estadoLabel(p)],
-		[t.fHabitaciones, p.habitaciones],
-		[t.fBanos, p.banos],
-		[t.fParqueos, p.parqueos],
-		[t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
-		[t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
-		[t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
-		[t.fPrecioM2, p.operacion !== 'renta' && p.precio && m2
+		['building', t.fTipo, tipoLabel(p)],
+		['tag', t.fOperacion, p.operacion === 'renta' ? t.renta : t.venta],
+		['info-circle', t.fEstado, estadoLabel(p)],
+		['bed', t.fHabitaciones, p.habitaciones],
+		['bath', t.fBanos, p.banos],
+		['car', t.fParqueos, p.parqueos],
+		['home2', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
+		['expand', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
+		['map-marker', t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
+		['usd', t.fPrecioM2, p.operacion !== 'renta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
-		[t.fCodigo, propertyCode(p)]
-	].filter(([, v]) => v);
-	return `<dl class="prop-facts">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+		['hashtag', t.fCodigo, propertyCode(p)]
+	].filter(([, , v]) => v);
+	return `<dl class="prop-facts">${rows.map(([i, k, v]) => `<div><dt>${ic(i)}${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
 }
 
 // Coordenadas a partir del enlace de Google Maps (…@14.6,-90.5… o …q=14.6,-90.5…).
@@ -925,7 +931,7 @@ function shareButtons(ctx, p) {
 						<span class="small text-black-50 me-1">${t.compartir}:</span>
 						<a href="https://wa.me/?text=${esc(encodeURIComponent(`${text} ${url}`))}" target="_blank" rel="noopener" aria-label="${t.compartirWa}"><span class="icon-whatsapp"></span></a>
 						<a href="https://www.facebook.com/sharer/sharer.php?u=${esc(encodeURIComponent(url))}" target="_blank" rel="noopener" aria-label="${t.compartirFb}"><span class="icon-facebook"></span></a>
-						<button type="button" class="js-copy-link" data-url="${esc(url)}" aria-label="${t.copiarEnlace}"><span class="icon-external-link-square"></span></button>
+						<button type="button" class="js-copy-link" data-url="${esc(url)}" aria-label="${t.copiarEnlace}"><span class="icon-link"></span></button>
 					</div>`;
 }
 
@@ -945,11 +951,11 @@ export function propertyPage(ctx, p) {
 
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const datosClave = [
-		[p.habitaciones, t.fHabitaciones],
-		[p.banos, t.fBanos],
-		[p.parqueos, t.fParqueos],
-		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion],
-		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno]
+		[p.habitaciones, t.fHabitaciones, 'bed'],
+		[p.banos, t.fBanos, 'bath'],
+		[p.parqueos, t.fParqueos, 'car'],
+		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'home2'],
+		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'expand']
 	].filter(([v]) => v);
 	const visibles = fotos;
 	const galeria = `<div class="ficha-galeria-wrap">
@@ -958,14 +964,14 @@ export function propertyPage(ctx, p) {
 			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
 		</button>`).join('')}
 	</section>
-	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${fmt(t.verFotosN, { n: fotos.length })}</button>
+	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${ic('camera')}${fmt(t.verFotosN, { n: fotos.length })}</button>
 	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
 	</div>
 	<dialog class="ficha-lightbox" id="ficha-lightbox" aria-label="${t.galeriaFotos}">
-		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">&times;</button>
-		<button type="button" class="flb-prev" aria-label="${t.anteriorFoto}">&#8249;</button>
+		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">${ic('close')}</button>
+		<button type="button" class="flb-prev" aria-label="${t.anteriorFoto}">${ic('chevron-left')}</button>
 		<figure><img alt=""><figcaption></figcaption></figure>
-		<button type="button" class="flb-next" aria-label="${t.siguienteFoto}">&#8250;</button>
+		<button type="button" class="flb-next" aria-label="${t.siguienteFoto}">${ic('chevron-right')}</button>
 		<div class="flb-fotos" hidden>${fotos.map((f, i) => `<span data-src="${esc(f.url)}" data-alt="${esc(photoAlt(p, i))}"></span>`).join('')}</div>
 	</dialog>`;
 
@@ -976,31 +982,31 @@ export function propertyPage(ctx, p) {
 			<nav aria-label="breadcrumb" class="ficha-migas">
 				<ol class="breadcrumb">${crumbs.map((c, i) => i === crumbs.length - 1
 					? `<li class="breadcrumb-item active" aria-current="page">${esc(c.name)}</li>`
-					: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${esc(c.name)}</a></li>`).join('')}</ol>
+					: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${i === 0 ? ic('home') : ''}${esc(c.name)}</a></li>`).join('')}</ol>
 			</nav>
 			<div class="row justify-content-between">
 				<div class="col-lg-7">
 					<header class="ficha-cabecera">
 						<p class="ficha-tipo">${esc(tipoLabel(p))} · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
-						${lugar ? `<p class="ficha-lugar">${esc(lugar)}</p>` : ''}
+						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
 						<p class="ficha-precio">${esc(price(p))}</p>
 					</header>
-					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k]) => `<li><strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
+					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					<section class="ficha-bloque">
-						<h2>${t.descripcion}</h2>
+						<h2>${ic('file-text-o')}${t.descripcion}</h2>
 						<div class="prop-description">${markdown(p.descripcion)}</div>
 					</section>
 					<section class="ficha-bloque">
-						<h2>${t.caracteristicas}</h2>
+						<h2>${ic('list-ul')}${t.caracteristicas}</h2>
 						${factsList(p)}
 					</section>
 					${(p.amenidades || []).length ? `<section class="ficha-bloque">
-						<h2>${t.amenidades}</h2>
-						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
+						<h2>${ic('check-square-o')}${t.amenidades}</h2>
+						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${ic('check')}${esc(a)}</li>`).join('')}</ul>
 					</section>` : ''}
-					${video ? `<section class="ficha-bloque"><h2>${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
-					${mapa ? `<section class="ficha-bloque"><h2>${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
+					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
+					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
 					${mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
 				</div>
 				<aside class="col-lg-4">
@@ -1015,7 +1021,7 @@ export function propertyPage(ctx, p) {
 	</div>
 	${related.length ? `<div class="section ficha-similares">
 		<div class="container">
-			<h2 class="heading mb-5">${t.similares}</h2>
+			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
 			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
@@ -1058,7 +1064,7 @@ export function vipIndexPage(ctx) {
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
-							<span class="vip-card-meta">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
+							<span class="vip-card-meta">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
 						</span>
 					</a>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.vipPronto} <a href="${r.contacto}">${t.contactanos}</a> ${t.paraConocerlas}</p>`}
@@ -1104,8 +1110,8 @@ export function vipLandingPage(ctx, p) {
 		<div class="container d-flex align-items-center justify-content-between">
 			<a href="${r.inicio}" class="vip-logo"><img src="${esc(s.general.logo)}" alt="${esc(s.general.nombre)}" width="340" height="82"></a>
 			<div class="d-flex gap-2">
-				${ctx.altLang && p._alternates ? `<a href="${esc(ctx.altLang(propertyUrl(p), p))}" class="btn btn-sm btn-outline-light">${t.otroIdioma}</a>` : ''}
-				<a href="${r.vip}" class="btn btn-sm btn-outline-light d-none d-md-inline-block">${t.masVip}</a>
+				${ctx.altLang && p._alternates ? `<a href="${esc(ctx.altLang(propertyUrl(p), p))}" class="btn btn-sm btn-outline-light">${ic('globe')}${t.otroIdioma}</a>` : ''}
+				<a href="${r.vip}" class="btn btn-sm btn-outline-light d-none d-md-inline-block">${ic('diamond')}${t.masVip}</a>
 				${wa ? `<a href="${esc(wa)}" class="btn btn-sm btn-light" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a>` : ''}
 			</div>
 		</div>
@@ -1113,12 +1119,12 @@ export function vipLandingPage(ctx, p) {
 
 	<section class="vip-hero" style="${bgStyle(ctx, portada)}">
 		<div class="vip-hero-inner container">
-			<span class="vip-eyebrow" data-aos="fade-up">${t.propiedadExclusiva} · ${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
+			<span class="vip-eyebrow" data-aos="fade-up">${ic('diamond')}${t.propiedadExclusiva} · ${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
 			<h1 data-aos="fade-up" data-aos-delay="100">${esc(v.titular || p.titulo)}</h1>
 			${v.subtitular ? `<p class="vip-sub" data-aos="fade-up" data-aos-delay="200">${esc(v.subtitular)}</p>` : ''}
 			<p class="vip-price" data-aos="fade-up" data-aos-delay="250">${esc(precio)}</p>
 			<div class="d-flex flex-wrap gap-3" data-aos="fade-up" data-aos-delay="300">
-				<a href="#vip-contacto" class="btn btn-vip btn-lg">${esc(cta)}</a>
+				<a href="#vip-contacto" class="btn btn-vip btn-lg">${ic('calendar')}${esc(cta)}</a>
 				${wa ? `<a href="${esc(wa)}" class="btn btn-outline-light btn-lg" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> ${t.hablarAsesor}</a>` : ''}
 			</div>
 		</div>
@@ -1136,13 +1142,13 @@ export function vipLandingPage(ctx, p) {
 		<div class="container">
 			<div class="row g-4 g-lg-5 align-items-start">
 				<div class="col-lg-7" data-aos="fade-up">
-					<span class="vip-kicker">${t.laPropiedad}</span>
+					<span class="vip-kicker">${ic('home')}${t.laPropiedad}</span>
 					<h2 class="vip-h2">${esc(p.titulo)}</h2>
 					<div class="vip-text">${markdown(p.descripcion)}</div>
 				</div>
 				${(v.puntosClave || []).length ? `<div class="col-lg-5" data-aos="fade-up" data-aos-delay="150">
 					<div class="vip-highlights">
-						<h3>${t.unica}</h3>
+						<h3>${ic('star')}${t.unica}</h3>
 						<ul>${v.puntosClave.map((h) => `<li><span class="icon-check"></span>${esc(h)}</li>`).join('')}</ul>
 					</div>
 				</div>` : ''}
@@ -1152,7 +1158,7 @@ export function vipLandingPage(ctx, p) {
 
 	${fotos.length > 1 ? `<section class="vip-section vip-dark">
 		<div class="container">
-			<span class="vip-kicker">${t.galeria}</span>
+			<span class="vip-kicker">${ic('camera')}${t.galeria}</span>
 			<h2 class="vip-h2 mb-4">${t.recorre}</h2>
 			<div class="vip-gallery">
 				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${i === 0 ? ' is-wide' : ''}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}"><img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}" loading="lazy"></button>`).join('\n')}
@@ -1160,15 +1166,15 @@ export function vipLandingPage(ctx, p) {
 		</div>
 	</section>
 	<dialog class="vip-lightbox" id="vip-lightbox" aria-label="${t.galeriaFotos}">
-		<button type="button" class="vip-lb-close" aria-label="${t.cerrar}">&times;</button>
-		<button type="button" class="vip-lb-prev" aria-label="${t.anterior}">&#8249;</button>
+		<button type="button" class="vip-lb-close" aria-label="${t.cerrar}">${ic('close')}</button>
+		<button type="button" class="vip-lb-prev" aria-label="${t.anterior}">${ic('chevron-left')}</button>
 		<img alt="">
-		<button type="button" class="vip-lb-next" aria-label="${t.siguiente}">&#8250;</button>
+		<button type="button" class="vip-lb-next" aria-label="${t.siguiente}">${ic('chevron-right')}</button>
 	</dialog>` : ''}
 
 	${video ? `<section class="vip-section">
 		<div class="container">
-			<span class="vip-kicker">${t.video}</span>
+			<span class="vip-kicker">${ic('play-circle')}${t.video}</span>
 			<h2 class="vip-h2 mb-4">${t.enMovimiento}</h2>
 			<div class="ratio ratio-16x9 vip-video"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div>
 		</div>
@@ -1176,7 +1182,7 @@ export function vipLandingPage(ctx, p) {
 
 	${(p.amenidades || []).length ? `<section class="vip-section bg-light">
 		<div class="container">
-			<span class="vip-kicker">${t.amenidades}</span>
+			<span class="vip-kicker">${ic('check-square-o')}${t.amenidades}</span>
 			<h2 class="vip-h2 mb-4">${t.todoIncluye}</h2>
 			<ul class="vip-amenities">${p.amenidades.map((a) => `<li><span class="icon-check"></span>${esc(a)}</li>`).join('')}</ul>
 		</div>
@@ -1184,7 +1190,7 @@ export function vipLandingPage(ctx, p) {
 
 	${mapa ? `<section class="vip-section">
 		<div class="container">
-			<span class="vip-kicker">${t.ubicacion}</span>
+			<span class="vip-kicker">${ic('map-marker')}${t.ubicacion}</span>
 			<h2 class="vip-h2 mb-4">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</h2>
 			<div class="ratio ratio-21x9 vip-map"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
 		</div>
@@ -1194,7 +1200,7 @@ export function vipLandingPage(ctx, p) {
 		<div class="container">
 			<div class="row g-4 g-lg-5 align-items-center">
 				<div class="col-lg-5">
-					<span class="vip-kicker">${t.visitaPrivada}</span>
+					<span class="vip-kicker">${ic('calendar')}${t.visitaPrivada}</span>
 					<h2 class="vip-h2">${esc(cta)}</h2>
 					<p class="mb-4">${t.vipContactoTexto}</p>
 					${agent ? `<div class="vip-agent">
@@ -1217,7 +1223,7 @@ export function vipLandingPage(ctx, p) {
 	</footer>
 
 	<div class="vip-sticky-cta d-md-none">
-		<a href="#vip-contacto" class="btn btn-vip">${esc(cta)}</a>
+		<a href="#vip-contacto" class="btn btn-vip">${ic('calendar')}${esc(cta)}</a>
 		${wa ? `<a href="${esc(wa)}" class="btn btn-success" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp"><span class="icon-whatsapp"></span></a>` : ''}
 	</div>`;
 
@@ -1293,10 +1299,10 @@ export function blogIndexPage(ctx) {
 					<article class="post-card">
 						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.webp')}" alt="${esc(post.titulo)}" loading="lazy"></a>
 						<div class="post-card-body">
-							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${esc(postDate(post, ctx))}</time>
+							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${ic('calendar')}${esc(postDate(post, ctx))}</time>
 							<h2 class="h5 mt-2"><a href="${esc(post.url)}">${esc(post.titulo)}</a></h2>
 							<p class="text-black-50 small">${esc(truncate(post.resumen || stripMarkdown(post.contenido), 150))}</p>
-							<a href="${esc(post.url)}" class="small fw-semibold">${t.leerMas}<span class="visually-hidden">: ${esc(post.titulo)}</span></a>
+							<a href="${esc(post.url)}" class="small fw-semibold">${t.leerMas}<span class="visually-hidden">: ${esc(post.titulo)}</span>${ic('arrow-right', true)}</a>
 						</div>
 					</article>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.blogPronto}</p>`}
@@ -1335,7 +1341,7 @@ export function blogPostPage(ctx, post) {
 		<div class="container">
 			<div class="row justify-content-center">
 				<article class="col-lg-8 content-page">
-					<p class="small text-black-50 mb-4">${esc(postDate(post, ctx))}${post.autor ? ` · ${esc(post.autor)}` : ''}</p>
+					<p class="small text-black-50 mb-4">${ic('calendar')}${esc(postDate(post, ctx))}${post.autor ? ` · ${ic('user')}${esc(post.autor)}` : ''}</p>
 					${markdown(post.contenido)}
 					<div class="lead-card mt-5">${leadForm({ origen: 'blog', titulo: t.blogLead, lang: ctx.lang })}</div>
 				</article>
@@ -1344,8 +1350,8 @@ export function blogPostPage(ctx, post) {
 	</div>
 	${others.length ? `<div class="section bg-light">
 		<div class="container">
-			<h2 class="font-weight-bold text-primary heading mb-5">${t.masArticulos}</h2>
-			<div class="row">${others.map((o) => `<div class="col-md-4 mb-4"><a class="d-block fw-semibold" href="${esc(o.url)}">${esc(o.titulo)}</a><span class="small text-black-50">${esc(postDate(o, ctx))}</span></div>`).join('')}</div>
+			<h2 class="font-weight-bold text-primary heading mb-5">${ic('newspaper-o')}${t.masArticulos}</h2>
+			<div class="row">${others.map((o) => `<div class="col-md-4 mb-4"><a class="d-block fw-semibold" href="${esc(o.url)}">${esc(o.titulo)}</a><span class="small text-black-50">${ic('calendar')}${esc(postDate(o, ctx))}</span></div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
 	return layout(ctx, {
@@ -1365,8 +1371,9 @@ export function notFoundPage(ctx) {
 	${pageHero(ctx, t.noEncontrada, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: t.inicio, url: rt(ctx).inicio }, { name: 'Error 404', url: '/404.html' }])}
 	<div class="section">
 		<div class="container text-center">
-			<p class="mb-4">${t.noExiste}</p>
-			<a href="${rt(ctx).propiedades}" class="btn btn-primary btn-lg">${t.verPropiedades}</a>
+			<span class="icon-compass pagina-404-icono" aria-hidden="true"></span>
+				<p class="mb-4">${t.noExiste}</p>
+			<a href="${rt(ctx).propiedades}" class="btn btn-primary btn-lg">${ic('search')}${t.verPropiedades}</a>
 		</div>
 	</div>`;
 	return layout(ctx, { path: '/404.html', title: `${t.noEncontrada} | ${ctx.site.general.nombreCorto}`, noindex: true }, body);

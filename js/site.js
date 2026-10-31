@@ -126,7 +126,7 @@
 	function setStatus(form, html, ok) {
 		var box = form.querySelector('.lead-form-status');
 		box.className = 'lead-form-status mt-3 ' + (ok ? 'text-success' : 'text-danger');
-		box.innerHTML = html;
+		box.innerHTML = '<span class="' + (ok ? 'icon-check-circle' : 'icon-exclamation-triangle') + ' eq-ic" aria-hidden="true"></span>' + html;
 	}
 
 	document.querySelectorAll('.lead-form').forEach(function (form) {

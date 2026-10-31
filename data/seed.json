@@ -99,19 +99,23 @@
       "items": [
         {
           "valor": 106,
-          "etiqueta": "Propiedades vendidas"
+          "etiqueta": "Propiedades vendidas",
+          "icono": "icon-trophy"
         },
         {
           "valor": 80,
-          "etiqueta": "Propiedades alquiladas"
+          "etiqueta": "Propiedades alquiladas",
+          "icono": "icon-key"
         },
         {
           "valor": 186,
-          "etiqueta": "Inmuebles atendidos"
+          "etiqueta": "Inmuebles atendidos",
+          "icono": "icon-handshake-o"
         },
         {
           "valor": 3,
-          "etiqueta": "Agentes inmobiliarios"
+          "etiqueta": "Agentes inmobiliarios",
+          "icono": "icon-users"
         }
       ]
     },

@@ -531,6 +531,10 @@ async function main() {
 	// ------------------------------------------------ Sitio en inglés (/en/)
 	if (ctx.enActivo) {
 		const siteEn = deepMerge(site, site.en || {});
+		// Los contadores en inglés usan el mismo ícono que en español (el panel solo lo pide una vez).
+		if (siteEn.contadores && Array.isArray(siteEn.contadores.items)) {
+			siteEn.contadores = { ...siteEn.contadores, items: siteEn.contadores.items.map((c, i) => ({ icono: (site.contadores.items[i] || {}).icono, ...c })) };
+		}
 		const propsEn = properties.map(propiedadEn).filter(Boolean);
 		propsEnGlobal = propsEn;
 		const pagesEn = normalizePages(data.pagesEn, '/en');
