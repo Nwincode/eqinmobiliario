@@ -8,7 +8,7 @@
     "serve": "node scripts/serve.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "devDependencies": {
     "esbuild": "^0.23.1",
