@@ -476,6 +476,63 @@
 		}
 	}
 
+	// Reseñas de Google: se leen en vivo de /api/resenas-google. Si no está configurado, no se muestra nada.
+	var cajaGoogle = document.getElementById('resenas-google');
+	if (cajaGoogle && window.fetch) {
+		var el = function (tag, clase, texto) {
+			var n = document.createElement(tag);
+			if (clase) n.className = clase;
+			if (texto) n.textContent = texto;
+			return n;
+		};
+		var estrellas = function (valor) {
+			var cont = el('span', 'rate');
+			cont.setAttribute('role', 'img');
+			cont.setAttribute('aria-label', valor + ' ' + cajaGoogle.dataset.estrellas);
+			for (var i = 0; i < Math.max(1, Math.min(5, Math.round(valor))); i++) cont.appendChild(el('span', 'icon-star text-warning'));
+			return cont;
+		};
+		var enlace = function (url, texto, clase) {
+			var a = el('a', clase, texto);
+			a.href = url; a.target = '_blank'; a.rel = 'noopener';
+			return a;
+		};
+		fetch('/api/resenas-google?lang=' + (cajaGoogle.dataset.lang === 'en' ? 'en' : 'es'))
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (d) {
+				if (!d || !d.configurado || !d.calificacion) return;
+				var cabecera = el('div', 'd-flex flex-wrap align-items-center gap-3 mb-4');
+				cabecera.appendChild(el('strong', 'display-6 text-primary mb-0', d.calificacion.toFixed(1)));
+				var info = el('div');
+				info.appendChild(estrellas(d.calificacion));
+				info.appendChild(el('div', 'small text-black-50', cajaGoogle.dataset.titulo + ' · ' + d.total + ' ' + cajaGoogle.dataset.total));
+				cabecera.appendChild(info);
+				var botones = el('div', 'ms-md-auto d-flex flex-wrap gap-2');
+				if (d.verEnGoogle) botones.appendChild(enlace(d.verEnGoogle, cajaGoogle.dataset.ver, 'btn btn-outline-primary btn-sm'));
+				if (d.dejarResena) botones.appendChild(enlace(d.dejarResena, cajaGoogle.dataset.dejar, 'btn btn-primary btn-sm'));
+				cabecera.appendChild(botones);
+				cajaGoogle.appendChild(cabecera);
+
+				var fila = el('div', 'row g-4');
+				(d.resenas || []).slice(0, 3).forEach(function (r) {
+					var col = el('div', 'col-md-4');
+					var tarjeta = el('div', 'testimonial h-100');
+					tarjeta.appendChild(estrellas(r.estrellas));
+					var nombre = el('h3', 'h6 text-primary mt-2 mb-1');
+					if (r.autorUrl) nombre.appendChild(enlace(r.autorUrl, r.autor)); else nombre.textContent = r.autor;
+					tarjeta.appendChild(nombre);
+					if (r.fecha) tarjeta.appendChild(el('p', 'small text-black-50 mb-2', r.fecha));
+					tarjeta.appendChild(el('blockquote', '', '“' + r.texto + '”'));
+					tarjeta.appendChild(el('p', 'small text-black-50 mb-0', 'Google'));
+					col.appendChild(tarjeta);
+					fila.appendChild(col);
+				});
+				cajaGoogle.appendChild(fila);
+				cajaGoogle.hidden = false;
+			})
+			.catch(function () {});
+	}
+
 	// Barra de navegación: fondo sólido al bajar de la portada.
 	var siteNav = document.querySelector('.site-nav');
 	if (siteNav) {

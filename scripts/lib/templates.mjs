@@ -535,20 +535,21 @@ export function homePage(ctx) {
 		</div>
 	</section>` : ''}
 
-	${s.testimonios.visible && ctx.testimonials.length ? `<div class="section sec-testimonials">
+	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
 		<div class="container">
 			<div class="row mb-5 align-items-center">
 				<div class="col-md-6">
 					<h2 class="font-weight-bold heading text-primary mb-4 mb-md-0">${esc(s.testimonios.titulo)}</h2>
 				</div>
-				<div class="col-md-6 text-md-end">
+				${ctx.testimonials.length ? `<div class="col-md-6 text-md-end">
 					<div id="testimonial-nav">
 						<span class="prev" data-controls="prev">${ic('chevron-left')}${t.anterior}</span>
 						<span class="next" data-controls="next">${t.siguiente}${ic('chevron-right', true)}</span>
 					</div>
-				</div>
+				</div>` : ''}
 			</div>
-			<div class="testimonial-slider-wrap">
+			${s.testimonios.google ? `<div id="resenas-google" class="mb-5" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}"></div>` : ''}
+			${ctx.testimonials.length ? `<div class="testimonial-slider-wrap">
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((tm) => `<div class="item">
 						<div class="testimonial">
@@ -562,7 +563,7 @@ export function homePage(ctx) {
 						</div>
 					</div>`).join('\n')}
 				</div>
-			</div>
+			</div>` : ''}
 		</div>
 	</div>` : ''}
 
