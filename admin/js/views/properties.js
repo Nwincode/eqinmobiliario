@@ -10,6 +10,7 @@ import { seoPreviewField, stripMd } from '../seo.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
+import { generarCodigo, normalizarCodigo } from '../importar.js';
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
@@ -29,15 +30,20 @@ function autoDescription(d) {
 }
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
-const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
-const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
-const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
+export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
+export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
+export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
+
+// Valores de una propiedad nueva (editor e importación).
+export function datosIniciales() {
+	return { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} };
+}
 
 export function publicUrl(p) {
 	return `${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
 }
 
-async function loadAll() {
+export async function loadAll() {
 	const snap = await getDocs(collection(db, 'properties'));
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -47,7 +53,7 @@ function canEdit(p) {
 }
 
 // Entrada del historial de estados (serverTimestamp no se permite dentro de arreglos).
-function entradaHistorial(estado) {
+export function entradaHistorial(estado) {
 	return { estado, fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
 }
 
@@ -71,13 +77,14 @@ function motivoVisibilidad(p) {
 }
 
 export async function render(container, [id]) {
+	if (id === 'importar') return (await import('./importar.js')).render(container);
 	if (id) return renderEditor(container, id);
 
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
-	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, zona o residencial…' });
+	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, código, zona o residencial…' });
 	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
@@ -151,7 +158,7 @@ export async function render(container, [id]) {
 			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
+				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
 				p.vip || p.destacada ? h('div', { class: 'mt-1 d-flex gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null) : null),
@@ -171,7 +178,7 @@ export async function render(container, [id]) {
 	const draw = () => {
 		const q = search.value.trim().toLowerCase();
 		const rows = props.filter((p) =>
-			(!q || `${p.titulo} ${p.zona} ${p.direccion} ${p.ciudad}`.toLowerCase().includes(q))
+			(!q || `${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`.toLowerCase().includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
 			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
@@ -186,7 +193,10 @@ export async function render(container, [id]) {
 	draw();
 
 	mount(container, 
-		pageHeader('Propiedades', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
+		pageHeader('Propiedades',
+			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary' },
+				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar desde CSV') : null,
+			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
 				h('div', { class: 'col-md-5' }, search),
@@ -207,6 +217,8 @@ function schema(agentOpts, isNew) {
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
+		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
+		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
@@ -281,9 +293,7 @@ async function renderEditor(container, id) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
 	}
-	const data = isNew
-		? { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} }
-		: snap.data();
+	const data = isNew ? datosIniciales() : snap.data();
 
 	if (!isNew && !canEdit(data)) {
 		mount(container, pageHeader(data.titulo, h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
@@ -306,6 +316,36 @@ async function renderEditor(container, id) {
 			form.state.slug = slugInput.value;
 		}
 	});
+
+	// Código: botón «Sugerir» y aviso si ya lo usa otra propiedad.
+	const agentes = await loadAgents();
+	const codigosUsados = () => all.filter((p) => p.id !== ref.id && p.codigo).map((p) => p.codigo);
+	const codigoInput = schema.codigoInput;
+	const avisoCodigo = h('div', { class: 'invalid-feedback' });
+	const revisarCodigo = () => {
+		const c = normalizarCodigo(codigoInput.value);
+		const otra = c && all.find((p) => p.id !== ref.id && normalizarCodigo(p.codigo) === c);
+		codigoInput.classList.toggle('is-invalid', Boolean(otra));
+		avisoCodigo.textContent = otra ? `Ya lo usa «${otra.titulo || 'otra propiedad'}».` : '';
+		return !otra;
+	};
+	codigoInput.addEventListener('input', revisarCodigo);
+	codigoInput.addEventListener('change', () => {
+		codigoInput.value = normalizarCodigo(codigoInput.value);
+		form.state.codigo = codigoInput.value;
+		revisarCodigo();
+	});
+	const sugerir = h('button', {
+		type: 'button', class: 'btn btn-outline-primary', title: 'Sugerir un código con el condominio, la zona y el asesor',
+		onclick: () => {
+			codigoInput.value = generarCodigo(form.getData(), { agentes, codigos: codigosUsados() });
+			codigoInput.dispatchEvent(new Event('input'));
+		}
+	}, h('span', { class: 'icon-magic', 'aria-hidden': 'true' }), ' Sugerir');
+	const grupoCodigo = h('div', { class: 'input-group has-validation' });
+	codigoInput.replaceWith(grupoCodigo);
+	grupoCodigo.append(codigoInput, sugerir, avisoCodigo);
+	revisarCodigo();
 
 	// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
 	// "fuente" guarda el texto en español traducido, para saber si cambió después.
@@ -339,6 +379,17 @@ async function renderEditor(container, id) {
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
+		// Código único: si está vacío en una propiedad nueva, se genera.
+		d.codigo = normalizarCodigo(d.codigo);
+		d.condominioSiglas = normalizarCodigo(d.condominioSiglas).replace(/-/g, '');
+		if (!d.codigo && isNew) d.codigo = generarCodigo(d, { agentes, codigos: codigosUsados() });
+		const otraCodigo = d.codigo && all.find((p) => p.id !== ref.id && normalizarCodigo(p.codigo) === d.codigo);
+		if (otraCodigo) {
+			codigoInput.value = d.codigo;
+			revisarCodigo();
+			codigoInput.focus();
+			return toast(`El código ${d.codigo} ya lo usa «${otraCodigo.titulo}». Cámbialo o usa «Sugerir».`, 'warning');
+		}
 		// Si cambia la URL, se guarda la anterior para redirigirla (no se pierde el posicionamiento).
 		if (!isNew && data.slug && data.slug !== d.slug) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
@@ -425,6 +476,7 @@ async function renderEditor(container, id) {
 				...data,
 				titulo,
 				slug: slugify(titulo),
+				codigo: generarCodigo(data, { agentes, codigos: all.map((p) => p.codigo).filter(Boolean) }),
 				publicado: false,
 				destacada: false,
 				estado: estadoDe(data).valor,

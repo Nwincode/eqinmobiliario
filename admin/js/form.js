@@ -33,31 +33,82 @@ export function setPath(obj, path, value) {
 	o[keys[keys.length - 1]] = value;
 }
 
-// Reduce la imagen (máx. 1920 px) y la convierte a WebP antes de subirla.
-async function compressImage(file, maxSize = 1920, quality = 0.82) {
-	if (!/^image\/(jpe?g|png|webp)$/.test(file.type)) return file;
-	const bitmap = await createImageBitmap(file);
-	const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
-	const canvas = document.createElement('canvas');
-	canvas.width = Math.round(bitmap.width * scale);
-	canvas.height = Math.round(bitmap.height * scale);
-	canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-	const blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
-	if (!blob || blob.type !== 'image/webp') {
-		return new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
-	}
-	return blob;
+// HEIC/HEIF (fotos de iPhone): el navegador casi nunca los abre; se convierten con heic2any (se carga solo si hace falta).
+const HEIC2ANY = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+let heicCargando = null;
+function cargarHeic2any() {
+	if (window.heic2any) return Promise.resolve(window.heic2any);
+	heicCargando ||= new Promise((resolve, reject) => {
+		const s = document.createElement('script');
+		s.src = HEIC2ANY;
+		s.onload = () => (window.heic2any ? resolve(window.heic2any) : reject(new Error('heic2any no cargó')));
+		s.onerror = () => { heicCargando = null; reject(new Error('No se pudo cargar el convertidor de HEIC')); };
+		document.head.append(s);
+	});
+	return heicCargando;
 }
 
-export async function uploadImage(file, folder) {
+async function abrirBitmap(blob) {
+	try {
+		return await createImageBitmap(blob, { imageOrientation: 'from-image' });
+	} catch (err) {
+		if (err && err.name === 'TypeError') return createImageBitmap(blob); // navegador sin la opción
+		throw err;
+	}
+}
+
+// Prepara una foto para subirla: gira según EXIF, reduce a máx. 1920 px (sin recortar) y la pasa a WebP 0.82.
+// Acepta JPG, PNG, WebP, HEIC/HEIF, AVIF, GIF, BMP y TIFF (si el navegador lo abre).
+// Devuelve { blob, ancho, alto, hash } (hash = SHA-256 del archivo original, para no subir repetidas).
+export async function procesarImagen(file, maxSize = 1920, quality = 0.82) {
+	const nombre = file.name || 'foto';
+	const original = await file.arrayBuffer();
+	const digest = await crypto.subtle.digest('SHA-256', original);
+	const hash = [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, '0')).join('');
+	const heic = /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(nombre);
+	let bitmap = null;
+	try {
+		bitmap = await abrirBitmap(file);
+	} catch {
+		if (!heic) throw new Error(`«${nombre}»: el navegador no puede abrir este formato de imagen. Conviértela a JPG o PNG.`);
+	}
+	if (!bitmap) {
+		try {
+			const heic2any = await cargarHeic2any();
+			const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+			bitmap = await abrirBitmap(Array.isArray(out) ? out[0] : out);
+		} catch {
+			throw new Error(`«${nombre}»: no se pudo convertir la foto HEIC. Ábrela en el teléfono y compártela como JPG.`);
+		}
+	}
+	const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+	const canvas = document.createElement('canvas');
+	canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+	canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+	canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+	bitmap.close?.();
+	let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
+	if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+	if (!blob) throw new Error(`«${nombre}»: no se pudo procesar la imagen.`);
+	return { blob, ancho: canvas.width, alto: canvas.height, hash };
+}
+
+// Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
+export async function uploadImage(file, folder, procesada) {
 	if (!storage) throw new Error('Falta "storageBucket" en site.config.json: no se pueden subir imágenes.');
-	const blob = await compressImage(file);
+	const { blob, ancho, alto, hash } = procesada || await procesarImagen(file);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
-	const base = file.name.replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
+	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
 	const path = `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
-	return { url: await getDownloadURL(r), path };
+	return { url: await getDownloadURL(r), path, ancho, alto, hash };
+}
+
+// Orden natural de nombres de archivo ("foto2" antes que "foto10").
+const ORDEN = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+export function ordenarArchivos(files) {
+	return [...files].sort((a, b) => ORDEN.compare(a.name, b.name));
 }
 
 export async function deleteImage(path) {
@@ -70,7 +121,7 @@ export async function deleteImage(path) {
 }
 
 function fileInput(multiple, onFiles) {
-	const input = h('input', { type: 'file', accept: 'image/*', multiple, class: 'd-none' });
+	const input = h('input', { type: 'file', accept: 'image/*,.heic,.heif', multiple, class: 'd-none' });
 	input.addEventListener('change', () => {
 		const files = [...input.files];
 		input.value = '';

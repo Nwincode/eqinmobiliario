@@ -810,6 +810,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 
 // Código corto para que el cliente cite la propiedad por teléfono o WhatsApp.
 export function propertyCode(p) {
+	// El código del panel (p. ej. VLM-Z15-JA-001); las propiedades antiguas sin código usan EQ-xxxxxx.
+	if (p.codigo) return String(p.codigo).trim().toUpperCase();
 	return `EQ-${String(p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
 }
 
