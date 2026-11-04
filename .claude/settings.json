@@ -1,5 +1,5 @@
 {
   "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "85"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "15"
   }
 }

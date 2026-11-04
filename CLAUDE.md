@@ -1,13 +1,13 @@
 # Reglas para trabajar en este repositorio
 
-## Regla obligatoria del chat: al quedar 15 % de contexto
-Cuando el chat llegue al 85 % de uso (queda 15 % libre), antes de seguir con cualquier otra cosa:
+## Regla obligatoria del chat: /compact al 15 % de uso
+Cuando la sesión llegue al 15 % de uso del contexto se hace `/compact`, antes de seguir con cualquier otra cosa:
 1. Hacer commit y push de todo el trabajo hecho hasta ese momento, en la rama del chat.
-2. Resumir el chat (compactar) dejando claro qué se pidió, qué quedó hecho y qué falta.
+2. Compactar dejando claro qué se pidió, qué quedó hecho y qué falta.
 3. Seguir en este mismo chat; no abrir otro para la página, para no tener versiones separadas.
 
-`.claude/settings.json` adelanta la compactación automática al 85 % (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`)
-para que esto ocurra antes de que se llene el chat.
+`.claude/settings.json` hace que la compactación automática ocurra al 15 % de uso
+(`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`).
 
 ## Otras reglas
 - Un solo chat a la vez para la página eqinmobiliario.gt; no mezclar con el proyecto "ptg".
