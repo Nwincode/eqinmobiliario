@@ -14,6 +14,24 @@ Objetivo: armar el inventario **sin escribir en la base de datos**. El resultado
 8. Todo entra como `publicado = no`. Se publica a mano desde el panel después de revisar.
 9. Fotos: solo enlaces o nombres de archivo; se suben desde el panel (máx. 10 MB cada una).
 
+10. **No hace falta conectarse a Firebase.** Para saber qué propiedades ya existen se usa la lista de abajo
+    ("Propiedades que ya están en el sitio"). Si una no se puede comprobar, `accion = revisar` y se explica en `notas`.
+
+## De dónde sale la información (Google Drive)
+- **"1. Propiedades"**: carpetas por zona (Ciudad Capital y sus zonas, Mixco, Villa Nueva, etc.). Son propiedades del equipo.
+- **"10. Corredores asociados"**: carpetas de agencias/corredores aliados. Toda propiedad de aquí lleva el nombre
+  de la agencia en `aliada`, y en `asesor` el asesor del equipo que la atiende (si no se sabe, `accion = revisar`).
+- Las fotos **no se copian ni se suben**: en `fotos` van los enlaces de Drive separados por `;`.
+- En `notas` se escribe siempre la carpeta de Drive de donde salió la fila y lo que haya que confirmar.
+
+## Propiedades que ya están en el sitio
+Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar esta lista cuando se carguen más en el panel.
+
+| id | título | tipo | operación | zona |
+|---|---|---|---|---|
+| residencial-san-antonio | Casa en Residencial San Antonio | casa | venta | Zona 16 |
+| jardines-de-mirabel | Casa en Residencial Jardines de Mirabel | casa | venta | Zona 16 |
+
 ## Columnas
 
 | Columna | Obligatoria | Valores permitidos / ejemplo |
@@ -39,7 +57,7 @@ Objetivo: armar el inventario **sin escribir en la base de datos**. El resultado
 | asesor | sí | id de un asesor del panel (Asesores), ej. `joaquin-arriola`. Si el asesor aún no está en el panel, escribir su nombre y marcar `accion = revisar` |
 | aliada | no | nombre de la agencia aliada si la propiedad es de una aliada (no se publica). En ese caso `asesor` = el asesor del equipo que la atiende |
 | destacada | no | `si` · `no` |
-| fotos | no | enlaces separados por `;` |
+| fotos | no | enlaces de Drive separados por `;` |
 | propietario_nombre | no | solo para el CRM |
 | propietario_telefono | no | `+502 5555 5555` |
 | exclusiva_hasta | no | fecha `AAAA-MM-DD` |
