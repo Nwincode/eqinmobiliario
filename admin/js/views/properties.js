@@ -245,7 +245,7 @@ function schema(agentOpts, isNew) {
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
-		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Si llenas título y descripción, la propiedad se publica también en el sitio en inglés (/en/). Usa "Traducir con IA" arriba para hacerlo en segundos.' },
+		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Se llena sola con IA al guardar y se actualiza cuando cambias el título o la descripción en español. Si corriges algo aquí a mano, se respeta y ya no se reemplaza (para volver a traducir, usa "EN · Traducir al inglés (IA)" arriba).' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
 		{ name: 'en.descripcion', label: 'Description (English)', type: 'markdown', rows: 6 },
 		{ name: 'en.amenidades', label: 'Amenities (English)', type: 'tags' },
@@ -307,6 +307,30 @@ async function renderEditor(container, id) {
 		}
 	});
 
+	// Traduce con IA los textos en español y devuelve la versión en inglés.
+	// "fuente" guarda el texto en español traducido, para saber si cambió después.
+	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
+	const traducirEn = async (d) => {
+		const datos = { ...d };
+		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt;
+		delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
+		const r = await pedirIA('traducir', { propiedad: datos });
+		return {
+			titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
+			seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
+			vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
+			fuente: fuenteEs(d),
+			manual: false
+		};
+	};
+	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}]);
+
+	const recargar = async () => {
+		const view = document.getElementById('view').firstElementChild;
+		view.replaceChildren();
+		await render(view, [ref.id]);
+	};
+
 	const save = async (btn) => {
 		if (!form.validate()) return;
 		const d = form.getData();
@@ -345,17 +369,34 @@ async function renderEditor(container, id) {
 			d.createdAt = serverTimestamp();
 			d.createdBy = session.user.uid;
 		}
+		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
+		d.en = d.en || {};
+		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
+		const traducirAhora = Boolean(d.titulo) && (!String(d.en.titulo || '').trim() || (!d.en.manual && d.en.fuente !== fuenteEs(d)));
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
-			toast('Propiedad guardada. Recuerda publicar para ver los cambios en el sitio.');
+			if (!traducirAhora) {
+				toast('Propiedad guardada. Recuerda publicar para ver los cambios en el sitio.');
+				if (isNew) location.hash = `#/propiedades/${ref.id}`;
+				return;
+			}
+			btn.textContent = 'Traduciendo al inglés…';
+			try {
+				await updateDoc(ref, { en: await traducirEn(d), updatedAt: serverTimestamp() });
+				toast('Propiedad guardada y traducida al inglés. Recuerda publicar para ver los cambios en el sitio.');
+			} catch (err) {
+				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés (IA)".', 'warning');
+			}
 			if (isNew) location.hash = `#/propiedades/${ref.id}`;
+			else await recargar();
 		} catch (err) {
 			showError(err);
 		} finally {
 			btn.disabled = false;
+			btn.textContent = 'Guardar';
 		}
 	};
 
@@ -403,27 +444,16 @@ async function renderEditor(container, id) {
 		}
 	};
 
-	// Traduce con IA y guarda la versión en inglés; luego recarga el editor.
+	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano).
 	const traducir = async (btn) => {
 		btn.disabled = true;
 		btn.textContent = 'Traduciendo…';
 		try {
-			const datos = { ...form.getData() };
-			delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt;
-			const r = await pedirIA('traducir', { propiedad: datos });
-			await updateDoc(ref, {
-				en: {
-					titulo: r.titulo, descripcion: r.descripcion, amenidades: r.amenidades || [],
-					seo: { titulo: r.seoTitulo, descripcion: r.seoDescripcion },
-					vipLanding: { titular: r.vipTitular, subtitular: r.vipSubtitular, puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto }
-				},
-				updatedAt: serverTimestamp()
-			});
+			const datos = form.getData();
+			await updateDoc(ref, { en: await traducirEn(datos), updatedAt: serverTimestamp() });
 			await markPending(`Traducción al inglés: ${datos.titulo}`);
 			toast('Versión en inglés lista. Revísala abajo y publica.');
-			const view = document.getElementById('view').firstElementChild;
-			view.replaceChildren();
-			await render(view, [id]);
+			await recargar();
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;

@@ -66,7 +66,7 @@ const GROUPS = [
 	},
 	{
 		id: 'ingles', label: 'Sitio en inglés', keys: ['en'], fields: [
-			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (botón "Traducir al inglés" en cada propiedad).' },
+			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (se traduce sola con IA al guardar cada propiedad).' },
 			{ name: 'en.activo', label: 'Publicar el sitio en inglés', type: 'checkbox', default: true },
 			{ type: 'section', label: 'Secciones visibles en inglés', help: 'Por defecto se muestran las mismas que en español. Apágalas aquí para ocultarlas solo en /en/.' },
 			{ name: 'en.features.visible', label: 'Tarjetas destacadas', type: 'checkbox', default: true, cols: 4 },
