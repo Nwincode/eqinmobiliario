@@ -9,6 +9,21 @@
 		once: true
 	});
 
+	// Carrusel con flechas propias (#property-nav, #testimonial-nav). tiny-slider le pone al
+	// grupo un nombre en inglés y saca los botones del orden de tabulación; aquí se deja el
+	// nombre en el idioma de la página y cada flecha alcanzable con Tab (las teclas ← → siguen).
+	var conFlechas = function (opciones) {
+		var grupo = document.querySelector(opciones.controlsContainer);
+		var nombre = grupo && grupo.getAttribute('aria-label');
+		var carrusel = tns(opciones);
+		if (grupo && grupo.isConnected) {
+			if (nombre) grupo.setAttribute('aria-label', nombre);
+			grupo.removeAttribute('tabindex');
+			grupo.querySelectorAll('[data-controls]').forEach(function (b) { b.removeAttribute('tabindex'); });
+		}
+		return carrusel;
+	};
+
 	var tinySdlier = function() {
 
 		var heroSlider = document.querySelectorAll('.hero-slide');
@@ -46,7 +61,7 @@
 		}
 
 		if ( propertySlider.length> 0 ) {
-			tns({
+			conFlechas({
 				container: '.property-slider',
 				mode: 'carousel',
 				speed: 700,
@@ -79,7 +94,7 @@
 			var cont = document.querySelector('.testimonial-slider');
 			if (cont && preparar) preparar(cont);
 			if (!cont || !cont.children.length) return null;
-			carruselTestimonios = tns({
+			carruselTestimonios = conFlechas({
 				container: '.testimonial-slider',
 				mode: 'carousel',
 				speed: 700,

@@ -1840,9 +1840,75 @@ a:hover > .eq-ic-fin,
 	margin: 0;
 	font-size: 18px;
 }
-#property-nav .eq-ic,
-#testimonial-nav .eq-ic {
-	font-size: .8em;
+/* Flechas de carrusel (#property-nav, #testimonial-nav): solo el chevrón fino,
+   círculo discreto y 44 px de área táctil. Regla «Botones de carrusel» de CLAUDE.md. */
+.eq-flechas {
+	display: inline-flex;
+	gap: 8px;
+}
+.eq-flechas[hidden] {
+	display: none;
+}
+.eq-flecha {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 1px solid var(--eq-line);
+	border-radius: 50%;
+	background: transparent;
+	color: var(--eq-dark);
+	cursor: pointer;
+	transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+.eq-flecha:hover {
+	color: var(--eq-primary);
+	border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
+	background: var(--eq-primary-soft);
+}
+.eq-flecha:active {
+	background: color-mix(in oklab, var(--eq-primary) 14%, var(--eq-white));
+}
+.eq-flecha:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.eq-flecha-ic {
+	display: block;
+	width: 22px;
+	height: 22px;
+	transition: transform .2s ease;
+}
+.eq-flecha-prev:hover .eq-flecha-ic {
+	transform: translateX(-2px);
+}
+.eq-flecha-next:hover .eq-flecha-ic {
+	transform: translateX(2px);
+}
+@media (prefers-reduced-motion: reduce) {
+	.eq-flecha,
+	.eq-flecha-ic {
+		transition: none;
+	}
+	.eq-flecha:hover .eq-flecha-ic {
+		transform: none;
+	}
+}
+/* Destacadas: las flechas a los lados de los puntos, debajo de las tarjetas. */
+#property-nav {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 21px;
+	z-index: 3;
+	display: flex;
+	justify-content: space-between;
+	pointer-events: none;
+}
+#property-nav .eq-flecha {
+	pointer-events: auto;
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;
@@ -2245,10 +2311,6 @@ a:hover > .eq-ic-fin,
 	.gr-boton:not(.gr-boton-dejar) {
 		background: var(--eq-white);
 		border: 1px solid var(--eq-line);
-	}
-	.sec-testimonials:has(.resenas-google:not([hidden])) #testimonial-nav span {
-		padding-top: 10px;
-		padding-bottom: 10px;
 	}
 	.gr-leer-mas,
 	.gr-ver {

@@ -10,6 +10,13 @@ import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
 // Ícono decorativo (el texto de al lado ya dice lo mismo). `fin` = va después del texto (flechas).
 const ic = (nombre, fin = false) => `<span class="icon-${nombre} eq-ic${fin ? ' eq-ic-fin' : ''}" aria-hidden="true"></span>`;
+// Flechas de carrusel (regla «Botones de carrusel»): solo el chevrón fino, sin texto;
+// el nombre para lectores de pantalla va en aria-label. tiny-slider toma el 1.º y 2.º hijo.
+const chevron = (d) => `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const flechasCarrusel = (id, t, extra = '') => `<div id="${id}" class="eq-flechas" role="group" aria-label="${esc(t.navCarrusel)}"${extra}>
+	<button type="button" class="eq-flecha eq-flecha-prev" data-controls="prev" aria-label="${esc(t.anterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
+	<button type="button" class="eq-flecha eq-flecha-next" data-controls="next" aria-label="${esc(t.siguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+</div>`;
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
 const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
@@ -510,10 +517,7 @@ export function homePage(ctx) {
 						<div class="property-slider">
 							${slider.map((p, i) => propertyCard(p, { lazy: i > 2 })).join('\n')}
 						</div>
-						${slider.length > 1 ? `<div id="property-nav" class="controls" tabindex="0" aria-label="${t.navCarrusel}">
-							<span class="prev" data-controls="prev" aria-controls="property" tabindex="-1">${ic('chevron-left')}${t.anterior}</span>
-							<span class="next" data-controls="next" aria-controls="property" tabindex="-1">${t.siguiente}${ic('chevron-right', true)}</span>
-						</div>` : ''}
+						${slider.length > 1 ? `${flechasCarrusel('property-nav', t)}` : ''}
 					</div>`}
 				</div>
 			</div>
@@ -538,14 +542,11 @@ export function homePage(ctx) {
 	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
 		<div class="container">
 			<div class="row mb-5 align-items-center">
-				<div class="col-md-6">
-					<h2 class="font-weight-bold heading text-primary mb-4 mb-md-0">${esc(s.testimonios.titulo)}</h2>
+				<div class="col">
+					<h2 class="font-weight-bold heading text-primary mb-0">${esc(s.testimonios.titulo)}</h2>
 				</div>
-				<div class="col-md-6 text-md-end">
-					<div id="testimonial-nav"${ctx.testimonials.length ? '' : ' hidden'}>
-						<span class="prev" data-controls="prev">${ic('chevron-left')}${t.anterior}</span>
-						<span class="next" data-controls="next">${t.siguiente}${ic('chevron-right', true)}</span>
-					</div>
+				<div class="col-auto">
+					${flechasCarrusel('testimonial-nav', t, ctx.testimonials.length ? '' : ' hidden')}
 				</div>
 			</div>
 			${s.testimonios.google ? `<div id="resenas-google" class="resenas-google" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}" data-anonimo="${esc(t.anonimo)}"></div>` : ''}

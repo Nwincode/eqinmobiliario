@@ -562,41 +562,7 @@
 	}
 }
 
-#property-nav {
-	position: absolute;
-	width: 100%;
-	bottom: 64px;
-
-	span {
-		display: inline-block;
-		cursor: pointer;
-		padding: 7px 20px;
-		border-radius: 30px;
-		background: rgba($primary, .1);
-		color: $primary;
-		text-align: center;
-		transition: .3s all ease;
-		&:hover, &.active {
-			background: $primary;
-			color: $white!important;
-		}
-
-	}
-
-	.prev, .next {
-		position: absolute;
-		cursor: pointer;
-		&:hover {
-			color: $primary;
-		}
-	}
-	.prev {
-		left: 0;
-	}
-	.next {
-		right: 0;
-	}
-}
+/* Flechas de carrusel (#property-nav, #testimonial-nav): ver .eq-flechas en css/site.css */
 
 .counter-wrap {
 	.number {
@@ -706,24 +672,6 @@
 				}
 			}
 		}
-	}
-}
-
-#testimonial-nav {
-	span {
-		display: inline-block;
-		cursor: pointer;
-		padding: 7px 20px;
-		border-radius: 30px;
-		background: rgba($primary, .1);
-		color: $primary;
-		text-align: center;
-		transition: .3s all ease;
-		&:hover, &.active {
-			background: $primary;
-			color: $white!important;
-		}
-
 	}
 }
 
