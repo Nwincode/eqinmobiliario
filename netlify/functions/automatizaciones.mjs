@@ -2,7 +2,7 @@
 // GET  /api/automatizaciones           → qué está configurado en Netlify
 // POST /api/automatizaciones {accion}  → 'correo' (correo de prueba) o 'resumen' (resumen de hoy al equipo)
 import { staffUser, json } from '../lib/auth.mjs';
-import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla } from '../lib/correo.mjs';
+import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, servicioCorreo } from '../lib/correo.mjs';
 import { datosConfigurados } from '../lib/firestore.mjs';
 import { enviarResumen } from '../lib/resumen.mjs';
 
@@ -17,7 +17,8 @@ export default async (req) => {
 
 	if (req.method === 'GET') {
 		return json(200, {
-			correo: Boolean(process.env.RESEND_API_KEY),
+			correo: Boolean(servicioCorreo()),
+			servicio: servicioCorreo(),
 			destinatarios: destinatariosEquipo().length,
 			remitente: Boolean(process.env.CORREO_REMITENTE),
 			datos: datosConfigurados(),
@@ -25,7 +26,7 @@ export default async (req) => {
 		});
 	}
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
-	if (!correoConfigurado()) return json(400, { error: 'Falta configurar RESEND_API_KEY y AVISO_CORREO en Netlify.' });
+	if (!correoConfigurado()) return json(400, { error: 'Falta configurar en Netlify la clave del correo (ZEPTOMAIL_TOKEN o RESEND_API_KEY) y AVISO_CORREO.' });
 
 	const { accion } = await req.json().catch(() => ({}));
 	try {

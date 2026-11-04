@@ -1,9 +1,12 @@
-// Envío de correos con Resend (https://resend.com, plan gratuito: 3,000 correos al mes).
-// Variables de entorno en Netlify:
-//   RESEND_API_KEY   clave de Resend (la crea el dueño de la cuenta; nunca se pega en el chat)
+// Envío de correos con Zoho ZeptoMail (https://www.zoho.com/zeptomail/) o con Resend (https://resend.com).
+// Si están las dos claves, se usa ZeptoMail.
+// Variables de entorno en Netlify (las pone el dueño de la cuenta; nunca se pegan en el chat):
+//   ZEPTOMAIL_TOKEN  token de envío de ZeptoMail (Mail Agent → SMTP/API → "Send Mail Token")
+//   ZEPTOMAIL_HOST   opcional, solo si la cuenta de Zoho no es la de EE. UU. (p. ej. api.zeptomail.eu)
+//   RESEND_API_KEY   clave de Resend (alternativa a ZeptoMail)
 //   AVISO_CORREO     a quién llegan los avisos y el resumen del día (varios, separados por coma)
 //   CORREO_REMITENTE quién envía, p. ej. "Equipo Inmobiliario <avisos@eqinmobiliario.gt>"
-//                    (el dominio debe estar verificado en Resend)
+//                    (el dominio debe estar verificado en el servicio; con ZeptoMail es obligatorio)
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { colorTema } from '../../admin/js/tema-def.js';
 import { leerPublico } from './firestore.mjs';
@@ -11,7 +14,14 @@ import { leerPublico } from './firestore.mjs';
 export const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const NOMBRE = 'Equipo Inmobiliario';
 
-export const correoConfigurado = () => Boolean(process.env.RESEND_API_KEY && destinatariosEquipo().length);
+// 'zeptomail', 'resend' o '' (sin configurar).
+export function servicioCorreo() {
+	if (process.env.ZEPTOMAIL_TOKEN) return 'zeptomail';
+	if (process.env.RESEND_API_KEY) return 'resend';
+	return '';
+}
+
+export const correoConfigurado = () => Boolean(servicioCorreo() && destinatariosEquipo().length);
 
 export function destinatariosEquipo() {
 	return String(process.env.AVISO_CORREO || '').split(',').map((s) => s.trim()).filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
@@ -49,10 +59,42 @@ export function boton(c, texto, url, color = c.primary) {
 	return `<a href="${esc(url)}" style="display:inline-block;background:${color};color:${c.white};text-decoration:none;font-weight:bold;font-size:14px;padding:12px 18px;border-radius:8px;margin:4px 8px 4px 0">${esc(texto)}</a>`;
 }
 
-export async function enviarCorreo({ para, asunto, html, texto }) {
-	const lista = [...new Set((Array.isArray(para) ? para : [para]).filter(Boolean))];
-	if (!process.env.RESEND_API_KEY) throw new Error('Falta RESEND_API_KEY en Netlify.');
-	if (!lista.length) throw new Error('Falta AVISO_CORREO en Netlify.');
+// "Nombre <correo@dominio>" → { name, address }
+function remitente() {
+	const v = String(process.env.CORREO_REMITENTE || '').trim();
+	const m = v.match(/^(.*?)\s*<([^>]+)>$/);
+	return m ? { name: m[1].replace(/^"|"$/g, '').trim() || NOMBRE, address: m[2].trim() } : { name: NOMBRE, address: v };
+}
+
+async function enviarZepto({ lista, asunto, html, texto }) {
+	const de = remitente();
+	if (!de.address) throw new Error('Con ZeptoMail falta CORREO_REMITENTE en Netlify (una dirección del dominio verificado).');
+	const token = String(process.env.ZEPTOMAIL_TOKEN).trim();
+	const host = String(process.env.ZEPTOMAIL_HOST || 'api.zeptomail.com').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+	const res = await fetch(`https://${host}/v1.1/email`, {
+		method: 'POST',
+		headers: {
+			Authorization: /^Zoho-enczapikey /i.test(token) ? token : `Zoho-enczapikey ${token}`,
+			'Content-Type': 'application/json',
+			Accept: 'application/json'
+		},
+		body: JSON.stringify({
+			from: de,
+			to: lista.map((address) => ({ email_address: { address } })),
+			subject: asunto,
+			htmlbody: html,
+			textbody: texto
+		})
+	});
+	const body = await res.json().catch(() => ({}));
+	if (!res.ok) {
+		const det = body.error?.details?.[0]?.message || body.error?.message || res.status;
+		throw new Error(`ZeptoMail rechazó el correo: ${det}`);
+	}
+	return body.request_id;
+}
+
+async function enviarResend({ lista, asunto, html, texto }) {
 	const res = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -67,4 +109,13 @@ export async function enviarCorreo({ para, asunto, html, texto }) {
 	const body = await res.json().catch(() => ({}));
 	if (!res.ok) throw new Error(`Resend rechazó el correo: ${body.message || res.status}`);
 	return body.id;
+}
+
+export async function enviarCorreo({ para, asunto, html, texto }) {
+	const lista = [...new Set((Array.isArray(para) ? para : [para]).filter(Boolean))];
+	const servicio = servicioCorreo();
+	if (!servicio) throw new Error('Falta la clave del servicio de correo en Netlify (ZEPTOMAIL_TOKEN o RESEND_API_KEY).');
+	if (!lista.length) throw new Error('Falta AVISO_CORREO en Netlify.');
+	const datos = { lista, asunto, html, texto };
+	return servicio === 'zeptomail' ? enviarZepto(datos) : enviarResend(datos);
 }
