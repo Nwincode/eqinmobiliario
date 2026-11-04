@@ -18,7 +18,7 @@ const DIST = path.join(ROOT, 'dist');
 const MIN_LISTADO = 2;
 
 // Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404']);
+const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -635,6 +635,9 @@ async function main() {
 			}
 		}
 		await writePage('/en/404.html', T.notFoundPage(ctxEn));
+		// Portal del propietario: página privada, fuera del sitemap.
+		registrarPar('/propietarios/', '/en/owners/');
+		await writePage('/en/owners/', T.portalPage(ctxEn));
 		// Las fichas en español con traducción se regeneran con su enlace hreflang.
 		for (const es of todas.filter((x) => x._alternates)) await writePage(T.propertyUrl(es), fichaHtml(ctx, es));
 		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
@@ -643,6 +646,7 @@ async function main() {
 	}
 
 	await writePage('/404.html', T.notFoundPage(ctx));
+	await writePage('/propietarios/', T.portalPage(ctx));
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
 

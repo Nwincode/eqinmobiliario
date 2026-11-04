@@ -930,6 +930,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .gap-3 { gap: 1rem !important; }
 .gap-4 { gap: 1.5rem !important; }
 .gap-5 { gap: 3rem !important; }
+/* d-grid tampoco viene en 5.0.0-alpha2 (sin ella, gap-* no separa las pilas de d-grid). */
+.d-grid { display: grid !important; }
+
+/* Portal del propietario: en celular los botones van parejos, dos por fila. */
+@media (max-width: 575.98px) {
+	.portal-botones > .btn { flex: 1 1 calc(50% - .25rem); }
+}
 
 /* El panel carga Bootstrap 5.0.0-alpha2, que aún usaba nombres anteriores (mr-/ml-, text-right…).
    Equivalencias de las utilidades de Bootstrap 5 que usan las vistas. */

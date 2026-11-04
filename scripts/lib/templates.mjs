@@ -142,6 +142,8 @@ function head(ctx, page) {
 	<meta name="theme-color" content="${colorTema(site.tema, 'dark')}">
 	${preloadTags(ctx, page.preloadImage)}
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
+	${page.noReferrer ? '<meta name="referrer" content="no-referrer">' : ''}
+	${(page.extraCss || []).map((h) => `<link rel="stylesheet" href="${esc(h)}">`).join('\n\t')}
 	${cssTema(site.tema) ? `<style id="eq-tema">${cssTema(site.tema)}</style>` : ''}
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1459,4 +1461,201 @@ export function notFoundPage(ctx) {
 		</div>
 	</div>`;
 	return layout(ctx, { path: '/404.html', title: `${t.noEncontrada} | ${ctx.site.general.nombreCorto}`, noindex: true }, body);
+}
+
+// ——— Portal del propietario (/propietarios/ y /en/owners/) ———
+// Página privada: no se indexa ni va en el sitemap. Los datos los carga js/portal-propietarios.js
+// desde Firestore (portalPropietarios/{token}). Todo el marcado (también el de las plantillas)
+// está aquí para que la limpieza de CSS conserve las clases y los íconos.
+const TEXTOS_PORTAL = {
+	es: {
+		titulo: 'Portal de propietarios', migas: 'Portal de propietarios',
+		cargando: 'Cargando tu portal…',
+		accesoTitulo: 'Entra a tu portal', accesoTexto: 'Escribe el correo que le diste a tu asesor. Te mandamos un enlace para entrar, sin contraseña.',
+		correo: 'Tu correo', correoEj: 'nombre@correo.com', correoMal: 'Escribe un correo completo, por ejemplo nombre@correo.com.', enviar: 'Enviarme el enlace',
+		enviado: 'Te enviamos un enlace a tu correo. Si está registrado con nosotros, te llegará en unos minutos. Revisa también la carpeta de spam o promociones.',
+		whatsappAyuda: '¿Tu asesor te mandó un enlace por WhatsApp? Ábrelo y entras directo.',
+		confirmarTitulo: 'Confirma tu correo', confirmarTexto: 'Abriste el enlace en otro teléfono o navegador. Escribe otra vez tu correo para entrar.', confirmar: 'Entrar',
+		errorTitulo: 'No pudimos abrir tu portal', errorTexto: 'Revisa tu conexión a internet e inténtalo otra vez.',
+		reintentar: 'Intentar otra vez', usarCorreo: 'Entrar con mi correo', escribirnos: 'Escríbenos por WhatsApp',
+		vacioTitulo: 'No encontramos un portal con este correo', vacioTexto: 'Pídele a tu asesor que active tu portal o que revise el correo que tiene registrado.', otroCorreo: 'Usar otro correo',
+		hola: 'Hola', resumen: 'Así va tu propiedad. Sin llamadas: aquí ves lo último.', actualizado: 'Actualizado el',
+		tuAsesor: 'Tu asesor', whatsapp: 'WhatsApp', llamar: 'Llamar',
+		exclusiva: 'Exclusiva vence', proximoPaso: 'Próximo paso',
+		enMercado: 'días en el mercado', verPublicacion: 'Ver la publicación',
+		consultas: 'Consultas', visitas: 'Visitas', ofertas: 'Ofertas', ult30: 'en los últimos 30 días',
+		actividad: 'Lo que ha pasado', sinActividad: 'Todavía no hay novedades. Tu asesor las irá agregando aquí.',
+		precios: 'Historial de precio', portales: 'Dónde se anuncia', sinPortales: 'Tu asesor está preparando la publicación.',
+		privacidad: 'Por privacidad no mostramos nombres ni teléfonos de los interesados.', salir: 'Salir'
+	},
+	en: {
+		titulo: 'Owner portal', migas: 'Owner portal',
+		cargando: 'Loading your portal…',
+		accesoTitulo: 'Open your portal', accesoTexto: 'Enter the email you gave your agent. We will send you a link to sign in, no password needed.',
+		correo: 'Your email', correoEj: 'name@email.com', correoMal: 'Enter a full email address, for example name@email.com.', enviar: 'Email me the link',
+		enviado: 'We sent you a link. If your email is registered with us, it will arrive in a few minutes. Please check your spam or promotions folder too.',
+		whatsappAyuda: 'Did your agent send you a link on WhatsApp? Open it to go straight in.',
+		confirmarTitulo: 'Confirm your email', confirmarTexto: 'You opened the link on another phone or browser. Enter your email again to sign in.', confirmar: 'Sign in',
+		errorTitulo: 'We could not open your portal', errorTexto: 'Check your internet connection and try again.',
+		reintentar: 'Try again', usarCorreo: 'Sign in with my email', escribirnos: 'Message us on WhatsApp',
+		vacioTitulo: 'We could not find a portal for this email', vacioTexto: 'Ask your agent to turn on your portal or to check the email they have on file.', otroCorreo: 'Use another email',
+		hola: 'Hi', resumen: 'Here is how your property is doing, no phone calls needed.', actualizado: 'Updated',
+		tuAsesor: 'Your agent', whatsapp: 'WhatsApp', llamar: 'Call',
+		exclusiva: 'Exclusive listing ends', proximoPaso: 'Next step',
+		enMercado: 'days on the market', verPublicacion: 'See the listing',
+		consultas: 'Inquiries', visitas: 'Showings', ofertas: 'Offers', ult30: 'in the last 30 days',
+		actividad: 'What has happened', sinActividad: 'No updates yet. Your agent will add them here.',
+		precios: 'Price history', portales: 'Where it is advertised', sinPortales: 'Your agent is preparing the listing.',
+		privacidad: 'For privacy, we never show the names or phone numbers of interested buyers.', salir: 'Sign out'
+	}
+};
+
+export function portalPage(ctx) {
+	const lang = ctx.lang === 'en' ? 'en' : 'es';
+	const t = TEXTOS_PORTAL[lang];
+	const path = lang === 'en' ? '/en/owners/' : '/propietarios/';
+	const wa = whatsappLink(ctx.site.contacto.whatsapp, lang === 'en' ? 'Hi, I need help with my owner portal.' : 'Hola, necesito ayuda con mi portal de propietario.');
+	const btnWaOficina = wa ? `<a href="${esc(wa)}" class="btn btn-success" target="_blank" rel="noopener">${ic('whatsapp')}${t.escribirnos}</a>` : '';
+	const body = `
+	${pageHero(ctx, t.titulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: tr(ctx).inicio, url: rt(ctx).inicio }, { name: t.migas, url: path }])}
+	<div class="section pp" id="pp" data-lang="${lang}" data-t="${esc(JSON.stringify(t))}">
+		<div class="container pp-contenedor">
+			<div id="pp-cargando" class="pp-cargando" role="status"><span class="pp-spinner" aria-hidden="true"></span>${t.cargando}</div>
+
+			<section id="pp-acceso" class="pp-tarjeta pp-acceso" aria-labelledby="pp-acceso-titulo" hidden>
+				<span class="icon-lock pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-acceso-titulo" class="pp-h2">${t.accesoTitulo}</h2>
+				<p class="pp-texto">${t.accesoTexto}</p>
+				<form id="pp-form-correo" class="pp-form" novalidate>
+					<label for="pp-correo" class="pp-label">${t.correo}</label>
+					<input id="pp-correo" name="email" type="email" class="form-control pp-input" autocomplete="email" inputmode="email" required placeholder="${t.correoEj}" aria-describedby="pp-correo-error">
+					<p id="pp-correo-error" class="pp-error-campo" hidden>${ic('exclamation-circle')}${t.correoMal}</p>
+					<button type="submit" class="btn btn-primary pp-btn-ancho">${ic('envelope-o')}${t.enviar}</button>
+				</form>
+				<p id="pp-enviado" class="pp-aviso pp-aviso-ok" role="status" hidden>${ic('envelope-open-o')}<span>${t.enviado}</span></p>
+				<p class="pp-nota">${ic('whatsapp')}${t.whatsappAyuda}</p>
+			</section>
+
+			<section id="pp-confirmar" class="pp-tarjeta pp-acceso" aria-labelledby="pp-confirmar-titulo" hidden>
+				<span class="icon-envelope-o pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-confirmar-titulo" class="pp-h2">${t.confirmarTitulo}</h2>
+				<p class="pp-texto">${t.confirmarTexto}</p>
+				<form id="pp-form-confirmar" class="pp-form" novalidate>
+					<label for="pp-correo2" class="pp-label">${t.correo}</label>
+					<input id="pp-correo2" name="email" type="email" class="form-control pp-input" autocomplete="email" inputmode="email" required placeholder="${t.correoEj}" aria-describedby="pp-correo2-error">
+					<p id="pp-correo2-error" class="pp-error-campo" hidden>${ic('exclamation-circle')}${t.correoMal}</p>
+					<button type="submit" class="btn btn-primary pp-btn-ancho">${ic('sign-in')}${t.confirmar}</button>
+				</form>
+			</section>
+
+			<section id="pp-error" class="pp-tarjeta pp-acceso" aria-labelledby="pp-error-titulo" hidden>
+				<span class="icon-exclamation-circle pp-acceso-icono pp-acceso-icono-error" aria-hidden="true"></span>
+				<h2 id="pp-error-titulo" class="pp-h2">${t.errorTitulo}</h2>
+				<p id="pp-error-texto" class="pp-texto">${t.errorTexto}</p>
+				<div class="pp-acciones">
+					<button type="button" class="btn btn-primary" id="pp-reintentar">${ic('refresh')}${t.reintentar}</button>
+					<button type="button" class="btn btn-outline-primary" data-pp-accion="correo">${ic('envelope-o')}${t.usarCorreo}</button>
+					${btnWaOficina}
+				</div>
+			</section>
+
+			<section id="pp-vacio" class="pp-tarjeta pp-acceso" aria-labelledby="pp-vacio-titulo" hidden>
+				<span class="icon-home pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-vacio-titulo" class="pp-h2">${t.vacioTitulo}</h2>
+				<p class="pp-texto">${t.vacioTexto}</p>
+				<div class="pp-acciones">
+					${btnWaOficina}
+					<button type="button" class="btn btn-outline-primary" data-pp-accion="salir">${ic('envelope-o')}${t.otroCorreo}</button>
+				</div>
+			</section>
+
+			<div id="pp-panel" class="pp-panel" hidden>
+				<div class="pp-encabezado">
+					<div class="pp-saludo">
+						<h2 class="pp-h1">${t.hola}<span data-pp="nombre"></span></h2>
+						<p class="pp-texto">${t.resumen}</p>
+						<p class="pp-actualizado">${ic('refresh')}${t.actualizado} <time data-pp="actualizado"></time></p>
+					</div>
+					<div class="pp-asesor" data-pp="asesor">
+						<div class="pp-asesor-persona">
+							<img class="pp-asesor-foto" data-pp="asesor-foto" alt="" width="56" height="56" hidden>
+							<span class="pp-asesor-inicial" data-pp="asesor-inicial" aria-hidden="true"></span>
+							<div><p class="pp-asesor-rol">${t.tuAsesor}</p><p class="pp-asesor-nombre" data-pp="asesor-nombre"></p></div>
+						</div>
+						<div class="pp-asesor-botones">
+							<a class="btn btn-success" data-pp="asesor-wa" target="_blank" rel="noopener">${ic('whatsapp')}${t.whatsapp}</a>
+							<a class="btn btn-outline-primary" data-pp="asesor-tel">${ic('phone')}${t.llamar}</a>
+						</div>
+					</div>
+				</div>
+				<div class="pp-datos" data-pp="datos">
+					<div class="pp-dato" data-pp="paso-caja" hidden>${ic('flag')}<div><p class="pp-dato-titulo">${t.proximoPaso}</p><p class="pp-dato-valor" data-pp="paso"></p></div></div>
+					<div class="pp-dato" data-pp="exclusiva-caja" hidden>${ic('calendar')}<div><p class="pp-dato-titulo">${t.exclusiva}</p><p class="pp-dato-valor" data-pp="exclusiva"></p></div></div>
+				</div>
+				<div id="pp-lista" class="pp-lista"></div>
+				<div class="pp-pie">
+					<p class="pp-privacidad">${ic('lock')}${t.privacidad}</p>
+					<button type="button" class="btn btn-link pp-salir" data-pp-accion="salir" hidden>${ic('sign-out')}${t.salir}</button>
+				</div>
+			</div>
+
+			<template id="pp-tpl-prop">
+				<article class="pp-prop">
+					<div class="pp-prop-cabecera">
+						<div class="pp-prop-foto"><img data-pp="foto" alt="" loading="lazy" width="480" height="320"><span class="pp-badge" data-pp="estado"></span></div>
+						<div class="pp-prop-info">
+							<h3 class="pp-prop-titulo" data-pp="titulo"></h3>
+							<p class="pp-prop-precio" data-pp="precio"></p>
+							<p class="pp-prop-dias">${ic('clock-o')}<span><strong data-pp="dias"></strong> <span data-pp="dias-texto">${t.enMercado}</span></span></p>
+							<a class="pp-enlace" data-pp="url" target="_blank" rel="noopener" hidden>${t.verPublicacion}${ic('external-link', true)}</a>
+						</div>
+					</div>
+					<ul class="pp-kpis">
+						<li class="pp-kpi">${ic('commenting-o')}<span class="pp-kpi-numero" data-pp="consultas"></span><span class="pp-kpi-nombre">${t.consultas}</span><span class="pp-kpi-30"><span data-pp="consultas30"></span> ${t.ult30}</span></li>
+						<li class="pp-kpi">${ic('calendar-check-o')}<span class="pp-kpi-numero" data-pp="visitas"></span><span class="pp-kpi-nombre">${t.visitas}</span><span class="pp-kpi-30"><span data-pp="visitas30"></span> ${t.ult30}</span></li>
+						<li class="pp-kpi">${ic('handshake-o')}<span class="pp-kpi-numero" data-pp="ofertas"></span><span class="pp-kpi-nombre">${t.ofertas}</span><span class="pp-kpi-30"><span data-pp="ofertas30"></span> ${t.ult30}</span></li>
+					</ul>
+					<p class="pp-proximas" data-pp="proximas" hidden>${ic('calendar')}<span data-pp="proximas-texto"></span></p>
+					<div class="pp-prop-cuerpo">
+						<section class="pp-bloque">
+							<h4 class="pp-h4">${ic('history')}${t.actividad}</h4>
+							<ol class="pp-linea" data-pp="eventos"></ol>
+							<p class="pp-vacio-texto" data-pp="sin-eventos" hidden>${t.sinActividad}</p>
+						</section>
+						<div class="pp-lateral">
+							<section class="pp-bloque">
+								<h4 class="pp-h4">${ic('line-chart')}${t.precios}</h4>
+								<ol class="pp-precios" data-pp="precios"></ol>
+							</section>
+							<section class="pp-bloque">
+								<h4 class="pp-h4">${ic('globe')}${t.portales}</h4>
+								<ul class="pp-portales" data-pp="portales"></ul>
+								<p class="pp-vacio-texto" data-pp="sin-portales" hidden>${t.sinPortales}</p>
+							</section>
+						</div>
+					</div>
+				</article>
+			</template>
+			<template id="pp-tpl-iconos">
+				<span data-tipo="foto" class="icon-camera pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="precio" class="icon-tag pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="oferta" class="icon-handshake-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="visita" class="icon-calendar-check-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="paso" class="icon-flag pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="nota" class="icon-commenting-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="externo" class="icon-external-link eq-ic eq-ic-fin" aria-hidden="true"></span>
+			</template>
+		</div>
+	</div>`;
+	return layout(ctx, {
+		path,
+		title: `${t.titulo} | ${ctx.site.general.nombreCorto}`,
+		description: t.accesoTexto,
+		noindex: true,
+		alternates: ctx.enActivo ? { es: '/propietarios/', en: '/en/owners/' } : null,
+		extraCss: ['/css/portal.css'],
+		noReferrer: true,
+		bodyAttrs: 'class="pp-pagina"',
+		extraJs: '<script type="module" src="/js/portal-propietarios.js"></script>'
+	}, body);
 }

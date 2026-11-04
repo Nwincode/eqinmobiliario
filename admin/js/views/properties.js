@@ -328,6 +328,17 @@ async function renderEditor(container, id) {
 		} else if (data.estadoFecha) {
 			d.estadoFecha = data.estadoFecha;
 		}
+		// Historial de precio (se muestra al propietario en su portal).
+		d.historialPrecio = data.historialPrecio || [];
+		const precioNuevo = Number(d.precio) || 0;
+		const ultimo = d.historialPrecio[d.historialPrecio.length - 1];
+		if (precioNuevo && (!ultimo || Number(ultimo.precio) !== precioNuevo || ultimo.moneda !== d.moneda)) {
+			if (!ultimo && !isNew && Number(data.precio) && Number(data.precio) !== precioNuevo) {
+				d.historialPrecio.push({ precio: Number(data.precio), moneda: data.moneda || 'USD', fecha: data.createdAt || Timestamp.now() });
+			}
+			const sinCambio = !ultimo && !isNew && Number(data.precio) === precioNuevo;
+			d.historialPrecio = [...d.historialPrecio, { precio: precioNuevo, moneda: d.moneda || 'USD', fecha: (sinCambio && data.createdAt) || Timestamp.now() }];
+		}
 		d.updatedAt = serverTimestamp();
 		d.updatedBy = session.user.uid;
 		if (isNew) {

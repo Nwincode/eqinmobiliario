@@ -147,6 +147,39 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Portal del propietario: copia resumida y sin datos de clientes, hecha por el asesor.
+    // El id del documento es un token aleatorio largo (el enlace privado): quien lo tiene lo lee.
+    // Con el enlace del correo (sin contraseña) el propietario solo puede buscar su propio correo.
+    // Los propietarios no tienen documento en users, así que isStaff() sigue siendo falso para ellos.
+    function correoVerificado() {
+      return signedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true;
+    }
+    function portalValido(token) {
+      return token.size() >= 32
+        && request.resource.data.email is string
+        && request.resource.data.email == request.resource.data.email.lower()
+        && request.resource.data.agentId is string
+        && request.resource.data.propietarioId is string
+        && request.resource.data.propiedades is list
+        && request.resource.data.propiedades.size() <= 50;
+    }
+    match /portalPropietarios/{token} {
+      allow get: if true;
+      allow list: if (correoVerificado()
+            && resource.data.email == request.auth.token.email.lower())
+        || isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow create: if isStaff() && portalValido(token)
+        && (isAdmin() || request.resource.data.agentId == myAgentId());
+      allow update: if isStaff() && portalValido(token)
+        && (isAdmin() || (resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == myAgentId()));
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+    }
+
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
       allow create: if request.resource.data.keys().hasOnly([
