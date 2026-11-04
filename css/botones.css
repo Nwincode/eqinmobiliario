@@ -1,0 +1,278 @@
+/* ================================================================
+   BOTONES: un solo sistema para todo el sitio.
+   Colores, alturas y esquinas salen de css/tema.css.
+
+   Uso en el HTML:
+     .btn .btn-primary          Acción principal (azul)
+     .btn .btn-outline-primary  Acción secundaria (borde azul)
+     .btn .btn-outline-secondary Acción neutra (borde gris: limpiar, cancelar)
+     .btn .btn-light            Botón blanco (sobre fotos o fondos oscuros)
+     .btn .btn-outline-light    Borde blanco (sobre fondos oscuros)
+     .btn .btn-success          WhatsApp
+     .btn .btn-vip              Sección VIP (dorado)
+   Tamaños: .btn-sm (38 px), normal (48 px), .btn-lg (56 px).
+   ================================================================ */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: .5rem;
+	min-height: var(--eq-btn-height);
+	padding: .5rem var(--eq-btn-padding-x);
+	border: 1px solid transparent;
+	border-radius: var(--eq-radius);
+	font-family: inherit;
+	font-size: 1rem;
+	font-weight: var(--eq-btn-font-weight);
+	line-height: 1.2;
+	letter-spacing: .005em;
+	text-align: center;
+	text-decoration: none !important;
+	white-space: normal;
+	box-shadow: none;
+	transform: none;
+	cursor: pointer;
+	transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+.btn:hover,
+.btn:active {
+	box-shadow: none;
+	transform: none;
+}
+.btn:focus {
+	box-shadow: none;
+}
+.btn:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+	box-shadow: none;
+}
+.btn:disabled,
+.btn.disabled {
+	opacity: .5;
+	pointer-events: none;
+}
+.btn.w-100 {
+	display: flex;
+}
+
+/* Tamaños */
+.btn-sm {
+	min-height: var(--eq-btn-height-sm);
+	padding: .35rem 1rem;
+	font-size: .875rem;
+}
+.btn-lg {
+	min-height: var(--eq-btn-height-lg);
+	padding: .75rem calc(var(--eq-btn-padding-x) + .5rem);
+	font-size: 1rem;
+}
+
+/* Variantes */
+.btn-primary,
+.btn-primary:visited {
+	background-color: var(--eq-primary);
+	border-color: var(--eq-primary);
+	color: var(--eq-white);
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary.active {
+	background-color: var(--eq-primary-hover);
+	border-color: var(--eq-primary-hover);
+	color: var(--eq-white);
+}
+
+.btn-outline-primary {
+	background-color: transparent;
+	border-color: var(--eq-primary);
+	color: var(--eq-primary);
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+	background-color: var(--eq-primary);
+	border-color: var(--eq-primary);
+	color: var(--eq-white);
+}
+
+.btn-outline-secondary,
+.btn-secondary {
+	background-color: var(--eq-white);
+	border-color: var(--eq-line);
+	color: var(--eq-dark);
+}
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:active,
+.btn-secondary:hover,
+.btn-secondary:focus {
+	background-color: var(--eq-mist);
+	border-color: var(--eq-ink);
+	color: var(--eq-dark);
+}
+
+.btn-light {
+	background-color: var(--eq-white);
+	border-color: var(--eq-white);
+	color: var(--eq-dark);
+}
+.btn-light:hover,
+.btn-light:focus,
+.btn-light:active {
+	background-color: var(--eq-dark);
+	border-color: var(--eq-dark);
+	color: var(--eq-white);
+}
+
+.btn-outline-light {
+	background-color: transparent;
+	border-color: color-mix(in srgb, var(--eq-white) 60%, transparent);
+	color: var(--eq-white);
+}
+.btn-outline-light:hover,
+.btn-outline-light:focus,
+.btn-outline-light:active {
+	background-color: var(--eq-white);
+	border-color: var(--eq-white);
+	color: var(--eq-dark);
+}
+
+.btn-success {
+	background-color: var(--eq-whatsapp);
+	border-color: var(--eq-whatsapp);
+	color: var(--eq-white);
+}
+.btn-success:hover,
+.btn-success:focus,
+.btn-success:active {
+	background-color: var(--eq-whatsapp-hover);
+	border-color: var(--eq-whatsapp-hover);
+	color: var(--eq-white);
+}
+
+.btn-vip {
+	background-color: var(--eq-gold);
+	border-color: var(--eq-gold);
+	color: var(--eq-white);
+}
+.btn-vip:hover,
+.btn-vip:focus,
+.btn-vip:active {
+	background-color: var(--eq-gold-hover);
+	border-color: var(--eq-gold-hover);
+	color: var(--eq-white);
+}
+
+/* Variantes del panel y de mensajes */
+.btn-danger {
+	background-color: var(--eq-danger);
+	border-color: var(--eq-danger);
+	color: var(--eq-white);
+}
+.btn-danger:hover,
+.btn-danger:focus {
+	background-color: var(--eq-danger-hover);
+	border-color: var(--eq-danger-hover);
+	color: var(--eq-white);
+}
+.btn-outline-danger {
+	background-color: transparent;
+	border-color: var(--eq-danger);
+	color: var(--eq-danger);
+}
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+	background-color: var(--eq-danger);
+	border-color: var(--eq-danger);
+	color: var(--eq-white);
+}
+.btn-outline-success {
+	background-color: transparent;
+	border-color: var(--eq-whatsapp);
+	color: var(--eq-whatsapp);
+}
+.btn-outline-success:hover,
+.btn-outline-success:focus {
+	background-color: var(--eq-whatsapp);
+	border-color: var(--eq-whatsapp);
+	color: var(--eq-white);
+}
+.btn-warning {
+	background-color: var(--eq-warning);
+	border-color: var(--eq-warning);
+	color: var(--eq-dark);
+}
+.btn-warning:hover,
+.btn-warning:focus {
+	background-color: color-mix(in oklab, var(--eq-warning) 85%, var(--eq-dark));
+	border-color: color-mix(in oklab, var(--eq-warning) 85%, var(--eq-dark));
+	color: var(--eq-dark);
+}
+.btn-link {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--eq-primary);
+	font-weight: 500;
+	text-decoration: underline !important;
+	text-underline-offset: 3px;
+}
+.btn-link:hover,
+.btn-link:focus {
+	color: var(--eq-primary-hover);
+}
+.btn.text-start {
+	justify-content: flex-start;
+	text-align: left;
+}
+
+/* Sobre el bloque azul del pie, el botón principal pasa a blanco */
+.footer-cta .btn-primary {
+	background-color: var(--eq-white);
+	border-color: var(--eq-white);
+	color: var(--eq-primary);
+}
+.footer-cta .btn-primary:hover,
+.footer-cta .btn-primary:focus {
+	background-color: var(--eq-dark);
+	border-color: var(--eq-dark);
+	color: var(--eq-white);
+}
+
+/* Botones que no usan .btn pero deben verse igual */
+.site-nav .site-navigation .site-menu > li.nav-cta > a {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--eq-btn-height-sm);
+	padding: 0 1rem;
+	border-radius: var(--eq-radius);
+	font-weight: var(--eq-btn-font-weight);
+}
+.site-mobile-menu .site-nav-wrap .nav-cta > a {
+	border-radius: var(--eq-radius) !important;
+	font-weight: var(--eq-btn-font-weight) !important;
+}
+.ficha-ver-todas {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--eq-btn-height-sm);
+	padding: 0 1rem;
+	border: 1px solid var(--eq-white);
+	border-radius: var(--eq-radius);
+	font-weight: var(--eq-btn-font-weight);
+	transition: background-color .2s ease, color .2s ease;
+}
+.ficha-ver-todas:focus-visible,
+.site-nav .site-navigation .site-menu > li.nav-cta > a:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.hero .form-search .btn {
+	min-height: 54px;
+}
+
+/* Buscador de la portada: campo y botón con las mismas esquinas */
+.hero .form-search .form-control {
+	border-radius: var(--eq-radius);
+}

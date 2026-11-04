@@ -1,0 +1,828 @@
+{
+  "settings": {
+    "general": {
+      "nombre": "Equipo Inmobiliario S.A.",
+      "nombreCorto": "Equipo Inmobiliario",
+      "logo": "/Icono_Equipoinmobiliario@0.75x.png",
+      "favicon": "/favicon.png",
+      "moneda": "USD"
+    },
+    "seo": {
+      "titulo": "Equipo Inmobiliario S.A. | Bienes Raíces en Guatemala",
+      "descripcion": "Compra, venta y renta de casas, apartamentos y terrenos en Guatemala. Asesores inmobiliarios con experiencia y propiedades verificadas.",
+      "imagen": "/images/hero_bg_3.jpg",
+      "keywords": "bienes raíces Guatemala, casas en venta zona 16, apartamentos en renta Guatemala, inmobiliaria Guatemala",
+      "indexar": true,
+      "googleVerification": "",
+      "bingVerification": "",
+      "redirecciones": []
+    },
+    "tracking": {
+      "gtmId": "GTM-N49PFVKK",
+      "pixelId": "212605361803683",
+      "ga4Id": "",
+      "adsId": "",
+      "adsLeadLabel": "",
+      "adsContactLabel": ""
+    },
+    "hero": {
+      "titulo": "La manera más fácil de encontrar tu propiedad",
+      "placeholderBusqueda": "Ingresa la zona de tu interés",
+      "imagenes": [
+        "/images/hero_bg_3.webp",
+        "/images/hero_bg_2.webp",
+        "/images/hero_bg_1.webp"
+      ]
+    },
+    "destacadas": {
+      "titulo": "Propiedades populares",
+      "boton": "Ver todas las propiedades"
+    },
+    "features": {
+      "visible": true,
+      "items": [
+        {
+          "icono": "flaticon-house",
+          "titulo": "Nuestras Propiedades",
+          "texto": "Casas, apartamentos y terrenos verificados en las mejores zonas de Guatemala.",
+          "enlace": "/propiedades/"
+        },
+        {
+          "icono": "flaticon-building",
+          "titulo": "Apartamentos en Venta",
+          "texto": "Opciones para vivir o invertir, con acompañamiento en todo el proceso.",
+          "enlace": "/propiedades/venta/"
+        },
+        {
+          "icono": "flaticon-house-3",
+          "titulo": "Agentes Inmobiliarios",
+          "texto": "Un equipo con experiencia en ventas, negociación y financiamiento bancario.",
+          "enlace": "/#asesores"
+        },
+        {
+          "icono": "flaticon-house-1",
+          "titulo": "Propiedades en Renta",
+          "texto": "Encuentra tu próximo hogar u oficina con contratos claros y seguros.",
+          "enlace": "/propiedades/renta/"
+        }
+      ]
+    },
+    "testimonios": {
+      "visible": true,
+      "titulo": "Reseñas"
+    },
+    "servicios": {
+      "visible": true,
+      "titulo": "Te ayudaremos a...",
+      "subtitulo": "Encontrar la propiedad perfecta para tus gustos y necesidades",
+      "imagen": "/images/hero_bg_3.webp",
+      "items": [
+        {
+          "icono": "icon-home2",
+          "titulo": "Cartera de inmuebles",
+          "texto": "Contamos con cartera de inmuebles tanto propios como de alianzas con otras empresas y corredores."
+        },
+        {
+          "icono": "icon-person",
+          "titulo": "Agentes Capacitados",
+          "texto": "Contamos con agentes con experiencia en ventas, atención al cliente y sector bancario."
+        },
+        {
+          "icono": "icon-security",
+          "titulo": "Inmuebles Verificados",
+          "texto": "Cada inmueble, al ingresar, pasa por una investigación para verificar que todo esté en orden."
+        }
+      ]
+    },
+    "contadores": {
+      "visible": true,
+      "items": [
+        {
+          "valor": 106,
+          "etiqueta": "Propiedades vendidas",
+          "icono": "icon-trophy"
+        },
+        {
+          "valor": 80,
+          "etiqueta": "Propiedades alquiladas",
+          "icono": "icon-key"
+        },
+        {
+          "valor": 186,
+          "etiqueta": "Inmuebles atendidos",
+          "icono": "icon-handshake-o"
+        },
+        {
+          "valor": 3,
+          "etiqueta": "Agentes inmobiliarios",
+          "icono": "icon-users"
+        }
+      ]
+    },
+    "cta": {
+      "visible": true,
+      "titulo": "Sé parte de nuestro equipo de asesores",
+      "boton": "Aplica para ser asesor",
+      "enlace": "/trabaja-con-nosotros/"
+    },
+    "asesores": {
+      "visible": true,
+      "titulo": "Nuestros Asesores Inmobiliarios",
+      "subtitulo": "Un equipo de agentes inmobiliarios con experiencia, pasión y compromiso, que trabaja de forma coordinada para satisfacer las necesidades de los clientes."
+    },
+    "contacto": {
+      "titulo": "Contáctanos",
+      "subtitulo": "Déjanos tus datos y un asesor te escribirá a la brevedad.",
+      "telefono": "+502 5913-1276",
+      "whatsapp": "50259131276",
+      "email": "atencioncliente@eqinmobiliario.gt",
+      "direccion": "",
+      "horario": "Lunes a sábado, 8:00 a 18:00"
+    },
+    "redes": {
+      "instagram": "https://instagram.com/eqinmobilariogt",
+      "facebook": "https://facebook.com/eqinmobilariogt",
+      "linkedin": "",
+      "tiktok": "",
+      "youtube": ""
+    },
+    "navegacion": [
+      {
+        "texto": "Inicio",
+        "enlace": "/"
+      },
+      {
+        "texto": "Servicios",
+        "enlace": "/#servicios"
+      },
+      {
+        "texto": "Nosotros",
+        "enlace": "/#asesores"
+      },
+      {
+        "texto": "Vende tu propiedad",
+        "enlace": "/vende-tu-propiedad/"
+      },
+      {
+        "texto": "Contacto",
+        "enlace": "/#contacto"
+      }
+    ],
+    "footer": {
+      "texto": "Asesoría inmobiliaria en Guatemala: compra, venta y renta de propiedades.",
+      "enlaces": [
+        {
+          "texto": "Compra desde EE. UU.",
+          "enlace": "/compra-desde-estados-unidos/"
+        },
+        {
+          "texto": "Propiedades en venta",
+          "enlace": "/propiedades/venta/"
+        },
+        {
+          "texto": "Propiedades en renta",
+          "enlace": "/propiedades/renta/"
+        },
+        {
+          "texto": "Propiedades VIP",
+          "enlace": "/vip/"
+        },
+        {
+          "texto": "Servicios",
+          "enlace": "/#servicios"
+        },
+        {
+          "texto": "Contacto",
+          "enlace": "/#contacto"
+        }
+      ]
+    },
+    "whatsappFlotante": {
+      "visible": true,
+      "mensaje": "Hola, me interesa información sobre sus propiedades."
+    },
+    "listados": {
+      "todas": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "venta": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "renta": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "vip": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      },
+      "blog": {
+        "h1": "",
+        "titulo": "",
+        "descripcion": "",
+        "intro": ""
+      }
+    },
+    "ia": {
+      "busquedaPublica": false
+    },
+    "calculadora": {
+      "visible": true,
+      "enganche": 20,
+      "tasa": 8.5,
+      "anios": 20
+    },
+    "bloqueExterior": {
+      "visible": true,
+      "etiqueta": "¿Vives en Estados Unidos?",
+      "titulo": "Compra tu casa en Guatemala sin viajar",
+      "texto": "Te mostramos las propiedades por videollamada, verificamos los documentos y coordinamos la firma con un notario mediante poder, para que compres con seguridad desde donde estés.",
+      "puntos": [
+        "Recorridos en vivo por videollamada",
+        "Verificación de escritura y gravámenes",
+        "Firma a distancia mediante poder notarial",
+        "Atención en tu horario"
+      ],
+      "boton": "Cómo comprar desde EE. UU.",
+      "enlace": "/compra-desde-estados-unidos/"
+    },
+    "en": {
+      "activo": true,
+      "seo": {
+        "titulo": "Homes for Sale in Guatemala | Equipo Inmobiliario",
+        "descripcion": "Buy a home in Guatemala from the US: houses, condos and luxury homes with USD prices, live video tours, verified titles and remote closing support.",
+        "keywords": "Guatemala real estate, homes for sale in Guatemala, buy property in Guatemala, Guatemala City condos, Zona 16 homes"
+      },
+      "hero": {
+        "titulo": "Find your home in Guatemala, even from the US",
+        "placeholderBusqueda": "Search by area, community or property type"
+      },
+      "destacadas": {
+        "titulo": "Featured properties",
+        "boton": "View all properties"
+      },
+      "features": {
+        "visible": true,
+        "items": [
+          {
+            "icono": "flaticon-house",
+            "titulo": "Verified listings",
+            "texto": "We review the title and liens of every property before offering it.",
+            "enlace": "/en/properties/"
+          },
+          {
+            "icono": "flaticon-building",
+            "titulo": "Condos & houses",
+            "texto": "Options to live, retire or invest in Guatemala's most sought-after areas.",
+            "enlace": "/en/properties/for-sale/"
+          },
+          {
+            "icono": "flaticon-house-3",
+            "titulo": "Live video tours",
+            "texto": "Walk through any home with an advisor on a video call, on your schedule.",
+            "enlace": "/en/buying-property-in-guatemala/"
+          },
+          {
+            "icono": "flaticon-house-1",
+            "titulo": "Remote closing",
+            "texto": "Sign through a power of attorney with a Guatemalan notary, without traveling.",
+            "enlace": "/en/buying-property-in-guatemala/"
+          }
+        ]
+      },
+      "testimonios": {
+        "visible": true,
+        "titulo": "What our clients say"
+      },
+      "servicios": {
+        "visible": true,
+        "titulo": "How we help you",
+        "subtitulo": "From the first video call to receiving your keys",
+        "items": [
+          {
+            "icono": "icon-home2",
+            "titulo": "Curated portfolio",
+            "texto": "Our own listings plus properties from trusted partner brokers and developers."
+          },
+          {
+            "icono": "icon-person",
+            "titulo": "Experienced advisors",
+            "texto": "A dedicated advisor with experience in sales, client service and bank financing."
+          },
+          {
+            "icono": "icon-security",
+            "titulo": "Due diligence",
+            "texto": "We verify ownership and liens at the Property Registry before you commit."
+          }
+        ]
+      },
+      "contadores": {
+        "visible": true,
+        "items": [
+          {
+            "valor": 106,
+            "etiqueta": "Properties sold"
+          },
+          {
+            "valor": 80,
+            "etiqueta": "Properties rented"
+          },
+          {
+            "valor": 186,
+            "etiqueta": "Properties handled"
+          },
+          {
+            "valor": 3,
+            "etiqueta": "Real estate advisors"
+          }
+        ]
+      },
+      "cta": {
+        "visible": false
+      },
+      "asesores": {
+        "visible": true,
+        "titulo": "Meet your advisors",
+        "subtitulo": "A coordinated team that answers fast and guides you through every step of buying in Guatemala."
+      },
+      "contacto": {
+        "titulo": "Talk to an advisor",
+        "subtitulo": "Tell us what you are looking for. We reply by WhatsApp or email, and can schedule a video call in your time zone.",
+        "horario": "Monday to Saturday, 8:00 a.m. to 6:00 p.m. (Guatemala time, CST)"
+      },
+      "navegacion": [
+        {
+          "texto": "Home",
+          "enlace": "/en/"
+        },
+        {
+          "texto": "Buying from the US",
+          "enlace": "/en/buying-property-in-guatemala/"
+        },
+        {
+          "texto": "FAQ",
+          "enlace": "/en/faq/"
+        },
+        {
+          "texto": "Contact",
+          "enlace": "/en/#contact"
+        }
+      ],
+      "footer": {
+        "texto": "Real estate advisory in Guatemala for local and international buyers.",
+        "enlaces": [
+          {
+            "texto": "Homes for sale",
+            "enlace": "/en/properties/for-sale/"
+          },
+          {
+            "texto": "Homes for rent",
+            "enlace": "/en/properties/for-rent/"
+          },
+          {
+            "texto": "Luxury homes",
+            "enlace": "/en/luxury/"
+          },
+          {
+            "texto": "Contact",
+            "enlace": "/en/#contact"
+          }
+        ]
+      },
+      "whatsappFlotante": {
+        "mensaje": "Hi, I'm interested in buying a property in Guatemala."
+      },
+      "bloqueExterior": {
+        "visible": true,
+        "etiqueta": "Buying from the United States?",
+        "titulo": "Buy in Guatemala without getting on a plane",
+        "texto": "Most of our international clients choose their home on live video tours, have the title checked by a local notary, and sign through a power of attorney. You can visit before closing, but you don't have to.",
+        "puntos": [
+          "Live video tours on your schedule",
+          "Prices in US dollars",
+          "Title and lien verification",
+          "Remote closing with a power of attorney",
+          "English-speaking point of contact"
+        ],
+        "boton": "Read the buyer's guide",
+        "enlace": "/en/buying-property-in-guatemala/"
+      }
+    }
+  },
+  "properties": [
+    {
+      "id": "residencial-san-antonio",
+      "titulo": "Casa en Residencial San Antonio",
+      "slug": "casa-residencial-san-antonio-zona-16",
+      "operacion": "venta",
+      "tipo": "casa",
+      "precio": 1291000,
+      "moneda": "USD",
+      "zona": "Zona 16",
+      "ciudad": "Guatemala",
+      "direccion": "Residencial San Antonio",
+      "habitaciones": 2,
+      "banos": 2,
+      "parqueos": 0,
+      "m2Construccion": 0,
+      "m2Terreno": 0,
+      "descripcion": "Propiedad en Residencial San Antonio, zona 16. Contacta a un asesor para conocer todos los detalles y agendar una visita.",
+      "amenidades": [],
+      "fotos": [
+        {
+          "url": "/images/img_1.webp"
+        }
+      ],
+      "destacada": true,
+      "vip": false,
+      "vipLanding": {},
+      "estado": "disponible",
+      "publicado": true,
+      "agentId": "joaquin-arriola",
+      "orden": 1,
+      "seo": {},
+      "en": {
+        "titulo": "House in Residencial San Antonio, Zona 16",
+        "descripcion": "House for sale in Residencial San Antonio, in Zona 16 of Guatemala City. Contact an advisor for full details or to schedule an in-person or live video tour.",
+        "amenidades": [],
+        "seo": {}
+      }
+    },
+    {
+      "id": "jardines-de-mirabel",
+      "titulo": "Casa en Residencial Jardines de Mirabel",
+      "slug": "casa-jardines-de-mirabel-zona-16",
+      "operacion": "venta",
+      "tipo": "casa",
+      "precio": 250000,
+      "moneda": "USD",
+      "zona": "Zona 16",
+      "ciudad": "Guatemala",
+      "direccion": "Residencial Jardines de Mirabel",
+      "habitaciones": 3,
+      "banos": 3.5,
+      "parqueos": 0,
+      "m2Construccion": 0,
+      "m2Terreno": 0,
+      "descripcion": "Casa de 3 habitaciones y 3.5 baños en Residencial Jardines de Mirabel, zona 16. Contacta a un asesor para conocer todos los detalles y agendar una visita.",
+      "amenidades": [],
+      "fotos": [
+        {
+          "url": "/images/img_3.webp"
+        }
+      ],
+      "destacada": true,
+      "vip": false,
+      "vipLanding": {},
+      "estado": "disponible",
+      "publicado": true,
+      "agentId": "miriam-garcia",
+      "orden": 2,
+      "seo": {},
+      "en": {
+        "titulo": "3-Bedroom House in Jardines de Mirabel, Zona 16",
+        "descripcion": "3-bedroom, 3.5-bathroom house for sale in the Jardines de Mirabel community, in Zona 16 of Guatemala City. Contact an advisor for full details or to schedule an in-person or live video tour.",
+        "amenidades": [],
+        "seo": {}
+      }
+    }
+  ],
+  "agents": [
+    {
+      "id": "joaquin-arriola",
+      "nombre": "Joaquin Arriola",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Tiene gran instinto para los negocios y una excelente capacidad de comunicación. Su trato con los clientes es cercano y profesional, y siempre está dispuesto a ayudar.",
+      "foto": "/images/person_1-min.webp",
+      "whatsapp": "50259131276",
+      "email": "",
+      "orden": 1,
+      "activo": true,
+      "en": {
+        "cargo": "Real estate advisor",
+        "bio": "Strong business instinct and excellent communication skills. Approachable, professional and always ready to help."
+      }
+    },
+    {
+      "id": "miriam-garcia",
+      "nombre": "Miriam García",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Es una profesional con un amplio conocimiento del mercado y capacidad de negociación, y siempre se esfuerza por encontrar la mejor solución para sus clientes.",
+      "foto": "/images/person_5-min.webp",
+      "whatsapp": "",
+      "email": "",
+      "orden": 2,
+      "activo": true,
+      "en": {
+        "cargo": "Real estate advisor",
+        "bio": "Deep knowledge of the market and strong negotiation skills, always working to find the best solution for her clients."
+      }
+    },
+    {
+      "id": "alex-perez",
+      "nombre": "Alex Pérez",
+      "cargo": "Agente de Bienes Raíces",
+      "bio": "Prometedor comercial con gran capacidad de aprendizaje y experiencia previa en ventas y marketing.",
+      "foto": "/images/person_3-min.webp",
+      "whatsapp": "",
+      "email": "",
+      "orden": 3,
+      "activo": true,
+      "en": {
+        "cargo": "Real estate advisor",
+        "bio": "A fast learner with previous experience in sales and marketing."
+      }
+    }
+  ],
+  "testimonials": [
+    {
+      "id": "fam-rodas",
+      "nombre": "Fam. Rodas",
+      "rol": "Compradores",
+      "texto": "Los agentes de la empresa son muy amables y atentos. Siempre estuvieron disponibles para responder a mis dudas y ayudarme en todo lo que necesité.",
+      "foto": "/images/person_1-min.webp",
+      "estrellas": 5,
+      "orden": 1,
+      "activo": true,
+      "en": {
+        "texto": "Our advisors were kind and attentive. They were always available to answer our questions and help with everything we needed.",
+        "rol": "Buyers"
+      }
+    },
+    {
+      "id": "mario-calvet",
+      "nombre": "Mario Calvet",
+      "rol": "Comprador",
+      "texto": "Es una empresa inmobiliaria de confianza. Ofrece un servicio de calidad y personalizado, que se adaptó a mis necesidades.",
+      "foto": "/images/person_2-min.webp",
+      "estrellas": 5,
+      "orden": 2,
+      "activo": true,
+      "en": {
+        "texto": "A trustworthy real estate company. They offered quality, personalized service that adapted to my needs.",
+        "rol": "Buyer"
+      }
+    },
+    {
+      "id": "josselin-l",
+      "nombre": "Josselin L.",
+      "rol": "Propietaria",
+      "texto": "Los agentes son muy profesionales y están muy bien informados sobre el mercado inmobiliario. Son justos y conscientes a la hora de la negociación.",
+      "foto": "/images/person_4-min.webp",
+      "estrellas": 5,
+      "orden": 3,
+      "activo": true,
+      "en": {
+        "texto": "Very professional advisors who know the real estate market well. Fair and thoughtful during the negotiation.",
+        "rol": "Owner"
+      }
+    },
+    {
+      "id": "alejandro-herrera",
+      "nombre": "Alejandro Herrera",
+      "rol": "Comprador",
+      "texto": "El proceso de compra fue un poco complicado, ya que hubo algunos problemas con la documentación de la propiedad. Sin embargo, los agentes fueron muy profesionales y estuvieron dispuestos a trabajar conmigo para solucionar todos los problemas. Gracias a su ayuda, pude terminar la compra de mi casa sin problemas.",
+      "foto": "/images/person_3-min.webp",
+      "estrellas": 5,
+      "orden": 4,
+      "activo": true,
+      "en": {
+        "texto": "The purchase was a bit complicated because of some issues with the property documents. Even so, the advisors were very professional and willing to work with me to solve every problem. Thanks to their help, I closed on my home without issues.",
+        "rol": "Buyer"
+      }
+    }
+  ],
+  "pages": [
+    {
+      "id": "privacidad",
+      "titulo": "Política de privacidad",
+      "slug": "privacidad",
+      "orden": 1,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Política de privacidad | Equipo Inmobiliario",
+        "descripcion": "Cómo Equipo Inmobiliario S.A. recopila, usa y protege los datos personales que nos compartes en este sitio web."
+      },
+      "contenido": "Última actualización: octubre de 2026.\n\nEn **Equipo Inmobiliario S.A.** respetamos tu privacidad. Esta política explica qué datos recopilamos cuando usas este sitio web, para qué los usamos y qué opciones tienes.\n\n## Datos que recopilamos\n\n- **Datos que nos das:** nombre, teléfono, correo electrónico, mensaje y, si la indicas, la fecha en que te gustaría visitar una propiedad. Los recibimos cuando llenas un formulario o nos escribes por WhatsApp, teléfono o correo.\n- **Datos de navegación:** páginas visitadas, tipo de dispositivo y navegador, y la forma en que llegaste al sitio. Los obtenemos mediante herramientas de medición como Google Analytics, Google Tag Manager y el píxel de Meta (Facebook e Instagram).\n\n## Para qué usamos tus datos\n\n- Responder tus consultas y coordinar visitas a propiedades.\n- Enviarte opciones de propiedades que coincidan con lo que buscas.\n- Asignar tu solicitud al asesor indicado y darle seguimiento.\n- Medir y mejorar el sitio y nuestras campañas de publicidad.\n\nNo vendemos tus datos personales.\n\n## Con quién los compartimos\n\n- Con los asesores de nuestro equipo que atienden tu solicitud.\n- Con proveedores que nos prestan servicios tecnológicos (alojamiento del sitio, base de datos, medición y publicidad), solo en la medida necesaria para operar.\n- Con autoridades, cuando la ley lo exija.\n\n## Cookies y medición\n\nEste sitio usa cookies y tecnologías similares para medir visitas y mostrar publicidad relevante. Puedes bloquearlas o borrarlas desde la configuración de tu navegador; algunas funciones podrían no operar correctamente.\n\n## Conservación y seguridad\n\nGuardamos tus datos mientras sean necesarios para atender tu solicitud y la relación comercial. Aplicamos medidas técnicas razonables para protegerlos, como accesos restringidos al personal autorizado.\n\n## Tus derechos\n\nPuedes pedirnos en cualquier momento que te digamos qué datos tenemos de ti, que los corrijamos o que los eliminemos. Escríbenos a [atencioncliente@eqinmobiliario.gt](mailto:atencioncliente@eqinmobiliario.gt).\n\n## Cambios a esta política\n\nPodemos actualizar esta política. Publicaremos aquí la versión vigente con su fecha.",
+      "traduccion": "privacy-policy"
+    },
+    {
+      "id": "terminos",
+      "titulo": "Términos y condiciones",
+      "slug": "terminos",
+      "orden": 2,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Términos y condiciones de uso | Equipo Inmobiliario",
+        "descripcion": "Condiciones de uso del sitio web de Equipo Inmobiliario S.A.: información de propiedades, precios, disponibilidad y responsabilidades."
+      },
+      "contenido": "Última actualización: octubre de 2026.\n\nAl usar este sitio web aceptas estos términos. Si no estás de acuerdo, te pedimos no utilizarlo.\n\n## Información de las propiedades\n\n- Las descripciones, fotografías, medidas y precios se publican con base en la información proporcionada por los propietarios o desarrolladores y pueden cambiar sin previo aviso.\n- La publicación de una propiedad no constituye una oferta vinculante. La disponibilidad, el precio final y las condiciones se confirman por escrito con nuestro equipo.\n- Las imágenes pueden ser ilustrativas. Te recomendamos visitar la propiedad y revisar su documentación antes de tomar una decisión.\n\n## Calculadoras y herramientas\n\nLas calculadoras de cuota y las búsquedas asistidas son referenciales. La aprobación, la tasa y la cuota de un crédito dependen exclusivamente de la entidad financiera.\n\n## Uso del sitio\n\nTe comprometes a usar el sitio de forma lícita, a proporcionar información verdadera en los formularios y a no intentar acceder a áreas restringidas ni afectar su funcionamiento.\n\n## Propiedad intelectual\n\nLos textos, fotografías, logotipos y el diseño del sitio pertenecen a Equipo Inmobiliario S.A. o a sus respectivos titulares. No pueden reproducirse sin autorización.\n\n## Enlaces a terceros\n\nEl sitio puede incluir enlaces a otros sitios (por ejemplo, mapas o redes sociales). No somos responsables de su contenido ni de sus políticas.\n\n## Responsabilidad\n\nHacemos nuestro mejor esfuerzo para que la información sea correcta y esté actualizada, pero no garantizamos que esté libre de errores. Equipo Inmobiliario S.A. no será responsable por decisiones tomadas únicamente con base en la información del sitio.\n\n## Datos personales\n\nEl tratamiento de tus datos se rige por nuestra [Política de privacidad](/privacidad/).\n\n## Legislación aplicable\n\nEstos términos se rigen por las leyes de la República de Guatemala.\n\n## Contacto\n\nPara cualquier consulta sobre estos términos escríbenos a [atencioncliente@eqinmobiliario.gt](mailto:atencioncliente@eqinmobiliario.gt)."
+    },
+    {
+      "id": "mision-vision",
+      "titulo": "Misión y visión",
+      "slug": "mision-vision",
+      "orden": 3,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Misión y visión | Equipo Inmobiliario Guatemala",
+        "descripcion": "Conoce la misión, la visión y los valores con los que Equipo Inmobiliario acompaña a quienes compran, venden o rentan propiedades en Guatemala."
+      },
+      "contenido": "## Misión\n\nAcompañar a las familias, inversionistas y empresas de Guatemala a comprar, vender o rentar su propiedad de forma **segura, clara y sin complicaciones**, con asesoría honesta y un servicio cercano de principio a fin.\n\n## Visión\n\nSer la inmobiliaria de confianza en Guatemala, reconocida por la **calidad de su asesoría**, la **transparencia** en cada negociación y el uso de **herramientas modernas** que hacen más fácil encontrar el lugar ideal.\n\n## Nuestros valores\n\n- **Honestidad:** te decimos lo bueno y lo que debes considerar de cada propiedad.\n- **Seguridad:** verificamos la documentación de los inmuebles antes de ofrecerlos.\n- **Cercanía:** respondemos rápido y te acompañamos en cada paso, también después de firmar.\n- **Trabajo en equipo:** nuestros asesores colaboran para encontrar la mejor opción para ti.\n- **Mejora continua:** usamos tecnología para darte información clara y a tiempo.\n\n## Cómo trabajamos\n\n1. **Escuchamos** lo que necesitas: zona, presupuesto, espacios y plazos.\n2. **Seleccionamos** opciones verificadas de nuestra cartera y de nuestras alianzas.\n3. **Te acompañamos** en las visitas, la negociación y el financiamiento.\n4. **Cerramos** con la documentación en orden y te asesoramos en la entrega.\n\n¿Quieres conversar? [Escríbenos](/#contacto)."
+    },
+    {
+      "id": "preguntas-frecuentes",
+      "titulo": "Preguntas frecuentes",
+      "slug": "preguntas-frecuentes",
+      "orden": 4,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Preguntas frecuentes sobre comprar y rentar | Equipo Inmobiliario",
+        "descripcion": "Respuestas a las dudas más comunes al comprar, vender o rentar una propiedad en Guatemala: visitas, financiamiento, documentos y costos."
+      },
+      "contenido": "## ¿Cómo agendo una visita?\n\nLlena el formulario de la propiedad indicando la fecha que prefieres, o escríbenos por WhatsApp. Un asesor te confirmará el horario.\n\n## ¿Cobran por enseñarme propiedades?\n\nNo. La asesoría para compradores e inquilinos no tiene costo. Nuestra comisión la cubre el propietario según lo acordado con él.\n\n## ¿Me ayudan a conseguir financiamiento?\n\nSí. Te orientamos sobre los requisitos de los bancos, te ayudamos a calcular una cuota aproximada y a preparar tu expediente. La aprobación final depende de la entidad financiera.\n\n## ¿Qué documentos necesito para comprar?\n\nPor lo general: DPI vigente, constancias de ingresos (o estados de cuenta si eres independiente) y, si usarás crédito, los requisitos adicionales que pida el banco. Tu asesor te dará la lista exacta para tu caso.\n\n## ¿Qué gastos debo considerar además del precio?\n\nLos honorarios del notario, la inscripción en el Registro de la Propiedad y los impuestos de la compraventa, que varían según si el inmueble es nuevo o usado. Lee nuestra guía de [gastos al comprar una propiedad](/blog/gastos-e-impuestos-al-comprar-una-propiedad-en-guatemala/).\n\n## ¿Qué necesito para rentar?\n\nNormalmente un depósito (usualmente uno o dos meses de renta), el primer mes adelantado, un fiador o garantía y referencias. Las condiciones exactas las define cada propietario.\n\n## Quiero vender o rentar mi propiedad, ¿cómo empiezo?\n\nVisita [Vende o renta tu propiedad](/vende-tu-propiedad/) y déjanos tus datos. Te visitamos, te damos una recomendación de precio y preparamos la publicación.\n\n## ¿Puedo pedirles que me busquen algo que no está publicado?\n\nSí. Cuéntanos qué buscas en el [formulario de contacto](/#contacto) y te enviaremos opciones, incluidas algunas que todavía no están en el sitio.",
+      "traduccion": "faq"
+    },
+    {
+      "id": "vende-tu-propiedad",
+      "titulo": "Vende o renta tu propiedad",
+      "slug": "vende-tu-propiedad",
+      "orden": 5,
+      "enFooter": true,
+      "publicado": true,
+      "imagen": "/images/hero_bg_2.webp",
+      "seo": {
+        "titulo": "Vende o renta tu propiedad en Guatemala | Equipo Inmobiliario",
+        "descripcion": "Te ayudamos a vender o rentar tu casa, apartamento o terreno en Guatemala: precio recomendado, fotos profesionales, publicidad y acompañamiento legal."
+      },
+      "contenido": "¿Tienes una casa, apartamento, terreno u oficina que quieres vender o rentar? Te ayudamos a hacerlo **más rápido, al mejor precio posible y con seguridad**.\n\n## Qué hacemos por ti\n\n- **Precio recomendado:** analizamos propiedades similares en tu zona para fijar un precio competitivo.\n- **Presentación profesional:** fotografías, descripción y, para propiedades exclusivas, una página propia con galería, video y mapa.\n- **Publicidad:** publicamos tu propiedad en nuestro sitio y redes sociales, y la ofrecemos a los clientes que ya nos han dicho que buscan algo como lo tuyo.\n- **Filtro de interesados:** atendemos llamadas y mensajes, y solo coordinamos visitas con personas calificadas.\n- **Negociación y cierre:** te acompañamos en la negociación, la revisión de documentos y la firma con el notario.\n\n## Cómo funciona\n\n1. Déjanos tus datos en el formulario de abajo o escríbenos por WhatsApp.\n2. Te visitamos para conocer la propiedad y revisar su documentación.\n3. Acordamos el precio y las condiciones del servicio.\n4. Publicamos y te mantenemos informado de cada interesado y cada visita.\n\n## ¿Qué documentos conviene tener a mano?\n\n- Escritura o certificación del Registro de la Propiedad.\n- DPI del propietario.\n- Último recibo del IUSI y de los servicios.\n- Si es en condominio, la constancia de solvencia de cuotas.\n\nSi te falta alguno, no te preocupes: te orientamos para obtenerlo.\n\n**¿Listo para empezar?** Usa el formulario de contacto al final de la [página de inicio](/#contacto) e indica que quieres vender o rentar."
+    },
+    {
+      "id": "trabaja-con-nosotros",
+      "titulo": "Trabaja con nosotros",
+      "slug": "trabaja-con-nosotros",
+      "orden": 6,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Trabaja con nosotros: asesor inmobiliario en Guatemala",
+        "descripcion": "Únete a Equipo Inmobiliario como asesor de bienes raíces: capacitación, cartera de propiedades, herramientas digitales con IA y comisiones atractivas."
+      },
+      "contenido": "¿Te apasionan las ventas y el trato con las personas? Buscamos **asesores inmobiliarios** que quieran crecer con nosotros.\n\n## Lo que ofrecemos\n\n- **Cartera de propiedades** propias y de alianzas para ofrecer a tus clientes.\n- **Capacitación** en ventas, negociación, financiamiento y aspectos legales.\n- **Herramientas digitales:** panel propio para tus propiedades y clientes, y un asistente con inteligencia artificial que te ayuda a buscar opciones, redactar mensajes y dar seguimiento.\n- **Leads del sitio web** asignados según tu zona y especialidad.\n- **Comisiones atractivas** y horario flexible.\n\n## Lo que buscamos\n\n- Gusto por atender personas y vocación de servicio.\n- Disciplina para dar seguimiento a cada cliente.\n- Experiencia en ventas, servicio al cliente o el sector bancario (deseable, no indispensable).\n- Vehículo propio y disponibilidad para visitas.\n\n## Cómo aplicar\n\nEscríbenos por WhatsApp o en el [formulario de contacto](/#contacto) con tu nombre, experiencia y la zona donde te gustaría trabajar. Te contactaremos para una entrevista."
+    },
+    {
+      "id": "compra-desde-estados-unidos",
+      "idioma": "es",
+      "traduccion": "buying-property-in-guatemala",
+      "titulo": "Compra en Guatemala desde Estados Unidos",
+      "slug": "compra-desde-estados-unidos",
+      "orden": 0,
+      "enFooter": true,
+      "publicado": true,
+      "imagen": "/images/hero_bg_1.webp",
+      "seo": {
+        "titulo": "Comprar casa en Guatemala desde Estados Unidos | Guía",
+        "descripcion": "Cómo comprar casa o terreno en Guatemala si vives en Estados Unidos: videollamadas, poder notarial, envío de fondos, financiamiento y cómo evitar estafas."
+      },
+      "contenido": "Si vives en Estados Unidos y quieres comprar una casa en Guatemala, para tu familia, tu retiro o como inversión, **no necesitas viajar para hacerlo con seguridad**. Esta guía te explica cómo funciona.\n\n## 1. Elige la propiedad por videollamada\n\nCuéntanos qué buscas y en qué zona. Te enviamos opciones y hacemos **recorridos en vivo por videollamada** en tu horario, para que veas cada espacio, el entorno y hagas todas tus preguntas. Si tienes familia en Guatemala, también puede acompañar la visita en persona.\n\n## 2. Verificamos los documentos\n\nAntes de comprometerte revisamos en el **Registro General de la Propiedad** que la propiedad esté inscrita a nombre de quien vende y que no tenga gravámenes ni anotaciones. Nunca entregues dinero sin esta verificación.\n\n## 3. Firma a distancia con un poder\n\nLa compraventa se firma en escritura pública ante notario en Guatemala. Si no puedes venir, puedes otorgar un **poder** a una persona de tu confianza para que firme por ti. Normalmente se hace de una de estas formas:\n\n- Ante un notario en Estados Unidos, con **apostilla** del estado donde se firma (y traducción oficial si está en inglés).\n- En un **consulado de Guatemala** en Estados Unidos.\n\nTu notario en Guatemala te indicará el texto exacto y los requisitos vigentes.\n\n## 4. Envío de fondos\n\nLo más seguro es transferir a una **cuenta bancaria a nombre del vendedor o del notario**, contra documentos firmados, y conservar todos los comprobantes. Los bancos pueden pedirte justificar el origen de los fondos: ten a mano estados de cuenta o constancias de ingresos.\n\n## 5. ¿Puedo obtener financiamiento?\n\nAlgunos bancos guatemaltecos ofrecen créditos a guatemaltecos que viven en el extranjero, con requisitos específicos de ingresos y documentación. Te orientamos para que sepas qué opciones aplican a tu caso.\n\n## 6. Cómo evitar estafas\n\n- Desconfía de precios muy por debajo del mercado o de presiones para pagar rápido.\n- No envíes anticipos sin haber verificado la propiedad en el Registro.\n- Firma siempre ante notario y pide copia de la escritura.\n- Trabaja con una inmobiliaria con oficina, asesores identificables y referencias.\n\n## Gastos a considerar\n\nAdemás del precio, considera impuestos, honorarios del notario e inscripción. Revisa nuestra guía de [gastos al comprar una propiedad](/blog/gastos-e-impuestos-al-comprar-una-propiedad-en-guatemala/).\n\n> Esta guía es informativa y no sustituye la asesoría de un notario o abogado guatemalteco.\n\n**¿Empezamos?** Escríbenos por WhatsApp o en el [formulario de contacto](/#contacto) e indica que vives en Estados Unidos: te atendemos en tu horario."
+    },
+    {
+      "id": "buying-property-in-guatemala",
+      "idioma": "en",
+      "traduccion": "compra-desde-estados-unidos",
+      "titulo": "Buying Property in Guatemala from the US",
+      "slug": "buying-property-in-guatemala",
+      "orden": 0,
+      "enFooter": true,
+      "publicado": true,
+      "imagen": "/images/hero_bg_1.webp",
+      "seo": {
+        "titulo": "Buying Property in Guatemala as a US Citizen: 2026 Guide",
+        "descripcion": "Can Americans buy property in Guatemala? Ownership rules, buying remotely with a power of attorney, video tours, costs, financing and how to avoid scams."
+      },
+      "contenido": "Thinking about a home in Guatemala, to retire, spend part of the year, rent out or be close to family? Here is how the process works for buyers living in the United States, and how we help you buy safely without having to travel.\n\n## Can Americans own property in Guatemala?\n\nYes. In general, foreigners can buy and hold title to real estate in Guatemala with the same rights as Guatemalan citizens. The main exception involves **specific zones defined in the Constitution**: land near international borders and strips along ocean coastlines, lakeshores and navigable rivers are subject to special rules. Popular areas such as Guatemala City are outside those zones. If a property is near a lake, the coast or a border, your notary will confirm whether it is affected before you sign.\n\n## How buying remotely works\n\n1. **Tell us what you need.** Area, budget, size and timing. We send you a shortlist with prices in US dollars.\n2. **Live video tours.** An advisor walks you through each home on a video call, at a time that works for you.\n3. **Title check.** We verify ownership and liens at the Property Registry (Registro General de la Propiedad) before you commit.\n4. **Offer and promise to purchase.** Terms are agreed in writing.\n5. **Closing through a power of attorney.** The deed is signed before a notary in Guatemala. If you can't travel, you can grant a power of attorney (poder) to someone you trust. This is typically done before a US notary with an **apostille** from the state where it is signed, plus an official translation, or at a **Guatemalan consulate** in the US. Your notary will provide the exact wording and current requirements.\n6. **Registration.** The notary registers the purchase in your name and sends you a copy of the deed.\n\n## Closing costs and taxes\n\nPlan for taxes, notary fees and registration on top of the purchase price. As a general reference, the **first sale of a new property usually carries 12% VAT** (often already included in a developer's price), while **resales usually pay a 3% stamp tax**. Once you own the property, you'll pay an **annual property tax (IUSI)** to the municipality. Your notary will confirm the exact amounts for your purchase.\n\n## Financing\n\nMost international buyers pay cash. Some Guatemalan banks offer mortgages to non-residents or to Guatemalans living abroad, with specific income and documentation requirements. We can help you understand what applies to your situation.\n\n## Sending funds safely\n\n- Wire funds only to a **bank account in the name of the seller or the notary**, against signed documents.\n- Keep every receipt: banks in both countries may ask about the source of funds.\n- Never send a deposit before the title has been verified.\n\n## How to avoid scams\n\n- Be wary of prices far below market value and of pressure to pay quickly.\n- Don't rely on photos alone: ask for a live video tour.\n- Always sign before a notary and get a copy of the deed.\n- Work with an established agency with identifiable advisors and references.\n\n> This guide is for general information only and is not legal or tax advice. Always confirm the details of your purchase with a Guatemalan notary or attorney.\n\n**Ready to start?** Browse [homes for sale](/en/properties/for-sale/) or [contact an advisor](/en/#contact) to schedule a video call in your time zone."
+    },
+    {
+      "id": "faq-en",
+      "idioma": "en",
+      "titulo": "Frequently asked questions",
+      "slug": "faq",
+      "orden": 1,
+      "enFooter": true,
+      "publicado": true,
+      "traduccion": "preguntas-frecuentes",
+      "seo": {
+        "titulo": "Buying a Home in Guatemala: FAQ for US Buyers",
+        "descripcion": "Answers for US buyers: owning property as a foreigner, video tours, remote closing, costs, financing, renting out your home and how we work."
+      },
+      "contenido": "## Can foreigners buy property in Guatemala?\n\nYes. Foreigners can generally own real estate in Guatemala. Special rules apply to certain zones near borders, coastlines, lakeshores and navigable rivers; your notary will confirm whether a specific property is affected.\n\n## Do I need to travel to Guatemala to buy?\n\nNo. You can tour homes by live video call and sign through a power of attorney. Many buyers choose to visit before closing, but it isn't required.\n\n## Do you speak English?\n\nYes. Tell us you prefer English and we'll assign an English-speaking point of contact.\n\n## Are prices in US dollars?\n\nMost listings are priced in US dollars. When a property is listed in quetzales (GTQ), we can give you the approximate USD amount.\n\n## How much are closing costs?\n\nPlan for taxes, notary fees and registration. As a general reference, the first sale of a new property usually carries 12% VAT and resales usually pay a 3% stamp tax. See our [buyer's guide](/en/buying-property-in-guatemala/) for details.\n\n## Can I get a mortgage?\n\nSome Guatemalan banks lend to non-residents or Guatemalans living abroad, with specific requirements. Many international buyers pay cash. We can point you in the right direction.\n\n## Can I rent out my property?\n\nYes. Many owners rent their homes long term or seasonally. We can help you estimate rental demand in the area you're considering.\n\n## Do you charge buyers a fee?\n\nOur advisory for buyers is free; our commission is paid by the seller as agreed with them.\n\n## How do I start?\n\n[Contact an advisor](/en/#contact) with what you're looking for and your budget, and we'll schedule a video call in your time zone."
+    },
+    {
+      "id": "privacy-policy",
+      "idioma": "en",
+      "traduccion": "privacidad",
+      "titulo": "Privacy policy",
+      "slug": "privacy-policy",
+      "orden": 2,
+      "enFooter": true,
+      "publicado": true,
+      "seo": {
+        "titulo": "Privacy Policy | Equipo Inmobiliario",
+        "descripcion": "How Equipo Inmobiliario S.A. collects, uses and protects the personal information you share on this website."
+      },
+      "contenido": "Last updated: October 2026.\n\n**Equipo Inmobiliario S.A.** respects your privacy. This policy explains what information we collect on this website, how we use it and the choices you have.\n\n## Information we collect\n\n- **Information you provide:** name, phone number, email, message and, if you choose, your preferred visit date and type. We receive it when you submit a form or contact us by WhatsApp, phone or email.\n- **Browsing information:** pages visited, device and browser type, and how you arrived at the site, including advertising campaign parameters. We collect it through tools such as Google Analytics, Google Tag Manager, Google Ads and the Meta pixel.\n\n## How we use it\n\n- To answer your inquiries and arrange property tours.\n- To send you properties that match what you're looking for.\n- To assign your request to the right advisor and follow up.\n- To measure and improve the website and our advertising.\n\nWe do not sell your personal information.\n\n## Who we share it with\n\n- Our advisors who handle your request.\n- Technology providers that help us operate (hosting, database, analytics and advertising), only as needed.\n- Authorities, when required by law.\n\n## Cookies\n\nWe use cookies and similar technologies for analytics and advertising. You can block or delete them in your browser settings; some features may not work properly.\n\n## Retention and security\n\nWe keep your information for as long as needed to handle your request and our business relationship, and we apply reasonable safeguards such as access restricted to authorized staff.\n\n## Your choices\n\nYou can ask us at any time what information we hold about you, or to correct or delete it, by writing to [atencioncliente@eqinmobiliario.gt](mailto:atencioncliente@eqinmobiliario.gt).\n\n## Changes\n\nWe may update this policy and will post the current version here with its date."
+    }
+  ],
+  "posts": [
+    {
+      "id": "guia-comprar-casa-zona-16",
+      "titulo": "Guía para comprar casa en zona 16",
+      "slug": "guia-para-comprar-casa-en-zona-16",
+      "fecha": "2026-10-20",
+      "autor": "Equipo Inmobiliario",
+      "publicado": true,
+      "imagen": "/images/hero_bg_3.webp",
+      "resumen": "Qué saber antes de comprar casa en zona 16 de Guatemala: tipos de residenciales, presupuesto, acceso, servicios y los puntos clave para revisar en cada visita.",
+      "seo": {
+        "titulo": "Comprar casa en zona 16, Guatemala: guía completa",
+        "descripcion": "Residenciales, presupuesto, acceso y qué revisar antes de comprar casa en zona 16 de la Ciudad de Guatemala. Consejos de asesores inmobiliarios."
+      },
+      "contenido": "La zona 16 se ha convertido en una de las zonas preferidas para vivir en la Ciudad de Guatemala. Combina residenciales con seguridad, áreas verdes y servicios cercanos, como centros comerciales, colegios y universidades. Si estás pensando en comprar casa aquí, esta guía te ayuda a tomar una buena decisión.\n\n## ¿Por qué tantas familias eligen la zona 16?\n\n- **Residenciales cerrados** con garita y control de acceso.\n- **Clima y áreas verdes:** muchas colonias tienen jardines y vistas a barrancos boscosos.\n- **Servicios cerca:** centros comerciales y de entretenimiento como Paseo Cayalá, supermercados, hospitales y oficinas.\n- **Educación:** varios colegios reconocidos y universidades, como la Universidad Rafael Landívar, están en la zona o muy cerca.\n\n## Tipos de propiedades que encontrarás\n\n- **Casas en residencial:** desde casas de dos niveles con jardín pequeño hasta residencias amplias con varios parqueos.\n- **Apartamentos:** buena opción si buscas amenidades como piscina, gimnasio y menos mantenimiento.\n- **Casas de lujo:** propiedades exclusivas con terrenos grandes, acabados de alto nivel y vistas privilegiadas.\n\n## Define tu presupuesto real\n\nAntes de visitar, calcula cuánto puedes pagar en total, no solo el precio de la casa:\n\n1. **Enganche:** normalmente entre el 10 % y el 30 % del precio si usarás crédito.\n2. **Cuota mensual:** procura que no supere un tercio de tus ingresos familiares. Puedes usar la calculadora que aparece en cada propiedad en venta de nuestro sitio.\n3. **Gastos de compra:** notario, registro e impuestos. Revisa nuestra guía de [gastos al comprar una propiedad](/blog/gastos-e-impuestos-al-comprar-una-propiedad-en-guatemala/).\n4. **Cuota de mantenimiento** del residencial o condominio.\n\n## Qué revisar en cada visita\n\n- **Acceso y tráfico:** visita la propiedad en horas pico para conocer los tiempos reales hacia tu trabajo y el colegio.\n- **Estado de la construcción:** humedades, grietas, instalaciones eléctricas, presión del agua y techos.\n- **Orientación y luz natural** de las áreas sociales y dormitorios.\n- **Reglamento del residencial:** mascotas, remodelaciones y uso de áreas comunes.\n- **Documentación:** que la propiedad esté inscrita a nombre de quien vende y libre de gravámenes. Este punto lo revisamos por ti.\n\n## Consejos para negociar\n\n- Compara con propiedades similares de la misma zona antes de ofertar.\n- Si compras con crédito, llega con una **precalificación bancaria**: te da más poder de negociación.\n- Pregunta qué incluye la venta (cocina, lámparas, cortinas, línea blanca).\n\n## ¿Te ayudamos a buscar?\n\nRevisa las [propiedades disponibles en zona 16](/propiedades/zona-16/) o cuéntanos qué buscas en el [formulario de contacto](/#contacto). Un asesor te enviará opciones, incluidas algunas que todavía no están publicadas."
+    },
+    {
+      "id": "credito-hipotecario-guatemala",
+      "titulo": "Cómo obtener un crédito hipotecario en Guatemala",
+      "slug": "como-obtener-un-credito-hipotecario-en-guatemala",
+      "fecha": "2026-10-10",
+      "autor": "Equipo Inmobiliario",
+      "publicado": true,
+      "imagen": "/images/hero_bg_1.webp",
+      "resumen": "Paso a paso para obtener un crédito hipotecario en Guatemala: requisitos, enganche, plazos, cómo calcular la cuota y consejos para que te lo aprueben.",
+      "seo": {
+        "titulo": "Crédito hipotecario en Guatemala: requisitos y pasos",
+        "descripcion": "Requisitos, enganche, plazos y consejos para que te aprueben un crédito hipotecario en Guatemala. Calcula tu cuota y prepárate antes de ir al banco."
+      },
+      "contenido": "Comprar casa con un crédito hipotecario es el camino más común en Guatemala. Con buena preparación, el proceso es más sencillo de lo que parece. Aquí te explicamos cómo funciona y cómo aumentar tus posibilidades de aprobación.\n\n## ¿Qué es un crédito hipotecario?\n\nEs un préstamo de largo plazo para comprar una vivienda, en el que la misma propiedad queda como garantía. Lo otorgan bancos y otras entidades financieras, y algunos créditos pueden contar con el respaldo del **FHA** (Instituto de Fomento de Hipotecas Aseguradas), que asegura la hipoteca y suele facilitar mejores condiciones.\n\n## Requisitos más comunes\n\nCada entidad tiene su lista, pero normalmente te pedirán:\n\n- **DPI** vigente.\n- **Constancia de ingresos** y, si eres asalariado, constancia laboral con antigüedad mínima.\n- Si eres **independiente**, estados de cuenta, declaraciones de impuestos y patente de comercio.\n- **Buen historial crediticio:** sin atrasos importantes en préstamos ni tarjetas.\n- **Documentos de la propiedad**, que normalmente tramitamos con el vendedor.\n\n## Enganche, plazo y tasa\n\n- **Enganche:** suele ir del 10 % al 30 % del valor de la propiedad.\n- **Plazo:** comúnmente entre 15 y 30 años. A más plazo, menor cuota, pero más intereses en total.\n- **Tasa:** puede ser fija por un período o variable. Pregunta siempre la **tasa efectiva** y los seguros que incluye la cuota.\n\nLas condiciones cambian con el tiempo y entre bancos, por eso conviene comparar al menos dos o tres ofertas.\n\n## Cómo calcular cuánto puedes pagar\n\nUna regla práctica es que la cuota no supere el **30 % a 35 % de tus ingresos familiares**. En cada propiedad en venta de nuestro sitio hay una calculadora: cambia el enganche, la tasa y los años, y verás la cuota aproximada al instante.\n\n## Paso a paso\n\n1. **Precalificación:** el banco revisa tus ingresos y te dice hasta cuánto te prestaría.\n2. **Elige la propiedad** dentro de ese monto.\n3. **Oferta y promesa de compraventa** con el vendedor.\n4. **Avalúo:** el banco valúa la propiedad.\n5. **Aprobación y firma** de la escritura de compraventa con hipoteca ante notario.\n6. **Desembolso e inscripción** en el Registro de la Propiedad.\n\n## Consejos para que te lo aprueben\n\n- Ponte al día con tus deudas antes de aplicar y evita sacar nuevos créditos.\n- Ten tus documentos ordenados y actualizados.\n- Si tu ingreso no alcanza, considera **sumar el ingreso de tu pareja** como codeudor.\n- Ahorra un poco más para el enganche: reduce la cuota y mejora tu perfil.\n\n## Te acompañamos\n\nEn Equipo Inmobiliario te orientamos para preparar tu expediente y elegir una propiedad que encaje con tu crédito. [Escríbenos](/#contacto) y te ayudamos a empezar."
+    },
+    {
+      "id": "gastos-comprar-propiedad-guatemala",
+      "titulo": "Gastos e impuestos al comprar una propiedad en Guatemala",
+      "slug": "gastos-e-impuestos-al-comprar-una-propiedad-en-guatemala",
+      "fecha": "2026-09-25",
+      "autor": "Equipo Inmobiliario",
+      "publicado": true,
+      "imagen": "/images/hero_bg_2.webp",
+      "resumen": "Además del precio, comprar una casa implica impuestos, honorarios del notario e inscripción en el Registro. Te explicamos cada gasto para que no te tome por sorpresa.",
+      "seo": {
+        "titulo": "Gastos e impuestos al comprar casa en Guatemala",
+        "descripcion": "IVA o timbres fiscales, notario, Registro de la Propiedad, IUSI y otros gastos al comprar una propiedad en Guatemala. Planifica tu presupuesto."
+      },
+      "contenido": "Cuando compras una propiedad, el precio de venta no es el único gasto. Conocer de antemano los impuestos y costos te ayuda a planificar mejor y a evitar sorpresas el día de la firma.\n\n> Esta guía es informativa. Los montos y porcentajes pueden cambiar; confirma siempre los costos de tu caso con tu notario o asesor.\n\n## Impuestos de la compraventa\n\nEn Guatemala, el impuesto depende principalmente de si la propiedad es nueva o usada:\n\n- **Primera venta de un inmueble nuevo:** por lo general aplica el **IVA (12 %)**, que normalmente ya viene incluido en el precio que publica la desarrolladora. Pregunta siempre si el precio lo incluye.\n- **Ventas posteriores (propiedad usada):** por lo general aplica el **Impuesto de Timbres Fiscales (3 %)** sobre el valor de la operación.\n\nEn algunos casos el cálculo se hace por separado para la construcción y el terreno, y existen situaciones particulares. Tu notario determinará exactamente qué aplica.\n\n## Honorarios del notario\n\nEl notario redacta la escritura de compraventa, verifica que la propiedad esté libre de gravámenes y gestiona su inscripción. Sus honorarios dependen del valor de la operación y del acuerdo con él. Pide una cotización por escrito antes de firmar.\n\n## Inscripción en el Registro de la Propiedad\n\nLa compra debe inscribirse en el **Registro General de la Propiedad** para que quedes como dueño legal. Esto tiene un costo según el valor del inmueble.\n\n## Si compras con crédito\n\n- **Avalúo** de la propiedad que pide el banco.\n- **Gastos de formalización** del préstamo y de la escritura de hipoteca.\n- **Seguros** de vida y de daños, que normalmente se incluyen en la cuota.\n\n## Gastos que siguen después de comprar\n\n- **IUSI (Impuesto Único Sobre Inmuebles):** se paga cada año a la municipalidad según el valor registrado de la propiedad.\n- **Cuota de mantenimiento** del residencial o condominio.\n- **Servicios:** agua, luz, internet y, si aplica, gas.\n\n## ¿Quién paga qué?\n\nPor costumbre, el comprador suele cubrir los honorarios del notario, los impuestos de la compraventa y la inscripción, aunque **todo es negociable** y debe quedar por escrito en la promesa de compraventa.\n\n## Un consejo práctico\n\nReserva entre un **5 % y un 8 % adicional** al precio de la propiedad para cubrir estos gastos, y confirma el monto exacto con tu notario antes de firmar.\n\n¿Tienes dudas sobre una propiedad en particular? [Escríbenos](/#contacto) y te ayudamos a estimar todos los costos."
+    },
+    {
+      "id": "checklist-visitar-propiedad",
+      "titulo": "Checklist: qué revisar al visitar una casa o apartamento",
+      "slug": "checklist-que-revisar-al-visitar-una-casa-o-apartamento",
+      "fecha": "2026-09-10",
+      "autor": "Equipo Inmobiliario",
+      "publicado": true,
+      "imagen": "/images/img_5.webp",
+      "resumen": "Una lista práctica para aprovechar cada visita: estructura, instalaciones, iluminación, entorno, documentos y preguntas que siempre debes hacer.",
+      "seo": {
+        "titulo": "Qué revisar al visitar una casa: checklist completo",
+        "descripcion": "Lista práctica para visitar una casa o apartamento en venta o renta: estructura, humedad, instalaciones, entorno, documentos y preguntas clave."
+      },
+      "contenido": "Una visita bien hecha puede ahorrarte muchos problemas. Usa esta lista cada vez que veas una casa o apartamento, ya sea para comprar o para rentar.\n\n## Antes de ir\n\n- Confirma la dirección, el horario y quién te atenderá.\n- Lleva tu teléfono cargado para tomar fotos y videos.\n- Si puedes, ve en **horas pico** para conocer el tráfico real.\n\n## Estructura y acabados\n\n- Busca **grietas** en paredes, techos y pisos.\n- Revisa si hay **manchas de humedad** o pintura nueva sospechosa en una sola área.\n- Abre y cierra **puertas y ventanas**: deben moverse sin forzarse.\n- Revisa el estado de **pisos, azulejos y gabinetes**.\n\n## Instalaciones\n\n- **Agua:** abre llaves y regaderas para comprobar presión y agua caliente. Pregunta si hay cisterna y bomba.\n- **Electricidad:** prueba interruptores y tomacorrientes, y pregunta la antigüedad del tablero.\n- **Drenajes:** que el agua corra bien en lavamanos y duchas.\n- **Gas:** si la cocina es a gas, revisa la instalación y su ventilación.\n\n## Luz, ventilación y ruido\n\n- Observa qué ambientes reciben **luz natural** y en qué momento del día.\n- Comprueba la **ventilación** de baños y cocina.\n- Escucha el **ruido** exterior con las ventanas abiertas y cerradas.\n\n## Entorno\n\n- Distancia a tu trabajo, colegios, supermercados y hospitales.\n- Seguridad del residencial o del edificio: garita, cámaras y control de acceso.\n- **Parqueos:** cuántos tiene, si son techados y si hay lugar para visitas.\n- Reglamento: mascotas, remodelaciones, horarios y uso de áreas comunes.\n\n## Documentos y costos\n\n- Que quien vende o renta sea el propietario o tenga autorización por escrito.\n- Que la propiedad esté **libre de gravámenes** (en una compra lo verificamos por ti).\n- Monto de la **cuota de mantenimiento** y qué incluye.\n- Si es renta: monto del depósito, plazo del contrato y quién paga las reparaciones.\n\n## Preguntas que siempre debes hacer\n\n1. ¿Por qué se vende o se renta la propiedad?\n2. ¿Qué incluye el precio (cocina, lámparas, línea blanca, cortinas)?\n3. ¿Hubo reparaciones o remodelaciones recientes?\n4. ¿Cuánto se paga en promedio de servicios al mes?\n5. ¿Hay alguna negociación posible en el precio o en las condiciones?\n\n## Después de la visita\n\nAnota tus impresiones el mismo día y compara con otras opciones. Si te gustó, pide a tu asesor que revise la documentación antes de hacer una oferta.\n\n¿Quieres agendar visitas? Mira las [propiedades disponibles](/propiedades/) y elige tu fecha en el formulario de cada una."
+    },
+    {
+      "id": "guatemala-city-neighborhoods-en",
+      "idioma": "en",
+      "titulo": "Where to Live in Guatemala City: A Guide for US Buyers",
+      "slug": "where-to-live-in-guatemala-city",
+      "fecha": "2026-10-25",
+      "autor": "Equipo Inmobiliario",
+      "publicado": true,
+      "imagen": "/images/hero_bg_3.webp",
+      "resumen": "An overview of the residential areas US buyers ask about most in Guatemala City, and what to check before choosing a neighborhood.",
+      "seo": {
+        "titulo": "Where to Live in Guatemala City: Guide for US Buyers",
+        "descripcion": "Zona 10, Zona 14, Zona 15 and Zona 16 explained for US buyers: lifestyle, property types and what to check before choosing a neighborhood in Guatemala City."
+      },
+      "contenido": "Guatemala City is divided into numbered **zonas**. For buyers coming from the US, a handful of them concentrate most of the condos and gated communities with the services and security people look for. Here is a practical overview to help you narrow your search.\n\n## Zona 10\n\nThe city's best-known business and nightlife district, home to many offices, hotels, restaurants and the area known as Zona Viva. It is mostly **condos and apartments**, which makes it popular with professionals and with investors looking for rentals.\n\n## Zona 14\n\nA largely residential area next to Zona 10, with **high-rise condominiums**, quieter streets and easy access to the financial district. A common choice for buyers who want a lock-and-leave home.\n\n## Zona 15\n\nResidential neighborhoods such as Vista Hermosa, with **houses and mid-rise condos**, schools nearby and a more suburban feel while staying close to Zona 10.\n\n## Zona 16\n\nOne of the fastest-growing residential areas, with **gated communities, newer developments and green areas**. It is home to the Cayalá area, with shopping, dining and entertainment, and to several schools and universities. Popular with families who want a house with a yard.\n\n## What to check before choosing\n\n- **Commute:** traffic in Guatemala City can be heavy. Check drive times at rush hour to the places you'll visit most.\n- **Security:** ask about gated access, guards and the building or community's rules.\n- **Water and power:** ask whether the property has a cistern, pump and backup systems.\n- **HOA fees (cuota de mantenimiento):** they vary widely by building and amenities.\n- **Rental demand:** if you plan to rent the property out, ask us for realistic rent estimates for that area.\n\n## How we can help\n\nWe can set up **live video tours** of homes in several zonas on the same day, so you can compare without traveling. Read our [guide to buying in Guatemala from the US](/en/buying-property-in-guatemala/) or [talk to an advisor](/en/#contact).\n\n> Neighborhood descriptions are general. Conditions vary by street and building, so always review the specific property and its surroundings."
+    }
+  ]
+}

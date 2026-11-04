@@ -1,0 +1,77 @@
+[build]
+  command = "node scripts/build.mjs"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# CDN de imágenes de Netlify: permite convertir a JPG las fotos guardadas en Firebase Storage
+# (los catálogos de Meta y de portales usan /.netlify/images?url=…&fm=jpg).
+[images]
+  remote_images = ["https://firebasestorage\\.googleapis\\.com/.*"]
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# URLs de la versión anterior del sitio
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/properties.html"
+  to = "/propiedades/"
+  status = 301
+
+[[redirects]]
+  from = "/property-single.html"
+  to = "/propiedades/"
+  status = 301
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+
+# Archivos con hash en el nombre: nunca cambian, se guardan un año (mejora Core Web Vitals).
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Catálogos para portales: se leen por enlace, no deben aparecer en Google.
+[[headers]]
+  for = "/feeds/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+    Cache-Control = "public, max-age=900"
+
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

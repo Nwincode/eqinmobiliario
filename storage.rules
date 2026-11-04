@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Fotos públicas; solo el equipo activo puede subir o borrar imágenes (máx. 10 MB).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isStaff() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.activo == true;
+    }
+
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isStaff()
+        && (request.resource == null
+            || (request.resource.size < 10 * 1024 * 1024
+                && request.resource.contentType.matches('image/.*')));
+      allow delete: if isStaff();
+    }
+  }
+}

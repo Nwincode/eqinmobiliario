@@ -6,7 +6,9 @@
 	var siteMenuClone = function() {
 		var jsCloneNavs = document.querySelectorAll('.js-clone-nav');
 		var siteMobileMenuBody = document.querySelector('.site-mobile-menu-body');
-		
+		// Las landing VIP no tienen menú.
+		if (!siteMobileMenuBody) return;
+
 
 
 		jsCloneNavs.forEach(nav => {
@@ -50,18 +52,26 @@
 		var mTog;
 		menuToggle.forEach(mtoggle => {
 			mTog = mtoggle;
+			mtoggle.setAttribute('aria-expanded', 'false');
 			mtoggle.addEventListener("click", (e) => {
-				if ( document.body.classList.contains('offcanvas-menu') ) {
-					document.body.classList.remove('offcanvas-menu');
-					mtoggle.classList.remove('active');
-					mTog.classList.remove('active');
-				} else {
-					document.body.classList.add('offcanvas-menu');
-					mtoggle.classList.add('active');
-					mTog.classList.add('active');
-				}
+				e.preventDefault();
+				var abrir = !document.body.classList.contains('offcanvas-menu');
+				document.body.classList.toggle('offcanvas-menu', abrir);
+				menuToggle.forEach(function (t) {
+					t.classList.toggle('active', abrir);
+					t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+				});
 			});
 		})
+
+		// Escape cierra el menú y devuelve el foco al botón.
+		document.addEventListener('keydown', function (e) {
+			if (e.key !== 'Escape' || !document.body.classList.contains('offcanvas-menu')) return;
+			document.body.classList.remove('offcanvas-menu');
+			menuToggle.forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-expanded', 'false'); });
+			var burger = document.querySelector('.burger.js-menu-toggle');
+			if (burger) burger.focus();
+		});
 
 
 
@@ -77,7 +87,7 @@
 			if (!isClickInside && !mt) {
 				if ( document.body.classList.contains('offcanvas-menu') ) {
 					document.body.classList.remove('offcanvas-menu');
-					mtoggleTemp.classList.remove('active');
+					menuToggle.forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-expanded', 'false'); });
 				}
 			}
 
