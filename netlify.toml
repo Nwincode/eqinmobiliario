@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 # CDN de imágenes de Netlify: permite convertir a JPG las fotos guardadas en Firebase Storage
 # (los catálogos de Meta y de portales usan /.netlify/images?url=…&fm=jpg).
