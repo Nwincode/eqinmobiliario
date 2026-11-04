@@ -96,6 +96,11 @@
 	}
 	tinySdlier();
 
+	// Los carruseles cambian la altura de la página después de AOS.init; sin recalcular,
+	// los bloques del final (como «Sé parte de nuestro equipo») se quedaban invisibles.
+	AOS.refresh();
+	window.addEventListener('load', function () { AOS.refresh(); });
+
 
 
 })()

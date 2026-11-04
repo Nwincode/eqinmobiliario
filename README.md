@@ -126,6 +126,7 @@ Para enviar a un cliente las opciones que le interesan:
 
 "Generar PDF" abre una ventana lista para imprimir; ahí se elige **Guardar como PDF**. No necesita servicios
 externos ni costos: lo genera el navegador. Las propiedades VIP con "Ocultar precio" salen como "Precio a consultar".
+El PDF usa los mismos colores del sitio (Contenido → Colores) y los mismos íconos de la ficha.
 
 ## Difusión en portales y redes (sección "Difusión" del panel)
 

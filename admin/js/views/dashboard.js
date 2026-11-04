@@ -66,7 +66,7 @@ export async function render(container) {
 					h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 						h('div', { class: 'me-auto' },
 							h('div', { class: 'fw-semibold' }, l.nombre),
-							h('div', { class: 'small text-muted' }, `${l.propertyTitulo || ORIGENES[l.origen] || l.origen || ''} · ${formatDate(l.createdAt)}`)),
+							h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen, formatDate(l.createdAt)].filter(Boolean).join(' · '))),
 						estadoBadge(l.estado))))
 					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
 				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),

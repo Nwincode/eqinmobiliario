@@ -494,6 +494,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	background: #e9eef2;
 	display: block;
 }
+.thumb-vacia {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--adm-muted);
+	font-size: 18px;
+}
 .avatar {
 	width: 40px;
 	height: 40px;
@@ -534,6 +541,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	font-size: .9rem;
 	min-height: 40px;
 	color: var(--adm-text);
+}
+.form-select-sm {
+	padding-left: .75rem;
+	padding-right: 2.25rem;
+	background-position: right .6rem center;
 }
 .form-control:focus,
 .form-select:focus,
@@ -727,6 +739,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		flex-direction: row;
 		overflow-x: auto;
 		scrollbar-width: none;
+		/* Difumina el borde derecho para indicar que hay más pestañas. */
+		-webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+		mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
 	}
 	.subnav .nav-link {
 		width: auto;
@@ -824,7 +839,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 /* CRM: tablero por etapas */
 .crm-tablero {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(220px, 1fr));
+	grid-template-columns: repeat(6, minmax(160px, 1fr));
 	gap: 12px;
 	overflow-x: auto;
 	padding-bottom: 8px;

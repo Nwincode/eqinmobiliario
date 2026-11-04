@@ -184,7 +184,7 @@ async function route() {
 	document.querySelectorAll('.admin-nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === def.path));
 	const crumbs = document.getElementById('crumbs');
 	if (crumbs) crumbs.replaceChildren(
-		...(def.group !== 'Principal' ? [h('span', { class: 'admin-crumb-group' }, def.group)] : []),
+		...(def.group !== 'Principal' && def.group !== def.label ? [h('span', { class: 'admin-crumb-group' }, def.group)] : []),
 		h('span', { class: 'admin-crumb-page' }, def.label));
 	const view = document.getElementById('view');
 	const token = ++renderToken;

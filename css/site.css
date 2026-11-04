@@ -1024,6 +1024,11 @@ h2.heading::after,
 	color: var(--eq-primary) !important;
 	border: 1px solid var(--eq-line);
 }
+/* El ícono ocupa un tercio del círculo: antes se veía diminuto. */
+.feature-h .wrap-icon [class^="icon-"],
+.feature-h .wrap-icon [class*=" icon-"] {
+	font-size: 26px;
+}
 
 /* Cifras: limpias sobre blanco, número negro y línea celeste */
 .section-counter {
@@ -1810,17 +1815,11 @@ a:hover > .eq-ic-fin,
 }
 
 /* Portada: reseñas, contadores */
-.testimonial-comillas {
-	display: block;
-	font-size: 28px;
-	line-height: 1;
-	color: var(--eq-cyan);
-	margin-bottom: 18px;
-}
 .counter-icono {
 	display: block;
 	font-size: 26px;
 	line-height: 1;
+	height: 26px; /* misma altura en todos para que las cifras queden alineadas */
 	color: var(--eq-primary);
 	margin-bottom: 14px;
 }
