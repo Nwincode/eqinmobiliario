@@ -79,6 +79,8 @@ function construirPrompt(tarea, datos) {
 }
 
 export default async (req, context) => {
+	// El panel pregunta si la IA está encendida (no revela la clave).
+	if (req.method === 'GET') return json(200, { activa: Boolean(process.env.ANTHROPIC_API_KEY) });
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!process.env.ANTHROPIC_API_KEY) return json(503, { error: 'La IA no está configurada: falta ANTHROPIC_API_KEY en Netlify.' });
 

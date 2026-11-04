@@ -118,6 +118,15 @@
 			.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); });
 	}
 
+	// Avisa por correo al equipo (si está configurado en Netlify). Si falla, no pasa nada:
+	// el lead ya quedó guardado.
+	function avisarEquipo(lead) {
+		try {
+			fetch('/api/aviso-lead', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lead) })
+				.catch(function () {});
+		} catch (err) { /* navegador sin fetch keepalive */ }
+	}
+
 	function whatsappFallback(lead) {
 		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + lead.fechaVisita + '.' : '') + T.tel + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
@@ -185,7 +194,7 @@
 				button.disabled = false;
 				return;
 			}
-			saveLead(lead).then(done, fail).then(function () { button.disabled = false; });
+			saveLead(lead).then(function () { avisarEquipo(lead); done(); }, fail).then(function () { button.disabled = false; });
 		});
 	});
 

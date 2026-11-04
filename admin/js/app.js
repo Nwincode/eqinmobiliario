@@ -4,7 +4,7 @@ import {
 	sendPasswordResetEmail, createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
-import { session, getPublishState } from './session.js';
+import { session, getPublishState, revisarAutoPublicar } from './session.js';
 import { aplicarTema } from './tema.js';
 
 const ROUTES = [
@@ -222,6 +222,7 @@ if (!configured) {
 			shell();
 			route();
 			aplicarTema();
+			revisarAutoPublicar();
 		} catch (err) {
 			noAccess(errorMessage(err));
 		}
