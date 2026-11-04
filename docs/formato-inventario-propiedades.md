@@ -36,7 +36,8 @@ Objetivo: armar el inventario **sin escribir en la base de datos**. El resultado
 | m2Terreno | no | número en m² (si viene en varas², multiplicar por 0.6987) |
 | amenidades | no | separadas por `;` ej. `Piscina; Garita; Jardín` |
 | descripcion | sí | 2–5 frases, español |
-| asesor | sí | `joaquin-arriola` · `miriam-garcia` · `alex-perez` |
+| asesor | sí | id de un asesor del panel (Asesores), ej. `joaquin-arriola`. Si el asesor aún no está en el panel, escribir su nombre y marcar `accion = revisar` |
+| aliada | no | nombre de la agencia aliada si la propiedad es de una aliada (no se publica). En ese caso `asesor` = el asesor del equipo que la atiende |
 | destacada | no | `si` · `no` |
 | fotos | no | enlaces separados por `;` |
 | propietario_nombre | no | solo para el CRM |
