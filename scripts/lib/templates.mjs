@@ -991,6 +991,7 @@ export function propertyPage(ctx, p) {
 			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
 		</button>`).join('')}
 	</section>
+	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
 	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${ic('camera')}${fmt(t.verFotosN, { n: fotos.length })}</button>
 	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
 	</div>
@@ -1015,7 +1016,7 @@ export function propertyPage(ctx, p) {
 			<div class="row justify-content-between">
 				<div class="col-lg-7">
 					<header class="ficha-cabecera">
-						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}`}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}</p>
+						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
 						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}</p>`}

@@ -56,13 +56,16 @@ function cambioDeEstado(estado) {
 	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
 }
 
+// Nombre corto del estado para la etiqueta («retirada», no «retirada del mercado»).
+const corto = (e) => e.label.split(/ [/d]/)[0].toLowerCase();
+
 // Por qué se ve (o no) cada propiedad en la página.
 function motivoVisibilidad(p) {
 	const e = estadoDe(p);
 	switch (visibilidadDe(p)) {
 		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash' };
-		case 'cerrada': return { texto: `Solo con enlace: ${e.label.toLowerCase()}`, color: 'warning', icono: 'icon-link' };
-		case 'oculta': return { texto: `Oculta: ${e.label.toLowerCase()}`, color: 'danger', icono: 'icon-eye-slash' };
+		case 'cerrada': return { texto: `Solo con enlace: ${corto(e)}`, color: 'warning', icono: 'icon-link' };
+		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
 		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye' };
 	}
 }
@@ -74,8 +77,8 @@ export async function render(container, [id]) {
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
-	const search = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por título, zona o residencial…' });
-	const fOperacion = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
+	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, zona o residencial…' });
+	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
 		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
@@ -90,7 +93,7 @@ export async function render(container, [id]) {
 		if (f.startsWith('=')) return visibilidadDe(p) === f.slice(1);
 		return estadoDe(p).valor === f;
 	};
-	const fExtra = h('select', { class: 'form-select' },
+	const fExtra = h('select', { class: 'form-select', 'aria-label': 'Mostrar' },
 		h('option', { value: '' }, 'Todas'),
 		h('option', { value: 'publicado' }, 'Publicadas'),
 		h('option', { value: 'borrador' }, 'Borradores'),
@@ -134,6 +137,8 @@ export async function render(container, [id]) {
 		const chk = h('input', {
 			class: 'form-check-input', type: 'checkbox', role: 'switch', id: idSwitch,
 			checked: Boolean(p.publicado), disabled: !editable,
+			'aria-label': `Visible en la página: ${p.titulo || 'la propiedad'}`, 'aria-describedby': `motivo-${p.id}`,
+			title: editable ? '' : 'Solo el asesor responsable o un administrador puede cambiarla.',
 			onchange: (e) => {
 				const publicado = e.target.checked;
 				e.target.disabled = true;
@@ -150,13 +155,14 @@ export async function render(container, [id]) {
 				p.vip || p.destacada ? h('div', { class: 'mt-1 d-flex gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null) : null),
-			h('td', { class: 'text-nowrap celda-precio' }, formatPrice(p.precio, p.moneda, p.operacion)),
-			h('td', { class: 'celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta'),
+			h('td', { class: 'text-nowrap celda-precio' },
+				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
+				h('div', { class: 'small text-muted celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta')),
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
-					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible en la página')),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad` },
+					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible', h('span', { class: 'd-md-none' }, ' en la página'))),
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
 			h('td', { class: 'small celda-asesor' }, agentName[p.agentId] || '—'),
 			h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)));
@@ -185,12 +191,12 @@ export async function render(container, [id]) {
 			h('div', { class: 'row g-2 mb-3' },
 				h('div', { class: 'col-md-5' }, search),
 				h('div', { class: 'col-6 col-md-2' }, fOperacion),
-				h('div', { class: 'col-6 col-md-3' }, fEstado),
-				h('div', { class: 'col-md-2' }, fExtra)),
+				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
+				h('div', { class: 'col-md-3' }, fEstado)),
 			h('div', { class: 'mb-2' }, count),
 			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
-					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Operación', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }

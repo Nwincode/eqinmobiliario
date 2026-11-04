@@ -2427,7 +2427,44 @@ a:hover > .eq-ic-fin,
 .ficha-similares {
 	scroll-margin-top: 80px;
 }
+/* Sello sobre las fotos: que se note «Vendida» / «Rentada» sin bajar hasta el aviso. */
+.ficha-sello {
+	position: absolute;
+	left: 24px;
+	top: 24px;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 14px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-danger);
+	color: var(--eq-white);
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	pointer-events: none;
+}
+.ficha-sello .eq-ic {
+	margin: 0;
+}
+/* Pausada o retirada: el aviso va pegado al encabezado y a las parecidas, sin huecos grandes. */
+.section.ficha-no-disponible {
+	padding-top: 3rem;
+	padding-bottom: 3rem;
+}
 @media (max-width: 575.98px) {
+	.ficha-sello {
+		left: 12px;
+		top: 12px;
+		padding: 6px 12px;
+		font-size: 13px;
+	}
+	.section.ficha-no-disponible {
+		padding-top: 2rem;
+		padding-bottom: 2rem;
+	}
 	.ficha-aviso {
 		flex-direction: column;
 		gap: 12px;
