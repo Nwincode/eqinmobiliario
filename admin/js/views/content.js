@@ -373,11 +373,12 @@ export async function render(container) {
 	const textos = await textosGrupo();
 	if (textos) grupos.push(textos);
 	const forms = grupos.map((g) => ({ g, form: renderForm(g.fields, data, { folder: 'site' }) }));
-	const tabs = h('ul', { class: 'nav nav-pills flex-wrap gap-1 mb-3', role: 'tablist' });
+	const tabs = h('ul', { class: 'nav subnav', role: 'tablist' });
 	const panes = h('div');
 	const show = (id) => {
 		tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.id === id));
 		[...panes.children].forEach((p) => { p.hidden = p.dataset.id !== id; });
+		if (tabs.getBoundingClientRect().top < 0) tabs.scrollIntoView({ block: 'start' });
 	};
 	forms.forEach(({ g, form }) => {
 		tabs.append(h('li', { class: 'nav-item' }, h('button', { type: 'button', class: 'nav-link', dataset: { id: g.id }, onclick: () => show(g.id) }, g.label)));
@@ -426,6 +427,6 @@ export async function render(container) {
 	mount(container, 
 		pageHeader('Contenido del sitio'),
 		snap.exists() ? null : h('div', { class: 'alert alert-info' }, 'Todavía no has guardado el contenido. Se muestran los textos actuales del sitio; al guardar quedarán en la base de datos. También puedes importar todo desde "Publicar".'),
-		tabs, panes,
+		h('div', { class: 'subnav-layout' }, tabs, panes),
 		h('div', { class: 'sticky-actions' }, h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar cambios')));
 }
