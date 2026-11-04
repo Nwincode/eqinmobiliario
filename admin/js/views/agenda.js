@@ -84,8 +84,8 @@ export async function render(container) {
 			dibujar();
 		} catch (err) { showError(err); }
 	} },
-	h('div', { class: 'col-md-2' }, tipo), h('div', { class: 'col-md-4' }, titulo), h('div', { class: 'col-md-3' }, fecha), h('div', { class: 'col-md-2' }, cliente),
-	h('div', { class: 'col-md-1 d-grid' }, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Agendar')));
+	h('div', { class: 'col-md-6 col-xl-2' }, tipo), h('div', { class: 'col-md-6 col-xl-3' }, titulo), h('div', { class: 'col-md-5 col-xl-3' }, fecha), h('div', { class: 'col-md-4 col-xl-2' }, cliente),
+	h('div', { class: 'col-md-3 col-xl-2 d-grid' }, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Agendar')));
 
 	mount(container,
 		pageHeader('Agenda', fAsesor),

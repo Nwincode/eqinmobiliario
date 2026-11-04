@@ -78,7 +78,7 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'mias' || p.agentId === session.agentId));
 		count.textContent = `${rows.length} de ${props.length}`;
 		tbody.replaceChildren(...rows.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
-			h('td', {}, h('img', { class: 'thumb', src: p.fotos?.[0]?.url || '', alt: '' })),
+			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', {},
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', '))),

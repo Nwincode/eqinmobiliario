@@ -504,7 +504,9 @@ export function homePage(ctx) {
 			</div>
 			<div class="row">
 				<div class="col-12">
-					<div class="property-slider-wrap">
+					${slider.length <= 3 ? `<div class="row justify-content-center g-4 propiedades-pocas">
+						${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { lazy: false })}</div>`).join('\n')}
+					</div>` : `<div class="property-slider-wrap">
 						<div class="property-slider">
 							${slider.map((p, i) => propertyCard(p, { lazy: i > 2 })).join('\n')}
 						</div>
@@ -512,7 +514,7 @@ export function homePage(ctx) {
 							<span class="prev" data-controls="prev" aria-controls="property" tabindex="-1">${ic('chevron-left')}${t.anterior}</span>
 							<span class="next" data-controls="next" aria-controls="property" tabindex="-1">${t.siguiente}${ic('chevron-right', true)}</span>
 						</div>` : ''}
-					</div>
+					</div>`}
 				</div>
 			</div>
 		</div>
