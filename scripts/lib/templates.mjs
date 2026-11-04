@@ -550,7 +550,6 @@ export function homePage(ctx) {
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((tm) => `<div class="item">
 						<div class="testimonial">
-								<span class="icon-quote-left testimonial-comillas" aria-hidden="true"></span>
 							${tm.foto ? `<img src="${esc(tm.foto)}" alt="${esc(tm.nombre)}" class="img-fluid rounded-circle w-25 mb-4" loading="lazy" width="120" height="120">` : ''}
 							<div class="rate" role="img" aria-label="${esc(tm.estrellas || 5)} ${t.deEstrellas}">
 								${'<span class="icon-star text-warning"></span>'.repeat(Math.max(1, Math.min(5, Number(tm.estrellas) || 5)))}

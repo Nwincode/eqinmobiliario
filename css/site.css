@@ -1810,13 +1810,6 @@ a:hover > .eq-ic-fin,
 }
 
 /* Portada: reseñas, contadores */
-.testimonial-comillas {
-	display: block;
-	font-size: 28px;
-	line-height: 1;
-	color: var(--eq-cyan);
-	margin-bottom: 18px;
-}
 .counter-icono {
 	display: block;
 	font-size: 26px;
