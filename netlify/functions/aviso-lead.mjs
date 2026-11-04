@@ -53,33 +53,49 @@ export default async (req, context) => {
 	const saludo = `Hola ${lead.nombre.split(' ')[0]}, gracias por escribirnos${lead.propertyTitulo ? ` por ${lead.propertyTitulo}` : ''}. `;
 	const wa = telWa(lead.telefono);
 
+	const telLink = String(lead.telefono).replace(/[^\d+]/g, '');
 	const filas = [
 		['Nombre', lead.nombre],
-		['Teléfono', lead.telefono],
-		['Correo', lead.email],
-		['Propiedad', lead.propertyTitulo],
+		['Teléfono', lead.telefono, telLink ? `tel:${telLink}` : ''],
+		['Correo', lead.email, lead.email ? `mailto:${lead.email}` : ''],
+		['Propiedad', lead.propertyTitulo, pagina],
+		['Página', !lead.propertyTitulo && pagina ? lead.pagina : '', pagina],
 		['Visita', [lead.fechaVisita, lead.tipoVisita].filter(Boolean).join(' · ')],
 		['Asesor', asesor?.nombre || '']
 	].filter(([, v]) => v);
 
+	const urlWa = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(saludo)}` : '';
+	const urlCorreo = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(`Re: ${lead.propertyTitulo || 'Equipo Inmobiliario'}`)}&body=${encodeURIComponent(saludo)}` : '';
+	const urlPanel = `${SITE_URL}/admin/#/leads`;
+	const contacto = [lead.telefono, lead.email].filter(Boolean).join(' · ');
+
 	const html = await plantilla({
 		titulo: `Nuevo interesado: ${lead.nombre}`,
-		intro: lead.propertyTitulo ? `Pregunta por <strong>${esc(lead.propertyTitulo)}</strong>.` : 'Llenó un formulario del sitio.',
+		intro: lead.propertyTitulo ? `Pregunta por <strong style="color:inherit">${esc(lead.propertyTitulo)}</strong>. Contéstale pronto: quien responde primero suele quedarse con el cliente.` : 'Llenó un formulario del sitio. Contéstale pronto: quien responde primero suele quedarse con el cliente.',
+		preheader: `${lead.propertyTitulo || 'Formulario del sitio'} · ${contacto}. Contéstale pronto.`,
 		bloques: (c) => `
-<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;line-height:1.5;margin:0 0 16px">
-${filas.map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:${c.ink};white-space:nowrap;vertical-align:top">${k}</td><td style="padding:4px 0"><strong>${esc(v)}</strong></td></tr>`).join('')}
-</table>
-${lead.mensaje ? `<p style="margin:0 0 16px;padding:12px 16px;border-left:3px solid ${c.primary};font-size:14px;line-height:1.5">${esc(lead.mensaje).replace(/\n/g, '<br>')}</p>` : ''}
-<p style="margin:0 0 8px;font-size:14px">Contéstale pronto: quien responde primero suele quedarse con el cliente.</p>
-<div>
-${wa ? boton(c, 'Escribir por WhatsApp', `https://wa.me/${wa}?text=${encodeURIComponent(saludo)}`, c.whatsapp) : ''}
-${lead.email ? boton(c, 'Responder por correo', `mailto:${lead.email}?subject=${encodeURIComponent(lead.propertyTitulo || 'Equipo Inmobiliario')}`) : ''}
-${boton(c, 'Ver en el panel', `${SITE_URL}/admin/#/leads`, c.dark)}
-</div>
-${pagina ? `<p style="margin:16px 0 0;font-size:12px;color:${c.ink}">Desde: <a href="${esc(pagina)}" style="color:${c.primary}">${esc(pagina)}</a></p>` : ''}`
+${urlWa ? boton(c, 'Responder por WhatsApp', urlWa, c.whatsapp, { ancho: true }) : ''}
+${urlCorreo ? boton(c, 'Responder por correo', urlCorreo, c.primary, urlWa ? { ancho: true, borde: true } : { ancho: true }) : ''}
+<p style="margin:0 0 20px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px"><a href="${urlPanel}" target="_blank" style="display:inline-block;padding:12px 8px;color:${c.primary};font-weight:bold;text-decoration:underline">Ver en el panel</a></p>
+${lead.mensaje ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px"><tr><td bgcolor="${c.suave}" style="background:${c.suave};border-left:3px solid ${c.primary};padding:12px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">
+<div style="font-size:12px;line-height:16px;color:${c.ink};margin:0 0 4px">Mensaje</div>${esc(lead.mensaje).replace(/\n/g, '<br>')}</td></tr></table>` : ''}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px">
+${filas.map(([k, v, url]) => `<tr><td width="96" style="padding:8px 12px 8px 0;border-top:1px solid ${c.linea};color:${c.ink};font-size:13px;vertical-align:top;white-space:nowrap">${k}</td><td style="padding:8px 0;border-top:1px solid ${c.linea};color:${c.dark};font-weight:bold;word-break:break-word">${url ? `<a href="${esc(url)}" style="color:${c.primary};text-decoration:underline">${esc(v)}</a>` : esc(v)}</td></tr>`).join('')}
+</table>`
 	});
 
-	const texto = [`Nuevo interesado: ${lead.nombre}`, ...filas.map(([k, v]) => `${k}: ${v}`), lead.mensaje ? `\n${lead.mensaje}` : '', `\nPanel: ${SITE_URL}/admin/#/leads`].join('\n');
+	const texto = [
+		`Nuevo interesado: ${lead.nombre}`,
+		lead.propertyTitulo ? `Pregunta por ${lead.propertyTitulo}. Contéstale pronto.` : 'Llenó un formulario del sitio. Contéstale pronto.',
+		'',
+		...filas.map(([k, v]) => `${k}: ${v}`),
+		lead.mensaje ? `\nMensaje:\n${lead.mensaje}` : '',
+		'',
+		urlWa ? `Responder por WhatsApp: ${urlWa}` : '',
+		lead.email ? `Responder por correo: ${lead.email}` : '',
+		pagina ? `Página: ${pagina}` : '',
+		`Ver en el panel: ${urlPanel}`
+	].join('\n').replace(/\n{3,}/g, '\n\n');
 
 	try {
 		await enviarCorreo({ para, asunto: `Nuevo interesado: ${lead.nombre}${lead.propertyTitulo ? ` · ${lead.propertyTitulo}` : ''}`, html, texto });

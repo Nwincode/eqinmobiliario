@@ -59,27 +59,59 @@ const SECCIONES = [
 
 const MAX = 8;
 
-async function correoDe(nombre, secciones) {
+// Texto corto de cada sección para el asunto y la vista previa, y el enlace al panel.
+const CORTO = {
+	vencidas: ['atrasado', 'atrasados', 'Ver la agenda'],
+	hoy: ['para hoy', 'para hoy', 'Ver la agenda'],
+	leads: ['interesado sin atender', 'interesados sin atender', 'Ver los interesados'],
+	sinSeguimiento: ['cliente sin próximo paso', 'clientes sin próximo paso', 'Ver los clientes'],
+	exclusivas: ['exclusiva por vencer', 'exclusivas por vencer', 'Ver los propietarios'],
+	incompletas: ['propiedad incompleta', 'propiedades incompletas', 'Ver las propiedades']
+};
+const cuenta = (k, n) => `${n} ${CORTO[k][n === 1 ? 0 : 1]}`;
+
+async function correoDe(nombre, secciones, ahora = Date.now()) {
 	const activas = SECCIONES.filter(([k]) => secciones[k].length);
 	if (!activas.length) return null;
 	const total = activas.reduce((n, [k]) => n + secciones[k].length, 0);
-	const titulo = `Buenos días${nombre ? `, ${nombre.split(' ')[0]}` : ''}`;
+	const pendientes = `${total} ${total === 1 ? 'pendiente' : 'pendientes'}`;
+	const atrasados = secciones.vencidas.length;
+	const dia = new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guatemala', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(ahora));
+	const titulo = `Buenos días, ${nombre ? nombre.split(' ')[0] : 'equipo'}`;
+	const intro = `${dia.charAt(0).toUpperCase()}${dia.slice(1)}. ${nombre ? 'Tienes' : 'El equipo tiene'} <strong style="color:inherit">${pendientes}</strong>${atrasados ? '; empieza por los atrasados' : ''}.`;
+	const preheader = activas.map(([k]) => cuenta(k, secciones[k].length)).join(' · ');
 	const html = await plantilla({
 		titulo,
-		intro: `Esto es lo que conviene atender hoy (${total} ${total === 1 ? 'pendiente' : 'pendientes'}).`,
+		intro,
+		preheader,
 		bloques: (c) => activas.map(([k, label, ruta, linea]) => {
 			const lista = secciones[k];
 			const alerta = k === 'vencidas';
+			const enlace = lista.length > MAX ? `Ver los ${lista.length} en el panel` : CORTO[k][2];
 			return `
-<h2 style="font-size:15px;margin:20px 0 8px;color:${alerta ? c.primary : c.dark}">${label} <span style="font-weight:normal;color:${c.ink}">(${lista.length})</span></h2>
-<ul style="margin:0 0 4px;padding-left:20px;font-size:14px;line-height:1.6">
-${lista.slice(0, MAX).map((x) => `<li>${esc(linea(x))}</li>`).join('')}
-</ul>
-<p style="margin:0 0 8px;font-size:13px"><a href="${SITE_URL}/admin/${ruta}" style="color:${c.primary}">${lista.length > MAX ? `Ver los ${lista.length} en el panel` : 'Abrir en el panel'}</a></p>`;
-		}).join('') + `<div style="margin-top:16px">${boton(c, 'Abrir el panel', `${SITE_URL}/admin/`, c.dark)}</div>`
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;border-collapse:separate"><tr><td bgcolor="${alerta ? c.suave : c.white}" style="background:${alerta ? c.suave : c.white};border:1px solid ${c.linea};${alerta ? `border-left:4px solid ${c.primary};` : ''}border-radius:8px;padding:14px 16px 4px;font-family:Arial,Helvetica,sans-serif">
+<h2 style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;font-weight:bold;color:${alerta ? c.primary : c.dark}">${label} <span style="font-weight:normal;color:${c.ink}">(${lista.length})</span></h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:${c.dark}">
+${lista.slice(0, MAX).map((x, i) => `<tr><td style="padding:7px 0;${i ? `border-top:1px solid ${c.linea};` : ''}word-break:break-word">${esc(linea(x))}</td></tr>`).join('')}
+</table>
+<a href="${SITE_URL}/admin/${ruta}" target="_blank" style="display:inline-block;padding:10px 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;font-weight:bold;color:${c.primary};text-decoration:underline">${enlace}</a>
+</td></tr></table>`;
+		}).join('') + `<div style="margin-top:8px">${boton(c, 'Abrir el panel', `${SITE_URL}/admin/`, c.dark, { ancho: true })}</div>`
 	});
-	const texto = [titulo, '', ...activas.flatMap(([k, label]) => [`${label} (${secciones[k].length})`, ...secciones[k].slice(0, MAX).map((x) => `- ${SECCIONES.find((s) => s[0] === k)[3](x)}`), '']), `${SITE_URL}/admin/`].join('\n');
-	return { asunto: `Pendientes de hoy: ${total}`, html, texto };
+	const texto = [
+		titulo,
+		intro.replace(/<[^>]+>/g, ''),
+		'',
+		...activas.flatMap(([k, label, ruta, linea]) => [
+			`${label} (${secciones[k].length})`,
+			...secciones[k].slice(0, MAX).map((x) => `- ${linea(x)}`),
+			`${CORTO[k][2]}: ${SITE_URL}/admin/${ruta}`,
+			''
+		]),
+		`Abrir el panel: ${SITE_URL}/admin/`
+	].join('\n');
+	const asunto = `${nombre ? 'Tus pendientes' : 'Pendientes del equipo'} hoy: ${total}${atrasados ? ` (${cuenta('vencidas', atrasados)})` : ''}`;
+	return { asunto, html, texto };
 }
 
 // Envía un correo a cada asesor con lo suyo y uno completo al equipo (AVISO_CORREO).
@@ -88,7 +120,7 @@ export async function enviarResumen({ soloEquipo = false, ahora = Date.now() } =
 	const { secciones, asesores } = await datosResumen(ahora);
 	const enviados = [];
 
-	const general = await correoDe('', secciones);
+	const general = await correoDe('', secciones, ahora);
 	if (general) {
 		await enviarCorreo({ para: destinatariosEquipo(), ...general });
 		enviados.push('equipo');
@@ -99,7 +131,7 @@ export async function enviarResumen({ soloEquipo = false, ahora = Date.now() } =
 	for (const a of asesores) {
 		if (!a.activo || !a.email || equipo.has(String(a.email).toLowerCase())) continue;
 		const propias = Object.fromEntries(Object.entries(secciones).map(([k, lista]) => [k, lista.filter((x) => x.agentId === a.id)]));
-		const correo = await correoDe(a.nombre, propias);
+		const correo = await correoDe(a.nombre, propias, ahora);
 		if (!correo) continue;
 		try {
 			await enviarCorreo({ para: a.email, ...correo });
