@@ -477,19 +477,34 @@
 	}
 
 	// Reseñas de Google: se leen en vivo de /api/resenas-google. Si no está configurado, no se muestra nada.
+	// Todo se arma con textContent (nunca innerHTML) porque el texto viene de terceros.
 	var cajaGoogle = document.getElementById('resenas-google');
 	if (cajaGoogle && window.fetch) {
+		var txt = cajaGoogle.dataset;
 		var el = function (tag, clase, texto) {
 			var n = document.createElement(tag);
 			if (clase) n.className = clase;
 			if (texto) n.textContent = texto;
 			return n;
 		};
+		// Nombre completo de la clase (icon-…) para que el recorte de CSS del build la conserve.
+		var icono = function (clase) {
+			var i = el('span', clase + ' eq-ic');
+			i.setAttribute('aria-hidden', 'true');
+			return i;
+		};
+		// Cinco estrellas: llenas, media (si la calificación lo pide) y vacías.
 		var estrellas = function (valor) {
-			var cont = el('span', 'rate');
+			var v = Math.max(0, Math.min(5, Number(valor) || 0));
+			var mitades = Math.round(v * 2);
+			var cont = el('span', 'gr-estrellas');
 			cont.setAttribute('role', 'img');
-			cont.setAttribute('aria-label', valor + ' ' + cajaGoogle.dataset.estrellas);
-			for (var i = 0; i < Math.max(1, Math.min(5, Math.round(valor))); i++) cont.appendChild(el('span', 'icon-star text-warning'));
+			cont.setAttribute('aria-label', (Math.round(v * 10) / 10) + ' ' + txt.estrellas);
+			for (var i = 1; i <= 5; i++) {
+				var e = el('span', mitades >= i * 2 ? 'icon-star' : (mitades === i * 2 - 1 ? 'icon-star-half-o' : 'icon-star-o'));
+				e.setAttribute('aria-hidden', 'true');
+				cont.appendChild(e);
+			}
 			return cont;
 		};
 		var enlace = function (url, texto, clase) {
@@ -497,38 +512,107 @@
 			a.href = url; a.target = '_blank'; a.rel = 'noopener';
 			return a;
 		};
-		fetch('/api/resenas-google?lang=' + (cajaGoogle.dataset.lang === 'en' ? 'en' : 'es'))
+		var urlSegura = function (u) { return typeof u === 'string' && /^https:\/\//i.test(u) ? u : ''; };
+		var inicial = function (nombre) {
+			var letra = el('span', 'gr-avatar gr-avatar-letra', (String(nombre || '?').trim().charAt(0) || '?').toUpperCase());
+			letra.setAttribute('aria-hidden', 'true');
+			return letra;
+		};
+		var avatar = function (r) {
+			var foto = urlSegura(r.autorFoto) || (/^\/[^/]/.test(r.autorFoto || '') ? r.autorFoto : '');
+			if (!foto) return inicial(r.autor);
+			var img = el('img', 'gr-avatar');
+			img.src = foto; img.alt = ''; img.width = 48; img.height = 48;
+			img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+			img.addEventListener('error', function () { img.replaceWith(inicial(r.autor)); });
+			return img;
+		};
+		var tarjetaResena = function (r) {
+			var tarjeta = el('article', 'gr-resena');
+			var cabeza = el('header', 'gr-resena-cabeza');
+			cabeza.appendChild(avatar(r));
+			var quien = el('div', 'gr-resena-quien');
+			var nombre = el('h3', 'gr-resena-autor');
+			var perfil = urlSegura(r.autorUrl);
+			if (perfil) nombre.appendChild(enlace(perfil, r.autor)); else nombre.textContent = r.autor || '';
+			quien.appendChild(nombre);
+			if (r.fecha) quien.appendChild(el('p', 'gr-resena-fecha', r.fecha));
+			cabeza.appendChild(quien);
+			tarjeta.appendChild(cabeza);
+			tarjeta.appendChild(estrellas(r.estrellas));
+
+			var cita = el('blockquote', 'gr-resena-texto');
+			var parrafo = el('p', '', r.texto || '');
+			cita.appendChild(parrafo);
+			tarjeta.appendChild(cita);
+			// El texto se muestra completo; solo se recorta a la vista con CSS y se abre con «Leer más».
+			var mas = el('button', 'gr-leer-mas', txt.mas);
+			mas.type = 'button';
+			mas.hidden = true;
+			mas.setAttribute('aria-expanded', 'false');
+			mas.addEventListener('click', function () {
+				var abierta = tarjeta.classList.toggle('is-abierta');
+				mas.textContent = abierta ? txt.menos : txt.mas;
+				mas.setAttribute('aria-expanded', String(abierta));
+			});
+			tarjeta.appendChild(mas);
+
+			var pie = el('footer', 'gr-resena-pie');
+			pie.appendChild(el('span', 'gr-fuente', txt.publicada + ' Google'));
+			var verla = urlSegura(r.enlace);
+			if (verla) {
+				var a = enlace(verla, txt.verResena, 'gr-ver');
+				a.appendChild(icono('icon-external-link'));
+				pie.appendChild(a);
+			}
+			tarjeta.appendChild(pie);
+			return { tarjeta: tarjeta, texto: parrafo, mas: mas };
+		};
+
+		fetch('/api/resenas-google?lang=' + (txt.lang === 'en' ? 'en' : 'es'))
 			.then(function (r) { return r.ok ? r.json() : null; })
 			.then(function (d) {
 				if (!d || !d.configurado || !d.calificacion) return;
-				var cabecera = el('div', 'd-flex flex-wrap align-items-center gap-3 mb-4');
-				cabecera.appendChild(el('strong', 'display-6 text-primary mb-0', d.calificacion.toFixed(1)));
-				var info = el('div');
-				info.appendChild(estrellas(d.calificacion));
-				info.appendChild(el('div', 'small text-black-50', cajaGoogle.dataset.titulo + ' · ' + d.total + ' ' + cajaGoogle.dataset.total));
-				cabecera.appendChild(info);
-				var botones = el('div', 'ms-md-auto d-flex flex-wrap gap-2');
-				if (d.verEnGoogle) botones.appendChild(enlace(d.verEnGoogle, cajaGoogle.dataset.ver, 'btn btn-outline-primary btn-sm'));
-				if (d.dejarResena) botones.appendChild(enlace(d.dejarResena, cajaGoogle.dataset.dejar, 'btn btn-primary btn-sm'));
-				cabecera.appendChild(botones);
-				cajaGoogle.appendChild(cabecera);
+				var calif = Number(d.calificacion) || 0;
 
-				var fila = el('div', 'row g-4');
-				(d.resenas || []).slice(0, 3).forEach(function (r) {
-					var col = el('div', 'col-md-4');
-					var tarjeta = el('div', 'testimonial h-100');
-					tarjeta.appendChild(estrellas(r.estrellas));
-					var nombre = el('h3', 'h6 text-primary mt-2 mb-1');
-					if (r.autorUrl) nombre.appendChild(enlace(r.autorUrl, r.autor)); else nombre.textContent = r.autor;
-					tarjeta.appendChild(nombre);
-					if (r.fecha) tarjeta.appendChild(el('p', 'small text-black-50 mb-2', r.fecha));
-					tarjeta.appendChild(el('blockquote', '', '“' + r.texto + '”'));
-					tarjeta.appendChild(el('p', 'small text-black-50 mb-0', 'Google'));
-					col.appendChild(tarjeta);
-					fila.appendChild(col);
-				});
-				cajaGoogle.appendChild(fila);
+				var resumen = el('div', 'gr-resumen');
+				var nota = el('div', 'gr-nota');
+				nota.appendChild(el('span', 'gr-nota-num', calif.toFixed(1)));
+				var detalle = el('div', 'gr-nota-detalle');
+				detalle.appendChild(el('h3', 'gr-nota-titulo', txt.titulo));
+				detalle.appendChild(estrellas(calif));
+				if (d.total) detalle.appendChild(el('p', 'gr-nota-total', txt.basado + ' ' + d.total + ' ' + txt.total));
+				nota.appendChild(detalle);
+				resumen.appendChild(nota);
+				var botones = el('div', 'gr-botones');
+				var ver = urlSegura(d.verEnGoogle), dejar = urlSegura(d.dejarResena);
+				if (ver) botones.appendChild(enlace(ver, txt.ver, 'btn btn-outline-primary btn-sm'));
+				if (dejar) {
+					var b = enlace(dejar, '', 'btn btn-primary btn-sm');
+					b.appendChild(icono('icon-pencil'));
+					b.appendChild(document.createTextNode(txt.dejar));
+					botones.appendChild(b);
+				}
+				if (botones.childNodes.length) resumen.appendChild(botones);
+				cajaGoogle.appendChild(resumen);
+
+				var partes = (d.resenas || []).slice(0, 3).map(tarjetaResena);
+				if (partes.length) {
+					var lista = el('div', 'gr-lista');
+					partes.forEach(function (p) { lista.appendChild(p.tarjeta); });
+					cajaGoogle.appendChild(lista);
+				}
 				cajaGoogle.hidden = false;
+
+				// «Leer más» solo en las reseñas que no caben en las líneas visibles.
+				var revisar = function () {
+					partes.forEach(function (p) {
+						if (p.tarjeta.classList.contains('is-abierta')) return;
+						p.mas.hidden = p.texto.scrollHeight <= p.texto.clientHeight + 2;
+					});
+				};
+				revisar();
+				window.addEventListener('resize', revisar, { passive: true });
 			})
 			.catch(function () {});
 	}

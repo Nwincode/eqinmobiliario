@@ -548,7 +548,7 @@ export function homePage(ctx) {
 					</div>
 				</div>` : ''}
 			</div>
-			${s.testimonios.google ? `<div id="resenas-google" class="mb-5" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}"></div>` : ''}
+			${s.testimonios.google ? `<div id="resenas-google" class="resenas-google mb-5" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}"></div>` : ''}
 			${ctx.testimonials.length ? `<div class="testimonial-slider-wrap">
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((tm) => `<div class="item">
