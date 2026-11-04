@@ -946,6 +946,13 @@ h2.heading::after,
 	height: 2px;
 	margin-top: 16px;
 }
+/* En móvil style.css centra el contenido de .col-lg-6 (p. ej. «Propiedades populares»):
+   la raya del título se centra también, para que no quede sola a la izquierda. */
+@media (max-width: 812px) and (orientation: landscape), (max-width: 768.98px) and (orientation: portrait) {
+	.col-lg-6 > h2.heading::after {
+		margin-inline: auto;
+	}
+}
 
 /* Portada: velo negro uniforme */
 .hero.overlay:before,
@@ -1863,10 +1870,19 @@ a:hover > .eq-ic-fin,
 	cursor: pointer;
 	transition: color .2s ease, border-color .2s ease, background-color .2s ease;
 }
-.eq-flecha:hover {
-	color: var(--eq-primary);
-	border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
-	background: var(--eq-primary-soft);
+/* Solo con ratón: en pantallas táctiles el :hover se queda pegado después de tocar. */
+@media (hover: hover) {
+	.eq-flecha:hover {
+		color: var(--eq-primary);
+		border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
+		background: var(--eq-primary-soft);
+	}
+	.eq-flecha-prev:hover .eq-flecha-ic {
+		transform: translateX(-2px);
+	}
+	.eq-flecha-next:hover .eq-flecha-ic {
+		transform: translateX(2px);
+	}
 }
 .eq-flecha:active {
 	background: color-mix(in oklab, var(--eq-primary) 14%, var(--eq-white));
@@ -1881,20 +1897,20 @@ a:hover > .eq-ic-fin,
 	height: 22px;
 	transition: transform .2s ease;
 }
-.eq-flecha-prev:hover .eq-flecha-ic {
-	transform: translateX(-2px);
-}
-.eq-flecha-next:hover .eq-flecha-ic {
-	transform: translateX(2px);
-}
 @media (prefers-reduced-motion: reduce) {
 	.eq-flecha,
 	.eq-flecha-ic {
 		transition: none;
 	}
-	.eq-flecha:hover .eq-flecha-ic {
+	.eq-flecha-prev:hover .eq-flecha-ic,
+	.eq-flecha-next:hover .eq-flecha-ic {
 		transform: none;
 	}
+}
+/* Reseñas: las flechas a la altura del texto del título, no del título más su raya
+   (la raya de h2.heading::after mide 16 px de margen + 2 px). */
+#testimonial-nav {
+	margin-bottom: 18px;
 }
 /* Destacadas: las flechas a los lados de los puntos, debajo de las tarjetas. */
 #property-nav {
