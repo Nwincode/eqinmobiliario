@@ -1,24 +1,11 @@
-// Cliente de la función de IA (/api/ia) y ayudas para contactar clientes.
-import { session } from './session.js';
+// Herramientas del asesor. Por ahora funcionan sin IA (reglas y plantillas, sin costo).
+// La función /api/ia sigue en el proyecto por si algún día se activa la IA.
+import { REGLAS } from './reglas.js';
 
 export async function pedirIA(tarea, datos) {
-	const token = session.user && session.user.getIdToken ? await session.user.getIdToken() : '';
-	const res = await fetch('/api/ia', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-		body: JSON.stringify({ tarea, datos })
-	});
-	let body = {};
-	try {
-		body = await res.json();
-	} catch {
-		// Respuesta sin JSON: p. ej. la función aún no está desplegada.
-	}
-	if (!res.ok) {
-		const msg = res.status === 404 ? 'La IA todavía no está publicada en el sitio (se activa al publicar en Netlify).' : body.error || `Error ${res.status}`;
-		throw new Error(msg);
-	}
-	return body;
+	const fn = REGLAS[tarea];
+	if (!fn) throw new Error('Esta herramienta no está disponible.');
+	return fn(datos);
 }
 
 // Número en formato internacional para wa.me (los de 8 dígitos se asumen de Guatemala).

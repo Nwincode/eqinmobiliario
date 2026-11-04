@@ -245,7 +245,7 @@ function schema(agentOpts, isNew) {
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
-		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Se llena sola con IA al guardar y se actualiza cuando cambias el título o la descripción en español. Si corriges algo aquí a mano, se respeta y ya no se reemplaza (para volver a traducir, usa "EN · Traducir al inglés (IA)" arriba).' },
+		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Se llena sola al guardar y se actualiza cuando cambias el título o la descripción en español. Si corriges algo aquí a mano, se respeta y ya no se reemplaza (para volver a traducir, usa "EN · Traducir al inglés" arriba). La traducción es automática: revísala antes de publicar.' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
 		{ name: 'en.descripcion', label: 'Description (English)', type: 'markdown', rows: 6 },
 		{ name: 'en.amenidades', label: 'Amenities (English)', type: 'tags' },
@@ -307,7 +307,7 @@ async function renderEditor(container, id) {
 		}
 	});
 
-	// Traduce con IA los textos en español y devuelve la versión en inglés.
+	// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
 	// "fuente" guarda el texto en español traducido, para saber si cambió después.
 	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
 	const traducirEn = async (d) => {
@@ -388,7 +388,7 @@ async function renderEditor(container, id) {
 				await updateDoc(ref, { en: await traducirEn(d), updatedAt: serverTimestamp() });
 				toast('Propiedad guardada y traducida al inglés. Recuerda publicar para ver los cambios en el sitio.');
 			} catch (err) {
-				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés (IA)".', 'warning');
+				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés".', 'warning');
 			}
 			if (isNew) location.hash = `#/propiedades/${ref.id}`;
 			else await recargar();
@@ -457,7 +457,7 @@ async function renderEditor(container, id) {
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;
-			btn.textContent = 'EN · Traducir al inglés (IA)';
+			btn.textContent = 'EN · Traducir al inglés';
 		}
 	};
 
@@ -465,8 +465,8 @@ async function renderEditor(container, id) {
 	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
 			!isNew ? h('a', { href: `#/difusion/${id}`, class: 'btn btn-outline-primary' }, '📣 Difundir en portales') : null,
-			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, '✨ Redactar con IA') : null,
-			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, 'EN · Traducir al inglés (IA)') : null,
+			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, 'Armar borrador de ficha') : null,
+			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, 'EN · Traducir al inglés') : null,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,

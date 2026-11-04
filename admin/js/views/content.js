@@ -66,7 +66,7 @@ const GROUPS = [
 	},
 	{
 		id: 'ingles', label: 'Sitio en inglés', keys: ['en'], fields: [
-			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (se traduce sola con IA al guardar cada propiedad).' },
+			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (se traduce sola al guardar cada propiedad).' },
 			{ name: 'en.activo', label: 'Publicar el sitio en inglés', type: 'checkbox', default: true },
 			{ type: 'section', label: 'Secciones visibles en inglés', help: 'Por defecto se muestran las mismas que en español. Apágalas aquí para ocultarlas solo en /en/.' },
 			{ name: 'en.features.visible', label: 'Tarjetas destacadas', type: 'checkbox', default: true, cols: 4 },
@@ -120,9 +120,9 @@ const GROUPS = [
 		]
 	},
 	{
-		id: 'herramientas', label: 'IA y herramientas', keys: ['ia', 'calculadora'], fields: [
-			{ type: 'section', label: 'Búsqueda inteligente en el sitio', help: 'Los visitantes describen lo que buscan con sus palabras y la IA aplica los filtros. Requiere configurar ANTHROPIC_API_KEY en Netlify (ver README). Cada búsqueda cuesta aprox. US$ 0.01.' },
-			{ name: 'ia.busquedaPublica', label: 'Activar la búsqueda con IA en los listados', type: 'checkbox' },
+		id: 'herramientas', label: 'Herramientas', keys: ['ia', 'calculadora'], fields: [
+			{ type: 'section', label: 'Búsqueda inteligente en el sitio', help: 'Los visitantes escriben lo que buscan con sus palabras (p. ej. "casa en zona 16 de 3 habitaciones hasta 300 mil") y se aplican los filtros solos. Funciona sin IA y sin costo.' },
+			{ name: 'ia.busquedaPublica', label: 'Activar la búsqueda por frase en los listados', type: 'checkbox' },
 			{ type: 'section', label: 'Calculadora de cuota', help: 'Aparece en las propiedades en venta. Estos son los valores iniciales; el visitante puede cambiarlos.' },
 			{ name: 'calculadora.visible', label: 'Mostrar la calculadora', type: 'checkbox', default: true },
 			{ name: 'calculadora.enganche', label: 'Enganche %', type: 'number', cols: 4 },

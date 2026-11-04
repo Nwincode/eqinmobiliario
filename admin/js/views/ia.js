@@ -1,4 +1,4 @@
-// Asistente IA: tareas del día a día del asesor.
+// Asistente: tareas del día a día del asesor (funciona con reglas y plantillas, sin IA).
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
@@ -13,8 +13,7 @@ const TABS = [
 	['buscar', 'Buscar para un cliente'],
 	['redactar', 'Redactar ficha y redes'],
 	['seguimiento', 'Seguimiento de leads'],
-	['clientes', 'Clientes que buscan'],
-	['chat', 'Asistente']
+	['clientes', 'Clientes que buscan']
 ];
 
 async function cargarPropiedades() {
@@ -29,12 +28,12 @@ async function cargarRequerimientos() {
 		.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }
 
-// Inventario que se manda a la IA: solo lo que se ve en la página (disponible, próximamente o reservada).
+// Inventario que se revisa: solo lo que se ve en la página (disponible, próximamente o reservada).
 function inventarioIA(props) {
 	return props.filter(seOfrece);
 }
 
-function cargando(btn, texto = 'La IA está trabajando…') {
+function cargando(btn, texto = 'Trabajando…') {
 	const original = btn.textContent;
 	btn.disabled = true;
 	btn.replaceChildren(h('span', { class: 'spinner-border spinner-border-sm me-2' }), texto);
@@ -83,7 +82,7 @@ function tabBuscar(cont, props) {
 			const c = r.criterios || {};
 			out.replaceChildren(
 				h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
-					h('div', { class: 'small text-muted mb-1' }, 'Lo que entendió la IA'),
+					h('div', { class: 'small text-muted mb-1' }, 'Lo que se entendió del pedido'),
 					h('div', { class: 'fw-semibold mb-2' }, c.resumen),
 					h('div', { class: 'd-flex flex-wrap gap-1' },
 						c.operacion && c.operacion !== 'cualquiera' ? badge(c.operacion, 'secondary') : null,
@@ -108,7 +107,7 @@ function tabBuscar(cont, props) {
 		}
 	});
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'La IA entiende el pedido aunque venga desordenado, revisa todo el inventario disponible y te prepara el mensaje para el cliente.'),
+		h('p', { class: 'text-muted' }, 'Pega el pedido del cliente: se leen la zona, el tipo, las habitaciones y el presupuesto, se revisa todo el inventario disponible y te queda el mensaje listo para el cliente. Revisa siempre lo que se entendió.'),
 		texto, btn, out);
 }
 
@@ -141,9 +140,9 @@ function tabRedactar(cont, props, idInicial) {
 	const sel = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Elige una propiedad…'),
 		editables.map((p) => h('option', { value: p.id }, `${p.titulo || '(sin título)'} — ${p.zona || ''}`)));
 	sel.value = idInicial && editables.some((p) => p.id === idInicial) ? idInicial : '';
-	const notas = h('textarea', { class: 'form-control', rows: 4, placeholder: 'Notas para la IA (opcional): lo que viste en la visita, a quién va dirigida, qué destacar.\nEj.: "Mucha luz natural, cocina remodelada en 2024, ideal para familia con niños, cerca del colegio Austriaco."' });
+	const notas = h('textarea', { class: 'form-control', rows: 4, placeholder: 'Notas (opcional, se agregan a la descripción): lo que viste en la visita, a quién va dirigida, qué destacar.\nEj.: "Mucha luz natural, cocina remodelada en 2024, ideal para familia con niños, cerca del colegio Austriaco."' });
 	const out = h('div', { class: 'mt-4' });
-	const btn = h('button', { class: 'btn btn-primary mt-2', type: 'button' }, 'Redactar con IA');
+	const btn = h('button', { class: 'btn btn-primary mt-2', type: 'button' }, 'Armar borrador');
 
 	btn.addEventListener('click', async () => {
 		const p = props.find((x) => x.id === sel.value);
@@ -181,7 +180,7 @@ function tabRedactar(cont, props, idInicial) {
 					};
 					if (p.vip) Object.assign(patch, { 'vipLanding.titular': f.vipTitular.get(), 'vipLanding.subtitular': f.vipSubtitular.get(), 'vipLanding.puntosClave': f.puntos.get().split('\n').map((s) => s.trim()).filter(Boolean) });
 					await updateDoc(doc(db, 'properties', p.id), patch);
-					await markPending(`Propiedad (IA): ${f.titulo.get()}`);
+					await markPending(`Propiedad (borrador): ${f.titulo.get()}`);
 					toast('Listo: la propiedad se actualizó. Publica para verlo en el sitio.');
 				} catch (err) { showError(err); }
 			});
@@ -203,7 +202,7 @@ function tabRedactar(cont, props, idInicial) {
 		}
 	});
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'A partir de los datos de la propiedad y tus notas, la IA escribe la descripción, el SEO, la landing VIP y las publicaciones para redes. Tú revisas y aplicas con un clic.'),
+		h('p', { class: 'text-muted' }, 'Con los datos de la propiedad y tus notas se arma un borrador de la descripción, el SEO, la landing VIP y las publicaciones para redes. Revísalo, mejóralo y aplícalo con un clic.'),
 		h('div', { class: 'row g-2' }, h('div', { class: 'col-md-8' }, sel)),
 		h('div', { class: 'mt-2' }, notas), btn, out);
 }
@@ -263,7 +262,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 	});
 
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'Elige un lead: la IA resume el caso, te dice qué hacer y te deja el mensaje listo para WhatsApp o correo.'),
+		h('p', { class: 'text-muted' }, 'Elige un lead: se resume el caso, se sugiere el siguiente paso y te queda el mensaje listo para WhatsApp o correo.'),
 		h('div', { class: 'row g-4' },
 			h('div', { class: 'col-lg-4' }, lista),
 			h('div', { class: 'col-lg-8' }, out)));
@@ -308,7 +307,7 @@ function tabClientes(cont, props, reqs) {
 	};
 
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, la IA te dice a qué clientes ofrecérsela y te deja cada mensaje listo.'),
+		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, aquí ves a qué clientes guardados ofrecérsela y te queda cada mensaje listo.'),
 		h('div', { class: 'row g-2 align-items-center' }, h('div', { class: 'col-md-8' }, sel), h('div', { class: 'col-md-4' }, btn)),
 		out,
 		h('h2', { class: 'h6 mt-4' }, `Clientes con búsqueda activa (${activos.length})`),
@@ -326,74 +325,6 @@ function tabClientes(cont, props, reqs) {
 			})))) : emptyState('Aún no hay clientes guardados.'));
 }
 
-// ------------------------------------------------------------ Asistente (chat)
-
-const SUGERENCIAS = [
-	'Redacta un mensaje para confirmar una visita mañana a las 10 a. m.',
-	'Un cliente dice que el precio está muy alto. ¿Cómo le respondo?',
-	'Compara las propiedades de zona 16 que tenemos disponibles.',
-	'Calcula la cuota mensual de un préstamo de US$ 200,000 a 20 años al 8.5 %.',
-	'Arma mi plan de seguimiento para esta semana con 5 leads nuevos.'
-];
-
-function tabChat(cont, props) {
-	const historial = [];
-	const log = h('div', { class: 'ia-chat-log' });
-	const input = h('textarea', { class: 'form-control', rows: 2, placeholder: 'Pregúntale lo que necesites…' });
-	const btn = h('button', { class: 'btn btn-primary', type: 'button' }, 'Enviar');
-
-	const pintar = (role, text) => {
-		const burbuja = h('div', { class: `ia-burbuja ia-${role}` });
-		if (role === 'assistant') burbuja.innerHTML = mdBasico(text);
-		else burbuja.textContent = text;
-		log.append(burbuja);
-		log.scrollTop = log.scrollHeight;
-		return burbuja;
-	};
-
-	const enviar = async () => {
-		const texto = input.value.trim();
-		if (!texto) return;
-		input.value = '';
-		historial.push({ role: 'user', content: texto });
-		pintar('user', texto);
-		const espera = pintar('assistant', '…');
-		const listo = cargando(btn, 'Pensando…');
-		try {
-			const r = await pedirIA('chat', { mensajes: historial, inventario: inventarioIA(props) });
-			historial.push({ role: 'assistant', content: r.texto });
-			espera.innerHTML = mdBasico(r.texto);
-		} catch (err) {
-			historial.pop();
-			espera.textContent = err.message;
-			espera.classList.add('text-danger');
-		} finally {
-			listo();
-		}
-	};
-	btn.addEventListener('click', enviar);
-	input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } });
-
-	mount(cont,
-		h('p', { class: 'text-muted' }, 'Tu asistente para el día a día: mensajes, objeciones, comparaciones, cálculos y organización. Conoce el inventario disponible.'),
-		h('div', { class: 'd-flex flex-wrap gap-2 mb-3' }, SUGERENCIAS.map((s) => h('button', { class: 'btn btn-sm btn-light border', type: 'button', onclick: () => { input.value = s; input.focus(); } }, s))),
-		h('div', { class: 'card' }, h('div', { class: 'card-body' }, log,
-			h('div', { class: 'd-flex gap-2 mt-3' }, h('div', { class: 'flex-grow-1' }, input), btn))));
-}
-
-// Markdown mínimo y seguro para las respuestas del chat.
-function mdBasico(md) {
-	const esc = String(md || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-	return esc
-		.replace(/^### (.*)$/gm, '<h4 class="h6 mt-2">$1</h4>')
-		.replace(/^## (.*)$/gm, '<h3 class="h6 mt-2">$1</h3>')
-		.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-		.replace(/^[-*] (.*)$/gm, '<li>$1</li>')
-		.replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-		.replace(/\n{2,}/g, '<br><br>')
-		.replace(/\n/g, '<br>');
-}
-
 // ------------------------------------------------------------ Vista
 
 export async function render(container, [tab = 'buscar', id]) {
@@ -409,7 +340,6 @@ export async function render(container, [tab = 'buscar', id]) {
 	if (tab === 'redactar') tabRedactar(cont, props, id);
 	else if (tab === 'seguimiento') tabSeguimiento(cont, props, leads, id);
 	else if (tab === 'clientes') tabClientes(cont, props, reqs);
-	else if (tab === 'chat') tabChat(cont, props);
 	else tabBuscar(cont, props);
-	mount(container, pageHeader('Asistente IA'), nav, cont);
+	mount(container, pageHeader('Asistente'), nav, cont);
 }

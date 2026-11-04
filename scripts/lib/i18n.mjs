@@ -31,7 +31,7 @@ const ES = {
 	asesorInmobiliario: 'Asesor inmobiliario', correoBtn: 'Correo', msgAsesor: 'Hola {nombre}, me interesa la propiedad "{titulo}".',
 	// Listado
 	filtrar: 'Filtrar propiedades', busquedaInteligente: 'Búsqueda inteligente',
-	iaPh: 'Describe lo que buscas: casa de 3 habitaciones en zona 16 hasta US$ 300,000', buscarIA: 'Buscar con IA',
+	iaPh: 'Describe lo que buscas: casa de 3 habitaciones en zona 16 hasta US$ 300,000', buscarIA: 'Buscar',
 	buscarPh: 'Zona, residencial, tipo…', operacion: 'Operación', todas: 'Todas', todos: 'Todos', venta: 'Venta', renta: 'Renta',
 	tipo: 'Tipo', zona: 'Zona', ordenar: 'Ordenar', recientes: 'Más recientes', precioAsc: 'Precio: menor a mayor', precioDesc: 'Precio: mayor a menor',
 	precioMin: 'Precio mínimo', precioMax: 'Precio máximo', limpiar: 'Limpiar', propiedad: 'propiedad', propiedadesN: 'propiedades',
@@ -94,7 +94,7 @@ const EN = {
 	enviar: 'Send', empresa: 'Company', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
 	asesorInmobiliario: 'Real estate advisor', correoBtn: 'Email', msgAsesor: 'Hi {nombre}, I\'m interested in "{titulo}".',
 	filtrar: 'Filter properties', busquedaInteligente: 'Smart search',
-	iaPh: 'Describe what you want: 3-bedroom house in Zona 16 under $300,000', buscarIA: 'Search with AI',
+	iaPh: 'Describe what you want: 3-bedroom house in Zona 16 under $300,000', buscarIA: 'Search',
 	buscarPh: 'Area, community, type…', operacion: 'Listing type', todas: 'All', todos: 'All', venta: 'For sale', renta: 'For rent',
 	tipo: 'Property type', zona: 'Area', ordenar: 'Sort by', recientes: 'Newest', precioAsc: 'Price: low to high', precioDesc: 'Price: high to low',
 	precioMin: 'Min price', precioMax: 'Max price', limpiar: 'Clear', propiedad: 'property', propiedadesN: 'properties',
