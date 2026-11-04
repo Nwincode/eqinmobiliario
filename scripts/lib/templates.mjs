@@ -537,25 +537,19 @@ export function homePage(ctx) {
 
 	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
 		<div class="container">
-			<div class="row mb-5 align-items-center">
+			<div class="row ${s.testimonios.google ? 'mb-4' : 'mb-5'} align-items-center">
 				<div class="col-md-6">
 					<h2 class="font-weight-bold heading text-primary mb-4 mb-md-0">${esc(s.testimonios.titulo)}</h2>
 				</div>
-				${ctx.testimonials.length && !s.testimonios.google ? `<div class="col-md-6 text-md-end">
-					<div id="testimonial-nav">
+				<div class="col-md-6 text-md-end">
+					<div id="testimonial-nav"${ctx.testimonials.length ? '' : ' hidden'}>
 						<span class="prev" data-controls="prev">${ic('chevron-left')}${t.anterior}</span>
 						<span class="next" data-controls="next">${t.siguiente}${ic('chevron-right', true)}</span>
 					</div>
-				</div>` : ''}
+				</div>
 			</div>
-			${s.testimonios.google ? `<div id="resenas-google" class="resenas-google mb-5" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}" data-anonimo="${esc(t.anonimo)}"></div>` : ''}
-			${ctx.testimonials.length && s.testimonios.google ? `<div class="text-md-end mb-4">
-					<div id="testimonial-nav">
-						<span class="prev" data-controls="prev">${ic('chevron-left')}${t.anterior}</span>
-						<span class="next" data-controls="next">${t.siguiente}${ic('chevron-right', true)}</span>
-					</div>
-				</div>` : ''}
-			${ctx.testimonials.length ? `<div class="testimonial-slider-wrap">
+			${s.testimonios.google ? `<div id="resenas-google" class="resenas-google" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}" data-anonimo="${esc(t.anonimo)}"></div>` : ''}
+			${ctx.testimonials.length || s.testimonios.google ? `<div class="testimonial-slider-wrap">
 				<div class="testimonial-slider">
 					${ctx.testimonials.map((tm) => `<div class="item">
 						<div class="testimonial">

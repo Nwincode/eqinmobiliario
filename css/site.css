@@ -1864,65 +1864,68 @@ a:hover > .eq-ic-fin,
 }
 
 /* ================================================================
-   Reseñas de Google (portada): resumen con la calificación y tres
-   tarjetas. El texto de cada reseña nunca se cambia; solo se recorta
-   a la vista y se abre con «Leer más».
+   Reseñas de Google (portada): una barra delgada con la calificación
+   y las reseñas como diapositivas del mismo carrusel de testimonios.
+   El texto de cada reseña nunca se cambia; solo se recorta a la vista
+   (4 líneas) y se abre en su lugar con «Leer más».
    ================================================================ */
 .resenas-google {
-	--gr-gap: 24px;
-}
-.gr-resumen {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: 20px 32px;
-	padding: 24px 28px;
-	margin-bottom: var(--gr-gap);
+	gap: 8px 24px;
+	padding: 10px 12px 10px 20px;
+	margin-bottom: 40px;
 	background: var(--eq-mist);
 	border: 1px solid var(--eq-line);
 	border-radius: var(--eq-radius-card);
 }
+.resenas-google[hidden] {
+	display: none;
+}
 .gr-nota {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 20px;
+	gap: 4px 12px;
 	min-width: 0;
 }
 .gr-nota-num {
-	font-size: 56px;
+	font-size: 1.75rem;
 	font-weight: 700;
 	line-height: 1;
 	letter-spacing: -.02em;
 	color: var(--eq-dark);
-	padding-right: 20px;
-	border-right: 1px solid var(--eq-line);
+}
+.gr-nota-detalle {
+	margin: 0;
+	font-size: .875rem;
+	line-height: 1.4;
+	color: var(--eq-ink);
 }
 .gr-nota-titulo {
-	font-size: 1.05rem;
 	font-weight: 700;
-	margin: 0 0 4px;
 	color: var(--eq-dark);
+}
+.gr-nota-total::before {
+	content: "\00B7";
+	margin: 0 .5em;
 }
 .gr-nota-titulo .eq-ic,
 .gr-fuente .eq-ic {
 	margin-right: .4em;
 	vertical-align: -.05em;
 }
-.gr-nota-total {
-	margin: 4px 0 0;
-	font-size: .875rem;
-	color: var(--eq-ink);
-}
 .gr-estrellas {
 	display: inline-flex;
 	gap: 2px;
-	font-size: 16px;
+	font-size: 14px;
 	line-height: 1;
 	color: var(--eq-warning);
 }
 .gr-nota .gr-estrellas {
-	font-size: 19px;
+	font-size: 17px;
 }
 /* Estrella vacía en gris (como en Google), para distinguir 4 de 5 sin depender del contorno. */
 .gr-estrellas .gr-estrella-vacia {
@@ -1931,35 +1934,146 @@ a:hover > .eq-ic-fin,
 .gr-botones {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 10px;
+	gap: 4px;
 }
-.gr-botones .btn .eq-ic {
-	margin-right: .5em;
-	vertical-align: -.05em;
+.gr-boton {
+	display: inline-flex;
+	align-items: center;
+	gap: .45em;
+	min-height: 38px;
+	padding: 0 12px;
+	border-radius: var(--eq-radius);
+	font-size: .875rem;
+	font-weight: 600;
+	color: var(--eq-primary);
+	text-decoration: none;
+	transition: background-color .2s ease, color .2s ease;
+}
+.gr-boton:hover {
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary-hover);
+}
+.gr-boton .eq-ic {
+	margin: 0;
+	font-size: .85em;
+}
+.gr-boton-dejar {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.gr-boton-dejar:hover {
+	background: var(--eq-primary-hover);
+	color: var(--eq-white);
 }
 
-.gr-lista {
+/* Con reseñas de Google en el carrusel, todas las diapositivas tienen la misma altura. */
+.gr-mixto .testimonial-slider.tns-horizontal.tns-subpixel {
+	display: flex;
+}
+.gr-mixto .testimonial-slider > .tns-item {
+	display: flex;
+	flex: none;
+}
+.gr-mixto .testimonial-slider > .tns-item > * {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+/* Los testimonios del panel conservan su contenido; solo toman el mismo marco que las de Google. */
+.gr-mixto .testimonial,
+.gr-resena {
+	padding: 20px;
+	background: var(--eq-white);
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius-card);
+}
+.gr-mixto .testimonial {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+.gr-mixto .testimonial > * {
+	margin: 0 !important;
+	align-self: stretch;
+}
+/* Con foto: foto a la izquierda del nombre y las estrellas, como en las de Google. */
+.gr-mixto .testimonial:has(> img) {
 	display: grid;
-	/* auto-fill: con 1 o 2 reseñas las tarjetas conservan el ancho de columna
-	   (alineadas con las del carrusel de abajo) en vez de estirarse a todo el ancho. */
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-	gap: var(--gr-gap);
+	grid-template-columns: 44px minmax(0, 1fr);
+	grid-template-rows: auto auto auto auto 1fr;
+	column-gap: 12px;
+	row-gap: 0;
+}
+.gr-mixto .testimonial:has(> img) > img {
+	grid-column: 1;
+	grid-row: 1 / span 2;
+	align-self: center;
+	width: 44px !important;
+	height: 44px;
+	object-fit: cover;
+}
+.gr-mixto .testimonial:has(> img) > .h5 {
+	grid-column: 2;
+	grid-row: 1;
+	align-self: end;
+	margin-bottom: 4px !important;
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.3;
+}
+.gr-mixto .testimonial:has(> img) > .rate {
+	grid-column: 2;
+	grid-row: 2;
+	align-self: start;
+	line-height: 1;
+}
+.gr-mixto .testimonial:has(> img) > blockquote {
+	grid-column: 1 / -1;
+	grid-row: 3;
+	margin-top: 12px !important;
+}
+.gr-mixto .testimonial:has(> img) > .gr-leer-mas {
+	grid-column: 1 / -1;
+	grid-row: 4;
+	margin-top: 4px !important;
+}
+.gr-mixto .testimonial:has(> img) > p:last-child {
+	grid-column: 1 / -1;
+	grid-row: 5;
+	align-self: end;
+	margin-top: 12px !important;
+}
+.gr-mixto .testimonial .gr-leer-mas {
+	align-self: flex-start;
+	margin-top: -4px !important;
+}
+.gr-mixto .testimonial > p:last-child {
+	margin-top: auto !important;
+	font-size: .875rem;
+}
+/* Puntos del carrusel con área táctil cómoda. */
+.gr-mixto .tns-nav button {
+	width: 22px;
+	height: 44px;
+	margin: 0;
+	padding: 0;
+}
+.gr-mixto .tns-nav button::before {
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+.gr-mixto .tns-nav button {
+	position: relative;
+}
+.gr-mixto .tns-nav {
+	bottom: -56px;
 }
 .gr-resena {
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
+	gap: 12px;
 	min-width: 0;
-	padding: 24px;
-	background: var(--eq-white);
-	border: 1px solid var(--eq-line);
-	border-radius: var(--eq-radius-card);
-	box-shadow: 0 10px 30px -24px color-mix(in srgb, var(--eq-dark) 55%, transparent);
-	transition: box-shadow .2s ease, border-color .2s ease;
-}
-.gr-resena:hover {
-	border-color: color-mix(in oklab, var(--eq-primary) 25%, var(--eq-line));
-	box-shadow: 0 16px 36px -24px color-mix(in srgb, var(--eq-dark) 65%, transparent);
 }
 .gr-resena-cabeza {
 	display: flex;
@@ -1969,8 +2083,8 @@ a:hover > .eq-ic-fin,
 }
 .gr-avatar {
 	flex: none;
-	width: 48px;
-	height: 48px;
+	width: 44px;
+	height: 44px;
 	border-radius: 50%;
 	object-fit: cover;
 	background: var(--eq-primary-soft);
@@ -1980,7 +2094,7 @@ a:hover > .eq-ic-fin,
 	line-height: 1;
 	align-items: center;
 	justify-content: center;
-	font-size: 1.15rem;
+	font-size: 1.1rem;
 	font-weight: 700;
 	color: var(--eq-primary);
 }
@@ -1988,7 +2102,7 @@ a:hover > .eq-ic-fin,
 	min-width: 0;
 }
 .gr-resena-autor {
-	margin: 0;
+	margin: 0 0 4px;
 	font-size: 1rem;
 	font-weight: 700;
 	line-height: 1.3;
@@ -2003,29 +2117,37 @@ a:hover > .eq-ic-fin,
 	color: var(--eq-primary);
 	text-decoration: underline;
 }
+.gr-resena-linea {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 10px;
+	margin: 0;
+}
 .gr-resena-fecha {
-	margin: 2px 0 0;
 	font-size: .8125rem;
+	line-height: 1.2;
 	color: var(--eq-ink);
 }
 .gr-resena-texto {
 	margin: 0;
 	overflow-wrap: anywhere;
 }
-.gr-resena-texto p {
+.gr-resena-texto p,
+.gr-mixto .testimonial blockquote p {
 	margin: 0;
-	font-size: .975rem;
 	line-height: 1.6;
-	color: var(--eq-dark);
+	color: var(--eq-ink);
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 5;
-	line-clamp: 5;
+	-webkit-line-clamp: 4;
+	line-clamp: 4;
 	overflow: hidden;
 }
 .gr-resena-texto p::before { content: "\201C"; }
 .gr-resena-texto p::after { content: "\201D"; }
-.gr-resena.is-abierta .gr-resena-texto p {
+.gr-resena.is-abierta .gr-resena-texto p,
+.gr-mixto .testimonial.is-abierta blockquote p {
 	display: block;
 	-webkit-line-clamp: unset;
 	line-clamp: unset;
@@ -2033,7 +2155,7 @@ a:hover > .eq-ic-fin,
 }
 .gr-leer-mas {
 	align-self: flex-start;
-	margin-top: -6px;
+	margin-top: -8px;
 	padding: 2px 0;
 	border: 0;
 	background: none;
@@ -2055,10 +2177,11 @@ a:hover > .eq-ic-fin,
 	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
-	gap: 6px 12px;
+	gap: 4px 12px;
 	margin-top: auto;
-	padding-top: 14px;
+	padding-top: 10px;
 	border-top: 1px solid var(--eq-line);
+	min-height: 35px;
 	font-size: .8125rem;
 }
 .gr-fuente {
@@ -2081,34 +2204,37 @@ a:hover > .eq-ic-fin,
 	font-size: .9em;
 }
 .gr-resena a:focus-visible,
-.gr-botones .btn:focus-visible,
+.gr-boton:focus-visible,
 .gr-leer-mas:focus-visible {
 	outline: 2px solid var(--eq-focus);
 	outline-offset: 2px;
 	border-radius: 4px;
 }
 
-@media (max-width: 575.98px) {
+@media (max-width: 767.98px) {
 	.resenas-google {
-		--gr-gap: 16px;
+		padding: 12px 14px;
+		margin-bottom: 28px;
 	}
-	.gr-resumen {
-		padding: 20px;
-	}
-	.gr-nota-num {
-		font-size: 44px;
-		padding-right: 16px;
-	}
-	.gr-nota {
-		gap: 16px;
-	}
-	.gr-botones,
-	.gr-botones .btn {
+	.gr-botones {
 		width: 100%;
+		gap: 6px;
 	}
 	/* Objetivos táctiles de 44 px como mínimo en móvil. */
-	.gr-botones .btn {
+	.gr-boton {
+		flex: 1 1 auto;
+		justify-content: center;
 		min-height: 44px;
+		padding: 0 8px;
+		font-size: .8125rem;
+	}
+	.gr-boton:not(.gr-boton-dejar) {
+		background: var(--eq-white);
+		border: 1px solid var(--eq-line);
+	}
+	.sec-testimonials:has(.resenas-google:not([hidden])) #testimonial-nav span {
+		padding-top: 10px;
+		padding-bottom: 10px;
 	}
 	.gr-leer-mas,
 	.gr-ver {
@@ -2120,15 +2246,12 @@ a:hover > .eq-ic-fin,
 		margin: -14px 0 -10px;
 	}
 	.gr-resena-pie {
-		padding-top: 4px;
+		padding-top: 2px;
 		margin-bottom: -10px;
 	}
 	.gr-resena-autor a {
 		display: inline-block;
 		padding: 12px 0;
 		margin: -12px 0;
-	}
-	.gr-resena {
-		padding: 20px;
 	}
 }

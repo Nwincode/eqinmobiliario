@@ -70,8 +70,16 @@
 		}
 
 
-		if ( testimonialSlider.length> 0 ) {
-			tns({
+		// Las reseñas de Google llegan después (site.js las agrega como diapositivas y
+		// vuelve a armar este mismo carrusel con window.eqIniciarTestimonios(preparar)).
+		// destroy() devuelve el HTML original; «preparar» lo modifica antes de armarlo otra vez.
+		var carruselTestimonios = null;
+		window.eqIniciarTestimonios = function (preparar) {
+			if (carruselTestimonios) { carruselTestimonios.destroy(); carruselTestimonios = null; }
+			var cont = document.querySelector('.testimonial-slider');
+			if (cont && preparar) preparar(cont);
+			if (!cont || !cont.children.length) return null;
+			carruselTestimonios = tns({
 				container: '.testimonial-slider',
 				mode: 'carousel',
 				speed: 700,
@@ -92,6 +100,10 @@
 					}
 				}
 			});
+			return carruselTestimonios;
+		};
+		if ( testimonialSlider.length> 0 ) {
+			window.eqIniciarTestimonios();
 		}
 	}
 	tinySdlier();
