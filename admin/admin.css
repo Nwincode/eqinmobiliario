@@ -1080,3 +1080,109 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .paleta-muestras span:first-child {
 	flex: 1.4;
 }
+
+/* Propiedades: estado y «Visible en la página» en cada fila */
+.table-admin .celda-titulo {
+	min-width: 11rem;
+}
+.table-admin .celda-estado,
+.table-admin .celda-visible {
+	cursor: default;
+}
+.estado-rapido {
+	min-height: 38px;
+	min-width: 13.25rem;
+}
+.celda-visible .form-check {
+	display: flex;
+	align-items: center;
+	gap: .5rem;
+	min-height: 32px;
+	padding-left: 0;
+}
+.celda-visible .form-check-input {
+	float: none;
+	margin: 0;
+	width: 2.25em;
+	height: 1.25em;
+	cursor: pointer;
+}
+.celda-visible .form-check-input:checked {
+	background-color: var(--adm-primary);
+	border-color: var(--adm-primary);
+}
+.celda-visible .form-check-label {
+	font-size: .875rem;
+	cursor: pointer;
+}
+.celda-visible .form-check-input:disabled,
+.celda-visible .form-check-input:disabled ~ .form-check-label {
+	cursor: not-allowed;
+}
+.motivo-visibilidad {
+	font-weight: 500;
+	white-space: nowrap;
+	text-align: left;
+	line-height: 1.3;
+}
+/* Foco bien visible con teclado (el anillo celeste suave no llega a 3:1 sobre blanco). */
+.estado-rapido:focus-visible,
+.celda-visible .form-check-input:focus-visible {
+	outline: 2px solid var(--adm-primary);
+	outline-offset: 2px;
+}
+.table-admin tr.fila-oculta .thumb {
+	opacity: .55;
+}
+
+/* En celular cada propiedad es una tarjeta: los controles quedan a la vista, sin desplazar la tabla. */
+@media (max-width: 767.98px) {
+	.tabla-propiedades thead {
+		display: none;
+	}
+	.tabla-propiedades,
+	.tabla-propiedades tbody {
+		display: block;
+	}
+	.tabla-propiedades tbody tr {
+		display: grid;
+		grid-template-columns: 64px 1fr auto;
+		grid-template-areas:
+			"foto titulo titulo"
+			"foto precio precio"
+			"estado estado estado"
+			"visible visible visible"
+			"asesor asesor fecha";
+		column-gap: .75rem;
+		row-gap: .375rem;
+		padding: .875rem 1rem;
+		border-bottom: 1px solid var(--adm-border);
+	}
+	.tabla-propiedades tbody tr:last-child {
+		border-bottom: 0;
+	}
+	.table-admin.tabla-propiedades > :not(caption) > * > * {
+		display: block;
+		padding: 0;
+		border: 0;
+		min-width: 0;
+	}
+	.tabla-propiedades td:first-child { grid-area: foto; }
+	.tabla-propiedades .celda-titulo { grid-area: titulo; }
+	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; justify-content: space-between; gap: .75rem; }
+	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
+	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .375rem; }
+	.tabla-propiedades .celda-visible {
+		grid-area: visible;
+		display: flex !important;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: .125rem;
+	}
+	.tabla-propiedades .celda-visible .form-check { margin-bottom: 0 !important; min-height: 44px; }
+	.tabla-propiedades .motivo-visibilidad { white-space: normal; }
+	.tabla-propiedades .celda-asesor { grid-area: asesor; color: var(--adm-muted); }
+	.tabla-propiedades .celda-fecha { grid-area: fecha; text-align: right; }
+	.tabla-propiedades .thumb { width: 64px; height: 48px; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; }
+}

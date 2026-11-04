@@ -45,8 +45,8 @@
 	color: #fff;
 }
 .prop-badge-estado {
-	background: #b42318;
-	color: #fff;
+	background: var(--eq-danger);
+	color: var(--eq-white);
 }
 
 /* Detalle de propiedad */
@@ -946,6 +946,13 @@ h2.heading::after,
 	height: 2px;
 	margin-top: 16px;
 }
+/* En móvil style.css centra el contenido de .col-lg-6 (p. ej. «Propiedades populares»):
+   la raya del título se centra también, para que no quede sola a la izquierda. */
+@media (max-width: 812px) and (orientation: landscape), (max-width: 768.98px) and (orientation: portrait) {
+	.col-lg-6 > h2.heading::after {
+		margin-inline: auto;
+	}
+}
 
 /* Portada: velo negro uniforme */
 .hero.overlay:before,
@@ -1840,9 +1847,84 @@ a:hover > .eq-ic-fin,
 	margin: 0;
 	font-size: 18px;
 }
-#property-nav .eq-ic,
-#testimonial-nav .eq-ic {
-	font-size: .8em;
+/* Flechas de carrusel (#property-nav, #testimonial-nav): solo el chevrón fino,
+   círculo discreto y 44 px de área táctil. Regla «Botones de carrusel» de CLAUDE.md. */
+.eq-flechas {
+	display: inline-flex;
+	gap: 8px;
+}
+.eq-flechas[hidden] {
+	display: none;
+}
+.eq-flecha {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 1px solid var(--eq-line);
+	border-radius: 50%;
+	background: transparent;
+	color: var(--eq-dark);
+	cursor: pointer;
+	transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+/* Solo con ratón: en pantallas táctiles el :hover se queda pegado después de tocar. */
+@media (hover: hover) {
+	.eq-flecha:hover {
+		color: var(--eq-primary);
+		border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
+		background: var(--eq-primary-soft);
+	}
+	.eq-flecha-prev:hover .eq-flecha-ic {
+		transform: translateX(-2px);
+	}
+	.eq-flecha-next:hover .eq-flecha-ic {
+		transform: translateX(2px);
+	}
+}
+.eq-flecha:active {
+	background: color-mix(in oklab, var(--eq-primary) 14%, var(--eq-white));
+}
+.eq-flecha:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.eq-flecha-ic {
+	display: block;
+	width: 22px;
+	height: 22px;
+	transition: transform .2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+	.eq-flecha,
+	.eq-flecha-ic {
+		transition: none;
+	}
+	.eq-flecha-prev:hover .eq-flecha-ic,
+	.eq-flecha-next:hover .eq-flecha-ic {
+		transform: none;
+	}
+}
+/* Reseñas: las flechas a la altura del texto del título, no del título más su raya
+   (la raya de h2.heading::after mide 16 px de margen + 2 px). */
+#testimonial-nav {
+	margin-bottom: 18px;
+}
+/* Destacadas: las flechas a los lados de los puntos, debajo de las tarjetas. */
+#property-nav {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 21px;
+	z-index: 3;
+	display: flex;
+	justify-content: space-between;
+	pointer-events: none;
+}
+#property-nav .eq-flecha {
+	pointer-events: auto;
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;
@@ -1861,4 +1943,534 @@ a:hover > .eq-ic-fin,
 }
 .prop-facts dt {
 	white-space: nowrap;
+}
+
+/* ================================================================
+   Reseñas de Google (portada): una barra delgada con la calificación
+   y las reseñas como diapositivas del mismo carrusel de testimonios.
+   El texto de cada reseña nunca se cambia; solo se recorta a la vista
+   (4 líneas) y se abre en su lugar con «Leer más».
+   ================================================================ */
+.resenas-google {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 24px;
+	padding: 10px 12px 10px 20px;
+	/* El título deja 3rem (mb-5, como sin Google); la barra sube 1.5rem para quedar más cerca. */
+	margin-top: -1.5rem;
+	margin-bottom: 40px;
+	background: var(--eq-mist);
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius-card);
+}
+.resenas-google[hidden] {
+	display: none;
+}
+.gr-nota {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 12px;
+	min-width: 0;
+}
+.gr-nota-num {
+	font-size: 1.75rem;
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -.02em;
+	color: var(--eq-dark);
+}
+.gr-nota-detalle {
+	margin: 0;
+	font-size: .875rem;
+	line-height: 1.4;
+	color: var(--eq-ink);
+}
+.gr-nota-titulo {
+	font-weight: 700;
+	color: var(--eq-dark);
+}
+.gr-nota-total::before {
+	content: "\00B7";
+	margin: 0 .5em;
+}
+.gr-nota-titulo .eq-ic,
+.gr-fuente .eq-ic {
+	margin-right: .4em;
+	vertical-align: -.05em;
+}
+.gr-estrellas {
+	display: inline-flex;
+	gap: 2px;
+	font-size: 14px;
+	line-height: 1;
+	color: var(--eq-warning);
+}
+.gr-nota .gr-estrellas {
+	font-size: 17px;
+}
+/* Estrella vacía en gris (como en Google), para distinguir 4 de 5 sin depender del contorno. */
+.gr-estrellas .gr-estrella-vacia {
+	color: color-mix(in oklab, var(--eq-ink) 35%, var(--eq-white));
+}
+.gr-botones {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+.gr-boton {
+	display: inline-flex;
+	align-items: center;
+	gap: .45em;
+	min-height: 38px;
+	padding: 0 12px;
+	border-radius: var(--eq-radius);
+	font-size: .875rem;
+	font-weight: 600;
+	color: var(--eq-primary);
+	text-decoration: none;
+	transition: background-color .2s ease, color .2s ease;
+}
+.gr-boton:hover {
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary-hover);
+}
+.gr-boton .eq-ic {
+	margin: 0;
+	font-size: .85em;
+}
+.gr-boton-dejar {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.gr-boton-dejar:hover {
+	background: var(--eq-primary-hover);
+	color: var(--eq-white);
+}
+
+/* Con reseñas de Google en el carrusel, todas las diapositivas tienen la misma altura. */
+.gr-mixto .testimonial-slider.tns-horizontal.tns-subpixel {
+	display: flex;
+}
+.gr-mixto .testimonial-slider > .tns-item {
+	display: flex;
+	flex: none;
+}
+.gr-mixto .testimonial-slider > .tns-item > * {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+/* Los testimonios del panel conservan su contenido; solo toman el mismo marco que las de Google. */
+.gr-mixto .testimonial,
+.gr-resena {
+	padding: 20px;
+	background: var(--eq-white);
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius-card);
+}
+.gr-mixto .testimonial {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+}
+.gr-mixto .testimonial > * {
+	margin: 0 !important;
+	align-self: stretch;
+}
+/* Con foto: foto a la izquierda del nombre y las estrellas, como en las de Google. */
+.gr-mixto .testimonial:has(> img) {
+	display: grid;
+	grid-template-columns: 44px minmax(0, 1fr);
+	grid-template-rows: auto auto auto auto 1fr;
+	column-gap: 12px;
+	row-gap: 0;
+}
+.gr-mixto .testimonial:has(> img) > img {
+	grid-column: 1;
+	grid-row: 1 / span 2;
+	align-self: center;
+	width: 44px !important;
+	height: 44px;
+	object-fit: cover;
+}
+.gr-mixto .testimonial:has(> img) > .h5 {
+	grid-column: 2;
+	grid-row: 1;
+	align-self: end;
+	margin-bottom: 4px !important;
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.3;
+}
+.gr-mixto .testimonial:has(> img) > .rate {
+	grid-column: 2;
+	grid-row: 2;
+	align-self: start;
+	line-height: 1;
+}
+.gr-mixto .testimonial:has(> img) > blockquote {
+	grid-column: 1 / -1;
+	grid-row: 3;
+	margin-top: 12px !important;
+}
+.gr-mixto .testimonial:has(> img) > .gr-leer-mas {
+	grid-column: 1 / -1;
+	grid-row: 4;
+	margin-top: 4px !important;
+}
+.gr-mixto .testimonial:has(> img) > p:last-child {
+	grid-column: 1 / -1;
+	grid-row: 5;
+	align-self: end;
+	margin-top: 12px !important;
+}
+.gr-mixto .testimonial .gr-leer-mas {
+	align-self: flex-start;
+	margin-top: -4px !important;
+}
+.gr-mixto .testimonial > p:last-child {
+	margin-top: auto !important;
+	font-size: .875rem;
+}
+/* Puntos del carrusel con área táctil cómoda. */
+.gr-mixto .tns-nav button {
+	width: 22px;
+	height: 44px;
+	margin: 0;
+	padding: 0;
+}
+.gr-mixto .tns-nav button::before {
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+.gr-mixto .tns-nav button {
+	position: relative;
+}
+.gr-mixto .tns-nav {
+	bottom: -56px;
+	white-space: nowrap;
+}
+.gr-mixto .tns-nav button:focus-visible::before {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 3px;
+}
+.gr-resena {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 0;
+}
+.gr-resena-cabeza {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+.gr-avatar {
+	flex: none;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	object-fit: cover;
+	background: var(--eq-primary-soft);
+}
+.gr-avatar-letra {
+	display: inline-flex;
+	line-height: 1;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: var(--eq-primary);
+}
+.gr-resena-quien {
+	min-width: 0;
+}
+.gr-resena-autor {
+	margin: 0 0 4px;
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.3;
+	color: var(--eq-dark);
+	overflow-wrap: anywhere;
+}
+.gr-resena-autor a {
+	color: inherit;
+	text-decoration: none;
+}
+.gr-resena-autor a:hover {
+	color: var(--eq-primary);
+	text-decoration: underline;
+}
+.gr-resena-linea {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 10px;
+	margin: 0;
+}
+.gr-resena-fecha {
+	font-size: .8125rem;
+	line-height: 1.2;
+	color: var(--eq-ink);
+}
+.gr-resena-texto {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.gr-resena-texto p,
+.gr-mixto .testimonial blockquote p {
+	margin: 0;
+	line-height: 1.6;
+	color: var(--eq-ink);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 4;
+	line-clamp: 4;
+	overflow: hidden;
+}
+.gr-resena-texto p::before { content: "\201C"; }
+.gr-resena-texto p::after { content: "\201D"; }
+.gr-resena.is-abierta .gr-resena-texto p,
+.gr-mixto .testimonial.is-abierta blockquote p {
+	display: block;
+	-webkit-line-clamp: unset;
+	line-clamp: unset;
+	overflow: visible;
+}
+.gr-leer-mas {
+	align-self: flex-start;
+	margin-top: -8px;
+	padding: 2px 0;
+	border: 0;
+	background: none;
+	font-size: .875rem;
+	font-weight: 600;
+	color: var(--eq-primary);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+.gr-leer-mas:hover {
+	color: var(--eq-primary-hover);
+}
+.gr-leer-mas[hidden] {
+	display: none;
+}
+.gr-resena-pie {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 4px 12px;
+	margin-top: auto;
+	padding-top: 10px;
+	border-top: 1px solid var(--eq-line);
+	min-height: 35px;
+	font-size: .8125rem;
+}
+.gr-fuente {
+	color: var(--eq-ink);
+}
+.gr-ver {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	gap: .4em;
+	font-weight: 600;
+	color: var(--eq-primary);
+	text-decoration: none;
+}
+.gr-ver:hover {
+	text-decoration: underline;
+}
+.gr-ver .eq-ic {
+	margin: 0;
+	font-size: .9em;
+}
+.gr-resena a:focus-visible,
+.gr-boton:focus-visible,
+.gr-leer-mas:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+@media (max-width: 767.98px) {
+	.resenas-google {
+		padding: 12px 14px;
+		margin-bottom: 28px;
+	}
+	.gr-botones {
+		width: 100%;
+		gap: 6px;
+	}
+	/* «Basado en N reseñas» en su propia línea, sin partirse ni empezar con el punto. */
+	.gr-nota-total {
+		display: block;
+	}
+	.gr-nota-total::before {
+		content: none;
+	}
+	/* Objetivos táctiles de 44 px como mínimo en móvil. */
+	.gr-boton {
+		flex: 1 1 auto;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0 8px;
+		font-size: .8125rem;
+	}
+	.gr-boton:not(.gr-boton-dejar) {
+		background: var(--eq-white);
+		border: 1px solid var(--eq-line);
+	}
+	.gr-leer-mas,
+	.gr-ver {
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+	.gr-leer-mas {
+		margin: -14px 0 -10px;
+	}
+	.gr-resena-pie {
+		padding-top: 2px;
+		margin-bottom: -10px;
+	}
+	.gr-resena-autor a {
+		display: inline-block;
+		padding: 12px 0;
+		margin: -12px 0;
+	}
+}
+
+/* ------------------------------------------------ Estados de la propiedad
+   Etiquetas de las tarjetas (más específicas que los .prop-badge de arriba)
+   y aviso de la ficha cuando la propiedad se vendió, se rentó o ya no está disponible. */
+.prop-badge.prop-badge-estado {
+	background: var(--eq-danger);
+	color: var(--eq-white);
+}
+.prop-badge.prop-badge-estado-proximamente {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.prop-badge.prop-badge-estado-reservada {
+	background: var(--eq-warning);
+	color: var(--eq-dark);
+}
+.prop-badge.prop-badge-estado-cerrada {
+	background: var(--eq-danger);
+	color: var(--eq-white);
+}
+.ficha-aviso {
+	display: flex;
+	align-items: flex-start;
+	gap: 18px;
+	padding: 22px 24px;
+	margin: 0 0 32px;
+	background: var(--eq-mist);
+	border: 1px solid var(--eq-line);
+	border-left: 4px solid var(--eq-danger);
+	border-radius: var(--eq-radius-card);
+}
+.ficha-aviso-icono {
+	flex: 0 0 48px;
+	width: 48px;
+	height: 48px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: color-mix(in oklab, var(--eq-danger) 10%, var(--eq-white));
+	color: var(--eq-danger);
+	font-size: 20px;
+}
+.ficha-aviso-icono .eq-ic {
+	margin: 0;
+}
+.ficha-aviso-texto {
+	min-width: 0;
+}
+.ficha-aviso h2 {
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--eq-dark);
+	margin: 2px 0 6px;
+}
+.ficha-aviso p {
+	max-width: 62ch;
+	color: var(--eq-ink);
+	margin: 0 0 16px;
+}
+.ficha-aviso-acciones {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+.ficha-aviso-retirada {
+	border-left-color: var(--eq-primary);
+	background: var(--eq-white);
+}
+.ficha-aviso-retirada .ficha-aviso-icono {
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+}
+.ficha-precio.ficha-precio-cerrada {
+	color: var(--eq-danger);
+}
+.ficha-similares {
+	scroll-margin-top: 80px;
+}
+/* Sello sobre las fotos: que se note «Vendida» / «Rentada» sin bajar hasta el aviso. */
+.ficha-sello {
+	position: absolute;
+	left: 24px;
+	top: 24px;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 14px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-danger);
+	color: var(--eq-white);
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	pointer-events: none;
+}
+.ficha-sello .eq-ic {
+	margin: 0;
+}
+/* Pausada o retirada: el aviso va pegado al encabezado y a las parecidas, sin huecos grandes. */
+.section.ficha-no-disponible {
+	padding-top: 3rem;
+	padding-bottom: 3rem;
+}
+@media (max-width: 575.98px) {
+	.ficha-sello {
+		left: 12px;
+		top: 12px;
+		padding: 6px 12px;
+		font-size: 13px;
+	}
+	.section.ficha-no-disponible {
+		padding-top: 2rem;
+		padding-bottom: 2rem;
+	}
+	.ficha-aviso {
+		flex-direction: column;
+		gap: 12px;
+		padding: 18px;
+	}
+	.ficha-aviso-acciones .btn {
+		flex: 1 1 100%;
+	}
 }

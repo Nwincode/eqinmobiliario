@@ -1,6 +1,19 @@
 import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, formatDate, confirmDialog , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
+import { cargarDemos, borrarDemos } from '../demo.js';
+
+async function demoAction(btn, status, accion) {
+	btn.disabled = true;
+	try {
+		await accion();
+	} catch (err) {
+		status.textContent = '';
+		showError(err);
+	} finally {
+		btn.disabled = false;
+	}
+}
 
 // Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
 async function triggerBuild(hook) {
@@ -71,7 +84,24 @@ export async function render(container) {
 		} catch (err) { showError(err); }
 	};
 
-	mount(container, 
+	const demoStatus = h('p', { class: 'small text-muted mt-2 mb-0' });
+	const cargar = (btn) => demoAction(btn, demoStatus, async () => {
+		if (!(await confirmDialog('Se crearán 3 propiedades de prueba con fotos, ocultas al público. ¿Continuar?', { okText: 'Cargar', danger: false }))) return;
+		const n = await cargarDemos({ onProgress: (t) => { demoStatus.textContent = t; } });
+		demoStatus.textContent = '';
+		toast(`Listo: ${n} propiedades de prueba creadas. Las verás en Propiedades.`);
+		document.dispatchEvent(new CustomEvent('publish-state'));
+	});
+	const borrar = (btn) => demoAction(btn, demoStatus, async () => {
+		if (!(await confirmDialog('Se borrarán todas las propiedades de prueba y sus fotos. ¿Continuar?', { okText: 'Borrar' }))) return;
+		demoStatus.textContent = 'Borrando…';
+		const n = await borrarDemos();
+		demoStatus.textContent = '';
+		toast(n ? `Se borraron ${n} propiedades de prueba.` : 'No había propiedades de prueba.');
+		document.dispatchEvent(new CustomEvent('publish-state'));
+	});
+
+	mount(container,
 		pageHeader('Publicar el sitio'),
 		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
 			h('p', {}, 'Los cambios que haces en el panel se guardan al instante, pero el sitio público se regenera al publicar. Así las páginas cargan rápido y Google las indexa completas.'),
@@ -87,5 +117,12 @@ export async function render(container) {
 		session.isAdmin && !site.exists() ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),
-			h('button', { class: 'btn btn-info', onclick: (e) => importSeed(e.currentTarget) }, 'Importar datos iniciales'))) : null);
+			h('button', { class: 'btn btn-info', onclick: (e) => importSeed(e.currentTarget) }, 'Importar datos iniciales'))) : null,
+		session.isAdmin ? h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+			h('h2', { class: 'h6' }, 'Propiedades de prueba'),
+			h('p', { class: 'small text-muted' }, 'Crea 3 propiedades de ejemplo con fotos para probar el panel y la subida de imágenes. Quedan ocultas al público; para verlas en el sitio, márcalas como publicadas en Propiedades. Bórralas cuando termines.'),
+			h('div', { class: 'd-flex gap-2 flex-wrap' },
+				h('button', { class: 'btn btn-outline-primary', onclick: (e) => cargar(e.currentTarget) }, 'Cargar propiedades de prueba'),
+				h('button', { class: 'btn btn-outline-danger', onclick: (e) => borrar(e.currentTarget) }, 'Borrar datos de prueba')),
+			demoStatus)) : null);
 }

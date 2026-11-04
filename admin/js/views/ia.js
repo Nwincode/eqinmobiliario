@@ -7,6 +7,7 @@ import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge } from './leads.js';
 import { publicUrl } from './properties.js';
+import { seOfrece } from '../estados.js';
 
 const TABS = [
 	['buscar', 'Buscar para un cliente'],
@@ -28,9 +29,9 @@ async function cargarRequerimientos() {
 		.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }
 
-// Inventario que se manda a la IA: solo lo publicado y disponible (o reservado).
+// Inventario que se manda a la IA: solo lo que se ve en la página (disponible, próximamente o reservada).
 function inventarioIA(props) {
-	return props.filter((p) => p.publicado && (!p.estado || p.estado === 'disponible' || p.estado === 'reservada'));
+	return props.filter(seOfrece);
 }
 
 function cargando(btn, texto = 'La IA está trabajando…') {

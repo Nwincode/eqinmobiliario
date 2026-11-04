@@ -1,3 +1,4 @@
+import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
 // Utilidades compartidas por el generador del sitio.
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -54,12 +55,8 @@ export const TIPOS = {
 	finca: 'Finca'
 };
 
-export const ESTADOS = {
-	disponible: 'Disponible',
-	reservada: 'Reservada',
-	vendida: 'Vendida',
-	rentada: 'Rentada'
-};
+// Etiquetas públicas de cada estado (la lista y sus reglas viven en admin/js/estados.js).
+export const ESTADOS = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.es]));
 
 export function plural(n, uno, varios) {
 	return `${n} ${Number(n) === 1 ? uno : varios}`;

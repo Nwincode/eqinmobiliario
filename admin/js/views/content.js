@@ -190,6 +190,7 @@ const GROUPS = [
 			{ type: 'section', label: 'Reseñas' },
 			{ name: 'testimonios.visible', label: 'Mostrar', type: 'checkbox', cols: 4 },
 			{ name: 'testimonios.titulo', label: 'Título', cols: 8 },
+			{ name: 'testimonios.google', label: 'Mostrar también la calificación y reseñas de Google', type: 'checkbox', help: 'Solo funciona cuando la clave de Google está configurada en Netlify (ver README). Mientras no lo esté, se muestran solo las reseñas del panel.' },
 			{ type: 'section', label: 'Servicios' },
 			{ name: 'servicios.visible', label: 'Mostrar', type: 'checkbox', cols: 4 },
 			{ name: 'servicios.titulo', label: 'Título', cols: 8 },

@@ -476,6 +476,213 @@
 		}
 	}
 
+	// Reseñas de Google: se leen en vivo de /api/resenas-google. Arriba va una barra delgada
+	// con la calificación y, si hay reseñas, entran como diapositivas al MISMO carrusel de los
+	// testimonios del panel (un solo carrusel y un solo par de flechas). Si no está configurado
+	// o falla, la sección queda igual que sin Google.
+	// Todo se arma con textContent (nunca innerHTML) porque el texto viene de terceros.
+	var cajaGoogle = document.getElementById('resenas-google');
+	if (cajaGoogle && window.fetch) {
+		var txt = cajaGoogle.dataset;
+		var seccionResenas = cajaGoogle.closest('.sec-testimonials');
+		var el = function (tag, clase, texto) {
+			var n = document.createElement(tag);
+			if (clase) n.className = clase;
+			if (texto) n.textContent = texto;
+			return n;
+		};
+		// Nombre completo de la clase (icon-…) para que el recorte de CSS del build la conserve.
+		var icono = function (clase) {
+			var i = el('span', clase + ' eq-ic');
+			i.setAttribute('aria-hidden', 'true');
+			return i;
+		};
+		// Cinco estrellas: llenas, media (si la calificación lo pide) y vacías.
+		var estrellas = function (valor) {
+			var v = Math.max(0, Math.min(5, Number(valor) || 0));
+			var mitades = Math.round(v * 2);
+			var cont = el('span', 'gr-estrellas');
+			cont.setAttribute('role', 'img');
+			cont.setAttribute('aria-label', (Math.round(v * 10) / 10) + ' ' + txt.estrellas);
+			for (var i = 1; i <= 5; i++) {
+				var e = el('span', mitades >= i * 2 ? 'icon-star' : (mitades === i * 2 - 1 ? 'icon-star-half-o' : 'icon-star gr-estrella-vacia'));
+				e.setAttribute('aria-hidden', 'true');
+				cont.appendChild(e);
+			}
+			return cont;
+		};
+		var enlace = function (url, texto, clase) {
+			var a = el('a', clase, texto);
+			a.href = url; a.target = '_blank'; a.rel = 'noopener';
+			return a;
+		};
+		var urlSegura = function (u) { return typeof u === 'string' && /^https:\/\//i.test(u) ? u : ''; };
+		// Sin nombre se muestra el ícono de persona en lugar de una letra.
+		var inicial = function (nombre) {
+			var letra = String(nombre || '').trim().charAt(0).toUpperCase();
+			var av = letra ? el('span', 'gr-avatar gr-avatar-letra', letra) : el('span', 'gr-avatar gr-avatar-letra');
+			if (!letra) av.appendChild(icono('icon-user'));
+			av.setAttribute('aria-hidden', 'true');
+			return av;
+		};
+		var avatar = function (r) {
+			var foto = urlSegura(r.autorFoto) || (/^\/[^/]/.test(r.autorFoto || '') ? r.autorFoto : '');
+			if (!foto) return inicial(r.autor);
+			var img = el('img', 'gr-avatar');
+			img.src = foto; img.alt = ''; img.width = 44; img.height = 44;
+			img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+			img.addEventListener('error', function () { img.replaceWith(inicial(r.autor)); });
+			return img;
+		};
+		// Una diapositiva con la misma estructura que las del panel (.item > …) para que el
+		// carrusel la trate igual. El texto no se cambia: solo se recorta a la vista con CSS.
+		var botonMas = function () {
+			var mas = el('button', 'gr-leer-mas', txt.mas);
+			mas.type = 'button';
+			mas.hidden = true;
+			mas.setAttribute('aria-expanded', 'false');
+			return mas;
+		};
+		var diapositiva = function (r) {
+			var autor = String(r.autor || '').trim() || txt.anonimo || 'Google';
+			var item = el('div', 'item gr-item');
+			var tarjeta = el('article', 'gr-resena');
+			var cabeza = el('header', 'gr-resena-cabeza');
+			cabeza.appendChild(avatar(r));
+			var quien = el('div', 'gr-resena-quien');
+			var nombre = el('h3', 'gr-resena-autor');
+			var perfil = urlSegura(r.autorUrl);
+			if (perfil) nombre.appendChild(enlace(perfil, autor)); else nombre.textContent = autor;
+			quien.appendChild(nombre);
+			var linea = el('p', 'gr-resena-linea');
+			linea.appendChild(estrellas(r.estrellas));
+			if (r.fecha) linea.appendChild(el('span', 'gr-resena-fecha', String(r.fecha)));
+			quien.appendChild(linea);
+			cabeza.appendChild(quien);
+			tarjeta.appendChild(cabeza);
+
+			// Reseñas de solo estrellas (sin texto): no se dibujan comillas vacías.
+			if (String(r.texto || '').trim()) {
+				var cita = el('blockquote', 'gr-resena-texto');
+				cita.appendChild(el('p', '', String(r.texto)));
+				tarjeta.appendChild(cita);
+				tarjeta.appendChild(botonMas());
+			}
+
+			var pie = el('footer', 'gr-resena-pie');
+			var fuente = el('span', 'gr-fuente');
+			fuente.appendChild(icono('icon-google'));
+			fuente.appendChild(document.createTextNode(txt.publicada + ' Google'));
+			pie.appendChild(fuente);
+			var verla = urlSegura(r.enlace);
+			if (verla) {
+				var a = enlace(verla, txt.verResena, 'gr-ver');
+				a.appendChild(icono('icon-external-link'));
+				pie.appendChild(a);
+			}
+			tarjeta.appendChild(pie);
+			item.appendChild(tarjeta);
+			return item;
+		};
+
+		// Barra delgada: 4.9 ★★★★★ · Reseñas en Google · Basado en N reseñas · enlaces.
+		var barra = function (d, calif) {
+			var nota = el('div', 'gr-nota');
+			nota.appendChild(el('span', 'gr-nota-num', calif.toFixed(1)));
+			nota.appendChild(estrellas(calif));
+			var detalle = el('p', 'gr-nota-detalle');
+			var titulo = el('strong', 'gr-nota-titulo');
+			titulo.appendChild(icono('icon-google'));
+			titulo.appendChild(document.createTextNode(txt.titulo));
+			detalle.appendChild(titulo);
+			if (d.total) detalle.appendChild(el('span', 'gr-nota-total', txt.basado + ' ' + d.total + ' ' + txt.total));
+			nota.appendChild(detalle);
+			cajaGoogle.appendChild(nota);
+			var botones = el('div', 'gr-botones');
+			var ver = urlSegura(d.verEnGoogle), dejar = urlSegura(d.dejarResena);
+			if (ver) {
+				var v = enlace(ver, txt.ver, 'gr-boton');
+				v.appendChild(icono('icon-external-link'));
+				botones.appendChild(v);
+			}
+			if (dejar) {
+				var b = enlace(dejar, '', 'gr-boton gr-boton-dejar');
+				b.appendChild(icono('icon-pencil'));
+				b.appendChild(document.createTextNode(txt.dejar));
+				botones.appendChild(b);
+			}
+			if (botones.childNodes.length) cajaGoogle.appendChild(botones);
+			cajaGoogle.hidden = false;
+		};
+
+		var envoltura = seccionResenas && seccionResenas.querySelector('.testimonial-slider-wrap');
+		var carrusel = null;
+		// «Leer más» solo en las reseñas que no caben en las líneas visibles (también en las
+		// copias que el carrusel crea para dar la vuelta).
+		var revisar = function () {
+			if (!envoltura) return;
+			envoltura.querySelectorAll('.gr-resena, .testimonial').forEach(function (t) {
+				var p = t.querySelector('blockquote p'), mas = t.querySelector('.gr-leer-mas');
+				if (!p || !mas || t.classList.contains('is-abierta')) return;
+				mas.hidden = p.scrollHeight <= p.clientHeight + 2;
+			});
+		};
+		// Un solo manejador para todas las diapositivas, copias incluidas (cloneNode no copia eventos).
+		if (envoltura) {
+			envoltura.addEventListener('click', function (ev) {
+				var mas = ev.target.closest ? ev.target.closest('.gr-leer-mas') : null;
+				if (!mas) return;
+				var tarjeta = mas.closest('.gr-resena, .testimonial');
+				var abierta = tarjeta.classList.toggle('is-abierta');
+				mas.textContent = abierta ? txt.menos : txt.mas;
+				mas.setAttribute('aria-expanded', String(abierta));
+				// Mientras alguien lee una reseña abierta, el carrusel no avanza solo.
+				if (abierta && carrusel && carrusel.pause) carrusel.pause();
+			});
+		}
+		// Sin Google y sin testimonios del panel no queda nada que mostrar.
+		var siVacia = function () {
+			var lista = envoltura && envoltura.querySelector('.testimonial-slider');
+			if (seccionResenas && cajaGoogle.hidden && (!lista || !lista.children.length)) seccionResenas.hidden = true;
+		};
+
+		fetch('/api/resenas-google?lang=' + (txt.lang === 'en' ? 'en' : 'es'))
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (d) {
+				if (!d || !d.configurado || !d.calificacion) return siVacia();
+				barra(d, Number(d.calificacion) || 0);
+				var resenas = (d.resenas || []).slice(0, 5);
+				if (!resenas.length || !envoltura || typeof window.eqIniciarTestimonios !== 'function') return;
+				// Se desarma el carrusel, se agregan las reseñas de Google al inicio y se vuelve a armar.
+				carrusel = window.eqIniciarTestimonios(function (lista) {
+					var primera = lista.firstChild;
+					resenas.forEach(function (r) { lista.insertBefore(diapositiva(r), primera); });
+					// Los testimonios del panel se recortan igual, para que todas midan lo mismo.
+					lista.querySelectorAll('.testimonial blockquote').forEach(function (b) { b.after(botonMas()); });
+					envoltura.classList.add('gr-mixto');
+					var flechas = document.getElementById('testimonial-nav');
+					if (flechas) flechas.hidden = false;
+				});
+				// Las diapositivas fuera de la vista (y sus copias) no reciben el foco del teclado:
+				// ahora llevan enlaces y botones, y tns solo las marca con aria-hidden.
+				var ocultas = function () {
+					envoltura.querySelectorAll('.testimonial-slider > .tns-item').forEach(function (x) {
+						x.inert = x.getAttribute('aria-hidden') === 'true';
+					});
+				};
+				if (carrusel && carrusel.events) {
+					ocultas();
+					carrusel.events.on('indexChanged', ocultas);
+					carrusel.events.on('transitionEnd', ocultas);
+					carrusel.events.on('newBreakpointEnd', ocultas);
+				}
+				revisar();
+				window.addEventListener('resize', revisar, { passive: true });
+				if (window.AOS) window.AOS.refresh();
+			})
+			.catch(siVacia);
+	}
+
 	// Barra de navegación: fondo sólido al bajar de la portada.
 	var siteNav = document.querySelector('.site-nav');
 	if (siteNav) {

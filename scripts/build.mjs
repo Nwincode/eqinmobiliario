@@ -10,6 +10,7 @@ import { deepMerge, slugify, byOrder } from './lib/util.mjs';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
+import { visibilidadDe } from '../admin/js/estados.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -358,12 +359,21 @@ ${urls.map((u) => `	<url><loc>${base}${u.path}</loc>${u.lastmod ? `<lastmod>${u.
 
 // Redirecciones 301 para no perder posicionamiento: URLs anteriores de cada
 // propiedad, cambio entre ficha normal y landing VIP, y las que se agreguen en el panel.
-function redirects(ctx) {
+// Página de cada propiedad según su estado (admin/js/estados.js):
+// visible → ficha normal (o landing VIP) · vendida/rentada → ficha con aviso · pausada/retirada → «ya no disponible».
+function fichaHtml(c, p) {
+	const v = visibilidadDe(p);
+	if (v === 'oculta') return T.propertyGonePage(c, p);
+	if (v === 'cerrada' || !p.vip) return T.propertyPage(c, p);
+	return T.vipLandingPage(c, p);
+}
+
+function redirects(ctx, todas = ctx.properties) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
 	};
-	for (const p of ctx.properties) {
+	for (const p of todas) {
 		const url = T.propertyUrl(p);
 		add(p.vip ? `/propiedad/${p.slug}/` : `/vip/${p.slug}/`, url);
 		for (const old of p.slugsAnteriores || []) {
@@ -398,7 +408,11 @@ async function main() {
 	const textosOriginales = textosPorDefecto();
 	aplicarTextos(site.textos);
 	const agents = data.agents.slice().sort(byOrder);
-	const properties = normalizeProperties(data.properties);
+	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
+	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
+	const todas = normalizeProperties(data.properties);
+	const properties = todas.filter((p) => visibilidadDe(p) === 'visible');
+	const fueraDeListados = todas.filter((p) => visibilidadDe(p) !== 'visible');
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
 	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');
 	data.postsEn = (data.posts || []).filter((p) => p.idioma === 'en');
@@ -514,8 +528,7 @@ async function main() {
 	urls.push({ path: '/vip/', priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.vip)) });
 
 	for (const p of properties) {
-		const html = p.vip ? T.vipLandingPage(ctx, p) : T.propertyPage(ctx, p);
-		await writePage(T.propertyUrl(p), html);
+		await writePage(T.propertyUrl(p), fichaHtml(ctx, p));
 		urls.push({
 			path: T.propertyUrl(p),
 			priority: p.vip ? '0.9' : '0.8',
@@ -523,6 +536,9 @@ async function main() {
 			images: (p.fotos || []).map((f) => f.url)
 		});
 	}
+
+	// Vendidas, rentadas, pausadas y retiradas: su enlace sigue abriendo, pero no van al sitemap.
+	for (const p of fueraDeListados) await writePage(T.propertyUrl(p), fichaHtml(ctx, p));
 
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
@@ -536,7 +552,8 @@ async function main() {
 		if (siteEn.contadores && Array.isArray(siteEn.contadores.items)) {
 			siteEn.contadores = { ...siteEn.contadores, items: siteEn.contadores.items.map((c, i) => ({ icono: (site.contadores.items[i] || {}).icono, ...c })) };
 		}
-		const propsEn = properties.map(propiedadEn).filter(Boolean);
+		const todasEn = todas.map(propiedadEn).filter(Boolean);
+		const propsEn = todasEn.filter((p) => visibilidadDe(p) === 'visible');
 		propsEnGlobal = propsEn;
 		const pagesEn = normalizePages(data.pagesEn, '/en');
 		const postsEn = normalizePosts(data.postsEn).map((p) => ({ ...p, url: `/en/blog/${p.slug}/` }));
@@ -598,12 +615,12 @@ async function main() {
 		}
 		await writePage('/en/luxury/', T.vipIndexPage(ctxEn));
 		urls.push({ path: '/en/luxury/', priority: '0.8' });
-		for (const p of propsEn) {
-			const es = properties.find((x) => x.id === p.id);
+		for (const p of todasEn) {
+			const es = todas.find((x) => x.id === p.id);
 			es._alternates = p._alternates = { es: T.propertyUrl(es), en: T.propertyUrl(p) };
 			registrarPar(T.propertyUrl(es), T.propertyUrl(p));
-			await writePage(T.propertyUrl(p), p.vip ? T.vipLandingPage(ctxEn, p) : T.propertyPage(ctxEn, p));
-			urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
+			await writePage(T.propertyUrl(p), fichaHtml(ctxEn, p));
+			if (visibilidadDe(p) === 'visible') urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
 		}
 		for (const page of pagesEn) {
 			await writePage(page.url, T.contentPage(ctxEn, page));
@@ -619,9 +636,7 @@ async function main() {
 		}
 		await writePage('/en/404.html', T.notFoundPage(ctxEn));
 		// Las fichas en español con traducción se regeneran con su enlace hreflang.
-		for (const es of properties.filter((x) => x._alternates)) {
-			await writePage(T.propertyUrl(es), es.vip ? T.vipLandingPage(ctx, es) : T.propertyPage(ctx, es));
-		}
+		for (const es of todas.filter((x) => x._alternates)) await writePage(T.propertyUrl(es), fichaHtml(ctx, es));
 		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
 		for (const post of ctx.posts.filter((x) => x._alternates)) await writePage(post.url, T.blogPostPage(ctx, post));
 		console.log(`· Sitio en inglés: ${propsEn.length} propiedades traducidas, ${pagesEn.length} páginas, ${postsEn.length} artículos`);
@@ -632,7 +647,7 @@ async function main() {
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
 
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, urls));
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx));
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `User-agent: *\nAllow: /\nDisallow: /admin/\n\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
@@ -649,7 +664,7 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
 
-	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
+	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);
 }
 

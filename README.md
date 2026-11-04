@@ -200,6 +200,26 @@ Para activarla (una vez):
 4. En Search Console → Configuración → Usuarios y permisos, agrega ese correo con permiso **Completo**.
 5. Opcional: `GSC_PROPERTY` si la propiedad no es `sc-domain:` del dominio (también se cambia en el panel).
 
+### Reseñas de Google en la portada
+
+La sección de reseñas puede mostrar, además de las reseñas del panel, la calificación de la ficha de Google Maps
+(por ejemplo 4.9 ★), el total de reseñas, hasta 3 reseñas recientes y los botones "Ver todas en Google" y
+"Dejar una reseña". Se leen en vivo con la función `/api/resenas-google` (Places API). Google no permite guardarlas,
+así que el CDN de Netlify solo las recuerda 1 hora. Si falta la clave o Google falla, la caja no aparece y quedan
+las reseñas del panel.
+
+Para activarla (una vez):
+1. En Google Cloud Console, en el proyecto de Firebase (`eqinmobiliariobd`), activa la facturación y la
+   **Places API (New)**. Pon un presupuesto con alerta en Facturación → Presupuestos.
+2. En APIs y servicios → Credenciales, crea una **clave de API** y restríngela a **Places API (New)**.
+3. Busca el **Place ID** de la oficina en https://developers.google.com/maps/documentation/places/web-service/place-id
+4. En Netlify (Project configuration → Environment variables) agrega `GOOGLE_PLACES_API_KEY` y `GOOGLE_PLACE_ID`.
+5. En el panel: Contenido → Secciones → Reseñas, marca **"Mostrar también la calificación y reseñas de Google"**
+   y publica.
+
+Para comprobarlo, abre `https://eqinmobiliario.gt/api/resenas-google`: debe responder `"configurado": true` con
+la calificación.
+
 ### Aviso automático a buscadores
 
 Después de cada publicación en producción, la función `deploy-succeeded` envía todas las URLs del sitemap a
