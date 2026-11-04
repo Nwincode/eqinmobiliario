@@ -149,7 +149,7 @@ function head(ctx, page) {
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="preload" as="style" href="${FONTS_URL}" onload="this.onload=null;this.rel='stylesheet'">
 	<noscript><link rel="stylesheet" href="${FONTS_URL}"></noscript>
-	${trackingHead(site)}
+	${page.sinRastreo ? '' : trackingHead(site)}
 	${(page.jsonLd || []).map(jsonLd).join('\n\t')}
 	<script>window.EQ_CONFIG=${JSON.stringify({ ...ctx.publicConfig, t: textosCliente(ctx.lang || 'es') }).replace(/</g, '\\u003c')};</script>
 </head>`;
@@ -308,7 +308,7 @@ function layout(ctx, page, body) {
 	}
 	return `${head(ctx, page)}
 <body${bodyAttrs}>
-	${trackingBody(ctx.site)}
+	${page.sinRastreo ? '' : trackingBody(ctx.site)}
 	${page.bare ? '' : nav(ctx, page.path)}
 	${body}
 	${page.bare ? '' : footer(ctx)}
@@ -1655,6 +1655,9 @@ export function portalPage(ctx) {
 		alternates: ctx.enActivo ? { es: '/propietarios/', en: '/en/owners/' } : null,
 		extraCss: ['/css/portal.css'],
 		noReferrer: true,
+		// Sin Analytics, GTM ni Pixel: mandan la dirección completa (con el token del enlace
+		// o el código del correo) a terceros.
+		sinRastreo: true,
 		bodyAttrs: 'class="pp-pagina"',
 		extraJs: '<script type="module" src="/js/portal-propietarios.js"></script>'
 	}, body);

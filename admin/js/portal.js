@@ -149,6 +149,12 @@ export async function armarPortal(prop) {
 	};
 }
 
+// Borra la copia publicada de un token (si ya no existe, no hay nada que hacer).
+export async function borrarCopia(token) {
+	const ref = doc(db, 'portalPropietarios', token);
+	if ((await getDoc(ref)).exists()) await deleteDoc(ref);
+}
+
 // Publica (o actualiza) el portal. Crea el token la primera vez. Devuelve el token.
 export async function publicarPortal(prop, { regenerar = false } = {}) {
 	const anterior = prop.portalToken || '';
@@ -156,8 +162,9 @@ export async function publicarPortal(prop, { regenerar = false } = {}) {
 	const datos = await armarPortal(prop);
 	await setDoc(doc(db, 'portalPropietarios', token), datos);
 	if (token !== anterior) {
+		// El enlace anterior se borra antes de guardar el nuevo: si falla, no queda abierto sin saberlo.
+		if (anterior) await borrarCopia(anterior);
 		await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: token, portalActualizado: serverTimestamp() });
-		if (anterior) await deleteDoc(doc(db, 'portalPropietarios', anterior)).catch(() => {});
 	} else {
 		await updateDoc(doc(db, 'propietarios', prop.id), { portalActualizado: serverTimestamp() });
 	}
@@ -168,7 +175,8 @@ export async function publicarPortal(prop, { regenerar = false } = {}) {
 
 // Quita el acceso por completo (borra la copia y el token).
 export async function cerrarPortal(prop) {
-	if (prop.portalToken) await deleteDoc(doc(db, 'portalPropietarios', prop.portalToken)).catch(() => {});
+	// Sin .catch: si no se pudo borrar la copia, el enlace seguiría abierto y hay que avisar.
+	if (prop.portalToken) await borrarCopia(prop.portalToken);
 	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: '' });
 	prop.portalToken = '';
 }

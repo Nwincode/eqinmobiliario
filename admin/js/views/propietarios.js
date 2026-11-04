@@ -4,7 +4,7 @@ import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badg
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
-import { publicarPortal, cerrarPortal, enlacePortal, visitasDe, TIPOS_BITACORA } from '../portal.js';
+import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
@@ -94,7 +94,10 @@ async function renderEditor(container, id) {
 	};
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${data.nombre}?`, { okText: 'Eliminar' }))) return;
-		try { await deleteDoc(ref); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
+		try {
+			// Primero la copia del portal: si quedara, el enlace privado seguiría funcionando.
+			if (data.portalToken) await borrarCopia(data.portalToken);
+			await deleteDoc(ref); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
 	mount(container,
@@ -182,7 +185,8 @@ function seccionPortal(prop, propiedades) {
 			: [h('div', { class: 'list-group-item text-muted small' }, 'Sin entradas todavía.')]));
 	}
 	const fFecha = h('input', { type: 'date', class: 'form-control', value: hoy(), required: true, id: 'bit-fecha' });
-	const fTipo = h('select', { class: 'form-select', id: 'bit-tipo' }, TIPOS_BITACORA.map(([v, t]) => h('option', { value: v }, t)));
+	// Una «Nota» suele ser interna: al elegirla, el propietario no la ve salvo que se marque.
+	const fTipo = h('select', { class: 'form-select', id: 'bit-tipo', onchange: (e) => { fVisible.checked = e.target.value !== 'nota'; } }, TIPOS_BITACORA.map(([v, t]) => h('option', { value: v }, t)));
 	const fProp = misProps.length > 1 ? h('select', { class: 'form-select', id: 'bit-prop' }, h('option', { value: '' }, 'Todas'), misProps.map(([v, t]) => h('option', { value: v }, t))) : null;
 	const fTexto = h('textarea', { class: 'form-control', rows: 2, required: true, maxlength: 600, id: 'bit-texto', placeholder: 'Ej.: Subimos 8 fotos nuevas de la terraza.' });
 	const fVisible = h('input', { class: 'form-check-input', type: 'checkbox', checked: true, id: 'bit-visible' });
