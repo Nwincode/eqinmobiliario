@@ -1193,3 +1193,33 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .thumb { width: 64px; height: 48px; }
 	.tabla-propiedades .estado-rapido { min-height: 44px; }
 }
+
+/* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */
+.switch-fila {
+	display: flex;
+	align-items: center;
+	gap: .625rem;
+	min-height: 44px;
+	padding-left: 0;
+}
+.switch-fila .form-check-input {
+	float: none;
+	flex: none;
+	margin: 0;
+	width: 2.5em;
+	height: 1.375em;
+	cursor: pointer;
+}
+.switch-fila .form-check-label {
+	flex: 1;
+	padding: .5rem 0;
+	cursor: pointer;
+}
+.switch-fila .form-check-input:disabled,
+.switch-fila .form-check-input:disabled ~ .form-check-label {
+	cursor: not-allowed;
+}
+.switch-fila .form-check-input:focus-visible {
+	outline: 2px solid var(--adm-primary);
+	outline-offset: 2px;
+}
