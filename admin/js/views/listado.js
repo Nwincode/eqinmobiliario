@@ -49,7 +49,17 @@ const ICONO_DATO = {
 	Tipo: 'building', Operación: 'tag', Zona: 'map-marker', Habitaciones: 'bed', Baños: 'bath',
 	Parqueos: 'car', Construcción: 'home2', Terreno: 'expand'
 };
-const ic = (nombre) => `<span class="icon-${nombre} ic" aria-hidden="true"></span>`;
+const ic = (nombre) => (nombre ? `<span class="icon-${nombre} ic" aria-hidden="true"></span>` : '');
+
+// Enlaces del contacto para que en el PDF se pueda tocar el WhatsApp, el teléfono o el correo.
+function enlaceTelefono(telefono, titulo) {
+	const digitos = String(telefono || '').replace(/\D/g, '');
+	if (!digitos) return '';
+	return /whatsapp/i.test(telefono)
+		? `https://wa.me/${digitos}?text=${encodeURIComponent(`Hola, vi el listado «${titulo}» y me interesa una propiedad.`)}`
+		: `tel:${String(telefono).replace(/[^\d+]/g, '')}`;
+}
+const iconoTelefono = (telefono) => ic(/whatsapp/i.test(telefono) ? 'whatsapp' : 'phone');
 
 function ubicacion(p) {
 	return [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ');
@@ -92,7 +102,7 @@ function fichaCompleta(p, opts, n, total, empresa, contacto) {
 		</div>
 		<div class="pie-ficha">
 			${opts.enlaces && p.slug ? `<div><span>${ic('camera')}Más fotos y detalles</span><a href="${esc(publicLink(p))}">${esc(publicLink(p).replace(/^https?:\/\//, ''))}</a></div>` : '<div></div>'}
-			<div class="pie-contacto"><span>${ic('user')}${esc(contacto.etiqueta)}</span>${esc([contacto.nombre, contacto.telefono].filter(Boolean).join(' · '))}</div>
+			<div class="pie-contacto"><span>${ic('user')}${esc(contacto.etiqueta)}</span>${esc(contacto.nombre)}${contacto.telefono ? ` · <a href="${esc(enlaceTelefono(contacto.telefono, opts.titulo || 'Propiedades'))}">${iconoTelefono(contacto.telefono)}${esc(contacto.telefono)}</a>` : ''}</div>
 		</div>
 	</section>`;
 }
@@ -125,8 +135,8 @@ function filaCompacta(p, opts, n) {
 export function documento(props, opts, empresa, contacto, tema = {}) {
 	const fecha = new Date().toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
 	const lineasContacto = [
-		contacto.telefono && `${ic(/whatsapp/i.test(contacto.telefono) ? 'whatsapp' : 'phone')}${esc(contacto.telefono)}`,
-		contacto.email && `${ic('envelope-o')}${esc(contacto.email)}`
+		contacto.telefono && `<a href="${esc(enlaceTelefono(contacto.telefono, opts.titulo || 'Propiedades'))}">${iconoTelefono(contacto.telefono)}${esc(contacto.telefono)}</a>`,
+		contacto.email && `<a href="mailto:${esc(contacto.email)}">${ic('envelope-o')}${esc(contacto.email)}</a>`
 	].filter(Boolean).join('<br>');
 	const tarjetaContacto = `<div class="asesor"><span class="avatar">${esc((contacto.nombre || '').split(/\s+/).slice(0, 2).map((p) => p[0] || '').join('').toUpperCase())}</span><div><span class="etiqueta">${esc(contacto.etiqueta)}</span><strong>${esc(contacto.nombre)}</strong><span class="lineas">${lineasContacto}</span></div></div>`;
 	const total = props.length;
@@ -169,6 +179,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 		.indice li { display: flex; gap: 3mm; padding: 1.6mm 0; border-bottom: 1px dotted var(--linea); break-inside: avoid; font-size: 9.5pt; }
 		.indice li b { color: var(--azul); min-width: 5mm; }
 		.indice li span { flex: 1; }
+		.indice-mas { margin: 2mm 0 0; color: var(--gris); font-size: 9pt; }
 		.indice li em { font-style: normal; color: var(--gris); white-space: nowrap; }
 		.portada .asesor { margin-top: auto; }
 
@@ -176,6 +187,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 		.asesor .avatar { width: 13mm; height: 13mm; flex: none; border-radius: 50%; background: var(--azul); color: var(--blanco); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11pt; }
 		.asesor strong { display: block; font-size: 12pt; }
 		.asesor .lineas { display: block; color: var(--gris); font-size: 9.5pt; }
+		.asesor .lineas a, .pie-contacto a { color: inherit; text-decoration: none; }
 
 		/* Cabecera de cada página */
 		.cabecera { display: flex; justify-content: space-between; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .12em; color: var(--gris); padding-bottom: 2.5mm; margin-bottom: 4mm; border-bottom: 1px solid var(--linea); }
@@ -238,7 +250,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 			+ filaCompacta(p, opts, i + 1), '') + '</section>'
 		: props.map((p, i) => fichaCompleta(p, opts, i + 1, total, empresa, contacto)).join('');
 	return `<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>${esc(opts.titulo || 'Propiedades')} · ${esc(empresa)}</title>
+<html lang="es"><head><meta charset="utf-8"><title>${esc([opts.titulo || 'Propiedades', opts.cliente, empresa].filter(Boolean).join(' · '))}</title>
 <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link href="${esc(absUrl('/fonts/icomoon/style.css'))}" rel="stylesheet">
 <style>${css}</style></head>
@@ -260,6 +272,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 		<div class="indice">
 			<h3>${ic('list-ol')}En este documento</h3>
 			<ol>${props.slice(0, 16).map((p, i) => `<li><b>${i + 1}</b><span>${esc(p.titulo)}</span><em>${esc(precioPdf(p, opts.mostrarPrecio))}</em></li>`).join('')}</ol>
+			${total > 16 ? `<p class="indice-mas">… y ${total - 16} propiedades más en las páginas siguientes.</p>` : ''}
 		</div>
 		${tarjetaContacto}
 	</section>
@@ -271,9 +284,10 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 	</section>` : ''}
 </main>
 <script>
-	// Abre la ventana de impresión cuando todas las fotos terminaron de cargar.
-	Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))
-		.then(() => Promise.all([document.fonts.load('1em icomoon'), document.fonts.ready]).catch(() => {})).then(() => setTimeout(() => print(), 300));
+	// Abre la ventana de impresión cuando las fotos y los íconos cargaron (o a los 12 s, si algo tarda).
+	const listo = Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))
+		.then(() => Promise.all([document.fonts.load('1em icomoon'), document.fonts.ready]).catch(() => {}));
+	Promise.race([listo, new Promise((r) => setTimeout(r, 12000))]).then(() => setTimeout(() => print(), 300));
 </script>
 </body></html>`;
 }
@@ -318,6 +332,19 @@ export async function render(container) {
 	formato.id = 'pdf-formato';
 	const mostrarPrecio = h('input', { class: 'form-check-input', type: 'checkbox', id: 'pdf-precio', checked: true });
 	const enlaces = h('input', { class: 'form-check-input', type: 'checkbox', id: 'pdf-enlaces', checked: true });
+
+	// Recuerda en este navegador el formato, el contacto y las casillas que se usaron la última vez.
+	const PREF = 'eq-listado-pdf';
+	try {
+		const g = JSON.parse(localStorage.getItem(PREF) || '{}');
+		if ([...formato.options].some((o) => o.value === g.formato)) formato.value = g.formato;
+		if (g.asesor !== undefined && [...asesor.options].some((o) => o.value === g.asesor)) asesor.value = g.asesor;
+		if (typeof g.mostrarPrecio === 'boolean') mostrarPrecio.checked = g.mostrarPrecio;
+		if (typeof g.enlaces === 'boolean') enlaces.checked = g.enlaces;
+	} catch { /* sin preferencias guardadas */ }
+	const guardarPref = () => {
+		try { localStorage.setItem(PREF, JSON.stringify({ formato: formato.value, asesor: asesor.value, mostrarPrecio: mostrarPrecio.checked, enlaces: enlaces.checked })); } catch { /* navegador sin almacenamiento */ }
+	};
 
 	const elegidas = new Set();
 	const tbody = h('tbody');
@@ -370,6 +397,7 @@ export async function render(container) {
 		const contacto = a
 			? { etiqueta: 'Tu asesor', nombre: a.nombre, telefono: a.whatsapp ? `WhatsApp +${String(a.whatsapp).replace(/\D/g, '')}` : '', email: a.email }
 			: { etiqueta: 'Contacto', nombre: empresa, telefono: site.contacto?.telefono || (site.contacto?.whatsapp ? `WhatsApp +${site.contacto.whatsapp}` : ''), email: site.contacto?.email };
+		guardarPref();
 		const win = window.open('', '_blank');
 		if (!win) { toast('El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.', 'danger'); return; }
 		win.document.open();
