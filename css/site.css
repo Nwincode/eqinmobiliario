@@ -1876,6 +1876,8 @@ a:hover > .eq-ic-fin,
 	justify-content: space-between;
 	gap: 8px 24px;
 	padding: 10px 12px 10px 20px;
+	/* El título deja 3rem (mb-5, como sin Google); la barra sube 1.5rem para quedar más cerca. */
+	margin-top: -1.5rem;
 	margin-bottom: 40px;
 	background: var(--eq-mist);
 	border: 1px solid var(--eq-line);
@@ -2068,6 +2070,11 @@ a:hover > .eq-ic-fin,
 }
 .gr-mixto .tns-nav {
 	bottom: -56px;
+	white-space: nowrap;
+}
+.gr-mixto .tns-nav button:focus-visible::before {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 3px;
 }
 .gr-resena {
 	display: flex;
@@ -2219,6 +2226,13 @@ a:hover > .eq-ic-fin,
 	.gr-botones {
 		width: 100%;
 		gap: 6px;
+	}
+	/* «Basado en N reseñas» en su propia línea, sin partirse ni empezar con el punto. */
+	.gr-nota-total {
+		display: block;
+	}
+	.gr-nota-total::before {
+		content: none;
 	}
 	/* Objetivos táctiles de 44 px como mínimo en móvil. */
 	.gr-boton {

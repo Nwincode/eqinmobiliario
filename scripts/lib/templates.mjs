@@ -537,7 +537,7 @@ export function homePage(ctx) {
 
 	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
 		<div class="container">
-			<div class="row ${s.testimonios.google ? 'mb-4' : 'mb-5'} align-items-center">
+			<div class="row mb-5 align-items-center">
 				<div class="col-md-6">
 					<h2 class="font-weight-bold heading text-primary mb-4 mb-md-0">${esc(s.testimonios.titulo)}</h2>
 				</div>

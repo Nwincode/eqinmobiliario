@@ -663,6 +663,19 @@
 					var flechas = document.getElementById('testimonial-nav');
 					if (flechas) flechas.hidden = false;
 				});
+				// Las diapositivas fuera de la vista (y sus copias) no reciben el foco del teclado:
+				// ahora llevan enlaces y botones, y tns solo las marca con aria-hidden.
+				var ocultas = function () {
+					envoltura.querySelectorAll('.testimonial-slider > .tns-item').forEach(function (x) {
+						x.inert = x.getAttribute('aria-hidden') === 'true';
+					});
+				};
+				if (carrusel && carrusel.events) {
+					ocultas();
+					carrusel.events.on('indexChanged', ocultas);
+					carrusel.events.on('transitionEnd', ocultas);
+					carrusel.events.on('newBreakpointEnd', ocultas);
+				}
 				revisar();
 				window.addEventListener('resize', revisar, { passive: true });
 				if (window.AOS) window.AOS.refresh();
