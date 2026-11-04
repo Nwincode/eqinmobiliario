@@ -1,2 +1,3 @@
 accion,id,titulo,operacion,tipo,estado,precio,moneda,zona,ciudad,direccion,habitaciones,banos,parqueos,m2Construccion,m2Terreno,amenidades,descripcion,asesor,aliada,destacada,fotos,propietario_nombre,propietario_telefono,exclusiva_hasta,comision_pct,notas
 actualizar,residencial-san-antonio,Casa en Residencial San Antonio,venta,casa,disponible,1291000,USD,Zona 16,Guatemala,Residencial San Antonio,2,2,,,,,"Casa en Residencial San Antonio, zona 16.",joaquin-arriola,,si,,,,,,Confirmar metros y parqueos
+nueva,,EJEMPLO (borrar esta fila) Apartamento en preventa,venta,apartamento,proximamente,,USD,Zona 15,Guatemala,,,,,,,,"Ejemplo de fila; bórrala antes de enviar.",joaquin-arriola,,no,,,,,,"estado: disponible, proximamente, reservada, vendida, rentada, pausada o retirada"

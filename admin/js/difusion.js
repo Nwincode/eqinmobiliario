@@ -3,6 +3,7 @@ import { slugify } from './ui.js';
 import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
+import { seOfrece } from './estados.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
@@ -238,7 +239,8 @@ export async function descargarFotos(p, formatoId, alProgreso = () => {}) {
 // Estado de la publicación en una plataforma.
 export function estadoDifusion(p, portalId) {
 	const reg = (p.difusion || {})[portalId];
-	const vendida = ['vendida', 'rentada'].includes(p.estado) || !p.publicado;
+	// Vendida, rentada, pausada, retirada o no visible: no se ofrece en portales.
+	const vendida = !seOfrece(p);
 	if (!reg || reg.estado === 'baja') return vendida ? { id: 'na', texto: '—' } : { id: 'pendiente', texto: 'Sin publicar' };
 	if (vendida) return { id: 'baja', texto: 'Dar de baja' };
 	const cambio = p.updatedAt && (p.updatedAt.seconds ? p.updatedAt.seconds * 1000 : Date.parse(p.updatedAt));

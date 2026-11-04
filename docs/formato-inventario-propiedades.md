@@ -41,7 +41,7 @@ Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar es
 | titulo | sí | `Casa en Residencial San Antonio` |
 | operacion | sí | `venta` · `renta` |
 | tipo | sí | `casa` · `apartamento` · `terreno` · `oficina` · `local` · `bodega` · `finca` |
-| estado | sí | `disponible` · `reservada` · `vendida` · `rentada` |
+| estado | sí | `disponible` · `proximamente` · `reservada` · `vendida` · `rentada` · `pausada` · `retirada` (ver «Estados» abajo). Vacío = `disponible` |
 | precio | sí | número entero, ej. `1291000` |
 | moneda | sí | `USD` · `GTQ` |
 | zona | sí | `Zona 16` (así: "Zona" + número) o nombre del municipio |
@@ -63,5 +63,20 @@ Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar es
 | exclusiva_hasta | no | fecha `AAAA-MM-DD` |
 | comision_pct | no | número, ej. `5` |
 | notas | no | lo que haya que verificar |
+
+## Estados
+
+| estado | En el panel | Qué pasa en la página |
+|---|---|---|
+| `disponible` | Disponible | Se ve en portada, listados, buscador, destacadas, sitemap y catálogos. |
+| `proximamente` | Próximamente | Se ve en todo el sitio con la etiqueta «Próximamente» (Coming soon). Para pre-lanzamientos. |
+| `reservada` | Reservada / con oferta | Se ve en todo el sitio con la etiqueta «Reservada» (Under contract). Tiene oferta, arras o promesa firmada. |
+| `vendida` | Vendida | Sale de portada, listados, buscador, destacadas, sitemap y catálogos. Su enlace sigue abriendo con el aviso «Vendida», un botón para escribir por WhatsApp y propiedades parecidas. |
+| `rentada` | Rentada | Igual que `vendida`, con el aviso «Rentada». |
+| `pausada` | Pausada | No aparece en ningún lado. Su enlace muestra «Ya no está disponible» (sin fotos ni datos) con propiedades parecidas, y Google no la indexa. Para pausas temporales pedidas por el dueño. |
+| `retirada` | Retirada del mercado | Igual que `pausada`. El dueño ya no vende o renta, la vendió por su cuenta o venció la exclusiva. |
+
+Aparte del estado, el interruptor «Visible en la página» del panel (campo `publicado`) apagado oculta la propiedad por completo, como un borrador.
+Cada cambio de estado guarda la fecha (`estadoFecha`) y queda en el historial de la propiedad (`historialEstado`: estado, fecha y quién lo cambió).
 
 Plantilla lista: `docs/plantilla-inventario-propiedades.csv`.

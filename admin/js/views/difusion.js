@@ -3,6 +3,7 @@ import { db, doc, getDoc, getDocs, updateDoc, collection } from '../firebase.js'
 import { h, toast, showError, pageHeader, badge, mount, emptyState, formatPrice } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
+import { estadoDe } from '../estados.js';
 import { portalesDe, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
 
 const COLOR = { ok: 'success', actualizar: 'warning', baja: 'danger', pendiente: 'light', na: 'light' };
@@ -144,7 +145,7 @@ async function renderTablero(container) {
 			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
 				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center small' }, x.nombre)))),
 				h('tbody', {}, visibles.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/difusion/${p.id}`; } },
-					h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${p.estado || 'disponible'}`)),
+					h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)),
 					portales.map((x) => {
 						const e = estadoDifusion(p, x.id);
 						return h('td', { class: 'text-center' }, e.id === 'na' ? h('span', { class: 'text-muted' }, '—') : badge(e.texto, COLOR[e.id]));

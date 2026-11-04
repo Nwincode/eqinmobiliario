@@ -5,6 +5,7 @@ import { h, esc, toast, pageHeader, emptyState, formatPrice, mount } from '../ui
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
+import { estadoDe } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
@@ -364,7 +365,7 @@ export async function render(container) {
 			&& (!min || (p.precio || 0) >= min)
 			&& (max === Infinity || (p.precio && p.precio <= max))
 			&& (!hab || (p.habitaciones || 0) >= hab)
-			&& (!fDisponibles.checked || !p.estado || p.estado === 'disponible')
+			&& (!fDisponibles.checked || estadoDe(p).valor === 'disponible')
 			&& (!fPublicadas.checked || p.publicado));
 	};
 

@@ -1,5 +1,5 @@
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
@@ -9,6 +9,7 @@ import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
+import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
@@ -29,7 +30,7 @@ function autoDescription(d) {
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
 const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
-const ESTADOS = [['disponible', 'Disponible'], ['reservada', 'Reservada'], ['vendida', 'Vendida'], ['rentada', 'Rentada']];
+const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
 const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
 export function publicUrl(p) {
@@ -45,6 +46,27 @@ function canEdit(p) {
 	return session.isAdmin || (p.agentId && p.agentId === session.agentId);
 }
 
+// Entrada del historial de estados (serverTimestamp no se permite dentro de arreglos).
+function entradaHistorial(estado) {
+	return { estado, fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
+}
+
+// Campos que registran un cambio de estado desde la lista: fecha y entrada en el historial.
+function cambioDeEstado(estado) {
+	return { estado, estadoFecha: serverTimestamp(), historialEstado: arrayUnion(entradaHistorial(estado)) };
+}
+
+// Por qué se ve (o no) cada propiedad en la página.
+function motivoVisibilidad(p) {
+	const e = estadoDe(p);
+	switch (visibilidadDe(p)) {
+		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash' };
+		case 'cerrada': return { texto: `Solo con enlace: ${e.label.toLowerCase()}`, color: 'warning', icono: 'icon-link' };
+		case 'oculta': return { texto: `Oculta: ${e.label.toLowerCase()}`, color: 'danger', icono: 'icon-eye-slash' };
+		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye' };
+	}
+}
+
 export async function render(container, [id]) {
 	if (id) return renderEditor(container, id);
 
@@ -54,7 +76,20 @@ export async function render(container, [id]) {
 
 	const search = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por título, zona o residencial…' });
 	const fOperacion = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
-	const fEstado = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los estados'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
+		h('option', { value: '' }, 'Todos los estados'),
+		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
+		h('optgroup', { label: 'En la página' },
+			h('option', { value: '=visible' }, 'Se ven en la página'),
+			h('option', { value: '=cerrada' }, 'Solo con enlace (vendidas y rentadas)'),
+			h('option', { value: '=oculta' }, 'Ocultas (pausadas, retiradas y no visibles)')));
+	const pasaEstado = (p) => {
+		const f = fEstado.value;
+		if (!f) return true;
+		if (f === '=oculta') return ['oculta', 'borrador'].includes(visibilidadDe(p));
+		if (f.startsWith('=')) return visibilidadDe(p) === f.slice(1);
+		return estadoDe(p).valor === f;
+	};
 	const fExtra = h('select', { class: 'form-select' },
 		h('option', { value: '' }, 'Todas'),
 		h('option', { value: 'publicado' }, 'Publicadas'),
@@ -65,32 +100,81 @@ export async function render(container, [id]) {
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
 
+	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
+	const guardarRapido = async (p, cambios, local, desc, aviso) => {
+		try {
+			await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
+			await markPending(desc);
+			toast(aviso);
+			if (p.publicado && visibilidadDe(p) === 'oculta') toast(`Sigue oculta porque está «${estadoDe(p).label}». Cámbiala a «Disponible» para mostrarla.`, 'warning');
+		} catch (err) {
+			showError(err);
+		}
+		draw();
+	};
+
+	const fila = (p) => {
+		const editable = canEdit(p);
+		const motivo = motivoVisibilidad(p);
+		const idSwitch = `visible-${p.id}`;
+		const selEstado = h('select', {
+			class: 'form-select form-select-sm estado-rapido',
+			'aria-label': `Estado de ${p.titulo || 'la propiedad'}`,
+			disabled: !editable,
+			title: editable ? estadoDe(p).ayuda : 'Solo el asesor responsable o un administrador puede cambiarla.',
+			onchange: (e) => {
+				const estado = e.target.value;
+				const label = estadoDe({ estado }).label;
+				e.target.disabled = true;
+				guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`,
+					`Estado cambiado a «${label}». Recuerda publicar para verlo en el sitio.`);
+			}
+		}, ESTADOS.map(([v, l]) => h('option', { value: v, selected: estadoDe(p).valor === v }, l)));
+		const chk = h('input', {
+			class: 'form-check-input', type: 'checkbox', role: 'switch', id: idSwitch,
+			checked: Boolean(p.publicado), disabled: !editable,
+			onchange: (e) => {
+				const publicado = e.target.checked;
+				e.target.disabled = true;
+				guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
+					publicado ? 'Visible en la página. Recuerda publicar para verlo en el sitio.' : 'Oculta de la página. Recuerda publicar para que salga del sitio.');
+			}
+		});
+		const detener = (e) => e.stopPropagation();
+		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
+			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-titulo' },
+				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
+				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
+				p.vip || p.destacada ? h('div', { class: 'mt-1 d-flex gap-1' },
+					p.vip ? badge('VIP', 'warning') : null,
+					p.destacada ? badge('Destacada', 'info') : null) : null),
+			h('td', { class: 'text-nowrap celda-precio' }, formatPrice(p.precio, p.moneda, p.operacion)),
+			h('td', { class: 'celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta'),
+			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
+			h('td', { class: 'celda-visible', onclick: detener },
+				h('div', { class: 'form-check form-switch mb-1' }, chk,
+					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible en la página')),
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad` },
+					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
+			h('td', { class: 'small celda-asesor' }, agentName[p.agentId] || '—'),
+			h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)));
+	};
+
 	const draw = () => {
 		const q = search.value.trim().toLowerCase();
 		const rows = props.filter((p) =>
 			(!q || `${p.titulo} ${p.zona} ${p.direccion} ${p.ciudad}`.toLowerCase().includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
-			&& (!fEstado.value || p.estado === fEstado.value)
+			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
 			&& (fExtra.value !== 'borrador' || !p.publicado)
 			&& (fExtra.value !== 'vip' || p.vip)
 			&& (fExtra.value !== 'destacada' || p.destacada)
 			&& (fExtra.value !== 'mias' || p.agentId === session.agentId));
 		count.textContent = `${rows.length} de ${props.length}`;
-		tbody.replaceChildren(...rows.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
-			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-			h('td', {},
-				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', '))),
-			h('td', { class: 'text-nowrap' }, formatPrice(p.precio, p.moneda, p.operacion)),
-			h('td', {}, p.operacion === 'renta' ? 'Renta' : 'Venta'),
-			h('td', { class: 'text-nowrap' },
-				p.publicado ? badge('Publicada', 'success') : badge('Borrador', 'secondary'), ' ',
-				p.vip ? badge('VIP', 'warning') : null, ' ',
-				p.destacada ? badge('Destacada', 'info') : null, ' ',
-				p.estado && p.estado !== 'disponible' ? badge(ESTADOS.find(([v]) => v === p.estado)?.[1] || p.estado, 'danger') : null),
-			h('td', { class: 'small' }, agentName[p.agentId] || '—'),
-			h('td', { class: 'small text-muted text-nowrap' }, formatDate(p.updatedAt, false)))));
+		tbody.replaceChildren(...rows.map(fila));
 	};
 	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
 	draw();
@@ -105,8 +189,8 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-md-2' }, fExtra)),
 			h('div', { class: 'mb-2' }, count),
 			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
-				h('table', { class: 'table table-hover table-admin' },
-					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Operación', 'Estado', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
+					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Operación', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
@@ -119,12 +203,12 @@ function schema(agentOpts, isNew) {
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
-		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3 },
+		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
 		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".' },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
-		{ name: 'publicado', label: 'Publicada en el sitio', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
+		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
 		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: 4 },
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4 },
 
@@ -229,6 +313,15 @@ async function renderEditor(container, id) {
 		if (!isNew && data.slug && data.slug !== d.slug) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
+		// Fecha e historial del estado (setDoc reemplaza el documento: el historial se arma completo).
+		d.estado = estadoDe(d).valor;
+		d.historialEstado = data.historialEstado || [];
+		if (isNew || estadoDe(data).valor !== d.estado) {
+			d.estadoFecha = serverTimestamp();
+			d.historialEstado = [...d.historialEstado, entradaHistorial(d.estado)];
+		} else if (data.estadoFecha) {
+			d.estadoFecha = data.estadoFecha;
+		}
 		d.updatedAt = serverTimestamp();
 		d.updatedBy = session.user.uid;
 		if (isNew) {
@@ -276,6 +369,9 @@ async function renderEditor(container, id) {
 				slug: slugify(titulo),
 				publicado: false,
 				destacada: false,
+				estado: estadoDe(data).valor,
+				estadoFecha: serverTimestamp(),
+				historialEstado: [entradaHistorial(estadoDe(data).valor)],
 				fotos: (data.fotos || []).map(({ url, alt }) => ({ url, alt: alt || '' })),
 				agentId: session.isAdmin ? data.agentId || '' : session.agentId,
 				createdAt: serverTimestamp(),

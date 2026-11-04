@@ -1,3 +1,4 @@
+import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
 // Textos fijos del sitio en español e inglés, y rutas de cada idioma.
 
 export const RUTAS = {
@@ -46,6 +47,13 @@ const ES = {
 	descripcion: 'Descripción', amenidades: 'Amenidades', video: 'Video', ubicacion: 'Ubicación', videoDe: 'Video de', mapaDe: 'Mapa de',
 	agendaVisita: 'Agenda una visita', quieroInfo: 'Quiero más información', similares: 'Propiedades similares',
 	msgWaFicha: 'Hola, me interesa la propiedad "{titulo}" ({url}).',
+	// Propiedad vendida, rentada o que ya no está disponible
+	avisoVendida: 'Esta propiedad ya se vendió', avisoRentada: 'Esta propiedad ya se rentó',
+	avisoCerradaTexto: 'Ya no está en el mercado, pero tenemos opciones parecidas. Cuéntanos qué buscas y te las enviamos.',
+	verSimilares: 'Ver propiedades similares', buscasParecida: '¿Buscas algo parecido?',
+	noDisponibleTitulo: 'Esta propiedad ya no está disponible',
+	noDisponibleTexto: 'El dueño la retiró del mercado o está en pausa. Mira otras opciones o escríbenos y te ayudamos a encontrar algo parecido.',
+	msgWaCerrada: 'Hola, vi la propiedad "{titulo}" ({url}), que ya no está disponible. ¿Tienen algo parecido?',
 	// VIP
 	vipIntro: 'Una selección exclusiva de residencias y proyectos con atención personalizada de principio a fin.',
 	vipPronto: 'Muy pronto publicaremos nuevas propiedades exclusivas.', contactanos: 'Contáctanos', paraConocerlas: 'para conocerlas antes.',
@@ -101,6 +109,12 @@ const EN = {
 	descripcion: 'Overview', amenidades: 'Amenities', video: 'Video', ubicacion: 'Location', videoDe: 'Video of', mapaDe: 'Map of',
 	agendaVisita: 'Schedule a tour (in person or video)', quieroInfo: 'Request information', similares: 'Similar properties',
 	msgWaFicha: 'Hi, I\'m interested in "{titulo}" ({url}).',
+	avisoVendida: 'This property has been sold', avisoRentada: 'This property has been rented',
+	avisoCerradaTexto: 'It is no longer on the market, but we have similar options. Tell us what you are looking for and we will send them to you.',
+	verSimilares: 'See similar properties', buscasParecida: 'Looking for something similar?',
+	noDisponibleTitulo: 'This property is no longer available',
+	noDisponibleTexto: 'The owner took it off the market or it is on hold. Browse other options or message us and we will help you find something similar.',
+	msgWaCerrada: 'Hi, I saw "{titulo}" ({url}), which is no longer available. Do you have something similar?',
 	vipIntro: 'A curated selection of exceptional homes in Guatemala, with personal attention from first call to closing.',
 	vipPronto: 'New luxury listings are coming soon.', contactanos: 'Contact us', paraConocerlas: 'to see them first.',
 	vipTitulo: 'Luxury homes for sale in Guatemala', vipDesc: 'Exclusive homes and estates in Guatemala with personalized service, video tours and remote buying support.',
@@ -132,9 +146,10 @@ export const GRUPOS_TEXTOS = [
 	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'siguenos', 'zonas', 'derechos', 'plantilla', 'escribenos']],
 	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'verDetalles', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
 	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsGracias', 'jsFallo']],
-	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
+	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
 	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'cuentanos', 'teAyudamos', 'noEncuentras', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],
 	['Ficha de propiedad', ['verFotosN', 'caracteristicas', 'anteriorFoto', 'siguienteFoto', 'descripcion', 'amenidades', 'video', 'ubicacion', 'agendaVisita', 'quieroInfo', 'similares', 'fTipo', 'fOperacion', 'fEstado', 'fHabitaciones', 'fBanos', 'fParqueos', 'fConstruccion', 'fTerreno', 'fUbicacion', 'fPrecioM2', 'fCodigo', 'compartir', 'compartirWa', 'compartirFb', 'copiarEnlace']],
+	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
@@ -171,6 +186,6 @@ export const TIPOS_EN = {
 	casa: 'House', apartamento: 'Condo / apartment', terreno: 'Land', oficina: 'Office', local: 'Retail space', bodega: 'Warehouse', finca: 'Farm / estate'
 };
 
-export const ESTADOS_EN = { disponible: 'Available', reservada: 'Under contract', vendida: 'Sold', rentada: 'Rented' };
+export const ESTADOS_EN = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.en]));
 
 export const M2_A_FT2 = 10.7639;

@@ -5,6 +5,7 @@ import {
 } from './util.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
+import { estadoDe } from '../../admin/js/estados.js';
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
@@ -345,12 +346,20 @@ function specs(p) {
 	return out.length ? `<div class="specs d-flex flex-wrap mb-4">${out.join('')}</div>` : '';
 }
 
+// Clases completas (el CSS se depura buscando estos nombres tal cual).
+const CLASE_ESTADO = {
+	proximamente: 'prop-badge-estado-proximamente',
+	reservada: 'prop-badge-estado-reservada',
+	vendida: 'prop-badge-estado-cerrada',
+	rentada: 'prop-badge-estado-cerrada'
+};
+
 function estadoBadge(p, inline = false) {
 	const parts = [];
 	if (p.vip) parts.push('<span class="prop-badge prop-badge-vip">VIP</span>');
 	const t = TEXTOS[lng(p)];
 	parts.push(`<span class="prop-badge">${p.operacion === 'renta' ? t.enRenta : t.enVenta}</span>`);
-	if (p.estado && p.estado !== 'disponible') parts.push(`<span class="prop-badge prop-badge-estado">${esc(estadoLabel(p))}</span>`);
+	if (p.estado && p.estado !== 'disponible') parts.push(`<span class="prop-badge prop-badge-estado ${CLASE_ESTADO[p.estado] || ''}">${esc(estadoLabel(p))}</span>`);
 	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
 }
 
@@ -378,11 +387,11 @@ export function propertyCard(p, { lazy = true } = {}) {
 							</div>`;
 }
 
-export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, lang = 'es' }) {
+export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, lang = 'es', mensaje = '' }) {
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
-	const msg = property ? fmt(t.msgInteres, { titulo: property.titulo }) : '';
+	const msg = mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
@@ -850,6 +859,9 @@ export function orgId(ctx) {
 	return `${ctx.siteUrl.replace(/\/$/, '')}/#organizacion`;
 }
 
+// schema.org/ItemAvailability de cada estado (los cerrados u ocultos: SoldOut).
+const DISPONIBILIDAD_LD = { disponible: 'InStock', proximamente: 'PreOrder', reservada: 'LimitedAvailability' };
+
 function listingLd(ctx, p) {
 	const agent = ctx.agentsById && ctx.agentsById[p.agentId];
 	const video = videoEmbedUrl(p.video);
@@ -861,7 +873,7 @@ function listingLd(ctx, p) {
 		offeredBy: agent
 			? { '@type': 'RealEstateAgent', name: agent.nombre, telephone: agent.telefono || undefined, worksFor: { '@id': orgId(ctx) } }
 			: { '@id': orgId(ctx) },
-		availability: p.estado === 'disponible' ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+		availability: `https://schema.org/${DISPONIBILIDAD_LD[p.estado] || (estadoDe(p).visibilidad === 'visible' ? 'InStock' : 'SoldOut')}`,
 		businessFunction: p.operacion === 'renta' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell'
 	};
 	return {
@@ -947,10 +959,22 @@ export function propertyPage(ctx, p) {
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, zona ? { name: zona.nombre, url: zona.url } : null, { name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
 	const video = videoEmbedUrl(p.video);
 	const mapa = p.mapa ? mapEmbedUrl(p.mapa) : '';
-	const related = ctx.properties
-		.filter((o) => o.id !== p.id && (o.zona === p.zona || o.operacion === p.operacion))
-		.slice(0, 3);
-	const waMsg = fmt(t.msgWaFicha, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
+	// Vendida o rentada: la página sigue en su enlace con el aviso y propiedades parecidas.
+	const cerrada = estadoDe(p).visibilidad === 'cerrada';
+	const related = parecidas(ctx, p, cerrada ? 6 : 3);
+	const waMsg = fmt(cerrada ? t.msgWaCerrada : t.msgWaFicha, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
+	const waCerrada = cerrada ? whatsappLink(ctx.site.contacto.whatsapp, waMsg) : '';
+	const aviso = cerrada ? `<section class="ficha-aviso" aria-labelledby="ficha-aviso-titulo">
+				<span class="ficha-aviso-icono" aria-hidden="true">${ic('key')}</span>
+				<div class="ficha-aviso-texto">
+					<h2 id="ficha-aviso-titulo">${p.estado === 'rentada' ? t.avisoRentada : t.avisoVendida}</h2>
+					<p>${t.avisoCerradaTexto}</p>
+					<div class="ficha-aviso-acciones">
+						${related.length ? `<a href="#similares" class="btn btn-primary">${ic('th-large')}${t.verSimilares}</a>` : `<a href="${r.propiedades}" class="btn btn-primary">${ic('search')}${t.verPropiedades}</a>`}
+						${waCerrada ? `<a href="${esc(waCerrada)}" class="btn btn-outline-primary" target="_blank" rel="noopener" data-track="Contact">${ic('whatsapp')}WhatsApp</a>` : ''}
+					</div>
+				</div>
+			</section>` : '';
 
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const datosClave = [
@@ -987,13 +1011,14 @@ export function propertyPage(ctx, p) {
 					? `<li class="breadcrumb-item active" aria-current="page">${esc(c.name)}</li>`
 					: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${i === 0 ? ic('home') : ''}${esc(c.name)}</a></li>`).join('')}</ol>
 			</nav>
+			${aviso}
 			<div class="row justify-content-between">
 				<div class="col-lg-7">
 					<header class="ficha-cabecera">
-						<p class="ficha-tipo">${esc(tipoLabel(p))} · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}</p>
+						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}`}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
-						<p class="ficha-precio">${esc(price(p))}</p>
+						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}</p>`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					<section class="ficha-bloque">
@@ -1010,19 +1035,21 @@ export function propertyPage(ctx, p) {
 					</section>` : ''}
 					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
 					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
-					${mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
+					${!cerrada && mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
 				</div>
 				<aside class="col-lg-4">
 					<div class="ficha-contacto">
 						${agentBox(ctx, agent, p)}
-						<div class="lead-card">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>
+						<div class="lead-card">${cerrada
+							? leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })
+							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>
 						${shareButtons(ctx, p)}
 					</div>
 				</aside>
 			</div>
 		</div>
 	</div>
-	${related.length ? `<div class="section ficha-similares">
+	${related.length ? `<div class="section ficha-similares" id="similares">
 		<div class="container">
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
 			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
@@ -1038,7 +1065,58 @@ export function propertyPage(ctx, p) {
 		image: firstPhoto(p),
 		ogType: 'article',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
-		bodyAttrs: `class="pagina-ficha" ${viewContentAttrs(p)}`,
+		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
+		waMensaje: waMsg
+	}, body);
+}
+
+// Propiedades parecidas que sí se ofrecen: primero misma zona y operación, luego cualquiera de las dos.
+function parecidas(ctx, p, n) {
+	const puntos = (o) => (o.zona === p.zona ? 2 : 0) + (o.operacion === p.operacion ? 1 : 0) + (o.tipo === p.tipo ? 0.5 : 0);
+	return ctx.properties
+		.filter((o) => o.id !== p.id && (o.zona === p.zona || o.operacion === p.operacion))
+		.map((o, i) => [o, puntos(o), i])
+		.sort((a, b) => b[1] - a[1] || a[2] - b[2])
+		.slice(0, n)
+		.map(([o]) => o);
+}
+
+// Propiedad pausada o retirada: su enlace no da error, pero no muestra fotos, precio ni datos,
+// y Google no la indexa. Ofrece propiedades parecidas y contacto.
+export function propertyGonePage(ctx, p) {
+	const t = tr(ctx);
+	const r = rt(ctx);
+	const related = parecidas(ctx, p, 6);
+	const waMsg = fmt(t.msgWaCerrada, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
+	const wa = whatsappLink(ctx.site.contacto.whatsapp, waMsg);
+	const body = `
+	${pageHero(ctx, t.noDisponibleTitulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, { name: p.titulo, url: propertyUrl(p) }])}
+	<div class="section ficha-no-disponible">
+		<div class="container">
+			<section class="ficha-aviso ficha-aviso-retirada" aria-labelledby="ficha-aviso-titulo">
+				<span class="ficha-aviso-icono" aria-hidden="true">${ic('info-circle')}</span>
+				<div class="ficha-aviso-texto">
+					<h2 id="ficha-aviso-titulo">${esc(p.titulo)}</h2>
+					<p>${t.noDisponibleTexto}</p>
+					<div class="ficha-aviso-acciones">
+						<a href="${r.propiedades}" class="btn btn-primary">${ic('search')}${t.verPropiedades}</a>
+						${wa ? `<a href="${esc(wa)}" class="btn btn-outline-primary" target="_blank" rel="noopener" data-track="Contact">${ic('whatsapp')}WhatsApp</a>` : ''}
+					</div>
+				</div>
+			</section>
+		</div>
+	</div>
+	${related.length ? `<div class="section ficha-similares" id="similares">
+		<div class="container">
+			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
+			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
+		</div>
+	</div>` : ''}`;
+	return layout(ctx, {
+		path: propertyUrl(p),
+		title: `${t.noDisponibleTitulo} | ${ctx.site.general.nombreCorto}`,
+		description: t.noDisponibleTexto,
+		noindex: true,
 		waMensaje: waMsg
 	}, body);
 }

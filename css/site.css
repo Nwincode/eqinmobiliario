@@ -45,8 +45,8 @@
 	color: #fff;
 }
 .prop-badge-estado {
-	background: #b42318;
-	color: #fff;
+	background: var(--eq-danger);
+	color: var(--eq-white);
 }
 
 /* Detalle de propiedad */
@@ -2345,5 +2345,95 @@ a:hover > .eq-ic-fin,
 		display: inline-block;
 		padding: 12px 0;
 		margin: -12px 0;
+	}
+}
+
+/* ------------------------------------------------ Estados de la propiedad
+   Etiquetas de las tarjetas (más específicas que los .prop-badge de arriba)
+   y aviso de la ficha cuando la propiedad se vendió, se rentó o ya no está disponible. */
+.prop-badge.prop-badge-estado {
+	background: var(--eq-danger);
+	color: var(--eq-white);
+}
+.prop-badge.prop-badge-estado-proximamente {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.prop-badge.prop-badge-estado-reservada {
+	background: var(--eq-warning);
+	color: var(--eq-dark);
+}
+.prop-badge.prop-badge-estado-cerrada {
+	background: var(--eq-danger);
+	color: var(--eq-white);
+}
+.ficha-aviso {
+	display: flex;
+	align-items: flex-start;
+	gap: 18px;
+	padding: 22px 24px;
+	margin: 0 0 32px;
+	background: var(--eq-mist);
+	border: 1px solid var(--eq-line);
+	border-left: 4px solid var(--eq-danger);
+	border-radius: var(--eq-radius-card);
+}
+.ficha-aviso-icono {
+	flex: 0 0 48px;
+	width: 48px;
+	height: 48px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: color-mix(in oklab, var(--eq-danger) 10%, var(--eq-white));
+	color: var(--eq-danger);
+	font-size: 20px;
+}
+.ficha-aviso-icono .eq-ic {
+	margin: 0;
+}
+.ficha-aviso-texto {
+	min-width: 0;
+}
+.ficha-aviso h2 {
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--eq-dark);
+	margin: 2px 0 6px;
+}
+.ficha-aviso p {
+	max-width: 62ch;
+	color: var(--eq-ink);
+	margin: 0 0 16px;
+}
+.ficha-aviso-acciones {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+.ficha-aviso-retirada {
+	border-left-color: var(--eq-primary);
+	background: var(--eq-white);
+}
+.ficha-aviso-retirada .ficha-aviso-icono {
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+}
+.ficha-precio.ficha-precio-cerrada {
+	color: var(--eq-danger);
+}
+.ficha-similares {
+	scroll-margin-top: 80px;
+}
+@media (max-width: 575.98px) {
+	.ficha-aviso {
+		flex-direction: column;
+		gap: 12px;
+		padding: 18px;
+	}
+	.ficha-aviso-acciones .btn {
+		flex: 1 1 100%;
 	}
 }
