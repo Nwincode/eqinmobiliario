@@ -100,8 +100,9 @@ export async function render(container) {
 	const textoProgreso = h('p', { class: 'small mb-2', 'aria-live': 'polite' });
 	const registro = h('ul', { class: 'imp-registro small' });
 	const final = h('div');
+	const tituloPaso4 = h('span', {}, 'Importando…');
 	const paso4 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
-		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '4'), 'Importación'),
+		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '4'), tituloPaso4),
 		textoProgreso, progreso, final, registro));
 
 	mount(container, h('div', { class: 'imp-vista' },
@@ -233,7 +234,7 @@ export async function render(container) {
 		if (filasCsv.desconocidas.length) avisosLista.push(['info', `Columnas que no se usan: ${filasCsv.desconocidas.join(', ')}.`]);
 		if (!fotos.length) avisosLista.push(['info', 'No elegiste fotos. Puedes importar sin fotos y agregarlas después en cada propiedad.']);
 		if (grupos.sinFila.length) {
-			avisosLista.push(['warning', h('span', {}, grupos.sinFila.length === 1 ? 'Esta carpeta no coincide con ninguna fila del CSV y no se sube: ' : 'Estas carpetas no coinciden con ninguna fila del CSV y no se suben: ',
+			avisosLista.push(['warning', h('span', {}, 'Estas fotos no coinciden con ninguna fila del CSV y no se suben: ',
 				grupos.sinFila.map((g, i) => [i ? ', ' : '', h('strong', {}, g.nombre), ` (${plural(g.fotos, 'foto', 'fotos')})`]), '.')]);
 		}
 		if (grupos.ignorados) avisosLista.push(['secondary', `${grupos.ignorados} ${grupos.ignorados === 1 ? 'archivo no es imagen y se ignora' : 'archivos no son imágenes y se ignoran'}.`]);
@@ -392,7 +393,9 @@ export async function render(container) {
 		}
 		window.removeEventListener('beforeunload', avisoSalir);
 		importando = false;
-		avanzar('Importación terminada.');
+		avanzar('');
+		textoProgreso.hidden = true;
+		tituloPaso4.textContent = 'Importación terminada';
 		progreso.classList.add('imp-progreso-fin');
 		const dato = (n, t, clase) => h('div', { class: `imp-dato imp-tono-${clase}` }, h('strong', {}, String(n)), h('span', {}, t));
 		final.replaceChildren(

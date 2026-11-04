@@ -1225,7 +1225,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 /* ---------- Importar propiedades desde CSV ---------- */
-.imp-intro { max-width: 70ch; }
+.imp-intro { max-width: 70ch; color: var(--adm-text); }
 .imp-paso { margin-bottom: 1rem; }
 .imp-paso-titulo {
 	display: flex;
@@ -1249,6 +1249,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .imp-lista { padding-left: 1.1rem; }
 .imp-lista li + li { margin-top: .25rem; }
+.imp-lista code { color: var(--adm-text); background: var(--adm-bg); border-radius: 4px; padding: .05rem .3rem; }
 .imp-paso .form-label .icon-file-excel-o,
 .imp-paso .form-label .icon-folder-open,
 .imp-paso .form-label .icon-file-archive-o { color: var(--adm-primary); }
@@ -1271,8 +1272,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	gap: .375rem;
 	border-radius: 999px;
 	font-weight: 600;
-	color: var(--imp-c);
-	background: color-mix(in oklab, var(--imp-c) 10%, var(--adm-surface));
+	/* Texto un poco más oscuro que el tono para pasar AA (4.5:1) sobre el fondo tintado. */
+	color: color-mix(in oklab, var(--imp-c) 80%, var(--eq-dark));
+	background: color-mix(in oklab, var(--imp-c) 8%, var(--adm-surface));
 	border: 1px solid color-mix(in oklab, var(--imp-c) 28%, var(--adm-surface));
 	white-space: nowrap;
 }
@@ -1289,6 +1291,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .imp-errores { color: var(--eq-danger); margin: .25rem 0 0; padding-left: 1rem; }
 
 .imp-acciones .btn { min-height: 44px; }
+.imp-acciones .imp-nota { flex: 1 1 16rem; }
 .imp-progreso { height: 10px; margin-bottom: 1rem; }
 .imp-progreso .progress-bar { background: var(--adm-primary); transition: width .3s ease; }
 .imp-progreso-fin .progress-bar { background: var(--eq-whatsapp); }
@@ -1315,6 +1318,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .imp-log-error > [class^="icon-"] { color: var(--eq-danger); }
 
 @media (max-width: 767.98px) {
+	/* Áreas de toque de 44 px en el celular. */
+	.imp-vista .btn,
+	.imp-vista .form-control,
+	.imp-vista .form-select { min-height: 44px; }
+	.imp-vista .form-control[type="file"] { line-height: 1.9; }
+	.imp-acciones .btn { flex: 1 1 100%; }
 	.imp-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.imp-global { width: 100%; justify-content: space-between; }
 	.imp-tabla-wrap { overflow: visible; }
