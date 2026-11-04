@@ -19,7 +19,7 @@ const ES = {
 	buscarPropiedades: 'Buscar propiedades', buscar: 'Buscar', anterior: 'Anterior', siguiente: 'Siguiente', navCarrusel: 'Navegación del carrusel',
 	masInfo: 'Más información', sobre: 'sobre', deEstrellas: 'de 5 estrellas', escribir: 'Escribir',
 	resenasGoogle: 'Reseñas en Google', verEnGoogle: 'Ver todas en Google', dejarResena: 'Dejar una reseña', resenasTotal: 'reseñas',
-	basadoEn: 'Basado en', leerMas: 'Leer más', leerMenos: 'Leer menos', verResena: 'Ver en Google', publicadaEn: 'Publicada en',
+	basadoEn: 'Basado en', leerMas: 'Leer más', leerMenos: 'Leer menos', verResena: 'Ver reseña', publicadaEn: 'Publicada en', anonimo: 'Usuario de Google',
 	enVenta: 'En venta', enRenta: 'En renta', verDetalles: 'Ver detalles', precioConsultar: 'Precio a consultar', mes: '/mes',
 	habitacion: 'habitación', habitaciones: 'habitaciones', bano: 'baño', banos: 'baños',
 	// Formulario
@@ -78,7 +78,7 @@ const EN = {
 	buscarPropiedades: 'Search properties', buscar: 'Search', anterior: 'Previous', siguiente: 'Next', navCarrusel: 'Carousel navigation',
 	masInfo: 'Learn more', sobre: 'about', deEstrellas: 'out of 5 stars', escribir: 'Message',
 	resenasGoogle: 'Google reviews', verEnGoogle: 'See all on Google', dejarResena: 'Write a review', resenasTotal: 'reviews',
-	basadoEn: 'Based on', leerMas: 'Read more', leerMenos: 'Read less', verResena: 'View on Google', publicadaEn: 'Posted on',
+	basadoEn: 'Based on', leerMas: 'Read more', leerMenos: 'Read less', verResena: 'View review', publicadaEn: 'Posted on', anonimo: 'Google user',
 	enVenta: 'For sale', enRenta: 'For rent', verDetalles: 'View details', precioConsultar: 'Price on request', mes: '/mo',
 	habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
 	nombre: 'Full name', telefono: 'Phone / WhatsApp', telefonoPh: '+1 555 123 4567', correo: 'Email', mensaje: 'Message',

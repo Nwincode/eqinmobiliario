@@ -1904,6 +1904,11 @@ a:hover > .eq-ic-fin,
 	margin: 0 0 4px;
 	color: var(--eq-dark);
 }
+.gr-nota-titulo .eq-ic,
+.gr-fuente .eq-ic {
+	margin-right: .4em;
+	vertical-align: -.05em;
+}
 .gr-nota-total {
 	margin: 4px 0 0;
 	font-size: .875rem;
@@ -1919,6 +1924,10 @@ a:hover > .eq-ic-fin,
 .gr-nota .gr-estrellas {
 	font-size: 19px;
 }
+/* Estrella vacía en gris (como en Google), para distinguir 4 de 5 sin depender del contorno. */
+.gr-estrellas .gr-estrella-vacia {
+	color: color-mix(in oklab, var(--eq-ink) 35%, var(--eq-white));
+}
 .gr-botones {
 	display: flex;
 	flex-wrap: wrap;
@@ -1931,7 +1940,9 @@ a:hover > .eq-ic-fin,
 
 .gr-lista {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+	/* auto-fill: con 1 o 2 reseñas las tarjetas conservan el ancho de columna
+	   (alineadas con las del carrusel de abajo) en vez de estirarse a todo el ancho. */
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
 	gap: var(--gr-gap);
 }
 .gr-resena {
@@ -1966,6 +1977,7 @@ a:hover > .eq-ic-fin,
 }
 .gr-avatar-letra {
 	display: inline-flex;
+	line-height: 1;
 	align-items: center;
 	justify-content: center;
 	font-size: 1.15rem;
@@ -2055,6 +2067,7 @@ a:hover > .eq-ic-fin,
 .gr-ver {
 	display: inline-flex;
 	align-items: center;
+	min-height: 24px;
 	gap: .4em;
 	font-weight: 600;
 	color: var(--eq-primary);
@@ -2068,6 +2081,7 @@ a:hover > .eq-ic-fin,
 	font-size: .9em;
 }
 .gr-resena a:focus-visible,
+.gr-botones .btn:focus-visible,
 .gr-leer-mas:focus-visible {
 	outline: 2px solid var(--eq-focus);
 	outline-offset: 2px;
@@ -2091,6 +2105,28 @@ a:hover > .eq-ic-fin,
 	.gr-botones,
 	.gr-botones .btn {
 		width: 100%;
+	}
+	/* Objetivos táctiles de 44 px como mínimo en móvil. */
+	.gr-botones .btn {
+		min-height: 44px;
+	}
+	.gr-leer-mas,
+	.gr-ver {
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+	.gr-leer-mas {
+		margin: -14px 0 -10px;
+	}
+	.gr-resena-pie {
+		padding-top: 4px;
+		margin-bottom: -10px;
+	}
+	.gr-resena-autor a {
+		display: inline-block;
+		padding: 12px 0;
+		margin: -12px 0;
 	}
 	.gr-resena {
 		padding: 20px;

@@ -501,7 +501,7 @@
 			cont.setAttribute('role', 'img');
 			cont.setAttribute('aria-label', (Math.round(v * 10) / 10) + ' ' + txt.estrellas);
 			for (var i = 1; i <= 5; i++) {
-				var e = el('span', mitades >= i * 2 ? 'icon-star' : (mitades === i * 2 - 1 ? 'icon-star-half-o' : 'icon-star-o'));
+				var e = el('span', mitades >= i * 2 ? 'icon-star' : (mitades === i * 2 - 1 ? 'icon-star-half-o' : 'icon-star gr-estrella-vacia'));
 				e.setAttribute('aria-hidden', 'true');
 				cont.appendChild(e);
 			}
@@ -513,10 +513,13 @@
 			return a;
 		};
 		var urlSegura = function (u) { return typeof u === 'string' && /^https:\/\//i.test(u) ? u : ''; };
+		// Sin nombre se muestra el ícono de persona en lugar de una letra.
 		var inicial = function (nombre) {
-			var letra = el('span', 'gr-avatar gr-avatar-letra', (String(nombre || '?').trim().charAt(0) || '?').toUpperCase());
-			letra.setAttribute('aria-hidden', 'true');
-			return letra;
+			var letra = String(nombre || '').trim().charAt(0).toUpperCase();
+			var av = letra ? el('span', 'gr-avatar gr-avatar-letra', letra) : el('span', 'gr-avatar gr-avatar-letra');
+			if (!letra) av.appendChild(icono('icon-user'));
+			av.setAttribute('aria-hidden', 'true');
+			return av;
 		};
 		var avatar = function (r) {
 			var foto = urlSegura(r.autorFoto) || (/^\/[^/]/.test(r.autorFoto || '') ? r.autorFoto : '');
@@ -527,38 +530,50 @@
 			img.addEventListener('error', function () { img.replaceWith(inicial(r.autor)); });
 			return img;
 		};
+		var nResena = 0;
 		var tarjetaResena = function (r) {
+			nResena++;
+			var autor = String(r.autor || '').trim() || txt.anonimo || 'Google';
 			var tarjeta = el('article', 'gr-resena');
 			var cabeza = el('header', 'gr-resena-cabeza');
 			cabeza.appendChild(avatar(r));
 			var quien = el('div', 'gr-resena-quien');
 			var nombre = el('h3', 'gr-resena-autor');
 			var perfil = urlSegura(r.autorUrl);
-			if (perfil) nombre.appendChild(enlace(perfil, r.autor)); else nombre.textContent = r.autor || '';
+			if (perfil) nombre.appendChild(enlace(perfil, autor)); else nombre.textContent = autor;
 			quien.appendChild(nombre);
 			if (r.fecha) quien.appendChild(el('p', 'gr-resena-fecha', r.fecha));
 			cabeza.appendChild(quien);
 			tarjeta.appendChild(cabeza);
 			tarjeta.appendChild(estrellas(r.estrellas));
 
-			var cita = el('blockquote', 'gr-resena-texto');
-			var parrafo = el('p', '', r.texto || '');
-			cita.appendChild(parrafo);
-			tarjeta.appendChild(cita);
-			// El texto se muestra completo; solo se recorta a la vista con CSS y se abre con «Leer más».
-			var mas = el('button', 'gr-leer-mas', txt.mas);
-			mas.type = 'button';
-			mas.hidden = true;
-			mas.setAttribute('aria-expanded', 'false');
-			mas.addEventListener('click', function () {
-				var abierta = tarjeta.classList.toggle('is-abierta');
-				mas.textContent = abierta ? txt.menos : txt.mas;
-				mas.setAttribute('aria-expanded', String(abierta));
-			});
-			tarjeta.appendChild(mas);
+			// Reseñas de solo estrellas (sin texto): no se dibujan comillas vacías.
+			var parrafo = null, mas = null;
+			if (String(r.texto || '').trim()) {
+				var cita = el('blockquote', 'gr-resena-texto');
+				parrafo = el('p', '', r.texto);
+				parrafo.id = 'gr-texto-' + nResena;
+				cita.appendChild(parrafo);
+				tarjeta.appendChild(cita);
+				// El texto se muestra completo; solo se recorta a la vista con CSS y se abre con «Leer más».
+				mas = el('button', 'gr-leer-mas', txt.mas);
+				mas.type = 'button';
+				mas.hidden = true;
+				mas.setAttribute('aria-expanded', 'false');
+				mas.setAttribute('aria-controls', parrafo.id);
+				mas.addEventListener('click', function () {
+					var abierta = tarjeta.classList.toggle('is-abierta');
+					mas.textContent = abierta ? txt.menos : txt.mas;
+					mas.setAttribute('aria-expanded', String(abierta));
+				});
+				tarjeta.appendChild(mas);
+			}
 
 			var pie = el('footer', 'gr-resena-pie');
-			pie.appendChild(el('span', 'gr-fuente', txt.publicada + ' Google'));
+			var fuente = el('span', 'gr-fuente');
+			fuente.appendChild(icono('icon-google'));
+			fuente.appendChild(document.createTextNode(txt.publicada + ' Google'));
+			pie.appendChild(fuente);
 			var verla = urlSegura(r.enlace);
 			if (verla) {
 				var a = enlace(verla, txt.verResena, 'gr-ver');
@@ -579,7 +594,10 @@
 				var nota = el('div', 'gr-nota');
 				nota.appendChild(el('span', 'gr-nota-num', calif.toFixed(1)));
 				var detalle = el('div', 'gr-nota-detalle');
-				detalle.appendChild(el('h3', 'gr-nota-titulo', txt.titulo));
+				var titulo = el('h3', 'gr-nota-titulo');
+				titulo.appendChild(icono('icon-google'));
+				titulo.appendChild(document.createTextNode(txt.titulo));
+				detalle.appendChild(titulo);
 				detalle.appendChild(estrellas(calif));
 				if (d.total) detalle.appendChild(el('p', 'gr-nota-total', txt.basado + ' ' + d.total + ' ' + txt.total));
 				nota.appendChild(detalle);
@@ -607,7 +625,7 @@
 				// «Leer más» solo en las reseñas que no caben en las líneas visibles.
 				var revisar = function () {
 					partes.forEach(function (p) {
-						if (p.tarjeta.classList.contains('is-abierta')) return;
+						if (!p.mas || p.tarjeta.classList.contains('is-abierta')) return;
 						p.mas.hidden = p.texto.scrollHeight <= p.texto.clientHeight + 2;
 					});
 				};
