@@ -19,6 +19,11 @@ Cada vez que se haga o se cambie un diseño (página, sección, tarjeta, panel, 
 3. Se aplican las mejoras que encuentre y se vuelve a revisar, hasta que no queden mejoras importantes.
 4. Al usuario se le muestra la captura final y qué se mejoró.
 
+### Botones de carrusel (anterior / siguiente)
+Siempre minimalistas: solo el ícono de flecha `<` y `>`, sin texto ("Anterior", "Siguiente"),
+sin cajas grandes ni rellenos pesados. Círculo o espacio discreto, flecha fina, colores de `css/tema.css`,
+área de toque de al menos 44 px y `aria-label` para lectores de pantalla. Nunca volver al estilo con texto.
+
 ## Otras reglas
 - Un solo chat a la vez para la página eqinmobiliario.gt; no mezclar con el proyecto "ptg".
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
