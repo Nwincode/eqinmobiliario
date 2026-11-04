@@ -10,6 +10,7 @@ import { aplicarTema } from './tema.js';
 const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', load: () => import('./views/properties.js') },
+	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', load: () => import('./views/listado.js') },
 	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', load: () => import('./views/leads.js') },
 	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', load: () => import('./views/clientes.js') },
 	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', load: () => import('./views/agenda.js') },

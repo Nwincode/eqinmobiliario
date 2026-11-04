@@ -113,6 +113,20 @@ Cada asesor entra con su usuario y ve **solo lo suyo** (lo exigen las reglas de 
 Colecciones nuevas: `clientes`, `actividades`, `propietarios` (reglas en `firestore.rules`: vuelve a publicarlas
 en Firebase después de actualizar).
 
+## Listado de propiedades en PDF (sección "Listado en PDF" del panel)
+
+Para enviar a un cliente las opciones que le interesan:
+
+1. **Filtros**: operación, tipo, zona, moneda, rango de precio y habitaciones mínimas (por defecto solo
+   disponibles y publicadas).
+2. **Selección**: se marcan todas las que cumplen; se puede quitar o agregar cada una.
+3. **Datos del PDF**: nombre del cliente, título y nota de la portada, asesor de contacto (o el contacto general
+   de *Contenido del sitio*), mostrar u ocultar precios y enlaces a la ficha del sitio.
+4. **Formato**: una propiedad por página con fotos grandes, o lista compacta (tres por página).
+
+"Generar PDF" abre una ventana lista para imprimir; ahí se elige **Guardar como PDF**. No necesita servicios
+externos ni costos: lo genera el navegador. Las propiedades VIP con "Ocultar precio" salen como "Precio a consultar".
+
 ## Difusión en portales y redes (sección "Difusión" del panel)
 
 Para no redactar cada anuncio a mano en cada plataforma:
