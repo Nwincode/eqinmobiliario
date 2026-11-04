@@ -28,107 +28,197 @@ function precioPdf(p, mostrarPrecio) {
 	return formatPrice(p.precio, p.moneda, p.operacion);
 }
 
-function specs(p) {
+// Ficha técnica: [etiqueta, valor] solo con los datos que tiene la propiedad.
+function datos(p) {
+	const n = (v) => Number(v).toLocaleString('en-US');
 	return [
-		p.habitaciones && `${p.habitaciones} hab.`,
-		p.banos && `${p.banos} baños`,
-		p.parqueos && `${p.parqueos} parqueos`,
-		p.m2Construccion && `${p.m2Construccion} m² const.`,
-		p.m2Terreno && `${p.m2Terreno} m² terreno`
-	].filter(Boolean);
+		['Tipo', TIPO_LABEL[p.tipo] || ''],
+		['Operación', p.operacion === 'renta' ? 'Renta' : 'Venta'],
+		['Zona', p.zona],
+		['Habitaciones', p.habitaciones],
+		['Baños', p.banos],
+		['Parqueos', p.parqueos],
+		['Construcción', p.m2Construccion && `${n(p.m2Construccion)} m²`],
+		['Terreno', p.m2Terreno && `${n(p.m2Terreno)} m²`]
+	].filter(([, v]) => v);
 }
 
 function ubicacion(p) {
 	return [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ');
 }
 
-function fichaCompleta(p, opts) {
+function etiquetaTipo(p) {
+	return `${TIPO_LABEL[p.tipo] || 'Propiedad'} en ${p.operacion === 'renta' ? 'renta' : 'venta'}`;
+}
+
+function cabeceraPagina(empresa, n, total) {
+	return `<div class="cabecera"><span>${esc(empresa)}</span><span>${n} / ${total}</span></div>`;
+}
+
+function fichaCompleta(p, opts, n, total, empresa, contacto) {
 	const fotos = (p.fotos || []).map((f) => absUrl(f.url)).filter(Boolean);
 	const amen = (p.amenidades || []).slice(0, 12);
 	return `
-	<section class="ficha">
+	<section class="ficha${fotos.length > 1 ? ' con-miniaturas' : ''}${n === total ? ' ultima' : ''}">
+		${cabeceraPagina(empresa, n, total)}
 		${fotos[0] ? `<img class="foto-principal" src="${esc(fotos[0])}" alt="">` : '<div class="foto-principal sin-foto">Sin foto</div>'}
-		${fotos.length > 1 ? `<div class="fotos-extra">${fotos.slice(1, 4).map((u) => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''}
-		<div class="ficha-cabecera">
+		${fotos.length > 1 ? `<div class="fotos-extra" style="grid-template-columns: repeat(${Math.min(fotos.length - 1, 3)}, 1fr)">${fotos.slice(1, 4).map((u) => `<img src="${esc(u)}" alt="">`).join('')}</div>` : ''}
+		<div class="titular">
 			<div>
-				<div class="etiqueta">${esc(TIPO_LABEL[p.tipo] || 'Propiedad')} en ${p.operacion === 'renta' ? 'renta' : 'venta'}</div>
+				<div class="etiqueta">${esc(etiquetaTipo(p))}</div>
 				<h2>${esc(p.titulo)}</h2>
 				<div class="ubicacion">${esc(ubicacion(p))}</div>
 			</div>
 			<div class="precio">${esc(precioPdf(p, opts.mostrarPrecio))}</div>
 		</div>
-		${specs(p).length ? `<ul class="specs">${specs(p).map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
-		<p class="descripcion">${esc(cut(p.descripcion, 900))}</p>
-		${amen.length ? `<div class="amenidades"><strong>Amenidades:</strong> ${amen.map(esc).join(' · ')}</div>` : ''}
-		${opts.enlaces && p.slug ? `<div class="enlace">Ver fotos y detalles: <a href="${esc(publicLink(p))}">${esc(publicLink(p))}</a></div>` : ''}
+		<div class="cuerpo">
+			<div>
+				<h3>Descripción</h3>
+				<p class="descripcion">${esc(cut(p.descripcion, 750))}</p>
+				${amen.length ? `<h3>Amenidades</h3><ul class="amenidades">${amen.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+			</div>
+			<aside>
+				<h3>Ficha técnica</h3>
+				<dl class="datos">${datos(p).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+			</aside>
+		</div>
+		<div class="pie-ficha">
+			${opts.enlaces && p.slug ? `<div><span>Más fotos y detalles</span><a href="${esc(publicLink(p))}">${esc(publicLink(p).replace(/^https?:\/\//, ''))}</a></div>` : '<div></div>'}
+			<div class="pie-contacto"><span>${esc(contacto.etiqueta)}</span>${esc([contacto.nombre, contacto.telefono].filter(Boolean).join(' · '))}</div>
+		</div>
 	</section>`;
 }
 
-function filaCompacta(p, opts) {
+function filaCompacta(p, opts, n) {
 	const foto = absUrl(p.fotos?.[0]?.url);
+	const claves = datos(p).filter(([k]) => ['Habitaciones', 'Baños', 'Construcción', 'Terreno', 'Parqueos'].includes(k)).slice(0, 4);
 	return `
 	<section class="fila">
-		${foto ? `<img src="${esc(foto)}" alt="">` : '<div class="sin-foto">Sin foto</div>'}
+		<div class="fila-foto">
+			${foto ? `<img src="${esc(foto)}" alt="">` : '<div class="sin-foto">Sin foto</div>'}
+			<span class="numero">${n}</span>
+		</div>
 		<div class="fila-datos">
-			<div class="etiqueta">${esc(TIPO_LABEL[p.tipo] || 'Propiedad')} en ${p.operacion === 'renta' ? 'renta' : 'venta'}</div>
-			<h2>${esc(p.titulo)}</h2>
-			<div class="ubicacion">${esc(ubicacion(p))}</div>
-			<div class="precio">${esc(precioPdf(p, opts.mostrarPrecio))}</div>
-			${specs(p).length ? `<ul class="specs">${specs(p).map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
-			<p class="descripcion">${esc(cut(p.descripcion, 260))}</p>
-			${opts.enlaces && p.slug ? `<div class="enlace"><a href="${esc(publicLink(p))}">${esc(publicLink(p))}</a></div>` : ''}
+			<div class="fila-top">
+				<div>
+					<div class="etiqueta">${esc(etiquetaTipo(p))}</div>
+					<h2>${esc(p.titulo)}</h2>
+					<div class="ubicacion">${esc(ubicacion(p))}</div>
+				</div>
+				<div class="precio">${esc(precioPdf(p, opts.mostrarPrecio))}</div>
+			</div>
+			${claves.length ? `<dl class="claves">${claves.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+			<p class="descripcion">${esc(cut(p.descripcion, 220))}</p>
+			${opts.enlaces && p.slug ? `<a class="enlace-corto" href="${esc(publicLink(p))}">${esc(publicLink(p).replace(/^https?:\/\//, ''))}</a>` : ''}
 		</div>
 	</section>`;
 }
 
 export function documento(props, opts, empresa, contacto) {
 	const fecha = new Date().toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
-	const tarjetaContacto = `<div class="asesor"><span class="etiqueta">${esc(contacto.etiqueta)}</span><strong>${esc(contacto.nombre)}</strong>${[contacto.telefono, contacto.email].filter(Boolean).map(esc).join('<br>')}</div>`;
+	const lineasContacto = [contacto.telefono, contacto.email].filter(Boolean).map(esc).join('<br>');
+	const tarjetaContacto = `<div class="asesor"><span class="avatar">${esc((contacto.nombre || '').split(/\s+/).slice(0, 2).map((p) => p[0] || '').join('').toUpperCase())}</span><div><span class="etiqueta">${esc(contacto.etiqueta)}</span><strong>${esc(contacto.nombre)}</strong><span class="lineas">${lineasContacto}</span></div></div>`;
+	const total = props.length;
 	const css = `
-		@page { size: letter; margin: 14mm 14mm 18mm; }
+		@page { size: letter; margin: 12mm 14mm 14mm; }
 		* { box-sizing: border-box; }
-		body { font-family: 'Work Sans', Arial, sans-serif; color: #0e1920; margin: 0; font-size: 10.5pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-		a { color: #0e5e8a; text-decoration: none; word-break: break-all; }
-		.portada { height: 230mm; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
-		.portada img.logo { width: 34mm; margin-bottom: 10mm; }
-		.portada .marca { font-size: 11pt; letter-spacing: .12em; text-transform: uppercase; color: #0e5e8a; font-weight: 600; }
-		.portada h1 { font-size: 30pt; line-height: 1.1; margin: 4mm 0 6mm; }
-		.portada .linea { width: 30mm; height: 1.2mm; background: #00b7e7; margin-bottom: 8mm; }
-		.portada .meta { color: #5b666f; font-size: 11pt; }
-		.asesor { margin-top: 18mm; padding: 6mm; border: 1px solid #d5dbe0; border-radius: 3mm; max-width: 110mm; }
+		:root { --tinta: #0e1920; --azul: #0e5e8a; --celeste: #00b7e7; --gris: #5b666f; --linea: #dfe4e8; --suave: #f1f5f8; }
+		body { font-family: 'Work Sans', Arial, sans-serif; color: var(--tinta); margin: 0; font-size: 10pt; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+		a { color: var(--azul); text-decoration: none; }
+		h2 { font-size: 17pt; margin: 1mm 0 .5mm; line-height: 1.15; letter-spacing: -.01em; }
+		h3 { font-size: 8pt; text-transform: uppercase; letter-spacing: .12em; color: var(--azul); margin: 0 0 2mm; }
+		.etiqueta { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .12em; color: var(--azul); font-weight: 600; }
+		.ubicacion { color: var(--gris); font-size: 9.5pt; }
+		.precio { font-size: 16pt; font-weight: 700; color: var(--azul); white-space: nowrap; }
+		.sin-foto { background: var(--suave); color: var(--gris); display: flex; align-items: center; justify-content: center; }
+
+		/* Portada */
+		.portada { height: 252mm; display: flex; flex-direction: column; page-break-after: always; }
+		.portada-banda { background: var(--tinta); color: #fff; border-radius: 4mm; padding: 14mm 12mm 12mm; position: relative; overflow: hidden; }
+		.portada-banda::after { content: ""; position: absolute; right: -24mm; bottom: -30mm; width: 62mm; height: 62mm; border-radius: 50%; border: 10mm solid color-mix(in srgb, var(--celeste) 22%, transparent); }
+		.portada-banda img { width: 18mm; height: 18mm; }
+		.portada-banda .marca { margin-top: 5mm; font-size: 9pt; letter-spacing: .16em; text-transform: uppercase; color: var(--celeste); font-weight: 600; }
+		.portada-banda > * { position: relative; z-index: 1; }
+		.portada-banda h1 { font-size: 28pt; line-height: 1.1; margin: 3mm 0 0; max-width: 125mm; letter-spacing: -.01em; }
+		.portada-datos { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 10mm; border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea); }
+		.portada-datos div { padding: 5mm 0; }
+		.portada-datos div + div { padding-left: 6mm; border-left: 1px solid var(--linea); }
+		.portada-datos span { display: block; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .12em; color: var(--gris); }
+		.portada-datos strong { display: block; font-size: 12pt; margin-top: 1mm; }
+		.nota { margin: 8mm 0 0; font-size: 11pt; max-width: 150mm; color: var(--tinta); }
+		.indice { margin-top: 8mm; }
+		.indice ol { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 8mm; }
+		.indice li { display: flex; gap: 3mm; padding: 1.6mm 0; border-bottom: 1px dotted var(--linea); break-inside: avoid; font-size: 9.5pt; }
+		.indice li b { color: var(--azul); min-width: 5mm; }
+		.indice li span { flex: 1; }
+		.indice li em { font-style: normal; color: var(--gris); white-space: nowrap; }
+		.portada .asesor { margin-top: auto; }
+
+		.asesor { display: flex; align-items: center; gap: 5mm; padding: 5mm 6mm; background: var(--suave); border-radius: 3mm; max-width: 120mm; }
+		.asesor .avatar { width: 13mm; height: 13mm; flex: none; border-radius: 50%; background: var(--azul); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11pt; }
 		.asesor strong { display: block; font-size: 12pt; }
-		.cierre { margin-top: 10mm; page-break-inside: avoid; }
-		.cierre h2 { font-size: 15pt; }
-		.cierre .asesor { margin-top: 4mm; }
-		.portada .nota { margin-top: 8mm; max-width: 140mm; }
-		.etiqueta { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .08em; color: #0e5e8a; font-weight: 600; }
-		h2 { font-size: 16pt; margin: 1mm 0; line-height: 1.2; }
-		.ubicacion { color: #5b666f; }
-		.precio { font-size: 15pt; font-weight: 700; color: #0e5e8a; white-space: nowrap; }
-		.specs { list-style: none; padding: 0; margin: 3mm 0; display: flex; flex-wrap: wrap; gap: 2mm; }
-		.specs li { background: #eef4f8; border-radius: 2mm; padding: 1mm 3mm; font-size: 9.5pt; }
-		.descripcion { margin: 2mm 0; }
-		.amenidades, .enlace { font-size: 9.5pt; margin-top: 2mm; }
-		.sin-foto { background: #eef4f8; color: #5b666f; display: flex; align-items: center; justify-content: center; }
-		.ficha { page-break-after: always; }
-		.ficha:last-child { page-break-after: auto; }
-		.ficha .foto-principal { width: 100%; height: 105mm; object-fit: cover; border-radius: 3mm; display: block; }
+		.asesor .lineas { display: block; color: var(--gris); font-size: 9.5pt; }
+
+		/* Cabecera de cada página */
+		.cabecera { display: flex; justify-content: space-between; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .12em; color: var(--gris); padding-bottom: 2.5mm; margin-bottom: 4mm; border-bottom: 1px solid var(--linea); }
+
+		/* Una propiedad por página */
+		.ficha { page-break-after: always; height: 252mm; display: flex; flex-direction: column; }
+		.ficha.ultima { page-break-after: auto; }
+		.ficha .foto-principal { width: 100%; height: 104mm; object-fit: cover; border-radius: 3mm; display: block; flex: none; }
+		.ficha.con-miniaturas .foto-principal { height: 86mm; }
+		.ficha .foto-principal.sin-foto { display: flex; }
 		.fotos-extra { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin-top: 2.5mm; }
-		.fotos-extra img { width: 100%; height: 34mm; object-fit: cover; border-radius: 2mm; }
-		.ficha-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 6mm; margin-top: 5mm; }
-		.fila { display: grid; grid-template-columns: 62mm 1fr; gap: 6mm; padding: 5mm 0; border-bottom: 1px solid #d5dbe0; page-break-inside: avoid; }
-		.fila img, .fila .sin-foto { width: 62mm; height: 46mm; object-fit: cover; border-radius: 2mm; }
-		.fila h2 { font-size: 13pt; }
-		.fila .precio { font-size: 12.5pt; margin-top: 1mm; }
-		.fila .specs { margin: 2mm 0; }
-		.fila .descripcion { font-size: 9.5pt; }
-		.aviso { position: fixed; top: 0; left: 0; right: 0; background: #0e5e8a; color: #fff; padding: 10px 16px; font-size: 14px; display: flex; gap: 12px; align-items: center; justify-content: center; }
-		.aviso button { font: inherit; border: 0; border-radius: 6px; padding: 6px 14px; background: #fff; color: #0e5e8a; cursor: pointer; }
-		@media screen { body { background: #e9edf0; padding: 70px 0 40px; } main { background: #fff; max-width: 216mm; margin: 0 auto; padding: 14mm; } }
+		.fotos-extra img { width: 100%; height: 28mm; object-fit: cover; border-radius: 2mm; }
+		.titular { display: flex; justify-content: space-between; align-items: flex-end; gap: 8mm; margin-top: 5mm; padding-bottom: 4mm; border-bottom: 1px solid var(--linea); }
+		.cuerpo { display: grid; grid-template-columns: 1fr 66mm; gap: 8mm; margin-top: 5mm; }
+		.descripcion { margin: 0 0 4mm; }
+		.amenidades { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1.5mm; }
+		.amenidades li { background: var(--suave); border-radius: 1.5mm; padding: .6mm 2.5mm; font-size: 8.5pt; }
+		.datos { margin: 0; display: grid; grid-template-columns: auto 1fr; border-top: 1px solid var(--linea); }
+		.datos dt, .datos dd { margin: 0; padding: 1.4mm 0; border-bottom: 1px solid var(--linea); font-size: 9pt; }
+		.datos dt { color: var(--gris); padding-right: 4mm; }
+		.datos dd { text-align: right; font-weight: 600; }
+		.pie-ficha { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; padding-top: 3mm; border-top: 1px solid var(--linea); font-size: 8.5pt; }
+		.pie-ficha span { display: block; color: var(--gris); text-transform: uppercase; letter-spacing: .1em; font-size: 7pt; }
+		.pie-ficha a { word-break: break-all; }
+		.pie-contacto { text-align: right; white-space: nowrap; }
+		.enlace { display: flex; justify-content: space-between; align-items: center; gap: 4mm; margin-top: 6mm; padding: 3mm 4mm; border: 1px solid var(--linea); border-radius: 2mm; font-size: 8.5pt; }
+		.enlace span { color: var(--gris); text-transform: uppercase; letter-spacing: .1em; font-size: 7.5pt; white-space: nowrap; }
+		.enlace a { word-break: break-all; text-align: right; }
+
+		/* Lista compacta */
+		.lista .cabecera { margin-bottom: 0; }
+		.fila { display: grid; grid-template-columns: 60mm 1fr; gap: 6mm; padding: 5mm 0; border-bottom: 1px solid var(--linea); page-break-inside: avoid; }
+		.fila-foto { position: relative; }
+		.fila-foto img, .fila-foto .sin-foto { width: 60mm; height: 45mm; object-fit: cover; border-radius: 2.5mm; display: block; }
+		.fila-foto .sin-foto { display: flex; }
+		.numero { position: absolute; top: 2mm; left: 2mm; width: 7mm; height: 7mm; border-radius: 50%; background: var(--tinta); color: #fff; font-size: 8.5pt; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+		.fila-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4mm; }
+		.fila h2 { font-size: 12.5pt; }
+		.fila .precio { font-size: 12.5pt; }
+		.claves { display: flex; gap: 0; margin: 3mm 0; border: 1px solid var(--linea); border-radius: 2mm; }
+		.claves div { flex: 1; padding: 1.5mm 3mm; }
+		.claves div + div { border-left: 1px solid var(--linea); }
+		.claves dt { font-size: 7pt; text-transform: uppercase; letter-spacing: .08em; color: var(--gris); }
+		.claves dd { margin: 0; font-weight: 600; font-size: 9.5pt; }
+		.fila .descripcion { font-size: 9pt; color: #34414b; margin: 0 0 1.5mm; }
+		.enlace-corto { font-size: 8.5pt; word-break: break-all; }
+
+		/* Cierre */
+		.cierre { margin-top: 10mm; page-break-inside: avoid; border-top: 3px solid var(--celeste); padding-top: 6mm; }
+		.cierre h2 { font-size: 15pt; }
+		.cierre p { color: var(--gris); margin: 1mm 0 4mm; }
+
+		.aviso { position: fixed; top: 0; left: 0; right: 0; background: var(--tinta); color: #fff; padding: 10px 16px; font-size: 14px; display: flex; gap: 12px; align-items: center; justify-content: center; z-index: 5; }
+		.aviso button { font: inherit; font-weight: 600; border: 0; border-radius: 6px; padding: 6px 14px; background: var(--celeste); color: var(--tinta); cursor: pointer; }
+		@media screen { body { background: #e9edf0; padding: 70px 0 40px; } main { background: #fff; max-width: 216mm; margin: 0 auto; padding: 12mm 14mm; } .ficha, .portada { margin-bottom: 14mm; height: auto; min-height: 240mm; } }
 		@media print { .aviso { display: none; } }`;
 	const cuerpo = opts.formato === 'compacto'
-		? `<section class="lista">${props.map((p) => filaCompacta(p, opts)).join('')}</section>`
-		: props.map((p) => fichaCompleta(p, opts)).join('');
+		? props.reduce((html, p, i) => html
+			+ (i % 3 === 0 ? `${i ? '</section>' : ''}<section class="lista"${i ? ' style="page-break-before: always"' : ''}>${cabeceraPagina(empresa, Math.floor(i / 3) + 1, Math.ceil(total / 3))}` : '')
+			+ filaCompacta(p, opts, i + 1), '') + '</section>'
+		: props.map((p, i) => fichaCompleta(p, opts, i + 1, total, empresa, contacto)).join('');
 	return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(opts.titulo || 'Propiedades')} · ${esc(empresa)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -137,20 +227,29 @@ export function documento(props, opts, empresa, contacto) {
 <div class="aviso">En la ventana de impresión elige «Guardar como PDF». <button onclick="print()">Guardar PDF</button></div>
 <main>
 	<section class="portada">
-		<img class="logo" src="${esc(absUrl('/docs/marca/logo/imagotipo-azul.svg'))}" alt="">
-		<div class="marca">${esc(empresa)}</div>
-		<h1>${esc(opts.titulo || 'Propiedades seleccionadas')}</h1>
-		<div class="linea"></div>
-		<div class="meta">${opts.cliente ? `Preparado para <strong>${esc(opts.cliente)}</strong> · ` : ''}${esc(fecha)} · ${props.length} ${props.length === 1 ? 'propiedad' : 'propiedades'}</div>
+		<div class="portada-banda">
+			<img src="${esc(absUrl('/docs/marca/logo/imagotipo-blanco.svg'))}" alt="">
+			<div class="marca">${esc(empresa)}</div>
+			<h1>${esc(opts.titulo || 'Propiedades seleccionadas')}</h1>
+		</div>
+		<div class="portada-datos">
+			<div><span>Preparado para</span><strong>${esc(opts.cliente || '—')}</strong></div>
+			<div><span>Fecha</span><strong>${esc(fecha)}</strong></div>
+			<div><span>Propiedades</span><strong>${total}</strong></div>
+		</div>
 		${opts.nota ? `<p class="nota">${esc(opts.nota)}</p>` : ''}
+		<div class="indice">
+			<h3>En este documento</h3>
+			<ol>${props.slice(0, 16).map((p, i) => `<li><b>${i + 1}</b><span>${esc(p.titulo)}</span><em>${esc(precioPdf(p, opts.mostrarPrecio))}</em></li>`).join('')}</ol>
+		</div>
 		${tarjetaContacto}
 	</section>
 	${cuerpo}
-	<section class="cierre">
+	${opts.formato === 'compacto' ? `<section class="cierre">
 		<h2>¿Te interesa alguna?</h2>
 		<p>Escríbenos para resolver tus dudas o agendar una visita.</p>
 		${tarjetaContacto}
-	</section>
+	</section>` : ''}
 </main>
 <script>
 	// Abre la ventana de impresión cuando todas las fotos terminaron de cargar.
@@ -238,7 +337,7 @@ export async function render(container) {
 				h('td', {}, h('img', { class: 'thumb', src: p.fotos?.[0]?.url || '', alt: '' })),
 				h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'), h('div', { class: 'small text-muted' }, ubicacion(p))),
 				h('td', { class: 'text-nowrap' }, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('td', { class: 'small text-muted' }, specs(p).slice(0, 2).join(' · ')));
+				h('td', { class: 'small text-muted' }, datos(p).filter(([k]) => ['Habitaciones', 'Baños', 'Construcción'].includes(k)).map(([k, v]) => `${v} ${k === 'Construcción' ? '' : k.toLowerCase()}`.trim()).join(' · ')));
 		}));
 		if (!visibles.length) tbody.replaceChildren(h('tr', {}, h('td', { colspan: 5, class: 'text-center text-muted py-4' }, 'Ninguna propiedad cumple con estos filtros.')));
 	};

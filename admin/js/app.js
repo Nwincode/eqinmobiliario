@@ -8,24 +8,24 @@ import { session, getPublishState } from './session.js';
 import { aplicarTema } from './tema.js';
 
 const ROUTES = [
-	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', load: () => import('./views/dashboard.js') },
-	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', load: () => import('./views/properties.js') },
-	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', load: () => import('./views/listado.js') },
-	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', load: () => import('./views/leads.js') },
-	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', load: () => import('./views/clientes.js') },
-	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', load: () => import('./views/agenda.js') },
-	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', load: () => import('./views/propietarios.js') },
-	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', load: () => import('./views/ia.js') },
-	{ path: 'google', label: 'Google', icon: 'icon-search', load: () => import('./views/google.js') },
-	{ path: 'difusion', label: 'Difusión', icon: 'icon-bullhorn', load: () => import('./views/difusion.js') },
-	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', load: () => import('./views/agents.js'), admin: true },
-	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', load: () => import('./views/testimonials.js'), admin: true },
-	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', load: () => import('./views/pages.js'), admin: true },
-	{ path: 'blog', label: 'Blog', icon: 'icon-rss-square', load: () => import('./views/blog.js'), admin: true },
-	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', load: () => import('./views/content.js'), admin: true },
-	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', load: () => import('./views/reportes.js'), admin: true },
-	{ path: 'usuarios', label: 'Usuarios', icon: 'icon-vcard', load: () => import('./views/users.js'), admin: true },
-	{ path: 'publicar', label: 'Publicar', icon: 'icon-external-link-square', load: () => import('./views/publish.js') }
+	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
+	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
+	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
+	{ path: 'difusion', label: 'Difusión', icon: 'icon-bullhorn', group: 'Inventario', load: () => import('./views/difusion.js') },
+	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', group: 'Clientes', load: () => import('./views/leads.js') },
+	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
+	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
+	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
+	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
+	{ path: 'google', label: 'Google', icon: 'icon-search', group: 'Herramientas', load: () => import('./views/google.js') },
+	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', group: 'Herramientas', load: () => import('./views/reportes.js'), admin: true },
+	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', group: 'Sitio web', load: () => import('./views/content.js'), admin: true },
+	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', group: 'Sitio web', load: () => import('./views/agents.js'), admin: true },
+	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', group: 'Sitio web', load: () => import('./views/testimonials.js'), admin: true },
+	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', group: 'Sitio web', load: () => import('./views/pages.js'), admin: true },
+	{ path: 'blog', label: 'Blog', icon: 'icon-rss-square', group: 'Sitio web', load: () => import('./views/blog.js'), admin: true },
+	{ path: 'usuarios', label: 'Usuarios', icon: 'icon-vcard', group: 'Administración', load: () => import('./views/users.js'), admin: true },
+	{ path: 'publicar', label: 'Publicar', icon: 'icon-external-link-square', group: 'Administración', load: () => import('./views/publish.js') }
 ];
 
 const root = document.getElementById('app');
@@ -131,24 +131,37 @@ function noAccess(reason) {
 }
 
 function shell() {
+	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
+	const visibles = ROUTES.filter((r) => !r.admin || session.isAdmin);
+	const grupos = [...new Set(visibles.map((r) => r.group))];
 	const nav = h('nav', { class: 'admin-nav', 'aria-label': 'Secciones' },
-		ROUTES.filter((r) => !r.admin || session.isAdmin).map((r) =>
-			h('a', { href: `#/${r.path}`, dataset: { route: r.path } }, h('span', { class: r.icon }), r.label)));
-	const publishBadge = h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning d-none', id: 'publish-pending' }, 'Cambios sin publicar');
+		grupos.map((g) => h('div', { class: 'admin-nav-group' },
+			g === 'Principal' ? null : h('div', { class: 'admin-nav-title' }, g),
+			visibles.filter((r) => r.group === g).map((r) =>
+				h('a', { href: `#/${r.path}`, dataset: { route: r.path } }, h('span', { class: r.icon, 'aria-hidden': 'true' }), r.label)))));
+	const publishBadge = h('a', { href: '#/publicar', class: 'publish-pill d-none', id: 'publish-pending' }, h('span', { class: 'publish-dot' }), 'Cambios sin publicar');
 	const main = h('main', { class: 'admin-main', id: 'view' });
+	const nombre = session.profile.nombre || session.user.email;
+	const iniciales = nombre.split(/[\s@]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 	const sidebar = h('aside', { class: 'admin-sidebar', id: 'sidebar' },
-		h('a', { href: '#/inicio', class: 'admin-brand', 'aria-label': 'Panel de administración' }, h('img', { src: '/Icono_Equipoinmobiliario@0.75x.png', alt: 'Equipo Inmobiliario' })),
+		h('a', { href: '#/inicio', class: 'admin-brand', 'aria-label': 'Panel de administración' },
+			h('img', { src: '/docs/marca/logo/imagotipo-blanco.svg', alt: '' }),
+			h('span', {}, h('strong', {}, 'Equipo Inmobiliario'), h('small', {}, 'Panel de administración'))),
 		nav,
 		h('div', { class: 'admin-user' },
-			h('div', { class: 'small fw-semibold text-truncate' }, session.profile.nombre || session.user.email),
-			h('div', { class: 'small text-muted mb-2' }, session.isAdmin ? 'Administrador' : 'Asesor'),
-			h('div', { class: 'd-flex gap-2' },
-				h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-outline-secondary' }, 'Ver sitio'),
-				h('button', { class: 'btn btn-sm btn-outline-danger', onclick: () => signOut(auth) }, 'Salir'))));
+			h('span', { class: 'admin-avatar', 'aria-hidden': 'true' }, iniciales),
+			h('div', { class: 'admin-user-info' },
+				h('div', { class: 'admin-user-name' }, nombre),
+				h('div', { class: 'admin-user-role' }, session.isAdmin ? 'Administrador' : 'Asesor')),
+			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
+	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
-		h('button', { class: 'btn btn-sm btn-outline-secondary d-lg-none', 'aria-label': 'Menú', onclick: () => sidebar.classList.toggle('open') }, '☰'),
-		h('div', { class: 'ms-auto d-flex gap-2' }, publishBadge));
-	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, h('div', { class: 'admin-content' }, topbar, main)));
+		h('button', { class: 'admin-menu-btn d-lg-none', 'aria-label': 'Menú', onclick: () => sidebar.classList.toggle('open') }, h('span', { class: 'icon-bars', 'aria-hidden': 'true' })),
+		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
+		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
+			publishBadge,
+			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light' }, h('span', { class: 'icon-external-link me-1', 'aria-hidden': 'true' }), 'Ver sitio')));
+	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
 	refreshPublishBadge();
 }
@@ -169,6 +182,10 @@ async function route() {
 	const [, section = 'inicio', ...rest] = location.hash.replace(/^#/, '').split('/');
 	const def = ROUTES.find((r) => r.path === section && (!r.admin || session.isAdmin)) || ROUTES[0];
 	document.querySelectorAll('.admin-nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === def.path));
+	const crumbs = document.getElementById('crumbs');
+	if (crumbs) crumbs.replaceChildren(
+		...(def.group !== 'Principal' ? [h('span', { class: 'admin-crumb-group' }, def.group)] : []),
+		h('span', { class: 'admin-crumb-page' }, def.label));
 	const view = document.getElementById('view');
 	const token = ++renderToken;
 	view.replaceChildren(spinner());
