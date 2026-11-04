@@ -9,6 +9,16 @@ Cuando la sesión llegue al 15 % de uso del contexto se hace `/compact`, antes d
 `.claude/settings.json` hace que la compactación automática ocurra al 15 % de uso
 (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`).
 
+## Regla obligatoria de diseño: siempre con agentes y con revisión final
+Cada vez que se haga o se cambie un diseño (página, sección, tarjeta, panel, correo, imagen):
+1. El diseño lo hace un agente (herramienta Agent), con estas reglas y los archivos del sitio como contexto.
+2. Al terminar, otro agente lo revisa con capturas en celular y computadora. Busca qué se puede mejorar:
+   - jerarquía, espacios y alineación;
+   - contraste, accesibilidad y textos;
+   - que se vea igual al resto del sitio.
+3. Se aplican las mejoras que encuentre y se vuelve a revisar, hasta que no queden mejoras importantes.
+4. Al usuario se le muestra la captura final y qué se mejoró.
+
 ## Otras reglas
 - Un solo chat a la vez para la página eqinmobiliario.gt; no mezclar con el proyecto "ptg".
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
