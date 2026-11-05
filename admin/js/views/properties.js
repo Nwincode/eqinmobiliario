@@ -347,6 +347,19 @@ export async function render(container, [id]) {
 		enMasa(selMasaEstado, guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
 			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`);
 	});
+	const selMasaAsesor = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar asesor a las seleccionadas' },
+		h('option', { value: '' }, 'Asignar asesor…'),
+		h('option', { value: '=ninguno' }, 'Sin asesor'),
+		agents.map((a) => h('option', { value: a.id }, a.nombre)));
+	selMasaAsesor.addEventListener('change', async () => {
+		const v = selMasaAsesor.value;
+		if (!v) return;
+		const agentId = v === '=ninguno' ? '' : v;
+		const nombre = agentName[agentId] || 'sin asesor';
+		await enMasa(selMasaAsesor, guardarMasa({ agentId }, { agentId }), `Asesor asignado: ${nombre}`,
+			(n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`);
+		selMasaAsesor.value = '';
+	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
 			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. Recuerda publicar.`) },
@@ -373,6 +386,7 @@ export async function render(container, [id]) {
 	barra.append(
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
+		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
 		btnMostrar, btnOcultar,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
