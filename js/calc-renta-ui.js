@@ -38,29 +38,32 @@
 			var uso = campo('uso').value;
 			return {
 				tipo: tipo, precio: num(campo('precio')), moneda: moneda(), rentaMensual: num(campo('renta')), uso: uso,
-				regimenISR: 'capital', regimenIVA: R.ivaPorUso(uso),
+				regimenISR: 'capital', regimenIVA: 'auto',
 				vacancia: Math.min(100, num(campo('vacancia'))), gastosOperativos: Math.min(100, num(campo('gastos'))), reservaCapex: 0
 			};
 		}
 
 		// Cascada del primer año, como un estado de resultados: − restas, = subtotales.
-		function desglose(a) {
+		function desglose(a, regimen) {
 			var p = out('desglose');
 			p.textContent = '';
 			p.appendChild(el('p', 'renta-d-titulo', t.rentaDesgloseTitulo));
 			var dl = el('dl');
 			var filas = [
 				['', t.rentaDBruta, a.pgi], ['resta', t.rentaDVacancia, a.vacancia], ['subtotal', t.rentaDEfectivo || '', a.cobrado],
-				['resta', t.rentaDGastos, a.opex], ['resta', t.rentaDIusi, a.iusi, true], ['resta', t.rentaDIsr, a.isr],
-				['total', t.rentaDNeto, a.neto], ['mes', t.rentaDNetoMes || '', a.neto / 12]
+				['resta', t.rentaDGastos, a.opex], ['resta', t.rentaDIusi, a.iusi, true], ['resta', t.rentaDIsr, a.isr]
 			];
+			// IVA según el monto cobrado al año: pequeño contribuyente lo pagas tú; general lo cobras aparte.
+			if (regimen === 'pequeno') filas.push(['resta', t.rentaDIvaPeq || '', a.ivaPropietario]);
+			filas.push(['total', t.rentaDNeto, a.neto], ['mes', t.rentaDNetoMes || '', a.neto / 12]);
+			if (regimen === 'general') filas.push(['info', t.rentaDIvaGen || '', a.ivaInquilino]);
 			for (var i = 0; i < filas.length; i++) {
 				var f = filas[i];
 				if (!f[1]) continue;
 				var fila = el('div', 'renta-d' + (f[0] ? ' renta-d-' + f[0] : ''));
 				var dt = el('dt');
 				var signo = f[0] === 'resta' ? '−' : (f[0] === 'subtotal' || f[0] === 'total') ? '=' : '';
-				var s = el('span', 'renta-d-signo', signo);
+				var s = el('span', 'renta-d-signo', signo || '\u00a0'); // sin signo, un espacio: así la fila conserva la línea base
 				s.setAttribute('aria-hidden', 'true');
 				dt.appendChild(s);
 				dt.appendChild(document.createTextNode(f[1]));
@@ -119,7 +122,7 @@
 			out('neto').classList.toggle('is-negativo', r.netoMensual < 0);
 			out('rendNeto').textContent = pct(r.rendimientoNeto);
 			out('rendBruto').textContent = pct(r.rendimientoBruto);
-			desglose(r.anio1);
+			desglose(r.anio1, r.entradas.regimenIVA);
 			if (r.entradas.regimenIVA === 'general') {
 				out('iva').textContent = fmt(t.rentaIva, { monto: dinero(r.anio1.ivaInquilino / 12) });
 				out('iva').hidden = false;
@@ -135,7 +138,10 @@
 				neto: dinero(ultimo.netoMensual), rend: pct(ultimo.rendimientoNeto), bruto: pct(ultimo.rendimientoBruto),
 				vacancia: e.vacancia, gastos: e.gastosOperativos,
 				bruta: dinero(a.pgi), vacMonto: dinero(a.vacancia), efectivo: dinero(a.cobrado), gastosMonto: dinero(a.opex),
-				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)), isr: dinero(a.isr), netoAnual: dinero(a.neto)
+				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)), isr: dinero(a.isr), netoAnual: dinero(a.neto),
+				// Pequeño contribuyente entra en la cuenta; el IVA general va aparte, como dato.
+				ivaResta: e.regimenIVA === 'pequeno' ? ' − ' + (t.rentaDIvaPeq || 'IVA') + ' ' + dinero(a.ivaPropietario) : '',
+				ivaNota: e.regimenIVA === 'general' ? '\n' + (t.rentaDIvaGen || 'IVA') + ': ' + dinero(a.ivaInquilino) : ''
 			}).slice(0, 1900);
 		}
 

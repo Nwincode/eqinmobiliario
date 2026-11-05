@@ -367,8 +367,8 @@
 			fila('isr', 'resta', -a.isr, base, 'ISR', 'Income tax (ISR)', regimenTexto(e, P, 'es'), regimenTexto(e, P, 'en'))
 		];
 		if (e.regimenIVA === 'pequeno') filas.push(fila('ivaPropietario', 'resta', -a.ivaPropietario, base, 'IVA pequeño contribuyente', 'VAT, small taxpayer',
-			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q ' + num2(P.limitePequenoGTQ, 'es', 0) + ' al año',
-			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q ' + num2(P.limitePequenoGTQ, 'en', 0) + ' a year'));
+			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q\u00a0' + num2(P.limitePequenoGTQ, 'es', 0) + ' al año',
+			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q\u00a0' + num2(P.limitePequenoGTQ, 'en', 0) + ' a year'));
 		filas.push(fila('neto', 'total', a.neto, base, 'Flujo neto para el dueño', 'Net cash flow to the owner', 'Lo que te queda', 'What you keep'));
 		if (e.regimenIVA === 'general') filas.push(fila('ivaInquilino', 'info', a.ivaInquilino, base, 'IVA que cobras al inquilino', 'VAT you charge the tenant',
 			num2(P.ivaGeneral, 'es') + ' % encima de la renta. Se cobra aparte y se entrega a la SAT: no es ingreso tuyo.',

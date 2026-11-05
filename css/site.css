@@ -2646,6 +2646,22 @@ a:hover > .eq-ic-fin,
 .renta-d-mes dd {
 	color: var(--eq-primary);
 }
+/* Dato informativo (IVA general): no entra en la cuenta, va en tono secundario. */
+.renta-d-info {
+	border-top: 1px dashed var(--eq-line);
+	border-bottom: 0;
+	margin-top: 6px;
+	padding-top: 8px;
+	font-size: 13px;
+	color: var(--eq-ink);
+}
+.renta-d-info dt {
+	padding-left: calc(1ch + 6px);
+}
+.renta-d-info dd {
+	font-weight: 400;
+	color: var(--eq-ink);
+}
 /* Al llegar desde «Consultar» de la calculadora, que el formulario no quede bajo el menú fijo. */
 .ficha-contacto .lead-form,
 .renta-lead .lead-form {

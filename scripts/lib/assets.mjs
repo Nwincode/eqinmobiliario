@@ -36,7 +36,8 @@ const RENTA_FILES = ['js/calc-renta.js', 'js/calc-renta-ui.js'];
 const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
 		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^modal/, /^is-wide$/, /^text-(success|danger)$/,
-		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/],
+		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/,
+		/^renta-d-/], // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
 	deep: [/^tns-/, /^site-mobile-menu/, /^site-nav-wrap/, /^vip-lightbox/],
 	greedy: [/data-aos/, /aos-animate/, /tns/],
 	variables: [/.*/]

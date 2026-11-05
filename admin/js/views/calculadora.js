@@ -10,7 +10,7 @@ const USOS = [['habitacional', 'Habitacional (vivienda)'], ['mixto', 'Mixto'], [
 const ISR = [['capital', 'Rentas de capital (10 % sobre el 70 %)'], ['simplificado', 'Régimen simplificado (5 % / 7 %)'], ['utilidades', 'Sobre utilidades (25 %)']];
 const IVA = [['auto', 'Automático, según lo que cobras al año'], ['pequeno', 'Pequeño contribuyente 5 % (lo pagas tú)'], ['general', 'General 12 % (lo cobras al inquilino)']];
 const IVA_CORTO = { pequeno: 'pequeño contribuyente 5 %', general: 'general 12 %' };
-const q = (v) => `Q ${Math.round(v).toLocaleString('es-GT')}`;
+const q = (v) => `Q\u00a0${Math.round(v).toLocaleString('es-GT')}`;
 
 const AVISOS = {
 	terreno: 'Un terreno casi nunca se renta: la referencia de cap rate no aplica y el resultado es solo ilustrativo.',
@@ -201,7 +201,8 @@ export async function render(container) {
 	function estadoTabla(filas, { caption, cols = 'monto', inicio = [] } = {}) {
 		const signo = { resta: '−', subtotal: '=', total: '=' };
 		const monto = (v) => (v === null || v === undefined ? '' : v < 0 ? `−${dinero(-v)}` : dinero(v));
-		const porc = (v) => (v === null || v === undefined ? '' : v < 0 ? `−${pct(-v, 1)}` : pct(v, 1));
+		// Se redondea antes de poner el signo, para que un cero no salga como «-0.0 %».
+		const porc = (v) => { if (v === null || v === undefined) return ''; const r1 = Math.round(v * 1000) / 1000; /* v es fracción: 0.741 = 74.1 % */ return r1 < 0 ? `−${pct(-r1, 1)}` : pct(Math.abs(r1), 1); };
 		const encabezados = cols === 'anio' ? ['Anual', 'Mensual', '% de la renta bruta'] : cols === 'venta' ? ['Monto', '% del precio de venta'] : ['Monto'];
 		const celdas = (f) => {
 			if (f.clave === 'multiplo') return [f.monto === null ? '—' : `${f.monto.toFixed(2)} veces`];
