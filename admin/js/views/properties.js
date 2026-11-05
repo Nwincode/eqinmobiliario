@@ -3,14 +3,14 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount } from '../ui.js';
+, mount, downloadCsv } from '../ui.js';
 import { renderForm, deleteImage } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
-import { generarCodigo, normalizarCodigo } from '../importar.js';
+import { generarCodigo, normalizarCodigo, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import '/js/calc-vacacional.js';
@@ -132,6 +132,43 @@ function motivoVisibilidad(p) {
 		case 'cerrada': return { texto: `Solo con enlace: ${corto(e)}`, color: 'warning', icono: 'icon-link' };
 		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
 		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye' };
+	}
+}
+
+// Exporta el listado con las mismas columnas de la plantilla de importación (se puede volver a importar),
+// más los enlaces de fotos, la página pública y si está publicada. El costo del socio solo lo ve el administrador.
+async function exportarCsv(props, agentName, btn) {
+	btn.disabled = true;
+	try {
+		const cab = [...PLANTILLA[0], 'enlaces_fotos', 'enlace', 'publicado'];
+		const filas = [cab];
+		for (const p of props) {
+			const v = p.vacacional || {};
+			let s = {};
+			if (session.isAdmin && p.operacion === 'vacacional') {
+				s = (await getDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => null))?.data() || {};
+			}
+			const val = {
+				codigo: p.codigo, carpeta: '', titulo: p.titulo, operacion: p.operacion, tipo: p.tipo, estado: p.estado,
+				asesor: agentName[p.agentId] || '', precio: p.precio, moneda: p.moneda, zona: p.zona, ciudad: p.ciudad,
+				direccion: p.direccion, condominio_siglas: p.condominioSiglas, habitaciones: p.habitaciones, banos: p.banos,
+				parqueos: p.parqueos, m2_construccion: p.m2Construccion, m2_terreno: p.m2Terreno,
+				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
+				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
+				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
+				ical: s.icalUrl, socio_nombre: s.nombre, socio_telefono: s.telefono,
+				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
+				enlace: p.slug ? `https://eqinmobiliario.gt/${p.vip ? 'vip' : 'propiedad'}/${p.slug}/` : '',
+				publicado: p.publicado ? 'sí' : 'no'
+			};
+			filas.push(cab.map((c) => String(val[c] ?? '')));
+		}
+		downloadCsv(`propiedades-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+		toast(`Exportadas ${props.length} propiedades.`);
+	} catch (err) {
+		showError(err);
+	} finally {
+		btn.disabled = false;
 	}
 }
 
@@ -260,6 +297,8 @@ export async function render(container, [id]) {
 		pageHeader('Propiedades',
 			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary' },
 				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar desde CSV') : null,
+			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
+				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), ' Exportar (CSV)') : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },

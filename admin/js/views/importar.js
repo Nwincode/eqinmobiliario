@@ -1,11 +1,11 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
-import { db, doc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
+import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
 import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico } from './properties.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -27,6 +27,23 @@ async function enParalelo(items, n, fn) {
 
 const TIPO_POR_EXT = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', avif: 'image/avif', heic: 'image/heic', heif: 'image/heif' };
 const comoArchivo = (blob, nombre) => new File([blob], nombre, { type: blob.type || TIPO_POR_EXT[nombre.split('.').pop().toLowerCase()] || '' });
+
+const V = window.EQVacacional;
+
+// Renta vacacional: une lo del CSV con lo ya guardado y calcula los precios públicos (costo × margen).
+// Devuelve null si no es vacacional. El costo del socio queda solo en properties/{id}/privado/socio.
+async function prepararVacacional(id, it, previo = null) {
+	if ((it.datos.operacion || previo?.operacion) !== 'vacacional') return null;
+	const privRef = doc(db, 'properties', id, 'privado', 'socio');
+	const guardado = previo ? ((await getDoc(privRef).catch(() => null))?.data() || {}) : {};
+	const socio = { margen: V.MARGEN, tarifas: [], nombre: '', telefono: '', icalUrl: '', precioFinde: 0, ...guardado, ...(it.socio || {}) };
+	if (!(Number(socio.precioBase) > 0)) throw new Error('Falta el precio por noche del socio (columna socio_noche).');
+	const vacacional = { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(previo?.vacacional || {}), ...(it.vac || {}) };
+	const pub = vacacionalPublico({ socio, vacacional });
+	const { updatedAt, updatedBy, ...resto } = socio;
+	return { privRef, pub, socio: resto };
+}
+const guardarSocio = (v) => v && setDoc(v.privRef, { ...v.socio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 
 export async function render(container) {
 	container.replaceChildren();
@@ -336,7 +353,8 @@ export async function render(container) {
 					const pref = doc(db, 'properties', p.id);
 					const r = await subirFotos(it, `properties/${p.id}`, (p.fotos || []).map((f) => f.hash).filter(Boolean));
 					fotosHechas += it.fotos.length;
-					const cambios = { ...it.datos, updatedAt: serverTimestamp(), updatedBy: session.user.uid };
+					const vac = await prepararVacacional(p.id, it, p);
+					const cambios = { ...it.datos, ...(vac ? vac.pub : {}), updatedAt: serverTimestamp(), updatedBy: session.user.uid };
 					delete cambios.codigo;
 					if (cambios.estado && estadoDe(p).valor !== cambios.estado) {
 						cambios.estadoFecha = serverTimestamp();
@@ -350,14 +368,16 @@ export async function render(container) {
 					}
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
 					await updateDoc(pref, cambios);
+					await guardarSocio(vac);
 					Object.assign(p, cambios);
 					cuenta.actualizadas++;
 					anotar('ok', 'icon-refresh', `Actualizada: ${it.datos.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto nueva' : 'fotos nuevas'}${r.repetidas ? `, ${r.repetidas} ya ${r.repetidas === 1 ? 'estaba' : 'estaban'}` : ''})`, r.fallas);
 				} else {
 					const nref = doc(collection(db, 'properties'));
+					const vac = await prepararVacacional(nref.id, it);
 					const r = await subirFotos(it, `properties/${nref.id}`, []);
 					fotosHechas += it.fotos.length;
-					const d = { ...datosIniciales(), agentId: '', descripcion: '', ...it.datos };
+					const d = { ...datosIniciales(), agentId: '', descripcion: '', ...it.datos, ...(vac ? vac.pub : {}) };
 					d.publicado = false;
 					d.slug = slugLibre(titulo, slugs);
 					d.estado = estadoDe(d).valor;
