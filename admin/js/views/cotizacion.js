@@ -239,7 +239,7 @@ async function vistaEmpresa(container) {
 		h('p', { class: 'col-12 small text-muted mb-0' }, 'Cuando factura la empresa, cada cotización muestra (solo dentro del panel) cuánto le queda al asesor después de impuestos.'),
 		fila(v, 'isrPct', 'ISR', { tipo: 'number', sufijo: '% del honorario', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
 			ayuda: `${FUENTE_ISR}: 5 % sobre los primeros Q 30,000 del mes y 7 % sobre el excedente. Solo aplica en el régimen general.` }),
-		fila(v, 'pctAsesor', 'Para el asesor', { tipo: 'number', sufijo: '% del neto', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
+		fila(v, 'pctAsesor', 'Porcentaje para el asesor', { tipo: 'number', sufijo: '% del neto', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
 			ayuda: 'Se aplica después de impuestos. 100 % si todo el neto es del asesor. Se puede cambiar en cada cotización.' }));
 	const nuevas = grupoCard('icon-file-text-o', 'Cotizaciones nuevas',
 		fila(v, 'vigenciaDias', 'Vigencia', { tipo: 'number', sufijo: 'días', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
@@ -375,7 +375,16 @@ async function editor(container, id, { duplicar = false } = {}) {
 		c.emisor = v === 'asesor' ? emisorDesde('asesor', { asesor: asesorDatos }) : { ...empresaActual };
 		aplicarEmisor(); pintarPanelEmisor(); pintarAvisoEmisor(); pintarLineas(); cambio();
 		liqCard.hidden = v !== 'empresa';
+		pintarAyudaEmisor();
 	}, uid('emisor-label'));
+	const ayudaEmisor = h('div', { class: 'form-text', id: uid('emisor-ayuda') });
+	tipoEmisor.setAttribute('aria-describedby', uid('emisor-ayuda'));
+	function pintarAyudaEmisor() {
+		ayudaEmisor.textContent = c.emisorTipo === 'empresa'
+			? 'La factura sale a nombre de la empresa. Abajo ves cuánto le toca al asesor después de impuestos (eso no lo ve el cliente).'
+			: 'La factura sale a nombre del asesor, con su NIT y su régimen de IVA.';
+	}
+	pintarAyudaEmisor();
 
 	const modoRadios = segmentado('cot-modo', MODOS, c.modo, (v) => { c.modo = v; pintarLineas(); cambio(); }, uid('modo-label'));
 	const ayudaModo = h('div', { class: 'form-text', id: uid('modo-ayuda') });
@@ -385,7 +394,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 			: (c.regimen === 'pequeno' ? 'El honorario es el precio final; el 5 % sale de ahí.' : 'Se muestran el honorario y el IVA por separado.');
 	};
 	const emisor = grupo('icon-id-card-o', 'Quién factura y precio',
-		h('div', { class: 'col-12' }, h('span', { class: 'form-label d-block', id: uid('emisor-label') }, '¿Quién factura?'), tipoEmisor),
+		h('div', { class: 'col-12' }, h('span', { class: 'form-label d-block', id: uid('emisor-label') }, '¿Quién factura?'), tipoEmisor, ayudaEmisor),
 		panelEmisor, avisoEmisor,
 		h('div', { class: 'col-12 cot-sep' }, h('span', { class: 'form-label d-block', id: uid('modo-label') }, 'Precio'), modoRadios, ayudaModo));
 
@@ -540,7 +549,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const liqCuerpo = h('div', { class: 'cot-liq-cuerpo', 'aria-live': 'polite' });
 	const idPctA = uid('pct-asesor');
 	const pctAsesorInput = h('div', { class: 'cot-liq-pct' },
-		h('label', { class: 'form-label', for: idPctA }, 'Para el asesor'),
+		h('label', { class: 'form-label', for: idPctA }, 'Porcentaje para el asesor'),
 		h('div', { class: 'input-group' },
 			h('input', { class: 'form-control', id: idPctA, type: 'number', inputmode: 'decimal', min: '0', max: '100', step: 'any', value: c.liquidacion.pctAsesor ?? '', 'aria-describedby': `${idPctA}-ayuda`,
 				oninput: (e) => { c.liquidacion.pctAsesor = e.target.value; sucio = true; pintarLiquidacion(); } }),
@@ -556,7 +565,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		liqCuerpo.replaceChildren(...ls.map((t) => {
 			const m = (v) => dinero(v, t.moneda);
 			const mes = t.mensual ? ' al mes' : '';
-			const filas = [fila(`Total cobrado${mes}`, m(t.cobrado))];
+			const filas = [fila(`Total que paga el cliente${mes}`, m(t.cobrado))];
 			if (t.regimen === 'general') {
 				filas.push(fila('IVA a pagar (12 %)', m(t.iva), { signo: '− ' }));
 				filas.push(fila(`ISR (${numero(t.isrPct)} % del honorario)`, m(t.isr), { signo: '− ', nota: FUENTE_ISR }));

@@ -2628,11 +2628,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	margin: 0;
 }
 .cot-switch .form-check-input {
+	border-color: var(--adm-muted);
 	width: 2.75em;
 	height: 1.5em;
 	margin: 0;
 	flex: 0 0 auto;
 	cursor: pointer;
+}
+.cot-switch .form-check-input:focus-visible {
+	outline: 2px solid var(--adm-primary);
+	outline-offset: 2px;
+}
+.cot-switch .form-check-input:checked {
+	border-color: var(--adm-primary);
 }
 .cot-switch .form-check-label {
 	font-weight: 600;
