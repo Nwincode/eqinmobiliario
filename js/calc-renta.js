@@ -57,7 +57,7 @@
 
 		// Comisión de arrendamiento (corretaje). Los valores sí/no son booleanos (unidad 'sí/no').
 		comisionActiva: { valor: true, etiqueta: 'Cobrar comisión de arrendamiento', unidad: 'sí/no', grupo: 'Comisión', fuente: FUENTE_COMISION + '.', confirmar: false },
-		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato (1 a 30)', unidad: 'años', grupo: 'Comisión', fuente: 'Supuesto del asesor.', confirmar: true },
+		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato, de 1 a 30', unidad: 'años', grupo: 'Comisión', fuente: 'Supuesto del asesor.', confirmar: true },
 		comisionEnRenovacion: { valor: true, etiqueta: 'Cada contrato nuevo o renovación paga comisión', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Supuesto; se negocia con el propietario.', confirmar: true },
 		escalaContinua: { valor: false, etiqueta: 'Renovación con el mismo inquilino sigue la escala (no reinicia)', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación reinicia la escala (valor no). Opción avanzada: si no reinicia, un contrato del año a al año b del arrendamiento paga meses(b) − meses(a − 1) rentas.', confirmar: false },
 		ivaComision: { valor: 12, etiqueta: 'IVA sobre la factura de la comisión', unidad: '%', grupo: 'Comisión', fuente: 'Ley del IVA art. 3 num. 2 y art. 10 (servicio gravado). Es costo para el pequeño contribuyente; en el régimen general de IVA se toma como crédito fiscal y no es costo.', confirmar: true }
@@ -461,7 +461,7 @@
 		var en = lang === 'en', m = r.entradas.moneda, cm = r.comision;
 		var meses = num2(c.meses, lang), anios = c.anios;
 		var ivaTxt = cm.recuperaIva ? (en ? ' (VAT is input credit)' : ' (el IVA es crédito fiscal)') : (en ? ' + VAT' : ' + IVA');
-		var isrTxt = r.entradas.regimenISR === 'capital' ? (en ? ' Does not lower ISR (fixed 30% deduction).' : ' No baja el ISR (deducción fija del 30 %).') : '';
+		var isrTxt = r.entradas.regimenISR === 'capital' ? (en ? ' Does not lower ISR (fixed 30% deduction).' : ' No baja el ISR (deducción fija del 30\u00a0%).') : '';
 		return en
 			? meses + ' months of rent of ' + dinero(c.rentaBase, m, 'en') + ivaTxt + ' = ' + dinero(c.costo, m, 'en') + ', paid when signing (year ' + c.inicio + '); spread over ' + anios + ' year' + (anios === 1 ? '' : 's') + '.' + isrTxt
 			: meses + ' renta' + (c.meses === 1 ? '' : 's') + ' de ' + dinero(c.rentaBase, m, 'es') + ivaTxt + ' = ' + dinero(c.costo, m, 'es') + ', pagada al firmar (año ' + c.inicio + '); repartida en ' + anios + ' año' + (anios === 1 ? '' : 's') + '.' + isrTxt;
