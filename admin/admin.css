@@ -3363,6 +3363,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	border-color: var(--eq-warning);
 	box-shadow: 0 0 0 3px color-mix(in srgb, var(--eq-warning) 25%, transparent);
 }
+.campo-falta input:not([type=checkbox]):not([type=radio]):focus,
+.campo-falta select:focus,
+.campo-falta textarea:focus {
+	border-color: var(--adm-primary);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--adm-primary) 30%, transparent);
+}
 .campo-falta-nota {
 	display: flex;
 	align-items: center;
@@ -3467,4 +3473,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .pendientes-fila-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .pendientes-fila-nombre { font-weight: 600; color: var(--adm-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pendientes-fila-falta { font-size: .8rem; color: var(--adm-muted); margin-top: 2px; }
+@media (max-width: 991.98px) {
+	.pendientes-fila-falta { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
+/* Enlace «Ver …» dentro del encabezado de otras tarjetas de Inicio (p. ej. «Para hoy»). */
+.card-header .card-header-ver { margin: -10px -8px -10px auto; }
 .pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }

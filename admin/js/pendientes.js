@@ -117,9 +117,9 @@ function irA(formEl, campo) {
 	control?.focus({ preventScroll: true });
 }
 
-// Tarjeta de Inicio: lista agrupada con enlace a cada registro (hasta 3 por grupo).
-const POR_GRUPO = 3;
+// Tarjeta de Inicio: lista agrupada con enlace a cada registro (hasta 3 por grupo; 2 en celular).
 export function tarjetaPendientes(pend) {
+	const POR_GRUPO = window.matchMedia?.('(max-width: 991.98px)').matches ? 2 : 3;
 	const grupos = Object.entries(pend).filter(([, l]) => l.length);
 	const total = grupos.reduce((n, [, l]) => n + l.length, 0);
 	if (!total) return null;
@@ -148,7 +148,7 @@ export function tarjetaPendientes(pend) {
 					h('a', { href: enlaceRevisar(tipo, x.id), class: 'pendientes-fila' },
 						h('span', { class: 'pendientes-fila-texto' },
 							h('span', { class: 'pendientes-fila-nombre' }, x.nombre),
-							h('span', { class: 'pendientes-fila-falta' }, `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}`)),
+							h('span', { class: 'pendientes-fila-falta', title: `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}` }, `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}`)),
 						h('span', { class: 'pendientes-fila-flecha icon-angle-right', 'aria-hidden': 'true' }))))),
 				resto > 0 ? h('a', { href: `#/${r.ruta}/incompletos`, class: 'pendientes-mas' },
 					`Ver ${resto} más`, h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' })) : null);

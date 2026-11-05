@@ -47,7 +47,7 @@ export async function render(container) {
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
 		pend ? tarjetaPendientes(pend) : null,
 		canSeeLeads ? h('div', { class: 'card mb-4' },
-			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'small' }, 'Abrir agenda →')),
+			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
 			h('div', { class: 'card-body' },
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 					vencidas.length ? h('a', { href: '#/agenda', class: 'badge text-bg-danger text-decoration-none' }, `${vencidas.length} seguimientos vencidos`) : h('span', { class: 'badge text-bg-success' }, 'Sin seguimientos vencidos'),
