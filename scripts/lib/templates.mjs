@@ -872,6 +872,7 @@ function rentaWidget(ctx, p = null) {
 							<div class="row g-3 pt-2">
 								<div class="col-6">${num('rc-vacancia', 'vacancia', t.rentaVacancia, 5, 'min="0" max="100" step="1"')}</div>
 								<div class="col-6">${num('rc-gastos', 'gastos', t.rentaGastos, 10, 'min="0" max="100" step="1"')}</div>
+								<div class="col-sm-6"><label class="form-label" for="rc-plazo">${t.rentaPlazoContrato}</label><select id="rc-plazo" class="form-select" name="plazoContrato">${[1, 2, 3, 5, 10, 30].map((n) => opt(n, n === 1 ? t.rentaPlazoAnio : String(t.rentaPlazoAnios).replace('{n}', n), n === EQRenta.PARAMS.plazoContrato.valor)).join('')}</select></div>
 							</div>
 						</details>
 						<div class="renta-resultado" aria-live="polite" aria-atomic="true">

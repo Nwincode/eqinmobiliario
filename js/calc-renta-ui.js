@@ -39,7 +39,9 @@
 			return {
 				tipo: tipo, precio: num(campo('precio')), moneda: moneda(), rentaMensual: num(campo('renta')), uso: uso,
 				regimenISR: 'capital', regimenIVA: 'auto',
-				vacancia: Math.min(100, num(campo('vacancia'))), gastosOperativos: Math.min(100, num(campo('gastos'))), reservaCapex: 0
+				vacancia: Math.min(100, num(campo('vacancia'))), gastosOperativos: Math.min(100, num(campo('gastos'))), reservaCapex: 0,
+				// Comisión de arrendamiento: plazo elegido (por defecto el del motor); el resto, valores del motor.
+				plazoContrato: num(campo('plazoContrato')) || R.PARAMS.plazoContrato.valor
 			};
 		}
 
@@ -51,8 +53,11 @@
 			var dl = el('dl');
 			var filas = [
 				['', t.rentaDBruta, a.pgi], ['resta', t.rentaDVacancia, a.vacancia], ['subtotal', t.rentaDEfectivo || '', a.cobrado],
-				['resta', t.rentaDGastos, a.opex], ['resta', t.rentaDIusi, a.iusi, true], ['resta', t.rentaDIsr, a.isr]
+				['resta', t.rentaDGastos, a.opex], ['resta', t.rentaDIusi, a.iusi, true]
 			];
+			// Comisión de arrendamiento repartida en los años del contrato (en caja se paga al firmar).
+			if (a.comisionDevengada > 0) filas.push(['resta', t.rentaDComision || '', a.comisionDevengada]);
+			filas.push(['resta', t.rentaDIsr, a.isr]);
 			// IVA según el monto cobrado al año: pequeño contribuyente lo pagas tú; general lo cobras aparte.
 			if (regimen === 'pequeno') filas.push(['resta', t.rentaDIvaPeq || '', a.ivaPropietario]);
 			filas.push(['total', t.rentaDNeto, a.neto], ['mes', t.rentaDNetoMes || '', a.neto / 12]);
@@ -138,7 +143,9 @@
 				neto: dinero(ultimo.netoMensual), rend: pct(ultimo.rendimientoNeto), bruto: pct(ultimo.rendimientoBruto),
 				vacancia: e.vacancia, gastos: e.gastosOperativos,
 				bruta: dinero(a.pgi), vacMonto: dinero(a.vacancia), efectivo: dinero(a.cobrado), gastosMonto: dinero(a.opex),
-				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)), isr: dinero(a.isr), netoAnual: dinero(a.neto),
+				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)),
+				comisionResta: a.comisionDevengada > 0 ? ' − ' + (t.rentaDComision || '') + ' ' + dinero(a.comisionDevengada) : '',
+				isr: dinero(a.isr), netoAnual: dinero(a.neto),
 				// Pequeño contribuyente entra en la cuenta; el IVA general va aparte, como dato.
 				ivaResta: e.regimenIVA === 'pequeno' ? ' − ' + (t.rentaDIvaPeq || 'IVA') + ' ' + dinero(a.ivaPropietario) : '',
 				ivaNota: e.regimenIVA === 'general' ? '\n' + (t.rentaDIvaGen || 'IVA') + ': ' + dinero(a.ivaInquilino) : ''
