@@ -11,6 +11,9 @@ import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo } from '../importar.js';
+import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
+
+const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
@@ -78,7 +81,7 @@ function motivoVisibilidad(p) {
 
 export async function render(container, [id]) {
 	if (id === 'importar') return (await import('./importar.js')).render(container);
-	if (id) return renderEditor(container, id);
+	if (id && id !== 'incompletos') return renderEditor(container, id);
 
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
@@ -106,7 +109,9 @@ export async function render(container, [id]) {
 		h('option', { value: 'borrador' }, 'Borradores'),
 		h('option', { value: 'vip' }, 'VIP'),
 		h('option', { value: 'destacada' }, 'Destacadas'),
-		session.isAdmin ? null : h('option', { value: 'mias' }, 'Solo las mías'));
+		session.isAdmin ? null : h('option', { value: 'mias' }, 'Solo las mías'),
+		h('option', { value: 'incompletas' }, 'Con datos por completar'));
+	if (id === 'incompletos') fExtra.value = 'incompletas';
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
 
@@ -159,9 +164,10 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
-				p.vip || p.destacada ? h('div', { class: 'mt-1 d-flex gap-1' },
+				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
-					p.destacada ? badge('Destacada', 'info') : null) : null),
+					p.destacada ? badge('Destacada', 'info') : null,
+					chipFaltan(faltanDe(p))) : null),
 			h('td', { class: 'text-nowrap celda-precio' },
 				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
 				h('div', { class: 'small text-muted celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta')),
@@ -185,7 +191,8 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'borrador' || !p.publicado)
 			&& (fExtra.value !== 'vip' || p.vip)
 			&& (fExtra.value !== 'destacada' || p.destacada)
-			&& (fExtra.value !== 'mias' || p.agentId === session.agentId));
+			&& (fExtra.value !== 'mias' || p.agentId === session.agentId)
+			&& (fExtra.value !== 'incompletas' || faltanDe(p).length));
 		count.textContent = `${rows.length} de ${props.length}`;
 		tbody.replaceChildren(...rows.map(fila));
 	};
@@ -522,6 +529,7 @@ async function renderEditor(container, id) {
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,
+		vigilarFormulario(form, 'propiedades'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 		h('div', { class: 'sticky-actions' },
 			saveBtn,

@@ -147,7 +147,7 @@ export function renderForm(schema, data, options = {}) {
 		const id = `f-${Math.random().toString(36).slice(2, 9)}`;
 		if (control.matches && control.matches('input, select, textarea')) control.id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
-		return h('div', { class: `col-12 col-md-${field.cols || 12}` },
+		return h('div', { class: `col-12 col-md-${field.cols || 12}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
 			field.help ? h('div', { class: 'form-text' }, field.help) : null);
 	}

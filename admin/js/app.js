@@ -6,6 +6,7 @@ import {
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { session, getPublishState, revisarAutoPublicar } from './session.js';
 import { aplicarTema } from './tema.js';
+import { actualizarInsignias } from './pendientes.js';
 
 const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
@@ -166,6 +167,7 @@ function shell() {
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
 	refreshPublishBadge();
+	actualizarInsignias(true);
 }
 
 async function refreshPublishBadge() {
@@ -177,6 +179,7 @@ async function refreshPublishBadge() {
 	} catch { /* sin permisos o sin conexión */ }
 }
 document.addEventListener('publish-state', refreshPublishBadge);
+document.addEventListener('pendientes', () => actualizarInsignias(true));
 
 let renderToken = 0;
 async function route() {
@@ -200,6 +203,7 @@ async function route() {
 		view.replaceChildren(container);
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
+		actualizarInsignias();
 	} catch (err) {
 		showError(err);
 		view.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));

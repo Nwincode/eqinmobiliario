@@ -7,7 +7,8 @@
     "build": "node scripts/build.mjs",
     "serve": "node scripts/serve.mjs",
     "test:renta": "node scripts/test-calc-renta.mjs",
-    "test:cotizacion": "node scripts/test-cotizacion.mjs"
+    "test:cotizacion": "node scripts/test-cotizacion.mjs",
+    "test:pendientes": "node scripts/test-pendientes.mjs"
   },
   "engines": {
     "node": ">=22"

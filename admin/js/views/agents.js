@@ -1,17 +1,19 @@
 import { h, badge } from '../ui.js';
 import { crudView } from '../crud.js';
 import { invalidateAgents } from '../session.js';
+import { revisar, chipFaltan } from '../pendientes.js';
 
 export const render = crudView({
 	collection: 'agents',
 	route: 'asesores',
+	pendientes: 'asesores',
 	title: 'Asesores',
 	singular: 'Asesor',
 	intro: 'El equipo que aparece en la portada y en cada propiedad. Para que un asesor entre al panel, crea su usuario en "Usuarios" y vincúlalo aquí.',
 	defaults: { activo: true, cargo: 'Agente de Bienes Raíces' },
 	columns: [
 		['', (a) => h('img', { class: 'avatar', src: a.foto || '', alt: '' })],
-		['Nombre', (a) => h('span', { class: 'fw-semibold' }, a.nombre)],
+		['Nombre', (a) => [h('div', { class: 'fw-semibold' }, a.nombre || '(sin nombre)'), chipFaltan(revisar('asesores', a))]],
 		['Cargo', (a) => a.cargo || '—'],
 		['WhatsApp', (a) => a.whatsapp || '—'],
 		['Estado', (a) => (a.activo ? badge('Visible', 'success') : badge('Oculto', 'secondary'))]

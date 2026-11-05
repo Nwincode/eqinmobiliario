@@ -38,6 +38,7 @@ export async function markPending(descripcion) {
 			ultimoCambioPor: session.profile?.nombre || session.user?.email || ''
 		}, { merge: true });
 		document.dispatchEvent(new CustomEvent('publish-state'));
+		document.dispatchEvent(new CustomEvent('pendientes'));
 		programarAutoPublicar();
 	} catch (err) {
 		console.warn('No se pudo marcar el cambio pendiente', err);

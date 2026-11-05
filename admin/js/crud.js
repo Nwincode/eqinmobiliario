@@ -3,7 +3,9 @@ import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestam
 import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount } from './ui.js';
 import { renderForm } from './form.js';
 import { markPending } from './session.js';
+import { revisar, vigilarFormulario } from './pendientes.js';
 
+// cfg.pendientes: tipo de pendientes.js para marcar datos por completar.
 // cfg: { collection, route, title, singular, schema(isNew), columns: [[label, fn(item)]], defaults, beforeSave(data, ref, all), afterSave() }
 export function crudView(cfg) {
 	async function loadAll() {
@@ -13,10 +15,13 @@ export function crudView(cfg) {
 	}
 
 	async function list(container) {
-		const items = await loadAll();
+		let items = await loadAll();
+		const soloIncompletos = cfg.pendientes && /\/incompletos$/.test(location.hash);
+		if (soloIncompletos) items = items.filter((it) => revisar(cfg.pendientes, it).length);
 		mount(container, 
 			pageHeader(cfg.title, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `+ ${cfg.singular}`)),
 			cfg.intro ? h('p', { class: 'text-muted' }, cfg.intro) : null,
+			soloIncompletos ? h('p', { class: 'small' }, 'Mostrando solo los que tienen datos por completar. ', h('a', { href: `#/${cfg.route}` }, 'Ver todos')) : null,
 			items.length
 				? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
 					h('table', { class: 'table table-hover table-admin' },
@@ -73,6 +78,7 @@ export function crudView(cfg) {
 		mount(container, 
 			pageHeader(isNew ? `Nuevo: ${cfg.singular.toLowerCase()}` : (data.nombre || data.titulo),
 				h('a', { href: `#/${cfg.route}`, class: 'btn btn-light' }, 'Volver')),
+			cfg.pendientes ? vigilarFormulario(form, cfg.pendientes) : null,
 			h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 			h('div', { class: 'sticky-actions' },
 				h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar'),
@@ -80,5 +86,5 @@ export function crudView(cfg) {
 				isNew ? null : h('button', { class: 'btn btn-outline-danger ms-auto', onclick: remove }, 'Eliminar')));
 	}
 
-	return async (container, [id]) => (id ? editor(container, id) : list(container));
+	return async (container, [id]) => (id && id !== 'incompletos' ? editor(container, id) : list(container));
 }

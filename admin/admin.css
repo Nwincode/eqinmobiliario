@@ -3247,3 +3247,64 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 }
 /* ===== Fin Cotización ===== */
+
+/* ---- Datos por completar (pendientes.js) ---- */
+.nav-aviso,
+.admin-nav a .nav-aviso {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 6px;
+	border-radius: 999px;
+	background: var(--eq-warning);
+	color: var(--eq-dark);
+	font-size: .72rem;
+	font-weight: 700;
+	line-height: 1;
+}
+.admin-nav a .nav-aviso { margin-left: auto; width: auto; }
+.admin-nav a .nav-aviso span { width: auto; color: inherit; }
+.chip-falta {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-top: 4px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: color-mix(in oklab, var(--eq-warning) 18%, var(--adm-surface));
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 60%, var(--adm-surface));
+	color: var(--eq-dark);
+	font-size: .75rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.aviso-faltan {
+	margin-bottom: 1rem;
+	padding: .75rem 1rem;
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 55%, var(--adm-surface));
+	border-left: 4px solid var(--eq-warning);
+	border-radius: 8px;
+	background: color-mix(in oklab, var(--eq-warning) 12%, var(--adm-surface));
+	color: var(--adm-text);
+}
+.aviso-faltan-titulo { font-weight: 700; color: var(--eq-dark); margin-bottom: .25rem; }
+.aviso-faltan ul { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0; padding-left: 1.1rem; }
+.aviso-faltan a { color: var(--eq-dark); font-weight: 600; min-height: 32px; display: inline-flex; align-items: center; }
+.campo-falta input:not([type=checkbox]):not([type=radio]),
+.campo-falta select,
+.campo-falta textarea,
+.campo-falta .dropzone {
+	border-color: var(--eq-warning);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--eq-warning) 25%, transparent);
+}
+.campo-falta-nota { margin-top: 4px; font-size: .8rem; font-weight: 600; color: var(--eq-dark); }
+.texto-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+.pendientes-grupo {
+	display: flex;
+	align-items: center;
+	background: var(--adm-bg, var(--adm-surface));
+	font-weight: 700;
+	font-size: .85rem;
+}

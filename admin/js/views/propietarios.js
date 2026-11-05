@@ -6,6 +6,7 @@ import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
+import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
 function diasExclusiva(p) {
@@ -28,19 +29,30 @@ async function renderLista(container) {
 	const nombreAsesor = Object.fromEntries(agentes.map((a) => [a.id, a.nombre]));
 	const porVencer = lista.filter((p) => { const d = diasExclusiva(p); return d !== null && d <= 30; });
 	lista.sort((a, b) => (diasExclusiva(a) ?? 9999) - (diasExclusiva(b) ?? 9999));
+	const faltanDe = (p) => revisar('propietarios', p);
+	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
+	const tabla = h('div');
+	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
+		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, p.telefono || p.email || ''), chipFaltan(faltanDe(p))),
+		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
+		h('td', {}, estadoExclusiva(p)),
+		h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
+		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || 'Sin asignar') : null);
+	const dibujar = () => {
+		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
+		tabla.replaceChildren(vis.length ? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' }, h('table', { class: 'table table-hover table-admin mb-0' },
+			h('thead', {}, h('tr', {}, ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
+			h('tbody', {}, vis.map(fila)))))
+			: h('p', { class: 'text-muted' }, 'Todos los propietarios tienen sus datos completos.'));
+	};
+	solo.addEventListener('change', dibujar);
+	dibujar();
 
 	mount(container,
 		pageHeader('Propietarios', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, '+ Propietario')),
 		h('p', { class: 'text-muted' }, 'Dueños de los inmuebles que manejan: contacto, propiedades, exclusiva y comisión acordada.'),
 		porVencer.length ? h('div', { class: 'alert alert-warning' }, `${porVencer.length} exclusiva(s) vencidas o por vencer en 30 días. Contacta al propietario para renovarla.`) : null,
-		lista.length ? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' }, h('table', { class: 'table table-hover table-admin mb-0' },
-			h('thead', {}, h('tr', {}, ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-			h('tbody', {}, lista.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-				h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre), h('div', { class: 'small text-muted' }, p.telefono || p.email || '')),
-				h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
-				h('td', {}, estadoExclusiva(p)),
-				h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
-				session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || 'Sin asignar') : null))))))
+		lista.length ? [h('div', { class: 'form-check mb-3' }, solo, h('label', { class: 'form-check-label', for: 'solo-incompletos' }, 'Solo con datos por completar')), tabla]
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
 }
 
@@ -89,6 +101,7 @@ async function renderEditor(container, id) {
 			await setDoc(ref, d);
 			if (d.portalToken) await publicarPortal({ ...d, id: ref.id }).catch((err) => console.warn('Portal sin actualizar', err));
 			toast('Propietario guardado.');
+			avisarCambio();
 			location.hash = '#/propietarios';
 		} catch (err) { showError(err); } finally { btn.disabled = false; }
 	};
@@ -106,6 +119,7 @@ async function renderEditor(container, id) {
 			data.telefono ? h('a', { href: whatsappUrl(data.telefono, `Hola ${String(data.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
 			data.telefono ? h('a', { href: `tel:${data.telefono}`, class: 'btn btn-sm btn-outline-primary' }, 'Llamar') : null,
 			data.contrato ? h('a', { href: data.contrato, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-outline-primary' }, 'Ver contrato') : null) : null,
+		vigilarFormulario(form, 'propietarios'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 		!nuevo ? seccionPortal(Object.assign(data, { id: ref.id }), propiedades) : null,
 		h('div', { class: 'sticky-actions' },
@@ -261,6 +275,6 @@ function seccionPortal(prop, propiedades) {
 }
 
 export async function render(container, [id]) {
-	if (id) return renderEditor(container, id);
+	if (id && id !== 'incompletos') return renderEditor(container, id);
 	return renderLista(container);
 }
