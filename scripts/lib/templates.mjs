@@ -30,6 +30,9 @@ const flechasCarrusel = (id, t, extra = '') => `<div id="${id}" class="eq-flecha
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
 const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
+// Etiqueta de la operación: «En venta», «En renta» o «Renta vacacional».
+const enOperacion = (p, t) => (p.operacion === 'vacacional' ? t.enVacacional : p.operacion === 'renta' ? t.enRenta : t.enVenta);
+const opNombre = (p, t) => (p.operacion === 'vacacional' ? t.vacacional : p.operacion === 'renta' ? t.renta : t.venta);
 const tipoLabel = (p) => (lng(p) === 'en' ? TIPOS_EN[p.tipo] : TIPOS[p.tipo]) || p.tipo;
 const estadoLabel = (p) => (lng(p) === 'en' ? ESTADOS_EN[p.estado] : ESTADOS[p.estado]) || p.estado;
 // Superficie: m² en español; pies cuadrados (con m²) en inglés.
@@ -370,7 +373,7 @@ function estadoBadge(p, inline = false) {
 	const parts = [];
 	if (p.vip) parts.push('<span class="prop-badge prop-badge-vip">VIP</span>');
 	const t = TEXTOS[lng(p)];
-	parts.push(`<span class="prop-badge">${p.operacion === 'renta' ? t.enRenta : t.enVenta}</span>`);
+	parts.push(`<span class="prop-badge">${enOperacion(p, t)}</span>`);
 	if (p.estado && p.estado !== 'disponible') parts.push(`<span class="prop-badge prop-badge-estado ${CLASE_ESTADO[p.estado] || ''}">${esc(estadoLabel(p))}</span>`);
 	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
 }
@@ -403,7 +406,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
-	const msg = mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
+	const msg = mensaje === false ? '' : mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
@@ -703,6 +706,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
+	const hayVacacional = ctx.properties.some((p) => p.operacion === 'vacacional');
 	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, { name: heading, url: path }];
 	const itemListLd = {
 		'@context': 'https://schema.org',
@@ -733,6 +737,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 						<option value="">${t.todas}</option>
 						<option value="venta"${operacion === 'venta' ? ' selected' : ''}>${t.venta}</option>
 						<option value="renta"${operacion === 'renta' ? ' selected' : ''}>${t.renta}</option>
+						${hayVacacional ? `<option value="vacacional"${operacion === 'vacacional' ? ' selected' : ''}>${t.vacacional}</option>` : ''}
 					</select>
 				</div>
 				<div class="col-6 col-md-3 col-lg-3">
@@ -812,7 +817,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
 		image: imagen || undefined,
 		preloadImage: heroImg,
-		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"`
+		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
 	}, body);
 }
 
@@ -829,7 +834,7 @@ export function propertyCode(p) {
 function mortgageCalculator(ctx, p) {
 	const c = ctx.site.calculadora || {};
 	const t = tr(ctx);
-	if (c.visible === false || p.operacion === 'renta' || !p.precio) return '';
+	if (c.visible === false || p.operacion === 'renta' || p.operacion === 'vacacional' || !p.precio) return '';
 	return `<div class="calc-card mt-4" data-calc data-precio="${esc(p.precio)}" data-moneda="${esc(p.moneda || 'USD')}" data-lang="${ctx.lang || 'es'}">
 						<h3 class="h5 mb-3">${ic('calculator')}${t.calcTitulo}</h3>
 						<div class="row g-2">
@@ -910,17 +915,21 @@ function factsList(p) {
 	const t = TEXTOS[lng(p)];
 	const en = lng(p) === 'en';
 	const m2 = p.m2Construccion || p.m2Terreno;
+	const vac = p.operacion === 'vacacional' ? (p.vacacional || {}) : null;
 	const rows = [
 		['building', t.fTipo, tipoLabel(p)],
-		['tag', t.fOperacion, p.operacion === 'renta' ? t.renta : t.venta],
+		['tag', t.fOperacion, opNombre(p, t)],
 		['info-circle', t.fEstado, estadoLabel(p)],
 		['bed', t.fHabitaciones, p.habitaciones],
 		['bath', t.fBanos, p.banos],
 		['car', t.fParqueos, p.parqueos],
 		['home2', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
 		['expand', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
+		['users', t.fHuespedesMax, vac ? vac.huespedesMax : ''],
+		['moon-o', t.fNochesMin, vac && vac.nochesMin > 1 ? fmt(t.vacNochesN, { n: vac.nochesMin }) : ''],
+		['clock-o', t.fHorario, vac ? `${fmt(t.vacCheckIn, { hora: vac.checkIn || '15:00' })} · ${fmt(t.vacCheckOut, { hora: vac.checkOut || '11:00' })}` : ''],
 		['map-marker', t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
-		['usd', t.fPrecioM2, p.operacion !== 'renta' && p.precio && m2
+		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
 	].filter(([, , v]) => v);
@@ -948,11 +957,15 @@ function listingLd(ctx, p) {
 		url: absUrl(ctx, propertyUrl(p)),
 		price: p.vipLanding && p.vipLanding.ocultarPrecio ? undefined : (p.precio || undefined),
 		priceCurrency: p.moneda || 'USD',
+		// Renta vacacional: el precio es por noche, antes de impuestos.
+		priceSpecification: p.operacion === 'vacacional' && p.precio
+			? { '@type': 'UnitPriceSpecification', price: p.precio, priceCurrency: p.moneda || 'USD', unitText: lng(p) === 'en' ? 'night' : 'noche', valueAddedTaxIncluded: false }
+			: undefined,
 		offeredBy: agent
 			? { '@type': 'RealEstateAgent', name: agent.nombre, telephone: agent.telefono || undefined, worksFor: { '@id': orgId(ctx) } }
 			: { '@id': orgId(ctx) },
 		availability: `https://schema.org/${DISPONIBILIDAD_LD[p.estado] || (estadoDe(p).visibilidad === 'visible' ? 'InStock' : 'SoldOut')}`,
-		businessFunction: p.operacion === 'renta' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell'
+		businessFunction: p.operacion === 'renta' || p.operacion === 'vacacional' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell'
 	};
 	return {
 		'@context': 'https://schema.org',
@@ -988,7 +1001,8 @@ function listingLd(ctx, p) {
 // Título automático que cabe en Google (~65 caracteres): se acorta quitando detalles.
 export function autoSeoTitle(p) {
 	const en = lng(p) === 'en';
-	const op = en ? (p.operacion === 'renta' ? 'For Rent' : 'For Sale') : (p.operacion === 'renta' ? 'Renta' : 'Venta');
+	const op = p.operacion === 'vacacional' ? (en ? 'Vacation Rental' : 'Renta vacacional')
+		: en ? (p.operacion === 'renta' ? 'For Rent' : 'For Sale') : (p.operacion === 'renta' ? 'Renta' : 'Venta');
 	const prep = en ? 'in' : 'en';
 	const candidates = [
 		`${p.titulo} | ${op} ${prep} ${[p.zona, p.ciudad].filter(Boolean).join(', ')}`,
@@ -1028,6 +1042,78 @@ function shareButtons(ctx, p) {
 					</div>`;
 }
 
+// ---------------------------------------------------------------- Renta vacacional
+// Cuadro de reserva de la ficha: calendario, fechas, huéspedes y desglose. Las cuentas las hace
+// js/calc-vacacional.js en el navegador. Aquí solo van datos públicos (precios al público por
+// noche y fechas ocupadas); el costo del socio, la ganancia y el iCal viven en privado/socio.
+const VAC_JS = '<script src="__VAC_BUNDLE__" defer></script>';
+export function vacacionalVisible(p) {
+	return Boolean(p && p.operacion === 'vacacional' && p.vacacional && Number(p.vacacional.base) > 0);
+}
+function datosVacacional(p) {
+	const v = p.vacacional || {};
+	const num = (x, d = 0) => (Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : d);
+	const fecha = (x) => /^\d{4}-\d{2}-\d{2}$/.test(String(x || '')) ? String(x) : '';
+	const hora = (x, d) => /^\d{2}:\d{2}$/.test(String(x || '')) ? String(x) : d;
+	return {
+		plan: {
+			base: num(v.base),
+			finde: num(v.finde),
+			tarifas: (v.tarifas || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), precio: num(x.precio) })).filter((x) => x.desde && x.hasta && x.precio > 0)
+		},
+		nochesMin: Math.max(1, Math.round(num(v.nochesMin, 1)) || 1),
+		huespedesMax: Math.max(1, Math.round(num(v.huespedesMax, 2)) || 1),
+		limpieza: num(v.limpieza),
+		deposito: num(v.deposito),
+		checkIn: hora(v.checkIn, '15:00'),
+		checkOut: hora(v.checkOut, '11:00'),
+		bloqueos: (v.bloqueos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta) })).filter((x) => x.desde && x.hasta)
+	};
+}
+function reservaBox(ctx, p) {
+	const t = tr(ctx);
+	const lang = ctx.lang || 'es';
+	const d = datosVacacional(p);
+	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('vac')));
+	const json = JSON.stringify({ ...d, moneda: p.moneda || 'USD', t: textos }).replace(/</g, '\\u003c');
+	const huespedes = Array.from({ length: d.huespedesMax }, (_, i) => i + 1)
+		.map((n) => `<option value="${n}"${n === Math.min(2, d.huespedesMax) ? ' selected' : ''}>${n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n })}</option>`).join('');
+	return `<section class="lead-card vac-card" data-vacacional data-id="${esc(p.id)}" data-lang="${lang}" aria-labelledby="vac-titulo">
+						<script type="application/json" class="vac-datos">${json}</script>
+						<h2 id="vac-titulo" class="h5 mb-1">${ic('calendar')}${t.vacTitulo}</h2>
+						<p class="vac-desde"><strong>${esc(price(p))}</strong></p>
+						<p class="vac-impuestos">${t.vacImpuestos}${d.nochesMin > 1 ? ` · ${fmt(t.vacMinimo, { n: d.nochesMin })}` : ''}</p>
+						<div class="vac-fechas">
+							<button type="button" class="vac-fecha" data-campo="llegada" aria-describedby="vac-ayuda">
+								<span class="vac-fecha-label">${t.vacLlegada}</span>
+								<strong class="vac-fecha-valor" data-out="llegada">${t.vacSinFecha}</strong>
+								<span class="vac-fecha-hora">${fmt(t.vacCheckIn, { hora: d.checkIn })}</span>
+							</button>
+							<button type="button" class="vac-fecha" data-campo="salida" aria-describedby="vac-ayuda">
+								<span class="vac-fecha-label">${t.vacSalida}</span>
+								<strong class="vac-fecha-valor" data-out="salida">${t.vacSinFecha}</strong>
+								<span class="vac-fecha-hora">${fmt(t.vacCheckOut, { hora: d.checkOut })}</span>
+							</button>
+						</div>
+						<div class="vac-cal" role="group" aria-label="${esc(t.vacCalendario)}">
+							<div class="vac-cal-cabecera">
+								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
+								<h3 class="vac-cal-mes" aria-live="polite"></h3>
+								<button type="button" class="eq-flecha vac-cal-next" aria-label="${esc(t.vacMesSiguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+							</div>
+							<div class="vac-cal-cuerpo"></div>
+						</div>
+						<p class="vac-ayuda" id="vac-ayuda" role="status" aria-live="polite">${t.vacEligeLlegada}</p>
+						<div class="vac-huespedes">
+							<label class="form-label" for="vac-huespedes">${ic('users')}${t.vacHuespedes}</label>
+							<select id="vac-huespedes" class="form-select" name="huespedes">${huespedes}</select>
+						</div>
+						<div class="vac-desglose" data-out="desglose" aria-live="polite" hidden></div>
+						${leadForm({ origen: 'reserva', property: p, agentId: p.agentId, boton: t.vacSolicitar, lang, mensaje: false })}
+						<p class="vac-nota">${ic('info-circle')}${t.vacSinCobro}</p>
+					</section>`;
+}
+
 export function propertyPage(ctx, p) {
 	const t = tr(ctx);
 	const r = rt(ctx);
@@ -1039,6 +1125,7 @@ export function propertyPage(ctx, p) {
 	const mapa = p.mapa ? mapEmbedUrl(p.mapa) : '';
 	// Vendida o rentada: la página sigue en su enlace con el aviso y propiedades parecidas.
 	const cerrada = estadoDe(p).visibilidad === 'cerrada';
+	const esVac = vacacionalVisible(p) && !cerrada;
 	const related = parecidas(ctx, p, cerrada ? 6 : 3);
 	const waMsg = fmt(cerrada ? t.msgWaCerrada : t.msgWaFicha, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) });
 	const waCerrada = cerrada ? whatsappLink(ctx.site.contacto.whatsapp, waMsg) : '';
@@ -1094,10 +1181,10 @@ export function propertyPage(ctx, p) {
 			<div class="row justify-content-between">
 				<div class="col-lg-7">
 					<header class="ficha-cabecera">
-						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${p.operacion === 'renta' ? t.enRenta : t.enVenta}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
+						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
-						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}</p>`}
+						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					<section class="ficha-bloque">
@@ -1119,10 +1206,11 @@ export function propertyPage(ctx, p) {
 				</div>
 				<aside class="col-lg-4">
 					<div class="ficha-contacto">
+						${esVac ? reservaBox(ctx, p) : ''}
 						${agentBox(ctx, agent, p)}
-						<div class="lead-card">${cerrada
+						${esVac ? '' : `<div class="lead-card">${cerrada
 							? leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })
-							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>
+							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>`}
 						${shareButtons(ctx, p)}
 					</div>
 				</aside>
@@ -1147,7 +1235,7 @@ export function propertyPage(ctx, p) {
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
 		waMensaje: waMsg,
-		extraJs: !cerrada && rentaVisible(p) ? RENTA_JS : ''
+		extraJs: esVac ? VAC_JS : !cerrada && rentaVisible(p) ? RENTA_JS : ''
 	}, body);
 }
 

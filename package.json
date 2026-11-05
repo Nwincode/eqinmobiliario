@@ -9,7 +9,8 @@
     "test:renta": "node scripts/test-calc-renta.mjs",
     "test:cotizacion": "node scripts/test-cotizacion.mjs",
     "test:pendientes": "node scripts/test-pendientes.mjs",
-    "test:portal": "node scripts/test-portal-clientes.mjs"
+    "test:portal": "node scripts/test-portal-clientes.mjs",
+    "test:vacacional": "node scripts/test-vacacional.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -1,5 +1,6 @@
 // Lectura de Firestore desde las funciones de Netlify (REST, sin SDK).
 // - leerPublico(): documentos que cualquiera puede leer (settings/site, asesores activos).
+// - leerPrivado(): un documento interno (p. ej. properties/{id}/privado/socio).
 // - listar(): colecciones internas (clientes, agenda…). Usa la cuenta de servicio de Google
 //   (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY), que necesita el rol "Cloud Datastore Viewer"
 //   en el proyecto de Firebase.
@@ -41,6 +42,15 @@ export async function leerPublico(ruta) {
 	} catch {
 		return null;
 	}
+}
+
+// Un documento interno con la cuenta de servicio (solo lectura). null si no existe.
+export async function leerPrivado(ruta) {
+	const token = await googleToken(SCOPE_DATOS);
+	const res = await fetch(`${BASE}/${ruta}`, { headers: { Authorization: `Bearer ${token}` } });
+	if (res.status === 404) return null;
+	if (!res.ok) throw new Error(`Error ${res.status} al leer ${ruta.split('/')[0]}`);
+	return documento(await res.json());
 }
 
 // Todos los documentos de una colección interna (hasta 3,000).

@@ -13,12 +13,15 @@ import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
+import '/js/calc-vacacional.js';
+
+const V = window.EQVacacional;
 
 const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
-	const op = d.operacion === 'renta' ? 'Renta' : 'Venta';
+	const op = OPERACION_LABEL[d.operacion] || 'Venta';
 	const titulo = d.titulo || '';
 	const candidates = [
 		`${titulo} | ${op} en ${[d.zona, d.ciudad].filter(Boolean).join(', ')}`,
@@ -34,7 +37,59 @@ function autoDescription(d) {
 }
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
-export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
+export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta'], ['vacacional', 'Renta vacacional']];
+const OPERACION_LABEL = Object.fromEntries(OPERACIONES);
+const esVacacional = (d) => d.operacion === 'vacacional';
+const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).padStart(2, '0')}:00`; return [hh, hh]; });
+
+// Renta vacacional. Lo privado (costo del socio, margen, contacto, enlace iCal) vive en
+// properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
+// los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
+export function vacacionalPublico(d) {
+	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
+	const v = d.vacacional || {};
+	const bloqueos = V.unirRangos(v.bloqueos || []);
+	return {
+		precio: V.precioDesde(pub, hoyISO()) || null,
+		vacacional: {
+			base: pub.base, finde: pub.finde, tarifas: pub.tarifas,
+			nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
+			huespedesMax: Math.max(1, Math.floor(Number(v.huespedesMax) || 1)),
+			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
+			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
+			bloqueos
+		}
+	};
+}
+function desgloseVacacional(el, d) {
+	const s = d.socio || {};
+	const moneda = d.moneda || 'USD';
+	const m = (n) => `${{ USD: 'US$', GTQ: 'Q' }[moneda] || moneda} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	const filas = [['Precio base', s.precioBase], ['Fin de semana (viernes y sábado)', s.precioFinde]]
+		.concat((s.tarifas || []).filter((t) => t.precio).map((t) => [`Tarifa ${t.desde || '…'} al ${t.hasta || '…'}`, t.precio]))
+		.filter(([, p]) => Number(p) > 0);
+	if (!filas.length) {
+		el.replaceChildren(h('p', { class: 'small text-muted mb-0' }, 'Escribe el precio por noche del socio para ver la ganancia y el precio al público.'));
+		return;
+	}
+	const pub = V.planPublico(planSocioDe(s), s.margen);
+	const ejemplo = V.gananciaEstancia({ planSocio: planSocioDe(s), margen: s.margen, llegada: hoyISO(), salida: V.sumarDias(hoyISO(), 7) });
+	el.replaceChildren(h('div', { class: 'table-responsive' }, h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
+		h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Noche'), h('th', { scope: 'col', class: 'text-end' }, 'Socio'),
+			h('th', { scope: 'col', class: 'text-end' }, `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`), h('th', { scope: 'col', class: 'text-end' }, 'Al público'),
+			h('th', { scope: 'col', class: 'text-end' }, 'Impuestos 22 %'))),
+		h('tbody', {}, filas.map(([nombre, p]) => {
+			const n = V.desgloseNoche(p, s.margen);
+			return h('tr', {}, h('td', {}, nombre), h('td', { class: 'text-end' }, m(n.precioSocio)), h('td', { class: 'text-end' }, m(n.ganancia)),
+				h('td', { class: 'text-end fw-semibold' }, m(n.nochePublica)), h('td', { class: 'text-end' }, m(n.impuestos)));
+		})))),
+	h('p', { class: 'small text-muted mb-0' },
+		`En la página se publica "desde ${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA 12 % e INGUAT 10 %). `,
+		`Ejemplo de 7 noches desde hoy: el socio recibe ${m(ejemplo.costoSocio)} y la ganancia es ${m(ejemplo.ganancia)}. `,
+		'La limpieza se cobra aparte sin margen y el depósito no lleva impuestos. Solo el equipo ve esta tabla.'));
+}
 export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
 export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
@@ -89,7 +144,7 @@ export async function render(container, [id]) {
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
 	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, código, zona o residencial…' });
-	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
+	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Todas las operaciones'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
 		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
@@ -172,7 +227,7 @@ export async function render(container, [id]) {
 					chipFaltan(faltanDe(p))) : null),
 			h('td', { class: 'text-nowrap celda-precio' },
 				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('div', { class: 'small text-muted celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta')),
+				h('div', { class: 'small text-muted celda-operacion' }, OPERACION_LABEL[p.operacion] || 'Venta')),
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
@@ -232,12 +287,36 @@ function schema(agentOpts, isNew) {
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
 		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin },
-		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".' },
+		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
 		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
 		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: 4 },
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4 },
+
+		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
+		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
+		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
+		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
+		{ name: 'socio.tarifas', label: 'Precios por fechas (temporada, feriados)', type: 'list', itemLabel: 'Tarifa', when: esVacacional, fields: [
+			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
+			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
+			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, step: 0.01, cols: 4 }
+		] },
+		{ type: 'custom', label: 'Ganancia y precio al público', when: esVacacional, update: desgloseVacacional },
+		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
+		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
+		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
+		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
+		{ name: 'socio.nombre', label: 'Nombre del socio', cols: 6, when: esVacacional, help: 'Privado: no sale en la página.' },
+		{ name: 'socio.telefono', label: 'Teléfono del socio', type: 'tel', cols: 6, when: esVacacional, help: 'Privado.' },
+		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de Airbnb)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
+			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
+			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
+		] },
 
 		{ type: 'section', label: 'Ubicación' },
 		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
@@ -303,6 +382,12 @@ async function renderEditor(container, id) {
 		return;
 	}
 	const data = isNew ? datosIniciales() : snap.data();
+	// Datos privados del socio (renta vacacional). Si no hay permiso o no existe, queda vacío.
+	const privRef = doc(db, 'properties', ref.id, 'privado', 'socio');
+	let socioGuardado = null;
+	if (!isNew && data.operacion === 'vacacional') {
+		try { const ps = await getDoc(privRef); socioGuardado = ps.exists() ? ps.data() : null; } catch { socioGuardado = null; }
+	}
 
 	if (!isNew && !canEdit(data)) {
 		mount(container, pageHeader(data.titulo, h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
@@ -316,7 +401,8 @@ async function renderEditor(container, id) {
 	}
 
 	let slugTouched = Boolean(data.slug);
-	const form = renderForm(schema(agentOpts, isNew), data, { folder: `properties/${ref.id}` });
+	const datosForm = { ...data, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	const form = renderForm(schema(agentOpts, isNew), datosForm, { folder: `properties/${ref.id}` });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
 	form.el.querySelector('input')?.addEventListener('input', (e) => {
@@ -361,7 +447,7 @@ async function renderEditor(container, id) {
 	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
 	const traducirEn = async (d) => {
 		const datos = { ...d };
-		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt;
+		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
 		delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
 		const r = await pedirIA('traducir', { propiedad: datos });
 		return {
@@ -383,6 +469,15 @@ async function renderEditor(container, id) {
 	const save = async (btn) => {
 		if (!form.validate()) return;
 		const d = form.getData();
+		// Lo del socio nunca va al documento público (ni a la traducción).
+		const socio = d.socio || {};
+		delete d.socio;
+		if (esVacacional(d)) {
+			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			Object.assign(d, vacacionalPublico({ ...d, socio }));
+		} else {
+			delete d.vacacional;
+		}
 		d.slug = slugify(d.slug || d.titulo);
 		if (!d.slug) return toast('Escribe un título.', 'warning');
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
@@ -436,6 +531,15 @@ async function renderEditor(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
+			if (esVacacional(d)) {
+				await setDoc(privRef, {
+					precioBase: Number(socio.precioBase) || 0, precioFinde: Number(socio.precioFinde) || 0,
+					margen: socio.margen === null || socio.margen === undefined || socio.margen === '' ? V.MARGEN : Number(socio.margen),
+					tarifas: (socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio) })),
+					nombre: socio.nombre || '', telefono: socio.telefono || '', icalUrl: String(socio.icalUrl || '').trim(),
+					updatedAt: serverTimestamp(), updatedBy: session.user.uid
+				});
+			}
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
@@ -464,6 +568,7 @@ async function renderEditor(container, id) {
 	const remove = async () => {
 		if (!(await confirmDialog(`¿Eliminar "${data.titulo}"? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		try {
+			if (data.operacion === 'vacacional') await deleteDoc(privRef).catch(() => {});
 			await deleteDoc(ref);
 			await Promise.all((data.fotos || []).map((f) => deleteImage(f.path)));
 			await markPending(`Propiedad eliminada: ${data.titulo}`);

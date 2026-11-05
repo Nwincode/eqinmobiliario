@@ -32,12 +32,16 @@ const JS_FILES = [
 // Calculadora de renta: paquete aparte, solo en las fichas en venta y en /calculadora-de-renta/.
 const RENTA_FILES = ['js/calc-renta.js', 'js/calc-renta-ui.js'];
 
+// Renta vacacional: calendario y cotización de la ficha (solo en propiedades por noches).
+const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js'];
+
 // Clases que solo aparecen al ejecutar JavaScript (sliders, menú móvil, animaciones…).
 const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
 		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^modal/, /^is-wide$/, /^text-(success|danger)$/,
 		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/,
-		/^renta-d-/], // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
+		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
+		/^vac-/], // js/vacacional.js arma el calendario y el desglose
 	deep: [/^tns-/, /^site-mobile-menu/, /^site-nav-wrap/, /^vip-lightbox/],
 	greedy: [/data-aos/, /aos-animate/, /tns/],
 	variables: [/.*/]
@@ -73,7 +77,7 @@ export async function buildAssets({ root, dist }) {
 	const css = (await Promise.all(CSS_FILES.map(async (f) => absolutizeUrls(await readFile(path.join(root, f), 'utf8'), f)))).join('\n');
 	const htmlFiles = await listHtml(dist);
 	const [purged] = await new PurgeCSS().purge({
-		content: [...htmlFiles, ...[...JS_FILES, ...RENTA_FILES].filter((f) => !f.includes('bootstrap')).map((f) => path.join(root, f))],
+		content: [...htmlFiles, ...[...JS_FILES, ...RENTA_FILES, ...VAC_FILES].filter((f) => !f.includes('bootstrap')).map((f) => path.join(root, f))],
 		css: [{ raw: css }],
 		safelist: SAFELIST,
 		keyframes: false,
@@ -87,25 +91,31 @@ export async function buildAssets({ root, dist }) {
 	const rentaJs = (await Promise.all(RENTA_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
 	const minRenta = (await transform(rentaJs, { loader: 'js', minify: true, target: 'es2017' })).code;
 
-	const version = hash(minCss + minJs + minRenta);
+	const vacJs = (await Promise.all(VAC_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
+	const minVac = (await transform(vacJs, { loader: 'js', minify: true, target: 'es2017' })).code;
+
+	const version = hash(minCss + minJs + minRenta + minVac);
 	const outDir = path.join(dist, 'assets', version);
 	await mkdir(outDir, { recursive: true });
 	await writeFile(path.join(outDir, 'site.css'), minCss);
 	await writeFile(path.join(outDir, 'site.js'), minJs);
 	await writeFile(path.join(outDir, 'renta.js'), minRenta);
+	await writeFile(path.join(outDir, 'vacacional.js'), minVac);
 
 	const cssUrl = `/assets/${version}/site.css`;
 	const jsUrl = `/assets/${version}/site.js`;
 	const rentaUrl = `/assets/${version}/renta.js`;
+	const vacUrl = `/assets/${version}/vacacional.js`;
 	for (const file of htmlFiles) {
 		const html = await readFile(file, 'utf8');
-		await writeFile(file, html.replaceAll('__CSS_BUNDLE__', cssUrl).replaceAll('__JS_BUNDLE__', jsUrl).replaceAll('__RENTA_BUNDLE__', rentaUrl));
+		await writeFile(file, html.replaceAll('__CSS_BUNDLE__', cssUrl).replaceAll('__JS_BUNDLE__', jsUrl).replaceAll('__RENTA_BUNDLE__', rentaUrl).replaceAll('__VAC_BUNDLE__', vacUrl));
 	}
 	return {
 		cssKb: Math.round(Buffer.byteLength(minCss) / 1024),
 		cssOriginalKb: Math.round(Buffer.byteLength(css) / 1024),
 		jsKb: Math.round(Buffer.byteLength(minJs) / 1024),
 		jsOriginalKb: Math.round(Buffer.byteLength(js) / 1024),
-		rentaKb: Math.round(Buffer.byteLength(minRenta) / 1024)
+		rentaKb: Math.round(Buffer.byteLength(minRenta) / 1024),
+		vacKb: Math.round(Buffer.byteLength(minVac) / 1024)
 	};
 }

@@ -162,14 +162,19 @@ export function renderForm(schema, data, options = {}) {
 			case 'custom': {
 				const el = h('div');
 				customs.push({ el, update: field.update });
-				return h('div', { class: `col-12 col-md-${field.cols || 12}` },
+				const wrap = h('div', { class: `col-12 col-md-${field.cols || 12}` },
 					field.label ? h('div', { class: 'form-label' }, field.label) : null, el);
+				if (field.when) conditionals.push({ el: wrap, when: field.when });
+				return wrap;
 			}
 
-			case 'section':
-				return h('div', { class: 'col-12 form-section' },
+			case 'section': {
+				const sec = h('div', { class: 'col-12 form-section' },
 					h('h2', { class: 'h6 text-uppercase text-muted mb-0 mt-3' }, field.label),
 					field.help ? h('p', { class: 'small text-muted mb-0' }, field.help) : null);
+				if (field.when) conditionals.push({ el: sec, when: field.when });
+				return sec;
+			}
 
 			case 'textarea':
 			case 'markdown':

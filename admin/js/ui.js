@@ -54,6 +54,7 @@ export function formatDate(v, withTime = true) {
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
 	if (!precio) return 'A consultar';
 	const prefix = { USD: 'US$', GTQ: 'Q' }[moneda] || moneda;
+	if (operacion === 'vacacional') return `Desde ${prefix} ${Number(precio).toLocaleString('en-US', { maximumFractionDigits: 2 })} /noche`;
 	return `${prefix} ${Number(precio).toLocaleString('en-US')}${operacion === 'renta' ? ' /mes' : ''}`;
 }
 
