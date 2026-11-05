@@ -2351,4 +2351,102 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		display: none !important;
 	}
 }
+/* Cotización: entre un total y el siguiente (mensual u otra moneda) queda aire */
+.cot-doc-tabla tfoot .cot-doc-grupo th,
+.cot-doc-tabla tfoot .cot-doc-grupo td {
+	padding-top: 18px;
+}
+.cot-linea-resumen strong {
+	white-space: nowrap;
+}
+/* Cotización: la hoja se adapta a su propio ancho (vista previa en celular) */
+.cot-doc {
+	container: cotdoc / inline-size;
+}
+@container cotdoc (max-width: 560px) {
+	.cot-doc-tabla thead {
+		display: none;
+	}
+	.cot-doc-tabla,
+	.cot-doc-tabla tbody,
+	.cot-doc-tabla tfoot {
+		display: block;
+	}
+	.cot-doc-tabla tbody {
+		border-top: 1px solid var(--adm-border);
+	}
+	.cot-doc-tabla tbody tr {
+		display: block;
+		padding: 10px 0;
+		border-bottom: 1px solid var(--adm-border);
+	}
+	.cot-doc-tabla tbody td,
+	.cot-doc-tabla tbody td + td {
+		display: block;
+		padding: 0;
+		border: 0;
+		white-space: normal;
+	}
+	.cot-doc-tabla tbody td + td {
+		margin-top: 6px;
+	}
+	/* Honorario + IVA: cada monto en su renglón, con su nombre a la izquierda */
+	.cot-doc-tabla tbody td[data-label] {
+		display: flex;
+		justify-content: flex-end;
+		align-items: baseline;
+		margin-top: 2px;
+	}
+	.cot-doc-tabla tbody td[data-label]::before {
+		content: attr(data-label);
+		margin-right: auto;
+		padding-right: 12px;
+		font-weight: 400;
+		color: var(--adm-muted);
+	}
+	.cot-doc-tabla tbody td[data-label] .cot-doc-mes {
+		margin-left: .3em;
+	}
+	.cot-doc-tabla tbody td[data-label="Total"] {
+		margin-top: 4px;
+	}
+	.cot-doc-tabla tfoot tr {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+	}
+	.cot-doc-tabla tfoot th {
+		text-align: left;
+	}
+	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total {
+		border-top: 1px solid var(--adm-border);
+		margin-top: 6px;
+	}
+	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total th,
+	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total td {
+		border-top: 0;
+	}
+	.cot-doc-tabla tfoot .cot-doc-total th,
+	.cot-doc-tabla tfoot .cot-doc-total td {
+		font-size: 15px;
+	}
+}
+/* Cotización: en celular la barra ocupa menos (la lista sigue en «Mis cotizaciones», arriba) */
+@media (max-width: 575.98px) {
+	.cot-barra {
+		padding: 8px 10px;
+	}
+	.cot-barra .cot-btn {
+		padding-left: 10px;
+		padding-right: 10px;
+		white-space: nowrap;
+	}
+	.cot-barra .cot-btn .me-2 {
+		margin-right: 6px !important;
+	}
+	.cot-barra .btn-link {
+		display: none;
+	}
+}
 /* ===== Fin Cotización ===== */

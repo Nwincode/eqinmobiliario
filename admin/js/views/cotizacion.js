@@ -15,6 +15,8 @@ import {
 const COL = 'cotizaciones';
 const ICONOS = { compraventa: 'icon-handshake-o', arrendamiento: 'icon-key', administracion: 'icon-building', otro: 'icon-pencil' };
 const LOGO = '/logo-equipo-inmobiliario.png';
+// Espacio duro entre el símbolo y la cifra («US$ 1,500» no se parte en dos líneas). Solo para mostrar.
+const nb = (t) => String(t ?? '').replace(/\b(US\$|Q) /g, '$1\u00a0').replace(/ %/g, '\u00a0%');
 
 export async function render(container, rest = []) {
 	const [accion, id] = rest;
@@ -265,10 +267,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 			if (c.regimen === 'pequeno') {
 				partes.push(h('div', {}, 'Precio final: ', h('strong', {}, dinero(x.total, x.moneda) + mes),
 					pct !== null && c.modo === 'todo' ? ` (${porcentaje(pctTodoIncluido(pct, 'pequeno'))})` : null));
-				partes.push(h('div', { class: 'small text-muted' }, `Pagas a la SAT ${dinero(x.impuesto, x.moneda)} (5 %); te quedan ${dinero(x.neto, x.moneda)}.`));
+				partes.push(h('div', { class: 'small text-muted' }, nb(`Pagas a la SAT ${dinero(x.impuesto, x.moneda)} (5 %); te quedan ${dinero(x.neto, x.moneda)}.`)));
 			} else if (c.modo === 'todo') {
 				partes.push(h('div', {}, 'Todo incluido: ', h('strong', {}, dinero(x.total, x.moneda) + mes), pct !== null ? ` (${porcentaje(pctTodoIncluido(pct, 'general'))})` : null));
-				partes.push(h('div', { class: 'small text-muted' }, `Honorario ${dinero(x.honorario, x.moneda)} + IVA 12 % ${dinero(x.impuesto, x.moneda)}`));
+				partes.push(h('div', { class: 'small text-muted' }, nb(`Honorario ${dinero(x.honorario, x.moneda)} + IVA 12 % ${dinero(x.impuesto, x.moneda)}`)));
 			} else {
 				partes.push(h('div', {}, `Honorario ${dinero(x.honorario, x.moneda)} + IVA ${dinero(x.impuesto, x.moneda)} = `, h('strong', {}, dinero(x.total, x.moneda) + mes)));
 			}
@@ -305,17 +307,17 @@ async function editor(container, id, { duplicar = false } = {}) {
 		const listas = r.lineas.map((x, i) => ({ x, l: c.lineas[i] })).filter(({ x }) => x.listo);
 		const celdaMonto = (x) => {
 			const mes = x.mensual ? h('span', { class: 'cot-doc-mes' }, ' al mes') : null;
-			if (separado) return [h('td', { class: 'text-end' }, dinero(x.honorario, x.moneda)), h('td', { class: 'text-end' }, dinero(x.impuesto, x.moneda)), h('td', { class: 'text-end fw-semibold' }, dinero(x.total, x.moneda), mes)];
+			if (separado) return [h('td', { class: 'text-end', 'data-label': 'Honorario' }, dinero(x.honorario, x.moneda)), h('td', { class: 'text-end', 'data-label': 'IVA 12 %' }, dinero(x.impuesto, x.moneda)), h('td', { class: 'text-end fw-semibold', 'data-label': 'Total' }, dinero(x.total, x.moneda), mes)];
 			return [h('td', { class: 'text-end' }, h('div', { class: 'fw-semibold' }, dinero(x.total, x.moneda), mes),
-				general ? h('div', { class: 'cot-doc-desglose' }, `Honorario ${dinero(x.honorario, x.moneda)} + IVA ${dinero(x.impuesto, x.moneda)}`) : null)];
+				general ? h('div', { class: 'cot-doc-desglose' }, nb(`Honorario ${dinero(x.honorario, x.moneda)} + IVA ${dinero(x.impuesto, x.moneda)}`)) : null)];
 		};
 		const filas = listas.map(({ x, l }) => h('tr', {},
 			h('td', {}, h('div', { class: 'fw-semibold' }, x.concepto,
 				l.tipo === 'administracion' ? h('span', { class: 'cot-pendiente no-print ms-2' }, 'Por confirmar') : null),
-			x.detalle ? h('div', { class: 'cot-doc-detalle' }, x.detalle) : null),
+			x.detalle ? h('div', { class: 'cot-doc-detalle' }, nb(x.detalle)) : null),
 			celdaMonto(x)));
 		const columnas = separado ? 3 : 1;
-		const totales = r.totales.map((t) => {
+		const totales = r.totales.map((t, i) => {
 			const etq = t.mensual ? 'Total mensual' : 'Total';
 			const filasT = [];
 			if (general) {
@@ -323,6 +325,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 				filasT.push(h('tr', { class: 'cot-doc-sub' }, h('th', { scope: 'row' }, 'IVA 12 %'), h('td', { class: 'text-end' }, dinero(t.impuesto, t.moneda))));
 			}
 			filasT.push(h('tr', { class: 'cot-doc-total' }, h('th', { scope: 'row' }, `${etq} (${t.moneda === 'GTQ' ? 'quetzales' : 'dólares'})`), h('td', { class: 'text-end' }, dinero(t.total, t.moneda))));
+			// Cada total (único, mensual, otra moneda) empieza con aire para que no se lea pegado al anterior.
+			if (i > 0) filasT[0].classList.add('cot-doc-grupo');
 			return filasT;
 		});
 		const vence = venceEl(c.fecha, c.vigenciaDias);
@@ -402,20 +406,21 @@ async function editor(container, id, { duplicar = false } = {}) {
 		}
 		toast('Resumen copiado. Pégalo en WhatsApp.');
 	}
+	async function salir(ev) {
+		if (sucio) { ev.preventDefault(); if (await confirmDialog('Tienes cambios sin guardar. ¿Salir de todos modos?', { okText: 'Salir sin guardar' })) location.hash = '#/cotizaciones'; }
+	}
 	const btnGuardar = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: guardar }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar');
 	const barra = h('div', { class: 'sticky-actions cot-barra no-print' },
 		btnGuardar,
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: () => window.print() }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF'),
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), 'Copiar para WhatsApp'),
-		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: async (ev) => {
-			if (sucio) { ev.preventDefault(); if (await confirmDialog('Tienes cambios sin guardar. ¿Salir de todos modos?', { okText: 'Salir sin guardar' })) location.hash = '#/cotizaciones'; }
-		} }, 'Volver a la lista'));
+		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
 
 	const titulo = id && !duplicar ? 'Cotización' : 'Nueva cotización';
 	container.replaceChildren();
 	mount(container,
 		h('div', { class: 'no-print' }, pageHeader(titulo,
-			h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones'))),
+			h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones', onclick: salir }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones'))),
 		h('div', { class: 'row g-4 cot-layout' },
 			h('div', { class: 'col-xl-5 cot-entradas no-print' }, emisor, cliente, servicios, condiciones),
 			h('div', { class: 'col-xl-7 cot-salida' },
