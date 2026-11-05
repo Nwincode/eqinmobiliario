@@ -85,9 +85,15 @@ export function desglose(honorario, regimen, modo = 'todo') {
 
 export function lineaVacia(tipo = 'compraventa', moneda = 'USD') {
 	const l = { tipo, moneda, precio: '', pct: tipo === 'compraventa' ? 5 : '', renta: '', anios: 1, descripcion: '', monto: '' };
-	if (tipo === 'administracion') l.adminTipo = 'pct';
+	// La administración no siempre se cobra: empieza apagada y solo cuenta cuando se enciende.
+	if (tipo === 'administracion') { l.adminTipo = 'pct'; l.activa = false; }
 	return l;
 }
+
+// ¿La línea de administración está encendida? Las cotizaciones de antes no tenían el interruptor: cuentan como encendidas.
+export const adminActiva = (l) => Boolean(l) && l.tipo === 'administracion' && l.activa !== false;
+// Línea apagada: no sale en la hoja, ni en WhatsApp, ni en los totales ni en la liquidación, y no pide datos.
+export const lineaApagada = (l) => Boolean(l) && l.tipo === 'administracion' && l.activa === false;
 
 // Calcula una línea de servicio. Devuelve el honorario base y los textos de cálculo.
 export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
@@ -111,6 +117,9 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 		falta = renta > 0 ? (anios > 0 ? '' : 'anios') : 'renta';
 		concepto = 'Comisión por contrato de arrendamiento';
 		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)`;
+	} else if (lineaApagada(l)) {
+		mensual = true;
+		concepto = 'Administración de la propiedad';
 	} else if (l.tipo === 'administracion') {
 		// Sin porcentaje ni monto predeterminado: la línea no cuenta hasta que se escribe el valor.
 		const renta = num(l.renta);
@@ -135,7 +144,7 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 		concepto = String(l.descripcion || '').trim() || 'Otro servicio';
 		detalle = '';
 	}
-	return { tipo: l.tipo || 'otro', moneda, mensual, listo, falta, meses, concepto, detalle, ...desglose(base, regimen, modo) };
+	return { tipo: l.tipo || 'otro', moneda, mensual, listo, falta, meses, concepto, detalle, apagada: lineaApagada(l), ...desglose(base, regimen, modo) };
 }
 
 // Líneas que impiden guardar e imprimir: la administración sin su porcentaje (o renta) o sin su monto fijo.
@@ -146,7 +155,7 @@ export function pendientes(cot) {
 	const out = [];
 	(c.lineas || []).forEach((l, i) => {
 		const x = r.lineas[i];
-		if (l.tipo !== 'administracion' || x.listo) return;
+		if (l.tipo !== 'administracion' || lineaApagada(l) || x.listo) return;
 		const mensaje = x.falta === 'renta' ? 'Escribe la renta mensual para calcular el porcentaje de administración.'
 			: x.falta === 'pct' ? 'Escribe el porcentaje de administración.'
 				: 'Escribe el monto mensual de administración.';

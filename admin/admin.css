@@ -2616,4 +2616,24 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		display: none !important;
 	}
 }
+/* Interruptor de administración: área de toque de 44 px */
+.cot-switch {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 44px;
+	padding-left: 0;
+	margin: 0;
+}
+.cot-switch .form-check-input {
+	width: 2.75em;
+	height: 1.5em;
+	margin: 0;
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+.cot-switch .form-check-label {
+	font-weight: 600;
+	cursor: pointer;
+}
 /* ===== Fin Cotización ===== */

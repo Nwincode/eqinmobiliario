@@ -188,22 +188,56 @@
 		});
 
 		calcular();
-		vigilarFlotante(out('desglose'));
+		vigilarFlotante(card);
 	}
 
-	// En celular el botón flotante de WhatsApp tapa los montos del desglose: se oculta mientras el desglose
-	// pasa por la franja de abajo de la pantalla (donde está el botón). La tarjeta ya tiene su propio botón de consulta.
-	var enFranja = 0;
-	function vigilarFlotante(box) {
-		if (!box || !('IntersectionObserver' in window)) return;
-		var dentro = false;
-		new IntersectionObserver(function (es) {
-			var ahora = es[es.length - 1].isIntersecting;
-			if (ahora === dentro) return;
-			dentro = ahora;
-			enFranja += ahora ? 1 : -1;
-			document.body.classList.toggle('renta-tapa-wa', enFranja > 0);
-		}, { rootMargin: '-82% 0px 0px 0px' }).observe(box);
+	// El botón flotante de WhatsApp no debe tapar ningún monto de la calculadora: se mide dónde está el botón
+	// y se oculta mientras cualquier cifra (resultados, desglose, escenarios) pasa por debajo de él.
+	// La tarjeta ya tiene su propio botón de consulta.
+	var MONTOS = '[data-out="neto"], [data-out="rendBruto"], [data-out="rendNeto"], [data-out="iva"], [data-out="desglose"] dd, [data-out="desglose"] dt, [data-out="escenarios"] *';
+	var tarjetas = [];
+	var pendiente = false;
+	function programar() {
+		if (pendiente) return;
+		pendiente = true;
+		(window.requestAnimationFrame || setTimeout)(revisarFlotante);
+	}
+	function revisarFlotante() {
+		pendiente = false;
+		var wa = document.querySelector('.wa-float');
+		if (!wa) return;
+		var oculto = document.body.classList.contains('renta-tapa-wa');
+		var b = wa.getBoundingClientRect();
+		if (!b.width) return;
+		// Oculto, el botón baja 12 px (css/site.css): se mide donde estaría visible, con 12 px de margen.
+		var dy = oculto ? 12 : 0, m = 12;
+		var top = b.top - dy - m, bottom = b.bottom - dy + m, left = b.left - m, right = b.right + m;
+		var tapa = false;
+		for (var i = 0; i < tarjetas.length && !tapa; i++) {
+			var r0 = tarjetas[i].getBoundingClientRect();
+			if (r0.bottom < top || r0.top > bottom) continue;
+			var els = tarjetas[i].querySelectorAll(MONTOS);
+			for (var j = 0; j < els.length; j++) {
+				var e = els[j];
+				if (e.children.length && !/^(DD|DT)$/.test(e.tagName)) continue;
+				var r = e.getBoundingClientRect();
+				if (!r.width || !r.height) continue;
+				if (r.bottom > top && r.top < bottom && r.right > left && r.left < right) { tapa = true; break; }
+			}
+		}
+		if (tapa !== oculto) document.body.classList.toggle('renta-tapa-wa', tapa);
+	}
+	function vigilarFlotante(card) {
+		if (!card) return;
+		tarjetas.push(card);
+		if (tarjetas.length === 1) {
+			window.addEventListener('scroll', programar, { passive: true });
+			window.addEventListener('resize', programar);
+		}
+		// Los resultados cambian de alto al escribir.
+		card.addEventListener('input', programar);
+		card.addEventListener('change', programar);
+		programar();
 	}
 
 	function todos() {

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {
 	mesesArrendamiento, pctTodoIncluido, factorTodoIncluido, desglose, calcularLinea, calcularCotizacion,
 	textoWhatsApp, dinero, venceEl, numeroCotizacion, lineaVacia, pendientes, emisorDesde, faltanEmisor,
-	liquidacionTotal, liquidacion, ISR_DEF, PCT_ASESOR_DEF
+	liquidacionTotal, liquidacion, adminActiva, ISR_DEF, PCT_ASESOR_DEF
 } from '../admin/js/cotizacion.js';
 
 let ok = 0;
@@ -96,6 +96,7 @@ await test('administración: empieza vacía, no suma y no deja guardar hasta ten
 	const l = lineaVacia('administracion', 'GTQ');
 	assert.equal(l.pct, '');
 	assert.equal(l.adminTipo, 'pct');
+	l.activa = true; // encendida (apagada se prueba más abajo)
 	const sinNada = calcularLinea(l, 'general', 'todo');
 	assert.equal(sinNada.listo, false);
 	assert.equal(sinNada.falta, 'renta');
@@ -187,6 +188,37 @@ await test('la liquidación nunca sale en el texto de WhatsApp', () => {
 	const t = textoWhatsApp({ numero: 'COT-2', fecha: '2026-11-05', regimen: 'general', modo: 'todo', emisorTipo: 'empresa', emisor: { nombre: 'Equipo Inmobiliario' },
 		liquidacion: { isrPct: 5, pctAsesor: 50 }, lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }] });
 	assert.doesNotMatch(t, /liquidaci|ISR|neto|asesor recibe|9,500|4,750/i);
+});
+
+await test('administración apagada (predeterminado): no sale, no suma, no pide datos', () => {
+	const l = lineaVacia('administracion', 'GTQ');
+	assert.equal(l.activa, false);
+	assert.equal(adminActiva(l), false);
+	const cot = { numero: 'COT-3', fecha: '2026-11-05', regimen: 'general', modo: 'todo', emisorTipo: 'empresa', emisor: { nombre: 'Equipo Inmobiliario' },
+		lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }, { ...l, adminTipo: 'pct', renta: 9500, pct: 8 }] };
+	const r = calcularCotizacion(cot);
+	assert.equal(r.lineas[1].listo, false);
+	assert.equal(r.lineas[1].apagada, true);
+	assert.deepEqual(r.totales.map((t) => [t.moneda, t.mensual, t.total]), [['USD', false, 11200]]);
+	assert.deepEqual(pendientes(cot), []);
+	assert.deepEqual(pendientes({ ...cot, lineas: [l] }), []);
+	assert.equal(liquidacion(cot).length, 1);
+	assert.doesNotMatch(textoWhatsApp(cot), /administraci/i);
+});
+
+await test('administración encendida: pide su valor y suma al total mensual y a la liquidación', () => {
+	const base = { regimen: 'general', modo: 'todo', lineas: [{ ...lineaVacia('administracion', 'GTQ'), activa: true }] };
+	assert.deepEqual(pendientes(base).map((p) => p.campo), ['renta']);
+	const pct = { ...base, lineas: [{ ...base.lineas[0], renta: 9500, pct: 8 }] };
+	assert.deepEqual(pendientes(pct), []);
+	assert.deepEqual(calcularCotizacion(pct).totales.map((t) => [t.moneda, t.mensual, t.honorario, t.total]), [['GTQ', true, 760, 851.2]]);
+	assert.equal(liquidacion(pct)[0].neto, 722);
+	const fijo = { ...base, lineas: [{ ...base.lineas[0], adminTipo: 'fijo', monto: 1000 }] };
+	assert.equal(calcularCotizacion(fijo).totales[0].total, 1120);
+	assert.match(textoWhatsApp({ ...fijo, numero: 'COT-4', fecha: '2026-11-05', emisor: { nombre: 'X' } }), /administraci/i);
+	// Cotizaciones de antes, sin interruptor: siguen encendidas.
+	assert.equal(adminActiva({ tipo: 'administracion', renta: 5000, pct: 10 }), true);
+	assert.equal(calcularCotizacion({ lineas: [{ tipo: 'administracion', moneda: 'GTQ', renta: 5000, pct: 10 }] }).totales[0].honorario, 500);
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ', con fallas' : ''}.`);

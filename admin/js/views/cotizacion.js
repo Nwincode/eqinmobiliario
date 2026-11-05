@@ -16,7 +16,7 @@ import {
 	EMISORES, TIPOS_ADMIN, ISR_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
 	calcularCotizacion, lineaVacia, dinero, porcentaje, pctTodoIncluido, rentas, numero,
 	numeroCotizacion, fechaISO, fechaLarga, venceEl, textoWhatsApp,
-	pendientes, emisorDesde, faltanEmisor, liquidacion, etqRegimen, regimenValido
+	pendientes, adminActiva, emisorDesde, faltanEmisor, liquidacion, etqRegimen, regimenValido
 } from '../cotizacion.js';
 
 const COL = 'cotizaciones';
@@ -447,9 +447,15 @@ async function editor(container, id, { duplicar = false } = {}) {
 				const idEtq = uid(`l${i}-admintipo`);
 				const tipo = h('div', { class: 'col-12' }, h('span', { class: 'form-label d-block', id: idEtq }, 'Cómo se cobra'),
 					segmentado(uid(`l${i}-admin`), TIPOS_ADMIN, l.adminTipo, (v) => { l.adminTipo = v; pintarLineas(); cambio(); contLineas.children[i]?.querySelector(`#${uid(`l${i}-${v === 'fijo' ? 'monto' : 'renta'}`)}`)?.focus(); }, idEtq));
-				campos = l.adminTipo === 'fijo'
-					? [tipo, inputNum(l, 'monto', 'Monto mensual', { sufijo: sim }), moneda, inputNum(l, 'renta', 'Renta mensual', { sufijo: `${sim}, opcional`, ayuda: 'Solo como referencia en la hoja.' })]
-					: [tipo, inputNum(l, 'renta', 'Renta mensual', { sufijo: sim }), moneda, inputNum(l, 'pct', 'Honorario mensual', { sufijo: '% de la renta', max: '100' })];
+				// Interruptor: la administración no siempre se cobra (empieza apagada).
+				const idSw = uid(`l${i}-activa`);
+				const interruptor = h('div', { class: 'col-12' }, h('div', { class: 'form-check form-switch cot-switch' },
+					h('input', { class: 'form-check-input', type: 'checkbox', role: 'switch', id: idSw, checked: adminActiva(l), 'aria-describedby': uid(`l${i}-resumen`),
+						onchange: (e) => { l.activa = e.target.checked; pintarLineas(); cambio(); if (l.activa) document.getElementById(uid(`l${i}-${l.adminTipo === 'fijo' ? 'monto' : 'renta'}`))?.focus(); } }),
+					h('label', { class: 'form-check-label', for: idSw }, 'Cobrar administración en esta cotización')));
+				campos = !adminActiva(l) ? [interruptor] : l.adminTipo === 'fijo'
+					? [interruptor, tipo, inputNum(l, 'monto', 'Monto mensual', { sufijo: sim }), moneda, inputNum(l, 'renta', 'Renta mensual', { sufijo: `${sim}, opcional`, ayuda: 'Solo como referencia en la hoja.' })]
+					: [interruptor, tipo, inputNum(l, 'renta', 'Renta mensual', { sufijo: sim }), moneda, inputNum(l, 'pct', 'Honorario mensual', { sufijo: '% de la renta', max: '100' })];
 			} else {
 				const idd = uid(`l${i}-descripcion`);
 				campos = [h('div', { class: 'col-12' }, h('label', { class: 'form-label', for: idd }, 'Descripción del servicio'),
@@ -482,6 +488,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 			const p = pend.find((y) => y.linea === idx);
 			el.classList.toggle('is-falta', Boolean(p));
 			if (p) { el.replaceChildren(h('span', { class: 'icon-exclamation-circle me-2', 'aria-hidden': 'true' }), h('span', {}, `${p.mensaje} Sin este dato no se guarda ni se imprime.`)); return; }
+			if (x?.apagada) { el.replaceChildren(h('span', { class: 'text-muted' }, 'Apagada: no sale en la cotización, ni en el PDF, ni en WhatsApp, y no suma al total.')); return; }
 			if (!x || !x.listo) { el.replaceChildren(h('span', { class: 'text-muted' }, l.tipo === 'otro' ? 'Ingresa el honorario.' : (l.tipo === 'compraventa' ? 'Ingresa el precio del inmueble.' : 'Ingresa la renta mensual.'))); return; }
 			const partes = [];
 			if (l.tipo === 'arrendamiento') partes.push(h('div', {}, `Contrato de ${l.anios} año${Number(l.anios) === 1 ? '' : 's'} = ${rentas(x.meses)} = `, h('strong', {}, dinero(x.honorario, x.moneda))));
