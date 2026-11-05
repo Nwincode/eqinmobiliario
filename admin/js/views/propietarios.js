@@ -95,7 +95,7 @@ async function renderEditor(container, id) {
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;
 		// setDoc reemplaza el documento: se conservan la bitácora y el enlace del portal.
-		for (const k of ['bitacora', 'portalToken', 'proximoPaso', 'portalActualizado']) if (data[k] !== undefined) d[k] = data[k];
+		for (const k of ['bitacora', 'portalToken', 'proximoPaso', 'portalActualizado', 'portalPrivado']) if (data[k] !== undefined) d[k] = data[k];
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);

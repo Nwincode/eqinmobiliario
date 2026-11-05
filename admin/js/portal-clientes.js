@@ -75,7 +75,8 @@ export function fechaOferta(c, acts = []) {
  * @param {object[]} o.actividades todas las actividades disponibles (para reuniones y notas de etapa)
  * @returns {{n:number, canal:string, desde:string, visitas:number, ultimaVisita:string, visitaProxima:boolean, etapa:string, etapaFecha:string}[]}
  */
-export function clientesInteresados({ propertyId, clientes = [], leads = [], visitas = [], actividades = [], ahora = Date.now() } = {}) {
+// Filas con el id del cliente: solo para uso interno del panel (numeración estable y copia privada).
+export function filasClientes({ propertyId, clientes = [], leads = [], visitas = [], actividades = [], ahora = Date.now() } = {}) {
 	if (!propertyId) return [];
 	const porId = new Map(clientes.filter((c) => c && c.id).map((c) => [c.id, c]));
 	const ids = new Set();
@@ -97,12 +98,43 @@ export function clientesInteresados({ propertyId, clientes = [], leads = [], vis
 		const canal = susLeads.length ? canalLead(susLeads[0]) : (canalDe(c.fuente) || (c.leadIds?.length ? 'web' : 'otro'));
 		const etapa = etapaPortal(c, { visitasHechas: hechas.length, reuniones });
 		const etapaFecha = ['oferto', 'cerro'].includes(etapa) ? fechaOferta(c, susActs) : 0;
-		// El orden de desempate es estable (fecha y luego id), pero el id no sale de esta función.
-		return { orden: [desde || Infinity, id], canal, desde: dia(desde), visitas: hechas.length, ultimaVisita: dia(hechas[hechas.length - 1]), visitaProxima: proxima, etapa, etapaFecha: dia(etapaFecha) };
+		return { id, canal, desde: dia(desde), visitas: hechas.length, ultimaVisita: dia(hechas[hechas.length - 1]), visitaProxima: proxima, etapa, etapaFecha: dia(etapaFecha) };
 	});
-	filas.sort((a, b) => (a.orden[0] - b.orden[0]) || String(a.orden[1]).localeCompare(String(b.orden[1])));
-	// Numeración por primer contacto; si hay más de 30 se muestran los 30 más recientes con su número real.
-	return filas.map(({ orden, ...f }, i) => ({ n: i + 1, ...f })).slice(-MAX_CLIENTES);
+	return filas;
+}
+
+const CAMPOS_FILA = ['canal', 'desde', 'visitas', 'ultimaVisita', 'visitaProxima', 'etapa', 'etapaFecha'];
+
+/**
+ * Numera las filas sin que cambien los números ya dados: `numeros` es { idCliente: n } guardado
+ * en privado. Los clientes nuevos reciben el siguiente número por orden de primer contacto.
+ * Devuelve la lista pública (sin ids; si hay más de 30, los 30 más recientes) y el mapa actualizado.
+ */
+export function numerarClientes(filas, numeros = {}) {
+	const mapa = { ...numeros };
+	let max = Object.values(mapa).reduce((m, n) => Math.max(m, Number(n) || 0), 0);
+	const orden = (f) => f.desde || '9999';
+	filas.filter((f) => !mapa[f.id]).sort((a, b) => orden(a).localeCompare(orden(b)) || String(a.id).localeCompare(String(b.id)))
+		.forEach((f) => { mapa[f.id] = ++max; });
+	const lista = filas.map((f) => ({ n: mapa[f.id], ...Object.fromEntries(CAMPOS_FILA.map((k) => [k, f[k]])) }))
+		.sort((a, b) => a.n - b.n).slice(-MAX_CLIENTES);
+	return { lista, numeros: mapa };
+}
+
+/**
+ * Junta las filas recién calculadas con la copia privada anterior. Un asesor solo lee sus clientes:
+ * los que no puede ver (`visibles` no los tiene) se conservan tal como los dejó el administrador.
+ */
+export function combinarClientes(filas, anteriores = {}, visibles = null) {
+	if (!visibles) return filas;
+	const ya = new Set(filas.map((f) => f.id));
+	const resto = Object.entries(anteriores).filter(([id]) => !ya.has(id) && !visibles.has(id)).map(([id, f]) => ({ ...f, id }));
+	return [...filas, ...resto];
+}
+
+// Lista pública (sin ids ni nombres): número de orden, canal, fechas y etapa.
+export function clientesInteresados(args = {}) {
+	return numerarClientes(filasClientes(args)).lista;
 }
 
 /**

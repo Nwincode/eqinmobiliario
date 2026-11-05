@@ -1,6 +1,6 @@
 // Pruebas de los clientes interesados y eventos automáticos del portal (admin/js/portal-clientes.js): `npm run test:portal`.
 import assert from 'node:assert/strict';
-import { clientesInteresados, eventosAuto, canalDe, etapaPortal, MAX_CLIENTES } from '../admin/js/portal-clientes.js';
+import { clientesInteresados, eventosAuto, canalDe, etapaPortal, MAX_CLIENTES, numerarClientes, combinarClientes } from '../admin/js/portal-clientes.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -80,5 +80,18 @@ t('sin publicar no hay evento de publicación', () => assert.deepEqual(eventosAu
 t('cambio de precio genera evento con el monto', () => {
 	const ev = eventosAuto({ historialPrecio: [{ precio: 1000, moneda: 'USD', fecha: '2026-01-01' }, { precio: 900, moneda: 'USD', fecha: '2026-02-01' }] });
 	assert.deepEqual(ev, [{ fecha: '2026-02-01', tipo: 'precio', auto: 'precio', precio: 900, moneda: 'USD' }]);
+});
+t('los números de cliente no cambian al llegar uno más antiguo', () => {
+	const a = numerarClientes([{ id: 'x', desde: '2026-05-01' }, { id: 'y', desde: '2026-06-01' }]);
+	const b = numerarClientes([{ id: 'z', desde: '2026-01-01' }, { id: 'x', desde: '2026-05-01' }, { id: 'y', desde: '2026-06-01' }], a.numeros);
+	assert.deepEqual(b.lista.map((f) => f.n), [1, 2, 3]);
+	assert.deepEqual([b.numeros.x, b.numeros.y, b.numeros.z], [1, 2, 3]);
+	assert.ok(b.lista.every((f) => !('id' in f)));
+});
+t('el asesor conserva los clientes que no puede ver', () => {
+	const ant = { otro: { canal: 'web', desde: '2026-01-01', etapa: 'interesado' }, mio: { canal: 'web', desde: '2026-02-01', etapa: 'interesado' } };
+	const r = combinarClientes([], ant, new Set(['mio']));
+	assert.deepEqual(r.map((f) => f.id), ['otro']);
+	assert.equal(combinarClientes([], ant, null).length, 0);
 });
 console.log(`\n${ok} pruebas correctas.`);

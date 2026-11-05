@@ -168,6 +168,8 @@ function shell() {
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
 	refreshPublishBadge();
 	actualizarInsignias(true);
+	// Portales de propietarios que quedaron sin actualizar al cerrar la pestaña.
+	import('./portal.js').then((m) => m.reanudarRefrescos()).catch(() => {});
 }
 
 async function refreshPublishBadge() {
