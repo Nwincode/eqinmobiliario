@@ -3067,3 +3067,17 @@ a:hover > .eq-ic-fin,
 		font-size: 9.5px;
 	}
 }
+
+/* Precio rebajado: etiqueta en la foto y precio anterior tachado */
+.prop-badge.prop-badge-rebaja {
+	background: var(--eq-danger);
+	color: var(--eq-white);
+}
+.precio-antes {
+	display: inline-block;
+	margin-left: .6rem;
+	font-size: .8em;
+	font-weight: 400;
+	color: var(--eq-dark);
+	opacity: .75;
+}

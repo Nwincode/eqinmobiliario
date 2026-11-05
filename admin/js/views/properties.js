@@ -264,6 +264,11 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
+				p.publicado && p.slug ? h('a', {
+					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
+					href: `https://wa.me/?text=${encodeURIComponent(`${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`)}`,
+					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
+				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), ' Compartir') : null,
 				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,

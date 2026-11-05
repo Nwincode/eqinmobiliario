@@ -298,8 +298,29 @@ export function renderForm(schema, data, options = {}) {
 							set(arr);
 							draw();
 						};
-						return h('div', { class: 'images-grid-item' },
-							h('img', { src: img.url, alt: img.alt || '' }),
+						// Arrastrar y soltar para ordenar (computadora); en celular quedan las flechas.
+						return h('div', {
+							class: 'images-grid-item', draggable: 'true',
+							ondragstart: (e) => {
+								if (e.target.closest && e.target.closest('input, button')) { e.preventDefault(); return; }
+								e.dataTransfer.effectAllowed = 'move';
+								e.dataTransfer.setData('text/plain', String(i));
+								e.currentTarget.classList.add('arrastrando');
+							},
+							ondragend: (e) => e.currentTarget.classList.remove('arrastrando'),
+							ondragover: (e) => { e.preventDefault(); e.currentTarget.classList.add('destino'); },
+							ondragleave: (e) => e.currentTarget.classList.remove('destino'),
+							ondrop: (e) => {
+								e.preventDefault();
+								e.currentTarget.classList.remove('destino');
+								const de = Number(e.dataTransfer.getData('text/plain'));
+								if (!Number.isInteger(de) || de === i || !arr[de]) return;
+								arr.splice(i, 0, ...arr.splice(de, 1));
+								set(arr);
+								draw();
+							}
+						},
+							h('img', { src: img.url, alt: img.alt || '', draggable: 'false' }),
 							i === 0 ? h('span', { class: 'badge text-bg-primary images-cover' }, 'Portada') : null,
 							h('button', {
 								type: 'button', class: `images-star${i === 0 ? ' activa' : ''}`,
