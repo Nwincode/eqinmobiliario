@@ -16,6 +16,7 @@ const ROUTES = [
 	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
 	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
 	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
+	{ path: 'calculadora', label: 'Calculadora de renta', icon: 'icon-calculator', group: 'Herramientas', load: () => import('./views/calculadora.js') },
 	{ path: 'ia', label: 'Asistente', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
 	{ path: 'google', label: 'Google', icon: 'icon-search', group: 'Herramientas', load: () => import('./views/google.js') },
 	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', group: 'Herramientas', load: () => import('./views/reportes.js'), admin: true },

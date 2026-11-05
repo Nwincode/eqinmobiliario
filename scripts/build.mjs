@@ -18,7 +18,7 @@ const DIST = path.join(ROOT, 'dist');
 const MIN_LISTADO = 2;
 
 // Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios']);
+const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios', 'calculadora-de-renta']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -422,7 +422,8 @@ async function main() {
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
 	[['/', '/en/'], ['/propiedades/', '/en/properties/'], ['/propiedades/venta/', '/en/properties/for-sale/'],
-		['/propiedades/renta/', '/en/properties/for-rent/'], ['/vip/', '/en/luxury/']].forEach(([a, b]) => registrarPar(a, b));
+		['/propiedades/renta/', '/en/properties/for-rent/'], ['/vip/', '/en/luxury/'],
+		['/calculadora-de-renta/', '/en/rental-calculator/']].forEach(([a, b]) => registrarPar(a, b));
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const L = site.listados || {};
 	const nombre = site.general.nombreCorto;
@@ -638,6 +639,8 @@ async function main() {
 		// Portal del propietario: página privada, fuera del sitemap.
 		registrarPar('/propietarios/', '/en/owners/');
 		await writePage('/en/owners/', T.portalPage(ctxEn));
+		await writePage('/en/rental-calculator/', T.rentalCalculatorPage(ctxEn));
+		urls.push({ path: '/en/rental-calculator/', priority: '0.5' });
 		// Las fichas en español con traducción se regeneran con su enlace hreflang.
 		for (const es of todas.filter((x) => x._alternates)) await writePage(T.propertyUrl(es), fichaHtml(ctx, es));
 		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
@@ -647,6 +650,8 @@ async function main() {
 
 	await writePage('/404.html', T.notFoundPage(ctx));
 	await writePage('/propietarios/', T.portalPage(ctx));
+	await writePage('/calculadora-de-renta/', T.rentalCalculatorPage(ctx));
+	urls.push({ path: '/calculadora-de-renta/', priority: '0.5' });
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
 

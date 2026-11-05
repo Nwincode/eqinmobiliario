@@ -13,7 +13,7 @@ export const ESTADOS = [
 	['cerrado', 'Cerrado (ganado)', 'success'],
 	['descartado', 'Descartado', 'secondary']
 ];
-export const ORIGENES = { contacto: 'Formulario de contacto', propiedad: 'Ficha de propiedad', vip: 'Landing VIP', listado: 'Listado', blog: 'Blog' };
+export const ORIGENES = { contacto: 'Formulario de contacto', propiedad: 'Ficha de propiedad', vip: 'Landing VIP', listado: 'Listado', blog: 'Blog', calculadora: 'Calculadora de renta' };
 
 // Fuente del lead: campaña de anuncios si la hay; si no, el formulario de origen.
 export function fuenteLead(l) {

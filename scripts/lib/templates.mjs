@@ -6,6 +6,15 @@ import {
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+// Motor de la calculadora de renta (script clásico js/calc-renta.js): el mismo que usa el navegador.
+const EQRenta = (() => {
+	const sandbox = { module: { exports: {} }, Intl };
+	vm.runInNewContext(readFileSync(new URL('../../js/calc-renta.js', import.meta.url), 'utf8'), sandbox);
+	return sandbox.module.exports;
+})();
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
@@ -237,6 +246,7 @@ function footer(ctx) {
 	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip);
 	const pageLinks = ctx.pages.filter((p) => p.enFooter);
 	if (ctx.posts.length) pageLinks.unshift({ url: rt(ctx).blog, titulo: t.blog });
+	pageLinks.push({ url: rt(ctx).calculadora, titulo: t.rentaLink });
 	const wa = whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje);
 	return `<div class="site-footer">
 		<div class="container">
@@ -832,6 +842,69 @@ function mortgageCalculator(ctx, p) {
 					</div>`;
 }
 
+// Calculadora de renta (versión pública). Las cuentas las hace js/calc-renta.js en el navegador.
+// Se muestra en fichas en venta (no terrenos) con precio, y vacía en /calculadora-de-renta/.
+export function rentaVisible(p) {
+	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && Number(p.precio) > 0);
+}
+function rentaWidget(ctx, p = null) {
+	const t = tr(ctx);
+	const lang = ctx.lang || 'es';
+	const moneda = (p && p.moneda) || 'USD';
+	const uso = EQRenta.usoPorTipo(p && p.tipo);
+	const sugerida = p ? EQRenta.rentaSugerida(Number(p.precio), p.tipo) : null;
+	const renta = sugerida ? Math.round(sugerida / 10) * 10 : '';
+	const pre = moneda === 'GTQ' ? 'Q' : 'US$';
+	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('renta')));
+	const opt = (v, txt, sel) => `<option value="${v}"${sel ? ' selected' : ''}>${esc(txt)}</option>`;
+	const num = (id, name, label, value, attrs) => `<label class="form-label" for="${id}">${label}</label><input id="${id}" class="form-control" name="${name}" type="number" inputmode="decimal" ${attrs} value="${esc(value)}">`;
+	return `<div class="renta-card" data-renta data-tipo="${esc((p && p.tipo) || '')}" data-moneda="${esc(moneda)}" data-lang="${lang}" data-form="${p ? '.ficha-contacto .lead-form' : '.lead-form[data-origen=&quot;calculadora&quot;]'}">
+						<script type="application/json" class="renta-t">${JSON.stringify(textos).replace(/</g, '\\u003c')}</script>
+						<div class="row g-3">
+							${p ? '' : `<div class="col-5 col-sm-3"><label class="form-label" for="rc-moneda">${t.rentaMoneda}</label><select id="rc-moneda" class="form-select" name="moneda">${opt('USD', 'US$', moneda === 'USD')}${opt('GTQ', 'Q', moneda === 'GTQ')}</select></div>`}
+							<div class="${p ? 'col-sm-6' : 'col-7 col-sm-4'}">${num('rc-precio', 'precio', `${t.rentaPrecio} <span class="renta-moneda">(${pre})</span>`, p ? p.precio : '', 'min="0" step="1000"')}</div>
+							<div class="${p ? 'col-sm-6' : 'col-sm-5'}">${num('rc-renta', 'renta', `${t.rentaMensual} <span class="renta-moneda">(${pre})</span>`, renta, `min="0" step="10"${p ? ' aria-describedby="rc-renta-ayuda"' : ''}`)}</div>
+							${p ? `<p id="rc-renta-ayuda" class="renta-ayuda col-12 mt-1">${t.rentaSugerida}</p>` : ''}
+							<div class="col-sm-6"><label class="form-label" for="rc-uso">${t.rentaUso}</label><select id="rc-uso" class="form-select" name="uso">${opt('habitacional', t.rentaHabitacional, uso === 'habitacional')}${opt('mixto', t.rentaMixto, uso === 'mixto')}${opt('comercial', t.rentaComercial, uso === 'comercial')}</select></div>
+						</div>
+						<details class="renta-supuestos">
+							<summary>${ic('sliders')}${t.rentaSupuestos}</summary>
+							<div class="row g-3 pt-2">
+								<div class="col-6">${num('rc-vacancia', 'vacancia', t.rentaVacancia, 5, 'min="0" max="100" step="1"')}</div>
+								<div class="col-6">${num('rc-gastos', 'gastos', t.rentaGastos, 10, 'min="0" max="100" step="1"')}</div>
+							</div>
+						</details>
+						<div class="renta-resultado" aria-live="polite" aria-atomic="true">
+							<p class="renta-kpi-label">${t.rentaNetoMensual}</p>
+							<p class="renta-kpi" data-out="neto">—</p>
+							<div class="renta-mini">
+								<div><span>${t.rentaRendNeto}</span><strong data-out="rendNeto">—</strong></div>
+								<div><span>${t.rentaRendBruto}</span><strong data-out="rendBruto">—</strong></div>
+							</div>
+							<p class="renta-vacio" data-out="vacio">${t.rentaVacio}</p>
+						</div>
+						<p class="renta-desglose" data-out="desglose" hidden></p>
+						<p class="renta-iva" data-out="iva" hidden></p>
+						<div class="renta-escenarios" data-out="escenarios" hidden>
+							<h3 class="renta-sub">${t.rentaEscenarios}</h3>
+							<div class="renta-esc-grid"></div>
+						</div>
+						<button type="button" class="btn btn-primary w-100 renta-cta" data-renta-cta>${ic('comments')}${t.rentaCta}</button>
+						<p class="renta-estado" role="status" aria-live="polite"></p>
+						<p class="renta-nota">${ic('info-circle')}${t.rentaNota}</p>
+						<p class="renta-nota mb-0">${t.rentaAviso}</p>
+					</div>`;
+}
+function rentaCalculator(ctx, p) {
+	if (!rentaVisible(p)) return '';
+	const t = tr(ctx);
+	return `<section class="ficha-bloque renta-bloque" id="renta">
+						<h2>${ic('line-chart')}${t.rentaTitulo}</h2>
+						<p class="renta-intro">${t.rentaIntro}</p>
+						${rentaWidget(ctx, p)}
+					</section>`;
+}
+
 function factsList(p) {
 	const t = TEXTOS[lng(p)];
 	const en = lng(p) === 'en';
@@ -1041,6 +1114,7 @@ export function propertyPage(ctx, p) {
 					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
 					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
 					${!cerrada && mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
+					${!cerrada ? rentaCalculator(ctx, p) : ''}
 				</div>
 				<aside class="col-lg-4">
 					<div class="ficha-contacto">
@@ -1071,7 +1145,8 @@ export function propertyPage(ctx, p) {
 		ogType: 'article',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
-		waMensaje: waMsg
+		waMensaje: waMsg,
+		extraJs: !cerrada && rentaVisible(p) ? RENTA_JS : ''
 	}, body);
 }
 
@@ -1348,6 +1423,40 @@ export function contentPage(ctx, page) {
 		description: (page.seo && page.seo.descripcion) || stripMarkdown(page.contenido),
 		image: page.imagen,
 		jsonLd: [breadcrumbLd(ctx, crumbs), faqLd(page)].filter(Boolean)
+	}, body);
+}
+
+// Página de la calculadora de renta (/calculadora-de-renta/, /en/rental-calculator/).
+const RENTA_JS = '<script src="__RENTA_BUNDLE__" defer></script>';
+export function rentalCalculatorPage(ctx) {
+	const t = tr(ctx);
+	const url = rt(ctx).calculadora;
+	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, { name: t.rentaPagTitulo, url }];
+	const body = `
+	${pageHero(ctx, t.rentaPagTitulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
+	<div class="section renta-pagina">
+		<div class="container">
+			<div class="row justify-content-center g-4 g-lg-5">
+				<div class="col-lg-7">
+					<p class="renta-intro renta-intro-lg">${t.rentaPagLead}</p>
+					${rentaWidget(ctx)}
+				</div>
+				<aside class="col-lg-5 col-xl-4">
+					<div class="lead-card renta-lead">
+						${leadForm({ origen: 'calculadora', titulo: t.rentaPagForm, lang: ctx.lang || 'es' })}
+						<p class="renta-nota mb-0 mt-3">${t.rentaPagFormTexto}</p>
+					</div>
+				</aside>
+			</div>
+		</div>
+	</div>`;
+	return layout(ctx, {
+		path: url,
+		alternates: ctx.enActivo ? { es: RUTAS.es.calculadora, en: RUTAS.en.calculadora } : undefined,
+		title: `${t.rentaPagMeta} | ${ctx.site.general.nombreCorto}`,
+		description: t.rentaPagDesc,
+		jsonLd: [breadcrumbLd(ctx, crumbs)],
+		extraJs: RENTA_JS
 	}, body);
 }
 

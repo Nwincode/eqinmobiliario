@@ -4,11 +4,11 @@ import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
 export const RUTAS = {
 	es: {
 		inicio: '/', propiedades: '/propiedades/', venta: '/propiedades/venta/', renta: '/propiedades/renta/',
-		vip: '/vip/', blog: '/blog/', contacto: '/#contacto', ficha: '/propiedad/', fichaVip: '/vip/'
+		vip: '/vip/', blog: '/blog/', contacto: '/#contacto', ficha: '/propiedad/', fichaVip: '/vip/', calculadora: '/calculadora-de-renta/'
 	},
 	en: {
 		inicio: '/en/', propiedades: '/en/properties/', venta: '/en/properties/for-sale/', renta: '/en/properties/for-rent/',
-		vip: '/en/luxury/', blog: '/en/blog/', contacto: '/en/#contact', ficha: '/en/property/', fichaVip: '/en/luxury/'
+		vip: '/en/luxury/', blog: '/en/blog/', contacto: '/en/#contact', ficha: '/en/property/', fichaVip: '/en/luxury/', calculadora: '/en/rental-calculator/'
 	}
 };
 
@@ -40,6 +40,29 @@ const ES = {
 	// Ficha
 	calcTitulo: 'Calcula tu cuota mensual', enganche: 'Enganche %', tasa: 'Tasa anual %', anios: 'Años',
 	calcNota: 'Cálculo referencial; la cuota final depende del banco. Te ayudamos con el financiamiento.',
+	// Calculadora de renta
+	rentaTitulo: '¿Cuánto te puede rentar?', rentaIntro: 'Estima cuánto te quedaría al mes si la compras para alquilarla.',
+	rentaPrecio: 'Precio de compra', rentaMensual: 'Renta mensual', rentaMoneda: 'Moneda', rentaUso: 'Uso',
+	rentaHabitacional: 'Habitacional', rentaMixto: 'Mixto', rentaComercial: 'Comercial',
+	rentaSugerida: 'Renta sugerida con un rendimiento típico del mercado. Cámbiala si ya sabes cuánto cobrarías.',
+	rentaSupuestos: 'Ajustar supuestos', rentaVacancia: 'Vacancia (% del año sin inquilino)', rentaGastos: 'Gastos de operación (% de lo cobrado)',
+	rentaNetoMensual: 'Ingreso neto mensual estimado', rentaRendNeto: 'Rendimiento anual neto', rentaRendBruto: 'Rendimiento bruto',
+	rentaEscenarios: 'Si la renta cambia', rentaEscRenta: 'Renta', rentaEscNeto: 'Neto al mes', rentaEscRend: 'Rendimiento',
+	rentaMenos10: '−10 %', rentaActual: 'Actual', rentaMas10: '+10 %',
+	rentaVacio: 'Escribe el precio y la renta mensual para ver el cálculo.',
+	rentaDesgloseTitulo: 'Cómo se calcula (primer año)', rentaDBruta: 'Renta del año', rentaDVacancia: 'Vacancia', rentaDGastos: 'Gastos de operación',
+	rentaDIusi: 'IUSI', rentaDIsr: 'ISR (7 % de lo cobrado)', rentaDNeto: 'Te queda al año',
+	rentaIva: 'IVA 12 %: lo paga el inquilino encima de la renta (unos {monto} al mes). No es un costo tuyo.',
+	rentaNota: 'Cálculo para persona individual (ISR rentas de capital). Tu régimen fiscal puede cambiar el resultado.',
+	rentaAviso: 'Estimación de referencia, no es asesoría financiera ni fiscal.',
+	rentaCta: 'Pide un análisis completo con un asesor',
+	rentaListo: 'Listo: pusimos el cálculo en tu mensaje. Completa tus datos y envíalo.',
+	rentaResumen: 'Hola, quiero un análisis completo de inversión para alquilar.\nPrecio: {precio}\nRenta: {renta} al mes\nUso: {uso}\nIngreso neto estimado: {neto} al mes\nRendimiento neto: {rend} al año (bruto {bruto})\nSupuestos: vacancia {vacancia} %, gastos {gastos} %',
+	rentaPagTitulo: 'Calculadora de renta', rentaPagMeta: 'Calculadora de renta: ¿cuánto te deja una propiedad en alquiler?',
+	rentaPagDesc: 'Calcula el ingreso neto mensual y el rendimiento de una propiedad en alquiler en Guatemala, con vacancia, gastos, IUSI e ISR.',
+	rentaPagLead: 'Escribe el precio de la propiedad y la renta que esperas cobrar. Te mostramos cuánto te queda al mes después de vacancia, gastos e impuestos.',
+	rentaPagForm: 'Pide tu análisis completo', rentaPagFormTexto: 'Un asesor revisa contigo los números, el régimen fiscal y propiedades que encajan con tu meta.',
+	rentaLink: 'Calculadora de renta',
 	fTipo: 'Tipo', fOperacion: 'Operación', fEstado: 'Estado', fHabitaciones: 'Habitaciones', fBanos: 'Baños', fParqueos: 'Parqueos',
 	fConstruccion: 'Construcción', fTerreno: 'Terreno', fUbicacion: 'Ubicación', fPrecioM2: 'Precio por m²', fCodigo: 'Código',
 	compartir: 'Compartir', compartirWa: 'Compartir por WhatsApp', compartirFb: 'Compartir en Facebook', copiarEnlace: 'Copiar enlace',
@@ -102,6 +125,28 @@ const EN = {
 	paginacion: 'Pagination', noEncuentras: "Can't find what you need? We'll search for you",
 	calcTitulo: 'Estimate your monthly payment', enganche: 'Down %', tasa: 'Interest %', anios: 'Years',
 	calcNota: 'Estimate only; the final payment depends on the lender. We can help you explore financing options.',
+	rentaTitulo: 'What could it earn as a rental?', rentaIntro: 'Estimate what you would keep each month if you buy it to rent out.',
+	rentaPrecio: 'Purchase price', rentaMensual: 'Monthly rent', rentaMoneda: 'Currency', rentaUso: 'Use',
+	rentaHabitacional: 'Residential', rentaMixto: 'Mixed use', rentaComercial: 'Commercial',
+	rentaSugerida: 'Suggested rent based on a typical market yield. Change it if you already know what you would charge.',
+	rentaSupuestos: 'Adjust assumptions', rentaVacancia: 'Vacancy (% of the year without a tenant)', rentaGastos: 'Operating costs (% of rent collected)',
+	rentaNetoMensual: 'Estimated net monthly income', rentaRendNeto: 'Net annual yield', rentaRendBruto: 'Gross yield',
+	rentaEscenarios: 'If the rent changes', rentaEscRenta: 'Rent', rentaEscNeto: 'Net per month', rentaEscRend: 'Yield',
+	rentaMenos10: '−10%', rentaActual: 'Current', rentaMas10: '+10%',
+	rentaVacio: 'Enter the price and the monthly rent to see the estimate.',
+	rentaDesgloseTitulo: 'How it is calculated (first year)', rentaDBruta: 'Rent for the year', rentaDVacancia: 'Vacancy', rentaDGastos: 'Operating costs',
+	rentaDIusi: 'Property tax (IUSI)', rentaDIsr: 'Income tax (7% of rent collected)', rentaDNeto: 'You keep per year',
+	rentaIva: '12% VAT: the tenant pays it on top of the rent (about {monto} per month). It is not your cost.',
+	rentaNota: 'Calculated for an individual owner (Guatemalan capital income tax). Your tax regime may change the result.',
+	rentaAviso: 'Reference estimate only; this is not financial or tax advice.',
+	rentaCta: 'Ask an advisor for a full analysis',
+	rentaListo: 'Done: we added the estimate to your message. Fill in your details and send it.',
+	rentaResumen: 'Hi, I would like a full rental investment analysis.\nPrice: {precio}\nRent: {renta} per month\nUse: {uso}\nEstimated net income: {neto} per month\nNet yield: {rend} per year (gross {bruto})\nAssumptions: vacancy {vacancia}%, costs {gastos}%',
+	rentaPagTitulo: 'Rental calculator', rentaPagMeta: 'Rental calculator: how much does a rental property earn?',
+	rentaPagDesc: 'Estimate the net monthly income and yield of a rental property in Guatemala, including vacancy, costs, property tax and income tax.',
+	rentaPagLead: 'Enter the property price and the rent you expect to charge. We show what you keep each month after vacancy, costs and taxes.',
+	rentaPagForm: 'Ask for your full analysis', rentaPagFormTexto: 'An advisor reviews the numbers, the tax regime and properties that fit your goal with you.',
+	rentaLink: 'Rental calculator',
 	fTipo: 'Type', fOperacion: 'Listing', fEstado: 'Status', fHabitaciones: 'Bedrooms', fBanos: 'Bathrooms', fParqueos: 'Parking',
 	fConstruccion: 'Interior', fTerreno: 'Lot size', fUbicacion: 'Location', fPrecioM2: 'Price per sq ft', fCodigo: 'Listing ID',
 	compartir: 'Share', compartirWa: 'Share on WhatsApp', compartirFb: 'Share on Facebook', copiarEnlace: 'Copy link',
@@ -151,6 +196,7 @@ export const GRUPOS_TEXTOS = [
 	['Ficha de propiedad', ['verFotosN', 'caracteristicas', 'anteriorFoto', 'siguienteFoto', 'descripcion', 'amenidades', 'video', 'ubicacion', 'agendaVisita', 'quieroInfo', 'similares', 'fTipo', 'fOperacion', 'fEstado', 'fHabitaciones', 'fBanos', 'fParqueos', 'fConstruccion', 'fTerreno', 'fUbicacion', 'fPrecioM2', 'fCodigo', 'compartir', 'compartirWa', 'compartirFb', 'copiarEnlace']],
 	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
+	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDGastos', 'rentaDIusi', 'rentaDIsr', 'rentaDNeto', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
 ];
