@@ -2032,18 +2032,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	outline: 2px solid var(--adm-cyan);
 	outline-offset: 2px;
 }
-.cot-pendiente {
-	display: inline-flex;
-	align-items: center;
-	white-space: nowrap;
-	font-size: 12px;
-	font-weight: 700;
-	padding: 3px 8px;
-	border-radius: 999px;
-	color: var(--adm-text);
-	background: color-mix(in oklab, var(--eq-warning) 22%, var(--adm-surface));
-	border: 1px solid color-mix(in oklab, var(--eq-warning) 55%, var(--adm-surface));
-}
 .cot-linea-resumen {
 	margin-top: 12px;
 	padding: 10px 12px;
@@ -2340,10 +2328,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		flex: 1 1 0;
 		min-width: 9rem;
 	}
-	.cot-linea-head .cot-pendiente {
-		order: 5;
-		margin-left: 46px;
-	}
 }
 /* Cotización: los avisos flotantes no salen en el PDF */
 @media print {
@@ -2447,6 +2431,189 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 	.cot-barra .btn-link {
 		display: none;
+	}
+}
+/* Cotización v2: quién factura, administración sin valor y liquidación interna */
+.cot-sep {
+	border-top: 1px solid var(--adm-border);
+	padding-top: 16px;
+}
+.cot-emisor-resumen {
+	padding: 12px 14px;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius);
+	background: var(--eq-mist);
+	color: var(--adm-text);
+	overflow-wrap: anywhere;
+}
+.cot-emisor-nombre {
+	font-weight: 700;
+	color: var(--eq-dark);
+}
+.cot-emisor-pie {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 16px;
+	margin-top: 8px;
+}
+.cot-solo-admin {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
+.cot-acciones-campo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 14px;
+}
+.cot-aviso {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: color-mix(in oklab, var(--eq-warning) 14%, var(--adm-surface));
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 55%, var(--adm-surface));
+	color: var(--adm-text);
+	font-size: 14px;
+}
+.cot-aviso-icono {
+	margin-top: 3px;
+	color: var(--eq-dark);
+}
+.cot-linea-resumen.is-falta {
+	display: flex;
+	align-items: flex-start;
+	background: color-mix(in oklab, var(--eq-warning) 14%, var(--adm-surface));
+	border-left-color: var(--eq-warning);
+}
+.cot-linea-resumen.is-falta .icon-exclamation-circle {
+	margin-top: 3px;
+	color: var(--eq-dark);
+}
+.cot-liq {
+	border-color: color-mix(in oklab, var(--adm-primary) 35%, var(--adm-border));
+}
+.cot-liq-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.cot-interno {
+	display: inline-flex;
+	align-items: center;
+	font-size: 12px;
+	font-weight: 700;
+	padding: 3px 10px;
+	border-radius: 999px;
+	color: var(--adm-primary);
+	background: var(--eq-primary-soft);
+	white-space: nowrap;
+}
+.cot-liq-intro {
+	margin-bottom: 12px;
+}
+.cot-liq-bloque + .cot-liq-bloque {
+	margin-top: 16px;
+}
+.cot-liq-sub {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--adm-muted);
+	margin-bottom: 4px;
+}
+.cot-liq-tabla {
+	margin: 0;
+	font-size: 14px;
+	color: var(--adm-text);
+}
+.cot-liq-fila {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 7px 0;
+	border-bottom: 1px solid var(--adm-border);
+}
+.cot-liq-fila dt {
+	font-weight: 400;
+	min-width: 0;
+}
+.cot-liq-fila dd {
+	margin: 0;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.cot-liq-nota {
+	display: block;
+	font-size: 12px;
+	color: var(--adm-muted);
+}
+.cot-liq-neto {
+	font-weight: 700;
+	border-bottom-width: 2px;
+}
+.cot-liq-asesor {
+	border-bottom: 0;
+	padding-top: 10px;
+	font-weight: 700;
+	color: var(--adm-primary);
+	font-size: 16px;
+}
+.cot-liq-empresa {
+	border-bottom: 0;
+	padding-top: 0;
+	color: var(--adm-muted);
+}
+.cot-liq-pct {
+	margin-top: 14px;
+	max-width: 260px;
+}
+.cot-liq-pct .form-control,
+.cot-ajustes .form-control,
+.cot-ajustes .form-select {
+	min-height: 44px;
+}
+.cot-doc-emisor.sin-logo {
+	gap: 0;
+}
+.cot-ajustes {
+	max-width: 760px;
+}
+.cot-intro {
+	max-width: 60ch;
+}
+.cot-check {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+}
+.cot-check .form-check-input {
+	width: 22px;
+	height: 22px;
+	margin: 0;
+	flex: 0 0 auto;
+}
+.cot-logo-muestra {
+	display: block;
+	height: 40px;
+	width: auto;
+	margin-top: 8px;
+}
+.cot-ajustes .cot-barra {
+	gap: 12px;
+	align-items: center;
+}
+@media print {
+	.cot-liq {
+		display: none !important;
 	}
 }
 /* ===== Fin Cotización ===== */

@@ -74,10 +74,16 @@ service cloud.firestore {
       allow get: if isStaff();
       allow write: if isAdmin();
     }
-    // Datos predeterminados del emisor para las cotizaciones de servicios.
+    // Cotizaciones: datos de la empresa que factura, ISR %, % para el asesor, vigencia y condiciones.
+    // Los lee el equipo; los cambia el administrador.
     match /settings/cotizacion {
       allow get: if isStaff();
       allow write: if isAdmin();
+    }
+    // Datos del asesor para facturar sus cotizaciones (NIT, régimen): los ve y cambia el asesor dueño y el administrador.
+    // El id del documento es el agentId del asesor.
+    match /emisoresAsesor/{agentId} {
+      allow read, write: if isAdmin() || (isStaff() && myAgentId() == agentId);
     }
 
     match /properties/{id} {

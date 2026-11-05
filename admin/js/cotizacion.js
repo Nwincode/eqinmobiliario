@@ -31,6 +31,23 @@ export const CONDICIONES_DEF = 'La comisión de compraventa se paga al firmar la
 export const NOTA_PEQUENO = 'Factura de pequeño contribuyente; el impuesto del 5 % lo paga el emisor a la SAT.';
 export const VIGENCIA_DEF = 15;
 
+// ¿Quién factura? El asesor (con sus datos) o la empresa (datos de settings/cotizacion).
+export const EMISORES = [
+	['asesor', 'El asesor'],
+	['empresa', 'La empresa']
+];
+// Administración: el honorario lo decide quien cotiza en cada cotización.
+export const TIPOS_ADMIN = [
+	['pct', '% de la renta'],
+	['fijo', 'Monto fijo al mes']
+];
+// Liquidación interna cuando factura la empresa.
+// ISR del régimen opcional simplificado sobre ingresos: 5 % sobre los primeros Q 30,000 del mes y 7 % sobre el
+// excedente (Ley de Actualización Tributaria, Decreto 10-2012, art. 44). Se usa 5 % fijo, editable por el administrador.
+export const ISR_DEF = 5;
+export const FUENTE_ISR = 'Régimen opcional simplificado, Decreto 10-2012, art. 44';
+export const PCT_ASESOR_DEF = 100;
+
 const num = (v, d = 0) => { const x = Number(v); return v === '' || v === null || v === undefined || !isFinite(x) ? d : x; };
 export const redondear = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
 
@@ -67,18 +84,22 @@ export function desglose(honorario, regimen, modo = 'todo') {
 }
 
 export function lineaVacia(tipo = 'compraventa', moneda = 'USD') {
-	return { tipo, moneda, precio: '', pct: tipo === 'administracion' ? 10 : 5, renta: '', anios: 1, descripcion: '', monto: '' };
+	const l = { tipo, moneda, precio: '', pct: tipo === 'compraventa' ? 5 : '', renta: '', anios: 1, descripcion: '', monto: '' };
+	if (tipo === 'administracion') l.adminTipo = 'pct';
+	return l;
 }
 
 // Calcula una línea de servicio. Devuelve el honorario base y los textos de cálculo.
 export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 	const l = linea || {};
 	const moneda = l.moneda === 'GTQ' ? 'GTQ' : 'USD';
-	let base = 0, mensual = false, concepto = '', detalle = '', listo = false, meses = null;
+	// falta: el primer dato que falta para calcular la línea ('' si está completa).
+	let base = 0, mensual = false, concepto = '', detalle = '', listo = false, meses = null, falta = '';
 	if (l.tipo === 'compraventa') {
 		const precio = num(l.precio), pct = num(l.pct, 5);
 		base = precio * pct / 100;
 		listo = precio > 0;
+		falta = listo ? '' : 'precio';
 		concepto = 'Intermediación de compraventa';
 		detalle = `${porcentaje(modo === 'todo' ? pctTodoIncluido(pct, regimen) : pct)} sobre un precio de ${dinero(precio, moneda)}`;
 	} else if (l.tipo === 'arrendamiento') {
@@ -87,22 +108,103 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 		meses = mesesArrendamiento(anios);
 		base = renta * meses;
 		listo = renta > 0 && anios > 0;
+		falta = renta > 0 ? (anios > 0 ? '' : 'anios') : 'renta';
 		concepto = 'Comisión por contrato de arrendamiento';
 		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)`;
 	} else if (l.tipo === 'administracion') {
-		const renta = num(l.renta), pct = num(l.pct, 10);
-		base = renta * pct / 100;
+		// Sin porcentaje ni monto predeterminado: la línea no cuenta hasta que se escribe el valor.
+		const renta = num(l.renta);
 		mensual = true;
-		listo = renta > 0;
 		concepto = 'Administración de la propiedad';
-		detalle = `${porcentaje(modo === 'todo' ? pctTodoIncluido(pct, regimen) : pct)} de la renta mensual de ${dinero(renta, moneda)}, cada mes`;
+		if (l.adminTipo === 'fijo') {
+			base = num(l.monto);
+			listo = base > 0;
+			falta = listo ? '' : 'monto';
+			detalle = renta > 0 ? `Monto fijo cada mes (renta mensual de ${dinero(renta, moneda)})` : 'Monto fijo cada mes';
+		} else {
+			const pct = num(l.pct);
+			base = renta * pct / 100;
+			listo = renta > 0 && pct > 0;
+			falta = renta > 0 ? (pct > 0 ? '' : 'pct') : 'renta';
+			detalle = `${porcentaje(modo === 'todo' ? pctTodoIncluido(pct, regimen) : pct)} de la renta mensual de ${dinero(renta, moneda)}, cada mes`;
+		}
 	} else {
 		base = num(l.monto);
 		listo = base > 0;
+		falta = listo ? '' : 'monto';
 		concepto = String(l.descripcion || '').trim() || 'Otro servicio';
 		detalle = '';
 	}
-	return { tipo: l.tipo || 'otro', moneda, mensual, listo, meses, concepto, detalle, ...desglose(base, regimen, modo) };
+	return { tipo: l.tipo || 'otro', moneda, mensual, listo, falta, meses, concepto, detalle, ...desglose(base, regimen, modo) };
+}
+
+// Líneas que impiden guardar e imprimir: la administración sin su porcentaje (o renta) o sin su monto fijo.
+// Las demás líneas incompletas solo se omiten de la hoja, como antes.
+export function pendientes(cot) {
+	const c = cot || {};
+	const r = calcularCotizacion(c);
+	const out = [];
+	(c.lineas || []).forEach((l, i) => {
+		const x = r.lineas[i];
+		if (l.tipo !== 'administracion' || x.listo) return;
+		const mensaje = x.falta === 'renta' ? 'Escribe la renta mensual para calcular el porcentaje de administración.'
+			: x.falta === 'pct' ? 'Escribe el porcentaje de administración.'
+				: 'Escribe el monto mensual de administración.';
+		out.push({ linea: i, campo: x.falta, mensaje });
+	});
+	return out;
+}
+
+// ── Emisor ──────────────────────────────────────────────────────────────
+export const regimenValido = (v) => (v === 'pequeno' ? 'pequeno' : 'general');
+export const etqRegimen = (v) => (v === 'pequeno' ? 'Pequeño contribuyente' : 'Régimen general de IVA');
+const txt = (v) => String(v ?? '').trim();
+
+// Copia del emisor que se guarda en la cotización (así la hoja no cambia si después cambian los datos).
+//  asesor:  { nombre, nit, regimen, telefono, email } (emisoresAsesor/{id})
+//  empresa: { razonSocial, nombreComercial, nit, regimen, direccion, telefono, email, usarLogo } (settings/cotizacion.empresa)
+export function emisorDesde(tipo, { asesor = {}, empresa = {} } = {}) {
+	if (tipo === 'asesor') {
+		const a = asesor || {};
+		return { tipo: 'asesor', nombre: txt(a.nombre), razonSocial: '', nit: txt(a.nit), regimen: regimenValido(a.regimen),
+			direccion: '', telefono: txt(a.telefono), email: txt(a.email), logo: false };
+	}
+	const e = empresa || {};
+	const comercial = txt(e.nombreComercial), razon = txt(e.razonSocial);
+	return { tipo: 'empresa', nombre: comercial || razon, razonSocial: razon && razon !== comercial ? razon : '', nit: txt(e.nit),
+		regimen: regimenValido(e.regimen), direccion: txt(e.direccion), telefono: txt(e.telefono), email: txt(e.email), logo: e.usarLogo !== false };
+}
+
+// Datos mínimos del emisor para la hoja: nombre y NIT.
+export function faltanEmisor(emisor) {
+	const e = emisor || {};
+	return [!txt(e.nombre) && 'nombre', !txt(e.nit) && 'NIT'].filter(Boolean);
+}
+
+// ── Liquidación para el asesor (solo cuando factura la empresa; nunca sale en la hoja ni en WhatsApp) ──
+// Por cada total (único o mensual, por moneda):
+//   cobrado al cliente
+//   − IVA a pagar (general: el IVA débito)  ó  − impuesto de pequeño contribuyente (5 % del total)
+//   − ISR (solo régimen general: isrPct % sobre el honorario sin IVA)
+//   = neto;  × pctAsesor % = lo que recibe el asesor (el resto queda a la empresa).
+export function liquidacionTotal(t, regimen, { isrPct = ISR_DEF, pctAsesor = PCT_ASESOR_DEF } = {}) {
+	const x = t || {};
+	const general = regimenValido(regimen) === 'general';
+	const cobrado = redondear(num(x.total));
+	const iva = general ? redondear(num(x.impuesto)) : 0;
+	const impuestoPequeno = general ? 0 : redondear(cobrado * TASA_PEQUENO);
+	const isrP = general ? Math.min(100, Math.max(0, num(isrPct, ISR_DEF))) : 0;
+	const isr = general ? redondear(num(x.honorario) * isrP / 100) : 0;
+	const neto = redondear(cobrado - iva - impuestoPequeno - isr);
+	const pctA = Math.min(100, Math.max(0, num(pctAsesor, PCT_ASESOR_DEF)));
+	const asesor = redondear(neto * pctA / 100);
+	return { moneda: x.moneda || 'USD', mensual: Boolean(x.mensual), regimen: general ? 'general' : 'pequeno',
+		cobrado, iva, impuestoPequeno, isrPct: isrP, isr, neto, pctAsesor: pctA, asesor, empresa: redondear(neto - asesor) };
+}
+
+export function liquidacion(cot, opciones = {}) {
+	const r = calcularCotizacion(cot);
+	return r.totales.map((t) => liquidacionTotal(t, r.regimen, opciones));
 }
 
 // Calcula toda la cotización: líneas y totales por moneda, separando lo que se paga una vez de lo mensual.

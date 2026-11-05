@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import {
 	mesesArrendamiento, pctTodoIncluido, factorTodoIncluido, desglose, calcularLinea, calcularCotizacion,
-	textoWhatsApp, dinero, venceEl, numeroCotizacion
+	textoWhatsApp, dinero, venceEl, numeroCotizacion, lineaVacia, pendientes, emisorDesde, faltanEmisor,
+	liquidacionTotal, liquidacion, ISR_DEF, PCT_ASESOR_DEF
 } from '../admin/js/cotizacion.js';
 
 let ok = 0;
@@ -89,6 +90,103 @@ await test('texto para WhatsApp y vigencia', () => {
 	assert.match(t, /pequeño contribuyente/);
 	assert.equal(venceEl('2026-11-05', 15), '2026-11-20');
 	assert.match(numeroCotizacion(new Date(2026, 10, 5, 9, 7)), /^COT-20261105-0907$/);
+});
+
+await test('administración: empieza vacía, no suma y no deja guardar hasta tener el valor', () => {
+	const l = lineaVacia('administracion', 'GTQ');
+	assert.equal(l.pct, '');
+	assert.equal(l.adminTipo, 'pct');
+	const sinNada = calcularLinea(l, 'general', 'todo');
+	assert.equal(sinNada.listo, false);
+	assert.equal(sinNada.falta, 'renta');
+	l.renta = 10000;
+	assert.equal(calcularLinea(l, 'general', 'todo').falta, 'pct');
+	const cot = { regimen: 'general', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }, l] };
+	assert.deepEqual(pendientes(cot).map((p) => [p.linea, p.campo]), [[1, 'pct']]);
+	assert.equal(calcularCotizacion(cot).totales.filter((t) => t.mensual).length, 0, 'la línea sin valor no suma');
+	assert.doesNotMatch(textoWhatsApp(cot), /Administración/);
+	l.pct = 8;
+	assert.deepEqual(pendientes(cot), []);
+	const x = calcularLinea(l, 'general', 'separado');
+	assert.equal(x.honorario, 800);
+	assert.equal(x.total, 896);
+	// Compraventa sin precio no bloquea (solo se omite, como antes).
+	assert.deepEqual(pendientes({ lineas: [{ tipo: 'compraventa', precio: '' }] }), []);
+});
+
+await test('administración con monto fijo al mes: IVA y pequeño contribuyente igual que los demás servicios', () => {
+	const l = { tipo: 'administracion', adminTipo: 'fijo', moneda: 'GTQ', renta: '', monto: '' };
+	assert.equal(pendientes({ lineas: [l] })[0].campo, 'monto');
+	l.monto = 1000;
+	const g = calcularLinea(l, 'general', 'todo');
+	assert.equal(g.mensual, true);
+	assert.equal(g.total, 1120);
+	assert.equal(g.impuesto, 120);
+	const p = calcularLinea(l, 'pequeno', 'todo');
+	assert.equal(p.total, 1052.63);
+	assert.equal(p.impuesto, 52.63);
+	assert.equal(calcularLinea(l, 'pequeno', 'separado').total, 1000);
+	assert.match(g.detalle, /Monto fijo cada mes/);
+});
+
+await test('cotizaciones guardadas antes (administración con 10 % y sin tipo) siguen igual', () => {
+	const x = calcularLinea({ tipo: 'administracion', moneda: 'GTQ', renta: 10000, pct: 10 }, 'general', 'todo');
+	assert.equal(x.total, 1120);
+});
+
+await test('emisor: el asesor o la empresa', () => {
+	const a = emisorDesde('asesor', { asesor: { nombre: ' Joaquín Pérez ', nit: '123456-7', regimen: 'pequeno', telefono: '5555-1234', email: 'j@x.gt' } });
+	assert.deepEqual(a, { tipo: 'asesor', nombre: 'Joaquín Pérez', razonSocial: '', nit: '123456-7', regimen: 'pequeno', direccion: '', telefono: '5555-1234', email: 'j@x.gt', logo: false });
+	const e = emisorDesde('empresa', { empresa: { razonSocial: 'Equipo Inmobiliario, S.A.', nombreComercial: 'Equipo Inmobiliario', nit: '1234567-8', regimen: 'general', direccion: 'Zona 10' } });
+	assert.equal(e.nombre, 'Equipo Inmobiliario');
+	assert.equal(e.razonSocial, 'Equipo Inmobiliario, S.A.');
+	assert.equal(e.regimen, 'general');
+	assert.equal(e.logo, true);
+	assert.equal(emisorDesde('empresa', { empresa: { razonSocial: 'X, S.A.', usarLogo: false } }).nombre, 'X, S.A.');
+	assert.equal(emisorDesde('empresa', { empresa: { razonSocial: 'X, S.A.', usarLogo: false } }).logo, false);
+	assert.equal(emisorDesde('asesor', {}).regimen, 'general');
+	assert.deepEqual(faltanEmisor(emisorDesde('asesor', {})), ['nombre', 'NIT']);
+	assert.deepEqual(faltanEmisor(a), []);
+});
+
+await test('liquidación, empresa en régimen general: US$ 11,200 − IVA 1,200 − ISR 5 % (500) = 9,500', () => {
+	assert.equal(ISR_DEF, 5);
+	assert.equal(PCT_ASESOR_DEF, 100);
+	const cot = { regimen: 'general', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }] };
+	const [x] = liquidacion(cot);
+	assert.deepEqual([x.cobrado, x.iva, x.impuestoPequeno, x.isr, x.neto, x.asesor, x.empresa], [11200, 1200, 0, 500, 9500, 9500, 0]);
+	const [mitad] = liquidacion(cot, { isrPct: 5, pctAsesor: 50 });
+	assert.deepEqual([mitad.neto, mitad.asesor, mitad.empresa], [9500, 4750, 4750]);
+	const [isr7] = liquidacion(cot, { isrPct: 7 });
+	assert.equal(isr7.isr, 700);
+	assert.equal(isr7.neto, 9300);
+	// «Honorario + IVA» da lo mismo: el cliente paga 11,200 en ambos casos.
+	assert.equal(liquidacion({ ...cot, modo: 'separado' })[0].neto, 9500);
+});
+
+await test('liquidación, empresa pequeño contribuyente: 5 % del total y sin ISR', () => {
+	const [x] = liquidacion({ regimen: 'pequeno', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }] }, { isrPct: 5, pctAsesor: 100 });
+	assert.deepEqual([x.cobrado, x.iva, x.impuestoPequeno, x.isrPct, x.isr, x.neto, x.asesor], [10526.32, 0, 526.32, 0, 0, 10000, 10000]);
+	const [s] = liquidacion({ regimen: 'pequeno', modo: 'separado', lineas: [{ tipo: 'arrendamiento', moneda: 'GTQ', renta: 9500, anios: 3 }] }, { pctAsesor: 60 });
+	assert.deepEqual([s.cobrado, s.impuestoPequeno, s.neto, s.asesor, s.empresa], [28500, 1425, 27075, 16245, 10830]);
+});
+
+await test('liquidación: lo mensual y cada moneda por separado; valores fuera de rango se acotan', () => {
+	const l = liquidacion({ regimen: 'general', modo: 'todo', lineas: [
+		{ tipo: 'compraventa', moneda: 'USD', precio: 100000, pct: 5 },
+		{ tipo: 'administracion', adminTipo: 'fijo', moneda: 'GTQ', monto: 1000 }
+	] });
+	assert.deepEqual(l.map((x) => [x.moneda, x.mensual, x.neto]), [['USD', false, 4750], ['GTQ', true, 950]]);
+	const y = liquidacionTotal({ total: 112, impuesto: 12, honorario: 100 }, 'general', { isrPct: 200, pctAsesor: -5 });
+	assert.equal(y.isrPct, 100);
+	assert.equal(y.asesor, 0);
+	assert.equal(liquidacionTotal({ total: 112, impuesto: 12, honorario: 100 }, 'general', { isrPct: '', pctAsesor: '' }).isr, 5);
+});
+
+await test('la liquidación nunca sale en el texto de WhatsApp', () => {
+	const t = textoWhatsApp({ numero: 'COT-2', fecha: '2026-11-05', regimen: 'general', modo: 'todo', emisorTipo: 'empresa', emisor: { nombre: 'Equipo Inmobiliario' },
+		liquidacion: { isrPct: 5, pctAsesor: 50 }, lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }] });
+	assert.doesNotMatch(t, /liquidaci|ISR|neto|asesor recibe|9,500|4,750/i);
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ', con fallas' : ''}.`);
