@@ -930,6 +930,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 		btnGuardar,
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF'),
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), 'Copiar para WhatsApp'),
+		// En celular: ver la hoja completa sin tener que bajar hasta ella.
+		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', onclick: verHoja },
+			h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), 'Ver hoja completa'),
 		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
 
 	const titulo = id && !duplicar ? 'Cotización' : 'Nueva cotización';
