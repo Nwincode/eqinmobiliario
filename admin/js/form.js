@@ -301,6 +301,17 @@ export function renderForm(schema, data, options = {}) {
 						return h('div', { class: 'images-grid-item' },
 							h('img', { src: img.url, alt: img.alt || '' }),
 							i === 0 ? h('span', { class: 'badge text-bg-primary images-cover' }, 'Portada') : null,
+							h('button', {
+								type: 'button', class: `images-star${i === 0 ? ' activa' : ''}`,
+								'aria-label': i === 0 ? 'Es la foto de portada' : 'Usar como portada',
+								'aria-pressed': String(i === 0), title: i === 0 ? 'Foto de portada' : 'Usar como portada',
+								onclick: () => {
+									if (i === 0) return;
+									arr.unshift(...arr.splice(i, 1));
+									set(arr);
+									draw();
+								}
+							}, h('span', { class: i === 0 ? 'icon-star' : 'icon-star-o', 'aria-hidden': 'true' })),
 							h('div', { class: 'd-flex gap-1 my-1' },
 								h('button', { type: 'button', class: 'btn btn-sm btn-light', title: 'Mover antes', disabled: i === 0, onclick: () => move(-1) }, '←'),
 								h('button', { type: 'button', class: 'btn btn-sm btn-light', title: 'Mover después', disabled: i === arr.length - 1, onclick: () => move(1) }, '→'),

@@ -609,6 +609,36 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	top: 14px;
 	left: 14px;
 }
+/* Estrella para elegir la foto de portada: círculo discreto, 44 px de toque. */
+.images-star {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 44px;
+	height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	cursor: pointer;
+}
+.images-star span {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--adm-surface) 92%, transparent);
+	color: var(--adm-muted);
+	font-size: 1rem;
+	box-shadow: var(--adm-shadow);
+}
+.images-star:hover span { color: var(--adm-primary); }
+.images-star.activa span { color: var(--eq-gold); }
+.images-star:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: 0; }
 
 .list-field-item {
 	background: #f8fafb;
