@@ -74,6 +74,11 @@ service cloud.firestore {
       allow get: if isStaff();
       allow write: if isAdmin();
     }
+    // Datos predeterminados del emisor para las cotizaciones de servicios.
+    match /settings/cotizacion {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
 
     match /properties/{id} {
       allow get: if resource.data.publicado == true || isStaff();
@@ -145,6 +150,13 @@ service cloud.firestore {
       allow create: if nuevoPropio();
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
+    }
+    // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
+    match /cotizaciones/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
     }
 
     // Portal del propietario: copia resumida y sin datos de clientes, hecha por el asesor.
