@@ -8,12 +8,14 @@ const R = window.EQRenta;
 const TIPOS_DEF = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
 const USOS = [['habitacional', 'Habitacional (vivienda)'], ['mixto', 'Mixto'], ['comercial', 'Comercial']];
 const ISR = [['capital', 'Rentas de capital (10 % sobre el 70 %)'], ['simplificado', 'Régimen simplificado (5 % / 7 %)'], ['utilidades', 'Sobre utilidades (25 %)']];
-const IVA = [['exento', 'Exento (vivienda)'], ['general', 'General 12 % (lo paga el inquilino)'], ['pequeno', 'Pequeño contribuyente 5 %']];
+const IVA = [['auto', 'Automático, según lo que cobras al año'], ['pequeno', 'Pequeño contribuyente 5 % (lo pagas tú)'], ['general', 'General 12 % (lo cobras al inquilino)']];
+const IVA_CORTO = { pequeno: 'pequeño contribuyente 5 %', general: 'general 12 %' };
+const q = (v) => `Q ${Math.round(v).toLocaleString('es-GT')}`;
 
 const AVISOS = {
 	terreno: 'Un terreno casi nunca se renta: la referencia de cap rate no aplica y el resultado es solo ilustrativo.',
-	pequenoLimite: 'La renta cobrada pasa de Q 150,000 al año: ya no cabe en pequeño contribuyente; revisa el régimen de IVA.',
-	mixtoIva: 'Uso mixto: el IVA depende del contrato (la parte de vivienda está exenta). Confirma con el contador.',
+	pequenoLimite: (r) => `La renta cobrada (${q(r.cobradoAnualQ)} al año) pasa del límite de pequeño contribuyente (${q(r.parametros.limitePequenoGTQ)}): corresponde el régimen general de IVA.`,
+	pequenoLimiteFuturo: (r) => `Con el aumento anual, en el año ${r.ivaLimiteAnio} la renta cobrada pasa del límite de pequeño contribuyente (${q(r.parametros.limitePequenoGTQ)}). Desde ahí correspondería el IVA general; el cálculo mantiene pequeño contribuyente todo el plazo.`,
 	tirNula: 'La TIR no se puede calcular con estos flujos (no recupera la inversión en el plazo).'
 };
 
@@ -22,9 +24,10 @@ const GLOSARIO = [
 	['Vacancia', 'Porcentaje del año en que la propiedad queda vacía o no se cobra la renta.'],
 	['Gastos operativos', 'Mantenimiento, cuota de condominio, seguro, administración y reparaciones menores, como porcentaje de lo cobrado.'],
 	['Reserva de capital (capex)', 'Ahorro para reparaciones grandes: techo, pintura, equipos.'],
-	['IUSI', 'Impuesto Único sobre Inmuebles. Se calcula sobre el valor fiscal (el inscrito en la municipalidad), no sobre el precio de venta.'],
+	['IUSI', 'Impuesto Único sobre Inmuebles, sobre el valor inscrito (no sobre el precio de venta). Desde el Decreto 18-2026 (vigente desde el 26-nov-2026 aprox.; antes regía la escala anterior): vivienda, residencial y mixto pagan 0 ‰; comercial y otros usos, 3 ‰ hasta Q 500,000, 6 ‰ hasta Q 1,000,000 y 9 ‰ arriba. La tasa del tramo va sobre todo el valor.'],
 	['ISR', 'Impuesto Sobre la Renta del dueño por las rentas cobradas, según el régimen elegido.'],
-	['IVA', 'Impuesto al Valor Agregado. En el régimen general lo cobra el dueño al inquilino y lo entrega a la SAT: no es costo del dueño.'],
+	['IVA', 'Impuesto al Valor Agregado. Rentar, también vivienda, paga IVA. Pequeño contribuyente: 5 % de lo cobrado, lo paga el dueño, solo si cobra hasta 125 salarios mínimos al año (Q 500,285 en 2026). Régimen general: 12 % que el dueño cobra aparte al inquilino y entrega a la SAT; no es costo del dueño.'],
+	['Exención en la venta', 'Desde el 1-ene-2027, la persona individual sin actividad inmobiliaria inscrita en el RTU no paga ISR sobre la ganancia de la venta (Decreto 18-2026). Sí pagan las empresas, fideicomisos y quien tiene inscrita compraventa, desarrollo o intermediación de inmuebles.'],
 	['Ingreso efectivo', 'La renta que de verdad se cobra en el año: renta bruta menos la vacancia.'],
 	['NOI', 'Ingreso operativo neto: lo cobrado menos gastos operativos e IUSI, antes de ISR y reserva.'],
 	['Flujo antes de impuestos', 'Lo que queda después de gastos, IUSI y reserva, antes de pagar el ISR.'],
@@ -41,7 +44,7 @@ const GLOSARIO = [
 
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || [v, v])[1];
 
-const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'exento', iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosVenta: 5, costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, tasaDescuento: 10, objetivo: 6 };
+const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'auto', vendedorExento: true, iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosVenta: 5, costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, tasaDescuento: 10, objetivo: 6 };
 
 export async function render(container) {
 	const estado = { ...DEF };
@@ -58,14 +61,15 @@ export async function render(container) {
 		vacancia: num(estado.vacancia) ?? 0, crecimientoRenta: num(estado.crecimientoRenta) ?? 0, gastosOperativos: num(estado.gastosOperativos) ?? 0,
 		reservaCapex: num(estado.reservaCapex) ?? 0, iusiMil: num(estado.iusiMil), depreciacion: num(estado.depreciacion) ?? 0,
 		plazo: num(estado.plazo) || 30, capSalida: num(estado.capSalida), costosVenta: num(estado.costosVenta) ?? 0, tasaDescuento: num(estado.tasaDescuento) ?? 0,
-		costosCompra: num(estado.costosCompra) ?? 0, capexSumaAlCosto: estado.capexSumaAlCosto !== false, restarImpuestoVenta: estado.restarImpuestoVenta !== false
+		costosCompra: num(estado.costosCompra) ?? 0, capexSumaAlCosto: estado.capexSumaAlCosto !== false, restarImpuestoVenta: estado.restarImpuestoVenta !== false,
+		vendedorExento: estado.vendedorExento !== false
 	});
 
 	// ── Campos ──────────────────────────────────────────────
 	const campos = {};
 	const id = (k) => `calc-${k}`;
 	function campo(k, label, { tipo = 'number', opciones, sufijo, ayuda, attrs = {}, col = 'col-sm-6' } = {}) {
-		const onInput = (e) => { estado[k] = e.target.value; if (k === 'uso') { estado.regimenIVA = R.ivaPorUso(estado.uso); campos.regimenIVA.value = estado.regimenIVA; } if (k === 'moneda') monedas(); calcular(); };
+		const onInput = (e) => { estado[k] = e.target.value; if (k === 'regimenISR') { estado.vendedorExento = estado.regimenISR === 'capital'; sincronizar('vendedorExento'); } if (k === 'moneda') monedas(); calcular(); };
 		const input = opciones
 			? h('select', { class: 'form-select', id: id(k), onchange: onInput }, opciones.map(([v, t]) => h('option', { value: v, selected: String(estado[k]) === v }, t)))
 			: h('input', { class: 'form-control', id: id(k), type: tipo, inputmode: 'decimal', step: 'any', min: '0', value: estado[k], oninput: onInput, 'aria-describedby': ayuda ? `${id(k)}-ayuda` : undefined, ...attrs });
@@ -114,7 +118,7 @@ export async function render(container) {
 		if (!p) return;
 		const uso = R.usoPorTipo(p.tipo);
 		const sug = R.rentaSugerida(Number(p.precio), p.tipo, { vacancia: num(estado.vacancia), gastosOperativos: num(estado.gastosOperativos) }, paramValores());
-		setCampos({ tipo: p.tipo || 'casa', moneda: p.moneda === 'GTQ' ? 'GTQ' : 'USD', precio: p.precio || '', uso, regimenIVA: R.ivaPorUso(uso), valorFiscal: '', capSalida: '',
+		setCampos({ tipo: p.tipo || 'casa', moneda: p.moneda === 'GTQ' ? 'GTQ' : 'USD', precio: p.precio || '', uso, regimenIVA: 'auto', valorFiscal: '', capSalida: '',
 			rentaMensual: p.operacion === 'renta' ? p.precio : (sug ? Math.round(sug / 10) * 10 : '') });
 		if (p.operacion === 'renta') setCampos({ precio: '' });
 		calcular();
@@ -126,8 +130,8 @@ export async function render(container) {
 		const grupos = {};
 		for (const [k, p] of Object.entries(params)) (grupos[p.grupo] ||= []).push(k);
 		return h('details', { class: 'calc-params col-12' },
-			h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), 'Valores de ley y de mercado (por confirmar)'),
-			h('p', { class: 'small text-muted mt-2 mb-3' }, 'Todos son editables. Cada valor dice de dónde sale; confírmalos con el contador antes de usarlos con un cliente.'),
+			h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), 'Valores de ley y de mercado'),
+			h('p', { class: 'small text-muted mt-2 mb-3' }, 'Todos son editables. Cada valor dice de dónde sale y si ya está verificado; los que dicen «por confirmar», revísalos con el contador antes de usarlos con un cliente.'),
 			Object.entries(grupos).map(([g, keys]) => h('fieldset', { class: 'mb-3' },
 				h('legend', { class: 'calc-legend' }, g),
 				h('div', { class: 'row g-2' }, keys.map((k) => {
@@ -137,7 +141,10 @@ export async function render(container) {
 					paramInputs[k] = inp;
 					return h('div', { class: 'col-sm-6' },
 						h('label', { class: 'form-label small mb-1', for: `calc-p-${k}` }, `${p.etiqueta} (${p.unidad})`), inp,
-						h('div', { class: 'form-text calc-fuente', id: `calc-p-${k}-f` }, p.fuente));
+						h('div', { class: 'form-text calc-fuente', id: `calc-p-${k}-f` },
+							h('span', { class: `calc-estado-ley ${p.confirmar ? 'is-pendiente' : 'is-ok'}` },
+								h('span', { class: `${p.confirmar ? 'icon-question-circle' : 'icon-check-circle'} me-1`, 'aria-hidden': 'true' }), p.confirmar ? 'Por confirmar' : 'Verificado'),
+							' ', p.fuente));
 				})))),
 			h('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm', onclick: () => {
 				params = R.copiaParams();
@@ -148,6 +155,8 @@ export async function render(container) {
 	}
 
 	// Renta para un rendimiento objetivo.
+	const notaSimplificado = h('p', { class: 'form-text calc-nota-ley mb-0', hidden: true },
+		h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'Régimen simplificado: depende de la actividad inscrita; si es inmobiliaria no aplica la exención.');
 	const objetivoOut = h('p', { class: 'calc-objetivo-out mb-0', role: 'status', 'aria-live': 'polite' });
 	const usarObjetivo = h('button', { type: 'button', class: 'btn btn-outline-primary calc-usar', hidden: true, onclick: () => { setCampos({ rentaMensual: usarObjetivo.dataset.renta }); calcular(); } }, 'Usar esta renta');
 
@@ -291,18 +300,24 @@ export async function render(container) {
 		const P = paramValores();
 		const r = R.calcular(e, P);
 		const ne = r.entradas;
-		resumenImpresion.textContent = `${TIPOS_DEF.find(([v]) => v === ne.tipo)?.[1] || 'Propiedad'} · precio ${dinero(ne.precio)} · renta ${dinero(ne.rentaMensual)}/mes · uso ${etiqueta(USOS, ne.uso)} · ISR: ${etiqueta(ISR, ne.regimenISR)} · IVA: ${etiqueta(IVA, ne.regimenIVA)} · vacancia ${ne.vacancia} % · gastos ${ne.gastosOperativos} % · plazo ${ne.plazo} años`;
+		resumenImpresion.textContent = `${TIPOS_DEF.find(([v]) => v === ne.tipo)?.[1] || 'Propiedad'} · precio ${dinero(ne.precio)} · renta ${dinero(ne.rentaMensual)}/mes · uso ${etiqueta(USOS, ne.uso)} · ISR: ${etiqueta(ISR, ne.regimenISR)} · IVA: ${IVA_CORTO[ne.regimenIVA]}${ne.ivaAutomatico ? ' (automático)' : ''} · venta ${ne.vendedorExento ? 'exenta de ISR' : 'con ISR'} · vacancia ${ne.vacancia} % · gastos ${ne.gastosOperativos} % · plazo ${ne.plazo} años`;
 
 		kpis.replaceChildren(
 			kpi('icon-money', 'Neto mensual', dinero(r.netoMensual), 'Año 1, después de impuestos', true),
 			kpi('icon-percent', 'Rendimiento bruto', pct(r.rendimientoBruto), 'Renta bruta ÷ precio'),
 			kpi('icon-percent', 'Rendimiento neto', pct(r.rendimientoNeto), 'Neto anual ÷ precio'),
 			kpi('icon-line-chart', 'Cap rate', pct(r.capRate), 'NOI ÷ precio'),
-			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años, con venta${r.venta.restado ? ' e ISR' : ''}`),
+			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años, con venta${r.venta.exento ? ' exenta' : r.venta.restado ? ' e ISR' : ''}`),
 			kpi('icon-calculator', 'VPN', dinero(r.vpn), `Al ${pct(ne.tasaDescuento / 100, 1)}`),
 			kpi('icon-hourglass-half', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, 'Sin contar la venta'));
 
-		avisos.replaceChildren(...r.avisos.map((c) => h('div', { class: 'alert alert-warning d-flex gap-2 py-2 mb-2', role: 'note' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), AVISOS[c] || c)));
+		avisos.replaceChildren(...r.avisos.map((c) => h('div', { class: 'alert alert-warning d-flex gap-2 py-2 mb-2', role: 'note' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), typeof AVISOS[c] === 'function' ? AVISOS[c](r) : AVISOS[c] || c)));
+		// IVA: qué régimen salió y por qué.
+		const ivaAyuda = container.querySelector('#calc-regimenIVA-ayuda') || {};
+		ivaAyuda.textContent = ne.ivaAutomatico
+			? `Ahora: ${IVA_CORTO[ne.regimenIVA]}. Cobras ${q(r.cobradoAnualQ)} al año; el límite de pequeño contribuyente es ${q(P.limitePequenoGTQ)}.`
+			: `Cobras ${q(r.cobradoAnualQ)} al año; el límite de pequeño contribuyente es ${q(P.limitePequenoGTQ)}.`;
+		notaSimplificado.hidden = ne.regimenISR !== 'simplificado';
 
 		// Estado de resultados del año elegido (1 por defecto).
 		const nAnios = r.anios.length;
@@ -318,7 +333,10 @@ export async function render(container) {
 		tablaVenta.replaceChildren(estadoTabla(R.cascadaVenta(r), { cols: 'venta', caption: `Venta estimada en el año ${ne.plazo}, del precio de venta a lo que te queda` }));
 		tablaGanancia.replaceChildren(estadoTabla(R.cascadaGanancia(r), { inicio: ['ingresoNeto'], caption: 'Cálculo de la ganancia de capital y de su impuesto' }));
 		sincronizar('restarImpuestoVenta');
-		notaVenta.textContent = v.restado
+		if (espejo.restarImpuestoVenta) espejo.restarImpuestoVenta.disabled = v.exento;
+		notaVenta.textContent = v.exento
+			? 'Vendes exento (Decreto 18-2026): no hay ISR sobre la ganancia. Si vendes como empresa o con actividad inmobiliaria inscrita, quita la marca en Impuestos.'
+			: v.restado
 			? 'La TIR, el VPN y el resumen ya restan este impuesto.'
 			: `Opción desactivada: la TIR, el VPN y el resumen no restan los ${dinero(v.impuestoCalculado)} de ISR de la venta.`;
 
@@ -345,12 +363,12 @@ export async function render(container) {
 		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Impuestos', 'Neto', 'Acumulado', 'Flujo'],
 			r.anios.map((x) => [String(x.t), dinero(x.pgi), dinero(x.cobrado), dinero(x.opex + x.iusi + x.capex), dinero(x.isr + x.ivaPropietario), dinero(x.neto), dinero(x.acumulado), dinero(x.flujo)]),
 			{ cls: 'calc-tabla-larga' }),
-		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta: ${dinero(r.venta.neta)} ${r.venta.restado ? 'después de costos y del ISR sobre la ganancia' : 'después de costos (sin restar el ISR sobre la ganancia)'}. El detalle está en «Venta al final del plazo».`));
+		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta: ${dinero(r.venta.neta)} ${r.venta.exento ? 'después de costos (exenta de ISR)' : r.venta.restado ? 'después de costos y del ISR sobre la ganancia' : 'después de costos (sin restar el ISR sobre la ganancia)'}. El detalle está en «Venta al final del plazo».`));
 	}
 
 	// ── Armado ─────────────────────────────────────────────
 	const header = pageHeader('Calculadora de renta',
-		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); anioER = 1; sincronizar('restarImpuestoVenta'); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
+		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); anioER = 1; sincronizar('restarImpuestoVenta'); sincronizar('vendedorExento'); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
 		h('button', { type: 'button', class: 'btn btn-primary no-print', onclick: () => window.print() }, h('span', { class: 'icon-file-pdf-o me-1', 'aria-hidden': 'true' }), 'Descargar PDF'));
 
 	const tituloCard = (icono, t, ...extra) => h('div', { class: 'card-header d-flex align-items-center justify-content-between gap-2' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), t), extra);
@@ -379,7 +397,11 @@ export async function render(container) {
 					campo('reservaCapex', 'Reserva de capital', { sufijo: '% de lo cobrado' })),
 				grupo('icon-bank', 'Impuestos',
 					campo('regimenISR', 'Régimen de ISR', { opciones: ISR, col: 'col-12' }),
-					campo('regimenIVA', 'Régimen de IVA', { opciones: IVA, col: 'col-12' }),
+					h('div', { class: 'col-12' },
+						casilla('vendedorExento', 'Vendes como persona individual sin actividad inmobiliaria inscrita en el RTU (exento por Decreto 18-2026)',
+							'Así no pagas ISR sobre la ganancia de la venta. Quita la marca si vendes como empresa, fideicomiso o con compraventa, desarrollo o intermediación de inmuebles inscrita.'),
+						notaSimplificado),
+					campo('regimenIVA', 'Régimen de IVA', { opciones: IVA, col: 'col-12', ayuda: ' ' }),
 					campo('iusiMil', 'IUSI forzado', { sufijo: '‰', ayuda: 'Vacío = según uso y tramo.' }),
 					campo('depreciacion', 'Depreciación (solo utilidades)', { sufijo: '% anual' }),
 					paramsPanel()),

@@ -1868,3 +1868,18 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		print-color-adjust: exact;
 	}
 }
+
+/* Estado de cada valor de ley: verificado o por confirmar. */
+.calc-estado-ley {
+	display: inline-flex;
+	align-items: center;
+	font-weight: 700;
+	white-space: nowrap;
+}
+.calc-estado-ley.is-ok { color: var(--adm-primary); }
+.calc-estado-ley.is-pendiente { color: var(--adm-muted); }
+.calc-nota-ley {
+	margin-top: 4px;
+	padding-left: 1.5em;
+	color: var(--adm-text);
+}

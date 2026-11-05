@@ -43,7 +43,7 @@
 
 		ivaGeneral: { valor: 12, etiqueta: 'IVA régimen general', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. El arrendamiento, también el de vivienda, paga IVA (no hay exención). En el régimen general se cobra al inquilino encima de la renta.', confirmar: false },
 		ivaPequeno: { valor: 5, etiqueta: 'IVA pequeño contribuyente', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. Pequeño contribuyente: 5 % sobre los ingresos brutos; lo paga el dueño.', confirmar: false },
-		ivaPequenoLimite: { valor: 150000, etiqueta: 'Pequeño contribuyente: límite anual', unidad: 'Q', grupo: 'IVA', fuente: FUENTE_IVA + '. Solo si los ingresos del año no pasan de Q 150,000.', confirmar: false },
+		limitePequenoGTQ: { valor: 500285, etiqueta: 'Pequeño contribuyente: límite de ingresos al año', unidad: 'Q', grupo: 'IVA', fuente: 'Dto. 31-2024 (125 salarios mínimos no agrícolas, 2026)', confirmar: true },
 
 		capCasa: { valor: 5, etiqueta: 'Cap rate de referencia: casa', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
 		capApartamento: { valor: 6, etiqueta: 'Cap rate de referencia: apartamento', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
@@ -98,7 +98,7 @@
 		var tc = n(i.tipoCambio, P.tipoCambio) || P.tipoCambio;
 		var fx = i.moneda === 'GTQ' ? 1 : tc;
 		var cobradoQ = n(i.rentaMensual, 0) * 12 * (1 - n(i.vacancia, 5) / 100) * fx;
-		return cobradoQ <= P.ivaPequenoLimite ? 'pequeno' : 'general';
+		return cobradoQ <= P.limitePequenoGTQ ? 'pequeno' : 'general';
 	}
 	function capReferencia(tipo, params) {
 		var key = CAP_POR_TIPO[tipo];
@@ -281,7 +281,7 @@
 		var avisos = [];
 		if (e.tipo === 'terreno') avisos.push('terreno');
 		var ivaLimiteAnio = null;
-		for (t = 0; t < anios.length; t++) if (anios[t].cobrado * fx > P.ivaPequenoLimite) { ivaLimiteAnio = t + 1; break; }
+		for (t = 0; t < anios.length; t++) if (anios[t].cobrado * fx > P.limitePequenoGTQ) { ivaLimiteAnio = t + 1; break; }
 		if (e.regimenIVA === 'pequeno' && ivaLimiteAnio === 1) avisos.push('pequenoLimite');
 		else if (e.regimenIVA === 'pequeno' && ivaLimiteAnio) avisos.push('pequenoLimiteFuturo');
 		var laTir = e.precio > 0 ? tir(flujos) : null;
@@ -367,8 +367,8 @@
 			fila('isr', 'resta', -a.isr, base, 'ISR', 'Income tax (ISR)', regimenTexto(e, P, 'es'), regimenTexto(e, P, 'en'))
 		];
 		if (e.regimenIVA === 'pequeno') filas.push(fila('ivaPropietario', 'resta', -a.ivaPropietario, base, 'IVA pequeño contribuyente', 'VAT, small taxpayer',
-			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q ' + num2(P.ivaPequenoLimite, 'es', 0) + ' al año',
-			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q ' + num2(P.ivaPequenoLimite, 'en', 0) + ' a year'));
+			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q ' + num2(P.limitePequenoGTQ, 'es', 0) + ' al año',
+			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q ' + num2(P.limitePequenoGTQ, 'en', 0) + ' a year'));
 		filas.push(fila('neto', 'total', a.neto, base, 'Flujo neto para el dueño', 'Net cash flow to the owner', 'Lo que te queda', 'What you keep'));
 		if (e.regimenIVA === 'general') filas.push(fila('ivaInquilino', 'info', a.ivaInquilino, base, 'IVA que cobras al inquilino', 'VAT you charge the tenant',
 			num2(P.ivaGeneral, 'es') + ' % encima de la renta. Se cobra aparte y se entrega a la SAT: no es ingreso tuyo.',
