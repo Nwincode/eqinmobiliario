@@ -5,11 +5,13 @@ import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
 import { whatsappUrl } from '../ia.js';
+import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
 	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
 } from '../crm.js';
+import { refrescarPorCliente } from '../portal.js';
 
 const VISTA_KEY = 'eq-clientes-vista';
 
@@ -69,20 +71,23 @@ async function renderLista(container) {
 	const buscar = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o zona…' });
 	const fTipo = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los tipos'), TIPOS_CLIENTE.map(([v, l]) => h('option', { value: v }, l)));
 	const fAsesor = h('select', { class: 'form-select', hidden: !session.isAdmin }, h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agentes.map((a) => h('option', { value: a.id }, a.nombre)));
+	const soloIncompletos = h('input', { class: 'form-check-input', type: 'checkbox', id: 'solo-incompletos', checked: location.hash.endsWith('/incompletos') });
 	const cuerpo = h('div');
 
 	const filtrados = () => {
 		const q = buscar.value.trim().toLowerCase();
 		return clientes.filter((c) => (!q || `${c.nombre} ${c.telefono} ${c.email} ${c.zonas || ''}`.toLowerCase().includes(q))
 			&& (!fTipo.value || c.tipo === fTipo.value)
-			&& (!fAsesor.value || (fAsesor.value === '-' ? !c.agentId : c.agentId === fAsesor.value)));
+			&& (!fAsesor.value || (fAsesor.value === '-' ? !c.agentId : c.agentId === fAsesor.value))
+			&& (!soloIncompletos.checked || revisar('clientes', c).length));
 	};
 
 	const moverEtapa = async (c, etapa) => {
 		try {
-			await updateDoc(doc(db, 'clientes', c.id), { etapa, updatedAt: serverTimestamp() });
+			await updateDoc(doc(db, 'clientes', c.id), { etapa, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
 			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa)}`, clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
 			c.etapa = etapa;
+			refrescarPorCliente(c);
 			dibujar();
 		} catch (err) { showError(err); }
 	};
@@ -93,6 +98,7 @@ async function renderLista(container) {
 			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre),
 			h('div', { class: 'small text-muted' }, [TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1], c.zonas].filter(Boolean).join(' · ')),
 			c.montoEstimado ? h('div', { class: 'small fw-semibold mt-1' }, money(c.montoEstimado, c.moneda)) : null,
+			revisar('clientes', c).length ? h('div', { class: 'mt-2' }, chipFaltan(revisar('clientes', c))) : null,
 			prox ? h('div', { class: 'small mt-2 d-flex gap-1 align-items-center' }, chipVencimiento(prox), h('span', {}, `${tipoActividad(prox.tipo)[2]} ${prox.titulo || tipoActividad(prox.tipo)[1]} · ${fechaCorta(prox.fecha)}`))
 				: h('div', { class: 'small text-danger mt-2' }, 'Sin seguimiento agendado'),
 			session.isAdmin && c.agentId ? h('div', { class: 'small text-muted mt-1' }, nombreAsesor[c.agentId] || '') : null);
@@ -130,7 +136,7 @@ async function renderLista(container) {
 				h('tbody', {}, lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)).map((c) => {
 					const prox = proximaActividad(actividades, c.id);
 					return h('tr', { class: 'clickable', onclick: () => { location.hash = `#/clientes/${c.id}`; } },
-						h('td', {}, h('div', { class: 'fw-semibold' }, c.nombre), h('div', { class: 'small text-muted' }, c.telefono || c.email || '')),
+						h('td', {}, h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))),
 						h('td', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
 						h('td', {}, etapaBadge(c.etapa)),
 						h('td', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
@@ -139,7 +145,7 @@ async function renderLista(container) {
 				}))))));
 		}
 	};
-	[buscar, fTipo, fAsesor].forEach((el) => el.addEventListener('input', dibujar));
+	[buscar, fTipo, fAsesor, soloIncompletos].forEach((el) => el.addEventListener(el === soloIncompletos ? 'change' : 'input', dibujar));
 
 	const botonVista = (v, label) => h('button', { type: 'button', class: `btn btn-sm ${vista === v ? 'btn-primary' : 'btn-outline-primary'}`, onclick: () => {
 		vista = v;
@@ -162,7 +168,8 @@ async function renderLista(container) {
 		h('div', { class: 'row g-2 mb-3' },
 			h('div', { class: 'col-md-6' }, buscar),
 			h('div', { class: 'col-6 col-md-3' }, fTipo),
-			h('div', { class: 'col-6 col-md-3' }, fAsesor)),
+			h('div', { class: 'col-6 col-md-3' }, fAsesor),
+			h('div', { class: 'col-12' }, h('div', { class: 'form-check' }, soloIncompletos, h('label', { class: 'form-check-label small', for: 'solo-incompletos' }, 'Solo con datos por completar')))),
 		cuerpo);
 	dibujar();
 }
@@ -187,6 +194,7 @@ function formularioActividad(c, alGuardar) {
 				hecha: hecha.checked || tipo.value === 'nota' || !fecha.value,
 				clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId
 			});
+			if (tipo.value === 'visita') refrescarPorCliente(c);
 			toast(fecha.value && !hecha.checked ? 'Agendado.' : 'Registrado en el historial.');
 			alGuardar();
 		} catch (err) { showError(err); } finally { boton.disabled = false; }
@@ -232,6 +240,7 @@ async function renderFicha(container, id) {
 		try {
 			await setDoc(ref, d, { merge: true });
 			toast('Cliente guardado.');
+			avisarCambio();
 			if (nuevo) location.hash = `#/clientes/${ref.id}`;
 		} catch (err) { showError(err); } finally { btn.disabled = false; }
 	};
@@ -239,6 +248,7 @@ async function renderFicha(container, id) {
 	if (nuevo) {
 		mount(container,
 			pageHeader('Nuevo cliente', h('a', { href: '#/clientes', class: 'btn btn-light' }, 'Volver')),
+			vigilarFormulario(form, 'clientes'),
 			h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 			h('div', { class: 'sticky-actions' }, h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar cliente')));
 		return;
@@ -264,6 +274,7 @@ async function renderFicha(container, id) {
 		try {
 			await updateDoc(doc(db, 'actividades', a.id), { hecha: true, hechaEn: serverTimestamp() });
 			await updateDoc(ref, { ultimoContacto: serverTimestamp(), updatedAt: serverTimestamp() });
+			if (a.tipo === 'visita') refrescarPorCliente(c, a.propertyId);
 			toast('Marcada como realizada.');
 			recargar();
 		} catch (err) { showError(err); }
@@ -277,17 +288,19 @@ async function renderFicha(container, id) {
 		if (!selProp.value) return;
 		try {
 			await updateDoc(ref, { interes: [...interes, selProp.value], updatedAt: serverTimestamp() });
+			refrescarPorCliente(c, selProp.value);
 			recargar();
 		} catch (err) { showError(err); }
 	});
 	const quitarInteres = async (pid) => {
-		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); recargar(); } catch (err) { showError(err); }
+		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); refrescarPorCliente(c, pid); recargar(); } catch (err) { showError(err); }
 	};
 
 	const etapa = h('select', { class: 'form-select form-select-sm w-auto' }, ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, l)));
 	etapa.addEventListener('change', async () => {
 		try {
-			await updateDoc(ref, { etapa: etapa.value, updatedAt: serverTimestamp() });
+			await updateDoc(ref, { etapa: etapa.value, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
+			refrescarPorCliente(c);
 			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa.value)}`, clienteId: id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
 			recargar();
 		} catch (err) { showError(err); }
@@ -326,13 +339,13 @@ async function renderFicha(container, id) {
 						})) : h('p', { class: 'small text-muted' }, 'Ninguna todavía.'),
 						selProp)),
 				h('div', { class: 'card' }, h('div', { class: 'card-header bg-white fw-semibold' }, 'Datos del cliente'),
-					h('div', { class: 'card-body' }, form.el,
+					h('div', { class: 'card-body' }, vigilarFormulario(form, 'clientes'), form.el,
 						h('div', { class: 'd-flex gap-2 mt-3' },
 							h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar datos'),
 							session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: eliminar }, 'Eliminar') : null))))));
 }
 
 export async function render(container, [id]) {
-	if (id) return renderFicha(container, id);
+	if (id && id !== 'incompletos') return renderFicha(container, id);
 	return renderLista(container);
 }

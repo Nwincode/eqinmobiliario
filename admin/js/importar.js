@@ -89,7 +89,18 @@ export const COLUMNAS = [
 	['m2_terreno', ['m2_terreno', 'terreno', 'metros_terreno', 'area_terreno', 'm2terreno', 'mts_terreno']],
 	['amenidades', ['amenidades', 'amenities', 'amenidad']],
 	['descripcion', ['descripcion', 'description', 'detalle']],
-	['video', ['video', 'youtube', 'video_url']]
+	['video', ['video', 'youtube', 'video_url']],
+	// Renta vacacional (operación «vacacional»). Lo del socio se guarda en privado.
+	['socio_noche', ['socio_noche', 'precio_socio', 'precio_noche_socio', 'costo_noche', 'precio_noche', 'costo_socio']],
+	['socio_finde', ['socio_finde', 'precio_finde_socio', 'costo_finde', 'precio_fin_de_semana', 'precio_finde']],
+	['margen', ['margen', 'ganancia', 'margen_empresa']],
+	['limpieza', ['limpieza', 'cargo_limpieza', 'cleaning', 'cleaning_fee']],
+	['deposito', ['deposito', 'deposito_reembolsable', 'deposit']],
+	['noches_min', ['noches_min', 'noches_minimas', 'minimo_noches', 'min_noches']],
+	['huespedes_max', ['huespedes_max', 'huespedes', 'capacidad', 'personas', 'max_huespedes']],
+	['ical', ['ical', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
+	['socio_nombre', ['socio_nombre', 'socio', 'nombre_socio', 'anfitrion']],
+	['socio_telefono', ['socio_telefono', 'telefono_socio', 'tel_socio']]
 ];
 
 const ALIAS = new Map();
@@ -283,7 +294,25 @@ export function filaAPropiedad(fila, { opciones, agentes = [] }) {
 		if (/^https:\/\//i.test(txt('video'))) datos.video = txt('video');
 		else errores.push('El video debe ser un enlace que empiece con https://');
 	}
-	return { datos, errores, carpeta: txt('carpeta') };
+	// Renta vacacional: lo público (limpieza, depósito, noches, huéspedes) va en «vac»;
+	// lo del socio (costo, margen, contacto, iCal) va en «socio» y se guarda aparte, en privado.
+	const vac = {}, socio = {};
+	const vacNum = { limpieza: ['vac', 'limpieza'], deposito: ['vac', 'deposito'], noches_min: ['vac', 'nochesMin'], huespedes_max: ['vac', 'huespedesMax'], socio_noche: ['socio', 'precioBase'], socio_finde: ['socio', 'precioFinde'], margen: ['socio', 'margen'] };
+	for (const [c, [dest, campo]] of Object.entries(vacNum)) {
+		if (!txt(c)) continue;
+		const n = parseNumero(txt(c).replace('%', ''));
+		if (n === null) continue;
+		if (Number.isNaN(n) || n < 0) errores.push(`Número no válido en ${c.replace('_', ' ')}: «${txt(c)}»`);
+		else (dest === 'vac' ? vac : socio)[campo] = n;
+	}
+	if (txt('socio_nombre')) socio.nombre = txt('socio_nombre');
+	if (txt('socio_telefono')) socio.telefono = txt('socio_telefono');
+	if (txt('ical')) {
+		if (/^https:\/\//i.test(txt('ical'))) socio.icalUrl = txt('ical');
+		else errores.push('El enlace del calendario (ical) debe empezar con https://');
+	}
+	if (datos.operacion === 'vacacional' && !datos.codigo && !(socio.precioBase > 0)) errores.push('Renta vacacional: falta el precio por noche del socio (socio_noche)');
+	return { datos, errores, carpeta: txt('carpeta'), vac, socio };
 }
 
 // ---------- Fotos ----------
@@ -501,7 +530,8 @@ export async function sha256(buffer) {
 
 // Plantilla CSV (encabezados + 2 ejemplos).
 export const PLANTILLA = [
-	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'amenidades', 'descripcion', 'video'],
-	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', ''],
-	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX']
+	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical', 'socio_nombre', 'socio_telefono'],
+	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', '', '', ''],
+	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', '', '', ''],
+	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', 'Juan Pérez', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics', 'Nombre del socio', '5555-5555']
 ];

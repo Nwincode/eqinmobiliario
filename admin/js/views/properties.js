@@ -3,18 +3,25 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount } from '../ui.js';
+, mount, downloadCsv } from '../ui.js';
 import { renderForm, deleteImage } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
-import { generarCodigo, normalizarCodigo } from '../importar.js';
+import { generarCodigo, normalizarCodigo, PLANTILLA } from '../importar.js';
+import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
+import { refrescarPortalesDe } from '../portal.js';
+import '/js/calc-vacacional.js';
+
+const V = window.EQVacacional;
+
+const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
 function autoTitle(d) {
-	const op = d.operacion === 'renta' ? 'Renta' : 'Venta';
+	const op = OPERACION_LABEL[d.operacion] || 'Venta';
 	const titulo = d.titulo || '';
 	const candidates = [
 		`${titulo} | ${op} en ${[d.zona, d.ciudad].filter(Boolean).join(', ')}`,
@@ -30,7 +37,59 @@ function autoDescription(d) {
 }
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
-export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta']];
+export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta'], ['vacacional', 'Renta vacacional']];
+const OPERACION_LABEL = Object.fromEntries(OPERACIONES);
+const esVacacional = (d) => d.operacion === 'vacacional';
+const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).padStart(2, '0')}:00`; return [hh, hh]; });
+
+// Renta vacacional. Lo privado (costo del socio, margen, contacto, enlace iCal) vive en
+// properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
+// los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
+export function vacacionalPublico(d) {
+	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
+	const v = d.vacacional || {};
+	const bloqueos = V.unirRangos(v.bloqueos || []);
+	return {
+		precio: V.precioDesde(pub, hoyISO()) || null,
+		vacacional: {
+			base: pub.base, finde: pub.finde, tarifas: pub.tarifas,
+			nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
+			huespedesMax: Math.max(1, Math.floor(Number(v.huespedesMax) || 1)),
+			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
+			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
+			bloqueos
+		}
+	};
+}
+function desgloseVacacional(el, d) {
+	const s = d.socio || {};
+	const moneda = d.moneda || 'USD';
+	const m = (n) => `${{ USD: 'US$', GTQ: 'Q' }[moneda] || moneda} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	const filas = [['Precio base', s.precioBase], ['Fin de semana (viernes y sábado)', s.precioFinde]]
+		.concat((s.tarifas || []).filter((t) => t.precio).map((t) => [`Tarifa ${t.desde || '…'} al ${t.hasta || '…'}`, t.precio]))
+		.filter(([, p]) => Number(p) > 0);
+	if (!filas.length) {
+		el.replaceChildren(h('p', { class: 'small text-muted mb-0' }, 'Escribe el precio por noche del socio para ver la ganancia y el precio al público.'));
+		return;
+	}
+	const pub = V.planPublico(planSocioDe(s), s.margen);
+	const ejemplo = V.gananciaEstancia({ planSocio: planSocioDe(s), margen: s.margen, llegada: hoyISO(), salida: V.sumarDias(hoyISO(), 7) });
+	el.replaceChildren(h('div', { class: 'table-responsive' }, h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
+		h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Noche'), h('th', { scope: 'col', class: 'text-end' }, 'Socio'),
+			h('th', { scope: 'col', class: 'text-end' }, `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`), h('th', { scope: 'col', class: 'text-end' }, 'Al público'),
+			h('th', { scope: 'col', class: 'text-end' }, 'Impuestos 22 %'))),
+		h('tbody', {}, filas.map(([nombre, p]) => {
+			const n = V.desgloseNoche(p, s.margen);
+			return h('tr', {}, h('td', {}, nombre), h('td', { class: 'text-end' }, m(n.precioSocio)), h('td', { class: 'text-end' }, m(n.ganancia)),
+				h('td', { class: 'text-end fw-semibold' }, m(n.nochePublica)), h('td', { class: 'text-end' }, m(n.impuestos)));
+		})))),
+	h('p', { class: 'small text-muted mb-0' },
+		`En la página se publica "desde ${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA 12 % e INGUAT 10 %). `,
+		`Ejemplo de 7 noches desde hoy: el socio recibe ${m(ejemplo.costoSocio)} y la ganancia es ${m(ejemplo.ganancia)}. `,
+		'La limpieza se cobra aparte sin margen y el depósito no lleva impuestos. Solo el equipo ve esta tabla.'));
+}
 export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
 export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
@@ -76,16 +135,53 @@ function motivoVisibilidad(p) {
 	}
 }
 
+// Exporta el listado con las mismas columnas de la plantilla de importación (se puede volver a importar),
+// más los enlaces de fotos, la página pública y si está publicada. El costo del socio solo lo ve el administrador.
+async function exportarCsv(props, agentName, btn) {
+	btn.disabled = true;
+	try {
+		const cab = [...PLANTILLA[0], 'enlaces_fotos', 'enlace', 'publicado'];
+		const filas = [cab];
+		for (const p of props) {
+			const v = p.vacacional || {};
+			let s = {};
+			if (session.isAdmin && p.operacion === 'vacacional') {
+				s = (await getDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => null))?.data() || {};
+			}
+			const val = {
+				codigo: p.codigo, carpeta: '', titulo: p.titulo, operacion: p.operacion, tipo: p.tipo, estado: p.estado,
+				asesor: agentName[p.agentId] || '', precio: p.precio, moneda: p.moneda, zona: p.zona, ciudad: p.ciudad,
+				direccion: p.direccion, condominio_siglas: p.condominioSiglas, habitaciones: p.habitaciones, banos: p.banos,
+				parqueos: p.parqueos, m2_construccion: p.m2Construccion, m2_terreno: p.m2Terreno,
+				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
+				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
+				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
+				ical: s.icalUrl, socio_nombre: s.nombre, socio_telefono: s.telefono,
+				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
+				enlace: p.slug ? `https://eqinmobiliario.gt/${p.vip ? 'vip' : 'propiedad'}/${p.slug}/` : '',
+				publicado: p.publicado ? 'sí' : 'no'
+			};
+			filas.push(cab.map((c) => String(val[c] ?? '')));
+		}
+		downloadCsv(`propiedades-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+		toast(`Exportadas ${props.length} propiedades.`);
+	} catch (err) {
+		showError(err);
+	} finally {
+		btn.disabled = false;
+	}
+}
+
 export async function render(container, [id]) {
 	if (id === 'importar') return (await import('./importar.js')).render(container);
-	if (id) return renderEditor(container, id);
+	if (id && id !== 'incompletos') return renderEditor(container, id);
 
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
 	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, código, zona o residencial…' });
-	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
+	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Todas las operaciones'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
 		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
@@ -106,7 +202,9 @@ export async function render(container, [id]) {
 		h('option', { value: 'borrador' }, 'Borradores'),
 		h('option', { value: 'vip' }, 'VIP'),
 		h('option', { value: 'destacada' }, 'Destacadas'),
-		session.isAdmin ? null : h('option', { value: 'mias' }, 'Solo las mías'));
+		session.isAdmin ? null : h('option', { value: 'mias' }, 'Solo las mías'),
+		h('option', { value: 'incompletas' }, 'Con datos por completar'));
+	if (id === 'incompletos') fExtra.value = 'incompletas';
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
 
@@ -115,6 +213,7 @@ export async function render(container, [id]) {
 		try {
 			await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
+			refrescarPortalesDe([p.id]);
 			await markPending(desc);
 			toast(aviso);
 			if (p.publicado && visibilidadDe(p) === 'oculta') toast(`Sigue oculta porque está «${estadoDe(p).label}». Cámbiala a «Disponible» para mostrarla.`, 'warning');
@@ -154,17 +253,24 @@ export async function render(container, [id]) {
 			}
 		});
 		const detener = (e) => e.stopPropagation();
+		const sel = h('input', {
+			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
+			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
+			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
+		});
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
-			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
+			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
-				p.vip || p.destacada ? h('div', { class: 'mt-1 d-flex gap-1' },
+				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
-					p.destacada ? badge('Destacada', 'info') : null) : null),
+					p.destacada ? badge('Destacada', 'info') : null,
+					chipFaltan(faltanDe(p))) : null),
 			h('td', { class: 'text-nowrap celda-precio' },
 				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('div', { class: 'small text-muted celda-operacion' }, p.operacion === 'renta' ? 'Renta' : 'Venta')),
+				h('div', { class: 'small text-muted celda-operacion' }, OPERACION_LABEL[p.operacion] || 'Venta')),
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
@@ -185,9 +291,112 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'borrador' || !p.publicado)
 			&& (fExtra.value !== 'vip' || p.vip)
 			&& (fExtra.value !== 'destacada' || p.destacada)
-			&& (fExtra.value !== 'mias' || p.agentId === session.agentId));
+			&& (fExtra.value !== 'mias' || p.agentId === session.agentId)
+			&& (fExtra.value !== 'incompletas' || faltanDe(p).length));
 		count.textContent = `${rows.length} de ${props.length}`;
+		visibles = rows;
+		// Solo quedan seleccionadas las que se ven con el filtro actual.
+		const ids = new Set(rows.map((p) => p.id));
+		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		tbody.replaceChildren(...rows.map(fila));
+		pintarBarra();
+	};
+
+	// ---- Acciones en masa ----
+	const seleccion = new Set();
+	let visibles = [];
+	const elegidas = () => props.filter((p) => seleccion.has(p.id));
+	const selTodas = h('input', {
+		class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas las que se ven',
+		onchange: (e) => {
+			visibles.filter(canEdit).forEach((p) => (e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id)));
+			draw();
+		}
+	});
+	const nSel = h('strong', {});
+	const selMasaEstado = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Cambiar estado de las seleccionadas' },
+		h('option', { value: '' }, 'Cambiar estado a…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+	const barra = h('div', { class: 'barra-masa', role: 'region', 'aria-label': 'Acciones con las seleccionadas', hidden: true });
+
+	const enMasa = async (btn, accion, desc, aviso) => {
+		const lista = elegidas();
+		if (!lista.length) return;
+		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = true; });
+		let ok = 0;
+		const fallos = [];
+		for (const p of lista) {
+			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); console.error(err); }
+		}
+		refrescarPortalesDe(lista.map((p) => p.id));
+		if (ok) await markPending(`${desc} (${ok})`).catch(() => {});
+		if (ok) toast(aviso(ok));
+		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}`, 'danger');
+		seleccion.clear();
+		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = false; });
+		selMasaEstado.value = '';
+		draw();
+	};
+	const guardarMasa = (cambios, local) => async (p) => {
+		await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
+	};
+	selMasaEstado.addEventListener('change', () => {
+		const estado = selMasaEstado.value;
+		if (!estado) return;
+		const label = estadoDe({ estado }).label;
+		enMasa(selMasaEstado, guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
+			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`);
+	});
+	const selMasaAsesor = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar asesor a las seleccionadas' },
+		h('option', { value: '' }, 'Asignar asesor…'),
+		h('option', { value: '=ninguno' }, 'Sin asesor'),
+		agents.map((a) => h('option', { value: a.id }, a.nombre)));
+	selMasaAsesor.addEventListener('change', async () => {
+		const v = selMasaAsesor.value;
+		if (!v) return;
+		const agentId = v === '=ninguno' ? '' : v;
+		const nombre = agentName[agentId] || 'sin asesor';
+		await enMasa(selMasaAsesor, guardarMasa({ agentId }, { agentId }), `Asesor asignado: ${nombre}`,
+			(n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`);
+		selMasaAsesor.value = '';
+	});
+	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
+			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. Recuerda publicar.`) },
+		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
+	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
+			(n) => `${n} oculta${n === 1 ? '' : 's'}. Recuerda publicar.`) },
+		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
+	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Eliminar ${n} propiedad${n === 1 ? '' : 'es'}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
+			const borradas = new Set();
+			await enMasa(e.currentTarget, async (p) => {
+				if (p.operacion === 'vacacional') await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
+				await deleteDoc(doc(db, 'properties', p.id));
+				borradas.add(p.id);
+				await Promise.all((p.fotos || []).map((f) => deleteImage(f.path).catch(() => {})));
+			}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`);
+			for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
+			draw();
+		} },
+		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
+	barra.append(
+		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
+		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
+		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
+		btnMostrar, btnOcultar,
+		session.isAdmin ? btnEliminar : null,
+		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
+	const pintarBarra = () => {
+		const editables = visibles.filter(canEdit);
+		nSel.textContent = String(seleccion.size);
+		barra.hidden = seleccion.size === 0;
+		selTodas.checked = editables.length > 0 && editables.every((p) => seleccion.has(p.id));
+		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
+		selTodas.disabled = editables.length === 0;
 	};
 	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
 	draw();
@@ -196,6 +405,8 @@ export async function render(container, [id]) {
 		pageHeader('Propiedades',
 			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary' },
 				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar desde CSV') : null,
+			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
+				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), ' Exportar (CSV)') : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
@@ -203,10 +414,16 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-6 col-md-2' }, fOperacion),
 				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
 				h('div', { class: 'col-md-3' }, fEstado)),
-			h('div', { class: 'mb-2' }, count),
+			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
+				count,
+				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
+					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
+			barra,
 			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
-					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+					h('thead', {}, h('tr', {},
+						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
+						['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
@@ -223,12 +440,36 @@ function schema(agentOpts, isNew) {
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
 		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin },
-		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".' },
+		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
 		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
 		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: 4 },
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4 },
+
+		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
+		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
+		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
+		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
+		{ name: 'socio.tarifas', label: 'Precios por fechas (temporada, feriados)', type: 'list', itemLabel: 'Tarifa', when: esVacacional, fields: [
+			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
+			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
+			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, step: 0.01, cols: 4 }
+		] },
+		{ type: 'custom', label: 'Ganancia y precio al público', when: esVacacional, update: desgloseVacacional },
+		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
+		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
+		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
+		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
+		{ name: 'socio.nombre', label: 'Nombre del socio', cols: 6, when: esVacacional, help: 'Privado: no sale en la página.' },
+		{ name: 'socio.telefono', label: 'Teléfono del socio', type: 'tel', cols: 6, when: esVacacional, help: 'Privado.' },
+		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de Airbnb)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
+			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
+			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
+		] },
 
 		{ type: 'section', label: 'Ubicación' },
 		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
@@ -294,6 +535,12 @@ async function renderEditor(container, id) {
 		return;
 	}
 	const data = isNew ? datosIniciales() : snap.data();
+	// Datos privados del socio (renta vacacional). Si no hay permiso o no existe, queda vacío.
+	const privRef = doc(db, 'properties', ref.id, 'privado', 'socio');
+	let socioGuardado = null;
+	if (!isNew && data.operacion === 'vacacional') {
+		try { const ps = await getDoc(privRef); socioGuardado = ps.exists() ? ps.data() : null; } catch { socioGuardado = null; }
+	}
 
 	if (!isNew && !canEdit(data)) {
 		mount(container, pageHeader(data.titulo, h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
@@ -307,7 +554,8 @@ async function renderEditor(container, id) {
 	}
 
 	let slugTouched = Boolean(data.slug);
-	const form = renderForm(schema(agentOpts, isNew), data, { folder: `properties/${ref.id}` });
+	const datosForm = { ...data, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	const form = renderForm(schema(agentOpts, isNew), datosForm, { folder: `properties/${ref.id}` });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
 	form.el.querySelector('input')?.addEventListener('input', (e) => {
@@ -352,7 +600,7 @@ async function renderEditor(container, id) {
 	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
 	const traducirEn = async (d) => {
 		const datos = { ...d };
-		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt;
+		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
 		delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
 		const r = await pedirIA('traducir', { propiedad: datos });
 		return {
@@ -374,6 +622,15 @@ async function renderEditor(container, id) {
 	const save = async (btn) => {
 		if (!form.validate()) return;
 		const d = form.getData();
+		// Lo del socio nunca va al documento público (ni a la traducción).
+		const socio = d.socio || {};
+		delete d.socio;
+		if (esVacacional(d)) {
+			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			Object.assign(d, vacacionalPublico({ ...d, socio }));
+		} else {
+			delete d.vacacional;
+		}
 		d.slug = slugify(d.slug || d.titulo);
 		if (!d.slug) return toast('Escribe un título.', 'warning');
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
@@ -427,6 +684,16 @@ async function renderEditor(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
+			if (esVacacional(d)) {
+				await setDoc(privRef, {
+					precioBase: Number(socio.precioBase) || 0, precioFinde: Number(socio.precioFinde) || 0,
+					margen: socio.margen === null || socio.margen === undefined || socio.margen === '' ? V.MARGEN : Number(socio.margen),
+					tarifas: (socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio) })),
+					nombre: socio.nombre || '', telefono: socio.telefono || '', icalUrl: String(socio.icalUrl || '').trim(),
+					updatedAt: serverTimestamp(), updatedBy: session.user.uid
+				});
+			}
+			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
 			if (!traducirAhora) {
@@ -454,6 +721,7 @@ async function renderEditor(container, id) {
 	const remove = async () => {
 		if (!(await confirmDialog(`¿Eliminar "${data.titulo}"? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		try {
+			if (data.operacion === 'vacacional') await deleteDoc(privRef).catch(() => {});
 			await deleteDoc(ref);
 			await Promise.all((data.fotos || []).map((f) => deleteImage(f.path)));
 			await markPending(`Propiedad eliminada: ${data.titulo}`);
@@ -522,6 +790,7 @@ async function renderEditor(container, id) {
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,
+		vigilarFormulario(form, 'propiedades'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 		h('div', { class: 'sticky-actions' },
 			saveBtn,

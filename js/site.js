@@ -106,6 +106,15 @@
 			Object.keys(lead.campana).slice(0, 8).forEach(function (k) { mapa[k] = str(lead.campana[k]); });
 			fields.campana = { mapValue: { fields: mapa } };
 		}
+		// Renta vacacional: fechas, noches, huéspedes y total de la solicitud de reserva.
+		if (lead.reserva) {
+			var res = {};
+			Object.keys(lead.reserva).slice(0, 10).forEach(function (k) {
+				var v = lead.reserva[k];
+				res[k] = typeof v === 'number' && isFinite(v) ? { doubleValue: v } : str(v);
+			});
+			fields.reserva = { mapValue: { fields: res } };
+		}
 		var body = {
 			writes: [{
 				update: { name: base + '/leads/' + randomId(), fields: fields },
@@ -155,6 +164,13 @@
 			};
 			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
 			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
+			// Cuadro de reserva (js/vacacional.js): sin fechas válidas no se envía.
+			if (typeof form.eqReserva === 'function') {
+				var reserva = form.eqReserva();
+				if (!reserva) return;
+				lead.reserva = reserva.datos;
+				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
+			}
 			lead.idioma = EN ? 'en' : 'es';
 			if (campana) lead.campana = campana;
 			if (!lead.nombre || lead.telefono.replace(/\D/g, '').length < 8) {
@@ -209,7 +225,7 @@
 		var emptyEl = document.getElementById('listing-empty');
 		var pager = document.getElementById('listing-pagination');
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
-		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/' };
+		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/', vacacional: document.body.getAttribute('data-ruta-vacacional') || '' };
 		var presetZona = document.body.getAttribute('data-preset-zona') || '';
 		var page = 1;
 		var lastSearch = '';
@@ -294,7 +310,7 @@
 			var params = new URLSearchParams(location.search);
 			if (presetZona) params.set('zona', presetZona);
 			var qs = params.toString();
-			location.href = rutas[op] + (qs ? '?' + qs : '');
+			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
 		});
 
 		// En la página de una zona, elegir otra zona lleva al listado general filtrado.
@@ -362,6 +378,7 @@
 				var t = normalize(texto);
 				var r = { operacion: '', tipo: '', zona: '', habitaciones: 0, max: 0, min: 0 };
 				if (/\b(rent|renta|rentar|alquiler|alquilar|arrendar|arrendamiento)\b/.test(t)) r.operacion = 'renta';
+				if (rutas.vacacional && /\b(vacacional|vacaciones|vacation|airbnb|por noche|per night|nightly|noches|nights)\b/.test(t)) r.operacion = 'vacacional';
 				else if (/\b(venta|vender|comprar|compra|buy|sale)\b/.test(t)) r.operacion = 'venta';
 				opciones(form.elements.tipo).some(function (o) {
 					var pals = (SINONIMOS[o.value] || []).concat([normalize(o.value), normalize(o.textContent)]);

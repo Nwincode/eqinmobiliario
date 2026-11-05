@@ -40,6 +40,10 @@ const CURRENCY_PREFIX = { USD: 'US$', GTQ: 'Q' };
 
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
 	if (!precio) return lang === 'en' ? 'Price on request' : 'Precio a consultar';
+	if (operacion === 'vacacional') {
+		const v = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 2 });
+		return lang === 'en' ? `From ${CURRENCY_PREFIX[moneda] || moneda} ${v} per night` : `Desde ${CURRENCY_PREFIX[moneda] || moneda} ${v} por noche`;
+	}
 	const n = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 0 });
 	const suffix = operacion === 'renta' ? (lang === 'en' ? ' /mo' : ' /mes') : '';
 	return `${CURRENCY_PREFIX[moneda] || moneda} ${n}${suffix}`;

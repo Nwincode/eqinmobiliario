@@ -171,9 +171,9 @@ function buildZonas(properties, base = '/propiedades/') {
 	return [...counts.entries()]
 		.map(([nombre, total]) => {
 			let slug = slugify(nombre);
-			if (['venta', 'renta', 'for-sale', 'for-rent'].includes(slug)) slug = `zona-${slug}`;
-			const venta = properties.filter((p) => p.zona === nombre && p.operacion === 'venta').length;
-			return { nombre, slug, total, venta, renta: total - venta, url: `${base}${slug}/` };
+			if (['venta', 'renta', 'vacacional', 'for-sale', 'for-rent', 'vacation-rentals'].includes(slug)) slug = `zona-${slug}`;
+			const cuenta = (op) => properties.filter((p) => p.zona === nombre && (p.operacion || 'venta') === op).length;
+			return { nombre, slug, total, venta: cuenta('venta'), renta: cuenta('renta'), vacacional: cuenta('vacacional'), url: `${base}${slug}/` };
 		})
 		.filter((z) => z.slug)
 		.sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
@@ -220,7 +220,7 @@ function llmsTxt(ctx, properties, pages) {
 		`- [En renta](${base}/propiedades/renta/)`,
 		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
 		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${p.m2Construccion} m²` : ''}`),
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${p.m2Construccion} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
@@ -246,7 +246,8 @@ const coordenadas = (mapa) => {
 
 function feeds(ctx, properties, propsEn) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
-	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible');
+	// Los portales de Meta y Kyero no tienen precio por noche: la renta vacacional no va en los feeds.
+	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional');
 	const enPorId = Object.fromEntries((propsEn || []).map((p) => [p.id, p]));
 	const abs = (u) => (/^https?:/.test(u) ? u : `${base}${u}`);
 	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
@@ -412,6 +413,7 @@ async function main() {
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
 	const todas = normalizeProperties(data.properties);
 	const properties = todas.filter((p) => visibilidadDe(p) === 'visible');
+	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => visibilidadDe(p) !== 'visible');
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
 	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');
@@ -422,7 +424,7 @@ async function main() {
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
 	[['/', '/en/'], ['/propiedades/', '/en/properties/'], ['/propiedades/venta/', '/en/properties/for-sale/'],
-		['/propiedades/renta/', '/en/properties/for-rent/'], ['/vip/', '/en/luxury/'],
+		['/propiedades/renta/', '/en/properties/for-rent/'], ['/propiedades/vacacional/', '/en/properties/vacation-rentals/'], ['/vip/', '/en/luxury/'],
 		['/calculadora-de-renta/', '/en/rental-calculator/']].forEach(([a, b]) => registrarPar(a, b));
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const L = site.listados || {};
@@ -476,8 +478,10 @@ async function main() {
 	const listings = [
 		listing('todas', { alternates: enActivo ? { es: '/propiedades/', en: '/en/properties/' } : null, path: '/propiedades/', heading: 'Propiedades', title: `Propiedades en venta y renta en Guatemala | ${nombre}`, description: 'Casas, apartamentos, terrenos y oficinas en venta y renta en Guatemala. Filtra por zona, precio y número de habitaciones.' }),
 		listing('venta', { alternates: enActivo ? { es: '/propiedades/venta/', en: '/en/properties/for-sale/' } : null, path: '/propiedades/venta/', operacion: 'venta', heading: 'Propiedades en venta', title: `Casas y apartamentos en venta en Guatemala | ${nombre}`, description: 'Propiedades en venta en Guatemala: casas, apartamentos y terrenos verificados, con asesoría en financiamiento.' }),
-		listing('renta', { alternates: enActivo ? { es: '/propiedades/renta/', en: '/en/properties/for-rent/' } : null, path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${nombre}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' })
-	];
+		listing('renta', { alternates: enActivo ? { es: '/propiedades/renta/', en: '/en/properties/for-rent/' } : null, path: '/propiedades/renta/', operacion: 'renta', heading: 'Propiedades en renta', title: `Casas y apartamentos en renta en Guatemala | ${nombre}`, description: 'Propiedades en renta en Guatemala: casas, apartamentos y oficinas con contratos claros y seguros.' }),
+		// Renta vacacional por noches: solo si hay alguna publicada.
+		hayVacacional && listing('vacacional', { alternates: enActivo ? { es: '/propiedades/vacacional/', en: '/en/properties/vacation-rentals/' } : null, path: '/propiedades/vacacional/', operacion: 'vacacional', heading: 'Renta vacacional', title: `Renta vacacional por noches en Guatemala | ${nombre}`, description: 'Casas y apartamentos para tus vacaciones en Guatemala, por noche: elige tus fechas, ve la disponibilidad y solicita tu reserva.' })
+	].filter(Boolean);
 	for (const l of listings) {
 		await writePage(l.path, T.listingPage(ctx, l));
 		urls.push({ path: l.path, priority: '0.9', lastmod: ultimaFecha(properties.filter((p) => !l.operacion || p.operacion === l.operacion)) });
@@ -588,8 +592,9 @@ async function main() {
 		for (const l of [
 			listingEn('todas', { path: '/en/properties/', alternates: { es: '/propiedades/', en: '/en/properties/' }, heading: 'Properties in Guatemala', title: `Homes for sale and rent in Guatemala | ${nombre}`, description: 'Houses, condos and land for sale and rent in Guatemala City and beyond. Prices in USD, video tours and support for buyers in the US.' }),
 			listingEn('venta', { path: '/en/properties/for-sale/', operacion: 'venta', alternates: { es: '/propiedades/venta/', en: '/en/properties/for-sale/' }, heading: 'Homes for sale in Guatemala', title: `Homes for sale in Guatemala | ${nombre}`, description: 'Houses and condos for sale in Guatemala with verified titles, USD prices, live video tours and remote closing support for US buyers.' }),
-			listingEn('renta', { path: '/en/properties/for-rent/', operacion: 'renta', alternates: { es: '/propiedades/renta/', en: '/en/properties/for-rent/' }, heading: 'Homes for rent in Guatemala', title: `Homes for rent in Guatemala | ${nombre}`, description: 'Houses, condos and offices for rent in Guatemala City, with clear contracts and an English-speaking point of contact.' })
-		]) {
+			listingEn('renta', { path: '/en/properties/for-rent/', operacion: 'renta', alternates: { es: '/propiedades/renta/', en: '/en/properties/for-rent/' }, heading: 'Homes for rent in Guatemala', title: `Homes for rent in Guatemala | ${nombre}`, description: 'Houses, condos and offices for rent in Guatemala City, with clear contracts and an English-speaking point of contact.' }),
+			hayVacacional && listingEn('vacacional', { path: '/en/properties/vacation-rentals/', operacion: 'vacacional', alternates: { es: '/propiedades/vacacional/', en: '/en/properties/vacation-rentals/' }, heading: 'Vacation rentals in Guatemala', title: `Vacation rentals by the night in Guatemala | ${nombre}`, description: 'Houses and condos for your vacation in Guatemala, by the night: pick your dates, check availability and request your booking.' })
+		].filter(Boolean)) {
 			await writePage(l.path, T.listingPage(ctxEn, l));
 			urls.push({ path: l.path, priority: '0.9' });
 		}

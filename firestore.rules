@@ -94,6 +94,13 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId());
       allow delete: if isAdmin();
+
+      // Renta vacacional: costo del socio, margen, contacto y enlace iCal. Nunca es público
+      // (la propiedad sí lo es). Solo el equipo: admin o el asesor de la propiedad.
+      match /privado/{docId} {
+        allow read, write: if isAdmin()
+          || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+      }
     }
 
     match /agents/{id} {
@@ -203,7 +210,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly([
             'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
             'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
-            'tipoVisita', 'idioma', 'campana'])
+            'tipoVisita', 'idioma', 'campana', 'reserva'])
         && isNonEmptyString(request.resource.data.nombre, 100)
         && isNonEmptyString(request.resource.data.telefono, 30)
         && isShortString(request.resource.data.email, 120)
@@ -218,6 +225,8 @@ service cloud.firestore {
         && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
         && (!('campana' in request.resource.data)
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
+        && (!('reserva' in request.resource.data)
+            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10))
         && request.resource.data.estado == 'nuevo'
         && request.resource.data.createdAt == request.time;
       allow read: if isAdmin()

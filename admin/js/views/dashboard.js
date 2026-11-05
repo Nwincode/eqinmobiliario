@@ -2,6 +2,7 @@ import { db, getDocs, collection } from '../firebase.js';
 import { h, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
+import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, fechaCorta, ms } from '../crm.js';
 
 function stat(label, value, href) {
@@ -12,13 +13,14 @@ function stat(label, value, href) {
 
 export async function render(container) {
 	const canSeeLeads = session.isAdmin || session.agentId;
-	const [propSnap, leads, publish, actividades, clientes, propietarios] = await Promise.all([
+	const [propSnap, leads, publish, actividades, clientes, propietarios, pend] = await Promise.all([
 		getDocs(collection(db, 'properties')),
 		canSeeLeads ? loadLeads() : [],
 		getPublishState().catch(() => ({})),
 		canSeeLeads ? loadActividades().catch(() => []) : [],
 		canSeeLeads ? loadClientes().catch(() => []) : [],
-		canSeeLeads ? loadPropietarios().catch(() => []) : []
+		canSeeLeads ? loadPropietarios().catch(() => []) : [],
+		cargarPendientes().catch(() => null)
 	]);
 	// Lo que hay que atender hoy (el administrador con ficha de asesor ve lo suyo y lo no asignado).
 	const mias = actividades.filter((a) => !a.hecha && (!session.isAdmin || !session.agentId || a.agentId === session.agentId || !a.agentId));
@@ -43,8 +45,9 @@ export async function render(container) {
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
 			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
+		pend ? tarjetaPendientes(pend) : null,
 		canSeeLeads ? h('div', { class: 'card mb-4' },
-			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'small' }, 'Abrir agenda →')),
+			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
 			h('div', { class: 'card-body' },
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 					vencidas.length ? h('a', { href: '#/agenda', class: 'badge text-bg-danger text-decoration-none' }, `${vencidas.length} seguimientos vencidos`) : h('span', { class: 'badge text-bg-success' }, 'Sin seguimientos vencidos'),
