@@ -16,19 +16,21 @@
 	var LEY_IUSI = 'Decreto 15-98 (Ley del IUSI), art. 11, reformado por el Decreto 18-2026 (publicado en el Diario de Centro América el 28-ago-2026, vigente aprox. desde el 26-nov-2026)';
 	var LEY_ISR = 'Decreto 10-2012 (Ley de Actualización Tributaria, libro I: ISR)';
 	var LEY_IVA = 'Decreto 27-92 (Ley del IVA)';
+	var FUENTE_IUSI = 'Decreto 18-2026, art. 1 (reforma art. 11 Dto. 15-98), DCA 28-ago-2026. Vigente desde el 26-nov-2026 aprox.; antes regía la escala anterior';
+	var FUENTE_IVA = 'Ley del IVA, Dto. 27-92, art. 3 num. 4; art. 10; arts. 45-47 (Dto. 4-2012)';
+	var FUENTE_EXENCION = 'Decreto 18-2026, art. 4 (agrega el numeral 4 al art. 87 del Dto. 10-2012), para ventas desde el 1-ene-2027 (art. 5 b)';
 
 	// Cada valor: { valor, etiqueta, unidad, grupo, fuente, confirmar }. Lista plana para editarla fácil en el panel.
 	var PARAMS = {
 		tipoCambio: { valor: 7.7, etiqueta: 'Tipo de cambio (Q por US$)', unidad: 'Q', grupo: 'General', fuente: 'Referencia de mercado; revisar el tipo de cambio de referencia del Banguat del día.', confirmar: true },
 
-		iusiHabitacional: { valor: 0, etiqueta: 'IUSI uso habitacional', unidad: '‰', grupo: 'IUSI', fuente: LEY_IUSI + ': vivienda exenta.', confirmar: true },
-		iusiMixto: { valor: 0, etiqueta: 'IUSI uso mixto', unidad: '‰', grupo: 'IUSI', fuente: LEY_IUSI + ': uso mixto exento.', confirmar: true },
-		iusiTramo1Hasta: { valor: 2000, etiqueta: 'Comercial: exento hasta (valor fiscal)', unidad: 'Q', grupo: 'IUSI', fuente: LEY_IUSI + '. Tramos tomados de la ley anterior, por confirmar.', confirmar: true },
-		iusiTramo2Hasta: { valor: 20000, etiqueta: 'Comercial: tramo 2 hasta', unidad: 'Q', grupo: 'IUSI', fuente: LEY_IUSI + '. Tramos tomados de la ley anterior, por confirmar.', confirmar: true },
-		iusiTramo2Tasa: { valor: 3, etiqueta: 'Comercial: tasa tramo 2', unidad: '‰', grupo: 'IUSI', fuente: LEY_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: true },
-		iusiTramo3Hasta: { valor: 70000, etiqueta: 'Comercial: tramo 3 hasta', unidad: 'Q', grupo: 'IUSI', fuente: LEY_IUSI + '. Tramos tomados de la ley anterior, por confirmar.', confirmar: true },
-		iusiTramo3Tasa: { valor: 6, etiqueta: 'Comercial: tasa tramo 3', unidad: '‰', grupo: 'IUSI', fuente: LEY_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: true },
-		iusiTramo4Tasa: { valor: 9, etiqueta: 'Comercial: tasa sobre el tramo 3', unidad: '‰', grupo: 'IUSI', fuente: LEY_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: true },
+		iusiHabitacional: { valor: 0, etiqueta: 'IUSI vivienda o residencial', unidad: '‰', grupo: 'IUSI', fuente: FUENTE_IUSI + '. Vivienda y uso residencial: 0 ‰.', confirmar: false },
+		iusiMixto: { valor: 0, etiqueta: 'IUSI uso mixto', unidad: '‰', grupo: 'IUSI', fuente: FUENTE_IUSI + '. Uso mixto: 0 ‰.', confirmar: false },
+		iusiTramo1Hasta: { valor: 500000, etiqueta: 'Comercial y otros usos: tramo 1 hasta (valor inscrito)', unidad: 'Q', grupo: 'IUSI', fuente: FUENTE_IUSI + '. De Q 0 a Q 500,000. Ya no hay tramo exento.', confirmar: false },
+		iusiTramo1Tasa: { valor: 3, etiqueta: 'Comercial y otros usos: tasa tramo 1', unidad: '‰', grupo: 'IUSI', fuente: FUENTE_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: false },
+		iusiTramo2Hasta: { valor: 1000000, etiqueta: 'Comercial y otros usos: tramo 2 hasta', unidad: 'Q', grupo: 'IUSI', fuente: FUENTE_IUSI + '. De Q 500,000.01 a Q 1,000,000.', confirmar: false },
+		iusiTramo2Tasa: { valor: 6, etiqueta: 'Comercial y otros usos: tasa tramo 2', unidad: '‰', grupo: 'IUSI', fuente: FUENTE_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: false },
+		iusiTramo3Tasa: { valor: 9, etiqueta: 'Comercial y otros usos: tasa sobre Q 1,000,000', unidad: '‰', grupo: 'IUSI', fuente: FUENTE_IUSI + '. La tasa del tramo se aplica a todo el valor (no es marginal).', confirmar: false },
 
 		isrCapitalTasa: { valor: 10, etiqueta: 'ISR rentas de capital: tasa', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', art. 92 (tasa) y art. 84 (rentas de capital inmobiliarias).', confirmar: true },
 		isrCapitalDeduccion: { valor: 30, etiqueta: 'ISR rentas de capital: deducción sin comprobar', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ': la base es la renta menos 30 %.', confirmar: true },
@@ -36,12 +38,12 @@
 		isrSimplificadoTasa1: { valor: 5, etiqueta: 'Régimen simplificado: tasa hasta el tramo', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', régimen opcional simplificado sobre ingresos.', confirmar: true },
 		isrSimplificadoTasa2: { valor: 7, etiqueta: 'Régimen simplificado: tasa sobre el excedente', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', régimen opcional simplificado sobre ingresos.', confirmar: true },
 		isrUtilidadesTasa: { valor: 25, etiqueta: 'Régimen sobre utilidades: tasa', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', régimen sobre las utilidades de actividades lucrativas.', confirmar: true },
-		isrGananciaCapital: { valor: 10, etiqueta: 'ISR sobre la ganancia de la venta (rentas de capital)', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', título IV (rentas y ganancias de capital), art. 92: tipo impositivo 10 % sobre la ganancia (precio de venta menos costo de adquisición y mejoras).', confirmar: true },
-		isrGananciaUtilidades: { valor: 25, etiqueta: 'ISR sobre la ganancia de la venta (régimen sobre utilidades)', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ': si la propiedad es parte del negocio, la ganancia de la venta se suma a la utilidad del año y paga la tasa del régimen sobre utilidades.', confirmar: true },
+		isrGananciaCapital: { valor: 10, etiqueta: 'ISR sobre la ganancia de la venta (rentas de capital)', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ', título IV (rentas y ganancias de capital), art. 92: 10 % sobre la ganancia (precio de venta menos costo de adquisición y mejoras). Solo si el vendedor no está exento: ' + FUENTE_EXENCION + ' exime a la persona individual sin actividad inmobiliaria inscrita en el RTU.', confirmar: true },
+		isrGananciaUtilidades: { valor: 25, etiqueta: 'ISR sobre la ganancia de la venta (régimen sobre utilidades)', unidad: '%', grupo: 'ISR', fuente: LEY_ISR + ': si la propiedad es parte del negocio, la ganancia de la venta se suma a la utilidad del año y paga la tasa del régimen sobre utilidades. La exención del Decreto 18-2026 no aplica a personas jurídicas ni a quien tiene actividad inmobiliaria inscrita.', confirmar: true },
 
-		ivaGeneral: { valor: 12, etiqueta: 'IVA régimen general', unidad: '%', grupo: 'IVA', fuente: LEY_IVA + ', art. 10. Se cobra al inquilino encima de la renta.', confirmar: true },
-		ivaPequeno: { valor: 5, etiqueta: 'IVA pequeño contribuyente', unidad: '%', grupo: 'IVA', fuente: LEY_IVA + ', régimen de pequeño contribuyente (sobre ingresos brutos).', confirmar: true },
-		ivaPequenoLimite: { valor: 150000, etiqueta: 'Pequeño contribuyente: límite anual', unidad: 'Q', grupo: 'IVA', fuente: LEY_IVA + ': ingresos anuales máximos para el régimen.', confirmar: true },
+		ivaGeneral: { valor: 12, etiqueta: 'IVA régimen general', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. El arrendamiento, también el de vivienda, paga IVA (no hay exención). En el régimen general se cobra al inquilino encima de la renta.', confirmar: false },
+		ivaPequeno: { valor: 5, etiqueta: 'IVA pequeño contribuyente', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. Pequeño contribuyente: 5 % sobre los ingresos brutos; lo paga el dueño.', confirmar: false },
+		ivaPequenoLimite: { valor: 150000, etiqueta: 'Pequeño contribuyente: límite anual', unidad: 'Q', grupo: 'IVA', fuente: FUENTE_IVA + '. Solo si los ingresos del año no pasan de Q 150,000.', confirmar: false },
 
 		capCasa: { valor: 5, etiqueta: 'Cap rate de referencia: casa', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
 		capApartamento: { valor: 6, etiqueta: 'Cap rate de referencia: apartamento', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
@@ -54,7 +56,6 @@
 	};
 
 	var USO_POR_TIPO = { casa: 'habitacional', apartamento: 'habitacional', finca: 'habitacional', oficina: 'comercial', local: 'comercial', bodega: 'comercial' };
-	var IVA_POR_USO = { habitacional: 'exento', mixto: 'exento', comercial: 'general' };
 	var CAP_POR_TIPO = { casa: 'capCasa', apartamento: 'capApartamento', oficina: 'capOficina', local: 'capLocal', bodega: 'capBodega', finca: 'capFinca' };
 
 	function n(v, d) {
@@ -91,21 +92,28 @@
 	}
 
 	function usoPorTipo(tipo) { return USO_POR_TIPO[tipo] || 'habitacional'; }
-	function ivaPorUso(uso) { return IVA_POR_USO[uso] || 'exento'; }
+	// IVA por defecto (todos los usos): pequeño contribuyente si la renta cobrada del año 1, en quetzales, no pasa del límite; si pasa, general.
+	function ivaPorDefecto(inputs, params) {
+		var i = inputs || {}, P = valores(params);
+		var tc = n(i.tipoCambio, P.tipoCambio) || P.tipoCambio;
+		var fx = i.moneda === 'GTQ' ? 1 : tc;
+		var cobradoQ = n(i.rentaMensual, 0) * 12 * (1 - n(i.vacancia, 5) / 100) * fx;
+		return cobradoQ <= P.ivaPequenoLimite ? 'pequeno' : 'general';
+	}
 	function capReferencia(tipo, params) {
 		var key = CAP_POR_TIPO[tipo];
 		return key ? valores(params)[key] : null;
 	}
 
-	// IUSI comercial: la tasa del tramo se aplica a todo el valor fiscal (no es marginal). Devuelve ‰.
+	// IUSI (Decreto 18-2026): vivienda, residencial y mixto 0 ‰; comercial y otros usos por tramos, sin tramo exento.
+	// La tasa del tramo se aplica a todo el valor fiscal (no es marginal). Devuelve ‰.
 	function tasaIusi(uso, valorFiscalQ, params) {
 		var P = valores(params);
 		if (uso === 'habitacional') return P.iusiHabitacional;
 		if (uso === 'mixto') return P.iusiMixto;
-		if (valorFiscalQ <= P.iusiTramo1Hasta) return 0;
+		if (valorFiscalQ <= P.iusiTramo1Hasta) return P.iusiTramo1Tasa;
 		if (valorFiscalQ <= P.iusiTramo2Hasta) return P.iusiTramo2Tasa;
-		if (valorFiscalQ <= P.iusiTramo3Hasta) return P.iusiTramo3Tasa;
-		return P.iusiTramo4Tasa;
+		return P.iusiTramo3Tasa;
 	}
 
 	// Completa las entradas con los valores por defecto. Porcentajes en "%" (5 = 5 %).
@@ -119,14 +127,19 @@
 		var tc = n(i.tipoCambio, P.tipoCambio) || P.tipoCambio;
 		var fx = moneda === 'USD' ? tc : 1; // de la moneda de la propiedad a quetzales
 		var cap = capReferencia(tipo, params);
+		var regimenISR = i.regimenISR || 'capital';
+		var ivaAuto = i.regimenIVA !== 'pequeno' && i.regimenIVA !== 'general';
 		return {
 			tipo: tipo,
 			precio: precio,
 			moneda: moneda,
 			rentaMensual: n(i.rentaMensual, 0),
 			uso: uso,
-			regimenISR: i.regimenISR || 'capital',
-			regimenIVA: i.regimenIVA || ivaPorUso(uso),
+			regimenISR: regimenISR,
+			regimenIVA: ivaAuto ? ivaPorDefecto(i, params) : i.regimenIVA,
+			ivaAutomatico: ivaAuto,
+			// Exento de ISR en la venta: persona individual sin actividad inmobiliaria inscrita en el RTU (Decreto 18-2026).
+			vendedorExento: b(i.vendedorExento, regimenISR === 'capital'),
 			vacancia: n(i.vacancia, 5),
 			gastosOperativos: n(i.gastosOperativos, 10),
 			reservaCapex: n(i.reservaCapex, 0),
@@ -245,6 +258,7 @@
 		var costoFiscal = costoAdquisicion - depVenta;
 		var ganancia = reversion - costoFiscal;
 		var tasaGanancia = e.regimenISR === 'utilidades' ? P.isrGananciaUtilidades : P.isrGananciaCapital;
+		if (e.vendedorExento) tasaGanancia = 0;
 		var impuestoCalculado = ganancia > 0 ? ganancia * tasaGanancia / 100 : 0;
 		var impuestoVenta = e.restarImpuestoVenta ? impuestoCalculado : 0;
 		var ventaNeta = reversion - impuestoVenta;
@@ -252,7 +266,7 @@
 			anio: e.plazo, noiSalida: noiSalida, capSalida: e.capSalida, precioVenta: precioVenta, costosVenta: costosVentaMonto,
 			ingresoNeto: reversion, precioCompra: e.precio, costosCompra: costosCompra, mejoras: mejoras, costoAdquisicion: costoAdquisicion,
 			depreciacionAcumulada: depVenta, costoFiscal: costoFiscal, ganancia: ganancia, tasa: tasaGanancia,
-			impuestoCalculado: impuestoCalculado, impuesto: impuestoVenta, restado: e.restarImpuestoVenta, neta: ventaNeta
+			exento: e.vendedorExento, impuestoCalculado: impuestoCalculado, impuesto: impuestoVenta, restado: e.restarImpuestoVenta, neta: ventaNeta
 		};
 
 		var ultimo = anios[anios.length - 1];
@@ -266,8 +280,10 @@
 		var a1 = anios[0];
 		var avisos = [];
 		if (e.tipo === 'terreno') avisos.push('terreno');
-		if (e.regimenIVA === 'pequeno' && a1.cobrado * fx > P.ivaPequenoLimite) avisos.push('pequenoLimite');
-		if (e.uso === 'mixto') avisos.push('mixtoIva');
+		var ivaLimiteAnio = null;
+		for (t = 0; t < anios.length; t++) if (anios[t].cobrado * fx > P.ivaPequenoLimite) { ivaLimiteAnio = t + 1; break; }
+		if (e.regimenIVA === 'pequeno' && ivaLimiteAnio === 1) avisos.push('pequenoLimite');
+		else if (e.regimenIVA === 'pequeno' && ivaLimiteAnio) avisos.push('pequenoLimiteFuturo');
 		var laTir = e.precio > 0 ? tir(flujos) : null;
 		if (laTir === null) avisos.push('tirNula');
 		var recibido = tot.neto + ventaNeta;
@@ -278,6 +294,7 @@
 			anios: anios,
 			anio1: a1,
 			iusiTasaMil: tasaMil,
+			ivaLimiteAnio: ivaLimiteAnio, // primer año en que la renta cobrada pasa del límite de pequeño contribuyente
 			valorFiscalQ: e.valorFiscal,
 			cobradoAnualQ: a1.cobrado * fx,
 			netoMensual: a1.neto / 12,
@@ -340,8 +357,8 @@
 				'Administración, mantenimiento y seguro: ' + num2(e.gastosOperativos, 'es') + ' % de lo cobrado',
 				'Management, maintenance and insurance: ' + num2(e.gastosOperativos, 'en') + '% of rent collected'),
 			fila('iusi', 'resta', -a.iusi, base, 'IUSI', 'Property tax (IUSI)',
-				a.iusi > 0 ? num2(r.iusiTasaMil, 'es') + ' ‰ sobre el valor fiscal de Q ' + vf : (e.uso === 'comercial' ? 'Exento: valor fiscal en el tramo exento' : 'Exento: uso ' + (e.uso === 'mixto' ? 'mixto' : 'habitacional')),
-				a.iusi > 0 ? num2(r.iusiTasaMil, 'en') + '‰ on the assessed value of Q ' + vfEn : (e.uso === 'comercial' ? 'Exempt: assessed value in the exempt bracket' : 'Exempt: ' + (e.uso === 'mixto' ? 'mixed' : 'residential') + ' use')),
+				a.iusi > 0 ? num2(r.iusiTasaMil, 'es') + ' ‰ sobre el valor fiscal de Q ' + vf : (e.uso === 'comercial' ? 'Sin valor fiscal' : '0 ‰: uso ' + (e.uso === 'mixto' ? 'mixto' : 'habitacional') + ' (Decreto 18-2026)'),
+				a.iusi > 0 ? num2(r.iusiTasaMil, 'en') + '‰ on the assessed value of Q ' + vfEn : (e.uso === 'comercial' ? 'No assessed value' : '0‰: ' + (e.uso === 'mixto' ? 'mixed' : 'residential') + ' use (Decree 18-2026)')),
 			fila('noi', 'subtotal', a.noi, base, 'Ingreso operativo neto (NOI)', 'Net operating income (NOI)',
 				'Antes de la reserva y del impuesto sobre la renta', 'Before the reserve and income tax'),
 			fila('capex', 'resta', -a.capex, base, 'Reserva para reparaciones mayores', 'Reserve for major repairs',
@@ -349,8 +366,9 @@
 			fila('antesImpuestos', 'subtotal', a.antesImpuestos, base, 'Flujo antes de impuestos', 'Cash flow before taxes'),
 			fila('isr', 'resta', -a.isr, base, 'ISR', 'Income tax (ISR)', regimenTexto(e, P, 'es'), regimenTexto(e, P, 'en'))
 		];
-		if (e.regimenIVA === 'pequeno') filas.push(fila('ivaPropietario', 'resta', -a.ivaPropietario, base, 'IVA a cargo del dueño', 'VAT paid by the owner',
-			'Pequeño contribuyente: ' + num2(P.ivaPequeno, 'es') + ' % de lo cobrado', 'Small taxpayer: ' + num2(P.ivaPequeno, 'en') + '% of rent collected'));
+		if (e.regimenIVA === 'pequeno') filas.push(fila('ivaPropietario', 'resta', -a.ivaPropietario, base, 'IVA pequeño contribuyente', 'VAT, small taxpayer',
+			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q ' + num2(P.ivaPequenoLimite, 'es', 0) + ' al año',
+			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q ' + num2(P.ivaPequenoLimite, 'en', 0) + ' a year'));
 		filas.push(fila('neto', 'total', a.neto, base, 'Flujo neto para el dueño', 'Net cash flow to the owner', 'Lo que te queda', 'What you keep'));
 		if (e.regimenIVA === 'general') filas.push(fila('ivaInquilino', 'info', a.ivaInquilino, base, 'IVA que cobras al inquilino', 'VAT you charge the tenant',
 			num2(P.ivaGeneral, 'es') + ' % encima de la renta. Se cobra aparte y se entrega a la SAT: no es ingreso tuyo.',
@@ -364,7 +382,8 @@
 	function cascadaVenta(r) {
 		var v = r.venta, e = r.entradas, base = v.precioVenta, m = e.moneda;
 		var notaIsr, notaIsrEn;
-		if (!v.restado) { notaIsr = 'No se resta (opción desactivada). Sería ' + dinero(v.impuestoCalculado, m, 'es'); notaIsrEn = 'Not subtracted (option off). It would be ' + dinero(v.impuestoCalculado, m, 'en'); }
+		if (v.exento) { notaIsr = 'Exento (Dto. 18-2026, art. 87 num. 4 Ley ISR)'; notaIsrEn = 'Exempt (Decree 18-2026, art. 87 no. 4 of the ISR law)'; }
+		else if (!v.restado) { notaIsr = 'No se resta (opción desactivada). Sería ' + dinero(v.impuestoCalculado, m, 'es'); notaIsrEn = 'Not subtracted (option off). It would be ' + dinero(v.impuestoCalculado, m, 'en'); }
 		else if (v.ganancia <= 0) { notaIsr = 'No hay ganancia: no se paga'; notaIsrEn = 'No gain: nothing to pay'; }
 		else { notaIsr = num2(v.tasa, 'es') + ' % de la ganancia de ' + dinero(v.ganancia, m, 'es'); notaIsrEn = num2(v.tasa, 'en') + '% of the gain of ' + dinero(v.ganancia, m, 'en'); }
 		return sinMes([
@@ -377,8 +396,8 @@
 			fila('isrVenta', 'resta', -v.impuesto, base, 'ISR sobre la ganancia de capital', 'Capital gains tax (ISR)', notaIsr, notaIsrEn),
 			fila('ventaNeta', 'total', v.neta, base, 'Lo que te queda de la venta', 'What you keep from the sale'),
 			fila('timbres', 'info', null, base, 'Impuesto de la venta para el comprador', 'Transfer tax for the buyer',
-				'El timbre fiscal (3 %) o el IVA (12 % en la primera venta) normalmente lo paga el comprador. Confírmalo en la promesa de compraventa.',
-				'Stamp tax (3%) or VAT (12% on a first sale) is normally paid by the buyer. Confirm it in the purchase agreement.')
+				'En la reventa se paga Impuesto de Timbres Fiscales (3 %), normalmente por el comprador; no es IVA. Confírmalo en la promesa de compraventa.',
+				'On a resale, Stamp Tax (3%) is paid, normally by the buyer; it is not VAT. Confirm it in the purchase agreement.')
 		]);
 	}
 
@@ -400,8 +419,10 @@
 			fila('menosCosto', 'resta', -v.costoFiscal, 0, v.depreciacionAcumulada > 0 ? 'Costo fiscal' : 'Costo de adquisición', v.depreciacionAcumulada > 0 ? 'Tax basis' : 'Acquisition cost'),
 			fila('ganancia', 'subtotal', v.ganancia, 0, 'Ganancia de capital', 'Capital gain', v.ganancia <= 0 ? 'Sin ganancia: no hay impuesto' : '', v.ganancia <= 0 ? 'No gain: no tax' : ''),
 			fila('tasa', 'info', null, 0, 'Tasa aplicada', 'Rate applied',
-				num2(v.tasa, 'es') + ' %' + (e.regimenISR === 'utilidades' ? ' (régimen sobre utilidades)' : ' (ganancia de capital)'),
-				num2(v.tasa, 'en') + '%' + (e.regimenISR === 'utilidades' ? ' (profit regime)' : ' (capital gain)')),
+				v.exento ? 'Exento: persona individual sin actividad inmobiliaria inscrita en el RTU (Dto. 18-2026, art. 87 num. 4 Ley ISR)'
+					: num2(v.tasa, 'es') + ' %' + (e.regimenISR === 'utilidades' ? ' (régimen sobre utilidades)' : ' (ganancia de capital, art. 92)'),
+				v.exento ? 'Exempt: individual with no real-estate activity registered in the RTU (Decree 18-2026, art. 87 no. 4 of the ISR law)'
+					: num2(v.tasa, 'en') + '%' + (e.regimenISR === 'utilidades' ? ' (profit regime)' : ' (capital gain, art. 92)')),
 			fila('impuesto', 'total', v.impuestoCalculado, 0, 'ISR sobre la ganancia', 'Capital gains tax'));
 		return sinMes(filas);
 	}
@@ -415,7 +436,7 @@
 			fila('reserva', 'resta', -T.capex, 0, 'Reserva para reparaciones mayores', 'Reserve for major repairs'),
 			fila('isr', 'resta', -T.isr, 0, 'ISR de las rentas', 'Income tax on rent')
 		];
-		if (T.ivaPropietario > 0) filas.push(fila('iva', 'resta', -T.ivaPropietario, 0, 'IVA a cargo del dueño', 'VAT paid by the owner'));
+		if (T.ivaPropietario > 0) filas.push(fila('iva', 'resta', -T.ivaPropietario, 0, 'IVA pequeño contribuyente', 'VAT, small taxpayer'));
 		filas.push(
 			fila('netoRentas', 'subtotal', T.neto, 0, 'Flujo neto de las rentas', 'Net cash flow from rent', n + ' años', n + ' years'),
 			fila('venta', 'ingreso', r.venta.neta, 0, 'Venta, después de costos e impuesto', 'Sale, after costs and tax', 'Año ' + n, 'Year ' + n),
@@ -499,7 +520,7 @@
 		escenarios: escenarios,
 		rentaSugerida: rentaSugerida,
 		usoPorTipo: usoPorTipo,
-		ivaPorUso: ivaPorUso,
+		ivaPorDefecto: ivaPorDefecto,
 		capReferencia: capReferencia,
 		dinero: dinero,
 		porcentaje: porcentaje
