@@ -253,8 +253,14 @@ export async function render(container, [id]) {
 			}
 		});
 		const detener = (e) => e.stopPropagation();
+		const sel = h('input', {
+			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
+			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
+			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
+		});
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
-			h('td', {}, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
+			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
@@ -288,7 +294,95 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'mias' || p.agentId === session.agentId)
 			&& (fExtra.value !== 'incompletas' || faltanDe(p).length));
 		count.textContent = `${rows.length} de ${props.length}`;
+		visibles = rows;
+		// Solo quedan seleccionadas las que se ven con el filtro actual.
+		const ids = new Set(rows.map((p) => p.id));
+		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		tbody.replaceChildren(...rows.map(fila));
+		pintarBarra();
+	};
+
+	// ---- Acciones en masa ----
+	const seleccion = new Set();
+	let visibles = [];
+	const elegidas = () => props.filter((p) => seleccion.has(p.id));
+	const selTodas = h('input', {
+		class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas las que se ven',
+		onchange: (e) => {
+			visibles.filter(canEdit).forEach((p) => (e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id)));
+			draw();
+		}
+	});
+	const nSel = h('strong', {});
+	const selMasaEstado = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Cambiar estado de las seleccionadas' },
+		h('option', { value: '' }, 'Cambiar estado a…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+	const barra = h('div', { class: 'barra-masa', role: 'region', 'aria-label': 'Acciones con las seleccionadas', hidden: true });
+
+	const enMasa = async (btn, accion, desc, aviso) => {
+		const lista = elegidas();
+		if (!lista.length) return;
+		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = true; });
+		let ok = 0;
+		const fallos = [];
+		for (const p of lista) {
+			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); console.error(err); }
+		}
+		refrescarPortalesDe(lista.map((p) => p.id));
+		if (ok) await markPending(`${desc} (${ok})`).catch(() => {});
+		if (ok) toast(aviso(ok));
+		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}`, 'danger');
+		seleccion.clear();
+		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = false; });
+		selMasaEstado.value = '';
+		draw();
+	};
+	const guardarMasa = (cambios, local) => async (p) => {
+		await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
+	};
+	selMasaEstado.addEventListener('change', () => {
+		const estado = selMasaEstado.value;
+		if (!estado) return;
+		const label = estadoDe({ estado }).label;
+		enMasa(selMasaEstado, guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
+			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`);
+	});
+	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
+			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. Recuerda publicar.`) },
+		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
+	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
+			(n) => `${n} oculta${n === 1 ? '' : 's'}. Recuerda publicar.`) },
+		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
+	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Eliminar ${n} propiedad${n === 1 ? '' : 'es'}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
+			const borradas = new Set();
+			await enMasa(e.currentTarget, async (p) => {
+				if (p.operacion === 'vacacional') await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
+				await deleteDoc(doc(db, 'properties', p.id));
+				borradas.add(p.id);
+				await Promise.all((p.fotos || []).map((f) => deleteImage(f.path).catch(() => {})));
+			}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`);
+			for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
+			draw();
+		} },
+		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
+	barra.append(
+		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
+		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
+		btnMostrar, btnOcultar,
+		session.isAdmin ? btnEliminar : null,
+		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
+	const pintarBarra = () => {
+		const editables = visibles.filter(canEdit);
+		nSel.textContent = String(seleccion.size);
+		barra.hidden = seleccion.size === 0;
+		selTodas.checked = editables.length > 0 && editables.every((p) => seleccion.has(p.id));
+		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
+		selTodas.disabled = editables.length === 0;
 	};
 	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
 	draw();
@@ -306,10 +400,16 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-6 col-md-2' }, fOperacion),
 				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
 				h('div', { class: 'col-md-3' }, fEstado)),
-			h('div', { class: 'mb-2' }, count),
+			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
+				count,
+				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
+					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
+			barra,
 			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
-					h('thead', {}, h('tr', {}, ['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+					h('thead', {}, h('tr', {},
+						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
+						['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }

@@ -1142,6 +1142,43 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	opacity: .55;
 }
 
+/* Selección en masa: casilla con área de toque de 44 px y barra de acciones fija arriba. */
+.sel-toque {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+	min-height: 44px;
+	margin: -.5rem 0;
+	cursor: pointer;
+}
+.sel-toque .form-check-input { margin: 0; width: 1.15em; height: 1.15em; cursor: pointer; }
+.tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
+.barra-masa {
+	position: sticky;
+	top: calc(60px + .5rem);
+	z-index: 15;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .5rem;
+	padding: .625rem .875rem;
+	margin-bottom: .75rem;
+	background: var(--adm-surface);
+	border: 1px solid var(--adm-primary);
+	border-radius: var(--adm-radius);
+	box-shadow: var(--adm-shadow);
+}
+.barra-masa[hidden] { display: none; }
+.barra-masa-n { color: var(--adm-text); margin-right: .25rem; }
+.barra-masa-estado { min-width: 11rem; }
+.barra-masa .btn { min-height: 36px; }
+@media (max-width: 767.98px) {
+	.barra-masa-n { flex-basis: 100%; }
+	.barra-masa-estado { flex: 1 1 100%; }
+	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
+}
+
 /* En celular cada propiedad es una tarjeta: los controles quedan a la vista, sin desplazar la tabla. */
 @media (max-width: 767.98px) {
 	.tabla-propiedades thead {
@@ -1155,7 +1192,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		display: grid;
 		grid-template-columns: 64px 1fr auto;
 		grid-template-areas:
-			"foto titulo titulo"
+			"foto titulo sel"
 			"foto precio precio"
 			"estado estado estado"
 			"visible visible visible"
@@ -1174,7 +1211,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		border: 0;
 		min-width: 0;
 	}
-	.tabla-propiedades td:first-child { grid-area: foto; }
+	.tabla-propiedades .celda-foto { grid-area: foto; }
+	.tabla-propiedades .celda-sel { grid-area: sel; }
 	.tabla-propiedades .celda-titulo { grid-area: titulo; }
 	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; justify-content: space-between; gap: .75rem; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
