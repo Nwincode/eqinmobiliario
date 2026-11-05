@@ -499,11 +499,11 @@
 				'NOI del año ' + (v.anio + 1) + ' (' + dinero(v.noiSalida, m, 'es') + ') ÷ cap rate de salida ' + num2(v.capSalida, 'es') + ' %',
 				'Year ' + (v.anio + 1) + ' NOI (' + dinero(v.noiSalida, m, 'en') + ') ÷ exit cap rate ' + num2(v.capSalida, 'en') + '%'),
 		].concat(v.separados ? [
-			fila('comisionVenta', 'resta', -v.comision, base, 'Comisión de venta (' + num2(e.comisionVenta, 'es') + ' % + IVA)', 'Sale commission (' + num2(e.comisionVenta, 'en') + '% + VAT)',
+			fila('comisionVenta', 'resta', -v.comision, base, 'Comisión de venta (' + num2(e.comisionVenta, 'es') + '\u00a0%\u00a0+\u00a0IVA)', 'Sale commission (' + num2(e.comisionVenta, 'en') + '% + VAT)',
 				dinero(v.comisionSinIva, m, 'es') + ' + IVA ' + dinero(v.ivaComision, m, 'es') + (v.recuperaIva ? ' (crédito fiscal en el régimen general: no es costo)' : ''),
 				dinero(v.comisionSinIva, m, 'en') + ' + VAT ' + dinero(v.ivaComision, m, 'en') + (v.recuperaIva ? ' (input credit under the general regime: not a cost)' : '')),
 			fila('gastosVenta', 'resta', -v.gastos, base, 'Gastos de venta', 'Selling expenses',
-				'Notario, registro y otros: ' + num2(e.gastosVenta, 'es') + ' % del precio', 'Notary, registry and other: ' + num2(e.gastosVenta, 'en') + '% of the price')
+				'Notario, registro y otros: ' + num2(e.gastosVenta, 'es') + '\u00a0% del precio', 'Notary, registry and other: ' + num2(e.gastosVenta, 'en') + '% of the price')
 		] : [
 			fila('costosVenta', 'resta', -v.costosVenta, base, 'Costos de venta', 'Selling costs',
 				'Comisión y gastos notariales: ' + num2(e.costosVenta, 'es') + ' % del precio', 'Commission and notary fees: ' + num2(e.costosVenta, 'en') + '% of the price')
