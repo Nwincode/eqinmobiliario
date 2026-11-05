@@ -5,7 +5,8 @@ import vm from 'node:vm';
 import {
 	mesesArrendamiento, pctTodoIncluido, factorTodoIncluido, desglose, calcularLinea, calcularCotizacion,
 	textoWhatsApp, dinero, venceEl, numeroCotizacion, lineaVacia, pendientes, emisorDesde, faltanEmisor,
-	liquidacionTotal, liquidacion, adminActiva, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, isrEscalonado, PCT_ASESOR_DEF
+	liquidacionTotal, liquidacion, adminActiva, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, isrEscalonado, PCT_ASESOR_DEF,
+	snapshotPropiedad, snapshotCliente, datosPropiedad, textoPropiedad, buscar
 } from '../admin/js/cotizacion.js';
 
 let ok = 0;
@@ -237,6 +238,41 @@ await test('administración encendida: pide su valor y suma al total mensual y a
 	// Cotizaciones de antes, sin interruptor: siguen encendidas.
 	assert.equal(adminActiva({ tipo: 'administracion', renta: 5000, pct: 10 }), true);
 	assert.equal(calcularCotizacion({ lineas: [{ tipo: 'administracion', moneda: 'GTQ', renta: 5000, pct: 10 }] }).totales[0].honorario, 500);
+});
+
+await test('inmueble y cliente: se guarda una copia del registro, y la hoja la lee', () => {
+	const p = { id: 'p1', codigo: 'EQ-101', titulo: 'Casa en San Antonio', tipo: 'casa', operacion: 'venta', zona: 'Zona 16', ciudad: 'Guatemala', precio: '200000', moneda: 'USD',
+		habitaciones: 3, banos: 1, parqueos: 0, m2Construccion: 250, m2Terreno: 400, fotos: [{ url: '/images/a.webp', alt: '' }, { url: '/b.webp' }], agentId: 'a1', descripcion: 'larga' };
+	const s = snapshotPropiedad(p, [['casa', 'Casa']]);
+	assert.equal(s.id, 'p1');
+	assert.equal(s.texto, 'EQ-101 · Casa en San Antonio · Zona 16');
+	assert.equal(s.precio, 200000);
+	assert.equal(s.parqueos, null);
+	assert.deepEqual(s.foto, { url: '/images/a.webp', alt: 'Casa en San Antonio' });
+	assert.equal(s.descripcion, undefined, 'no copia campos que la hoja no usa');
+	const d = datosPropiedad(s);
+	assert.deepEqual(d.rasgos, ['Casa en venta', '3 habitaciones', '1 baño', '250 m² de construcción', '400 m² de terreno']);
+	assert.equal(d.lugar, 'Zona 16, Guatemala');
+	assert.equal(d.precio, 'US$ 200,000');
+	assert.equal(datosPropiedad(snapshotPropiedad({ titulo: 'Apto', operacion: 'renta', precio: 1500, moneda: 'GTQ' })).precio, 'Q 1,500 al mes');
+	assert.equal(snapshotPropiedad({ titulo: 'Sin fotos', fotos: [] }).foto, null);
+	assert.equal(snapshotPropiedad({ titulo: 'Fotos viejas', fotos: ['/x.jpg'] }).foto.url, '/x.jpg');
+	// Cotizaciones de antes: solo el texto.
+	assert.deepEqual(datosPropiedad({ id: 'p1', texto: 'EQ-9 · Apartamento · Zona 10' }), { codigo: 'EQ-9', titulo: 'Apartamento', lugar: 'Zona 10', rasgos: [], precio: '' });
+	assert.equal(datosPropiedad({ texto: 'Bodega en Mixco' }).titulo, 'Bodega en Mixco');
+	assert.equal(textoPropiedad({ codigo: 'EQ-1', titulo: '', zona: 'Zona 1' }), 'EQ-1 · Zona 1');
+	assert.deepEqual(snapshotCliente({ id: 'c1', nombre: ' Ana López ', telefono: '5555-1212', email: 'ana@x.com', etapa: 'visita' }),
+		{ id: 'c1', nombre: 'Ana López', nit: 'CF', telefono: '5555-1212', email: 'ana@x.com' });
+	assert.equal(snapshotCliente({ nombre: 'B', nit: '123456-7' }).nit, '123456-7');
+	assert.match(textoWhatsApp({ cliente: snapshotCliente({ nombre: 'Ana López' }), propiedad: s, lineas: [], fecha: '2026-11-05' }), /^Hola Ana,[\s\S]*Propiedad: EQ-101 · Casa en San Antonio · Zona 16/);
+});
+
+await test('buscador: sin tildes, por varias palabras y en varios campos', () => {
+	const lista = [{ nombre: 'Ana Lucía López', telefono: '4444' }, { nombre: 'José Pérez', telefono: '5555' }, { nombre: 'Lucia Ramos', email: 'lr@x.com' }];
+	assert.deepEqual(buscar(lista, 'lucia', ['nombre']).map((x) => x.nombre), ['Ana Lucía López', 'Lucia Ramos']);
+	assert.deepEqual(buscar(lista, 'lopez ana', ['nombre']).map((x) => x.nombre), ['Ana Lucía López']);
+	assert.deepEqual(buscar(lista, '5555', ['nombre', 'telefono']).map((x) => x.nombre), ['José Pérez']);
+	assert.equal(buscar(lista, '', ['nombre'], 2).length, 2);
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ', con fallas' : ''}.`);

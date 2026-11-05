@@ -333,3 +333,66 @@ export function textoWhatsApp(cot) {
 	if (c.asesor) out.push('', c.asesor);
 	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+
+// ── Cliente e inmueble: se eligen de los registros (Clientes y Propiedades) y se guarda una copia
+// en la cotización, para que la hoja no cambie aunque después se edite el registro.
+const texto = (v) => String(v ?? '').trim();
+const cifra = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+const mil = (v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
+// «EQ-101 · Casa en San Antonio · Zona 16»: el texto corto de siempre (lista, WhatsApp, cotizaciones de antes).
+export const textoPropiedad = (p) => [p?.codigo, p?.titulo, p?.zona].map(texto).filter(Boolean).join(' · ');
+
+// Copia de la propiedad. `tipos` es la lista [valor, etiqueta] del inventario (para guardar «Casa», no «casa»).
+export function snapshotPropiedad(p, tipos = []) {
+	if (!p) return { id: '', texto: '' };
+	const f = Array.isArray(p.fotos) ? p.fotos.find((x) => (typeof x === 'string' ? x : x?.url)) : null;
+	const url = typeof f === 'string' ? f : f?.url || '';
+	const tipo = texto(p.tipo);
+	return {
+		id: p.id || '', texto: textoPropiedad(p),
+		codigo: texto(p.codigo), titulo: texto(p.titulo),
+		tipo, tipoTexto: (tipos.find(([v]) => v === tipo) || [])[1] || (tipo ? tipo[0].toUpperCase() + tipo.slice(1) : ''),
+		operacion: p.operacion === 'renta' ? 'renta' : 'venta',
+		zona: texto(p.zona), ciudad: texto(p.ciudad), direccion: texto(p.direccion),
+		precio: cifra(p.precio), moneda: p.moneda === 'GTQ' ? 'GTQ' : 'USD',
+		habitaciones: cifra(p.habitaciones), banos: cifra(p.banos), parqueos: cifra(p.parqueos),
+		m2Construccion: cifra(p.m2Construccion), m2Terreno: cifra(p.m2Terreno),
+		foto: url ? { url, alt: texto(f?.alt) || texto(p.titulo) } : null
+	};
+}
+
+// Copia del cliente. Sin NIT en el registro se usa CF (consumidor final).
+export function snapshotCliente(cl) {
+	if (!cl) return { id: '', nombre: '', nit: 'CF', telefono: '', email: '' };
+	return { id: cl.id || '', nombre: texto(cl.nombre), nit: texto(cl.nit).toUpperCase() || 'CF', telefono: texto(cl.telefono), email: texto(cl.email) };
+}
+
+// Datos cortos del inmueble para la hoja. Las cotizaciones de antes (solo `texto`) dan lo que se pueda.
+export function datosPropiedad(s) {
+	const p = s || {};
+	if (!p.titulo && !p.codigo) {
+		const partes = texto(p.texto).split(' · ').filter(Boolean);
+		if (partes.length < 2) return { titulo: partes[0] || '', codigo: '', lugar: '', rasgos: [], precio: '' };
+		return { codigo: partes[0], titulo: partes[1], lugar: partes.slice(2).join(', '), rasgos: [], precio: '' };
+	}
+	const clase = [p.tipoTexto, p.operacion === 'renta' ? 'en renta' : p.operacion === 'venta' ? 'en venta' : ''].filter(Boolean).join(' ');
+	const m2 = p.m2Construccion ? `${mil(p.m2Construccion)} m²${p.m2Terreno ? ' de construcción' : ''}` : '';
+	const rasgos = [
+		clase ? clase[0].toUpperCase() + clase.slice(1) : '',
+		p.habitaciones ? `${mil(p.habitaciones)} ${p.habitaciones === 1 ? 'habitación' : 'habitaciones'}` : '',
+		p.banos ? `${mil(p.banos)} ${p.banos === 1 ? 'baño' : 'baños'}` : '',
+		p.parqueos ? `${mil(p.parqueos)} ${p.parqueos === 1 ? 'parqueo' : 'parqueos'}` : '',
+		m2, p.m2Terreno ? `${mil(p.m2Terreno)} m² de terreno` : ''
+	].filter(Boolean);
+	const precio = p.precio ? `${dinero(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : ''}` : '';
+	return { titulo: p.titulo || p.codigo, codigo: p.titulo ? p.codigo : '', lugar: [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', '), rasgos, precio };
+}
+
+// Búsqueda sin tildes ni mayúsculas en varios campos.
+export const sinTildes = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+export function buscar(lista, q, campos, max = 8) {
+	const palabras = sinTildes(q).split(/\s+/).filter(Boolean);
+	const pasan = (x) => { const t = sinTildes(campos.map((k) => x[k]).join(' ')); return palabras.every((w) => t.includes(w)); };
+	return lista.filter(pasan).slice(0, max);
+}

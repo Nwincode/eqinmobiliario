@@ -10,7 +10,11 @@ Cuando la sesión llegue al 15 % de uso del contexto se hace `/compact`, antes d
 (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`).
 
 ## Regla obligatoria de diseño: siempre con agentes y con revisión final
-Cada vez que se haga o se cambie un diseño (página, sección, tarjeta, panel, correo, imagen):
+Excepción para ahorrar tokens: si el cambio es sencillo (texto, color, un botón, un ajuste de espacio
+o de tamaño), lo hace Claude directo, sin agentes ni revisión doble. Al terminar, le propone al
+usuario las mejoras que vea, y el usuario decide si se hacen.
+
+Cada vez que se haga o se cambie un diseño grande o nuevo (página, sección, tarjeta, panel, correo, imagen):
 1. El diseño lo hace un agente (herramienta Agent), con estas reglas y los archivos del sitio como contexto.
 2. Al terminar, otro agente lo revisa con capturas en celular y computadora. Busca qué se puede mejorar:
    - jerarquía, espacios y alineación;

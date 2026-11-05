@@ -9,14 +9,15 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader } from '../ui.js';
+import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal } from '../ui.js';
 import { session } from '../session.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
 	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
 	calcularCotizacion, lineaVacia, dinero, porcentaje, pctTodoIncluido, rentas, numero,
 	numeroCotizacion, fechaISO, fechaLarga, venceEl, textoWhatsApp,
-	pendientes, adminActiva, emisorDesde, faltanEmisor, liquidacion, etqRegimen, regimenValido
+	pendientes, adminActiva, emisorDesde, faltanEmisor, liquidacion, etqRegimen, regimenValido,
+	snapshotPropiedad, snapshotCliente, datosPropiedad, buscar
 } from '../cotizacion.js';
 
 const COL = 'cotizaciones';
@@ -295,12 +296,12 @@ async function editor(container, id, { duplicar = false } = {}) {
 			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
 			c = structuredClone(s.data());
 		} catch (err) { showError(err); container.replaceChildren(emptyState('No se pudo abrir la cotización.')); return; }
-		if (duplicar) { c.numero = numeroCotizacion(); c.fecha = fechaISO(); c.cliente = { nombre: '', nit: '', telefono: '', email: '' }; delete c.createdAt; }
+		if (duplicar) { c.numero = numeroCotizacion(); c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
 	} else {
 		c = {
 			numero: numeroCotizacion(), fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
 			asesor: session.profile?.nombre || '', emisorTipo: 'empresa', emisor: { ...empresaActual }, regimen: empresaActual.regimen, modo: 'todo',
-			cliente: { nombre: '', nit: 'CF', telefono: '', email: '' }, propiedad: { id: '', texto: '' },
+			cliente: snapshotCliente(null), propiedad: snapshotPropiedad(null),
 			condiciones: def.condiciones, notas: '', lineas: [lineaVacia('compraventa')]
 		};
 	}
@@ -411,28 +412,141 @@ async function editor(container, id, { duplicar = false } = {}) {
 		panelEmisor, avisoEmisor,
 		h('div', { class: 'col-12 cot-sep' }, h('span', { class: 'form-label d-block', id: uid('modo-label') }, 'Precio'), modoRadios, ayudaModo));
 
-	// Cliente, fecha y propiedad.
-	const selProp = h('select', { class: 'form-select', id: uid('propiedad'), onchange: (e) => elegirPropiedad(e.target.value) },
-		h('option', { value: '' }, c.propiedad.texto && !c.propiedad.id ? c.propiedad.texto : 'Sin propiedad'));
-	let props = [];
-	function elegirPropiedad(pid) {
-		const p = props.find((x) => x.id === pid);
-		c.propiedad = p ? { id: p.id, texto: [p.codigo, p.titulo, p.zona].filter(Boolean).join(' · ') } : { id: '', texto: '' };
+	// Cliente y propiedad: se eligen de los registros (Clientes y Propiedades), nunca se escriben a mano.
+	// Se guarda el id y una copia de los datos, para que la hoja no cambie si después se edita el registro.
+	function selector({ clave, etiqueta, placeholder, ayuda, enlace, campos, opcion, tarjeta, alQuitar, alElegir }) {
+		const idc = uid(`${clave}-buscar`);
+		const listaId = `${idc}-lista`;
+		let items = null; let fallo = false; let vistos = []; let actual = -1; let buscando = false;
+		const input = h('input', { class: 'form-control cot-sel-input', id: idc, type: 'search', role: 'combobox', autocomplete: 'off', spellcheck: 'false',
+			'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': listaId, 'aria-describedby': `${idc}-ayuda`, placeholder });
+		const lista = h('ul', { class: 'cot-sel-lista', id: listaId, role: 'listbox', 'aria-label': etiqueta });
+		const nada = h('div', { class: 'cot-sel-nada' });
+		const panel = h('div', { class: 'cot-sel-panel', hidden: true }, lista, nada);
+		const anuncio = h('div', { class: 'visually-hidden', 'aria-live': 'polite' });
+		const cancelar = h('button', { type: 'button', class: 'btn btn-link btn-sm cot-btn px-0 cot-sel-cancelar', hidden: true, onclick: () => { buscando = false; pintar(); vista.querySelector('button')?.focus(); } }, 'Cancelar');
+		const buscador = h('div', { class: 'cot-sel-buscador' },
+			h('div', { class: 'cot-sel-caja' }, h('span', { class: 'icon-search cot-sel-lupa', 'aria-hidden': 'true' }), input, panel),
+			h('div', { class: 'form-text cot-sel-ayuda', id: `${idc}-ayuda` }, h('span', {}, ayuda), ' ', enlace, cancelar));
+		const vista = h('div', { class: 'cot-sel-vista' });
+		const raiz = h('div', { class: 'col-12 cot-sel' }, h('label', { class: 'form-label', for: idc }, etiqueta), vista, buscador, anuncio);
+
+		const abierto = () => !panel.hidden;
+		function cerrar() { panel.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); actual = -1; }
+		function marcar(i) {
+			actual = i;
+			[...lista.children].forEach((li, k) => li.setAttribute('aria-selected', String(k === i)));
+			const li = lista.children[i];
+			if (li) { input.setAttribute('aria-activedescendant', li.id); li.scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
+		}
+		function abrir() {
+			if (items === null) { lista.replaceChildren(); nada.textContent = fallo ? 'No se pudo leer la lista. Recarga la página.' : 'Cargando…'; }
+			else {
+				vistos = buscar(items, input.value, campos, 8);
+				lista.replaceChildren(...vistos.map((x, i) => h('li', { id: `${idc}-op-${i}`, role: 'option', class: 'cot-sel-op', 'aria-selected': 'false',
+					onmousedown: (ev) => ev.preventDefault(), onclick: () => elegir(x) }, opcion(x))));
+				nada.textContent = vistos.length ? '' : (items.length ? 'No hay coincidencias.' : 'Todavía no hay registros.');
+				anuncio.textContent = vistos.length ? `${vistos.length} ${vistos.length === 1 ? 'resultado' : 'resultados'}` : nada.textContent;
+			}
+			nada.hidden = !nada.textContent;
+			panel.hidden = false; input.setAttribute('aria-expanded', 'true'); marcar(-1);
+		}
+		function elegir(x) { alElegir(x); buscando = false; input.value = ''; cerrar(); pintar(); cambio(); vista.querySelector('button')?.focus(); anuncio.textContent = `Elegido: ${opcion(x).textContent ?? ''}`; }
+		input.addEventListener('input', abrir);
+		input.addEventListener('focus', abrir);
+		input.addEventListener('blur', () => setTimeout(cerrar, 120));
+		input.addEventListener('keydown', (ev) => {
+			if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+				ev.preventDefault(); if (!abierto()) abrir();
+				const n = vistos.length; if (!n) return;
+				marcar(ev.key === 'ArrowDown' ? (actual + 1) % n : (actual - 1 + n) % n);
+			} else if (ev.key === 'Enter') {
+				if (abierto() && vistos[actual]) { ev.preventDefault(); elegir(vistos[actual]); }
+				else if (abierto() && vistos.length === 1) { ev.preventDefault(); elegir(vistos[0]); }
+			} else if (ev.key === 'Escape') {
+				if (abierto()) { ev.preventDefault(); ev.stopPropagation(); cerrar(); }
+				else if (buscando && !cancelar.hidden) { ev.preventDefault(); cancelar.click(); }
+			}
+		});
+		const accion = (icono, texto, alClic, etq) => h('button', { type: 'button', class: 'btn btn-link btn-sm cot-btn cot-sel-accion', 'aria-label': etq, onclick: alClic },
+			h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
+		function pintar() {
+			const t = tarjeta();
+			const mostrarBuscador = !t || buscando;
+			if (t) {
+				vista.replaceChildren(h('div', { class: `cot-sel-tarjeta${t.anterior ? ' is-anterior' : ''}` }, t.foto,
+					h('div', { class: 'cot-sel-txt' }, t.titulo, t.sub),
+					h('div', { class: 'cot-sel-acciones' },
+						accion('icon-exchange', t.anterior ? 'Elegir de la lista' : 'Cambiar', () => { buscando = true; pintar(); input.focus(); }, `${t.anterior ? 'Elegir de la lista' : 'Cambiar'}: ${etiqueta.toLowerCase()}`),
+						accion('icon-times', 'Quitar', () => { alQuitar(); buscando = false; pintar(); cambio(); input.focus(); }, `Quitar ${etiqueta.toLowerCase()}`))));
+			} else vista.replaceChildren();
+			vista.hidden = !t || buscando;
+			buscador.hidden = !mostrarBuscador;
+			cancelar.hidden = !(t && buscando);
+		}
+		pintar();
+		return { el: raiz, cargar(lista) { items = lista; if (abierto()) abrir(); }, fallar() { fallo = true; if (abierto()) abrir(); }, pintar };
+	}
+	const enlaceA = (icono, texto, destino) => h('a', { class: 'cot-sel-enlace', href: destino, onclick: (ev) => salir(ev, destino) },
+		h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
+	const miniatura = (foto, alt, clase = 'cot-sel-foto') => (foto?.url
+		? h('img', { class: clase, src: foto.url, alt, width: 56, height: 56, decoding: 'async' })
+		: h('span', { class: `${clase} is-vacia`, role: 'img', 'aria-label': 'Sin foto' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
+
+	const selCliente = selector({
+		clave: 'cliente', etiqueta: 'Cliente',
+		placeholder: 'Busca por nombre, teléfono o correo',
+		ayuda: '¿No está?', enlace: enlaceA('icon-user-plus', 'Agrégalo en Clientes', '#/clientes/nuevo'),
+		campos: ['nombre', 'telefono', 'email', 'nit'],
+		opcion: (x) => h('span', { class: 'cot-sel-op-txt' }, h('span', { class: 'cot-sel-op-nombre' }, x.nombre || 'Sin nombre'),
+			h('span', { class: 'cot-sel-op-sub' }, [x.telefono, x.email].filter(Boolean).join(' · ') || 'Sin teléfono ni correo')),
+		tarjeta: () => {
+			const cl = c.cliente;
+			if (!cl.id && !cl.nombre) return null;
+			const datos = [`NIT ${cl.nit || 'CF'}`, cl.telefono, cl.email].filter(Boolean).join(' · ');
+			return { anterior: !cl.id,
+				titulo: h('div', { class: 'cot-sel-nombre' }, cl.nombre || 'Sin nombre'),
+				sub: [h('div', { class: 'cot-sel-sub' }, datos),
+					!cl.id ? h('div', { class: 'cot-sel-nota' }, 'Escrito en una cotización anterior. Elígelo de la lista para tomar sus datos de Clientes.') : null] };
+		},
+		alQuitar: () => { c.cliente = snapshotCliente(null); },
+		alElegir: (x) => { c.cliente = snapshotCliente(x); }
+	});
+	let tiposProp = [];
+	const selPropiedad = selector({
+		clave: 'propiedad', etiqueta: 'Propiedad (opcional)',
+		placeholder: 'Busca por código, título o zona',
+		ayuda: 'Al elegirla se llena el precio o la renta del servicio. ¿No está?', enlace: enlaceA('icon-plus', 'Agrégala en Propiedades', '#/propiedades/nuevo'),
+		campos: ['codigo', 'titulo', 'zona', 'ciudad', 'direccion'],
+		opcion: (x) => { const s = snapshotPropiedad(x, tiposProp); const d = datosPropiedad(s); return h('span', { class: 'cot-sel-op-txt cot-sel-op-prop' }, miniatura(s.foto, '', 'cot-sel-op-foto'),
+			h('span', {}, h('span', { class: 'cot-sel-op-nombre' }, d.titulo), h('span', { class: 'cot-sel-op-sub' }, [s.codigo, s.operacion === 'renta' ? 'En renta' : 'En venta', s.zona].filter(Boolean).join(' · ')))); },
+		tarjeta: () => {
+			const p = c.propiedad;
+			if (!p.id && !p.texto) return null;
+			const d = datosPropiedad(p);
+			const anterior = !p.titulo && !p.codigo;
+			return { anterior: anterior && !p.id,
+				foto: miniatura(p.foto, p.foto?.alt || d.titulo),
+				titulo: h('div', { class: 'cot-sel-nombre' }, d.titulo),
+				sub: [h('div', { class: 'cot-sel-sub' }, [d.codigo, ...d.rasgos.slice(0, 1), d.lugar].filter(Boolean).join(' · ')),
+					anterior ? h('div', { class: 'cot-sel-nota' }, 'Guardada en una cotización anterior, sin foto ni datos. Elígela de la lista para completarlos.') : null] };
+		},
+		alQuitar: () => { c.propiedad = snapshotPropiedad(null); },
+		alElegir: (p) => elegirPropiedad(p)
+	});
+	function elegirPropiedad(p) {
+		c.propiedad = snapshotPropiedad(p, tiposProp);
 		if (p && Number(p.precio) > 0) {
 			// Llena el precio o la renta del primer servicio que aún no lo tenga.
 			const venta = p.operacion !== 'renta';
 			const l = c.lineas.find((x) => (venta ? x.tipo === 'compraventa' && !x.precio : (x.tipo === 'arrendamiento' || x.tipo === 'administracion') && !x.renta));
 			if (l) { if (venta) l.precio = Number(p.precio); else l.renta = Number(p.precio); l.moneda = p.moneda === 'GTQ' ? 'GTQ' : 'USD'; pintarLineas(); }
 		}
-		cambio();
 	}
 	const cliente = grupo('icon-user', 'Cliente y cotización',
-		campo('cliente.nombre', 'Nombre del cliente', { col: 'col-12', attrs: { autocomplete: 'off', placeholder: 'Escribe el nombre completo' } }),
-		campo('cliente.nit', 'NIT', { ayuda: 'Escribe CF si no tiene NIT.', attrs: { autocomplete: 'off' } }),
-		campo('cliente.telefono', 'Teléfono', { tipo: 'tel' }),
-		campo('cliente.email', 'Correo', { tipo: 'email', col: 'col-12' }),
-		h('div', { class: 'col-12' }, h('label', { class: 'form-label', for: uid('propiedad') }, 'Propiedad (opcional)'), selProp,
-			h('div', { class: 'form-text' }, 'Si eliges una, se llena el precio o la renta del servicio.')),
+		selCliente.el,
+		selPropiedad.el,
+		h('div', { class: 'col-12 cot-sep p-0' }),
 		campo('numero', 'Número', { attrs: { autocomplete: 'off' } }),
 		campo('fecha', 'Fecha', { tipo: 'date' }),
 		campo('vigenciaDias', 'Vigencia (días)', { tipo: 'number', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
@@ -645,18 +759,25 @@ async function editor(container, id, { duplicar = false } = {}) {
 				meta('Fecha', fechaLarga(c.fecha) || '—'),
 				meta('Vigente hasta', fechaLarga(vence) || '—')));
 
-		// Preparada para: cliente y propiedad lado a lado.
+		// Cliente e inmueble lado a lado (con la foto del inmueble), tomados de la copia guardada.
 		const datoCl = [`NIT ${cl.nit || 'CF'}`, cl.telefono, cl.email].filter(Boolean);
-		const prop = c.propiedad?.texto ? String(c.propiedad.texto).split(' · ') : [];
-		const preparada = h('section', { class: `cot-doc-para${prop.length ? '' : ' sin-prop'}`, 'aria-label': 'Preparada para' },
+		const pr = c.propiedad || {};
+		const dp = pr.id || pr.texto ? datosPropiedad(pr) : null;
+		const fotoDoc = pr.foto?.url
+			? h('img', { class: 'cot-doc-foto', src: pr.foto.url, alt: pr.foto.alt || dp?.titulo || 'Foto del inmueble', width: 84, height: 84, decoding: 'async' })
+			: h('span', { class: 'cot-doc-foto is-vacia', role: 'img', 'aria-label': 'Sin foto' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }));
+		const preparada = h('section', { class: `cot-doc-para${dp ? '' : ' sin-prop'}`, 'aria-label': 'Cliente e inmueble' },
 			h('div', { class: 'cot-doc-para-col' },
-				h('div', { class: 'cot-doc-etq-sec' }, ico('icon-user'), 'Preparada para'),
-				h('div', { class: 'cot-doc-cliente-nombre' }, cl.nombre || h('span', { class: 'cot-doc-falta' }, 'Nombre del cliente')),
+				h('h3', { class: 'cot-doc-etq-sec' }, ico('icon-user'), 'Cliente'),
+				h('div', { class: 'cot-doc-cliente-nombre' }, cl.nombre || h('span', { class: 'cot-doc-falta' }, 'Elige el cliente')),
 				h('div', { class: 'cot-doc-cliente-datos' }, datoCl.map((t) => h('span', {}, nb(t))))),
-			prop.length ? h('div', { class: 'cot-doc-para-col' },
-				h('div', { class: 'cot-doc-etq-sec' }, ico('icon-home2'), 'Propiedad'),
-				h('div', { class: 'cot-doc-prop-nombre' }, prop.length > 1 ? prop.slice(1).join(' · ') : prop[0]),
-				prop.length > 1 ? h('div', { class: 'cot-doc-cliente-datos' }, h('span', {}, `Código ${prop[0]}`)) : null) : null);
+			dp ? h('div', { class: 'cot-doc-para-col cot-doc-inmueble' },
+				h('h3', { class: 'cot-doc-etq-sec' }, ico('icon-home2'), 'Inmueble'),
+				h('div', { class: 'cot-doc-inmueble-fila' }, fotoDoc,
+					h('div', { class: 'cot-doc-inmueble-txt' },
+						h('div', { class: 'cot-doc-prop-nombre' }, dp.titulo),
+						dp.codigo || dp.lugar ? h('div', { class: 'cot-doc-cliente-datos' }, dp.codigo ? h('span', {}, `Código ${dp.codigo}`) : null, dp.lugar ? h('span', {}, dp.lugar) : null) : null,
+						dp.rasgos.length ? h('ul', { class: 'cot-doc-rasgos' }, dp.rasgos.map((t) => h('li', {}, nb(t)))) : null))) : null);
 
 		// Servicios: descripción, base y cálculo, montos.
 		const colMonto = general ? 'Total (IVA incluido)' : 'Monto';
@@ -783,6 +904,24 @@ async function editor(container, id, { duplicar = false } = {}) {
 		toast('Resumen copiado. Pégalo en WhatsApp.');
 	}
 	function imprimir() { if (revisarPendientes('descargar el PDF')) window.print(); }
+	// Hoja completa en una ventana: la misma hoja, a tamaño de lectura, con su propio desplazamiento.
+	function verHoja(ev) {
+		const origen = ev.currentTarget;
+		const copia = hoja.cloneNode(true);
+		copia.setAttribute('aria-label', 'Cotización completa');
+		let pdf = false;
+		const m = modal({
+			title: 'Hoja completa',
+			size: 'modal-lg modal-fullscreen-md-down cot-hoja-modal',
+			body: copia,
+			footer: [
+				h('button', { type: 'button', class: 'btn btn-light cot-btn', 'data-bs-dismiss': 'modal' }, 'Cerrar'),
+				h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: () => { pdf = true; m.close(); } },
+					h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF')],
+			onClose: () => { origen.focus(); if (pdf) imprimir(); }
+		});
+		m.el.classList.add('cot-hoja-ventana', 'no-print');
+	}
 	async function salir(ev, destino = '#/cotizaciones') {
 		if (sucio || asesorSucio) { ev.preventDefault(); if (await confirmDialog('Tienes cambios sin guardar. ¿Salir de todos modos?', { okText: 'Salir sin guardar' })) location.hash = destino; }
 	}
@@ -791,6 +930,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 		btnGuardar,
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF'),
 		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), 'Copiar para WhatsApp'),
+		// En celular: ver la hoja completa sin tener que bajar hasta ella.
+		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', onclick: verHoja },
+			h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), 'Ver hoja completa'),
 		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
 
 	const titulo = id && !duplicar ? 'Cotización' : 'Nueva cotización';
@@ -801,8 +943,12 @@ async function editor(container, id, { duplicar = false } = {}) {
 		h('div', { class: 'row g-4 cot-layout' },
 			h('div', { class: 'col-xl-5 cot-entradas no-print' }, emisor, cliente, servicios, liqCard, condiciones),
 			h('div', { class: 'col-xl-7 cot-salida' },
-				h('h2', { class: 'h6 text-muted cot-salida-titulo no-print' }, h('span', { class: 'icon-receipt me-2', 'aria-hidden': 'true' }), 'Así la verá tu cliente'),
-				hoja)),
+				h('div', { class: 'cot-salida-cabeza no-print' },
+					h('h2', { class: 'h6 text-muted cot-salida-titulo' }, h('span', { class: 'icon-receipt me-2', 'aria-hidden': 'true' }), 'Así la verá tu cliente'),
+					h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm cot-btn cot-ver-hoja', 'aria-haspopup': 'dialog', onclick: verHoja },
+						h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), 'Ver hoja completa')),
+				// En computadora la hoja tiene su propio desplazamiento: siempre se llega al total.
+				h('div', { class: 'cot-hoja-marco', tabindex: '0', role: 'region', 'aria-label': 'Hoja de la cotización' }, hoja))),
 		barra);
 	pintarPanelEmisor();
 	pintarAvisoEmisor();
@@ -810,15 +956,20 @@ async function editor(container, id, { duplicar = false } = {}) {
 	pintarDoc();
 	pintarLiquidacion();
 
-	// Propiedades del inventario: aparte, para que la cotización funcione aunque falle la lectura.
+	// Clientes y propiedades: aparte, para que la cotización funcione aunque falle la lectura.
+	// El asesor solo ve sus clientes (reglas de Firestore); las propiedades son todas las del inventario.
+	const porNombre = (a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+	const { loadClientes } = await import('../crm.js');
+	loadClientes().then((l) => selCliente.cargar(l.filter((x) => x.nombre).sort(porNombre)))
+		.catch((err) => { console.warn('Cotización: no se pudieron leer los clientes', err); selCliente.fallar(); });
 	try {
-		const { loadAll } = await import('./properties.js');
-		props = (await loadAll()).filter((p) => p.titulo || p.codigo);
-		const op = (p) => h('option', { value: p.id, selected: c.propiedad.id === p.id }, [p.codigo, p.titulo, p.zona].filter(Boolean).join(' · '));
-		selProp.append(
-			h('optgroup', { label: 'En venta' }, props.filter((p) => p.operacion !== 'renta').map(op)),
-			h('optgroup', { label: 'En renta' }, props.filter((p) => p.operacion === 'renta').map(op)));
+		const { loadAll, TIPOS } = await import('./properties.js');
+		tiposProp = TIPOS;
+		const props = (await loadAll()).filter((p) => p.titulo || p.codigo)
+			.sort((a, b) => String(a.codigo || a.titulo).localeCompare(String(b.codigo || b.titulo), 'es', { numeric: true }));
+		selPropiedad.cargar(props);
 	} catch (err) {
 		console.warn('Cotización: no se pudo leer el inventario', err);
+		selPropiedad.fallar();
 	}
 }

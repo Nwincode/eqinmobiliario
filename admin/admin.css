@@ -2058,10 +2058,41 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 /* Hoja de la cotización: la misma en pantalla y en el PDF */
+.cot-salida-cabeza {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 12px;
+	margin-bottom: 10px;
+}
 .cot-salida-titulo {
 	display: flex;
 	align-items: center;
-	margin-bottom: 10px;
+	margin-bottom: 0;
+}
+.cot-ver-hoja {
+	font-size: 14px;
+	font-weight: 600;
+}
+.cot-hoja-marco:focus-visible {
+	outline: 2px solid var(--adm-cyan);
+	outline-offset: 2px;
+	border-radius: var(--adm-radius);
+}
+/* Ventana «Hoja completa»: la hoja sobre el fondo del panel, como una página */
+.cot-hoja-ventana .modal-body {
+	background: var(--adm-bg);
+	padding: 20px;
+}
+.cot-hoja-ventana .cot-doc {
+	max-width: 760px;
+	margin: 0 auto;
+}
+@media (max-width: 767.98px) {
+	.cot-hoja-ventana .modal-body {
+		padding: 12px;
+	}
 }
 .cot-barra .btn-link {
 	text-decoration: none;
@@ -2095,17 +2126,36 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.cot-lista td[data-label="Cliente"] { grid-column: 1 / -1; font-size: 14px; }
 	.cot-lista td:last-child { grid-column: 1 / -1; padding-top: 8px; text-align: left !important; }
 }
+/* Computadora: la hoja queda a la par del formulario, entre la barra de arriba (60 px)
+   y la barra de acciones de abajo, con su propio desplazamiento para llegar siempre al total. */
 @media (min-width: 1200px) {
 	.cot-salida {
+		--cot-arriba: 76px;
+		--cot-abajo: 100px;
 		position: sticky;
-		top: 16px;
+		top: var(--cot-arriba);
 		align-self: flex-start;
+		display: flex;
+		flex-direction: column;
+		max-height: calc(100vh - var(--cot-arriba) - var(--cot-abajo));
+	}
+	.cot-hoja-marco {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: var(--adm-border) transparent;
+		/* Deja ver la sombra de la hoja y separa la barra de desplazamiento */
+		padding: 0 10px 4px 0;
+		margin-right: -10px;
 	}
 }
 
 @media print {
 	.cot-entradas,
-	.cot-barra {
+	.cot-barra,
+	.cot-hoja-ventana {
 		display: none !important;
 	}
 	.cot-layout > .cot-salida {
@@ -2113,6 +2163,14 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		flex: 0 0 100%;
 		max-width: 100%;
 		position: static;
+		display: block;
+		max-height: none;
+	}
+	.cot-hoja-marco {
+		overflow: visible !important;
+		max-height: none !important;
+		padding: 0 !important;
+		margin: 0 !important;
 	}
 }
 /* Cotización: campos con área de toque de 44 px */
@@ -2165,6 +2223,184 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	background: var(--eq-mist);
 	color: var(--adm-text);
 	overflow-wrap: anywhere;
+}
+/* Buscadores de cliente y propiedad (se eligen de los registros) */
+.cot-sel-caja {
+	position: relative;
+}
+.cot-sel-lupa {
+	position: absolute;
+	left: 12px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--adm-muted);
+	pointer-events: none;
+}
+.cot-sel-caja .cot-sel-input {
+	padding-left: 36px;
+}
+.cot-sel-panel {
+	position: absolute;
+	z-index: 15;
+	left: 0;
+	right: 0;
+	top: calc(100% + 4px);
+	background: var(--adm-surface);
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius);
+	box-shadow: 0 8px 24px color-mix(in srgb, var(--eq-dark) 14%, transparent);
+	overflow: hidden;
+}
+.cot-sel-lista {
+	list-style: none;
+	margin: 0;
+	padding: 4px;
+	max-height: 320px;
+	overflow-y: auto;
+}
+.cot-sel-lista:empty {
+	display: none;
+}
+.cot-sel-op {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 6px 10px;
+	border-radius: calc(var(--eq-radius) - 2px);
+	cursor: pointer;
+}
+.cot-sel-op:hover,
+.cot-sel-op[aria-selected="true"] {
+	background: var(--eq-primary-soft);
+}
+.cot-sel-op[aria-selected="true"] {
+	box-shadow: inset 3px 0 0 var(--eq-primary);
+}
+.cot-sel-op-txt,
+.cot-sel-op-txt > span:not(.cot-sel-op-foto) {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.cot-sel-op-prop {
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+}
+.cot-sel-op-nombre {
+	font-weight: 600;
+	color: var(--adm-text);
+	overflow-wrap: anywhere;
+}
+.cot-sel-op-sub {
+	font-size: 13px;
+	color: var(--adm-muted);
+	overflow-wrap: anywhere;
+}
+.cot-sel-op-foto {
+	flex: none;
+	width: 40px;
+	height: 40px;
+	object-fit: cover;
+	border-radius: calc(var(--eq-radius) - 2px);
+}
+.cot-sel-nada {
+	padding: 12px 14px;
+	font-size: 14px;
+	color: var(--adm-muted);
+}
+.cot-sel-ayuda {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0 6px;
+}
+.cot-sel-enlace {
+	display: inline-flex;
+	align-items: center;
+	min-height: 32px;
+	font-weight: 600;
+}
+.cot-sel-cancelar {
+	margin-left: auto;
+	min-height: 32px;
+}
+.cot-sel-vista + .cot-sel-buscador:not([hidden]) {
+	margin-top: 8px;
+}
+.cot-sel-tarjeta {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius);
+	background: var(--eq-mist);
+	color: var(--adm-text);
+}
+.cot-sel-tarjeta.is-anterior {
+	border-style: dashed;
+}
+.cot-sel-foto {
+	flex: none;
+	width: 56px;
+	height: 56px;
+	object-fit: cover;
+	border-radius: calc(var(--eq-radius) - 2px);
+	border: 1px solid var(--adm-border);
+}
+.cot-sel-foto.is-vacia,
+.cot-sel-op-foto.is-vacia {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--eq-primary-soft);
+	color: var(--adm-muted);
+}
+.cot-sel-txt {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cot-sel-nombre {
+	font-weight: 700;
+	color: var(--eq-dark);
+}
+.cot-sel-sub {
+	font-size: 13px;
+	color: var(--adm-muted);
+}
+.cot-sel-nota {
+	margin-top: 4px;
+	font-size: 13px;
+	color: var(--adm-text);
+}
+.cot-sel-acciones {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	flex: none;
+}
+.cot-sel-accion {
+	min-height: 36px;
+	padding: 0 4px;
+	white-space: nowrap;
+}
+@media (max-width: 575.98px) {
+	.cot-sel-tarjeta {
+		flex-wrap: wrap;
+	}
+	.cot-sel-acciones {
+		flex-direction: row;
+		width: 100%;
+		justify-content: flex-end;
+		gap: 8px;
+		border-top: 1px solid var(--adm-border);
+		padding-top: 4px;
+	}
+	.cot-sel-accion {
+		min-height: 44px;
+	}
 }
 .cot-emisor-nombre {
 	font-weight: 700;
@@ -2550,6 +2786,53 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	font-style: italic;
 	font-weight: 400;
 }
+.cot-doc-para:not(.sin-prop) {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+}
+.cot-doc-inmueble-fila {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	margin-top: 2px;
+}
+.cot-doc-inmueble-txt {
+	min-width: 0;
+}
+.cot-doc-foto {
+	flex: none;
+	width: 84px;
+	height: 84px;
+	object-fit: cover;
+	border-radius: var(--eq-radius);
+	border: 1px solid var(--doc-line);
+	background: var(--doc-soft);
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+.cot-doc-foto.is-vacia {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--doc-muted);
+	font-size: 22px;
+}
+.cot-doc-rasgos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 6px;
+	list-style: none;
+	margin: 7px 0 0;
+	padding: 0;
+	font-size: 11.5px;
+	color: var(--doc-ink);
+}
+.cot-doc-rasgos li {
+	padding: 1px 8px;
+	border: 1px solid var(--doc-line);
+	border-radius: 999px;
+	background: var(--doc-on-primary);
+	white-space: nowrap;
+}
 .cot-doc-vacio {
 	padding: 18px;
 	border: 1px dashed var(--doc-line);
@@ -2825,7 +3108,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		text-align: right;
 		white-space: normal;
 	}
-	.cot-doc-para {
+	.cot-doc-para,
+	.cot-doc-para:not(.sin-prop) {
 		grid-template-columns: 1fr;
 	}
 	.cot-doc-para-col + .cot-doc-para-col {

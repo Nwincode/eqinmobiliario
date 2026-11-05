@@ -95,14 +95,16 @@ export function showError(err) {
 }
 
 // Modal genérico de Bootstrap. Devuelve { el, body, footer, close }.
+let modalN = 0;
 export function modal({ title, size = '', body, footer, onClose } = {}) {
 	const bodyEl = h('div', { class: 'modal-body' }, body);
 	const footerEl = h('div', { class: 'modal-footer' }, footer);
-	const el = h('div', { class: 'modal fade', tabindex: '-1' },
+	const tituloId = `modal-titulo-${++modalN}`;
+	const el = h('div', { class: 'modal fade', tabindex: '-1', 'aria-labelledby': tituloId },
 		h('div', { class: `modal-dialog modal-dialog-scrollable ${size}` },
 			h('div', { class: 'modal-content' },
 				h('div', { class: 'modal-header' },
-					h('h5', { class: 'modal-title' }, title),
+					h('h5', { class: 'modal-title', id: tituloId }, title),
 					h('button', { type: 'button', class: 'btn-close', 'data-bs-dismiss': 'modal', 'aria-label': 'Cerrar' })),
 				bodyEl,
 				footer ? footerEl : null)));
