@@ -2063,199 +2063,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	align-items: center;
 	margin-bottom: 10px;
 }
-.cot-doc {
-	background: var(--adm-surface);
-	border: 1px solid var(--adm-border);
-	border-radius: var(--adm-radius);
-	box-shadow: var(--adm-shadow);
-	padding: 28px;
-	color: var(--adm-text);
-	font-size: 14px;
-	line-height: 1.45;
-}
-.cot-doc-head {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 16px;
-	padding-bottom: 14px;
-	margin-bottom: 16px;
-	border-bottom: 2px solid var(--adm-primary);
-}
-.cot-doc-emisor {
-	display: flex;
-	gap: 12px;
-	align-items: flex-start;
-	min-width: 0;
-	flex: 1 1 260px;
-}
-.cot-doc-logo {
-	height: 44px;
-	width: auto;
-	flex: 0 0 auto;
-}
-.cot-doc-emisor-datos {
-	font-size: 12px;
-	color: var(--adm-muted);
-	min-width: 0;
-	overflow-wrap: anywhere;
-}
-.cot-doc-emisor-nombre {
-	font-size: 14px;
-	font-weight: 700;
-	color: var(--eq-dark);
-}
-.cot-doc-titulo {
-	text-align: right;
-	font-size: 12px;
-	color: var(--adm-muted);
-	flex: 0 1 auto;
-}
-.cot-doc-h {
-	font-size: 18px;
-	font-weight: 700;
-	color: var(--eq-dark);
-	margin: 0 0 2px;
-}
-.cot-doc-num {
-	font-weight: 700;
-	color: var(--adm-primary);
-	font-size: 13px;
-}
-.cot-doc-etq {
-	color: var(--adm-muted);
-}
-.cot-doc-etq-sec {
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: .06em;
-	text-transform: uppercase;
-	color: var(--adm-muted);
-	margin-bottom: 2px;
-}
-.cot-doc-cliente {
-	margin-bottom: 16px;
-}
-.cot-doc-cliente-nombre {
-	font-size: 16px;
-	font-weight: 700;
-	color: var(--eq-dark);
-}
-.cot-doc-cliente-datos {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 2px 16px;
-	font-size: 13px;
-}
-.cot-doc-prop {
-	margin-top: 4px;
-	font-size: 13px;
-	color: var(--adm-primary);
-}
-.cot-doc-falta {
-	color: var(--adm-muted);
-	font-style: italic;
-	font-weight: 400;
-}
-.cot-doc-vacio {
-	padding: 18px;
-	border: 1px dashed var(--adm-border);
-	border-radius: var(--eq-radius);
-	text-align: center;
-}
-.cot-doc-tabla {
-	width: 100%;
-	border-collapse: collapse;
-	margin-bottom: 12px;
-}
-.cot-doc-tabla thead th {
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: .04em;
-	text-transform: uppercase;
-	color: var(--adm-muted);
-	border-bottom: 1px solid var(--adm-border);
-	padding: 0 0 6px;
-}
-.cot-doc-tabla tbody td {
-	padding: 10px 0;
-	border-bottom: 1px solid var(--adm-border);
-	vertical-align: top;
-}
-.cot-doc-tabla td + td,
-.cot-doc-tabla th + th {
-	padding-left: 12px;
-	white-space: nowrap;
-}
-.cot-doc-detalle,
-.cot-doc-desglose {
-	font-size: 12px;
-	color: var(--adm-muted);
-}
-.cot-doc-mes {
-	font-weight: 400;
-	font-size: 12px;
-	color: var(--adm-muted);
-}
-.cot-doc-tabla tfoot th {
-	text-align: right;
-	font-weight: 400;
-	color: var(--adm-muted);
-	padding: 6px 0 0;
-}
-.cot-doc-tabla tfoot td {
-	padding: 6px 0 0 12px;
-	white-space: nowrap;
-}
-.cot-doc-tabla tfoot .cot-doc-total th,
-.cot-doc-tabla tfoot .cot-doc-total td {
-	font-size: 16px;
-	font-weight: 700;
-	color: var(--eq-dark);
-	padding-top: 8px;
-}
-.cot-doc-tabla tfoot .cot-doc-total td {
-	color: var(--adm-primary);
-}
-.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total th,
-.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total td {
-	border-top: 1px solid var(--adm-border);
-}
-.cot-doc-nota {
-	font-size: 12px;
-	color: var(--adm-muted);
-	margin: 0 0 12px;
-}
-.cot-doc-bloque {
-	margin-top: 14px;
-}
-.cot-doc-bloque p {
-	margin: 0;
-	font-size: 13px;
-	white-space: pre-line;
-}
-.cot-doc-pie {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	align-items: flex-end;
-	gap: 12px;
-	margin-top: 22px;
-	padding-top: 12px;
-	border-top: 1px solid var(--adm-border);
-	font-size: 12px;
-}
 .cot-barra .btn-link {
 	text-decoration: none;
 }
 
 @media (max-width: 575.98px) {
-	.cot-doc {
-		padding: 16px;
-	}
-	.cot-doc-titulo {
-		text-align: left;
-	}
 	.cot-barra .cot-btn {
 		flex: 1 1 calc(50% - 8px);
 	}
@@ -2302,17 +2114,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		max-width: 100%;
 		position: static;
 	}
-	.cot-doc {
-		border: 0;
-		box-shadow: none;
-		padding: 0;
-		font-size: 12.5px;
-	}
-	.cot-doc-tabla tr,
-	.cot-doc-bloque,
-	.cot-doc-pie {
-		break-inside: avoid;
-	}
 }
 /* Cotización: campos con área de toque de 44 px */
 .cot-entradas .form-control,
@@ -2333,87 +2134,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 @media print {
 	#toasts {
 		display: none !important;
-	}
-}
-/* Cotización: entre un total y el siguiente (mensual u otra moneda) queda aire */
-.cot-doc-tabla tfoot .cot-doc-grupo th,
-.cot-doc-tabla tfoot .cot-doc-grupo td {
-	padding-top: 18px;
-}
-.cot-linea-resumen strong {
-	white-space: nowrap;
-}
-/* Cotización: la hoja se adapta a su propio ancho (vista previa en celular) */
-.cot-doc {
-	container: cotdoc / inline-size;
-}
-@container cotdoc (max-width: 560px) {
-	.cot-doc-tabla thead {
-		display: none;
-	}
-	.cot-doc-tabla,
-	.cot-doc-tabla tbody,
-	.cot-doc-tabla tfoot {
-		display: block;
-	}
-	.cot-doc-tabla tbody {
-		border-top: 1px solid var(--adm-border);
-	}
-	.cot-doc-tabla tbody tr {
-		display: block;
-		padding: 10px 0;
-		border-bottom: 1px solid var(--adm-border);
-	}
-	.cot-doc-tabla tbody td,
-	.cot-doc-tabla tbody td + td {
-		display: block;
-		padding: 0;
-		border: 0;
-		white-space: normal;
-	}
-	.cot-doc-tabla tbody td + td {
-		margin-top: 6px;
-	}
-	/* Honorario + IVA: cada monto en su renglón, con su nombre a la izquierda */
-	.cot-doc-tabla tbody td[data-label] {
-		display: flex;
-		justify-content: flex-end;
-		align-items: baseline;
-		margin-top: 2px;
-	}
-	.cot-doc-tabla tbody td[data-label]::before {
-		content: attr(data-label);
-		margin-right: auto;
-		padding-right: 12px;
-		font-weight: 400;
-		color: var(--adm-muted);
-	}
-	.cot-doc-tabla tbody td[data-label] .cot-doc-mes {
-		margin-left: .3em;
-	}
-	.cot-doc-tabla tbody td[data-label="Total"] {
-		margin-top: 4px;
-	}
-	.cot-doc-tabla tfoot tr {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: 12px;
-	}
-	.cot-doc-tabla tfoot th {
-		text-align: left;
-	}
-	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total {
-		border-top: 1px solid var(--adm-border);
-		margin-top: 6px;
-	}
-	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total th,
-	.cot-doc-tabla tfoot .cot-doc-sub + .cot-doc-total td {
-		border-top: 0;
-	}
-	.cot-doc-tabla tfoot .cot-doc-total th,
-	.cot-doc-tabla tfoot .cot-doc-total td {
-		font-size: 15px;
 	}
 }
 /* Cotización: en celular la barra ocupa menos (la lista sigue en «Mis cotizaciones», arriba) */
@@ -2580,9 +2300,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .cot-ajustes .form-select {
 	min-height: 44px;
 }
-.cot-doc-emisor.sin-logo {
-	gap: 0;
-}
 .cot-ajustes {
 	max-width: 760px;
 }
@@ -2645,5 +2362,597 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .cot-switch .form-check-label {
 	font-weight: 600;
 	cursor: pointer;
+}
+/* ===== Hoja de la cotización (lo que ve y recibe el cliente): la misma en pantalla y en el PDF ===== */
+.cot-doc {
+	--doc-ink: var(--eq-dark);
+	--doc-muted: var(--eq-ink);
+	--doc-line: var(--eq-line);
+	--doc-primary: var(--eq-primary);
+	--doc-accent: var(--eq-cyan);
+	--doc-soft: var(--eq-primary-soft);
+	--doc-mist: var(--eq-mist);
+	--doc-on-primary: var(--eq-white);
+	container: cotdoc / inline-size;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	background: var(--eq-white);
+	border: 1px solid var(--adm-border);
+	border-top: 0;
+	border-radius: var(--adm-radius);
+	box-shadow: var(--adm-shadow);
+	padding: 36px 36px 22px;
+	overflow: hidden;
+	color: var(--doc-ink);
+	font-size: 13px;
+	line-height: 1.45;
+	font-variant-numeric: tabular-nums;
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+/* Franja de marca arriba: azul con el celeste del logo */
+.cot-doc::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto 0;
+	height: 6px;
+	background: linear-gradient(90deg, var(--doc-primary) 0 78%, var(--doc-accent) 78% 100%);
+}
+.cot-doc-ico {
+	display: inline-block;
+	width: 1.15em;
+	margin-right: .4em;
+	text-align: center;
+	color: var(--doc-primary);
+}
+
+/* Encabezado */
+.cot-doc-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px 24px;
+	padding-bottom: 18px;
+	border-bottom: 1px solid var(--doc-line);
+}
+.cot-doc-marca {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-width: 0;
+}
+.cot-doc-logo {
+	width: 56px;
+	height: 56px;
+	flex: 0 0 auto;
+}
+.cot-doc-marca-txt {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cot-doc-emisor-nombre {
+	font-size: 21px;
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: -.01em;
+	color: var(--doc-ink);
+}
+.cot-doc-fiscal {
+	margin-top: 4px;
+	font-size: 11.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-contacto {
+	flex: 0 0 auto;
+	text-align: right;
+	font-size: 11.5px;
+	line-height: 1.55;
+	color: var(--doc-muted);
+	overflow-wrap: anywhere;
+}
+
+/* Título y datos de la cotización */
+.cot-doc-tit {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 12px 24px;
+	padding: 20px 0 18px;
+}
+.cot-doc-h {
+	margin: 0;
+	font-size: 25px;
+	font-weight: 700;
+	line-height: 1.1;
+	letter-spacing: -.015em;
+	color: var(--doc-ink);
+}
+.cot-doc-meta {
+	display: flex;
+	margin: 0;
+}
+.cot-doc-meta-item {
+	padding: 0 16px;
+	border-left: 1px solid var(--doc-line);
+}
+.cot-doc-meta-item:first-child {
+	padding-left: 0;
+	border-left: 0;
+}
+.cot-doc-meta-item:last-child {
+	padding-right: 0;
+}
+.cot-doc-meta dt,
+.cot-doc-etq-sec,
+.cot-doc-tabla thead th,
+.cot-doc-tot-sub {
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: .07em;
+	text-transform: uppercase;
+	color: var(--doc-muted);
+}
+.cot-doc-meta dd {
+	margin: 2px 0 0;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.cot-doc-meta .is-num dd {
+	color: var(--doc-primary);
+}
+
+/* Preparada para */
+.cot-doc-para {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	background: var(--doc-mist);
+	border: 1px solid var(--doc-line);
+	border-radius: var(--eq-radius-card);
+	margin-bottom: 22px;
+}
+.cot-doc-para.sin-prop {
+	grid-template-columns: 1fr;
+}
+.cot-doc-para-col {
+	padding: 14px 18px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cot-doc-para-col + .cot-doc-para-col {
+	border-left: 1px solid var(--doc-line);
+}
+.cot-doc-etq-sec {
+	display: block;
+	margin: 0 0 5px;
+}
+.cot-doc-etq-sec .cot-doc-ico {
+	font-size: 11px;
+}
+.cot-doc-cliente-nombre,
+.cot-doc-prop-nombre {
+	font-size: 15.5px;
+	font-weight: 700;
+	line-height: 1.25;
+	color: var(--doc-ink);
+}
+.cot-doc-cliente-datos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 14px;
+	margin-top: 3px;
+	font-size: 12px;
+	color: var(--doc-muted);
+}
+.cot-doc-falta {
+	color: var(--doc-muted);
+	font-style: italic;
+	font-weight: 400;
+}
+.cot-doc-vacio {
+	padding: 18px;
+	border: 1px dashed var(--doc-line);
+	border-radius: var(--eq-radius);
+	text-align: center;
+}
+
+/* Servicios */
+.cot-doc-tabla {
+	width: 100%;
+	border-collapse: collapse;
+}
+.cot-doc-tabla thead th {
+	padding: 8px 10px;
+	background: var(--doc-soft);
+	border-bottom: 2px solid var(--doc-primary);
+	color: var(--doc-ink);
+	white-space: nowrap;
+}
+.cot-doc-tabla thead th:first-child {
+	border-top-left-radius: var(--eq-radius);
+}
+.cot-doc-tabla thead th:last-child {
+	border-top-right-radius: var(--eq-radius);
+}
+.cot-doc-tabla tbody td {
+	padding: 12px 10px;
+	border-bottom: 1px solid var(--doc-line);
+	vertical-align: top;
+}
+.cot-doc-serv {
+	width: 34%;
+}
+.is-separado .cot-doc-serv {
+	width: 28%;
+}
+.cot-doc-serv {
+	font-weight: 600;
+}
+.cot-doc-serv-ico {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	float: left;
+	width: 26px;
+	height: 26px;
+	margin: -3px 10px 0 0;
+	border-radius: 50%;
+	background: var(--doc-soft);
+	color: var(--doc-primary);
+	font-size: 12px;
+	font-weight: 400;
+}
+.cot-doc-serv-nombre {
+	display: block;
+	overflow: hidden;
+}
+.cot-doc-col-base {
+	color: var(--doc-muted);
+	font-size: 12px;
+}
+.cot-doc-num {
+	white-space: nowrap;
+}
+.cot-doc-monto {
+	font-weight: 700;
+}
+.cot-doc-mes {
+	font-weight: 400;
+	font-size: 11.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-desglose {
+	margin-top: 2px;
+	font-weight: 400;
+	font-size: 11px;
+	color: var(--doc-muted);
+}
+
+/* Totales a la derecha; condiciones y notas a la izquierda */
+.cot-doc-resumen {
+	display: flex;
+	flex-direction: row-reverse;
+	align-items: flex-start;
+	gap: 20px 28px;
+	margin-top: 18px;
+}
+.cot-doc-totales {
+	flex: 0 0 340px;
+	display: grid;
+	gap: 10px;
+}
+.cot-doc-tot {
+	border: 1px solid var(--doc-line);
+	border-radius: var(--eq-radius-card);
+	overflow: hidden;
+}
+.cot-doc-tot-sub {
+	padding: 8px 14px 0;
+}
+.cot-doc-tot dl {
+	margin: 0;
+	padding: 4px 0 0;
+}
+.cot-doc-tot-fila {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 5px 14px;
+}
+.cot-doc-tot-fila dt {
+	font-weight: 400;
+	color: var(--doc-muted);
+}
+.cot-doc-tot-fila dd {
+	margin: 0;
+	white-space: nowrap;
+}
+.cot-doc-tot-fila.is-total {
+	margin-top: 6px;
+	padding: 11px 14px;
+	background: var(--doc-primary);
+	color: var(--doc-on-primary);
+}
+.cot-doc-tot-fila.is-total dt {
+	color: var(--doc-on-primary);
+	font-weight: 600;
+}
+.cot-doc-tot-fila.is-total dd {
+	font-size: 18px;
+	font-weight: 700;
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total {
+	background: var(--doc-soft);
+	color: var(--doc-ink);
+	border-top: 1px solid var(--doc-line);
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total dt {
+	color: var(--doc-ink);
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total dd {
+	color: var(--doc-primary);
+}
+.cot-doc-condiciones {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.cot-doc-bloque + .cot-doc-bloque,
+.cot-doc-bloque + .cot-doc-nota {
+	margin-top: 14px;
+}
+.cot-doc-bloque p {
+	margin: 0;
+	font-size: 12.5px;
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.cot-doc-nota {
+	display: flex;
+	align-items: flex-start;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--doc-mist);
+	border-left: 3px solid var(--doc-accent);
+	font-size: 12px;
+	color: var(--doc-ink);
+}
+.cot-doc-nota .cot-doc-ico {
+	margin-top: 2px;
+}
+.cot-doc-condiciones > .cot-doc-nota:first-child {
+	margin-top: 0;
+}
+
+/* Cierre: asesor y aceptación */
+.cot-doc-cierre {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20px 36px;
+	margin-top: auto;
+	padding-top: 32px;
+}
+.cot-doc-asesor {
+	padding-left: 14px;
+	border-left: 3px solid var(--doc-primary);
+}
+.cot-doc-asesor-nombre {
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--doc-ink);
+}
+.cot-doc-asesor-datos {
+	margin-top: 4px;
+	font-size: 12px;
+	color: var(--doc-muted);
+	overflow-wrap: anywhere;
+}
+.cot-doc-asesor-datos > div + div {
+	margin-top: 2px;
+}
+.cot-doc-firma-linea {
+	height: 40px;
+	border-bottom: 1px solid var(--doc-ink);
+}
+.cot-doc-firma-pie {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 5px;
+	font-size: 11px;
+	color: var(--doc-muted);
+}
+.cot-doc-firma-pie span:last-child {
+	min-width: 30%;
+}
+
+/* Pie */
+.cot-doc-pie {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 4px 16px;
+	margin-top: 24px;
+	padding-top: 10px;
+	border-top: 1px solid var(--doc-line);
+	font-size: 10.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-web {
+	font-weight: 600;
+	color: var(--doc-primary);
+}
+
+/* Hoja angosta (vista previa en celular): todo apilado */
+@container cotdoc (max-width: 600px) {
+	.cot-doc-head {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.cot-doc-contacto {
+		text-align: left;
+	}
+	.cot-doc-tit {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.cot-doc-meta {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px 12px;
+		padding: 12px 14px;
+		border: 1px solid var(--doc-line);
+		border-radius: var(--eq-radius);
+	}
+	.cot-doc-meta-item,
+	.cot-doc-meta-item:first-child,
+	.cot-doc-meta-item:last-child {
+		padding: 0;
+		border: 0;
+	}
+	.cot-doc-meta .is-num {
+		grid-column: 1 / -1;
+	}
+	.cot-doc-meta dd {
+		white-space: normal;
+	}
+	.cot-doc-para {
+		grid-template-columns: 1fr;
+	}
+	.cot-doc-para-col + .cot-doc-para-col {
+		border-left: 0;
+		border-top: 1px solid var(--doc-line);
+	}
+	.cot-doc-tabla thead {
+		display: none;
+	}
+	.cot-doc-tabla,
+	.cot-doc-tabla tbody,
+	.cot-doc-tabla tr,
+	.cot-doc-tabla td,
+	.cot-doc-tabla .cot-doc-serv {
+		display: block;
+		width: auto;
+	}
+	.cot-doc-tabla tbody {
+		border-top: 2px solid var(--doc-primary);
+	}
+	.cot-doc-tabla tbody tr {
+		padding: 12px 0;
+		border-bottom: 1px solid var(--doc-line);
+	}
+	.cot-doc-tabla tbody td {
+		padding: 0;
+		border: 0;
+	}
+	.cot-doc-tabla tbody .cot-doc-col-base {
+		margin: 4px 0 0 36px;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num {
+		margin: 6px 0 0 36px;
+		text-align: right;
+		white-space: normal;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num::after {
+		content: "";
+		display: table;
+		clear: both;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num::before {
+		content: attr(data-label);
+		float: left;
+		margin-right: 12px;
+		font-weight: 400;
+		font-size: 12px;
+		color: var(--doc-muted);
+		text-align: left;
+	}
+	.cot-doc-tabla tbody .cot-doc-desglose {
+		clear: both;
+	}
+	.cot-doc-tabla tbody td.cot-doc-monto:not(.cot-doc-num) {
+		margin-top: 6px;
+	}
+	.cot-doc-resumen {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.cot-doc-totales {
+		flex-basis: auto;
+	}
+	.cot-doc-cierre {
+		grid-template-columns: 1fr;
+		gap: 24px;
+	}
+}
+@media (max-width: 575.98px) {
+	.cot-doc {
+		padding: 26px 18px 18px;
+	}
+}
+
+@media print {
+	@page {
+		size: letter;
+		margin: 12mm 14mm;
+	}
+	html,
+	body {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+	.cot-doc {
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+		padding: 16px 0 0;
+		font-size: 12px;
+		/* Llena la carta para que el cierre y el pie queden abajo */
+		min-height: 244mm;
+		overflow: visible;
+	}
+	.cot-doc-head {
+		padding-bottom: 14px;
+	}
+	.cot-doc-tit {
+		padding: 14px 0 12px;
+	}
+	.cot-doc-para {
+		margin-bottom: 16px;
+	}
+	.cot-doc-para-col {
+		padding: 10px 16px;
+	}
+	.cot-doc-tabla tbody td {
+		padding: 9px 10px;
+	}
+	.cot-doc-resumen {
+		margin-top: 14px;
+	}
+	.cot-doc-tot-fila {
+		padding: 3px 14px;
+	}
+	.cot-doc-tot-fila.is-total {
+		padding: 8px 14px;
+	}
+	.cot-doc-cierre {
+		padding-top: 20px;
+	}
+	.cot-doc-firma-linea {
+		height: 32px;
+	}
+	.cot-doc-pie {
+		margin-top: 14px;
+	}
+	.cot-doc-tabla tr,
+	.cot-doc-tot,
+	.cot-doc-bloque,
+	.cot-doc-nota,
+	.cot-doc-cierre,
+	.cot-doc-pie {
+		break-inside: avoid;
+	}
 }
 /* ===== Fin Cotización ===== */

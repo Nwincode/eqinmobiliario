@@ -23,6 +23,14 @@ const COL = 'cotizaciones';
 const COL_ASESOR = 'emisoresAsesor';
 const ICONOS = { compraventa: 'icon-handshake-o', arrendamiento: 'icon-key', administracion: 'icon-building', otro: 'icon-pencil' };
 const LOGO = '/logo-equipo-inmobiliario.png';
+const SITIO = 'eqinmobiliario.gt';
+// ¿Es la misma persona? Sin mayúsculas ni tildes, y todas las palabras del nombre corto están en el largo
+// («Joaquín Pérez» y «Joaquín Pérez Ramírez»). El contacto del asesor solo sale en la hoja si coincide.
+const palabras = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/\s+/).filter(Boolean);
+function mismoNombre(a, b) {
+	const [x, y] = [palabras(a), palabras(b)].sort((p, q) => p.length - q.length);
+	return x.length > 0 && x.every((w) => y.includes(w));
+}
 // Espacio duro entre el símbolo y la cifra («US$ 1,500» no se parte en dos líneas). Solo para mostrar.
 const nb = (t) => String(t ?? '').replace(/\b(US\$|Q) /g, '$1\u00a0').replace(/ %/g, '\u00a0%');
 
@@ -605,67 +613,119 @@ async function editor(container, id, { duplicar = false } = {}) {
 		const e = c.emisor || {};
 		const cl = c.cliente || {};
 		const conLogo = e.tipo !== 'asesor' && e.logo !== false;
-		const dato = (etq, v) => (v ? h('div', {}, h('span', { class: 'cot-doc-etq' }, `${etq} `), v) : null);
 		const listas = r.lineas.map((x, i) => ({ x, l: c.lineas[i] })).filter(({ x }) => x.listo);
-		const celdaMonto = (x) => {
-			const mes = x.mensual ? h('span', { class: 'cot-doc-mes' }, ' al mes') : null;
-			if (separado) return [h('td', { class: 'text-end', 'data-label': 'Honorario' }, dinero(x.honorario, x.moneda)), h('td', { class: 'text-end', 'data-label': 'IVA 12 %' }, dinero(x.impuesto, x.moneda)), h('td', { class: 'text-end fw-semibold', 'data-label': 'Total' }, dinero(x.total, x.moneda), mes)];
-			return [h('td', { class: 'text-end' }, h('div', { class: 'fw-semibold' }, dinero(x.total, x.moneda), mes),
-				general ? h('div', { class: 'cot-doc-desglose' }, nb(`Honorario ${dinero(x.honorario, x.moneda)} + IVA ${dinero(x.impuesto, x.moneda)}`)) : null)];
-		};
-		const filas = listas.map(({ x }) => h('tr', {},
-			h('td', {}, h('div', { class: 'fw-semibold' }, x.concepto),
-				x.detalle ? h('div', { class: 'cot-doc-detalle' }, nb(x.detalle)) : null),
-			celdaMonto(x)));
-		const columnas = separado ? 3 : 1;
-		const totales = r.totales.map((t, i) => {
-			const etq = t.mensual ? 'Total mensual' : 'Total';
+		const m = (v, mon) => nb(dinero(v, mon));
+		const mes = (x) => (x.mensual ? h('span', { class: 'cot-doc-mes' }, ' al mes') : null);
+		const ico = (clase) => h('span', { class: `${clase} cot-doc-ico`, 'aria-hidden': 'true' });
+
+		// Encabezado: marca a la izquierda; datos fiscales y de contacto debajo, en letra pequeña.
+		const fiscal = [e.razonSocial, e.nit ? `NIT ${e.nit}` : null, etqRegimen(e.regimen)].filter(Boolean).join(' · ');
+		const contacto = [e.direccion, e.telefono, e.email].filter(Boolean);
+		const vence = venceEl(c.fecha, c.vigenciaDias);
+		const meta = (etq, v, clase = '') => h('div', { class: `cot-doc-meta-item ${clase}` }, h('dt', {}, etq), h('dd', {}, v));
+		const cabecera = h('header', { class: 'cot-doc-head' },
+			h('div', { class: `cot-doc-marca${conLogo ? '' : ' sin-logo'}` },
+				conLogo ? h('img', { src: LOGO, alt: '', class: 'cot-doc-logo' }) : null,
+				h('div', { class: 'cot-doc-marca-txt' },
+					h('div', { class: 'cot-doc-emisor-nombre' }, e.nombre || h('span', { class: 'cot-doc-falta' }, 'Nombre de quien factura')),
+					h('div', { class: 'cot-doc-fiscal' }, fiscal))),
+			contacto.length ? h('div', { class: 'cot-doc-contacto' }, contacto.map((t) => h('div', {}, nb(t)))) : null);
+		const titulo = h('div', { class: 'cot-doc-tit' },
+			h('h2', { class: 'cot-doc-h' }, 'Cotización de servicios'),
+			h('dl', { class: 'cot-doc-meta' },
+				meta('Número', c.numero || '—', 'is-num'),
+				meta('Fecha', fechaLarga(c.fecha) || '—'),
+				meta('Vigente hasta', fechaLarga(vence) || '—')));
+
+		// Preparada para: cliente y propiedad lado a lado.
+		const datoCl = [`NIT ${cl.nit || 'CF'}`, cl.telefono, cl.email].filter(Boolean);
+		const prop = c.propiedad?.texto ? String(c.propiedad.texto).split(' · ') : [];
+		const preparada = h('section', { class: `cot-doc-para${prop.length ? '' : ' sin-prop'}`, 'aria-label': 'Preparada para' },
+			h('div', { class: 'cot-doc-para-col' },
+				h('div', { class: 'cot-doc-etq-sec' }, ico('icon-user'), 'Preparada para'),
+				h('div', { class: 'cot-doc-cliente-nombre' }, cl.nombre || h('span', { class: 'cot-doc-falta' }, 'Nombre del cliente')),
+				h('div', { class: 'cot-doc-cliente-datos' }, datoCl.map((t) => h('span', {}, nb(t))))),
+			prop.length ? h('div', { class: 'cot-doc-para-col' },
+				h('div', { class: 'cot-doc-etq-sec' }, ico('icon-home2'), 'Propiedad'),
+				h('div', { class: 'cot-doc-prop-nombre' }, prop.length > 1 ? prop.slice(1).join(' · ') : prop[0]),
+				prop.length > 1 ? h('div', { class: 'cot-doc-cliente-datos' }, h('span', {}, `Código ${prop[0]}`)) : null) : null);
+
+		// Servicios: descripción, base y cálculo, montos.
+		const colMonto = general ? 'Total (IVA incluido)' : 'Monto';
+		const cabeza = h('thead', {}, h('tr', {},
+			h('th', { scope: 'col' }, 'Servicio'),
+			h('th', { scope: 'col', class: 'cot-doc-col-base' }, 'Base y cálculo'),
+			separado ? [h('th', { scope: 'col', class: 'text-end' }, 'Honorario'), h('th', { scope: 'col', class: 'text-end' }, 'IVA 12 %'), h('th', { scope: 'col', class: 'text-end' }, 'Total')]
+				: h('th', { scope: 'col', class: 'text-end' }, colMonto)));
+		const filas = listas.map(({ x, l }) => h('tr', {},
+			h('td', { class: 'cot-doc-serv' }, h('span', { class: `${ICONOS[l?.tipo] || 'icon-pencil'} cot-doc-serv-ico`, 'aria-hidden': 'true' }),
+				h('span', { class: 'cot-doc-serv-nombre' }, x.concepto)),
+			h('td', { class: 'cot-doc-col-base', 'data-label': 'Base y cálculo' }, x.detalle ? nb(x.detalle) : h('span', { class: 'cot-doc-falta' }, 'Monto fijo')),
+			separado
+				? [h('td', { class: 'text-end cot-doc-num', 'data-label': 'Honorario' }, m(x.honorario, x.moneda)),
+					h('td', { class: 'text-end cot-doc-num', 'data-label': 'IVA 12 %' }, m(x.impuesto, x.moneda)),
+					h('td', { class: 'text-end cot-doc-num cot-doc-monto', 'data-label': 'Total' }, m(x.total, x.moneda), mes(x))]
+				: h('td', { class: 'text-end cot-doc-num cot-doc-monto', 'data-label': colMonto },
+					h('div', {}, m(x.total, x.moneda), mes(x)),
+					general ? h('div', { class: 'cot-doc-desglose' }, nb(`Honorario ${dinero(x.honorario, x.moneda)} + IVA ${dinero(x.impuesto, x.moneda)}`)) : null)));
+
+		// Totales: una caja por cada total (pago único y mensual, por moneda).
+		const varios = r.totales.length > 1;
+		const cajas = r.totales.map((t) => {
+			const sfx = t.mensual ? ' al mes' : '';
+			const fila = (etq, v, clase = '') => h('div', { class: `cot-doc-tot-fila ${clase}` }, h('dt', {}, etq), h('dd', {}, v));
 			const filasT = [];
 			if (general) {
-				filasT.push(h('tr', { class: 'cot-doc-sub' }, h('th', { scope: 'row' }, `Honorarios${t.mensual ? ' al mes' : ''}`), h('td', { class: 'text-end' }, dinero(t.honorario, t.moneda))));
-				filasT.push(h('tr', { class: 'cot-doc-sub' }, h('th', { scope: 'row' }, 'IVA 12 %'), h('td', { class: 'text-end' }, dinero(t.impuesto, t.moneda))));
+				filasT.push(fila(`Honorarios${sfx}`, m(t.honorario, t.moneda)));
+				filasT.push(fila('IVA 12 %', m(t.impuesto, t.moneda)));
 			}
-			filasT.push(h('tr', { class: 'cot-doc-total' }, h('th', { scope: 'row' }, `${etq} (${t.moneda === 'GTQ' ? 'quetzales' : 'dólares'})`), h('td', { class: 'text-end' }, dinero(t.total, t.moneda))));
-			// Cada total (único, mensual, otra moneda) empieza con aire para que no se lea pegado al anterior.
-			if (i > 0) filasT[0].classList.add('cot-doc-grupo');
-			return filasT;
+			const etqTotal = t.mensual ? 'Total mensual' : 'Total a pagar';
+			filasT.push(fila(general && !separado ? `${etqTotal} (IVA incluido)` : etqTotal, m(t.total, t.moneda), 'is-total'));
+			return h('div', { class: `cot-doc-tot${t.mensual ? ' is-mensual' : ''}` },
+				varios || t.mensual ? h('div', { class: 'cot-doc-tot-sub' }, ico(t.mensual ? 'icon-calendar' : 'icon-check'), `${t.mensual ? 'Cada mes' : 'Pago único'} · ${t.moneda === 'GTQ' ? 'quetzales' : 'dólares'}`) : null,
+				h('dl', {}, filasT));
 		});
-		const vence = venceEl(c.fecha, c.vigenciaDias);
+
+		const notaRegimen = r.regimen === 'pequeno'
+			? h('p', { class: 'cot-doc-nota' }, ico('icon-info-circle'), h('span', {}, 'El monto es el precio final, sin IVA aparte. ', NOTA_PEQUENO))
+			: null;
+		const condiciones = [
+			c.condiciones ? h('section', { class: 'cot-doc-bloque' }, h('h3', { class: 'cot-doc-etq-sec' }, 'Condiciones de pago'), h('p', {}, c.condiciones)) : null,
+			c.notas ? h('section', { class: 'cot-doc-bloque' }, h('h3', { class: 'cot-doc-etq-sec' }, 'Notas'), h('p', {}, c.notas)) : null,
+			notaRegimen
+		].filter(Boolean);
+
+		// Cierre: asesor con su contacto y línea de aceptación del cliente.
+		const contactoAsesor = c.asesor && (mismoNombre(c.asesor, asesorDatos.nombre) || mismoNombre(c.asesor, session.profile?.nombre))
+			? [asesorDatos.telefono ? h('div', {}, ico('icon-phone'), nb(asesorDatos.telefono)) : null,
+				asesorDatos.email ? h('div', {}, ico('icon-envelope-o'), asesorDatos.email) : null]
+			: [];
+		const cierre = h('section', { class: 'cot-doc-cierre' },
+			h('div', { class: 'cot-doc-asesor' },
+				h('h3', { class: 'cot-doc-etq-sec' }, 'Tu asesor'),
+				h('div', { class: 'cot-doc-asesor-nombre' }, c.asesor || h('span', { class: 'cot-doc-falta' }, 'Nombre del asesor')),
+				h('div', { class: 'cot-doc-asesor-datos' }, contactoAsesor)),
+			h('div', { class: 'cot-doc-firma' },
+				h('h3', { class: 'cot-doc-etq-sec' }, 'Aceptado por'),
+				h('div', { class: 'cot-doc-firma-linea' }),
+				h('div', { class: 'cot-doc-firma-pie' }, h('span', {}, 'Nombre y firma del cliente'), h('span', {}, 'Fecha'))));
+
+		const monedas = [...new Set(r.totales.map((t) => t.moneda))];
+		const textoMoneda = monedas.length > 1 ? 'Montos en dólares (US$) y quetzales (Q).' : monedas[0] === 'GTQ' ? 'Montos en quetzales (Q).' : 'Montos en dólares (US$).';
+		const pie = h('footer', { class: 'cot-doc-pie' },
+			h('span', {}, `Cotización válida por ${Number(c.vigenciaDias) || VIGENCIA_DEF} días, hasta el ${fechaLarga(vence)}. ${textoMoneda}`),
+			h('span', { class: 'cot-doc-web' }, SITIO));
+
 		montar(hoja,
-			h('header', { class: 'cot-doc-head' },
-				h('div', { class: `cot-doc-emisor${conLogo ? '' : ' sin-logo'}` },
-					conLogo ? h('img', { src: LOGO, alt: e.nombre || 'Equipo Inmobiliario', class: 'cot-doc-logo' }) : null,
-					h('div', { class: 'cot-doc-emisor-datos' },
-						h('div', { class: 'cot-doc-emisor-nombre' }, e.nombre || h('span', { class: 'cot-doc-falta' }, 'Nombre de quien factura')),
-						e.razonSocial ? h('div', {}, e.razonSocial) : null,
-						dato('NIT', e.nit),
-						h('div', { class: 'cot-doc-etq' }, etqRegimen(e.regimen)),
-						e.direccion ? h('div', {}, e.direccion) : null,
-						[e.telefono, e.email].filter(Boolean).length ? h('div', {}, [e.telefono, e.email].filter(Boolean).join(' · ')) : null)),
-				h('div', { class: 'cot-doc-titulo' },
-					h('h2', { class: 'cot-doc-h' }, 'Cotización de servicios'),
-					h('div', { class: 'cot-doc-num' }, c.numero || ''),
-					h('div', {}, fechaLarga(c.fecha)),
-					h('div', { class: 'cot-doc-etq' }, `Vigente hasta el ${fechaLarga(vence)}`))),
-			h('section', { class: 'cot-doc-cliente' },
-				h('div', { class: 'cot-doc-etq-sec' }, 'Para'),
-				h('div', { class: 'cot-doc-cliente-nombre' }, cl.nombre || h('span', { class: 'cot-doc-falta' }, 'Nombre del cliente')),
-				h('div', { class: 'cot-doc-cliente-datos' }, dato('NIT', cl.nit || 'CF'), dato('Tel.', cl.telefono), dato('Correo', cl.email)),
-				c.propiedad?.texto ? h('div', { class: 'cot-doc-prop' }, h('span', { class: 'icon-home2 me-1', 'aria-hidden': 'true' }), c.propiedad.texto) : null),
+			cabecera, titulo, preparada,
 			listas.length
-				? h('table', { class: 'cot-doc-tabla' },
-					h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Servicio'),
-						separado ? [h('th', { scope: 'col', class: 'text-end' }, 'Honorario'), h('th', { scope: 'col', class: 'text-end' }, 'IVA 12 %'), h('th', { scope: 'col', class: 'text-end' }, 'Total')]
-							: h('th', { scope: 'col', class: 'text-end' }, general ? 'Total (IVA incluido)' : 'Precio'))),
-					h('tbody', {}, filas),
-					h('tfoot', {}, totales.map((fs) => fs.map((tr) => { tr.firstChild.setAttribute('colspan', String(columnas)); return tr; }))))
-				: h('p', { class: 'cot-doc-falta cot-doc-vacio' }, 'Agrega un servicio con su precio para ver los montos.'),
-			r.regimen === 'pequeno' ? h('p', { class: 'cot-doc-nota' }, NOTA_PEQUENO) : null,
-			c.condiciones ? h('section', { class: 'cot-doc-bloque' }, h('div', { class: 'cot-doc-etq-sec' }, 'Condiciones de pago'), h('p', {}, c.condiciones)) : null,
-			c.notas ? h('section', { class: 'cot-doc-bloque' }, h('div', { class: 'cot-doc-etq-sec' }, 'Notas'), h('p', {}, c.notas)) : null,
-			h('footer', { class: 'cot-doc-pie' },
-				c.asesor ? h('div', {}, h('div', { class: 'cot-doc-etq-sec' }, 'Asesor'), h('div', { class: 'fw-semibold' }, c.asesor)) : h('div'),
-				h('div', { class: 'cot-doc-etq' }, `Cotización válida por ${Number(c.vigenciaDias) || VIGENCIA_DEF} días.`)));
+				? [h('table', { class: `cot-doc-tabla${separado ? ' is-separado' : ''}` }, cabeza, h('tbody', {}, filas)),
+					h('div', { class: 'cot-doc-resumen' },
+						h('div', { class: 'cot-doc-totales' }, cajas),
+						condiciones.length ? h('div', { class: 'cot-doc-condiciones' }, condiciones) : null)]
+				: [h('p', { class: 'cot-doc-falta cot-doc-vacio' }, 'Agrega un servicio con su precio para ver los montos.'),
+					condiciones.length ? h('div', { class: 'cot-doc-condiciones' }, condiciones) : null],
+			cierre, pie);
 	}
 
 	// Acciones.
