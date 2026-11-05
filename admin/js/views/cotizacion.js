@@ -687,7 +687,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		});
 
 		const notaRegimen = r.regimen === 'pequeno'
-			? h('p', { class: 'cot-doc-nota' }, ico('icon-info-circle'), h('span', {}, 'El monto es el precio final, sin IVA aparte. ', NOTA_PEQUENO))
+			? h('p', { class: 'cot-doc-nota' }, ico('icon-info-circle'), h('span', {}, `${filas.length > 1 ? 'Los montos son el precio final' : 'El monto es el precio final'}, sin IVA aparte. `, NOTA_PEQUENO))
 			: null;
 		const condiciones = [
 			c.condiciones ? h('section', { class: 'cot-doc-bloque' }, h('h3', { class: 'cot-doc-etq-sec' }, 'Condiciones de pago'), h('p', {}, c.condiciones)) : null,
@@ -702,7 +702,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 			: [];
 		const cierre = h('section', { class: 'cot-doc-cierre' },
 			h('div', { class: 'cot-doc-asesor' },
-				h('h3', { class: 'cot-doc-etq-sec' }, 'Tu asesor'),
+				h('h3', { class: 'cot-doc-etq-sec' }, 'Su asesor'),
 				h('div', { class: 'cot-doc-asesor-nombre' }, c.asesor || h('span', { class: 'cot-doc-falta' }, 'Nombre del asesor')),
 				h('div', { class: 'cot-doc-asesor-datos' }, contactoAsesor)),
 			h('div', { class: 'cot-doc-firma' },

@@ -2798,11 +2798,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		flex-direction: column;
 		align-items: stretch;
 	}
+	/* Número, fecha y vigencia en filas: etiqueta a la izquierda, dato a la derecha (sin cortar fechas) */
 	.cot-doc-meta {
 		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 10px 12px;
-		padding: 12px 14px;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6px;
+		padding: 10px 14px;
 		border: 1px solid var(--doc-line);
 		border-radius: var(--eq-radius);
 	}
@@ -2812,10 +2813,16 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		padding: 0;
 		border: 0;
 	}
-	.cot-doc-meta .is-num {
-		grid-column: 1 / -1;
+	.cot-doc-meta-item {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0 12px;
 	}
 	.cot-doc-meta dd {
+		margin: 0;
+		text-align: right;
 		white-space: normal;
 	}
 	.cot-doc-para {
