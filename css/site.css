@@ -2627,6 +2627,10 @@ a:hover > .eq-ic-fin,
 	color: var(--eq-text);
 	font-weight: 600;
 }
+.renta-d-subtotal dt,
+.renta-d-total dt {
+	font-weight: 600;
+}
 .renta-d-total {
 	border-bottom: 0;
 	padding-top: 8px;

@@ -62,14 +62,14 @@
 				if (!f[1]) continue;
 				var fila = el('div', 'renta-d' + (f[0] ? ' renta-d-' + f[0] : ''));
 				var dt = el('dt');
-				var signo = f[0] === 'resta' ? '−' : (f[0] === 'subtotal' || f[0] === 'total') ? '=' : '';
+				// El IUSI de vivienda está exento: se dice con palabras en vez de mostrar «US$ 0» (y sin «−», porque no resta nada).
+				var exento = f[3] && !(f[2] > 0) && t.rentaDExento;
+				var signo = exento ? '' : f[0] === 'resta' ? '−' : (f[0] === 'subtotal' || f[0] === 'total') ? '=' : '';
 				var s = el('span', 'renta-d-signo', signo || '\u00a0'); // sin signo, un espacio: así la fila conserva la línea base
 				s.setAttribute('aria-hidden', 'true');
 				dt.appendChild(s);
 				dt.appendChild(document.createTextNode(f[1]));
 				fila.appendChild(dt);
-				// El IUSI de vivienda está exento: se dice con palabras en vez de mostrar «US$ 0».
-				var exento = f[3] && !(f[2] > 0) && t.rentaDExento;
 				fila.appendChild(el('dd', null, exento || (f[0] === 'resta' && f[2] > 0 ? '−' : '') + dinero(f[2])));
 				dl.appendChild(fila);
 			}

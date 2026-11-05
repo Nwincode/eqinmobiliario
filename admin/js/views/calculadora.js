@@ -213,7 +213,7 @@ export async function render(container) {
 		};
 		return h('table', { class: `table table-sm mb-0 calc-tabla calc-er calc-er-${cols}` },
 			caption ? h('caption', { class: 'visually-hidden' }, caption) : null,
-			h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Concepto'), encabezados.map((c) => h('th', { scope: 'col', class: 'text-end' }, c)))),
+			h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Concepto'), encabezados.map((c, i) => h('th', { scope: 'col', class: `text-end${i && c.startsWith('%') ? ' calc-er-pct' : ''}` }, c)))),
 			h('tbody', {}, filas.map((f, j) => {
 				const s = f.tipo === 'ingreso' ? (j === 0 || inicio.includes(f.clave) || filas[j - 1].tipo === 'info' ? '' : '+') : signo[f.tipo] || '';
 				const soloTexto = f.tipo === 'info' && f.monto === null;
@@ -223,7 +223,7 @@ export async function render(container) {
 						h('span', { class: 'calc-er-concepto' },
 							h('span', { class: 'calc-er-signo', 'aria-hidden': 'true' }, s),
 							h('span', {}, h('span', { class: 'calc-er-etq' }, f.etiqueta), f.nota ? h('span', { class: 'calc-er-desc' }, f.nota) : null))),
-					soloTexto ? null : vals.map((c) => h('td', { class: 'text-end' }, c)));
+					soloTexto ? null : vals.map((c, i) => h('td', { class: `text-end${i && cols !== 'monto' && i === vals.length - 1 ? ' calc-er-pct' : ''}` }, c)));
 			})));
 	}
 
@@ -343,12 +343,13 @@ export async function render(container) {
 
 		// Resumen de todo el negocio.
 		tituloResumen.textContent = `Resumen del negocio a ${ne.plazo} años`;
-		tablaResumen.replaceChildren(estadoTabla(R.cascadaResumen(r), { caption: `Resumen del negocio en ${ne.plazo} años: rentas, venta, inversión y ganancia total` }));
+		// El múltiplo va en su tarjeta, debajo; en la tabla quedaría repetido.
+		tablaResumen.replaceChildren(estadoTabla(R.cascadaResumen(r).filter((f) => f.clave !== 'multiplo'), { caption: `Resumen del negocio en ${ne.plazo} años: rentas, venta, inversión y ganancia total` }));
 		const dato = (k, val, nota) => h('div', { class: 'calc-resumen-dato' }, h('span', { class: 'calc-resumen-k' }, k), h('strong', {}, val), h('span', { class: 'calc-resumen-n' }, nota));
-		rendResumen.replaceChildren(
+		rendResumen.replaceChildren(...[
 			dato('TIR', pct(r.tir), v.restado ? 'Después del ISR de la venta' : 'Sin restar el ISR de la venta'),
 			v.restado && v.impuestoCalculado > 0 ? dato('TIR sin el ISR de la venta', pct(r.tirSinImpuestoVenta), 'Solo para comparar') : null,
-			dato('Múltiplo', r.multiplo === null ? '—' : `${r.multiplo.toFixed(2)} veces`, 'Total que recibes ÷ inversión'));
+			dato('Múltiplo', r.multiplo === null ? '—' : `${r.multiplo.toFixed(2)} veces`, 'Total que recibes ÷ inversión')].filter(Boolean));
 
 		const esc = R.escenarios(e, [-20, -10, 0, 10, 20], P);
 		tablaEsc.replaceChildren(tabla(['Renta', 'Renta mensual', 'Neto mensual', 'Rend. neto', 'TIR'],

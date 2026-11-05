@@ -1519,8 +1519,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .calc-er-etq {
 	display: block;
 }
+.calc-er td + td {
+	padding-left: 1rem;
+}
 .calc-er-desc {
 	display: block;
+	font-weight: 400;
 	font-size: 12px;
 	line-height: 1.35;
 	color: var(--adm-muted);
@@ -1532,12 +1536,15 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .calc-er-resta td {
 	color: var(--adm-muted);
 }
+/* th[scope="row"] lleva peso normal en .calc-tabla; aquí se repite el selector para que el subtotal quede en negrita. */
 .calc-er-subtotal th,
+.calc-er-subtotal th[scope="row"],
 .calc-er-subtotal td {
 	font-weight: 700;
 	border-top: 1px solid var(--adm-text);
 }
 .calc-er-total th,
+.calc-er-total th[scope="row"],
 .calc-er-total td {
 	font-weight: 700;
 	color: var(--adm-primary);
@@ -1572,7 +1579,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .calc-anio-sel {
 	width: auto;
-	min-height: 38px;
+	min-height: 44px;
 }
 .calc-check {
 	min-height: 44px;
@@ -1756,7 +1763,14 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		font-size: 13px;
 	}
 	.calc-er th[scope="row"] {
-		min-width: 9.5rem;
+		min-width: 8.5rem;
+	}
+	/* En celular el % se oculta: con él la tabla no cabe y obliga a desplazarse de lado. */
+	.calc-er .calc-er-pct {
+		display: none;
+	}
+	.calc-er td + td {
+		padding-left: 8px;
 	}
 	.calc-er-resta th[scope="row"] {
 		padding-left: .5rem;
@@ -1826,6 +1840,14 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 	.calc-er-desc {
 		font-size: 10px;
+	}
+	.calc-er-info th,
+	.calc-er-info td,
+	.calc-er-nota {
+		font-size: 11px;
+	}
+	.calc-er-total td:nth-child(2) {
+		font-size: 12px;
 	}
 	.calc-venta-opcion {
 		display: block;
