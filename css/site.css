@@ -1729,6 +1729,18 @@ body.offcanvas-menu .wa-float {
 	opacity: 0;
 	visibility: hidden;
 }
+/* Calculadora de renta en celular: mientras el desglose pasa por debajo del botón flotante, el botón se oculta
+ * (js/calc-renta-ui.js pone la clase). La tarjeta tiene su propio botón de consulta. */
+@media (max-width: 767.98px) {
+	.wa-float {
+		transition: transform .2s ease, opacity .2s ease, visibility .2s;
+	}
+	body.renta-tapa-wa .wa-float {
+		opacity: 0;
+		visibility: hidden;
+		transform: translateY(12px);
+	}
+}
 /* En escritorio el menú de celular no existe (antes quedaba fuera de pantalla pero recibía el foco con Tab) */
 @media (min-width: 992px) {
 	.site-mobile-menu {

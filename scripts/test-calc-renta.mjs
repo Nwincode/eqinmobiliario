@@ -422,24 +422,57 @@ test('comisión: contrato de 30 años, un solo pago al firmar', () => {
 
 test('comisión: la TIR del panel y la del motor coinciden; el tipo cambia el cap rate de salida', () => {
 	// Entradas como las manda el panel por defecto (tipo casa, plazo 30, venta exenta) y sus parámetros.
-	const panel = { ...conComision, tipo: 'casa', crecimientoRenta: 3, reservaCapex: 0, plazo: 30, costosVenta: 5, tasaDescuento: 10,
+	const panel = { ...conComision, tipo: 'casa', crecimientoRenta: 3, reservaCapex: 0, plazo: 30, tasaDescuento: 10,
 		costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, vendedorExento: true, regimenIVA: 'auto' };
 	const P = Object.fromEntries(Object.entries(R.PARAMS).map(([k, p]) => [k, p.valor]));
 	const r = R.calcular(panel, P);
 	assert.equal(r.entradas.capSalida, 5.5, 'casa: 5 % + 0.5');
-	cerca(r.tir * 100, 7.74, 0.005, 'TIR casa');
-	cerca(R.calcular({ ...panel, comisionActiva: false }, P).tir * 100, 8.43, 0.005, 'TIR casa sin comisión');
+	// Venta con comisión 5 % + IVA y gastos 2 % (pequeño contribuyente: 7.6 % del precio).
+	cerca(r.tir * 100, 7.69, 0.005, 'TIR casa');
+	cerca(R.calcular({ ...panel, comisionActiva: false }, P).tir * 100, 8.39, 0.005, 'TIR casa sin comisión');
 	cerca(r.totales.comision, 62060.91, 0.01, 'comisiones en 30 años');
 	// Los flujos de la TIR son la caja: comisión completa el año que se firma, no la repartida.
 	r.anios.slice(0, -1).forEach((a, i) => cerca(r.flujos[i + 1], a.netoCaja));
-	// Sin tipo no hay referencia: cap rate de salida 7 % (precio de venta menor), por eso la TIR baja a 7.34 %.
+	// Sin tipo no hay referencia: cap rate de salida 7 % (precio de venta menor), por eso la TIR baja a 7.30 %.
 	const sinTipo = R.calcular({ ...panel, tipo: '' }, P);
 	assert.equal(sinTipo.entradas.capSalida, 7);
-	cerca(sinTipo.tir * 100, 7.34, 0.005, 'TIR sin tipo');
+	cerca(sinTipo.tir * 100, 7.30, 0.005, 'TIR sin tipo');
 	r.anios.forEach((a, i) => cerca(a.netoCaja, sinTipo.anios[i].netoCaja, 1e-9, `misma caja año ${i + 1}`));
 	// Lo confirmado por el propietario: el plazo se elige en cada negocio y cada renovación paga (escala reinicia).
 	for (const k of ['plazoContrato', 'comisionEnRenovacion', 'escalaContinua']) assert.equal(R.PARAMS[k].confirmar, false, k);
 	assert.equal(R.PARAMS.ivaComision.confirmar, true, 'IVA de la comisión sigue por confirmar');
+});
+
+test('venta: comisión de venta (5 % + IVA) y gastos de venta (2 %) separados', () => {
+	const c = { ...conComision, tipo: 'casa', crecimientoRenta: 3, plazo: 30 };
+	const peq = R.calcular(c), gen = R.calcular({ ...c, regimenIVA: 'general' });
+	assert.equal(peq.entradas.regimenIVA, 'pequeno');
+	for (const [r, pct, nombre] of [[peq, 7.6, 'pequeño: IVA es costo'], [gen, 7, 'general: IVA es crédito fiscal']]) {
+		const v = r.venta;
+		assert.ok(v.separados, nombre);
+		cerca(v.costosVenta, v.precioVenta * pct / 100, 1e-6, nombre);
+		cerca(v.gastos, v.precioVenta * 0.02, 1e-6, 'gastos 2 %');
+		cerca(v.comisionSinIva, v.precioVenta * 0.05, 1e-6, 'comisión 5 % sin IVA');
+		cerca(v.ivaComision, v.precioVenta * 0.006, 1e-6, 'IVA de la comisión');
+		cerca(v.ingresoNeto, v.precioVenta - v.costosVenta, 1e-6);
+		// La cascada muestra dos filas y cuadra.
+		const filas = R.cascadaVenta(r), m = (k) => filas.find((f) => f.clave === k);
+		assert.ok(m('comisionVenta') && m('gastosVenta') && !m('costosVenta'), 'dos filas');
+		cerca(m('precioVenta').monto + m('comisionVenta').monto + m('gastosVenta').monto, m('ingresoNeto').monto, 1e-6, 'cascada cuadra');
+	}
+	cerca(peq.venta.precioVenta, 543353.74, 0.01);
+	cerca(peq.venta.costosVenta, 41294.88, 0.01);
+	cerca(gen.venta.costosVenta, 38034.76, 0.01);
+	// Parámetros editables y su estado.
+	assert.equal(R.PARAMS.comisionVenta.confirmar, false);
+	assert.equal(R.PARAMS.gastosVenta.confirmar, true);
+	cerca(R.calcular(c, { comisionVenta: 4, gastosVenta: 1 }).venta.costosVenta, peq.venta.precioVenta * (4 * 1.12 + 1) / 100, 1e-6, 'params');
+	cerca(R.calcular({ ...c, comisionVenta: 3, gastosVenta: 0 }).venta.costosVenta, peq.venta.precioVenta * 3.36 / 100, 1e-6, 'entradas');
+	// Compatibilidad: un costosVenta explícito sigue siendo un solo %, sin IVA aparte.
+	const viejo = R.calcular({ ...c, costosVenta: 5 });
+	assert.ok(!viejo.venta.separados);
+	cerca(viejo.venta.costosVenta, viejo.venta.precioVenta * 0.05, 1e-6);
+	assert.ok(R.cascadaVenta(viejo).some((f) => f.clave === 'costosVenta'));
 });
 
 console.log(`\n${ok} pruebas pasaron${process.exitCode ? ', con fallas' : ''}.`);

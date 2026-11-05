@@ -39,13 +39,14 @@ const GLOSARIO = [
 	['Cap rate de salida', 'El cap rate con el que se estima el precio de venta al final del plazo (NOI del año siguiente ÷ cap rate).'],
 	['TIR', 'Tasa interna de retorno: el rendimiento anual de toda la inversión, incluyendo la venta al final (después de su impuesto).'],
 	['VPN', 'Valor presente neto: cuánto vale hoy el flujo futuro, descontado a la tasa que pides. Si es positivo, la inversión supera esa tasa.'],
+	['Costos de venta', 'Lo que cuesta vender al final del plazo: la comisión de la agencia (5 % del precio + IVA; en el régimen general de IVA, el IVA es crédito fiscal y no es costo) y los gastos de notario, registro y otros (2 %).'],
 	['Payback', 'Años que tardan los flujos netos en devolver la inversión inicial (sin contar la venta).'],
 	['Comisión de arrendamiento', 'Lo que se paga al corredor por colocar un contrato: años 1 a 5 del contrato, 1 renta por año; años 6 a 10, 1 renta cada 2 años; más de 10, 1 renta cada 3 años, sobre la renta mensual sin IVA, más IVA 12 % (en el régimen general de IVA es crédito fiscal). Se paga al firmar cada contrato (flujo de caja, TIR, VPN y payback) y en el estado de resultados se reparte por partes iguales en los años del contrato. En rentas de capital no baja el ISR (la deducción es el 30 % fijo); sobre utilidades sí es deducible.']
 ];
 
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || [v, v])[1];
 
-const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'auto', vendedorExento: true, iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosVenta: 5, costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, tasaDescuento: 10, objetivo: 6 };
+const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'auto', vendedorExento: true, iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, tasaDescuento: 10, objetivo: 6 };
 
 export async function render(container) {
 	const estado = { ...DEF };
@@ -61,7 +62,7 @@ export async function render(container) {
 		uso: estado.uso, regimenISR: estado.regimenISR, regimenIVA: estado.regimenIVA, valorFiscal: num(estado.valorFiscal),
 		vacancia: num(estado.vacancia) ?? 0, crecimientoRenta: num(estado.crecimientoRenta) ?? 0, gastosOperativos: num(estado.gastosOperativos) ?? 0,
 		reservaCapex: num(estado.reservaCapex) ?? 0, iusiMil: num(estado.iusiMil), depreciacion: num(estado.depreciacion) ?? 0,
-		plazo: num(estado.plazo) || 30, capSalida: num(estado.capSalida), costosVenta: num(estado.costosVenta) ?? 0, tasaDescuento: num(estado.tasaDescuento) ?? 0,
+		plazo: num(estado.plazo) || 30, capSalida: num(estado.capSalida), tasaDescuento: num(estado.tasaDescuento) ?? 0,
 		costosCompra: num(estado.costosCompra) ?? 0, capexSumaAlCosto: estado.capexSumaAlCosto !== false, restarImpuestoVenta: estado.restarImpuestoVenta !== false,
 		vendedorExento: estado.vendedorExento !== false
 	});
@@ -129,7 +130,7 @@ export async function render(container) {
 	const paramInputs = {};
 	function paramsPanel() {
 		const grupos = {};
-		for (const [k, p] of Object.entries(params)) if (p.grupo !== 'Comisión') (grupos[p.grupo] ||= []).push(k); // la comisión tiene su tarjeta
+		for (const [k, p] of Object.entries(params)) if (p.grupo !== 'Comisión' && p.grupo !== 'Venta') (grupos[p.grupo] ||= []).push(k); // la comisión y la venta van en sus tarjetas
 		return h('details', { class: 'calc-params col-12' },
 			h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), 'Valores de ley y de mercado'),
 			h('p', { class: 'small text-muted mt-2 mb-3' }, 'Todos son editables. Cada valor dice de dónde sale y si ya está verificado; los que dicen «por confirmar», revísalos con el contador antes de usarlos con un cliente.'),
@@ -156,6 +157,15 @@ export async function render(container) {
 			} }, h('span', { class: 'icon-undo me-1', 'aria-hidden': 'true' }), 'Restablecer valores de ley'));
 	}
 
+	// Parámetro numérico con su fuente y su estado (verificado / por confirmar), como campo normal.
+	function paramNumero(k, attrs) {
+		const inp = h('input', { class: 'form-control', id: `calc-p-${k}`, type: 'number', inputmode: 'decimal', step: 'any', min: '0', value: params[k].valor, 'aria-describedby': `calc-p-${k}-f`, ...attrs,
+			oninput: (e) => { const v = Number(e.target.value); if (e.target.value !== '' && isFinite(v)) { params[k].valor = v; calcular(); } } });
+		paramInputs[k] = inp;
+		return h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: `calc-p-${k}` }, params[k].etiqueta, ` (${params[k].unidad})`), inp,
+			h('div', { class: 'form-text calc-fuente', id: `calc-p-${k}-f` }, estadoLey(params[k]), ' ', params[k].fuente));
+	}
+
 	// Comisión de arrendamiento: sus parámetros (grupo «Comisión») en una tarjeta propia.
 	const nRentas = (m) => `${(Math.round(m * 100) / 100).toLocaleString('es-GT', { maximumFractionDigits: 2 })} renta${Math.abs(m - 1) < 1e-9 ? '' : 's'}`;
 	const estadoLey = (p) => h('span', { class: `calc-estado-ley ${p.confirmar ? 'is-pendiente' : 'is-ok'}` },
@@ -169,12 +179,7 @@ export async function render(container) {
 			paramInputs[k] = inp;
 			return h('div', { class: 'col-12' }, h('div', { class: 'form-check calc-check mb-0' }, inp, h('label', { class: 'form-check-label', for: `calc-p-${k}` }, params[k].etiqueta), fuente(k)));
 		};
-		const numero = (k, attrs) => {
-			const inp = h('input', { class: 'form-control', id: `calc-p-${k}`, type: 'number', inputmode: 'decimal', step: 'any', value: params[k].valor, 'aria-describedby': `calc-p-${k}-f`, ...attrs,
-				oninput: (e) => { const v = Number(e.target.value); if (e.target.value !== '' && isFinite(v)) { params[k].valor = v; calcular(); } } });
-			paramInputs[k] = inp;
-			return h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: `calc-p-${k}` }, params[k].etiqueta, ` (${params[k].unidad})`), inp, fuente(k));
-		};
+		const numero = paramNumero;
 		const filas = [sino('comisionActiva'), numero('plazoContrato', { min: '1', max: '30', step: '1', inputmode: 'numeric' }), numero('ivaComision', { min: '0' }), sino('comisionEnRenovacion'), sino('escalaContinua')];
 		// Si no se cobra comisión, el resto no aplica.
 		function activar() { for (const k of ['plazoContrato', 'ivaComision', 'comisionEnRenovacion', 'escalaContinua']) paramInputs[k].disabled = params.comisionActiva.valor !== true; }
@@ -456,7 +461,8 @@ export async function render(container) {
 					campo('plazo', 'Plazo', { sufijo: 'años', attrs: { min: '1', max: '50', step: '1' } }),
 					campo('tasaDescuento', 'Tasa de descuento (VPN)', { sufijo: '%' }),
 					campo('capSalida', 'Cap rate de salida', { sufijo: '%', ayuda: 'Vacío = referencia del tipo + 0.5.' }),
-					campo('costosVenta', 'Costos de venta', { sufijo: '%' }),
+					paramNumero('comisionVenta'),
+					paramNumero('gastosVenta'),
 					campo('costosCompra', 'Costos de compra', { sufijo: '% del precio', ayuda: 'Escritura, notario y registro. Se suman a la inversión y al costo.' }),
 					h('div', { class: 'col-12' },
 						casilla('capexSumaAlCosto', 'Sumar la reserva al costo de la propiedad', 'Las reparaciones mayores pagadas con la reserva bajan la ganancia de la venta.'),

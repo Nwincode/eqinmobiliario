@@ -188,6 +188,22 @@
 		});
 
 		calcular();
+		vigilarFlotante(out('desglose'));
+	}
+
+	// En celular el botón flotante de WhatsApp tapa los montos del desglose: se oculta mientras el desglose
+	// pasa por la franja de abajo de la pantalla (donde está el botón). La tarjeta ya tiene su propio botón de consulta.
+	var enFranja = 0;
+	function vigilarFlotante(box) {
+		if (!box || !('IntersectionObserver' in window)) return;
+		var dentro = false;
+		new IntersectionObserver(function (es) {
+			var ahora = es[es.length - 1].isIntersecting;
+			if (ahora === dentro) return;
+			dentro = ahora;
+			enFranja += ahora ? 1 : -1;
+			document.body.classList.toggle('renta-tapa-wa', enFranja > 0);
+		}, { rootMargin: '-82% 0px 0px 0px' }).observe(box);
 	}
 
 	function todos() {

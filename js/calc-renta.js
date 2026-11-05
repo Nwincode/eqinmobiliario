@@ -60,7 +60,11 @@
 		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato, de 1 a 30', unidad: 'años', grupo: 'Comisión', fuente: 'Confirmado por el propietario: el plazo se elige en cada negocio (3 años por defecto).', confirmar: false },
 		comisionEnRenovacion: { valor: true, etiqueta: 'Cada contrato nuevo o renovación paga comisión', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación vuelve a pagar comisión y la escala reinicia.', confirmar: false },
 		escalaContinua: { valor: false, etiqueta: 'Renovación con el mismo inquilino sigue la escala (no reinicia)', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación reinicia la escala (valor no). Opción avanzada: si no reinicia, un contrato del año a al año b del arrendamiento paga meses(b) − meses(a − 1) rentas.', confirmar: false },
-		ivaComision: { valor: 12, etiqueta: 'IVA sobre la factura de la comisión', unidad: '%', grupo: 'Comisión', fuente: 'Ley del IVA art. 3 num. 2 y art. 10 (servicio gravado). Es costo para el pequeño contribuyente; en el régimen general de IVA se toma como crédito fiscal y no es costo.', confirmar: true }
+		ivaComision: { valor: 12, etiqueta: 'IVA sobre la factura de la comisión', unidad: '%', grupo: 'Comisión', fuente: 'Ley del IVA art. 3 num. 2 y art. 10 (servicio gravado). Es costo para el pequeño contribuyente; en el régimen general de IVA se toma como crédito fiscal y no es costo.', confirmar: true },
+
+		// Costos de la venta al final del plazo. La comisión lleva el IVA de «ivaComision» (crédito fiscal en el régimen general).
+		comisionVenta: { valor: 5, etiqueta: 'Comisión de venta, sin IVA', unidad: '%', grupo: 'Venta', fuente: 'Tarifa de la agencia: 5 % + IVA.', confirmar: false },
+		gastosVenta: { valor: 2, etiqueta: 'Gastos de venta: notario, registro y otros', unidad: '%', grupo: 'Venta', fuente: 'Supuesto del modelo MIT (costos de transacción 2 %).', confirmar: true }
 	};
 
 	var USO_POR_TIPO = { casa: 'habitacional', apartamento: 'habitacional', finca: 'habitacional', oficina: 'comercial', local: 'comercial', bodega: 'comercial' };
@@ -162,7 +166,10 @@
 			crecimientoRenta: n(i.crecimientoRenta, 3),
 			plazo: Math.max(1, Math.min(30, Math.round(n(i.plazo, 30)))),
 			capSalida: n(i.capSalida, cap != null ? cap + P.capSalidaExtra : P.capSalidaDefecto),
-			costosVenta: n(i.costosVenta, 5),
+			// Costos de venta: comisión (+ IVA) y gastos. Un «costosVenta» explícito (versión anterior: un solo %) se sigue respetando.
+			costosVenta: n(i.costosVenta, null),
+			comisionVenta: n(i.comisionVenta, P.comisionVenta),
+			gastosVenta: n(i.gastosVenta, P.gastosVenta),
 			tasaDescuento: n(i.tasaDescuento, 10),
 			tipoCambio: tc,
 			valorFiscal: n(i.valorFiscal, precio * fx), // siempre en quetzales
@@ -319,7 +326,15 @@
 		// Venta al final del plazo (reversión).
 		var noiSalida = anio(e.plazo + 1, depAcum).noi;
 		var precioVenta = e.capSalida > 0 ? Math.max(0, noiSalida / (e.capSalida / 100)) : 0;
-		var costosVentaMonto = precioVenta * e.costosVenta / 100;
+		var comisionVentaSinIva = 0, ivaComisionVenta = 0, comisionVentaMonto = 0, gastosVentaMonto = 0, costosVentaMonto;
+		if (e.costosVenta !== null) costosVentaMonto = precioVenta * e.costosVenta / 100;
+		else {
+			comisionVentaSinIva = precioVenta * e.comisionVenta / 100;
+			ivaComisionVenta = comisionVentaSinIva * e.ivaComision / 100;
+			comisionVentaMonto = e.regimenIVA === 'general' ? comisionVentaSinIva : comisionVentaSinIva + ivaComisionVenta;
+			gastosVentaMonto = precioVenta * e.gastosVenta / 100;
+			costosVentaMonto = comisionVentaMonto + gastosVentaMonto;
+		}
 		var reversion = precioVenta - costosVentaMonto; // ingreso neto de la venta, antes del ISR
 		var mejoras = e.capexSumaAlCosto ? tot.capex : 0;
 		var costoAdquisicion = inversion + mejoras;
@@ -333,6 +348,8 @@
 		var ventaNeta = reversion - impuestoVenta;
 		var venta = {
 			anio: e.plazo, noiSalida: noiSalida, capSalida: e.capSalida, precioVenta: precioVenta, costosVenta: costosVentaMonto,
+			separados: e.costosVenta === null, comisionSinIva: comisionVentaSinIva, ivaComision: ivaComisionVenta, recuperaIva: e.regimenIVA === 'general',
+			comision: comisionVentaMonto, gastos: gastosVentaMonto,
 			ingresoNeto: reversion, precioCompra: e.precio, costosCompra: costosCompra, mejoras: mejoras, costoAdquisicion: costoAdquisicion,
 			depreciacionAcumulada: depVenta, costoFiscal: costoFiscal, ganancia: ganancia, tasa: tasaGanancia,
 			exento: e.vendedorExento, impuestoCalculado: impuestoCalculado, impuesto: impuestoVenta, restado: e.restarImpuestoVenta, neta: ventaNeta
@@ -481,15 +498,23 @@
 			fila('precioVenta', 'ingreso', v.precioVenta, base, 'Precio de venta estimado', 'Estimated sale price',
 				'NOI del año ' + (v.anio + 1) + ' (' + dinero(v.noiSalida, m, 'es') + ') ÷ cap rate de salida ' + num2(v.capSalida, 'es') + ' %',
 				'Year ' + (v.anio + 1) + ' NOI (' + dinero(v.noiSalida, m, 'en') + ') ÷ exit cap rate ' + num2(v.capSalida, 'en') + '%'),
+		].concat(v.separados ? [
+			fila('comisionVenta', 'resta', -v.comision, base, 'Comisión de venta (' + num2(e.comisionVenta, 'es') + ' % + IVA)', 'Sale commission (' + num2(e.comisionVenta, 'en') + '% + VAT)',
+				dinero(v.comisionSinIva, m, 'es') + ' + IVA ' + dinero(v.ivaComision, m, 'es') + (v.recuperaIva ? ' (crédito fiscal en el régimen general: no es costo)' : ''),
+				dinero(v.comisionSinIva, m, 'en') + ' + VAT ' + dinero(v.ivaComision, m, 'en') + (v.recuperaIva ? ' (input credit under the general regime: not a cost)' : '')),
+			fila('gastosVenta', 'resta', -v.gastos, base, 'Gastos de venta', 'Selling expenses',
+				'Notario, registro y otros: ' + num2(e.gastosVenta, 'es') + ' % del precio', 'Notary, registry and other: ' + num2(e.gastosVenta, 'en') + '% of the price')
+		] : [
 			fila('costosVenta', 'resta', -v.costosVenta, base, 'Costos de venta', 'Selling costs',
-				'Comisión y gastos notariales: ' + num2(e.costosVenta, 'es') + ' % del precio', 'Commission and notary fees: ' + num2(e.costosVenta, 'en') + '% of the price'),
+				'Comisión y gastos notariales: ' + num2(e.costosVenta, 'es') + ' % del precio', 'Commission and notary fees: ' + num2(e.costosVenta, 'en') + '% of the price')
+		], [
 			fila('ingresoNeto', 'subtotal', v.ingresoNeto, base, 'Ingreso neto de la venta', 'Net sale proceeds'),
 			fila('isrVenta', 'resta', -v.impuesto, base, 'ISR sobre la ganancia de capital', 'Capital gains tax (ISR)', notaIsr, notaIsrEn),
 			fila('ventaNeta', 'total', v.neta, base, 'Lo que te queda de la venta', 'What you keep from the sale'),
 			fila('timbres', 'info', null, base, 'Impuesto de la venta para el comprador', 'Transfer tax for the buyer',
 				'En la reventa se paga Impuesto de Timbres Fiscales (3 %), normalmente por el comprador; no es IVA. Confírmalo en la promesa de compraventa.',
 				'On a resale, Stamp Tax (3%) is paid, normally by the buyer; it is not VAT. Confirm it in the purchase agreement.')
-		]);
+		]));
 	}
 
 	// Cálculo de la ganancia, paso a paso.
