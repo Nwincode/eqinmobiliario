@@ -46,17 +46,21 @@
 		function desglose(a) {
 			var p = out('desglose');
 			p.textContent = '';
-			p.appendChild(el('strong', null, t.rentaDesgloseTitulo + ': '));
+			p.appendChild(el('p', 'renta-d-titulo', t.rentaDesgloseTitulo));
+			var dl = el('dl');
 			var filas = [
 				[t.rentaDBruta, a.pgi, false], [t.rentaDVacancia, a.vacancia, true], [t.rentaDGastos, a.opex, true],
 				[t.rentaDIusi, a.iusi, true], [t.rentaDIsr, a.isr, true], [t.rentaDNeto, a.neto, false]
 			];
 			for (var i = 0; i < filas.length; i++) {
-				var s = el('span', 'renta-d' + (i === filas.length - 1 ? ' renta-d-total' : ''));
-				s.appendChild(document.createTextNode(filas[i][0] + ' '));
-				s.appendChild(el('b', null, (filas[i][2] && filas[i][1] > 0 ? '−' : '') + dinero(filas[i][1])));
-				p.appendChild(s);
+				var fila = el('div', 'renta-d' + (i === filas.length - 1 ? ' renta-d-total' : ''));
+				fila.appendChild(el('dt', null, filas[i][0]));
+				// El IUSI de vivienda está exento: se dice con palabras en vez de mostrar «US$ 0».
+				var exento = filas[i][0] === t.rentaDIusi && !(filas[i][1] > 0) && t.rentaDExento;
+				fila.appendChild(el('dd', null, exento || (filas[i][2] && filas[i][1] > 0 ? '−' : '') + dinero(filas[i][1])));
+				dl.appendChild(fila);
 			}
+			p.appendChild(dl);
 		}
 
 		function escenarios(e) {
@@ -142,7 +146,11 @@
 				form.addEventListener('reset', function () { form.setAttribute('data-origen', form.getAttribute('data-origen-original')); });
 			}
 			form.setAttribute('data-origen', 'calculadora');
-			if (form.mensaje) form.mensaje.value = resumen();
+			if (form.mensaje) {
+				form.mensaje.value = resumen();
+				// El resumen tiene varias líneas: se agranda el cuadro para que se lea sin desplazarse.
+				if (form.mensaje.rows < 7) form.mensaje.rows = 7;
+			}
 			if (estado) estado.textContent = t.rentaListo || '';
 			var reducir = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 			form.scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'start' });

@@ -96,7 +96,7 @@ export async function render(container) {
 		const grupos = {};
 		for (const [k, p] of Object.entries(params)) (grupos[p.grupo] ||= []).push(k);
 		return h('details', { class: 'calc-params col-12' },
-			h('summary', {}, h('span', { class: 'icon-sliders me-2', 'aria-hidden': 'true' }), 'Valores de ley y de mercado (por confirmar)'),
+			h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), 'Valores de ley y de mercado (por confirmar)'),
 			h('p', { class: 'small text-muted mt-2 mb-3' }, 'Todos son editables. Cada valor dice de dónde sale; confírmalos con el contador antes de usarlos con un cliente.'),
 			Object.entries(grupos).map(([g, keys]) => h('fieldset', { class: 'mb-3' },
 				h('legend', { class: 'calc-legend' }, g),
@@ -119,7 +119,7 @@ export async function render(container) {
 
 	// Renta para un rendimiento objetivo.
 	const objetivoOut = h('p', { class: 'calc-objetivo-out mb-0', role: 'status', 'aria-live': 'polite' });
-	const usarObjetivo = h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm', hidden: true, onclick: () => { setCampos({ rentaMensual: usarObjetivo.dataset.renta }); calcular(); } }, 'Usar esta renta');
+	const usarObjetivo = h('button', { type: 'button', class: 'btn btn-outline-primary calc-usar', hidden: true, onclick: () => { setCampos({ rentaMensual: usarObjetivo.dataset.renta }); calcular(); } }, 'Usar esta renta');
 
 	// ── Resultados ─────────────────────────────────────────
 	const kpis = h('div', { class: 'row g-3 mb-3 calc-kpis' });
@@ -127,13 +127,14 @@ export async function render(container) {
 	const tablaAnio1 = h('div', { class: 'table-responsive' });
 	const tablaEsc = h('div', { class: 'table-responsive' });
 	const grafica = h('div', { class: 'calc-grafica' });
+	let ultimoR = null;
 	const tablaLargo = h('div', { class: 'table-responsive calc-largo' });
 	const vacio = h('div', { class: 'calc-vacio text-muted' }, 'Ingresa el precio y la renta mensual para ver el análisis.');
 	const resultados = h('div', { class: 'calc-resultados' });
 	const resumenImpresion = h('p', { class: 'print-only calc-print-resumen' });
 
 	function kpi(icono, label, valor, nota, destacado) {
-		return h('div', { class: destacado ? 'col-12 col-lg-6' : 'col-6 col-lg-3' }, h('div', { class: `card stat-card calc-kpi h-100${destacado ? ' calc-kpi-main' : ''}` },
+		return h('div', { class: destacado ? 'col-12' : 'col-6 col-md-4' }, h('div', { class: `card stat-card calc-kpi h-100${destacado ? ' calc-kpi-main' : ''}` },
 			h('div', { class: 'calc-kpi-label' }, h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), label),
 			h('div', { class: 'stat-value' }, valor),
 			nota ? h('div', { class: 'calc-kpi-nota' }, nota) : null));
@@ -145,16 +146,13 @@ export async function render(container) {
 			h('tbody', {}, filas.map((f, j) => h('tr', { class: total.includes(j) ? 'calc-total' : '' }, f.map((c, i) => (i ? h('td', { class: 'text-end' }, c) : h('th', { scope: 'row' }, c)))))));
 	}
 
+	// Dos gráficas pequeñas con su propia escala (en una sola, las barras del año se veían diminutas junto al acumulado).
+	// Se dibujan al ancho real del contenedor para que los textos se lean igual en celular y en computadora.
 	function svgGrafica(r) {
-		const W = 640, H = 240, P = { l: 64, r: 12, t: 16, b: 28 };
 		const anios = r.anios;
-		const vals = anios.map((a) => a.acumulado - r.entradas.precio);
-		const netos = anios.map((a) => a.neto);
-		const min = Math.min(0, ...vals), max = Math.max(0, ...vals, ...netos);
-		const x = (i) => P.l + (i + 0.5) * (W - P.l - P.r) / anios.length;
-		const y = (v) => P.t + (max - v) * (H - P.t - P.b) / ((max - min) || 1);
-		const bw = Math.max(2, (W - P.l - P.r) / anios.length * 0.6);
-		const ticks = [min, min / 2, 0, max / 2, max].filter((v, i, a) => a.indexOf(v) === i);
+		const W = Math.max(300, Math.min(760, Math.round(grafica.clientWidth) || 640));
+		const angosto = W < 480;
+		const P = { l: 66, r: 10, t: 14, b: 24 };
 		const corto = (v) => {
 			const m = Math.abs(v);
 			const txt = m >= 1e6 ? `${(m / 1e6).toFixed(1)} M` : m >= 1e3 ? `${Math.round(m / 1e3)} k` : String(Math.round(m));
@@ -162,20 +160,46 @@ export async function render(container) {
 		};
 		const ns = 'http://www.w3.org/2000/svg';
 		const s = (tag, attrs, txt) => { const e = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (txt != null) e.textContent = txt; return e; };
-		const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'calc-svg', role: 'img', 'aria-label': `Flujo neto anual y recuperación acumulada en ${anios.length} años` });
-		for (const v of ticks) {
-			svg.append(s('line', { x1: P.l, x2: W - P.r, y1: y(v), y2: y(v), class: v === 0 ? 'calc-eje-cero' : 'calc-eje' }));
-			svg.append(s('text', { x: P.l - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'calc-eje-txt' }, corto(v)));
+		const paso = anios.length > 20 ? (angosto ? 10 : 5) : anios.length > 10 ? 5 : 1;
+
+		function panel(vals, { H, barras, etiqueta }) {
+			const min = Math.min(0, ...vals), max = Math.max(0, ...vals);
+			const x = (i) => P.l + (i + 0.5) * (W - P.l - P.r) / vals.length;
+			const y = (v) => P.t + (max - v) * (H - P.t - P.b) / ((max - min) || 1);
+			const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'calc-svg', role: 'img', 'aria-label': etiqueta });
+			const ticks = (min < 0 && max > 0 ? [min, 0, max] : [min, (min + max) / 2, max]).filter((v, i, a) => a.indexOf(v) === i);
+			for (const v of ticks) {
+				svg.append(s('line', { x1: P.l, x2: W - P.r, y1: y(v), y2: y(v), class: v === 0 ? 'calc-eje-cero' : 'calc-eje' }));
+				svg.append(s('text', { x: P.l - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'calc-eje-txt' }, corto(v)));
+			}
+			anios.forEach((a, i) => {
+				if (i === 0 || (i + 1) % paso === 0) svg.append(s('text', { x: x(i), y: H - 6, 'text-anchor': 'middle', class: 'calc-eje-txt' }, angosto ? String(a.t) : `Año ${a.t}`));
+			});
+			if (barras) {
+				const bw = Math.max(2, (W - P.l - P.r) / vals.length * 0.62);
+				vals.forEach((v, i) => svg.append(s('rect', { x: x(i) - bw / 2, y: Math.min(y(v), y(0)), width: bw, height: Math.max(1, Math.abs(y(v) - y(0))), rx: 1.5, class: v < 0 ? 'calc-barra calc-barra-neg' : 'calc-barra' })));
+			} else {
+				svg.append(s('polyline', { points: vals.map((v, i) => `${x(i)},${y(v)}`).join(' '), class: 'calc-linea' }));
+				// Marca del payback: donde la línea cruza el cero.
+				if (r.payback !== null && r.payback <= vals.length) {
+					const px = P.l + r.payback * (W - P.l - P.r) / vals.length;
+					svg.append(s('line', { x1: px, x2: px, y1: P.t, y2: H - P.b, class: 'calc-marca' }));
+					svg.append(s('circle', { cx: px, cy: y(0), r: 4, class: 'calc-punto' }));
+					const der = px + (angosto ? 64 : 176) < W - P.r;
+					svg.append(s('text', { x: px + (der ? 6 : -6), y: P.t + 10, 'text-anchor': der ? 'start' : 'end', class: 'calc-marca-txt' }, angosto ? `Año ${r.payback.toFixed(1)}` : `Recuperas el precio: año ${r.payback.toFixed(1)}`));
+				}
+			}
+			return svg;
 		}
-		anios.forEach((a, i) => {
-			svg.append(s('rect', { x: x(i) - bw / 2, y: Math.min(y(a.neto), y(0)), width: bw, height: Math.abs(y(a.neto) - y(0)), class: 'calc-barra' }));
-			if (i === 0 || (i + 1) % 5 === 0) svg.append(s('text', { x: x(i), y: H - 8, 'text-anchor': 'middle', class: 'calc-eje-txt' }, `Año ${a.t}`));
-		});
-		svg.append(s('polyline', { points: vals.map((v, i) => `${x(i)},${y(v)}`).join(' '), class: 'calc-linea' }));
-		return h('figure', { class: 'mb-0' }, svg,
-			h('figcaption', { class: 'calc-leyenda' },
-				h('span', { class: 'calc-ley-barra' }, 'Flujo neto del año'),
-				h('span', { class: 'calc-ley-linea' }, 'Acumulado menos el precio (cruza el cero en el payback)')));
+		const netos = anios.map((a) => a.neto);
+		const acum = anios.map((a) => a.acumulado - r.entradas.precio);
+		return h('div', { class: 'calc-graficas' },
+			h('figure', { class: 'mb-0' },
+				h('figcaption', { class: 'calc-graf-titulo' }, 'Neto de cada año', h('span', {}, ' (lo que te queda, sin la venta)')),
+				panel(netos, { H: 150, barras: true, etiqueta: `Neto de cada año durante ${anios.length} años: de ${dinero(netos[0])} el año 1 a ${dinero(netos[netos.length - 1])} el año ${anios.length}` })),
+			h('figure', { class: 'mb-0' },
+				h('figcaption', { class: 'calc-graf-titulo' }, 'Recuperación de la inversión', h('span', {}, ' (neto acumulado menos el precio; cruza el cero en el payback)')),
+				panel(acum, { H: 190, barras: false, etiqueta: `Neto acumulado menos el precio: empieza en ${dinero(acum[0])} y termina en ${dinero(acum[acum.length - 1])}${r.payback !== null ? `; recupera el precio en ${r.payback.toFixed(1)} años` : '; no recupera el precio en el plazo'}` })));
 	}
 
 	function calcular() {
@@ -206,7 +230,7 @@ export async function render(container) {
 			kpi('icon-line-chart', 'Cap rate', pct(r.capRate), 'NOI ÷ precio'),
 			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años con venta`),
 			kpi('icon-calculator', 'VPN', dinero(r.vpn), `Al ${pct(ne.tasaDescuento / 100, 1)}`),
-			kpi('icon-refresh', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, 'Sin contar la venta'));
+			kpi('icon-hourglass-half', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, 'Sin contar la venta'));
 
 		avisos.replaceChildren(...r.avisos.map((c) => h('div', { class: 'alert alert-warning d-flex gap-2 py-2 mb-2', role: 'note' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), AVISOS[c] || c)));
 
@@ -232,8 +256,13 @@ export async function render(container) {
 			esc.map((x) => [x.delta === 0 ? 'Actual' : `${x.delta > 0 ? '+' : '−'}${Math.abs(x.delta)} %`, dinero(x.rentaMensual), dinero(x.netoMensual), pct(x.rendimientoNeto), pct(x.tir)]),
 			{ total: [2], cls: 'calc-tabla-esc' }));
 
+		ultimoR = r;
 		grafica.replaceChildren(svgGrafica(r));
-		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos + IUSI', 'Impuestos', 'Neto', 'Acumulado', 'Flujo'],
+		// Vacíos = valor calculado; se muestra como pista dentro del campo.
+		campos.valorFiscal.placeholder = `Q ${Math.round(r.valorFiscalQ).toLocaleString('es-GT')}`;
+		campos.iusiMil.placeholder = `${r.iusiTasaMil}`;
+		campos.capSalida.placeholder = `${ne.capSalida}`;
+		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Impuestos', 'Neto', 'Acumulado', 'Flujo'],
 			r.anios.map((x) => [String(x.t), dinero(x.pgi), dinero(x.cobrado), dinero(x.opex + x.iusi + x.capex), dinero(x.isr + x.ivaPropietario), dinero(x.neto), dinero(x.acumulado), dinero(x.flujo)]),
 			{ cls: 'calc-tabla-larga' }),
 		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta estimada: ${dinero(r.reversion)} (NOI del año ${ne.plazo + 1} de ${dinero(r.noiSalida)} ÷ cap rate de salida ${pct(ne.capSalida / 100, 1)}, menos ${ne.costosVenta} % de costos de venta). No incluye impuesto por la ganancia de la venta.`));
@@ -241,7 +270,7 @@ export async function render(container) {
 
 	// ── Armado ─────────────────────────────────────────────
 	const header = pageHeader('Calculadora de renta',
-		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-refresh me-1', 'aria-hidden': 'true' }), 'Limpiar'),
+		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
 		h('button', { type: 'button', class: 'btn btn-primary no-print', onclick: () => window.print() }, h('span', { class: 'icon-file-pdf-o me-1', 'aria-hidden': 'true' }), 'Descargar PDF'));
 
 	const tituloCard = (icono, t, ...extra) => h('div', { class: 'card-header d-flex align-items-center justify-content-between gap-2' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), t), extra);
@@ -282,9 +311,8 @@ export async function render(container) {
 				h('section', { class: 'card calc-grupo calc-objetivo' },
 					h('div', { class: 'card-header' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-line-chart me-2', 'aria-hidden': 'true' }), 'Renta para un rendimiento objetivo')),
 					h('div', { class: 'card-body' }, h('div', { class: 'row g-3 align-items-end' },
-						campo('objetivo', 'Rendimiento neto que quieres', { sufijo: '%', col: 'col-sm-6' }),
-						h('div', { class: 'col-sm-6' }, usarObjetivo),
-						h('div', { class: 'col-12' }, objetivoOut))))),
+						campo('objetivo', 'Rendimiento neto que quieres', { sufijo: '%', col: 'col-12' }),
+						h('div', { class: 'col-12' }, objetivoOut, usarObjetivo))))),
 			h('div', { class: 'col-xl-7 calc-salidas' },
 				vacio,
 				h('div', { class: 'calc-resultados-wrap' }, resultados))),
@@ -302,6 +330,15 @@ export async function render(container) {
 			h('div', { class: 'card-body' }, tablaLargo)));
 
 	calcular();
+
+	// La gráfica se vuelve a dibujar si cambia el ancho (girar el celular, abrir el menú, imprimir).
+	let anchoGrafica = grafica.clientWidth;
+	if (window.ResizeObserver) new ResizeObserver(() => {
+		const w = grafica.clientWidth;
+		if (!ultimoR || !w || Math.abs(w - anchoGrafica) < 8 || !container.isConnected) return;
+		anchoGrafica = w;
+		grafica.replaceChildren(svgGrafica(ultimoR));
+	}).observe(grafica);
 
 	// Al imprimir se abre la tabla año por año (un <details> cerrado no se imprime) y luego vuelve como estaba.
 	const detalle = resultados.querySelector('.calc-detalle');

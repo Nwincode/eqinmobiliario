@@ -51,7 +51,7 @@ const ES = {
 	rentaMenos10: '−10 %', rentaActual: 'Actual', rentaMas10: '+10 %',
 	rentaVacio: 'Escribe el precio y la renta mensual para ver el cálculo.',
 	rentaDesgloseTitulo: 'Cómo se calcula (primer año)', rentaDBruta: 'Renta del año', rentaDVacancia: 'Vacancia', rentaDGastos: 'Gastos de operación',
-	rentaDIusi: 'IUSI', rentaDIsr: 'ISR (7 % de lo cobrado)', rentaDNeto: 'Te queda al año',
+	rentaDIusi: 'IUSI', rentaDExento: 'Exento', rentaDIsr: 'ISR (7 % de lo cobrado)', rentaDNeto: 'Te queda al año',
 	rentaIva: 'IVA 12 %: lo paga el inquilino encima de la renta (unos {monto} al mes). No es un costo tuyo.',
 	rentaNota: 'Cálculo para persona individual (ISR rentas de capital). Tu régimen fiscal puede cambiar el resultado.',
 	rentaAviso: 'Estimación de referencia, no es asesoría financiera ni fiscal.',
@@ -135,7 +135,7 @@ const EN = {
 	rentaMenos10: '−10%', rentaActual: 'Current', rentaMas10: '+10%',
 	rentaVacio: 'Enter the price and the monthly rent to see the estimate.',
 	rentaDesgloseTitulo: 'How it is calculated (first year)', rentaDBruta: 'Rent for the year', rentaDVacancia: 'Vacancy', rentaDGastos: 'Operating costs',
-	rentaDIusi: 'Property tax (IUSI)', rentaDIsr: 'Income tax (7% of rent collected)', rentaDNeto: 'You keep per year',
+	rentaDIusi: 'Property tax (IUSI)', rentaDExento: 'Exempt', rentaDIsr: 'Income tax (7% of rent collected)', rentaDNeto: 'You keep per year',
 	rentaIva: '12% VAT: the tenant pays it on top of the rent (about {monto} per month). It is not your cost.',
 	rentaNota: 'Calculated for an individual owner (Guatemalan capital income tax). Your tax regime may change the result.',
 	rentaAviso: 'Reference estimate only; this is not financial or tax advice.',
@@ -196,7 +196,7 @@ export const GRUPOS_TEXTOS = [
 	['Ficha de propiedad', ['verFotosN', 'caracteristicas', 'anteriorFoto', 'siguienteFoto', 'descripcion', 'amenidades', 'video', 'ubicacion', 'agendaVisita', 'quieroInfo', 'similares', 'fTipo', 'fOperacion', 'fEstado', 'fHabitaciones', 'fBanos', 'fParqueos', 'fConstruccion', 'fTerreno', 'fUbicacion', 'fPrecioM2', 'fCodigo', 'compartir', 'compartirWa', 'compartirFb', 'copiarEnlace']],
 	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
-	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDGastos', 'rentaDIusi', 'rentaDIsr', 'rentaDNeto', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
+	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDGastos', 'rentaDIusi', 'rentaDExento', 'rentaDIsr', 'rentaDNeto', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
 ];

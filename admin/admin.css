@@ -1514,31 +1514,47 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	stroke-width: 2.5;
 	stroke-linejoin: round;
 }
-.calc-leyenda {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px 18px;
-	margin-top: 8px;
-	font-size: 12px;
+.calc-barra-neg {
+	fill: color-mix(in oklab, var(--adm-muted) 45%, var(--adm-surface));
+}
+.calc-graficas {
+	display: grid;
+	gap: 18px;
+}
+.calc-graf-titulo {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--adm-text);
+	margin-bottom: 4px;
+}
+.calc-graf-titulo span {
+	font-weight: 400;
 	color: var(--adm-muted);
 }
-.calc-leyenda span::before {
-	content: "";
-	display: inline-block;
-	vertical-align: middle;
-	margin-right: 6px;
+.calc-marca {
+	stroke: var(--adm-muted);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
 }
-.calc-ley-barra::before {
-	width: 12px;
-	height: 12px;
-	border-radius: 2px;
-	background: color-mix(in oklab, var(--adm-cyan) 55%, var(--adm-surface));
+.calc-punto {
+	fill: var(--adm-surface);
+	stroke: var(--adm-primary);
+	stroke-width: 2;
 }
-.calc-ley-linea::before {
-	width: 18px;
-	height: 3px;
-	border-radius: 2px;
-	background: var(--adm-primary);
+.calc-marca-txt {
+	fill: var(--adm-text);
+	font-size: 11px;
+	font-weight: 600;
+}
+.calc-usar {
+	min-height: 44px;
+	margin-top: 10px;
+}
+.calc-params .calc-chev {
+	font-size: 12px;
+}
+.calc-params[open] > summary .calc-chev {
+	transform: rotate(180deg);
 }
 .calc-detalle > summary {
 	border-bottom: 0;
@@ -1546,7 +1562,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .calc-detalle[open] > summary {
 	border-bottom: 1px solid var(--adm-border);
 }
-.calc-detalle[open] .calc-chev {
+.calc-detalle[open] > summary .calc-chev {
 	transform: rotate(180deg);
 }
 .calc-chev {
@@ -1618,12 +1634,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		max-width: 100% !important;
 	}
 	.calc-kpis > div {
-		flex: 0 0 25% !important;
-		max-width: 25% !important;
+		flex: 0 0 33.333% !important;
+		max-width: 33.333% !important;
 	}
 	.calc-kpis > div:first-child {
-		flex: 0 0 50% !important;
-		max-width: 50% !important;
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
 	}
 	.card {
 		box-shadow: none !important;
@@ -1645,8 +1661,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.calc-tabla {
 		font-size: 11px;
 	}
+	.calc-graficas {
+		gap: 8px;
+	}
 	.calc-svg {
-		max-height: 75mm;
+		max-height: 48mm;
 		width: auto;
 		max-width: 100%;
 		margin: 0 auto;

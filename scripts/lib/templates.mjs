@@ -883,7 +883,7 @@ function rentaWidget(ctx, p = null) {
 							</div>
 							<p class="renta-vacio" data-out="vacio">${t.rentaVacio}</p>
 						</div>
-						<p class="renta-desglose" data-out="desglose" hidden></p>
+						<div class="renta-desglose" data-out="desglose" hidden></div>
 						<p class="renta-iva" data-out="iva" hidden></p>
 						<div class="renta-escenarios" data-out="escenarios" hidden>
 							<h3 class="renta-sub">${t.rentaEscenarios}</h3>

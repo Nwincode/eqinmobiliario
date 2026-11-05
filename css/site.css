@@ -2569,24 +2569,49 @@ a:hover > .eq-ic-fin,
 	color: var(--eq-ink);
 }
 .renta-desglose {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px 14px;
 	margin: 14px 0 0;
-	font-size: 13px;
+	font-size: 14px;
 	color: var(--eq-ink);
 }
-.renta-desglose strong {
-	flex-basis: 100%;
+.renta-d-titulo {
+	margin: 0 0 4px;
+	font-weight: 600;
 	color: var(--eq-text);
 }
-.renta-desglose b {
+.renta-desglose dl {
+	margin: 0;
+}
+.renta-d {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 5px 0;
+	border-bottom: 1px solid var(--eq-line);
+}
+.renta-d dt {
+	font-weight: 400;
+}
+.renta-d dd {
+	margin: 0;
 	color: var(--eq-text);
 	font-weight: 600;
 	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
 }
-.renta-desglose .renta-d-total b {
+.renta-d-total {
+	border-bottom: 0;
+	padding-top: 8px;
+	color: var(--eq-text);
+	font-weight: 600;
+}
+.renta-d-total dd {
 	color: var(--eq-primary);
+}
+/* Al llegar desde «Consultar» de la calculadora, que el formulario no quede bajo el menú fijo. */
+.ficha-contacto .lead-form,
+.renta-lead .lead-form {
+	scroll-margin-top: 96px;
 }
 .renta-iva {
 	margin: 10px 0 0;
