@@ -2326,3 +2326,29 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		break-inside: avoid;
 	}
 }
+/* Cotización: campos con área de toque de 44 px */
+.cot-entradas .form-control,
+.cot-entradas .form-select {
+	min-height: 44px;
+}
+/* Cotización: en celular el aviso «Por confirmar» baja a su propia línea para no cortar el servicio */
+@media (max-width: 575.98px) {
+	.cot-linea-head {
+		flex-wrap: wrap;
+	}
+	.cot-linea-head .cot-linea-tipo {
+		flex: 1 1 0;
+		min-width: 9rem;
+	}
+	.cot-linea-head .cot-pendiente {
+		order: 5;
+		margin-left: 46px;
+	}
+}
+/* Cotización: los avisos flotantes no salen en el PDF */
+@media print {
+	#toasts {
+		display: none !important;
+	}
+}
+/* ===== Fin Cotización ===== */

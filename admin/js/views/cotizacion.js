@@ -293,6 +293,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 
 	// Documento (vista previa en pantalla y hoja impresa).
 	const hoja = h('article', { class: 'cot-doc', 'aria-label': 'Vista previa de la cotización' });
+	// replaceChildren escribiría «null» como texto: se quitan los vacíos antes.
+	const montar = (el, ...hijos) => el.replaceChildren(...hijos.flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false));
 	function pintarDoc() {
 		const r = calcularCotizacion(c);
 		const general = r.regimen === 'general';
@@ -324,7 +326,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 			return filasT;
 		});
 		const vence = venceEl(c.fecha, c.vigenciaDias);
-		hoja.replaceChildren(
+		montar(hoja,
 			h('header', { class: 'cot-doc-head' },
 				h('div', { class: 'cot-doc-emisor' },
 					h('img', { src: LOGO, alt: e.nombre || 'Equipo Inmobiliario', class: 'cot-doc-logo' }),

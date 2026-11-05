@@ -22,7 +22,7 @@ export const MODOS = [
 export const SERVICIOS = [
 	['compraventa', 'Compraventa'],
 	['arrendamiento', 'Arrendamiento'],
-	['administracion', 'Administración de la propiedad'],
+	['administracion', 'Administración'],
 	['otro', 'Otro servicio']
 ];
 export const MONEDAS = [['USD', 'US$'], ['GTQ', 'Q']];
