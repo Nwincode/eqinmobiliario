@@ -43,8 +43,12 @@ export const TIPOS_ADMIN = [
 ];
 // Liquidación interna cuando factura la empresa.
 // ISR del régimen opcional simplificado sobre ingresos: 5 % sobre los primeros Q 30,000 del mes y 7 % sobre el
-// excedente (Ley de Actualización Tributaria, Decreto 10-2012, art. 44). Se usa 5 % fijo, editable por el administrador.
+// excedente (Ley de Actualización Tributaria, Decreto 10-2012, art. 44). Los tres valores los puede cambiar el administrador.
+// El límite está en quetzales: para montos en dólares se convierte con el tipo de cambio.
 export const ISR_DEF = 5;
+export const ISR_ALTO_DEF = 7;
+export const ISR_LIMITE_DEF = 30000;
+export const TC_DEF = 7.7;
 export const FUENTE_ISR = 'Régimen opcional simplificado, Decreto 10-2012, art. 44';
 export const PCT_ASESOR_DEF = 100;
 
@@ -194,21 +198,37 @@ export function faltanEmisor(emisor) {
 // Por cada total (único o mensual, por moneda):
 //   cobrado al cliente
 //   − IVA a pagar (general: el IVA débito)  ó  − impuesto de pequeño contribuyente (5 % del total)
-//   − ISR (solo régimen general: isrPct % sobre el honorario sin IVA)
+//   − ISR (solo régimen general, sobre el honorario sin IVA: isrPct % hasta isrLimite quetzales e isrPctAlto % sobre el excedente)
 //   = neto;  × pctAsesor % = lo que recibe el asesor (el resto queda a la empresa).
-export function liquidacionTotal(t, regimen, { isrPct = ISR_DEF, pctAsesor = PCT_ASESOR_DEF } = {}) {
+const pct100 = (v, d) => Math.min(100, Math.max(0, num(v, d)));
+
+// ISR escalonado sobre un honorario en su moneda. Devuelve el impuesto y cuánto cayó en cada tramo.
+export function isrEscalonado(honorario, moneda, { isrPct = ISR_DEF, isrPctAlto = ISR_ALTO_DEF, isrLimite = ISR_LIMITE_DEF, tipoCambio = TC_DEF } = {}) {
+	const h = Math.max(0, num(honorario));
+	const p1 = pct100(isrPct, ISR_DEF), p2 = pct100(isrPctAlto, ISR_ALTO_DEF);
+	const limQ = Math.max(0, num(isrLimite, ISR_LIMITE_DEF));
+	const tc = num(tipoCambio, TC_DEF) > 0 ? num(tipoCambio, TC_DEF) : TC_DEF;
+	const limite = moneda === 'USD' ? limQ / tc : limQ;
+	const bajo = Math.min(h, limite), alto = Math.max(0, h - limite);
+	return { isr: redondear(bajo * p1 / 100 + alto * p2 / 100), isrPct: p1, isrPctAlto: p2, limite: redondear(limite), limiteQ: limQ, tipoCambio: tc,
+		baseBaja: redondear(bajo), baseAlta: redondear(alto) };
+}
+
+export function liquidacionTotal(t, regimen, { isrPct = ISR_DEF, isrPctAlto = ISR_ALTO_DEF, isrLimite = ISR_LIMITE_DEF, tipoCambio = TC_DEF, pctAsesor = PCT_ASESOR_DEF } = {}) {
 	const x = t || {};
 	const general = regimenValido(regimen) === 'general';
 	const cobrado = redondear(num(x.total));
 	const iva = general ? redondear(num(x.impuesto)) : 0;
 	const impuestoPequeno = general ? 0 : redondear(cobrado * TASA_PEQUENO);
-	const isrP = general ? Math.min(100, Math.max(0, num(isrPct, ISR_DEF))) : 0;
-	const isr = general ? redondear(num(x.honorario) * isrP / 100) : 0;
+	const e = isrEscalonado(x.honorario, x.moneda || 'USD', { isrPct, isrPctAlto, isrLimite, tipoCambio });
+	const isrP = general ? e.isrPct : 0;
+	const isr = general ? e.isr : 0;
 	const neto = redondear(cobrado - iva - impuestoPequeno - isr);
 	const pctA = Math.min(100, Math.max(0, num(pctAsesor, PCT_ASESOR_DEF)));
 	const asesor = redondear(neto * pctA / 100);
 	return { moneda: x.moneda || 'USD', mensual: Boolean(x.mensual), regimen: general ? 'general' : 'pequeno',
-		cobrado, iva, impuestoPequeno, isrPct: isrP, isr, neto, pctAsesor: pctA, asesor, empresa: redondear(neto - asesor) };
+		cobrado, iva, impuestoPequeno, isrPct: isrP, isrPctAlto: general ? e.isrPctAlto : 0, isrLimite: e.limite, isrLimiteQ: e.limiteQ,
+		isrBaseBaja: general ? e.baseBaja : 0, isrBaseAlta: general ? e.baseAlta : 0, isr, neto, pctAsesor: pctA, asesor, empresa: redondear(neto - asesor) };
 }
 
 export function liquidacion(cot, opciones = {}) {

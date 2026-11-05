@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {
 	mesesArrendamiento, pctTodoIncluido, factorTodoIncluido, desglose, calcularLinea, calcularCotizacion,
 	textoWhatsApp, dinero, venceEl, numeroCotizacion, lineaVacia, pendientes, emisorDesde, faltanEmisor,
-	liquidacionTotal, liquidacion, adminActiva, ISR_DEF, PCT_ASESOR_DEF
+	liquidacionTotal, liquidacion, adminActiva, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, isrEscalonado, PCT_ASESOR_DEF
 } from '../admin/js/cotizacion.js';
 
 let ok = 0;
@@ -150,10 +150,10 @@ await test('emisor: el asesor o la empresa', () => {
 	assert.deepEqual(faltanEmisor(a), []);
 });
 
-await test('liquidación, empresa en régimen general: US$ 11,200 − IVA 1,200 − ISR 5 % (500) = 9,500', () => {
+await test('liquidación, empresa en régimen general: Q 11,200 − IVA 1,200 − ISR 5 % (500) = 9,500', () => {
 	assert.equal(ISR_DEF, 5);
 	assert.equal(PCT_ASESOR_DEF, 100);
-	const cot = { regimen: 'general', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'USD', precio: 200000, pct: 5 }] };
+	const cot = { regimen: 'general', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'GTQ', precio: 200000, pct: 5 }] };
 	const [x] = liquidacion(cot);
 	assert.deepEqual([x.cobrado, x.iva, x.impuestoPequeno, x.isr, x.neto, x.asesor, x.empresa], [11200, 1200, 0, 500, 9500, 9500, 0]);
 	const [mitad] = liquidacion(cot, { isrPct: 5, pctAsesor: 50 });
@@ -177,11 +177,29 @@ await test('liquidación: lo mensual y cada moneda por separado; valores fuera d
 		{ tipo: 'compraventa', moneda: 'USD', precio: 100000, pct: 5 },
 		{ tipo: 'administracion', adminTipo: 'fijo', moneda: 'GTQ', monto: 1000 }
 	] });
-	assert.deepEqual(l.map((x) => [x.moneda, x.mensual, x.neto]), [['USD', false, 4750], ['GTQ', true, 950]]);
+	// US$ 5,000 de honorario: 5 % de 3,896.10 (Q 30,000 a 7.7) + 7 % de 1,103.90 = 272.08
+	assert.deepEqual(l.map((x) => [x.moneda, x.mensual, x.isr, x.neto]), [['USD', false, 272.08, 4727.92], ['GTQ', true, 50, 950]]);
 	const y = liquidacionTotal({ total: 112, impuesto: 12, honorario: 100 }, 'general', { isrPct: 200, pctAsesor: -5 });
 	assert.equal(y.isrPct, 100);
 	assert.equal(y.asesor, 0);
 	assert.equal(liquidacionTotal({ total: 112, impuesto: 12, honorario: 100 }, 'general', { isrPct: '', pctAsesor: '' }).isr, 5);
+});
+
+await test('ISR escalonado: 5 % hasta Q 30,000 y 7 % sobre el excedente', () => {
+	assert.deepEqual([ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF], [5, 7, 30000, 7.7]);
+	const q = isrEscalonado(50000, 'GTQ');
+	assert.deepEqual([q.isr, q.baseBaja, q.baseAlta], [2900, 30000, 20000]);
+	assert.equal(isrEscalonado(30000, 'GTQ').isr, 1500);
+	assert.equal(isrEscalonado(30000.01, 'GTQ').isr, 1500);
+	assert.equal(isrEscalonado(20000, 'GTQ').isr, 1000);
+	// En dólares el límite se pasa con el tipo de cambio: Q 30,000 / 7.5 = US$ 4,000.
+	const u = isrEscalonado(10000, 'USD', { tipoCambio: 7.5 });
+	assert.deepEqual([u.limite, u.isr], [4000, 620]);
+	// Compraventa de Q 1,000,000 al 5 %: honorario 50,000, cliente paga 56,000.
+	const [x] = liquidacion({ regimen: 'general', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'GTQ', precio: 1000000, pct: 5 }] });
+	assert.deepEqual([x.cobrado, x.iva, x.isr, x.neto, x.isrBaseBaja, x.isrBaseAlta], [56000, 6000, 2900, 47100, 30000, 20000]);
+	// Pequeño contribuyente: sin ISR.
+	assert.equal(liquidacion({ regimen: 'pequeno', modo: 'todo', lineas: [{ tipo: 'compraventa', moneda: 'GTQ', precio: 1000000, pct: 5 }] })[0].isr, 0);
 });
 
 await test('la liquidación nunca sale en el texto de WhatsApp', () => {

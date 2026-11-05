@@ -13,7 +13,7 @@ import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHea
 import { session } from '../session.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
-	EMISORES, TIPOS_ADMIN, ISR_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
+	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
 	calcularCotizacion, lineaVacia, dinero, porcentaje, pctTodoIncluido, rentas, numero,
 	numeroCotizacion, fechaISO, fechaLarga, venceEl, textoWhatsApp,
 	pendientes, adminActiva, emisorDesde, faltanEmisor, liquidacion, etqRegimen, regimenValido
@@ -105,7 +105,7 @@ async function lista(container) {
 async function predeterminados() {
 	const def = {
 		empresa: { razonSocial: '', nombreComercial: 'Equipo Inmobiliario', nit: '', regimen: 'general', direccion: '', telefono: '', email: '', usarLogo: true },
-		isrPct: ISR_DEF, pctAsesor: PCT_ASESOR_DEF, condiciones: CONDICIONES_DEF, vigenciaDias: VIGENCIA_DEF
+		isrPct: ISR_DEF, isrPctAlto: ISR_ALTO_DEF, isrLimite: ISR_LIMITE_DEF, tipoCambio: TC_DEF, pctAsesor: PCT_ASESOR_DEF, condiciones: CONDICIONES_DEF, vigenciaDias: VIGENCIA_DEF
 	};
 	const lleno = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 	try {
@@ -123,7 +123,7 @@ async function predeterminados() {
 			if (d.regimen) def.empresa.regimen = regimenValido(d.regimen);
 			if (d.empresa) Object.assign(def.empresa, lleno(d.empresa));
 			def.empresa.regimen = regimenValido(def.empresa.regimen);
-			if (Number.isFinite(d.isrPct)) def.isrPct = d.isrPct;
+			for (const k of ['isrPct', 'isrPctAlto', 'isrLimite', 'tipoCambio']) if (Number.isFinite(d[k])) def[k] = d[k];
 			if (Number.isFinite(d.pctAsesor)) def.pctAsesor = d.pctAsesor;
 			if (d.condiciones) def.condiciones = d.condiciones;
 			if (d.vigenciaDias) def.vigenciaDias = d.vigenciaDias;
@@ -215,7 +215,7 @@ async function vistaEmpresa(container) {
 	container.replaceChildren(spinner());
 	const def = await predeterminados();
 	const emp = { ...def.empresa };
-	const v = { isrPct: def.isrPct, pctAsesor: def.pctAsesor, vigenciaDias: def.vigenciaDias, condiciones: def.condiciones };
+	const v = { isrPct: def.isrPct, isrPctAlto: def.isrPctAlto, isrLimite: def.isrLimite, tipoCambio: def.tipoCambio, pctAsesor: def.pctAsesor, vigenciaDias: def.vigenciaDias, condiciones: def.condiciones };
 	let sucio = false;
 	const estado = h('span', { class: 'small text-muted', 'aria-live': 'polite' });
 	const marca = () => { sucio = true; estado.textContent = 'Cambios sin guardar'; };
@@ -245,8 +245,12 @@ async function vistaEmpresa(container) {
 		logo);
 	const liq = grupoCard('icon-calculator', 'Liquidación para el asesor',
 		h('p', { class: 'col-12 small text-muted mb-0' }, 'Cuando factura la empresa, cada cotización muestra (solo dentro del panel) cuánto le queda al asesor después de impuestos.'),
-		fila(v, 'isrPct', 'ISR', { tipo: 'number', sufijo: '% del honorario', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
-			ayuda: `${FUENTE_ISR}: 5 % sobre los primeros Q 30,000 del mes y 7 % sobre el excedente. Solo aplica en el régimen general.` }),
+		h('p', { class: 'col-12 small mb-0' }, `ISR en el régimen general (${FUENTE_ISR}): un porcentaje hasta el límite y otro sobre lo que pase de él. Ejemplo con Q 50,000: 5 % de 30,000 (Q 1,500) + 7 % de 20,000 (Q 1,400) = Q 2,900.`),
+		fila(v, 'isrPct', 'ISR hasta el límite', { tipo: 'number', sufijo: '%', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' } }),
+		fila(v, 'isrPctAlto', 'ISR sobre el excedente', { tipo: 'number', sufijo: '%', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' } }),
+		fila(v, 'isrLimite', 'Límite', { tipo: 'number', sufijo: 'quetzales', attrs: { min: '0', step: 'any', inputmode: 'decimal' } }),
+		fila(v, 'tipoCambio', 'Tipo de cambio', { tipo: 'number', sufijo: 'Q por US$', attrs: { min: '0', step: 'any', inputmode: 'decimal' },
+			ayuda: 'Para pasar el límite a dólares cuando el honorario está en US$.' }),
 		fila(v, 'pctAsesor', 'Porcentaje para el asesor', { tipo: 'number', sufijo: '% del neto', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
 			ayuda: 'Se aplica después de impuestos. 100 % si todo el neto es del asesor. Se puede cambiar en cada cotización.' }));
 	const nuevas = grupoCard('icon-file-text-o', 'Cotizaciones nuevas',
@@ -254,15 +258,16 @@ async function vistaEmpresa(container) {
 		fila(v, 'condiciones', 'Condiciones de pago', { col: 'col-12', area: true }));
 	const btn = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: async () => {
 		const n = (x) => (x === '' || x === null || x === undefined ? NaN : Number(x));
-		const isr = n(v.isrPct), pa = n(v.pctAsesor), vig = n(v.vigenciaDias);
-		if (!(isr >= 0 && isr <= 100) || !(pa >= 0 && pa <= 100)) { toast('El ISR y el porcentaje para el asesor van de 0 a 100.', 'danger'); return; }
+		const isr = n(v.isrPct), isrAlto = n(v.isrPctAlto), lim = n(v.isrLimite), tc = n(v.tipoCambio), pa = n(v.pctAsesor), vig = n(v.vigenciaDias);
+		if (!(isr >= 0 && isr <= 100) || !(isrAlto >= 0 && isrAlto <= 100) || !(pa >= 0 && pa <= 100)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
+		if (!(lim >= 0) || !(tc > 0)) { toast('Revisa el límite y el tipo de cambio.', 'danger'); return; }
 		if (!(vig >= 1)) { toast('La vigencia debe ser de al menos 1 día.', 'danger'); return; }
 		const empresa = Object.fromEntries(['razonSocial', 'nombreComercial', 'nit', 'direccion', 'telefono', 'email'].map((k) => [k, String(emp[k] ?? '').trim()]));
 		empresa.regimen = regimenValido(emp.regimen);
 		empresa.usarLogo = emp.usarLogo !== false;
 		btn.disabled = true;
 		try {
-			await setDoc(doc(db, 'settings', 'cotizacion'), { empresa, isrPct: isr, pctAsesor: pa, vigenciaDias: Math.round(vig), condiciones: String(v.condiciones || ''), updatedAt: serverTimestamp() }, { merge: true });
+			await setDoc(doc(db, 'settings', 'cotizacion'), { empresa, isrPct: isr, isrPctAlto: isrAlto, isrLimite: lim, tipoCambio: tc, pctAsesor: pa, vigenciaDias: Math.round(vig), condiciones: String(v.condiciones || ''), updatedAt: serverTimestamp() }, { merge: true });
 			sucio = false; estado.textContent = '';
 			toast('Datos de la empresa guardados.');
 		} catch (err) { showError(err); } finally { btn.disabled = false; }
@@ -553,7 +558,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		campo('notas', 'Notas', { col: 'col-12', area: true, attrs: { placeholder: 'Opcional: algo más que el cliente deba saber' } }));
 
 	// Liquidación para el asesor: solo dentro del panel y solo cuando factura la empresa.
-	const opcionesLiq = () => ({ isrPct: def.isrPct, pctAsesor: c.liquidacion.pctAsesor });
+	const opcionesLiq = () => ({ isrPct: def.isrPct, isrPctAlto: def.isrPctAlto, isrLimite: def.isrLimite, tipoCambio: def.tipoCambio, pctAsesor: c.liquidacion.pctAsesor });
 	const liqCuerpo = h('div', { class: 'cot-liq-cuerpo', 'aria-live': 'polite' });
 	const idPctA = uid('pct-asesor');
 	const pctAsesorInput = h('div', { class: 'cot-liq-pct' },
@@ -576,7 +581,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 			const filas = [fila(`Total que paga el cliente${mes}`, m(t.cobrado))];
 			if (t.regimen === 'general') {
 				filas.push(fila('IVA a pagar (12 %)', m(t.iva), { signo: '− ' }));
-				filas.push(fila(`ISR (${numero(t.isrPct)} % del honorario)`, m(t.isr), { signo: '− ', nota: FUENTE_ISR }));
+				const tramos = t.isrBaseAlta > 0
+					? `${numero(t.isrPct)} % de ${m(t.isrBaseBaja)} + ${numero(t.isrPctAlto)} % de ${m(t.isrBaseAlta)}`
+					: `${numero(t.isrPct)} % del honorario; ${numero(t.isrPctAlto)} % sobre lo que pase de ${m(t.isrLimite)}`;
+				filas.push(fila('ISR', m(t.isr), { signo: '− ', nota: `${tramos}${t.moneda === 'USD' ? ` (límite Q ${numero(t.isrLimiteQ)} a ${numero(def.tipoCambio)})` : ''}` }));
 			} else {
 				filas.push(fila('Pequeño contribuyente (5 % del total)', m(t.impuestoPequeno), { signo: '− ' }));
 			}
@@ -736,7 +744,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		const r = calcularCotizacion(c);
 		const pctA = Number(c.liquidacion.pctAsesor);
 		const liq = c.emisorTipo === 'empresa'
-			? { isrPct: def.isrPct, pctAsesor: c.liquidacion.pctAsesor === '' || !Number.isFinite(pctA) ? def.pctAsesor : pctA, totales: liquidacion(c, opcionesLiq()) }
+			? { isrPct: def.isrPct, isrPctAlto: def.isrPctAlto, isrLimite: def.isrLimite, tipoCambio: def.tipoCambio, pctAsesor: c.liquidacion.pctAsesor === '' || !Number.isFinite(pctA) ? def.pctAsesor : pctA, totales: liquidacion(c, opcionesLiq()) }
 			: null;
 		const datos = {
 			...c, vigenciaDias: Number(c.vigenciaDias) || VIGENCIA_DEF,
