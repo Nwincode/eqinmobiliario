@@ -2599,13 +2599,51 @@ a:hover > .eq-ic-fin,
 	white-space: nowrap;
 	font-variant-numeric: tabular-nums;
 }
+.renta-d dt {
+	display: flex;
+	gap: 6px;
+	min-width: 0;
+}
+.renta-d-signo {
+	flex: 0 0 1ch;
+	text-align: center;
+	color: var(--eq-ink);
+	font-weight: 600;
+}
+.renta-d-resta dt {
+	padding-left: 10px;
+}
+.renta-d:has(+ .renta-d-subtotal),
+.renta-d:has(+ .renta-d-total) {
+	border-bottom-color: transparent;
+}
+.renta-d-resta dd {
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+.renta-d-subtotal,
 .renta-d-total {
-	border-bottom: 0;
-	padding-top: 8px;
+	border-top: 1px solid var(--eq-text);
 	color: var(--eq-text);
 	font-weight: 600;
 }
+.renta-d-total {
+	border-bottom: 0;
+	padding-top: 8px;
+}
 .renta-d-total dd {
+	color: var(--eq-primary);
+	font-size: 1.05em;
+}
+.renta-d-mes {
+	border-bottom: 0;
+	padding-top: 0;
+	font-size: 13px;
+}
+.renta-d-mes dt {
+	padding-left: calc(1ch + 6px);
+}
+.renta-d-mes dd {
 	color: var(--eq-primary);
 }
 /* Al llegar desde «Consultar» de la calculadora, que el formulario no quede bajo el menú fijo. */

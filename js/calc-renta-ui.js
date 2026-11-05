@@ -43,21 +43,31 @@
 			};
 		}
 
+		// Cascada del primer año, como un estado de resultados: − restas, = subtotales.
 		function desglose(a) {
 			var p = out('desglose');
 			p.textContent = '';
 			p.appendChild(el('p', 'renta-d-titulo', t.rentaDesgloseTitulo));
 			var dl = el('dl');
 			var filas = [
-				[t.rentaDBruta, a.pgi, false], [t.rentaDVacancia, a.vacancia, true], [t.rentaDGastos, a.opex, true],
-				[t.rentaDIusi, a.iusi, true], [t.rentaDIsr, a.isr, true], [t.rentaDNeto, a.neto, false]
+				['', t.rentaDBruta, a.pgi], ['resta', t.rentaDVacancia, a.vacancia], ['subtotal', t.rentaDEfectivo || '', a.cobrado],
+				['resta', t.rentaDGastos, a.opex], ['resta', t.rentaDIusi, a.iusi, true], ['resta', t.rentaDIsr, a.isr],
+				['total', t.rentaDNeto, a.neto], ['mes', t.rentaDNetoMes || '', a.neto / 12]
 			];
 			for (var i = 0; i < filas.length; i++) {
-				var fila = el('div', 'renta-d' + (i === filas.length - 1 ? ' renta-d-total' : ''));
-				fila.appendChild(el('dt', null, filas[i][0]));
+				var f = filas[i];
+				if (!f[1]) continue;
+				var fila = el('div', 'renta-d' + (f[0] ? ' renta-d-' + f[0] : ''));
+				var dt = el('dt');
+				var signo = f[0] === 'resta' ? '−' : (f[0] === 'subtotal' || f[0] === 'total') ? '=' : '';
+				var s = el('span', 'renta-d-signo', signo);
+				s.setAttribute('aria-hidden', 'true');
+				dt.appendChild(s);
+				dt.appendChild(document.createTextNode(f[1]));
+				fila.appendChild(dt);
 				// El IUSI de vivienda está exento: se dice con palabras en vez de mostrar «US$ 0».
-				var exento = filas[i][0] === t.rentaDIusi && !(filas[i][1] > 0) && t.rentaDExento;
-				fila.appendChild(el('dd', null, exento || (filas[i][2] && filas[i][1] > 0 ? '−' : '') + dinero(filas[i][1])));
+				var exento = f[3] && !(f[2] > 0) && t.rentaDExento;
+				fila.appendChild(el('dd', null, exento || (f[0] === 'resta' && f[2] > 0 ? '−' : '') + dinero(f[2])));
 				dl.appendChild(fila);
 			}
 			p.appendChild(dl);
@@ -118,12 +128,14 @@
 		}
 
 		function resumen() {
-			var e = ultimo.entradas;
+			var e = ultimo.entradas, a = ultimo.anio1;
 			var usoSel = campo('uso');
 			return fmt(t.rentaResumen, {
 				precio: dinero(e.precio), renta: dinero(e.rentaMensual), uso: usoSel.options[usoSel.selectedIndex].text,
 				neto: dinero(ultimo.netoMensual), rend: pct(ultimo.rendimientoNeto), bruto: pct(ultimo.rendimientoBruto),
-				vacancia: e.vacancia, gastos: e.gastosOperativos
+				vacancia: e.vacancia, gastos: e.gastosOperativos,
+				bruta: dinero(a.pgi), vacMonto: dinero(a.vacancia), efectivo: dinero(a.cobrado), gastosMonto: dinero(a.opex),
+				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)), isr: dinero(a.isr), netoAnual: dinero(a.neto)
 			}).slice(0, 1900);
 		}
 

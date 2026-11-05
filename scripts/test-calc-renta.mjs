@@ -33,12 +33,94 @@ test('caso base habitacional, rentas de capital', () => {
 });
 
 test('crecimiento de renta y reversión', () => {
-	const r = R.calcular({ ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5 });
+	// Sin el ISR de la venta: la reversión pasa entera al flujo (el impuesto se prueba aparte).
+	const r = R.calcular({ ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5, restarImpuestoVenta: false });
 	cerca(r.anios[1].pgi, 14400 * 1.03, 1e-9, 'PGI año 2');
 	const noi11 = 14400 * 1.03 ** 10 * 0.95 * 0.9;
 	cerca(r.reversion, noi11 / 0.06 * 0.95, 1e-6, 'reversión');
 	cerca(r.flujos[10], r.anios[9].neto + r.reversion, 1e-9, 'último flujo');
 	cerca(r.flujos[0], -200000, 0, 'año 0');
+});
+
+test('venta: ISR sobre la ganancia de capital (cálculo a mano)', () => {
+	// NOI año 11 = 14,400 × 1.03^10 × 0.95 × 0.90 = 16,546.30 → precio 275,771.64 → menos 5 % = 261,983.06.
+	// Ganancia = 261,983.06 − 200,000 = 61,983.06 → ISR 10 % = 6,198.31.
+	const r = R.calcular({ ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5 });
+	const v = r.venta;
+	cerca(v.noiSalida, 16546.2985, 1e-3, 'NOI salida');
+	cerca(v.precioVenta, 275771.64, 0.01, 'precio de venta');
+	cerca(v.costosVenta, 13788.58, 0.01, 'costos de venta');
+	cerca(v.ingresoNeto, 261983.06, 0.01, 'ingreso neto');
+	cerca(v.costoAdquisicion, 200000, 1e-9, 'costo de adquisición');
+	cerca(v.ganancia, 61983.06, 0.01, 'ganancia');
+	assert.equal(v.tasa, 10);
+	cerca(v.impuesto, 6198.31, 0.01, 'ISR de la venta');
+	cerca(v.neta, 255784.75, 0.01, 'lo que queda');
+	cerca(r.reversion, v.ingresoNeto, 1e-9, 'reversion = ingreso neto antes del ISR');
+	cerca(r.flujos[10], r.anios[9].neto + v.neta, 1e-9, 'el flujo usa la venta después del impuesto');
+	const sin = R.calcular({ ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5, restarImpuestoVenta: false });
+	assert.ok(r.tir < sin.tir, 'el impuesto baja la TIR');
+	cerca(r.tirSinImpuestoVenta, sin.tir, 1e-9, 'TIR de comparación');
+	cerca(sin.venta.impuestoCalculado, v.impuesto, 1e-9, 'se calcula aunque no se reste');
+	assert.equal(sin.venta.impuesto, 0);
+	// El parámetro cambia la tasa.
+	cerca(R.calcular({ ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5 }, { isrGananciaCapital: 5 }).venta.impuesto, 3099.153, 1e-3);
+});
+
+test('venta: costos de compra, mejoras, utilidades y sin ganancia', () => {
+	const c = { ...base, crecimientoRenta: 3, plazo: 10, capSalida: 6, costosVenta: 5 };
+	// Costos de compra 2 % y reserva 5 %: suben la inversión y el costo de adquisición.
+	const r = R.calcular({ ...c, costosCompra: 2, reservaCapex: 5 });
+	cerca(r.inversion, 204000, 1e-9);
+	cerca(r.flujos[0], -204000, 1e-9, 'año 0 con costos de compra');
+	const capex = r.anios.reduce((s, a) => s + a.capex, 0);
+	cerca(r.venta.mejoras, capex, 1e-9);
+	cerca(r.venta.costoAdquisicion, 204000 + capex, 1e-9);
+	cerca(r.venta.ganancia, r.venta.ingresoNeto - 204000 - capex, 1e-9);
+	cerca(R.calcular({ ...c, costosCompra: 2, reservaCapex: 5, capexSumaAlCosto: false }).venta.costoAdquisicion, 204000, 1e-9);
+	// Utilidades: 25 % y se resta la depreciación ya deducida (2 % × 10 años = 40,000).
+	const u = R.calcular({ ...c, regimenISR: 'utilidades', depreciacion: 2 });
+	cerca(u.venta.depreciacionAcumulada, 40000, 1e-9);
+	cerca(u.venta.ganancia, 261983.06 - 160000, 0.01);
+	cerca(u.venta.impuesto, (261983.06 - 160000) * 0.25, 0.01);
+	// La depreciación no pasa del precio.
+	const d = R.calcular({ ...base, regimenISR: 'utilidades', depreciacion: 10, plazo: 30 });
+	cerca(d.venta.depreciacionAcumulada, 200000, 1e-6);
+	assert.equal(d.anios[10].depreciacion, 0, 'año 11 ya sin depreciación');
+	// Sin ganancia, no hay impuesto.
+	const p = R.calcular({ ...c, capSalida: 20 });
+	assert.ok(p.venta.ganancia < 0);
+	assert.equal(p.venta.impuesto, 0);
+});
+
+test('cascadas: el estado de resultados cuadra', () => {
+	const suma = (filas) => filas.filter((f) => f.tipo === 'ingreso' || f.tipo === 'resta').reduce((s, f) => s + f.monto, 0);
+	for (const caso of [base, { ...base, uso: 'comercial' }, { ...base, regimenIVA: 'pequeno', reservaCapex: 5 }, { ...base, regimenISR: 'utilidades', depreciacion: 2 }]) {
+		const r = R.calcular(caso);
+		const c = R.cascadaAnio(r, 1);
+		const total = c.find((f) => f.tipo === 'total');
+		cerca(total.monto, r.anio1.neto, 1e-9, 'total = neto');
+		cerca(suma(c), r.anio1.neto, 1e-9, 'la suma de ingresos y restas da el neto');
+		cerca(c.find((f) => f.clave === 'noi').monto, r.anio1.noi, 1e-9);
+		cerca(c[0].pct, 1, 1e-12, 'la renta bruta es el 100 %');
+		cerca(total.mensual, r.netoMensual, 1e-9);
+		const c5 = R.cascadaAnio(r, 5);
+		cerca(c5.find((f) => f.tipo === 'total').monto, r.anios[4].neto, 1e-9, 'año 5');
+		const v = R.cascadaVenta(r);
+		cerca(suma(v), r.venta.neta, 1e-9, 'venta cuadra');
+		const s = R.cascadaResumen(r);
+		cerca(suma(s), r.gananciaTotal, 1e-6, 'resumen cuadra');
+		cerca(r.gananciaTotal, r.flujos.reduce((a, b) => a + b, 0), 1e-6, 'ganancia total = suma de flujos');
+		const g = R.cascadaGanancia(r);
+		cerca(g.find((f) => f.clave === 'ganancia').monto, r.venta.ganancia, 1e-9);
+	}
+	const com = R.cascadaAnio(R.calcular({ ...base, uso: 'comercial' }), 1);
+	const info = com.find((f) => f.clave === 'ivaInquilino');
+	assert.equal(info.tipo, 'info');
+	cerca(info.monto, 13680 * 0.12, 1e-9);
+	assert.ok(!R.cascadaAnio(R.calcular(base), 1).some((f) => f.clave === 'ivaPropietario'), 'IVA del dueño solo en pequeño contribuyente');
+	const r = R.calcular(base);
+	cerca(r.multiplo, (r.recibido) / 200000, 1e-12);
 });
 
 test('IUSI comercial: la tasa del tramo va sobre todo el valor', () => {

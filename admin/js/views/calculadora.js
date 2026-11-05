@@ -25,18 +25,23 @@ const GLOSARIO = [
 	['IUSI', 'Impuesto Único sobre Inmuebles. Se calcula sobre el valor fiscal (el inscrito en la municipalidad), no sobre el precio de venta.'],
 	['ISR', 'Impuesto Sobre la Renta del dueño por las rentas cobradas, según el régimen elegido.'],
 	['IVA', 'Impuesto al Valor Agregado. En el régimen general lo cobra el dueño al inquilino y lo entrega a la SAT: no es costo del dueño.'],
+	['Ingreso efectivo', 'La renta que de verdad se cobra en el año: renta bruta menos la vacancia.'],
 	['NOI', 'Ingreso operativo neto: lo cobrado menos gastos operativos e IUSI, antes de ISR y reserva.'],
+	['Flujo antes de impuestos', 'Lo que queda después de gastos, IUSI y reserva, antes de pagar el ISR.'],
 	['Cap rate', 'NOI del año 1 dividido entre el precio. Sirve para comparar propiedades.'],
 	['Rendimiento neto', 'Lo que te queda en el año 1 (después de impuestos y reserva) dividido entre el precio.'],
+	['Costo de adquisición', 'Lo que te costó la propiedad: precio, costos de compra y mejoras hechas en el plazo.'],
+	['Ganancia de capital', 'Lo que ganas al vender: ingreso neto de la venta menos el costo de adquisición. Sobre esa ganancia se paga ISR.'],
+	['Múltiplo', 'Todo lo que recibes (rentas netas más la venta) dividido entre lo que invertiste. 2 veces quiere decir que duplicaste el dinero.'],
 	['Cap rate de salida', 'El cap rate con el que se estima el precio de venta al final del plazo (NOI del año siguiente ÷ cap rate).'],
-	['TIR', 'Tasa interna de retorno: el rendimiento anual de toda la inversión, incluyendo la venta al final.'],
+	['TIR', 'Tasa interna de retorno: el rendimiento anual de toda la inversión, incluyendo la venta al final (después de su impuesto).'],
 	['VPN', 'Valor presente neto: cuánto vale hoy el flujo futuro, descontado a la tasa que pides. Si es positivo, la inversión supera esa tasa.'],
-	['Payback', 'Años que tardan los flujos netos en devolver el precio pagado (sin contar la venta).']
+	['Payback', 'Años que tardan los flujos netos en devolver la inversión inicial (sin contar la venta).']
 ];
 
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || [v, v])[1];
 
-const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'exento', iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosVenta: 5, tasaDescuento: 10, objetivo: 6 };
+const DEF = { tipo: 'casa', moneda: 'USD', precio: '', rentaMensual: '', uso: 'habitacional', valorFiscal: '', vacancia: 5, crecimientoRenta: 3, gastosOperativos: 10, reservaCapex: 0, regimenISR: 'capital', regimenIVA: 'exento', iusiMil: '', depreciacion: 0, plazo: 30, capSalida: '', costosVenta: 5, costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, tasaDescuento: 10, objetivo: 6 };
 
 export async function render(container) {
 	const estado = { ...DEF };
@@ -52,7 +57,8 @@ export async function render(container) {
 		uso: estado.uso, regimenISR: estado.regimenISR, regimenIVA: estado.regimenIVA, valorFiscal: num(estado.valorFiscal),
 		vacancia: num(estado.vacancia) ?? 0, crecimientoRenta: num(estado.crecimientoRenta) ?? 0, gastosOperativos: num(estado.gastosOperativos) ?? 0,
 		reservaCapex: num(estado.reservaCapex) ?? 0, iusiMil: num(estado.iusiMil), depreciacion: num(estado.depreciacion) ?? 0,
-		plazo: num(estado.plazo) || 30, capSalida: num(estado.capSalida), costosVenta: num(estado.costosVenta) ?? 0, tasaDescuento: num(estado.tasaDescuento) ?? 0
+		plazo: num(estado.plazo) || 30, capSalida: num(estado.capSalida), costosVenta: num(estado.costosVenta) ?? 0, tasaDescuento: num(estado.tasaDescuento) ?? 0,
+		costosCompra: num(estado.costosCompra) ?? 0, capexSumaAlCosto: estado.capexSumaAlCosto !== false, restarImpuestoVenta: estado.restarImpuestoVenta !== false
 	});
 
 	// ── Campos ──────────────────────────────────────────────
@@ -71,7 +77,31 @@ export async function render(container) {
 	}
 	const simbolo = () => (estado.moneda === 'GTQ' ? 'Q' : 'US$');
 	function monedas() { container.querySelectorAll('.calc-sufijo[data-sufijo="moneda"]').forEach((s) => { s.textContent = ` (${simbolo()})`; }); }
-	function setCampos(obj) { for (const [k, v] of Object.entries(obj)) { estado[k] = v ?? ''; if (campos[k]) campos[k].value = estado[k]; } monedas(); }
+	function setCampos(obj) {
+		for (const [k, v] of Object.entries(obj)) {
+			estado[k] = v ?? '';
+			if (!campos[k]) continue;
+			if (campos[k].type === 'checkbox') campos[k].checked = v !== false; else campos[k].value = estado[k];
+		}
+		monedas();
+	}
+	// Casilla (sí / no) que también guarda en estado.
+	function casilla(k, label, ayuda) {
+		const input = h('input', { class: 'form-check-input', type: 'checkbox', id: id(k), checked: estado[k] !== false, 'aria-describedby': ayuda ? `${id(k)}-ayuda` : undefined,
+			onchange: (e) => { estado[k] = e.target.checked; sincronizar(k); calcular(); } });
+		campos[k] = input;
+		return h('div', { class: 'form-check calc-check' }, input, h('label', { class: 'form-check-label', for: id(k) }, label),
+			ayuda ? h('div', { class: 'form-text', id: `${id(k)}-ayuda` }, ayuda) : null);
+	}
+	// La casilla de la tarjeta de venta y la de los campos son la misma opción.
+	const espejo = {};
+	function espejoCasilla(k, label) {
+		const input = h('input', { class: 'form-check-input', type: 'checkbox', role: 'switch', id: `${id(k)}-2`, checked: estado[k] !== false,
+			onchange: (e) => { estado[k] = e.target.checked; sincronizar(k); calcular(); } });
+		espejo[k] = input;
+		return h('div', { class: 'form-check form-switch calc-check mb-0' }, input, h('label', { class: 'form-check-label', for: `${id(k)}-2` }, label));
+	}
+	function sincronizar(k) { if (espejo[k]) espejo[k].checked = estado[k] !== false; if (campos[k]) campos[k].checked = estado[k] !== false; }
 	const grupo = (icono, titulo, ...hijos) => h('section', { class: 'card calc-grupo mb-3' },
 		h('div', { class: 'card-header' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), titulo)),
 		h('div', { class: 'card-body' }, h('div', { class: 'row g-3' }, hijos)));
@@ -125,6 +155,16 @@ export async function render(container) {
 	const kpis = h('div', { class: 'row g-3 mb-3 calc-kpis' });
 	const avisos = h('div', { class: 'calc-avisos' });
 	const tablaAnio1 = h('div', { class: 'table-responsive' });
+	const tablaVenta = h('div', { class: 'table-responsive' });
+	const tablaGanancia = h('div', { class: 'table-responsive' });
+	const tablaResumen = h('div', { class: 'table-responsive' });
+	const notaVenta = h('p', { class: 'calc-er-nota mb-0' });
+	const rendResumen = h('div', { class: 'calc-resumen-tir' });
+	let anioER = 1;
+	const selAnio = h('select', { class: 'form-select form-select-sm calc-anio-sel', id: 'calc-anio-er', onchange: (e) => { anioER = Number(e.target.value) || 1; calcular(); } });
+	const tituloER = h('span', {}, 'Estado de resultados — año 1');
+	const tituloVenta = h('span', {}, 'Venta al final del plazo');
+	const tituloResumen = h('span', {}, 'Resumen del negocio');
 	const tablaEsc = h('div', { class: 'table-responsive' });
 	const grafica = h('div', { class: 'calc-grafica' });
 	let ultimoR = null;
@@ -144,6 +184,37 @@ export async function render(container) {
 		return h('table', { class: `table table-sm align-middle mb-0 calc-tabla ${cls}` },
 			h('thead', {}, h('tr', {}, cols.map((c, i) => h('th', { scope: 'col', class: i ? 'text-end' : '' }, c)))),
 			h('tbody', {}, filas.map((f, j) => h('tr', { class: total.includes(j) ? 'calc-total' : '' }, f.map((c, i) => (i ? h('td', { class: 'text-end' }, c) : h('th', { scope: 'row' }, c)))))));
+	}
+
+	// Estado de resultados: cascada de bruto a neto. Cada fila trae su tipo (ingreso, resta, subtotal, total, info).
+	// cols: 'anio' (anual, mensual y % de la renta bruta), 'venta' (monto y % del precio de venta) o 'monto'.
+	// inicio: claves que abren un bloque nuevo (no llevan «+»).
+	function estadoTabla(filas, { caption, cols = 'monto', inicio = [] } = {}) {
+		const signo = { resta: '−', subtotal: '=', total: '=' };
+		const monto = (v) => (v === null || v === undefined ? '' : v < 0 ? `−${dinero(-v)}` : dinero(v));
+		const porc = (v) => (v === null || v === undefined ? '' : v < 0 ? `−${pct(-v, 1)}` : pct(v, 1));
+		const encabezados = cols === 'anio' ? ['Anual', 'Mensual', '% de la renta bruta'] : cols === 'venta' ? ['Monto', '% del precio de venta'] : ['Monto'];
+		const celdas = (f) => {
+			if (f.clave === 'multiplo') return [f.monto === null ? '—' : `${f.monto.toFixed(2)} veces`];
+			const v = [monto(f.monto)];
+			if (cols === 'anio') v.push(monto(f.mensual), porc(f.pct));
+			if (cols === 'venta') v.push(porc(f.pct));
+			return v;
+		};
+		return h('table', { class: `table table-sm mb-0 calc-tabla calc-er calc-er-${cols}` },
+			caption ? h('caption', { class: 'visually-hidden' }, caption) : null,
+			h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Concepto'), encabezados.map((c) => h('th', { scope: 'col', class: 'text-end' }, c)))),
+			h('tbody', {}, filas.map((f, j) => {
+				const s = f.tipo === 'ingreso' ? (j === 0 || inicio.includes(f.clave) || filas[j - 1].tipo === 'info' ? '' : '+') : signo[f.tipo] || '';
+				const soloTexto = f.tipo === 'info' && f.monto === null;
+				const vals = celdas(f);
+				return h('tr', { class: `calc-er-${f.tipo}${inicio.includes(f.clave) && j ? ' calc-er-bloque' : ''}` },
+					h('th', { scope: 'row', colspan: soloTexto ? String(vals.length + 1) : undefined },
+						h('span', { class: 'calc-er-concepto' },
+							h('span', { class: 'calc-er-signo', 'aria-hidden': 'true' }, s),
+							h('span', {}, h('span', { class: 'calc-er-etq' }, f.etiqueta), f.nota ? h('span', { class: 'calc-er-desc' }, f.nota) : null))),
+					soloTexto ? null : vals.map((c) => h('td', { class: 'text-end' }, c)));
+			})));
 	}
 
 	// Dos gráficas pequeñas con su propia escala (en una sola, las barras del año se veían diminutas junto al acumulado).
@@ -185,21 +256,21 @@ export async function render(container) {
 					const px = P.l + r.payback * (W - P.l - P.r) / vals.length;
 					svg.append(s('line', { x1: px, x2: px, y1: P.t, y2: H - P.b, class: 'calc-marca' }));
 					svg.append(s('circle', { cx: px, cy: y(0), r: 4, class: 'calc-punto' }));
-					const der = px + (angosto ? 64 : 176) < W - P.r;
-					svg.append(s('text', { x: px + (der ? 6 : -6), y: P.t + 10, 'text-anchor': der ? 'start' : 'end', class: 'calc-marca-txt' }, angosto ? `Año ${r.payback.toFixed(1)}` : `Recuperas el precio: año ${r.payback.toFixed(1)}`));
+					const der = px + (angosto ? 64 : 200) < W - P.r;
+					svg.append(s('text', { x: px + (der ? 6 : -6), y: P.t + 10, 'text-anchor': der ? 'start' : 'end', class: 'calc-marca-txt' }, angosto ? `Año ${r.payback.toFixed(1)}` : `Recuperas la inversión: año ${r.payback.toFixed(1)}`));
 				}
 			}
 			return svg;
 		}
 		const netos = anios.map((a) => a.neto);
-		const acum = anios.map((a) => a.acumulado - r.entradas.precio);
+		const acum = anios.map((a) => a.acumulado - r.inversion);
 		return h('div', { class: 'calc-graficas' },
 			h('figure', { class: 'mb-0' },
 				h('figcaption', { class: 'calc-graf-titulo' }, 'Neto de cada año', h('span', {}, ' (lo que te queda, sin la venta)')),
 				panel(netos, { H: 150, barras: true, etiqueta: `Neto de cada año durante ${anios.length} años: de ${dinero(netos[0])} el año 1 a ${dinero(netos[netos.length - 1])} el año ${anios.length}` })),
 			h('figure', { class: 'mb-0' },
-				h('figcaption', { class: 'calc-graf-titulo' }, 'Recuperación de la inversión', h('span', {}, ' (neto acumulado menos el precio; cruza el cero en el payback)')),
-				panel(acum, { H: 190, barras: false, etiqueta: `Neto acumulado menos el precio: empieza en ${dinero(acum[0])} y termina en ${dinero(acum[acum.length - 1])}${r.payback !== null ? `; recupera el precio en ${r.payback.toFixed(1)} años` : '; no recupera el precio en el plazo'}` })));
+				h('figcaption', { class: 'calc-graf-titulo' }, 'Recuperación de la inversión', h('span', {}, ' (neto acumulado menos la inversión; cruza el cero en el payback)')),
+				panel(acum, { H: 190, barras: false, etiqueta: `Neto acumulado menos la inversión: empieza en ${dinero(acum[0])} y termina en ${dinero(acum[acum.length - 1])}${r.payback !== null ? `; recupera la inversión en ${r.payback.toFixed(1)} años` : '; no recupera la inversión en el plazo'}` })));
 	}
 
 	function calcular() {
@@ -219,7 +290,6 @@ export async function render(container) {
 
 		const P = paramValores();
 		const r = R.calcular(e, P);
-		const a = r.anio1;
 		const ne = r.entradas;
 		resumenImpresion.textContent = `${TIPOS_DEF.find(([v]) => v === ne.tipo)?.[1] || 'Propiedad'} · precio ${dinero(ne.precio)} · renta ${dinero(ne.rentaMensual)}/mes · uso ${etiqueta(USOS, ne.uso)} · ISR: ${etiqueta(ISR, ne.regimenISR)} · IVA: ${etiqueta(IVA, ne.regimenIVA)} · vacancia ${ne.vacancia} % · gastos ${ne.gastosOperativos} % · plazo ${ne.plazo} años`;
 
@@ -228,28 +298,38 @@ export async function render(container) {
 			kpi('icon-percent', 'Rendimiento bruto', pct(r.rendimientoBruto), 'Renta bruta ÷ precio'),
 			kpi('icon-percent', 'Rendimiento neto', pct(r.rendimientoNeto), 'Neto anual ÷ precio'),
 			kpi('icon-line-chart', 'Cap rate', pct(r.capRate), 'NOI ÷ precio'),
-			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años con venta`),
+			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años, con venta${r.venta.restado ? ' e ISR' : ''}`),
 			kpi('icon-calculator', 'VPN', dinero(r.vpn), `Al ${pct(ne.tasaDescuento / 100, 1)}`),
 			kpi('icon-hourglass-half', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, 'Sin contar la venta'));
 
 		avisos.replaceChildren(...r.avisos.map((c) => h('div', { class: 'alert alert-warning d-flex gap-2 py-2 mb-2', role: 'note' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), AVISOS[c] || c)));
 
-		const neg = (v) => (v > 0 ? `−${dinero(v)}` : dinero(0));
-		const filas = [
-			['Renta bruta (12 meses)', dinero(a.pgi), dinero(a.pgi / 12)],
-			[`Vacancia (${ne.vacancia} %)`, neg(a.vacancia), neg(a.vacancia / 12)],
-			['Renta cobrada', dinero(a.cobrado), dinero(a.cobrado / 12)],
-			[`Gastos operativos (${ne.gastosOperativos} %)`, neg(a.opex), neg(a.opex / 12)],
-			[`IUSI (${r.iusiTasaMil} ‰ sobre valor fiscal Q ${Math.round(r.valorFiscalQ).toLocaleString('es-GT')})`, neg(a.iusi), neg(a.iusi / 12)],
-			['NOI', dinero(a.noi), dinero(a.noi / 12)],
-			[`Reserva de capital (${ne.reservaCapex} %)`, neg(a.capex), neg(a.capex / 12)],
-			[`ISR (${ISR.find(([v]) => v === ne.regimenISR)[1]})`, neg(a.isr), neg(a.isr / 12)],
-			...(a.ivaPropietario ? [['IVA pequeño contribuyente', neg(a.ivaPropietario), neg(a.ivaPropietario / 12)]] : []),
-			['Neto para el dueño', dinero(a.neto), dinero(a.neto / 12)]
-		];
-		const totales = [2, 5, filas.length - 1];
-		tablaAnio1.replaceChildren(tabla(['Concepto', 'Año', 'Mes'], filas, { total: totales }));
-		if (a.ivaInquilino) tablaAnio1.append(h('p', { class: 'small text-muted mt-2 mb-0' }, `Además, el inquilino paga ${dinero(a.ivaInquilino / 12)} de IVA al mes que se entrega a la SAT (no es ingreso ni costo del dueño).`));
+		// Estado de resultados del año elegido (1 por defecto).
+		const nAnios = r.anios.length;
+		if (selAnio.options.length !== nAnios) selAnio.replaceChildren(...r.anios.map((x) => h('option', { value: String(x.t) }, `Año ${x.t}`)));
+		anioER = Math.min(Math.max(1, anioER), nAnios);
+		selAnio.value = String(anioER);
+		tituloER.textContent = `Estado de resultados — año ${anioER}`;
+		tablaAnio1.replaceChildren(estadoTabla(R.cascadaAnio(r, anioER), { cols: 'anio', caption: `Estado de resultados del año ${anioER}, de la renta bruta al flujo neto para el dueño` }));
+
+		// Venta al final del plazo y cálculo de la ganancia.
+		const v = r.venta;
+		tituloVenta.textContent = `Venta al final del plazo (año ${ne.plazo})`;
+		tablaVenta.replaceChildren(estadoTabla(R.cascadaVenta(r), { cols: 'venta', caption: `Venta estimada en el año ${ne.plazo}, del precio de venta a lo que te queda` }));
+		tablaGanancia.replaceChildren(estadoTabla(R.cascadaGanancia(r), { inicio: ['ingresoNeto'], caption: 'Cálculo de la ganancia de capital y de su impuesto' }));
+		sincronizar('restarImpuestoVenta');
+		notaVenta.textContent = v.restado
+			? 'La TIR, el VPN y el resumen ya restan este impuesto.'
+			: `Opción desactivada: la TIR, el VPN y el resumen no restan los ${dinero(v.impuestoCalculado)} de ISR de la venta.`;
+
+		// Resumen de todo el negocio.
+		tituloResumen.textContent = `Resumen del negocio a ${ne.plazo} años`;
+		tablaResumen.replaceChildren(estadoTabla(R.cascadaResumen(r), { caption: `Resumen del negocio en ${ne.plazo} años: rentas, venta, inversión y ganancia total` }));
+		const dato = (k, val, nota) => h('div', { class: 'calc-resumen-dato' }, h('span', { class: 'calc-resumen-k' }, k), h('strong', {}, val), h('span', { class: 'calc-resumen-n' }, nota));
+		rendResumen.replaceChildren(
+			dato('TIR', pct(r.tir), v.restado ? 'Después del ISR de la venta' : 'Sin restar el ISR de la venta'),
+			v.restado && v.impuestoCalculado > 0 ? dato('TIR sin el ISR de la venta', pct(r.tirSinImpuestoVenta), 'Solo para comparar') : null,
+			dato('Múltiplo', r.multiplo === null ? '—' : `${r.multiplo.toFixed(2)} veces`, 'Total que recibes ÷ inversión'));
 
 		const esc = R.escenarios(e, [-20, -10, 0, 10, 20], P);
 		tablaEsc.replaceChildren(tabla(['Renta', 'Renta mensual', 'Neto mensual', 'Rend. neto', 'TIR'],
@@ -265,12 +345,12 @@ export async function render(container) {
 		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Impuestos', 'Neto', 'Acumulado', 'Flujo'],
 			r.anios.map((x) => [String(x.t), dinero(x.pgi), dinero(x.cobrado), dinero(x.opex + x.iusi + x.capex), dinero(x.isr + x.ivaPropietario), dinero(x.neto), dinero(x.acumulado), dinero(x.flujo)]),
 			{ cls: 'calc-tabla-larga' }),
-		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta estimada: ${dinero(r.reversion)} (NOI del año ${ne.plazo + 1} de ${dinero(r.noiSalida)} ÷ cap rate de salida ${pct(ne.capSalida / 100, 1)}, menos ${ne.costosVenta} % de costos de venta). No incluye impuesto por la ganancia de la venta.`));
+		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta: ${dinero(r.venta.neta)} ${r.venta.restado ? 'después de costos y del ISR sobre la ganancia' : 'después de costos (sin restar el ISR sobre la ganancia)'}. El detalle está en «Venta al final del plazo».`));
 	}
 
 	// ── Armado ─────────────────────────────────────────────
 	const header = pageHeader('Calculadora de renta',
-		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
+		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); anioER = 1; sincronizar('restarImpuestoVenta'); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
 		h('button', { type: 'button', class: 'btn btn-primary no-print', onclick: () => window.print() }, h('span', { class: 'icon-file-pdf-o me-1', 'aria-hidden': 'true' }), 'Descargar PDF'));
 
 	const tituloCard = (icono, t, ...extra) => h('div', { class: 'card-header d-flex align-items-center justify-content-between gap-2' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), t), extra);
@@ -307,7 +387,11 @@ export async function render(container) {
 					campo('plazo', 'Plazo', { sufijo: 'años', attrs: { min: '1', max: '50', step: '1' } }),
 					campo('tasaDescuento', 'Tasa de descuento (VPN)', { sufijo: '%' }),
 					campo('capSalida', 'Cap rate de salida', { sufijo: '%', ayuda: 'Vacío = referencia del tipo + 0.5.' }),
-					campo('costosVenta', 'Costos de venta', { sufijo: '%' })),
+					campo('costosVenta', 'Costos de venta', { sufijo: '%' }),
+					campo('costosCompra', 'Costos de compra', { sufijo: '% del precio', ayuda: 'Escritura, notario y registro. Se suman a la inversión y al costo.' }),
+					h('div', { class: 'col-12' },
+						casilla('capexSumaAlCosto', 'Sumar la reserva al costo de la propiedad', 'Las reparaciones mayores pagadas con la reserva bajan la ganancia de la venta.'),
+						casilla('restarImpuestoVenta', 'Restar el ISR sobre la ganancia de la venta', 'Afecta la TIR, el VPN y el resumen.'))),
 				h('section', { class: 'card calc-grupo calc-objetivo' },
 					h('div', { class: 'card-header' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-line-chart me-2', 'aria-hidden': 'true' }), 'Renta para un rendimiento objetivo')),
 					h('div', { class: 'card-body' }, h('div', { class: 'row g-3 align-items-end' },
@@ -322,7 +406,21 @@ export async function render(container) {
 
 	mount(resultados,
 		kpis, avisos,
-		h('section', { class: 'card mb-3' }, tituloCard('icon-calculator', 'Año 1'), h('div', { class: 'card-body' }, tablaAnio1)),
+		h('section', { class: 'card mb-3 calc-er-card' },
+			h('div', { class: 'card-header d-flex align-items-center justify-content-between gap-2 flex-wrap' },
+				h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), tituloER),
+				h('div', { class: 'd-flex align-items-center gap-2 no-print' }, h('label', { class: 'small text-muted mb-0', for: 'calc-anio-er' }, 'Ver año'), selAnio)),
+			h('div', { class: 'card-body' }, tablaAnio1)),
+		h('section', { class: 'card mb-3 calc-er-card' },
+			h('div', { class: 'card-header' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-handshake-o me-2', 'aria-hidden': 'true' }), tituloVenta)),
+			h('div', { class: 'card-body' },
+				tablaVenta,
+				h('div', { class: 'calc-venta-opcion' }, espejoCasilla('restarImpuestoVenta', 'Restar impuesto sobre la ganancia'), notaVenta),
+				h('h3', { class: 'calc-er-sub' }, 'Cómo se calcula la ganancia'),
+				tablaGanancia)),
+		h('section', { class: 'card mb-3 calc-er-card' },
+			h('div', { class: 'card-header' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-balance-scale me-2', 'aria-hidden': 'true' }), tituloResumen)),
+			h('div', { class: 'card-body' }, tablaResumen, rendResumen)),
 		h('section', { class: 'card mb-3' }, tituloCard('icon-sliders', 'Escenarios de renta'), h('div', { class: 'card-body' }, tablaEsc)),
 		h('section', { class: 'card mb-3 calc-chart-card' }, tituloCard('icon-area-chart', 'Flujo a largo plazo'), h('div', { class: 'card-body' }, grafica)),
 		h('details', { class: 'card calc-detalle' },

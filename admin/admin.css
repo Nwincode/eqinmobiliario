@@ -1485,6 +1485,168 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .calc-tabla-larga {
 	font-size: 13px;
 }
+/* Estado de resultados (cascada de bruto a neto) */
+.calc-er {
+	table-layout: auto;
+}
+.calc-er thead th {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--adm-muted);
+	border-bottom-color: var(--adm-border);
+	white-space: nowrap;
+}
+.calc-er th[scope="row"] {
+	white-space: normal;
+	min-width: 12rem;
+}
+.calc-er th,
+.calc-er td {
+	padding-top: 7px;
+	padding-bottom: 7px;
+	vertical-align: top;
+}
+.calc-er-concepto {
+	display: flex;
+	gap: 6px;
+}
+.calc-er-signo {
+	flex: 0 0 1ch;
+	text-align: center;
+	color: var(--adm-muted);
+	font-weight: 600;
+}
+.calc-er-etq {
+	display: block;
+}
+.calc-er-desc {
+	display: block;
+	font-size: 12px;
+	line-height: 1.35;
+	color: var(--adm-muted);
+	margin-top: 1px;
+}
+.calc-er-resta th[scope="row"] {
+	padding-left: 1.25rem;
+}
+.calc-er-resta td {
+	color: var(--adm-muted);
+}
+.calc-er-subtotal th,
+.calc-er-subtotal td {
+	font-weight: 700;
+	border-top: 1px solid var(--adm-text);
+}
+.calc-er-total th,
+.calc-er-total td {
+	font-weight: 700;
+	color: var(--adm-primary);
+	border-top: 2px solid var(--adm-primary);
+	border-bottom: 0;
+	background: color-mix(in oklab, var(--adm-primary) 7%, var(--adm-surface));
+}
+.calc-er-total .calc-er-signo,
+.calc-er-total .calc-er-desc {
+	color: var(--adm-primary);
+}
+.calc-er-total td:nth-child(2) {
+	font-size: 15px;
+}
+.calc-er-info th,
+.calc-er-info td {
+	font-size: 13px;
+	color: var(--adm-muted);
+	border-bottom: 0;
+}
+.calc-er-info .calc-er-etq {
+	font-weight: 600;
+}
+.calc-er-bloque th,
+.calc-er-bloque td {
+	border-top: 12px solid var(--adm-surface);
+}
+.calc-er-sub {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 20px 0 6px;
+}
+.calc-anio-sel {
+	width: auto;
+	min-height: 38px;
+}
+.calc-check {
+	min-height: 44px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0 8px;
+	padding-left: 0;
+}
+.calc-check .form-check-input {
+	float: none;
+	margin: 0;
+	flex: 0 0 auto;
+	width: 1.15em;
+	height: 1.15em;
+}
+.calc-check.form-switch .form-check-input {
+	width: 2.2em;
+}
+.calc-check .form-check-label {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.calc-check .form-text {
+	flex: 0 0 100%;
+	margin-top: 0;
+	margin-bottom: 6px;
+}
+.calc-venta-opcion {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 16px;
+	padding: 8px 12px;
+	margin-top: 12px;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--adm-radius);
+	background: var(--adm-bg);
+}
+.calc-er-nota {
+	font-size: 13px;
+	color: var(--adm-muted);
+}
+.calc-resumen-tir {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 12px;
+	margin-top: 16px;
+}
+.calc-resumen-dato {
+	border: 1px solid var(--adm-border);
+	border-radius: var(--adm-radius);
+	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.calc-resumen-k {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--adm-muted);
+}
+.calc-resumen-dato strong {
+	font-size: 1.25rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--adm-text);
+}
+.calc-resumen-dato:first-child strong {
+	color: var(--adm-primary);
+}
+.calc-resumen-n {
+	font-size: 12px;
+	color: var(--adm-muted);
+}
 .calc-tabla-larga th[scope="row"] {
 	text-align: center;
 }
@@ -1593,6 +1755,17 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.calc-tabla {
 		font-size: 13px;
 	}
+	.calc-er th[scope="row"] {
+		min-width: 9.5rem;
+	}
+	.calc-er-resta th[scope="row"] {
+		padding-left: .5rem;
+	}
+	.calc-er th,
+	.calc-er td {
+		padding-left: 4px;
+		padding-right: 4px;
+	}
 }
 @media print {
 	@page {
@@ -1647,6 +1820,26 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 	.calc-detalle {
 		break-inside: auto;
+	}
+	.calc-er-card {
+		break-inside: avoid;
+	}
+	.calc-er-desc {
+		font-size: 10px;
+	}
+	.calc-venta-opcion {
+		display: block;
+		border: 0;
+		padding: 4px 0;
+		background: none;
+	}
+	.calc-venta-opcion .calc-check {
+		display: none;
+	}
+	.calc-er th,
+	.calc-er td {
+		padding-top: 3px;
+		padding-bottom: 3px;
 	}
 	.calc-detalle > summary .calc-chev {
 		display: none;
