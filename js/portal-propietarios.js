@@ -3,7 +3,8 @@
 //     El token (43 caracteres al azar) es el id del documento portalPropietarios/{token}.
 //  2. Enlace al correo (Firebase «Correo electrónico sin contraseña»). Con la sesión iniciada
 //     se buscan los portales cuyo campo email coincide con el correo verificado.
-// Los datos ya vienen resumidos por el panel: sin nombres ni teléfonos de clientes.
+// Los datos ya vienen resumidos por el panel: sin nombres ni teléfonos de clientes
+// (los interesados llegan como «Cliente 1, 2…» con canal, fechas, visitas y etapa).
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
 	getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut
@@ -34,7 +35,9 @@ const TIPOS = {
 	oferta: { es: 'Oferta', en: 'Offer' },
 	visita: { es: 'Visita', en: 'Showing' },
 	paso: { es: 'Próximo paso', en: 'Next step' },
-	nota: { es: 'Nota', en: 'Note' }
+	nota: { es: 'Nota', en: 'Note' },
+	publicado: { es: 'Publicación', en: 'Listing' },
+	portal: { es: 'Publicación', en: 'Listing' }
 };
 const PREFIJO = { USD: 'US$', GTQ: 'Q' };
 
@@ -156,6 +159,70 @@ function iconoTipo(tipo) {
 	return el.cloneNode(true);
 }
 
+// Ícono de canal o etapa de un cliente interesado (las clases viven en #pp-tpl-iconos).
+function iconoDe(attr, valor, porDefecto) {
+	const tpl = $('pp-tpl-iconos').content;
+	const el = tpl.querySelector(`[data-${attr}="${valor}"]`) || tpl.querySelector(`[data-${attr}="${porDefecto}"]`);
+	return el ? el.cloneNode(true) : document.createTextNode('');
+}
+const llenar = (plantilla, datos) => String(plantilla || '').replace(/\{(\w+)\}/g, (_, k) => (datos[k] ?? ''));
+
+// Texto de un evento automático (viene sin texto: se arma aquí para que salga en el idioma de la página).
+function textoAuto(e, p) {
+	const A = T.auto || {};
+	const veces = Number(e.veces) || 1;
+	switch (e.auto) {
+		case 'web': return A.web;
+		case 'portal': return llenar(A.portal, { p: e.portal || '' });
+		case 'precio': return llenar(A.precio, { p: precio(e.precio, e.moneda, p.operacion) });
+		case 'visita': return veces > 1 ? llenar(A.visitaN, { n: veces }) : A.visita;
+		case 'oferta': return veces > 1 ? llenar(A.ofertaN, { n: veces }) : A.oferta;
+		default: return '';
+	}
+}
+
+const ETAPAS_CLIENTE = ['interesado', 'visito', 'negociando', 'oferto', 'cerro', 'perdido'];
+const CANALES_CLIENTE = ['web', 'whatsapp', 'portal', 'anuncio', 'redes', 'referido', 'llamada', 'otro'];
+
+function clientesDe(p, q) {
+	const lista = (Array.isArray(p.clientes) ? p.clientes : []).filter((c) => c && Number(c.n));
+	const filas = q('clientes-filas');
+	const tpl = $('pp-tpl-cliente').content.firstElementChild;
+	// Lo más reciente arriba, como en la línea de tiempo.
+	for (const c of lista.slice().sort((a, b) => b.n - a.n)) {
+		const tr = tpl.cloneNode(true);
+		const r = (sel) => tr.querySelector(`[data-pp="${sel}"]`);
+		r('n').textContent = `${T.cliente} ${c.n}`;
+		const canal = CANALES_CLIENTE.includes(c.canal) ? c.canal : 'otro';
+		r('canal').append(iconoDe('canal', canal, 'otro'), document.createTextNode((T.canales || {})[canal] || ''));
+		const desde = r('desde');
+		desde.textContent = c.desde ? fecha(c.desde, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+		if (c.desde) desde.dateTime = c.desde;
+		const nv = Number(c.visitas) || 0;
+		let tv = nv === 0 ? T.sinVisitas : nv === 1 ? T.unaVisita : llenar(T.nVisitas, { n: nv });
+		if (nv && c.ultimaVisita) tv += ` · ${llenar(T.ultima, { f: fecha(c.ultimaVisita, { day: 'numeric', month: 'short' }) })}`;
+		if (c.visitaProxima) tv += ` · ${T.agendada}`;
+		r('visitas').textContent = tv;
+		if (!nv && !c.visitaProxima) r('visitas').classList.add('pp-apagado');
+		const etapa = ETAPAS_CLIENTE.includes(c.etapa) ? c.etapa : 'interesado';
+		const chip = r('etapa');
+		chip.classList.add(`pp-etapa-${etapa}`);
+		chip.append(iconoDe('etapa', etapa, 'interesado'), document.createTextNode((T.etapas || {})[etapa] || ''));
+		filas.append(tr);
+	}
+	const hay = lista.length > 0;
+	q('clientes').hidden = !hay;
+	q('sin-clientes').hidden = hay;
+	const total = lista.reduce((m, c) => Math.max(m, Number(c.n) || 0), 0);
+	q('clientes-mas').hidden = total <= lista.length;
+	q('clientes-mas').textContent = llenar(T.clientesMas, { n: total });
+	const visitaron = lista.filter((c) => Number(c.visitas) > 0).length;
+	q('clientes-resumen').textContent = hay
+		? [total === 1 ? T.resumenUno : llenar(T.resumenClientes, { n: total }),
+			visitaron ? (visitaron === 1 ? T.resumenVisitoUno : llenar(T.resumenVisitaron, { n: visitaron })) : ''].filter(Boolean).join(' · ')
+		: '';
+}
+
 function tarjeta(p) {
 	const nodo = $('pp-tpl-prop').content.firstElementChild.cloneNode(true);
 	const q = (sel) => nodo.querySelector(`[data-pp="${sel}"]`);
@@ -190,7 +257,7 @@ function tarjeta(p) {
 		: `${prox} visita${prox === 1 ? '' : 's'} agendada${prox === 1 ? '' : 's'}`;
 
 	// Línea de tiempo
-	const eventos = (p.eventos || []).filter((e) => e && e.texto);
+	const eventos = (p.eventos || []).filter((e) => e && (e.texto || e.auto));
 	const ol = q('eventos');
 	for (const e of eventos) {
 		const li = document.createElement('li');
@@ -204,7 +271,8 @@ function tarjeta(p) {
 		f.append(tipo, document.createTextNode(e.fecha ? ` · ${fecha(e.fecha)}` : ''));
 		const tx = document.createElement('p');
 		tx.className = 'pp-evento-texto';
-		tx.textContent = e.texto;
+		tx.textContent = e.auto ? textoAuto(e, p) : e.texto;
+		if (e.auto) li.classList.add('pp-evento-auto');
 		cuerpo.append(f, tx);
 		li.append(iconoTipo(e.tipo), cuerpo);
 		ol.append(li);
@@ -248,6 +316,8 @@ function tarjeta(p) {
 	}
 	ul.hidden = !portales.length;
 	q('sin-portales').hidden = Boolean(portales.length);
+
+	clientesDe(p, q);
 	return nodo;
 }
 

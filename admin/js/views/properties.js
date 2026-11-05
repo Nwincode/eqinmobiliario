@@ -12,6 +12,7 @@ import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
+import { refrescarPortalesDe } from '../portal.js';
 
 const faltanDe = (p) => revisar('propiedades', p);
 
@@ -120,6 +121,7 @@ export async function render(container, [id]) {
 		try {
 			await updateDoc(doc(db, 'properties', p.id), { ...cambios, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			Object.assign(p, local, { updatedAt: { seconds: Date.now() / 1000 } });
+			refrescarPortalesDe([p.id]);
 			await markPending(desc);
 			toast(aviso);
 			if (p.publicado && visibilidadDe(p) === 'oculta') toast(`Sigue oculta porque está «${estadoDe(p).label}». Cámbiala a «Disponible» para mostrarla.`, 'warning');
@@ -434,6 +436,7 @@ async function renderEditor(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
+			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
 			if (!traducirAhora) {

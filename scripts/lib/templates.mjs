@@ -1598,7 +1598,17 @@ const TEXTOS_PORTAL = {
 		consultas: 'Consultas', visitas: 'Visitas', ofertas: 'Ofertas', ult30: 'en los últimos 30 días',
 		actividad: 'Lo que ha pasado', sinActividad: 'Todavía no hay novedades. Tu asesor las irá agregando aquí.',
 		precios: 'Historial de precio', portales: 'Dónde se anuncia', sinPortales: 'Tu asesor está preparando la publicación.',
-		privacidad: 'Por privacidad no mostramos nombres ni teléfonos de los interesados.', salir: 'Salir'
+		privacidad: 'Por privacidad no mostramos nombres ni teléfonos de los interesados.', salir: 'Salir',
+		clientesTitulo: 'Clientes interesados', clientesNota: 'Sin nombres ni teléfonos: cada persona tiene un número, en el orden en que nos contactó.',
+		sinClientes: 'Todavía no hay clientes interesados. Los verás aquí en cuanto alguien nos contacte por tu propiedad.',
+		clientesMas: 'Mostramos los 30 más recientes de {n}.', cliente: 'Cliente',
+		colCliente: 'Cliente', colCanal: 'Cómo llegó', colDesde: 'Primer contacto', colVisitas: 'Visitas', colEtapa: 'Etapa',
+		sinVisitas: 'Sin visitas', unaVisita: '1 visita', nVisitas: '{n} visitas', ultima: 'la última el {f}', agendada: 'visita agendada',
+		resumenClientes: '{n} interesados', resumenUno: '1 interesado', resumenVisitaron: '{n} visitaron', resumenVisitoUno: '1 visitó',
+		canales: { web: 'Página web', whatsapp: 'WhatsApp', portal: 'Portal de anuncios', anuncio: 'Anuncio pagado', redes: 'Redes sociales', referido: 'Recomendación', llamada: 'Llamada o rótulo', otro: 'Otro medio' },
+		etapas: { interesado: 'Interesado', visito: 'Visitó', negociando: 'Negociando', oferto: 'Ofertó', cerro: 'Cerró', perdido: 'Ya no está interesado' },
+		auto: { web: 'Se publicó en eqinmobiliario.gt', portal: 'Se publicó en {p}', precio: 'Cambio de precio a {p}', visita: 'Se realizó una visita', visitaN: 'Se realizaron {n} visitas', oferta: 'Se recibió una oferta', ofertaN: 'Se recibieron {n} ofertas' },
+		tipoPublicado: 'Publicación', tipoAuto: 'Automático'
 	},
 	en: {
 		titulo: 'Owner portal', migas: 'Owner portal',
@@ -1618,7 +1628,17 @@ const TEXTOS_PORTAL = {
 		consultas: 'Inquiries', visitas: 'Showings', ofertas: 'Offers', ult30: 'in the last 30 days',
 		actividad: 'What has happened', sinActividad: 'No updates yet. Your agent will add them here.',
 		precios: 'Price history', portales: 'Where it is advertised', sinPortales: 'Your agent is preparing the listing.',
-		privacidad: 'For privacy, we never show the names or phone numbers of interested buyers.', salir: 'Sign out'
+		privacidad: 'For privacy, we never show the names or phone numbers of interested buyers.', salir: 'Sign out',
+		clientesTitulo: 'Interested clients', clientesNota: 'No names or phone numbers: each person gets a number, in the order they contacted us.',
+		sinClientes: 'No interested clients yet. You will see them here as soon as someone contacts us about your property.',
+		clientesMas: 'Showing the 30 most recent of {n}.', cliente: 'Client',
+		colCliente: 'Client', colCanal: 'How they found us', colDesde: 'First contact', colVisitas: 'Showings', colEtapa: 'Stage',
+		sinVisitas: 'No showings', unaVisita: '1 showing', nVisitas: '{n} showings', ultima: 'last on {f}', agendada: 'showing scheduled',
+		resumenClientes: '{n} interested', resumenUno: '1 interested', resumenVisitaron: '{n} visited', resumenVisitoUno: '1 visited',
+		canales: { web: 'Website', whatsapp: 'WhatsApp', portal: 'Listing site', anuncio: 'Paid ad', redes: 'Social media', referido: 'Referral', llamada: 'Call or sign', otro: 'Other' },
+		etapas: { interesado: 'Interested', visito: 'Visited', negociando: 'Negotiating', oferto: 'Made an offer', cerro: 'Closed', perdido: 'No longer interested' },
+		auto: { web: 'Listed on eqinmobiliario.gt', portal: 'Listed on {p}', precio: 'Price changed to {p}', visita: 'A showing took place', visitaN: '{n} showings took place', oferta: 'An offer came in', ofertaN: '{n} offers came in' },
+		tipoPublicado: 'Listing', tipoAuto: 'Automatic'
 	}
 };
 
@@ -1746,7 +1766,30 @@ export function portalPage(ctx) {
 							</section>
 						</div>
 					</div>
+					<section class="pp-bloque pp-clientes">
+						<div class="pp-clientes-cabecera">
+							<h4 class="pp-h4">${ic('users')}${t.clientesTitulo}</h4>
+							<p class="pp-clientes-resumen" data-pp="clientes-resumen"></p>
+						</div>
+						<p class="pp-nota-chica">${ic('lock')}${t.clientesNota}</p>
+						<table class="pp-tabla" data-pp="clientes" role="table">
+							<caption class="visually-hidden">${t.clientesTitulo}</caption>
+							<thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">${t.colCliente}</th><th scope="col" role="columnheader">${t.colCanal}</th><th scope="col" role="columnheader">${t.colDesde}</th><th scope="col" role="columnheader">${t.colVisitas}</th><th scope="col" role="columnheader">${t.colEtapa}</th></tr></thead>
+							<tbody data-pp="clientes-filas" role="rowgroup"></tbody>
+						</table>
+						<p class="pp-vacio-texto" data-pp="sin-clientes" hidden>${t.sinClientes}</p>
+						<p class="pp-nota-chica" data-pp="clientes-mas" hidden></p>
+					</section>
 				</article>
+			</template>
+			<template id="pp-tpl-cliente">
+				<tr class="pp-cliente" role="row">
+					<th scope="row" class="pp-cliente-n" role="rowheader"><span data-pp="n"></span></th>
+					<td class="pp-celda" role="cell" data-label="${t.colCanal}"><span class="pp-canal" data-pp="canal"></span></td>
+					<td class="pp-celda" role="cell" data-label="${t.colDesde}"><time data-pp="desde"></time></td>
+					<td class="pp-celda" role="cell" data-label="${t.colVisitas}"><span data-pp="visitas"></span></td>
+					<td class="pp-celda pp-celda-etapa" role="cell" data-label="${t.colEtapa}"><span class="pp-etapa" data-pp="etapa"></span></td>
+				</tr>
 			</template>
 			<template id="pp-tpl-iconos">
 				<span data-tipo="foto" class="icon-camera pp-evento-icono" aria-hidden="true"></span>
@@ -1756,6 +1799,22 @@ export function portalPage(ctx) {
 				<span data-tipo="paso" class="icon-flag pp-evento-icono" aria-hidden="true"></span>
 				<span data-tipo="nota" class="icon-commenting-o pp-evento-icono" aria-hidden="true"></span>
 				<span data-tipo="externo" class="icon-external-link eq-ic eq-ic-fin" aria-hidden="true"></span>
+				<span data-tipo="publicado" class="icon-globe pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="portal" class="icon-bullhorn pp-evento-icono" aria-hidden="true"></span>
+				<span data-canal="web" class="icon-globe eq-ic" aria-hidden="true"></span>
+				<span data-canal="whatsapp" class="icon-whatsapp eq-ic" aria-hidden="true"></span>
+				<span data-canal="portal" class="icon-newspaper-o eq-ic" aria-hidden="true"></span>
+				<span data-canal="anuncio" class="icon-bullhorn eq-ic" aria-hidden="true"></span>
+				<span data-canal="redes" class="icon-share-alt eq-ic" aria-hidden="true"></span>
+				<span data-canal="referido" class="icon-user-plus eq-ic" aria-hidden="true"></span>
+				<span data-canal="llamada" class="icon-phone eq-ic" aria-hidden="true"></span>
+				<span data-canal="otro" class="icon-user eq-ic" aria-hidden="true"></span>
+				<span data-etapa="interesado" class="icon-eye eq-ic" aria-hidden="true"></span>
+				<span data-etapa="visito" class="icon-calendar-check-o eq-ic" aria-hidden="true"></span>
+				<span data-etapa="negociando" class="icon-comments eq-ic" aria-hidden="true"></span>
+				<span data-etapa="oferto" class="icon-handshake-o eq-ic" aria-hidden="true"></span>
+				<span data-etapa="cerro" class="icon-key eq-ic" aria-hidden="true"></span>
+				<span data-etapa="perdido" class="icon-times-circle eq-ic" aria-hidden="true"></span>
 			</template>
 		</div>
 	</div>`;

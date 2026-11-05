@@ -11,6 +11,7 @@ import {
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
 	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
 } from '../crm.js';
+import { refrescarPorCliente } from '../portal.js';
 
 const VISTA_KEY = 'eq-clientes-vista';
 
@@ -83,9 +84,10 @@ async function renderLista(container) {
 
 	const moverEtapa = async (c, etapa) => {
 		try {
-			await updateDoc(doc(db, 'clientes', c.id), { etapa, updatedAt: serverTimestamp() });
+			await updateDoc(doc(db, 'clientes', c.id), { etapa, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
 			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa)}`, clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
 			c.etapa = etapa;
+			refrescarPorCliente(c);
 			dibujar();
 		} catch (err) { showError(err); }
 	};
@@ -192,6 +194,7 @@ function formularioActividad(c, alGuardar) {
 				hecha: hecha.checked || tipo.value === 'nota' || !fecha.value,
 				clienteId: c.id, clienteNombre: c.nombre, agentId: c.agentId
 			});
+			if (tipo.value === 'visita') refrescarPorCliente(c);
 			toast(fecha.value && !hecha.checked ? 'Agendado.' : 'Registrado en el historial.');
 			alGuardar();
 		} catch (err) { showError(err); } finally { boton.disabled = false; }
@@ -271,6 +274,7 @@ async function renderFicha(container, id) {
 		try {
 			await updateDoc(doc(db, 'actividades', a.id), { hecha: true, hechaEn: serverTimestamp() });
 			await updateDoc(ref, { ultimoContacto: serverTimestamp(), updatedAt: serverTimestamp() });
+			if (a.tipo === 'visita') refrescarPorCliente(c, a.propertyId);
 			toast('Marcada como realizada.');
 			recargar();
 		} catch (err) { showError(err); }
@@ -284,17 +288,19 @@ async function renderFicha(container, id) {
 		if (!selProp.value) return;
 		try {
 			await updateDoc(ref, { interes: [...interes, selProp.value], updatedAt: serverTimestamp() });
+			refrescarPorCliente(c, selProp.value);
 			recargar();
 		} catch (err) { showError(err); }
 	});
 	const quitarInteres = async (pid) => {
-		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); recargar(); } catch (err) { showError(err); }
+		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); refrescarPorCliente(c, pid); recargar(); } catch (err) { showError(err); }
 	};
 
 	const etapa = h('select', { class: 'form-select form-select-sm w-auto' }, ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, l)));
 	etapa.addEventListener('change', async () => {
 		try {
-			await updateDoc(ref, { etapa: etapa.value, updatedAt: serverTimestamp() });
+			await updateDoc(ref, { etapa: etapa.value, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
+			refrescarPorCliente(c);
 			await crearActividad({ tipo: 'nota', titulo: `Etapa: ${etapaLabel(c.etapa)} → ${etapaLabel(etapa.value)}`, clienteId: id, clienteNombre: c.nombre, agentId: c.agentId, hecha: true });
 			recargar();
 		} catch (err) { showError(err); }

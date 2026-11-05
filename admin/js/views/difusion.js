@@ -5,6 +5,7 @@ import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
 import { portalesDe, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
+import { refrescarPortalesDe } from '../portal.js';
 
 const COLOR = { ok: 'success', actualizar: 'warning', baja: 'danger', pendiente: 'light', na: 'light' };
 
@@ -33,6 +34,7 @@ async function guardarRegistro(p, portalId, registro) {
 	const difusion = { ...(p.difusion || {}), [portalId]: registro };
 	await updateDoc(doc(db, 'properties', p.id), { difusion });
 	p.difusion = difusion;
+	refrescarPortalesDe([p.id]);
 }
 
 // ---------------------------------------------------------------- Kit de una propiedad

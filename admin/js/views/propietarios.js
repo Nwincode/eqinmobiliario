@@ -155,12 +155,12 @@ function seccionPortal(prop, propiedades) {
 
 	function pintarEstado() {
 		estadoEl.replaceChildren(prop.portalToken
-			? h('span', {}, badge('Portal activo', 'success'), ' ', h('span', { class: 'text-muted' }, `Actualizado: ${formatDate(prop.portalActualizado)}`))
+			? h('span', {}, badge('Portal activo', 'success'), ' ', h('span', { class: 'text-muted' }, `Actualizado: ${formatDate(prop.portalActualizado)} · Se actualiza solo cuando hay cambios`))
 			: h('span', {}, badge('Sin portal', 'secondary'), ' ', h('span', { class: 'text-muted' }, 'Crea el portal para enviarle el enlace al propietario.')));
 		const conToken = Boolean(prop.portalToken);
 		botones.replaceChildren(
 			h('button', { class: 'btn btn-primary', type: 'button', onclick: (e) => ocupado(e.currentTarget, async () => { const nuevo = !prop.portalToken; await publicarPortal(prop); pintarEstado(); toast(nuevo ? 'Portal creado. Ya puedes enviar el enlace.' : 'Portal actualizado.'); }) },
-				conToken ? 'Actualizar portal' : 'Crear portal'),
+				conToken ? 'Actualizar ahora' : 'Crear portal'),
 			conToken ? h('a', { class: 'btn btn-success', target: '_blank', rel: 'noopener', href: whatsappUrl(prop.telefono, mensajeWa()) }, 'Enviar por WhatsApp') : null,
 			conToken ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: async () => toast((await copiar(enlacePortal(prop.portalToken))) ? 'Enlace copiado.' : 'No se pudo copiar. Cópialo a mano.', 'success') }, 'Copiar enlace') : null,
 			conToken ? h('a', { class: 'btn btn-outline-primary', target: '_blank', rel: 'noopener', href: enlacePortal(prop.portalToken) }, 'Ver como propietario') : null,
@@ -266,7 +266,7 @@ function seccionPortal(prop, propiedades) {
 		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h5 mb-0' }, 'Portal del propietario')),
 		h('div', { class: 'card-body d-grid gap-4' },
 			h('div', { class: 'd-grid gap-2' },
-				h('p', { class: 'text-muted small mb-0' }, 'El propietario ve el estado, los días en el mercado, cuántas consultas, visitas y ofertas hubo (sin nombres de clientes), el historial de precio, los portales y lo que marques como visible. Entra con el enlace privado o con su correo, sin contraseña.'),
+				h('p', { class: 'text-muted small mb-0' }, 'El propietario ve el estado, los días en el mercado, cuántas consultas, visitas y ofertas hubo, el historial de precio, los portales, lo que marques como visible y la lista de clientes interesados como «Cliente 1, 2…» (solo cómo llegaron, fechas, visitas y etapa; nunca nombres, teléfonos ni correos). El portal se actualiza solo cuando cambias la propiedad, una visita o la etapa de un cliente. Entra con el enlace privado o con su correo, sin contraseña.'),
 				!prop.email ? h('div', { class: 'alert alert-info small mb-0' }, 'Agrega el correo del propietario (arriba) para que también pueda entrar con su correo.') : null,
 				estadoEl, botones),
 			formPaso,

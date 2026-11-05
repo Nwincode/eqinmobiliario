@@ -4,9 +4,10 @@ import {
 	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
-import { loadActividades, loadClientes, ms } from './crm.js';
+import { loadActividades, loadClientes, loadPropietarios, ms } from './crm.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
+import { clientesInteresados, eventosAuto, fechaOferta } from './portal-clientes.js';
 
 const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
 const DIA = 86400000;
@@ -74,7 +75,8 @@ export async function visitasDe(prop, { actividades, clientes } = {}) {
 	}).filter(Boolean);
 }
 
-// Arma el documento resumido. Nada de clientes: solo conteos y textos marcados como visibles.
+// Arma el documento resumido. De los clientes solo van número de orden, canal, fechas y etapa
+// (sin ids, nombres, teléfonos ni correos); de la bitácora, solo los textos marcados como visibles.
 export async function armarPortal(prop) {
 	const ids = [...new Set((prop.propiedades || []).map((x) => x.propertyId).filter(Boolean))];
 	const [props, agentes, consultas, actividades, clientes, site] = await Promise.all([
@@ -98,19 +100,28 @@ export async function armarPortal(prop) {
 		const vis = visitas.filter((a) => a.pid === p.id);
 		const hechas = vis.filter((a) => a.hecha || ms(a.fecha) < ahora);
 		const fechaBit = (tipo) => bit.filter((b) => b.tipo === tipo).map((b) => Date.parse(`${b.fecha}T12:00:00`) || 0);
-		const ofertasClientes = clientes.filter((c) => ['oferta', 'cierre'].includes(c.etapa) && (c.interes || []).includes(p.id)).map((c) => ms(c.updatedAt) || ms(c.createdAt));
+		const conOferta = clientes.filter((c) => ['oferta', 'cierre'].includes(c.etapa) && (c.interes || []).includes(p.id));
+		const ofertasClientes = conOferta.map((c) => fechaOferta(c, actividades.filter((a) => a.clienteId === c.id)));
 		const ofertasBit = fechaBit('oferta');
 		const ofertas = ofertasBit.length >= ofertasClientes.length ? ofertasBit : ofertasClientes;
-		const eventos = [
+		const manuales = [
 			...bit.filter((b) => b.visible && b.texto).map((b) => ({ fecha: b.fecha, tipo: b.tipo, texto: recorta(b.texto, 600) })),
 			...vis.filter((a) => a.visiblePropietario && a.comentarioPropietario)
 				.map((a) => ({ fecha: iso(a.fecha).slice(0, 10), tipo: 'visita', texto: recorta(a.comentarioPropietario, 600) }))
-		].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).slice(0, 60);
+		];
 		const hp = (p.historialPrecio || []).map((x) => ({ precio: Number(x.precio) || 0, moneda: x.moneda || 'USD', fecha: iso(x.fecha) })).filter((x) => x.precio);
 		const enLinea = p.publicado && seOfrece(p);
 		const difundida = portales.filter((po) => enLinea && (p.difusion || {})[po.id]?.estado === 'publicada')
 			.map((po) => { const r = p.difusion[po.id]; return { nombre: po.nombre, url: /^https?:\/\//.test(r.url || '') ? r.url : '', desde: r.fecha || '' }; });
 		const urlFicha = enLinea && p.slug ? `${SITE}${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/` : '';
+		// Toda la bitácora (visible o no) evita repetir lo que el asesor ya anotó a mano.
+		const auto = eventosAuto({
+			enMercadoDesde: merc.desde, enLinea, portales: difundida, historialPrecio: hp,
+			visitasHechas: hechas.map((a) => ms(a.fecha)), ofertas: ofertasClientes,
+			manuales: [...manuales, ...bit.map((b) => ({ fecha: b.fecha, tipo: b.tipo }))]
+		});
+		const eventos = [...manuales, ...auto].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).slice(0, 60);
+		const interesados = clientesInteresados({ propertyId: p.id, clientes, leads: consultas[p.id] || [], visitas: vis, actividades, ahora });
 		return {
 			id: p.id,
 			titulo: recorta(p.titulo, 200),
@@ -131,6 +142,7 @@ export async function armarPortal(prop) {
 				visitasProximas: vis.filter((a) => !a.hecha && ms(a.fecha) >= ahora).length
 			},
 			eventos,
+			clientes: interesados,
 			portales: [...(urlFicha ? [{ nombre: 'eqinmobiliario.gt', url: urlFicha, desde: '' }] : []), ...difundida]
 		};
 	});
@@ -179,4 +191,32 @@ export async function cerrarPortal(prop) {
 	if (prop.portalToken) await borrarCopia(prop.portalToken);
 	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: '' });
 	prop.portalToken = '';
+}
+
+// Actualización automática: cuando cambia una propiedad, una visita o la etapa de un cliente,
+// se vuelven a publicar los portales de los propietarios de esas propiedades.
+// No bloquea la pantalla, junta varios cambios seguidos (1,5 s) y si falla solo avisa en la consola.
+const pendientesRefresco = new Set();
+let temporizadorRefresco = null;
+
+export function refrescarPortalesDe(propertyIds) {
+	for (const id of [].concat(propertyIds || [])) if (id) pendientesRefresco.add(id);
+	if (!pendientesRefresco.size) return;
+	clearTimeout(temporizadorRefresco);
+	temporizadorRefresco = setTimeout(() => { refrescarAhora().catch((err) => console.warn('Portal del propietario: no se pudo actualizar.', err)); }, 1500);
+}
+
+async function refrescarAhora() {
+	const ids = new Set(pendientesRefresco);
+	pendientesRefresco.clear();
+	const propietarios = await loadPropietarios();
+	const tocados = propietarios.filter((p) => p.portalToken && (p.propiedades || []).some((x) => ids.has(x.propertyId)));
+	for (const prop of tocados) {
+		try { await publicarPortal(prop); } catch (err) { console.warn(`Portal del propietario ${prop.id}: no se pudo actualizar.`, err); }
+	}
+}
+
+// Atajo para cambios de un cliente o de una actividad: usa la propiedad de la actividad o las de interés del cliente.
+export function refrescarPorCliente(cliente, propertyId = '', extra = []) {
+	refrescarPortalesDe([...(propertyId ? [propertyId] : (cliente?.interes || [])), ...extra]);
 }

@@ -211,6 +211,60 @@ a.pp-portal { color: var(--eq-primary); text-decoration: none; }
 a.pp-portal:hover, a.pp-portal:focus { border-color: var(--eq-primary); color: var(--eq-primary-hover); }
 .pp-portal .eq-ic { margin: 0; }
 
+/* Línea de tiempo: eventos que se arman solos (publicación, visitas, ofertas, precio) */
+.pp-evento-auto .pp-evento-icono { background: var(--eq-white); border: 1px solid var(--eq-line); }
+
+/* Clientes interesados: tabla en computadora, tarjetas en celular */
+.pp-clientes { padding: 0 1.25rem 1.25rem; }
+.pp-clientes-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; }
+.pp-clientes-cabecera .pp-h4 { margin-bottom: .25rem; }
+.pp-clientes-resumen { margin: 0; font-size: .9rem; font-weight: 600; color: var(--eq-ink); }
+.pp-nota-chica { display: flex; gap: .4rem; align-items: flex-start; margin: 0 0 .85rem; font-size: .875rem; color: var(--eq-ink); }
+.pp-nota-chica .eq-ic { margin: .15rem 0 0; }
+.pp-nota-chica:last-child { margin: .75rem 0 0; }
+.pp-tabla { width: 100%; border-collapse: collapse; font-size: .925rem; color: var(--eq-dark); }
+.pp-tabla th, .pp-tabla td { padding: .7rem .75rem; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--eq-line); }
+.pp-tabla thead th { font-size: .8rem; font-weight: 700; color: var(--eq-ink); background: var(--eq-mist); border-bottom-color: var(--eq-line); white-space: nowrap; }
+.pp-tabla thead th:first-child { border-radius: var(--eq-radius) 0 0 0; }
+.pp-tabla thead th:last-child { border-radius: 0 var(--eq-radius) 0 0; }
+.pp-tabla tbody tr:last-child > * { border-bottom: 0; }
+.pp-cliente-n { font-weight: 700; white-space: nowrap; }
+.pp-canal { display: inline-flex; align-items: center; gap: .4rem; }
+.pp-canal .eq-ic { margin: 0; color: var(--eq-primary); }
+.pp-apagado { color: var(--eq-ink); }
+.pp-etapa {
+	display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap;
+	padding: .25rem .65rem; border-radius: 999px; font-size: .825rem; font-weight: 700;
+	background: var(--eq-mist); color: var(--eq-dark); border: 1px solid var(--eq-line);
+}
+.pp-etapa .eq-ic { margin: 0; font-size: .85em; }
+.pp-etapa-visito { background: var(--eq-primary-soft); border-color: color-mix(in oklab, var(--eq-primary) 25%, var(--eq-white)); }
+.pp-etapa-visito .eq-ic { color: var(--eq-primary); }
+.pp-etapa-negociando { background: color-mix(in oklab, var(--eq-warning) 14%, var(--eq-white)); border-color: color-mix(in oklab, var(--eq-warning) 45%, var(--eq-white)); }
+.pp-etapa-oferto { background: color-mix(in oklab, var(--eq-gold) 14%, var(--eq-white)); border-color: color-mix(in oklab, var(--eq-gold) 40%, var(--eq-white)); }
+.pp-etapa-oferto .eq-ic { color: var(--eq-gold); }
+.pp-etapa-cerro { background: color-mix(in oklab, var(--eq-whatsapp) 12%, var(--eq-white)); border-color: color-mix(in oklab, var(--eq-whatsapp) 35%, var(--eq-white)); }
+.pp-etapa-cerro .eq-ic { color: var(--eq-whatsapp); }
+.pp-etapa-perdido { background: var(--eq-white); color: var(--eq-ink); }
+
+@media (max-width: 767.98px) {
+	.pp-tabla, .pp-tabla tbody { display: block; }
+	.pp-tabla thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.pp-tabla tbody { display: grid; gap: .75rem; }
+	.pp-cliente {
+		display: grid; grid-template-columns: 1fr auto; gap: .35rem 1rem;
+		padding: .9rem 1rem; border: 1px solid var(--eq-line); border-radius: var(--eq-radius-card); background: var(--eq-white);
+	}
+	.pp-tabla .pp-cliente > * { display: block; padding: 0; border: 0; }
+	.pp-cliente-n { grid-column: 1; grid-row: 1; align-self: center; font-size: 1rem; }
+	.pp-tabla .pp-celda-etapa { grid-column: 2; grid-row: 1; justify-self: end; }
+	.pp-tabla .pp-celda:not(.pp-celda-etapa) { grid-column: 1 / -1; display: flex; gap: .75rem; justify-content: space-between; font-size: .9rem; }
+	.pp-tabla .pp-celda:not(.pp-celda-etapa)::before { content: attr(data-label); color: var(--eq-ink); font-weight: 600; flex-shrink: 0; }
+	.pp-tabla .pp-celda:not(.pp-celda-etapa) > * { text-align: right; }
+	.pp-tabla .pp-celda-etapa::before { content: none; }
+	.pp-cliente-n + .pp-celda { margin-top: .35rem; padding-top: .6rem; border-top: 1px solid var(--eq-line); }
+}
+
 .pp-pie {
 	display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between;
 	margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--eq-line);
@@ -225,5 +279,6 @@ a.pp-portal:hover, a.pp-portal:focus { border-color: var(--eq-primary); color: v
 	.pp-kpis { padding: 0 1rem; margin-top: .25rem; }
 	.pp-prop-info, .pp-prop-cuerpo { padding: 1rem; }
 	.pp-proximas { margin-left: 1rem; margin-right: 1rem; }
+	.pp-clientes { padding: 0 1rem 1rem; }
 	.pp-kpi-numero { font-size: 1.5rem; }
 }

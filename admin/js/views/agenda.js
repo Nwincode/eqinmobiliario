@@ -5,6 +5,7 @@ import { session, loadAgents } from '../session.js';
 import {
 	TIPOS_ACTIVIDAD, tipoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
 } from '../crm.js';
+import { refrescarPorCliente } from '../portal.js';
 
 const GRUPOS = [
 	['vencida', 'Vencidas', 'text-danger'],
@@ -25,6 +26,7 @@ export async function render(container) {
 			await updateDoc(doc(db, 'actividades', a.id), { hecha: true, hechaEn: serverTimestamp() });
 			if (a.clienteId) await updateDoc(doc(db, 'clientes', a.clienteId), { ultimoContacto: serverTimestamp(), updatedAt: serverTimestamp() }).catch(() => {});
 			a.hecha = true;
+			if (a.tipo === 'visita') refrescarPorCliente(clientes.find((c) => c.id === a.clienteId), a.propertyId);
 			toast('Marcada como realizada.');
 			dibujar();
 		} catch (err) { showError(err); }
@@ -36,6 +38,7 @@ export async function render(container) {
 			const { Timestamp } = await import('../firebase.js');
 			await updateDoc(doc(db, 'actividades', a.id), { fecha: Timestamp.fromDate(nueva) });
 			a.fecha = Timestamp.fromDate(nueva);
+			if (a.tipo === 'visita') refrescarPorCliente(clientes.find((c) => c.id === a.clienteId), a.propertyId);
 			dibujar();
 		} catch (err) { showError(err); }
 	};
@@ -79,6 +82,7 @@ export async function render(container) {
 		try {
 			const a = await crearActividad({ tipo: tipo.value, titulo: titulo.value.trim(), fecha: new Date(fecha.value), clienteId: c ? c.id : '', clienteNombre: c ? c.nombre : '', agentId: c ? c.agentId : session.agentId });
 			actividades.push({ ...a, fecha: { toDate: () => new Date(fecha.value), seconds: new Date(fecha.value).getTime() / 1000 } });
+			if (a.tipo === 'visita' && c) refrescarPorCliente(c);
 			titulo.value = '';
 			toast('Agendado.');
 			dibujar();

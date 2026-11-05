@@ -8,7 +8,8 @@
     "serve": "node scripts/serve.mjs",
     "test:renta": "node scripts/test-calc-renta.mjs",
     "test:cotizacion": "node scripts/test-cotizacion.mjs",
-    "test:pendientes": "node scripts/test-pendientes.mjs"
+    "test:pendientes": "node scripts/test-pendientes.mjs",
+    "test:portal": "node scripts/test-portal-clientes.mjs"
   },
   "engines": {
     "node": ">=22"
