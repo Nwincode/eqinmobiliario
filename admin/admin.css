@@ -3249,49 +3249,113 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 /* ===== Fin Cotización ===== */
 
 /* ---- Datos por completar (pendientes.js) ---- */
+/* Insignia con número (menú y tarjeta de Inicio). */
 .nav-aviso,
 .admin-nav a .nav-aviso {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-width: 20px;
-	height: 20px;
-	padding: 0 6px;
+	flex: none;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 7px;
 	border-radius: 999px;
 	background: var(--eq-warning);
 	color: var(--eq-dark);
-	font-size: .72rem;
+	font-size: .75rem;
 	font-weight: 700;
 	line-height: 1;
+	font-variant-numeric: tabular-nums;
 }
 .admin-nav a .nav-aviso { margin-left: auto; width: auto; }
-.admin-nav a .nav-aviso span { width: auto; color: inherit; }
+/* El menú pinta de otro color los íconos al pasar y en la sección activa; el número se queda oscuro. */
+.admin-nav a .nav-aviso span,
+.admin-nav a:hover .nav-aviso span,
+.admin-nav a.active .nav-aviso span { width: auto; color: var(--eq-dark); }
+/* Botón del menú en celular: punto de aviso cuando hay algo por completar. */
+.admin-menu-btn { position: relative; }
+.admin-menu-btn.tiene-aviso::after {
+	content: "";
+	position: absolute;
+	top: -4px;
+	right: -4px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--eq-warning);
+	border: 2px solid var(--adm-surface);
+}
+@media (max-width: 991.98px) {
+	.admin-menu-btn { width: 44px; height: 44px; }
+}
+
+/* Chip en las listas. */
 .chip-falta {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	margin-top: 4px;
-	padding: 2px 8px;
+	gap: 5px;
+	margin-top: 6px;
+	padding: 3px 9px;
 	border-radius: 999px;
-	background: color-mix(in oklab, var(--eq-warning) 18%, var(--adm-surface));
-	border: 1px solid color-mix(in oklab, var(--eq-warning) 60%, var(--adm-surface));
+	background: color-mix(in oklab, var(--eq-warning) 16%, var(--adm-surface));
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 50%, var(--adm-surface));
 	color: var(--eq-dark);
 	font-size: .75rem;
 	font-weight: 600;
+	line-height: 1.3;
 	white-space: nowrap;
 }
+.chip-falta [class^="icon-"] { font-size: .7rem; }
+
+/* Recuadro arriba del formulario. */
 .aviso-faltan {
 	margin-bottom: 1rem;
-	padding: .75rem 1rem;
+	padding: 14px 16px;
 	border: 1px solid color-mix(in oklab, var(--eq-warning) 55%, var(--adm-surface));
 	border-left: 4px solid var(--eq-warning);
-	border-radius: 8px;
+	border-radius: 10px;
 	background: color-mix(in oklab, var(--eq-warning) 12%, var(--adm-surface));
 	color: var(--adm-text);
 }
-.aviso-faltan-titulo { font-weight: 700; color: var(--eq-dark); margin-bottom: .25rem; }
-.aviso-faltan ul { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0; padding-left: 1.1rem; }
-.aviso-faltan a { color: var(--eq-dark); font-weight: 600; min-height: 32px; display: inline-flex; align-items: center; }
+.aviso-faltan-cab { display: flex; align-items: flex-start; gap: 10px; }
+.aviso-faltan-icono { margin-top: 3px; color: var(--eq-dark); }
+.aviso-faltan-titulo { font-weight: 700; color: var(--eq-dark); line-height: 1.35; }
+.aviso-faltan-ayuda { font-size: .85rem; color: var(--adm-text); margin-top: 2px; }
+.aviso-faltan-lista {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 12px 0 0;
+	padding: 0 0 0 26px;
+	list-style: none;
+}
+.aviso-faltan-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
+	padding: 0 12px;
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 60%, var(--adm-border));
+	border-radius: 999px;
+	background: var(--adm-surface);
+	color: var(--eq-dark);
+	font-size: .85rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color .15s ease, border-color .15s ease;
+}
+.aviso-faltan-chip [class^="icon-"] { font-size: .8rem; color: var(--adm-muted); }
+.aviso-faltan-chip:hover {
+	background: color-mix(in oklab, var(--eq-warning) 22%, var(--adm-surface));
+	border-color: var(--eq-warning);
+}
+.aviso-faltan-chip:focus-visible { outline: 2px solid var(--eq-dark); outline-offset: 2px; }
+@media (max-width: 991.98px) {
+	.aviso-faltan-lista { padding-left: 0; }
+	.aviso-faltan-chip { min-height: 44px; padding: 0 14px; }
+}
+
+/* Marca en cada campo que falta. */
 .campo-falta input:not([type=checkbox]):not([type=radio]),
 .campo-falta select,
 .campo-falta textarea,
@@ -3299,12 +3363,108 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	border-color: var(--eq-warning);
 	box-shadow: 0 0 0 3px color-mix(in srgb, var(--eq-warning) 25%, transparent);
 }
-.campo-falta-nota { margin-top: 4px; font-size: .8rem; font-weight: 600; color: var(--eq-dark); }
+.campo-falta-nota {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 6px;
+	font-size: .8rem;
+	font-weight: 600;
+	color: var(--eq-dark);
+}
+.campo-falta-nota [class^="icon-"] { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
 .texto-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+
+/* Tarjeta de Inicio. */
+.tarjeta-pendientes { overflow: hidden; }
+.tarjeta-pendientes-cab {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	background: color-mix(in oklab, var(--eq-warning) 10%, var(--adm-surface));
+	border-bottom-color: color-mix(in oklab, var(--eq-warning) 35%, var(--adm-border));
+}
+.tarjeta-pendientes-icono {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	background: color-mix(in oklab, var(--eq-warning) 28%, var(--adm-surface));
+	color: var(--eq-dark);
+}
+.tarjeta-pendientes-titulo { margin: 0; font-size: 1rem; font-weight: 700; color: var(--adm-dark); }
+.tarjeta-pendientes-ayuda { font-size: .82rem; font-weight: 400; color: var(--adm-muted); margin-top: 2px; }
+.pendientes-grupos { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--adm-border); }
+@media (min-width: 992px) {
+	.pendientes-grupos { grid-template-columns: 1fr 1fr; }
+	.pendientes-bloque:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+.pendientes-bloque { background: var(--adm-surface); padding: 6px 0 8px; }
 .pendientes-grupo {
 	display: flex;
 	align-items: center;
-	background: var(--adm-bg, var(--adm-surface));
-	font-weight: 700;
-	font-size: .85rem;
+	gap: 8px;
+	padding: 8px 10px 4px 18px;
 }
+.pendientes-grupo-icono { width: 18px; text-align: center; color: var(--adm-muted); }
+.pendientes-grupo-titulo {
+	margin: 0;
+	font-size: .75rem;
+	font-weight: 700;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--adm-dark);
+}
+.pendientes-grupo-n {
+	min-width: 20px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: var(--adm-bg);
+	border: 1px solid var(--adm-border);
+	color: var(--adm-text);
+	font-size: .72rem;
+	font-weight: 700;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+.pendientes-ver,
+.pendientes-mas {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-height: 44px;
+	padding: 0 8px;
+	border-radius: 8px;
+	font-size: .82rem;
+	font-weight: 600;
+	color: var(--adm-primary);
+	text-decoration: none;
+}
+.pendientes-ver:hover,
+.pendientes-mas:hover { background: var(--eq-primary-soft); color: var(--adm-primary); }
+.pendientes-mas { margin: 0 10px 0 10px; }
+.pendientes-filas { list-style: none; margin: 0; padding: 0 8px; }
+.pendientes-fila {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 56px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	color: var(--adm-text);
+	text-decoration: none;
+	transition: background-color .15s ease;
+}
+.pendientes-filas li + li { border-top: 1px solid var(--adm-border); }
+.pendientes-fila:hover { background: var(--adm-bg); color: var(--adm-text); }
+.pendientes-fila:hover .pendientes-fila-flecha { color: var(--adm-primary); transform: translateX(2px); }
+.pendientes-fila:focus-visible,
+.pendientes-ver:focus-visible,
+.pendientes-mas:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: -2px; }
+.pendientes-fila-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pendientes-fila-nombre { font-weight: 600; color: var(--adm-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pendientes-fila-falta { font-size: .8rem; color: var(--adm-muted); margin-top: 2px; }
+.pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }
