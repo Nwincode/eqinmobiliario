@@ -308,7 +308,7 @@ test('valores por defecto por tipo y parámetros editables', () => {
 		assert.equal(R.PARAMS[k].confirmar, false, `${k} verificado`);
 	assert.match(R.PARAMS.iusiTramo1Tasa.fuente, /^Decreto 18-2026, art\. 1 \(reforma art\. 11 Dto\. 15-98\), DCA 28-ago-2026/);
 	assert.match(R.PARAMS.ivaPequeno.fuente, /^Ley del IVA, Dto\. 27-92, art\. 3 num\. 4; art\. 10; arts\. 45-47 \(Dto\. 4-2012\)/);
-	assert.equal(R.PARAMS.limitePequenoGTQ.fuente, 'Dto. 31-2024 (125 salarios mínimos no agrícolas, 2026)');
+	assert.equal(R.PARAMS.limitePequenoGTQ.fuente, 'Dto. 31-2024, arts. 15-17 (Ley del IVA arts. 45, 46 y 50): 125 salarios mínimos mensuales no agrícolas, sin bonificación incentivo. Monto 2026 según el salario mínimo vigente');
 	for (const k of ['limitePequenoGTQ', 'isrGananciaCapital', 'isrGananciaUtilidades', 'tipoCambio', 'capCasa']) assert.equal(R.PARAMS[k].confirmar, true, `${k} por confirmar`);
 	assert.equal(R.dinero(1234.5, 'USD', 'en'), 'US$ 1,235');
 	assert.equal(R.porcentaje(0.05677, 'en', 2), '5.68 %');

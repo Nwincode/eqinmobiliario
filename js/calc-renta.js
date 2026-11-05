@@ -43,7 +43,7 @@
 
 		ivaGeneral: { valor: 12, etiqueta: 'IVA régimen general', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. El arrendamiento, también el de vivienda, paga IVA (no hay exención). En el régimen general se cobra al inquilino encima de la renta.', confirmar: false },
 		ivaPequeno: { valor: 5, etiqueta: 'IVA pequeño contribuyente', unidad: '%', grupo: 'IVA', fuente: FUENTE_IVA + '. Pequeño contribuyente: 5 % sobre los ingresos brutos; lo paga el dueño.', confirmar: false },
-		limitePequenoGTQ: { valor: 500285, etiqueta: 'Pequeño contribuyente: límite de ingresos al año', unidad: 'Q', grupo: 'IVA', fuente: 'Dto. 31-2024 (125 salarios mínimos no agrícolas, 2026)', confirmar: true },
+		limitePequenoGTQ: { valor: 500285, etiqueta: 'Pequeño contribuyente: límite de ingresos al año', unidad: 'Q', grupo: 'IVA', fuente: 'Dto. 31-2024, arts. 15-17 (Ley del IVA arts. 45, 46 y 50): 125 salarios mínimos mensuales no agrícolas, sin bonificación incentivo. Monto 2026 según el salario mínimo vigente', confirmar: true },
 
 		capCasa: { valor: 5, etiqueta: 'Cap rate de referencia: casa', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
 		capApartamento: { valor: 6, etiqueta: 'Cap rate de referencia: apartamento', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
