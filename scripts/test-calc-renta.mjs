@@ -420,4 +420,26 @@ test('comisión: contrato de 30 años, un solo pago al firmar', () => {
 	cerca(g.anios[0].comision, m * 1200, 1e-6, 'régimen general: sin IVA');
 });
 
+test('comisión: la TIR del panel y la del motor coinciden; el tipo cambia el cap rate de salida', () => {
+	// Entradas como las manda el panel por defecto (tipo casa, plazo 30, venta exenta) y sus parámetros.
+	const panel = { ...conComision, tipo: 'casa', crecimientoRenta: 3, reservaCapex: 0, plazo: 30, costosVenta: 5, tasaDescuento: 10,
+		costosCompra: 0, capexSumaAlCosto: true, restarImpuestoVenta: true, vendedorExento: true, regimenIVA: 'auto' };
+	const P = Object.fromEntries(Object.entries(R.PARAMS).map(([k, p]) => [k, p.valor]));
+	const r = R.calcular(panel, P);
+	assert.equal(r.entradas.capSalida, 5.5, 'casa: 5 % + 0.5');
+	cerca(r.tir * 100, 7.74, 0.005, 'TIR casa');
+	cerca(R.calcular({ ...panel, comisionActiva: false }, P).tir * 100, 8.43, 0.005, 'TIR casa sin comisión');
+	cerca(r.totales.comision, 62060.91, 0.01, 'comisiones en 30 años');
+	// Los flujos de la TIR son la caja: comisión completa el año que se firma, no la repartida.
+	r.anios.slice(0, -1).forEach((a, i) => cerca(r.flujos[i + 1], a.netoCaja));
+	// Sin tipo no hay referencia: cap rate de salida 7 % (precio de venta menor), por eso la TIR baja a 7.34 %.
+	const sinTipo = R.calcular({ ...panel, tipo: '' }, P);
+	assert.equal(sinTipo.entradas.capSalida, 7);
+	cerca(sinTipo.tir * 100, 7.34, 0.005, 'TIR sin tipo');
+	r.anios.forEach((a, i) => cerca(a.netoCaja, sinTipo.anios[i].netoCaja, 1e-9, `misma caja año ${i + 1}`));
+	// Lo confirmado por el propietario: el plazo se elige en cada negocio y cada renovación paga (escala reinicia).
+	for (const k of ['plazoContrato', 'comisionEnRenovacion', 'escalaContinua']) assert.equal(R.PARAMS[k].confirmar, false, k);
+	assert.equal(R.PARAMS.ivaComision.confirmar, true, 'IVA de la comisión sigue por confirmar');
+});
+
 console.log(`\n${ok} pruebas pasaron${process.exitCode ? ', con fallas' : ''}.`);

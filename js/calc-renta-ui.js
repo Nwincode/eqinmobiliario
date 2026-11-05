@@ -138,13 +138,18 @@
 		function resumen() {
 			var e = ultimo.entradas, a = ultimo.anio1;
 			var usoSel = campo('uso');
-			return fmt(t.rentaResumen, {
+			var plantilla = String(t.rentaResumen || '');
+			// Un texto guardado en el panel antes de la comisión no trae {comisionResta}: se agrega al final
+			// para que el mensaje cuadre con el neto (que ya la resta).
+			if (a.comisionDevengada > 0 && plantilla.indexOf('{comisionResta}') < 0) plantilla += '\n' + (t.rentaDComision || 'Comisión de arrendamiento') + ': −{comisionMonto}';
+			return fmt(plantilla, {
 				precio: dinero(e.precio), renta: dinero(e.rentaMensual), uso: usoSel.options[usoSel.selectedIndex].text,
 				neto: dinero(ultimo.netoMensual), rend: pct(ultimo.rendimientoNeto), bruto: pct(ultimo.rendimientoBruto),
 				vacancia: e.vacancia, gastos: e.gastosOperativos,
 				bruta: dinero(a.pgi), vacMonto: dinero(a.vacancia), efectivo: dinero(a.cobrado), gastosMonto: dinero(a.opex),
 				iusi: a.iusi > 0 ? dinero(a.iusi) : (t.rentaDExento || dinero(0)),
 				comisionResta: a.comisionDevengada > 0 ? ' − ' + (t.rentaDComision || '') + ' ' + dinero(a.comisionDevengada) : '',
+				comisionMonto: dinero(a.comisionDevengada),
 				isr: dinero(a.isr), netoAnual: dinero(a.neto),
 				// Pequeño contribuyente entra en la cuenta; el IVA general va aparte, como dato.
 				ivaResta: e.regimenIVA === 'pequeno' ? ' − ' + (t.rentaDIvaPeq || 'IVA') + ' ' + dinero(a.ivaPropietario) : '',

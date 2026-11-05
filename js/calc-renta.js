@@ -57,8 +57,8 @@
 
 		// Comisión de arrendamiento (corretaje). Los valores sí/no son booleanos (unidad 'sí/no').
 		comisionActiva: { valor: true, etiqueta: 'Cobrar comisión de arrendamiento', unidad: 'sí/no', grupo: 'Comisión', fuente: FUENTE_COMISION + '.', confirmar: false },
-		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato, de 1 a 30', unidad: 'años', grupo: 'Comisión', fuente: 'Supuesto del asesor.', confirmar: true },
-		comisionEnRenovacion: { valor: true, etiqueta: 'Cada contrato nuevo o renovación paga comisión', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Supuesto; se negocia con el propietario.', confirmar: true },
+		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato, de 1 a 30', unidad: 'años', grupo: 'Comisión', fuente: 'Confirmado por el propietario: el plazo se elige en cada negocio (3 años por defecto).', confirmar: false },
+		comisionEnRenovacion: { valor: true, etiqueta: 'Cada contrato nuevo o renovación paga comisión', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación vuelve a pagar comisión y la escala reinicia.', confirmar: false },
 		escalaContinua: { valor: false, etiqueta: 'Renovación con el mismo inquilino sigue la escala (no reinicia)', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación reinicia la escala (valor no). Opción avanzada: si no reinicia, un contrato del año a al año b del arrendamiento paga meses(b) − meses(a − 1) rentas.', confirmar: false },
 		ivaComision: { valor: 12, etiqueta: 'IVA sobre la factura de la comisión', unidad: '%', grupo: 'Comisión', fuente: 'Ley del IVA art. 3 num. 2 y art. 10 (servicio gravado). Es costo para el pequeño contribuyente; en el régimen general de IVA se toma como crédito fiscal y no es costo.', confirmar: true }
 	};
