@@ -1808,7 +1808,7 @@ export function portalPage(ctx) {
 				<span data-canal="redes" class="icon-share-alt eq-ic" aria-hidden="true"></span>
 				<span data-canal="referido" class="icon-user-plus eq-ic" aria-hidden="true"></span>
 				<span data-canal="llamada" class="icon-phone eq-ic" aria-hidden="true"></span>
-				<span data-canal="otro" class="icon-user eq-ic" aria-hidden="true"></span>
+				<span data-canal="otro" class="icon-ellipsis-h eq-ic" aria-hidden="true"></span>
 				<span data-etapa="interesado" class="icon-eye eq-ic" aria-hidden="true"></span>
 				<span data-etapa="visito" class="icon-calendar-check-o eq-ic" aria-hidden="true"></span>
 				<span data-etapa="negociando" class="icon-comments eq-ic" aria-hidden="true"></span>
