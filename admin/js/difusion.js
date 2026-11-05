@@ -4,6 +4,7 @@ import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
 import { seOfrece } from './estados.js';
+import { conEmojis } from './descripcion.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
@@ -88,7 +89,9 @@ export function textoPara(p, portal, { agente, contacto } = {}) {
 	const t = L[lang];
 	const en = lang === 'en' ? (p.en || {}) : {};
 	const titulo = en.titulo || p.titulo || '';
-	const desc = stripMd(en.descripcion || p.descripcion || '').replace(/[ \t]+\n/g, '\n').trim();
+	const fuente = en.descripcion || p.descripcion || '';
+	// Facebook, Instagram y WhatsApp (estilo social o mensaje) llevan emojis; los portales no.
+	const desc = stripMd(portal.estilo === 'portal' ? fuente : conEmojis(fuente)).replace(/[ \t]+\n/g, '\n').trim();
 	const amen = (lang === 'en' ? en.amenidades : p.amenidades) || [];
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const precio = precioTexto(p, lang);

@@ -11,6 +11,7 @@ import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
 import { visibilidadDe } from '../admin/js/estados.js';
+import { conEmojis } from '../admin/js/descripcion.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -269,7 +270,7 @@ ${disponibles.filter((p) => !sinPrecio(p) && fotos(p).length).map((p) => {
 		<name>${xmlEsc(p.titulo)}</name>
 		<availability>${p.operacion === 'renta' ? 'for_rent' : 'for_sale'}</availability>
 		<listing_type>${p.operacion === 'renta' ? 'for_rent_by_agent' : 'for_sale_by_agent'}</listing_type>
-		<description>${xmlEsc(textoPlano(p.descripcion).slice(0, 5000))}</description>
+		<description>${xmlEsc(textoPlano(conEmojis(p.descripcion)).slice(0, 5000))}</description>
 		<address format="simple">
 			<component name="addr1">${xmlEsc(p.direccion || p.zona || '')}</component>
 			<component name="city">${xmlEsc(p.ciudad || 'Guatemala')}</component>
