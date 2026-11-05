@@ -36,6 +36,19 @@
     X-Robots-Tag = "noindex, nofollow"
     Cache-Control = "no-cache"
 
+# Portal del propietario: privado (el enlace lleva un token) y fuera de Google.
+[[headers]]
+  for = "/propietarios/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/en/owners/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-cache"
+
 [[headers]]
   for = "/*"
   [headers.values]

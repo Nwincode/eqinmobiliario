@@ -6,6 +6,15 @@ import {
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+// Motor de la calculadora de renta (script clásico js/calc-renta.js): el mismo que usa el navegador.
+const EQRenta = (() => {
+	const sandbox = { module: { exports: {} }, Intl };
+	vm.runInNewContext(readFileSync(new URL('../../js/calc-renta.js', import.meta.url), 'utf8'), sandbox);
+	return sandbox.module.exports;
+})();
 
 // Idioma: ctx.lang ('es' por defecto); las propiedades traducidas llevan p._lang = 'en'.
 const tr = (ctx) => TEXTOS[(ctx && ctx.lang) || 'es'];
@@ -142,12 +151,14 @@ function head(ctx, page) {
 	<meta name="theme-color" content="${colorTema(site.tema, 'dark')}">
 	${preloadTags(ctx, page.preloadImage)}
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
+	${page.noReferrer ? '<meta name="referrer" content="no-referrer">' : ''}
+	${(page.extraCss || []).map((h) => `<link rel="stylesheet" href="${esc(h)}">`).join('\n\t')}
 	${cssTema(site.tema) ? `<style id="eq-tema">${cssTema(site.tema)}</style>` : ''}
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link rel="preload" as="style" href="${FONTS_URL}" onload="this.onload=null;this.rel='stylesheet'">
 	<noscript><link rel="stylesheet" href="${FONTS_URL}"></noscript>
-	${trackingHead(site)}
+	${page.sinRastreo ? '' : trackingHead(site)}
 	${(page.jsonLd || []).map(jsonLd).join('\n\t')}
 	<script>window.EQ_CONFIG=${JSON.stringify({ ...ctx.publicConfig, t: textosCliente(ctx.lang || 'es') }).replace(/</g, '\\u003c')};</script>
 </head>`;
@@ -235,6 +246,7 @@ function footer(ctx) {
 	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip);
 	const pageLinks = ctx.pages.filter((p) => p.enFooter);
 	if (ctx.posts.length) pageLinks.unshift({ url: rt(ctx).blog, titulo: t.blog });
+	pageLinks.push({ url: rt(ctx).calculadora, titulo: t.rentaLink });
 	const wa = whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje);
 	return `<div class="site-footer">
 		<div class="container">
@@ -306,7 +318,7 @@ function layout(ctx, page, body) {
 	}
 	return `${head(ctx, page)}
 <body${bodyAttrs}>
-	${trackingBody(ctx.site)}
+	${page.sinRastreo ? '' : trackingBody(ctx.site)}
 	${page.bare ? '' : nav(ctx, page.path)}
 	${body}
 	${page.bare ? '' : footer(ctx)}
@@ -808,6 +820,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 
 // Código corto para que el cliente cite la propiedad por teléfono o WhatsApp.
 export function propertyCode(p) {
+	// El código del panel (p. ej. VLM-Z15-JA-001); las propiedades antiguas sin código usan EQ-xxxxxx.
+	if (p.codigo) return String(p.codigo).trim().toUpperCase();
 	return `EQ-${String(p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
 }
 
@@ -826,6 +840,70 @@ function mortgageCalculator(ctx, p) {
 						<p class="calc-result mt-3 mb-1" aria-live="polite"></p>
 						<p class="small text-black-50 mb-0">${t.calcNota}</p>
 					</div>`;
+}
+
+// Calculadora de renta (versión pública). Las cuentas las hace js/calc-renta.js en el navegador.
+// Se muestra en fichas en venta (no terrenos) con precio, y vacía en /calculadora-de-renta/.
+export function rentaVisible(p) {
+	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && Number(p.precio) > 0);
+}
+function rentaWidget(ctx, p = null) {
+	const t = tr(ctx);
+	const lang = ctx.lang || 'es';
+	const moneda = (p && p.moneda) || 'USD';
+	const uso = EQRenta.usoPorTipo(p && p.tipo);
+	const sugerida = p ? EQRenta.rentaSugerida(Number(p.precio), p.tipo) : null;
+	const renta = sugerida ? Math.round(sugerida / 10) * 10 : '';
+	const pre = moneda === 'GTQ' ? 'Q' : 'US$';
+	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('renta')));
+	const opt = (v, txt, sel) => `<option value="${v}"${sel ? ' selected' : ''}>${esc(txt)}</option>`;
+	const num = (id, name, label, value, attrs) => `<label class="form-label" for="${id}">${label}</label><input id="${id}" class="form-control" name="${name}" type="number" inputmode="decimal" ${attrs} value="${esc(value)}">`;
+	return `<div class="renta-card" data-renta data-tipo="${esc((p && p.tipo) || '')}" data-moneda="${esc(moneda)}" data-lang="${lang}" data-form="${p ? '.ficha-contacto .lead-form' : '.lead-form[data-origen=&quot;calculadora&quot;]'}">
+						<script type="application/json" class="renta-t">${JSON.stringify(textos).replace(/</g, '\\u003c')}</script>
+						<div class="row g-3">
+							${p ? '' : `<div class="col-5 col-sm-3"><label class="form-label" for="rc-moneda">${t.rentaMoneda}</label><select id="rc-moneda" class="form-select" name="moneda">${opt('USD', 'US$', moneda === 'USD')}${opt('GTQ', 'Q', moneda === 'GTQ')}</select></div>`}
+							<div class="${p ? 'col-sm-6' : 'col-7 col-sm-4'}">${num('rc-precio', 'precio', `${t.rentaPrecio} <span class="renta-moneda">(${pre})</span>`, p ? p.precio : '', 'min="0" step="1000"')}</div>
+							<div class="${p ? 'col-sm-6' : 'col-sm-5'}">${num('rc-renta', 'renta', `${t.rentaMensual} <span class="renta-moneda">(${pre})</span>`, renta, `min="0" step="10"${p ? ' aria-describedby="rc-renta-ayuda"' : ''}`)}</div>
+							${p ? `<p id="rc-renta-ayuda" class="renta-ayuda col-12 mt-1">${t.rentaSugerida}</p>` : ''}
+							<div class="col-sm-6"><label class="form-label" for="rc-uso">${t.rentaUso}</label><select id="rc-uso" class="form-select" name="uso">${opt('habitacional', t.rentaHabitacional, uso === 'habitacional')}${opt('mixto', t.rentaMixto, uso === 'mixto')}${opt('comercial', t.rentaComercial, uso === 'comercial')}</select></div>
+						</div>
+						<details class="renta-supuestos">
+							<summary>${ic('sliders')}${t.rentaSupuestos}</summary>
+							<div class="row g-3 pt-2">
+								<div class="col-6">${num('rc-vacancia', 'vacancia', t.rentaVacancia, 5, 'min="0" max="100" step="1"')}</div>
+								<div class="col-6">${num('rc-gastos', 'gastos', t.rentaGastos, 10, 'min="0" max="100" step="1"')}</div>
+								<div class="col-sm-6"><label class="form-label" for="rc-plazo">${t.rentaPlazoContrato}</label><select id="rc-plazo" class="form-select" name="plazoContrato">${[1, 2, 3, 5, 10, 30].map((n) => opt(n, n === 1 ? t.rentaPlazoAnio : String(t.rentaPlazoAnios).replace('{n}', n), n === EQRenta.PARAMS.plazoContrato.valor)).join('')}</select></div>
+							</div>
+						</details>
+						<div class="renta-resultado" aria-live="polite" aria-atomic="true">
+							<p class="renta-kpi-label">${t.rentaNetoMensual}</p>
+							<p class="renta-kpi" data-out="neto">—</p>
+							<div class="renta-mini">
+								<div><span>${t.rentaRendNeto}</span><strong data-out="rendNeto">—</strong></div>
+								<div><span>${t.rentaRendBruto}</span><strong data-out="rendBruto">—</strong></div>
+							</div>
+							<p class="renta-vacio" data-out="vacio">${t.rentaVacio}</p>
+						</div>
+						<div class="renta-desglose" data-out="desglose" hidden></div>
+						<p class="renta-iva" data-out="iva" hidden></p>
+						<div class="renta-escenarios" data-out="escenarios" hidden>
+							<h3 class="renta-sub">${t.rentaEscenarios}</h3>
+							<div class="renta-esc-grid"></div>
+						</div>
+						<button type="button" class="btn btn-primary w-100 renta-cta" data-renta-cta>${ic('comments')}${t.rentaCta}</button>
+						<p class="renta-estado" role="status" aria-live="polite"></p>
+						<p class="renta-nota">${ic('info-circle')}${t.rentaNota}</p>
+						<p class="renta-nota mb-0">${t.rentaAviso}</p>
+					</div>`;
+}
+function rentaCalculator(ctx, p) {
+	if (!rentaVisible(p)) return '';
+	const t = tr(ctx);
+	return `<section class="ficha-bloque renta-bloque" id="renta">
+						<h2>${ic('line-chart')}${t.rentaTitulo}</h2>
+						<p class="renta-intro">${t.rentaIntro}</p>
+						${rentaWidget(ctx, p)}
+					</section>`;
 }
 
 function factsList(p) {
@@ -1037,6 +1115,7 @@ export function propertyPage(ctx, p) {
 					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
 					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
 					${!cerrada && mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
+					${!cerrada ? rentaCalculator(ctx, p) : ''}
 				</div>
 				<aside class="col-lg-4">
 					<div class="ficha-contacto">
@@ -1067,7 +1146,8 @@ export function propertyPage(ctx, p) {
 		ogType: 'article',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
-		waMensaje: waMsg
+		waMensaje: waMsg,
+		extraJs: !cerrada && rentaVisible(p) ? RENTA_JS : ''
 	}, body);
 }
 
@@ -1347,6 +1427,40 @@ export function contentPage(ctx, page) {
 	}, body);
 }
 
+// Página de la calculadora de renta (/calculadora-de-renta/, /en/rental-calculator/).
+const RENTA_JS = '<script src="__RENTA_BUNDLE__" defer></script>';
+export function rentalCalculatorPage(ctx) {
+	const t = tr(ctx);
+	const url = rt(ctx).calculadora;
+	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, { name: t.rentaPagTitulo, url }];
+	const body = `
+	${pageHero(ctx, t.rentaPagTitulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', crumbs)}
+	<div class="section renta-pagina">
+		<div class="container">
+			<div class="row justify-content-center g-4 g-lg-5">
+				<div class="col-lg-7">
+					<p class="renta-intro renta-intro-lg">${t.rentaPagLead}</p>
+					${rentaWidget(ctx)}
+				</div>
+				<aside class="col-lg-5 col-xl-4">
+					<div class="lead-card renta-lead">
+						${leadForm({ origen: 'calculadora', titulo: t.rentaPagForm, lang: ctx.lang || 'es' })}
+						<p class="renta-nota mb-0 mt-3">${t.rentaPagFormTexto}</p>
+					</div>
+				</aside>
+			</div>
+		</div>
+	</div>`;
+	return layout(ctx, {
+		path: url,
+		alternates: ctx.enActivo ? { es: RUTAS.es.calculadora, en: RUTAS.en.calculadora } : undefined,
+		title: `${t.rentaPagMeta} | ${ctx.site.general.nombreCorto}`,
+		description: t.rentaPagDesc,
+		jsonLd: [breadcrumbLd(ctx, crumbs)],
+		extraJs: RENTA_JS
+	}, body);
+}
+
 function faqLd(page) {
 	if (!/preguntas|faq/i.test(page.slug || page.url || '')) return null;
 	const items = String(page.contenido || '').split(/^##\s+/m).slice(1).map((bloque) => {
@@ -1459,4 +1573,204 @@ export function notFoundPage(ctx) {
 		</div>
 	</div>`;
 	return layout(ctx, { path: '/404.html', title: `${t.noEncontrada} | ${ctx.site.general.nombreCorto}`, noindex: true }, body);
+}
+
+// ——— Portal del propietario (/propietarios/ y /en/owners/) ———
+// Página privada: no se indexa ni va en el sitemap. Los datos los carga js/portal-propietarios.js
+// desde Firestore (portalPropietarios/{token}). Todo el marcado (también el de las plantillas)
+// está aquí para que la limpieza de CSS conserve las clases y los íconos.
+const TEXTOS_PORTAL = {
+	es: {
+		titulo: 'Portal de propietarios', migas: 'Portal de propietarios',
+		cargando: 'Cargando tu portal…',
+		accesoTitulo: 'Entra a tu portal', accesoTexto: 'Escribe el correo que le diste a tu asesor. Te mandamos un enlace para entrar, sin contraseña.',
+		correo: 'Tu correo', correoEj: 'nombre@correo.com', correoMal: 'Escribe un correo completo, por ejemplo nombre@correo.com.', enviar: 'Enviarme el enlace',
+		enviado: 'Te enviamos un enlace a tu correo. Si está registrado con nosotros, te llegará en unos minutos. Revisa también la carpeta de spam o promociones.',
+		whatsappAyuda: '¿Tu asesor te mandó un enlace por WhatsApp? Ábrelo y entras directo.',
+		confirmarTitulo: 'Confirma tu correo', confirmarTexto: 'Abriste el enlace en otro teléfono o navegador. Escribe otra vez tu correo para entrar.', confirmar: 'Entrar',
+		errorTitulo: 'No pudimos abrir tu portal', errorTexto: 'Revisa tu conexión a internet e inténtalo otra vez.',
+		reintentar: 'Intentar otra vez', usarCorreo: 'Entrar con mi correo', escribirnos: 'Escríbenos por WhatsApp',
+		vacioTitulo: 'No encontramos un portal con este correo', vacioTexto: 'Pídele a tu asesor que active tu portal o que revise el correo que tiene registrado.', otroCorreo: 'Usar otro correo',
+		hola: 'Hola', resumen: 'Así va tu propiedad. Sin llamadas: aquí ves lo último.', actualizado: 'Actualizado el',
+		tuAsesor: 'Tu asesor', whatsapp: 'WhatsApp', llamar: 'Llamar',
+		exclusiva: 'Exclusiva vence', proximoPaso: 'Próximo paso',
+		enMercado: 'días en el mercado', verPublicacion: 'Ver la publicación',
+		consultas: 'Consultas', visitas: 'Visitas', ofertas: 'Ofertas', ult30: 'en los últimos 30 días',
+		actividad: 'Lo que ha pasado', sinActividad: 'Todavía no hay novedades. Tu asesor las irá agregando aquí.',
+		precios: 'Historial de precio', portales: 'Dónde se anuncia', sinPortales: 'Tu asesor está preparando la publicación.',
+		privacidad: 'Por privacidad no mostramos nombres ni teléfonos de los interesados.', salir: 'Salir'
+	},
+	en: {
+		titulo: 'Owner portal', migas: 'Owner portal',
+		cargando: 'Loading your portal…',
+		accesoTitulo: 'Open your portal', accesoTexto: 'Enter the email you gave your agent. We will send you a link to sign in, no password needed.',
+		correo: 'Your email', correoEj: 'name@email.com', correoMal: 'Enter a full email address, for example name@email.com.', enviar: 'Email me the link',
+		enviado: 'We sent you a link. If your email is registered with us, it will arrive in a few minutes. Please check your spam or promotions folder too.',
+		whatsappAyuda: 'Did your agent send you a link on WhatsApp? Open it to go straight in.',
+		confirmarTitulo: 'Confirm your email', confirmarTexto: 'You opened the link on another phone or browser. Enter your email again to sign in.', confirmar: 'Sign in',
+		errorTitulo: 'We could not open your portal', errorTexto: 'Check your internet connection and try again.',
+		reintentar: 'Try again', usarCorreo: 'Sign in with my email', escribirnos: 'Message us on WhatsApp',
+		vacioTitulo: 'We could not find a portal for this email', vacioTexto: 'Ask your agent to turn on your portal or to check the email they have on file.', otroCorreo: 'Use another email',
+		hola: 'Hi', resumen: 'Here is how your property is doing, no phone calls needed.', actualizado: 'Updated',
+		tuAsesor: 'Your agent', whatsapp: 'WhatsApp', llamar: 'Call',
+		exclusiva: 'Exclusive listing ends', proximoPaso: 'Next step',
+		enMercado: 'days on the market', verPublicacion: 'See the listing',
+		consultas: 'Inquiries', visitas: 'Showings', ofertas: 'Offers', ult30: 'in the last 30 days',
+		actividad: 'What has happened', sinActividad: 'No updates yet. Your agent will add them here.',
+		precios: 'Price history', portales: 'Where it is advertised', sinPortales: 'Your agent is preparing the listing.',
+		privacidad: 'For privacy, we never show the names or phone numbers of interested buyers.', salir: 'Sign out'
+	}
+};
+
+export function portalPage(ctx) {
+	const lang = ctx.lang === 'en' ? 'en' : 'es';
+	const t = TEXTOS_PORTAL[lang];
+	const path = lang === 'en' ? '/en/owners/' : '/propietarios/';
+	const wa = whatsappLink(ctx.site.contacto.whatsapp, lang === 'en' ? 'Hi, I need help with my owner portal.' : 'Hola, necesito ayuda con mi portal de propietario.');
+	const btnWaOficina = wa ? `<a href="${esc(wa)}" class="btn btn-success" target="_blank" rel="noopener">${ic('whatsapp')}${t.escribirnos}</a>` : '';
+	const body = `
+	${pageHero(ctx, t.titulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: tr(ctx).inicio, url: rt(ctx).inicio }, { name: t.migas, url: path }])}
+	<div class="section pp" id="pp" data-lang="${lang}" data-t="${esc(JSON.stringify(t))}">
+		<div class="container pp-contenedor">
+			<div id="pp-cargando" class="pp-cargando" role="status"><span class="pp-spinner" aria-hidden="true"></span>${t.cargando}</div>
+
+			<section id="pp-acceso" class="pp-tarjeta pp-acceso" aria-labelledby="pp-acceso-titulo" hidden>
+				<span class="icon-lock pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-acceso-titulo" class="pp-h2">${t.accesoTitulo}</h2>
+				<p class="pp-texto">${t.accesoTexto}</p>
+				<form id="pp-form-correo" class="pp-form" novalidate>
+					<label for="pp-correo" class="pp-label">${t.correo}</label>
+					<input id="pp-correo" name="email" type="email" class="form-control pp-input" autocomplete="email" inputmode="email" required placeholder="${t.correoEj}" aria-describedby="pp-correo-error">
+					<p id="pp-correo-error" class="pp-error-campo" hidden>${ic('exclamation-circle')}${t.correoMal}</p>
+					<button type="submit" class="btn btn-primary pp-btn-ancho">${ic('envelope-o')}${t.enviar}</button>
+				</form>
+				<p id="pp-enviado" class="pp-aviso pp-aviso-ok" role="status" hidden>${ic('envelope-open-o')}<span>${t.enviado}</span></p>
+				<p class="pp-nota">${ic('whatsapp')}${t.whatsappAyuda}</p>
+			</section>
+
+			<section id="pp-confirmar" class="pp-tarjeta pp-acceso" aria-labelledby="pp-confirmar-titulo" hidden>
+				<span class="icon-envelope-o pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-confirmar-titulo" class="pp-h2">${t.confirmarTitulo}</h2>
+				<p class="pp-texto">${t.confirmarTexto}</p>
+				<form id="pp-form-confirmar" class="pp-form" novalidate>
+					<label for="pp-correo2" class="pp-label">${t.correo}</label>
+					<input id="pp-correo2" name="email" type="email" class="form-control pp-input" autocomplete="email" inputmode="email" required placeholder="${t.correoEj}" aria-describedby="pp-correo2-error">
+					<p id="pp-correo2-error" class="pp-error-campo" hidden>${ic('exclamation-circle')}${t.correoMal}</p>
+					<button type="submit" class="btn btn-primary pp-btn-ancho">${ic('sign-in')}${t.confirmar}</button>
+				</form>
+			</section>
+
+			<section id="pp-error" class="pp-tarjeta pp-acceso" aria-labelledby="pp-error-titulo" hidden>
+				<span class="icon-exclamation-circle pp-acceso-icono pp-acceso-icono-error" aria-hidden="true"></span>
+				<h2 id="pp-error-titulo" class="pp-h2">${t.errorTitulo}</h2>
+				<p id="pp-error-texto" class="pp-texto">${t.errorTexto}</p>
+				<div class="pp-acciones">
+					<button type="button" class="btn btn-primary" id="pp-reintentar">${ic('refresh')}${t.reintentar}</button>
+					<button type="button" class="btn btn-outline-primary" data-pp-accion="correo">${ic('envelope-o')}${t.usarCorreo}</button>
+					${btnWaOficina}
+				</div>
+			</section>
+
+			<section id="pp-vacio" class="pp-tarjeta pp-acceso" aria-labelledby="pp-vacio-titulo" hidden>
+				<span class="icon-home pp-acceso-icono" aria-hidden="true"></span>
+				<h2 id="pp-vacio-titulo" class="pp-h2">${t.vacioTitulo}</h2>
+				<p class="pp-texto">${t.vacioTexto}</p>
+				<div class="pp-acciones">
+					${btnWaOficina}
+					<button type="button" class="btn btn-outline-primary" data-pp-accion="salir">${ic('envelope-o')}${t.otroCorreo}</button>
+				</div>
+			</section>
+
+			<div id="pp-panel" class="pp-panel" hidden>
+				<div class="pp-encabezado">
+					<div class="pp-saludo">
+						<h2 class="pp-h1">${t.hola}<span data-pp="nombre"></span></h2>
+						<p class="pp-texto">${t.resumen}</p>
+						<p class="pp-actualizado">${ic('refresh')}${t.actualizado} <time data-pp="actualizado"></time></p>
+					</div>
+					<div class="pp-asesor" data-pp="asesor">
+						<div class="pp-asesor-persona">
+							<img class="pp-asesor-foto" data-pp="asesor-foto" alt="" width="56" height="56" hidden>
+							<span class="pp-asesor-inicial" data-pp="asesor-inicial" aria-hidden="true"></span>
+							<div><p class="pp-asesor-rol">${t.tuAsesor}</p><p class="pp-asesor-nombre" data-pp="asesor-nombre"></p></div>
+						</div>
+						<div class="pp-asesor-botones">
+							<a class="btn btn-success" data-pp="asesor-wa" target="_blank" rel="noopener">${ic('whatsapp')}${t.whatsapp}</a>
+							<a class="btn btn-outline-primary" data-pp="asesor-tel">${ic('phone')}${t.llamar}</a>
+						</div>
+					</div>
+				</div>
+				<div class="pp-datos" data-pp="datos">
+					<div class="pp-dato" data-pp="paso-caja" hidden>${ic('flag')}<div><p class="pp-dato-titulo">${t.proximoPaso}</p><p class="pp-dato-valor" data-pp="paso"></p></div></div>
+					<div class="pp-dato" data-pp="exclusiva-caja" hidden>${ic('calendar')}<div><p class="pp-dato-titulo">${t.exclusiva}</p><p class="pp-dato-valor" data-pp="exclusiva"></p></div></div>
+				</div>
+				<div id="pp-lista" class="pp-lista"></div>
+				<div class="pp-pie">
+					<p class="pp-privacidad">${ic('lock')}${t.privacidad}</p>
+					<button type="button" class="btn btn-link pp-salir" data-pp-accion="salir" hidden>${ic('sign-out')}${t.salir}</button>
+				</div>
+			</div>
+
+			<template id="pp-tpl-prop">
+				<article class="pp-prop">
+					<div class="pp-prop-cabecera">
+						<div class="pp-prop-foto"><img data-pp="foto" alt="" loading="lazy" width="480" height="320"><span class="pp-badge" data-pp="estado"></span></div>
+						<div class="pp-prop-info">
+							<h3 class="pp-prop-titulo" data-pp="titulo"></h3>
+							<p class="pp-prop-precio" data-pp="precio"></p>
+							<p class="pp-prop-dias">${ic('clock-o')}<span><strong data-pp="dias"></strong> <span data-pp="dias-texto">${t.enMercado}</span></span></p>
+							<a class="pp-enlace" data-pp="url" target="_blank" rel="noopener" hidden>${t.verPublicacion}${ic('external-link', true)}</a>
+						</div>
+					</div>
+					<ul class="pp-kpis">
+						<li class="pp-kpi">${ic('commenting-o')}<span class="pp-kpi-numero" data-pp="consultas"></span><span class="pp-kpi-nombre">${t.consultas}</span><span class="pp-kpi-30"><span data-pp="consultas30"></span> ${t.ult30}</span></li>
+						<li class="pp-kpi">${ic('calendar-check-o')}<span class="pp-kpi-numero" data-pp="visitas"></span><span class="pp-kpi-nombre">${t.visitas}</span><span class="pp-kpi-30"><span data-pp="visitas30"></span> ${t.ult30}</span></li>
+						<li class="pp-kpi">${ic('handshake-o')}<span class="pp-kpi-numero" data-pp="ofertas"></span><span class="pp-kpi-nombre">${t.ofertas}</span><span class="pp-kpi-30"><span data-pp="ofertas30"></span> ${t.ult30}</span></li>
+					</ul>
+					<p class="pp-proximas" data-pp="proximas" hidden>${ic('calendar')}<span data-pp="proximas-texto"></span></p>
+					<div class="pp-prop-cuerpo">
+						<section class="pp-bloque">
+							<h4 class="pp-h4">${ic('history')}${t.actividad}</h4>
+							<ol class="pp-linea" data-pp="eventos"></ol>
+							<p class="pp-vacio-texto" data-pp="sin-eventos" hidden>${t.sinActividad}</p>
+						</section>
+						<div class="pp-lateral">
+							<section class="pp-bloque">
+								<h4 class="pp-h4">${ic('line-chart')}${t.precios}</h4>
+								<ol class="pp-precios" data-pp="precios"></ol>
+							</section>
+							<section class="pp-bloque">
+								<h4 class="pp-h4">${ic('globe')}${t.portales}</h4>
+								<ul class="pp-portales" data-pp="portales"></ul>
+								<p class="pp-vacio-texto" data-pp="sin-portales" hidden>${t.sinPortales}</p>
+							</section>
+						</div>
+					</div>
+				</article>
+			</template>
+			<template id="pp-tpl-iconos">
+				<span data-tipo="foto" class="icon-camera pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="precio" class="icon-tag pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="oferta" class="icon-handshake-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="visita" class="icon-calendar-check-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="paso" class="icon-flag pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="nota" class="icon-commenting-o pp-evento-icono" aria-hidden="true"></span>
+				<span data-tipo="externo" class="icon-external-link eq-ic eq-ic-fin" aria-hidden="true"></span>
+			</template>
+		</div>
+	</div>`;
+	return layout(ctx, {
+		path,
+		title: `${t.titulo} | ${ctx.site.general.nombreCorto}`,
+		description: t.accesoTexto,
+		noindex: true,
+		alternates: ctx.enActivo ? { es: '/propietarios/', en: '/en/owners/' } : null,
+		extraCss: ['/css/portal.css'],
+		noReferrer: true,
+		// Sin Analytics, GTM ni Pixel: mandan la dirección completa (con el token del enlace
+		// o el código del correo) a terceros.
+		sinRastreo: true,
+		bodyAttrs: 'class="pp-pagina"',
+		extraJs: '<script type="module" src="/js/portal-propietarios.js"></script>'
+	}, body);
 }

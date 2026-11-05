@@ -5,7 +5,7 @@ import { SignJWT, importPKCS8 } from 'jose';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 
 const SCOPE = 'https://www.googleapis.com/auth/webmasters';
-let cache = { token: '', exp: 0 };
+const cache = new Map(); // un token por permiso (scope)
 
 export function googleConfigurado() {
 	return Boolean(process.env.GOOGLE_SA_EMAIL && process.env.GOOGLE_SA_KEY);
@@ -15,11 +15,12 @@ export function propiedadPorDefecto() {
 	return process.env.GSC_PROPERTY || `sc-domain:${new URL(siteConfig.siteUrl).hostname.replace(/^www\./, '')}`;
 }
 
-export async function googleToken() {
-	if (cache.token && cache.exp > Date.now() + 60_000) return cache.token;
+export async function googleToken(scope = SCOPE) {
+	const guardado = cache.get(scope);
+	if (guardado && guardado.exp > Date.now() + 60_000) return guardado.token;
 	const key = await importPKCS8(process.env.GOOGLE_SA_KEY.replace(/\\n/g, '\n'), 'RS256');
 	const now = Math.floor(Date.now() / 1000);
-	const assertion = await new SignJWT({ scope: SCOPE })
+	const assertion = await new SignJWT({ scope })
 		.setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
 		.setIssuer(process.env.GOOGLE_SA_EMAIL)
 		.setAudience('https://oauth2.googleapis.com/token')
@@ -33,8 +34,8 @@ export async function googleToken() {
 	});
 	const body = await res.json();
 	if (!res.ok) throw new Error(`Google rechazó la cuenta de servicio: ${body.error_description || body.error || res.status}`);
-	cache = { token: body.access_token, exp: Date.now() + body.expires_in * 1000 };
-	return cache.token;
+	cache.set(scope, { token: body.access_token, exp: Date.now() + body.expires_in * 1000 });
+	return body.access_token;
 }
 
 export async function gsc(method, url, body) {

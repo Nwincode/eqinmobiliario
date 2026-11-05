@@ -1,6 +1,6 @@
 import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, formatDate, confirmDialog , mount } from '../ui.js';
-import { session, getPublishState } from '../session.js';
+import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount } from '../ui.js';
+import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
 async function demoAction(btn, status, accion) {
@@ -15,9 +15,92 @@ async function demoAction(btn, status, accion) {
 	}
 }
 
-// Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
-async function triggerBuild(hook) {
-	await fetch(hook, { method: 'POST', mode: 'no-cors', body: '{}' });
+// ------------------------------------------------------------ Avisos por correo
+// Consulta a la función /api/automatizaciones qué está configurado en Netlify.
+async function llamarAutomatizaciones(body) {
+	const token = await session.user.getIdToken();
+	const res = await fetch('/api/automatizaciones', {
+		method: body ? 'POST' : 'GET',
+		headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+		body: body ? JSON.stringify(body) : undefined
+	});
+	let data = null;
+	try { data = await res.json(); } catch { data = null; }
+	if (!data) throw new Error(`Respuesta no válida (${res.status})`);
+	if (!res.ok && !data.error) data.error = `Error ${res.status}`;
+	return data;
+}
+
+// Fila del checklist: estado 'ok' (listo), 'falta' (necesita configurarse) u 'opcional' (apagado a propósito).
+const ESTADOS = {
+	ok: { icon: 'icon-check-circle', color: 'text-success', sr: 'Listo: ' },
+	falta: { icon: 'icon-exclamation-circle', color: 'text-danger', sr: 'Falta configurar: ' },
+	opcional: { icon: 'icon-minus-circle', color: 'text-muted', sr: 'Apagado: ' }
+};
+
+function filaEstado(estado, titulo, detalle, ultima = false) {
+	const e = ESTADOS[estado];
+	return h('li', { class: `d-flex gap-2 py-2${ultima ? '' : ' border-bottom'}` },
+		h('span', { class: `${e.icon} ${e.color} mt-1`, 'aria-hidden': 'true' }),
+		h('div', {},
+			h('div', { class: 'fw-semibold' }, h('span', { class: 'visually-hidden' }, e.sr), titulo),
+			detalle ? h('div', { class: 'small text-muted' }, detalle) : null));
+}
+
+function tarjetaAvisos() {
+	const cuerpo = h('div', { 'aria-live': 'polite' });
+	const card = h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+		h('h2', { class: 'h6' }, 'Avisos por correo'),
+		h('p', { class: 'small text-muted' }, 'Los correos llegan solo a las direcciones del equipo y al asesor asignado. Nunca se envían a quien escribe desde el sitio.'),
+		cuerpo));
+
+	const accion = async (btn, payload) => {
+		btn.disabled = true;
+		try {
+			const r = await llamarAutomatizaciones(payload);
+			if (r.error) toast(r.error, 'warning');
+			else toast(r.mensaje || 'Listo.');
+		} catch (err) {
+			showError(err);
+		} finally {
+			btn.disabled = false;
+		}
+	};
+
+	const revisar = () => {
+		cuerpo.replaceChildren(h('div', { class: 'd-flex align-items-center gap-2 text-muted small py-2', role: 'status' },
+			h('div', { class: 'spinner-border spinner-border-sm', 'aria-hidden': 'true' }), 'Revisando la configuración…'));
+		llamarAutomatizaciones().then((c) => {
+			if (c.error) throw new Error(c.error);
+			const inmediato = Boolean(c.correo && c.destinatarios > 0);
+			const resumen = Boolean(inmediato && c.datos);
+			const n = c.destinatarios;
+			cuerpo.replaceChildren(
+				h('ul', { class: 'list-unstyled mb-3' },
+					filaEstado(inmediato ? 'ok' : 'falta', 'Aviso inmediato de nuevos interesados',
+						inmediato ? `Activo${c.servicio === 'zeptomail' ? ' con Zoho ZeptoMail' : c.servicio === 'resend' ? ' con Resend' : ''}: llega a ${n} ${n === 1 ? 'dirección' : 'direcciones'} del equipo.` : 'Falta en Netlify la clave del correo (ZEPTOMAIL_TOKEN de Zoho o RESEND_API_KEY) y AVISO_CORREO.'),
+					filaEstado(c.remitente ? 'ok' : 'falta', 'Remitente con el dominio del sitio',
+						c.remitente ? 'Los correos salen desde su propio dominio.' : (c.servicio === 'zeptomail' ? 'Falta CORREO_REMITENTE en Netlify: con Zoho es obligatorio para enviar.' : 'Falta CORREO_REMITENTE en Netlify. Mientras tanto, los correos solo llegan al dueño de la cuenta de Resend.')),
+					filaEstado(resumen ? 'ok' : 'falta', 'Resumen de cada mañana',
+						resumen ? 'Llega todos los días hacia las 6:10\u00a0a.\u00a0m.' : (inmediato ? 'Falta la cuenta de servicio de Google (rol Cloud Datastore Viewer) en Netlify.' : 'Primero activa el aviso inmediato.')),
+					filaEstado(c.ia ? 'ok' : 'opcional', 'Asistente con IA (opcional)',
+						c.ia ? 'Activo.' : 'Apagado: las herramientas funcionan con reglas. Para activarlo, agrega ANTHROPIC_API_KEY en Netlify.', true)),
+				h('div', { class: 'd-flex gap-2 flex-wrap' },
+					h('button', { type: 'button', class: 'btn btn-outline-primary', disabled: !inmediato, onclick: (e) => accion(e.currentTarget, { accion: 'correo' }) },
+						h('span', { class: 'icon-paper-plane-o me-2', 'aria-hidden': 'true' }), 'Enviar correo de prueba'),
+					h('button', { type: 'button', class: 'btn btn-outline-primary', disabled: !resumen, onclick: (e) => accion(e.currentTarget, { accion: 'resumen' }) },
+						h('span', { class: 'icon-newspaper-o me-2', 'aria-hidden': 'true' }), 'Enviarme el resumen de hoy')));
+		}).catch((err) => {
+			console.warn('No se pudo revisar /api/automatizaciones', err);
+			cuerpo.replaceChildren(
+				h('p', { class: 'small text-muted' }, 'No se pudo revisar la configuración de los correos. Esta revisión solo funciona en el sitio publicado; si ya estás en él, vuelve a intentarlo en unos minutos.'),
+				h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: revisar },
+					h('span', { class: 'icon-refresh me-2', 'aria-hidden': 'true' }), 'Volver a revisar'));
+		});
+	};
+	revisar();
+
+	return card;
 }
 
 async function importSeed(btn) {
@@ -56,13 +139,7 @@ export async function render(container) {
 		if (!hook) return toast('Primero configura el enlace de publicación de Netlify (abajo).', 'warning');
 		btn.disabled = true;
 		try {
-			await triggerBuild(hook);
-			await setDoc(doc(db, 'meta', 'publish'), {
-				pendiente: false,
-				ultimaPublicacion: serverTimestamp(),
-				ultimaPublicacionPor: session.profile.nombre || session.user.email
-			}, { merge: true });
-			document.dispatchEvent(new CustomEvent('publish-state'));
+			await publicarAhora(hook);
 			toast('Publicación iniciada. El sitio se actualiza en 1–2 minutos.');
 			container.replaceChildren();
 			render(container);
@@ -71,6 +148,34 @@ export async function render(container) {
 			btn.disabled = false;
 		}
 	};
+
+	const autoActivo = Boolean(priv.autoPublicar && hook);
+	const autoSwitch = h('input', { class: 'form-check-input', type: 'checkbox', role: 'switch', id: 'pub-auto', checked: autoActivo, disabled: !hook, 'aria-describedby': 'pub-auto-ayuda' });
+	autoSwitch.addEventListener('change', async () => {
+		const v = autoSwitch.checked;
+		autoSwitch.disabled = true;
+		try {
+			await setDoc(doc(db, 'settings', 'private'), { autoPublicar: v }, { merge: true });
+			olvidarConfigPublicacion();
+			toast(v ? 'Publicación automática activada.' : 'Publicación automática desactivada. Publica con el botón.');
+		} catch (err) {
+			autoSwitch.checked = !v;
+			showError(err);
+		} finally {
+			autoSwitch.disabled = false;
+		}
+	});
+	const autoControl = session.isAdmin ? h('div', { class: 'border-top pt-3 mt-4' },
+		h('div', { class: 'form-check form-switch switch-fila mb-0' }, autoSwitch,
+			h('label', { class: 'form-check-label fw-semibold', for: 'pub-auto' }, 'Publicar automáticamente')),
+		h('p', { class: 'small text-muted mb-0', id: 'pub-auto-ayuda' }, hook
+			? `Si está encendido, el sitio se publica solo unos ${AUTO_SEGUNDOS} segundos después de que dejes de hacer cambios. Si cierras el panel antes, se publica al salir.`
+			: 'Para usarlo, primero guarda abajo el enlace de publicación de Netlify.'))
+		: (autoActivo ? h('p', { class: 'small text-muted mt-3 mb-0' },
+			h('span', { class: 'icon-refresh me-1', 'aria-hidden': 'true' }),
+			autoPublicacionEnEspera()
+				? `La publicación es automática: tus cambios se publicarán en menos de ${Math.ceil(AUTO_SEGUNDOS / 60)} minutos.`
+				: 'La publicación es automática: tus cambios se publican solos poco después de guardarlos.') : null);
 
 	const hookInput = h('input', { class: 'form-control', type: 'url', value: hook, placeholder: 'https://api.netlify.com/build_hooks/…' });
 	const saveHook = async () => {
@@ -109,11 +214,13 @@ export async function render(container) {
 				h('dt', { class: 'col-sm-4' }, 'Cambios pendientes'), h('dd', { class: 'col-sm-8' }, state.pendiente ? `Sí — ${state.ultimoCambioDesc || ''} (${formatDate(state.ultimoCambio)})` : 'No'),
 				h('dt', { class: 'col-sm-4' }, 'Última publicación'), h('dd', { class: 'col-sm-8' }, state.ultimaPublicacion ? `${formatDate(state.ultimaPublicacion)} por ${state.ultimaPublicacionPor || '—'}` : 'Nunca desde el panel')),
 			h('button', { class: `btn btn-lg ${state.pendiente ? 'btn-warning' : 'btn-primary'}`, disabled: !hook, onclick: (e) => publish(e.currentTarget) }, 'Publicar cambios'),
-			hook ? null : h('p', { class: 'small text-muted mt-2 mb-0' }, session.isAdmin ? 'Configura el enlace de Netlify abajo para activar este botón.' : 'Un administrador debe configurar la publicación.'))),
+			hook ? null : h('p', { class: 'small text-muted mt-2 mb-0' }, session.isAdmin ? 'Configura el enlace de Netlify abajo para activar este botón.' : 'Un administrador debe configurar la publicación.'),
+			autoControl)),
 		session.isAdmin ? h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Enlace de publicación de Netlify (build hook)'),
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
+		session.isAdmin ? tarjetaAvisos() : null,
 		session.isAdmin && !site.exists() ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),

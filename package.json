@@ -5,7 +5,9 @@
   "description": "Sitio y panel de administración de Equipo Inmobiliario S.A.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "test:renta": "node scripts/test-calc-renta.mjs",
+    "test:cotizacion": "node scripts/test-cotizacion.mjs"
   },
   "engines": {
     "node": ">=22"

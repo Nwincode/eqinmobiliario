@@ -930,6 +930,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .gap-3 { gap: 1rem !important; }
 .gap-4 { gap: 1.5rem !important; }
 .gap-5 { gap: 3rem !important; }
+/* d-grid tampoco viene en 5.0.0-alpha2 (sin ella, gap-* no separa las pilas de d-grid). */
+.d-grid { display: grid !important; }
+
+/* Portal del propietario: en celular los botones van parejos, dos por fila. */
+@media (max-width: 575.98px) {
+	.portal-botones > .btn { flex: 1 1 calc(50% - .25rem); }
+}
 
 /* El panel carga Bootstrap 5.0.0-alpha2, que aún usaba nombres anteriores (mr-/ml-, text-right…).
    Equivalencias de las utilidades de Bootstrap 5 que usan las vistas. */
@@ -1186,3 +1193,1773 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .thumb { width: 64px; height: 48px; }
 	.tabla-propiedades .estado-rapido { min-height: 44px; }
 }
+
+/* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */
+.switch-fila {
+	display: flex;
+	align-items: center;
+	gap: .625rem;
+	min-height: 44px;
+	padding-left: 0;
+}
+.switch-fila .form-check-input {
+	float: none;
+	flex: none;
+	margin: 0;
+	width: 2.5em;
+	height: 1.375em;
+	cursor: pointer;
+}
+.switch-fila .form-check-label {
+	flex: 1;
+	padding: .5rem 0;
+	cursor: pointer;
+}
+.switch-fila .form-check-input:disabled,
+.switch-fila .form-check-input:disabled ~ .form-check-label {
+	cursor: not-allowed;
+}
+.switch-fila .form-check-input:focus-visible {
+	outline: 2px solid var(--adm-primary);
+	outline-offset: 2px;
+}
+
+/* ---------- Importar propiedades desde CSV ---------- */
+.imp-intro { max-width: 70ch; color: var(--adm-text); }
+.imp-paso { margin-bottom: 1rem; }
+.imp-paso-titulo {
+	display: flex;
+	align-items: center;
+	gap: .625rem;
+	font-size: 1.0625rem;
+	font-weight: 600;
+	margin-bottom: .75rem;
+}
+.imp-num {
+	display: inline-grid;
+	place-items: center;
+	flex: none;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: var(--eq-primary-soft);
+	color: var(--adm-primary);
+	font-size: .875rem;
+	font-weight: 700;
+}
+.imp-lista { padding-left: 1.1rem; }
+.imp-lista li + li { margin-top: .25rem; }
+.imp-lista code { color: var(--adm-text); background: var(--adm-bg); border-radius: 4px; padding: .05rem .3rem; }
+.imp-paso .form-label .icon-file-excel-o,
+.imp-paso .form-label .icon-folder-open,
+.imp-paso .form-label .icon-file-archive-o { color: var(--adm-primary); }
+.imp-global { display: flex; align-items: center; gap: .5rem; }
+.imp-global .form-select { width: auto; min-height: 38px; }
+
+/* Tonos: verde = lista, azul = ya existe, amarillo = aviso, rojo = error, gris = neutro. */
+.imp-tono-success { --imp-c: var(--eq-whatsapp); }
+.imp-tono-info { --imp-c: var(--adm-primary); }
+.imp-tono-warning { --imp-c: color-mix(in oklab, var(--eq-warning) 55%, var(--eq-dark)); }
+.imp-tono-danger { --imp-c: var(--eq-danger); }
+.imp-tono-secondary,
+.imp-tono-muted { --imp-c: var(--adm-muted); }
+
+.imp-resumen { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .875rem; }
+.imp-chip,
+.imp-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: .375rem;
+	border-radius: 999px;
+	font-weight: 600;
+	/* Texto un poco más oscuro que el tono para pasar AA (4.5:1) sobre el fondo tintado. */
+	color: color-mix(in oklab, var(--imp-c) 80%, var(--eq-dark));
+	background: color-mix(in oklab, var(--imp-c) 8%, var(--adm-surface));
+	border: 1px solid color-mix(in oklab, var(--imp-c) 28%, var(--adm-surface));
+	white-space: nowrap;
+}
+.imp-chip { padding: .3rem .75rem; font-size: .875rem; }
+.imp-badge { padding: .2rem .625rem; font-size: .8125rem; }
+.imp-aviso { padding: .625rem .875rem; font-size: .9rem; margin-bottom: .625rem; }
+
+.imp-tabla-wrap { border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+.tabla-importar code { color: var(--adm-text); font-size: .875rem; font-weight: 600; word-break: break-all; }
+.tabla-importar .imp-c-titulo { min-width: 14rem; }
+.tabla-importar .imp-c-fotos .icon-picture-o { color: var(--adm-muted); }
+.tabla-importar .imp-c-accion .form-select { min-width: 8.5rem; min-height: 38px; }
+.tabla-importar tr.imp-fila-error > td { background: color-mix(in oklab, var(--eq-danger) 4%, var(--adm-surface)); }
+.imp-errores { color: var(--eq-danger); margin: .25rem 0 0; padding-left: 1rem; }
+
+.imp-acciones .btn { min-height: 44px; }
+.imp-acciones .imp-nota { flex: 1 1 16rem; }
+.imp-progreso { height: 10px; margin-bottom: 1rem; }
+.imp-progreso .progress-bar { background: var(--adm-primary); transition: width .3s ease; }
+.imp-progreso-fin .progress-bar { background: var(--eq-whatsapp); }
+.imp-datos {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: .75rem;
+	margin-bottom: .75rem;
+}
+.imp-dato {
+	display: flex;
+	flex-direction: column;
+	padding: .75rem 1rem;
+	border-radius: var(--adm-radius);
+	border: 1px solid var(--adm-border);
+	border-top: 3px solid var(--imp-c);
+}
+.imp-dato strong { font-size: 1.5rem; line-height: 1.2; color: var(--imp-c); }
+.imp-dato span { color: var(--adm-muted); font-size: .875rem; }
+.imp-registro { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow: auto; }
+.imp-registro > li { padding: .375rem 0; border-top: 1px solid var(--adm-border); }
+.imp-registro > li > ul { margin: .25rem 0 0; padding-left: 1.25rem; }
+.imp-log-ok > [class^="icon-"] { color: var(--eq-whatsapp); }
+.imp-log-error > [class^="icon-"] { color: var(--eq-danger); }
+
+@media (max-width: 767.98px) {
+	/* Áreas de toque de 44 px en el celular. */
+	.imp-vista .btn,
+	.imp-vista .form-control,
+	.imp-vista .form-select { min-height: 44px; }
+	.imp-vista .form-control[type="file"] { line-height: 1.9; }
+	.imp-acciones .btn { flex: 1 1 100%; }
+	.imp-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.imp-global { width: 100%; justify-content: space-between; }
+	.imp-tabla-wrap { overflow: visible; }
+	.tabla-importar thead { display: none; }
+	.tabla-importar,
+	.tabla-importar tbody { display: block; }
+	.tabla-importar tbody tr {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-areas:
+			"codigo fila"
+			"titulo titulo"
+			"estado fotos"
+			"accion accion";
+		column-gap: .75rem;
+		row-gap: .375rem;
+		padding: .875rem 1rem;
+		border-bottom: 1px solid var(--adm-border);
+	}
+	.tabla-importar tbody tr:last-child { border-bottom: 0; }
+	.table-admin.tabla-importar > :not(caption) > * > * {
+		display: block;
+		padding: 0;
+		border: 0;
+		min-width: 0;
+		background: transparent;
+	}
+	.tabla-importar .imp-c-fila { grid-area: fila; text-align: right; }
+	.tabla-importar .imp-c-codigo { grid-area: codigo; }
+	.tabla-importar .imp-c-codigo .small { display: inline; margin-left: .375rem; }
+	.tabla-importar .imp-c-titulo { grid-area: titulo; min-width: 0; }
+	.tabla-importar .imp-c-estado { grid-area: estado; }
+	.tabla-importar .imp-c-fotos { grid-area: fotos; text-align: right; align-self: center; }
+	.tabla-importar .imp-c-accion { grid-area: accion; }
+	.tabla-importar .imp-c-accion .form-select { min-height: 44px; }
+	.tabla-importar .imp-c-accion > span { display: none; }
+	.tabla-importar tr.imp-fila-error { background: color-mix(in oklab, var(--eq-danger) 4%, var(--adm-surface)); }
+	.imp-badge { white-space: normal; }
+}
+
+/* Calculadora de renta */
+.print-only {
+	display: none;
+}
+.calc-intro {
+	max-width: 70ch;
+	margin-top: -12px;
+}
+.calc-grupo .card-header h2,
+.calc-resultados .card-header h2,
+.calc-glosario .card-header h2 {
+	font-weight: 600;
+}
+.calc-grupo .card-header .me-2,
+.calc-resultados .card-header .me-2,
+.calc-glosario .card-header .me-2,
+.calc-kpi-label [class^="icon-"] {
+	color: var(--adm-primary);
+}
+.calc-sufijo {
+	color: var(--adm-muted);
+	font-weight: 400;
+}
+.calc-params {
+	border-top: 1px solid var(--adm-border);
+	padding-top: 12px;
+}
+.calc-params summary,
+.calc-detalle > summary {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--adm-primary);
+	list-style: none;
+}
+.calc-params summary::-webkit-details-marker,
+.calc-detalle > summary::-webkit-details-marker {
+	display: none;
+}
+.calc-params summary:focus-visible,
+.calc-detalle > summary:focus-visible {
+	outline: 2px solid var(--adm-cyan);
+	outline-offset: 2px;
+}
+.calc-legend {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	color: var(--adm-muted);
+	margin-bottom: 6px;
+}
+.calc-fuente {
+	font-size: 11px;
+	line-height: 1.35;
+}
+.calc-objetivo-out {
+	font-weight: 600;
+	color: var(--adm-text);
+}
+/* Comisión de arrendamiento: cuánto cuesta el contrato, cuándo se paga y cómo se reparte. */
+.calc-comision-detalle {
+	padding: 10px 12px;
+	border: 1px solid var(--adm-border);
+	border-left: 3px solid var(--adm-primary);
+	border-radius: var(--adm-radius);
+	background: var(--adm-bg);
+	color: var(--adm-text);
+	font-size: 13px;
+	line-height: 1.45;
+}
+.calc-vacio {
+	border: 1px dashed var(--adm-border);
+	border-radius: var(--adm-radius);
+	background: var(--adm-surface);
+	padding: 48px 24px;
+	text-align: center;
+}
+.calc-entradas .form-control,
+.calc-entradas .form-select {
+	min-height: 44px;
+}
+.calc-entradas .form-control-sm {
+	min-height: 38px;
+}
+.calc-kpi.stat-card:hover {
+	transform: none;
+}
+.calc-kpi .stat-value {
+	font-size: 1.45rem;
+	margin-top: 6px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.calc-kpi-main {
+	border-color: var(--adm-primary);
+	background: color-mix(in oklab, var(--adm-primary) 6%, var(--adm-surface));
+}
+.calc-kpi-main .stat-value {
+	font-size: 1.9rem;
+	color: var(--adm-primary);
+}
+.calc-kpi-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--adm-muted);
+}
+.calc-kpi-nota {
+	font-size: 12px;
+	color: var(--adm-muted);
+	margin-top: 4px;
+}
+.calc-tabla {
+	font-variant-numeric: tabular-nums;
+	font-size: 14px;
+}
+.calc-tabla th[scope="row"] {
+	font-weight: 400;
+}
+.calc-tabla td {
+	white-space: nowrap;
+}
+.calc-tabla .calc-total th,
+.calc-tabla .calc-total td {
+	font-weight: 700;
+	background: color-mix(in oklab, var(--adm-primary) 5%, var(--adm-surface));
+}
+.calc-tabla-larga {
+	font-size: 13px;
+}
+/* Estado de resultados (cascada de bruto a neto) */
+.calc-er {
+	table-layout: auto;
+}
+.calc-er thead th {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--adm-muted);
+	border-bottom-color: var(--adm-border);
+	white-space: nowrap;
+}
+.calc-er th[scope="row"] {
+	white-space: normal;
+	min-width: 12rem;
+}
+.calc-er th,
+.calc-er td {
+	padding-top: 7px;
+	padding-bottom: 7px;
+	vertical-align: top;
+}
+.calc-er-concepto {
+	display: flex;
+	gap: 6px;
+}
+.calc-er-signo {
+	flex: 0 0 1ch;
+	text-align: center;
+	color: var(--adm-muted);
+	font-weight: 600;
+}
+.calc-er-etq {
+	display: block;
+}
+.calc-er td + td {
+	padding-left: 1rem;
+}
+.calc-er-desc {
+	display: block;
+	font-weight: 400;
+	font-size: 12px;
+	line-height: 1.35;
+	color: var(--adm-muted);
+	margin-top: 1px;
+}
+.calc-er-resta th[scope="row"] {
+	padding-left: 1.25rem;
+}
+.calc-er-resta td {
+	color: var(--adm-muted);
+}
+/* th[scope="row"] lleva peso normal en .calc-tabla; aquí se repite el selector para que el subtotal quede en negrita. */
+.calc-er-subtotal th,
+.calc-er-subtotal th[scope="row"],
+.calc-er-subtotal td {
+	font-weight: 700;
+	border-top: 1px solid var(--adm-text);
+}
+.calc-er-total th,
+.calc-er-total th[scope="row"],
+.calc-er-total td {
+	font-weight: 700;
+	color: var(--adm-primary);
+	border-top: 2px solid var(--adm-primary);
+	border-bottom: 0;
+	background: color-mix(in oklab, var(--adm-primary) 7%, var(--adm-surface));
+}
+.calc-er-total .calc-er-signo,
+.calc-er-total .calc-er-desc {
+	color: var(--adm-primary);
+}
+.calc-er-total td:nth-child(2) {
+	font-size: 15px;
+}
+.calc-er-info th,
+.calc-er-info td {
+	font-size: 13px;
+	color: var(--adm-muted);
+	border-bottom: 0;
+}
+.calc-er-info .calc-er-etq {
+	font-weight: 600;
+}
+.calc-er-bloque th,
+.calc-er-bloque td {
+	border-top: 12px solid var(--adm-surface);
+}
+.calc-er-sub {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 20px 0 6px;
+}
+.calc-anio-sel {
+	width: auto;
+	min-height: 44px;
+}
+.calc-check {
+	min-height: 44px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0 8px;
+	padding-left: 0;
+}
+.calc-check .form-check-input {
+	float: none;
+	margin: 0;
+	flex: 0 0 auto;
+	width: 1.15em;
+	height: 1.15em;
+}
+.calc-check.form-switch .form-check-input {
+	width: 2.2em;
+}
+.calc-check .form-check-label {
+	flex: 1 1 0;
+	min-width: 0;
+}
+.calc-check .form-text {
+	flex: 0 0 100%;
+	margin-top: 0;
+	margin-bottom: 6px;
+}
+.calc-venta-opcion {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 16px;
+	padding: 8px 12px;
+	margin-top: 12px;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--adm-radius);
+	background: var(--adm-bg);
+}
+.calc-er-nota {
+	font-size: 13px;
+	color: var(--adm-muted);
+}
+.calc-resumen-tir {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 12px;
+	margin-top: 16px;
+}
+.calc-resumen-dato {
+	border: 1px solid var(--adm-border);
+	border-radius: var(--adm-radius);
+	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.calc-resumen-k {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--adm-muted);
+}
+.calc-resumen-dato strong {
+	font-size: 1.25rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--adm-text);
+}
+.calc-resumen-dato:first-child strong {
+	color: var(--adm-primary);
+}
+.calc-resumen-n {
+	font-size: 12px;
+	color: var(--adm-muted);
+}
+.calc-tabla-larga th[scope="row"] {
+	text-align: center;
+}
+.calc-svg {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+.calc-eje {
+	stroke: var(--adm-border);
+	stroke-width: 1;
+}
+.calc-eje-cero {
+	stroke: var(--adm-muted);
+	stroke-width: 1;
+}
+.calc-eje-txt {
+	fill: var(--adm-muted);
+	font-size: 11px;
+}
+.calc-barra {
+	fill: color-mix(in oklab, var(--adm-cyan) 55%, var(--adm-surface));
+}
+.calc-linea {
+	fill: none;
+	stroke: var(--adm-primary);
+	stroke-width: 2.5;
+	stroke-linejoin: round;
+}
+.calc-barra-neg {
+	fill: color-mix(in oklab, var(--adm-muted) 45%, var(--adm-surface));
+}
+.calc-graficas {
+	display: grid;
+	gap: 18px;
+}
+.calc-graf-titulo {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--adm-text);
+	margin-bottom: 4px;
+}
+.calc-graf-titulo span {
+	font-weight: 400;
+	color: var(--adm-muted);
+}
+.calc-marca {
+	stroke: var(--adm-muted);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+}
+.calc-punto {
+	fill: var(--adm-surface);
+	stroke: var(--adm-primary);
+	stroke-width: 2;
+}
+.calc-marca-txt {
+	fill: var(--adm-text);
+	font-size: 11px;
+	font-weight: 600;
+}
+.calc-usar {
+	min-height: 44px;
+	margin-top: 10px;
+}
+.calc-params .calc-chev {
+	font-size: 12px;
+}
+.calc-params[open] > summary .calc-chev {
+	transform: rotate(180deg);
+}
+.calc-detalle > summary {
+	border-bottom: 0;
+}
+.calc-detalle[open] > summary {
+	border-bottom: 1px solid var(--adm-border);
+}
+.calc-detalle[open] > summary .calc-chev {
+	transform: rotate(180deg);
+}
+.calc-chev {
+	transition: transform .15s ease;
+}
+.calc-largo {
+	max-height: 520px;
+	overflow: auto;
+}
+.calc-largo thead th {
+	position: sticky;
+	top: 0;
+	background: var(--adm-surface);
+}
+.calc-glosario dt {
+	font-weight: 600;
+}
+.calc-tabla-esc th[scope="row"] {
+	white-space: nowrap;
+}
+@media (max-width: 575.98px) {
+	.calc-kpi .stat-value {
+		font-size: 1.15rem;
+	}
+	.calc-kpi-main .stat-value {
+		font-size: 1.75rem;
+	}
+	.calc-tabla {
+		font-size: 13px;
+	}
+	.calc-er th[scope="row"] {
+		min-width: 8.5rem;
+	}
+	/* En celular el % se oculta: con él la tabla no cabe y obliga a desplazarse de lado. */
+	.calc-er .calc-er-pct {
+		display: none;
+	}
+	.calc-er td + td {
+		padding-left: 8px;
+	}
+	.calc-er-resta th[scope="row"] {
+		padding-left: .5rem;
+	}
+	.calc-er th,
+	.calc-er td {
+		padding-left: 4px;
+		padding-right: 4px;
+	}
+}
+@media print {
+	@page {
+		margin: 14mm;
+	}
+	body {
+		background: var(--adm-surface) !important;
+	}
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-backdrop,
+	.no-print,
+	.calc-entradas,
+	.calc-vacio {
+		display: none !important;
+	}
+	.print-only {
+		display: block !important;
+	}
+	.calc-print-head {
+		display: flex !important;
+		align-items: center;
+		gap: 14px;
+		padding-bottom: 10px;
+		margin-bottom: 12px;
+		border-bottom: 2px solid var(--adm-primary);
+	}
+	.calc-print-resumen {
+		font-size: 12px;
+		color: var(--adm-muted);
+	}
+	.admin-main {
+		padding: 0 !important;
+		max-width: none;
+	}
+	.calc-salidas {
+		width: 100% !important;
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+	}
+	.calc-kpis > div {
+		flex: 0 0 33.333% !important;
+		max-width: 33.333% !important;
+	}
+	.calc-kpis > div:first-child {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+	}
+	.card {
+		box-shadow: none !important;
+		break-inside: avoid;
+	}
+	.calc-detalle {
+		break-inside: auto;
+	}
+	.calc-er-card {
+		break-inside: avoid;
+	}
+	.calc-er-desc {
+		font-size: 10px;
+	}
+	.calc-er-info th,
+	.calc-er-info td,
+	.calc-er-nota {
+		font-size: 11px;
+	}
+	.calc-er-total td:nth-child(2) {
+		font-size: 12px;
+	}
+	.calc-venta-opcion {
+		display: block;
+		border: 0;
+		padding: 4px 0;
+		background: none;
+	}
+	.calc-venta-opcion .calc-check {
+		display: none;
+	}
+	.calc-er th,
+	.calc-er td {
+		padding-top: 3px;
+		padding-bottom: 3px;
+	}
+	.calc-detalle > summary .calc-chev {
+		display: none;
+	}
+	.calc-largo {
+		max-height: none;
+		overflow: visible;
+	}
+	.calc-largo thead th {
+		position: static;
+	}
+	.calc-tabla {
+		font-size: 11px;
+	}
+	.calc-graficas {
+		gap: 8px;
+	}
+	.calc-svg {
+		max-height: 48mm;
+		width: auto;
+		max-width: 100%;
+		margin: 0 auto;
+	}
+	* {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+}
+
+/* Estado de cada valor de ley: verificado o por confirmar. */
+.calc-estado-ley {
+	display: inline-flex;
+	align-items: center;
+	font-weight: 700;
+	white-space: nowrap;
+}
+.calc-estado-ley.is-ok { color: var(--adm-primary); }
+.calc-estado-ley.is-pendiente { color: var(--adm-muted); }
+.calc-nota-ley {
+	margin-top: 4px;
+	padding-left: 1.5em;
+	color: var(--adm-text);
+}
+
+/* ===== Cotización ===== */
+/* Cotización de servicios (admin/js/views/cotizacion.js). Solo clases cot-. */
+.cot-intro {
+	max-width: 68ch;
+}
+.cot-btn {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.cot-btn-icono {
+	min-width: 44px;
+	padding-left: 0;
+	padding-right: 0;
+}
+.cot-acciones {
+	display: inline-flex;
+	gap: 6px;
+	justify-content: flex-end;
+}
+.cot-lista td,
+.cot-lista th {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+.cot-grupo .card-header {
+	background: var(--adm-surface);
+}
+.cot-modo .btn {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+}
+.cot-detalles {
+	border-top: 1px solid var(--adm-border);
+	padding-top: 4px;
+}
+.cot-detalles > summary {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--adm-primary);
+	list-style: none;
+}
+.cot-detalles > summary::-webkit-details-marker {
+	display: none;
+}
+.cot-detalles > summary:focus-visible {
+	outline: 2px solid var(--adm-cyan);
+	outline-offset: 2px;
+}
+.cot-chev {
+	font-size: 12px;
+	transition: transform .15s ease;
+}
+.cot-detalles[open] > summary .cot-chev {
+	transform: rotate(180deg);
+}
+
+/* Servicios */
+.cot-linea {
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius);
+	padding: 12px;
+	margin-bottom: 12px;
+	background: var(--adm-surface);
+}
+.cot-linea-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 12px;
+}
+.cot-linea-icono {
+	flex: 0 0 36px;
+	height: 36px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	background: var(--eq-primary-soft);
+	color: var(--adm-primary);
+}
+.cot-linea-tipo {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 44px;
+	font-weight: 600;
+}
+.cot-quitar {
+	flex: 0 0 44px;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: 50%;
+	color: var(--adm-muted);
+	background: transparent;
+}
+.cot-quitar:hover {
+	color: var(--eq-danger);
+	background: color-mix(in oklab, var(--eq-danger) 8%, var(--adm-surface));
+}
+.cot-quitar:focus-visible {
+	outline: 2px solid var(--adm-cyan);
+	outline-offset: 2px;
+}
+.cot-linea-resumen {
+	margin-top: 12px;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-mist);
+	border-left: 3px solid var(--adm-cyan);
+	font-size: 14px;
+	color: var(--adm-text);
+}
+.cot-linea-resumen strong {
+	color: var(--adm-primary);
+}
+.cot-agregar-label {
+	display: block;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--adm-muted);
+	margin-bottom: 6px;
+}
+.cot-agregar-botones {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+/* Hoja de la cotización: la misma en pantalla y en el PDF */
+.cot-salida-titulo {
+	display: flex;
+	align-items: center;
+	margin-bottom: 10px;
+}
+.cot-barra .btn-link {
+	text-decoration: none;
+}
+
+@media (max-width: 575.98px) {
+	.cot-barra .cot-btn {
+		flex: 1 1 calc(50% - 8px);
+	}
+	.cot-barra .btn-link {
+		flex-basis: 100%;
+		margin-left: 0 !important;
+	}
+	.cot-lista thead {
+		display: none;
+	}
+	.cot-lista tr {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 2px 12px;
+		padding: 12px 14px;
+		border-bottom: 1px solid var(--adm-border);
+	}
+	.cot-lista td {
+		border: 0;
+		padding: 0;
+	}
+	.cot-lista td[data-label="Número"] { grid-column: 1; }
+	.cot-lista td[data-label="Total"] { grid-column: 2; grid-row: 1; font-weight: 700; }
+	.cot-lista td[data-label="Fecha"],
+	.cot-lista td[data-label="Cliente"] { grid-column: 1 / -1; font-size: 14px; }
+	.cot-lista td:last-child { grid-column: 1 / -1; padding-top: 8px; text-align: left !important; }
+}
+@media (min-width: 1200px) {
+	.cot-salida {
+		position: sticky;
+		top: 16px;
+		align-self: flex-start;
+	}
+}
+
+@media print {
+	.cot-entradas,
+	.cot-barra {
+		display: none !important;
+	}
+	.cot-layout > .cot-salida {
+		width: 100% !important;
+		flex: 0 0 100%;
+		max-width: 100%;
+		position: static;
+	}
+}
+/* Cotización: campos con área de toque de 44 px */
+.cot-entradas .form-control,
+.cot-entradas .form-select {
+	min-height: 44px;
+}
+/* Cotización: en celular el aviso «Por confirmar» baja a su propia línea para no cortar el servicio */
+@media (max-width: 575.98px) {
+	.cot-linea-head {
+		flex-wrap: wrap;
+	}
+	.cot-linea-head .cot-linea-tipo {
+		flex: 1 1 0;
+		min-width: 9rem;
+	}
+}
+/* Cotización: los avisos flotantes no salen en el PDF */
+@media print {
+	#toasts {
+		display: none !important;
+	}
+}
+/* Cotización: en celular la barra ocupa menos (la lista sigue en «Mis cotizaciones», arriba) */
+@media (max-width: 575.98px) {
+	.cot-barra {
+		padding: 8px 10px;
+	}
+	.cot-barra .cot-btn {
+		padding-left: 10px;
+		padding-right: 10px;
+		white-space: nowrap;
+	}
+	.cot-barra .cot-btn .me-2 {
+		margin-right: 6px !important;
+	}
+	.cot-barra .btn-link {
+		display: none;
+	}
+}
+/* Cotización v2: quién factura, administración sin valor y liquidación interna */
+.cot-sep {
+	border-top: 1px solid var(--adm-border);
+	padding-top: 16px;
+}
+.cot-emisor-resumen {
+	padding: 12px 14px;
+	border: 1px solid var(--adm-border);
+	border-radius: var(--eq-radius);
+	background: var(--eq-mist);
+	color: var(--adm-text);
+	overflow-wrap: anywhere;
+}
+.cot-emisor-nombre {
+	font-weight: 700;
+	color: var(--eq-dark);
+}
+.cot-emisor-pie {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 16px;
+	margin-top: 8px;
+}
+.cot-solo-admin {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
+.cot-acciones-campo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 14px;
+}
+.cot-aviso {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: color-mix(in oklab, var(--eq-warning) 14%, var(--adm-surface));
+	border: 1px solid color-mix(in oklab, var(--eq-warning) 55%, var(--adm-surface));
+	color: var(--adm-text);
+	font-size: 14px;
+}
+.cot-aviso-icono {
+	margin-top: 3px;
+	color: var(--eq-dark);
+}
+.cot-linea-resumen.is-falta {
+	display: flex;
+	align-items: flex-start;
+	background: color-mix(in oklab, var(--eq-warning) 14%, var(--adm-surface));
+	border-left-color: var(--eq-warning);
+}
+.cot-linea-resumen.is-falta .icon-exclamation-circle {
+	margin-top: 3px;
+	color: var(--eq-dark);
+}
+.cot-liq {
+	border-color: color-mix(in oklab, var(--adm-primary) 35%, var(--adm-border));
+}
+.cot-liq-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.cot-interno {
+	display: inline-flex;
+	align-items: center;
+	font-size: 12px;
+	font-weight: 700;
+	padding: 3px 10px;
+	border-radius: 999px;
+	color: var(--adm-primary);
+	background: var(--eq-primary-soft);
+	white-space: nowrap;
+}
+.cot-liq-intro {
+	margin-bottom: 12px;
+}
+.cot-liq-bloque + .cot-liq-bloque {
+	margin-top: 16px;
+}
+.cot-liq-sub {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--adm-muted);
+	margin-bottom: 4px;
+}
+.cot-liq-tabla {
+	margin: 0;
+	font-size: 14px;
+	color: var(--adm-text);
+}
+.cot-liq-fila {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 7px 0;
+	border-bottom: 1px solid var(--adm-border);
+}
+.cot-liq-fila dt {
+	font-weight: 400;
+	min-width: 0;
+}
+.cot-liq-fila dd {
+	margin: 0;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.cot-liq-nota {
+	display: block;
+	font-size: 12px;
+	color: var(--adm-muted);
+}
+.cot-liq-neto {
+	font-weight: 700;
+	border-bottom-width: 2px;
+}
+.cot-liq-asesor {
+	border-bottom: 0;
+	padding-top: 10px;
+	font-weight: 700;
+	color: var(--adm-primary);
+	font-size: 16px;
+}
+.cot-liq-empresa {
+	border-bottom: 0;
+	padding-top: 0;
+	color: var(--adm-muted);
+}
+.cot-liq-pct {
+	margin-top: 14px;
+	max-width: 260px;
+}
+.cot-liq-pct .form-control,
+.cot-ajustes .form-control,
+.cot-ajustes .form-select {
+	min-height: 44px;
+}
+.cot-ajustes {
+	max-width: 760px;
+}
+.cot-intro {
+	max-width: 60ch;
+}
+.cot-check {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	padding-left: 0;
+	margin-bottom: 0;
+}
+.cot-check .form-check-input {
+	width: 22px;
+	height: 22px;
+	margin: 0;
+	flex: 0 0 auto;
+}
+.cot-logo-muestra {
+	display: block;
+	height: 40px;
+	width: auto;
+	margin-top: 8px;
+}
+.cot-ajustes .cot-barra {
+	gap: 12px;
+	align-items: center;
+}
+@media print {
+	.cot-liq {
+		display: none !important;
+	}
+}
+/* Interruptor de administración: área de toque de 44 px */
+.cot-switch {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 44px;
+	padding-left: 0;
+	margin: 0;
+}
+.cot-switch .form-check-input {
+	border-color: var(--adm-muted);
+	width: 2.75em;
+	height: 1.5em;
+	margin: 0;
+	flex: 0 0 auto;
+	cursor: pointer;
+}
+.cot-switch .form-check-input:focus-visible {
+	outline: 2px solid var(--adm-primary);
+	outline-offset: 2px;
+}
+.cot-switch .form-check-input:checked {
+	border-color: var(--adm-primary);
+}
+.cot-switch .form-check-label {
+	font-weight: 600;
+	cursor: pointer;
+}
+/* ===== Hoja de la cotización (lo que ve y recibe el cliente): la misma en pantalla y en el PDF ===== */
+.cot-doc {
+	--doc-ink: var(--eq-dark);
+	--doc-muted: var(--eq-ink);
+	--doc-line: var(--eq-line);
+	--doc-primary: var(--eq-primary);
+	--doc-accent: var(--eq-cyan);
+	--doc-soft: var(--eq-primary-soft);
+	--doc-mist: var(--eq-mist);
+	--doc-on-primary: var(--eq-white);
+	container: cotdoc / inline-size;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	background: var(--eq-white);
+	border: 1px solid var(--adm-border);
+	border-top: 0;
+	border-radius: var(--adm-radius);
+	box-shadow: var(--adm-shadow);
+	padding: 36px 36px 22px;
+	overflow: hidden;
+	color: var(--doc-ink);
+	font-size: 13px;
+	line-height: 1.45;
+	font-variant-numeric: tabular-nums;
+	-webkit-print-color-adjust: exact;
+	print-color-adjust: exact;
+}
+/* Franja de marca arriba: azul con el celeste del logo */
+.cot-doc::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto 0;
+	height: 6px;
+	background: linear-gradient(90deg, var(--doc-primary) 0 78%, var(--doc-accent) 78% 100%);
+}
+.cot-doc-ico {
+	display: inline-block;
+	width: 1.15em;
+	margin-right: .4em;
+	text-align: center;
+	color: var(--doc-primary);
+}
+
+/* Encabezado */
+.cot-doc-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 16px 24px;
+	padding-bottom: 18px;
+	border-bottom: 1px solid var(--doc-line);
+}
+.cot-doc-marca {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-width: 0;
+}
+.cot-doc-logo {
+	width: 56px;
+	height: 56px;
+	flex: 0 0 auto;
+}
+.cot-doc-marca-txt {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cot-doc-emisor-nombre {
+	font-size: 21px;
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: -.01em;
+	color: var(--doc-ink);
+}
+.cot-doc-fiscal {
+	margin-top: 4px;
+	font-size: 11.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-contacto {
+	flex: 0 0 auto;
+	text-align: right;
+	font-size: 11.5px;
+	line-height: 1.55;
+	color: var(--doc-muted);
+	overflow-wrap: anywhere;
+}
+
+/* Título y datos de la cotización */
+.cot-doc-tit {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 12px 24px;
+	padding: 20px 0 18px;
+}
+.cot-doc-h {
+	margin: 0;
+	font-size: 25px;
+	font-weight: 700;
+	line-height: 1.1;
+	letter-spacing: -.015em;
+	color: var(--doc-ink);
+}
+.cot-doc-meta {
+	display: flex;
+	margin: 0;
+}
+.cot-doc-meta-item {
+	padding: 0 16px;
+	border-left: 1px solid var(--doc-line);
+}
+.cot-doc-meta-item:first-child {
+	padding-left: 0;
+	border-left: 0;
+}
+.cot-doc-meta-item:last-child {
+	padding-right: 0;
+}
+.cot-doc-meta dt,
+.cot-doc-etq-sec,
+.cot-doc-tabla thead th,
+.cot-doc-tot-sub {
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: .07em;
+	text-transform: uppercase;
+	color: var(--doc-muted);
+}
+.cot-doc-meta dd {
+	margin: 2px 0 0;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.cot-doc-meta .is-num dd {
+	color: var(--doc-primary);
+}
+
+/* Preparada para */
+.cot-doc-para {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	background: var(--doc-mist);
+	border: 1px solid var(--doc-line);
+	border-radius: var(--eq-radius-card);
+	margin-bottom: 22px;
+}
+.cot-doc-para.sin-prop {
+	grid-template-columns: 1fr;
+}
+.cot-doc-para-col {
+	padding: 14px 18px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.cot-doc-para-col + .cot-doc-para-col {
+	border-left: 1px solid var(--doc-line);
+}
+.cot-doc-etq-sec {
+	display: block;
+	margin: 0 0 5px;
+}
+.cot-doc-etq-sec .cot-doc-ico {
+	font-size: 11px;
+}
+.cot-doc-cliente-nombre,
+.cot-doc-prop-nombre {
+	font-size: 15.5px;
+	font-weight: 700;
+	line-height: 1.25;
+	color: var(--doc-ink);
+}
+.cot-doc-cliente-datos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 14px;
+	margin-top: 3px;
+	font-size: 12px;
+	color: var(--doc-muted);
+}
+.cot-doc-falta {
+	color: var(--doc-muted);
+	font-style: italic;
+	font-weight: 400;
+}
+.cot-doc-vacio {
+	padding: 18px;
+	border: 1px dashed var(--doc-line);
+	border-radius: var(--eq-radius);
+	text-align: center;
+}
+
+/* Servicios */
+.cot-doc-tabla {
+	width: 100%;
+	border-collapse: collapse;
+}
+.cot-doc-tabla thead th {
+	padding: 8px 10px;
+	background: var(--doc-soft);
+	border-bottom: 2px solid var(--doc-primary);
+	color: var(--doc-ink);
+	white-space: nowrap;
+}
+.cot-doc-tabla thead th:first-child {
+	border-top-left-radius: var(--eq-radius);
+}
+.cot-doc-tabla thead th:last-child {
+	border-top-right-radius: var(--eq-radius);
+}
+.cot-doc-tabla tbody td {
+	padding: 12px 10px;
+	border-bottom: 1px solid var(--doc-line);
+	vertical-align: top;
+}
+.cot-doc-serv {
+	width: 34%;
+}
+.is-separado .cot-doc-serv {
+	width: 28%;
+}
+.cot-doc-serv {
+	font-weight: 600;
+}
+.cot-doc-serv-ico {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	float: left;
+	width: 26px;
+	height: 26px;
+	margin: -3px 10px 0 0;
+	border-radius: 50%;
+	background: var(--doc-soft);
+	color: var(--doc-primary);
+	font-size: 12px;
+	font-weight: 400;
+}
+.cot-doc-serv-nombre {
+	display: block;
+	overflow: hidden;
+}
+.cot-doc-col-base {
+	color: var(--doc-muted);
+	font-size: 12px;
+}
+.cot-doc-num {
+	white-space: nowrap;
+}
+.cot-doc-monto {
+	font-weight: 700;
+}
+.cot-doc-mes {
+	font-weight: 400;
+	font-size: 11.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-desglose {
+	margin-top: 2px;
+	font-weight: 400;
+	font-size: 11px;
+	color: var(--doc-muted);
+}
+
+/* Totales a la derecha; condiciones y notas a la izquierda */
+.cot-doc-resumen {
+	display: flex;
+	flex-direction: row-reverse;
+	align-items: flex-start;
+	gap: 20px 28px;
+	margin-top: 18px;
+}
+.cot-doc-totales {
+	flex: 0 0 340px;
+	display: grid;
+	gap: 10px;
+}
+.cot-doc-tot {
+	border: 1px solid var(--doc-line);
+	border-radius: var(--eq-radius-card);
+	overflow: hidden;
+}
+.cot-doc-tot-sub {
+	padding: 8px 14px 0;
+}
+.cot-doc-tot dl {
+	margin: 0;
+	padding: 4px 0 0;
+}
+.cot-doc-tot-fila {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 5px 14px;
+}
+.cot-doc-tot-fila dt {
+	font-weight: 400;
+	color: var(--doc-muted);
+}
+.cot-doc-tot-fila dd {
+	margin: 0;
+	white-space: nowrap;
+}
+.cot-doc-tot-fila.is-total {
+	margin-top: 6px;
+	padding: 11px 14px;
+	background: var(--doc-primary);
+	color: var(--doc-on-primary);
+}
+.cot-doc-tot-fila.is-total dt {
+	color: var(--doc-on-primary);
+	font-weight: 600;
+}
+.cot-doc-tot-fila.is-total dd {
+	font-size: 18px;
+	font-weight: 700;
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total {
+	background: var(--doc-soft);
+	color: var(--doc-ink);
+	border-top: 1px solid var(--doc-line);
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total dt {
+	color: var(--doc-ink);
+}
+.cot-doc-tot.is-mensual .cot-doc-tot-fila.is-total dd {
+	color: var(--doc-primary);
+}
+.cot-doc-condiciones {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.cot-doc-bloque + .cot-doc-bloque,
+.cot-doc-bloque + .cot-doc-nota {
+	margin-top: 14px;
+}
+.cot-doc-bloque p {
+	margin: 0;
+	font-size: 12.5px;
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.cot-doc-nota {
+	display: flex;
+	align-items: flex-start;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--doc-mist);
+	border-left: 3px solid var(--doc-accent);
+	font-size: 12px;
+	color: var(--doc-ink);
+}
+.cot-doc-nota .cot-doc-ico {
+	margin-top: 2px;
+}
+.cot-doc-condiciones > .cot-doc-nota:first-child {
+	margin-top: 0;
+}
+
+/* Cierre: asesor y aceptación */
+.cot-doc-cierre {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20px 36px;
+	margin-top: auto;
+	padding-top: 32px;
+}
+.cot-doc-asesor {
+	padding-left: 14px;
+	border-left: 3px solid var(--doc-primary);
+}
+.cot-doc-asesor-nombre {
+	font-size: 15px;
+	font-weight: 700;
+	color: var(--doc-ink);
+}
+.cot-doc-asesor-datos {
+	margin-top: 4px;
+	font-size: 12px;
+	color: var(--doc-muted);
+	overflow-wrap: anywhere;
+}
+.cot-doc-asesor-datos > div + div {
+	margin-top: 2px;
+}
+.cot-doc-firma-linea {
+	height: 40px;
+	border-bottom: 1px solid var(--doc-ink);
+}
+.cot-doc-firma-pie {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 5px;
+	font-size: 11px;
+	color: var(--doc-muted);
+}
+.cot-doc-firma-pie span:last-child {
+	min-width: 30%;
+}
+
+/* Pie */
+.cot-doc-pie {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 4px 16px;
+	margin-top: 24px;
+	padding-top: 10px;
+	border-top: 1px solid var(--doc-line);
+	font-size: 10.5px;
+	color: var(--doc-muted);
+}
+.cot-doc-web {
+	font-weight: 600;
+	color: var(--doc-primary);
+}
+
+/* Hoja angosta (vista previa en celular): todo apilado */
+@container cotdoc (max-width: 600px) {
+	.cot-doc-head {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.cot-doc-contacto {
+		text-align: left;
+	}
+	.cot-doc-tit {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	/* Número, fecha y vigencia en filas: etiqueta a la izquierda, dato a la derecha (sin cortar fechas) */
+	.cot-doc-meta {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6px;
+		padding: 10px 14px;
+		border: 1px solid var(--doc-line);
+		border-radius: var(--eq-radius);
+	}
+	.cot-doc-meta-item,
+	.cot-doc-meta-item:first-child,
+	.cot-doc-meta-item:last-child {
+		padding: 0;
+		border: 0;
+	}
+	.cot-doc-meta-item {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0 12px;
+	}
+	.cot-doc-meta dd {
+		margin: 0;
+		text-align: right;
+		white-space: normal;
+	}
+	.cot-doc-para {
+		grid-template-columns: 1fr;
+	}
+	.cot-doc-para-col + .cot-doc-para-col {
+		border-left: 0;
+		border-top: 1px solid var(--doc-line);
+	}
+	.cot-doc-tabla thead {
+		display: none;
+	}
+	.cot-doc-tabla,
+	.cot-doc-tabla tbody,
+	.cot-doc-tabla tr,
+	.cot-doc-tabla td,
+	.cot-doc-tabla .cot-doc-serv {
+		display: block;
+		width: auto;
+	}
+	.cot-doc-tabla tbody {
+		border-top: 2px solid var(--doc-primary);
+	}
+	.cot-doc-tabla tbody tr {
+		padding: 12px 0;
+		border-bottom: 1px solid var(--doc-line);
+	}
+	.cot-doc-tabla tbody td {
+		padding: 0;
+		border: 0;
+	}
+	.cot-doc-tabla tbody .cot-doc-col-base {
+		margin: 4px 0 0 36px;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num {
+		margin: 6px 0 0 36px;
+		text-align: right;
+		white-space: normal;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num::after {
+		content: "";
+		display: table;
+		clear: both;
+	}
+	.cot-doc-tabla tbody td[data-label].cot-doc-num::before {
+		content: attr(data-label);
+		float: left;
+		margin-right: 12px;
+		font-weight: 400;
+		font-size: 12px;
+		color: var(--doc-muted);
+		text-align: left;
+	}
+	.cot-doc-tabla tbody .cot-doc-desglose {
+		clear: both;
+	}
+	.cot-doc-tabla tbody td.cot-doc-monto:not(.cot-doc-num) {
+		margin-top: 6px;
+	}
+	.cot-doc-resumen {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.cot-doc-totales {
+		flex-basis: auto;
+	}
+	.cot-doc-cierre {
+		grid-template-columns: 1fr;
+		gap: 24px;
+	}
+}
+@media (max-width: 575.98px) {
+	.cot-doc {
+		padding: 26px 18px 18px;
+	}
+}
+
+@media print {
+	@page {
+		size: letter;
+		margin: 12mm 14mm;
+	}
+	html,
+	body {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+	.cot-doc {
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+		padding: 16px 0 0;
+		font-size: 12px;
+		/* Llena la carta para que el cierre y el pie queden abajo */
+		min-height: 244mm;
+		overflow: visible;
+	}
+	.cot-doc-head {
+		padding-bottom: 14px;
+	}
+	.cot-doc-tit {
+		padding: 14px 0 12px;
+	}
+	.cot-doc-para {
+		margin-bottom: 16px;
+	}
+	.cot-doc-para-col {
+		padding: 10px 16px;
+	}
+	.cot-doc-tabla tbody td {
+		padding: 9px 10px;
+	}
+	.cot-doc-resumen {
+		margin-top: 14px;
+	}
+	.cot-doc-tot-fila {
+		padding: 3px 14px;
+	}
+	.cot-doc-tot-fila.is-total {
+		padding: 8px 14px;
+	}
+	.cot-doc-cierre {
+		padding-top: 20px;
+	}
+	.cot-doc-firma-linea {
+		height: 32px;
+	}
+	.cot-doc-pie {
+		margin-top: 14px;
+	}
+	.cot-doc-tabla tr,
+	.cot-doc-tot,
+	.cot-doc-bloque,
+	.cot-doc-nota,
+	.cot-doc-cierre,
+	.cot-doc-pie {
+		break-inside: avoid;
+	}
+}
+/* ===== Fin Cotización ===== */

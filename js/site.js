@@ -118,6 +118,15 @@
 			.then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); });
 	}
 
+	// Avisa por correo al equipo (si está configurado en Netlify). Si falla, no pasa nada:
+	// el lead ya quedó guardado.
+	function avisarEquipo(lead) {
+		try {
+			fetch('/api/aviso-lead', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lead) })
+				.catch(function () {});
+		} catch (err) { /* navegador sin fetch keepalive */ }
+	}
+
 	function whatsappFallback(lead) {
 		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + lead.fechaVisita + '.' : '') + T.tel + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
@@ -185,7 +194,7 @@
 				button.disabled = false;
 				return;
 			}
-			saveLead(lead).then(done, fail).then(function () { button.disabled = false; });
+			saveLead(lead).then(function () { avisarEquipo(lead); done(); }, fail).then(function () { button.disabled = false; });
 		});
 	});
 
@@ -322,42 +331,95 @@
 
 		apply(false);
 
-		// Búsqueda inteligente: la IA convierte la frase del visitante en filtros.
+		// Búsqueda por frase: se lee la frase del visitante y se convierte en filtros (sin IA).
 		var iaBtn = document.getElementById('ia-buscar');
 		if (iaBtn) {
 			var iaInput = document.getElementById('ia-texto');
 			var iaStatus = document.querySelector('.ia-search-status');
 			var opciones = function (sel) {
-				return Array.prototype.slice.call(sel.options).map(function (o) { return o.value; }).filter(Boolean);
+				return Array.prototype.slice.call(sel.options).filter(function (o) { return o.value; });
+			};
+			var SINONIMOS = {
+				casa: ['casa', 'casas', 'house', 'houses', 'home', 'homes', 'chalet'],
+				apartamento: ['apartamento', 'apartamentos', 'apto', 'aptos', 'depto', 'departamento', 'apartment', 'apartments', 'condo', 'condos', 'penthouse', 'loft'],
+				terreno: ['terreno', 'terrenos', 'lote', 'lotes', 'lot', 'lots', 'land'],
+				oficina: ['oficina', 'oficinas', 'office', 'offices'],
+				local: ['local', 'locales', 'comercial', 'retail'],
+				bodega: ['bodega', 'bodegas', 'galera', 'warehouse'],
+				finca: ['finca', 'fincas', 'farm', 'rancho']
+			};
+			var monto = function (txt) {
+				var m = txt.match(/(\d+(?:[.,]\d+)*)\s*(millones|millon|mil|mm|k|m\b)?/);
+				if (!m) return 0;
+				var num = /^\d{1,3}([.,]\d{3})+$/.test(m[1]) ? m[1].replace(/[.,]/g, '') : m[1].replace(',', '.');
+				var v = parseFloat(num);
+				if (m[2] === 'k' || m[2] === 'mil') v *= 1000;
+				else if (m[2]) v *= 1000000;
+				return v;
+			};
+			var palabra = function (t, w) { return new RegExp('(^|[^a-z0-9])' + w + '([^a-z0-9]|$)').test(t); };
+			var leerFrase = function (texto) {
+				var t = normalize(texto);
+				var r = { operacion: '', tipo: '', zona: '', habitaciones: 0, max: 0, min: 0 };
+				if (/\b(rent|renta|rentar|alquiler|alquilar|arrendar|arrendamiento)\b/.test(t)) r.operacion = 'renta';
+				else if (/\b(venta|vender|comprar|compra|buy|sale)\b/.test(t)) r.operacion = 'venta';
+				opciones(form.elements.tipo).some(function (o) {
+					var pals = (SINONIMOS[o.value] || []).concat([normalize(o.value), normalize(o.textContent)]);
+					if (pals.some(function (w) { return w && palabra(t, w); })) { r.tipo = o.value; return true; }
+					return false;
+				});
+				var z = t.match(/\b(?:zona|zone|z\.?)\s*(\d{1,2})\b/);
+				opciones(form.elements.zona).some(function (o) {
+					var zn = normalize(o.value);
+					var hit = z ? new RegExp('\\b(zona|zone)\\s*' + z[1] + '\\b').test(zn) : (zn.length > 3 && !/^(zona|zone)\s*\d+$/.test(zn) && t.indexOf(zn) > -1);
+					if (hit) { r.zona = o.value; return true; }
+					return false;
+				});
+				var hab = t.match(/(\d+)\s*\+?\s*(?:habitacion|habitaciones|hab\b|cuartos?|recamaras?|dormitorios?|bedrooms?|beds?|bd\b|br\b)/);
+				if (hab) r.habitaciones = parseInt(hab[1], 10);
+				var tope = t.match(/(?:hasta|maximo|max|presupuesto(?:\s+de)?|no mas de|menos de|under|up to|below|less than|budget(?: of)?)\s*(?:de\s*)?(?:us\s*\$|usd|\$|q\.?)?\s*(\d[\d.,]*\s*(?:millones|millon|mil|mm|k|m\b)?)/);
+				var piso = t.match(/(?:desde|minimo|mas de|from|at least|over|more than)\s*(?:us\s*\$|usd|\$|q\.?)?\s*(\d[\d.,]*\s*(?:millones|millon|mil|mm|k|m\b)?)/);
+				var suelto = t.match(/(?:us\s*\$|usd|\$|\bq\.?)\s*(\d[\d.,]*\s*(?:millones|millon|mil|mm|k|m\b)?)|(\d[\d.,]*\s*(?:millones|millon|mil|mm|k)\b)/);
+				r.max = tope ? monto(tope[1]) : 0;
+				r.min = piso ? monto(piso[1]) : 0;
+				if (!r.max && !r.min && suelto) r.max = monto(suelto[1] || suelto[2]);
+				if (r.max < 100) r.max = 0;
+				if (r.min < 100) r.min = 0;
+				return r;
+			};
+			var etiqueta = function (sel, v) {
+				var o = opciones(sel).filter(function (x) { return x.value === v; })[0];
+				return o ? o.textContent.trim() : v;
 			};
 			var buscarIA = function () {
 				var texto = iaInput.value.trim();
-				if (texto.length < 4) { iaStatus.textContent = T.escribe; return; }
-				iaBtn.disabled = true;
-				iaStatus.textContent = T.buscando;
-				fetch('/api/ia', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ tarea: 'busquedaPublica', datos: { texto: texto, zonas: opciones(form.elements.zona), tipos: opciones(form.elements.tipo) } })
-				}).then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.error || 'Error'); return b; }); })
-					.then(function (r) {
-						track('Search', { search_string: texto });
-						var f = form.elements;
-						var hab = Math.min(4, r.habitaciones || 0);
-						var valores = { tipo: r.tipo || '', zona: r.zona || '', habitaciones: hab ? String(hab) : '', max: r.precioMaximo ? String(Math.round(r.precioMaximo)) : '', min: '', q: r.texto || '' };
-						if (r.operacion && r.operacion !== preset) {
-							var qs = new URLSearchParams();
-							Object.keys(valores).forEach(function (k) { if (valores[k]) qs.set(k, valores[k]); });
-							location.href = rutas[r.operacion] + (qs.toString() ? '?' + qs : '');
-							return;
-						}
-						Object.keys(valores).forEach(function (k) { if (f[k] && !(presetZona && k === 'zona')) f[k].value = valores[k]; });
-						page = 1;
-						apply(true);
-						iaStatus.textContent = r.respuesta || '';
-					})
-					.catch(function (err) { iaStatus.textContent = err.message === 'Failed to fetch' ? T.sinConexion : err.message; })
-					.then(function () { iaBtn.disabled = false; });
+				if (texto.length < 3) { iaStatus.textContent = T.escribe; return; }
+				var r = leerFrase(texto);
+				track('Search', { search_string: texto });
+				var f = form.elements;
+				var hab = Math.min(4, r.habitaciones || 0);
+				var valores = { tipo: r.tipo, zona: r.zona, habitaciones: hab ? String(hab) : '', max: r.max ? String(Math.round(r.max)) : '', min: r.min ? String(Math.round(r.min)) : '', q: '' };
+				var nada = !r.operacion && !r.tipo && !r.zona && !hab && !r.max && !r.min;
+				if (nada) {
+					var VACIAS = /^(busco|buscamos|quiero|necesito|una?|unos?|unas?|el|la|los|las|de|del|en|con|para|por|que|y|o|me|mi|i|want|need|looking|for|a|an|the|in|with|and|or|of|to)$/;
+					valores.q = normalize(texto).split(/[^a-z0-9]+/).filter(function (w) { return w.length > 2 && !VACIAS.test(w); }).slice(0, 3).join(' ');
+				}
+				if (r.operacion && r.operacion !== preset) {
+					var qs = new URLSearchParams();
+					Object.keys(valores).forEach(function (k) { if (valores[k]) qs.set(k, valores[k]); });
+					location.href = rutas[r.operacion] + (qs.toString() ? '?' + qs : '');
+					return;
+				}
+				Object.keys(valores).forEach(function (k) { if (f[k] && !(presetZona && k === 'zona')) f[k].value = valores[k]; });
+				page = 1;
+				apply(true);
+				var partes = [];
+				if (r.tipo) partes.push(etiqueta(f.tipo, r.tipo));
+				if (r.zona) partes.push(etiqueta(f.zona, r.zona));
+				if (hab) partes.push(hab + (EN ? '+ bedrooms' : '+ habitaciones'));
+				if (r.max) partes.push((EN ? 'up to ' : 'hasta ') + Math.round(r.max).toLocaleString('en-US'));
+				if (r.min) partes.push((EN ? 'from ' : 'desde ') + Math.round(r.min).toLocaleString('en-US'));
+				iaStatus.textContent = partes.length ? (EN ? 'Showing: ' : 'Mostrando: ') + partes.join(' · ') : (EN ? 'Searching by keywords. You can refine with the filters below.' : 'Buscando por palabras. Puedes afinar con los filtros de abajo.');
 			};
 			iaBtn.addEventListener('click', buscarIA);
 			iaInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); buscarIA(); } });

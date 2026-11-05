@@ -42,7 +42,9 @@ const L = {
 	en: { venta: 'for sale', renta: 'for rent', precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', mes: '/mo', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
 };
 
+// Código de la propiedad (campo «Código» del panel); las antiguas sin código usan EQ-xxxxxx.
 export function codigo(p) {
+	if (p.codigo) return String(p.codigo).trim().toUpperCase();
 	return `EQ-${String(p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
 }
 

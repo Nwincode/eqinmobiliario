@@ -1,7 +1,23 @@
-// Cliente de la función de IA (/api/ia) y ayudas para contactar clientes.
+// Herramientas del asesor. Si la IA está configurada en Netlify (ANTHROPIC_API_KEY) se usa;
+// si no, o si falla, se resuelven con reglas y plantillas (admin/js/reglas.js), sin costo.
 import { session } from './session.js';
+import { REGLAS } from './reglas.js';
 
-export async function pedirIA(tarea, datos) {
+let iaActiva = null;
+
+// ¿Está encendida la IA? Se consulta una vez por sesión del panel.
+export async function estadoIA() {
+	if (iaActiva !== null) return iaActiva;
+	try {
+		const res = await fetch('/api/ia', { cache: 'no-store' });
+		iaActiva = res.ok && Boolean((await res.json()).activa);
+	} catch {
+		iaActiva = false;
+	}
+	return iaActiva;
+}
+
+async function llamarIA(tarea, datos) {
 	const token = session.user && session.user.getIdToken ? await session.user.getIdToken() : '';
 	const res = await fetch('/api/ia', {
 		method: 'POST',
@@ -19,6 +35,20 @@ export async function pedirIA(tarea, datos) {
 		throw new Error(msg);
 	}
 	return body;
+}
+
+export async function pedirIA(tarea, datos) {
+	const local = REGLAS[tarea];
+	if (await estadoIA()) {
+		try {
+			return await llamarIA(tarea, datos);
+		} catch (err) {
+			if (!local) throw err;
+			console.warn('La IA no respondió; se usan las reglas sin IA.', err);
+		}
+	}
+	if (!local) throw new Error('Esta herramienta necesita la IA, que no está activada.');
+	return local(datos);
 }
 
 // Número en formato internacional para wa.me (los de 8 dígitos se asumen de Guatemala).

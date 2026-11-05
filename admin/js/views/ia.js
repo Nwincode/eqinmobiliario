@@ -1,10 +1,11 @@
-// Asistente IA: tareas del día a día del asesor.
+// Asistente: tareas del día a día del asesor.
+// Sin IA funciona con reglas y plantillas; si la IA está configurada en Netlify, la usa y se suma el chat.
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
 import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
-import { pedirIA, whatsappUrl, copiar } from '../ia.js';
+import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge } from './leads.js';
 import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
@@ -13,8 +14,7 @@ const TABS = [
 	['buscar', 'Buscar para un cliente'],
 	['redactar', 'Redactar ficha y redes'],
 	['seguimiento', 'Seguimiento de leads'],
-	['clientes', 'Clientes que buscan'],
-	['chat', 'Asistente']
+	['clientes', 'Clientes que buscan']
 ];
 
 async function cargarPropiedades() {
@@ -29,12 +29,12 @@ async function cargarRequerimientos() {
 		.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }
 
-// Inventario que se manda a la IA: solo lo que se ve en la página (disponible, próximamente o reservada).
+// Inventario que se revisa: solo lo que se ve en la página (disponible, próximamente o reservada).
 function inventarioIA(props) {
 	return props.filter(seOfrece);
 }
 
-function cargando(btn, texto = 'La IA está trabajando…') {
+function cargando(btn, texto = 'Trabajando…') {
 	const original = btn.textContent;
 	btn.disabled = true;
 	btn.replaceChildren(h('span', { class: 'spinner-border spinner-border-sm me-2' }), texto);
@@ -83,7 +83,7 @@ function tabBuscar(cont, props) {
 			const c = r.criterios || {};
 			out.replaceChildren(
 				h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
-					h('div', { class: 'small text-muted mb-1' }, 'Lo que entendió la IA'),
+					h('div', { class: 'small text-muted mb-1' }, 'Lo que se entendió del pedido'),
 					h('div', { class: 'fw-semibold mb-2' }, c.resumen),
 					h('div', { class: 'd-flex flex-wrap gap-1' },
 						c.operacion && c.operacion !== 'cualquiera' ? badge(c.operacion, 'secondary') : null,
@@ -108,7 +108,7 @@ function tabBuscar(cont, props) {
 		}
 	});
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'La IA entiende el pedido aunque venga desordenado, revisa todo el inventario disponible y te prepara el mensaje para el cliente.'),
+		h('p', { class: 'text-muted' }, 'Pega el pedido del cliente: se leen la zona, el tipo, las habitaciones y el presupuesto, se revisa todo el inventario disponible y te queda el mensaje listo para el cliente. Revisa siempre lo que se entendió.'),
 		texto, btn, out);
 }
 
@@ -141,9 +141,9 @@ function tabRedactar(cont, props, idInicial) {
 	const sel = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Elige una propiedad…'),
 		editables.map((p) => h('option', { value: p.id }, `${p.titulo || '(sin título)'} — ${p.zona || ''}`)));
 	sel.value = idInicial && editables.some((p) => p.id === idInicial) ? idInicial : '';
-	const notas = h('textarea', { class: 'form-control', rows: 4, placeholder: 'Notas para la IA (opcional): lo que viste en la visita, a quién va dirigida, qué destacar.\nEj.: "Mucha luz natural, cocina remodelada en 2024, ideal para familia con niños, cerca del colegio Austriaco."' });
+	const notas = h('textarea', { class: 'form-control', rows: 4, placeholder: 'Notas (opcional, se agregan a la descripción): lo que viste en la visita, a quién va dirigida, qué destacar.\nEj.: "Mucha luz natural, cocina remodelada en 2024, ideal para familia con niños, cerca del colegio Austriaco."' });
 	const out = h('div', { class: 'mt-4' });
-	const btn = h('button', { class: 'btn btn-primary mt-2', type: 'button' }, 'Redactar con IA');
+	const btn = h('button', { class: 'btn btn-primary mt-2', type: 'button' }, 'Armar borrador');
 
 	btn.addEventListener('click', async () => {
 		const p = props.find((x) => x.id === sel.value);
@@ -181,7 +181,7 @@ function tabRedactar(cont, props, idInicial) {
 					};
 					if (p.vip) Object.assign(patch, { 'vipLanding.titular': f.vipTitular.get(), 'vipLanding.subtitular': f.vipSubtitular.get(), 'vipLanding.puntosClave': f.puntos.get().split('\n').map((s) => s.trim()).filter(Boolean) });
 					await updateDoc(doc(db, 'properties', p.id), patch);
-					await markPending(`Propiedad (IA): ${f.titulo.get()}`);
+					await markPending(`Propiedad (borrador): ${f.titulo.get()}`);
 					toast('Listo: la propiedad se actualizó. Publica para verlo en el sitio.');
 				} catch (err) { showError(err); }
 			});
@@ -203,7 +203,7 @@ function tabRedactar(cont, props, idInicial) {
 		}
 	});
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'A partir de los datos de la propiedad y tus notas, la IA escribe la descripción, el SEO, la landing VIP y las publicaciones para redes. Tú revisas y aplicas con un clic.'),
+		h('p', { class: 'text-muted' }, 'Con los datos de la propiedad y tus notas se arma un borrador de la descripción, el SEO, la landing VIP y las publicaciones para redes. Revísalo, mejóralo y aplícalo con un clic.'),
 		h('div', { class: 'row g-2' }, h('div', { class: 'col-md-8' }, sel)),
 		h('div', { class: 'mt-2' }, notas), btn, out);
 }
@@ -263,7 +263,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 	});
 
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'Elige un lead: la IA resume el caso, te dice qué hacer y te deja el mensaje listo para WhatsApp o correo.'),
+		h('p', { class: 'text-muted' }, 'Elige un lead: se resume el caso, se sugiere el siguiente paso y te queda el mensaje listo para WhatsApp o correo.'),
 		h('div', { class: 'row g-4' },
 			h('div', { class: 'col-lg-4' }, lista),
 			h('div', { class: 'col-lg-8' }, out)));
@@ -308,7 +308,7 @@ function tabClientes(cont, props, reqs) {
 	};
 
 	mount(cont,
-		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, la IA te dice a qué clientes ofrecérsela y te deja cada mensaje listo.'),
+		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, aquí ves a qué clientes guardados ofrecérsela y te queda cada mensaje listo.'),
 		h('div', { class: 'row g-2 align-items-center' }, h('div', { class: 'col-md-8' }, sel), h('div', { class: 'col-md-4' }, btn)),
 		out,
 		h('h2', { class: 'h6 mt-4' }, `Clientes con búsqueda activa (${activos.length})`),
@@ -397,19 +397,20 @@ function mdBasico(md) {
 // ------------------------------------------------------------ Vista
 
 export async function render(container, [tab = 'buscar', id]) {
-	const [props, leads, reqs] = await Promise.all([
+	const [ia, props, leads, reqs] = await Promise.all([
+		estadoIA(),
 		cargarPropiedades(),
 		session.isAdmin || session.agentId ? loadLeads() : [],
 		cargarRequerimientos().catch(() => []),
 		loadAgents()
 	]);
 	const nav = h('ul', { class: 'nav nav-pills flex-wrap gap-1 mb-4' },
-		TABS.map(([key, label]) => h('li', { class: 'nav-item' }, h('a', { class: `nav-link${key === tab ? ' active' : ''}`, href: `#/ia/${key}` }, label))));
+		[...TABS, ...(ia ? [['chat', 'Chat']] : [])].map(([key, label]) => h('li', { class: 'nav-item' }, h('a', { class: `nav-link${key === tab ? ' active' : ''}`, href: `#/ia/${key}` }, label))));
 	const cont = h('div');
 	if (tab === 'redactar') tabRedactar(cont, props, id);
 	else if (tab === 'seguimiento') tabSeguimiento(cont, props, leads, id);
 	else if (tab === 'clientes') tabClientes(cont, props, reqs);
-	else if (tab === 'chat') tabChat(cont, props);
+	else if (tab === 'chat' && ia) tabChat(cont, props);
 	else tabBuscar(cont, props);
-	mount(container, pageHeader('Asistente IA'), nav, cont);
+	mount(container, pageHeader('Asistente'), nav, cont);
 }

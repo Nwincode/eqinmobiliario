@@ -118,7 +118,7 @@ async function renderKit(container, id) {
 			h('a', { href: '#/difusion', class: 'btn btn-light' }, 'Volver')),
 		h('p', { class: 'text-muted' }, `${codigo(p)} · ${formatPrice(p.precio, p.moneda, p.operacion)} · ${[p.zona, p.ciudad].filter(Boolean).join(', ')}. Copia el texto de cada plataforma, sube las fotos y marca dónde quedó publicada. Si cambias el precio o los datos, este panel te avisará qué anuncios actualizar.`),
 		!p.publicado ? h('div', { class: 'alert alert-warning' }, 'Esta propiedad no está publicada en el sitio: los enlaces de los anuncios no funcionarán hasta que la publiques.') : null,
-		sinIngles && portales.some((x) => x.idioma === 'en') ? h('div', { class: 'alert alert-info' }, 'La propiedad no tiene versión en inglés: los textos para portales en inglés usan el español. Usa "EN · Traducir al inglés (IA)" en la propiedad.') : null,
+		sinIngles && portales.some((x) => x.idioma === 'en') ? h('div', { class: 'alert alert-info' }, 'La propiedad no tiene versión en inglés: los textos para portales en inglés usan el español. Abre la propiedad y guárdala: se traduce sola.') : null,
 		seccionFotos(p),
 		lista);
 }

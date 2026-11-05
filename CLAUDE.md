@@ -25,6 +25,7 @@ sin cajas grandes ni rellenos pesados. Círculo o espacio discreto, flecha fina,
 área de toque de al menos 44 px y `aria-label` para lectores de pantalla. Nunca volver al estilo con texto.
 
 ## Otras reglas
+- Cuando el usuario haga una pregunta, responderla primero y de forma directa (sí/no y por qué); después proponer o hacer lo demás.
 - Un solo chat a la vez para la página eqinmobiliario.gt; no mezclar con el proyecto "ptg".
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
 - No crear pull requests si no se piden.

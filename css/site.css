@@ -1729,6 +1729,16 @@ body.offcanvas-menu .wa-float {
 	opacity: 0;
 	visibility: hidden;
 }
+/* Calculadora de renta: mientras una cifra pasa por debajo del botón flotante, el botón se oculta
+ * (js/calc-renta-ui.js mide y pone la clase). La tarjeta tiene su propio botón de consulta. */
+.wa-float {
+	transition: transform .2s ease, opacity .2s ease, visibility .2s;
+}
+body.renta-tapa-wa .wa-float {
+	opacity: 0;
+	visibility: hidden;
+	transform: translateY(12px);
+}
 /* En escritorio el menú de celular no existe (antes quedaba fuera de pantalla pero recibía el foco con Tab) */
 @media (min-width: 992px) {
 	.site-mobile-menu {
@@ -2472,5 +2482,307 @@ a:hover > .eq-ic-fin,
 	}
 	.ficha-aviso-acciones .btn {
 		flex: 1 1 100%;
+	}
+}
+
+/* Calculadora de renta (fichas en venta y /calculadora-de-renta/) */
+.renta-card {
+	background: var(--eq-white);
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius-card);
+	padding: 20px;
+}
+.renta-card .form-label {
+	font-size: 13px;
+	font-weight: 600;
+	margin-bottom: .25rem;
+	color: var(--eq-text);
+}
+.renta-card .form-control,
+.renta-card .form-select {
+	min-height: 44px;
+}
+.renta-intro,
+.renta-ayuda {
+	color: var(--eq-ink);
+}
+.renta-ayuda {
+	font-size: 13px;
+	margin-bottom: 0;
+}
+.renta-supuestos {
+	margin-top: 12px;
+	border-top: 1px solid var(--eq-line);
+	border-bottom: 1px solid var(--eq-line);
+}
+.renta-supuestos summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 14px;
+	color: var(--eq-primary);
+}
+.renta-supuestos summary .eq-ic {
+	color: var(--eq-primary);
+}
+.renta-supuestos[open] {
+	padding-bottom: 14px;
+}
+.renta-supuestos summary:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.renta-resultado {
+	margin-top: 16px;
+	padding: 16px;
+	background: var(--eq-primary-soft);
+	border-radius: var(--eq-radius);
+}
+.renta-kpi-label {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--eq-ink);
+}
+.renta-kpi {
+	margin: 2px 0 10px;
+	font-size: 2rem;
+	line-height: 1.15;
+	font-weight: 700;
+	color: var(--eq-primary);
+	font-variant-numeric: tabular-nums;
+}
+.renta-kpi.is-negativo {
+	color: var(--eq-danger);
+}
+.renta-mini {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+.renta-mini span {
+	display: block;
+	font-size: 12px;
+	color: var(--eq-ink);
+}
+.renta-mini strong {
+	font-size: 1.15rem;
+	color: var(--eq-text);
+	font-variant-numeric: tabular-nums;
+}
+.renta-vacio {
+	margin: 10px 0 0;
+	font-size: 14px;
+	color: var(--eq-ink);
+}
+.renta-desglose {
+	margin: 14px 0 0;
+	font-size: 14px;
+	color: var(--eq-ink);
+}
+.renta-d-titulo {
+	margin: 0 0 4px;
+	font-weight: 600;
+	color: var(--eq-text);
+}
+.renta-desglose dl {
+	margin: 0;
+}
+.renta-d {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+	padding: 5px 0;
+	border-bottom: 1px solid var(--eq-line);
+}
+.renta-d dt {
+	font-weight: 400;
+}
+.renta-d dd {
+	margin: 0;
+	color: var(--eq-text);
+	font-weight: 600;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+.renta-d dt {
+	display: flex;
+	gap: 6px;
+	min-width: 0;
+}
+.renta-d-signo {
+	flex: 0 0 1ch;
+	text-align: center;
+	color: var(--eq-ink);
+	font-weight: 600;
+}
+.renta-d-resta dt {
+	padding-left: 10px;
+}
+.renta-d:has(+ .renta-d-subtotal),
+.renta-d:has(+ .renta-d-total) {
+	border-bottom-color: transparent;
+}
+.renta-d-resta dd {
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+.renta-d-subtotal,
+.renta-d-total {
+	border-top: 1px solid var(--eq-text);
+	color: var(--eq-text);
+	font-weight: 600;
+}
+.renta-d-subtotal dt,
+.renta-d-total dt {
+	font-weight: 600;
+}
+.renta-d-total {
+	border-bottom: 0;
+	padding-top: 8px;
+}
+.renta-d-total dd {
+	color: var(--eq-primary);
+	font-size: 1.05em;
+}
+.renta-d-mes {
+	border-bottom: 0;
+	padding-top: 0;
+	font-size: 13px;
+}
+.renta-d-mes dt {
+	padding-left: calc(1ch + 6px);
+}
+.renta-d-mes dd {
+	color: var(--eq-primary);
+}
+/* Dato informativo (IVA general): no entra en la cuenta, va en tono secundario. */
+.renta-d-info {
+	border-top: 1px dashed var(--eq-line);
+	border-bottom: 0;
+	margin-top: 6px;
+	padding-top: 8px;
+	font-size: 13px;
+	color: var(--eq-ink);
+}
+.renta-d-info dt {
+	padding-left: calc(1ch + 6px);
+}
+.renta-d-info dd {
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+/* Al llegar desde «Consultar» de la calculadora, que el formulario no quede bajo el menú fijo. */
+.ficha-contacto .lead-form,
+.renta-lead .lead-form {
+	scroll-margin-top: 96px;
+}
+.renta-iva {
+	margin: 10px 0 0;
+	padding: 10px 12px;
+	font-size: 13px;
+	border-left: 3px solid var(--eq-cyan);
+	background: var(--eq-mist);
+	color: var(--eq-text);
+}
+.renta-escenarios {
+	margin-top: 18px;
+}
+.renta-sub {
+	font-size: 15px;
+	font-weight: 700;
+	margin-bottom: 8px;
+	color: var(--eq-text);
+}
+.renta-esc-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+}
+.renta-esc {
+	padding: 10px;
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius);
+	font-variant-numeric: tabular-nums;
+}
+.renta-esc.is-actual {
+	border-color: var(--eq-primary);
+	background: var(--eq-primary-soft);
+}
+.renta-esc-titulo {
+	margin: 0 0 6px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--eq-primary);
+	text-transform: uppercase;
+	letter-spacing: .02em;
+}
+.renta-esc dl {
+	margin: 0;
+}
+.renta-esc dl > div + div {
+	margin-top: 4px;
+}
+.renta-esc dt {
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+.renta-esc dd {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--eq-text);
+	overflow-wrap: anywhere;
+}
+.renta-cta {
+	margin-top: 18px;
+}
+.renta-estado {
+	margin: 8px 0 0;
+	font-size: 13px;
+	color: var(--eq-whatsapp);
+	font-weight: 600;
+}
+.renta-estado:empty {
+	display: none;
+}
+.renta-nota {
+	margin: 10px 0 0;
+	font-size: 12px;
+	color: var(--eq-ink);
+}
+.renta-nota .eq-ic,
+.renta-bloque h2 .eq-ic {
+	color: var(--eq-primary);
+}
+.renta-nota .eq-ic {
+	margin-right: 4px;
+}
+.renta-pagina .renta-lead {
+	position: sticky;
+	top: 112px;
+}
+@media (max-width: 991.98px) {
+	.renta-pagina .renta-lead {
+		position: static;
+	}
+}
+@media (max-width: 575.98px) {
+	.renta-card {
+		padding: 16px;
+	}
+	.renta-kpi {
+		font-size: 1.75rem;
+	}
+	.renta-esc {
+		padding: 8px 6px;
+	}
+	.renta-esc dd {
+		font-size: 13px;
 	}
 }

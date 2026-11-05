@@ -4,7 +4,7 @@ import {
 	sendPasswordResetEmail, createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
-import { session, getPublishState } from './session.js';
+import { session, getPublishState, revisarAutoPublicar } from './session.js';
 import { aplicarTema } from './tema.js';
 
 const ROUTES = [
@@ -16,7 +16,9 @@ const ROUTES = [
 	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
 	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
 	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
-	{ path: 'ia', label: 'Asistente IA', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
+	{ path: 'calculadora', label: 'Calculadora de renta', icon: 'icon-calculator', group: 'Herramientas', load: () => import('./views/calculadora.js') },
+	{ path: 'cotizaciones', label: 'Cotización de servicios', icon: 'icon-receipt', group: 'Herramientas', load: () => import('./views/cotizacion.js') },
+	{ path: 'ia', label: 'Asistente', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
 	{ path: 'google', label: 'Google', icon: 'icon-search', group: 'Herramientas', load: () => import('./views/google.js') },
 	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', group: 'Herramientas', load: () => import('./views/reportes.js'), admin: true },
 	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', group: 'Sitio web', load: () => import('./views/content.js'), admin: true },
@@ -222,6 +224,7 @@ if (!configured) {
 			shell();
 			route();
 			aplicarTema();
+			revisarAutoPublicar();
 		} catch (err) {
 			noAccess(errorMessage(err));
 		}

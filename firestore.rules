@@ -74,6 +74,17 @@ service cloud.firestore {
       allow get: if isStaff();
       allow write: if isAdmin();
     }
+    // Cotizaciones: datos de la empresa que factura, ISR %, % para el asesor, vigencia y condiciones.
+    // Los lee el equipo; los cambia el administrador.
+    match /settings/cotizacion {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+    // Datos del asesor para facturar sus cotizaciones (NIT, régimen): los ve y cambia el asesor dueño y el administrador.
+    // El id del documento es el agentId del asesor.
+    match /emisoresAsesor/{agentId} {
+      allow read, write: if isAdmin() || (isStaff() && myAgentId() == agentId);
+    }
 
     match /properties/{id} {
       allow get: if resource.data.publicado == true || isStaff();
@@ -145,6 +156,46 @@ service cloud.firestore {
       allow create: if nuevoPropio();
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
+    }
+    // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
+    match /cotizaciones/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
+
+    // Portal del propietario: copia resumida y sin datos de clientes, hecha por el asesor.
+    // El id del documento es un token aleatorio largo (el enlace privado): quien lo tiene lo lee.
+    // Con el enlace del correo (sin contraseña) el propietario solo puede buscar su propio correo.
+    // Los propietarios no tienen documento en users, así que isStaff() sigue siendo falso para ellos.
+    function correoVerificado() {
+      return signedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true;
+    }
+    function portalValido(token) {
+      return token.size() >= 32
+        && request.resource.data.email is string
+        && request.resource.data.email == request.resource.data.email.lower()
+        && request.resource.data.agentId is string
+        && request.resource.data.propietarioId is string
+        && request.resource.data.propiedades is list
+        && request.resource.data.propiedades.size() <= 50;
+    }
+    match /portalPropietarios/{token} {
+      allow get: if true;
+      allow list: if (correoVerificado()
+            && resource.data.email == request.auth.token.email.lower())
+        || isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow create: if isStaff() && portalValido(token)
+        && (isAdmin() || request.resource.data.agentId == myAgentId());
+      allow update: if isStaff() && portalValido(token)
+        && (isAdmin() || (resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == myAgentId()));
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
     }
 
     match /leads/{id} {
