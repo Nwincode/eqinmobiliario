@@ -18,6 +18,7 @@
 	var LEY_IVA = 'Decreto 27-92 (Ley del IVA)';
 	var FUENTE_IUSI = 'Decreto 18-2026, art. 1 (reforma art. 11 Dto. 15-98), DCA 28-ago-2026. Vigente desde el 26-nov-2026 aprox.; antes regía la escala anterior';
 	var FUENTE_IVA = 'Ley del IVA, Dto. 27-92, art. 3 num. 4; art. 10; arts. 45-47 (Dto. 4-2012)';
+	var FUENTE_COMISION = 'Práctica de mercado en Guatemala (dato del dueño): años 1 a 5 del contrato, 1 renta por año; años 6 a 10, 1 renta cada 2 años; más de 10, 1 renta cada 3 años. Sobre la renta mensual sin IVA';
 	var FUENTE_EXENCION = 'Decreto 18-2026, art. 4 (agrega el numeral 4 al art. 87 del Dto. 10-2012), para ventas desde el 1-ene-2027 (art. 5 b)';
 
 	// Cada valor: { valor, etiqueta, unidad, grupo, fuente, confirmar }. Lista plana para editarla fácil en el panel.
@@ -52,7 +53,14 @@
 		capBodega: { valor: 8.5, etiqueta: 'Cap rate de referencia: bodega', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
 		capFinca: { valor: 5, etiqueta: 'Cap rate de referencia: finca', unidad: '%', grupo: 'Mercado', fuente: 'Referencia interna de mercado en Guatemala.', confirmar: true },
 		capSalidaExtra: { valor: 0.5, etiqueta: 'Cap rate de salida: puntos sobre la referencia', unidad: 'pp', grupo: 'Mercado', fuente: 'Supuesto conservador de valuación.', confirmar: true },
-		capSalidaDefecto: { valor: 7, etiqueta: 'Cap rate de salida si no hay referencia', unidad: '%', grupo: 'Mercado', fuente: 'Supuesto conservador de valuación.', confirmar: true }
+		capSalidaDefecto: { valor: 7, etiqueta: 'Cap rate de salida si no hay referencia', unidad: '%', grupo: 'Mercado', fuente: 'Supuesto conservador de valuación.', confirmar: true },
+
+		// Comisión de arrendamiento (corretaje). Los valores sí/no son booleanos (unidad 'sí/no').
+		comisionActiva: { valor: true, etiqueta: 'Cobrar comisión de arrendamiento', unidad: 'sí/no', grupo: 'Comisión', fuente: FUENTE_COMISION + '.', confirmar: false },
+		plazoContrato: { valor: 3, etiqueta: 'Plazo de cada contrato (1 a 30)', unidad: 'años', grupo: 'Comisión', fuente: 'Supuesto del asesor.', confirmar: true },
+		comisionEnRenovacion: { valor: true, etiqueta: 'Cada contrato nuevo o renovación paga comisión', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Supuesto; se negocia con el propietario.', confirmar: true },
+		escalaContinua: { valor: false, etiqueta: 'Renovación con el mismo inquilino sigue la escala (no reinicia)', unidad: 'sí/no', grupo: 'Comisión', fuente: 'Confirmado por el propietario: cada renovación reinicia la escala (valor no). Opción avanzada: si no reinicia, un contrato del año a al año b del arrendamiento paga meses(b) − meses(a − 1) rentas.', confirmar: false },
+		ivaComision: { valor: 12, etiqueta: 'IVA sobre la factura de la comisión', unidad: '%', grupo: 'Comisión', fuente: 'Ley del IVA art. 3 num. 2 y art. 10 (servicio gravado). Es costo para el pequeño contribuyente; en el régimen general de IVA se toma como crédito fiscal y no es costo.', confirmar: true }
 	};
 
 	var USO_POR_TIPO = { casa: 'habitacional', apartamento: 'habitacional', finca: 'habitacional', oficina: 'comercial', local: 'comercial', bodega: 'comercial' };
@@ -77,6 +85,7 @@
 			if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
 			var v = params[k];
 			if (v && typeof v === 'object' && 'valor' in v) v = v.valor;
+			if (PARAMS[k] && typeof PARAMS[k].valor === 'boolean') { out[k] = b(v, PARAMS[k].valor); continue; }
 			if (v !== null && v !== undefined && v !== '' && isFinite(Number(v))) out[k] = Number(v);
 		}
 		return out;
@@ -89,6 +98,13 @@
 		var o = {}, k, j;
 		for (k in PARAMS) { o[k] = {}; for (j in PARAMS[k]) o[k][j] = PARAMS[k][j]; }
 		return o;
+	}
+
+	// Comisión de arrendamiento en rentas (meses de renta) para un contrato de n años (proporcional en fracciones):
+	// años 1-5: 1 renta por año; 6-10: 1 renta cada 2 años; más de 10: 1 renta cada 3 años.
+	function mesesComision(anios) {
+		var x = Math.max(0, n(anios, 0));
+		return Math.min(x, 5) + Math.max(0, Math.min(x, 10) - 5) / 2 + Math.max(0, x - 10) / 3;
 	}
 
 	function usoPorTipo(tipo) { return USO_POR_TIPO[tipo] || 'habitacional'; }
@@ -144,7 +160,7 @@
 			gastosOperativos: n(i.gastosOperativos, 10),
 			reservaCapex: n(i.reservaCapex, 0),
 			crecimientoRenta: n(i.crecimientoRenta, 3),
-			plazo: Math.max(1, Math.min(50, Math.round(n(i.plazo, 30)))),
+			plazo: Math.max(1, Math.min(30, Math.round(n(i.plazo, 30)))),
 			capSalida: n(i.capSalida, cap != null ? cap + P.capSalidaExtra : P.capSalidaDefecto),
 			costosVenta: n(i.costosVenta, 5),
 			tasaDescuento: n(i.tasaDescuento, 10),
@@ -154,7 +170,13 @@
 			depreciacion: n(i.depreciacion, 0),
 			costosCompra: n(i.costosCompra, 0), // % del precio: notario, registro, impuesto de la compra
 			restarImpuestoVenta: b(i.restarImpuestoVenta, true), // ISR sobre la ganancia de la venta
-			capexSumaAlCosto: b(i.capexSumaAlCosto, true) // la reserva gastada en mejoras sube el costo de adquisición
+			capexSumaAlCosto: b(i.capexSumaAlCosto, true), // la reserva gastada en mejoras sube el costo de adquisición
+			// Comisión de arrendamiento: las entradas mandan sobre los parámetros (la calculadora pública elige el plazo).
+			comisionActiva: b(i.comisionActiva, P.comisionActiva),
+			plazoContrato: Math.max(1, Math.min(30, Math.round(n(i.plazoContrato, P.plazoContrato) || 1))),
+			comisionEnRenovacion: b(i.comisionEnRenovacion, P.comisionEnRenovacion),
+			escalaContinua: b(i.escalaContinua, P.escalaContinua),
+			ivaComision: n(i.ivaComision, P.ivaComision)
 		};
 	}
 
@@ -167,6 +189,46 @@
 		}
 		if (e.regimenISR === 'utilidades') return P.isrUtilidadesTasa / 100 * Math.max(0, cobrado - deducibles);
 		return P.isrCapitalTasa / 100 * (1 - P.isrCapitalDeduccion / 100) * cobrado;
+	}
+
+	// Contratos de arrendamiento dentro del plazo de inversión y su comisión.
+	// - Un contrato empieza en el año 1, 1 + plazoContrato, … y se paga al firmarlo (caja).
+	// - Base: la renta mensual sin IVA vigente al empezar el contrato (con el aumento anual).
+	// - Escala: reinicia en cada contrato (meses(plazo)) o, con escalaContinua, sigue contando los años del
+	//   arrendamiento: el contrato del año a al b paga meses(b) − meses(a − 1).
+	// - El último contrato que la venta corta se cobra en proporción a los años que quedan (años ÷ plazo):
+	//   el resto lo absorbe el comprador, que recibe el contrato vigente. Así la comisión pagada en el plazo
+	//   es igual a la suma de lo devengado.
+	// - Costo: comisión + IVA, salvo en el régimen general de IVA (el IVA es crédito fiscal).
+	// - Estado de resultados: el costo del contrato se reparte por partes iguales en sus años (gasto devengado).
+	function planComision(e, P) {
+		var L = e.plazoContrato, H = e.plazo, g = e.crecimientoRenta / 100;
+		var recuperaIva = e.regimenIVA === 'general';
+		var plan = { activa: e.comisionActiva, plazoContrato: L, enRenovacion: e.comisionEnRenovacion, escalaContinua: e.escalaContinua,
+			tasaIva: e.ivaComision, recuperaIva: recuperaIva, contratos: [], caja: [], devengada: [],
+			mesesContrato: mesesComision(L), rentas: 0, sinIva: 0, iva: 0, costo: 0, pagados: 0 };
+		if (!e.comisionActiva) return plan;
+		for (var s = 1, k = 0; s <= H; s += L, k++) {
+			var anios = Math.min(L, H - s + 1);
+			var paga = k === 0 || e.comisionEnRenovacion;
+			var mesesLleno = e.escalaContinua ? mesesComision(s + L - 1) - mesesComision(s - 1) : mesesComision(L);
+			var meses = paga ? mesesLleno * anios / L : 0;
+			var rentaBase = e.rentaMensual * Math.pow(1 + g, s - 1);
+			var sinIva = meses * rentaBase;
+			var iva = sinIva * e.ivaComision / 100;
+			var costo = recuperaIva ? sinIva : sinIva + iva;
+			plan.contratos.push({ numero: k + 1, inicio: s, fin: s + anios - 1, anios: anios, completo: anios === L, paga: paga,
+				mesesContrato: mesesLleno, meses: meses, rentaBase: rentaBase, sinIva: sinIva, iva: iva, costo: costo });
+			if (!paga) continue;
+			plan.caja[s] = (plan.caja[s] || 0) + costo;
+			for (var y = s; y < s + anios; y++) plan.devengada[y] = (plan.devengada[y] || 0) + costo / anios;
+			plan.rentas += meses; plan.sinIva += sinIva; plan.iva += iva; plan.costo += costo; plan.pagados++;
+		}
+		return plan;
+	}
+	function contratoDelAnio(plan, t) {
+		for (var i = 0; i < plan.contratos.length; i++) if (t >= plan.contratos[i].inicio && t <= plan.contratos[i].fin) return plan.contratos[i];
+		return null;
 	}
 
 	function vpn(tasa, flujos) {
@@ -211,6 +273,7 @@
 		var costosCompra = e.precio * e.costosCompra / 100;
 		var inversion = e.precio + costosCompra; // lo que sale del bolsillo el año 0
 		var anios = [], acumulado = 0, flujos = [-inversion], payback = null, depAcum = 0;
+		var com = planComision(e, P);
 
 		// depPrevia: depreciación ya usada; no se deprecia más que el precio.
 		function anio(t, depPrevia) {
@@ -219,7 +282,10 @@
 			var opex = cobrado * e.gastosOperativos / 100;
 			var capex = cobrado * e.reservaCapex / 100;
 			var dep = e.regimenISR === 'utilidades' ? Math.max(0, Math.min(e.precio * e.depreciacion / 100, e.precio - (depPrevia || 0))) : 0;
-			var deducibles = opex + iusi + dep;
+			var comision = com.caja[t] || 0; // pagada al firmar (caja)
+			var comisionDevengada = com.devengada[t] || 0; // repartida en los años del contrato (resultado)
+			// Solo el régimen sobre utilidades deduce gastos reales; rentas de capital tiene el 30 % fijo y el simplificado va sobre ingresos.
+			var deducibles = opex + iusi + dep + comisionDevengada;
 			var isr = isrDelAnio(e, cobrado, deducibles, P, fx);
 			var ivaPropietario = e.regimenIVA === 'pequeno' ? cobrado * P.ivaPequeno / 100 : 0;
 			var ivaInquilino = e.regimenIVA === 'general' ? cobrado * P.ivaGeneral / 100 : 0;
@@ -227,22 +293,25 @@
 			return {
 				t: t, pgi: pgi, vacancia: pgi - cobrado, cobrado: cobrado, opex: opex, capex: capex, iusi: iusi,
 				depreciacion: dep, isr: isr, ivaPropietario: ivaPropietario, ivaInquilino: ivaInquilino,
+				comision: comision, comisionDevengada: comisionDevengada,
 				noi: noi,
-				antesImpuestos: noi - capex,
-				neto: noi - capex - isr - ivaPropietario
+				antesImpuestos: noi - comisionDevengada - capex,
+				neto: noi - comisionDevengada - capex - isr - ivaPropietario, // estado de resultados (comisión repartida)
+				netoCaja: noi - comision - capex - isr - ivaPropietario // flujo de caja (comisión al firmar)
 			};
 		}
 
-		var tot = { pgi: 0, vacancia: 0, cobrado: 0, opex: 0, iusi: 0, capex: 0, isr: 0, ivaPropietario: 0, ivaInquilino: 0, neto: 0 };
+		var tot = { pgi: 0, vacancia: 0, cobrado: 0, opex: 0, iusi: 0, capex: 0, isr: 0, ivaPropietario: 0, ivaInquilino: 0, comision: 0, comisionDevengada: 0, neto: 0, netoCaja: 0 };
 		for (var t = 1; t <= e.plazo; t++) {
 			var a = anio(t, depAcum);
 			depAcum += a.depreciacion;
 			var antes = acumulado;
-			acumulado += a.neto;
-			if (payback === null && inversion > 0 && a.neto > 0 && acumulado >= inversion) payback = t - 1 + (inversion - antes) / a.neto;
+			// Caja: TIR, VPN, payback y acumulado usan la comisión el año en que se paga.
+			acumulado += a.netoCaja;
+			if (payback === null && inversion > 0 && a.netoCaja > 0 && acumulado >= inversion) payback = t - 1 + (inversion - antes) / a.netoCaja;
 			a.acumulado = acumulado;
 			a.reversion = 0;
-			a.flujo = a.neto;
+			a.flujo = a.netoCaja;
 			for (var k in tot) tot[k] += a[k];
 			anios.push(a);
 		}
@@ -271,7 +340,7 @@
 
 		var ultimo = anios[anios.length - 1];
 		ultimo.reversion = ventaNeta;
-		ultimo.flujo = ultimo.neto + ventaNeta;
+		ultimo.flujo = ultimo.netoCaja + ventaNeta;
 		for (t = 0; t < anios.length; t++) flujos.push(anios[t].flujo);
 		// Los mismos flujos sin restar el impuesto de la venta, para comparar.
 		var flujosSinImpuesto = flujos.slice();
@@ -286,7 +355,7 @@
 		else if (e.regimenIVA === 'pequeno' && ivaLimiteAnio) avisos.push('pequenoLimiteFuturo');
 		var laTir = e.precio > 0 ? tir(flujos) : null;
 		if (laTir === null) avisos.push('tirNula');
-		var recibido = tot.neto + ventaNeta;
+		var recibido = tot.netoCaja + ventaNeta;
 
 		return {
 			entradas: e,
@@ -306,6 +375,7 @@
 			noiSalida: noiSalida,
 			reversion: reversion,
 			venta: venta,
+			comision: com,
 			totales: tot,
 			recibido: recibido,
 			gananciaTotal: recibido - inversion,
@@ -335,8 +405,8 @@
 			? num2(P.isrSimplificadoTasa1, lang) + '% up to Q ' + num2(P.isrSimplificadoTope, lang, 0) + ' a month and ' + num2(P.isrSimplificadoTasa2, lang) + '% above, on rent collected (simplified regime)'
 			: num2(P.isrSimplificadoTasa1, lang) + ' % hasta Q ' + num2(P.isrSimplificadoTope, lang, 0) + ' al mes y ' + num2(P.isrSimplificadoTasa2, lang) + ' % del excedente, sobre lo cobrado (régimen simplificado)';
 		if (e.regimenISR === 'utilidades') return en
-			? num2(P.isrUtilidadesTasa, lang) + '% of profit: collected − costs − IUSI − depreciation (profit regime)'
-			: num2(P.isrUtilidadesTasa, lang) + ' % de la utilidad: cobrado − gastos − IUSI − depreciación (régimen sobre utilidades)';
+			? num2(P.isrUtilidadesTasa, lang) + '% of profit: collected − costs − IUSI' + (e.comisionActiva ? ' − commission' : '') + ' − depreciation (profit regime)'
+			: num2(P.isrUtilidadesTasa, lang) + ' % de la utilidad: cobrado − gastos − IUSI' + (e.comisionActiva ? ' − comisión' : '') + ' − depreciación (régimen sobre utilidades)';
 		return en
 			? num2(P.isrCapitalTasa, lang) + '% on ' + num2(100 - P.isrCapitalDeduccion, lang) + '% of rent collected (capital income)'
 			: num2(P.isrCapitalTasa, lang) + ' % sobre el ' + num2(100 - P.isrCapitalDeduccion, lang) + ' % de lo cobrado (rentas de capital)';
@@ -360,20 +430,41 @@
 				a.iusi > 0 ? num2(r.iusiTasaMil, 'es') + ' ‰ sobre el valor fiscal de Q ' + vf : (e.uso === 'comercial' ? 'Sin valor fiscal' : '0 ‰: uso ' + (e.uso === 'mixto' ? 'mixto' : 'habitacional') + ' (Decreto 18-2026)'),
 				a.iusi > 0 ? num2(r.iusiTasaMil, 'en') + '‰ on the assessed value of Q ' + vfEn : (e.uso === 'comercial' ? 'No assessed value' : '0‰: ' + (e.uso === 'mixto' ? 'mixed' : 'residential') + ' use (Decree 18-2026)')),
 			fila('noi', 'subtotal', a.noi, base, 'Ingreso operativo neto (NOI)', 'Net operating income (NOI)',
-				'Antes de la reserva y del impuesto sobre la renta', 'Before the reserve and income tax'),
+				e.comisionActiva ? 'Antes de la comisión, la reserva y el impuesto sobre la renta' : 'Antes de la reserva y del impuesto sobre la renta',
+				e.comisionActiva ? 'Before the commission, the reserve and income tax' : 'Before the reserve and income tax')
+		];
+		// Comisión de arrendamiento debajo del NOI (como la reserva): es un costo de colocar el contrato, no de operar,
+		// y así el NOI sigue comparable con los cap rates del mercado y con el precio de venta.
+		var c = r.comision.activa ? contratoDelAnio(r.comision, a.t) : null;
+		if (c && a.comisionDevengada > 0) filas.push(fila('comision', 'resta', -a.comisionDevengada, base, 'Comisión de arrendamiento', 'Leasing commission',
+			notaComision(r, c, 'es'), notaComision(r, c, 'en')));
+		filas.push(
 			fila('capex', 'resta', -a.capex, base, 'Reserva para reparaciones mayores', 'Reserve for major repairs',
 				'Capex: ' + num2(e.reservaCapex, 'es') + ' % de lo cobrado (techo, pintura, equipos)', 'Capex: ' + num2(e.reservaCapex, 'en') + '% of rent collected (roof, paint, equipment)'),
 			fila('antesImpuestos', 'subtotal', a.antesImpuestos, base, 'Flujo antes de impuestos', 'Cash flow before taxes'),
-			fila('isr', 'resta', -a.isr, base, 'ISR', 'Income tax (ISR)', regimenTexto(e, P, 'es'), regimenTexto(e, P, 'en'))
-		];
+			fila('isr', 'resta', -a.isr, base, 'ISR', 'Income tax (ISR)', regimenTexto(e, P, 'es'), regimenTexto(e, P, 'en')));
 		if (e.regimenIVA === 'pequeno') filas.push(fila('ivaPropietario', 'resta', -a.ivaPropietario, base, 'IVA pequeño contribuyente', 'VAT, small taxpayer',
 			num2(P.ivaPequeno, 'es') + ' % de lo cobrado; lo pagas tú. Aplica si cobras hasta Q\u00a0' + num2(P.limitePequenoGTQ, 'es', 0) + ' al año',
 			num2(P.ivaPequeno, 'en') + '% of rent collected; you pay it. Applies up to Q\u00a0' + num2(P.limitePequenoGTQ, 'en', 0) + ' a year'));
 		filas.push(fila('neto', 'total', a.neto, base, 'Flujo neto para el dueño', 'Net cash flow to the owner', 'Lo que te queda', 'What you keep'));
+		if (r.comision.activa) filas.push(fila('netoCaja', 'info', a.netoCaja, base, 'Flujo de caja del año', 'Cash flow for the year',
+			a.comision > 0 ? 'Con la comisión como se paga: ' + dinero(a.comision, e.moneda, 'es') + ' al firmar el contrato este año' : 'Este año no se firma contrato: no se paga comisión',
+			a.comision > 0 ? 'With the commission as paid: ' + dinero(a.comision, e.moneda, 'en') + ' when the lease is signed this year' : 'No lease is signed this year: no commission paid'));
 		if (e.regimenIVA === 'general') filas.push(fila('ivaInquilino', 'info', a.ivaInquilino, base, 'IVA que cobras al inquilino', 'VAT you charge the tenant',
 			num2(P.ivaGeneral, 'es') + ' % encima de la renta. Se cobra aparte y se entrega a la SAT: no es ingreso tuyo.',
 			num2(P.ivaGeneral, 'en') + '% on top of the rent. Collected separately and paid to SAT: it is not your income.'));
 		return filas;
+	}
+
+	// Nota de la fila de comisión: cuánto cuesta el contrato, cuándo se paga y en cuántos años se reparte.
+	function notaComision(r, c, lang) {
+		var en = lang === 'en', m = r.entradas.moneda, cm = r.comision;
+		var meses = num2(c.meses, lang), anios = c.anios;
+		var ivaTxt = cm.recuperaIva ? (en ? ' (VAT is input credit)' : ' (el IVA es crédito fiscal)') : (en ? ' + VAT' : ' + IVA');
+		var isrTxt = r.entradas.regimenISR === 'capital' ? (en ? ' Does not lower ISR (fixed 30% deduction).' : ' No baja el ISR (deducción fija del 30 %).') : '';
+		return en
+			? meses + ' months of rent of ' + dinero(c.rentaBase, m, 'en') + ivaTxt + ' = ' + dinero(c.costo, m, 'en') + ', paid when signing (year ' + c.inicio + '); spread over ' + anios + ' year' + (anios === 1 ? '' : 's') + '.' + isrTxt
+			: meses + ' renta' + (c.meses === 1 ? '' : 's') + ' de ' + dinero(c.rentaBase, m, 'es') + ivaTxt + ' = ' + dinero(c.costo, m, 'es') + ', pagada al firmar (año ' + c.inicio + '); repartida en ' + anios + ' año' + (anios === 1 ? '' : 's') + '.' + isrTxt;
 	}
 
 	function sinMes(filas) { for (var i = 0; i < filas.length; i++) filas[i].mensual = null; return filas; }
@@ -433,12 +524,16 @@
 		var filas = [
 			fila('rentas', 'ingreso', T.cobrado, 0, 'Rentas cobradas', 'Rent collected', 'Suma de los ' + n + ' años, ya sin vacancia', 'Total of ' + n + ' years, after vacancy'),
 			fila('gastos', 'resta', -(T.opex + T.iusi), 0, 'Gastos operativos e IUSI', 'Operating costs and IUSI'),
-			fila('reserva', 'resta', -T.capex, 0, 'Reserva para reparaciones mayores', 'Reserve for major repairs'),
-			fila('isr', 'resta', -T.isr, 0, 'ISR de las rentas', 'Income tax on rent')
+			fila('reserva', 'resta', -T.capex, 0, 'Reserva para reparaciones mayores', 'Reserve for major repairs')
 		];
+		var cm = r.comision;
+		if (cm.activa && T.comision > 0) filas.push(fila('comisiones', 'resta', -T.comision, 0, 'Comisiones de arrendamiento', 'Leasing commissions',
+			cm.pagados + ' contrato' + (cm.pagados === 1 ? '' : 's') + ', ' + num2(cm.rentas, 'es', 2) + ' rentas en total; se pagan al firmar',
+			cm.pagados + ' lease' + (cm.pagados === 1 ? '' : 's') + ', ' + num2(cm.rentas, 'en', 2) + ' months of rent in total; paid when signing'));
+		filas.push(fila('isr', 'resta', -T.isr, 0, 'ISR de las rentas', 'Income tax on rent'));
 		if (T.ivaPropietario > 0) filas.push(fila('iva', 'resta', -T.ivaPropietario, 0, 'IVA pequeño contribuyente', 'VAT, small taxpayer'));
 		filas.push(
-			fila('netoRentas', 'subtotal', T.neto, 0, 'Flujo neto de las rentas', 'Net cash flow from rent', n + ' años', n + ' years'),
+			fila('netoRentas', 'subtotal', T.netoCaja, 0, 'Flujo neto de las rentas', 'Net cash flow from rent', n + ' años', n + ' years'),
 			fila('venta', 'ingreso', r.venta.neta, 0, 'Venta, después de costos e impuesto', 'Sale, after costs and tax', 'Año ' + n, 'Year ' + n),
 			fila('recibido', 'subtotal', r.recibido, 0, 'Total que recibes', 'Total you receive'),
 			fila('inversion', 'resta', -r.inversion, 0, 'Inversión inicial', 'Initial investment',
@@ -519,6 +614,7 @@
 		rentaParaRendimiento: rentaParaRendimiento,
 		escenarios: escenarios,
 		rentaSugerida: rentaSugerida,
+		mesesComision: mesesComision,
 		usoPorTipo: usoPorTipo,
 		ivaPorDefecto: ivaPorDefecto,
 		capReferencia: capReferencia,

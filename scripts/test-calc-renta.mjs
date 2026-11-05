@@ -15,7 +15,9 @@ function test(nombre, fn) {
 }
 const cerca = (a, b, tol = 1e-6, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg || ''} esperado ${b}, salió ${a}`);
 
-const base = { precio: 200000, moneda: 'USD', rentaMensual: 1200, uso: 'habitacional', regimenISR: 'capital', vacancia: 5, gastosOperativos: 10 };
+// Sin comisión de arrendamiento: los cálculos a mano de estas pruebas no la llevan (tiene sus propias pruebas abajo).
+const base = { precio: 200000, moneda: 'USD', rentaMensual: 1200, uso: 'habitacional', regimenISR: 'capital', vacancia: 5, gastosOperativos: 10, comisionActiva: false };
+const conComision = { ...base, comisionActiva: true };
 // El mismo caso con IVA general (12 % aparte al inquilino): el IVA no toca el neto del dueño.
 const gen = { ...base, regimenIVA: 'general' };
 // Vendedor que no está exento del ISR de la venta (persona jurídica o con actividad inmobiliaria inscrita).
@@ -312,6 +314,110 @@ test('valores por defecto por tipo y parámetros editables', () => {
 	for (const k of ['limitePequenoGTQ', 'isrGananciaCapital', 'isrGananciaUtilidades', 'tipoCambio', 'capCasa']) assert.equal(R.PARAMS[k].confirmar, true, `${k} por confirmar`);
 	assert.equal(R.dinero(1234.5, 'USD', 'en'), 'US$ 1,235');
 	assert.equal(R.porcentaje(0.05677, 'en', 2), '5.68 %');
+});
+
+test('comisión: escala en rentas (1-5 una por año, 6-10 media, más de 10 un tercio)', () => {
+	const casos = [[0, 0], [1, 1], [3, 3], [5, 5], [7, 6], [10, 7.5], [15, 9 + 1 / 6], [30, 5 + 2.5 + 20 / 3], [2.5, 2.5]];
+	for (const [n, m] of casos) cerca(R.mesesComision(n), m, 1e-9, `meses(${n})`);
+	const P = R.PARAMS;
+	assert.equal(P.comisionActiva.valor, true);
+	assert.equal(P.plazoContrato.valor, 3);
+	assert.equal(P.comisionEnRenovacion.valor, true);
+	assert.equal(P.escalaContinua.valor, false);
+	assert.equal(P.escalaContinua.confirmar, false, 'confirmado por el propietario');
+	assert.match(P.escalaContinua.fuente, /^Confirmado por el propietario/);
+	assert.equal(P.ivaComision.valor, 12);
+	// Los sí/no aceptan texto del panel ('false') y el plazo queda entre 1 y 30 años enteros.
+	const { comisionActiva, ...sinBandera } = base;
+	assert.equal(R.calcular(sinBandera).comision.activa, true, 'activa por defecto');
+	assert.equal(R.calcular(sinBandera, { comisionActiva: 'false' }).comision.activa, false);
+	assert.equal(R.calcular({ ...conComision, plazoContrato: 45 }).comision.plazoContrato, 30);
+	assert.equal(R.calcular({ ...conComision, plazoContrato: 0 }).comision.plazoContrato, 1);
+});
+
+test('comisión año 1: US$200k, renta 1,200, pequeño contribuyente (cálculo a mano)', () => {
+	const r = R.calcular(conComision);
+	const a = r.anio1;
+	assert.equal(r.entradas.regimenIVA, 'pequeno');
+	// Contrato de 3 años: 3 rentas × 1,200 = 3,600 + IVA 12 % (432) = 4,032 al firmar; 1,344 al año en el resultado.
+	cerca(a.comision, 4032);
+	cerca(a.comisionDevengada, 1344);
+	cerca(a.noi, 12312, 1e-6, 'el NOI no cambia');
+	cerca(a.antesImpuestos, 12312 - 1344);
+	cerca(a.isr, 957.6, 1e-6, 'rentas de capital: la comisión no baja el ISR');
+	cerca(a.neto, 9326.4);
+	cerca(r.netoMensual, 777.2);
+	cerca(a.netoCaja, 12312 - 4032 - 957.6 - 684);
+	const c = R.cascadaAnio(r, 1);
+	const filas = c.filas || c;
+	const com = filas.find((f) => f.clave === 'comision');
+	cerca(com.monto, -1344);
+	cerca(filas.find((f) => f.clave === 'neto').monto, a.neto);
+	cerca(filas.find((f) => f.clave === 'netoCaja').monto, a.netoCaja);
+	// Régimen general de IVA: el IVA de la factura es crédito fiscal, el costo es la comisión sin IVA.
+	const g = R.calcular({ ...conComision, regimenIVA: 'general' }).anio1;
+	cerca(g.comision, 3600);
+	cerca(g.comisionDevengada, 1200);
+	// Sobre utilidades sí se deduce: 25 % × 1,344 menos ISR.
+	const u0 = R.calcular({ ...base, regimenISR: 'utilidades' }).anio1;
+	const u1 = R.calcular({ ...conComision, regimenISR: 'utilidades' }).anio1;
+	cerca(u0.isr - u1.isr, 0.25 * 1344, 1e-6, 'ISR utilidades');
+});
+
+test('comisión: caja con y sin renovaciones (plazo 10 años, contratos de 3)', () => {
+	const e = { ...conComision, plazo: 10, crecimientoRenta: 3 };
+	const r = R.calcular(e);
+	// Contratos en los años 1, 4, 7 y 10; el del año 10 se corta en 1 año: 1/3 de la comisión.
+	const pagos = r.anios.map((a) => a.comision);
+	const renta = (t) => 1200 * Math.pow(1.03, t - 1);
+	const esperado = (t, f = 1) => 3 * renta(t) * 1.12 * f;
+	for (let t = 1; t <= 10; t++) {
+		const p = t === 1 || t === 4 || t === 7 ? esperado(t) : t === 10 ? esperado(10, 1 / 3) : 0;
+		cerca(pagos[t - 1], p, 1e-6, `caja año ${t}`);
+	}
+	assert.equal(r.comision.pagados, 4);
+	const caja = pagos.reduce((x, y) => x + y, 0);
+	const devengada = r.anios.reduce((x, a) => x + a.comisionDevengada, 0);
+	cerca(caja, devengada, 1e-6, 'caja = devengado en el plazo');
+	// La TIR usa la caja: flujo del año = netoCaja.
+	r.anios.slice(0, -1).forEach((a, i) => cerca(r.flujos[i + 1], a.netoCaja));
+	// Sin renovaciones: solo el contrato del año 1.
+	const s = R.calcular({ ...e, comisionEnRenovacion: false });
+	const pagosS = s.anios.map((a) => a.comision);
+	cerca(pagosS[0], esperado(1));
+	assert.ok(pagosS.slice(1).every((x) => x === 0), 'sin pagos después del año 1');
+	assert.equal(s.comision.pagados, 1);
+	assert.ok(s.tir > r.tir);
+});
+
+test('comisión: 30 años, la escala reinicia en cada contrato (por defecto)', () => {
+	const r = R.calcular({ ...conComision, plazo: 30, crecimientoRenta: 0 });
+	assert.equal(r.comision.escalaContinua, false);
+	assert.equal(r.comision.pagados, 10);
+	cerca(r.comision.rentas, 30);
+	cerca(r.comision.sinIva, 30 * 1200);
+	cerca(r.totales.comision, 30 * 1200 * 1.12);
+});
+
+test('comisión: 30 años, la renovación sigue la escala (opción avanzada)', () => {
+	const r = R.calcular({ ...conComision, plazo: 30, crecimientoRenta: 0, escalaContinua: true });
+	cerca(r.comision.rentas, 5 + 2.5 + 20 / 3, 1e-9);
+	const c = r.comision.contratos;
+	cerca(c[0].meses, 3); // años 1-3
+	cerca(c[1].meses, 2 + 0.5); // años 4-6: 4, 5 enteros y 6 a media
+	cerca(c[3].meses, 1 / 2 + 2 / 3); // años 10-12: 10 a media, 11 y 12 a un tercio
+	cerca(r.totales.comision, (5 + 2.5 + 20 / 3) * 1200 * 1.12, 1e-6);
+});
+
+test('comisión: contrato de 30 años, un solo pago al firmar', () => {
+	const r = R.calcular({ ...conComision, plazo: 30, plazoContrato: 30 });
+	const m = 5 + 2.5 + 20 / 3; // 14.1667 rentas
+	assert.equal(r.comision.pagados, 1);
+	cerca(r.anios[0].comision, m * 1200 * 1.12, 1e-6, 'año 1, con IVA (pequeño)');
+	assert.ok(r.anios.slice(1).every((a) => a.comision === 0), 'sin más comisiones');
+	r.anios.forEach((a) => cerca(a.comisionDevengada, m * 1200 * 1.12 / 30, 1e-6));
+	const g = R.calcular({ ...conComision, plazo: 30, plazoContrato: 30, regimenIVA: 'general' });
+	cerca(g.anios[0].comision, m * 1200, 1e-6, 'régimen general: sin IVA');
 });
 
 console.log(`\n${ok} pruebas pasaron${process.exitCode ? ', con fallas' : ''}.`);
