@@ -1426,6 +1426,17 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	font-weight: 600;
 	color: var(--adm-text);
 }
+/* Comisión de arrendamiento: cuánto cuesta el contrato, cuándo se paga y cómo se reparte. */
+.calc-comision-detalle {
+	padding: 10px 12px;
+	border: 1px solid var(--adm-border);
+	border-left: 3px solid var(--adm-primary);
+	border-radius: var(--adm-radius);
+	background: var(--adm-bg);
+	color: var(--adm-text);
+	font-size: 13px;
+	line-height: 1.45;
+}
 .calc-vacio {
 	border: 1px dashed var(--adm-border);
 	border-radius: var(--adm-radius);

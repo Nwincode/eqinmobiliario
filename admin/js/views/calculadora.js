@@ -39,7 +39,8 @@ const GLOSARIO = [
 	['Cap rate de salida', 'El cap rate con el que se estima el precio de venta al final del plazo (NOI del año siguiente ÷ cap rate).'],
 	['TIR', 'Tasa interna de retorno: el rendimiento anual de toda la inversión, incluyendo la venta al final (después de su impuesto).'],
 	['VPN', 'Valor presente neto: cuánto vale hoy el flujo futuro, descontado a la tasa que pides. Si es positivo, la inversión supera esa tasa.'],
-	['Payback', 'Años que tardan los flujos netos en devolver la inversión inicial (sin contar la venta).']
+	['Payback', 'Años que tardan los flujos netos en devolver la inversión inicial (sin contar la venta).'],
+	['Comisión de arrendamiento', 'Lo que se paga al corredor por colocar un contrato: años 1 a 5 del contrato, 1 renta por año; años 6 a 10, 1 renta cada 2 años; más de 10, 1 renta cada 3 años, sobre la renta mensual sin IVA, más IVA 12 % (en el régimen general de IVA es crédito fiscal). Se paga al firmar cada contrato (flujo de caja, TIR, VPN y payback) y en el estado de resultados se reparte por partes iguales en los años del contrato. En rentas de capital no baja el ISR (la deducción es el 30 % fijo); sobre utilidades sí es deducible.']
 ];
 
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || [v, v])[1];
@@ -128,7 +129,7 @@ export async function render(container) {
 	const paramInputs = {};
 	function paramsPanel() {
 		const grupos = {};
-		for (const [k, p] of Object.entries(params)) (grupos[p.grupo] ||= []).push(k);
+		for (const [k, p] of Object.entries(params)) if (p.grupo !== 'Comisión') (grupos[p.grupo] ||= []).push(k); // la comisión tiene su tarjeta
 		return h('details', { class: 'calc-params col-12' },
 			h('summary', {}, h('span', { class: 'icon-chevron-down me-2 calc-chev', 'aria-hidden': 'true' }), 'Valores de ley y de mercado'),
 			h('p', { class: 'small text-muted mt-2 mb-3' }, 'Todos son editables. Cada valor dice de dónde sale y si ya está verificado; los que dicen «por confirmar», revísalos con el contador antes de usarlos con un cliente.'),
@@ -148,10 +149,38 @@ export async function render(container) {
 				})))),
 			h('button', { type: 'button', class: 'btn btn-outline-secondary btn-sm', onclick: () => {
 				params = R.copiaParams();
-				for (const [k, inp] of Object.entries(paramInputs)) inp.value = params[k].valor;
+				for (const [k, inp] of Object.entries(paramInputs)) { if (inp.type === 'checkbox') inp.checked = params[k].valor === true; else inp.value = params[k].valor; }
+				if (comisionPanel.activar) comisionPanel.activar();
 				calcular();
 				toast('Se restablecieron los valores de ley.');
 			} }, h('span', { class: 'icon-undo me-1', 'aria-hidden': 'true' }), 'Restablecer valores de ley'));
+	}
+
+	// Comisión de arrendamiento: sus parámetros (grupo «Comisión») en una tarjeta propia.
+	const nRentas = (m) => `${(Math.round(m * 100) / 100).toLocaleString('es-GT', { maximumFractionDigits: 2 })} renta${Math.abs(m - 1) < 1e-9 ? '' : 's'}`;
+	const estadoLey = (p) => h('span', { class: `calc-estado-ley ${p.confirmar ? 'is-pendiente' : 'is-ok'}` },
+		h('span', { class: `${p.confirmar ? 'icon-question-circle' : 'icon-check-circle'} me-1`, 'aria-hidden': 'true' }), p.confirmar ? 'Por confirmar' : 'Verificado');
+	const comisionDetalle = h('p', { class: 'calc-comision-detalle mb-0', role: 'status', 'aria-live': 'polite' });
+	function comisionPanel() {
+		const fuente = (k) => h('div', { class: 'form-text calc-fuente', id: `calc-p-${k}-f` }, estadoLey(params[k]), ' ', params[k].fuente);
+		const sino = (k) => {
+			const inp = h('input', { class: 'form-check-input', type: 'checkbox', id: `calc-p-${k}`, checked: params[k].valor === true, 'aria-describedby': `calc-p-${k}-f`,
+				onchange: (e) => { params[k].valor = e.target.checked; activar(); calcular(); } });
+			paramInputs[k] = inp;
+			return h('div', { class: 'col-12' }, h('div', { class: 'form-check calc-check mb-0' }, inp, h('label', { class: 'form-check-label', for: `calc-p-${k}` }, params[k].etiqueta), fuente(k)));
+		};
+		const numero = (k, attrs) => {
+			const inp = h('input', { class: 'form-control', id: `calc-p-${k}`, type: 'number', inputmode: 'decimal', step: 'any', value: params[k].valor, 'aria-describedby': `calc-p-${k}-f`, ...attrs,
+				oninput: (e) => { const v = Number(e.target.value); if (e.target.value !== '' && isFinite(v)) { params[k].valor = v; calcular(); } } });
+			paramInputs[k] = inp;
+			return h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: `calc-p-${k}` }, params[k].etiqueta, ` (${params[k].unidad})`), inp, fuente(k));
+		};
+		const filas = [sino('comisionActiva'), numero('plazoContrato', { min: '1', max: '30', step: '1', inputmode: 'numeric' }), numero('ivaComision', { min: '0' }), sino('comisionEnRenovacion'), sino('escalaContinua')];
+		// Si no se cobra comisión, el resto no aplica.
+		function activar() { for (const k of ['plazoContrato', 'ivaComision', 'comisionEnRenovacion', 'escalaContinua']) paramInputs[k].disabled = params.comisionActiva.valor !== true; }
+		comisionPanel.activar = activar;
+		activar();
+		return [...filas, h('div', { class: 'col-12' }, comisionDetalle)];
 	}
 
 	// Renta para un rendimiento objetivo.
@@ -272,11 +301,11 @@ export async function render(container) {
 			}
 			return svg;
 		}
-		const netos = anios.map((a) => a.neto);
+		const netos = anios.map((a) => a.netoCaja); // caja: la comisión el año en que se paga
 		const acum = anios.map((a) => a.acumulado - r.inversion);
 		return h('div', { class: 'calc-graficas' },
 			h('figure', { class: 'mb-0' },
-				h('figcaption', { class: 'calc-graf-titulo' }, 'Neto de cada año', h('span', {}, ' (lo que te queda, sin la venta)')),
+				h('figcaption', { class: 'calc-graf-titulo' }, 'Neto de cada año', h('span', {}, r.comision.activa ? ' (caja: con la comisión el año que se firma; sin la venta)' : ' (lo que te queda, sin la venta)')),
 				panel(netos, { H: 150, barras: true, etiqueta: `Neto de cada año durante ${anios.length} años: de ${dinero(netos[0])} el año 1 a ${dinero(netos[netos.length - 1])} el año ${anios.length}` })),
 			h('figure', { class: 'mb-0' },
 				h('figcaption', { class: 'calc-graf-titulo' }, 'Recuperación de la inversión', h('span', {}, ' (neto acumulado menos la inversión; cruza el cero en el payback)')),
@@ -304,13 +333,13 @@ export async function render(container) {
 		resumenImpresion.textContent = `${TIPOS_DEF.find(([v]) => v === ne.tipo)?.[1] || 'Propiedad'} · precio ${dinero(ne.precio)} · renta ${dinero(ne.rentaMensual)}/mes · uso ${etiqueta(USOS, ne.uso)} · ISR: ${etiqueta(ISR, ne.regimenISR)} · IVA: ${IVA_CORTO[ne.regimenIVA]}${ne.ivaAutomatico ? ' (automático)' : ''} · venta ${ne.vendedorExento ? 'exenta de ISR' : 'con ISR'} · vacancia ${ne.vacancia} % · gastos ${ne.gastosOperativos} % · plazo ${ne.plazo} años`;
 
 		kpis.replaceChildren(
-			kpi('icon-money', 'Neto mensual', dinero(r.netoMensual), 'Año 1, después de impuestos', true),
+			kpi('icon-money', 'Neto mensual', dinero(r.netoMensual), r.comision.activa ? 'Año 1, después de impuestos y de la comisión repartida' : 'Año 1, después de impuestos', true),
 			kpi('icon-percent', 'Rendimiento bruto', pct(r.rendimientoBruto), 'Renta bruta ÷ precio'),
 			kpi('icon-percent', 'Rendimiento neto', pct(r.rendimientoNeto), 'Neto anual ÷ precio'),
 			kpi('icon-line-chart', 'Cap rate', pct(r.capRate), 'NOI ÷ precio'),
 			kpi('icon-area-chart', 'TIR', pct(r.tir), `${ne.plazo} años, con venta${r.venta.exento ? ' exenta' : r.venta.restado ? ' e ISR' : ''}`),
 			kpi('icon-calculator', 'VPN', dinero(r.vpn), `Al ${pct(ne.tasaDescuento / 100, 1)}`),
-			kpi('icon-hourglass-half', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, 'Sin contar la venta'));
+			kpi('icon-hourglass-half', 'Payback', r.payback === null ? 'No se recupera' : `${r.payback.toFixed(1)} años`, r.comision.activa ? 'Sin contar la venta; comisión al firmar' : 'Sin contar la venta'));
 
 		avisos.replaceChildren(...r.avisos.map((c) => h('div', { class: 'alert alert-warning d-flex gap-2 py-2 mb-2', role: 'note' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), typeof AVISOS[c] === 'function' ? AVISOS[c](r) : AVISOS[c] || c)));
 		// IVA: qué régimen salió y por qué.
@@ -341,6 +370,19 @@ export async function render(container) {
 			? 'La TIR, el VPN y el resumen ya restan este impuesto.'
 			: `Opción desactivada: la TIR, el VPN y el resumen no restan los ${dinero(v.impuestoCalculado)} de ISR de la venta.`;
 
+		// Comisión: el primer contrato, cuándo se paga y cómo se reparte.
+		const cm = r.comision;
+		if (!cm.activa) comisionDetalle.textContent = 'Sin comisión de arrendamiento: no entra en el resultado ni en la TIR.';
+		else {
+			const c1 = cm.contratos[0];
+			const plazoTxt = `${cm.plazoContrato} año${cm.plazoContrato === 1 ? '' : 's'}`;
+			const ivaTxt = cm.recuperaIva ? ` + IVA ${dinero(c1.iva)} (crédito fiscal en el régimen general: no es costo)` : ` + IVA ${dinero(c1.iva)} = ${dinero(c1.costo)}`;
+			comisionDetalle.replaceChildren(
+				h('strong', {}, `Contrato de ${plazoTxt}: ${nRentas(c1.meses)} = ${dinero(c1.sinIva)}`), `${ivaTxt}. `,
+				`Se paga al firmar (caja, año ${c1.inicio}); en el estado de resultados se reparte ${dinero(c1.costo / c1.anios)} al año${c1.anios < cm.plazoContrato ? ` (la venta corta el contrato a ${c1.anios} año${c1.anios === 1 ? '' : 's'})` : ''}.`,
+				cm.contratos.length > 1 ? ` En ${ne.plazo} años: ${cm.pagados} contrato${cm.pagados === 1 ? '' : 's'} con comisión, ${nRentas(cm.rentas)} en total${!cm.enRenovacion ? ' (las renovaciones no pagan)' : cm.escalaContinua ? ' (la escala sigue en cada renovación)' : ' (la escala reinicia en cada contrato)'}.` : '');
+		}
+
 		// Resumen de todo el negocio.
 		tituloResumen.textContent = `Resumen del negocio a ${ne.plazo} años`;
 		// El múltiplo va en su tarjeta, debajo; en la tabla quedaría repetido.
@@ -349,7 +391,8 @@ export async function render(container) {
 		rendResumen.replaceChildren(...[
 			dato('TIR', pct(r.tir), v.restado ? 'Después del ISR de la venta' : 'Sin restar el ISR de la venta'),
 			v.restado && v.impuestoCalculado > 0 ? dato('TIR sin el ISR de la venta', pct(r.tirSinImpuestoVenta), 'Solo para comparar') : null,
-			dato('Múltiplo', r.multiplo === null ? '—' : `${r.multiplo.toFixed(2)} veces`, 'Total que recibes ÷ inversión')].filter(Boolean));
+			dato('Múltiplo', r.multiplo === null ? '—' : `${r.multiplo.toFixed(2)} veces`, 'Total que recibes ÷ inversión'),
+			cm.activa && cm.pagados ? dato('Comisiones pagadas', dinero(r.totales.comision), `${nRentas(cm.rentas)} en ${ne.plazo} años · ${cm.pagados} contrato${cm.pagados === 1 ? '' : 's'}`) : null].filter(Boolean));
 
 		const esc = R.escenarios(e, [-20, -10, 0, 10, 20], P);
 		tablaEsc.replaceChildren(tabla(['Renta', 'Renta mensual', 'Neto mensual', 'Rend. neto', 'TIR'],
@@ -362,9 +405,10 @@ export async function render(container) {
 		campos.valorFiscal.placeholder = `Q ${Math.round(r.valorFiscalQ).toLocaleString('es-GT')}`;
 		campos.iusiMil.placeholder = `${r.iusiTasaMil}`;
 		campos.capSalida.placeholder = `${ne.capSalida}`;
-		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Impuestos', 'Neto', 'Acumulado', 'Flujo'],
-			r.anios.map((x) => [String(x.t), dinero(x.pgi), dinero(x.cobrado), dinero(x.opex + x.iusi + x.capex), dinero(x.isr + x.ivaPropietario), dinero(x.neto), dinero(x.acumulado), dinero(x.flujo)]),
+		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Comisión', 'Impuestos', 'Neto (caja)', 'Acumulado', 'Flujo'],
+			r.anios.map((x) => [String(x.t), dinero(x.pgi), dinero(x.cobrado), dinero(x.opex + x.iusi + x.capex), x.comision > 0 ? dinero(x.comision) : '—', dinero(x.isr + x.ivaPropietario), dinero(x.netoCaja), dinero(x.acumulado), dinero(x.flujo)]),
 			{ cls: 'calc-tabla-larga' }),
+		r.comision.activa ? h('p', { class: 'small text-muted mt-2 mb-0' }, 'La comisión va el año en que se firma cada contrato (caja). En el estado de resultados se reparte en los años del contrato; por eso este neto puede no coincidir con el del estado de resultados.') : null,
 		h('p', { class: 'small text-muted mt-2 mb-0' }, `El flujo del año ${ne.plazo} incluye la venta: ${dinero(r.venta.neta)} ${r.venta.exento ? 'después de costos (exenta de ISR)' : r.venta.restado ? 'después de costos y del ISR sobre la ganancia' : 'después de costos (sin restar el ISR sobre la ganancia)'}. El detalle está en «Venta al final del plazo».`));
 	}
 
@@ -397,6 +441,7 @@ export async function render(container) {
 				grupo('icon-wrench', 'Gastos',
 					campo('gastosOperativos', 'Gastos operativos', { sufijo: '% de lo cobrado' }),
 					campo('reservaCapex', 'Reserva de capital', { sufijo: '% de lo cobrado' })),
+				grupo('icon-file-text-o', 'Comisión de arrendamiento', ...comisionPanel()),
 				grupo('icon-bank', 'Impuestos',
 					campo('regimenISR', 'Régimen de ISR', { opciones: ISR, col: 'col-12' }),
 					h('div', { class: 'col-12' },
