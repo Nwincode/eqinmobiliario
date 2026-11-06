@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
@@ -41,9 +41,9 @@ async function renderLista(container) {
 		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || 'Sin asignar') : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
-		tabla.replaceChildren(vis.length ? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' }, h('table', { class: 'table table-hover table-admin mb-0' },
+		tabla.replaceChildren(vis.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
 			h('thead', {}, h('tr', {}, ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-			h('tbody', {}, vis.map(fila)))))
+			h('tbody', {}, vis.map(fila))), { tarjeta: true })
 			: h('p', { class: 'text-muted' }, 'Todos los propietarios tienen sus datos completos.'));
 	};
 	solo.addEventListener('change', dibujar);

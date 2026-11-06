@@ -3,7 +3,7 @@
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, cajaTabla } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge } from './leads.js';
@@ -312,7 +312,7 @@ function tabClientes(cont, props, reqs) {
 		h('div', { class: 'row g-2 align-items-center' }, h('div', { class: 'col-md-8' }, sel), h('div', { class: 'col-md-4' }, btn)),
 		out,
 		h('h2', { class: 'h6 mt-4' }, `Clientes con búsqueda activa (${activos.length})`),
-		activos.length ? h('div', { class: 'card overflow-hidden' }, h('table', { class: 'table table-admin mb-0' },
+		activos.length ? cajaTabla(h('table', { class: 'table table-admin mb-0' },
 			h('thead', {}, h('tr', {}, ['Cliente', 'Busca', 'Guardado', ''].map((t) => h('th', {}, t)))),
 			h('tbody', {}, activos.map((r) => {
 				const row = h('tr', {},
@@ -323,7 +323,7 @@ function tabClientes(cont, props, reqs) {
 						r.telefono ? h('a', { class: 'btn btn-sm btn-success me-1', target: '_blank', href: whatsappUrl(r.telefono, `Hola ${r.cliente}, `) }, 'WhatsApp') : null,
 						h('button', { class: 'btn btn-sm btn-outline-secondary', type: 'button', onclick: () => cerrar(r, row) }, 'Cerrar')));
 				return row;
-			})))) : emptyState('Aún no hay clientes guardados.'));
+			}))), { tarjeta: true }) : emptyState('Aún no hay clientes guardados.'));
 }
 
 // ------------------------------------------------------------ Asistente (chat)

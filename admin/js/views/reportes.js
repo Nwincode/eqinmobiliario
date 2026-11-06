@@ -1,6 +1,6 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
 import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
-import { h, pageHeader, mount, downloadCsv, toast, showError } from '../ui.js';
+import { h, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
 import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDe } from '../crm.js';
@@ -62,7 +62,7 @@ export async function render(container) {
 			].map(([l, v]) => h('div', { class: 'col-6 col-lg-3' }, h('div', { class: 'card stat-card h-100' }, h('div', { class: 'card-body' }, h('div', { class: 'stat-value' }, v), h('div', { class: 'stat-label' }, l)))))),
 			h('div', { class: 'card mb-4 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
-				h('div', { class: 'table-responsive' }, h('table', { class: 'table table-admin mb-0' },
+				cajaTabla(h('table', { class: 'table table-admin mb-0' },
 					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Sin atender', 'Respuesta (mediana)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión', 'Parte asesor'].map((t, i) => h('th', { class: i ? 'text-end' : '' }, t)))),
 					h('tbody', {}, filas.map((f) => h('tr', {},
 						h('td', { class: 'fw-semibold' }, f.nombre),

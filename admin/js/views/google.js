@@ -1,6 +1,6 @@
 // Google: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, spinner, downloadCsv } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 
@@ -42,7 +42,7 @@ function kpi(label, valor, extra) {
 
 function tabla(cabeceras, filas, vacio = 'Sin datos en este periodo.') {
 	if (!filas.length) return h('p', { class: 'text-muted small mb-0' }, vacio);
-	return h('div', { class: 'table-responsive' }, h('table', { class: 'table table-sm table-admin mb-0' },
+	return cajaTabla(h('table', { class: 'table table-sm table-admin mb-0' },
 		h('thead', {}, h('tr', {}, cabeceras.map((c, i) => h('th', { class: i ? 'text-end' : '' }, c)))),
 		h('tbody', {}, filas)));
 }

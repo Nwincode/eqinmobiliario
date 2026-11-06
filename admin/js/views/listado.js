@@ -1,7 +1,7 @@
 // Listado de propiedades en PDF para enviar a un cliente: se filtra, se eligen las propiedades
 // y se abre una versión lista para imprimir; el navegador la guarda como PDF.
 import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
-import { h, esc, toast, pageHeader, emptyState, formatPrice, mount } from '../ui.js';
+import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
@@ -430,7 +430,7 @@ export async function render(container) {
 					check(fDisponibles, 'Solo disponibles'), check(fPublicadas, 'Solo publicadas')))),
 		h('div', { class: 'card overflow-hidden mb-3' },
 			h('div', { class: 'd-flex justify-content-between align-items-center p-3 pb-0' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-check-square-o me-2 text-primary', 'aria-hidden': 'true' }), '2. Elige las propiedades'), count),
-			h('div', { class: 'table-responsive' },
+			cajaTabla(
 				h('table', { class: 'table table-admin mb-0' },
 					h('thead', {}, h('tr', {}, h('th', {}, todas), ['', 'Propiedad', 'Precio', 'Características'].map((t) => h('th', {}, t)))),
 					tbody))),

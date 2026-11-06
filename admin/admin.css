@@ -447,24 +447,24 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: #8a1c13;
 }
 
-/* Tablas: la caja mide lo que queda de pantalla desde donde empieza (--tabla-alto lo pone
-   admin/js/tablas-alto.js), así la barra para moverse
-   de lado siempre se ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
-.admin-main .table-responsive:not(.calc-largo) {
+/* Tablas: toda caja de tabla cabe en la pantalla (--tabla-alto lo pone admin/js/tablas-alto.js;
+   la caja la arma cajaTabla() de admin/js/ui.js), así la barra para moverse de lado siempre se
+   ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
+.admin-main .table-responsive {
 	max-height: var(--tabla-alto, max(320px, calc(100vh - 60px - 9rem)));
 	overflow: auto;
 	overscroll-behavior-x: contain;
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--adm-muted) 55%, transparent) transparent;
 }
-.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar { width: 10px; height: 10px; }
-.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar-thumb {
+.admin-main .table-responsive::-webkit-scrollbar { width: 10px; height: 10px; }
+.admin-main .table-responsive::-webkit-scrollbar-thumb {
 	background: color-mix(in srgb, var(--adm-muted) 55%, transparent);
 	border-radius: 999px;
 	border: 2px solid transparent;
 	background-clip: padding-box;
 }
-.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar-track { background: transparent; }
+.admin-main .table-responsive::-webkit-scrollbar-track { background: transparent; }
 .table-admin thead th {
 	position: sticky;
 	top: 0;
@@ -1478,7 +1478,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.imp-acciones .btn { flex: 1 1 100%; }
 	.imp-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.imp-global { width: 100%; justify-content: space-between; }
-	.imp-tabla-wrap { overflow: visible; }
+	.admin-main .imp-tabla-wrap { max-height: none; overflow: visible; }
 	.tabla-importar thead { display: none; }
 	.tabla-importar,
 	.tabla-importar tbody { display: block; }
@@ -1900,10 +1900,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .calc-chev {
 	transition: transform .15s ease;
 }
-.calc-largo {
-	max-height: 520px;
-	overflow: auto;
-}
 .calc-largo thead th {
 	position: sticky;
 	top: 0;
@@ -2029,11 +2025,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.calc-detalle > summary .calc-chev {
 		display: none;
 	}
-	.calc-largo {
+	.admin-main .table-responsive {
 		max-height: none;
 		overflow: visible;
 	}
-	.calc-largo thead th {
+	.admin-main .table-responsive thead th {
 		position: static;
 	}
 	.calc-tabla {

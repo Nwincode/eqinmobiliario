@@ -1,7 +1,7 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
-import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify } from '../ui.js';
+import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify, cajaTabla } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
@@ -105,10 +105,10 @@ export async function render(container) {
 			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '3'), 'Revisa antes de importar'),
 			filtroGlobal),
 		resumen, avisos,
-		h('div', { class: 'table-responsive imp-tabla-wrap' },
+		cajaTabla(
 			h('table', { class: 'table table-admin align-middle tabla-importar mb-0' },
 				h('thead', {}, h('tr', {}, ['Fila', 'Código', 'Propiedad', 'Fotos', 'Estado', 'Acción'].map((t) => h('th', { scope: 'col' }, t)))),
-				tbody))));
+				tbody), { cls: 'imp-tabla-wrap' })));
 	const acciones = h('div', { class: 'sticky-actions imp-acciones', hidden: true }, btnImportar, notaImportar);
 
 	// ---------- Paso 4: progreso ----------

@@ -152,6 +152,14 @@ export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }
 
+// Caja de cualquier tabla del panel: se mueve de lado y de arriba abajo sin salirse de la
+// pantalla (el alto lo pone tablas-alto.js). Con { tarjeta: true } va dentro de una tarjeta.
+// Sin tabla devuelve la caja vacía para llenarla después.
+export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
+	const caja = h('div', { class: cls ? `table-responsive ${cls}` : 'table-responsive' }, tabla);
+	return tarjeta ? h('div', { class: 'card overflow-hidden' }, caja) : caja;
+}
+
 export function downloadCsv(filename, rows) {
 	const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
 	const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
