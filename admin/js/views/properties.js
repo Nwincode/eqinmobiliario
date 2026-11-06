@@ -51,6 +51,23 @@ async function borrarFotos(p) {
 
 // Pone la marca de agua a las fotos ya subidas que no la tienen. Sube una copia nueva con marca
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
+// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
+// "fuente" guarda el texto en español traducido, para saber si cambió después.
+const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
+async function traducirEn(d) {
+	const datos = { ...d };
+	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
+	delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
+	const r = await pedirIA('traducir', { propiedad: datos });
+	return {
+		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
+		seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
+		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
+		fuente: fuenteEs(d),
+		manual: false
+	};
+}
+
 async function marcarFotos(p, progreso) {
 	const fotos = p.fotos || [];
 	const faltan = fotos.filter((f) => !f.marca && f.url);
@@ -421,6 +438,29 @@ export async function render(container, [id]) {
 			}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`);
 		} },
 		h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción');
+	const btnDeshacer = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+		onclick: async (e) => {
+			const con = props.filter((p) => seleccion.has(p.id) && p.descripcionAnterior);
+			if (!con.length) return toast('Las seleccionadas no tienen una descripción anterior guardada.', 'warning');
+			if (!(await confirmDialog(`¿Volver a la descripción anterior en ${con.length} propiedad${con.length === 1 ? '' : 'es'}?`, { okText: 'Volver', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.descripcionAnterior) return;
+				const descripcion = p.descripcionAnterior;
+				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
+			}, 'Descripción anterior', (k) => `${k} descripción${k === 1 ? '' : 'es'} restaurada${k === 1 ? '' : 's'}. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-undo', 'aria-hidden': 'true' }), ' Volver a la anterior');
+	const btnTraducir = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Traducir al inglés ${n} propiedad${n === 1 ? '' : 'es'}? Las que corregiste a mano en inglés se respetan. Revisá la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
+				const en = await traducirEn(p);
+				await guardarMasa({ en }, { en })(p);
+			}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: async (e) => {
 			const n = seleccion.size;
@@ -455,7 +495,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnMarca,
+		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnTraducir, btnMarca,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
@@ -679,22 +719,6 @@ async function renderEditor(container, id) {
 	grupoCodigo.append(codigoInput, sugerir, avisoCodigo);
 	revisarCodigo();
 
-	// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
-	// "fuente" guarda el texto en español traducido, para saber si cambió después.
-	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
-	const traducirEn = async (d) => {
-		const datos = { ...d };
-		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
-		delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
-		const r = await pedirIA('traducir', { propiedad: datos });
-		return {
-			titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
-			seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
-			vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
-			fuente: fuenteEs(d),
-			manual: false
-		};
-	};
 	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}]);
 
 	const recargar = async () => {
