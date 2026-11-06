@@ -4,7 +4,7 @@ import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badg
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
-import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, TIPOS_BITACORA } from '../portal.js';
+import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, comentariosDe, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
 import { REGIMENES, MODOS } from '../cotizacion.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
@@ -268,14 +268,28 @@ function seccionPortal(prop, propiedades) {
 		} catch (err) { listaVis.replaceChildren(h('div', { class: 'small text-danger' }, 'No se pudieron cargar las visitas.')); console.error(err); }
 	}
 
+	// Comentarios que dejó el propietario en su portal (solo lectura).
+	const listaCom = h('div', { class: 'list-group' });
+	async function pintarComentarios() {
+		listaCom.replaceChildren(h('div', { class: 'list-group-item small text-muted' }, 'Cargando comentarios…'));
+		try {
+			const lista = await comentariosDe(prop);
+			listaCom.replaceChildren(...(lista.length ? lista.map((c) => h('div', { class: 'list-group-item' },
+				h('div', { class: 'small text-muted' }, `${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
+				h('div', { style: 'white-space: pre-line' }, c.texto || '')))
+				: [h('div', { class: 'list-group-item text-muted small' }, 'El propietario todavía no ha dejado comentarios.')]));
+		} catch (err) { listaCom.replaceChildren(h('div', { class: 'list-group-item small text-danger' }, 'No se pudieron cargar los comentarios.')); console.error(err); }
+	}
+
 	pintarEstado();
 	pintarBitacora();
 	pintarVisitas();
+	pintarComentarios();
 	return h('div', { class: 'card mt-4', id: 'portal-propietario' },
 		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h5 mb-0' }, 'Portal del propietario')),
 		h('div', { class: 'card-body d-grid gap-4' },
 			h('div', { class: 'd-grid gap-2' },
-				h('p', { class: 'text-muted small mb-0' }, 'El propietario ve el estado, los días en el mercado, cuántas consultas, visitas y ofertas hubo, el historial de precio, los portales, lo que marques como visible y la lista de clientes interesados como «Cliente 1, 2…» (solo cómo llegaron, fechas, visitas y etapa; nunca nombres, teléfonos ni correos). El portal se actualiza solo cuando cambias la propiedad, una visita o la etapa de un cliente. Entra con el enlace privado o con su correo, sin contraseña.'),
+				h('p', { class: 'text-muted small mb-0' }, 'El propietario ve el estado, los días en el mercado, cuántas consultas, visitas y ofertas hubo, cómo se anuncia (título, precio, datos, descripción y fotos), el historial de precio, los portales, lo que marques como visible y la lista de clientes interesados como «Cliente 1, 2…» (solo cómo llegaron, fechas, visitas y etapa; nunca nombres, teléfonos ni correos). El portal se actualiza solo cuando cambias la propiedad, una visita o la etapa de un cliente. Entra con el enlace privado o con su correo, sin contraseña, y puede dejarte comentarios si quiere cambios.'),
 				!prop.email ? h('div', { class: 'alert alert-info small mb-0' }, 'Agrega el correo del propietario (arriba) para que también pueda entrar con su correo.') : null,
 				estadoEl, botones),
 			formPaso,

@@ -205,6 +205,36 @@ service cloud.firestore {
         || (isStaff() && resource.data.agentId == myAgentId());
     }
 
+    // Respuesta del propietario al anuncio desde su portal: «aprobado» o «cambios» (con texto). Puede crear quien puede leer el portal:
+    // hace falta el token (el id del portal; con el correo se obtiene al listar sus portales).
+    // Solo crear: nadie los cambia ni los borra desde el sitio. Los lee solo el equipo.
+    function portalDelComentario() {
+      return get(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token)).data;
+    }
+    match /comentariosPropietarios/{id} {
+      allow create: if request.resource.data.keys().hasOnly([
+            'token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen', 'idioma'])
+        && request.resource.data.keys().hasAll(['token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() >= 32
+        && request.resource.data.token.size() <= 128
+        && exists(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token))
+        && portalDelComentario().propietarioId == request.resource.data.propietarioId
+        && portalDelComentario().agentId == request.resource.data.agentId
+        && isNonEmptyString(request.resource.data.propiedadId, 60)
+        && request.resource.data.tipo in ['aprobado', 'cambios']
+        && request.resource.data.texto is string
+        && request.resource.data.texto.size() <= 2000
+        // Pedir cambios exige texto; la aprobación puede ir sin texto.
+        && (request.resource.data.tipo == 'aprobado' || request.resource.data.texto.size() >= 1)
+        && request.resource.data.origen == 'propietario'
+        && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
+        && request.resource.data.fecha == request.time;
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow update, delete: if false;
+    }
+
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
       allow create: if request.resource.data.keys().hasOnly([

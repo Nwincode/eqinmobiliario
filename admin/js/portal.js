@@ -7,6 +7,7 @@ import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, ms } from './crm.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
+import { slugify } from './ui.js';
 import { filasClientes, numerarClientes, combinarClientes, eventosAuto, fechaOferta } from './portal-clientes.js';
 
 const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
@@ -32,6 +33,29 @@ export const enlacePortal = (token) => `${SITE}/propietarios/#t=${token}`;
 const iso = (v) => { const t = ms(v); return t ? new Date(t).toISOString() : ''; };
 const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 const recorta = (s, n) => String(s || '').trim().slice(0, n);
+const num = (v) => Number(v) || 0;
+
+// Cómo se anuncia la propiedad: solo datos públicos de la ficha (nada interno).
+function anuncioDe(p, urlFicha, enActivo) {
+	const e = p.en || {};
+	const conIngles = enActivo && urlFicha && e.titulo && e.descripcion;
+	return {
+		tipo: recorta(p.tipo, 40),
+		zona: recorta(p.zona, 100),
+		ciudad: recorta(p.ciudad, 100),
+		habitaciones: num(p.habitaciones),
+		banos: num(p.banos),
+		m2Construccion: num(p.m2Construccion),
+		m2Terreno: num(p.m2Terreno),
+		descripcion: recorta(p.descripcion, 6000),
+		fotos: (p.fotos || []).map((f) => f && f.url).filter((u) => /^https:\/\//.test(u || '')).slice(0, 6),
+		en: conIngles ? {
+			titulo: recorta(e.titulo, 200),
+			descripcion: recorta(e.descripcion, 6000),
+			url: `${SITE}${p.vip ? '/en/luxury/' : '/en/property/'}${slugify(e.slug || e.titulo)}/`
+		} : null
+	};
+}
 
 // Fecha desde la que la propiedad está en el mercado: primer estado visible del historial.
 function enMercado(p) {
@@ -91,6 +115,7 @@ export async function armarPortal(prop) {
 	]);
 	const ahora = Date.now();
 	const portales = portalesDe(site);
+	const enActivo = Boolean(site.en) && site.en.activo !== false;
 	const visitas = await visitasDe(prop, { actividades, clientes });
 	const bitacora = (prop.bitacora || []).slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
 	const ag = agentes.find((a) => a.id === prop.agentId) || {};
@@ -175,6 +200,15 @@ export async function armarPortal(prop) {
 		updatedAt: serverTimestamp()
 	};
 	return { datos, privado };
+}
+
+// Comentarios que el propietario dejó desde su portal (el más nuevo primero).
+// El asesor solo puede leer los de sus propietarios: la consulta lleva su agentId.
+export async function comentariosDe(prop) {
+	const filtros = [where('propietarioId', '==', prop.id)];
+	if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentId || '-'));
+	const s = await getDocs(query(collection(db, 'comentariosPropietarios'), ...filtros));
+	return s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.fecha) - ms(a.fecha));
 }
 
 // Borra la copia publicada de un token (si ya no existe, no hay nada que hacer).
