@@ -7,6 +7,7 @@ import {
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
+import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
@@ -20,21 +21,22 @@ const V = window.EQVacacional;
 
 const faltanDe = (p) => revisar('propiedades', p);
 
-// Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
-function autoTitle(d) {
-	const op = OPERACION_LABEL[d.operacion] || 'Venta';
-	const titulo = d.titulo || '';
-	const candidates = [
-		`${titulo} | ${op} en ${[d.zona, d.ciudad].filter(Boolean).join(', ')}`,
-		d.zona && `${titulo} | ${op} en ${d.zona}`,
-		`${titulo} | ${op}`,
-		titulo
-	].filter(Boolean);
-	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
-}
-function autoDescription(d) {
-	const specs = [d.habitaciones && `${d.habitaciones} habitaciones`, d.banos && `${d.banos} baños`, d.m2Construccion && `${d.m2Construccion} m²`].filter(Boolean).join(', ');
-	return `${formatPrice(d.precio, d.moneda, d.operacion)}.${specs ? ` ${specs}.` : ''} ${stripMd(d.descripcion)}`.trim();
+// Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
+const cifraGt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const autoTitle = (d) => autoSeoTitle(d);
+const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
+	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
+	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
+	d.m2Construccion && `${cifraGt(d.m2Construccion)} m²`
+]);
+// Llena el SEO en español si está vacío o si todavía es el que se puso solo (así se actualiza al cambiar la ficha).
+function llenarSeo(d) {
+	const seo = { ...(d.seo || {}) };
+	const auto = seo.auto || {};
+	if (!String(seo.titulo || '').trim() || seo.titulo === auto.titulo) seo.titulo = auto.titulo = autoTitle(d);
+	if (!String(seo.descripcion || '').trim() || seo.descripcion === auto.descripcion) seo.descripcion = auto.descripcion = autoDescription(d);
+	seo.auto = auto;
+	d.seo = seo;
 }
 
 
@@ -61,7 +63,10 @@ async function traducirEn(d) {
 	const r = await pedirIA('traducir', { propiedad: datos });
 	return {
 		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
-		seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
+		seo: {
+			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
+			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
+		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		fuente: fuenteEs(d),
 		manual: false
@@ -277,7 +282,7 @@ export async function render(container, [id]) {
 		draw();
 	};
 
-	const fila = (p) => {
+	const fila = (p, i) => {
 		const editable = canEdit(p);
 		const motivo = motivoVisibilidad(p);
 		const idSwitch = `visible-${p.id}`;
@@ -314,10 +319,12 @@ export async function render(container, [id]) {
 		});
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
+			h('td', { class: 'celda-num' }, i + 1),
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-codigo' }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
+				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
 				p.publicado && p.slug ? h('a', {
 					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
 					href: `https://wa.me/?text=${encodeURIComponent(`${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`)}`,
@@ -353,6 +360,7 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'mias' || p.agentId === session.agentId)
 			&& (fExtra.value !== 'incompletas' || faltanDe(p).length));
 		count.textContent = `${rows.length} de ${props.length}`;
+		dibujarYRecordar();
 		visibles = rows;
 		// Solo quedan seleccionadas las que se ven con el filtro actual.
 		const ids = new Set(rows.map((p) => p.id));
@@ -461,6 +469,53 @@ export async function render(container, [id]) {
 			}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`);
 		} },
 		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
+	// Completa de una vez lo que sube la calificación SEO y se puede sacar de los datos: título y
+	// descripción para Google, ciudad (si la zona es "Zona 10"…) y la versión en inglés.
+	const btnCompletar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Completar el SEO de ${n} propiedad${n === 1 ? '' : 'es'}? Se llena lo que falta para Google, la ciudad cuando la zona es de la capital y la traducción al inglés. Lo que escribiste a mano se respeta.`, { okText: 'Completar', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.titulo) return;
+				const d = { ...p };
+				const cambios = {};
+				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
+				if (!d.vip) {
+					const antes = JSON.stringify(d.seo || {});
+					llenarSeo(d);
+					if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
+				}
+				const en = d.en || {};
+				if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
+				if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
+			}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Completar SEO');
+	// Textos (descripción e inglés) que escribió Claude en admin/textos-claude.json, por id de propiedad.
+	// Guarda la descripción anterior como respaldo («Volver a la anterior») y llena el SEO que falte.
+	const btnClaude = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const textos = await fetch('/admin/textos-claude.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+			const con = props.filter((p) => seleccion.has(p.id) && textos[p.id]);
+			if (!con.length) return toast('Las seleccionadas todavía no tienen textos preparados.', 'warning');
+			if (!(await confirmDialog(`¿Poner los textos preparados en ${con.length} propiedad${con.length === 1 ? '' : 'es'}? Se cambia la descripción y el inglés, y se llena el SEO que falte. La descripción anterior queda como respaldo.`, { okText: 'Poner textos', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				const t = textos[p.id];
+				if (!t) return;
+				const d = { ...p, descripcion: t.descripcion };
+				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
+				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
+				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
+				cambios.en = {
+					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
+					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
+					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
+					fuente: fuenteEs(d), manual: false
+				};
+				await guardarMasa(cambios, cambios)(p);
+			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revisalos y publicá.`);
+		} },
+		h('span', { class: 'icon-pencil', 'aria-hidden': 'true' }), ' Poner textos preparados');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: async (e) => {
 			const n = seleccion.size;
@@ -495,7 +550,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnTraducir, btnMarca,
+		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
@@ -506,7 +561,23 @@ export async function render(container, [id]) {
 		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
 		selTodas.disabled = editables.length === 0;
 	};
-	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
+	// Los filtros se recuerdan mientras la pestaña siga abierta: al volver de una ficha siguen igual.
+	const filtros = [search, fOperacion, fEstado, fExtra];
+	const CLAVE_FILTROS = 'eq-filtros-propiedades';
+	const limpiar = h('button', { type: 'button', class: 'btn btn-link btn-sm p-0', hidden: true,
+		onclick: () => { filtros.forEach((el) => { el.value = ''; }); draw(); search.focus(); } }, 'Quitar filtros');
+	try {
+		const g = JSON.parse(sessionStorage.getItem(CLAVE_FILTROS) || 'null');
+		if (Array.isArray(g)) filtros.forEach((el, i) => {
+			if (el.tagName !== 'SELECT' || [...el.options].some((o) => o.value === g[i])) el.value = g[i] || '';
+		});
+	} catch { /* sin memoria del navegador: se empieza sin filtros */ }
+	const dibujarYRecordar = () => {
+		const valores = filtros.map((el) => el.value);
+		limpiar.hidden = valores.every((v) => !v);
+		try { sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify(valores)); } catch { /* sin memoria */ }
+	};
+	filtros.forEach((el) => el.addEventListener('input', draw));
 	draw();
 
 	mount(container, 
@@ -523,7 +594,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
 				h('div', { class: 'col-md-3' }, fEstado)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
-				count,
+				count, limpiar,
 				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
 					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
 			barra,
@@ -531,7 +602,8 @@ export async function render(container, [id]) {
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
 						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-						['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+						[['#', 'celda-num'], ['', 'celda-foto'], ['Código', 'celda-codigo'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
+							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
@@ -789,6 +861,7 @@ async function renderEditor(container, id) {
 		d.en = d.en || {};
 		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
 		const traducirAhora = Boolean(d.titulo) && (!String(d.en.titulo || '').trim() || (!d.en.manual && d.en.fuente !== fuenteEs(d)));
+		if (!d.vip && d.titulo) llenarSeo(d);
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);

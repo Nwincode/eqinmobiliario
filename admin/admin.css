@@ -447,6 +447,48 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: #8a1c13;
 }
 
+/* Tablas: la caja mide como mucho lo que queda de pantalla, así la barra para moverse
+   de lado siempre se ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
+.table-responsive:has(> .table-admin) {
+	max-height: max(320px, calc(100dvh - 60px - 9rem));
+	overflow: auto;
+	overscroll-behavior-x: contain;
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--adm-muted) 55%, transparent) transparent;
+}
+.table-responsive:has(> .table-admin)::-webkit-scrollbar { width: 10px; height: 10px; }
+.table-responsive:has(> .table-admin)::-webkit-scrollbar-thumb {
+	background: color-mix(in srgb, var(--adm-muted) 55%, transparent);
+	border-radius: 999px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+.table-responsive:has(> .table-admin)::-webkit-scrollbar-track { background: transparent; }
+.table-admin thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+}
+/* La primera columna (el nombre) queda fija al moverse de lado en pantallas angostas. */
+@media (max-width: 991.98px) {
+	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > tbody > tr > :first-child,
+	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > thead > tr > :first-child {
+		position: sticky;
+		left: 0;
+		z-index: 1;
+		background: #fff;
+		box-shadow: 1px 0 0 var(--adm-border);
+	}
+	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > thead > tr > :first-child { z-index: 3; background: #f8fafb; }
+	/* Filas de una línea: se leen de lado sin que cada fila se haga altísima. */
+	.table-admin:not(.tabla-propiedades):not(.tabla-importar) td { white-space: nowrap; }
+	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > tbody > tr > :first-child {
+		white-space: normal;
+		min-width: 8.5rem;
+		max-width: 45vw;
+	}
+}
+
 .table-admin {
 	background: #fff;
 	margin-bottom: 0;
@@ -1202,6 +1244,20 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .sel-toque .form-check-input { margin: 0; width: 1.15em; height: 1.15em; cursor: pointer; }
 .tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
+/* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
+@media (min-width: 768px) {
+	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
+	.tabla-propiedades .celda-codigo { width: 1%; white-space: nowrap; }
+	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); }
+	.tabla-propiedades .celda-titulo { min-width: 12rem; }
+	.tabla-propiedades .celda-precio { width: 1%; }
+	.tabla-propiedades .celda-estado { width: 1%; }
+	.tabla-propiedades .estado-rapido { min-width: 9.5rem; }
+	.tabla-propiedades .celda-visible { width: 1%; }
+	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
+	.tabla-propiedades .celda-fecha { width: 1%; }
+}
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);
@@ -1240,7 +1296,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		display: grid;
 		grid-template-columns: 64px 1fr auto;
 		grid-template-areas:
-			"foto titulo sel"
+			"foto codigo sel"
+			"foto titulo titulo"
 			"foto precio precio"
 			"estado estado estado"
 			"visible visible visible"
@@ -1260,8 +1317,16 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		min-width: 0;
 	}
 	.tabla-propiedades .celda-foto { grid-area: foto; }
+	/* El número va como etiqueta en la esquina de la foto. */
+	.table-admin.tabla-propiedades .celda-num {
+		grid-area: foto; align-self: start; justify-self: start; z-index: 1;
+		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
+		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
+		font-variant-numeric: tabular-nums;
+	}
 	.tabla-propiedades .celda-sel { grid-area: sel; }
 	.tabla-propiedades .celda-titulo { grid-area: titulo; }
+	.tabla-propiedades .celda-codigo { grid-area: codigo; font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); align-self: center; }
 	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; justify-content: space-between; gap: .75rem; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .375rem; }
