@@ -1,6 +1,6 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, emptyState, formatPrice } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
@@ -143,7 +143,7 @@ async function renderTablero(container) {
 				['pendiente', 'Publicaciones pendientes', 'secondary', 'Plataformas donde aún no está la propiedad.']]
 				.map(([k, label, color, ayuda]) => h('div', { class: 'col-md-4' }, h('div', { class: `card stat-card h-100 border-${color}` }, h('div', { class: 'card-body' },
 					h('div', { class: 'stat-value' }, pendientes[k]), h('div', { class: 'stat-label' }, label), h('div', { class: 'small text-muted' }, ayuda)))))),
-		visibles.length ? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
+		visibles.length ? cajaTabla(
 			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
 				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center small' }, x.nombre)))),
 				h('tbody', {}, visibles.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/difusion/${p.id}`; } },
@@ -151,7 +151,7 @@ async function renderTablero(container) {
 					portales.map((x) => {
 						const e = estadoDifusion(p, x.id);
 						return h('td', { class: 'text-center' }, e.id === 'na' ? h('span', { class: 'text-muted' }, '—') : badge(e.texto, COLOR[e.id]));
-					}))))))) : emptyState('Todavía no hay propiedades publicadas.'),
+					}))))), { tarjeta: true }) : emptyState('Todavía no hay propiedades publicadas.'),
 		h('div', { class: 'card mt-4' }, h('div', { class: 'card-body small' },
 			h('strong', {}, 'Catálogos automáticos. '),
 			'Algunas plataformas leen las propiedades solas desde un enlace y se actualizan sin copiar nada: ',

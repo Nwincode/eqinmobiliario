@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv } from '../ui.js';
+, mount, downloadCsv, cajaTabla } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -135,7 +135,7 @@ function desgloseVacacional(el, d) {
 	}
 	const pub = V.planPublico(planSocioDe(s), s.margen);
 	const ejemplo = V.gananciaEstancia({ planSocio: planSocioDe(s), margen: s.margen, llegada: hoyISO(), salida: V.sumarDias(hoyISO(), 7) });
-	el.replaceChildren(h('div', { class: 'table-responsive' }, h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
+	el.replaceChildren(cajaTabla(h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
 		h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Noche'), h('th', { scope: 'col', class: 'text-end' }, 'Socio'),
 			h('th', { scope: 'col', class: 'text-end' }, `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`), h('th', { scope: 'col', class: 'text-end' }, 'Al público'),
 			h('th', { scope: 'col', class: 'text-end' }, 'Impuestos 22 %'))),
@@ -598,13 +598,13 @@ export async function render(container, [id]) {
 				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
 					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
 			barra,
-			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
+			cajaTabla(
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
 						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
 						[['#', 'celda-num'], ['', 'celda-foto'], ['Código', 'celda-codigo'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
 							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
-					tbody))))
+					tbody), { tarjeta: true }))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 

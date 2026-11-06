@@ -1,7 +1,7 @@
 // Calculadora de renta del panel: análisis completo de inversión (año 1, escenarios, flujo a largo plazo, TIR y VPN).
 // El motor es el mismo del sitio (js/calc-renta.js → window.EQRenta), así los números coinciden con la ficha pública.
 import '/js/calc-renta.js';
-import { h, mount, pageHeader, toast } from '../ui.js';
+import { h, mount, pageHeader, toast, cajaTabla } from '../ui.js';
 
 const R = window.EQRenta;
 
@@ -197,10 +197,10 @@ export async function render(container) {
 	// ── Resultados ─────────────────────────────────────────
 	const kpis = h('div', { class: 'row g-3 mb-3 calc-kpis' });
 	const avisos = h('div', { class: 'calc-avisos' });
-	const tablaAnio1 = h('div', { class: 'table-responsive' });
-	const tablaVenta = h('div', { class: 'table-responsive' });
-	const tablaGanancia = h('div', { class: 'table-responsive' });
-	const tablaResumen = h('div', { class: 'table-responsive' });
+	const tablaAnio1 = cajaTabla();
+	const tablaVenta = cajaTabla();
+	const tablaGanancia = cajaTabla();
+	const tablaResumen = cajaTabla();
 	const notaVenta = h('p', { class: 'calc-er-nota mb-0' });
 	const rendResumen = h('div', { class: 'calc-resumen-tir' });
 	let anioER = 1;
@@ -208,10 +208,10 @@ export async function render(container) {
 	const tituloER = h('span', {}, 'Estado de resultados — año 1');
 	const tituloVenta = h('span', {}, 'Venta al final del plazo');
 	const tituloResumen = h('span', {}, 'Resumen del negocio');
-	const tablaEsc = h('div', { class: 'table-responsive' });
+	const tablaEsc = cajaTabla();
 	const grafica = h('div', { class: 'calc-grafica' });
 	let ultimoR = null;
-	const tablaLargo = h('div', { class: 'table-responsive calc-largo' });
+	const tablaLargo = cajaTabla(null, { cls: 'calc-largo' });
 	const vacio = h('div', { class: 'calc-vacio text-muted' }, 'Ingresa el precio y la renta mensual para ver el análisis.');
 	const resultados = h('div', { class: 'calc-resultados' });
 	const resumenImpresion = h('p', { class: 'print-only calc-print-resumen' });

@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
-, mount } from '../ui.js';
+, mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 
 export const ESTADOS = [
@@ -157,9 +157,9 @@ export async function render(container) {
 				h('div', { class: 'col-md-6' }, search),
 				h('div', { class: 'col-6 col-md-3' }, fEstado),
 				h('div', { class: 'col-6 col-md-3' }, fAgent)),
-			h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
+			cajaTabla(
 				h('table', { class: 'table table-hover table-admin' },
 					h('thead', {}, h('tr', {}, ['Fecha', 'Contacto', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
-					tbody))))
+					tbody), { tarjeta: true }))
 			: emptyState(session.isAdmin ? 'Todavía no han llegado leads. Aparecerán aquí cuando alguien llene un formulario del sitio.' : 'No tienes leads asignados todavía.'));
 }

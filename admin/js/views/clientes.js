@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -131,7 +131,7 @@ async function renderLista(container) {
 				return col;
 			})), h('p', { class: 'small text-muted mt-2' }, 'Arrastra una tarjeta a otra columna para cambiar la etapa, o cámbiala dentro de la ficha.'));
 		} else {
-			cuerpo.replaceChildren(h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' }, h('table', { class: 'table table-hover table-admin mb-0' },
+			cuerpo.replaceChildren(cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
 				h('thead', {}, h('tr', {}, ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
 				h('tbody', {}, lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)).map((c) => {
 					const prox = proximaActividad(actividades, c.id);
@@ -142,7 +142,7 @@ async function renderLista(container) {
 						h('td', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
 						h('td', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
 						session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar') : null);
-				}))))));
+				}))), { tarjeta: true }));
 		}
 	};
 	[buscar, fTipo, fAsesor, soloIncompletos].forEach((el) => el.addEventListener(el === soloIncompletos ? 'change' : 'input', dibujar));

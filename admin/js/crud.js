@@ -1,6 +1,6 @@
 // Listado + editor genérico para colecciones simples (asesores, reseñas, páginas).
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp } from './firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount } from './ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount, cajaTabla } from './ui.js';
 import { renderForm } from './form.js';
 import { markPending } from './session.js';
 import { revisar, vigilarFormulario } from './pendientes.js';
@@ -23,11 +23,11 @@ export function crudView(cfg) {
 			cfg.intro ? h('p', { class: 'text-muted' }, cfg.intro) : null,
 			soloIncompletos ? h('p', { class: 'small' }, 'Mostrando solo los que tienen datos por completar. ', h('a', { href: `#/${cfg.route}` }, 'Ver todos')) : null,
 			items.length
-				? h('div', { class: 'card overflow-hidden' }, h('div', { class: 'table-responsive' },
+				? cajaTabla(
 					h('table', { class: 'table table-hover table-admin' },
 						h('thead', {}, h('tr', {}, cfg.columns.map(([label]) => h('th', {}, label)))),
 						h('tbody', {}, items.map((it) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/${cfg.route}/${it.id}`; } },
-							cfg.columns.map(([, fn]) => h('td', {}, fn(it)))))))))
+							cfg.columns.map(([, fn]) => h('td', {}, fn(it))))))), { tarjeta: true })
 				: emptyState(`Aún no hay ${cfg.title.toLowerCase()}.`, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `Crear ${cfg.singular.toLowerCase()}`)));
 	}
 

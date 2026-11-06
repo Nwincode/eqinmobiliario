@@ -9,7 +9,7 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal } from '../ui.js';
+import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla } from '../ui.js';
 import { session } from '../session.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
@@ -87,7 +87,7 @@ async function lista(container) {
 			h('a', { class: 'btn btn-outline-primary btn-sm cot-btn', href: `#/cotizaciones/${encodeURIComponent(c.id)}` }, h('span', { class: 'icon-pencil me-1', 'aria-hidden': 'true' }), 'Abrir'),
 			h('a', { class: 'btn btn-outline-secondary btn-sm cot-btn cot-btn-icono', href: `#/cotizaciones/duplicar/${encodeURIComponent(c.id)}`, title: 'Duplicar', 'aria-label': `Duplicar ${c.numero || 'cotización'}` }, h('span', { class: 'icon-clone', 'aria-hidden': 'true' })),
 			h('button', { type: 'button', class: 'btn btn-outline-danger btn-sm cot-btn cot-btn-icono', title: 'Eliminar', 'aria-label': `Eliminar ${c.numero || 'cotización'}`, onclick: () => borrar(c) }, h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' })));
-		cuerpo.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'table-responsive' },
+		cuerpo.replaceChildren(cajaTabla(
 			h('table', { class: 'table table-hover align-middle mb-0 cot-lista' },
 				h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Número'), h('th', { scope: 'col' }, 'Fecha'), h('th', { scope: 'col' }, 'Cliente'), h('th', { scope: 'col', class: 'text-end' }, 'Total'), h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')))),
 				h('tbody', {}, items.map((c) => h('tr', {},
@@ -96,7 +96,7 @@ async function lista(container) {
 					h('td', { 'data-label': 'Cliente' }, c.cliente?.nombre || h('span', { class: 'text-muted' }, 'Sin nombre'),
 						c.propiedad?.texto ? h('div', { class: 'small text-muted' }, c.propiedad.texto) : null),
 					h('td', { 'data-label': 'Total', class: 'text-end text-nowrap' }, total(c)),
-					h('td', { class: 'text-end' }, acciones(c)))))))));
+					h('td', { class: 'text-end' }, acciones(c)))))), { tarjeta: true }));
 	};
 	pintar();
 }
