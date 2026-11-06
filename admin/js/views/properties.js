@@ -360,6 +360,7 @@ export async function render(container, [id]) {
 			&& (fExtra.value !== 'mias' || p.agentId === session.agentId)
 			&& (fExtra.value !== 'incompletas' || faltanDe(p).length));
 		count.textContent = `${rows.length} de ${props.length}`;
+		dibujarYRecordar();
 		visibles = rows;
 		// Solo quedan seleccionadas las que se ven con el filtro actual.
 		const ids = new Set(rows.map((p) => p.id));
@@ -513,7 +514,23 @@ export async function render(container, [id]) {
 		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
 		selTodas.disabled = editables.length === 0;
 	};
-	[search, fOperacion, fEstado, fExtra].forEach((el) => el.addEventListener('input', draw));
+	// Los filtros se recuerdan mientras la pestaña siga abierta: al volver de una ficha siguen igual.
+	const filtros = [search, fOperacion, fEstado, fExtra];
+	const CLAVE_FILTROS = 'eq-filtros-propiedades';
+	const limpiar = h('button', { type: 'button', class: 'btn btn-link btn-sm p-0', hidden: true,
+		onclick: () => { filtros.forEach((el) => { el.value = ''; }); draw(); search.focus(); } }, 'Quitar filtros');
+	try {
+		const g = JSON.parse(sessionStorage.getItem(CLAVE_FILTROS) || 'null');
+		if (Array.isArray(g)) filtros.forEach((el, i) => {
+			if (el.tagName !== 'SELECT' || [...el.options].some((o) => o.value === g[i])) el.value = g[i] || '';
+		});
+	} catch { /* sin memoria del navegador: se empieza sin filtros */ }
+	const dibujarYRecordar = () => {
+		const valores = filtros.map((el) => el.value);
+		limpiar.hidden = valores.every((v) => !v);
+		try { sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify(valores)); } catch { /* sin memoria */ }
+	};
+	filtros.forEach((el) => el.addEventListener('input', draw));
 	draw();
 
 	mount(container, 
@@ -530,7 +547,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
 				h('div', { class: 'col-md-3' }, fEstado)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
-				count,
+				count, limpiar,
 				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
 					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
 			barra,
