@@ -280,7 +280,7 @@ function seccionPortal(prop, propiedades) {
 					`${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
 				c.texto ? h('div', { class: 'mt-1', style: 'white-space: pre-line' }, c.texto) : null))
 				: [h('div', { class: 'list-group-item text-muted small' }, 'El propietario todavía no ha respondido sobre el anuncio.')]));
-		} catch (err) { listaCom.replaceChildren(h('div', { class: 'list-group-item small text-danger' }, 'No se pudieron cargar los comentarios.')); console.error(err); }
+		} catch (err) { listaCom.replaceChildren(h('div', { class: 'list-group-item small text-danger' }, `No se pudieron cargar los comentarios (${err?.code || err?.message || 'error'}).`)); console.error(err); }
 	}
 
 	pintarEstado();
@@ -295,7 +295,8 @@ function seccionPortal(prop, propiedades) {
 				!prop.email ? h('div', { class: 'alert alert-info small mb-0' }, 'Agrega el correo del propietario (arriba) para que también pueda entrar con su correo.') : null,
 				estadoEl, botones),
 			formPaso,
-			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta del propietario al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su portal. Lo más nuevo arriba.'), listaCom),
+			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta del propietario al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su portal. Lo más nuevo arriba. ',
+				h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: pintarComentarios }, 'Actualizar')), listaCom),
 			h('div', {}, h('h3', { class: 'h6' }, 'Bitácora del asesor'), formBit, listaBit),
 			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribe un comentario para el propietario y márcalo como visible. No escribas el nombre del cliente.'), listaVis)));
 }

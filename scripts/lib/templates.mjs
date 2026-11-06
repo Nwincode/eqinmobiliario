@@ -1731,7 +1731,7 @@ const TEXTOS_PORTAL = {
 		respuestaPregunta: '¿Estás de acuerdo con cómo se anuncia?', deAcuerdo: 'Estoy de acuerdo con el anuncio', quieroCambios: 'Quiero cambios',
 		aprobadoOk: 'Gracias, tu asesor ya sabe que estás de acuerdo.',
 		comentarLabel: '¿Qué te gustaría cambiar?', comentarAyuda: 'Por ejemplo: el precio, una foto o un dato de la descripción. Tu asesor lo recibe en su panel.',
-		comentarEnviar: 'Enviar comentario', comentarOk: 'Gracias, tu asesor recibió tu comentario.', comentarVacio: 'Escribe tu comentario antes de enviarlo.',
+		comentarEnviar: 'Enviar comentario', comentarOk: 'Gracias, tu asesor recibió tus comentarios:', comentarVacio: 'Escribe tu comentario antes de enviarlo.',
 		comentarError: 'No pudimos enviarlo. Revisa tu conexión e inténtalo otra vez.'
 	},
 	en: {
@@ -1783,7 +1783,7 @@ const TEXTOS_PORTAL = {
 		respuestaPregunta: 'Are you happy with how it is listed?', deAcuerdo: 'I agree with the listing', quieroCambios: 'I want changes',
 		aprobadoOk: 'Thank you, your agent now knows you agree.',
 		comentarLabel: 'What would you like to change?', comentarAyuda: 'For example: the price, a photo or a detail in the description. Your agent gets it in their dashboard.',
-		comentarEnviar: 'Send comment', comentarOk: 'Thank you, your agent received your comment.', comentarVacio: 'Write your comment before sending it.',
+		comentarEnviar: 'Send comment', comentarOk: 'Thank you, your agent received your comments:', comentarVacio: 'Write your comment before sending it.',
 		comentarError: 'We could not send it. Check your connection and try again.'
 	}
 };

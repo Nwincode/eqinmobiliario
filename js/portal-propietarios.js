@@ -593,6 +593,8 @@ function respuesta(p, q) {
 		vivo.textContent = msg;
 	};
 	const limpiar = () => { okMsg.hidden = true; err.hidden = true; vivo.textContent = ''; };
+	// Una respuesta por propiedad en esta visita: tras enviar se ocultan los botones (evita duplicados).
+	const cerrar = () => { btnOk.hidden = true; btnCambios.hidden = true; form.hidden = true; };
 	const enviar = (tipo, txt) => addDoc(collection(db, 'comentariosPropietarios'), {
 		token: ptl.token, propietarioId: ptl.propietarioId || '', agentId: ptl.agentId || '',
 		propiedadId: String(p.id), tipo, texto: txt, fecha: serverTimestamp(),
@@ -611,8 +613,7 @@ function respuesta(p, q) {
 		btnOk.disabled = true;
 		try {
 			await enviar('aprobado', '');
-			form.hidden = true;
-			btnCambios.setAttribute('aria-expanded', 'false');
+			cerrar();
 			avisar('ok', T.aprobadoOk);
 		} catch (e) {
 			console.warn('Portal: aprobación', e && e.code);
@@ -636,10 +637,8 @@ function respuesta(p, q) {
 		try {
 			await enviar('cambios', txt);
 			texto.value = '';
-			form.hidden = true;
-			btnCambios.setAttribute('aria-expanded', 'false');
-			avisar('ok', T.comentarOk);
-			btnCambios.focus();
+			cerrar();
+			avisar('ok', `${T.comentarOk} «${txt}»`);
 		} catch (e) {
 			console.warn('Portal: comentario', e && e.code);
 			avisar('error', T.comentarError);
