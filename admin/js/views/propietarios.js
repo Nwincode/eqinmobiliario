@@ -275,9 +275,11 @@ function seccionPortal(prop, propiedades) {
 		try {
 			const lista = await comentariosDe(prop);
 			listaCom.replaceChildren(...(lista.length ? lista.map((c) => h('div', { class: 'list-group-item' },
-				h('div', { class: 'small text-muted' }, `${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
-				h('div', { style: 'white-space: pre-line' }, c.texto || '')))
-				: [h('div', { class: 'list-group-item text-muted small' }, 'El propietario todavía no ha dejado comentarios.')]));
+				h('div', { class: 'small text-muted d-flex flex-wrap gap-2 align-items-center' },
+					c.tipo === 'aprobado' ? badge('Aprobó el anuncio', 'success') : badge('Pidió cambios', 'warning'),
+					`${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
+				c.texto ? h('div', { class: 'mt-1', style: 'white-space: pre-line' }, c.texto) : null))
+				: [h('div', { class: 'list-group-item text-muted small' }, 'El propietario todavía no ha respondido sobre el anuncio.')]));
 		} catch (err) { listaCom.replaceChildren(h('div', { class: 'list-group-item small text-danger' }, 'No se pudieron cargar los comentarios.')); console.error(err); }
 	}
 
@@ -293,6 +295,7 @@ function seccionPortal(prop, propiedades) {
 				!prop.email ? h('div', { class: 'alert alert-info small mb-0' }, 'Agrega el correo del propietario (arriba) para que también pueda entrar con su correo.') : null,
 				estadoEl, botones),
 			formPaso,
+			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta del propietario al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su portal. Lo más nuevo arriba.'), listaCom),
 			h('div', {}, h('h3', { class: 'h6' }, 'Bitácora del asesor'), formBit, listaBit),
 			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribe un comentario para el propietario y márcalo como visible. No escribas el nombre del cliente.'), listaVis)));
 }

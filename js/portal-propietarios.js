@@ -10,7 +10,7 @@ import {
 	getAuth, onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-	getFirestore, doc, getDoc, getDocs, collection, query, where
+	getFirestore, doc, getDoc, getDocs, collection, query, where, addDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const raiz = document.getElementById('pp');
@@ -148,7 +148,10 @@ function pintar(portales, { conSesion }) {
 	q('exclusiva-caja').hidden = !excl;
 	q('datos').hidden = !paso && !excl;
 
-	const props = portales.flatMap((p) => p.propiedades || []);
+	// Cada propiedad lleva el token y los ids de su portal: el comentario se valida contra ese portal.
+	const props = portales.flatMap((p) => (p.propiedades || []).map((x) => ({
+		...x, _portal: { token: p._token, propietarioId: p.propietarioId, agentId: p.agentId }
+	})));
 	resumen(props, q);
 	graficaMeses(props, q);
 	graficaCanales(props, q);
@@ -402,10 +405,8 @@ function tarjeta(p) {
 	const dias = desde ? Math.max(0, Math.floor((hasta - desde) / DIA)) : null;
 	q('dias').textContent = dias === null ? '—' : String(dias);
 	if (dias === 1) q('dias-texto').textContent = EN ? 'day on the market' : 'día en el mercado';
-	const url = urlSegura(p.url);
-	q('url').hidden = !url;
-	if (url) q('url').href = url;
-
+	anuncio(p, q);
+	respuesta(p, q);
 	avance(p, q);
 
 	// Embudo: consultas → visitas → ofertas, barras relativas a la mayor.
@@ -490,14 +491,171 @@ function tarjeta(p) {
 	return nodo;
 }
 
+// ——— Cómo se anuncia ———
+// Descripción del anuncio sin innerHTML: párrafos, saltos de línea, listas «- » y **negritas**.
+function textoAnuncio(texto) {
+	const frag = document.createDocumentFragment();
+	for (const bloque of String(texto || '').replace(/\r\n?/g, '\n').split(/\n{2,}/)) {
+		let ul = null, par = null;
+		for (const linea of bloque.split('\n').filter((x) => x.trim())) {
+			const m = /^\s*[-*•]\s+(.*)$/.exec(linea);
+			if (m) {
+				if (!ul) { ul = el('ul', 'pp-anuncio-lista'); frag.append(ul); }
+				par = null;
+				const li = el('li');
+				conNegritas(li, m[1]);
+				ul.append(li);
+			} else {
+				ul = null;
+				if (par) par.append(document.createElement('br'));
+				else { par = el('p'); frag.append(par); }
+				conNegritas(par, linea.trim().replace(/^#+\s*/, ''));
+			}
+		}
+	}
+	return frag;
+}
+function conNegritas(nodo, s) {
+	s.split(/\*\*(.+?)\*\*/g).forEach((x, i) => {
+		if (x) nodo.append(i % 2 ? el('strong', '', x) : document.createTextNode(x.replace(/\*\*/g, '')));
+	});
+}
+const area = (m2) => (EN
+	? `${Math.round(m2 * 10.7639).toLocaleString('en-US')} sq ft`
+	: `${Number(m2).toLocaleString('es-GT')} m²`);
+function dato(q, sel, texto) {
+	const li = q(sel);
+	li.hidden = !texto;
+	if (texto) li.querySelector('span:last-child').textContent = texto;
+}
+function anuncio(p, q) {
+	const a = p.anuncio || {};
+	const en = EN && a.en ? a.en : null;
+	const titulo = (en && en.titulo) || p.titulo || '';
+	q('a-titulo').textContent = titulo;
+	q('a-precio').textContent = precio(p.precio, p.moneda, p.operacion);
+	const op = (T.operaciones || {})[p.operacion] || '';
+	q('a-operacion').textContent = op ? ` · ${op}` : '';
+	dato(q, 'a-tipo', (T.tipos || {})[a.tipo] || '');
+	dato(q, 'a-ubicacion', [a.zona, a.ciudad].filter(Boolean).join(', '));
+	const n = (v) => Number(v) || 0;
+	dato(q, 'a-hab', n(a.habitaciones) ? (n(a.habitaciones) === 1 ? T.habUno : llenar(T.hab, { n: n(a.habitaciones) })) : '');
+	dato(q, 'a-banos', n(a.banos) ? (n(a.banos) === 1 ? T.banosUno : llenar(T.banos, { n: n(a.banos) })) : '');
+	dato(q, 'a-construccion', n(a.m2Construccion) ? llenar(T.construccion, { a: area(n(a.m2Construccion)) }) : '');
+	dato(q, 'a-terreno', n(a.m2Terreno) ? llenar(T.terreno, { a: area(n(a.m2Terreno)) }) : '');
+	const datos = q('a-tipo').parentElement;
+	datos.hidden = ![...datos.children].some((li) => !li.hidden);
+
+	const fotos = (Array.isArray(a.fotos) ? a.fotos : []).map(urlSegura).filter(Boolean).slice(0, 6);
+	const ul = q('a-fotos');
+	fotos.forEach((u, i) => {
+		const li = el('li');
+		const im = el('img');
+		im.src = u; im.loading = 'lazy'; im.decoding = 'async';
+		im.alt = llenar(T.fotoN, { n: i + 1 });
+		li.append(im);
+		ul.append(li);
+	});
+	ul.hidden = !fotos.length;
+
+	const desc = (en && en.descripcion) || a.descripcion || '';
+	q('a-desc').append(textoAnuncio(desc));
+	q('a-desc-caja').hidden = !desc.trim();
+
+	const url = urlSegura((en && en.url) || p.url);
+	q('url').hidden = !url;
+	if (url) q('url').href = url;
+}
+
+// ——— Respuesta del propietario: «Estoy de acuerdo» o «Quiero cambios» ———
+let idCaja = 0;
+function respuesta(p, q) {
+	const n = ++idCaja;
+	const form = q('c-form');
+	const texto = q('c-texto');
+	const btnCambios = q('r-cambios');
+	const btnOk = q('r-ok');
+	form.id = `pp-comentar-${n}`;
+	texto.id = `pp-comentario-${n}`;
+	q('c-label').htmlFor = texto.id;
+	q('c-ayuda').id = `pp-comentario-ayuda-${n}`;
+	texto.setAttribute('aria-describedby', q('c-ayuda').id);
+	btnCambios.setAttribute('aria-controls', form.id);
+	const okMsg = q('r-ok-msg'), err = q('r-error'), vivo = q('r-vivo');
+	const ptl = p._portal || {};
+	const puede = Boolean(ptl.token && p.id);
+	if (!puede) { q('respuesta').hidden = true; return; }
+
+	const avisar = (tipo, msg) => {
+		okMsg.hidden = tipo !== 'ok';
+		err.hidden = tipo !== 'error';
+		q(tipo === 'ok' ? 'r-ok-texto' : 'r-error-texto').textContent = msg;
+		vivo.textContent = msg;
+	};
+	const limpiar = () => { okMsg.hidden = true; err.hidden = true; vivo.textContent = ''; };
+	const enviar = (tipo, txt) => addDoc(collection(db, 'comentariosPropietarios'), {
+		token: ptl.token, propietarioId: ptl.propietarioId || '', agentId: ptl.agentId || '',
+		propiedadId: String(p.id), tipo, texto: txt, fecha: serverTimestamp(),
+		origen: 'propietario', idioma: EN ? 'en' : 'es'
+	});
+
+	btnCambios.addEventListener('click', () => {
+		const abrir = form.hidden;
+		form.hidden = !abrir;
+		btnCambios.setAttribute('aria-expanded', String(abrir));
+		limpiar();
+		if (abrir) texto.focus();
+	});
+	btnOk.addEventListener('click', async () => {
+		limpiar();
+		btnOk.disabled = true;
+		try {
+			await enviar('aprobado', '');
+			form.hidden = true;
+			btnCambios.setAttribute('aria-expanded', 'false');
+			avisar('ok', T.aprobadoOk);
+		} catch (e) {
+			console.warn('Portal: aprobación', e && e.code);
+			avisar('error', T.comentarError);
+		}
+		btnOk.disabled = false;
+	});
+	form.addEventListener('submit', async (ev) => {
+		ev.preventDefault();
+		limpiar();
+		const txt = texto.value.trim().slice(0, 2000);
+		if (!txt) {
+			texto.setAttribute('aria-invalid', 'true');
+			avisar('error', T.comentarVacio);
+			texto.focus();
+			return;
+		}
+		texto.setAttribute('aria-invalid', 'false');
+		const b = form.querySelector('button[type="submit"]');
+		b.disabled = true;
+		try {
+			await enviar('cambios', txt);
+			texto.value = '';
+			form.hidden = true;
+			btnCambios.setAttribute('aria-expanded', 'false');
+			avisar('ok', T.comentarOk);
+			btnCambios.focus();
+		} catch (e) {
+			console.warn('Portal: comentario', e && e.code);
+			avisar('error', T.comentarError);
+		}
+		b.disabled = false;
+	});
+}
+
 // ——— Cargar datos ———
 async function porToken(token) {
 	const s = await getDoc(doc(db, 'portalPropietarios', token));
-	return s.exists() ? [s.data()] : [];
+	return s.exists() ? [{ ...s.data(), _token: token }] : [];
 }
 async function porCorreo(email) {
 	const s = await getDocs(query(collection(db, 'portalPropietarios'), where('email', '==', email.toLowerCase())));
-	return s.docs.map((d) => d.data());
+	return s.docs.map((d) => ({ ...d.data(), _token: d.id }));
 }
 
 let reintento = null;

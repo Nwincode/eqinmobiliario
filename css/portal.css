@@ -417,3 +417,38 @@ a.pp-portal:hover, a.pp-portal:focus { border-color: var(--eq-primary); color: v
 	.pp-paso-nombre { font-size: .68rem; hyphens: auto; }
 	.pp-prop-info, .pp-prop-cuerpo, .pp-clientes { padding: 1.1rem 1rem; }
 }
+
+/* ——— Cómo se anuncia y respuesta del propietario ——— */
+.pp-anuncio { padding: 1.5rem; border-top: 1px solid var(--eq-line); }
+.pp-anuncio > .pp-nota-chica { margin: -.25rem 0 1rem; }
+.pp-anuncio-ficha { display: grid; gap: .75rem; min-width: 0; }
+.pp-anuncio-titulo { margin: 0; font-weight: 700; font-size: 1.05rem; color: var(--eq-dark); overflow-wrap: anywhere; }
+.pp-anuncio-precio { margin: 0; font-weight: 700; color: var(--eq-primary); }
+.pp-anuncio-op { font-weight: 400; color: var(--eq-ink); }
+.pp-anuncio-datos { display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; margin: 0; padding: 0; list-style: none; color: var(--eq-ink); font-size: .95rem; }
+.pp-anuncio-datos li { display: flex; align-items: center; gap: .4rem; }
+.pp-anuncio-datos .eq-ic { color: var(--eq-primary); }
+.pp-anuncio-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.pp-anuncio-fotos img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--eq-radius); background: var(--eq-mist); }
+.pp-anuncio-desc { border: 1px solid var(--eq-line); border-radius: var(--eq-radius); background: var(--eq-white); }
+.pp-anuncio-desc summary { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .5rem 1rem; cursor: pointer; font-weight: 600; color: var(--eq-dark); }
+.pp-anuncio-desc summary .eq-ic { color: var(--eq-primary); }
+.pp-anuncio-texto { padding: 0 1rem 1rem; color: var(--eq-ink); line-height: 1.6; overflow-wrap: anywhere; }
+.pp-anuncio-texto p { margin: 0 0 .75rem; }
+.pp-anuncio-lista { margin: 0 0 .75rem; padding-left: 1.25rem; }
+.pp-anuncio-texto > :last-child { margin-bottom: 0; }
+.pp-anuncio .pp-enlace { justify-self: start; }
+.pp-respuesta { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--eq-line); }
+.pp-respuesta-pregunta { margin: 0 0 .75rem; font-weight: 600; color: var(--eq-dark); }
+.pp-respuesta-botones { flex-direction: row; flex-wrap: wrap; max-width: none; margin: 0; }
+.pp-respuesta-botones > .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+.pp-comentar { display: grid; gap: .5rem; margin-top: 1rem; }
+.pp-comentar .pp-nota-chica { margin: 0; }
+.pp-textarea { min-height: 7rem; resize: vertical; }
+.pp-comentar-enviar { justify-self: start; min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
+.pp-respuesta .pp-error-campo { margin-top: .75rem; }
+@media (max-width: 575.98px) {
+	.pp-anuncio { padding: 1.1rem 1rem; }
+	.pp-respuesta-botones > .btn, .pp-comentar-enviar { width: 100%; justify-self: stretch; }
+	.pp-anuncio-fotos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
