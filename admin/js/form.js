@@ -273,7 +273,7 @@ export function renderForm(schema, data, options = {}) {
 				const fi = fileInput(false, async ([file]) => {
 					status.textContent = 'Subiendo…';
 					try {
-						const up = await uploadImage(file, field.folder || folder);
+						const up = await uploadImage(file, field.folder || folder, null, { marca: !!field.marca });
 						set(up.url);
 						draw();
 						status.textContent = '';

@@ -527,7 +527,7 @@ function schema(agentOpts, isNew) {
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },
 		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Agendar visita privada' },
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
-		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
+		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
