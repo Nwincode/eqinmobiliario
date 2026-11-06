@@ -1244,6 +1244,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .sel-toque .form-check-input { margin: 0; width: 1.15em; height: 1.15em; cursor: pointer; }
 .tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
+/* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
+@media (min-width: 768px) {
+	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
+	.tabla-propiedades .celda-codigo { width: 1%; white-space: nowrap; }
+	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); }
+	.tabla-propiedades .celda-titulo { min-width: 12rem; }
+	.tabla-propiedades .celda-precio { width: 1%; }
+	.tabla-propiedades .celda-estado { width: 1%; }
+	.tabla-propiedades .estado-rapido { min-width: 9.5rem; }
+	.tabla-propiedades .celda-visible { width: 1%; }
+	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
+	.tabla-propiedades .celda-fecha { width: 1%; }
+}
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);
@@ -1282,7 +1295,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		display: grid;
 		grid-template-columns: 64px 1fr auto;
 		grid-template-areas:
-			"foto titulo sel"
+			"foto codigo sel"
+			"foto titulo titulo"
 			"foto precio precio"
 			"estado estado estado"
 			"visible visible visible"
@@ -1304,6 +1318,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-foto { grid-area: foto; }
 	.tabla-propiedades .celda-sel { grid-area: sel; }
 	.tabla-propiedades .celda-titulo { grid-area: titulo; }
+	.tabla-propiedades .celda-codigo { grid-area: codigo; font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); align-self: center; }
 	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; justify-content: space-between; gap: .75rem; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .375rem; }

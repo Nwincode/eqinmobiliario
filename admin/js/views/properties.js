@@ -320,9 +320,10 @@ export async function render(container, [id]) {
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-codigo' }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
+				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
 				p.publicado && p.slug ? h('a', {
 					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
 					href: `https://wa.me/?text=${encodeURIComponent(`${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`)}`,
@@ -536,7 +537,8 @@ export async function render(container, [id]) {
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
 						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-						['', 'Propiedad', 'Precio', 'Estado', 'En la página', 'Asesor', 'Actualizada'].map((t) => h('th', {}, t)))),
+						[['', 'celda-foto'], ['Código', 'celda-codigo'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
+							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
 					tbody))))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
