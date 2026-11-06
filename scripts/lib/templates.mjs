@@ -214,12 +214,14 @@ function nav(ctx, active) {
 							</li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);
 	// Selector de idioma segmentado: el idioma actual queda marcado y el otro enlaza a la página equivalente.
+	// Va fuera del menú para que en el celular se vea siempre junto a las tres rayas.
+	let langSwitch = '';
 	const cta = items.findIndex((it) => it.includes('nav-cta'));
 	const ctaItem = cta >= 0 ? items.splice(cta, 1)[0] : '';
 	if (ctx.altLang) {
 		const otro = `<a href="${esc(ctx.altLang(active))}" hreflang="${ctx.lang === 'en' ? 'es' : 'en'}" lang="${ctx.lang === 'en' ? 'es' : 'en'}" aria-label="${t.otroIdiomaLabel}">${t.otroIdioma}</a>`;
 		const actual = `<span aria-current="true">${ctx.lang === 'en' ? 'EN' : 'ES'}</span>`;
-		items.push(`<li class="lang-switch">${ctx.lang === 'en' ? otro + actual : actual + otro}</li>`);
+		langSwitch = `<div class="lang-switch">${ctx.lang === 'en' ? otro + actual : actual + otro}</div>`;
 	}
 	if (ctaItem) items.push(ctaItem);
 	return `<div class="site-mobile-menu site-navbar-target">
@@ -241,6 +243,7 @@ function nav(ctx, active) {
 					<ul class="js-clone-nav d-none d-lg-flex site-menu">
 						${items.join('\n\t\t\t\t\t\t')}
 					</ul>
+					${langSwitch}
 					<a href="#" class="burger light site-menu-toggle js-menu-toggle d-inline-block d-lg-none" aria-label="${tr(ctx).abrirMenu}">
 						<span></span>
 					</a>

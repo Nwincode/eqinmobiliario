@@ -405,8 +405,6 @@ body {
 	color: var(--eq-primary);
 }
 
-/* Selector de idioma en el menú */
-
 /* Paleta derivada del celeste del logo en OKLCH (tono 225°–240°): tinta var(--eq-dark), azul profundo var(--eq-primary) (acciones), celeste var(--eq-cyan) (acento), piedra var(--eq-ink), línea var(--eq-line), niebla var(--eq-mist).
    El celeste va sobre negro o como acento decorativo; sobre fondo claro se usa
    el azul Equipo (--eq-primary) para que los textos cumplan contraste AA. */
@@ -569,16 +567,16 @@ h2.heading::after,
 	color: var(--eq-cyan);
 }
 /* Selector de idioma ES | EN */
-.site-menu .lang-switch {
-	display: inline-flex !important;
+.site-nav .lang-switch {
+	display: inline-flex;
 	align-items: center;
 	margin-left: 10px;
 	padding: 3px;
 	border-radius: 999px;
 	border: 1px solid rgba(255, 255, 255, .22);
 }
-.site-menu .lang-switch a,
-.site-menu .lang-switch span {
+.site-nav .lang-switch a,
+.site-nav .lang-switch span {
 	display: inline-block;
 	min-width: 34px;
 	padding: 4px 9px !important;
@@ -589,17 +587,17 @@ h2.heading::after,
 	text-align: center;
 	line-height: 1.3;
 }
-.site-menu .lang-switch span {
+.site-nav .lang-switch span {
 	background: var(--eq-white);
 	color: var(--eq-dark);
 }
-.site-menu .lang-switch a {
+.site-nav .lang-switch a {
 	color: rgba(255, 255, 255, .7) !important;
 }
-.site-menu .lang-switch a::after {
+.site-nav .lang-switch a::after {
 	content: none !important;
 }
-.site-menu .lang-switch a:hover {
+.site-nav .lang-switch a:hover {
 	color: var(--eq-cyan) !important;
 }
 /* Botón de contacto: único elemento cian de la barra */
@@ -637,6 +635,9 @@ h2.heading::after,
 }
 @media (max-width: 991.98px) {
 	.site-nav { padding: 10px 0; }
+	.site-nav .lang-switch { margin: 0 8px 0 auto; }
+	.site-nav .lang-switch a,
+	.site-nav .lang-switch span { min-width: 40px; padding: 9px 10px !important; }
 	.site-nav .menu-bg-wrap { padding: 8px 10px 8px 16px; }
 	.nav-mark { width: 30px; height: 30px; }
 }
@@ -671,13 +672,6 @@ h2.heading::after,
 .site-mobile-menu .site-nav-wrap > li {
 	border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
-.site-mobile-menu .site-nav-wrap .lang-switch {
-	margin: 18px 20px 0;
-	border-bottom: 0;
-}
-.site-mobile-menu .site-nav-wrap .lang-switch a {
-	color: rgba(255, 255, 255, .7) !important;
-}
 .site-mobile-menu .site-nav-wrap .nav-cta {
 	border-bottom: 0;
 	padding: 16px 20px 0;
@@ -701,32 +695,6 @@ h2.heading::after,
 @media (min-width: 992px) and (max-width: 1199.98px) {
 	/* El logotipo ya lleva al inicio: se oculta "Inicio" para ganar espacio */
 	.site-nav .site-navigation .site-menu > li.nav-home { display: none; }
-}
-.site-mobile-menu .site-nav-wrap li.lang-switch {
-	display: inline-flex !important;
-	width: auto;
-}
-.site-mobile-menu .site-nav-wrap li.lang-switch a,
-.site-mobile-menu .site-nav-wrap li.lang-switch span {
-	display: inline-block;
-	padding: 6px 14px !important;
-	font-size: 14px !important;
-}
-.site-mobile-menu .site-nav-wrap li.lang-switch {
-	align-items: center;
-	padding: 3px;
-	border: 1px solid rgba(255, 255, 255, .22) !important;
-	border-radius: 999px;
-}
-.site-mobile-menu .site-nav-wrap li.lang-switch span,
-.site-mobile-menu .site-nav-wrap li.lang-switch a {
-	border-radius: 999px;
-	font-weight: 600;
-	letter-spacing: .06em;
-}
-.site-mobile-menu .site-nav-wrap li.lang-switch span {
-	background: var(--eq-white);
-	color: var(--eq-dark);
 }
 .nav-logo-img {
 	display: block;
@@ -1686,17 +1654,6 @@ h2.heading::after,
 	.site-mobile-menu .site-nav-wrap .collapse,
 	.site-mobile-menu .site-nav-wrap .collapsing {
 		padding-bottom: 12px;
-	}
-	/* Idioma y contacto al final, sobrios */
-	.site-mobile-menu .site-nav-wrap li.lang-switch {
-		margin: 28px 0 0 !important;
-		border: 1px solid rgba(255, 255, 255, .25) !important;
-	}
-	.site-mobile-menu .site-nav-wrap li.lang-switch a,
-	.site-mobile-menu .site-nav-wrap li.lang-switch span {
-		min-height: 0;
-		font-size: 14px !important;
-		padding: 8px 16px !important;
 	}
 	.site-mobile-menu .site-nav-wrap .nav-cta {
 		padding: 20px 0 0 !important;
