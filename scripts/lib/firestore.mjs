@@ -29,8 +29,22 @@ export function createClient({ projectId, apiKey }) {
 	const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 	const withKey = (url) => (apiKey ? `${url}${url.includes('?') ? '&' : '?'}key=${apiKey}` : url);
 
+	// Reintenta cortes de red y errores pasajeros (429/5xx) hasta 4 veces: 1 s, 2 s, 4 s, 8 s.
+	async function fetchConReintentos(url, options) {
+		for (let intento = 0; ; intento++) {
+			try {
+				const res = await fetch(url, options);
+				if ((res.status === 429 || res.status >= 500) && intento < 4) throw new Error(`HTTP ${res.status}`);
+				return res;
+			} catch (e) {
+				if (intento >= 4) throw e;
+				await new Promise((r) => setTimeout(r, 1000 * 2 ** intento));
+			}
+		}
+	}
+
 	async function request(url, options) {
-		const res = await fetch(withKey(url), options);
+		const res = await fetchConReintentos(withKey(url), options);
 		if (res.status === 404) return null;
 		if (!res.ok) {
 			const body = await res.text();
