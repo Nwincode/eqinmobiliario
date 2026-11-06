@@ -6,6 +6,7 @@ import {
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
+import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
@@ -1022,27 +1023,8 @@ function listingLd(ctx, p) {
 	};
 }
 
-// Título automático que cabe en Google (~65 caracteres): se acorta quitando detalles.
 export function autoSeoTitle(p) {
-	const en = lng(p) === 'en';
-	const op = p.operacion === 'vacacional' ? (en ? 'Vacation Rental' : 'Renta vacacional')
-		: en ? (p.operacion === 'renta' ? 'For Rent' : 'For Sale') : (p.operacion === 'renta' ? 'Renta' : 'Venta');
-	const prep = en ? 'in' : 'en';
-	// Si el título ya dice la operación, no se repite ("… en venta … | Venta").
-	const yaDice = /\b(venta|vendo|renta|alquiler|alquilo|vacacional|for sale|for rent|vacation)\b/i.test(p.titulo || '');
-	if (yaDice) {
-		const t = String(p.titulo || '');
-		const zona = p.zona && !t.toLowerCase().includes(String(p.zona).toLowerCase()) ? p.zona : '';
-		const lugar = [zona, p.ciudad && !t.toLowerCase().includes(String(p.ciudad).toLowerCase()) ? p.ciudad : ''].filter(Boolean).join(', ');
-		return [lugar && `${t} | ${lugar}`, `${t} | Guatemala`, t].find((x) => x && x.length <= 65) || t;
-	}
-	const candidates = [
-		`${p.titulo} | ${op} ${prep} ${[p.zona, p.ciudad].filter(Boolean).join(', ')}`,
-		p.zona && `${p.titulo} | ${op} ${prep} ${p.zona}`,
-		`${p.titulo} | ${op}`,
-		p.titulo
-	].filter(Boolean);
-	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
+	return autoSeoTitleBase(p, lng(p) === 'en');
 }
 
 function seoTitle(p) {
@@ -1051,11 +1033,11 @@ function seoTitle(p) {
 
 function seoDescription(p) {
 	const t = TEXTOS[lng(p)];
-	return (p.seo && p.seo.descripcion) || `${price(p)}. ${[
+	return (p.seo && p.seo.descripcion) || autoSeoDescripcion(p, price(p), [
 		p.habitaciones && plural(p.habitaciones, t.habitacion, t.habitaciones),
 		p.banos && plural(p.banos, t.bano, t.banos),
 		p.m2Construccion && area(p.m2Construccion, lng(p))
-	].filter(Boolean).join(', ')}. ${resumenSeo(p.descripcion)}`;
+	]);
 }
 
 function viewContentAttrs(p) {

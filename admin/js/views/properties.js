@@ -7,6 +7,7 @@ import {
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
+import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
@@ -20,21 +21,22 @@ const V = window.EQVacacional;
 
 const faltanDe = (p) => revisar('propiedades', p);
 
-// Mismos valores por defecto que usa el generador del sitio (scripts/lib/templates.mjs).
-function autoTitle(d) {
-	const op = OPERACION_LABEL[d.operacion] || 'Venta';
-	const titulo = d.titulo || '';
-	const candidates = [
-		`${titulo} | ${op} en ${[d.zona, d.ciudad].filter(Boolean).join(', ')}`,
-		d.zona && `${titulo} | ${op} en ${d.zona}`,
-		`${titulo} | ${op}`,
-		titulo
-	].filter(Boolean);
-	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
-}
-function autoDescription(d) {
-	const specs = [d.habitaciones && `${d.habitaciones} habitaciones`, d.banos && `${d.banos} baños`, d.m2Construccion && `${d.m2Construccion} m²`].filter(Boolean).join(', ');
-	return `${formatPrice(d.precio, d.moneda, d.operacion)}.${specs ? ` ${specs}.` : ''} ${stripMd(d.descripcion)}`.trim();
+// Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
+const cifraGt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const autoTitle = (d) => autoSeoTitle(d);
+const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
+	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
+	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
+	d.m2Construccion && `${cifraGt(d.m2Construccion)} m²`
+]);
+// Llena el SEO en español si está vacío o si todavía es el que se puso solo (así se actualiza al cambiar la ficha).
+function llenarSeo(d) {
+	const seo = { ...(d.seo || {}) };
+	const auto = seo.auto || {};
+	if (!String(seo.titulo || '').trim() || seo.titulo === auto.titulo) seo.titulo = auto.titulo = autoTitle(d);
+	if (!String(seo.descripcion || '').trim() || seo.descripcion === auto.descripcion) seo.descripcion = auto.descripcion = autoDescription(d);
+	seo.auto = auto;
+	d.seo = seo;
 }
 
 
@@ -61,7 +63,10 @@ async function traducirEn(d) {
 	const r = await pedirIA('traducir', { propiedad: datos });
 	return {
 		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
-		seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
+		seo: {
+			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
+			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
+		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		fuente: fuenteEs(d),
 		manual: false
@@ -789,6 +794,7 @@ async function renderEditor(container, id) {
 		d.en = d.en || {};
 		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
 		const traducirAhora = Boolean(d.titulo) && (!String(d.en.titulo || '').trim() || (!d.en.manual && d.en.fuente !== fuenteEs(d)));
+		if (!d.vip && d.titulo) llenarSeo(d);
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
