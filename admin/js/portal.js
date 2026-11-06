@@ -1,7 +1,7 @@
 // Portal del propietario: arma una copia resumida (sin nombres ni teléfonos de clientes)
 // en portalPropietarios/{token}. El token es el enlace privado; regenerarlo revoca el anterior.
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, ms } from './crm.js';
@@ -204,11 +204,20 @@ export async function armarPortal(prop) {
 
 // Comentarios que el propietario dejó desde su portal (el más nuevo primero).
 // El asesor solo puede leer los de sus propietarios: la consulta lleva su agentId.
-export async function comentariosDe(prop) {
+function consultaComentarios(prop) {
 	const filtros = [where('propietarioId', '==', prop.id)];
 	if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentId || '-'));
-	const s = await getDocs(query(collection(db, 'comentariosPropietarios'), ...filtros));
-	return s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.fecha) - ms(a.fecha));
+	return query(collection(db, 'comentariosPropietarios'), ...filtros);
+}
+const ordenarComentarios = (s) => s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.fecha) - ms(a.fecha));
+
+export async function comentariosDe(prop) {
+	return ordenarComentarios(await getDocs(consultaComentarios(prop)));
+}
+
+// En vivo: llama cb(lista) cada vez que el propietario responde. Devuelve la función para dejar de escuchar.
+export function escucharComentarios(prop, cb, alFallar) {
+	return onSnapshot(consultaComentarios(prop), (s) => cb(ordenarComentarios(s)), alFallar);
 }
 
 // Borra la copia publicada de un token (si ya no existe, no hay nada que hacer).
