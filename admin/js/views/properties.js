@@ -469,6 +469,28 @@ export async function render(container, [id]) {
 			}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`);
 		} },
 		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
+	// Completa de una vez lo que sube la calificación SEO y se puede sacar de los datos: título y
+	// descripción para Google, ciudad (si la zona es "Zona 10"…) y la versión en inglés.
+	const btnCompletar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Completar el SEO de ${n} propiedad${n === 1 ? '' : 'es'}? Se llena lo que falta para Google, la ciudad cuando la zona es de la capital y la traducción al inglés. Lo que escribiste a mano se respeta.`, { okText: 'Completar', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.titulo) return;
+				const d = { ...p };
+				const cambios = {};
+				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
+				if (!d.vip) {
+					const antes = JSON.stringify(d.seo || {});
+					llenarSeo(d);
+					if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
+				}
+				const en = d.en || {};
+				if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
+				if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
+			}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Completar SEO');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: async (e) => {
 			const n = seleccion.size;
@@ -503,7 +525,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnTraducir, btnMarca,
+		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnTraducir, btnMarca,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
