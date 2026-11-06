@@ -81,7 +81,7 @@ async function renderEditor(container, id) {
 		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4 },
 		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4 },
 		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
-		{ name: 'comisionIva', label: 'IVA de la comisión', type: 'select', cols: 4, options: [['', 'Más IVA (12 %)'], ['incluido', 'IVA incluido'], ['no', 'Sin IVA']] },
+		{ name: 'comisionIva', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: [['', 'Pequeño contribuyente 5 %'], ['iva', 'Más IVA 12 %'], ['incluido', 'IVA incluido'], ['no', 'Sin impuesto']] },
 		{ type: 'section', label: 'Impuestos de la venta' },
 		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 6, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
 		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 6, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
