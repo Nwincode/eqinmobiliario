@@ -59,7 +59,7 @@ async function abrirBitmap(blob) {
 
 // Prepara una foto para subirla: gira según EXIF, reduce a máx. 1920 px (sin recortar) y la pasa a WebP 0.82.
 // Acepta JPG, PNG, WebP, HEIC/HEIF, AVIF, GIF, BMP y TIFF (si el navegador lo abre).
-// Devuelve { blob, ancho, alto, hash } (hash = SHA-256 del archivo original, para no subir repetidas).
+// Devuelve { blob, ancho, alto, hash, marca? } (hash = SHA-256 del archivo original, para no subir repetidas).
 export async function procesarImagen(file, maxSize = 1920, quality = 0.82, { marca = false } = {}) {
 	const nombre = file.name || 'foto';
 	const original = await file.arrayBuffer();
@@ -88,10 +88,12 @@ export async function procesarImagen(file, maxSize = 1920, quality = 0.82, { mar
 	canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 	bitmap.close?.();
 	// Marca de agua (logo + eqinmobiliario.gt) para que una foto copiada muestre de dónde es.
+	let conMarca = false;
 	if (marca) {
 		try {
 			const { ponerMarca } = await import('./marca.js');
 			await ponerMarca(canvas);
+			conMarca = true;
 		} catch (err) {
 			console.warn('No se pudo poner la marca de agua', err);
 		}
@@ -99,19 +101,19 @@ export async function procesarImagen(file, maxSize = 1920, quality = 0.82, { mar
 	let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
 	if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
 	if (!blob) throw new Error(`«${nombre}»: no se pudo procesar la imagen.`);
-	return { blob, ancho: canvas.width, alto: canvas.height, hash };
+	return { blob, ancho: canvas.width, alto: canvas.height, hash, ...(conMarca ? { marca: true } : {}) };
 }
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
 export async function uploadImage(file, folder, procesada, opciones) {
 	if (!storage) throw new Error('Falta "storageBucket" en site.config.json: no se pueden subir imágenes.');
-	const { blob, ancho, alto, hash } = procesada || await procesarImagen(file, undefined, undefined, opciones);
+	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
 	const path = `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
-	return { url: await getDownloadURL(r), path, ancho, alto, hash };
+	return { url: await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
 }
 
 // Orden natural de nombres de archivo ("foto2" antes que "foto10").
@@ -273,7 +275,7 @@ export function renderForm(schema, data, options = {}) {
 				const fi = fileInput(false, async ([file]) => {
 					status.textContent = 'Subiendo…';
 					try {
-						const up = await uploadImage(file, field.folder || folder);
+						const up = await uploadImage(file, field.folder || folder, null, { marca: !!field.marca });
 						set(up.url);
 						draw();
 						status.textContent = '';
@@ -351,6 +353,7 @@ export function renderForm(schema, data, options = {}) {
 										arr.splice(i, 1);
 										// Se borra del almacenamiento al guardar (ver pendingDeletes).
 										if (img.path) pendingDeletes.push(img.path);
+										if (img.sinMarca) pendingDeletes.push(img.sinMarca);
 										set(arr);
 										draw();
 									}

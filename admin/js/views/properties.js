@@ -4,7 +4,7 @@ import {
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv } from '../ui.js';
-import { renderForm, deleteImage } from '../form.js';
+import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { pedirIA } from '../ia.js';
@@ -35,6 +35,59 @@ function autoTitle(d) {
 function autoDescription(d) {
 	const specs = [d.habitaciones && `${d.habitaciones} habitaciones`, d.banos && `${d.banos} baños`, d.m2Construccion && `${d.m2Construccion} m²`].filter(Boolean).join(', ');
 	return `${formatPrice(d.precio, d.moneda, d.operacion)}.${specs ? ` ${specs}.` : ''} ${stripMd(d.descripcion)}`.trim();
+}
+
+
+// Borra del almacenamiento las fotos de una propiedad eliminada (también la versión sin marca
+// de agua y la portada VIP si se subió a su carpeta).
+async function borrarFotos(p) {
+	const paths = [];
+	for (const f of p.fotos || []) paths.push(f.path, f.sinMarca);
+	const vip = p.vipLanding?.portada || '';
+	const m = vip.match(/\/o\/([^?]+)/);
+	if (m && decodeURIComponent(m[1]).startsWith(`properties/${p.id}/`)) paths.push(decodeURIComponent(m[1]));
+	await Promise.all(paths.filter(Boolean).map((x) => deleteImage(x).catch(() => {})));
+}
+
+// Pone la marca de agua a las fotos ya subidas que no la tienen. Sube una copia nueva con marca
+// y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
+// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
+// "fuente" guarda el texto en español traducido, para saber si cambió después.
+const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
+async function traducirEn(d) {
+	const datos = { ...d };
+	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
+	delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
+	const r = await pedirIA('traducir', { propiedad: datos });
+	return {
+		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
+		seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
+		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
+		fuente: fuenteEs(d),
+		manual: false
+	};
+}
+
+async function marcarFotos(p, progreso) {
+	const fotos = p.fotos || [];
+	const faltan = fotos.filter((f) => !f.marca && f.url);
+	if (!faltan.length) return null;
+	const nuevas = [];
+	let i = 0;
+	for (const f of fotos) {
+		if (f.marca || !f.url) { nuevas.push(f); continue; }
+		progreso(++i, faltan.length);
+		const res = await fetch(f.url, { mode: 'cors' });
+		if (!res.ok) throw new Error(`No se pudo descargar una foto de ${p.titulo || p.id}`);
+		const blob = await res.blob();
+		const nombre = (f.path || 'foto').split('/').pop().replace(/^\d+-/, '');
+		const file = new File([blob], nombre, { type: blob.type || 'image/webp' });
+		const proc = await procesarImagen(file, undefined, undefined, { marca: true });
+		if (!proc.marca) throw new Error('No se pudo poner la marca de agua.');
+		const up = await uploadImage(file, `properties/${p.id}`, proc);
+		nuevas.push({ ...f, url: up.url, path: up.path, ancho: up.ancho, alto: up.alto, marca: true, sinMarca: f.path || '' });
+	}
+	return nuevas;
 }
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
@@ -385,16 +438,54 @@ export async function render(container, [id]) {
 			}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`);
 		} },
 		h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción');
+	const btnDeshacer = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+		onclick: async (e) => {
+			const con = props.filter((p) => seleccion.has(p.id) && p.descripcionAnterior);
+			if (!con.length) return toast('Las seleccionadas no tienen una descripción anterior guardada.', 'warning');
+			if (!(await confirmDialog(`¿Volver a la descripción anterior en ${con.length} propiedad${con.length === 1 ? '' : 'es'}?`, { okText: 'Volver', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.descripcionAnterior) return;
+				const descripcion = p.descripcionAnterior;
+				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
+			}, 'Descripción anterior', (k) => `${k} descripción${k === 1 ? '' : 'es'} restaurada${k === 1 ? '' : 's'}. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-undo', 'aria-hidden': 'true' }), ' Volver a la anterior');
+	const btnTraducir = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Traducir al inglés ${n} propiedad${n === 1 ? '' : 'es'}? Las que corregiste a mano en inglés se respetan. Revisá la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
+				const en = await traducirEn(p);
+				await guardarMasa({ en }, { en })(p);
+			}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`);
+		} },
+		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
+	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Poner la marca de agua a las fotos de ${n} propiedad${n === 1 ? '' : 'es'}? Las que ya la tienen se saltan. Puede tardar unos minutos; no cierres esta página.`, { okText: 'Poner marca', danger: false }))) return;
+			const boton = e.currentTarget;
+			const txt = boton.lastChild.textContent;
+			let hecha = 0;
+			await enMasa(boton, async (p) => {
+				const fotos = await marcarFotos(p, (i, t) => { boton.lastChild.textContent = ` Propiedad ${hecha + 1} de ${n}: foto ${i} de ${t}…`; });
+				hecha++;
+				if (fotos) await guardarMasa({ fotos }, { fotos })(p);
+			}, 'Marca de agua en fotos', (k) => `Fotos de ${k} propiedad${k === 1 ? '' : 'es'} con marca de agua. Recuerda publicar.`);
+			boton.lastChild.textContent = txt;
+		} },
+		h('span', { class: 'icon-image', 'aria-hidden': 'true' }), ' Poner marca de agua');
 	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger',
 		onclick: async (e) => {
 			const n = seleccion.size;
 			if (!(await confirmDialog(`¿Eliminar ${n} propiedad${n === 1 ? '' : 'es'}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 			const borradas = new Set();
 			await enMasa(e.currentTarget, async (p) => {
-				if (p.operacion === 'vacacional') await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
+				await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
 				await deleteDoc(doc(db, 'properties', p.id));
 				borradas.add(p.id);
-				await Promise.all((p.fotos || []).map((f) => deleteImage(f.path).catch(() => {})));
+				await borrarFotos(p);
 			}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`);
 			for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
 			draw();
@@ -404,7 +495,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar,
+		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnTraducir, btnMarca,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
@@ -527,7 +618,7 @@ function schema(agentOpts, isNew) {
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },
 		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Agendar visita privada' },
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
-		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
+		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
@@ -628,22 +719,6 @@ async function renderEditor(container, id) {
 	grupoCodigo.append(codigoInput, sugerir, avisoCodigo);
 	revisarCodigo();
 
-	// Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
-	// "fuente" guarda el texto en español traducido, para saber si cambió después.
-	const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
-	const traducirEn = async (d) => {
-		const datos = { ...d };
-		delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
-		delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
-		const r = await pedirIA('traducir', { propiedad: datos });
-		return {
-			titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
-			seo: { titulo: r.seoTitulo || '', descripcion: r.seoDescripcion || '' },
-			vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
-			fuente: fuenteEs(d),
-			manual: false
-		};
-	};
 	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}]);
 
 	const recargar = async () => {
@@ -754,9 +829,9 @@ async function renderEditor(container, id) {
 	const remove = async () => {
 		if (!(await confirmDialog(`¿Eliminar "${data.titulo}"? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		try {
-			if (data.operacion === 'vacacional') await deleteDoc(privRef).catch(() => {});
+			await deleteDoc(privRef).catch(() => {});
 			await deleteDoc(ref);
-			await Promise.all((data.fotos || []).map((f) => deleteImage(f.path)));
+			await borrarFotos({ ...data, id });
 			await markPending(`Propiedad eliminada: ${data.titulo}`);
 			toast('Propiedad eliminada.');
 			location.hash = '#/propiedades';
