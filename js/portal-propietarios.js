@@ -148,7 +148,11 @@ function pintar(portales, { conSesion }) {
 	q('exclusiva-caja').hidden = !excl;
 	q('datos').hidden = !paso && !excl;
 
-	for (const portal of portales) for (const prop of portal.propiedades || []) lista.append(tarjeta(prop));
+	const props = portales.flatMap((p) => p.propiedades || []);
+	resumen(props, q);
+	graficaMeses(props, q);
+	graficaCanales(props, q);
+	for (const prop of props) lista.append(tarjeta(prop));
 	document.querySelector('#pp-panel [data-pp-accion="salir"]').hidden = !conSesion;
 	mostrar('pp-panel');
 }
@@ -223,6 +227,163 @@ function clientesDe(p, q) {
 		: '';
 }
 
+// ——— Resumen y gráficas (solo con los datos que ya trae el portal) ———
+const el = (tag, clase, texto) => {
+	const n = document.createElement(tag);
+	if (clase) n.className = clase;
+	if (texto !== undefined) n.textContent = texto;
+	return n;
+};
+const oculto = (texto) => el('span', 'visually-hidden', texto);
+const sub30 = (n) => (n ? llenar(T.mas30, { n }) : T.sin30);
+
+function resumen(props, q) {
+	const activas = props.filter((p) => ['disponible', 'reservada'].includes(p.estado || 'disponible')).length;
+	q('r-propiedades').textContent = String(props.length);
+	q('r-propiedades-sub').textContent = activas === 1 ? T.propsSubUno : llenar(T.propsSub, { n: activas });
+	for (const clave of ['consultas', 'visitas', 'ofertas']) {
+		const total = props.reduce((m, p) => m + (Number(p.kpis?.[clave]?.total) || 0), 0);
+		const d30 = props.reduce((m, p) => m + (Number(p.kpis?.[clave]?.d30) || 0), 0);
+		q(`r-${clave}`).textContent = String(total);
+		q(`r-${clave}-sub`).textContent = sub30(d30);
+		q(`r-${clave}-sub`).classList.toggle('pp-apagado', !d30);
+	}
+}
+
+// Últimos 6 meses: nuevos interesados (fecha del primer contacto) y visitas (eventos de visita).
+function graficaMeses(props, q) {
+	const hoy = new Date();
+	const meses = Array.from({ length: 6 }, (_, i) => new Date(hoy.getFullYear(), hoy.getMonth() - 5 + i, 1));
+	const clave = (d) => `${d.getFullYear()}-${d.getMonth()}`;
+	const datos = new Map(meses.map((m) => [clave(m), { a: 0, b: 0 }]));
+	for (const p of props) {
+		for (const c of p.clientes || []) {
+			const d = aFecha(c?.desde);
+			if (d && datos.has(clave(d))) datos.get(clave(d)).a += 1;
+		}
+		for (const e of p.eventos || []) {
+			const d = e?.tipo === 'visita' ? aFecha(e.fecha) : null;
+			if (d && datos.has(clave(d))) datos.get(clave(d)).b += Number(e.veces) || 1;
+		}
+	}
+	const valores = [...datos.values()];
+	const max = Math.max(...valores.flatMap((v) => [v.a, v.b]));
+	const ol = q('g-meses');
+	ol.replaceChildren();
+	meses.forEach((m) => {
+		const v = datos.get(clave(m));
+		const nombre = m.toLocaleDateString(LOCALE, { month: 'short' }).replace('.', '');
+		const li = el('li', 'pp-mes');
+		const barras = el('div', 'pp-mes-barras');
+		barras.setAttribute('aria-hidden', 'true');
+		for (const [serie, n] of [['a', v.a], ['b', v.b]]) {
+			const col = el('span', `pp-barra pp-serie-${serie}${n ? '' : ' pp-barra-cero'}`);
+			col.style.setProperty('--v', `${max ? (n / max) * 100 : 0}%`);
+			col.append(el('span', 'pp-barra-valor', String(n)));
+			barras.append(col);
+		}
+		const etiqueta = el('span', 'pp-mes-nombre', nombre);
+		etiqueta.setAttribute('aria-hidden', 'true');
+		li.append(barras, etiqueta, oculto(llenar(T.mesResumen, { m: m.toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' }), a: v.a, b: v.b })));
+		ol.append(li);
+	});
+	const hay = max > 0;
+	ol.hidden = !hay;
+	q('g-meses-leyenda').hidden = !hay;
+	q('g-meses-vacio').hidden = hay;
+}
+
+function graficaCanales(props, q) {
+	const cuenta = new Map();
+	for (const p of props) for (const c of p.clientes || []) {
+		if (!c || !Number(c.n)) continue;
+		const canal = CANALES_CLIENTE.includes(c.canal) ? c.canal : 'otro';
+		cuenta.set(canal, (cuenta.get(canal) || 0) + 1);
+	}
+	const filas = [...cuenta.entries()].sort((a, b) => b[1] - a[1]);
+	const total = filas.reduce((m, [, n]) => m + n, 0);
+	const max = filas.length ? filas[0][1] : 0;
+	const ul = q('g-canales');
+	ul.replaceChildren();
+	for (const [canal, n] of filas) {
+		const nombre = (T.canales || {})[canal] || '';
+		const li = el('li', 'pp-hbarra');
+		const etiqueta = el('span', 'pp-hbarra-nombre');
+		etiqueta.append(iconoDe('canal', canal, 'otro'), document.createTextNode(nombre));
+		etiqueta.setAttribute('aria-hidden', 'true');
+		const pista = el('span', 'pp-pista');
+		pista.setAttribute('aria-hidden', 'true');
+		const relleno = el('span', 'pp-relleno');
+		relleno.style.setProperty('--v', `${(n / max) * 100}%`);
+		pista.append(relleno);
+		const num = el('span', 'pp-hbarra-numero', String(n));
+		num.setAttribute('aria-hidden', 'true');
+		li.append(etiqueta, pista, num, oculto(llenar(T.canalResumen, { c: nombre, n, t: total })));
+		ul.append(li);
+	}
+	ul.hidden = !filas.length;
+	q('g-canales-vacio').hidden = Boolean(filas.length);
+}
+
+// Avance de la propiedad: Próximamente → En el mercado → Reservada → Vendida/Rentada.
+const PASO = { proximamente: 0, disponible: 1, reservada: 2, vendida: 3, rentada: 3 };
+function avance(p, q) {
+	const ol = q('avance');
+	const estado = p.estado || 'disponible';
+	if (!(estado in PASO)) {
+		ol.hidden = true;
+		q('avance-nota').hidden = false;
+		q('avance-nota-texto').textContent = estado === 'retirada' ? T.notaRetirada : T.notaPausada;
+		return;
+	}
+	const actual = PASO[estado];
+	const nombres = (p.operacion === 'renta' || estado === 'rentada') ? T.pasosRenta : T.pasos;
+	(nombres || []).forEach((nombre, i) => {
+		const hecho = i < actual || (i === actual && i === 3);
+		const li = el('li', `pp-paso${hecho ? ' pp-paso-hecho' : ''}${i === actual ? ' pp-paso-actual' : ''}`);
+		const marca = el('span', 'pp-paso-marca');
+		marca.setAttribute('aria-hidden', 'true');
+		if (hecho) marca.append($('pp-tpl-iconos').content.querySelector('[data-tipo="hecho"]').cloneNode(true));
+		li.append(marca, el('span', 'pp-paso-nombre', nombre));
+		if (i === actual) { li.setAttribute('aria-current', 'step'); li.append(oculto(` (${T.pasoActual})`)); }
+		else if (hecho) li.append(oculto(` (${T.pasoHecho})`));
+		ol.append(li);
+	});
+}
+
+// Línea de precio (SVG propio) cuando hay dos o más precios.
+function lineaPrecio(hp, p, caja) {
+	const orden = hp.slice().reverse();
+	if (orden.length < 2) return;
+	const vals = orden.map((x) => Number(x.precio));
+	const min = Math.min(...vals), max = Math.max(...vals);
+	const W = 240, H = 56, M = 6;
+	const pts = vals.map((v, i) => [M + (i * (W - 2 * M)) / (vals.length - 1), max === min ? H / 2 : M + ((max - v) * (H - 2 * M)) / (max - min)]);
+	const NS = 'http://www.w3.org/2000/svg';
+	const svg = document.createElementNS(NS, 'svg');
+	svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+	svg.setAttribute('preserveAspectRatio', 'none');
+	svg.setAttribute('class', 'pp-precio-svg');
+	svg.setAttribute('role', 'img');
+	svg.setAttribute('aria-label', llenar(T.preciosGrafica, { a: precio(vals[0], orden[0].moneda, p.operacion), b: precio(vals[vals.length - 1], orden[orden.length - 1].moneda, p.operacion) }));
+	const area = document.createElementNS(NS, 'path');
+	area.setAttribute('class', 'pp-precio-area');
+	area.setAttribute('d', `M${pts[0][0]},${H} ${pts.map(([x, y]) => `L${x},${y}`).join(' ')} L${pts[pts.length - 1][0]},${H} Z`);
+	const linea = document.createElementNS(NS, 'polyline');
+	linea.setAttribute('class', 'pp-precio-linea');
+	linea.setAttribute('points', pts.map(([x, y]) => `${x},${y}`).join(' '));
+	svg.append(area, linea);
+	pts.forEach(([x, y], i) => {
+		// Punto como línea de largo cero con punta redonda: sigue redondo aunque el SVG se estire a lo ancho.
+		const c = document.createElementNS(NS, 'line');
+		c.setAttribute('x1', x); c.setAttribute('x2', x); c.setAttribute('y1', y); c.setAttribute('y2', y);
+		c.setAttribute('class', i === pts.length - 1 ? 'pp-precio-punto pp-precio-punto-actual' : 'pp-precio-punto');
+		svg.append(c);
+	});
+	caja.append(svg);
+	caja.hidden = false;
+}
+
 function tarjeta(p) {
 	const nodo = $('pp-tpl-prop').content.firstElementChild.cloneNode(true);
 	const q = (sel) => nodo.querySelector(`[data-pp="${sel}"]`);
@@ -230,7 +391,7 @@ function tarjeta(p) {
 
 	const img = q('foto');
 	const foto = urlSegura(p.foto);
-	if (foto) { img.src = foto; img.alt = p.titulo || ''; } else img.remove();
+	if (foto) { img.src = foto; img.alt = p.titulo || ''; } else { img.remove(); q('sin-foto').hidden = false; }
 	q('estado').textContent = EN ? est.en : est.es;
 	if (est.clase) q('estado').classList.add(est.clase);
 	q('titulo').textContent = p.titulo || '';
@@ -245,10 +406,17 @@ function tarjeta(p) {
 	q('url').hidden = !url;
 	if (url) q('url').href = url;
 
+	avance(p, q);
+
+	// Embudo: consultas → visitas → ofertas, barras relativas a la mayor.
 	const k = p.kpis || {};
+	const tope = Math.max(1, ...['consultas', 'visitas', 'ofertas'].map((c) => Number(k[c]?.total) || 0));
 	for (const clave of ['consultas', 'visitas', 'ofertas']) {
-		q(clave).textContent = String(k[clave]?.total ?? 0);
-		q(`${clave}30`).textContent = String(k[clave]?.d30 ?? 0);
+		const total = Number(k[clave]?.total) || 0;
+		const d30 = Number(k[clave]?.d30) || 0;
+		q(clave).textContent = String(total);
+		q(`${clave}30`).textContent = d30 ? llenar(T.del30, { n: d30 }) : '';
+		q(`${clave}-barra`).style.setProperty('--v', `${(total / tope) * 100}%`);
 	}
 	const prox = Number(k.visitasProximas) || 0;
 	q('proximas').hidden = !prox;
@@ -296,6 +464,7 @@ function tarjeta(p) {
 		li.append(v, f);
 		op.append(li);
 	});
+	lineaPrecio(hp, p, q('precios-grafica'));
 	op.closest('.pp-bloque').hidden = !hp.length;
 
 	// Portales

@@ -1710,7 +1710,19 @@ const TEXTOS_PORTAL = {
 		canales: { web: 'Página web', whatsapp: 'WhatsApp', portal: 'Portal de anuncios', anuncio: 'Anuncio pagado', redes: 'Redes sociales', referido: 'Recomendación', llamada: 'Llamada o rótulo', otro: 'Otro medio' },
 		etapas: { interesado: 'Interesado', visito: 'Visitó', negociando: 'Negociando', oferto: 'Ofertó', cerro: 'Cerró', perdido: 'Ya no está interesado' },
 		auto: { web: 'Se publicó en eqinmobiliario.gt', portal: 'Se publicó en {p}', precio: 'Cambio de precio a {p}', visita: 'Se realizó una visita', visitaN: 'Se realizaron {n} visitas', oferta: 'Se recibió una oferta', ofertaN: 'Se recibieron {n} ofertas' },
-		tipoPublicado: 'Publicación', tipoAuto: 'Automático'
+		tipoPublicado: 'Publicación', tipoAuto: 'Automático',
+		resumenTitulo: 'Resumen de tus propiedades', propiedades: 'Propiedades', tusPropiedades: 'Tus propiedades',
+		mas30: '+{n} en los últimos 30 días', sin30: 'Nada nuevo en 30 días', propsSub: '{n} en el mercado', propsSubUno: '1 en el mercado',
+		gMeses: 'Interesados y visitas por mes', gMesesNota: 'Últimos 6 meses, todas tus propiedades', serieInteresados: 'Nuevos interesados', serieVisitas: 'Visitas',
+		gMesesVacio: 'Aún no hay movimiento para graficar. En cuanto lleguen interesados o visitas, los verás aquí mes a mes.',
+		mesResumen: '{m}: {a} nuevos interesados, {b} visitas',
+		gCanales: 'Cómo llegan los interesados', gCanalesNota: 'Personas por canal, todas tus propiedades', gCanalesVacio: 'Cuando alguien pregunte por tu propiedad, aquí verás por qué medio llegó.',
+		canalResumen: '{c}: {n} de {t} interesados',
+		sinFoto: 'Foto en preparación', avance: 'Avance', embudo: 'Interés en tu propiedad', del30: '+{n} en 30 días',
+		pasos: ['Próximamente', 'En el mercado', 'Reservada', 'Vendida'], pasosRenta: ['Próximamente', 'En el mercado', 'Reservada', 'Rentada'],
+		pasoActual: 'paso actual', pasoHecho: 'completado',
+		notaPausada: 'La publicación está en pausa. Tu asesor te contará cuándo se reactiva.', notaRetirada: 'La propiedad ya no está a la venta ni en renta.',
+		preciosGrafica: 'Precio de {a} a {b}'
 	},
 	en: {
 		titulo: 'Owner portal', migas: 'Owner portal',
@@ -1740,7 +1752,19 @@ const TEXTOS_PORTAL = {
 		canales: { web: 'Website', whatsapp: 'WhatsApp', portal: 'Listing site', anuncio: 'Paid ad', redes: 'Social media', referido: 'Referral', llamada: 'Call or sign', otro: 'Other' },
 		etapas: { interesado: 'Interested', visito: 'Visited', negociando: 'Negotiating', oferto: 'Made an offer', cerro: 'Closed', perdido: 'No longer interested' },
 		auto: { web: 'Listed on eqinmobiliario.gt', portal: 'Listed on {p}', precio: 'Price changed to {p}', visita: 'A showing took place', visitaN: '{n} showings took place', oferta: 'An offer came in', ofertaN: '{n} offers came in' },
-		tipoPublicado: 'Listing', tipoAuto: 'Automatic'
+		tipoPublicado: 'Listing', tipoAuto: 'Automatic',
+		resumenTitulo: 'Summary of your properties', propiedades: 'Properties', tusPropiedades: 'Your properties',
+		mas30: '+{n} in the last 30 days', sin30: 'Nothing new in 30 days', propsSub: '{n} on the market', propsSubUno: '1 on the market',
+		gMeses: 'Interested buyers and showings by month', gMesesNota: 'Last 6 months, all your properties', serieInteresados: 'New interested buyers', serieVisitas: 'Showings',
+		gMesesVacio: 'Nothing to chart yet. As soon as interested buyers or showings come in, you will see them here month by month.',
+		mesResumen: '{m}: {a} new interested buyers, {b} showings',
+		gCanales: 'How interested buyers find you', gCanalesNota: 'People per channel, all your properties', gCanalesVacio: 'When someone asks about your property, you will see here how they found it.',
+		canalResumen: '{c}: {n} of {t} interested buyers',
+		sinFoto: 'Photo coming soon', avance: 'Progress', embudo: 'Interest in your property', del30: '+{n} in 30 days',
+		pasos: ['Coming soon', 'On the market', 'Under contract', 'Sold'], pasosRenta: ['Coming soon', 'On the market', 'Under contract', 'Rented'],
+		pasoActual: 'current step', pasoHecho: 'completed',
+		notaPausada: 'The listing is paused. Your agent will let you know when it is back on.', notaRetirada: 'The property is no longer for sale or rent.',
+		preciosGrafica: 'Price from {a} to {b}'
 	}
 };
 
@@ -1804,15 +1828,15 @@ export function portalPage(ctx) {
 			</section>
 
 			<div id="pp-panel" class="pp-panel" hidden>
-				<div class="pp-encabezado">
+				<header class="pp-encabezado">
 					<div class="pp-saludo">
 						<h2 class="pp-h1">${t.hola}<span data-pp="nombre"></span></h2>
 						<p class="pp-texto">${t.resumen}</p>
 						<p class="pp-actualizado">${ic('refresh')}${t.actualizado} <time data-pp="actualizado"></time></p>
 					</div>
-					<div class="pp-asesor" data-pp="asesor">
+					<aside class="pp-asesor" data-pp="asesor" aria-label="${t.tuAsesor}">
 						<div class="pp-asesor-persona">
-							<img class="pp-asesor-foto" data-pp="asesor-foto" alt="" width="56" height="56" hidden>
+							<img class="pp-asesor-foto" data-pp="asesor-foto" alt="" width="52" height="52" hidden>
 							<span class="pp-asesor-inicial" data-pp="asesor-inicial" aria-hidden="true"></span>
 							<div><p class="pp-asesor-rol">${t.tuAsesor}</p><p class="pp-asesor-nombre" data-pp="asesor-nombre"></p></div>
 						</div>
@@ -1820,13 +1844,66 @@ export function portalPage(ctx) {
 							<a class="btn btn-success" data-pp="asesor-wa" target="_blank" rel="noopener">${ic('whatsapp')}${t.whatsapp}</a>
 							<a class="btn btn-outline-primary" data-pp="asesor-tel">${ic('phone')}${t.llamar}</a>
 						</div>
+					</aside>
+				</header>
+
+				<section class="pp-resumen" aria-labelledby="pp-resumen-titulo">
+					<h2 id="pp-resumen-titulo" class="visually-hidden">${t.resumenTitulo}</h2>
+					<ul class="pp-cifras">
+						<li class="pp-cifra">
+							<span class="pp-cifra-nombre">${ic('home')}${t.propiedades}</span>
+							<span class="pp-cifra-numero" data-pp="r-propiedades"></span>
+							<span class="pp-cifra-sub" data-pp="r-propiedades-sub"></span>
+						</li>
+						<li class="pp-cifra">
+							<span class="pp-cifra-nombre">${ic('commenting-o')}${t.consultas}</span>
+							<span class="pp-cifra-numero" data-pp="r-consultas"></span>
+							<span class="pp-cifra-sub" data-pp="r-consultas-sub"></span>
+						</li>
+						<li class="pp-cifra">
+							<span class="pp-cifra-nombre">${ic('calendar-check-o')}${t.visitas}</span>
+							<span class="pp-cifra-numero" data-pp="r-visitas"></span>
+							<span class="pp-cifra-sub" data-pp="r-visitas-sub"></span>
+						</li>
+						<li class="pp-cifra">
+							<span class="pp-cifra-nombre">${ic('handshake-o')}${t.ofertas}</span>
+							<span class="pp-cifra-numero" data-pp="r-ofertas"></span>
+							<span class="pp-cifra-sub" data-pp="r-ofertas-sub"></span>
+						</li>
+					</ul>
+					<div class="pp-datos" data-pp="datos">
+						<div class="pp-dato" data-pp="paso-caja" hidden>${ic('flag')}<div><p class="pp-dato-titulo">${t.proximoPaso}</p><p class="pp-dato-valor" data-pp="paso"></p></div></div>
+						<div class="pp-dato" data-pp="exclusiva-caja" hidden>${ic('calendar')}<div><p class="pp-dato-titulo">${t.exclusiva}</p><p class="pp-dato-valor" data-pp="exclusiva"></p></div></div>
 					</div>
+				</section>
+
+				<div class="pp-graficas">
+					<figure class="pp-grafica" aria-labelledby="pp-g-meses-titulo">
+						<figcaption class="pp-grafica-cabecera">
+							<h3 id="pp-g-meses-titulo" class="pp-h3">${ic('bar-chart')}${t.gMeses}</h3>
+							<p class="pp-grafica-nota">${t.gMesesNota}</p>
+							<ul class="pp-leyenda" data-pp="g-meses-leyenda">
+								<li><span class="pp-muestra pp-serie-a" aria-hidden="true"></span>${t.serieInteresados}</li>
+								<li><span class="pp-muestra pp-serie-b" aria-hidden="true"></span>${t.serieVisitas}</li>
+							</ul>
+						</figcaption>
+						<ol class="pp-meses" data-pp="g-meses"></ol>
+						<p class="pp-vacio-grafica" data-pp="g-meses-vacio" hidden>${ic('bar-chart')}<span>${t.gMesesVacio}</span></p>
+					</figure>
+					<figure class="pp-grafica" aria-labelledby="pp-g-canales-titulo">
+						<figcaption class="pp-grafica-cabecera">
+							<h3 id="pp-g-canales-titulo" class="pp-h3">${ic('map-signs')}${t.gCanales}</h3>
+							<p class="pp-grafica-nota">${t.gCanalesNota}</p>
+						</figcaption>
+						<ul class="pp-hbarras" data-pp="g-canales"></ul>
+						<p class="pp-vacio-grafica" data-pp="g-canales-vacio" hidden>${ic('map-signs')}<span>${t.gCanalesVacio}</span></p>
+					</figure>
 				</div>
-				<div class="pp-datos" data-pp="datos">
-					<div class="pp-dato" data-pp="paso-caja" hidden>${ic('flag')}<div><p class="pp-dato-titulo">${t.proximoPaso}</p><p class="pp-dato-valor" data-pp="paso"></p></div></div>
-					<div class="pp-dato" data-pp="exclusiva-caja" hidden>${ic('calendar')}<div><p class="pp-dato-titulo">${t.exclusiva}</p><p class="pp-dato-valor" data-pp="exclusiva"></p></div></div>
-				</div>
-				<div id="pp-lista" class="pp-lista"></div>
+
+				<section class="pp-propiedades" aria-labelledby="pp-props-titulo">
+					<h2 id="pp-props-titulo" class="pp-h2 pp-seccion-titulo">${t.tusPropiedades}</h2>
+					<div id="pp-lista" class="pp-lista"></div>
+				</section>
 				<div class="pp-pie">
 					<p class="pp-privacidad">${ic('lock')}${t.privacidad}</p>
 					<button type="button" class="btn btn-link pp-salir" data-pp-accion="salir" hidden>${ic('sign-out')}${t.salir}</button>
@@ -1836,29 +1913,54 @@ export function portalPage(ctx) {
 			<template id="pp-tpl-prop">
 				<article class="pp-prop">
 					<div class="pp-prop-cabecera">
-						<div class="pp-prop-foto"><img data-pp="foto" alt="" loading="lazy" width="480" height="320"><span class="pp-badge" data-pp="estado"></span></div>
+						<div class="pp-prop-foto">
+							<img data-pp="foto" alt="" loading="lazy" width="480" height="320">
+							<span class="pp-prop-sinfoto" data-pp="sin-foto" hidden>${ic('picture-o')}<span>${t.sinFoto}</span></span>
+							<span class="pp-badge" data-pp="estado"></span>
+						</div>
 						<div class="pp-prop-info">
 							<h3 class="pp-prop-titulo" data-pp="titulo"></h3>
 							<p class="pp-prop-precio" data-pp="precio"></p>
-							<p class="pp-prop-dias">${ic('clock-o')}<span><strong data-pp="dias"></strong> <span data-pp="dias-texto">${t.enMercado}</span></span></p>
+							<ul class="pp-prop-meta">
+								<li>${ic('clock-o')}<span><strong data-pp="dias"></strong> <span data-pp="dias-texto">${t.enMercado}</span></span></li>
+								<li class="pp-prop-meta-aviso" data-pp="proximas" hidden>${ic('calendar')}<span data-pp="proximas-texto"></span></li>
+							</ul>
+							<div class="pp-avance-bloque">
+								<p class="pp-avance-titulo" data-pp="avance-titulo">${t.avance}</p>
+								<ol class="pp-avance" data-pp="avance"></ol>
+								<p class="pp-avance-nota" data-pp="avance-nota" hidden>${ic('pause-circle-o')}<span data-pp="avance-nota-texto"></span></p>
+							</div>
 							<a class="pp-enlace" data-pp="url" target="_blank" rel="noopener" hidden>${t.verPublicacion}${ic('external-link', true)}</a>
 						</div>
 					</div>
-					<ul class="pp-kpis">
-						<li class="pp-kpi">${ic('commenting-o')}<span class="pp-kpi-numero" data-pp="consultas"></span><span class="pp-kpi-nombre">${t.consultas}</span><span class="pp-kpi-30"><span data-pp="consultas30"></span> ${t.ult30}</span></li>
-						<li class="pp-kpi">${ic('calendar-check-o')}<span class="pp-kpi-numero" data-pp="visitas"></span><span class="pp-kpi-nombre">${t.visitas}</span><span class="pp-kpi-30"><span data-pp="visitas30"></span> ${t.ult30}</span></li>
-						<li class="pp-kpi">${ic('handshake-o')}<span class="pp-kpi-numero" data-pp="ofertas"></span><span class="pp-kpi-nombre">${t.ofertas}</span><span class="pp-kpi-30"><span data-pp="ofertas30"></span> ${t.ult30}</span></li>
-					</ul>
-					<p class="pp-proximas" data-pp="proximas" hidden>${ic('calendar')}<span data-pp="proximas-texto"></span></p>
 					<div class="pp-prop-cuerpo">
-						<section class="pp-bloque">
-							<h4 class="pp-h4">${ic('history')}${t.actividad}</h4>
-							<ol class="pp-linea" data-pp="eventos"></ol>
-							<p class="pp-vacio-texto" data-pp="sin-eventos" hidden>${t.sinActividad}</p>
-						</section>
-						<div class="pp-lateral">
+						<div class="pp-prop-col">
+							<section class="pp-bloque">
+								<h4 class="pp-h4">${ic('filter')}${t.embudo}</h4>
+								<ul class="pp-embudo">
+									<li class="pp-embudo-fila">
+										<span class="pp-embudo-nombre">${ic('commenting-o')}${t.consultas}</span>
+										<span class="pp-pista" aria-hidden="true"><span class="pp-relleno" data-pp="consultas-barra"></span></span>
+										<span class="pp-embudo-numero" data-pp="consultas"></span>
+										<span class="pp-embudo-30" data-pp="consultas30"></span>
+									</li>
+									<li class="pp-embudo-fila">
+										<span class="pp-embudo-nombre">${ic('calendar-check-o')}${t.visitas}</span>
+										<span class="pp-pista" aria-hidden="true"><span class="pp-relleno" data-pp="visitas-barra"></span></span>
+										<span class="pp-embudo-numero" data-pp="visitas"></span>
+										<span class="pp-embudo-30" data-pp="visitas30"></span>
+									</li>
+									<li class="pp-embudo-fila">
+										<span class="pp-embudo-nombre">${ic('handshake-o')}${t.ofertas}</span>
+										<span class="pp-pista" aria-hidden="true"><span class="pp-relleno" data-pp="ofertas-barra"></span></span>
+										<span class="pp-embudo-numero" data-pp="ofertas"></span>
+										<span class="pp-embudo-30" data-pp="ofertas30"></span>
+									</li>
+								</ul>
+							</section>
 							<section class="pp-bloque">
 								<h4 class="pp-h4">${ic('line-chart')}${t.precios}</h4>
+								<div class="pp-precio-grafica" data-pp="precios-grafica" hidden></div>
 								<ol class="pp-precios" data-pp="precios"></ol>
 							</section>
 							<section class="pp-bloque">
@@ -1867,6 +1969,11 @@ export function portalPage(ctx) {
 								<p class="pp-vacio-texto" data-pp="sin-portales" hidden>${t.sinPortales}</p>
 							</section>
 						</div>
+						<section class="pp-bloque pp-prop-col pp-bitacora">
+							<h4 class="pp-h4">${ic('history')}${t.actividad}</h4>
+							<ol class="pp-linea" data-pp="eventos"></ol>
+							<p class="pp-vacio-texto" data-pp="sin-eventos" hidden>${t.sinActividad}</p>
+						</section>
 					</div>
 					<section class="pp-bloque pp-clientes">
 						<div class="pp-clientes-cabecera">
@@ -1901,6 +2008,7 @@ export function portalPage(ctx) {
 				<span data-tipo="paso" class="icon-flag pp-evento-icono" aria-hidden="true"></span>
 				<span data-tipo="nota" class="icon-commenting-o pp-evento-icono" aria-hidden="true"></span>
 				<span data-tipo="externo" class="icon-external-link eq-ic eq-ic-fin" aria-hidden="true"></span>
+				<span data-tipo="hecho" class="icon-check pp-paso-check" aria-hidden="true"></span>
 				<span data-tipo="publicado" class="icon-globe pp-evento-icono" aria-hidden="true"></span>
 				<span data-tipo="portal" class="icon-bullhorn pp-evento-icono" aria-hidden="true"></span>
 				<span data-canal="web" class="icon-globe eq-ic" aria-hidden="true"></span>
