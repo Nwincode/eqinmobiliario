@@ -60,7 +60,7 @@ async function abrirBitmap(blob) {
 // Prepara una foto para subirla: gira según EXIF, reduce a máx. 1920 px (sin recortar) y la pasa a WebP 0.82.
 // Acepta JPG, PNG, WebP, HEIC/HEIF, AVIF, GIF, BMP y TIFF (si el navegador lo abre).
 // Devuelve { blob, ancho, alto, hash } (hash = SHA-256 del archivo original, para no subir repetidas).
-export async function procesarImagen(file, maxSize = 1920, quality = 0.82) {
+export async function procesarImagen(file, maxSize = 1920, quality = 0.82, { marca = false } = {}) {
 	const nombre = file.name || 'foto';
 	const original = await file.arrayBuffer();
 	const digest = await crypto.subtle.digest('SHA-256', original);
@@ -87,6 +87,15 @@ export async function procesarImagen(file, maxSize = 1920, quality = 0.82) {
 	canvas.height = Math.max(1, Math.round(bitmap.height * scale));
 	canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 	bitmap.close?.();
+	// Marca de agua (logo + eqinmobiliario.gt) para que una foto copiada muestre de dónde es.
+	if (marca) {
+		try {
+			const { ponerMarca } = await import('./marca.js');
+			await ponerMarca(canvas);
+		} catch (err) {
+			console.warn('No se pudo poner la marca de agua', err);
+		}
+	}
 	let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
 	if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
 	if (!blob) throw new Error(`«${nombre}»: no se pudo procesar la imagen.`);
@@ -94,9 +103,9 @@ export async function procesarImagen(file, maxSize = 1920, quality = 0.82) {
 }
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
-export async function uploadImage(file, folder, procesada) {
+export async function uploadImage(file, folder, procesada, opciones) {
 	if (!storage) throw new Error('Falta "storageBucket" en site.config.json: no se pueden subir imágenes.');
-	const { blob, ancho, alto, hash } = procesada || await procesarImagen(file);
+	const { blob, ancho, alto, hash } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
 	const path = `${folder}/${Date.now()}-${base}.${ext}`;
@@ -349,12 +358,13 @@ export function renderForm(schema, data, options = {}) {
 							alt);
 					}));
 				};
+				const marcaChk = field.marca ? h('input', { type: 'checkbox', class: 'form-check-input', id: `marca-${field.name}`, checked: true }) : null;
 				const fi = fileInput(true, async (files) => {
 					const arr = get() || [];
 					for (let n = 0; n < files.length; n++) {
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder)), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: !!marcaChk?.checked })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {
@@ -366,8 +376,10 @@ export function renderForm(schema, data, options = {}) {
 				});
 				draw();
 				control = h('div', {}, grid,
-					h('div', { class: 'd-flex align-items-center gap-2 mt-2' },
+					h('div', { class: 'd-flex align-items-center flex-wrap gap-2 mt-2' },
 						h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => fi.click() }, '+ Agregar fotos'),
+						marcaChk ? h('div', { class: 'form-check mb-0 ms-1' }, marcaChk,
+							h('label', { class: 'form-check-label', for: `marca-${field.name}` }, 'Poner marca de agua')) : null,
 						status, fi));
 				break;
 			}
