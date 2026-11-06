@@ -36,6 +36,9 @@ export function deepMerge(base, override) {
 	return out;
 }
 
+// Número con coma en miles y millones y punto en decimales (2,226.47), como se usa en Guatemala.
+export const cifra = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+
 const CURRENCY_PREFIX = { USD: 'US$', GTQ: 'Q' };
 
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {

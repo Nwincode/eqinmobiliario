@@ -1,7 +1,7 @@
 // Plantillas HTML del sitio público. Cada función devuelve un string.
 import {
 	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown, resumenSeo,
-	videoEmbedUrl, mapEmbedUrl, whatsappLink
+	videoEmbedUrl, mapEmbedUrl, whatsappLink, cifra
 } from './util.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
@@ -58,8 +58,8 @@ const tipoLabel = (p) => (lng(p) === 'en' ? TIPOS_EN[p.tipo] : TIPOS[p.tipo]) ||
 const estadoLabel = (p) => (lng(p) === 'en' ? ESTADOS_EN[p.estado] : ESTADOS[p.estado]) || p.estado;
 // Superficie: m² en español; pies cuadrados (con m²) en inglés.
 const area = (m2, lang) => (lang === 'en'
-	? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${m2} m²)`
-	: `${m2} m²`);
+	? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${cifra(m2)} m²)`
+	: `${cifra(m2)} m²`);
 
 export function propertyUrl(p) {
 	const r = RUTAS[lng(p)];
@@ -1382,8 +1382,8 @@ export function vipLandingPage(ctx, p) {
 		['icon-bed', p.habitaciones, t.fHabitaciones],
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
-		['icon-home2', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${p.m2Construccion} m²`), t.fConstruccion],
-		['icon-expand', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${p.m2Terreno} m²`), t.fTerreno],
+		['icon-home2', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
+		['icon-expand', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 

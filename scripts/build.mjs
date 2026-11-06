@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
-import { deepMerge, slugify, byOrder } from './lib/util.mjs';
+import { deepMerge, slugify, byOrder, cifra } from './lib/util.mjs';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -221,7 +221,7 @@ function llmsTxt(ctx, properties, pages) {
 		`- [En renta](${base}/propiedades/renta/)`,
 		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
 		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${p.m2Construccion} m²` : ''}`),
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
