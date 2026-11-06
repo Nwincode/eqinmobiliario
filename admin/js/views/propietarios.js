@@ -81,6 +81,11 @@ async function renderEditor(container, id) {
 		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4 },
 		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4 },
 		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		{ name: 'comisionIva', label: 'IVA de la comisión', type: 'select', cols: 4, options: [['', 'Más IVA (12 %)'], ['incluido', 'IVA incluido'], ['no', 'Sin IVA']] },
+		{ type: 'section', label: 'Impuestos de la venta' },
+		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 6, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
+		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 6, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
+		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
 		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, placeholder: 'https://…' },
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
