@@ -447,11 +447,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: #8a1c13;
 }
 
-/* Tablas: la caja mide como mucho lo que queda de pantalla, así la barra para moverse
+/* Tablas: la caja mide lo que queda de pantalla desde donde empieza (--tabla-alto lo pone
+   admin/js/tablas-alto.js), así la barra para moverse
    de lado siempre se ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
 .admin-main .table-responsive:not(.calc-largo) {
-	max-height: max(320px, calc(100vh - 60px - 9rem));
-	max-height: max(320px, calc(100dvh - 60px - 9rem));
+	max-height: var(--tabla-alto, max(320px, calc(100vh - 60px - 9rem)));
 	overflow: auto;
 	overscroll-behavior-x: contain;
 	scrollbar-width: thin;

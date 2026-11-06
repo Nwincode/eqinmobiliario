@@ -7,6 +7,7 @@ import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { session, getPublishState, revisarAutoPublicar } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
+import { vigilarTablas } from './tablas-alto.js';
 
 const ROUTES = [
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
@@ -166,6 +167,7 @@ function shell() {
 			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light' }, h('span', { class: 'icon-external-link me-1', 'aria-hidden': 'true' }), 'Ver sitio')));
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
+	vigilarTablas(main);
 	refreshPublishBadge();
 	actualizarInsignias(true);
 	// Portales de propietarios que quedaron sin actualizar al cerrar la pestaña.
