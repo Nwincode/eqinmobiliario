@@ -25,6 +25,12 @@ export function h(tag, attrs = {}, ...children) {
 	return el;
 }
 
+// En todo el panel, replaceChildren ignora los vacíos (null, false, undefined) igual que h() y mount():
+// sin esto el navegador escribe el texto «null» en pantalla.
+const vacio = (c) => c === null || c === undefined || c === false;
+const nativo = Element.prototype.replaceChildren;
+Element.prototype.replaceChildren = function (...hijos) { return nativo.apply(this, hijos.flat(Infinity).filter((c) => !vacio(c))); };
+
 // Agrega hijos a un elemento ignorando los vacíos (null, false, undefined).
 export function mount(el, ...children) {
 	el.append(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));

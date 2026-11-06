@@ -38,6 +38,14 @@ function llenarSeo(d) {
 	seo.auto = auto;
 	d.seo = seo;
 }
+// Descripción de cada foto para Google: si está vacía se pone «Título – foto N». Lo escrito a mano se respeta.
+// Devuelve true si cambió alguna.
+function llenarAltFotos(d) {
+	const titulo = String(d.titulo || '').trim();
+	if (!titulo || !(d.fotos || []).some((f) => !String(f.alt || '').trim())) return false;
+	d.fotos = d.fotos.map((f, i) => (String(f.alt || '').trim() ? f : { ...f, alt: `${titulo} – foto ${i + 1}` }));
+	return true;
+}
 
 
 // Borra del almacenamiento las fotos de una propiedad eliminada (también la versión sin marca
@@ -485,6 +493,7 @@ export async function render(container, [id]) {
 					llenarSeo(d);
 					if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
 				}
+				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				const en = d.en || {};
 				if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
 				if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
@@ -506,6 +515,7 @@ export async function render(container, [id]) {
 				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
 				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
 				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
+				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
@@ -862,6 +872,7 @@ async function renderEditor(container, id) {
 		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
 		const traducirAhora = Boolean(d.titulo) && (!String(d.en.titulo || '').trim() || (!d.en.manual && d.en.fuente !== fuenteEs(d)));
 		if (!d.vip && d.titulo) llenarSeo(d);
+		llenarAltFotos(d);
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
