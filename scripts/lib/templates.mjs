@@ -30,6 +30,27 @@ const flechasCarrusel = (id, t, extra = '') => `<div id="${id}" class="eq-flecha
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
 const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
+
+// Precio rebajado: el último cambio de precio (misma moneda) fue una baja hace 60 días o menos.
+// Sale del historial de precio que guarda el panel. Devuelve el precio anterior o 0.
+const DIAS_REBAJA = 60;
+export function precioAnterior(p, hoy = Date.now()) {
+	if (!p || !Number(p.precio) || p.operacion === 'vacacional' || (p.estado && p.estado !== 'disponible')) return 0;
+	if (p.vipLanding && p.vipLanding.ocultarPrecio) return 0;
+	const h = (p.historialPrecio || []).filter((x) => x && Number(x.precio));
+	if (h.length < 2) return 0;
+	const ultimo = h[h.length - 1];
+	const previo = h[h.length - 2];
+	if (Number(ultimo.precio) !== Number(p.precio) || (ultimo.moneda || 'USD') !== (p.moneda || 'USD') || (previo.moneda || 'USD') !== (p.moneda || 'USD')) return 0;
+	if (Number(previo.precio) <= Number(p.precio)) return 0;
+	const f = Date.parse(ultimo.fecha);
+	if (!f || hoy - f > DIAS_REBAJA * 864e5) return 0;
+	return Number(previo.precio);
+}
+const precioAntes = (p) => {
+	const a = precioAnterior(p);
+	return a ? `<s class="precio-antes"><em class="visually-hidden">${TEXTOS[lng(p)].antes}: </em>${esc(formatPrice(a, p.moneda, p.operacion, lng(p)))}</s>` : '';
+};
 // Etiqueta de la operación: «En venta», «En renta» o «Renta vacacional».
 const enOperacion = (p, t) => (p.operacion === 'vacacional' ? t.enVacacional : p.operacion === 'renta' ? t.enRenta : t.enVenta);
 const opNombre = (p, t) => (p.operacion === 'vacacional' ? t.vacacional : p.operacion === 'renta' ? t.renta : t.venta);
@@ -373,6 +394,7 @@ function estadoBadge(p, inline = false) {
 	const parts = [];
 	if (p.vip) parts.push('<span class="prop-badge prop-badge-vip">VIP</span>');
 	const t = TEXTOS[lng(p)];
+	if (precioAnterior(p)) parts.push(`<span class="prop-badge prop-badge-rebaja">${t.precioRebajado}</span>`);
 	parts.push(`<span class="prop-badge">${enOperacion(p, t)}</span>`);
 	if (p.estado && p.estado !== 'disponible') parts.push(`<span class="prop-badge prop-badge-estado ${CLASE_ESTADO[p.estado] || ''}">${esc(estadoLabel(p))}</span>`);
 	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
@@ -391,7 +413,7 @@ export function propertyCard(p, { lazy = true } = {}) {
 									${estadoBadge(p)}
 								</a>
 								<div class="property-content">
-									<div class="price mb-2"><span>${esc(price(p))}</span></div>
+									<div class="price mb-2"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 									<div>
 										<span class="d-block mb-2 text-black-50">${esc(p.titulo)}</span>
 										<span class="city d-block mb-3">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
@@ -1184,7 +1206,7 @@ export function propertyPage(ctx, p) {
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
-						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
+						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					<section class="ficha-bloque">

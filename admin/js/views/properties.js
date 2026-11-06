@@ -13,6 +13,7 @@ import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
+import { generarDescripcion } from '../descripcion.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -264,6 +265,11 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-titulo' },
 				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
 				h('div', { class: 'small text-muted' }, [p.codigo, [p.zona, p.ciudad].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
+				p.publicado && p.slug ? h('a', {
+					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
+					href: `https://wa.me/?text=${encodeURIComponent(`${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`)}`,
+					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
+				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), ' Compartir') : null,
 				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
@@ -368,6 +374,17 @@ export async function render(container, [id]) {
 		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
 			(n) => `${n} oculta${n === 1 ? '' : 's'}. Recuerda publicar.`) },
 		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
+	const btnMejorar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const n = seleccion.size;
+			if (!(await confirmDialog(`¿Mejorar la descripción de ${n} propiedad${n === 1 ? '' : 'es'}? Se ordena con la plantilla (Características, Amenidades, Detalles técnicos y lo que no incluye el precio). El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				const descripcion = generarDescripcion(p);
+				if (descripcion === p.descripcion) return;
+				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
+			}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`);
+		} },
+		h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción');
 	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger',
 		onclick: async (e) => {
 			const n = seleccion.size;
@@ -387,7 +404,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar,
+		btnMostrar, btnOcultar, btnMejorar,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
@@ -484,11 +501,27 @@ function schema(agentOpts, isNew) {
 		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3 },
 		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
 		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Piscina, garita, jardín… (Enter para agregar)' },
-		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true },
+		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
+		{ type: 'custom', update: (el, d) => {
+			if (el.firstChild) return;
+			let anterior = null;
+			const deshacer = h('button', { type: 'button', class: 'btn btn-sm btn-link', hidden: true,
+				onclick: () => { poner(anterior); deshacer.hidden = true; } }, 'Deshacer');
+			const poner = (txt) => { schema.descInput.value = txt; schema.descInput.dispatchEvent(new Event('input')); };
+			el.append(h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
+				h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: async () => {
+					if (!(await confirmDialog('Se ordenará la descripción con la plantilla: tu párrafo de presentación queda arriba y debajo se arman Características, Amenidades, Detalles técnicos y lo que no incluye el precio, con los datos de esta ficha. Podés deshacerlo.', { okText: 'Mejorar', danger: false }))) return;
+					anterior = schema.descInput.value;
+					poner(generarDescripcion({ ...d, descripcion: anterior }));
+					deshacer.hidden = false;
+				} }, h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción'),
+				deshacer,
+				h('span', { class: 'small text-muted' }, 'Revisá el primer párrafo: ubicación y lo que hace especial a la propiedad.')));
+		} },
 		{ name: 'video', label: 'Video (YouTube o Vimeo)', type: 'url', placeholder: 'https://www.youtube.com/watch?v=…' },
 
 		{ type: 'section', label: 'Fotos', help: 'La primera foto es la portada. Se reducen y optimizan automáticamente al subirlas.' },
-		{ name: 'fotos', label: 'Galería', type: 'images' },
+		{ name: 'fotos', label: 'Galería', type: 'images', marca: true },
 
 		{ type: 'section', label: 'Landing page VIP', help: 'Solo para propiedades marcadas como VIP. Se publica en /vip/…', when: vip },
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },
@@ -589,7 +622,7 @@ async function renderEditor(container, id) {
 			codigoInput.value = generarCodigo(form.getData(), { agentes, codigos: codigosUsados() });
 			codigoInput.dispatchEvent(new Event('input'));
 		}
-	}, h('span', { class: 'icon-magic', 'aria-hidden': 'true' }), ' Sugerir');
+	}, h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Sugerir');
 	const grupoCodigo = h('div', { class: 'input-group has-validation' });
 	codigoInput.replaceWith(grupoCodigo);
 	grupoCodigo.append(codigoInput, sugerir, avisoCodigo);

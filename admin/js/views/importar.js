@@ -299,7 +299,7 @@ export async function render(container) {
 			const nombre = f.ruta.split('/').pop();
 			try {
 				const archivo = await f.abrir();
-				const proc = await procesarImagen(archivo);
+				const proc = await procesarImagen(archivo, undefined, undefined, { marca: true });
 				if (hashes.has(proc.hash)) { repetidas++; return; }
 				hashes.add(proc.hash);
 				subidas[k] = { ...(await uploadImage(archivo, carpeta, proc)), alt: '' };
