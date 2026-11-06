@@ -1,6 +1,6 @@
 // Plantillas HTML del sitio público. Cada función devuelve un string.
 import {
-	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown,
+	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown, resumenSeo,
 	videoEmbedUrl, mapEmbedUrl, whatsappLink
 } from './util.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
@@ -993,7 +993,7 @@ function listingLd(ctx, p) {
 		'@context': 'https://schema.org',
 		'@type': 'RealEstateListing',
 		name: p.titulo,
-		description: truncate(stripMarkdown(p.descripcion), 300),
+		description: truncate(resumenSeo(p.descripcion), 300),
 		url: absUrl(ctx, propertyUrl(p)),
 		image: (p.fotos || []).map((f) => absUrl(ctx, f.url)),
 		datePosted: p.createdAt || undefined,
@@ -1001,7 +1001,7 @@ function listingLd(ctx, p) {
 		inLanguage: lng(p),
 		identifier: propertyCode(p),
 		offers: offer,
-		video: video ? { '@type': 'VideoObject', name: p.titulo, description: truncate(stripMarkdown(p.descripcion), 200), embedUrl: video, thumbnailUrl: absUrl(ctx, firstPhoto(p)), uploadDate: p.updatedAt || p.createdAt || undefined } : undefined,
+		video: video ? { '@type': 'VideoObject', name: p.titulo, description: truncate(resumenSeo(p.descripcion), 200), embedUrl: video, thumbnailUrl: absUrl(ctx, firstPhoto(p)), uploadDate: p.updatedAt || p.createdAt || undefined } : undefined,
 		about: {
 			'@type': p.tipo === 'apartamento' ? 'Apartment' : p.tipo === 'casa' ? 'SingleFamilyResidence' : p.tipo === 'terreno' ? 'Place' : 'Accommodation',
 			name: p.titulo,
@@ -1026,6 +1026,14 @@ export function autoSeoTitle(p) {
 	const op = p.operacion === 'vacacional' ? (en ? 'Vacation Rental' : 'Renta vacacional')
 		: en ? (p.operacion === 'renta' ? 'For Rent' : 'For Sale') : (p.operacion === 'renta' ? 'Renta' : 'Venta');
 	const prep = en ? 'in' : 'en';
+	// Si el título ya dice la operación, no se repite ("… en venta … | Venta").
+	const yaDice = /\b(venta|vendo|renta|alquiler|alquilo|vacacional|for sale|for rent|vacation)\b/i.test(p.titulo || '');
+	if (yaDice) {
+		const t = String(p.titulo || '');
+		const zona = p.zona && !t.toLowerCase().includes(String(p.zona).toLowerCase()) ? p.zona : '';
+		const lugar = [zona, p.ciudad && !t.toLowerCase().includes(String(p.ciudad).toLowerCase()) ? p.ciudad : ''].filter(Boolean).join(', ');
+		return [lugar && `${t} | ${lugar}`, `${t} | Guatemala`, t].find((x) => x && x.length <= 65) || t;
+	}
 	const candidates = [
 		`${p.titulo} | ${op} ${prep} ${[p.zona, p.ciudad].filter(Boolean).join(', ')}`,
 		p.zona && `${p.titulo} | ${op} ${prep} ${p.zona}`,
@@ -1045,7 +1053,7 @@ function seoDescription(p) {
 		p.habitaciones && plural(p.habitaciones, t.habitacion, t.habitaciones),
 		p.banos && plural(p.banos, t.bano, t.banos),
 		p.m2Construccion && area(p.m2Construccion, lng(p))
-	].filter(Boolean).join(', ')}. ${stripMarkdown(p.descripcion)}`;
+	].filter(Boolean).join(', ')}. ${resumenSeo(p.descripcion)}`;
 }
 
 function viewContentAttrs(p) {

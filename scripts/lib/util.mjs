@@ -78,6 +78,16 @@ export function stripMarkdown(md) {
 		.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 }
 
+// Texto corto para Google (meta description, JSON-LD): solo los párrafos de presentación,
+// sin las secciones con viñetas ni la nota del precio, que repiten datos de la ficha.
+export function resumenSeo(md) {
+	const lineas = String(md || '').replace(/\r/g, '').split('\n');
+	const corte = lineas.findIndex((l) => /^\s*([-*+]\s|#|\*\*[^*]+\*\*\s*:?\s*$)/.test(l));
+	const texto = (corte > 0 ? lineas.slice(0, corte) : corte === 0 ? [] : lineas).join(' ');
+	const limpio = stripMarkdown(texto).replace(/\s+/g, ' ').trim();
+	return limpio || stripMarkdown(md).replace(/^\s*[-+]\s+/gm, '').replace(/\s*\n+\s*/g, '. ').replace(/\.\s*\./g, '.').trim();
+}
+
 function inlineMarkdown(text) {
 	return esc(text)
 		.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
