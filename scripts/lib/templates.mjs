@@ -139,7 +139,9 @@ const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;5
 
 function head(ctx, page) {
 	const site = ctx.site;
-	const title = page.title || site.seo.titulo;
+	// Google corta los títulos de más de ~65 caracteres: si sobra, se quita el nombre de la marca del final.
+	let title = page.title || site.seo.titulo;
+	while (title.length > 65 && title.includes(' | ')) title = title.slice(0, title.lastIndexOf(' | '));
 	const description = truncate(page.description || site.seo.descripcion, 160);
 	const image = absUrl(ctx, page.image || site.seo.imagen);
 	const url = absUrl(ctx, page.path);
