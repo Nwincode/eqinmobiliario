@@ -449,21 +449,22 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 
 /* Tablas: la caja mide como mucho lo que queda de pantalla, así la barra para moverse
    de lado siempre se ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
-.table-responsive:has(> .table-admin) {
+.admin-main .table-responsive:not(.calc-largo) {
+	max-height: max(320px, calc(100vh - 60px - 9rem));
 	max-height: max(320px, calc(100dvh - 60px - 9rem));
 	overflow: auto;
 	overscroll-behavior-x: contain;
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--adm-muted) 55%, transparent) transparent;
 }
-.table-responsive:has(> .table-admin)::-webkit-scrollbar { width: 10px; height: 10px; }
-.table-responsive:has(> .table-admin)::-webkit-scrollbar-thumb {
+.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar { width: 10px; height: 10px; }
+.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar-thumb {
 	background: color-mix(in srgb, var(--adm-muted) 55%, transparent);
 	border-radius: 999px;
 	border: 2px solid transparent;
 	background-clip: padding-box;
 }
-.table-responsive:has(> .table-admin)::-webkit-scrollbar-track { background: transparent; }
+.admin-main .table-responsive:not(.calc-largo)::-webkit-scrollbar-track { background: transparent; }
 .table-admin thead th {
 	position: sticky;
 	top: 0;
