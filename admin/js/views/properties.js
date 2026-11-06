@@ -491,6 +491,31 @@ export async function render(container, [id]) {
 			}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`);
 		} },
 		h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Completar SEO');
+	// Textos (descripción e inglés) que escribió Claude en admin/textos-claude.json, por id de propiedad.
+	// Guarda la descripción anterior como respaldo («Volver a la anterior») y llena el SEO que falte.
+	const btnClaude = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+		onclick: async (e) => {
+			const textos = await fetch('/admin/textos-claude.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+			const con = props.filter((p) => seleccion.has(p.id) && textos[p.id]);
+			if (!con.length) return toast('Las seleccionadas todavía no tienen textos preparados.', 'warning');
+			if (!(await confirmDialog(`¿Poner los textos preparados en ${con.length} propiedad${con.length === 1 ? '' : 'es'}? Se cambia la descripción y el inglés, y se llena el SEO que falte. La descripción anterior queda como respaldo.`, { okText: 'Poner textos', danger: false }))) return;
+			await enMasa(e.currentTarget, async (p) => {
+				const t = textos[p.id];
+				if (!t) return;
+				const d = { ...p, descripcion: t.descripcion };
+				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
+				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
+				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
+				cambios.en = {
+					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
+					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
+					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
+					fuente: fuenteEs(d), manual: false
+				};
+				await guardarMasa(cambios, cambios)(p);
+			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revisalos y publicá.`);
+		} },
+		h('span', { class: 'icon-pencil', 'aria-hidden': 'true' }), ' Poner textos preparados');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: async (e) => {
 			const n = seleccion.size;
@@ -525,7 +550,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnTraducir, btnMarca,
+		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
 		session.isAdmin ? btnEliminar : null,
 		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
 	const pintarBarra = () => {
