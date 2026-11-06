@@ -1722,7 +1722,17 @@ const TEXTOS_PORTAL = {
 		pasos: ['Próximamente', 'En el mercado', 'Reservada', 'Vendida'], pasosRenta: ['Próximamente', 'En el mercado', 'Reservada', 'Rentada'],
 		pasoActual: 'paso actual', pasoHecho: 'completado',
 		notaPausada: 'La publicación está en pausa. Tu asesor te contará cuándo se reactiva.', notaRetirada: 'La propiedad ya no está a la venta ni en renta.',
-		preciosGrafica: 'Precio de {a} a {b}'
+		preciosGrafica: 'Precio de {a} a {b}',
+		anuncioTitulo: 'Cómo se anuncia', anuncioNota: 'Así ven tu propiedad los interesados en nuestra página.',
+		anuncioDesc: 'Descripción del anuncio', verAnuncio: 'Ver anuncio en la página',
+		operaciones: { venta: 'En venta', renta: 'En renta', vacacional: 'Renta vacacional' },
+		hab: '{n} habitaciones', habUno: '1 habitación', banos: '{n} baños', banosUno: '1 baño', construccion: '{a} de construcción', terreno: '{a} de terreno',
+		fotoN: 'Foto {n} del anuncio',
+		respuestaPregunta: '¿Estás de acuerdo con cómo se anuncia?', deAcuerdo: 'Estoy de acuerdo con el anuncio', quieroCambios: 'Quiero cambios',
+		aprobadoOk: 'Gracias, tu asesor ya sabe que estás de acuerdo.',
+		comentarLabel: '¿Qué te gustaría cambiar?', comentarAyuda: 'Por ejemplo: el precio, una foto o un dato de la descripción. Tu asesor lo recibe en su panel.',
+		comentarEnviar: 'Enviar comentario', comentarOk: 'Gracias, tu asesor recibió tu comentario.', comentarVacio: 'Escribe tu comentario antes de enviarlo.',
+		comentarError: 'No pudimos enviarlo. Revisa tu conexión e inténtalo otra vez.'
 	},
 	en: {
 		titulo: 'Owner portal', migas: 'Owner portal',
@@ -1764,7 +1774,17 @@ const TEXTOS_PORTAL = {
 		pasos: ['Coming soon', 'On the market', 'Under contract', 'Sold'], pasosRenta: ['Coming soon', 'On the market', 'Under contract', 'Rented'],
 		pasoActual: 'current step', pasoHecho: 'completed',
 		notaPausada: 'The listing is paused. Your agent will let you know when it is back on.', notaRetirada: 'The property is no longer for sale or rent.',
-		preciosGrafica: 'Price from {a} to {b}'
+		preciosGrafica: 'Price from {a} to {b}',
+		anuncioTitulo: 'How it is listed', anuncioNota: 'This is how interested buyers see your property on our website.',
+		anuncioDesc: 'Listing description', verAnuncio: 'See the listing on the website',
+		operaciones: { venta: 'For sale', renta: 'For rent', vacacional: 'Vacation rental' },
+		hab: '{n} bedrooms', habUno: '1 bedroom', banos: '{n} bathrooms', banosUno: '1 bathroom', construccion: '{a} built', terreno: '{a} lot',
+		fotoN: 'Listing photo {n}',
+		respuestaPregunta: 'Are you happy with how it is listed?', deAcuerdo: 'I agree with the listing', quieroCambios: 'I want changes',
+		aprobadoOk: 'Thank you, your agent now knows you agree.',
+		comentarLabel: 'What would you like to change?', comentarAyuda: 'For example: the price, a photo or a detail in the description. Your agent gets it in their dashboard.',
+		comentarEnviar: 'Send comment', comentarOk: 'Thank you, your agent received your comment.', comentarVacio: 'Write your comment before sending it.',
+		comentarError: 'We could not send it. Check your connection and try again.'
 	}
 };
 
@@ -1776,7 +1796,7 @@ export function portalPage(ctx) {
 	const btnWaOficina = wa ? `<a href="${esc(wa)}" class="btn btn-success" target="_blank" rel="noopener">${ic('whatsapp')}${t.escribirnos}</a>` : '';
 	const body = `
 	${pageHero(ctx, t.titulo, ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp', [{ name: tr(ctx).inicio, url: rt(ctx).inicio }, { name: t.migas, url: path }])}
-	<div class="section pp" id="pp" data-lang="${lang}" data-t="${esc(JSON.stringify(t))}">
+	<div class="section pp" id="pp" data-lang="${lang}" data-t="${esc(JSON.stringify({ ...t, tipos: lang === 'en' ? TIPOS_EN : TIPOS }))}">
 		<div class="container pp-contenedor">
 			<div id="pp-cargando" class="pp-cargando" role="status"><span class="pp-spinner" aria-hidden="true"></span>${t.cargando}</div>
 
@@ -1930,9 +1950,46 @@ export function portalPage(ctx) {
 								<ol class="pp-avance" data-pp="avance"></ol>
 								<p class="pp-avance-nota" data-pp="avance-nota" hidden>${ic('pause-circle-o')}<span data-pp="avance-nota-texto"></span></p>
 							</div>
-							<a class="pp-enlace" data-pp="url" target="_blank" rel="noopener" hidden>${t.verPublicacion}${ic('external-link', true)}</a>
 						</div>
 					</div>
+					<section class="pp-anuncio" data-pp="anuncio">
+						<h4 class="pp-h4">${ic('bullhorn')}${t.anuncioTitulo}</h4>
+						<p class="pp-nota-chica">${t.anuncioNota}</p>
+						<div class="pp-anuncio-ficha">
+							<p class="pp-anuncio-titulo" data-pp="a-titulo"></p>
+							<p class="pp-anuncio-precio"><span data-pp="a-precio"></span><span class="pp-anuncio-op" data-pp="a-operacion"></span></p>
+							<ul class="pp-anuncio-datos">
+								<li data-pp="a-tipo" hidden>${ic('home')}<span></span></li>
+								<li data-pp="a-ubicacion" hidden>${ic('map-marker')}<span></span></li>
+								<li data-pp="a-hab" hidden>${ic('bed')}<span></span></li>
+								<li data-pp="a-banos" hidden>${ic('bath')}<span></span></li>
+								<li data-pp="a-construccion" hidden>${ic('home2')}<span></span></li>
+								<li data-pp="a-terreno" hidden>${ic('expand')}<span></span></li>
+							</ul>
+							<ul class="pp-anuncio-fotos" data-pp="a-fotos" hidden></ul>
+							<details class="pp-anuncio-desc" data-pp="a-desc-caja" hidden>
+								<summary>${ic('file-text-o')}${t.anuncioDesc}</summary>
+								<div class="pp-anuncio-texto" data-pp="a-desc"></div>
+							</details>
+							<a class="pp-enlace" data-pp="url" target="_blank" rel="noopener" hidden>${t.verAnuncio}${ic('external-link', true)}</a>
+						</div>
+						<div class="pp-respuesta" data-pp="respuesta">
+							<p class="pp-respuesta-pregunta" data-pp="r-pregunta">${t.respuestaPregunta}</p>
+							<div class="pp-acciones pp-respuesta-botones" data-pp="r-botones">
+								<button type="button" class="btn btn-primary" data-pp="r-ok">${ic('check-circle')}${t.deAcuerdo}</button>
+								<button type="button" class="btn btn-outline-primary" data-pp="r-cambios" aria-expanded="false">${ic('pencil')}${t.quieroCambios}</button>
+							</div>
+							<form class="pp-form pp-comentar" data-pp="c-form" novalidate hidden>
+								<label class="pp-label" data-pp="c-label">${t.comentarLabel}</label>
+								<textarea class="form-control pp-input pp-textarea" data-pp="c-texto" rows="4" maxlength="2000"></textarea>
+								<p class="pp-nota-chica" data-pp="c-ayuda">${t.comentarAyuda}</p>
+								<button type="submit" class="btn btn-primary pp-comentar-enviar">${ic('paper-plane-o')}${t.comentarEnviar}</button>
+							</form>
+							<p class="pp-aviso pp-aviso-ok" data-pp="r-ok-msg" hidden>${ic('check-circle')}<span data-pp="r-ok-texto"></span></p>
+							<p class="pp-error-campo" data-pp="r-error" hidden>${ic('exclamation-circle')}<span data-pp="r-error-texto"></span></p>
+							<p class="visually-hidden" data-pp="r-vivo" role="status" aria-live="polite"></p>
+						</div>
+					</section>
 					<div class="pp-prop-cuerpo">
 						<div class="pp-prop-col">
 							<section class="pp-bloque">
