@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-a
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
-import { generarCodigo, normalizarCodigo, PLANTILLA } from '../importar.js';
+import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
@@ -800,6 +800,22 @@ async function renderEditor(container, id) {
 	codigoInput.replaceWith(grupoCodigo);
 	grupoCodigo.append(codigoInput, sugerir, avisoCodigo);
 	revisarCodigo();
+
+	// Código y siglas automáticos: mientras el código esté vacío o sea el que se armó solo, se
+	// rehace al cambiar condominio, dirección, zona o asesor. Si lo escribes a mano, se respeta.
+	const siglasInput = form.el.querySelector('[data-campo="condominioSiglas"] input');
+	let codigoAuto = isNew && !normalizarCodigo(codigoInput.value);
+	const rehacerCodigo = () => {
+		const d = form.getData();
+		if (siglasInput) siglasInput.placeholder = siglasCondominio(d.condominioSiglas, d.direccion);
+		if (!codigoAuto) return;
+		codigoInput.value = generarCodigo(d, { agentes, codigos: codigosUsados() });
+		form.state.codigo = codigoInput.value;
+		revisarCodigo();
+	};
+	codigoInput.addEventListener('input', (e) => { if (e.isTrusted) codigoAuto = !normalizarCodigo(codigoInput.value); });
+	['input', 'change'].forEach((t) => form.el.addEventListener(t, (e) => { if (e.target !== codigoInput) rehacerCodigo(); }));
+	rehacerCodigo();
 
 	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}]);
 
