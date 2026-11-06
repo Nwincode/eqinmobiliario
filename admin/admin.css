@@ -1246,6 +1246,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
 /* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
 @media (min-width: 768px) {
+	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
 	.tabla-propiedades .celda-codigo { width: 1%; white-space: nowrap; }
 	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); }
@@ -1316,6 +1317,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		min-width: 0;
 	}
 	.tabla-propiedades .celda-foto { grid-area: foto; }
+	/* El número va como etiqueta en la esquina de la foto. */
+	.table-admin.tabla-propiedades .celda-num {
+		grid-area: foto; align-self: start; justify-self: start; z-index: 1;
+		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
+		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
+		font-variant-numeric: tabular-nums;
+	}
 	.tabla-propiedades .celda-sel { grid-area: sel; }
 	.tabla-propiedades .celda-titulo { grid-area: titulo; }
 	.tabla-propiedades .celda-codigo { grid-area: codigo; font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); align-self: center; }
