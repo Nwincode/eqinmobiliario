@@ -239,7 +239,8 @@ export async function render(container) {
 		acciones.hidden = false;
 		const n = (f) => plan.filter(f).length;
 		const chip = (clase, ic, texto) => h('span', { class: `imp-chip imp-tono-${clase}` }, icono(ic), ' ', texto);
-		resumen.replaceChildren(
+		resumen.replaceChildren();
+		mount(resumen,
 			chip('success', 'icon-check-circle', plural(n((it) => !it.errores.length && !it.existente), 'nueva', 'nuevas')),
 			n((it) => it.existente) ? chip('info', 'icon-refresh', plural(n((it) => it.existente), 'ya existe', 'ya existen')) : null,
 			n((it) => it.errores.length) ? chip('danger', 'icon-times-circle', `${n((it) => it.errores.length)} con error`) : null,

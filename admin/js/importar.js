@@ -506,7 +506,8 @@ export function agruparFotos(archivos, filas) {
 		// Archivo suelto: CODIGO-1.jpg, CODIGO_2.jpg, CODIGO 3.jpg o CODIGO.jpg
 		const nombre = normalizar(x.partes[0].replace(/\.[^.]+$/, ''));
 		const m = nombre.match(/^(.+?)[-_ ]+\d+$/);
-		const i = (m && indice.get(clave(m[1]))) ?? indice.get(clave(nombre));
+		// Si el CSV trae una sola propiedad, las fotos sueltas son de ella aunque no lleven el código.
+		const i = (m && indice.get(clave(m[1]))) ?? indice.get(clave(nombre)) ?? (filas.length === 1 ? 0 : undefined);
 		const hecho = i !== undefined;
 		if (hecho) agregar(i, x);
 		if (!hecho) {
