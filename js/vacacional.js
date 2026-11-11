@@ -17,6 +17,13 @@
 		y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
 		return y + '-' + pad(m + 1);
 	}
+	// Código corto de reserva, sin letras ni números que se confundan (0/O, 1/I).
+	function codigoReserva() {
+		var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', n = new Uint8Array(6), c = 'EQ-';
+		crypto.getRandomValues(n);
+		for (var i = 0; i < n.length; i++) c += letras[n[i] % letras.length];
+		return c;
+	}
 	function diasDelMes(ym) { return new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate(); }
 
 	function iniciar(card) {
@@ -283,12 +290,15 @@
 				}
 				var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito });
 				var n = selHuespedes ? Math.max(1, +selHuespedes.value || 1) : 1;
+				var codigo = codigoReserva();
 				return {
+					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
+					gracias: fmt(t.vacCodigo, { codigo: codigo }),
 					datos: {
-						llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
+						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'
 					},
-					resumen: fmt(t.vacResumen, {
+					resumen: codigo + ' · ' + fmt(t.vacResumen, {
 						llegada: estado.llegada, salida: estado.salida, noches: noches(c.noches),
 						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
 					})

@@ -28,6 +28,7 @@ const ES = {
 	vacSinCobro: 'Todavía no se cobra nada: un asesor confirma la disponibilidad y te dice cómo pagar.',
 	vacErrFechas: 'Elige la llegada y la salida en el calendario.', vacErrOcupada: 'Hay noches ocupadas entre esas fechas. Elige otras.',
 	vacErrMinimo: 'La estancia mínima es de {n} noches.', vacErrPasado: 'La llegada no puede ser antes de hoy.',
+	vacCodigo: '¡Solicitud enviada! Tu código de reserva es {codigo}. Te confirmamos la disponibilidad muy pronto.',
 	vacResumen: 'Solicitud de reserva: llegada {llegada}, salida {salida} ({noches}), {huespedes}. Total aprox. {total} con impuestos.',
 	fHuespedesMax: 'Huéspedes máximo', fNochesMin: 'Estancia mínima', fHorario: 'Llegada y salida',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas',
@@ -39,7 +40,7 @@ const ES = {
 	resenasGoogle: 'Reseñas en Google', verEnGoogle: 'Ver todas en Google', dejarResena: 'Dejar una reseña', resenasTotal: 'reseñas',
 	basadoEn: 'Basado en', leerMas: 'Leer más', leerMenos: 'Leer menos', verResena: 'Ver reseña', publicadaEn: 'Publicada en', anonimo: 'Usuario de Google',
 	enVenta: 'En venta', enRenta: 'En renta', enVacacional: 'Renta vacacional', verDetalles: 'Ver detalles', precioRebajado: 'Precio rebajado', antes: 'Antes', precioConsultar: 'Precio a consultar', mes: '/mes',
-	habCorto: 'hab', parqCorto: 'parq.', habitacion: 'habitación', habitaciones: 'habitaciones', bano: 'baño', banos: 'baños',
+	habitacion: 'habitación', habitaciones: 'habitaciones', bano: 'baño', banos: 'baños',
 	// Formulario
 	nombre: 'Nombre', telefono: 'Teléfono / WhatsApp', telefonoPh: '', correo: 'Correo electrónico', mensaje: 'Mensaje',
 	fechaVisita: 'Fecha preferida para visitar (opcional)', tipoVisita: 'Tipo de visita', presencial: 'Presencial', videollamada: 'Videollamada',
@@ -135,6 +136,7 @@ const EN = {
 	vacSinCobro: 'You won\'t be charged yet: an advisor confirms availability and tells you how to pay.',
 	vacErrFechas: 'Pick your check-in and check-out dates on the calendar.', vacErrOcupada: 'Some nights in those dates are booked. Please pick others.',
 	vacErrMinimo: 'The minimum stay is {n} nights.', vacErrPasado: 'Check-in can\'t be before today.',
+	vacCodigo: 'Request sent! Your booking code is {codigo}. We will confirm availability shortly.',
 	vacResumen: 'Booking request: check-in {llegada}, check-out {salida} ({noches}), {huespedes}. Approx. total {total} incl. taxes.',
 	fHuespedesMax: 'Max. guests', fNochesMin: 'Minimum stay', fHorario: 'Check-in / check-out',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all',
@@ -146,7 +148,7 @@ const EN = {
 	resenasGoogle: 'Google reviews', verEnGoogle: 'See all on Google', dejarResena: 'Write a review', resenasTotal: 'reviews',
 	basadoEn: 'Based on', leerMas: 'Read more', leerMenos: 'Read less', verResena: 'View review', publicadaEn: 'Posted on', anonimo: 'Google user',
 	enVenta: 'For sale', enRenta: 'For rent', enVacacional: 'Vacation rental', verDetalles: 'View details', precioRebajado: 'Price reduced', antes: 'Was', precioConsultar: 'Price on request', mes: '/mo',
-	habCorto: 'bd', parqCorto: 'pkg', habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
+	habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
 	nombre: 'Full name', telefono: 'Phone / WhatsApp', telefonoPh: '+1 555 123 4567', correo: 'Email', mensaje: 'Message',
 	fechaVisita: 'Preferred visit date (optional)', tipoVisita: 'Visit type', presencial: 'In person', videollamada: 'Video tour',
 	enviar: 'Send', empresa: 'Company', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
@@ -226,7 +228,7 @@ const TECNICOS = new Set(['htmlLang', 'ogLocale', 'dateLocale', 'otroIdioma']);
 // Grupos del editor "Textos del sitio" del panel. Lo que no esté aquí aparece en "Otros".
 export const GRUPOS_TEXTOS = [
 	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'zonas', 'vendeBoton', 'vendeQue', 'vendeQuePh', 'cerrarAviso', 'plantilla', 'escribenos']],
-	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'habCorto', 'parqCorto', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
+	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
 	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsGracias', 'jsFallo']],
 	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
 	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'vacacional', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'cuentanos', 'teAyudamos', 'noEncuentras', 'buscarFiltrar', 'cerrarFiltros', 'jsVer', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],
@@ -234,7 +236,7 @@ export const GRUPOS_TEXTOS = [
 	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
 	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaPlazoContrato', 'rentaPlazoAnio', 'rentaPlazoAnios', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDEfectivo', 'rentaDGastos', 'rentaDIusi', 'rentaDComision', 'rentaDExento', 'rentaDIsr', 'rentaDIvaPeq', 'rentaDIvaGen', 'rentaDNeto', 'rentaDNetoMes', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
-	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'fHuespedesMax', 'fNochesMin', 'fHorario']],
+	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'fHuespedesMax', 'fNochesMin', 'fHorario']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
 ];

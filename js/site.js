@@ -176,8 +176,8 @@
 			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
 			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
 			// Cuadro de reserva (js/vacacional.js): sin fechas válidas no se envía.
+			var reserva = typeof form.eqReserva === 'function' ? form.eqReserva() : null;
 			if (typeof form.eqReserva === 'function') {
-				var reserva = form.eqReserva();
 				if (!reserva) return;
 				lead.reserva = reserva.datos;
 				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
@@ -203,7 +203,7 @@
 				}
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
-				setStatus(form, T.gracias, true);
+				setStatus(form, reserva ? reserva.gracias : T.gracias, true);
 			};
 			var fail = function () {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
