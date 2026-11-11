@@ -7,6 +7,7 @@ import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
 import { estadoDe } from '../estados.js';
 import { colorTema } from '../tema-def.js';
+import { telefonoWa, whatsappUrl } from '../formato.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 const TIPO_LABEL = Object.fromEntries(TIPOS);
@@ -54,10 +55,9 @@ const ic = (nombre) => (nombre ? `<span class="icon-${nombre} ic" aria-hidden="t
 
 // Enlaces del contacto para que en el PDF se pueda tocar el WhatsApp, el teléfono o el correo.
 function enlaceTelefono(telefono, titulo) {
-	const digitos = String(telefono || '').replace(/\D/g, '');
-	if (!digitos) return '';
+	if (!telefonoWa(telefono)) return '';
 	return /whatsapp/i.test(telefono)
-		? `https://wa.me/${digitos}?text=${encodeURIComponent(`Hola, vi el listado «${titulo}» y me interesa una propiedad.`)}`
+		? whatsappUrl(telefono, `Hola, vi el listado «${titulo}» y me interesa una propiedad.`)
 		: `tel:${String(telefono).replace(/[^\d+]/g, '')}`;
 }
 const iconoTelefono = (telefono) => ic(/whatsapp/i.test(telefono) ? 'whatsapp' : 'phone');

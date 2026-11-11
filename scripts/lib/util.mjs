@@ -1,4 +1,5 @@
 import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
+import { miles, prefijoMoneda } from '../../admin/js/formato.js';
 // Utilidades compartidas por el generador del sitio.
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -37,19 +38,17 @@ export function deepMerge(base, override) {
 }
 
 // Número con coma en miles y millones y punto en decimales (2,226.47), como se usa en Guatemala.
-export const cifra = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
-
-const CURRENCY_PREFIX = { USD: 'US$', GTQ: 'Q' };
+export const cifra = miles;
 
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
 	if (!precio) return lang === 'en' ? 'Price on request' : 'Precio a consultar';
 	if (operacion === 'vacacional') {
-		const v = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 2 });
-		return lang === 'en' ? `From ${CURRENCY_PREFIX[moneda] || moneda} ${v} per night` : `Desde ${CURRENCY_PREFIX[moneda] || moneda} ${v} por noche`;
+		const v = miles(precio);
+		return lang === 'en' ? `From ${prefijoMoneda(moneda)} ${v} per night` : `Desde ${prefijoMoneda(moneda)} ${v} por noche`;
 	}
 	const n = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 0 });
 	const suffix = operacion === 'renta' ? (lang === 'en' ? ' /mo' : ' /mes') : '';
-	return `${CURRENCY_PREFIX[moneda] || moneda} ${n}${suffix}`;
+	return `${prefijoMoneda(moneda)} ${n}${suffix}`;
 }
 
 export const TIPOS = {

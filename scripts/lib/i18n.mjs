@@ -266,4 +266,4 @@ export const TIPOS_EN = {
 
 export const ESTADOS_EN = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.en]));
 
-export const M2_A_FT2 = 10.7639;
+export { M2_A_FT2 } from '../../admin/js/formato.js';

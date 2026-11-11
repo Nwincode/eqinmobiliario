@@ -1,5 +1,6 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
+import { M2_A_FT2 } from './formato.js';
 
 const TC = 7.7; // 1 US$ ≈ 7.7 Q
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -314,7 +315,7 @@ const DICCIONARIO = {
 };
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const traducirAmenidad = (a) => DICCIONARIO[sinAcentos(a).replace(/\s+/g, ' ').trim()] || a;
-const sqft = (m2) => Math.round(n(m2) * 10.764).toLocaleString('en-US');
+const sqft = (m2) => Math.round(n(m2) * M2_A_FT2).toLocaleString('en-US');
 
 function datosEn(p) {
 	const d = [];
