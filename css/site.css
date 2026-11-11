@@ -885,8 +885,36 @@ a {
 	font-size: 17px;
 }
 .prop-datos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 10px;
 	font-size: 13px;
 	color: var(--eq-ink);
+}
+.prop-dato {
+	white-space: nowrap;
+}
+.prop-dato .eq-ic {
+	margin-right: .3em;
+	color: var(--eq-primary);
+}
+/* Íconos propios (no están en la fuente): pared = construcción, pasto = terreno. */
+.icon-construccion::before,
+.icon-terreno::before {
+	content: '';
+	display: inline-block;
+	width: 1em;
+	height: 1em;
+	vertical-align: -.1em;
+	background: currentColor;
+	-webkit-mask: var(--ico) center / contain no-repeat;
+	mask: var(--ico) center / contain no-repeat;
+}
+.icon-construccion {
+	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h8v5H3zM13 3h8v5h-8zM3 9.5h3v5H3zM8 9.5h8v5H8zM18 9.5h3v5h-3zM3 16h8v5H3zM13 16h8v5h-8z'/%3E%3C/svg%3E");
+}
+.icon-terreno {
+	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M5 2h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zm7.2 17.5c-.2-5.6-1.7-9.8-4.6-12.7 3.9 2.3 6 6.5 6.4 12.7zm2.8 0c.1-3.9 1.4-6.9 4-9-1.3 2.8-1.9 5.8-1.8 9zm-5 0c-.3-2.9-1.6-5.1-3.8-6.5 3 .8 4.9 3 5.6 6.5z'/%3E%3C/svg%3E");
 }
 .property-item .property-content .price {
 	color: var(--eq-primary);

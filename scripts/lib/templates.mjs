@@ -352,12 +352,9 @@ function pageHero(ctx, title, image, crumbs) {
 // Datos cortos de la tarjeta: "3 hab · 4 baños · 2 parq." (o el área si no hay habitaciones).
 function specs(p) {
 	const t = TEXTOS[lng(p)];
-	const out = [];
-	if (p.habitaciones) out.push(`${p.habitaciones} ${t.habCorto}`);
-	if (p.banos) out.push(plural(p.banos, t.bano, t.banos));
-	if (p.parqueos) out.push(`${p.parqueos} ${t.parqCorto}`);
-	if (!out.length && (p.m2Construccion || p.m2Terreno)) out.push(area(p.m2Construccion || p.m2Terreno, lng(p)));
-	return esc(out.join(' · '));
+	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+		+ (p.m2Construccion ? dato('construccion', area(p.m2Construccion, lng(p)), t.fConstruccion) : dato('terreno', p.m2Terreno && area(p.m2Terreno, lng(p)), t.fTerreno));
 }
 
 // Clases completas (el CSS se depura buscando estos nombres tal cual).
@@ -921,8 +918,8 @@ function factsList(p) {
 		['bed', t.fHabitaciones, p.habitaciones],
 		['bath', t.fBanos, p.banos],
 		['car', t.fParqueos, p.parqueos],
-		['home2', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
-		['expand', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
+		['construccion', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
+		['terreno', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
 		['users', t.fHuespedesMax, vac ? vac.huespedesMax : ''],
 		['moon-o', t.fNochesMin, vac && vac.nochesMin > 1 ? fmt(t.vacNochesN, { n: vac.nochesMin }) : ''],
 		['clock-o', t.fHorario, vac ? `${fmt(t.vacCheckIn, { hora: vac.checkIn || '15:00' })} · ${fmt(t.vacCheckOut, { hora: vac.checkOut || '11:00' })}` : ''],
@@ -1143,8 +1140,8 @@ export function propertyPage(ctx, p) {
 		[p.habitaciones, t.fHabitaciones, 'bed'],
 		[p.banos, t.fBanos, 'bath'],
 		[p.parqueos, t.fParqueos, 'car'],
-		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'home2'],
-		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'expand']
+		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'construccion'],
+		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'terreno']
 	].filter(([v]) => v);
 	const visibles = fotos;
 	const galeria = `<div class="ficha-galeria-wrap">
@@ -1350,8 +1347,8 @@ export function vipLandingPage(ctx, p) {
 		['icon-bed', p.habitaciones, t.fHabitaciones],
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
-		['icon-home2', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
-		['icon-expand', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
+		['icon-construccion', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
+		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 
@@ -1959,8 +1956,8 @@ export function portalPage(ctx) {
 								<li data-pp="a-ubicacion" hidden>${ic('map-marker')}<span></span></li>
 								<li data-pp="a-hab" hidden>${ic('bed')}<span></span></li>
 								<li data-pp="a-banos" hidden>${ic('bath')}<span></span></li>
-								<li data-pp="a-construccion" hidden>${ic('home2')}<span></span></li>
-								<li data-pp="a-terreno" hidden>${ic('expand')}<span></span></li>
+								<li data-pp="a-construccion" hidden>${ic('construccion')}<span></span></li>
+								<li data-pp="a-terreno" hidden>${ic('terreno')}<span></span></li>
 							</ul>
 							<ul class="pp-anuncio-fotos" data-pp="a-fotos" hidden></ul>
 							<details class="pp-anuncio-desc" data-pp="a-desc-caja" hidden>
