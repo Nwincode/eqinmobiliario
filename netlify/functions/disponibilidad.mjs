@@ -1,5 +1,5 @@
 // Noches ocupadas de una renta vacacional. GET /api/disponibilidad?id=<id de la propiedad>
-// Une las fechas bloqueadas en el panel con el calendario de Airbnb (iCal) del socio.
+// Une las fechas bloqueadas y las reservas confirmadas del panel con el calendario de Airbnb (iCal) del socio.
 // El enlace iCal es privado (properties/{id}/privado/socio) y se lee con la cuenta de servicio
 // (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY, rol "Cloud Datastore Viewer"). La respuesta lleva solo fechas:
 // nada de nombres, descripciones ni el enlace. El CDN la recuerda 10 minutos.
@@ -44,7 +44,7 @@ export default async (req) => {
 	const p = await leerPublico(`properties/${id}`);
 	if (!p || p.publicado !== true || p.operacion !== 'vacacional') return respuesta(404, { error: 'no encontrada' }, 60);
 
-	const manuales = (p.vacacional?.bloqueos || []).map((b) => ({ desde: b?.desde, hasta: b?.hasta }));
+	const manuales = [...(p.vacacional?.bloqueos || []), ...(p.vacacional?.reservadas || [])].map((b) => ({ desde: b?.desde, hasta: b?.hasta }));
 	let airbnb = null;
 	if (datosConfigurados()) {
 		try {

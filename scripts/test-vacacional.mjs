@@ -170,4 +170,18 @@ test('ganancia = 20 % de la suma del costo del socio de todas las noches', () =>
 	assert.equal(una.ganancia, 40);
 });
 
+test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {
+	const r = (id, llegada, salida, extra = {}) => ({ id, propertyId: 'casa1', llegada, salida, estado: 'confirmada', costoSocio: 300, alojamiento: 360, moneda: 'USD', ...extra });
+	const lista = [r('a', '2026-12-01', '2026-12-04'), r('b', '2026-12-04', '2026-12-06', { pagadoSocio: true }),
+		r('c', '2026-12-10', '2026-12-12', { estado: 'pendiente' }), r('d', '2026-12-02', '2026-12-03', { propertyId: 'casa2', moneda: 'GTQ' })];
+	// La salida de una es la llegada de otra: no chocan.
+	igual(V.choquesReserva(r('x', '2026-12-04', '2026-12-05'), lista).map((x) => x.id), ['b']);
+	igual(V.choquesReserva(r('x', '2026-12-06', '2026-12-11'), lista), []);
+	igual(V.choquesReserva(lista[0], lista), []);
+	igual(V.rangosReservados(lista, 'casa1'), [{ desde: '2026-12-01', hasta: '2026-12-06' }]);
+	igual(V.resumenReservas(lista), { reservas: 3, noches: 6, porMoneda: {
+		USD: { costoSocio: 600, pagado: 300, porPagar: 300, ganancia: 120 },
+		GTQ: { costoSocio: 300, pagado: 0, porPagar: 300, ganancia: 60 } } });
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

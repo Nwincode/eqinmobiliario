@@ -128,7 +128,9 @@ export function vacacionalPublico(d) {
 			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
 			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
 			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
-			bloqueos
+			bloqueos,
+			// Reservas confirmadas: las escribe Rentas vacacionales; aquí solo se conservan.
+			reservadas: V.unirRangos(v.reservadas || [])
 		}
 	};
 }

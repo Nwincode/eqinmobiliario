@@ -47,6 +47,7 @@ async function cargar(nombre, filtroAsesor = '') {
 export const loadClientes = (asesor) => cargar('clientes', asesor);
 export const loadActividades = (asesor) => cargar('actividades', asesor);
 export const loadPropietarios = (asesor) => cargar('propietarios', asesor);
+export const loadReservas = (asesor) => cargar('reservas', asesor);
 
 export async function loadPropiedades() {
 	const snap = await getDocs(collection(db, 'properties'));

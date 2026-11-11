@@ -164,6 +164,13 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
     }
+    // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
+    match /reservas/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
     match /cotizaciones/{id} {
       allow read: if propio();
