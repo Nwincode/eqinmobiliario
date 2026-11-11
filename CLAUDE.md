@@ -1,39 +1,34 @@
 # Reglas para trabajar en este repositorio
 
-## Regla obligatoria del chat: /compact al 15 % de uso
-Cuando la sesión llegue al 15 % de uso del contexto se hace `/compact`, antes de seguir con cualquier otra cosa:
-1. Hacer commit y push de todo el trabajo hecho hasta ese momento, en la rama del chat.
-2. Compactar dejando claro qué se pidió, qué quedó hecho y qué falta.
-3. Seguir en este mismo chat; no abrir otro para la página, para no tener versiones separadas.
+## Prioridades del usuario (valen para todo, en este orden)
+Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
+- La plataforma existe para quitarle trabajo al usuario, no para darle más.
+- Lo que ya está guardado no se vuelve a pedir: se sugiere o se rellena solo.
+- Antes de programar algo nuevo, buscar si ya existe y reutilizarlo (CSS sobre todo; también JS y HTML).
+  Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
+- Nada de parches encima de código viejo: si algo está mal, se arregla en su origen.
+- Gastar pocos tokens: respuestas cortas y sin trabajo que no se pidió.
 
-`.claude/settings.json` hace que la compactación automática ocurra al 15 % de uso
-(`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`).
+## Cómo se conversa
+- Si el usuario pregunta algo, responder primero y directo (sí/no y por qué); después lo demás.
+- Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
+- Al 15 % de uso del contexto: commit y push de lo hecho, y `/compact` dejando claro qué se pidió,
+  qué quedó y qué falta. Se sigue en el mismo chat. (`.claude/settings.json` lo hace automático.)
 
-## Regla obligatoria de diseño: siempre con agentes y con revisión final
-Excepción para ahorrar tokens: si el cambio es sencillo (texto, color, un botón, un ajuste de espacio
-o de tamaño), lo hace Claude directo, sin agentes ni revisión doble. Al terminar, le propone al
-usuario las mejoras que vea, y el usuario decide si se hacen.
+## Diseño
+- Lo hace Claude directo, sin agentes de diseño ni agentes revisores.
+- Cambio sencillo (texto, color, un botón, un espacio): se hace de una vez.
+- Diseño grande o nuevo (página, sección, tarjeta, panel, correo): primero un boceto corto para que
+  el usuario lo apruebe; después se programa.
+- Revisión: Claude usa el sitio como cliente, en celular (390 px) y computadora (1280 px), corrige lo
+  que encuentre y le muestra al usuario la captura final y qué mejoró.
+- Colores: solo de `css/tema.css` y de Contenido → Colores del panel; nunca escritos a mano.
+- Íconos: siempre referidos a lo que se habla.
+- Botones compactos, sobre todo en celular: pequeños, de ícono cuando se pueda, sin ocupar una fila
+  entera; área de toque de al menos 44 px.
+- Carruseles: solo flechas finas `<` `>`, sin texto ni cajas pesadas, con `aria-label`.
 
-Cada vez que se haga o se cambie un diseño grande o nuevo (página, sección, tarjeta, panel, correo, imagen):
-1. El diseño lo hace un agente (herramienta Agent), con estas reglas y los archivos del sitio como contexto.
-2. Al terminar, otro agente lo revisa con capturas en celular y computadora. Busca qué se puede mejorar:
-   - jerarquía, espacios y alineación;
-   - contraste, accesibilidad y textos;
-   - que se vea igual al resto del sitio.
-3. Se aplican las mejoras que encuentre y se vuelve a revisar, hasta que no queden mejoras importantes.
-4. Al usuario se le muestra la captura final y qué se mejoró.
-
-### Botones de carrusel (anterior / siguiente)
-Siempre minimalistas: solo el ícono de flecha `<` y `>`, sin texto ("Anterior", "Siguiente"),
-sin cajas grandes ni rellenos pesados. Círculo o espacio discreto, flecha fina, colores de `css/tema.css`,
-área de toque de al menos 44 px y `aria-label` para lectores de pantalla. Nunca volver al estilo con texto.
-
-## Otras reglas
-- Cuando el usuario haga una pregunta, responderla primero y de forma directa (sí/no y por qué); después proponer o hacer lo demás.
-- Un solo chat a la vez para la página eqinmobiliario.gt; no mezclar con el proyecto "ptg".
+## Seguridad y GitHub
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
-- No crear pull requests si no se piden.
-- Los colores salen de `css/tema.css` y de Contenido → Colores del panel; no escribir colores a mano.
-- Los íconos siempre deben referirse a lo que se habla.
-- Antes de programar algo nuevo, buscar si ya existe y reutilizarlo. Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
-- Botones compactos en todo el sitio, sobre todo en celular: pequeños, de ícono cuando se pueda, sin ocupar una fila entera; el área de toque sigue siendo de al menos 44 px.
+- El panel se prueba con el emulador y datos inventados; nunca con datos reales.
+- Pull requests: Claude hace commit, push, PR y merge solo, salvo que una tarea diga que no.
