@@ -415,6 +415,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: var(--adm-dark);
 	font-variant-numeric: tabular-nums;
 }
+/* Varias monedas en una tarjeta: un renglón por moneda, más pequeño. */
+.stat-card .stat-value > div {
+	font-size: 1.25rem;
+	line-height: 1.35;
+}
 .stat-card .stat-label {
 	color: var(--adm-muted);
 	font-size: 13px;

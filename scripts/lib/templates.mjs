@@ -1112,7 +1112,8 @@ function datosVacacional(p) {
 		deposito: num(v.deposito),
 		checkIn: hora(v.checkIn, '15:00'),
 		checkOut: hora(v.checkOut, '11:00'),
-		bloqueos: (v.bloqueos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta) })).filter((x) => x.desde && x.hasta)
+		// Fechas ocupadas: bloqueos del panel y reservas confirmadas.
+		bloqueos: [...(v.bloqueos || []), ...(v.reservadas || [])].map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta) })).filter((x) => x.desde && x.hasta)
 	};
 }
 function reservaBox(ctx, p) {

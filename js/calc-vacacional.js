@@ -185,6 +185,40 @@
 		return { noches: dias.length, costoSocio: costo, ganancia: r2(alojamiento - costo), alojamiento: alojamiento };
 	}
 
+	// ---------------------------------------------------------------- Reservas (panel)
+	// Una reserva: { id, propertyId, llegada, salida, estado, costoSocio, alojamiento, pagadoSocio, moneda }.
+	// Solo las confirmadas ocupan fechas y cuentan en el estado de cuenta del propietario.
+	function confirmada(r) { return r && r.estado === 'confirmada' && esFecha(r.llegada) && esFecha(r.salida) && r.salida > r.llegada; }
+
+	// Reservas confirmadas de la misma casa que se cruzan con esta (la salida no ocupa noche).
+	function choquesReserva(reserva, lista) {
+		return (lista || []).filter(function (r) {
+			return confirmada(r) && r.id !== reserva.id && r.propertyId === reserva.propertyId
+				&& r.llegada < reserva.salida && reserva.llegada < r.salida;
+		});
+	}
+
+	// Fechas que las reservas confirmadas de una casa bloquean en el calendario público.
+	function rangosReservados(lista, propertyId) {
+		return unirRangos((lista || []).filter(function (r) { return confirmada(r) && r.propertyId === propertyId; })
+			.map(function (r) { return { desde: r.llegada, hasta: r.salida }; }));
+	}
+
+	// Estado de cuenta: reservas, noches y, por moneda, lo que toca al propietario y la ganancia.
+	function resumenReservas(lista) {
+		var out = { reservas: 0, noches: 0, porMoneda: {} };
+		(lista || []).filter(confirmada).forEach(function (r) {
+			var m = out.porMoneda[r.moneda || 'USD'] || (out.porMoneda[r.moneda || 'USD'] = { costoSocio: 0, pagado: 0, porPagar: 0, ganancia: 0 });
+			var costo = Number(r.costoSocio) || 0;
+			out.reservas++;
+			out.noches += nochesEntre(r.llegada, r.salida);
+			m.costoSocio = r2(m.costoSocio + costo);
+			m[r.pagadoSocio ? 'pagado' : 'porPagar'] = r2(m[r.pagadoSocio ? 'pagado' : 'porPagar'] + costo);
+			m.ganancia = r2(m.ganancia + (Number(r.alojamiento) || 0) - costo);
+		});
+		return out;
+	}
+
 	// ---------------------------------------------------------------- iCal (Airbnb, Booking…)
 	// Devuelve solo fechas: [{ desde, hasta }]. No guarda nombres ni descripciones.
 	function fechaIcal(valor) {
@@ -222,6 +256,7 @@
 		nochesOcupadas: nochesOcupadas, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
-		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia
+		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
+		choquesReserva: choquesReserva, rangosReservados: rangosReservados, resumenReservas: resumenReservas
 	};
 });
