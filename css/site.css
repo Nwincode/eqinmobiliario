@@ -3298,3 +3298,79 @@ a:hover > .eq-ic-fin,
 	border: 0;
 	color: var(--eq-ink);
 }
+
+/* ================================================================
+   Listado vacacional: buscador por fechas y pasos para reservar
+   ================================================================ */
+.vac-buscar {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	max-width: 460px;
+	margin: -22px auto 20px;
+	padding: 8px 8px 8px 14px;
+	background: var(--eq-white);
+	border: 1px solid var(--eq-line);
+	border-radius: 12px;
+}
+.vac-buscar > .eq-ic {
+	margin: 0;
+	color: var(--eq-primary);
+}
+.vac-buscar-campos {
+	flex: 1;
+	min-width: 0;
+}
+.vac-buscar-fechas {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.vac-buscar input,
+.vac-buscar select {
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--eq-ink);
+}
+.vac-buscar input {
+	flex: 1;
+	font-size: 14px;
+	font-weight: 600;
+}
+.vac-buscar select {
+	font-size: 12px;
+}
+.vac-pasos {
+	display: grid;
+	gap: 10px;
+	margin: 0 0 8px;
+	padding: 0;
+	list-style: none;
+	counter-reset: paso;
+}
+.vac-pasos li {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	counter-increment: paso;
+}
+.vac-pasos li::before {
+	content: counter(paso);
+	flex: none;
+	width: 26px;
+	height: 26px;
+	border-radius: 50%;
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+	font-size: 13px;
+	font-weight: 700;
+	line-height: 26px;
+	text-align: center;
+}
+@media (min-width: 768px) {
+	.vac-buscar { margin-top: -104px; margin-bottom: 40px; }
+	.vac-pasos { grid-template-columns: repeat(3, 1fr); }
+}

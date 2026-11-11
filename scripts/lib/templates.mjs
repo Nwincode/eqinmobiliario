@@ -353,7 +353,7 @@ function pageHero(ctx, title, image, crumbs) {
 function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
-	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.fHuespedesMax) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
 		+ (p.m2Construccion ? dato('construccion', area(p.m2Construccion, lng(p)), t.fConstruccion) : dato('terreno', p.m2Terreno && area(p.m2Terreno, lng(p)), t.fTerreno));
 }
 
@@ -380,7 +380,8 @@ export function propertyCard(p, { lazy = true } = {}) {
 	const data = [
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
-		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()]
+		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()],
+		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin }) => ({ bloqueos, huespedesMax, nochesMin }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	return `<div class="property-item" ${data}>
 								<a href="${url}" class="img" tabindex="-1">
@@ -706,9 +707,30 @@ function chips(col, titulo, name, opciones, sel = '') {
 				</fieldset>`;
 }
 
+// Buscador del listado vacacional: fechas y huéspedes; js/vacacional.js oculta las casas ocupadas.
+function vacBuscador(ctx, list) {
+	const t = tr(ctx);
+	const max = Math.max(2, ...list.map((p) => datosVacacional(p).huespedesMax));
+	return `<form class="vac-buscar" id="vac-buscar" role="search" aria-label="${t.vlBuscar}">
+				${ic('calendar')}
+				<div class="vac-buscar-campos">
+					<span class="vac-buscar-fechas">
+						<input type="date" name="llegada" aria-label="${t.vacLlegada}" required>
+						<span aria-hidden="true">–</span>
+						<input type="date" name="salida" aria-label="${t.vacSalida}" required>
+					</span>
+					<select name="huespedes" aria-label="${t.vacHuespedes}">
+						${Array.from({ length: max }, (_, i) => `<option value="${i + 1}"${i === 1 ? ' selected' : ''}>${i ? fmt(t.vacHuespedesN, { n: i + 1 }) : t.vacHuesped1}</option>`).join('')}
+					</select>
+				</div>
+				<button type="submit" class="btn btn-primary btn-ico" aria-label="${t.vlBuscar}">${ic('search')}</button>
+			</form>`;
+}
+
 export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
 	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
+	const vac = operacion === 'vacacional';
 	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
@@ -724,7 +746,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
-			<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
+			${vac ? vacBuscador(ctx, list) : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
 				<div class="col-12 filtros-cabeza d-md-none">
 					<strong>${t.buscar}</strong>
 					<button type="button" class="btn btn-outline-secondary btn-ico" id="filtros-cerrar" aria-label="${t.cerrarFiltros}">${ic('close')}</button>
@@ -776,14 +798,16 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 						<option value="precio-desc">${t.precioDesc}</option>
 					</select>
 				</label>
-			</div>
+			</div>`}
 			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
 
-			<div class="row" id="listing-grid">
+			<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
 				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
 			</div>
-			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
+			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
+			${vac ? `<h2 class="h5 mt-4 mb-3">${t.vlComo}</h2>
+			<ol class="vac-pasos">${[t.vlPaso1, t.vlPaso2, t.vlPaso3].map((x) => `<li>${x}</li>`).join('')}</ol>` : ''}
 		</div>
 	</div>
 	${contenido ? `<div class="section pt-0">
@@ -811,6 +835,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		alternates,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
 		image: imagen || undefined,
+		extraJs: vac ? VAC_JS : '',
 		preloadImage: heroImg,
 		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
 	}, body);
