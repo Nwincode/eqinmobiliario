@@ -8,13 +8,13 @@
 		errorDatos: 'Please enter your name and a valid phone number (8+ digits).',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
-		una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
+		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorDatos: 'Escribe tu nombre y un teléfono válido (8 dígitos o más).',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
-		una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
+		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
 
@@ -224,6 +224,8 @@
 		var countEl = document.getElementById('listing-count');
 		var emptyEl = document.getElementById('listing-empty');
 		var pager = document.getElementById('listing-pagination');
+		var verBtn = document.getElementById('listing-ver');
+		var abrirBtn = document.getElementById('filtros-abrir');
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
 		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/', vacacional: document.body.getAttribute('data-ruta-vacacional') || '' };
 		var presetZona = document.body.getAttribute('data-preset-zona') || '';
@@ -274,6 +276,7 @@
 			});
 
 			countEl.textContent = visible.length === 1 ? T.una : visible.length + T.varias;
+			verBtn.textContent = T.ver + ' ' + countEl.textContent;
 			emptyEl.hidden = visible.length > 0;
 			pager.innerHTML = '';
 			if (pages > 1) {
@@ -303,7 +306,8 @@
 		};
 
 		// La operación cambia de página para que cada listado tenga su propia URL indexable.
-		form.elements.operacion.addEventListener('change', function () {
+		form.addEventListener('change', function (e) {
+			if (e.target.name !== 'operacion') return;
 			var op = form.elements.operacion.value;
 			if (op === preset) return;
 			// En la página de una zona se conserva la zona como filtro del nuevo listado.
@@ -327,7 +331,20 @@
 			clearTimeout(timer);
 			timer = setTimeout(function () { page = 1; apply(true); }, 250);
 		});
-		form.addEventListener('submit', function (e) { e.preventDefault(); page = 1; apply(true); });
+		form.elements.orden.addEventListener('change', function () { page = 1; apply(true); });
+		form.addEventListener('submit', function (e) { e.preventDefault(); page = 1; apply(true); filtros(false); });
+
+		// En celular los filtros son un panel inferior que abre la lupa.
+		var filtros = function (abrir) {
+			form.classList.toggle('abierto', abrir);
+			abrirBtn.setAttribute('aria-expanded', abrir);
+		};
+		abrirBtn.addEventListener('click', function () { filtros(true); form.elements.q.focus(); });
+		document.getElementById('filtros-cerrar').addEventListener('click', function () { filtros(false); });
+		document.addEventListener('keydown', function (e) { if (e.key === 'Escape') filtros(false); });
+		document.addEventListener('click', function (e) {
+			if (!form.contains(e.target) && !abrirBtn.contains(e.target)) filtros(false);
+		});
 		form.addEventListener('reset', function () {
 			setTimeout(function () {
 				form.elements.operacion.value = preset;
@@ -352,8 +369,11 @@
 		if (iaBtn) {
 			var iaInput = document.getElementById('ia-texto');
 			var iaStatus = document.querySelector('.ia-search-status');
-			var opciones = function (sel) {
-				return Array.prototype.slice.call(sel.options).filter(function (o) { return o.value; });
+			// Opciones de un desplegable o de un grupo de pastillas, con su texto visible.
+			var opciones = function (campo) {
+				return Array.prototype.map.call(campo.options || campo, function (o) {
+					return { value: o.value, texto: (o.labels ? o.labels[0] : o).textContent.trim() };
+				}).filter(function (o) { return o.value; });
 			};
 			var SINONIMOS = {
 				casa: ['casa', 'casas', 'house', 'houses', 'home', 'homes', 'chalet'],
@@ -381,7 +401,7 @@
 				if (rutas.vacacional && /\b(vacacional|vacaciones|vacation|airbnb|por noche|per night|nightly|noches|nights)\b/.test(t)) r.operacion = 'vacacional';
 				else if (/\b(venta|vender|comprar|compra|buy|sale)\b/.test(t)) r.operacion = 'venta';
 				opciones(form.elements.tipo).some(function (o) {
-					var pals = (SINONIMOS[o.value] || []).concat([normalize(o.value), normalize(o.textContent)]);
+					var pals = (SINONIMOS[o.value] || []).concat([normalize(o.value), normalize(o.texto)]);
 					if (pals.some(function (w) { return w && palabra(t, w); })) { r.tipo = o.value; return true; }
 					return false;
 				});
@@ -406,7 +426,7 @@
 			};
 			var etiqueta = function (sel, v) {
 				var o = opciones(sel).filter(function (x) { return x.value === v; })[0];
-				return o ? o.textContent.trim() : v;
+				return o ? o.texto : v;
 			};
 			var buscarIA = function () {
 				var texto = iaInput.value.trim();

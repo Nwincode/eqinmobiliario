@@ -148,19 +148,137 @@
 
 /* Listado con filtros */
 .listing-filters {
-	background: #fff;
+	background: var(--eq-white);
 	padding: 20px;
-	border-radius: 8px;
-	box-shadow: 0 10px 30px -20px rgba(0, 0, 0, .3);
+	border-radius: var(--eq-radius);
+	box-shadow: 0 10px 30px -20px color-mix(in srgb, var(--eq-dark) 30%, transparent);
 	margin-top: -80px;
 	position: relative;
 	z-index: 3;
 }
+.listing-filters .form-control,
+.listing-filters .form-select {
+	height: var(--eq-btn-height);
+}
 .listing-filters .form-label {
+	float: none;
+	text-align: left;
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--eq-ink);
 	margin-bottom: .25rem;
+}
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.chips input {
+	position: absolute;
+	opacity: 0;
+}
+.chips span {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 16px;
+	border: 1px solid var(--eq-line);
+	border-radius: 22px;
+	font-size: 14px;
+	cursor: pointer;
+}
+.chips input:checked + span {
+	background: var(--eq-primary);
+	border-color: var(--eq-primary);
+	color: var(--eq-white);
+}
+.chips input:focus-visible + span {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.filtros-cabeza,
+.filtros-pie,
+.listing-barra {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.filtros-pie {
+	justify-content: flex-end;
+}
+.listing-barra {
+	margin-bottom: 24px;
+}
+.listing-barra p {
+	margin-right: auto;
+}
+/* Ordenar: botón de ícono con el desplegable nativo encima (invisible). */
+.listing-orden {
+	position: relative;
+}
+.listing-orden select {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+@media (max-width: 767.98px) {
+	/* Portada corta: solo el título, para llegar rápido a las propiedades. */
+	body[data-listing] .hero.page-inner,
+	body[data-listing] .hero.page-inner > .container > .row {
+		height: auto;
+		min-height: 0;
+	}
+	body[data-listing] .hero.page-inner {
+		padding: 76px 0 14px;
+	}
+	body[data-listing] .hero.page-inner .heading {
+		font-size: 22px;
+		margin: 0;
+	}
+	body[data-listing] .hero.page-inner .breadcrumb {
+		display: none;
+	}
+	body[data-listing] .section {
+		padding-top: 12px;
+	}
+	.listing-barra {
+		margin-bottom: 12px;
+	}
+	/* Filtros en panel inferior */
+	.listing-filters {
+		position: fixed;
+		inset: auto 0 0;
+		z-index: 1050;
+		margin: 0;
+		max-height: 88vh;
+		overflow-y: auto;
+		padding: 8px 12px 0;
+		border-radius: 16px 16px 0 0;
+		transform: translateY(100%);
+		visibility: hidden;
+		transition: transform .25s, visibility .25s;
+	}
+	.listing-filters.abierto {
+		transform: none;
+		visibility: visible;
+		box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--eq-dark) 55%, transparent);
+	}
+	.filtros-pie {
+		position: sticky;
+		bottom: 0;
+		background: var(--eq-white);
+		padding-block: 12px;
+		border-top: 1px solid var(--eq-line);
+	}
+	.filtros-pie .btn-primary {
+		flex-grow: 1;
+	}
+	.listing-col .property-item .img img {
+		height: 200px;
+		object-fit: cover;
+	}
 }
 .custom-pagination a {
 	cursor: pointer;
@@ -313,7 +431,6 @@
 body {
 	color: var(--eq-ink) !important;
 }
-.property-item .property-content .specs .caption,
 .meta {
 	color: var(--eq-ink);
 }
@@ -746,8 +863,44 @@ a {
 .property-item .img img {
 	border-radius: 0;
 }
+.property-item {
+	position: relative;
+}
 .property-item .property-content {
-	padding: 22px 22px 24px;
+	position: static;
+	margin: 0;
+	padding: 12px 14px 14px;
+}
+.prop-etiqueta {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--eq-primary);
+}
+.prop-titulo {
+	display: block;
+	margin: 2px 0 8px;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--eq-dark);
+	text-decoration: none;
+}
+.prop-pie {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 4px 12px;
+}
+.property-item .property-content .price {
+	font-size: 17px;
+}
+.prop-datos {
+	font-size: 13px;
+	color: var(--eq-ink);
 }
 .property-item .property-content .price {
 	color: var(--eq-primary);

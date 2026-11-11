@@ -382,14 +382,15 @@ function pageHero(ctx, title, image, crumbs) {
 	</div>`;
 }
 
+// Datos cortos de la tarjeta: "3 hab · 4 baños · 2 parq." (o el área si no hay habitaciones).
 function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const out = [];
-	if (p.habitaciones) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bed me-2"></span><span class="caption">${plural(p.habitaciones, t.habitacion, t.habitaciones)}</span></span>`);
-	if (p.banos) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bath me-2"></span><span class="caption">${plural(p.banos, t.bano, t.banos)}</span></span>`);
-	if (p.m2Construccion && out.length) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-home2 me-2"></span><span class="caption">${esc(area(p.m2Construccion, lng(p)))}</span></span>`);
-	if (!out.length && p.m2Terreno) out.push(`<span class="d-block d-flex align-items-center"><span class="icon-expand me-2"></span><span class="caption">${esc(area(p.m2Terreno, lng(p)))}</span></span>`);
-	return out.length ? `<div class="specs d-flex flex-wrap mb-4">${out.join('')}</div>` : '';
+	if (p.habitaciones) out.push(`${p.habitaciones} ${t.habCorto}`);
+	if (p.banos) out.push(plural(p.banos, t.bano, t.banos));
+	if (p.parqueos) out.push(`${p.parqueos} ${t.parqCorto}`);
+	if (!out.length && (p.m2Construccion || p.m2Terreno)) out.push(area(p.m2Construccion || p.m2Terreno, lng(p)));
+	return esc(out.join(' · '));
 }
 
 // Clases completas (el CSS se depura buscando estos nombres tal cual).
@@ -418,17 +419,16 @@ export function propertyCard(p, { lazy = true } = {}) {
 		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()]
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	return `<div class="property-item" ${data}>
-								<a href="${url}" class="img">
+								<a href="${url}" class="img" tabindex="-1">
 									<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${lazy ? ' loading="lazy"' : ''} width="800" height="600">
 									${estadoBadge(p)}
 								</a>
 								<div class="property-content">
-									<div class="price mb-2"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
-									<div>
-										<span class="d-block mb-2 text-black-50">${esc(p.titulo)}</span>
-										<span class="city d-block mb-3">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
-										${specs(p)}
-										<a href="${url}" class="btn btn-primary btn-sm">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span>${ic('arrow-right', true)}</a>
+									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
+									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
+									<div class="prop-pie">
+										<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
+										<span class="prop-datos">${specs(p)}</span>
 									</div>
 								</div>
 							</div>`;
@@ -732,6 +732,14 @@ export function homePage(ctx) {
 
 // ---------------------------------------------------------------- Listado
 
+// Opciones excluyentes como pastillas (radios): se tocan con el dedo sin abrir un desplegable.
+function chips(col, titulo, name, opciones, sel = '') {
+	return `<fieldset class="${col}">
+					<legend class="form-label">${titulo}</legend>
+					<div class="chips">${opciones.map(([v, txt]) => `<label><input type="radio" name="${name}" value="${esc(v)}"${v === sel ? ' checked' : ''}><span>${esc(txt)}</span></label>`).join('')}</div>
+				</fieldset>`;
+}
+
 export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
 	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
@@ -750,7 +758,11 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
-			<form class="listing-filters row g-2 align-items-end mb-5" id="listing-filters" role="search" aria-label="${t.filtrar}">
+			<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
+				<div class="col-12 filtros-cabeza d-md-none">
+					<strong>${t.buscar}</strong>
+					<button type="button" class="btn btn-outline-secondary btn-ico" id="filtros-cerrar" aria-label="${t.cerrarFiltros}">${ic('close')}</button>
+				</div>
 				${ctx.site.ia && ctx.site.ia.busquedaPublica ? `<div class="col-12 ia-search">
 					<label class="form-label" for="ia-texto">${t.busquedaInteligente}</label>
 					<div class="input-group">
@@ -763,61 +775,46 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<label class="form-label" for="f-q">${t.buscar}</label>
 					<input class="form-control" id="f-q" name="q" type="search" placeholder="${t.buscarPh}">
 				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-operacion">${t.operacion}</label>
-					<select class="form-select" id="f-operacion" name="operacion">
-						<option value="">${t.todas}</option>
-						<option value="venta"${operacion === 'venta' ? ' selected' : ''}>${t.venta}</option>
-						<option value="renta"${operacion === 'renta' ? ' selected' : ''}>${t.renta}</option>
-						${hayVacacional ? `<option value="vacacional"${operacion === 'vacacional' ? ' selected' : ''}>${t.vacacional}</option>` : ''}
-					</select>
-				</div>
-				<div class="col-6 col-md-3 col-lg-3">
-					<label class="form-label" for="f-tipo">${t.tipo}</label>
-					<select class="form-select" id="f-tipo" name="tipo">
-						<option value="">${t.todos}</option>
-						${tipos.map((tp) => `<option value="${esc(tp)}">${esc((ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp)}</option>`).join('')}
-					</select>
-				</div>
-				<div class="col-6 col-md-4 col-lg-3">
+				<div class="col-12 col-md-6 col-lg-4">
 					<label class="form-label" for="f-zona">${t.zona}</label>
 					<select class="form-select" id="f-zona" name="zona">
 						<option value="">${t.todas}</option>
 						${zonas.map((z) => `<option value="${esc(z)}"${z === zona ? ' selected' : ''}>${esc(z)}</option>`).join('')}
 					</select>
 				</div>
-				<div class="col-6 col-md-4 col-lg-2">
-					<label class="form-label" for="f-hab">${t.fHabitaciones}</label>
-					<select class="form-select" id="f-hab" name="habitaciones">
-						<option value="">${t.todas}</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
-					</select>
+				<div class="col-6 col-lg-2">
+					<label class="form-label" for="f-min">${t.precioMin}</label>
+					<input class="form-control" id="f-min" name="min" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
-				<div class="col-12 col-md-4 col-lg-3">
-					<label class="form-label" for="f-orden">${t.ordenar}</label>
-					<select class="form-select" id="f-orden" name="orden">
+				<div class="col-6 col-lg-2">
+					<label class="form-label" for="f-max">${t.precioMax}</label>
+					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
+				</div>
+				${chips('col-12 col-lg-6', t.operacion, 'operacion', [['', t.todas], ['venta', t.venta], ['renta', t.renta], ...(hayVacacional ? [['vacacional', t.vacacional]] : [])], operacion)}
+				${chips('col-12 col-lg-6', t.tipo, 'tipo', [['', t.todos], ...tipos.map((tp) => [tp, (ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp])])}
+				${chips('col-12 col-md-8 col-lg-6', t.fHabitaciones, 'habitaciones', [['', t.todas], ['1', '1+'], ['2', '2+'], ['3', '3+'], ['4', '4+']])}
+				<div class="col-12 col-md-4 col-lg-6 filtros-pie">
+					<button type="reset" class="btn btn-link">${t.limpiar}</button>
+					<button type="submit" class="btn btn-primary d-md-none" id="listing-ver">${t.jsVer} ${plural(list.length, t.propiedad, t.propiedadesN)}</button>
+				</div>
+			</form>
+
+			<div class="listing-barra">
+				<p class="mb-0" id="listing-count" aria-live="polite">${plural(list.length, t.propiedad, t.propiedadesN)}</p>
+				<button type="button" class="btn btn-outline-primary btn-ico d-md-none" id="filtros-abrir" aria-label="${t.buscarFiltrar}" aria-controls="listing-filters" aria-expanded="false">${ic('search')}</button>
+				<label class="listing-orden btn btn-outline-primary btn-ico">
+					${ic('sort')}<span class="visually-hidden">${t.ordenar}</span>
+					<select class="form-select" id="f-orden" name="orden" form="listing-filters">
 						<option value="recientes">${t.recientes}</option>
 						<option value="precio-asc">${t.precioAsc}</option>
 						<option value="precio-desc">${t.precioDesc}</option>
 					</select>
-				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-min">${t.precioMin}</label>
-					<input class="form-control" id="f-min" name="min" type="number" min="0" step="1000" inputmode="numeric">
-				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-max">${t.precioMax}</label>
-					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
-				</div>
-				<div class="col-12 col-md-3 col-lg-3">
-					<button type="reset" class="btn btn-outline-secondary w-100">${ic('refresh')}${t.limpiar}</button>
-				</div>
-			</form>
-
+				</label>
+			</div>
 			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
-			<p class="text-black-50 mb-4" id="listing-count" aria-live="polite">${plural(list.length, t.propiedad, t.propiedadesN)}</p>
 
 			<div class="row" id="listing-grid">
-				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
+				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
 			</div>
 			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
