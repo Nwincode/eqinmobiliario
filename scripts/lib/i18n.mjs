@@ -30,7 +30,8 @@ const ES = {
 	vacResumen: 'Solicitud de reserva: llegada {llegada}, salida {salida} ({noches}), {huespedes}. Total aprox. {total} con impuestos.',
 	fHuespedesMax: 'Huéspedes máximo', fNochesMin: 'Estancia mínima', fHorario: 'Llegada y salida',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas',
-	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', siguenos: 'Síguenos', zonas: 'Zonas', derechos: 'Todos los derechos reservados.',
+	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', zonas: 'Zonas',
+	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué querés vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
 	plantilla: 'Diseño basado en una plantilla de', escribenos: 'Escríbenos por WhatsApp',
 	buscarPropiedades: 'Buscar propiedades', buscar: 'Buscar', anterior: 'Anterior', siguiente: 'Siguiente', navCarrusel: 'Navegación del carrusel',
 	masInfo: 'Más información', sobre: 'sobre', deEstrellas: 'de 5 estrellas', escribir: 'Escribir',
@@ -135,7 +136,8 @@ const EN = {
 	vacResumen: 'Booking request: check-in {llegada}, check-out {salida} ({noches}), {huespedes}. Approx. total {total} incl. taxes.',
 	fHuespedesMax: 'Max. guests', fNochesMin: 'Minimum stay', fHorario: 'Check-in / check-out',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all',
-	abrirMenu: 'Open menu', enlaces: 'Links', siguenos: 'Follow us', zonas: 'Areas', derechos: 'All rights reserved.',
+	abrirMenu: 'Open menu', enlaces: 'Links', zonas: 'Areas',
+	vendeBoton: 'List your property', vendeQue: 'What do you want to sell or rent out?', vendeQuePh: 'House in zone 15, 3 bedrooms…', cerrarAviso: 'Close language notice',
 	plantilla: 'Design based on a template by', escribenos: 'Message us on WhatsApp',
 	buscarPropiedades: 'Search properties', buscar: 'Search', anterior: 'Previous', siguiente: 'Next', navCarrusel: 'Carousel navigation',
 	masInfo: 'Learn more', sobre: 'about', deEstrellas: 'out of 5 stars', escribir: 'Message',
@@ -221,7 +223,7 @@ const TECNICOS = new Set(['htmlLang', 'ogLocale', 'dateLocale', 'otroIdioma']);
 
 // Grupos del editor "Textos del sitio" del panel. Lo que no esté aquí aparece en "Otros".
 export const GRUPOS_TEXTOS = [
-	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'siguenos', 'zonas', 'derechos', 'plantilla', 'escribenos']],
+	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'zonas', 'vendeBoton', 'vendeQue', 'vendeQuePh', 'cerrarAviso', 'plantilla', 'escribenos']],
 	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'habCorto', 'parqCorto', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
 	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsGracias', 'jsFallo']],
 	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],

@@ -25,6 +25,17 @@
 		if (typeof textosPanel[clave] === 'string') T[k] = textosPanel[clave];
 	});
 
+	// ------------------------------------------------------------ Aviso «View this site in English»
+	// Solo se ofrece (nunca se cambia el idioma solo) y no vuelve a salir si se cierra.
+	var aviso = document.querySelector('.aviso-idioma');
+	if (aviso && /^en/i.test(navigator.language || '') && !localStorage.getItem('eq_aviso_idioma')) {
+		aviso.hidden = false;
+		aviso.querySelector('button').addEventListener('click', function () {
+			aviso.hidden = true;
+			localStorage.setItem('eq_aviso_idioma', '1');
+		});
+	}
+
 	// ------------------------------------------------------------ Campañas (Google Ads, Meta, UTM)
 	// Se guarda la última visita que llegó desde una campaña para atribuir el lead al anuncio.
 	var CAMPOS_CAMPANA = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
@@ -154,7 +165,7 @@
 			var lead = {
 				nombre: form.nombre.value.trim(),
 				telefono: form.telefono.value.trim(),
-				email: form.email.value.trim(),
+				email: form.email ? form.email.value.trim() : '',
 				mensaje: form.mensaje.value.trim(),
 				origen: form.getAttribute('data-origen') || 'sitio',
 				pagina: location.pathname,

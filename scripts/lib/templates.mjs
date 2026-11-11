@@ -238,6 +238,7 @@ function nav(ctx, active) {
 	</div>
 
 	<nav class="site-nav" aria-label="${ctx.lang === 'en' ? 'Main' : 'Principal'}">
+		${ctx.lang !== 'en' && ctx.altLang ? `<div class="aviso-idioma" hidden>${ic('globe')}<a href="${esc(ctx.altLang(active))}" hreflang="en" lang="en">View this site in English</a><button type="button" class="btn btn-ico" aria-label="${t.cerrarAviso}">${ic('close')}</button></div>` : ''}
 		<div class="container">
 			<div class="menu-bg-wrap">
 				<a href="${rt(ctx).inicio}" class="logo nav-brand">${site.general.logoMenu
@@ -257,77 +258,43 @@ function nav(ctx, active) {
 	</nav>`;
 }
 
-function socialLinks(site) {
-	const r = site.redes || {};
-	const map = [
-		['instagram', 'icon-instagram', 'Instagram'],
-		['facebook', 'icon-facebook', 'Facebook'],
-		['linkedin', 'icon-linkedin', 'LinkedIn'],
-		['youtube', 'icon-youtube-play', 'YouTube'],
-		['tiktok', 'icon-play', 'TikTok']
-	];
-	return map
-		.filter(([k]) => r[k])
-		.map(([k, icon, label]) => `<li><a href="${esc(r[k])}" target="_blank" rel="noopener" aria-label="${label}"><span class="${icon}"></span></a></li>`)
-		.join('');
-}
+// Nombre legal de la empresa: sale en el pie y en el copyright.
+const EMPRESA = 'Equipo Inmobiliario S.A.';
 
 function footer(ctx) {
 	const site = ctx.site;
 	const t = tr(ctx);
 	const c = site.contacto || {};
+	const r = site.redes || {};
 	const hasVip = ctx.properties.some((p) => p.vip);
-	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip);
-	const pageLinks = ctx.pages.filter((p) => p.enFooter);
-	if (ctx.posts.length) pageLinks.unshift({ url: rt(ctx).blog, titulo: t.blog });
-	pageLinks.push({ url: rt(ctx).calculadora, titulo: t.rentaLink });
-	const wa = whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje);
-	return `<div class="site-footer">
+	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip).map((l) => [l.enlace, l.texto]);
+	if (ctx.posts.length) links.push([rt(ctx).blog, t.blog]);
+	ctx.pages.filter((p) => p.enFooter).forEach((p) => links.push([p.url, p.titulo]));
+	links.push([rt(ctx).calculadora, t.rentaLink]);
+	const boton = ([href, icono, nombre]) => href
+		? `<a class="btn btn-outline-light btn-ico" href="${esc(href)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''} aria-label="${nombre}">${ic(icono)}</a>` : '';
+	const botones = [
+		[whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje), 'whatsapp', 'WhatsApp'],
+		[c.telefono && `tel:${c.telefono.replace(/[^\d+]/g, '')}`, 'phone', t.llamar],
+		[c.email && `mailto:${c.email}`, 'envelope-o', t.correoBtn],
+		[r.instagram, 'instagram', 'Instagram'],
+		[r.facebook, 'facebook', 'Facebook'],
+		[r.linkedin, 'linkedin', 'LinkedIn'],
+		[r.youtube, 'youtube-play', 'YouTube'],
+		[r.tiktok, 'play', 'TikTok']
+	].map(boton).join('');
+	return `<footer class="pie">
 		<div class="container">
-			<div class="row">
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${esc(site.general.nombre)}</h3>
-						${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
-						<ul class="list-unstyled links">
-							${c.telefono ? `<li><a href="tel:${esc(c.telefono.replace(/[^\d+]/g, ''))}">${ic('phone')}${esc(c.telefono)}</a></li>` : ''}
-							${wa ? `<li><a href="${esc(wa)}" target="_blank" rel="noopener">${ic('whatsapp')}WhatsApp</a></li>` : ''}
-							${c.email ? `<li><a href="mailto:${esc(c.email)}">${ic('envelope-o')}${esc(c.email)}</a></li>` : ''}
-							${c.direccion ? `<li>${ic('map-marker')}${esc(c.direccion)}</li>` : ''}
-							${c.horario ? `<li>${ic('clock-o')}${esc(c.horario)}</li>` : ''}
-						</ul>
-					</div>
-				</div>
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${t.enlaces}</h3>
-						<ul class="list-unstyled float-start links me-5">
-							${links.map((l) => `<li><a href="${esc(l.enlace)}">${esc(l.texto)}</a></li>`).join('')}
-						</ul>
-						${pageLinks.length ? `<ul class="list-unstyled float-start links">
-							${pageLinks.map((p) => `<li><a href="${esc(p.url)}">${esc(p.titulo)}</a></li>`).join('')}
-						</ul>` : ''}
-					</div>
-				</div>
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${t.siguenos}</h3>
-						<ul class="list-unstyled social">${socialLinks(site)}</ul>
-						${ctx.zonas.length ? `<h3 class="mt-4">${t.zonas}</h3>
-						<ul class="list-unstyled links">
-							${ctx.zonas.slice(0, 8).map((z) => `<li><a href="${esc(z.url)}" title="${t.propiedades} ${esc(z.nombre)}">${ic('map-marker')}${esc(z.nombre)}</a></li>`).join('')}
-						</ul>` : ''}
-					</div>
-				</div>
-			</div>
-			<div class="row mt-5">
-				<div class="col-12 text-center">
-					<p>Copyright &copy; ${new Date().getFullYear()} ${esc(String(site.general.nombre).replace(/\.$/, ''))}. ${t.derechos}
-					${site.footer.mostrarCredito === false ? '' : `<small class="d-block mt-2 text-black-50">${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a></small>`}</p>
-				</div>
-			</div>
+			<p class="pie-nombre">${EMPRESA}</p>
+			${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
+			<nav class="pie-enlaces" aria-label="${t.enlaces}">
+				${links.map(([url, texto]) => `<a href="${esc(url)}">${esc(texto)}</a>`).join('')}
+			</nav>
+			<div class="pie-botones">${botones}</div>
+			${c.direccion || c.horario ? `<p class="pie-datos">${[c.direccion, c.horario].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
+			<p class="pie-legal">&copy; ${new Date().getFullYear()} ${EMPRESA}${site.footer.mostrarCredito === false ? '' : ` · ${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a>`}</p>
 		</div>
-	</div>`;
+	</footer>`;
 }
 
 function whatsappFloat(ctx, mensaje) {
@@ -434,7 +401,7 @@ export function propertyCard(p, { lazy = true } = {}) {
 							</div>`;
 }
 
-export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, lang = 'es', mensaje = '' }) {
+export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, corto = false, lang = 'es', mensaje = '' }) {
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
@@ -443,8 +410,10 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
-		<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
-		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>
+		${corto
+		? `<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.vendeQue}</label><input id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" maxlength="200" placeholder="${t.vendeQuePh}"></div>`
+		: `<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
+		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>`}
 		${visita ? `<div class="row g-2 mb-3">
 			<div class="col-sm-6"><label class="form-label" for="lf-tipo-${esc(origen)}">${t.tipoVisita}</label><select id="lf-tipo-${esc(origen)}" class="form-select" name="tipoVisita"><option value="presencial">${t.presencial}</option><option value="videollamada"${lang === 'en' ? ' selected' : ''}>${t.videollamada}</option></select></div>
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
@@ -1525,6 +1494,15 @@ export function vipLandingPage(ctx, p) {
 
 // ---------------------------------------------------------------- Páginas de contenido
 
+// Página «Vende o renta tu propiedad»: el formulario corto se abre debajo del botón, sin salir de la página.
+const VENDE = '/vende-tu-propiedad/';
+function vendeForm(ctx) {
+	return `<details class="vende text-center">
+		<summary class="btn btn-primary btn-lg">${ic('home')}${tr(ctx).vendeBoton}</summary>
+		<div class="lead-card text-start">${leadForm({ origen: 'vende', corto: true, lang: ctx.lang })}</div>
+	</details>`;
+}
+
 export function contentPage(ctx, page) {
 	const crumbs = [{ name: tr(ctx).inicio, url: rt(ctx).inicio }, { name: page.titulo, url: page.url }];
 	const body = `
@@ -1532,7 +1510,8 @@ export function contentPage(ctx, page) {
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-center">
-				<article class="col-lg-8 content-page">${markdown(page.contenido)}</article>
+				<article class="col-lg-8 content-page">${markdown(page.contenido)}
+					${((page._alternates && page._alternates.es) || page.url) === VENDE ? vendeForm(ctx) : ''}</article>
 			</div>
 		</div>
 	</div>`;

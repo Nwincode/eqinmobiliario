@@ -438,15 +438,7 @@ body {
 	height: auto;
 }
 
-/* Contraste del pie de página y textos de la plantilla */
-.site-footer,
-.site-footer p,
-.site-footer li {
-	color: var(--eq-ink);
-}
-.site-footer a {
-	color: var(--eq-ink);
-}
+/* Contraste de los textos de la plantilla */
 .box-feature p,
 .testimonial p,
 .person p {
@@ -549,12 +541,6 @@ h2.heading::after,
 .text-center h2.heading::after,
 .text-center .section-title::after {
 	margin-inline: auto;
-}
-.site-footer {
-	border-top: 3px solid var(--eq-cyan);
-}
-.site-footer a:hover {
-	color: var(--eq-cyan) !important;
 }
 
 /* ---------- Barra de navegación (identidad de marca) ----------
@@ -990,43 +976,11 @@ a {
 	box-shadow: 0 10px 30px -22px color-mix(in srgb, var(--eq-dark) 50%, transparent);
 }
 
-/* Pie de página azul noche */
-.site-footer {
-	background: var(--eq-dark) !important;
-	color: rgba(255, 255, 255, .75);
-}
-.site-footer h3,
-.site-footer .widget h3 {
-	color: #fff !important;
-}
-.site-footer,
-.site-footer p,
-.site-footer li,
-.site-footer .text-black-50,
-.site-footer small {
-	color: rgba(255, 255, 255, .72) !important;
-}
-.site-footer a {
-	color: rgba(255, 255, 255, .88) !important;
-}
-.site-footer a:hover {
-	color: var(--eq-cyan) !important;
-}
-.site-footer .social li a {
-	background: rgba(255, 255, 255, .1) !important;
-	color: #fff !important;
-}
 .property-item .img,
 .property-item .img img {
 	display: block;
 	width: 100% !important;
 	max-width: none;
-}
-.site-footer a {
-	text-decoration: none !important;
-}
-.site-footer a:hover {
-	text-decoration: underline !important;
 }
 /* En el carrusel, tiny-slider usa padding como separación: la tarjeta se dibuja en el contenido. */
 .property-slider .property-item {
@@ -1196,14 +1150,6 @@ h2.heading::after,
 	background: #fff;
 }
 
-/* Pie: negro, sin la franja de color superior */
-.site-footer {
-	border-top: 0;
-}
-.site-footer .social li a {
-	background: transparent !important;
-	border: 1px solid rgba(255, 255, 255, .25);
-}
 
 /* Menú: negro sólido y sin línea celeste inferior */
 .site-nav .menu-bg-wrap {
@@ -1982,10 +1928,6 @@ a:hover > .eq-ic-fin,
 .site-nav .site-navigation .site-menu .has-children .dropdown a:hover .eq-ic {
 	opacity: 1;
 }
-.site-footer .links .eq-ic {
-	width: 1.2em;
-	color: var(--eq-cyan);
-}
 .breadcrumb .eq-ic {
 	margin-right: .35em;
 }
@@ -2097,18 +2039,6 @@ a:hover > .eq-ic-fin,
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;
-}
-.site-footer .widget .links li:has(.eq-ic),
-.site-footer .widget .links li > a:has(.eq-ic) {
-	display: flex;
-	align-items: baseline;
-}
-.site-footer .widget .links .eq-ic {
-	flex: none;
-}
-.site-footer .widget .links li > a:has(.eq-ic) {
-	min-width: 0;
-	overflow-wrap: break-word;
 }
 .prop-facts dt {
 	white-space: nowrap;
@@ -3239,4 +3169,104 @@ a:hover > .eq-ic-fin,
 	font-weight: 400;
 	color: var(--eq-dark);
 	opacity: .75;
+}
+
+/* Pie de página */
+.pie {
+	background: var(--eq-dark);
+	color: color-mix(in srgb, var(--eq-white) 75%, transparent);
+	font-size: 14px;
+	padding: 28px 0 20px;
+}
+.pie p {
+	margin: 0 0 12px;
+	color: inherit;
+}
+.pie .pie-nombre {
+	margin-bottom: 4px;
+	font-size: 18px;
+	font-weight: 700;
+	color: var(--eq-white);
+}
+.pie a:not(.btn) {
+	color: var(--eq-white);
+	text-decoration: none;
+}
+.pie a:not(.btn):hover {
+	color: var(--eq-cyan);
+}
+.pie-enlaces {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	column-gap: 16px;
+	max-width: 720px;
+	margin-bottom: 12px;
+}
+.pie-enlaces a {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+}
+.pie-botones {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+.pie .pie-legal {
+	margin: 0;
+	padding-top: 12px;
+	border-top: 1px solid color-mix(in srgb, var(--eq-white) 15%, transparent);
+	font-size: 12px;
+}
+
+/* Ancho del contenido: menos espacio vacío a los lados */
+.container {
+	padding-inline: 16px;
+}
+@media (min-width: 1200px) {
+	.container {
+		max-width: min(1320px, 100% - 48px);
+	}
+}
+
+/* «Vende tu propiedad»: el formulario se abre debajo del botón */
+.vende summary {
+	list-style: none;
+}
+.vende summary::-webkit-details-marker {
+	display: none;
+}
+.vende .lead-card {
+	max-width: 420px;
+	margin: 20px auto 0;
+}
+
+/* Aviso de idioma (solo navegadores en inglés) */
+.aviso-idioma {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	background: var(--eq-primary-soft);
+	font-size: 13px;
+	font-weight: 600;
+}
+.aviso-idioma[hidden] {
+	display: none;
+}
+.site-nav:has(.aviso-idioma:not([hidden])) {
+	padding-top: 0;
+}
+@media (min-width: 992px) {
+	.aviso-idioma {
+		margin-bottom: 14px;
+	}
+}
+.aviso-idioma a {
+	color: var(--eq-primary);
+}
+.aviso-idioma .btn {
+	border: 0;
+	color: var(--eq-ink);
 }
