@@ -2,6 +2,8 @@
 // Antes de escribir otro formato de precio, número o WhatsApp, usar los de aquí.
 
 export const M2_A_FT2 = 10.7639;
+// Vara cuadrada de Guatemala: 1 v² = 0.698737 m².
+export const M2_A_V2 = 1.43115;
 
 const PREFIJO_MONEDA = { USD: 'US$', GTQ: 'Q' };
 export const prefijoMoneda = (moneda) => PREFIJO_MONEDA[moneda] || moneda;

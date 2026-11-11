@@ -3,7 +3,7 @@ import {
 	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown, resumenSeo,
 	videoEmbedUrl, mapEmbedUrl, whatsappLink, cifra
 } from './util.mjs';
-import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, fmt, textosCliente } from './i18n.mjs';
+import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion } from '../../admin/js/seo-auto.js';
@@ -65,6 +65,8 @@ const estadoLabel = (p) => (lng(p) === 'en' ? ESTADOS_EN[p.estado] : ESTADOS[p.e
 const area = (m2, lang) => (lang === 'en'
 	? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${cifra(m2)} m²)`
 	: `${cifra(m2)} m²`);
+// Terreno: en Guatemala se habla en varas cuadradas (v²); en inglés, pies cuadrados.
+const areaTerreno = (m2, lang) => (lang === 'en' ? area(m2, lang) : `${cifra(Math.round(m2 * M2_A_V2))} v² (${cifra(m2)} m²)`);
 
 export function propertyUrl(p) {
 	const r = RUTAS[lng(p)];
@@ -354,7 +356,7 @@ function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
 	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.fHuespedesMax) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
-		+ (p.m2Construccion ? dato('construccion', area(p.m2Construccion, lng(p)), t.fConstruccion) : dato('terreno', p.m2Terreno && area(p.m2Terreno, lng(p)), t.fTerreno));
+		+ (p.m2Construccion ? dato('construccion', area(p.m2Construccion, lng(p)), t.fConstruccion) : dato('terreno', p.m2Terreno && areaTerreno(p.m2Terreno, lng(p)), t.fTerreno));
 }
 
 // Clases completas (el CSS se depura buscando estos nombres tal cual).
@@ -935,7 +937,6 @@ function factsList(p) {
 	const t = TEXTOS[lng(p)];
 	const en = lng(p) === 'en';
 	const m2 = p.m2Construccion || p.m2Terreno;
-	const vac = p.operacion === 'vacacional' ? (p.vacacional || {}) : null;
 	const rows = [
 		['building', t.fTipo, tipoLabel(p)],
 		['tag', t.fOperacion, opNombre(p, t)],
@@ -944,16 +945,51 @@ function factsList(p) {
 		['bath', t.fBanos, p.banos],
 		['car', t.fParqueos, p.parqueos],
 		['construccion', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
-		['terreno', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
-		['users', t.fHuespedesMax, vac ? vac.huespedesMax : ''],
-		['moon-o', t.fNochesMin, vac && vac.nochesMin > 1 ? fmt(t.vacNochesN, { n: vac.nochesMin }) : ''],
-		['clock-o', t.fHorario, vac ? `${fmt(t.vacCheckIn, { hora: vac.checkIn || '15:00' })} · ${fmt(t.vacCheckOut, { hora: vac.checkOut || '11:00' })}` : ''],
+		['terreno', t.fTerreno, p.m2Terreno ? areaTerreno(p.m2Terreno, lng(p)) : ''],
 		['map-marker', t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
 		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
-	].filter(([, , v]) => v);
-	return `<dl class="prop-facts">${rows.map(([i, k, v]) => `<div><dt>${ic(i)}${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+	];
+	return facts(rows);
+}
+const facts = (rows) => `<dl class="prop-facts">${rows.filter(([, , v]) => v).map(([i, k, v]) => `<div><dt>${ic(i)}${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+
+// Ícono según lo que dice el texto (amenidades y reglas); si nada calza, el genérico que se pida.
+const ICONOS_TEXTO = [
+	[/wi-?fi|internet/, 'wifi'], [/piscina|alberca|pool/, 'pool'], [/jacuzzi|hot tub/, 'hot_tub'], [/cocina|kitchen/, 'kitchen'],
+	[/aire acond|a\/c|air con/, 'ac_unit'], [/parqueo|estacionamiento|parking|garage/, 'local_parking'], [/gimnasio|gym/, 'fitness_center'],
+	[/\btv\b|televis|netflix/, 'tv'], [/chimenea|fogata|churrasqu|parrilla|bbq|grill|fire/, 'fire'], [/jard[ií]n|garden|bosque/, 'tree'],
+	[/seguridad|garita|security/, 'shield'], [/playa|beach/, 'beach_access'], [/lavander|lavadora|laundry|washer/, 'local_laundry_service'],
+	[/mascota|\bpets?\b/, 'pets'], [/desayuno|breakfast|caf[eé]|coffee/, 'free_breakfast'], [/agua caliente|ducha|shower/, 'shower'],
+	[/fum|smok/, 'smoke_free'], [/ruido|silencio|m[uú]sica|fiesta|noise|quiet|part(y|ies)/, 'volume-off'], [/hu[eé]sped|visita|guest/, 'users']
+];
+const iconoTexto = (texto, generico) => (ICONOS_TEXTO.find(([re]) => re.test(String(texto).toLowerCase())) || [0, generico])[1];
+const lineas = (texto) => String(texto || '').split('\n').map((x) => x.trim()).filter(Boolean);
+
+// Lo que un huésped pregunta antes de reservar: horarios, cargos, mascotas, cómo llegar, reglas y cancelación.
+// Reglas y cancelación: las de la casa o, si no tiene, las generales de Contenido → Textos.
+function antesDeReservar(p) {
+	const t = TEXTOS[lng(p)];
+	const v = p.vacacional || {};
+	const d = datosVacacional(p);
+	const precio = (x) => (x > 0 ? formatPrice(x, p.moneda, 'venta', lng(p)) : '');
+	const nota = (icono, titulo, texto) => (texto ? `<p class="ficha-nota"><strong>${ic(icono)}${titulo}</strong>${esc(texto)}</p>` : '');
+	const reglas = lineas(v.reglas || t.vacReglasGenerales);
+	return `<section class="ficha-bloque">
+						<h2>${ic('info-circle')}${t.vacAntes}</h2>
+						${facts([
+		['clock-o', t.vacLlegada, fmt(t.vacCheckIn, { hora: d.checkIn })],
+		['clock-o', t.vacSalida, fmt(t.vacCheckOut, { hora: d.checkOut })],
+		['moon-o', t.fNochesMin, d.nochesMin > 1 ? fmt(t.vacNochesN, { n: d.nochesMin }) : t.vacNoche1],
+		['pets', t.fMascotas, { si: t.vacMascotasSi, no: t.vacMascotasNo }[v.mascotas]],
+		['brush', t.fLimpieza, precio(d.limpieza)],
+		['shield', t.vacDeposito, precio(d.deposito)]
+	])}
+						${nota('directions_car', t.vacComoLlegar, v.comoLlegar)}
+						${reglas.length ? `<div class="ficha-nota"><strong>${ic('list-ul')}${t.vacReglas}</strong><ul class="ficha-amenidades">${reglas.map((r) => `<li>${ic(iconoTexto(r, 'info-circle'))}${esc(r)}</li>`).join('')}</ul></div>` : ''}
+						${nota('calendar-times-o', t.vacCancelacion, v.cancelacion || t.vacCancelacionGeneral)}
+					</section>`;
 }
 
 // Coordenadas a partir del enlace de Google Maps (…@14.6,-90.5… o …q=14.6,-90.5…).
@@ -1162,11 +1198,13 @@ export function propertyPage(ctx, p) {
 
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const datosClave = [
+		[esVac ? datosVacacional(p).huespedesMax : '', t.vacHuespedes, 'users'],
+		[esVac ? p.vacacional.camas : '', t.fCamas, 'airline_seat_individual_suite'],
 		[p.habitaciones, t.fHabitaciones, 'bed'],
 		[p.banos, t.fBanos, 'bath'],
 		[p.parqueos, t.fParqueos, 'car'],
 		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'construccion'],
-		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'terreno']
+		[p.m2Terreno ? areaTerreno(p.m2Terreno, lng(p)) : '', t.fTerreno, 'terreno']
 	].filter(([v]) => v);
 	const visibles = fotos;
 	const galeria = `<div class="ficha-galeria-wrap">
@@ -1216,9 +1254,10 @@ export function propertyPage(ctx, p) {
 						<h2>${ic('list-ul')}${t.caracteristicas}</h2>
 						${factsList(p)}
 					</section>
+					${esVac ? antesDeReservar(p) : ''}
 					${(p.amenidades || []).length ? `<section class="ficha-bloque">
 						<h2>${ic('check-square-o')}${t.amenidades}</h2>
-						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${ic('check')}${esc(a)}</li>`).join('')}</ul>
+						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${ic(iconoTexto(a, 'check'))}${esc(a)}</li>`).join('')}</ul>
 					</section>` : ''}
 					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
 					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
@@ -1373,7 +1412,7 @@ export function vipLandingPage(ctx, p) {
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
 		['icon-construccion', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
-		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
+		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(Math.round(p.m2Terreno * M2_A_V2))} v²`), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 
