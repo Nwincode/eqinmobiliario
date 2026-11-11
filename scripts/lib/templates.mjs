@@ -24,9 +24,13 @@ const ic = (nombre, fin = false) => `<span class="icon-${nombre} eq-ic${fin ? ' 
 // Flechas de carrusel (regla «Botones de carrusel»): solo el chevrón fino, sin texto;
 // el nombre para lectores de pantalla va en aria-label. tiny-slider toma el 1.º y 2.º hijo.
 const chevron = (d) => `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const FLECHA_PREV = 'M14.5 5.5 8 12l6.5 6.5';
+const FLECHA_NEXT = 'M9.5 5.5 16 12l-6.5 6.5';
+// Teléfono del sitio como enlace tel: (vacío si no hay).
+const telLink = (ctx) => { const n = String(ctx.site.contacto.telefono || '').replace(/[^\d+]/g, ''); return n ? `tel:${n}` : ''; };
 const flechasCarrusel = (id, t, extra = '') => `<div id="${id}" class="eq-flechas" role="group" aria-label="${esc(t.navCarrusel)}"${extra}>
-	<button type="button" class="eq-flecha eq-flecha-prev" data-controls="prev" aria-label="${esc(t.anterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
-	<button type="button" class="eq-flecha eq-flecha-next" data-controls="next" aria-label="${esc(t.siguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+	<button type="button" class="eq-flecha eq-flecha-prev" data-controls="prev" aria-label="${esc(t.anterior)}">${chevron(FLECHA_PREV)}</button>
+	<button type="button" class="eq-flecha eq-flecha-next" data-controls="next" aria-label="${esc(t.siguiente)}">${chevron(FLECHA_NEXT)}</button>
 </div>`;
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
@@ -446,7 +450,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<button type="submit" class="btn btn-primary btn-lg w-100">${ic('paper-plane')}${esc(boton || t.enviar)}</button>
+		<div class="text-end"><button type="submit" class="btn btn-primary">${ic('paper-plane')}${esc(boton || t.enviar)}</button></div>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }
@@ -463,8 +467,8 @@ function agentBox(ctx, agent, property) {
 							<div class="meta mb-3">${esc(agent.cargo || t.asesorInmobiliario)}</div>
 							${agent.bio ? `<p>${esc(agent.bio)}</p>` : ''}
 							<ul class="list-unstyled d-flex flex-wrap gap-2 mb-0">
-								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-sm" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a></li>` : ''}
-								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-sm" data-track="Contact">${ic('envelope-o')}${t.correoBtn}</a></li>` : ''}
+								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a></li>` : ''}
+								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
 							</ul>
 						</div>
 					</div>`;
@@ -1114,9 +1118,9 @@ function reservaBox(ctx, p) {
 						</div>
 						<div class="vac-cal" role="group" aria-label="${esc(t.vacCalendario)}">
 							<div class="vac-cal-cabecera">
-								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
+								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron(FLECHA_PREV)}</button>
 								<h3 class="vac-cal-mes" aria-live="polite"></h3>
-								<button type="button" class="eq-flecha vac-cal-next" aria-label="${esc(t.vacMesSiguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+								<button type="button" class="eq-flecha vac-cal-next" aria-label="${esc(t.vacMesSiguiente)}">${chevron(FLECHA_NEXT)}</button>
 							</div>
 							<div class="vac-cal-cuerpo"></div>
 						</div>
@@ -1158,6 +1162,16 @@ export function propertyPage(ctx, p) {
 				</div>
 			</section>` : '';
 
+	// Barra fija de celular: la acción principal con texto y el resto solo con ícono.
+	const waFicha = whatsappLink((agent && agent.whatsapp) || ctx.site.contacto.whatsapp, waMsg);
+	const tel = telLink(ctx);
+	const barra = `<div class="ficha-barra d-lg-none">
+		<a href="#${esVac ? 'vac-titulo' : 'ficha-form'}" class="btn btn-primary">${ic(cerrada ? 'envelope-o' : 'calendar')}${esVac ? t.vacSolicitar : cerrada ? t.quieroInfo : t.agendarVisita}</a>
+		${waFicha ? `<a href="${esc(waFicha)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a>` : ''}
+		${tel ? `<a href="${tel}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.llamar}">${ic('phone')}</a>` : ''}
+		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>
+	</div>`;
+
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const datosClave = [
 		[p.habitaciones, t.fHabitaciones, 'bed'],
@@ -1175,7 +1189,9 @@ export function propertyPage(ctx, p) {
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
 	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${ic('camera')}${fmt(t.verFotosN, { n: fotos.length })}</button>
-	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
+	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>
+	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-prev" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
+	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-next" aria-label="${t.siguienteFoto}">${chevron(FLECHA_NEXT)}</button>` : ''}
 	</div>
 	<dialog class="ficha-lightbox" id="ficha-lightbox" aria-label="${t.galeriaFotos}">
 		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">${ic('close')}</button>
@@ -1225,7 +1241,7 @@ export function propertyPage(ctx, p) {
 					<div class="ficha-contacto">
 						${esVac ? reservaBox(ctx, p) : ''}
 						${agentBox(ctx, agent, p)}
-						${esVac ? '' : `<div class="lead-card">${cerrada
+						${esVac ? '' : `<div class="lead-card" id="ficha-form">${cerrada
 							? leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })
 							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>`}
 						${shareButtons(ctx, p)}
@@ -1239,7 +1255,8 @@ export function propertyPage(ctx, p) {
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
 			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
-	</div>` : ''}`;
+	</div>` : ''}
+	${barra}`;
 
 	return layout(ctx, {
 		path: propertyUrl(p),

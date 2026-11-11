@@ -467,10 +467,16 @@
 	document.querySelectorAll('.js-copy-link').forEach(function (btn) {
 		btn.addEventListener('click', function () {
 			var url = btn.getAttribute('data-url');
+			// En celular abre el menú de compartir del teléfono; si no existe, copia el enlace.
+			if (btn.hasAttribute('data-compartir') && navigator.share) {
+				navigator.share({ title: document.title, url: url }).catch(function () {});
+				return;
+			}
+			var nombre = btn.getAttribute('aria-label');
 			var ok = function () {
 				btn.classList.add('copied');
 				btn.setAttribute('aria-label', 'Enlace copiado');
-				setTimeout(function () { btn.classList.remove('copied'); btn.setAttribute('aria-label', 'Copiar enlace'); }, 2000);
+				setTimeout(function () { btn.classList.remove('copied'); btn.setAttribute('aria-label', nombre); }, 2000);
 			};
 			if (navigator.clipboard) navigator.clipboard.writeText(url).then(ok, function () { window.prompt('Copia el enlace:', url); });
 			else window.prompt('Copia el enlace:', url);
@@ -548,10 +554,17 @@
 		var galeria = document.querySelector('.ficha-galeria');
 		var contador = document.querySelector('.ficha-contador');
 		if (galeria && contador) {
+			var fotoVisible = function () { return Math.round(galeria.scrollLeft / galeria.clientWidth); };
 			galeria.addEventListener('scroll', function () {
-				var i = Math.round(galeria.scrollLeft / galeria.clientWidth);
-				contador.textContent = (i + 1) + ' / ' + fotosFicha.length;
+				contador.textContent = (fotoVisible() + 1) + ' / ' + fotosFicha.length;
 			}, { passive: true });
+			// Flechas del carrusel: dan la vuelta al llegar al final.
+			[['.ficha-flecha-prev', -1], ['.ficha-flecha-next', 1]].forEach(function (f) {
+				document.querySelector(f[0]).addEventListener('click', function () {
+					var i = (fotoVisible() + f[1] + fotosFicha.length) % fotosFicha.length;
+					galeria.scrollLeft = i * galeria.clientWidth;
+				});
+			});
 		}
 	}
 

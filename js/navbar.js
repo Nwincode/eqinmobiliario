@@ -46,51 +46,34 @@
 		}, 1000);
 
 
-		// Click js-menu-toggle
-
+		// Abrir y cerrar: un solo lugar cambia la clase del body y el estado de los botones.
 		var menuToggle = document.querySelectorAll(".js-menu-toggle");
-		var mTog;
-		menuToggle.forEach(mtoggle => {
-			mTog = mtoggle;
-			mtoggle.setAttribute('aria-expanded', 'false');
-			mtoggle.addEventListener("click", (e) => {
-				e.preventDefault();
-				var abrir = !document.body.classList.contains('offcanvas-menu');
-				document.body.classList.toggle('offcanvas-menu', abrir);
-				menuToggle.forEach(function (t) {
-					t.classList.toggle('active', abrir);
-					t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-				});
+		var menu = document.querySelector(".site-mobile-menu");
+		var poner = function (abrir) {
+			document.body.classList.toggle('offcanvas-menu', abrir);
+			menuToggle.forEach(function (t) {
+				t.classList.toggle('active', abrir);
+				t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
 			});
-		})
+		};
+		var abierto = function () { return document.body.classList.contains('offcanvas-menu'); };
+		poner(false);
+		menuToggle.forEach(function (t) {
+			t.addEventListener("click", function (e) { e.preventDefault(); poner(!abierto()); });
+		});
 
 		// Escape cierra el menú y devuelve el foco al botón.
 		document.addEventListener('keydown', function (e) {
-			if (e.key !== 'Escape' || !document.body.classList.contains('offcanvas-menu')) return;
-			document.body.classList.remove('offcanvas-menu');
-			menuToggle.forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-expanded', 'false'); });
+			if (e.key !== 'Escape' || !abierto()) return;
+			poner(false);
 			var burger = document.querySelector('.burger.js-menu-toggle');
 			if (burger) burger.focus();
 		});
 
-
-
-		var specifiedElement = document.querySelector(".site-mobile-menu");
-		var mt, mtoggleTemp;
-		document.addEventListener('click', function(event) {
-			var isClickInside = specifiedElement.contains(event.target);
-			menuToggle.forEach(mtoggle => {
-				mtoggleTemp = mtoggle
-				mt = mtoggle.contains(event.target);
-			})
-
-			if (!isClickInside && !mt) {
-				if ( document.body.classList.contains('offcanvas-menu') ) {
-					document.body.classList.remove('offcanvas-menu');
-					menuToggle.forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-expanded', 'false'); });
-				}
-			}
-
+		// Se cierra al tocar fuera o al elegir un enlace: así la página puede bajar a la sección (#contacto, #servicios).
+		document.addEventListener('click', function (e) {
+			if (!abierto() || e.target.closest('.js-menu-toggle')) return;
+			if (!menu.contains(e.target) || e.target.closest('a[href]')) poner(false);
 		});
 
 	}; 

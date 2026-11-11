@@ -250,11 +250,11 @@
 }
 .share-buttons a,
 .share-buttons button {
-	width: 34px;
-	height: 34px;
+	width: 44px;
+	height: 44px;
 	border-radius: 50%;
-	border: 1px solid #e3e3e3;
-	background: #fff;
+	border: 1px solid var(--eq-line);
+	background: var(--eq-white);
 	color: var(--eq-primary);
 	display: inline-flex;
 	align-items: center;
@@ -1127,8 +1127,37 @@ h2.heading::after,
 	background: var(--eq-dark);
 	color: #fff;
 }
-.ficha-contador {
+.ficha-contador,
+.ficha-flecha {
 	display: none;
+}
+/* Barra fija de la ficha en celular y tableta; reemplaza al botón flotante de WhatsApp */
+.ficha-barra {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 999;
+	display: flex;
+	gap: 8px;
+	padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+	background: var(--eq-white);
+	border-top: 1px solid var(--eq-line);
+}
+.ficha-barra .btn-primary {
+	flex: 1;
+	min-height: 44px;
+}
+body.offcanvas-menu .ficha-barra {
+	display: none;
+}
+@media (max-width: 991.98px) {
+	.pagina-ficha {
+		padding-bottom: calc(64px + env(safe-area-inset-bottom));
+	}
+	.pagina-ficha .wa-float {
+		display: none;
+	}
 }
 /* En escritorio el mosaico muestra 5 fotos; el resto se ve en el visor */
 @media (min-width: 768px) {
@@ -1404,12 +1433,32 @@ h2.heading::after,
 	.ficha-galeria::-webkit-scrollbar {
 		display: none;
 	}
+	.ficha-galeria {
+		background: var(--eq-dark);
+		scroll-behavior: smooth;
+	}
 	.ficha-foto {
 		flex: 0 0 100%;
 		aspect-ratio: 4 / 3;
 		scroll-snap-align: start;
 		border-radius: 0;
+		background: transparent;
 	}
+	/* Foto completa, sin recorte: lo que sobra queda como franja oscura */
+	.ficha-foto img {
+		object-fit: contain;
+	}
+	.ficha-flecha {
+		display: inline-flex;
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		border-color: transparent;
+		background: color-mix(in srgb, var(--eq-dark) 45%, transparent);
+		color: var(--eq-white);
+	}
+	.ficha-flecha-prev { left: 8px; }
+	.ficha-flecha-next { right: 8px; }
 	.ficha-ver-todas {
 		display: none;
 	}
