@@ -52,6 +52,14 @@
 	opacity: .5;
 	pointer-events: none;
 }
+/* Solo ícono: cuadrado de 44 px (área de toque mínima); el nombre va en aria-label */
+.btn-ico {
+	flex: none;
+	width: 44px;
+	min-height: 44px;
+	padding: 0;
+	font-size: 18px;
+}
 .btn.w-100 {
 	display: flex;
 }

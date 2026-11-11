@@ -17,6 +17,13 @@
 		y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
 		return y + '-' + pad(m + 1);
 	}
+	// Código corto de reserva, sin letras ni números que se confundan (0/O, 1/I).
+	function codigoReserva() {
+		var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', n = new Uint8Array(6), c = 'EQ-';
+		crypto.getRandomValues(n);
+		for (var i = 0; i < n.length; i++) c += letras[n[i] % letras.length];
+		return c;
+	}
 	function diasDelMes(ym) { return new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate(); }
 
 	function iniciar(card) {
@@ -283,12 +290,15 @@
 				}
 				var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito });
 				var n = selHuespedes ? Math.max(1, +selHuespedes.value || 1) : 1;
+				var codigo = codigoReserva();
 				return {
+					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
+					gracias: fmt(t.vacCodigo, { codigo: codigo }),
 					datos: {
-						llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
+						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'
 					},
-					resumen: fmt(t.vacResumen, {
+					resumen: codigo + ' · ' + fmt(t.vacResumen, {
 						llegada: estado.llegada, salida: estado.salida, noches: noches(c.noches),
 						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
 					})
@@ -313,9 +323,45 @@
 				.catch(function () {});
 		}
 
+		// Fechas y huéspedes elegidos en el listado vacacional.
+		var qs = new URLSearchParams(location.search);
+		if (V.validarEstancia({ llegada: qs.get('llegada'), salida: qs.get('salida'), ocupadas: ocupadas, nochesMin: nochesMin, hoy: hoy }).ok) {
+			estado.llegada = qs.get('llegada'); estado.salida = qs.get('salida'); estado.mes = mesDe(estado.llegada);
+		}
+		if (selHuespedes && qs.get('huespedes') && selHuespedes.querySelector('option[value="' + (+qs.get('huespedes') || 0) + '"]')) selHuespedes.value = +qs.get('huespedes');
+
 		if (!tituloMes.id) tituloMes.id = 'vac-mes-' + (id || 'x').replace(/[^\w-]/g, '');
 		pintar(false);
 		actualizar();
+	}
+
+	// Listado vacacional: muestra solo las casas libres para las fechas y huéspedes elegidos,
+	// y lleva esa elección a la ficha para no volver a pedirla.
+	var buscar = document.getElementById('vac-buscar');
+	if (buscar) {
+		var hoyB = hoyLocal();
+		buscar.llegada.min = hoyB;
+		buscar.llegada.addEventListener('change', function () {
+			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : hoyB;
+			if (buscar.salida.value && buscar.salida.value <= buscar.llegada.value) buscar.salida.value = '';
+		});
+		buscar.addEventListener('submit', function (e) {
+			e.preventDefault();
+			var q = { llegada: buscar.llegada.value, salida: buscar.salida.value, huespedes: +buscar.huespedes.value || 1 };
+			var libres = 0;
+			Array.prototype.forEach.call(document.querySelectorAll('#vac-grid .listing-col'), function (col) {
+				var item = col.querySelector('[data-vac]'), d = {};
+				try { d = JSON.parse(item.getAttribute('data-vac')); } catch (err) {}
+				var ok = q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: V.nochesOcupadas(d.bloqueos || []), nochesMin: d.nochesMin || 1, hoy: hoyB }).ok;
+				col.hidden = !ok;
+				if (!ok) return;
+				libres++;
+				Array.prototype.forEach.call(col.querySelectorAll('a[href]'), function (a) {
+					a.href = a.pathname + '?llegada=' + q.llegada + '&salida=' + q.salida + '&huespedes=' + q.huespedes;
+				});
+			});
+			document.getElementById('listing-empty').hidden = libres > 0;
+		});
 	}
 
 	var cards = document.querySelectorAll('[data-vacacional]');

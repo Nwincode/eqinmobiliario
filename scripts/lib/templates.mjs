@@ -24,9 +24,13 @@ const ic = (nombre, fin = false) => `<span class="icon-${nombre} eq-ic${fin ? ' 
 // Flechas de carrusel (regla «Botones de carrusel»): solo el chevrón fino, sin texto;
 // el nombre para lectores de pantalla va en aria-label. tiny-slider toma el 1.º y 2.º hijo.
 const chevron = (d) => `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const FLECHA_PREV = 'M14.5 5.5 8 12l6.5 6.5';
+const FLECHA_NEXT = 'M9.5 5.5 16 12l-6.5 6.5';
+// Teléfono del sitio como enlace tel: (vacío si no hay).
+const telLink = (ctx) => { const n = String(ctx.site.contacto.telefono || '').replace(/[^\d+]/g, ''); return n ? `tel:${n}` : ''; };
 const flechasCarrusel = (id, t, extra = '') => `<div id="${id}" class="eq-flechas" role="group" aria-label="${esc(t.navCarrusel)}"${extra}>
-	<button type="button" class="eq-flecha eq-flecha-prev" data-controls="prev" aria-label="${esc(t.anterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
-	<button type="button" class="eq-flecha eq-flecha-next" data-controls="next" aria-label="${esc(t.siguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+	<button type="button" class="eq-flecha eq-flecha-prev" data-controls="prev" aria-label="${esc(t.anterior)}">${chevron(FLECHA_PREV)}</button>
+	<button type="button" class="eq-flecha eq-flecha-next" data-controls="next" aria-label="${esc(t.siguiente)}">${chevron(FLECHA_NEXT)}</button>
 </div>`;
 const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const lng = (p) => p._lang || 'es';
@@ -234,6 +238,7 @@ function nav(ctx, active) {
 	</div>
 
 	<nav class="site-nav" aria-label="${ctx.lang === 'en' ? 'Main' : 'Principal'}">
+		${ctx.lang !== 'en' && ctx.altLang ? `<div class="aviso-idioma" hidden>${ic('globe')}<a href="${esc(ctx.altLang(active))}" hreflang="en" lang="en">View this site in English</a><button type="button" class="btn btn-ico" aria-label="${t.cerrarAviso}">${ic('close')}</button></div>` : ''}
 		<div class="container">
 			<div class="menu-bg-wrap">
 				<a href="${rt(ctx).inicio}" class="logo nav-brand">${site.general.logoMenu
@@ -253,77 +258,43 @@ function nav(ctx, active) {
 	</nav>`;
 }
 
-function socialLinks(site) {
-	const r = site.redes || {};
-	const map = [
-		['instagram', 'icon-instagram', 'Instagram'],
-		['facebook', 'icon-facebook', 'Facebook'],
-		['linkedin', 'icon-linkedin', 'LinkedIn'],
-		['youtube', 'icon-youtube-play', 'YouTube'],
-		['tiktok', 'icon-play', 'TikTok']
-	];
-	return map
-		.filter(([k]) => r[k])
-		.map(([k, icon, label]) => `<li><a href="${esc(r[k])}" target="_blank" rel="noopener" aria-label="${label}"><span class="${icon}"></span></a></li>`)
-		.join('');
-}
+// Nombre legal de la empresa: sale en el pie y en el copyright.
+const EMPRESA = 'Equipo Inmobiliario S.A.';
 
 function footer(ctx) {
 	const site = ctx.site;
 	const t = tr(ctx);
 	const c = site.contacto || {};
+	const r = site.redes || {};
 	const hasVip = ctx.properties.some((p) => p.vip);
-	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip);
-	const pageLinks = ctx.pages.filter((p) => p.enFooter);
-	if (ctx.posts.length) pageLinks.unshift({ url: rt(ctx).blog, titulo: t.blog });
-	pageLinks.push({ url: rt(ctx).calculadora, titulo: t.rentaLink });
-	const wa = whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje);
-	return `<div class="site-footer">
+	const links = (site.footer.enlaces || []).filter((l) => hasVip || l.enlace !== rt(ctx).vip).map((l) => [l.enlace, l.texto]);
+	if (ctx.posts.length) links.push([rt(ctx).blog, t.blog]);
+	ctx.pages.filter((p) => p.enFooter).forEach((p) => links.push([p.url, p.titulo]));
+	links.push([rt(ctx).calculadora, t.rentaLink]);
+	const boton = ([href, icono, nombre]) => href
+		? `<a class="btn btn-outline-light btn-ico" href="${esc(href)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''} aria-label="${nombre}">${ic(icono)}</a>` : '';
+	const botones = [
+		[whatsappLink(c.whatsapp, site.whatsappFlotante && site.whatsappFlotante.mensaje), 'whatsapp', 'WhatsApp'],
+		[c.telefono && `tel:${c.telefono.replace(/[^\d+]/g, '')}`, 'phone', t.llamar],
+		[c.email && `mailto:${c.email}`, 'envelope-o', t.correoBtn],
+		[r.instagram, 'instagram', 'Instagram'],
+		[r.facebook, 'facebook', 'Facebook'],
+		[r.linkedin, 'linkedin', 'LinkedIn'],
+		[r.youtube, 'youtube-play', 'YouTube'],
+		[r.tiktok, 'play', 'TikTok']
+	].map(boton).join('');
+	return `<footer class="pie">
 		<div class="container">
-			<div class="row">
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${esc(site.general.nombre)}</h3>
-						${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
-						<ul class="list-unstyled links">
-							${c.telefono ? `<li><a href="tel:${esc(c.telefono.replace(/[^\d+]/g, ''))}">${ic('phone')}${esc(c.telefono)}</a></li>` : ''}
-							${wa ? `<li><a href="${esc(wa)}" target="_blank" rel="noopener">${ic('whatsapp')}WhatsApp</a></li>` : ''}
-							${c.email ? `<li><a href="mailto:${esc(c.email)}">${ic('envelope-o')}${esc(c.email)}</a></li>` : ''}
-							${c.direccion ? `<li>${ic('map-marker')}${esc(c.direccion)}</li>` : ''}
-							${c.horario ? `<li>${ic('clock-o')}${esc(c.horario)}</li>` : ''}
-						</ul>
-					</div>
-				</div>
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${t.enlaces}</h3>
-						<ul class="list-unstyled float-start links me-5">
-							${links.map((l) => `<li><a href="${esc(l.enlace)}">${esc(l.texto)}</a></li>`).join('')}
-						</ul>
-						${pageLinks.length ? `<ul class="list-unstyled float-start links">
-							${pageLinks.map((p) => `<li><a href="${esc(p.url)}">${esc(p.titulo)}</a></li>`).join('')}
-						</ul>` : ''}
-					</div>
-				</div>
-				<div class="col-lg-4">
-					<div class="widget">
-						<h3>${t.siguenos}</h3>
-						<ul class="list-unstyled social">${socialLinks(site)}</ul>
-						${ctx.zonas.length ? `<h3 class="mt-4">${t.zonas}</h3>
-						<ul class="list-unstyled links">
-							${ctx.zonas.slice(0, 8).map((z) => `<li><a href="${esc(z.url)}" title="${t.propiedades} ${esc(z.nombre)}">${ic('map-marker')}${esc(z.nombre)}</a></li>`).join('')}
-						</ul>` : ''}
-					</div>
-				</div>
-			</div>
-			<div class="row mt-5">
-				<div class="col-12 text-center">
-					<p>Copyright &copy; ${new Date().getFullYear()} ${esc(String(site.general.nombre).replace(/\.$/, ''))}. ${t.derechos}
-					${site.footer.mostrarCredito === false ? '' : `<small class="d-block mt-2 text-black-50">${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a></small>`}</p>
-				</div>
-			</div>
+			<p class="pie-nombre">${EMPRESA}</p>
+			${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
+			<nav class="pie-enlaces" aria-label="${t.enlaces}">
+				${links.map(([url, texto]) => `<a href="${esc(url)}">${esc(texto)}</a>`).join('')}
+			</nav>
+			<div class="pie-botones">${botones}</div>
+			${c.direccion || c.horario ? `<p class="pie-datos">${[c.direccion, c.horario].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
+			<p class="pie-legal">&copy; ${new Date().getFullYear()} ${EMPRESA}${site.footer.mostrarCredito === false ? '' : ` · ${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a>`}</p>
 		</div>
-	</div>`;
+	</footer>`;
 }
 
 function whatsappFloat(ctx, mensaje) {
@@ -378,14 +349,12 @@ function pageHero(ctx, title, image, crumbs) {
 	</div>`;
 }
 
+// Datos cortos de la tarjeta: "3 hab · 4 baños · 2 parq." (o el área si no hay habitaciones).
 function specs(p) {
 	const t = TEXTOS[lng(p)];
-	const out = [];
-	if (p.habitaciones) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bed me-2"></span><span class="caption">${plural(p.habitaciones, t.habitacion, t.habitaciones)}</span></span>`);
-	if (p.banos) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-bath me-2"></span><span class="caption">${plural(p.banos, t.bano, t.banos)}</span></span>`);
-	if (p.m2Construccion && out.length) out.push(`<span class="d-block d-flex align-items-center me-3"><span class="icon-home2 me-2"></span><span class="caption">${esc(area(p.m2Construccion, lng(p)))}</span></span>`);
-	if (!out.length && p.m2Terreno) out.push(`<span class="d-block d-flex align-items-center"><span class="icon-expand me-2"></span><span class="caption">${esc(area(p.m2Terreno, lng(p)))}</span></span>`);
-	return out.length ? `<div class="specs d-flex flex-wrap mb-4">${out.join('')}</div>` : '';
+	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.fHuespedesMax) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+		+ (p.m2Construccion ? dato('construccion', area(p.m2Construccion, lng(p)), t.fConstruccion) : dato('terreno', p.m2Terreno && area(p.m2Terreno, lng(p)), t.fTerreno));
 }
 
 // Clases completas (el CSS se depura buscando estos nombres tal cual).
@@ -411,26 +380,26 @@ export function propertyCard(p, { lazy = true } = {}) {
 	const data = [
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
-		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()]
+		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()],
+		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin }) => ({ bloqueos, huespedesMax, nochesMin }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	return `<div class="property-item" ${data}>
-								<a href="${url}" class="img">
+								<a href="${url}" class="img" tabindex="-1">
 									<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${lazy ? ' loading="lazy"' : ''} width="800" height="600">
 									${estadoBadge(p)}
 								</a>
 								<div class="property-content">
-									<div class="price mb-2"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
-									<div>
-										<span class="d-block mb-2 text-black-50">${esc(p.titulo)}</span>
-										<span class="city d-block mb-3">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
-										${specs(p)}
-										<a href="${url}" class="btn btn-primary btn-sm">${TEXTOS[lng(p)].verDetalles}<span class="visually-hidden">: ${esc(p.titulo)}</span>${ic('arrow-right', true)}</a>
+									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
+									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
+									<div class="prop-pie">
+										<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
+										<span class="prop-datos">${specs(p)}</span>
 									</div>
 								</div>
 							</div>`;
 }
 
-export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, lang = 'es', mensaje = '' }) {
+export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, corto = false, lang = 'es', mensaje = '' }) {
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
@@ -439,14 +408,16 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
-		<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
-		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>
+		${corto
+		? `<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.vendeQue}</label><input id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" maxlength="200" placeholder="${t.vendeQuePh}"></div>`
+		: `<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
+		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>`}
 		${visita ? `<div class="row g-2 mb-3">
 			<div class="col-sm-6"><label class="form-label" for="lf-tipo-${esc(origen)}">${t.tipoVisita}</label><select id="lf-tipo-${esc(origen)}" class="form-select" name="tipoVisita"><option value="presencial">${t.presencial}</option><option value="videollamada"${lang === 'en' ? ' selected' : ''}>${t.videollamada}</option></select></div>
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<button type="submit" class="btn btn-primary btn-lg w-100">${ic('paper-plane')}${esc(boton || t.enviar)}</button>
+		<div class="text-end"><button type="submit" class="btn btn-primary">${ic('paper-plane')}${esc(boton || t.enviar)}</button></div>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }
@@ -463,8 +434,8 @@ function agentBox(ctx, agent, property) {
 							<div class="meta mb-3">${esc(agent.cargo || t.asesorInmobiliario)}</div>
 							${agent.bio ? `<p>${esc(agent.bio)}</p>` : ''}
 							<ul class="list-unstyled d-flex flex-wrap gap-2 mb-0">
-								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-sm" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a></li>` : ''}
-								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-sm" data-track="Contact">${ic('envelope-o')}${t.correoBtn}</a></li>` : ''}
+								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a></li>` : ''}
+								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
 							</ul>
 						</div>
 					</div>`;
@@ -728,9 +699,38 @@ export function homePage(ctx) {
 
 // ---------------------------------------------------------------- Listado
 
+// Opciones excluyentes como pastillas (radios): se tocan con el dedo sin abrir un desplegable.
+function chips(col, titulo, name, opciones, sel = '') {
+	return `<fieldset class="${col}">
+					<legend class="form-label">${titulo}</legend>
+					<div class="chips">${opciones.map(([v, txt]) => `<label><input type="radio" name="${name}" value="${esc(v)}"${v === sel ? ' checked' : ''}><span>${esc(txt)}</span></label>`).join('')}</div>
+				</fieldset>`;
+}
+
+// Buscador del listado vacacional: fechas y huéspedes; js/vacacional.js oculta las casas ocupadas.
+function vacBuscador(ctx, list) {
+	const t = tr(ctx);
+	const max = Math.max(2, ...list.map((p) => datosVacacional(p).huespedesMax));
+	return `<form class="vac-buscar" id="vac-buscar" role="search" aria-label="${t.vlBuscar}">
+				${ic('calendar')}
+				<div class="vac-buscar-campos">
+					<span class="vac-buscar-fechas">
+						<input type="date" name="llegada" aria-label="${t.vacLlegada}" required>
+						<span aria-hidden="true">–</span>
+						<input type="date" name="salida" aria-label="${t.vacSalida}" required>
+					</span>
+					<select name="huespedes" aria-label="${t.vacHuespedes}">
+						${Array.from({ length: max }, (_, i) => `<option value="${i + 1}"${i === 1 ? ' selected' : ''}>${i ? fmt(t.vacHuespedesN, { n: i + 1 }) : t.vacHuesped1}</option>`).join('')}
+					</select>
+				</div>
+				<button type="submit" class="btn btn-primary btn-ico" aria-label="${t.vlBuscar}">${ic('search')}</button>
+			</form>`;
+}
+
 export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
 	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
+	const vac = operacion === 'vacacional';
 	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
@@ -746,7 +746,11 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
-			<form class="listing-filters row g-2 align-items-end mb-5" id="listing-filters" role="search" aria-label="${t.filtrar}">
+			${vac ? vacBuscador(ctx, list) : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
+				<div class="col-12 filtros-cabeza d-md-none">
+					<strong>${t.buscar}</strong>
+					<button type="button" class="btn btn-outline-secondary btn-ico" id="filtros-cerrar" aria-label="${t.cerrarFiltros}">${ic('close')}</button>
+				</div>
 				${ctx.site.ia && ctx.site.ia.busquedaPublica ? `<div class="col-12 ia-search">
 					<label class="form-label" for="ia-texto">${t.busquedaInteligente}</label>
 					<div class="input-group">
@@ -759,64 +763,51 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<label class="form-label" for="f-q">${t.buscar}</label>
 					<input class="form-control" id="f-q" name="q" type="search" placeholder="${t.buscarPh}">
 				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-operacion">${t.operacion}</label>
-					<select class="form-select" id="f-operacion" name="operacion">
-						<option value="">${t.todas}</option>
-						<option value="venta"${operacion === 'venta' ? ' selected' : ''}>${t.venta}</option>
-						<option value="renta"${operacion === 'renta' ? ' selected' : ''}>${t.renta}</option>
-						${hayVacacional ? `<option value="vacacional"${operacion === 'vacacional' ? ' selected' : ''}>${t.vacacional}</option>` : ''}
-					</select>
-				</div>
-				<div class="col-6 col-md-3 col-lg-3">
-					<label class="form-label" for="f-tipo">${t.tipo}</label>
-					<select class="form-select" id="f-tipo" name="tipo">
-						<option value="">${t.todos}</option>
-						${tipos.map((tp) => `<option value="${esc(tp)}">${esc((ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp)}</option>`).join('')}
-					</select>
-				</div>
-				<div class="col-6 col-md-4 col-lg-3">
+				<div class="col-12 col-md-6 col-lg-4">
 					<label class="form-label" for="f-zona">${t.zona}</label>
 					<select class="form-select" id="f-zona" name="zona">
 						<option value="">${t.todas}</option>
 						${zonas.map((z) => `<option value="${esc(z)}"${z === zona ? ' selected' : ''}>${esc(z)}</option>`).join('')}
 					</select>
 				</div>
-				<div class="col-6 col-md-4 col-lg-2">
-					<label class="form-label" for="f-hab">${t.fHabitaciones}</label>
-					<select class="form-select" id="f-hab" name="habitaciones">
-						<option value="">${t.todas}</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
-					</select>
+				<div class="col-6 col-lg-2">
+					<label class="form-label" for="f-min">${t.precioMin}</label>
+					<input class="form-control" id="f-min" name="min" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
-				<div class="col-12 col-md-4 col-lg-3">
-					<label class="form-label" for="f-orden">${t.ordenar}</label>
-					<select class="form-select" id="f-orden" name="orden">
+				<div class="col-6 col-lg-2">
+					<label class="form-label" for="f-max">${t.precioMax}</label>
+					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
+				</div>
+				${chips('col-12 col-lg-6', t.operacion, 'operacion', [['', t.todas], ['venta', t.venta], ['renta', t.renta], ...(hayVacacional ? [['vacacional', t.vacacional]] : [])], operacion)}
+				${chips('col-12 col-lg-6', t.tipo, 'tipo', [['', t.todos], ...tipos.map((tp) => [tp, (ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp])])}
+				${chips('col-12 col-md-8 col-lg-6', t.fHabitaciones, 'habitaciones', [['', t.todas], ['1', '1+'], ['2', '2+'], ['3', '3+'], ['4', '4+']])}
+				<div class="col-12 col-md-4 col-lg-6 filtros-pie">
+					<button type="reset" class="btn btn-link">${t.limpiar}</button>
+					<button type="submit" class="btn btn-primary d-md-none" id="listing-ver">${t.jsVer} ${plural(list.length, t.propiedad, t.propiedadesN)}</button>
+				</div>
+			</form>
+
+			<div class="listing-barra">
+				<p class="mb-0" id="listing-count" aria-live="polite">${plural(list.length, t.propiedad, t.propiedadesN)}</p>
+				<button type="button" class="btn btn-outline-primary btn-ico d-md-none" id="filtros-abrir" aria-label="${t.buscarFiltrar}" aria-controls="listing-filters" aria-expanded="false">${ic('search')}</button>
+				<label class="listing-orden btn btn-outline-primary btn-ico">
+					${ic('sort')}<span class="visually-hidden">${t.ordenar}</span>
+					<select class="form-select" id="f-orden" name="orden" form="listing-filters">
 						<option value="recientes">${t.recientes}</option>
 						<option value="precio-asc">${t.precioAsc}</option>
 						<option value="precio-desc">${t.precioDesc}</option>
 					</select>
-				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-min">${t.precioMin}</label>
-					<input class="form-control" id="f-min" name="min" type="number" min="0" step="1000" inputmode="numeric">
-				</div>
-				<div class="col-6 col-md-3 col-lg-2">
-					<label class="form-label" for="f-max">${t.precioMax}</label>
-					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
-				</div>
-				<div class="col-12 col-md-3 col-lg-3">
-					<button type="reset" class="btn btn-outline-secondary w-100">${ic('refresh')}${t.limpiar}</button>
-				</div>
-			</form>
-
+				</label>
+			</div>`}
 			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
-			<p class="text-black-50 mb-4" id="listing-count" aria-live="polite">${plural(list.length, t.propiedad, t.propiedadesN)}</p>
 
-			<div class="row" id="listing-grid">
-				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
+			<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
+				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
 			</div>
-			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
+			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
+			${vac ? `<h2 class="h5 mt-4 mb-3">${t.vlComo}</h2>
+			<ol class="vac-pasos">${[t.vlPaso1, t.vlPaso2, t.vlPaso3].map((x) => `<li>${x}</li>`).join('')}</ol>` : ''}
 		</div>
 	</div>
 	${contenido ? `<div class="section pt-0">
@@ -844,6 +835,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		alternates,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
 		image: imagen || undefined,
+		extraJs: vac ? VAC_JS : '',
 		preloadImage: heroImg,
 		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
 	}, body);
@@ -951,8 +943,8 @@ function factsList(p) {
 		['bed', t.fHabitaciones, p.habitaciones],
 		['bath', t.fBanos, p.banos],
 		['car', t.fParqueos, p.parqueos],
-		['home2', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
-		['expand', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
+		['construccion', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
+		['terreno', t.fTerreno, p.m2Terreno ? area(p.m2Terreno, lng(p)) : ''],
 		['users', t.fHuespedesMax, vac ? vac.huespedesMax : ''],
 		['moon-o', t.fNochesMin, vac && vac.nochesMin > 1 ? fmt(t.vacNochesN, { n: vac.nochesMin }) : ''],
 		['clock-o', t.fHorario, vac ? `${fmt(t.vacCheckIn, { hora: vac.checkIn || '15:00' })} · ${fmt(t.vacCheckOut, { hora: vac.checkOut || '11:00' })}` : ''],
@@ -1114,9 +1106,9 @@ function reservaBox(ctx, p) {
 						</div>
 						<div class="vac-cal" role="group" aria-label="${esc(t.vacCalendario)}">
 							<div class="vac-cal-cabecera">
-								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron('M14.5 5.5 8 12l6.5 6.5')}</button>
+								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron(FLECHA_PREV)}</button>
 								<h3 class="vac-cal-mes" aria-live="polite"></h3>
-								<button type="button" class="eq-flecha vac-cal-next" aria-label="${esc(t.vacMesSiguiente)}">${chevron('M9.5 5.5 16 12l-6.5 6.5')}</button>
+								<button type="button" class="eq-flecha vac-cal-next" aria-label="${esc(t.vacMesSiguiente)}">${chevron(FLECHA_NEXT)}</button>
 							</div>
 							<div class="vac-cal-cuerpo"></div>
 						</div>
@@ -1158,13 +1150,23 @@ export function propertyPage(ctx, p) {
 				</div>
 			</section>` : '';
 
+	// Barra fija de celular: la acción principal con texto y el resto solo con ícono.
+	const waFicha = whatsappLink((agent && agent.whatsapp) || ctx.site.contacto.whatsapp, waMsg);
+	const tel = telLink(ctx);
+	const barra = `<div class="ficha-barra d-lg-none">
+		<a href="#${esVac ? 'vac-titulo' : 'ficha-form'}" class="btn btn-primary">${ic(cerrada ? 'envelope-o' : 'calendar')}${esVac ? t.vacSolicitar : cerrada ? t.quieroInfo : t.agendarVisita}</a>
+		${waFicha ? `<a href="${esc(waFicha)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a>` : ''}
+		${tel ? `<a href="${tel}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.llamar}">${ic('phone')}</a>` : ''}
+		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>
+	</div>`;
+
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const datosClave = [
 		[p.habitaciones, t.fHabitaciones, 'bed'],
 		[p.banos, t.fBanos, 'bath'],
 		[p.parqueos, t.fParqueos, 'car'],
-		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'home2'],
-		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'expand']
+		[p.m2Construccion ? area(p.m2Construccion, lng(p)) : '', t.fConstruccion, 'construccion'],
+		[p.m2Terreno ? area(p.m2Terreno, lng(p)) : '', t.fTerreno, 'terreno']
 	].filter(([v]) => v);
 	const visibles = fotos;
 	const galeria = `<div class="ficha-galeria-wrap">
@@ -1175,7 +1177,9 @@ export function propertyPage(ctx, p) {
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
 	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${ic('camera')}${fmt(t.verFotosN, { n: fotos.length })}</button>
-	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
+	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>
+	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-prev" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
+	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-next" aria-label="${t.siguienteFoto}">${chevron(FLECHA_NEXT)}</button>` : ''}
 	</div>
 	<dialog class="ficha-lightbox" id="ficha-lightbox" aria-label="${t.galeriaFotos}">
 		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">${ic('close')}</button>
@@ -1225,7 +1229,7 @@ export function propertyPage(ctx, p) {
 					<div class="ficha-contacto">
 						${esVac ? reservaBox(ctx, p) : ''}
 						${agentBox(ctx, agent, p)}
-						${esVac ? '' : `<div class="lead-card">${cerrada
+						${esVac ? '' : `<div class="lead-card" id="ficha-form">${cerrada
 							? leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })
 							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>`}
 						${shareButtons(ctx, p)}
@@ -1239,7 +1243,8 @@ export function propertyPage(ctx, p) {
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
 			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
-	</div>` : ''}`;
+	</div>` : ''}
+	${barra}`;
 
 	return layout(ctx, {
 		path: propertyUrl(p),
@@ -1367,8 +1372,8 @@ export function vipLandingPage(ctx, p) {
 		['icon-bed', p.habitaciones, t.fHabitaciones],
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
-		['icon-home2', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
-		['icon-expand', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
+		['icon-construccion', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
+		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Terreno)} m²`), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 
@@ -1511,6 +1516,15 @@ export function vipLandingPage(ctx, p) {
 
 // ---------------------------------------------------------------- Páginas de contenido
 
+// Página «Vende o renta tu propiedad»: el formulario corto se abre debajo del botón, sin salir de la página.
+const VENDE = '/vende-tu-propiedad/';
+function vendeForm(ctx) {
+	return `<details class="vende text-center">
+		<summary class="btn btn-primary btn-lg">${ic('home')}${tr(ctx).vendeBoton}</summary>
+		<div class="lead-card text-start">${leadForm({ origen: 'vende', corto: true, lang: ctx.lang })}</div>
+	</details>`;
+}
+
 export function contentPage(ctx, page) {
 	const crumbs = [{ name: tr(ctx).inicio, url: rt(ctx).inicio }, { name: page.titulo, url: page.url }];
 	const body = `
@@ -1518,7 +1532,8 @@ export function contentPage(ctx, page) {
 	<div class="section">
 		<div class="container">
 			<div class="row justify-content-center">
-				<article class="col-lg-8 content-page">${markdown(page.contenido)}</article>
+				<article class="col-lg-8 content-page">${markdown(page.contenido)}
+					${((page._alternates && page._alternates.es) || page.url) === VENDE ? vendeForm(ctx) : ''}</article>
 			</div>
 		</div>
 	</div>`;
@@ -1966,8 +1981,8 @@ export function portalPage(ctx) {
 								<li data-pp="a-ubicacion" hidden>${ic('map-marker')}<span></span></li>
 								<li data-pp="a-hab" hidden>${ic('bed')}<span></span></li>
 								<li data-pp="a-banos" hidden>${ic('bath')}<span></span></li>
-								<li data-pp="a-construccion" hidden>${ic('home2')}<span></span></li>
-								<li data-pp="a-terreno" hidden>${ic('expand')}<span></span></li>
+								<li data-pp="a-construccion" hidden>${ic('construccion')}<span></span></li>
+								<li data-pp="a-terreno" hidden>${ic('terreno')}<span></span></li>
 							</ul>
 							<ul class="pp-anuncio-fotos" data-pp="a-fotos" hidden></ul>
 							<details class="pp-anuncio-desc" data-pp="a-desc-caja" hidden>
