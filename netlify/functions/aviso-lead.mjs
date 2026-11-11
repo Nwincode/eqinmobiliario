@@ -3,6 +3,7 @@
 // Solo escribe al equipo (AVISO_CORREO) y al asesor asignado: nunca a direcciones que mande el visitante.
 import { json } from '../lib/auth.mjs';
 import { leerPublico } from '../lib/firestore.mjs';
+import { telefonoWa as telWa } from '../../admin/js/formato.js';
 import { enviarCorreo, correoConfigurado, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 
 const hits = new Map();
@@ -15,12 +16,6 @@ function limitado(ip) {
 }
 
 const cut = (v, n) => String(v ?? '').trim().slice(0, n);
-
-function telWa(tel) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
-	return n;
-}
 
 export default async (req, context) => {
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });

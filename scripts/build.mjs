@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra } from './lib/util.mjs';
+import { prefijoMoneda } from '../admin/js/formato.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -214,6 +215,8 @@ function llmsTxt(ctx, properties, pages) {
 		'',
 		`Agencia inmobiliaria en Ciudad de Guatemala: compra, venta y renta de casas, apartamentos y terrenos. Atención en español e inglés, recorridos por videollamada y cierre a distancia para compradores en Estados Unidos.${c.telefono ? ` Teléfono / WhatsApp: ${c.telefono}.` : ''}${c.email ? ` Correo: ${c.email}.` : ''}`,
 		'',
+		`Texto completo de cada propiedad y cada guía: ${base}/llms-full.txt`,
+		'',
 		'## Propiedades',
 		'',
 		`- [Todas las propiedades](${base}/propiedades/)`,
@@ -236,6 +239,42 @@ function llmsTxt(ctx, properties, pages) {
 	];
 	return lineas.join('\n');
 }
+
+// llms-full.txt: lo mismo que llms.txt pero con el texto completo de cada propiedad y cada guía,
+// para que un asistente responda sin tener que abrir página por página.
+function llmsFullTxt(ctx, properties) {
+	const base = ctx.siteUrl.replace(/\/$/, '');
+	const dato = (nombre, valor) => (valor ? `- ${nombre}: ${valor}` : null);
+	const ficha = (p) => [
+		`## ${p.titulo}`,
+		'',
+		dato('Enlace', `${base}${T.propertyUrl(p)}`),
+		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
+		dato('Tipo', p.tipo),
+		dato('Ubicación', [p.zona, p.ciudad].filter(Boolean).join(', ')),
+		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `${prefijoMoneda(p.moneda || 'USD')} ${cifra(p.precio)}` : ''),
+		dato('Habitaciones', p.habitaciones),
+		dato('Baños', p.banos),
+		dato('Parqueos', p.parqueos),
+		dato('Construcción', p.m2Construccion ? `${cifra(p.m2Construccion)} m²` : ''),
+		dato('Terreno', p.m2Terreno ? `${cifra(p.m2Terreno)} m²` : ''),
+		dato('Amenidades', (p.amenidades || []).join(', ')),
+		'',
+		textoPlano(p.descripcion),
+		''
+	].filter((l) => l !== null);
+	return [
+		`# ${ctx.site.general.nombre}: catálogo y guías completas`,
+		'',
+		`> ${ctx.site.seo.descripcion}`,
+		'',
+		...properties.filter((p) => (p.estado || 'disponible') === 'disponible').flatMap(ficha),
+		...ctx.posts.flatMap((p) => [`## ${p.titulo}`, '', `- Enlace: ${base}${p.url}`, '', textoPlano(p.contenido || p.resumen), ''])
+	].join('\n');
+}
+
+// Buscadores con IA a los que se les da permiso explícito (además de la regla general).
+const BOTS_IA = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'Bingbot'];
 
 // ------------------------------------------------ Catálogos para portales (/feeds/)
 const xmlEsc = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
@@ -665,12 +704,13 @@ async function main() {
 	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
-		: `User-agent: *\nAllow: /\nDisallow: /admin/\n\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
+		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
 
 	if (!ctx.noindex) {
 		// Clave de IndexNow (Bing, Copilot, Yandex): es pública por diseño; la función deploy-succeeded la usa.
 		await writeFile(path.join(DIST, `${indexNowKey(config.siteUrl)}.txt`), indexNowKey(config.siteUrl));
 		await writeFile(path.join(DIST, 'llms.txt'), llmsTxt(ctx, properties, pages));
+		await writeFile(path.join(DIST, 'llms-full.txt'), llmsFullTxt(ctx, properties));
 	}
 	// Los catálogos se generan siempre: los portales los leen aunque el sitio aún no se indexe en Google.
 	const catalogos = feeds(ctx, properties, propsEnGlobal);
@@ -680,6 +720,12 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${urls.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
+	// Avisos de SEO: una propiedad sin estos datos se posiciona peor (no detiene la publicación).
+	const FALTANTES = { foto: (p) => (p.fotos || []).length, descripción: (p) => p.descripcion, precio: (p) => p.precio, zona: (p) => p.zona || p.ciudad };
+	for (const p of properties) {
+		const faltan = Object.keys(FALTANTES).filter((k) => !FALTANTES[k](p));
+		if (faltan.length) console.warn(`  ⚠ «${p.titulo}» sin ${faltan.join(', ')}`);
+	}
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);
 }
 
