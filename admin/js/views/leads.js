@@ -5,6 +5,7 @@ import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
 , mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
+import { telefonoWa, whatsappUrl } from '../formato.js';
 
 export const ESTADOS = [
 	['nuevo', 'Nuevo', 'primary'],
@@ -39,9 +40,7 @@ export async function loadLeads() {
 }
 
 function waLink(tel, nombre) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
-	return n ? `https://wa.me/${n}?text=${encodeURIComponent(`Hola ${nombre}, te escribo de Equipo Inmobiliario.`)}` : '';
+	return telefonoWa(tel) ? whatsappUrl(tel, `Hola ${nombre}, te escribo de Equipo Inmobiliario.`) : '';
 }
 
 function openLead(lead, agents, onChange) {

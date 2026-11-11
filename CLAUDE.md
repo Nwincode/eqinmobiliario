@@ -35,3 +35,5 @@ sin cajas grandes ni rellenos pesados. Círculo o espacio discreto, flecha fina,
 - No crear pull requests si no se piden.
 - Los colores salen de `css/tema.css` y de Contenido → Colores del panel; no escribir colores a mano.
 - Los íconos siempre deben referirse a lo que se habla.
+- Antes de programar algo nuevo, buscar si ya existe y reutilizarlo. Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
+- Botones compactos en todo el sitio, sobre todo en celular: pequeños, de ícono cuando se pueda, sin ocupar una fila entera; el área de toque sigue siendo de al menos 44 px.

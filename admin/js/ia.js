@@ -51,18 +51,7 @@ export async function pedirIA(tarea, datos) {
 	return local(datos);
 }
 
-// Número en formato internacional para wa.me (los de 8 dígitos se asumen de Guatemala).
-export function telefonoWa(tel) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
-	return n;
-}
-
-export function whatsappUrl(tel, mensaje) {
-	const n = telefonoWa(tel);
-	const text = mensaje ? `text=${encodeURIComponent(mensaje)}` : '';
-	return n ? `https://wa.me/${n}${text ? `?${text}` : ''}` : `https://wa.me/?${text}`;
-}
+export { telefonoWa, whatsappUrl } from './formato.js';
 
 export async function copiar(texto) {
 	try {

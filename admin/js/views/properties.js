@@ -15,6 +15,7 @@ import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '..
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
+import { miles, prefijoMoneda, whatsappUrl } from '../formato.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -22,12 +23,11 @@ const V = window.EQVacacional;
 const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
-const cifraGt = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const autoTitle = (d) => autoSeoTitle(d);
 const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
 	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
 	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
-	d.m2Construccion && `${cifraGt(d.m2Construccion)} m²`
+	d.m2Construccion && `${miles(d.m2Construccion)} m²`
 ]);
 // Llena el SEO en español si está vacío o si todavía es el que se puso solo (así se actualiza al cambiar la ficha).
 function llenarSeo(d) {
@@ -133,7 +133,7 @@ export function vacacionalPublico(d) {
 function desgloseVacacional(el, d) {
 	const s = d.socio || {};
 	const moneda = d.moneda || 'USD';
-	const m = (n) => `${{ USD: 'US$', GTQ: 'Q' }[moneda] || moneda} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	const m = (n) => `${prefijoMoneda(moneda)} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 	const filas = [['Precio base', s.precioBase], ['Fin de semana (viernes y sábado)', s.precioFinde]]
 		.concat((s.tarifas || []).filter((t) => t.precio).map((t) => [`Tarifa ${t.desde || '…'} al ${t.hasta || '…'}`, t.precio]))
 		.filter(([, p]) => Number(p) > 0);
@@ -335,7 +335,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
 				p.publicado && p.slug ? h('a', {
 					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
-					href: `https://wa.me/?text=${encodeURIComponent(`${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`)}`,
+					href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`),
 					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
 				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), ' Compartir') : null,
 				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },

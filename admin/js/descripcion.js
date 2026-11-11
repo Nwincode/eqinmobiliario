@@ -2,6 +2,7 @@
 // párrafo de ubicación + secciones con viñetas (Características, Amenidades, Detalles técnicos,
 // Términos) y la nota de lo que no incluye el precio. Sin precio en el texto (ya sale en la ficha).
 // En la web va sin emojis; conEmojis() los agrega para Meta (Facebook, Instagram, WhatsApp).
+import { miles } from './formato.js';
 
 const TIPO = { casa: 'Casa', apartamento: 'Apartamento', terreno: 'Terreno', oficina: 'Oficina', local: 'Local comercial', bodega: 'Bodega', finca: 'Finca' };
 const OPERACION = { venta: 'en venta', renta: 'en alquiler', vacacional: 'para vacacionar' };
@@ -36,7 +37,7 @@ export function conEmojis(texto = '') {
 	}).join('\n');
 }
 
-const num = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const num = miles;
 const plural = (n, uno, varios) => `${num(n)} ${Number(n) === 1 ? uno : varios}`;
 
 // Texto propio de la propiedad que ya existía: lo que está antes de las secciones generadas,

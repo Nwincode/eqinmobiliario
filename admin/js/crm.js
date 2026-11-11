@@ -5,6 +5,7 @@ import {
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
+import { telefonoWa as telNorm, prefijoMoneda } from './formato.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -26,16 +27,11 @@ export const etapaLabel = (v) => (ETAPAS.find(([k]) => k === v) || ETAPAS[0])[1]
 export const etapaBadge = (v) => { const e = ETAPAS.find(([k]) => k === v) || ETAPAS[0]; return badge(e[1], e[2]); };
 export const tipoActividad = (v) => TIPOS_ACTIVIDAD.find(([k]) => k === v) || TIPOS_ACTIVIDAD[5];
 
-// Teléfono comparable: solo dígitos; los de 8 dígitos se asumen de Guatemala.
-export function telNorm(tel) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
-	return n;
-}
+export { telNorm };
 
 export function money(monto, moneda = 'USD') {
 	if (!monto) return '—';
-	return `${{ USD: 'US$', GTQ: 'Q' }[moneda] || moneda} ${Number(monto).toLocaleString('en-US')}`;
+	return `${prefijoMoneda(moneda)} ${Number(monto).toLocaleString('en-US')}`;
 }
 
 // Consulta respetando el rol: el asesor filtra por su agentId (si no, Firestore la rechaza).

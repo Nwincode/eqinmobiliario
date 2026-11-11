@@ -7,6 +7,7 @@
 //  - pequeño contribuyente (5 %): no se cobra IVA aparte; el emisor paga el 5 % del total a la SAT.
 //      · «Todo incluido»: total = honorario ÷ 0.95, así el emisor sigue recibiendo el honorario.
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
+import { miles } from './formato.js';
 
 export const IVA_GENERAL = 0.12;
 export const TASA_PEQUENO = 0.05;
@@ -338,7 +339,7 @@ export function textoWhatsApp(cot) {
 // en la cotización, para que la hoja no cambie aunque después se edite el registro.
 const texto = (v) => String(v ?? '').trim();
 const cifra = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
-const mil = (v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const mil = miles;
 
 // «EQ-101 · Casa en San Antonio · Zona 16»: el texto corto de siempre (lista, WhatsApp, cotizaciones de antes).
 export const textoPropiedad = (p) => [p?.codigo, p?.titulo, p?.zona].map(texto).filter(Boolean).join(' · ');

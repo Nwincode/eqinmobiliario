@@ -5,6 +5,7 @@ import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
 import { seOfrece } from './estados.js';
 import { conEmojis } from './descripcion.js';
+import { prefijoMoneda, M2_A_FT2 } from './formato.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
@@ -51,13 +52,13 @@ export function codigo(p) {
 
 function precioTexto(p, lang) {
 	if (!p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio)) return L[lang].consultar;
-	const pre = { USD: 'US$', GTQ: 'Q' }[p.moneda || 'USD'] || p.moneda;
+	const pre = prefijoMoneda(p.moneda || 'USD');
 	return `${pre} ${Number(p.precio).toLocaleString('en-US')}${p.operacion === 'renta' ? L[lang].mes : ''}`;
 }
 
 function area(m2, lang) {
 	if (!m2) return '';
-	return lang === 'en' ? `${Math.round(m2 * 10.7639).toLocaleString('en-US')} sq ft (${m2} m²)` : `${m2} m²`;
+	return lang === 'en' ? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${m2} m²)` : `${m2} m²`;
 }
 
 // Enlace a la ficha con UTM: así cada lead queda atribuido a la plataforma de donde vino.

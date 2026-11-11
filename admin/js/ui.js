@@ -1,4 +1,5 @@
 // Utilidades de interfaz del panel.
+import { prefijoMoneda, miles } from './formato.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -59,8 +60,8 @@ export function formatDate(v, withTime = true) {
 
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
 	if (!precio) return 'A consultar';
-	const prefix = { USD: 'US$', GTQ: 'Q' }[moneda] || moneda;
-	if (operacion === 'vacacional') return `Desde ${prefix} ${Number(precio).toLocaleString('en-US', { maximumFractionDigits: 2 })} /noche`;
+	const prefix = prefijoMoneda(moneda);
+	if (operacion === 'vacacional') return `Desde ${prefix} ${miles(precio)} /noche`;
 	return `${prefix} ${Number(precio).toLocaleString('en-US')}${operacion === 'renta' ? ' /mes' : ''}`;
 }
 
