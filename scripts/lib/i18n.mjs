@@ -30,7 +30,9 @@ const ES = {
 	vacErrMinimo: 'La estancia mínima es de {n} noches.', vacErrPasado: 'La llegada no puede ser antes de hoy.',
 	vacCodigo: '¡Solicitud enviada! Tu código de reserva es {codigo}. Te confirmamos la disponibilidad muy pronto.',
 	vacResumen: 'Solicitud de reserva: llegada {llegada}, salida {salida} ({noches}), {huespedes}. Total aprox. {total} con impuestos.',
-	fHuespedesMax: 'Huéspedes máximo', fNochesMin: 'Estancia mínima', fHorario: 'Llegada y salida',
+	fHuespedesMax: 'Huéspedes máximo', fNochesMin: 'Estancia mínima', fCamas: 'Camas', fMascotas: 'Mascotas', fLimpieza: 'Limpieza (por estancia)',
+	vacAntes: 'Antes de reservar', vacMascotasSi: 'Se aceptan', vacMascotasNo: 'No se aceptan', vacComoLlegar: 'Cómo llegar',
+	vacReglas: 'Reglas de la casa', vacReglasGenerales: '', vacCancelacion: 'Cancelación', vacCancelacionGeneral: '',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas',
 	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', zonas: 'Zonas',
 	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué querés vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
@@ -138,7 +140,9 @@ const EN = {
 	vacErrMinimo: 'The minimum stay is {n} nights.', vacErrPasado: 'Check-in can\'t be before today.',
 	vacCodigo: 'Request sent! Your booking code is {codigo}. We will confirm availability shortly.',
 	vacResumen: 'Booking request: check-in {llegada}, check-out {salida} ({noches}), {huespedes}. Approx. total {total} incl. taxes.',
-	fHuespedesMax: 'Max. guests', fNochesMin: 'Minimum stay', fHorario: 'Check-in / check-out',
+	fHuespedesMax: 'Max. guests', fNochesMin: 'Minimum stay', fCamas: 'Beds', fMascotas: 'Pets', fLimpieza: 'Cleaning fee (per stay)',
+	vacAntes: 'Before you book', vacMascotasSi: 'Allowed', vacMascotasNo: 'Not allowed', vacComoLlegar: 'Getting there',
+	vacReglas: 'House rules', vacReglasGenerales: '', vacCancelacion: 'Cancellation', vacCancelacionGeneral: '',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all',
 	abrirMenu: 'Open menu', enlaces: 'Links', zonas: 'Areas',
 	vendeBoton: 'List your property', vendeQue: 'What do you want to sell or rent out?', vendeQuePh: 'House in zone 15, 3 bedrooms…', cerrarAviso: 'Close language notice',
@@ -236,7 +240,7 @@ export const GRUPOS_TEXTOS = [
 	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
 	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaPlazoContrato', 'rentaPlazoAnio', 'rentaPlazoAnios', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDEfectivo', 'rentaDGastos', 'rentaDIusi', 'rentaDComision', 'rentaDExento', 'rentaDIsr', 'rentaDIvaPeq', 'rentaDIvaGen', 'rentaDNeto', 'rentaDNetoMes', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
-	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'fHuespedesMax', 'fNochesMin', 'fHorario']],
+	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'fHuespedesMax', 'fNochesMin', 'fCamas', 'fMascotas', 'fLimpieza', 'vacAntes', 'vacMascotasSi', 'vacMascotasNo', 'vacComoLlegar', 'vacReglas', 'vacReglasGenerales', 'vacCancelacion', 'vacCancelacionGeneral']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
 ];
@@ -274,4 +278,4 @@ export const TIPOS_EN = {
 
 export const ESTADOS_EN = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.en]));
 
-export { M2_A_FT2 } from '../../admin/js/formato.js';
+export { M2_A_FT2, M2_A_V2 } from '../../admin/js/formato.js';

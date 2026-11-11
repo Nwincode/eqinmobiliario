@@ -898,7 +898,7 @@ a {
 	margin-right: .3em;
 	color: var(--eq-primary);
 }
-/* Íconos propios (no están en la fuente): pared = construcción, pasto = terreno. */
+/* Íconos propios (no están en la fuente): pared = construcción, pasto = terreno; ambos con cotas de plano. */
 .icon-construccion::before,
 .icon-terreno::before {
 	content: '';
@@ -911,10 +911,10 @@ a {
 	mask: var(--ico) center / contain no-repeat;
 }
 .icon-construccion {
-	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h8v5H3zM13 3h8v5h-8zM3 9.5h3v5H3zM8 9.5h8v5H8zM18 9.5h3v5h-3zM3 16h8v5H3zM13 16h8v5h-8z'/%3E%3C/svg%3E");
+	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 2h7v4H6zM15 2h7v4h-7zM6 7.5h2.5v4H6zM10.5 7.5h7v4h-7zM19.5 7.5H22v4h-2.5zM6 13h7v4H6zM15 13h7v4h-7zM6 19.9h16v1.2H6zM5.4 18.5h1.2v4H5.4zM21.4 18.5h1.2v4h-1.2zM2.4 2h1.2v15H2.4zM1 1.4h4v1.2H1zM1 16.4h4v1.2H1z'/%3E%3C/svg%3E");
 }
 .icon-terreno {
-	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M5 2h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zm7.2 17.5c-.2-5.6-1.7-9.8-4.6-12.7 3.9 2.3 6 6.5 6.4 12.7zm2.8 0c.1-3.9 1.4-6.9 4-9-1.3 2.8-1.9 5.8-1.8 9zm-5 0c-.3-2.9-1.6-5.1-3.8-6.5 3 .8 4.9 3 5.6 6.5z'/%3E%3C/svg%3E");
+	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 19.9h16v1.2H6zM5.4 18.5h1.2v4H5.4zM21.4 18.5h1.2v4h-1.2zM2.4 2h1.2v15H2.4zM1 1.4h4v1.2H1zM1 16.4h4v1.2H1z'/%3E%3Cpath transform='translate(4.4 .4) scale(.8)' fill-rule='evenodd' d='M5 2h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zm7.2 17.5c-.2-5.6-1.7-9.8-4.6-12.7 3.9 2.3 6 6.5 6.4 12.7zm2.8 0c.1-3.9 1.4-6.9 4-9-1.3 2.8-1.9 5.8-1.8 9zm-5 0c-.3-2.9-1.6-5.1-3.8-6.5 3 .8 4.9 3 5.6 6.5z'/%3E%3C/svg%3E");
 }
 .property-item .property-content .price {
 	color: var(--eq-primary);
@@ -1404,6 +1404,22 @@ body.offcanvas-menu .ficha-barra {
 	color: var(--eq-dark);
 	font-weight: 500;
 	font-size: 14px;
+}
+.ficha-nota {
+	margin: 20px 0 0;
+	color: var(--eq-ink);
+}
+.ficha-nota strong {
+	display: block;
+	margin-bottom: 4px;
+	color: var(--eq-dark);
+}
+.ficha-nota .eq-ic,
+.ficha-amenidades .eq-ic {
+	width: 1.3em;
+	margin-right: .5em;
+	text-align: center;
+	color: var(--eq-primary);
 }
 .ficha-amenidades {
 	list-style: none;

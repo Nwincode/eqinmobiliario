@@ -126,6 +126,8 @@ export function vacacionalPublico(d) {
 			huespedesMax: Math.max(1, Math.floor(Number(v.huespedesMax) || 1)),
 			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
 			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
+			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
+			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
 			bloqueos
 		}
 	};
@@ -653,6 +655,11 @@ function schema(agentOpts, isNew) {
 		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
+		{ name: 'vacacional.camas', label: 'Camas', type: 'number', min: 0, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.mascotas', label: 'Mascotas', type: 'select', options: [['', 'Sin indicar'], ['si', 'Se aceptan'], ['no', 'No se aceptan']], cols: 4, when: esVacacional },
+		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
+		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
+		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		{ name: 'socio.nombre', label: 'Nombre del socio', cols: 6, when: esVacacional, help: 'Privado: no sale en la página.' },
 		{ name: 'socio.telefono', label: 'Teléfono del socio', type: 'tel', cols: 6, when: esVacacional, help: 'Privado.' },
 		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
