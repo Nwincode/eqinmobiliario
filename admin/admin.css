@@ -1272,6 +1272,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
 }
+/* Con la barra lateral, debajo de 1700 px no caben todas: se quedan las que enseñan el inmueble. */
+@media (min-width: 768px) and (max-width: 1699.98px) {
+	.tabla-propiedades .celda-asesor,
+	.tabla-propiedades .celda-fecha { display: none; }
+}
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);
@@ -1413,7 +1418,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .motivo-ok { display: none; }
 	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
 	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .375rem; text-align: right; }
-	.table-admin.tabla-propiedades .sin-fecha { display: none; }
+	.table-admin.tabla-propiedades .sin-fecha,
+	.table-admin.tabla-propiedades .sin-asesor { display: none; }
 }
 
 /* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */

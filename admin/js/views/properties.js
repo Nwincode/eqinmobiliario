@@ -377,7 +377,7 @@ export async function render(container, [id]) {
 					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
 				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
-			h('td', { class: 'small celda-asesor' }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
+			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
 			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'));
 	};
 
