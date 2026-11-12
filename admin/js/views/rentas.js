@@ -1,8 +1,8 @@
 // Rentas vacacionales: reservas de cada casa y estado de cuenta de cada propietario.
 // Una reserva confirmada bloquea sus fechas en el calendario público de la casa.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn } from '../ui.js';
+import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia } from '../ui.js';
 import { session } from '../session.js';
 import { whatsappUrl } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
@@ -12,11 +12,9 @@ const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Air
 const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['pendiente', 'Pendiente', 'warning'], ['cancelada', 'Cancelada', 'light']];
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || lista[0])[1];
 const estadoBadge = (r) => { const e = ESTADOS.find(([k]) => k === r.estado) || ESTADOS[1]; return badge(e[1], e[2]); };
-const hoy = () => new Date().toLocaleDateString('en-CA');
 const SIN_DUENO = 'Sin propietario asignado';
 
-// 2026-11-14 → "14 nov"; el mes "2026-11" → "noviembre de 2026".
-const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
+// El mes "2026-11" → "noviembre de 2026".
 const nombreMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 // En celular solo quedan las columnas que importan; el resto aparece desde tableta.
@@ -27,14 +25,8 @@ const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5
 // Suma de dinero por moneda en un solo texto: "$ 1,200 · Q 3,000".
 const dinero = (porMoneda, campo) => Object.entries(porMoneda).filter(([, m]) => m[campo]).map(([mon, m]) => money(m[campo], mon)).join(' · ') || '—';
 
-async function loadSolicitudes() {
-	const col = collection(db, 'leads');
-	const snap = await getDocs(session.isAdmin ? query(col, where('reserva.codigo', '>', '')) : query(col, where('agentId', '==', session.agentId || '-')));
-	return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((l) => l.reserva?.llegada);
-}
-
 export async function render(container) {
-	const [reservas, todas, propietarios, solicitudes] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios(), loadSolicitudes()]);
+	const [reservas, todas, propietarios] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios()]);
 	const casas = todas.filter((p) => p.operacion === 'vacacional').sort((a, b) => String(a.titulo).localeCompare(String(b.titulo)));
 	const casaDe = Object.fromEntries(casas.map((p) => [p.id, p]));
 	const duenoDe = (pid) => propietarios.find((o) => (o.propiedades || []).some((x) => x.propertyId === pid));
@@ -174,7 +166,6 @@ export async function render(container) {
 		const stat = (label, value) => h('div', { class: 'col-6 col-lg-3' }, h('div', { class: 'card stat-card h-100' },
 			h('div', { class: 'card-body' }, h('div', { class: 'stat-value' }, value.split(' · ').map((v, i, l) => (l.length > 1 ? h('div', {}, v) : v))), h('div', { class: 'stat-label' }, label))));
 
-		const pendientes = solicitudes.filter((l) => !reservas.some((r) => r.leadId === l.id));
 		const filtro = estado.dueno === null ? null : grupos.get(estado.dueno);
 		const visibles = filtro ? delMes.filter((r) => (duenoDe(r.propertyId)?.id || '') === filtro.id) : delMes;
 
@@ -188,17 +179,6 @@ export async function render(container) {
 				stat('Noches vendidas', String(total.noches)),
 				stat('Por pagar a propietarios', dinero(total.porMoneda, 'porPagar')),
 				stat('Ganancia del mes', dinero(total.porMoneda, 'ganancia'))),
-
-			pendientes.length ? h('div', { class: 'mb-4' },
-				h('h2', { class: 'h6' }, `Solicitudes de la web sin registrar (${pendientes.length})`),
-				cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' }, h('tbody', {}, pendientes.map((l) => h('tr', {},
-					h('td', {}, `${dia(l.reserva.llegada)} – ${dia(l.reserva.salida)}`),
-					h('td', { class: 'text-wrap' }, l.propertyTitulo || '—'),
-					h('td', { class: ANCHO }, l.nombre || '—'),
-					h('td', { class: 'text-end' }, h('button', {
-						type: 'button', class: 'btn btn-sm btn-outline-primary',
-						onclick: () => editar({ propertyId: l.propertyId, llegada: l.reserva.llegada, salida: l.reserva.salida, huesped: l.nombre, telefono: l.telefono, canal: 'web', leadId: l.id, codigo: l.reserva.codigo })
-					}, 'Registrar')))))), { tarjeta: true })) : null,
 
 			h('h2', { class: 'h6' }, 'Estado de cuenta por propietario'),
 			h('div', { class: 'mb-4' }, cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },

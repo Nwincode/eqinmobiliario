@@ -182,6 +182,9 @@ test('mínimo de noches por fechas y recorte de rangos', () => {
 	igual(V.quitarRango([{ desde: '2026-12-01', hasta: '2026-12-10', precio: 5 }, { desde: '2027-01-01', hasta: '2027-01-02', precio: 9 }], '2026-12-04', '2026-12-05'),
 		[{ desde: '2026-12-01', hasta: '2026-12-03', precio: 5 }, { desde: '2026-12-06', hasta: '2026-12-10', precio: 5 }, { desde: '2027-01-01', hasta: '2027-01-02', precio: 9 }]);
 	igual(V.quitarRango([{ desde: '2026-12-04', hasta: '2026-12-05' }], '2026-12-01', '2026-12-31'), []);
+	// Cancelar del 4 al 6 libera las noches del 4 y del 5; el resto sigue ocupado.
+	igual(V.liberarNoches([{ desde: '2026-12-01', hasta: '2026-12-10' }], '2026-12-04', '2026-12-06'),
+		[{ desde: '2026-12-01', hasta: '2026-12-04' }, { desde: '2026-12-06', hasta: '2026-12-10' }]);
 });
 
 test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {

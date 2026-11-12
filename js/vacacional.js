@@ -58,6 +58,7 @@
 
 		var fDia = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 		var fCorta = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+		var fDia = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var fMes = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
 		var fSemana = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
 		var fSemanaLarga = new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' });
@@ -296,6 +297,13 @@
 				return {
 					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
 					gracias: fmt(t.vacCodigo, { codigo: codigo }),
+					// Mensaje listo para el WhatsApp del socio (o del equipo): casa, fechas, total y código.
+					whatsapp: fmt(t.vacWa, {
+						titulo: form.getAttribute('data-property-titulo') || '', codigo: codigo, noches: noches(c.noches),
+						fechas: fDia.format(fechaUTC(estado.llegada)) + ' – ' + fDia.format(fechaUTC(estado.salida)),
+						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
+					}) + '\n' + location.origin + '/admin/#/solicitudes/' + codigo,
+					abrir: t.vacAbrirWa,
 					datos: {
 						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'
@@ -315,6 +323,8 @@
 				.then(function (r) { return r.ok ? r.json() : null; })
 				.then(function (res) {
 					if (!res || !res.ocupadas) return;
+					// WhatsApp de quien atiende la casa (el socio); sin él, el del equipo.
+					if (res.whatsapp && form) form.eqWhatsapp = res.whatsapp;
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
 					if (res.plan && res.plan.base > 0) D.plan = res.plan;
 					if (res.minimos) minimos = res.minimos;

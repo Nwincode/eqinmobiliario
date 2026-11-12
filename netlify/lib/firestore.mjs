@@ -1,7 +1,9 @@
 // Lectura de Firestore desde las funciones de Netlify (REST, sin SDK).
 // - leerPublico(): documentos que cualquiera puede leer (settings/site, asesores activos).
 // - leerPrivado(): un documento interno (p. ej. properties/{id}/privado/socio).
-// - listar(): colecciones internas (clientes, agenda…). Usa la cuenta de servicio de Google
+// - listar(): colecciones internas (clientes, agenda…).
+// - desde(): los documentos de una colección con una fecha posterior a la dada.
+//   Las tres internas usan la cuenta de servicio de Google
 //   (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY), que necesita el rol "Cloud Datastore Viewer"
 //   en el proyecto de Firebase.
 import siteConfig from '../../site.config.json' with { type: 'json' };
@@ -73,4 +75,20 @@ export async function listar(coleccion) {
 		pagina = body.nextPageToken;
 	}
 	return docs;
+}
+
+// Documentos de una colección cuyo campo de fecha es posterior a `fecha` (hasta 500).
+export async function desde(coleccion, campo, fecha) {
+	const token = await googleToken(SCOPE_DATOS);
+	const res = await fetch(`${BASE}:runQuery`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: {
+			from: [{ collectionId: coleccion }],
+			where: { fieldFilter: { field: { fieldPath: campo }, op: 'GREATER_THAN', value: { timestampValue: fecha.toISOString() } } },
+			limit: 500
+		} })
+	});
+	if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
+	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
 }

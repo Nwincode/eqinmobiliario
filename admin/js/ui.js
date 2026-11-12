@@ -58,6 +58,10 @@ export function formatDate(v, withTime = true) {
 		: { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
+export const hoy = () => new Date().toLocaleDateString('en-CA');
+export const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
+
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
 	if (!precio) return 'A consultar';
 	const prefix = prefijoMoneda(moneda);

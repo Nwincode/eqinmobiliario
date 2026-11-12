@@ -127,6 +127,12 @@
 		return out;
 	}
 
+	// Libera las noches de llegada a salida (la salida no ocupa noche) en rangos [desde, hasta).
+	function liberarNoches(rangos, llegada, salida) {
+		var incluidos = (rangos || []).map(function (r) { return { desde: r.desde, hasta: sumarDias(r.hasta, -1) }; });
+		return quitarRango(incluidos, llegada, sumarDias(salida, -1)).map(function (r) { return { desde: r.desde, hasta: sumarDias(r.hasta, 1) }; });
+	}
+
 	// Revisa una estancia. Devuelve { ok, noches, error, minimo } con error: 'fechas' | 'pasado' | 'orden' | 'minimo' | 'ocupada'.
 	function validarEstancia(o) {
 		var llegada = o.llegada, salida = o.salida;
@@ -276,7 +282,7 @@
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
 		esFecha: esFecha, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
-		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
+		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
