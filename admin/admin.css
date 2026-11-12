@@ -1262,11 +1262,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
 	.tabla-propiedades .celda-codigo { width: 1%; white-space: nowrap; }
-	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); }
+	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--adm-muted); }
 	.tabla-propiedades .celda-titulo { min-width: 12rem; }
-	.tabla-propiedades .celda-precio { width: 1%; }
+	.tabla-propiedades .celda-precio { width: 1%; min-width: 10rem; white-space: normal !important; }
 	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .celda-visible { width: 1%; }
+	.tabla-propiedades .estado-rapido { min-width: 12.75rem; }
+	.tabla-propiedades .celda-visible { width: 9.5rem; }
+	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
 }
@@ -1314,6 +1316,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.btn-encabezado { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .25rem; }
 	.filtros-extra:not(.abierto) { display: none; }
 	.filtros-extra { margin-top: 0; }
+	.filtros-extra .form-select { min-height: 44px; }
 	/* Acciones en masa: una sola fila que se desliza, para no tapar la lista. */
 	/* Va fija abajo: aparece sin mover la lista y queda a mano del pulgar. */
 	.barra-masa {
