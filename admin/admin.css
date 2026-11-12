@@ -1197,6 +1197,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .table-admin .celda-visible {
 	cursor: default;
 }
+/* Sin resultados: el aviso reemplaza a la caja de la tabla. */
+.prop-vacio:not([hidden]) + .card { display: none; }
 .estado-rapido {
 	min-height: 38px;
 	min-width: 13.25rem;
@@ -1260,14 +1262,24 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
 	.tabla-propiedades .celda-codigo { width: 1%; white-space: nowrap; }
-	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); }
+	.tabla-propiedades td.celda-codigo { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--adm-muted); }
 	.tabla-propiedades .celda-titulo { min-width: 12rem; }
-	.tabla-propiedades .celda-precio { width: 1%; }
+	.tabla-propiedades .celda-precio { width: 1%; min-width: 10rem; white-space: normal !important; }
 	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .estado-rapido { min-width: 9.5rem; }
-	.tabla-propiedades .celda-visible { width: 1%; }
+	.tabla-propiedades .estado-rapido { min-width: 12.75rem; }
+	.tabla-propiedades .celda-visible { width: 9.5rem; }
+	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
+}
+/* Desde 1366 px el precio cabe en una sola línea. */
+@media (min-width: 1366px) {
+	.tabla-propiedades .celda-precio > :first-child { white-space: nowrap; }
+}
+/* Con la barra lateral, debajo de 1700 px no caben todas: se quedan las que enseñan el inmueble. */
+@media (min-width: 768px) and (max-width: 1699.98px) {
+	.tabla-propiedades .celda-asesor,
+	.tabla-propiedades .celda-fecha { display: none; }
 }
 .barra-masa {
 	position: sticky;
@@ -1285,17 +1297,51 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	box-shadow: var(--adm-shadow);
 }
 .barra-masa[hidden] { display: none; }
-.barra-masa-n { color: var(--adm-text); margin-right: .25rem; }
+.barra-masa-n { display: inline-flex; align-items: center; gap: .25rem; color: var(--adm-text); font-weight: 600; margin-right: .25rem; }
 .barra-masa-estado { min-width: 11rem; }
 .barra-masa .btn { min-height: 36px; }
-@media (max-width: 767.98px) {
-	.barra-masa-n { flex-basis: 100%; }
-	.barra-masa-estado { flex: 1 1 100%; }
-	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
+
+/* Datos del inmueble con ícono (habitaciones, baños, parqueos, m²). */
+.prop-datos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .125rem .75rem;
+	margin-top: .125rem;
+	font-size: .8125rem;
+	color: var(--adm-text);
+	font-variant-numeric: tabular-nums;
+}
+.prop-dato { white-space: nowrap; }
+.prop-dato [class^="icon-"],
+.prop-zona [class^="icon-"] { color: var(--adm-muted); }
+.btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
+@media (min-width: 768px) {
+	.tabla-propiedades .thumb { width: 80px; height: 60px; }
 }
 
-/* En celular cada propiedad es una tarjeta: los controles quedan a la vista, sin desplazar la tabla. */
+/* En celular cada propiedad es una tarjeta: la foto manda, los datos van con ícono y los controles
+   caben en una sola fila. */
 @media (max-width: 767.98px) {
+	.btn-encabezado { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .25rem; }
+	.filtros-extra:not(.abierto) { display: none; }
+	.filtros-extra { margin-top: 0; }
+	.filtros-extra .form-select { min-height: 44px; }
+	/* Acciones en masa: una sola fila que se desliza, para no tapar la lista. */
+	/* Va fija abajo: aparece sin mover la lista y queda a mano del pulgar. */
+	.barra-masa {
+		position: fixed; top: auto; left: 0; right: 0; bottom: 0; margin: 0;
+		flex-wrap: nowrap; overflow-x: auto; padding: .375rem .625rem calc(.375rem + env(safe-area-inset-bottom)) 0;
+		border-width: 1px 0 0; border-radius: 0;
+	}
+	.barra-masa > * { flex: 0 0 auto; white-space: nowrap; }
+	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
+	.tabla-propiedades { margin-bottom: 4rem; }
+	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
+	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
+	#toasts .btn-close { pointer-events: auto; }
+	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
+	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
+
 	.tabla-propiedades thead {
 		display: none;
 	}
@@ -1305,17 +1351,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 	.tabla-propiedades tbody tr {
 		display: grid;
-		grid-template-columns: 64px 1fr auto;
+		grid-template-columns: 124px minmax(0, 1fr) auto 44px;
 		grid-template-areas:
-			"foto codigo sel"
-			"foto titulo titulo"
-			"foto precio precio"
-			"estado estado estado"
-			"visible visible visible"
-			"asesor asesor fecha";
+			"foto titulo titulo sel"
+			"foto zona zona zona"
+			"foto datos datos datos"
+			"foto precio precio precio"
+			"chips chips chips chips"
+			"estado estado visible wa"
+			"motivo motivo motivo motivo"
+			"asesor asesor fecha fecha";
+		grid-template-rows: auto auto auto 1fr;
 		column-gap: .75rem;
-		row-gap: .375rem;
-		padding: .875rem 1rem;
+		padding: .75rem;
 		border-bottom: 1px solid var(--adm-border);
 	}
 	.tabla-propiedades tbody tr:last-child {
@@ -1327,33 +1375,56 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		border: 0;
 		min-width: 0;
 	}
-	.tabla-propiedades .celda-foto { grid-area: foto; }
-	/* El número va como etiqueta en la esquina de la foto. */
-	.table-admin.tabla-propiedades .celda-num {
-		grid-area: foto; align-self: start; justify-self: start; z-index: 1;
+	/* Estas celdas reparten su contenido directo en la tarjeta. */
+	.table-admin.tabla-propiedades .celda-titulo,
+	.table-admin.tabla-propiedades .celda-visible { display: contents; }
+
+	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; }
+	/* Lápiz sobre la foto: tocar la tarjeta abre la ficha para editarla. */
+	.prop-editar {
+		position: absolute; top: .25rem; right: .25rem; display: grid; place-items: center; width: 1.5rem; height: 1.5rem;
+		border-radius: 50%; background: var(--adm-surface); color: var(--adm-text); font-size: .75rem;
+	}
+	.tabla-propiedades .thumb { width: 100%; height: 100%; min-height: 93px; border-radius: 8px; font-size: 24px; }
+	/* El número y el código van como etiquetas sobre la foto. */
+	.table-admin.tabla-propiedades .celda-num,
+	.table-admin.tabla-propiedades .celda-codigo {
+		grid-area: foto; justify-self: start; z-index: 1;
 		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
 		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
 		font-variant-numeric: tabular-nums;
 	}
-	.tabla-propiedades .celda-sel { grid-area: sel; }
-	.tabla-propiedades .celda-titulo { grid-area: titulo; }
-	.tabla-propiedades .celda-codigo { grid-area: codigo; font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); align-self: center; }
-	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; flex-wrap: wrap; justify-content: space-between; gap: 0 .75rem; }
-	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
-	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .375rem; }
-	.tabla-propiedades .celda-visible {
-		grid-area: visible;
-		display: flex !important;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: .125rem;
+	.table-admin.tabla-propiedades .celda-num { align-self: start; }
+	.table-admin.tabla-propiedades .celda-codigo { align-self: end; max-width: calc(100% - .5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.table-admin.tabla-propiedades .sin-codigo { display: none; }
+	.tabla-propiedades .celda-sel { grid-area: sel; justify-self: end; }
+	.tabla-propiedades .sel-toque { margin: -.625rem -.625rem 0 0; }
+	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
+	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
+	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
+	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
+	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem !important; align-items: center; }
+	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; width: 100%; min-width: 0; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
+	.tabla-propiedades .celda-visible .form-check {
+		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
+		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
 	}
-	.tabla-propiedades .celda-visible .form-check { margin-bottom: 0 !important; min-height: 44px; }
-	.tabla-propiedades .motivo-visibilidad { white-space: normal; }
-	.tabla-propiedades .celda-asesor { grid-area: asesor; color: var(--adm-muted); }
-	.tabla-propiedades .celda-fecha { grid-area: fecha; text-align: right; }
-	.tabla-propiedades .thumb { width: 64px; height: 48px; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; }
+	/* Toda la caja de 44 px responde al toque, no solo la franja del texto. */
+	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
+	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
+	.tabla-propiedades .btn-whatsapp-fila {
+		grid-area: wa; align-self: center; justify-content: center; margin-top: .5rem;
+		width: 44px; height: 44px; font-size: 1.375rem;
+		border: 1px solid var(--adm-border); border-radius: var(--adm-radius);
+	}
+	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
+	.tabla-propiedades .motivo-ok { display: none; }
+	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
+	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .375rem; text-align: right; }
+	.table-admin.tabla-propiedades .sin-fecha,
+	.table-admin.tabla-propiedades .sin-asesor { display: none; }
 }
 
 /* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */

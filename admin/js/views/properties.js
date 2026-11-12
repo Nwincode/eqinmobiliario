@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -16,6 +16,7 @@ import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
+import { sinTildes } from '../cotizacion.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -208,6 +209,20 @@ function motivoVisibilidad(p) {
 	}
 }
 
+// Datos que describen el inmueble en la lista, cada uno con su ícono.
+function datosDe(p) {
+	const n = (v) => Number(v) > 0;
+	return [
+		n(p.habitaciones) && ['icon-bed', p.habitaciones, 'habitaciones'],
+		n(p.banos) && ['icon-bath', p.banos, 'baños'],
+		n(p.parqueos) && ['icon-car', p.parqueos, 'parqueos'],
+		p.operacion === 'vacacional' && n(p.vacacional?.huespedesMax) && ['icon-users', p.vacacional.huespedesMax, 'huéspedes'],
+		n(p.m2Construccion) ? ['icon-home', `${miles(p.m2Construccion)} m²`, 'de construcción']
+			: n(p.m2Terreno) && ['icon-arrows-alt', `${miles(p.m2Terreno)} m²`, 'de terreno']
+	].filter(Boolean).map(([icono, valor, que]) => h('span', { class: 'prop-dato', title: `${valor} ${que}` },
+		h('span', { class: icono, 'aria-hidden': 'true' }), ` ${valor}`, h('span', { class: 'visually-hidden' }, ` ${que}`)));
+}
+
 // Exporta el listado con las mismas columnas de la plantilla de importación (se puede volver a importar),
 // más los enlaces de fotos, la página pública y si está publicada. El costo del socio solo lo ve el administrador.
 async function exportarCsv(props, agentName, btn) {
@@ -253,8 +268,8 @@ export async function render(container, [id]) {
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
-	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, código, zona o residencial…' });
-	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Todas las operaciones'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
+	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar título, código o zona…' });
+	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
 		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
@@ -270,7 +285,7 @@ export async function render(container, [id]) {
 		return estadoDe(p).valor === f;
 	};
 	const fExtra = h('select', { class: 'form-select', 'aria-label': 'Mostrar' },
-		h('option', { value: '' }, 'Todas'),
+		h('option', { value: '' }, 'Mostrar todas'),
 		h('option', { value: 'publicado' }, 'Publicadas'),
 		h('option', { value: 'borrador' }, 'Borradores'),
 		h('option', { value: 'vip' }, 'VIP'),
@@ -280,6 +295,7 @@ export async function render(container, [id]) {
 	if (id === 'incompletos') fExtra.value = 'incompletas';
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
+	const vacio = h('p', { class: 'text-center text-muted py-4 mb-0 prop-vacio', hidden: true }, 'Ninguna propiedad coincide con la búsqueda o los filtros.');
 
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
@@ -326,6 +342,8 @@ export async function render(container, [id]) {
 			}
 		});
 		const detener = (e) => e.stopPropagation();
+		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
+		const datos = datosDe(p);
 		const sel = h('input', {
 			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
 			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
@@ -334,17 +352,19 @@ export async function render(container, [id]) {
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-num' }, i + 1),
-			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-			h('td', { class: 'celda-codigo' }, p.codigo || '—'),
+			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
+				editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
+			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
-				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
+				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
+				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
+				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
 				p.publicado && p.slug ? h('a', {
 					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
 					href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`),
 					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
-				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), ' Compartir') : null,
-				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
+				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Compartir')) : null,
+				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1 prop-chips' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
 					chipFaltan(faltanDe(p))) : null),
@@ -354,17 +374,17 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
-					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible', h('span', { class: 'd-md-none' }, ' en la página'))),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad`, id: `motivo-${p.id}` },
+					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
-			h('td', { class: 'small celda-asesor' }, agentName[p.agentId] || '—'),
-			h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)));
+			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
+			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'));
 	};
 
 	const draw = () => {
-		const q = search.value.trim().toLowerCase();
+		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
-			(!q || `${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`.toLowerCase().includes(q))
+			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
 			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
@@ -380,6 +400,7 @@ export async function render(container, [id]) {
 		const ids = new Set(rows.map((p) => p.id));
 		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		tbody.replaceChildren(...rows.map(fila));
+		vacio.hidden = rows.length > 0;
 		pintarBarra();
 	};
 
@@ -387,6 +408,8 @@ export async function render(container, [id]) {
 	const seleccion = new Set();
 	let visibles = [];
 	const elegidas = () => props.filter((p) => seleccion.has(p.id));
+	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
+		onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas');
 	const selTodas = h('input', {
 		class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas las que se ven',
 		onchange: (e) => {
@@ -563,19 +586,20 @@ export async function render(container, [id]) {
 		} },
 		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
 	barra.append(
-		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
+		h('span', { class: 'barra-masa-n' },
+			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
+		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
-		session.isAdmin ? btnEliminar : null,
-		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
+		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
+		session.isAdmin ? btnEliminar : null);
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
 		nSel.textContent = String(seleccion.size);
 		barra.hidden = seleccion.size === 0;
 		selTodas.checked = editables.length > 0 && editables.every((p) => seleccion.has(p.id));
 		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
-		selTodas.disabled = editables.length === 0;
+		selTodas.disabled = btnTodas.hidden = editables.length === 0;
 	};
 	// Los filtros se recuerdan mientras la pestaña siga abierta: al volver de una ficha siguen igual.
 	const filtros = [search, fOperacion, fEstado, fExtra];
@@ -588,32 +612,44 @@ export async function render(container, [id]) {
 			if (el.tagName !== 'SELECT' || [...el.options].some((o) => o.value === g[i])) el.value = g[i] || '';
 		});
 	} catch { /* sin memoria del navegador: se empieza sin filtros */ }
+	const cajaFiltros = h('div', { class: 'row g-2 filtros-extra', id: 'filtros-propiedades' },
+		h('div', { class: 'col-6 col-md-4' }, fOperacion),
+		h('div', { class: 'col-6 col-md-3 order-md-1' }, fExtra),
+		h('div', { class: 'col-12 col-md-5' }, fEstado));
+	const btnFiltros = iconoBtn('icon-sliders', 'Filtros', {
+		'aria-controls': 'filtros-propiedades', 'aria-expanded': 'false',
+		onclick: () => btnFiltros.setAttribute('aria-expanded', String(cajaFiltros.classList.toggle('abierto')))
+	});
+	btnFiltros.classList.add('d-md-none', 'btn-filtros');
 	const dibujarYRecordar = () => {
 		const valores = filtros.map((el) => el.value);
 		limpiar.hidden = valores.every((v) => !v);
+		const activos = valores.slice(1).filter(Boolean).length;
+		btnFiltros.classList.toggle('con-filtros', activos > 0);
+		btnFiltros.setAttribute('aria-label', activos ? `Filtros (${activos} puesto${activos === 1 ? '' : 's'})` : 'Filtros');
 		try { sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify(valores)); } catch { /* sin memoria */ }
 	};
 	filtros.forEach((el) => el.addEventListener('input', draw));
 	draw();
+	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
+	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
 	mount(container, 
 		pageHeader('Propiedades',
-			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary' },
-				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar desde CSV') : null,
-			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
-				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), ' Exportar (CSV)') : null,
-			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
+			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
+				h('span', { class: 'icon-file-excel-o', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
+			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
+				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
+			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
+				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva', h('span', { class: 'd-none d-md-inline' }, ' propiedad'))),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
-				h('div', { class: 'col-md-5' }, search),
-				h('div', { class: 'col-6 col-md-2' }, fOperacion),
-				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
-				h('div', { class: 'col-md-3' }, fEstado)),
+				h('div', { class: 'col-md-4 d-flex gap-2' }, search, btnFiltros),
+				h('div', { class: 'col-md-8' }, cajaFiltros)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
 				count, limpiar,
-				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
-					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
-			barra,
+				btnTodas),
+			barra, vacio,
 			cajaTabla(
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
