@@ -10,6 +10,9 @@ export const prefijoMoneda = (moneda) => PREFIJO_MONEDA[moneda] || moneda;
 
 // Número con coma en miles y punto en decimales (2,226.47), como se usa en Guatemala.
 export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+// Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
+export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
 
 // Teléfono comparable y listo para wa.me: solo dígitos; los de 8 dígitos se asumen de Guatemala.
 export function telefonoWa(tel) {

@@ -67,8 +67,7 @@
 
 		function dinero(n) {
 			n = Number(n) || 0;
-			var entero = Math.round(n * 100) % 100 === 0;
-			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: entero ? 0 : 2, maximumFractionDigits: 2 });
+			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
 		function dineroCorto(n) {
 			n = Math.round(Number(n) || 0);

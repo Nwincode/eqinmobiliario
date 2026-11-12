@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra } from './lib/util.mjs';
-import { prefijoMoneda } from '../admin/js/formato.js';
+import { dinero } from '../admin/js/formato.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -252,7 +252,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
 		dato('Ubicación', [p.zona, p.ciudad].filter(Boolean).join(', ')),
-		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `${prefijoMoneda(p.moneda || 'USD')} ${cifra(p.precio)}` : ''),
+		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? dinero(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
 		dato('Parqueos', p.parqueos),
