@@ -53,7 +53,7 @@ export async function render(container) {
 			if (!items.length) return null;
 			return h('div', { class: 'card mb-4' },
 				h('div', { class: `card-header bg-white fw-semibold ${cls}` }, `${label} (${items.length})`),
-				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => h('li', { class: 'list-group-item d-flex flex-wrap align-items-center gap-2' },
+				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 					h('span', { class: 'fs-5' }, tipoActividad(a.tipo)[2]),
 					h('div', { class: 'me-auto' },
 						h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
@@ -62,12 +62,13 @@ export async function render(container) {
 							a.clienteId ? ' · ' : '',
 							a.fecha ? fechaCorta(a.fecha) : 'Sin fecha',
 							session.isAdmin && a.agentId ? ` · ${nombreAsesor[a.agentId] || ''}` : '')),
+					h('div', { class: 'd-flex align-items-center flex-shrink-0' },
 					h('button', { type: 'button', class: 'btn btn-sm btn-outline-success', onclick: () => completar(a) }, h('span', { class: 'icon-check', 'aria-hidden': 'true' }), ' Hecho'),
 					menuMas(`Más acciones: ${a.titulo || tipoActividad(a.tipo)[1]}`, [
 						{ icono: 'icon-clock-o', texto: 'Pasar a mañana', onclick: () => posponer(a, 1) },
 						{ icono: 'icon-calendar', texto: 'Pasar una semana', onclick: () => posponer(a, 7) },
 						{ icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => borrar(a) }
-					])))));
+					]))))));
 		}).filter(Boolean);
 		lista.replaceChildren(...(grupos.length ? grupos : [h('div', { class: 'card' }, h('div', { class: 'card-body text-muted' }, 'No hay pendientes. Agenda seguimientos desde la ficha de cada cliente o aquí arriba.'))]));
 	};
