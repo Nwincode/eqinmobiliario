@@ -16,6 +16,7 @@ import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
+import { sinTildes } from '../cotizacion.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -268,7 +269,7 @@ export async function render(container, [id]) {
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
 	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar por título, código, zona o residencial…' });
-	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Todas las operaciones'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
+	const fOperacion = h('select', { class: 'form-select', 'aria-label': 'Filtrar por operación' }, h('option', { value: '' }, 'Venta y renta'), OPERACIONES.map(([v, l]) => h('option', { value: v }, l)));
 	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Filtrar por estado' },
 		h('option', { value: '' }, 'Todos los estados'),
 		h('optgroup', { label: 'Estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l))),
@@ -284,7 +285,7 @@ export async function render(container, [id]) {
 		return estadoDe(p).valor === f;
 	};
 	const fExtra = h('select', { class: 'form-select', 'aria-label': 'Mostrar' },
-		h('option', { value: '' }, 'Todas'),
+		h('option', { value: '' }, 'Mostrar todas'),
 		h('option', { value: 'publicado' }, 'Publicadas'),
 		h('option', { value: 'borrador' }, 'Borradores'),
 		h('option', { value: 'vip' }, 'VIP'),
@@ -294,6 +295,7 @@ export async function render(container, [id]) {
 	if (id === 'incompletos') fExtra.value = 'incompletas';
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
+	const vacio = h('p', { class: 'text-center text-muted py-4 mb-0', hidden: true }, 'Ninguna propiedad coincide con la búsqueda o los filtros.');
 
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
@@ -353,7 +355,8 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
-				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
+				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)',
+					editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
 				p.publicado && p.slug ? h('a', {
@@ -375,13 +378,13 @@ export async function render(container, [id]) {
 				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
 			h('td', { class: 'small celda-asesor' }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
-			h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)));
+			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'));
 	};
 
 	const draw = () => {
-		const q = search.value.trim().toLowerCase();
+		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
-			(!q || `${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`.toLowerCase().includes(q))
+			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
 			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
@@ -397,6 +400,7 @@ export async function render(container, [id]) {
 		const ids = new Set(rows.map((p) => p.id));
 		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		tbody.replaceChildren(...rows.map(fila));
+		vacio.hidden = rows.length > 0;
 		pintarBarra();
 	};
 
@@ -580,12 +584,13 @@ export async function render(container, [id]) {
 		} },
 		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
 	barra.append(
-		h('span', { class: 'barra-masa-n' }, nSel, ' seleccionada(s)'),
+		h('span', { class: 'barra-masa-n' },
+			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
+		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMostrar, btnOcultar, btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
-		session.isAdmin ? btnEliminar : null,
-		h('button', { type: 'button', class: 'btn btn-sm btn-link', onclick: () => { seleccion.clear(); draw(); } }, 'Quitar selección'));
+		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
+		session.isAdmin ? btnEliminar : null);
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
 		nSel.textContent = String(seleccion.size);
@@ -643,7 +648,7 @@ export async function render(container, [id]) {
 				count, limpiar,
 				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
 					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
-			barra,
+			barra, vacio,
 			cajaTabla(
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
