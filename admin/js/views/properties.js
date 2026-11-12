@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -208,6 +208,20 @@ function motivoVisibilidad(p) {
 	}
 }
 
+// Datos que describen el inmueble en la lista, cada uno con su ícono.
+function datosDe(p) {
+	const n = (v) => Number(v) > 0;
+	return [
+		n(p.habitaciones) && ['icon-bed', p.habitaciones, 'habitaciones'],
+		n(p.banos) && ['icon-bath', p.banos, 'baños'],
+		n(p.parqueos) && ['icon-car', p.parqueos, 'parqueos'],
+		p.operacion === 'vacacional' && n(p.vacacional?.huespedesMax) && ['icon-users', p.vacacional.huespedesMax, 'huéspedes'],
+		n(p.m2Construccion) ? ['icon-home', `${miles(p.m2Construccion)} m²`, 'de construcción']
+			: n(p.m2Terreno) && ['icon-arrows-alt', `${miles(p.m2Terreno)} m²`, 'de terreno']
+	].filter(Boolean).map(([icono, valor, que]) => h('span', { class: 'prop-dato', title: `${valor} ${que}` },
+		h('span', { class: icono, 'aria-hidden': 'true' }), ` ${valor}`, h('span', { class: 'visually-hidden' }, ` ${que}`)));
+}
+
 // Exporta el listado con las mismas columnas de la plantilla de importación (se puede volver a importar),
 // más los enlaces de fotos, la página pública y si está publicada. El costo del socio solo lo ve el administrador.
 async function exportarCsv(props, agentName, btn) {
@@ -326,6 +340,8 @@ export async function render(container, [id]) {
 			}
 		});
 		const detener = (e) => e.stopPropagation();
+		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
+		const datos = datosDe(p);
 		const sel = h('input', {
 			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
 			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
@@ -335,16 +351,17 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-num' }, i + 1),
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-			h('td', { class: 'celda-codigo' }, p.codigo || '—'),
+			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
-				h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'),
-				h('div', { class: 'small text-muted' }, [p.zona, p.ciudad].filter(Boolean).join(', ')),
+				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
+				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
+				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
 				p.publicado && p.slug ? h('a', {
 					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
 					href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`),
 					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
-				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), ' Compartir') : null,
-				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1' },
+				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Compartir')) : null,
+				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1 prop-chips' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
 					chipFaltan(faltanDe(p))) : null),
@@ -354,10 +371,10 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
-					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible', h('span', { class: 'd-md-none' }, ' en la página'))),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad`, id: `motivo-${p.id}` },
+					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
-			h('td', { class: 'small celda-asesor' }, agentName[p.agentId] || '—'),
+			h('td', { class: 'small celda-asesor' }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
 			h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)));
 	};
 
@@ -588,27 +605,40 @@ export async function render(container, [id]) {
 			if (el.tagName !== 'SELECT' || [...el.options].some((o) => o.value === g[i])) el.value = g[i] || '';
 		});
 	} catch { /* sin memoria del navegador: se empieza sin filtros */ }
+	const cajaFiltros = h('div', { class: 'row g-2 filtros-extra', id: 'filtros-propiedades' },
+		h('div', { class: 'col-6 col-md-4' }, fOperacion),
+		h('div', { class: 'col-6 col-md-3 order-md-1' }, fExtra),
+		h('div', { class: 'col-12 col-md-5' }, fEstado));
+	const btnFiltros = iconoBtn('icon-sliders', 'Filtros', {
+		'aria-controls': 'filtros-propiedades', 'aria-expanded': 'false',
+		onclick: () => btnFiltros.setAttribute('aria-expanded', String(cajaFiltros.classList.toggle('abierto')))
+	});
+	btnFiltros.classList.add('d-md-none', 'btn-filtros');
 	const dibujarYRecordar = () => {
 		const valores = filtros.map((el) => el.value);
 		limpiar.hidden = valores.every((v) => !v);
+		const activos = valores.slice(1).filter(Boolean).length;
+		btnFiltros.classList.toggle('con-filtros', activos > 0);
+		btnFiltros.setAttribute('aria-label', activos ? `Filtros (${activos} puesto${activos === 1 ? '' : 's'})` : 'Filtros');
 		try { sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify(valores)); } catch { /* sin memoria */ }
 	};
 	filtros.forEach((el) => el.addEventListener('input', draw));
 	draw();
+	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
+	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
 	mount(container, 
 		pageHeader('Propiedades',
-			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary' },
-				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar desde CSV') : null,
-			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
-				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), ' Exportar (CSV)') : null,
-			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, '+ Nueva propiedad')),
+			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
+				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
+			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
+				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
+			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
+				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva', h('span', { class: 'd-none d-md-inline' }, ' propiedad'))),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
-				h('div', { class: 'col-md-5' }, search),
-				h('div', { class: 'col-6 col-md-2' }, fOperacion),
-				h('div', { class: 'col-6 col-md-2 order-md-1' }, fExtra),
-				h('div', { class: 'col-md-3' }, fEstado)),
+				h('div', { class: 'col-md-4 d-flex gap-2' }, search, btnFiltros),
+				h('div', { class: 'col-md-8' }, cajaFiltros)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
 				count, limpiar,
 				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
