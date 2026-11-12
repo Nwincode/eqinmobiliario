@@ -4,7 +4,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia } from '../ui.js';
 import { session } from '../session.js';
-import { whatsappUrl } from '../formato.js';
+import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 
 const V = window.EQVacacional;
@@ -68,7 +68,7 @@ export async function render(container) {
 			const casa = casaDe[v.propertyId];
 			const noches = V.esFecha(v.llegada) && V.esFecha(v.salida) ? V.nochesEntre(v.llegada, v.salida) : 0;
 			resumen.textContent = casa && noches > 0
-				? `${noches} noche${noches === 1 ? '' : 's'} · Propietario: ${duenoDe(casa.id)?.nombre || SIN_DUENO} · Ganancia: ${money(v.alojamiento - v.costoSocio, casa.moneda)}`
+				? `${nNoches(noches)} · Propietario: ${duenoDe(casa.id)?.nombre || SIN_DUENO} · Ganancia: ${money(v.alojamiento - v.costoSocio, casa.moneda)}`
 				: '';
 		};
 		// Los montos salen de la tarifa privada de la casa; se pueden corregir a mano.
@@ -142,7 +142,7 @@ export async function render(container) {
 	// Estado de cuenta listo para mandarlo por WhatsApp al propietario.
 	const mensajeCuenta = (nombre, lista, res) => [
 		`Hola ${nombre.split(' ')[0]}, este es el estado de cuenta de ${nombreMes(estado.mes)}:`, '',
-		...lista.map((r) => `• ${r.propertyTitulo}: ${dia(r.llegada)} – ${dia(r.salida)} (${r.noches} noches) · ${money(r.costoSocio, r.moneda)}${r.pagadoSocio ? ' ✓ pagado' : ''}`), '',
+		...lista.map((r) => `• ${r.propertyTitulo}: ${dia(r.llegada)} – ${dia(r.salida)} (${nNoches(r.noches)}) · ${money(r.costoSocio, r.moneda)}${r.pagadoSocio ? ' ✓ pagado' : ''}`), '',
 		`Por pagar: ${dinero(res.porMoneda, 'porPagar')}`, `Pagado: ${dinero(res.porMoneda, 'pagado')}`
 	].join('\n');
 
@@ -208,7 +208,7 @@ export async function render(container) {
 			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
 				h('thead', {}, h('tr', {}, ['Fechas', 'Casa', 'Huésped', 'Canal', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: (i > 4 ? 'text-end' : '') + (i > 1 && i !== 5 ? ANCHO : '') }, t)))),
 				h('tbody', {}, visibles.map((r) => h('tr', { role: 'button', onclick: () => editar(r) },
-					h('td', { class: 'text-nowrap' }, `${dia(r.llegada)} – ${dia(r.salida)}`, h('div', { class: 'small text-muted' }, `${r.noches} noches`)),
+					h('td', { class: 'text-nowrap' }, `${dia(r.llegada)} – ${dia(r.salida)}`, h('div', { class: 'small text-muted' }, nNoches(r.noches))),
 					h('td', { class: 'text-wrap' }, r.propertyTitulo, h('div', { class: 'small text-muted' }, duenoDe(r.propertyId)?.nombre || SIN_DUENO)),
 					h('td', { class: ANCHO }, r.huesped || '—'),
 					h('td', { class: ANCHO }, etiqueta(CANALES, r.canal)),

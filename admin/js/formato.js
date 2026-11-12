@@ -13,6 +13,8 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
+// «1 noche», «3 noches».
+export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
 
 // Teléfono comparable y listo para wa.me: solo dígitos; los de 8 dígitos se asumen de Guatemala.
 export function telefonoWa(tel) {

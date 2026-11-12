@@ -220,4 +220,16 @@ test('comisión: al día, vencida, +24 h (desvío) y +72 h (fuera del sitio)', (
 		gt('2026-12-14', '08:00')), { s1: 3, s2: 2 });
 });
 
+const { pausados } = await import('../netlify/lib/comisiones.mjs');
+const { nNoches } = await import('../admin/js/formato.js');
+test('pausados.txt: solo los socios con más de 72 h de atraso, en orden', () => {
+	assert.equal(pausados({ s2: 3, s1: 3, s3: 2 }), 's1,s2');
+	assert.equal(pausados({ s3: 2 }), '');
+	assert.equal(pausados({}), '');
+});
+test('«1 noche», «3 noches»', () => {
+	assert.equal(nNoches(1), '1 noche');
+	assert.equal(nNoches(3), '3 noches');
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
