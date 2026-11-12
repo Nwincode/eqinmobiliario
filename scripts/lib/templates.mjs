@@ -401,16 +401,16 @@ export function propertyCard(p, { lazy = true } = {}) {
 							</div>`;
 }
 
-export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, corto = false, lang = 'es', mensaje = '' }) {
+export function leadForm({ origen, property = null, agentId = '', titulo = '', boton = '', dark = false, visita = false, corto = false, lang = 'es', mensaje = '', icono = 'paper-plane' }) {
 	const t = TEXTOS[lang];
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
 	const msg = mensaje === false ? '' : mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
-	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}" data-lang="${lang}" novalidate>
+	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}"${property && property.propietarioId ? ` data-propietario-id="${esc(property.propietarioId)}"` : ''} data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
-		${corto
+		${mensaje === false ? '' : corto
 		? `<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.vendeQue}</label><input id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" maxlength="200" placeholder="${t.vendeQuePh}"></div>`
 		: `<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
 		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>`}
@@ -419,7 +419,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<div class="text-end"><button type="submit" class="btn btn-primary">${ic('paper-plane')}${esc(boton || t.enviar)}</button></div>
+		<div class="text-end"><button type="submit" class="btn btn-primary">${ic(icono)}${esc(boton || t.enviar)}</button></div>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }
@@ -1157,7 +1157,7 @@ function reservaBox(ctx, p) {
 							<select id="vac-huespedes" class="form-select" name="huespedes">${huespedes}</select>
 						</div>
 						<div class="vac-desglose" data-out="desglose" aria-live="polite" hidden></div>
-						${leadForm({ origen: 'reserva', property: p, agentId: p.agentId, boton: t.vacSolicitar, lang, mensaje: false })}
+						${leadForm({ origen: 'reserva', property: p, agentId: p.agentId, boton: t.vacSolicitar, icono: 'whatsapp', lang, mensaje: false })}
 						<p class="vac-nota">${ic('info-circle')}${t.vacSinCobro}</p>
 					</section>`;
 }
@@ -1193,7 +1193,7 @@ export function propertyPage(ctx, p) {
 	const waFicha = whatsappLink((agent && agent.whatsapp) || ctx.site.contacto.whatsapp, waMsg);
 	const tel = telLink(ctx);
 	const barra = `<div class="ficha-barra d-lg-none">
-		<a href="#${esVac ? 'vac-titulo' : 'ficha-form'}" class="btn btn-primary">${ic(cerrada ? 'envelope-o' : 'calendar')}${esVac ? t.vacSolicitar : cerrada ? t.quieroInfo : t.agendarVisita}</a>
+		<a href="#${esVac ? 'vac-titulo' : 'ficha-form'}" class="btn btn-primary">${ic(cerrada ? 'envelope-o' : 'calendar')}${esVac ? t.vacReservar : cerrada ? t.quieroInfo : t.agendarVisita}</a>
 		${waFicha ? `<a href="${esc(waFicha)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a>` : ''}
 		${tel ? `<a href="${tel}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.llamar}">${ic('phone')}</a>` : ''}
 		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>

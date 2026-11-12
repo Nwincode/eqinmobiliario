@@ -109,6 +109,7 @@
 			agentId: str(lead.agentId),
 			estado: str('nuevo')
 		};
+		if (lead.propietarioId) fields.propietarioId = str(lead.propietarioId);
 		if (lead.fechaVisita) fields.fechaVisita = str(lead.fechaVisita);
 		if (lead.tipoVisita) fields.tipoVisita = str(lead.tipoVisita);
 		fields.idioma = str(lead.idioma);
@@ -166,7 +167,7 @@
 				nombre: form.nombre.value.trim(),
 				telefono: form.telefono.value.trim(),
 				email: form.email ? form.email.value.trim() : '',
-				mensaje: form.mensaje.value.trim(),
+				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',
 				pagina: location.pathname,
 				propertyId: form.getAttribute('data-property-id') || '',
@@ -180,6 +181,8 @@
 			if (typeof form.eqReserva === 'function') {
 				if (!reserva) return;
 				lead.reserva = reserva.datos;
+				// Casa de un socio: la solicitud le aparece en su panel.
+				if (form.getAttribute('data-propietario-id')) lead.propietarioId = form.getAttribute('data-propietario-id');
 				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
 			}
 			lead.idioma = EN ? 'en' : 'es';
@@ -203,7 +206,11 @@
 				}
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
-				setStatus(form, reserva ? reserva.gracias : T.gracias, true);
+				if (!reserva) return setStatus(form, T.gracias, true);
+				// Reserva: se abre el WhatsApp de quien atiende la casa con el mensaje ya escrito.
+				var wa = 'https://wa.me/' + String(form.eqWhatsapp || config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(reserva.whatsapp);
+				setStatus(form, reserva.gracias + ' <a class="btn btn-primary btn-sm mt-2" href="' + wa + '" target="_blank" rel="noopener"><span class="icon-whatsapp eq-ic" aria-hidden="true"></span>' + reserva.abrir + '</a>', true);
+				location.href = wa;
 			};
 			var fail = function () {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
@@ -221,7 +228,12 @@
 				button.disabled = false;
 				return;
 			}
-			saveLead(lead).then(function () { avisarEquipo(lead); done(); }, fail).then(function () { button.disabled = false; });
+			// Si las reglas de la base todavía no aceptan «propietarioId», se guarda sin él: la solicitud no se pierde.
+			saveLead(lead).catch(function (err) {
+				if (!lead.propietarioId) throw err;
+				delete lead.propietarioId;
+				return saveLead(lead);
+			}).then(function () { avisarEquipo(lead); done(); }, fail).then(function () { button.disabled = false; });
 		});
 	});
 
