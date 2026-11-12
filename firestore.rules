@@ -204,9 +204,14 @@ service cloud.firestore {
       allow create: if nuevoPropio()
         || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada'
             && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data));
-      allow update: if (propio() && conservaAsesor())
+      // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
+      allow update: if (propio() && conservaAsesor()
+            && (isAdmin() || request.resource.data.get(['comision', 'pagada'], false) == resource.data.get(['comision', 'pagada'], false)))
         || (esSocioDe(resource.data) && soloCambia(['estado', 'motivo', 'updatedAt'])
-            && request.resource.data.estado == 'cancelada' && isNonEmptyString(request.resource.data.motivo, 100));
+            && request.resource.data.estado == 'cancelada' && isNonEmptyString(request.resource.data.motivo, 100))
+        || (esSocioDe(resource.data) && soloCambia(['comision', 'updatedAt'])
+            && request.resource.data.comision.diff(resource.data.comision).affectedKeys().hasOnly(['comprobante'])
+            && isNonEmptyString(request.resource.data.comision.comprobante, 600));
       allow delete: if propio();
     }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.

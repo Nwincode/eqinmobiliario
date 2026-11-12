@@ -1,12 +1,14 @@
 // Noches ocupadas de una renta vacacional. GET /api/disponibilidad?id=<id de la propiedad>
 // Une las fechas bloqueadas y las reservas confirmadas del panel con el calendario de Airbnb (iCal) del socio
 // y con las solicitudes de reserva sin responder de las últimas 2 horas (las fechas se apartan mientras tanto).
-// También devuelve el WhatsApp del socio, a donde el sitio manda la solicitud.
+// También devuelve el WhatsApp del socio, a donde el sitio manda la solicitud. Si el socio debe una comisión
+// hace más de 24 h, no lo devuelve (la solicitud va al equipo); con más de 72 h, la casa queda en pausa.
 // El enlace iCal es privado (properties/{id}/privado/socio) y se lee con la cuenta de servicio
 // (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY, rol "Cloud Datastore Viewer"). La respuesta lleva solo fechas:
 // nada de nombres, descripciones ni el enlace. El CDN la recuerda 10 minutos.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde, datosConfigurados } from '../lib/firestore.mjs';
+import { sociosEnMora } from '../lib/comisiones.mjs';
 import { telefonoWa } from '../../admin/js/formato.js';
 
 const V = globalThis.EQVacacional;
@@ -52,17 +54,20 @@ export default async (req) => {
 	let airbnb = null;
 	let apartadas = [];
 	let whatsapp = '';
+	let atraso = 0;
 	if (datosConfigurados()) {
 		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde.
-		const [privado, recientes, socio] = await Promise.all([
+		const [privado, recientes, socio, mora] = await Promise.all([
 			leerPrivado(`properties/${id}/privado/socio`),
 			desde('leads', 'createdAt', new Date(Date.now() - APARTADO)),
-			p.propietarioId ? leerPrivado(`propietarios/${p.propietarioId}`) : null
+			p.propietarioId ? leerPrivado(`propietarios/${p.propietarioId}`) : null,
+			p.propietarioId ? sociosEnMora() : null
 		].map((x) => Promise.resolve(x).catch(() => null)));
 		if (privado?.icalUrl) airbnb = await leerIcal(privado.icalUrl);
 		apartadas = (recientes || []).filter((l) => l.propertyId === id && l.reserva?.llegada && !l.solicitud?.estado)
 			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }));
-		whatsapp = telefonoWa(socio?.telefono);
+		atraso = mora?.[p.propietarioId] || 0;
+		whatsapp = atraso ? '' : telefonoWa(socio?.telefono);
 	}
 	const hoy = new Date().toISOString().slice(0, 10);
 	const ocupadas = V.unirRangos([...manuales, ...apartadas, ...(airbnb || [])]).filter((r) => r.hasta > hoy);
@@ -70,7 +75,7 @@ export default async (req) => {
 	const v = p.vacacional || {};
 	const plan = { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) };
 	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy);
-	return respuesta(200, { ocupadas, plan, minimos, whatsapp, fuente: airbnb ? 'airbnb' : 'manual' }, CACHE);
+	return respuesta(200, { ocupadas, plan, minimos, whatsapp, ...(atraso === 3 ? { pausada: true } : {}), fuente: airbnb ? 'airbnb' : 'manual' }, CACHE);
 };
 
 export const config = { path: '/api/disponibilidad' };

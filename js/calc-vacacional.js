@@ -278,6 +278,24 @@
 		return unirRangos(out);
 	}
 
+	// Comisión de una reserva confirmada: el socio la paga a EQ el día de llegada (hora de Guatemala, UTC−6).
+	// 0 al día (o nada que cobrar) · 1 vencida · 2 más de 24 h (sus clientes escriben a EQ) · 3 más de 72 h (sus casas salen del sitio).
+	function nivelComision(r, ahora) {
+		var c = r && r.comision;
+		if (!c || c.pagada || r.estado !== 'confirmada' || !num(c.monto) || !esFecha(c.vence)) return 0;
+		var horas = (ahora - (Date.parse(c.vence + 'T00:00:00-06:00') + DIA)) / 3600000;
+		return horas < 0 ? 0 : horas < 24 ? 1 : horas < 72 ? 2 : 3;
+	}
+	// El peor atraso de cada socio: { propietarioId: 2 | 3 }.
+	function sociosEnMora(reservas, ahora) {
+		var out = {};
+		(reservas || []).forEach(function (r) {
+			var n = nivelComision(r, ahora);
+			if (n >= 2 && r.propietarioId) out[r.propietarioId] = Math.max(n, out[r.propietarioId] || 0);
+		});
+		return out;
+	}
+
 	return {
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
@@ -286,6 +304,7 @@
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
-		choquesReserva: choquesReserva, rangosReservados: rangosReservados, resumenReservas: resumenReservas
+		choquesReserva: choquesReserva, rangosReservados: rangosReservados, resumenReservas: resumenReservas,
+		nivelComision: nivelComision, sociosEnMora: sociosEnMora
 	};
 });

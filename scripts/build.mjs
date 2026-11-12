@@ -13,6 +13,8 @@ import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
 import { visibilidadDe } from '../admin/js/estados.js';
 import { conEmojis } from '../admin/js/descripcion.js';
+import { datosConfigurados } from '../netlify/lib/firestore.mjs';
+import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -452,9 +454,12 @@ async function main() {
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
 	const todas = normalizeProperties(data.properties);
-	const properties = todas.filter((p) => visibilidadDe(p) === 'visible');
+	// Tampoco se ofrecen las casas de un socio con una comisión atrasada más de 72 h (vuelven solas al pagarla).
+	const mora = data.source === 'firestore' && datosConfigurados() ? await sociosEnMora() : null;
+	const seOfrece = (p) => visibilidadDe(p) === 'visible' && mora?.[p.propietarioId] !== 3;
+	const properties = todas.filter(seOfrece);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
-	const fueraDeListados = todas.filter((p) => visibilidadDe(p) !== 'visible');
+	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
 	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');
 	data.postsEn = (data.posts || []).filter((p) => p.idioma === 'en');
@@ -700,6 +705,7 @@ async function main() {
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
 
+	if (mora) await writeFile(path.join(DIST, 'pausados.txt'), pausados(mora));
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, urls));
 	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
