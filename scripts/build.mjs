@@ -469,6 +469,12 @@ async function main() {
 	const enActivo = Boolean(site.en) && site.en.activo !== false;
 	// Solo lo traducido sale en inglés; sin casas vacacionales traducidas no hay listado vacacional en inglés.
 	const todasEn = enActivo ? todas.map(propiedadEn).filter(Boolean) : [];
+	// Dos casas con el mismo título en inglés no pueden compartir dirección (igual que en español).
+	const slugsEn = new Set();
+	for (const p of todasEn) {
+		if (slugsEn.has(p.slug)) p.slug = `${p.slug}-${slugify(p.id).slice(0, 8)}`;
+		slugsEn.add(p.slug);
+	}
 	const propsEn = todasEn.filter((p) => visibilidadDe(p) === 'visible');
 	const hayVacacionalEn = propsEn.some((p) => p.operacion === 'vacacional');
 	// Pares de URLs español ↔ inglés para el selector de idioma.
