@@ -39,6 +39,10 @@ body {
 .btn-sm {
 	font-size: .8125rem;
 }
+/* En celular el botón pequeño sigue viéndose compacto, pero se deja tocar (44 px). */
+@media (max-width: 767.98px) {
+	.btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+}
 .btn-light {
 	background-color: var(--adm-surface);
 	border-color: var(--adm-border);
@@ -815,6 +819,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	font-size: .875rem;
 	font-weight: 500;
 	padding: 8px 12px;
+	min-height: 44px;
 	border-radius: 8px;
 }
 .subnav .nav-link:hover {
@@ -1333,7 +1338,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-sel { grid-area: sel; }
 	.tabla-propiedades .celda-titulo { grid-area: titulo; }
 	.tabla-propiedades .celda-codigo { grid-area: codigo; font-family: var(--bs-font-monospace); font-size: .8125rem; color: var(--adm-muted); align-self: center; }
-	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; justify-content: space-between; gap: .75rem; }
+	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; flex-wrap: wrap; justify-content: space-between; gap: 0 .75rem; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 600; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .375rem; }
 	.tabla-propiedades .celda-visible {

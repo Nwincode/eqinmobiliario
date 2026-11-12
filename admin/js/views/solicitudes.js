@@ -6,7 +6,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, collection, query, where, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
 import { h, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
-import { whatsappUrl } from '../formato.js';
+import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
 
@@ -159,7 +159,7 @@ export async function render(container, [codigo] = []) {
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
-			h('div', {}, `${fechas(r)} · ${r.noches} ${r.noches === 1 ? 'noche' : 'noches'} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
+			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Comisión' : 'Comisión a pagar a EQ'} ${money(c.ganancia, r.moneda)}` : ''),
 			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Comisión: se paga el ${dia(com.vence)}`),

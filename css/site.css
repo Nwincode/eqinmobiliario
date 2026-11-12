@@ -998,6 +998,11 @@ a {
 	background: #fff;
 }
 .testimonial .name,
+.person .btn {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
 .person h2,
 .person .h5 {
 	color: var(--eq-dark);
@@ -1244,6 +1249,7 @@ h2.heading::after,
 	transform: scale(1.03);
 }
 .ficha-ver-todas {
+	min-height: 44px;
 	position: absolute;
 	right: 24px;
 	bottom: 24px;
