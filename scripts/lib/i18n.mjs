@@ -46,7 +46,7 @@ const ES = {
 	habitacion: 'habitación', habitaciones: 'habitaciones', bano: 'baño', banos: 'baños',
 	// Formulario
 	nombre: 'Nombre', telefono: 'Teléfono / WhatsApp', telefonoPh: '', correo: 'Correo electrónico', mensaje: 'Mensaje',
-	fechaVisita: 'Fecha preferida para visitar (opcional)', tipoVisita: 'Tipo de visita', presencial: 'Presencial', videollamada: 'Videollamada',
+	fechaVisita: 'Fecha (opcional)', tipoVisita: 'Tipo de visita', presencial: 'Presencial', videollamada: 'Videollamada',
 	enviar: 'Enviar', empresa: 'Empresa', msgInteres: 'Hola, me interesa la propiedad "{titulo}". ¿Me pueden dar más información?',
 	// Asesor
 	asesorInmobiliario: 'Asesor inmobiliario', correoBtn: 'Correo', msgAsesor: 'Hola {nombre}, me interesa la propiedad "{titulo}".',
@@ -156,7 +156,7 @@ const EN = {
 	enVenta: 'For sale', enRenta: 'For rent', enVacacional: 'Vacation rental', verDetalles: 'View details', precioRebajado: 'Price reduced', antes: 'Was', precioConsultar: 'Price on request', mes: '/mo',
 	habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
 	nombre: 'Full name', telefono: 'Phone / WhatsApp', telefonoPh: '+1 555 123 4567', correo: 'Email', mensaje: 'Message',
-	fechaVisita: 'Preferred visit date (optional)', tipoVisita: 'Visit type', presencial: 'In person', videollamada: 'Video tour',
+	fechaVisita: 'Date (optional)', tipoVisita: 'Visit type', presencial: 'In person', videollamada: 'Video tour',
 	enviar: 'Send', empresa: 'Company', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
 	asesorInmobiliario: 'Real estate advisor', correoBtn: 'Email', msgAsesor: 'Hi {nombre}, I\'m interested in "{titulo}".',
 	filtrar: 'Filter properties', busquedaInteligente: 'Smart search',

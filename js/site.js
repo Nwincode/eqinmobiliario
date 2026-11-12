@@ -492,7 +492,7 @@
 		var precio = parseFloat(box.getAttribute('data-precio')) || 0;
 		var prefijo = box.getAttribute('data-moneda') === 'GTQ' ? 'Q' : 'US$';
 		var out = box.querySelector('.calc-result');
-		var fmt = function (n) { return prefijo + ' ' + Math.round(n).toLocaleString('en-US'); };
+		var fmt = function (n) { return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 		var calc = function () {
 			var enganche = Math.min(90, Math.max(0, parseFloat(box.querySelector('[name=enganche]').value) || 0));
 			var tasa = Math.max(0, parseFloat(box.querySelector('[name=tasa]').value) || 0) / 100 / 12;

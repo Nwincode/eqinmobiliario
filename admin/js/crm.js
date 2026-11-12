@@ -5,7 +5,7 @@ import {
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, prefijoMoneda } from './formato.js';
+import { telefonoWa as telNorm, dinero } from './formato.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -31,7 +31,7 @@ export { telNorm };
 
 export function money(monto, moneda = 'USD') {
 	if (!monto) return '—';
-	return `${prefijoMoneda(moneda)} ${Number(monto).toLocaleString('en-US')}`;
+	return dinero(monto, moneda);
 }
 
 // Consulta respetando el rol: el asesor filtra por su agentId (si no, Firestore la rechaza).

@@ -15,7 +15,7 @@ import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '..
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
-import { miles, prefijoMoneda, whatsappUrl } from '../formato.js';
+import { miles, dinero, whatsappUrl } from '../formato.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -139,7 +139,7 @@ export function vacacionalPublico(d) {
 function desgloseVacacional(el, d) {
 	const s = d.socio || {};
 	const moneda = d.moneda || 'USD';
-	const m = (n) => `${prefijoMoneda(moneda)} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	const m = (n) => dinero(n, moneda);
 	const filas = [['Precio base', s.precioBase], ['Fin de semana (viernes y sábado)', s.precioFinde]]
 		.concat((s.tarifas || []).filter((t) => t.precio).map((t) => [`Tarifa ${t.desde || '…'} al ${t.hasta || '…'}`, t.precio]))
 		.filter(([, p]) => Number(p) > 0);

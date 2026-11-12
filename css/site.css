@@ -118,8 +118,13 @@
 	color: var(--eq-ink);
 	margin-bottom: .25rem;
 }
-.lead-form .form-control {
+.lead-form .form-control,
+.lead-form .form-select {
 	border-radius: 6px;
+}
+/* El selector mide lo mismo que los campos de texto de la plantilla. */
+.lead-form .form-select {
+	height: 52px;
 }
 .hp-field {
 	position: absolute !important;
@@ -1674,6 +1679,19 @@ body.offcanvas-menu .ficha-barra {
 	.ficha-contacto {
 		position: sticky;
 	}
+}
+/* Tarjeta de venta y renta: es corta, así que acompaña al bajar en casi cualquier pantalla. */
+@media (min-width: 992px) and (min-height: 840px) {
+	.ficha-contacto-corta {
+		position: sticky;
+	}
+}
+.ficha-contacto .vac-card .agent-box {
+	border: 0;
+	border-top: 1px solid var(--eq-line);
+	border-radius: 0;
+	padding: 16px 0 0 !important;
+	margin-top: 16px;
 }
 @media (max-width: 767.98px) {
 	.ficha-lightbox figure {

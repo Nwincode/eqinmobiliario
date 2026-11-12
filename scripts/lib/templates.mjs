@@ -410,7 +410,10 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
-		${mensaje === false ? '' : corto
+		${mensaje === false ? '' : visita
+		// Agendar visita: solo lo necesario; el mensaje va listo y oculto.
+		? `<input type="hidden" name="mensaje" value="${esc(msg)}">`
+		: corto
 		? `<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.vendeQue}</label><input id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" maxlength="200" placeholder="${t.vendeQuePh}"></div>`
 		: `<div class="mb-3"><label class="form-label" for="lf-email-${esc(origen)}">${t.correo}</label><input id="lf-email-${esc(origen)}" class="form-control" name="email" type="email" maxlength="120" autocomplete="email"></div>
 		<div class="mb-3"><label class="form-label" for="lf-msg-${esc(origen)}">${t.mensaje}</label><textarea id="lf-msg-${esc(origen)}" class="form-control" name="mensaje" rows="3" maxlength="2000">${esc(msg)}</textarea></div>`}
@@ -1162,6 +1165,18 @@ function reservaBox(ctx, p) {
 					</section>`;
 }
 
+// Tarjeta de venta y renta: mismo diseño que la de reserva (precio, acción y asesor en una sola).
+function visitaBox(ctx, p, agent) {
+	const t = tr(ctx);
+	return `<section class="lead-card vac-card" id="ficha-form" aria-labelledby="visita-titulo">
+						<h2 id="visita-titulo" class="h5 mb-1">${ic('calendar')}${t.agendaVisita}</h2>
+						<p class="vac-desde"><strong>${esc(price(p))}</strong>${precioAntes(p)}</p>
+						<p class="vac-impuestos">${esc([enOperacion(p, t), p.zona].filter(Boolean).join(' · '))}</p>
+						${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, boton: t.agendarVisita, icono: 'calendar', visita: true, lang: ctx.lang })}
+						${agentBox(ctx, agent, p)}
+					</section>`;
+}
+
 export function propertyPage(ctx, p) {
 	const t = tr(ctx);
 	const r = rt(ctx);
@@ -1268,12 +1283,10 @@ export function propertyPage(ctx, p) {
 					${!cerrada ? rentaCalculator(ctx, p) : ''}
 				</div>
 				<aside class="col-lg-4">
-					<div class="ficha-contacto">
-						${esVac ? reservaBox(ctx, p) : ''}
-						${agentBox(ctx, agent, p)}
-						${esVac ? '' : `<div class="lead-card" id="ficha-form">${cerrada
-							? leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })
-							: leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.agendaVisita, boton: t.quieroInfo, visita: true, lang: ctx.lang })}</div>`}
+					<div class="ficha-contacto${esVac ? '' : ' ficha-contacto-corta'}">
+						${esVac ? reservaBox(ctx, p) + agentBox(ctx, agent, p) : cerrada
+							? agentBox(ctx, agent, p) + `<div class="lead-card" id="ficha-form">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })}</div>`
+							: visitaBox(ctx, p, agent)}
 						${shareButtons(ctx, p)}
 					</div>
 				</aside>

@@ -1,5 +1,5 @@
 import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
-import { miles, prefijoMoneda } from '../../admin/js/formato.js';
+import { miles, dinero } from '../../admin/js/formato.js';
 // Utilidades compartidas por el generador del sitio.
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -43,12 +43,10 @@ export const cifra = miles;
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
 	if (!precio) return lang === 'en' ? 'Price on request' : 'Precio a consultar';
 	if (operacion === 'vacacional') {
-		const v = miles(precio);
-		return lang === 'en' ? `From ${prefijoMoneda(moneda)} ${v} per night` : `Desde ${prefijoMoneda(moneda)} ${v} por noche`;
+		return lang === 'en' ? `From ${dinero(precio, moneda)} per night` : `Desde ${dinero(precio, moneda)} por noche`;
 	}
-	const n = Number(precio).toLocaleString('en-US', { maximumFractionDigits: 0 });
 	const suffix = operacion === 'renta' ? (lang === 'en' ? ' /mo' : ' /mes') : '';
-	return `${prefijoMoneda(moneda)} ${n}${suffix}`;
+	return `${dinero(precio, moneda)}${suffix}`;
 }
 
 export const TIPOS = {

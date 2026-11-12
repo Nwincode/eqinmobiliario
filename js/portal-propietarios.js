@@ -66,7 +66,7 @@ function aFecha(v) {
 }
 const precio = (n, moneda, operacion) => {
 	if (!n) return EN ? 'Price on request' : 'Precio a consultar';
-	const s = `${PREFIJO[moneda] || moneda || 'US$'} ${Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+	const s = `${PREFIJO[moneda] || moneda || 'US$'} ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 	return operacion === 'renta' ? `${s}${EN ? ' /mo' : ' /mes'}` : s;
 };
 const soloDigitos = (s) => String(s || '').replace(/[^\d]/g, '');

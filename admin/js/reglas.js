@@ -1,6 +1,6 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
-import { M2_A_FT2 } from './formato.js';
+import { M2_A_FT2, dinero, decimales } from './formato.js';
 
 const TC = 7.7; // 1 US$ ≈ 7.7 Q
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -20,7 +20,7 @@ const SINONIMOS_TIPO = {
 
 const sinAcentos = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const n = (v) => Number(v) || 0;
-const fmt = (v, moneda) => `${moneda === 'GTQ' ? 'Q' : 'US$'} ${Math.round(n(v)).toLocaleString('en-US')}`;
+const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 const enUSD = (precio, moneda) => (moneda === 'GTQ' ? n(precio) / TC : n(precio));
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
@@ -327,7 +327,7 @@ function datosEn(p) {
 	return d;
 }
 const unirEn = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);
-const precioEn = (p) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${Math.round(n(p.precio)).toLocaleString('en-US')}${p.operacion === 'renta' ? '/month' : ''}`;
+const precioEn = (p) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(n(p.precio))}${p.operacion === 'renta' ? '/month' : ''}`;
 
 // Traductor automático gratuito (sin clave). Si falla, se usa la plantilla.
 async function traductorLibre(texto) {

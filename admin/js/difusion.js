@@ -5,7 +5,7 @@ import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
 import { seOfrece } from './estados.js';
 import { conEmojis } from './descripcion.js';
-import { prefijoMoneda, M2_A_FT2 } from './formato.js';
+import { dinero, M2_A_FT2 } from './formato.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
@@ -52,8 +52,7 @@ export function codigo(p) {
 
 function precioTexto(p, lang) {
 	if (!p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio)) return L[lang].consultar;
-	const pre = prefijoMoneda(p.moneda || 'USD');
-	return `${pre} ${Number(p.precio).toLocaleString('en-US')}${p.operacion === 'renta' ? L[lang].mes : ''}`;
+	return `${dinero(p.precio, p.moneda || 'USD')}${p.operacion === 'renta' ? L[lang].mes : ''}`;
 }
 
 function area(m2, lang) {

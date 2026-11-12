@@ -5,7 +5,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, addDoc, collection, query, where, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, hoy, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
-import { prefijoMoneda, miles } from '../formato.js';
+import { prefijoMoneda, decimales } from '../formato.js';
 
 const V = window.EQVacacional;
 const fecha = (iso) => new Date(`${iso}T12:00:00`);
@@ -51,7 +51,7 @@ async function casa(container, id) {
 	const s = sSocio.exists() ? sSocio.data() : {};
 	const v = p.vacacional || {};
 	const pre = prefijoMoneda(p.moneda || 'USD');
-	const plata = (n) => `${pre}${miles(n)}`;
+	const plata = (n) => `${pre}${decimales(n)}`;
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
