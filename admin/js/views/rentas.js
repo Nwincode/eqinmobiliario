@@ -2,7 +2,7 @@
 // Una reserva confirmada bloquea sus fechas en el calendario público de la casa.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { whatsappUrl } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
@@ -32,10 +32,6 @@ async function loadSolicitudes() {
 	const snap = await getDocs(session.isAdmin ? query(col, where('reserva.codigo', '>', '')) : query(col, where('agentId', '==', session.agentId || '-')));
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((l) => l.reserva?.llegada);
 }
-
-const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
-	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
-}, h('span', { class: icono, 'aria-hidden': 'true' }));
 
 export async function render(container) {
 	const [reservas, todas, propietarios, solicitudes] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios(), loadSolicitudes()]);

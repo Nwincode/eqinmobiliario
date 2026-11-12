@@ -129,6 +129,8 @@ export function vacacionalPublico(d) {
 			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
 			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
 			bloqueos,
+			// Mínimos de noches por fechas: los pone el socio en «Mis casas»; aquí solo se conservan.
+			minimos: v.minimos || [],
 			// Reservas confirmadas: las escribe Rentas vacacionales; aquí solo se conservan.
 			reservadas: V.unirRangos(v.reservadas || [])
 		}

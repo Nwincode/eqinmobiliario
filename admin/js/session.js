@@ -5,8 +5,10 @@ import {
 
 export const session = {
 	user: null,     // usuario de Firebase Auth
-	profile: null,  // documento users/{uid}: { nombre, rol, agentId, activo }
+	profile: null,  // documento users/{uid}: { nombre, rol, agentId, propietarioId, activo }
 	get isAdmin() { return this.profile && this.profile.rol === 'admin'; },
+	// Socio de rentas vacacionales: solo ve sus casas (precios y calendario).
+	get esSocio() { return Boolean(this.profile && this.profile.rol === 'socio'); },
 	get agentId() { return (this.profile && this.profile.agentId) || ''; }
 };
 

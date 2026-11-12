@@ -383,7 +383,7 @@ export function propertyCard(p, { lazy = true } = {}) {
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
 		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()],
-		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin }) => ({ bloqueos, huespedesMax, nochesMin }))(datosVacacional(p)))]] : [])
+		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos }) => ({ bloqueos, huespedesMax, nochesMin, minimos }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	return `<div class="property-item" ${data}>
 								<a href="${url}" class="img" tabindex="-1">
@@ -1107,6 +1107,8 @@ function datosVacacional(p) {
 			tarifas: (v.tarifas || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), precio: num(x.precio) })).filter((x) => x.desde && x.hasta && x.precio > 0)
 		},
 		nochesMin: Math.max(1, Math.round(num(v.nochesMin, 1)) || 1),
+		// Mínimos de noches por fechas (Navidad, Semana Santa…): los pone el socio o el equipo.
+		minimos: (v.minimos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), noches: Math.round(num(x.noches)) })).filter((x) => x.desde && x.hasta && x.noches > 1),
 		huespedesMax: Math.max(1, Math.round(num(v.huespedesMax, 2)) || 1),
 		limpieza: num(v.limpieza),
 		deposito: num(v.deposito),

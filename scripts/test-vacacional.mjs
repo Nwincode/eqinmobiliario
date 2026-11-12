@@ -170,6 +170,20 @@ test('ganancia = 20 % de la suma del costo del socio de todas las noches', () =>
 	assert.equal(una.ganancia, 40);
 });
 
+test('mínimo de noches por fechas y recorte de rangos', () => {
+	const minimos = [{ desde: '2026-12-24', hasta: '2026-12-25', noches: 3 }];
+	assert.equal(V.minimoNoches('2026-12-20', '2026-12-22', 2, minimos), 2);
+	assert.equal(V.minimoNoches('2026-12-25', '2026-12-26', 1, minimos), 3);
+	// Salir el 24 no toca la noche del 24.
+	assert.equal(V.minimoNoches('2026-12-22', '2026-12-24', 1, minimos), 1);
+	const v = V.validarEstancia({ llegada: '2026-12-24', salida: '2026-12-26', minimos });
+	igual([v.ok, v.error, v.minimo], [false, 'minimo', 3]);
+	assert.equal(V.validarEstancia({ llegada: '2026-12-23', salida: '2026-12-26', minimos }).ok, true);
+	igual(V.quitarRango([{ desde: '2026-12-01', hasta: '2026-12-10', precio: 5 }, { desde: '2027-01-01', hasta: '2027-01-02', precio: 9 }], '2026-12-04', '2026-12-05'),
+		[{ desde: '2026-12-01', hasta: '2026-12-03', precio: 5 }, { desde: '2026-12-06', hasta: '2026-12-10', precio: 5 }, { desde: '2027-01-01', hasta: '2027-01-02', precio: 9 }]);
+	igual(V.quitarRango([{ desde: '2026-12-04', hasta: '2026-12-05' }], '2026-12-01', '2026-12-31'), []);
+});
+
 test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {
 	const r = (id, llegada, salida, extra = {}) => ({ id, propertyId: 'casa1', llegada, salida, estado: 'confirmada', costoSocio: 300, alojamiento: 360, moneda: 'USD', ...extra });
 	const lista = [r('a', '2026-12-01', '2026-12-04'), r('b', '2026-12-04', '2026-12-06', { pagadoSocio: true }),

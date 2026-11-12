@@ -18,7 +18,9 @@ export async function staffUser(req) {
 	if (!res.ok) return null;
 	const doc = await res.json();
 	if (!doc.fields?.activo?.booleanValue) return null;
-	return { uid: payload.sub, nombre: doc.fields?.nombre?.stringValue || '', admin: doc.fields?.rol?.stringValue === 'admin' };
+	const rol = doc.fields?.rol?.stringValue;
+	if (rol !== 'admin' && rol !== 'asesor') return null;
+	return { uid: payload.sub, nombre: doc.fields?.nombre?.stringValue || '', admin: rol === 'admin' };
 }
 
 export function json(status, body) {

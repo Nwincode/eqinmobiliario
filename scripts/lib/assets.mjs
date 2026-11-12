@@ -13,6 +13,7 @@ const CSS_FILES = [
 	'css/tiny-slider.css',
 	'css/aos.css',
 	'css/style.css',
+	'css/calendario.css',
 	'css/site.css',
 	'css/vip.css',
 	'css/botones.css'
