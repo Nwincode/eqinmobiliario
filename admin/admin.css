@@ -1398,8 +1398,10 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .estado-rapido { min-height: 44px; width: 100%; min-width: 0; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
 	.tabla-propiedades .celda-visible .form-check {
 		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
-		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0;
+		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
 	}
+	/* Toda la caja de 44 px responde al toque, no solo la franja del texto. */
+	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
 	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
 	.tabla-propiedades tr:not(:has(.btn-whatsapp-fila)) .celda-visible .form-check { grid-column: 3 / -1; }
 	.tabla-propiedades .btn-whatsapp-fila {
