@@ -1337,7 +1337,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
 	.tabla-propiedades { margin-bottom: 4rem; }
 	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
-	#toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
+	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
 	#toasts .btn-close { pointer-events: auto; }
 	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
