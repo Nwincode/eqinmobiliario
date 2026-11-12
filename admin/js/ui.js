@@ -46,6 +46,7 @@ export function slugify(text) {
 export function toDate(v) {
 	if (!v) return null;
 	if (typeof v.toDate === 'function') return v.toDate();
+	if (v.seconds) return new Date(v.seconds * 1000);
 	const d = new Date(v);
 	return Number.isNaN(d.getTime()) ? null : d;
 }
