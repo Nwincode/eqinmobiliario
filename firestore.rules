@@ -109,12 +109,20 @@ service cloud.firestore {
         || (isStaff() && request.resource.data.agentId == myAgentId());
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId())
-        // El socio solo toca precios, días bloqueados y mínimos de noches de sus casas.
+        // El socio solo toca precios, personas, días bloqueados o reservados y mínimos de noches de sus casas.
         || (esSocioDe(resource.data)
             && soloCambia(['vacacional', 'precio', 'updatedAt'])
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
-                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos']));
+                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax']));
       allow delete: if isAdmin();
+
+      // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.
+      match /bitacora/{entrada} {
+        allow read: if isStaff() || esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
+        allow create: if (isStaff() || esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data))
+          && request.resource.data.quien == request.auth.uid
+          && request.resource.data.cuando == request.time;
+      }
 
       // Renta vacacional: costo del socio, margen, contacto y enlace iCal. Nunca es público
       // (la propiedad sí lo es). Solo el equipo: admin o el asesor de la propiedad.
@@ -191,9 +199,14 @@ service cloud.firestore {
     }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
     match /reservas/{id} {
-      allow read: if propio();
-      allow create: if nuevoPropio();
-      allow update: if propio() && conservaAsesor();
+      allow read: if propio() || esSocioDe(resource.data);
+      // El socio crea la reserva al confirmar una solicitud de su casa y solo puede cancelarla, con motivo.
+      allow create: if nuevoPropio()
+        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada'
+            && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data));
+      allow update: if (propio() && conservaAsesor())
+        || (esSocioDe(resource.data) && soloCambia(['estado', 'motivo', 'updatedAt'])
+            && request.resource.data.estado == 'cancelada' && isNonEmptyString(request.resource.data.motivo, 100));
       allow delete: if propio();
     }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
@@ -272,7 +285,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly([
             'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
             'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
-            'tipoVisita', 'idioma', 'campana', 'reserva'])
+            'tipoVisita', 'idioma', 'campana', 'reserva', 'propietarioId'])
         && isNonEmptyString(request.resource.data.nombre, 100)
         && isNonEmptyString(request.resource.data.telefono, 30)
         && isShortString(request.resource.data.email, 120)
@@ -289,13 +302,19 @@ service cloud.firestore {
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
         && (!('reserva' in request.resource.data)
             || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10))
+        // El socio de la solicitud tiene que ser el dueño real de la casa.
+        && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
+            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
         && request.resource.data.estado == 'nuevo'
         && request.resource.data.createdAt == request.time;
       allow read: if isAdmin()
-        || (isStaff() && resource.data.agentId == myAgentId());
+        || (isStaff() && resource.data.agentId == myAgentId())
+        || esSocioDe(resource.data);
+      // El socio solo responde la solicitud; no cambia nada más ni la borra.
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
-            && request.resource.data.agentId == resource.data.agentId);
+            && request.resource.data.agentId == resource.data.agentId)
+        || (esSocioDe(resource.data) && soloCambia(['solicitud', 'updatedAt']));
       allow delete: if isAdmin();
     }
   }

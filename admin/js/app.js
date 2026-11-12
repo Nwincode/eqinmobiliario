@@ -11,6 +11,7 @@ import { vigilarTablas } from './tablas-alto.js';
 
 const ROUTES = [
 	{ path: 'mis-casas', label: 'Mis casas', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
+	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, admin: true, load: () => import('./views/solicitudes.js') },
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
@@ -137,7 +138,8 @@ function noAccess(reason) {
 }
 
 // Lo que cada quien puede abrir: el socio solo lo suyo; el equipo todo lo demás (y el admin, además, lo de admin).
-const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio : !r.socio && (!r.admin || session.isAdmin)));
+// Una ruta marcada para socio y admin la ven los dos.
+const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio : (!r.socio || r.admin) && (!r.admin || session.isAdmin)));
 
 function shell() {
 	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
