@@ -42,7 +42,7 @@ export default async () => {
 			intro: 'Escribile al cliente para no perder la reserva.',
 			bloques: (c) => grupos.map(([titulo, lista]) => `<h2 style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:${c.dark}">${titulo}</h2>
 ${lista.map((l) => `<p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">${linea(l).map(esc).join('<br>')}</p>
-${boton(c, `WhatsApp a ${esc(l.nombre)}`, whatsappUrl(l.telefono, saludo(l)), c.whatsapp)}`).join('')}`).join('') + `
+${boton(c, `WhatsApp a ${l.nombre}`, whatsappUrl(l.telefono, saludo(l)), c.whatsapp)}`).join('')}`).join('') + `
 <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px"><a href="${SITE_URL}/admin/#/solicitudes" target="_blank" style="display:inline-block;padding:12px 8px;color:${c.primary};font-weight:bold;text-decoration:underline">Ver en el panel</a></p>`
 		});
 		const texto = grupos.map(([titulo, lista]) => [titulo, ...lista.map((l) => [...linea(l), whatsappUrl(l.telefono, saludo(l))].join('\n'))].join('\n\n')).join('\n\n');
