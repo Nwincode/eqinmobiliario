@@ -202,10 +202,10 @@ const corto = (e) => e.label.split(/ [/d]/)[0].toLowerCase();
 function motivoVisibilidad(p) {
 	const e = estadoDe(p);
 	switch (visibilidadDe(p)) {
-		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash' };
+		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash', obvio: true };
 		case 'cerrada': return { texto: `Solo con enlace: ${corto(e)}`, color: 'warning', icono: 'icon-link' };
 		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
-		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye' };
+		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye', obvio: true };
 	}
 }
 
@@ -354,8 +354,8 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-num' }, i + 1),
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
 				editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
-			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
+				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
 				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
@@ -375,7 +375,7 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
 					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.obvio ? ' motivo-obvio' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
 			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
 			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'));
@@ -585,14 +585,20 @@ export async function render(container, [id]) {
 			draw();
 		} },
 		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
+	// Lo de todos los días queda a la vista; el resto se abre con «Más».
+	const masAcciones = h('div', { class: 'barra-masa-mas', id: 'barra-masa-mas', hidden: true },
+		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
+		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca);
+	const btnMas = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-expanded': 'false', 'aria-controls': 'barra-masa-mas',
+		onclick: () => { masAcciones.hidden = !masAcciones.hidden; btnMas.setAttribute('aria-expanded', String(!masAcciones.hidden)); } },
+		h('span', { class: 'icon-ellipsis-h', 'aria-hidden': 'true' }), ' Más');
 	barra.append(
 		h('span', { class: 'barra-masa-n' },
 			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
 		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
-		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
-		session.isAdmin ? btnEliminar : null);
+		session.isAdmin ? btnEliminar : null,
+		btnMas, masAcciones);
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
 		nSel.textContent = String(seleccion.size);
@@ -637,7 +643,7 @@ export async function render(container, [id]) {
 	mount(container, 
 		pageHeader('Propiedades',
 			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
-				h('span', { class: 'icon-file-excel-o', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
+				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar', h('span', { class: 'd-none d-md-inline' }, ' desde CSV')) : null,
 			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
 				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
@@ -654,7 +660,7 @@ export async function render(container, [id]) {
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
 						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-						[['#', 'celda-num'], ['', 'celda-foto'], ['Código', 'celda-codigo'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
+						[['#', 'celda-num'], ['', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
 							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
 					tbody), { tarjeta: true }))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
