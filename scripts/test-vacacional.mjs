@@ -201,4 +201,23 @@ test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {
 		GTQ: { costoSocio: 300, pagado: 0, porPagar: 300, ganancia: 60 } } });
 });
 
+test('comisión: al día, vencida, +24 h (desvío) y +72 h (fuera del sitio)', () => {
+	const r = (extra = {}, comision = {}) => ({ estado: 'confirmada', propietarioId: 's1', comision: { monto: 50, vence: '2026-12-10', pagada: false, ...comision }, ...extra });
+	const gt = (fecha, hora) => Date.parse(`${fecha}T${hora}:00-06:00`);
+	// Tiene todo el día de llegada para pagar.
+	assert.equal(V.nivelComision(r(), gt('2026-12-10', '23:59')), 0);
+	assert.equal(V.nivelComision(r(), gt('2026-12-11', '00:00')), 1);
+	assert.equal(V.nivelComision(r(), gt('2026-12-12', '00:00')), 2);
+	assert.equal(V.nivelComision(r(), gt('2026-12-13', '23:59')), 2);
+	assert.equal(V.nivelComision(r(), gt('2026-12-14', '00:00')), 3);
+	// Pagada, cancelada o sin comisión: nada que cobrar.
+	assert.equal(V.nivelComision(r({}, { pagada: true }), gt('2027-01-01', '00:00')), 0);
+	assert.equal(V.nivelComision(r({ estado: 'cancelada' }), gt('2027-01-01', '00:00')), 0);
+	assert.equal(V.nivelComision(r({}, { monto: 0 }), gt('2027-01-01', '00:00')), 0);
+	assert.equal(V.nivelComision({ estado: 'confirmada' }, gt('2027-01-01', '00:00')), 0);
+	// Por socio queda el peor atraso; el que está al día o apenas vencido no aparece.
+	igual(V.sociosEnMora([r(), r({}, { vence: '2026-12-12' }), r({ propietarioId: 's2' }, { vence: '2026-12-12' }), r({ propietarioId: 's3' }, { vence: '2026-12-13' })],
+		gt('2026-12-14', '08:00')), { s1: 3, s2: 2 });
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

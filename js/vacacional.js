@@ -322,6 +322,8 @@
 				.then(function (r) { return r.ok ? r.json() : null; })
 				.then(function (res) {
 					if (!res || !res.ocupadas) return;
+					// Casa en pausa: no se puede reservar por ahora.
+					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return; }
 					// WhatsApp de quien atiende la casa (el socio); sin él, el del equipo.
 					if (res.whatsapp && form) form.eqWhatsapp = res.whatsapp;
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
