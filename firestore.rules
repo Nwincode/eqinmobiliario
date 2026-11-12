@@ -16,7 +16,21 @@ service cloud.firestore {
     function isStaff() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && userDoc().data.activo == true;
+        && userDoc().data.activo == true
+        && userDoc().data.rol in ['admin', 'asesor'];
+    }
+    // Socio de rentas vacacionales: entra al panel solo a sus casas (las del propietario que le asignó el admin).
+    function esSocio() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.activo == true
+        && userDoc().data.rol == 'socio';
+    }
+    function esSocioDe(casa) {
+      return esSocio() && casa.get('propietarioId', '') != '' && casa.propietarioId == userDoc().data.propietarioId;
+    }
+    function soloCambia(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
     }
     function isAdmin() {
       return isStaff() && userDoc().data.rol == 'admin';
@@ -42,6 +56,8 @@ service cloud.firestore {
     // Estado de publicación (cambios pendientes, última publicación).
     match /meta/publish {
       allow read, write: if isStaff();
+      // El socio solo deja el aviso de "hay cambios por publicar".
+      allow update: if esSocio() && soloCambia(['pendiente', 'ultimoCambio', 'ultimoCambioDesc', 'ultimoCambioPor']);
     }
 
     match /users/{uid} {
@@ -87,12 +103,17 @@ service cloud.firestore {
     }
 
     match /properties/{id} {
-      allow get: if resource.data.publicado == true || isStaff();
-      allow list: if resource.data.publicado == true || isStaff();
+      allow get: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
+      allow list: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       allow create: if isAdmin()
         || (isStaff() && request.resource.data.agentId == myAgentId());
       allow update: if isAdmin()
-        || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId());
+        || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId())
+        // El socio solo toca precios, días bloqueados y mínimos de noches de sus casas.
+        || (esSocioDe(resource.data)
+            && soloCambia(['vacacional', 'precio', 'updatedAt'])
+            && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
+                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos']));
       allow delete: if isAdmin();
 
       // Renta vacacional: costo del socio, margen, contacto y enlace iCal. Nunca es público
@@ -100,6 +121,10 @@ service cloud.firestore {
       match /privado/{docId} {
         allow read, write: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+        // El socio ve y cambia sus precios netos; nunca el margen, el contacto ni el iCal.
+        allow get: if docId == 'socio' && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
+        allow update: if docId == 'socio' && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data)
+          && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy']);
       }
     }
 

@@ -155,6 +155,11 @@ export function badge(text, color = 'secondary') {
 	return h('span', { class: `badge text-bg-${color}` }, text);
 }
 
+// Botón solo de ícono (44 px de toque); con `href` es un enlace.
+export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
+	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
+}, h('span', { class: icono, 'aria-hidden': 'true' }));
+
 export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }

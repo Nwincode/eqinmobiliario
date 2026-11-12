@@ -56,7 +56,11 @@ export default async (req) => {
 	}
 	const hoy = new Date().toISOString().slice(0, 10);
 	const ocupadas = V.unirRangos([...manuales, ...(airbnb || [])]).filter((r) => r.hasta > hoy);
-	return respuesta(200, { ocupadas, fuente: airbnb ? 'airbnb' : 'manual' }, CACHE);
+	// Precios al público y mínimos de noches al día: el socio los cambia sin esperar a que se publique el sitio.
+	const v = p.vacacional || {};
+	const plan = { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) };
+	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy);
+	return respuesta(200, { ocupadas, plan, minimos, fuente: airbnb ? 'airbnb' : 'manual' }, CACHE);
 };
 
 export const config = { path: '/api/disponibilidad' };

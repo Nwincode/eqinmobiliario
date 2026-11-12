@@ -9,6 +9,13 @@ import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } fr
 import { REGIMENES, MODOS } from '../cotizacion.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
+// Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
+// Si la casa es de otro asesor, Firestore no deja tocarla y se sigue con las demás.
+function vincularCasas(id, ahora = [], antes = []) {
+	const cambios = [...ahora.map((p) => [p, id]), ...antes.filter((p) => !ahora.includes(p)).map((p) => [p, ''])];
+	return Promise.all(cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})));
+}
+
 // Días que faltan para que venza la exclusiva (negativo = vencida).
 function diasExclusiva(p) {
 	if (!p.exclusiva || !p.exclusivaFin) return null;
@@ -107,6 +114,7 @@ async function renderEditor(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
+			await vincularCasas(ref.id, d.propertyIds, data.propertyIds);
 			if (d.portalToken) await publicarPortal({ ...d, id: ref.id }).catch((err) => console.warn('Portal sin actualizar', err));
 			toast('Propietario guardado.');
 			avisarCambio();
@@ -118,7 +126,7 @@ async function renderEditor(container, id) {
 		try {
 			// Primero la copia del portal: si quedara, el enlace privado seguiría funcionando.
 			if (data.portalToken) await borrarCopia(data.portalToken);
-			await deleteDoc(ref); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
+			await deleteDoc(ref); await vincularCasas(ref.id, [], data.propertyIds); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
 	mount(container,

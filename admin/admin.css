@@ -3632,3 +3632,10 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 /* Enlace «Ver …» dentro del encabezado de otras tarjetas de Inicio (p. ej. «Para hoy»). */
 .card-header .card-header-ver { margin: -10px -8px -10px auto; }
 .pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }
+
+/* Mis casas (socio): barra de acciones de los días elegidos en el calendario. */
+.mc-barra {
+	padding: 8px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-primary-soft);
+}

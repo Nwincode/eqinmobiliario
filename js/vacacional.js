@@ -40,6 +40,8 @@
 		var mesMin = mesDe(hoy);
 		var mesMax = sumarMeses(mesMin, 18);
 		var nochesMin = Math.max(1, D.nochesMin || 1);
+		var minimos = D.minimos || []; // mínimos de noches por fechas (Navidad, Semana Santa…)
+		function minimoDe(llegada, salida) { return V.minimoNoches(llegada, salida, nochesMin, minimos); }
 		var ocupadas = V.nochesOcupadas(D.bloqueos || []);
 
 		var cuerpo = card.querySelector('.vac-cal-cuerpo');
@@ -81,7 +83,7 @@
 			if (!estado.llegada || f <= estado.llegada) return false;
 			var max = V.salidaMaxima(estado.llegada, ocupadas);
 			if (max && f > max) return false;
-			return V.nochesEntre(estado.llegada, f) >= nochesMin;
+			return V.nochesEntre(estado.llegada, f) >= minimoDe(estado.llegada, f);
 		}
 		// La llegada necesita al menos las noches mínimas libres seguidas.
 		function llegadaValida(f) {
@@ -163,7 +165,7 @@
 				botonesCampo[i].classList.toggle('is-activo', activo && !(estado.llegada && estado.salida));
 			}
 			if (!estado.llegada) ayuda.textContent = t.vacEligeLlegada;
-			else if (!estado.salida) ayuda.textContent = t.vacEligeSalida + (nochesMin > 1 ? ' ' + fmt(t.vacMinimo, { n: nochesMin }) : '');
+			else if (!estado.salida) ayuda.textContent = t.vacEligeSalida + (minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1)) > 1 ? ' ' + fmt(t.vacMinimo, { n: minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1)) }) : '');
 			else ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.';
 			pintarDesglose();
 		}
@@ -203,7 +205,7 @@
 				if (!llegadaValida(f)) return;
 				var mantener = estado.campo === 'llegada' && estado.mantener && estado.salida;
 				estado.llegada = f;
-				if (!(mantener && estado.salida > f && V.validarEstancia({ llegada: f, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, hoy: hoy }).ok)) estado.salida = '';
+				if (!(mantener && estado.salida > f && V.validarEstancia({ llegada: f, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok)) estado.salida = '';
 				estado.campo = estado.salida ? 'llegada' : 'salida';
 			}
 			estado.mantener = false;
@@ -279,9 +281,9 @@
 		}
 		if (form) {
 			form.eqReserva = function () {
-				var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, hoy: hoy });
+				var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
 				if (!v.ok) {
-					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: nochesMin }) : t.vacErrFechas;
+					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : t.vacErrFechas;
 					var box = statusBox();
 					if (box) { box.className = 'lead-form-status mt-3 text-danger'; box.setAttribute('data-vac', '1'); box.textContent = msg; }
 					ayuda.textContent = msg;
@@ -312,10 +314,13 @@
 			fetch('/api/disponibilidad?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
 				.then(function (r) { return r.ok ? r.json() : null; })
 				.then(function (res) {
-					if (!res || !res.ocupadas || !res.ocupadas.length) return;
+					if (!res || !res.ocupadas) return;
+					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
+					if (res.plan && res.plan.base > 0) D.plan = res.plan;
+					if (res.minimos) minimos = res.minimos;
 					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }
-					else if (estado.salida && !V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, hoy: hoy }).ok) { estado.salida = ''; estado.campo = 'salida'; }
+					else if (estado.salida && !V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) { estado.salida = ''; estado.campo = 'salida'; }
 					var enfocado = cuerpo.contains(document.activeElement);
 					pintar(enfocado);
 					actualizar();
@@ -325,7 +330,7 @@
 
 		// Fechas y huéspedes elegidos en el listado vacacional.
 		var qs = new URLSearchParams(location.search);
-		if (V.validarEstancia({ llegada: qs.get('llegada'), salida: qs.get('salida'), ocupadas: ocupadas, nochesMin: nochesMin, hoy: hoy }).ok) {
+		if (V.validarEstancia({ llegada: qs.get('llegada'), salida: qs.get('salida'), ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) {
 			estado.llegada = qs.get('llegada'); estado.salida = qs.get('salida'); estado.mes = mesDe(estado.llegada);
 		}
 		if (selHuespedes && qs.get('huespedes') && selHuespedes.querySelector('option[value="' + (+qs.get('huespedes') || 0) + '"]')) selHuespedes.value = +qs.get('huespedes');
@@ -352,7 +357,7 @@
 			Array.prototype.forEach.call(document.querySelectorAll('#vac-grid .listing-col'), function (col) {
 				var item = col.querySelector('[data-vac]'), d = {};
 				try { d = JSON.parse(item.getAttribute('data-vac')); } catch (err) {}
-				var ok = q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: V.nochesOcupadas(d.bloqueos || []), nochesMin: d.nochesMin || 1, hoy: hoyB }).ok;
+				var ok = q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: V.nochesOcupadas(d.bloqueos || []), nochesMin: d.nochesMin || 1, minimos: d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;

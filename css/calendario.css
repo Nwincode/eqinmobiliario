@@ -1,0 +1,168 @@
+/* ================================================================
+   CALENDARIO Y FLECHAS: lo comparten el sitio público y el panel.
+   Colores de css/tema.css.
+   ================================================================ */
+/* Flechas de carrusel (#property-nav, #testimonial-nav): solo el chevrón fino,
+   círculo discreto y 44 px de área táctil. Regla «Botones de carrusel» de CLAUDE.md. */
+.eq-flechas {
+	display: inline-flex;
+	gap: 8px;
+}
+.eq-flechas[hidden] {
+	display: none;
+}
+.eq-flecha {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 1px solid var(--eq-line);
+	border-radius: 50%;
+	background: transparent;
+	color: var(--eq-dark);
+	cursor: pointer;
+	transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+}
+/* Solo con ratón: en pantallas táctiles el :hover se queda pegado después de tocar. */
+@media (hover: hover) {
+	.eq-flecha:hover {
+		color: var(--eq-primary);
+		border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
+		background: var(--eq-primary-soft);
+	}
+	.eq-flecha-prev:hover .eq-flecha-ic {
+		transform: translateX(-2px);
+	}
+	.eq-flecha-next:hover .eq-flecha-ic {
+		transform: translateX(2px);
+	}
+}
+.eq-flecha:active {
+	background: color-mix(in oklab, var(--eq-primary) 14%, var(--eq-white));
+}
+.eq-flecha:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+}
+.eq-flecha-ic {
+	display: block;
+	width: 22px;
+	height: 22px;
+	transition: transform .2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+	.eq-flecha,
+	.eq-flecha-ic {
+		transition: none;
+	}
+	.eq-flecha-prev:hover .eq-flecha-ic,
+	.eq-flecha-next:hover .eq-flecha-ic {
+		transform: none;
+	}
+}
+.vac-cal-cabecera {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: .5rem;
+}
+.vac-cal-mes {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0;
+	text-align: center;
+	flex: 1;
+}
+.vac-cal-cabecera .eq-flecha:disabled {
+	opacity: .35;
+	cursor: default;
+	background: transparent;
+	color: var(--eq-dark);
+}
+.vac-cal-tabla {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: separate;
+	border-spacing: 0 2px;
+}
+.vac-cal-tabla th {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--eq-ink);
+	text-align: center;
+	padding: 4px 0;
+}
+.vac-cal-tabla td {
+	padding: 0;
+	text-align: center;
+}
+.vac-dia {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	min-height: 48px;
+	padding: 2px 0;
+	border: 0;
+	border-radius: var(--eq-radius);
+	background: transparent;
+	color: var(--eq-dark);
+	line-height: 1.1;
+	cursor: pointer;
+}
+.vac-dia-num {
+	font-size: 15px;
+	font-weight: 500;
+}
+.vac-dia-precio {
+	font-size: 10px;
+	color: var(--eq-ink);
+	margin-top: 2px;
+	white-space: nowrap;
+}
+@media (hover: hover) {
+	.vac-dia:not([aria-disabled], .is-llegada, .is-salida):hover {
+		background: var(--eq-primary-soft);
+	}
+}
+.vac-dia:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: -2px;
+	position: relative;
+	z-index: 1;
+}
+.vac-dia.is-hoy .vac-dia-num {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.vac-dia[aria-disabled] {
+	cursor: default;
+	color: color-mix(in oklab, var(--eq-ink) 60%, var(--eq-white));
+}
+.vac-dia[aria-disabled] .vac-dia-precio {
+	color: color-mix(in oklab, var(--eq-ink) 60%, var(--eq-white));
+}
+.vac-dia.is-ocupado .vac-dia-num {
+	text-decoration: line-through;
+	text-decoration-thickness: 1.5px;
+}
+.vac-dia.is-ocupado:not(.is-salida) {
+	background: var(--eq-mist);
+}
+.vac-dia.is-rango {
+	background: var(--eq-primary-soft);
+	border-radius: 0;
+}
+.vac-dia.is-llegada,
+.vac-dia.is-salida {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.vac-dia.is-llegada .vac-dia-precio,
+.vac-dia.is-salida .vac-dia-precio {
+	color: var(--eq-white);
+}

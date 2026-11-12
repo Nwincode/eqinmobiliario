@@ -10,6 +10,7 @@ import { actualizarInsignias } from './pendientes.js';
 import { vigilarTablas } from './tablas-alto.js';
 
 const ROUTES = [
+	{ path: 'mis-casas', label: 'Mis casas', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
@@ -135,9 +136,12 @@ function noAccess(reason) {
 		h('button', { class: 'btn btn-outline-secondary w-100', onclick: () => signOut(auth) }, 'Cerrar sesión')));
 }
 
+// Lo que cada quien puede abrir: el socio solo lo suyo; el equipo todo lo demás (y el admin, además, lo de admin).
+const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio : !r.socio && (!r.admin || session.isAdmin)));
+
 function shell() {
 	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
-	const visibles = ROUTES.filter((r) => !r.admin || session.isAdmin);
+	const visibles = rutas();
 	const grupos = [...new Set(visibles.map((r) => r.group))];
 	const nav = h('nav', { class: 'admin-nav', 'aria-label': 'Secciones' },
 		grupos.map((g) => h('div', { class: 'admin-nav-group' },
@@ -149,7 +153,7 @@ function shell() {
 	const nombre = session.profile.nombre || session.user.email;
 	const iniciales = nombre.split(/[\s@]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 	const sidebar = h('aside', { class: 'admin-sidebar', id: 'sidebar' },
-		h('a', { href: '#/inicio', class: 'admin-brand', 'aria-label': 'Panel de administración' },
+		h('a', { href: '#/', class: 'admin-brand', 'aria-label': 'Panel de administración' },
 			h('img', { src: '/docs/marca/logo/imagotipo-blanco.svg', alt: '' }),
 			h('span', {}, h('strong', {}, 'Equipo Inmobiliario'), h('small', {}, 'Panel de administración'))),
 		nav,
@@ -157,18 +161,19 @@ function shell() {
 			h('span', { class: 'admin-avatar', 'aria-hidden': 'true' }, iniciales),
 			h('div', { class: 'admin-user-info' },
 				h('div', { class: 'admin-user-name' }, nombre),
-				h('div', { class: 'admin-user-role' }, session.isAdmin ? 'Administrador' : 'Asesor')),
+				h('div', { class: 'admin-user-role' }, session.isAdmin ? 'Administrador' : session.esSocio ? 'Socio' : 'Asesor')),
 			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
 	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
 		h('button', { class: 'admin-menu-btn d-lg-none', 'aria-label': 'Menú', onclick: () => sidebar.classList.toggle('open') }, h('span', { class: 'icon-bars', 'aria-hidden': 'true' })),
 		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
 		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
-			publishBadge,
+			session.esSocio ? null : publishBadge,
 			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light' }, h('span', { class: 'icon-external-link me-1', 'aria-hidden': 'true' }), 'Ver sitio')));
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
 	vigilarTablas(main);
+	if (session.esSocio) return;
 	refreshPublishBadge();
 	actualizarInsignias(true);
 	// Portales de propietarios que quedaron sin actualizar al cerrar la pestaña.
@@ -190,7 +195,7 @@ let renderToken = 0;
 async function route() {
 	if (!session.profile) return;
 	const [, section = 'inicio', ...rest] = location.hash.replace(/^#/, '').split('/');
-	const def = ROUTES.find((r) => r.path === section && (!r.admin || session.isAdmin)) || ROUTES[0];
+	const def = rutas().find((r) => r.path === section) || rutas()[0];
 	document.querySelectorAll('.admin-nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === def.path));
 	const crumbs = document.getElementById('crumbs');
 	if (crumbs) crumbs.replaceChildren(
@@ -208,7 +213,7 @@ async function route() {
 		view.replaceChildren(container);
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
-		actualizarInsignias();
+		if (!session.esSocio) actualizarInsignias();
 	} catch (err) {
 		showError(err);
 		view.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
@@ -233,7 +238,7 @@ if (!configured) {
 			shell();
 			route();
 			aplicarTema();
-			revisarAutoPublicar();
+			if (!session.esSocio) revisarAutoPublicar();
 		} catch (err) {
 			noAccess(errorMessage(err));
 		}

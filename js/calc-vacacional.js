@@ -104,7 +104,30 @@
 		return set;
 	}
 
-	// Revisa una estancia. Devuelve { ok, noches, error } con error: 'fechas' | 'pasado' | 'orden' | 'minimo' | 'ocupada'.
+	// Mínimo de noches de una estancia: el general de la casa o el mayor de las fechas especiales
+	// (Navidad, Semana Santa…) que toque alguna de sus noches. minimos: [{ desde, hasta (incluida), noches }].
+	function minimoNoches(llegada, salida, nochesMin, minimos) {
+		var min = Math.max(1, Math.floor(Number(nochesMin) || 1));
+		var ultima = sumarDias(salida, -1);
+		(minimos || []).forEach(function (m) {
+			if (m && m.desde <= ultima && m.hasta >= llegada) min = Math.max(min, Math.floor(Number(m.noches) || 1));
+		});
+		return min;
+	}
+	// Quita las noches desde–hasta (incluidas) de una lista de rangos con 'hasta' incluido; parte los rangos
+	// que queden a medias y conserva sus demás datos (precio, noches).
+	function quitarRango(lista, desde, hasta) {
+		var out = [];
+		(lista || []).forEach(function (r) {
+			if (!r || r.hasta < desde || r.desde > hasta) { if (r) out.push(r); return; }
+			var copia = function (d, h) { var c = {}; for (var k in r) c[k] = r[k]; c.desde = d; c.hasta = h; return c; };
+			if (r.desde < desde) out.push(copia(r.desde, sumarDias(desde, -1)));
+			if (r.hasta > hasta) out.push(copia(sumarDias(hasta, 1), r.hasta));
+		});
+		return out;
+	}
+
+	// Revisa una estancia. Devuelve { ok, noches, error, minimo } con error: 'fechas' | 'pasado' | 'orden' | 'minimo' | 'ocupada'.
 	function validarEstancia(o) {
 		var llegada = o.llegada, salida = o.salida;
 		if (!esFecha(llegada) || !esFecha(salida)) return { ok: false, noches: 0, error: 'fechas' };
@@ -115,8 +138,8 @@
 		for (var d = aDia(llegada), fin = aDia(salida); d < fin; d++) {
 			if (ocupadas[deDia(d)]) return { ok: false, noches: noches, error: 'ocupada' };
 		}
-		var minimo = Math.max(1, Math.floor(Number(o.nochesMin) || 1));
-		if (noches < minimo) return { ok: false, noches: noches, error: 'minimo' };
+		var minimo = minimoNoches(llegada, salida, o.nochesMin, o.minimos);
+		if (noches < minimo) return { ok: false, noches: noches, error: 'minimo', minimo: minimo };
 		return { ok: true, noches: noches, error: '' };
 	}
 
@@ -253,7 +276,7 @@
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
 		esFecha: esFecha, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
-		nochesOcupadas: nochesOcupadas, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
+		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
