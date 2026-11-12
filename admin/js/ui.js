@@ -164,6 +164,26 @@ export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'but
 	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
 }, h('span', { class: icono, 'aria-hidden': 'true' }));
 
+// Menú ⋮ de una ficha o fila: junta las acciones de cada elemento sin ocupar una fila de botones.
+// items: [{ icono, texto, onclick } | { icono, texto, href, target } | { …, peligro: true }]; los vacíos se saltan.
+// Sin acciones no se dibuja nada. El menú flota (fixed) para que la tabla no lo recorte.
+export const menuMas = (titulo, items) => {
+	const acciones = items.filter(Boolean);
+	if (!acciones.length) return null;
+	const btn = h('button', {
+		type: 'button', class: 'cot-btn cot-btn-icono btn btn-sm menu-mas-btn', title: titulo, 'aria-label': titulo,
+		'aria-expanded': 'false', 'data-bs-toggle': 'dropdown'
+	}, h('span', { class: 'icon-ellipsis-v', 'aria-hidden': 'true' }));
+	const menu = h('ul', { class: 'dropdown-menu dropdown-menu-end menu-mas-lista' }, acciones.map((a) => h('li', {},
+		h(a.href ? 'a' : 'button', {
+			class: `dropdown-item${a.peligro ? ' menu-mas-peligro' : ''}`, type: a.href ? null : 'button',
+			href: a.href, target: a.target, rel: a.target ? 'noopener' : null, onclick: a.onclick
+		}, h('span', { class: a.icono, 'aria-hidden': 'true' }), a.texto))));
+	const caja = h('div', { class: 'dropdown menu-mas' }, btn, menu);
+	new window.bootstrap.Dropdown(btn, { popperConfig: { strategy: 'fixed' } });
+	return caja;
+};
+
 export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }

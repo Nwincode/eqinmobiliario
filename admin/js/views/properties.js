@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn, menuMas } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -202,10 +202,10 @@ const corto = (e) => e.label.split(/ [/d]/)[0].toLowerCase();
 function motivoVisibilidad(p) {
 	const e = estadoDe(p);
 	switch (visibilidadDe(p)) {
-		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash' };
+		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash', obvio: true };
 		case 'cerrada': return { texto: `Solo con enlace: ${corto(e)}`, color: 'warning', icono: 'icon-link' };
 		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
-		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye' };
+		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye', obvio: true };
 	}
 }
 
@@ -349,21 +349,28 @@ export async function render(container, [id]) {
 			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
 			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
 		});
-		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
+		const nombre = p.titulo || 'la propiedad';
+		const enSitio = p.publicado && p.slug;
+		const menu = menuMas(`Acciones de ${nombre}`, [
+			editable && { icono: 'icon-pencil', texto: 'Editar', href: `#/propiedades/${p.id}` },
+			enSitio && { icono: 'icon-whatsapp', texto: 'Compartir por WhatsApp', target: '_blank',
+				href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`) },
+			enSitio && { icono: 'icon-external-link', texto: 'Ver en la página', target: '_blank', href: publicUrl(p) },
+			editable && { icono: 'icon-list-ul', texto: 'Mejorar descripción', onclick: () => mejorar([p]) },
+			editable && { icono: 'icon-search', texto: 'Completar SEO', onclick: () => completarSeo([p]) },
+			editable && { icono: 'icon-globe', texto: 'Traducir al inglés', onclick: () => traducir([p]) },
+			session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => eliminar([p]) }
+		]);
+		// Tocar la fila abre la ficha, salvo en el menú ⋮ (que abre sus acciones).
+		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: (e) => { if (!e.target.closest('.menu-mas')) location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-num' }, i + 1),
-			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
-				editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
-			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
+			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
+				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
 				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
-				p.publicado && p.slug ? h('a', {
-					class: 'btn-whatsapp-fila', target: '_blank', rel: 'noopener', onclick: detener,
-					href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`),
-					'aria-label': `Compartir ${p.titulo || 'la propiedad'} por WhatsApp`
-				}, h('span', { class: 'icon-whatsapp', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Compartir')) : null,
 				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1 prop-chips' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
@@ -375,10 +382,11 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
 					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.color === 'success' ? ' motivo-ok' : ''}`, id: `motivo-${p.id}` },
+				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.obvio ? ' motivo-obvio' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
 			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
-			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'));
+			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
+			h('td', { class: 'celda-menu' }, menu));
 	};
 
 	const draw = () => {
@@ -422,8 +430,11 @@ export async function render(container, [id]) {
 		h('option', { value: '' }, 'Cambiar estado a…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
 	const barra = h('div', { class: 'barra-masa', role: 'region', 'aria-label': 'Acciones con las seleccionadas', hidden: true });
 
-	const enMasa = async (btn, accion, desc, aviso) => {
-		const lista = elegidas();
+	const nombreDe = (l) => (l.length === 1 ? `«${l[0].titulo || 'la propiedad'}»` : `${l.length} propiedades`);
+	// Aplica una acción a una lista: la de la selección (barra) o una sola propiedad (menú ⋮).
+	const enMasa = async (accion, desc, aviso, lista) => {
+		const deBarra = !lista;
+		lista = lista || elegidas();
 		if (!lista.length) return;
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = true; });
 		let ok = 0;
@@ -435,7 +446,7 @@ export async function render(container, [id]) {
 		if (ok) await markPending(`${desc} (${ok})`).catch(() => {});
 		if (ok) toast(aviso(ok));
 		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}`, 'danger');
-		seleccion.clear();
+		if (deBarra) seleccion.clear();
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = false; });
 		selMasaEstado.value = '';
 		draw();
@@ -448,7 +459,7 @@ export async function render(container, [id]) {
 		const estado = selMasaEstado.value;
 		if (!estado) return;
 		const label = estadoDe({ estado }).label;
-		enMasa(selMasaEstado, guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
+		enMasa(guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
 			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`);
 	});
 	const selMasaAsesor = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar asesor a las seleccionadas' },
@@ -460,84 +471,84 @@ export async function render(container, [id]) {
 		if (!v) return;
 		const agentId = v === '=ninguno' ? '' : v;
 		const nombre = agentName[agentId] || 'sin asesor';
-		await enMasa(selMasaAsesor, guardarMasa({ agentId }, { agentId }), `Asesor asignado: ${nombre}`,
+		await enMasa(guardarMasa({ agentId }, { agentId }), `Asesor asignado: ${nombre}`,
 			(n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`);
 		selMasaAsesor.value = '';
 	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
+		onclick: () => enMasa(guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
 			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. Recuerda publicar.`) },
 		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
 	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
-		onclick: (e) => enMasa(e.currentTarget, guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
+		onclick: () => enMasa(guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
 			(n) => `${n} oculta${n === 1 ? '' : 's'}. Recuerda publicar.`) },
 		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
-	const btnMejorar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: async (e) => {
-			const n = seleccion.size;
-			if (!(await confirmDialog(`¿Mejorar la descripción de ${n} propiedad${n === 1 ? '' : 'es'}? Se ordena con la plantilla (Características, Amenidades, Detalles técnicos y lo que no incluye el precio). El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
-			await enMasa(e.currentTarget, async (p) => {
-				const descripcion = generarDescripcion(p);
-				if (descripcion === p.descripcion) return;
-				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
-			}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`);
-		} },
+	const mejorar = async (lista) => {
+		const l = lista || elegidas();
+		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Se ordena con la plantilla (Características, Amenidades, Detalles técnicos y lo que no incluye el precio). El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
+		await enMasa(async (p) => {
+			const descripcion = generarDescripcion(p);
+			if (descripcion === p.descripcion) return;
+			await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
+		}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`, lista);
+	};
+	const btnMejorar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => mejorar() },
 		h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción');
 	const btnDeshacer = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
-		onclick: async (e) => {
+		onclick: async () => {
 			const con = props.filter((p) => seleccion.has(p.id) && p.descripcionAnterior);
 			if (!con.length) return toast('Las seleccionadas no tienen una descripción anterior guardada.', 'warning');
 			if (!(await confirmDialog(`¿Volver a la descripción anterior en ${con.length} propiedad${con.length === 1 ? '' : 'es'}?`, { okText: 'Volver', danger: false }))) return;
-			await enMasa(e.currentTarget, async (p) => {
+			await enMasa(async (p) => {
 				if (!p.descripcionAnterior) return;
 				const descripcion = p.descripcionAnterior;
 				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
 			}, 'Descripción anterior', (k) => `${k} descripción${k === 1 ? '' : 'es'} restaurada${k === 1 ? '' : 's'}. Recuerda publicar.`);
 		} },
 		h('span', { class: 'icon-undo', 'aria-hidden': 'true' }), ' Volver a la anterior');
-	const btnTraducir = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: async (e) => {
-			const n = seleccion.size;
-			if (!(await confirmDialog(`¿Traducir al inglés ${n} propiedad${n === 1 ? '' : 'es'}? Las que corregiste a mano en inglés se respetan. Revisá la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
-			await enMasa(e.currentTarget, async (p) => {
-				if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
-				const en = await traducirEn(p);
-				await guardarMasa({ en }, { en })(p);
-			}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`);
-		} },
+	const traducir = async (lista) => {
+		const l = lista || elegidas();
+		if (!(await confirmDialog(`¿Traducir al inglés ${nombreDe(l)}? Las que corregiste a mano en inglés se respetan. Revisá la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
+		await enMasa(async (p) => {
+			if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
+			const en = await traducirEn(p);
+			await guardarMasa({ en }, { en })(p);
+		}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`, lista);
+	};
+	const btnTraducir = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => traducir() },
 		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
 	// Completa de una vez lo que sube la calificación SEO y se puede sacar de los datos: título y
 	// descripción para Google, ciudad (si la zona es "Zona 10"…) y la versión en inglés.
-	const btnCompletar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: async (e) => {
-			const n = seleccion.size;
-			if (!(await confirmDialog(`¿Completar el SEO de ${n} propiedad${n === 1 ? '' : 'es'}? Se llena lo que falta para Google, la ciudad cuando la zona es de la capital y la traducción al inglés. Lo que escribiste a mano se respeta.`, { okText: 'Completar', danger: false }))) return;
-			await enMasa(e.currentTarget, async (p) => {
-				if (!p.titulo) return;
-				const d = { ...p };
-				const cambios = {};
-				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
-				if (!d.vip) {
-					const antes = JSON.stringify(d.seo || {});
-					llenarSeo(d);
-					if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
-				}
-				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
-				const en = d.en || {};
-				if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
-				if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
-			}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`);
-		} },
+	const completarSeo = async (lista) => {
+		const l = lista || elegidas();
+		if (!(await confirmDialog(`¿Completar el SEO de ${nombreDe(l)}? Se llena lo que falta para Google, la ciudad cuando la zona es de la capital y la traducción al inglés. Lo que escribiste a mano se respeta.`, { okText: 'Completar', danger: false }))) return;
+		await enMasa(async (p) => {
+			if (!p.titulo) return;
+			const d = { ...p };
+			const cambios = {};
+			if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
+			if (!d.vip) {
+				const antes = JSON.stringify(d.seo || {});
+				llenarSeo(d);
+				if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
+			}
+			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
+			const en = d.en || {};
+			if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
+			if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
+		}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`, lista);
+	};
+	const btnCompletar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => completarSeo() },
 		h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Completar SEO');
 	// Textos (descripción e inglés) que escribió Claude en admin/textos-claude.json, por id de propiedad.
 	// Guarda la descripción anterior como respaldo («Volver a la anterior») y llena el SEO que falte.
 	const btnClaude = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: async (e) => {
+		onclick: async () => {
 			const textos = await fetch('/admin/textos-claude.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
 			const con = props.filter((p) => seleccion.has(p.id) && textos[p.id]);
 			if (!con.length) return toast('Las seleccionadas todavía no tienen textos preparados.', 'warning');
 			if (!(await confirmDialog(`¿Poner los textos preparados en ${con.length} propiedad${con.length === 1 ? '' : 'es'}? Se cambia la descripción y el inglés, y se llena el SEO que falte. La descripción anterior queda como respaldo.`, { okText: 'Poner textos', danger: false }))) return;
-			await enMasa(e.currentTarget, async (p) => {
+			await enMasa(async (p) => {
 				const t = textos[p.id];
 				if (!t) return;
 				const d = { ...p, descripcion: t.descripcion };
@@ -562,7 +573,7 @@ export async function render(container, [id]) {
 			const boton = e.currentTarget;
 			const txt = boton.lastChild.textContent;
 			let hecha = 0;
-			await enMasa(boton, async (p) => {
+			await enMasa(async (p) => {
 				const fotos = await marcarFotos(p, (i, t) => { boton.lastChild.textContent = ` Propiedad ${hecha + 1} de ${n}: foto ${i} de ${t}…`; });
 				hecha++;
 				if (fotos) await guardarMasa({ fotos }, { fotos })(p);
@@ -570,29 +581,35 @@ export async function render(container, [id]) {
 			boton.lastChild.textContent = txt;
 		} },
 		h('span', { class: 'icon-image', 'aria-hidden': 'true' }), ' Poner marca de agua');
-	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger',
-		onclick: async (e) => {
-			const n = seleccion.size;
-			if (!(await confirmDialog(`¿Eliminar ${n} propiedad${n === 1 ? '' : 'es'}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
-			const borradas = new Set();
-			await enMasa(e.currentTarget, async (p) => {
-				await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
-				await deleteDoc(doc(db, 'properties', p.id));
-				borradas.add(p.id);
-				await borrarFotos(p);
-			}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`);
-			for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
-			draw();
-		} },
+	const eliminar = async (lista) => {
+		const l = lista || elegidas();
+		if (!(await confirmDialog(`¿Eliminar ${nombreDe(l)}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
+		const borradas = new Set();
+		await enMasa(async (p) => {
+			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
+			await deleteDoc(doc(db, 'properties', p.id));
+			borradas.add(p.id);
+			await borrarFotos(p);
+		}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`, lista);
+		for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
+		draw();
+	};
+	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', onclick: () => eliminar() },
 		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
+	// Lo de todos los días queda a la vista; el resto se abre con «Más».
+	const masAcciones = h('div', { class: 'barra-masa-mas', id: 'barra-masa-mas', hidden: true },
+		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
+		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca);
+	const btnMas = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-expanded': 'false', 'aria-controls': 'barra-masa-mas',
+		onclick: () => { masAcciones.hidden = !masAcciones.hidden; btnMas.setAttribute('aria-expanded', String(!masAcciones.hidden)); } },
+		h('span', { class: 'icon-ellipsis-h', 'aria-hidden': 'true' }), ' Más');
 	barra.append(
 		h('span', { class: 'barra-masa-n' },
 			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
 		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
-		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca,
-		session.isAdmin ? btnEliminar : null);
+		session.isAdmin ? btnEliminar : null,
+		btnMas, masAcciones);
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
 		nSel.textContent = String(seleccion.size);
@@ -637,7 +654,7 @@ export async function render(container, [id]) {
 	mount(container, 
 		pageHeader('Propiedades',
 			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
-				h('span', { class: 'icon-file-excel-o', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
+				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar', h('span', { class: 'd-none d-md-inline' }, ' desde CSV')) : null,
 			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
 				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
@@ -654,8 +671,8 @@ export async function render(container, [id]) {
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
 					h('thead', {}, h('tr', {},
 						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-						[['#', 'celda-num'], ['', 'celda-foto'], ['Código', 'celda-codigo'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
-							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
+						[['#', 'celda-num'], ['', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
+							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha'], ['', 'celda-menu']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
 					tbody), { tarjeta: true }))
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
