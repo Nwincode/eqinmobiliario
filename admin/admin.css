@@ -1272,7 +1272,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
-	.tabla-propiedades .celda-menu { width: 44px; padding: 0; }
+	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
+	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: top; padding: .5rem .5rem 0 .25rem; }
 }
 @media (min-width: 768px) and (max-width: 1699.98px) {
 	.tabla-propiedades .celda-asesor,
