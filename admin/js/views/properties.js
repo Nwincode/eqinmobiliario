@@ -202,10 +202,10 @@ const corto = (e) => e.label.split(/ [/d]/)[0].toLowerCase();
 function motivoVisibilidad(p) {
 	const e = estadoDe(p);
 	switch (visibilidadDe(p)) {
-		case 'borrador': return { texto: 'Oculta: «Visible» apagado', color: 'secondary', icono: 'icon-eye-slash', obvio: true };
+		case 'borrador': return { texto: 'Oculta', color: 'secondary', icono: 'icon-eye-slash', obvio: true };
 		case 'cerrada': return { texto: `Solo con enlace: ${corto(e)}`, color: 'warning', icono: 'icon-link' };
 		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
-		default: return { texto: 'Se ve en la página', color: 'success', icono: 'icon-eye', obvio: true };
+		default: return { texto: 'Publicada', color: 'success', icono: 'icon-eye', obvio: true };
 	}
 }
 
