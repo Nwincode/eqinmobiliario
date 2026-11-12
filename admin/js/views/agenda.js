@@ -1,6 +1,6 @@
 // Agenda: seguimientos, visitas y tareas por fecha (vencidas, hoy, próximos días).
 import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, mount, menuMas } from '../ui.js';
+import { h, toast, showError, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
 	TIPOS_ACTIVIDAD, tipoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
@@ -63,7 +63,7 @@ export async function render(container) {
 							a.fecha ? fechaCorta(a.fecha) : 'Sin fecha',
 							session.isAdmin && a.agentId ? ` · ${nombreAsesor[a.agentId] || ''}` : '')),
 					h('div', { class: 'd-flex align-items-center flex-shrink-0' },
-					h('button', { type: 'button', class: 'btn btn-sm btn-outline-success', onclick: () => completar(a) }, h('span', { class: 'icon-check', 'aria-hidden': 'true' }), ' Hecho'),
+					iconoBtn('icon-check', 'Marcar como hecho', { class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }),
 					menuMas(`Más acciones: ${a.titulo || tipoActividad(a.tipo)[1]}`, [
 						{ icono: 'icon-clock-o', texto: 'Pasar a mañana', onclick: () => posponer(a, 1) },
 						{ icono: 'icon-calendar', texto: 'Pasar una semana', onclick: () => posponer(a, 7) },
