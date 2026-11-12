@@ -1197,6 +1197,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .table-admin .celda-visible {
 	cursor: default;
 }
+/* Sin resultados: el aviso reemplaza a la caja de la tabla. */
+.prop-vacio:not([hidden]) + .card { display: none; }
 .estado-rapido {
 	min-height: 38px;
 	min-width: 13.25rem;
@@ -1264,7 +1266,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-titulo { min-width: 12rem; }
 	.tabla-propiedades .celda-precio { width: 1%; }
 	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .estado-rapido { min-width: 9.5rem; }
 	.tabla-propiedades .celda-visible { width: 1%; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
@@ -1303,7 +1304,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .prop-dato [class^="icon-"],
 .prop-zona [class^="icon-"] { color: var(--adm-muted); }
 .btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
-.prop-editar { margin-left: .375rem; font-size: .8125rem; font-weight: 400; color: var(--adm-muted); }
 @media (min-width: 768px) {
 	.tabla-propiedades .thumb { width: 80px; height: 60px; }
 }
@@ -1324,6 +1324,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.barra-masa > * { flex: 0 0 auto; white-space: nowrap; }
 	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
 	.tabla-propiedades { margin-bottom: 4rem; }
+	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
 	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 
@@ -1364,7 +1365,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.table-admin.tabla-propiedades .celda-titulo,
 	.table-admin.tabla-propiedades .celda-visible { display: contents; }
 
-	.tabla-propiedades .celda-foto { grid-area: foto; }
+	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; }
+	/* Lápiz sobre la foto: tocar la tarjeta abre la ficha para editarla. */
+	.prop-editar {
+		position: absolute; top: .25rem; right: .25rem; display: grid; place-items: center; width: 1.5rem; height: 1.5rem;
+		border-radius: 50%; background: var(--adm-surface); color: var(--adm-text); font-size: .75rem;
+	}
 	.tabla-propiedades .thumb { width: 100%; height: 100%; min-height: 93px; border-radius: 8px; font-size: 24px; }
 	/* El número y el código van como etiquetas sobre la foto. */
 	.table-admin.tabla-propiedades .celda-num,
@@ -1383,10 +1389,10 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
 	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
 	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
-	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: 1rem; white-space: normal; }
+	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
 	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem !important; align-items: center; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; width: 100%; min-width: 0; padding-left: .5rem; font-size: .8125rem; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; width: 100%; min-width: 0; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
 	.tabla-propiedades .celda-visible .form-check {
 		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
 		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0;

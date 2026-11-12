@@ -295,7 +295,7 @@ export async function render(container, [id]) {
 	if (id === 'incompletos') fExtra.value = 'incompletas';
 	const tbody = h('tbody');
 	const count = h('span', { class: 'text-muted small' });
-	const vacio = h('p', { class: 'text-center text-muted py-4 mb-0', hidden: true }, 'Ninguna propiedad coincide con la búsqueda o los filtros.');
+	const vacio = h('p', { class: 'text-center text-muted py-4 mb-0 prop-vacio', hidden: true }, 'Ninguna propiedad coincide con la búsqueda o los filtros.');
 
 	// Guarda al instante un cambio rápido de la lista y vuelve a dibujar.
 	const guardarRapido = async (p, cambios, local, desc, aviso) => {
@@ -352,11 +352,11 @@ export async function render(container, [id]) {
 		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: () => { location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-num' }, i + 1),
-			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
+				editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
 			h('td', { class: `celda-codigo${p.codigo ? '' : ' sin-codigo'}` }, p.codigo || '—'),
 			h('td', { class: 'celda-titulo' },
-				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)',
-					editable ? h('span', { class: 'icon-pencil prop-editar d-md-none', 'aria-hidden': 'true' }) : null),
+				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
 				p.publicado && p.slug ? h('a', {
@@ -408,6 +408,8 @@ export async function render(container, [id]) {
 	const seleccion = new Set();
 	let visibles = [];
 	const elegidas = () => props.filter((p) => seleccion.has(p.id));
+	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
+		onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas');
 	const selTodas = h('input', {
 		class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas las que se ven',
 		onchange: (e) => {
@@ -597,7 +599,7 @@ export async function render(container, [id]) {
 		barra.hidden = seleccion.size === 0;
 		selTodas.checked = editables.length > 0 && editables.every((p) => seleccion.has(p.id));
 		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
-		selTodas.disabled = editables.length === 0;
+		selTodas.disabled = btnTodas.hidden = editables.length === 0;
 	};
 	// Los filtros se recuerdan mientras la pestaña siga abierta: al volver de una ficha siguen igual.
 	const filtros = [search, fOperacion, fEstado, fExtra];
@@ -635,7 +637,7 @@ export async function render(container, [id]) {
 	mount(container, 
 		pageHeader('Propiedades',
 			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
-				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
+				h('span', { class: 'icon-file-excel-o', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Importar desde CSV')) : null,
 			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
 				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
@@ -646,8 +648,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'col-md-8' }, cajaFiltros)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
 				count, limpiar,
-				h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
-					onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas')),
+				btnTodas),
 			barra, vacio,
 			cajaTabla(
 				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
