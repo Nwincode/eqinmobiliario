@@ -10,7 +10,7 @@ import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -166,7 +166,6 @@ function desgloseVacacional(el, d) {
 }
 export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
 // Amenidades de un toque en el editor; la ficha les pone su ícono.
-const AMENIDADES_COMUNES = ['Piscina', 'Jardín', 'Garita de seguridad', 'Amueblado', 'Cuarto de servicio', 'Estudio', 'Terraza', 'Churrasquera', 'Gimnasio', 'Área social', 'Juegos infantiles', 'Acepta mascotas', 'Aire acondicionado', 'Bodega', 'Cisterna', 'Paneles solares'];
 export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
 // Valores de una propiedad nueva (editor e importación).
@@ -744,7 +743,7 @@ function schema(agentOpts, isNew) {
 		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
 		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
 		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, help: 'En la misma moneda del precio.' },
-		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES },
+		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES.map(([es]) => es) },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
 			if (el.firstChild) return;
