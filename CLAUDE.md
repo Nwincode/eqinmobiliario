@@ -22,6 +22,13 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   el usuario lo apruebe; después se programa.
 - Revisión: Claude usa el sitio como cliente, en celular (390 px) y computadora (1280 px), corrige lo
   que encuentre y le muestra al usuario la captura final y qué mejoró.
+- Espacios vacíos: no se dejan. Antes de entregar, Claude revisa si algo está mal ubicado, rompe el
+  diseño o deja un hueco, y lo aprovecha (subir datos a la misma línea, juntar filas) sin agregar relleno.
+- Tablas, fichas y listas: se usa el diseño que ya existe en el panel (mismo CSS y mismas piezas),
+  salvo que el usuario pida algo distinto para una en particular.
+- Lo que se entiende con un ícono va en ícono, no en texto; no mezclar texto e íconos en un mismo grupo.
+- Proporción: la foto pesa más que los controles (selectores, botones).
+- Si Claude ve algo mal maquetado, lo arregla de una vez, sin esperar a que el usuario lo señale.
 - Colores: solo de `css/tema.css` y de Contenido → Colores del panel; nunca escritos a mano.
 - Íconos: siempre referidos a lo que se habla.
 - Botones compactos, sobre todo en celular: pequeños, de ícono cuando se pueda, sin ocupar una fila

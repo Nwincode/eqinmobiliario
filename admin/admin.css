@@ -481,18 +481,18 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 /* La primera columna (el nombre) queda fija al moverse de lado en pantallas angostas. */
 @media (max-width: 991.98px) {
-	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > tbody > tr > :first-child,
-	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > thead > tr > :first-child {
+	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
+	.table-admin:not(.tabla-propiedades) > thead > tr > :first-child {
 		position: sticky;
 		left: 0;
 		z-index: 1;
 		background: #fff;
 		box-shadow: 1px 0 0 var(--adm-border);
 	}
-	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > thead > tr > :first-child { z-index: 3; background: #f8fafb; }
+	.table-admin:not(.tabla-propiedades) > thead > tr > :first-child { z-index: 3; background: #f8fafb; }
 	/* Filas de una línea: se leen de lado sin que cada fila se haga altísima. */
-	.table-admin:not(.tabla-propiedades):not(.tabla-importar) td { white-space: nowrap; }
-	.table-admin:not(.tabla-propiedades):not(.tabla-importar) > tbody > tr > :first-child {
+	.table-admin:not(.tabla-propiedades) td { white-space: nowrap; }
+	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child {
 		white-space: normal;
 		min-width: 8.5rem;
 		max-width: 45vw;
@@ -1186,8 +1186,10 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 /* Sin resultados: el aviso reemplaza a la caja de la tabla. */
 .prop-vacio:not([hidden]) + .card { display: none; }
+/* Compacto: la foto pesa más que el selector. */
 .estado-rapido {
-	min-height: 38px;
+	min-height: 38px; width: 7.5rem; padding-left: .5rem; padding-right: 1.5rem;
+	background-position: right .375rem center; font-size: .8125rem; text-overflow: ellipsis;
 }
 .celda-visible .form-check {
 	display: flex;
@@ -1266,7 +1268,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-titulo { min-width: 12rem; }
 	.tabla-propiedades .celda-precio { width: 1%; }
 	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .estado-rapido { width: 9rem; text-overflow: ellipsis; }
 	.tabla-propiedades .celda-visible { width: 1%; }
 	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; max-width: 9rem; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
@@ -1300,8 +1301,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .barra-masa .btn { min-height: 36px; }
 
 /* Datos del inmueble con ícono (habitaciones, baños, parqueos, m²). */
-/* Resumen de la descripción: dos líneas, para reconocer la propiedad sin abrirla. */
-.prop-desc { margin-top: .25rem; max-width: 75ch; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .prop-datos {
 	display: flex;
 	flex-wrap: wrap;
@@ -1311,12 +1310,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: var(--adm-text);
 	font-variant-numeric: tabular-nums;
 }
+/* Etiquetas de la propiedad: en computadora van en la línea del código, que quedaba vacía. */
+.prop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
+@media (min-width: 768px) {
+	.tabla-propiedades .prop-codigo, .tabla-propiedades .prop-chips { display: inline-flex; vertical-align: middle; }
+	.tabla-propiedades .prop-codigo { margin-right: .5rem; }
+}
 .prop-dato { white-space: nowrap; }
 .prop-dato [class^="icon-"],
 .prop-zona [class^="icon-"] { color: var(--adm-muted); }
+.tabla-propiedades .motivo-obvio { display: none; } /* el interruptor ya lo dice */
 .btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
 @media (min-width: 768px) {
-	.tabla-propiedades .thumb { width: 80px; height: 60px; }
+	.tabla-propiedades .thumb { width: 112px; height: 84px; }
 }
 
 /* En celular cada propiedad es una tarjeta: la foto manda, los datos van con ícono y los controles
@@ -1335,7 +1341,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	}
 	.barra-masa > *, .barra-masa-mas > * { flex: 0 0 auto; white-space: nowrap; }
 	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
-	.tabla-propiedades { margin-bottom: 4rem; }
+	body:has(.barra-masa:not([hidden])) .tabla-propiedades { margin-bottom: 4rem; } /* hueco solo cuando la barra está */
 	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
 	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
 	#toasts .btn-close { pointer-events: auto; }
@@ -1357,11 +1363,10 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 			"foto zona zona zona"
 			"foto datos datos datos"
 			"foto precio precio precio"
-			"chips chips chips chips"
-			"desc desc desc desc"
+			"chips chips fecha fecha"
 			"estado estado visible visible"
 			"motivo motivo motivo motivo"
-			"asesor asesor fecha fecha";
+			"asesor asesor asesor asesor";
 		grid-template-rows: auto auto auto 1fr;
 		column-gap: .75rem;
 		padding: .75rem;
@@ -1398,14 +1403,14 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .sel-toque .form-check-input { box-shadow: 0 0 0 3px var(--adm-surface); }
 	.tabla-propiedades .celda-menu { grid-area: menu; justify-self: end; margin: -.625rem -.625rem 0 0; }
 	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+	.tabla-propiedades tr:not(:has(.celda-menu)) .prop-titulo { grid-column-end: -1; } /* sin ⋮, el título usa todo el ancho */
 	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
 	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
-	.tabla-propiedades .prop-desc { grid-area: desc; margin-top: .5rem; }
 	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
-	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem !important; align-items: center; }
+	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; width: 9.5rem; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; }
 	.tabla-propiedades .celda-visible .form-check {
 		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
 		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
@@ -1414,9 +1419,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
 	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
 	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
-	.tabla-propiedades .motivo-obvio { display: none; } /* el interruptor ya lo dice: la tarjeta no cambia de alto */
 	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .375rem; text-align: right; }
+	.tabla-propiedades .celda-fecha { grid-area: fecha; align-self: center; margin-top: .5rem; text-align: right; }
 	.table-admin.tabla-propiedades .sin-fecha,
 	.table-admin.tabla-propiedades .sin-asesor { display: none; }
 }
@@ -1452,7 +1456,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 /* ---------- Importar propiedades desde CSV ---------- */
-.imp-intro { max-width: 70ch; color: var(--adm-text); }
 .imp-paso { margin-bottom: 1rem; }
 .imp-paso-titulo {
 	display: flex;
@@ -1474,14 +1477,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	font-size: .875rem;
 	font-weight: 700;
 }
-.imp-lista { padding-left: 1.1rem; }
-.imp-lista li + li { margin-top: .25rem; }
-.imp-lista code { color: var(--adm-text); background: var(--adm-bg); border-radius: 4px; padding: .05rem .3rem; }
 .imp-paso .form-label .icon-file-excel-o,
 .imp-paso .form-label .icon-folder-open,
 .imp-paso .form-label .icon-file-archive-o { color: var(--adm-primary); }
-.imp-global { display: flex; align-items: center; gap: .5rem; }
-.imp-global .form-select { width: auto; min-height: 38px; }
 
 /* Tonos: verde = lista, azul = ya existe, amarillo = aviso, rojo = error, gris = neutro. */
 .imp-tono-success { --imp-c: var(--eq-whatsapp); }
@@ -1492,33 +1490,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .imp-tono-muted { --imp-c: var(--adm-muted); }
 
 .imp-resumen { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .875rem; }
-.imp-chip,
-.imp-badge {
-	display: inline-flex;
-	align-items: center;
-	gap: .375rem;
-	border-radius: 999px;
-	font-weight: 600;
-	/* Texto un poco más oscuro que el tono para pasar AA (4.5:1) sobre el fondo tintado. */
-	color: color-mix(in oklab, var(--imp-c) 80%, var(--eq-dark));
-	background: color-mix(in oklab, var(--imp-c) 8%, var(--adm-surface));
-	border: 1px solid color-mix(in oklab, var(--imp-c) 28%, var(--adm-surface));
-	white-space: nowrap;
-}
-.imp-chip { padding: .3rem .75rem; font-size: .875rem; }
-.imp-badge { padding: .2rem .625rem; font-size: .8125rem; }
 .imp-aviso { padding: .625rem .875rem; font-size: .9rem; margin-bottom: .625rem; }
 
-.imp-tabla-wrap { border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
-.tabla-importar code { color: var(--adm-text); font-size: .875rem; font-weight: 600; word-break: break-all; }
-.tabla-importar .imp-c-titulo { min-width: 14rem; }
-.tabla-importar .imp-c-fotos .icon-picture-o { color: var(--adm-muted); }
-.tabla-importar .imp-c-accion .form-select { min-width: 8.5rem; min-height: 38px; }
-.tabla-importar tr.imp-fila-error > td { background: color-mix(in oklab, var(--eq-danger) 4%, var(--adm-surface)); }
-.imp-errores { color: var(--eq-danger); margin: .25rem 0 0; padding-left: 1rem; }
 
 .imp-acciones .btn { min-height: 44px; }
-.imp-acciones .imp-nota { flex: 1 1 16rem; }
+.imp-acciones .imp-nota { flex: 1 1 0; }
 .imp-progreso { height: 10px; margin-bottom: 1rem; }
 .imp-progreso .progress-bar { background: var(--adm-primary); transition: width .3s ease; }
 .imp-progreso-fin .progress-bar { background: var(--eq-whatsapp); }
@@ -1550,45 +1526,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.imp-vista .form-control,
 	.imp-vista .form-select { min-height: 44px; }
 	.imp-vista .form-control[type="file"] { line-height: 1.9; }
-	.imp-acciones .btn { flex: 1 1 100%; }
 	.imp-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.imp-global { width: 100%; justify-content: space-between; }
-	.admin-main .imp-tabla-wrap { max-height: none; overflow: visible; }
-	.tabla-importar thead { display: none; }
-	.tabla-importar,
-	.tabla-importar tbody { display: block; }
-	.tabla-importar tbody tr {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		grid-template-areas:
-			"codigo fila"
-			"titulo titulo"
-			"estado fotos"
-			"accion accion";
-		column-gap: .75rem;
-		row-gap: .375rem;
-		padding: .875rem 1rem;
-		border-bottom: 1px solid var(--adm-border);
-	}
-	.tabla-importar tbody tr:last-child { border-bottom: 0; }
-	.table-admin.tabla-importar > :not(caption) > * > * {
-		display: block;
-		padding: 0;
-		border: 0;
-		min-width: 0;
-		background: transparent;
-	}
-	.tabla-importar .imp-c-fila { grid-area: fila; text-align: right; }
-	.tabla-importar .imp-c-codigo { grid-area: codigo; }
-	.tabla-importar .imp-c-codigo .small { display: inline; margin-left: .375rem; }
-	.tabla-importar .imp-c-titulo { grid-area: titulo; min-width: 0; }
-	.tabla-importar .imp-c-estado { grid-area: estado; }
-	.tabla-importar .imp-c-fotos { grid-area: fotos; text-align: right; align-self: center; }
-	.tabla-importar .imp-c-accion { grid-area: accion; }
-	.tabla-importar .imp-c-accion .form-select { min-height: 44px; }
-	.tabla-importar .imp-c-accion > span { display: none; }
-	.tabla-importar tr.imp-fila-error { background: color-mix(in oklab, var(--eq-danger) 4%, var(--adm-surface)); }
-	.imp-badge { white-space: normal; }
 }
 
 /* Calculadora de renta */

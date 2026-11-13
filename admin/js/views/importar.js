@@ -1,11 +1,11 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
-import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify, cajaTabla } from '../ui.js';
+import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn, datosDe } from './properties.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -61,71 +61,65 @@ export async function render(container) {
 	let fuenteFotos = '';
 	let importando = false;
 
-	// ---------- Paso 1: plantilla ----------
-	const paso1 = h('section', { class: 'card imp-paso' }, h('div', { class: 'card-body' },
-		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '1'), 'Prepara el CSV'),
-		h('p', { class: 'mb-2' }, 'Una fila por propiedad. Puedes llenarlo en Excel o Google Sheets y guardarlo como CSV.'),
-		h('ul', { class: 'imp-lista small text-muted mb-3' },
-			h('li', {}, 'La única columna obligatoria es ', h('strong', {}, 'titulo'), '. Las demás son opcionales y pueden ir en cualquier orden.'),
-			h('li', {}, 'Si dejas ', h('strong', {}, 'codigo'), ' vacío, se crea solo (condominio, zona, asesor y número). Si pones un código que ya existe, puedes actualizar esa propiedad.'),
-			h('li', {}, 'En ', h('strong', {}, 'carpeta'), ' escribe el nombre de la carpeta con sus fotos. También puedes nombrar cada foto con el código: ', h('code', {}, 'CODIGO-1.jpg'), '.'),
-			h('li', {}, 'Separa las ', h('strong', {}, 'amenidades'), ' con ', h('code', {}, ';'), ' o ', h('code', {}, '|'), '. En operación, tipo, estado y moneda puedes escribir la palabra: «Venta», «Quetzales»…')),
-		h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => downloadCsv('plantilla-propiedades.csv', PLANTILLA) },
-			icono('icon-download'), ' Descargar plantilla')));
-
-	// ---------- Paso 2: archivos ----------
+	// ---------- Paso 1: archivos ----------
 	const inCsv = h('input', { type: 'file', class: 'form-control', id: 'imp-csv', accept: '.csv,text/csv' });
 	const inCarpeta = h('input', { type: 'file', class: 'form-control', id: 'imp-carpeta', multiple: true, webkitdirectory: '', directory: '' });
 	const inZip = h('input', { type: 'file', class: 'form-control', id: 'imp-zip', accept: '.zip,application/zip' });
-	const estadoCsv = h('div', { class: 'form-text', 'aria-live': 'polite' });
-	const estadoFotos = h('div', { class: 'form-text', 'aria-live': 'polite' }, 'Opcional. Dentro, una carpeta por propiedad.');
-	const paso2 = h('section', { class: 'card imp-paso' }, h('div', { class: 'card-body' },
-		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '2'), 'Elige los archivos'),
+	const estadoCsv = h('div', { class: 'form-text', 'aria-live': 'polite' }, 'Una fila por propiedad. Solo «titulo» es obligatorio.');
+	const estadoFotos = h('div', { class: 'form-text', 'aria-live': 'polite' }, 'Una carpeta por propiedad, con su código o el nombre de la columna «carpeta».');
+	const paso1 = h('section', { class: 'card imp-paso' }, h('div', { class: 'card-body' },
+		h('div', { class: 'd-flex justify-content-between align-items-center gap-2 mb-3' },
+			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '1'), 'Archivos'),
+			h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => downloadCsv('plantilla-propiedades.csv', PLANTILLA) },
+				icono('icon-download'), ' Plantilla')),
 		h('div', { class: 'row g-3' },
 			h('div', { class: 'col-12 col-lg-4' },
-				h('label', { class: 'form-label', for: 'imp-csv' }, icono('icon-file-excel-o'), ' Archivo CSV *'), inCsv, estadoCsv),
+				h('label', { class: 'form-label', for: 'imp-csv' }, icono('icon-file-excel-o'), ' CSV *'), inCsv, estadoCsv),
 			h('div', { class: 'col-12 col-lg-4' },
 				h('label', { class: 'form-label', for: 'imp-carpeta' }, icono('icon-folder-open'), ' Carpeta de fotos'), inCarpeta, estadoFotos),
 			h('div', { class: 'col-12 col-lg-4' },
-				h('label', { class: 'form-label', for: 'imp-zip' }, icono('icon-file-archive-o'), ' O un archivo .zip con las fotos'), inZip,
-				h('div', { class: 'form-text' }, 'Dentro del .zip, una carpeta por propiedad.')))));
+				h('label', { class: 'form-label', for: 'imp-zip' }, icono('icon-file-archive-o'), ' o fotos en .zip'), inZip))));
 
 	// ---------- Paso 3: revisión ----------
 	const resumen = h('div', { class: 'imp-resumen' });
 	const avisos = h('div');
 	const tbody = h('tbody');
-	const selGlobal = h('select', { class: 'form-select form-select-sm', id: 'imp-existentes' },
-		h('option', { value: 'actualizar' }, 'Actualizarlas'), h('option', { value: 'saltar' }, 'Saltarlas'));
-	const filtroGlobal = h('div', { class: 'imp-global' },
-		h('label', { class: 'form-label small mb-0', for: 'imp-existentes' }, 'Si el código ya existe:'), selGlobal);
+	// Qué filas se suben: fila → sí/no. Sin elegir, todas menos las que parecen repetidas.
+	const eleccion = new Map();
+	const marcada = (it) => eleccion.get(it.fila) ?? !it.parecida;
+	const seImporta = (it) => !it.errores.length && marcada(it);
+	const marcarTodas = (si) => { for (const it of plan) if (!it.errores.length) eleccion.set(it.fila, si); dibujar(); };
+	const selTodas = h('input', { class: 'form-check-input', type: 'checkbox', 'aria-label': 'Subir todas', onchange: (e) => marcarTodas(e.target.checked) });
+	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0', onclick: () => marcarTodas(!selTodas.checked) }, 'Seleccionar todas');
 	const btnImportar = h('button', { type: 'button', class: 'btn btn-primary', disabled: true, onclick: () => importar() }, 'Importar');
-	const notaImportar = h('span', { class: 'small text-muted imp-nota' }, 'Entran como borrador: no se ven en la página hasta que las publiques. Nada se guarda hasta que pulses el botón.');
-	const paso3 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
-		h('div', { class: 'd-flex flex-wrap justify-content-between align-items-end gap-2 mb-3' },
-			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '3'), 'Revisa antes de importar'),
-			filtroGlobal),
+	const notaImportar = h('span', { class: 'small text-muted imp-nota' }, icono('icon-eye-slash'), ' Entran como borrador.');
+	const paso2 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
+		h('div', { class: 'd-flex justify-content-between align-items-center gap-2 mb-3' },
+			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '2'), 'Elige qué subir'),
+			btnTodas),
 		resumen, avisos,
 		cajaTabla(
-			h('table', { class: 'table table-admin align-middle tabla-importar mb-0' },
-				h('thead', {}, h('tr', {}, ['Fila', 'Código', 'Propiedad', 'Fotos', 'Estado', 'Acción'].map((t) => h('th', { scope: 'col' }, t)))),
-				tbody), { cls: 'imp-tabla-wrap' })));
+			h('table', { class: 'table table-admin align-middle tabla-propiedades mb-0' },
+				h('thead', {}, h('tr', {},
+					h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
+					[['Fila', 'celda-num'], ['Fotos', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
+				tbody), { tarjeta: true })));
 	const acciones = h('div', { class: 'sticky-actions imp-acciones', hidden: true }, btnImportar, notaImportar);
 
-	// ---------- Paso 4: progreso ----------
+	// ---------- Paso 3: progreso ----------
 	const barra = h('div', { class: 'progress-bar', style: 'width:0%' });
 	const progreso = h('div', { class: 'progress imp-progreso', role: 'progressbar', 'aria-label': 'Progreso de la importación', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' }, barra);
 	const textoProgreso = h('p', { class: 'small mb-2', 'aria-live': 'polite' });
 	const registro = h('ul', { class: 'imp-registro small' });
 	const final = h('div');
-	const tituloPaso4 = h('span', {}, 'Importando…');
-	const paso4 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
-		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '4'), tituloPaso4),
+	const tituloPaso3 = h('span', {}, 'Importando…');
+	const paso3 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
+		h('h2', { class: 'imp-paso-titulo' }, h('span', { class: 'imp-num' }, '3'), tituloPaso3),
 		textoProgreso, progreso, final, registro));
 
 	mount(container, h('div', { class: 'imp-vista' },
 		pageHeader('Importar propiedades', h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver a propiedades')),
-		h('p', { class: 'imp-intro' }, 'Sube varias propiedades a la vez desde una hoja de cálculo, con sus fotos. No tienes que preparar las fotos: se enderezan y se optimizan solas para que la página cargue rápido.'),
-		paso1, paso2, paso3, acciones, paso4));
+		paso1, paso2, acciones, paso3));
 
 	// ---------- Lectura de archivos ----------
 	inCsv.addEventListener('change', async () => {
@@ -137,6 +131,7 @@ export async function render(container) {
 			if (!('titulo' in indices)) throw new Error('El CSV no tiene la columna «titulo». Descarga la plantilla para ver los encabezados.');
 			nombreCsv = f.name;
 			filasCsv = { filas, desconocidas };
+			eleccion.clear();
 			estadoCsv.textContent = `${f.name}: ${filas.length} ${filas.length === 1 ? 'fila' : 'filas'}.`;
 			estadoCsv.classList.remove('text-danger');
 			await revisar();
@@ -144,7 +139,7 @@ export async function render(container) {
 			filasCsv = null;
 			estadoCsv.textContent = err.message || errorMessage(err);
 			estadoCsv.classList.add('text-danger');
-			paso3.hidden = true; acciones.hidden = true;
+			paso2.hidden = true; acciones.hidden = true;
 		}
 	});
 	inCarpeta.addEventListener('change', async () => {
@@ -186,36 +181,33 @@ export async function render(container) {
 		const vistos = new Map();
 		plan = filasCsv.filas.map((fila) => {
 			const r = filaAPropiedad(fila, { opciones, agentes });
-			const item = { fila: fila._fila, ...r, fotos: [], pequenas: 0, existente: null, parecida: null, accion: '', generado: false };
+			const item = { fila: fila._fila, ...r, fotos: [], pequenas: 0, existente: null, parecida: null, generado: false };
 			if (r.datos.codigo) {
 				item.existente = porCodigo.get(r.datos.codigo) || null;
 				if (vistos.has(r.datos.codigo)) item.errores.push(`Código repetido (también en la fila ${vistos.get(r.datos.codigo)})`);
+				else vistos.set(r.datos.codigo, item.fila);
+				usados.push(r.datos.codigo);
 			}
 			return item;
 		});
 		// Códigos generados, en orden y sin chocar con los existentes ni con los del CSV.
-		for (const it of plan) if (it.datos.codigo) { usados.push(it.datos.codigo); if (!vistos.has(it.datos.codigo)) vistos.set(it.datos.codigo, it.fila); }
 		for (const it of plan) {
 			if (!it.datos.codigo && !it.errores.length) {
 				it.datos.codigo = generarCodigo({ ...datosIniciales(), ...it.datos }, { agentes, codigos: usados });
 				it.generado = true;
 				usados.push(it.datos.codigo);
 			}
-			if (it.existente) it.accion = selGlobal.value;
 		}
-		// Sin código igual pero parecida a una del panel o a una fila anterior: se avisa y, si no se dice otra cosa, se salta.
+		// Sin código igual pero parecida a una del panel o a una fila anterior: se avisa y empieza sin marcar.
 		const anteriores = [];
 		for (const it of plan) {
 			if (it.errores.length) continue;
-			if (!it.existente) {
-				it.parecida = buscarParecida(it.datos, [...existentes, ...anteriores]);
-				if (it.parecida) it.accion = 'saltar';
-			}
+			if (!it.existente) it.parecida = buscarParecida(it.datos, [...existentes, ...anteriores]);
 			anteriores.push({ ...it.datos, _fila: it.fila });
 		}
-		const grupos = agruparFotos(fotos, plan.map((it) => ({ claves: [it.carpeta, it.datos.codigo] })));
+		grupos = agruparFotos(fotos, plan.map((it) => ({ claves: [it.carpeta, it.datos.codigo] })));
 		plan.forEach((it, i) => { it.fotos = grupos.porFila.get(i) || []; });
-		dibujar(grupos);
+		dibujar();
 		// Tamaño de las fotos leyendo solo la cabecera (sin abrirlas completas cuando es carpeta).
 		const todas = plan.filter((it) => !it.errores.length).flatMap((it) => it.fotos.map((f) => ({ it, f })));
 		if (todas.length) {
@@ -229,84 +221,76 @@ export async function render(container) {
 			});
 			if (sello !== revisar.sello) return;
 			for (const it of plan) it.pequenas = it.fotos.filter((f) => f.dim && Math.max(f.dim.ancho, f.dim.alto) < FOTO_MINIMA).length;
-			dibujar(grupos);
+			dibujar();
 		}
 	}
 
+	// [color, ícono, texto, detalle] de cada fila.
 	function estadoDeFila(it) {
-		if (it.errores.length) return { clase: 'danger', icono: 'icon-times-circle', texto: 'Error' };
-		if (it.existente) return it.accion === 'saltar'
-			? { clase: 'secondary', icono: 'icon-ban', texto: 'Ya existe: se salta' }
-			: { clase: 'info', icono: 'icon-refresh', texto: 'Ya existe: se actualiza' };
-		if (it.parecida) return it.accion === 'saltar'
-			? { clase: 'warning', icono: 'icon-files-o', texto: 'Parece repetida: se salta' }
-			: { clase: 'warning', icono: 'icon-files-o', texto: 'Parece repetida: se crea' };
-		if (!it.fotos.length) return { clase: 'warning', icono: 'icon-camera', texto: 'Sin fotos' };
-		if (it.pequenas) return { clase: 'warning', icono: 'icon-exclamation-triangle', texto: `${it.pequenas} ${it.pequenas === 1 ? 'foto pequeña' : 'fotos pequeñas'}` };
-		return { clase: 'success', icono: 'icon-check-circle', texto: 'Lista' };
+		if (it.errores.length) return ['danger', 'icon-times-circle', 'Error', it.errores.join(' · ')];
+		if (!marcada(it)) return ['secondary', 'icon-ban', 'No se sube', it.parecida ? repetidaDe(it) : ''];
+		if (it.existente) return ['info', 'icon-refresh', 'Se actualiza', ''];
+		if (it.parecida) return ['warning', 'icon-files-o', 'Parece repetida', repetidaDe(it)];
+		if (!it.fotos.length) return ['warning', 'icon-camera', 'Sin fotos', ''];
+		if (it.pequenas) return ['warning', 'icon-exclamation-triangle', plural(it.pequenas, 'foto pequeña', 'fotos pequeñas'), `Menos de ${FOTO_MINIMA} px: se verá borrosa.`];
+		return ['success', 'icon-check-circle', 'Nueva', ''];
 	}
-	const seImporta = (it) => !it.errores.length && it.accion !== 'saltar';
+	const repetidaDe = (it) => (it.parecida._fila ? `Igual a la fila ${it.parecida._fila}` : `Ya está en el panel${it.parecida.codigo ? ` como ${it.parecida.codigo}` : ''}`);
+	const chip = (color, ic, texto) => badge([icono(ic), ` ${texto}`], color);
 
-	function dibujar(grupos) {
-		paso3.hidden = false;
+	let grupos = { sinFila: [], ignorados: 0 };
+	function dibujar() {
+		paso2.hidden = false;
 		acciones.hidden = false;
 		const n = (f) => plan.filter(f).length;
-		const chip = (clase, ic, texto) => h('span', { class: `imp-chip imp-tono-${clase}` }, icono(ic), ' ', texto);
+		const validas = plan.filter((it) => !it.errores.length);
 		resumen.replaceChildren();
 		mount(resumen,
 			chip('success', 'icon-check-circle', plural(n((it) => !it.errores.length && !it.existente && !it.parecida), 'nueva', 'nuevas')),
 			n((it) => it.existente) ? chip('info', 'icon-refresh', plural(n((it) => it.existente), 'ya existe', 'ya existen')) : null,
 			n((it) => it.parecida) ? chip('warning', 'icon-files-o', plural(n((it) => it.parecida), 'parece repetida', 'parecen repetidas')) : null,
 			n((it) => it.errores.length) ? chip('danger', 'icon-times-circle', `${n((it) => it.errores.length)} con error`) : null,
-			n((it) => !it.errores.length && !it.fotos.length) ? chip('warning', 'icon-camera', `${n((it) => !it.errores.length && !it.fotos.length)} sin fotos`) : null,
-			chip('muted', 'icon-picture-o', plural(plan.reduce((s, it) => s + (seImporta(it) ? it.fotos.length : 0), 0), 'foto a subir', 'fotos a subir')));
-		filtroGlobal.hidden = !plan.some((it) => it.existente);
+			chip('secondary', 'icon-picture-o', plural(plan.reduce((s, it) => s + (seImporta(it) ? it.fotos.length : 0), 0), 'foto', 'fotos')));
 
 		const avisosLista = [];
 		if (filasCsv.desconocidas.length) avisosLista.push(['info', `Columnas que no se usan: ${filasCsv.desconocidas.join(', ')}.`]);
-		if (!fotos.length) avisosLista.push(['info', 'No elegiste fotos. Puedes importar sin fotos y agregarlas después en cada propiedad.']);
 		if (grupos.sinFila.length) {
-			avisosLista.push(['warning', h('span', {}, 'Estas fotos no coinciden con ninguna fila del CSV y no se suben: ',
-				grupos.sinFila.map((g, i) => [i ? ', ' : '', h('strong', {}, g.nombre), ` (${plural(g.fotos, 'foto', 'fotos')})`]), '.')]);
+			avisosLista.push(['warning', h('span', {}, 'Fotos sin fila en el CSV (no se suben): ',
+				grupos.sinFila.map((g, i) => [i ? ', ' : '', h('strong', {}, g.nombre), ` (${g.fotos})`]), '.')]);
 		}
-		if (grupos.ignorados) avisosLista.push(['secondary', `${grupos.ignorados} ${grupos.ignorados === 1 ? 'archivo no es imagen y se ignora' : 'archivos no son imágenes y se ignoran'}.`]);
+		if (grupos.ignorados) avisosLista.push(['secondary', `${plural(grupos.ignorados, 'archivo no es imagen', 'archivos no son imágenes')}.`]);
 		avisos.replaceChildren(...avisosLista.map(([c, t]) => h('div', { class: `alert alert-${c} imp-aviso` }, t)));
 
 		tbody.replaceChildren(...plan.map((it) => {
-			const e = estadoDeFila(it);
-			let accion = h('span', { class: 'text-muted small' }, it.errores.length ? 'No se importa' : 'Crear');
-			if (it.existente && !it.errores.length) {
-				accion = h('select', { class: 'form-select form-select-sm', 'aria-label': `Qué hacer con ${it.datos.codigo}` },
-					h('option', { value: 'actualizar', selected: it.accion === 'actualizar' }, 'Actualizar'),
-					h('option', { value: 'saltar', selected: it.accion === 'saltar' }, 'Saltar'));
-				accion.addEventListener('change', () => { it.accion = accion.value; dibujar(grupos); });
-			} else if (it.parecida && !it.errores.length) {
-				accion = h('select', { class: 'form-select form-select-sm', 'aria-label': `Qué hacer con ${it.datos.titulo}` },
-					h('option', { value: 'saltar', selected: it.accion === 'saltar' }, 'Saltar'),
-					h('option', { value: 'crear', selected: it.accion === 'crear' }, 'Crear de todos modos'));
-				accion.addEventListener('change', () => { it.accion = accion.value; dibujar(grupos); });
-			}
-			return h('tr', { class: it.errores.length ? 'imp-fila-error' : '' },
-				h('td', { class: 'imp-c-fila text-muted small' }, h('span', { class: 'd-md-none' }, 'Fila '), it.fila),
-				h('td', { class: 'imp-c-codigo' }, h('code', {}, it.datos.codigo || '—'), it.generado ? h('div', { class: 'small text-muted' }, 'código nuevo') : null),
-				h('td', { class: 'imp-c-titulo' },
-					h('div', { class: 'fw-semibold' }, it.datos.titulo || '(sin título)'),
-					it.existente ? h('div', { class: 'small text-muted' }, `En el panel: ${it.existente.titulo || it.existente.id}`) : null,
-					it.parecida ? h('div', { class: 'small text-muted' }, it.parecida._fila ? `Igual a la fila ${it.parecida._fila}` : `Ya está en el panel${it.parecida.codigo ? ` como ${it.parecida.codigo}` : ''}`) : null,
-					!it.errores.length && it.pequenas ? h('div', { class: 'small text-muted' }, `${it.pequenas === 1 ? 'Una foto mide' : `${it.pequenas} fotos miden`} menos de ${FOTO_MINIMA} px y puede${it.pequenas === 1 ? '' : 'n'} verse borrosa${it.pequenas === 1 ? '' : 's'}.`) : null,
-				it.errores.length ? h('ul', { class: 'imp-errores small' }, it.errores.map((x) => h('li', {}, x))) : null),
-				h('td', { class: 'imp-c-fotos text-nowrap' }, icono('icon-picture-o'), ` ${it.fotos.length}`, h('span', { class: 'visually-hidden' }, ' fotos')),
-				h('td', { class: 'imp-c-estado' }, h('span', { class: `imp-badge imp-tono-${e.clase}` }, icono(e.icono), ' ', e.texto)),
-				h('td', { class: 'imp-c-accion' }, accion));
+			const [color, ic, texto, detalle] = estadoDeFila(it);
+			const d = it.existente ? { ...it.existente, ...it.datos } : it.datos; // al actualizar, lo que no trae el CSV se queda
+			const lugar = [d.zona, d.ciudad].filter(Boolean).join(', ');
+			const datos = datosDe(d);
+			return h('tr', {},
+				h('td', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, h('input', {
+					class: 'form-check-input', type: 'checkbox', checked: seImporta(it), disabled: !!it.errores.length || importando,
+					'aria-label': `Subir ${d.titulo || `la fila ${it.fila}`}`,
+					onchange: (e) => { eleccion.set(it.fila, e.target.checked); dibujar(); }
+				}))),
+				h('td', { class: 'celda-num' }, it.fila),
+				h('td', { class: 'celda-foto' }, h('span', { class: 'thumb thumb-vacia', title: plural(it.fotos.length, 'foto', 'fotos') }, icono('icon-picture-o'), ` ${it.fotos.length}`)),
+				h('td', { class: 'celda-titulo' },
+					d.codigo ? h('div', { class: 'prop-codigo' }, d.codigo) : null,
+					h('div', { class: 'prop-chips' },
+						chip(color, ic, texto), detalle ? h('span', { class: `small ${color === 'danger' ? 'text-danger' : 'text-muted'}` }, detalle) : null),
+					h('div', { class: 'fw-semibold prop-titulo' }, d.titulo || '(sin título)'),
+					lugar ? h('div', { class: 'small text-muted prop-zona' }, icono('icon-map-marker'), ` ${lugar}`) : null,
+					datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
+				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(d.precio, d.moneda, d.operacion))));
 		}));
-		const total = plan.filter(seImporta).length;
+		const total = n(seImporta);
+		selTodas.checked = !!validas.length && total === validas.length;
+		selTodas.indeterminate = !!total && total < validas.length;
+		selTodas.disabled = !validas.length || importando;
+		btnTodas.textContent = selTodas.checked ? 'Quitar todas' : 'Seleccionar todas';
 		btnImportar.disabled = !total || importando;
-		btnImportar.replaceChildren(icono('icon-cloud-upload'), ` Importar ${total} ${total === 1 ? 'propiedad' : 'propiedades'}`);
+		btnImportar.replaceChildren(icono('icon-cloud-upload'), ` Importar ${total}`);
 	}
-	selGlobal.addEventListener('change', () => {
-		for (const it of plan) if (it.existente) it.accion = selGlobal.value;
-		dibujar(agruparFotos(fotos, plan.map((it) => ({ claves: [it.carpeta, it.datos.codigo] }))));
-	});
 
 	// ---------- Importación ----------
 	const avisoSalir = (e) => { e.preventDefault(); e.returnValue = ''; };
@@ -331,6 +315,16 @@ export async function render(container) {
 		return { fotos: subidas.filter(Boolean), fallas, repetidas };
 	}
 
+	// Si la propiedad no se guarda, sus fotos recién subidas se borran: no quedan huérfanas.
+	async function guardar(escribir, fotosNuevas) {
+		try {
+			await escribir();
+		} catch (err) {
+			await Promise.all(fotosNuevas.map((f) => deleteImage(f.path)));
+			throw err;
+		}
+	}
+
 	function slugLibre(titulo, usados) {
 		const base = slugify(titulo) || 'propiedad';
 		let s = base, n = 2;
@@ -344,14 +338,14 @@ export async function render(container) {
 		if (!lista.length || importando) return;
 		importando = true;
 		window.addEventListener('beforeunload', avisoSalir);
-		[inCsv, inCarpeta, inZip, selGlobal, btnImportar].forEach((el) => { el.disabled = true; });
-		tbody.querySelectorAll('select').forEach((el) => { el.disabled = true; });
-		paso4.hidden = false;
+		[inCsv, inCarpeta, inZip, btnTodas].forEach((el) => { el.disabled = true; });
+		dibujar();
+		paso3.hidden = false;
 		acciones.hidden = true;
-		paso4.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		paso3.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		registro.replaceChildren();
 		final.replaceChildren();
-		const cuenta = { creadas: 0, actualizadas: 0, saltadas: plan.filter((it) => it.accion === 'saltar' && !it.errores.length).length, error: plan.filter((it) => it.errores.length).length };
+		const cuenta = { creadas: 0, actualizadas: 0, saltadas: plan.filter((it) => !it.errores.length && !marcada(it)).length, error: plan.filter((it) => it.errores.length).length };
 		const slugs = new Set(existentes.map((p) => p.slug).filter(Boolean));
 		const totalFotos = lista.reduce((s, it) => s + it.fotos.length, 0) || 1;
 		let hechas = 0, fotosHechas = 0;
@@ -374,9 +368,9 @@ export async function render(container) {
 				if (it.existente) {
 					const p = it.existente;
 					const pref = doc(db, 'properties', p.id);
+					const vac = await prepararVacacional(p.id, it, p);
 					const r = await subirFotos(it, `properties/${p.id}`, (p.fotos || []).map((f) => f.hash).filter(Boolean));
 					fotosHechas += it.fotos.length;
-					const vac = await prepararVacacional(p.id, it, p);
 					const cambios = { ...it.datos, ...(vac ? vac.pub : {}), updatedAt: serverTimestamp(), updatedBy: session.user.uid };
 					delete cambios.codigo;
 					if (cambios.estado && estadoDe(p).valor !== cambios.estado) {
@@ -392,7 +386,7 @@ export async function render(container) {
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
 					const en = await enIngles({ ...p, ...cambios });
 					if (en) cambios.en = en;
-					await updateDoc(pref, cambios);
+					await guardar(() => updateDoc(pref, cambios), r.fotos);
 					await guardarSocio(vac);
 					Object.assign(p, cambios);
 					cuenta.actualizadas++;
@@ -416,12 +410,7 @@ export async function render(container) {
 					d.createdBy = session.user.uid;
 					d.updatedAt = serverTimestamp();
 					d.updatedBy = session.user.uid;
-					try {
-						await setDoc(nref, d);
-					} catch (err) {
-						await Promise.all(r.fotos.map((f) => deleteImage(f.path))); // no dejar fotos huérfanas
-						throw err;
-					}
+					await guardar(() => setDoc(nref, d), r.fotos);
 					existentes.push({ id: nref.id, ...d });
 					cuenta.creadas++;
 					anotar('ok', 'icon-check-circle', `Creada: ${d.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto' : 'fotos'})`, r.fallas);
@@ -442,7 +431,7 @@ export async function render(container) {
 		importando = false;
 		avanzar('');
 		textoProgreso.hidden = true;
-		tituloPaso4.textContent = 'Importación terminada';
+		tituloPaso3.textContent = 'Importación terminada';
 		progreso.classList.add('imp-progreso-fin');
 		const dato = (n, t, clase) => h('div', { class: `imp-dato imp-tono-${clase}` }, h('strong', {}, String(n)), h('span', {}, t));
 		final.replaceChildren(
