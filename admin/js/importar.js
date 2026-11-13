@@ -128,12 +128,12 @@ export function mapearEncabezados(encabezados) {
 	return { indices, desconocidas };
 }
 
-// Matriz → objetos { columna: valor } con el número de fila del archivo (1 = encabezados).
+// Matriz → objetos { columna: valor } numerados desde 1 (la primera propiedad; el encabezado no cuenta).
 export function filasComoObjetos(matriz) {
 	if (!matriz.length) return { filas: [], desconocidas: [], indices: {} };
 	const { indices, desconocidas } = mapearEncabezados(matriz[0]);
 	const filas = matriz.slice(1).map((f, n) => {
-		const o = { _fila: n + 2 };
+		const o = { _fila: n + 1 };
 		for (const [col, i] of Object.entries(indices)) o[col] = String(f[i] ?? '').trim();
 		return o;
 	});
