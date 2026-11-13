@@ -23,13 +23,14 @@ function fichaCasa(el, p) {
 	if (!p) return el.replaceChildren();
 	const chips = datosDe(p);
 	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
-	el.replaceChildren(h('a', { href: `#/propiedades/${p.id}`, target: '_blank', class: 'd-flex align-items-center gap-2 text-body text-decoration-none', title: 'Abrir la ficha de la propiedad' },
-		p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
-		h('div', { class: 'flex-grow-1' },
+	el.replaceChildren(h('a', { href: `#/propiedades/${p.id}`, target: '_blank', class: 'd-flex flex-wrap align-items-center gap-2 text-body text-decoration-none', title: 'Abrir la ficha de la propiedad' },
+		p.fotos?.[0]?.url ? h('img', { class: 'thumb flex-shrink-0', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia flex-shrink-0', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
+		// En celular el precio baja a su propia línea; el título no se aprieta.
+		h('div', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
 			h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light')),
 			h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
 			chips.length ? h('div', { class: 'prop-datos' }, chips) : null),
-		h('div', { class: 'text-nowrap fw-semibold' }, formatPrice(p.precio, p.moneda, p.operacion))));
+		h('div', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))));
 }
 
 // «Nueva propiedad» desde la ficha del dueño: lo mínimo para que la casa exista, sin publicar y ya enlazada a él.
