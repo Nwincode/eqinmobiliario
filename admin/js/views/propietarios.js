@@ -169,8 +169,7 @@ async function renderEditor(container, id) {
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
-			{ type: 'custom', label: 'Propiedad', cols: 8, update: (el, _, item) => pintarCasa(el, item) },
-			{ name: 'precioMinimo', label: 'Precio mínimo aceptado', type: 'number', cols: 4 }
+			{ type: 'custom', update: (el, _, item) => pintarCasa(el, item) }
 		] },
 		// De aquí en adelante, cada bloque sale solo si aplica a lo que este dueño tiene con nosotros (ver «operaciones»).
 		{ type: 'section', label: 'Exclusiva y comisión', when: conComision },
@@ -195,7 +194,8 @@ async function renderEditor(container, id) {
 		if (!form.validate()) return false;
 		const d = form.getData();
 		d.telefonoNorm = telNorm(d.telefono);
-		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId);
+		// Solo el enlace a la casa (antes se guardaba también un «precio mínimo aceptado»: aquí no se regatea).
+		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId).map((x) => ({ propertyId: x.propertyId }));
 		d.propertyIds = d.propiedades.map((x) => x.propertyId);
 		d.porNoche = d.propiedades.length ? conNoche(d) : Boolean(data.porNoche);
 		d.updatedAt = serverTimestamp();

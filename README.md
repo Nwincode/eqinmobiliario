@@ -103,7 +103,7 @@ Cada asesor entra con su usuario y ve **solo lo suyo** (lo exigen las reglas de 
   pendientes, propiedades de interés, presupuesto, monto del negocio y comisión.
 - **Agenda**: seguimientos, visitas y tareas por fecha (vencidas, hoy, próximos días), con «Hecho»,
   «+1 día» y «+7». El inicio del panel muestra «Para hoy»: vencidos, clientes sin seguimiento y exclusivas por vencer.
-- **Propietarios**: contacto, propiedades (con precio mínimo aceptado), exclusiva con fechas, comisión y
+- **Propietarios**: contacto, propiedades, exclusiva con fechas, comisión y
   enlace al contrato. Aviso cuando una exclusiva vence en 30 días o menos.
 - **Reportes** (administrador): por asesor, leads, leads sin atender, tiempo de primera respuesta, actividades,
   visitas, seguimientos vencidos, negocios en proceso, cierres, monto cerrado y comisión; embudo de clientes.
