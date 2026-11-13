@@ -330,20 +330,26 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
 		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
 	paso('Al propietario con una casa en venta sí se le piden', await seVe(asesor, 'Impuestos de la venta') && await asesor.p.locator('[data-campo="comisionPct"]').isVisible());
-	// Elegir una que ya existe: el selector la muestra con su ficha y el buscador la encuentra.
-	await ir(admin.p, '#/propietarios/socio-prueba');
-	await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
-	await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
-	await espera(800);
-	await admin.p.locator('.modal.show input[type=search]').fill('zona 10');
+	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
+	const abrirSelector = async (ruta) => {
+		await ir(admin.p, ruta);
+		await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
+		await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
+		await espera(800);
+		return admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+	};
+	const delSocio = await abrirSelector('#/propietarios/socio-prueba');
+	paso('Al socio el selector no le ofrece casas en venta ni en renta', !delSocio.some((x) => /Venta|Renta ·/.test(x)), delSocio.join(' | '));
+	await admin.p.locator('.modal.show .btn-close').click();
+	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
+	await admin.p.locator('.modal.show input[type=search]').fill('mirabel');
 	await espera(300);
 	const halladas = await admin.p.locator('.modal.show .list-group-item .prop-titulo').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
-	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Apartamento' }).first().click().catch(() => {});
+	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click().catch(() => {});
 	await espera(600);
-	paso('El selector busca y muestra cada inmueble con su ficha; al tocarlo queda elegido', halladas.length === 1 && /zona 10/i.test(halladas[0])
-		&& /Apartamento/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
-	await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Quitar' }).click();
+	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.some((x) => /vacacional/i.test(x)) && halladas.length === 1
+		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
