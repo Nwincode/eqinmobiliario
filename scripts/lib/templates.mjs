@@ -781,6 +781,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
+			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
 			${vac ? vacBuscador(ctx, list) : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
 				<div class="col-12 filtros-cabeza d-md-none">
 					<strong>${t.buscar}</strong>
@@ -834,10 +835,9 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					</select>
 				</label>
 			</div>`}
-			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
 
 			<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
-				${list.map((p) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p)}</div>`).join('\n')}
+				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 2 })}</div>`).join('\n')}
 			</div>
 			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
