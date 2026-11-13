@@ -371,6 +371,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
+				p.descripcion ? h('div', { class: 'small text-muted prop-desc' }, recortar(stripMd(p.descripcion), 220)) : null,
 				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1 prop-chips' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,

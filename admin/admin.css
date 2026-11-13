@@ -1188,7 +1188,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .prop-vacio:not([hidden]) + .card { display: none; }
 .estado-rapido {
 	min-height: 38px;
-	min-width: 13.25rem;
 }
 .celda-visible .form-check {
 	display: flex;
@@ -1267,9 +1266,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .celda-titulo { min-width: 12rem; }
 	.tabla-propiedades .celda-precio { width: 1%; }
 	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .estado-rapido { min-width: 12.75rem; }
-	.tabla-propiedades .celda-visible { width: 9.5rem; }
-	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; }
+	.tabla-propiedades .estado-rapido { width: 9rem; text-overflow: ellipsis; }
+	.tabla-propiedades .celda-visible { width: 1%; }
+	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; max-width: 9rem; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
 	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
@@ -1301,6 +1300,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .barra-masa .btn { min-height: 36px; }
 
 /* Datos del inmueble con ícono (habitaciones, baños, parqueos, m²). */
+/* Resumen de la descripción: dos líneas, para reconocer la propiedad sin abrirla. */
+.prop-desc { margin-top: .25rem; max-width: 75ch; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .prop-datos {
 	display: flex;
 	flex-wrap: wrap;
@@ -1357,6 +1358,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 			"foto datos datos datos"
 			"foto precio precio precio"
 			"chips chips chips chips"
+			"desc desc desc desc"
 			"estado estado visible visible"
 			"motivo motivo motivo motivo"
 			"asesor asesor fecha fecha";
@@ -1398,11 +1400,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
 	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
+	.tabla-propiedades .prop-desc { grid-area: desc; margin-top: .5rem; }
 	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
 	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem !important; align-items: center; }
 	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; width: 100%; min-width: 0; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; width: 9.5rem; padding-left: .5rem; padding-right: 1.5rem; background-position: right .375rem center; font-size: .8125rem; }
 	.tabla-propiedades .celda-visible .form-check {
 		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
 		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
