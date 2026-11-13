@@ -7,7 +7,7 @@ import {
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
-import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-auto.js';
+import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
@@ -29,7 +29,7 @@ const autoTitle = (d) => autoSeoTitle(d);
 const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
 	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
 	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
-	d.m2Construccion && `${miles(d.m2Construccion)} m²`
+	huespedesDe(d) ? `${huespedesDe(d)} ${huespedesDe(d) === 1 ? 'huésped' : 'huéspedes'}` : d.m2Construccion && `${miles(d.m2Construccion)} m²`
 ]);
 // Llena el SEO en español si está vacío o si todavía es el que se puso solo (así se actualiza al cambiar la ficha).
 function llenarSeo(d) {

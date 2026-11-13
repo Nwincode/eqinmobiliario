@@ -11,10 +11,10 @@ import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
 
 const TABS = [
-	['buscar', 'Buscar para un cliente'],
-	['redactar', 'Redactar ficha y redes'],
-	['seguimiento', 'Seguimiento de leads'],
-	['clientes', 'Clientes que buscan']
+	['buscar', 'Buscar para un cliente', 'icon-search'],
+	['redactar', 'Redactar ficha y redes', 'icon-pencil'],
+	['seguimiento', 'Seguimiento de leads', 'icon-clock-o'],
+	['clientes', 'Clientes que buscan', 'icon-users']
 ];
 
 async function cargarPropiedades() {
@@ -405,7 +405,7 @@ export async function render(container, [tab = 'buscar', id]) {
 		loadAgents()
 	]);
 	const nav = h('ul', { class: 'nav nav-pills flex-wrap gap-1 mb-4' },
-		[...TABS, ...(ia ? [['chat', 'Chat']] : [])].map(([key, label]) => h('li', { class: 'nav-item' }, h('a', { class: `nav-link${key === tab ? ' active' : ''}`, href: `#/ia/${key}` }, label))));
+		[...TABS, ...(ia ? [['chat', 'Chat', 'icon-comments']] : [])].map(([key, label, icono]) => h('li', { class: 'nav-item' }, h('a', { class: `nav-link${key === tab ? ' active' : ''}`, href: `#/ia/${key}` }, h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), label))));
 	const cont = h('div');
 	if (tab === 'redactar') tabRedactar(cont, props, id);
 	else if (tab === 'seguimiento') tabSeguimiento(cont, props, leads, id);
