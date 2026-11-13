@@ -252,6 +252,7 @@
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
 		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/', vacacional: document.body.getAttribute('data-ruta-vacacional') || '' };
 		var presetZona = document.body.getAttribute('data-preset-zona') || '';
+		var presetTipo = document.body.getAttribute('data-preset-tipo') || '';
 		var page = 1;
 		var lastSearch = '';
 
@@ -316,7 +317,7 @@
 			if (pushState) {
 				var qs = new URLSearchParams();
 				['q', 'tipo', 'zona', 'habitaciones', 'min', 'max', 'orden'].forEach(function (k) {
-					if (f[k].value && !(k === 'orden' && f[k].value === 'recientes')) qs.set(k, f[k].value);
+					if (f[k].value && !(k === 'orden' && f[k].value === 'recientes') && !(k === 'tipo' && f[k].value === presetTipo)) qs.set(k, f[k].value);
 				});
 				if (page > 1) qs.set('pagina', page);
 				history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : ''));
@@ -336,6 +337,7 @@
 			// En la página de una zona se conserva la zona como filtro del nuevo listado.
 			var params = new URLSearchParams(location.search);
 			if (presetZona) params.set('zona', presetZona);
+			if (presetTipo) params.set('tipo', presetTipo);
 			var qs = params.toString();
 			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
 		});
@@ -348,9 +350,18 @@
 			});
 		}
 
+		// En la página de un tipo («Casas en venta»), elegir otro tipo lleva al listado de la operación filtrado.
+		if (presetTipo) {
+			form.addEventListener('change', function (e) {
+				if (e.target.name !== 'tipo') return;
+				var tp = form.elements.tipo.value;
+				location.href = rutas[preset] + (tp ? '?tipo=' + encodeURIComponent(tp) : '');
+			});
+		}
+
 		var timer;
 		form.addEventListener('input', function (e) {
-			if (e.target.name === 'operacion' || (presetZona && e.target.name === 'zona')) return;
+			if (e.target.name === 'operacion' || (presetZona && e.target.name === 'zona') || (presetTipo && e.target.name === 'tipo')) return;
 			clearTimeout(timer);
 			timer = setTimeout(function () { page = 1; apply(true); }, 250);
 		});

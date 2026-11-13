@@ -750,15 +750,16 @@ function operaciones(ctx) {
 		.filter(Boolean).map(([url, icono, txt]) => `<a href="${url}">${ic(icono)}${txt}</a>`);
 }
 
-// «Buscar por zona»: enlaces a cada zona con propiedades (y cuántas tiene) y a las operaciones.
-// Va al final de la portada y de los listados, para que las personas y Google lleguen a cada zona.
+// «Buscar por zona y tipo»: enlaces a cada zona y a cada tipo con propiedades (y cuántas tienen) y a las
+// operaciones. Va al final de la portada y de los listados, para que las personas y Google lleguen a cada página.
 function porZona(ctx, actual = '') {
-	const zonas = (ctx.zonas || []).filter((z) => z.nombre !== actual);
-	if (!zonas.length) return '';
+	const enlaces = (lista) => lista.filter((x) => x.url !== actual).map((x) => `<a href="${x.url}">${esc(x.nombre)} (${x.total})</a>`).join('');
+	const zonas = enlaces(ctx.zonas || []), tipos = enlaces(ctx.landings || []);
+	if (!zonas && !tipos) return '';
 	return `<nav class="section pt-0" aria-labelledby="por-zona">
 		<div class="container">
-			<h2 class="h5 mb-3" id="por-zona">${tr(ctx).porZona}</h2>
-			<div class="chips mb-3">${zonas.map((z) => `<a href="${z.url}">${esc(z.nombre)} (${z.total})</a>`).join('')}</div>
+			<h2 class="h5 mb-3" id="por-zona">${tipos ? tr(ctx).porZonaTipo : tr(ctx).porZona}</h2>
+			${[zonas, tipos].filter(Boolean).map((x) => `<div class="chips mb-3">${x}</div>`).join('')}
 			<div class="chips">${operaciones(ctx).join('')}</div>
 		</div>
 	</nav>`;
@@ -794,11 +795,11 @@ function vacBuscador(ctx, list) {
 			</form>`;
 }
 
-export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
+export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', tipo = '', intro = '', alternates = null, contenido = '', imagen = '', faq = [] }) {
 	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
 	const vac = operacion === 'vacacional';
-	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona));
+	const list = ctx.properties.filter((p) => (!operacion || p.operacion === operacion) && (!zona || p.zona === zona) && (!tipo || p.tipo === tipo));
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
 	const hayVacacional = ctx.properties.some((p) => p.operacion === 'vacacional');
@@ -847,7 +848,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
 				${chips('col-12 col-lg-6', t.operacion, 'operacion', [['', t.todas], ['venta', t.venta], ['renta', t.renta], ...(hayVacacional ? [['vacacional', t.vacacional]] : [])], operacion)}
-				${chips('col-12 col-lg-6', t.tipo, 'tipo', [['', t.todos], ...tipos.map((tp) => [tp, (ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp])])}
+				${chips('col-12 col-lg-6', t.tipo, 'tipo', [['', t.todos], ...tipos.map((tp) => [tp, (ctx.lang === 'en' ? TIPOS_EN[tp] : TIPOS[tp]) || tp])], tipo)}
 				${chips('col-12 col-md-8 col-lg-6', t.fHabitaciones, 'habitaciones', [['', t.todas], ['1', '1+'], ['2', '2+'], ['3', '3+'], ['4', '4+']])}
 				<div class="col-12 col-md-4 col-lg-6 filtros-pie">
 					<button type="reset" class="btn btn-link">${t.limpiar}</button>
@@ -884,8 +885,18 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			</div>
 		</div>
 	</div>` : ''}
+	${faq.length ? `<div class="section pt-0">
+		<div class="container">
+			<div class="row justify-content-center">
+				<section class="col-lg-8 content-page" aria-labelledby="faq">
+					<h2 id="faq">${t.faq}</h2>
+					${faq.map((x) => `<h3>${esc(x.pregunta)}</h3>\n\t\t\t\t\t<p>${esc(x.respuesta)}</p>`).join('\n\t\t\t\t\t')}
+				</section>
+			</div>
+		</div>
+	</div>` : ''}
 
-	${porZona(ctx, zona)}
+	${porZona(ctx, path)}
 
 	<div class="section bg-light" id="contacto-listado">
 		<div class="container">
@@ -902,13 +913,17 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		title,
 		description,
 		alternates,
-		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
+		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd, faq.length && {
+			'@context': 'https://schema.org',
+			'@type': 'FAQPage',
+			mainEntity: faq.map((x) => ({ '@type': 'Question', name: x.pregunta, acceptedAnswer: { '@type': 'Answer', text: x.respuesta } }))
+		}].filter(Boolean),
 		// Un listado sin propiedades no aporta nada a Google: no se indexa hasta que tenga alguna.
 		noindex: !list.length,
 		image: imagen || (list.length ? firstPhoto(list[0]) : undefined),
 		extraJs: vac ? VAC_JS : '',
 		preloadImage: heroImg,
-		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
+		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-preset-tipo="${esc(tipo)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
 	}, body);
 }
 

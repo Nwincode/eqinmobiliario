@@ -59,6 +59,18 @@ export const TIPOS = {
 	finca: 'Finca'
 };
 
+// Nombres para las páginas por tipo («Casas en venta en Guatemala», /casas-en-venta/) en los dos idiomas.
+// en: nombre del título; enN: singular y plural para contar; un / enUn: con artículo, para las preguntas.
+export const TIPOS_LANDING = {
+	casa: { plural: 'Casas', un: 'una casa', en: 'Houses', enN: ['house', 'houses'], enUn: 'a house' },
+	apartamento: { plural: 'Apartamentos', un: 'un apartamento', en: 'Condos', enN: ['condo', 'condos'], enUn: 'a condo' },
+	terreno: { plural: 'Terrenos', un: 'un terreno', en: 'Land', enN: ['lot', 'lots'], enUn: 'a lot' },
+	oficina: { plural: 'Oficinas', un: 'una oficina', en: 'Offices', enN: ['office', 'offices'], enUn: 'an office' },
+	local: { plural: 'Locales comerciales', un: 'un local comercial', en: 'Retail spaces', enN: ['retail space', 'retail spaces'], enUn: 'a retail space' },
+	bodega: { plural: 'Bodegas', un: 'una bodega', en: 'Warehouses', enN: ['warehouse', 'warehouses'], enUn: 'a warehouse' },
+	finca: { plural: 'Fincas', un: 'una finca', en: 'Farms', enN: ['farm', 'farms'], enUn: 'a farm' }
+};
+
 // Etiquetas públicas de cada estado (la lista y sus reglas viven en admin/js/estados.js).
 export const ESTADOS = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.es]));
 
