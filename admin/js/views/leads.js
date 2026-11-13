@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
-, mount, cajaTabla } from '../ui.js';
+, mount, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
@@ -134,8 +134,8 @@ export async function render(container) {
 	};
 	const draw = () => {
 		tbody.replaceChildren(...filtered().map((l) => h('tr', { class: 'clickable', onclick: () => openLead(l, agents, () => render(container.replaceChildren() || container)) },
-			h('td', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
 			h('td', {}, h('div', { class: 'fw-semibold' }, l.nombre), h('div', { class: 'small text-muted' }, l.telefono)),
+			h('td', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
 			h('td', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? h('span', { class: 'badge text-bg-info ms-1' }, 'EN') : null),
 			h('td', { class: 'small text-muted' }, fuenteLead(l)),
 			h('td', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
@@ -150,7 +150,7 @@ export async function render(container) {
 	]);
 
 	mount(container, 
-		pageHeader('Leads', leads.length ? h('button', { class: 'btn btn-outline-primary', onclick: exportCsv }, 'Exportar a Excel (CSV)') : null),
+		pageHeader('Leads', leads.length ? iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: exportCsv }) : null),
 		leads.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
 				h('div', { class: 'col-md-6' }, search),
@@ -158,7 +158,7 @@ export async function render(container) {
 				h('div', { class: 'col-6 col-md-3' }, fAgent)),
 			cajaTabla(
 				h('table', { class: 'table table-hover table-admin' },
-					h('thead', {}, h('tr', {}, ['Fecha', 'Contacto', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
+					h('thead', {}, h('tr', {}, ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
 					tbody), { tarjeta: true }))
 			: emptyState(session.isAdmin ? 'Todavía no han llegado leads. Aparecerán aquí cuando alguien llene un formulario del sitio.' : 'No tienes leads asignados todavía.'));
 }

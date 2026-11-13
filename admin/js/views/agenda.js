@@ -3,7 +3,7 @@ import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
-	TIPOS_ACTIVIDAD, tipoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
+	TIPOS_ACTIVIDAD, tipoActividad, iconoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -54,7 +54,7 @@ export async function render(container) {
 			return h('div', { class: 'card mb-4' },
 				h('div', { class: `card-header bg-white fw-semibold ${cls}` }, `${label} (${items.length})`),
 				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-					h('span', { class: 'fs-5' }, tipoActividad(a.tipo)[2]),
+					iconoActividad(a.tipo),
 					h('div', { class: 'me-auto' },
 						h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
 						h('div', { class: 'small text-muted' },
@@ -75,7 +75,7 @@ export async function render(container) {
 	fAsesor.addEventListener('input', dibujar);
 
 	// Agendar rápido
-	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.filter(([v]) => v !== 'nota').map(([v, l, i]) => h('option', { value: v }, `${i} ${l}`)));
+	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.filter(([v]) => v !== 'nota').map(([v, l]) => h('option', { value: v }, l)));
 	const titulo = h('input', { class: 'form-control', placeholder: '¿Qué hay que hacer?', required: true, maxlength: 200 });
 	const fecha = h('input', { class: 'form-control', type: 'datetime-local', required: true });
 	const cliente = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Sin cliente'), clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))).map((c) => h('option', { value: c.id }, c.nombre)));

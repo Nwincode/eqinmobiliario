@@ -20,6 +20,10 @@ export const PORTALES_DEFAULT = [
 	{ id: 'portal-en', nombre: 'Portales en inglés (EE. UU.)', url: '', idioma: 'en', estilo: 'portal', tituloMax: 80, textoMax: 4000, enlaces: true }
 ];
 
+// Ícono del portal según su nombre (los portales los edita el usuario en Contenido).
+const ICONOS_PORTAL = [[/whatsapp/i, 'icon-whatsapp'], [/instagram/i, 'icon-instagram'], [/marketplace/i, 'icon-shopping-bag'], [/grupo/i, 'icon-users'], [/facebook/i, 'icon-facebook']];
+export const iconoPortal = (p) => (ICONOS_PORTAL.find(([re]) => re.test(p.nombre)) || [])[1] || (p.idioma === 'en' ? 'icon-globe' : 'icon-bullhorn');
+
 export function portalesDe(site) {
 	const lista = (site && Array.isArray(site.portales) && site.portales.filter((p) => p && p.nombre).length)
 		? site.portales.filter((p) => p && p.nombre)

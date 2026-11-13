@@ -19,13 +19,15 @@ export const TIPOS_CLIENTE = [
 	['comprador', 'Comprador'], ['inquilino', 'Inquilino'], ['propietario', 'Propietario'], ['inversionista', 'Inversionista']
 ];
 export const TIPOS_ACTIVIDAD = [
-	['llamada', 'Llamada', '📞'], ['whatsapp', 'WhatsApp', '💬'], ['correo', 'Correo', '✉️'],
-	['visita', 'Visita', '🏠'], ['reunion', 'Reunión', '🤝'], ['tarea', 'Tarea', '✔️'], ['nota', 'Nota', '📝']
+	['llamada', 'Llamada', 'icon-phone'], ['whatsapp', 'WhatsApp', 'icon-whatsapp'], ['correo', 'Correo', 'icon-envelope-o'],
+	['visita', 'Visita', 'icon-home'], ['reunion', 'Reunión', 'icon-handshake-o'], ['tarea', 'Tarea', 'icon-check-square-o'], ['nota', 'Nota', 'icon-sticky-note-o']
 ];
 
 export const etapaLabel = (v) => (ETAPAS.find(([k]) => k === v) || ETAPAS[0])[1];
 export const etapaBadge = (v) => { const e = ETAPAS.find(([k]) => k === v) || ETAPAS[0]; return badge(e[1], e[2]); };
 export const tipoActividad = (v) => TIPOS_ACTIVIDAD.find(([k]) => k === v) || TIPOS_ACTIVIDAD[5];
+// Ícono del tipo de actividad (su nombre va en `title`).
+export const iconoActividad = (v) => { const [, label, icono] = tipoActividad(v); return h('span', { class: `${icono} crm-icono`, title: label, 'aria-hidden': 'true' }); };
 
 export { telNorm };
 

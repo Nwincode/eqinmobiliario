@@ -1,13 +1,13 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl } from '../ia.js';
+import { whatsappUrl } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
-	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, telNorm, money,
+	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
 	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
 } from '../crm.js';
@@ -19,11 +19,10 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 	return [
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		{ name: 'tipo', label: 'Tipo de cliente', type: 'select', options: TIPOS_CLIENTE, cols: 3 },
-		{ name: 'etapa', label: 'Etapa', type: 'select', options: ETAPAS.map(([v, l]) => [v, l]), cols: 3 },
-		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 3 },
-		{ name: 'email', label: 'Correo', type: 'email', cols: 3 },
-		{ name: 'nit', label: 'NIT', cols: 3, placeholder: 'CF si no tiene', help: 'Sale en sus cotizaciones.' },
 		{ name: 'idioma', label: 'Idioma', type: 'select', options: [['es', 'Español'], ['en', 'Inglés']], cols: 3 },
+		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 4 },
+		{ name: 'email', label: 'Correo', type: 'email', cols: 4 },
+		{ name: 'nit', label: 'NIT', cols: 4, placeholder: 'CF si no tiene', help: 'Sale en sus cotizaciones.' },
 		session.isAdmin ? { name: 'agentId', label: 'Asesor', type: 'select', options: agentes, cols: 4 } : null,
 		{ name: 'fuente', label: 'Fuente', cols: session.isAdmin ? 4 : 6, placeholder: 'Google, Encuentra24, referido…' },
 		{ name: 'operacion', label: 'Busca', type: 'select', options: [['venta', 'Comprar'], ['renta', 'Rentar'], ['vender', 'Vender su propiedad'], ['invertir', 'Invertir']], cols: session.isAdmin ? 4 : 6 },
@@ -39,13 +38,17 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 	].filter(Boolean);
 }
 
+// Botones de contacto, solo de ícono: WhatsApp, llamar y correo (los que el cliente tenga).
 function contactoBotones(c) {
 	return [
-		c.telefono ? h('a', { href: whatsappUrl(c.telefono, `Hola ${String(c.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
-		c.telefono ? h('a', { href: `tel:${c.telefono}`, class: 'btn btn-sm btn-outline-primary' }, 'Llamar') : null,
-		c.email ? h('a', { href: `mailto:${c.email}`, class: 'btn btn-sm btn-outline-primary' }, 'Correo') : null
+		c.telefono ? iconoBtn('icon-whatsapp', `WhatsApp a ${c.nombre}`, { href: whatsappUrl(c.telefono, `Hola ${String(c.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener' }) : null,
+		c.telefono ? iconoBtn('icon-phone', `Llamar a ${c.nombre}`, { href: `tel:${c.telefono}` }) : null,
+		c.email ? iconoBtn('icon-envelope-o', `Correo a ${c.nombre}`, { href: `mailto:${c.email}` }) : null
 	];
 }
+
+// Un dato de la ficha: ícono + texto. Sin valor no se dibuja.
+const dato = (icono, texto, cls = '') => (texto ? h('div', { class: `crm-dato ${cls}` }, h('span', { class: `${icono} crm-icono`, 'aria-hidden': 'true' }), h('span', {}, texto)) : null);
 
 // ---------------------------------------------------------------- Lista y tablero
 
@@ -94,14 +97,22 @@ async function renderLista(container) {
 
 	const tarjeta = (c) => {
 		const prox = proximaActividad(actividades, c.id);
-		const card = h('div', { class: 'crm-card', draggable: 'true', dataset: { id: c.id } },
-			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre),
-			h('div', { class: 'small text-muted' }, [TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1], c.zonas].filter(Boolean).join(' · ')),
-			c.montoEstimado ? h('div', { class: 'small fw-semibold mt-1' }, money(c.montoEstimado, c.moneda)) : null,
-			revisar('clientes', c).length ? h('div', { class: 'mt-2' }, chipFaltan(revisar('clientes', c))) : null,
-			prox ? h('div', { class: 'small mt-2 d-flex gap-1 align-items-center' }, chipVencimiento(prox), h('span', {}, `${tipoActividad(prox.tipo)[2]} ${prox.titulo || tipoActividad(prox.tipo)[1]} · ${fechaCorta(prox.fecha)}`))
-				: h('div', { class: 'small text-danger mt-2' }, 'Sin seguimiento agendado'),
-			session.isAdmin && c.agentId ? h('div', { class: 'small text-muted mt-1' }, nombreAsesor[c.agentId] || '') : null);
+		const faltan = revisar('clientes', c);
+		const card = h('div', { class: 'crm-card', draggable: 'true', dataset: { id: c.id } }, h('div', { class: 'crm-card-datos' },
+			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre || '(sin nombre)'),
+			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
+			dato('icon-map-marker', c.zonas),
+			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold'),
+			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaCorta(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
+				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
+			session.isAdmin ? dato('icon-id-badge', nombreAsesor[c.agentId]) : null,
+			faltan.length ? h('div', { class: 'mt-1' }, chipFaltan(faltan)) : null),
+			h('div', { class: 'crm-card-acciones' }, contactoBotones(c).find(Boolean),
+				menuMas(`Más acciones: ${c.nombre}`, [
+					c.telefono ? { icono: 'icon-phone', texto: 'Llamar', href: `tel:${c.telefono}` } : null,
+					c.email ? { icono: 'icon-envelope-o', texto: 'Correo', href: `mailto:${c.email}` } : null,
+					...ETAPAS.filter(([v]) => v !== (c.etapa || 'nuevo')).map(([v, l]) => ({ icono: 'icon-exchange', texto: `Pasar a ${l}`, onclick: () => moverEtapa(c, v) }))
+				])));
 		card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id); card.classList.add('arrastrando'); });
 		card.addEventListener('dragend', () => card.classList.remove('arrastrando'));
 		return card;
@@ -117,7 +128,7 @@ async function renderLista(container) {
 			cuerpo.replaceChildren(h('div', { class: 'crm-tablero' }, ETAPAS.map(([etapa, label]) => {
 				const items = lista.filter((c) => (c.etapa || 'nuevo') === etapa);
 				const total = items.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
-				const col = h('div', { class: 'crm-columna', dataset: { etapa } },
+				const col = h('div', { class: `crm-columna${items.length ? '' : ' vacia'}`, dataset: { etapa } },
 					h('div', { class: 'crm-columna-cabecera' }, h('strong', {}, label), h('span', { class: 'text-muted small' }, `${items.length}${total ? ` · ${money(total)}` : ''}`)),
 					items.map(tarjeta));
 				col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('sobre'); });
@@ -129,7 +140,7 @@ async function renderLista(container) {
 					if (c && c.etapa !== etapa) moverEtapa(c, etapa);
 				});
 				return col;
-			})), h('p', { class: 'small text-muted mt-2' }, 'Arrastra una tarjeta a otra columna para cambiar la etapa, o cámbiala dentro de la ficha.'));
+			})));
 		} else {
 			cuerpo.replaceChildren(cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
 				h('thead', {}, h('tr', {}, ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
@@ -162,7 +173,7 @@ async function renderLista(container) {
 	mount(container,
 		pageHeader('Clientes',
 			h('div', { class: 'btn-group' }, botonVista('tablero', 'Tablero'), botonVista('lista', 'Lista')),
-			h('button', { class: 'btn btn-outline-primary', onclick: exportar }, 'Exportar'),
+			iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: exportar }),
 			h('a', { href: '#/clientes/nuevo', class: 'btn btn-primary' }, '+ Cliente')),
 		aviso,
 		h('div', { class: 'row g-2 mb-3' },
@@ -177,7 +188,7 @@ async function renderLista(container) {
 // ---------------------------------------------------------------- Ficha
 
 function formularioActividad(c, alGuardar) {
-	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.map(([v, l, i]) => h('option', { value: v }, `${i} ${l}`)));
+	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.map(([v, l]) => h('option', { value: v }, l)));
 	const titulo = h('input', { class: 'form-control', placeholder: 'Ej. Llamar para confirmar visita', maxlength: 200 });
 	const fecha = h('input', { class: 'form-control', type: 'datetime-local' });
 	const hecha = h('input', { class: 'form-check-input', type: 'checkbox', id: 'act-hecha' });
@@ -200,13 +211,12 @@ function formularioActividad(c, alGuardar) {
 		} catch (err) { showError(err); } finally { boton.disabled = false; }
 	} },
 	h('div', { class: 'row g-2' },
-		h('div', { class: 'col-md-3' }, tipo),
-		h('div', { class: 'col-md-5' }, titulo),
-		h('div', { class: 'col-md-4' }, fecha),
+		h('div', { class: 'col-5' }, tipo),
+		h('div', { class: 'col-7' }, fecha),
+		h('div', { class: 'col-12' }, titulo),
 		h('div', { class: 'col-12' }, detalle),
 		h('div', { class: 'col-12 d-flex align-items-center gap-3' },
-			h('div', { class: 'form-check mb-0' }, hecha, h('label', { class: 'form-check-label small', for: 'act-hecha' }, 'Ya se realizó')),
-			h('span', { class: 'small text-muted me-auto' }, 'Con fecha y sin marcar: queda en la agenda. Sin fecha: se guarda en el historial.'),
+			h('div', { class: 'form-check mb-0 me-auto', title: 'Con fecha y sin marcar queda en la agenda; sin fecha se guarda en el historial.' }, hecha, h('label', { class: 'form-check-label small', for: 'act-hecha' }, 'Ya se realizó')),
 			boton)));
 }
 
@@ -233,6 +243,7 @@ async function renderFicha(container, id) {
 		d.updatedAt = serverTimestamp();
 		if (nuevo) {
 			d.createdAt = serverTimestamp();
+			d.etapa = c.etapa;
 			d.interes = d.interes || [];
 			if (!session.isAdmin) d.agentId = session.agentId;
 		}
@@ -259,12 +270,12 @@ async function renderFicha(container, id) {
 	const pendientes = propias.filter((a) => !a.hecha).sort((a, b) => ms(a.fecha) - ms(b.fecha));
 	const historial = [
 		...propias.filter((a) => a.hecha).map((a) => ({ t: ms(a.hechaEn) || ms(a.createdAt), el: h('li', { class: 'crm-evento' },
-			h('span', { class: 'crm-evento-icono' }, tipoActividad(a.tipo)[2]),
+			h('span', { class: 'crm-evento-icono' }, iconoActividad(a.tipo)),
 			h('div', {}, h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
 				a.detalle ? h('div', { class: 'small', style: 'white-space:pre-wrap' }, a.detalle) : null,
 				h('div', { class: 'small text-muted' }, `${a.autor || ''} · ${formatDate(a.hechaEn || a.createdAt)}`))) })),
 		...leads.filter((l) => l.clienteId === id).map((l) => ({ t: ms(l.createdAt), el: h('li', { class: 'crm-evento' },
-			h('span', { class: 'crm-evento-icono' }, '🌐'),
+			h('span', { class: 'crm-evento-icono' }, h('span', { class: 'icon-globe', title: 'Formulario del sitio', 'aria-hidden': 'true' })),
 			h('div', {}, h('div', { class: 'fw-semibold small' }, `Formulario del sitio${l.propertyTitulo ? `: ${l.propertyTitulo}` : ''}`),
 				l.mensaje ? h('div', { class: 'small', style: 'white-space:pre-wrap' }, l.mensaje) : null,
 				h('div', { class: 'small text-muted' }, `${formatDate(l.createdAt)}${l.campana?.utm_source ? ` · ${l.campana.utm_source}` : ''}`))) }))
@@ -296,7 +307,7 @@ async function renderFicha(container, id) {
 		try { await updateDoc(ref, { interes: interes.filter((x) => x !== pid), updatedAt: serverTimestamp() }); refrescarPorCliente(c, pid); recargar(); } catch (err) { showError(err); }
 	};
 
-	const etapa = h('select', { class: 'form-select form-select-sm w-auto' }, ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, l)));
+	const etapa = h('select', { class: 'form-select w-auto', title: 'Etapa', 'aria-label': 'Etapa' }, ETAPAS.map(([v, l]) => h('option', { value: v, selected: (c.etapa || 'nuevo') === v }, l)));
 	etapa.addEventListener('change', async () => {
 		try {
 			await updateDoc(ref, { etapa: etapa.value, etapaFecha: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -311,38 +322,38 @@ async function renderFicha(container, id) {
 		try { await deleteDoc(ref); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
+	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);
+
 	mount(container,
-		pageHeader(c.nombre, h('div', { class: 'd-flex align-items-center gap-2' }, h('span', { class: 'small text-muted' }, 'Etapa'), etapa), h('a', { href: '#/clientes', class: 'btn btn-light' }, 'Volver')),
-		h('div', { class: 'd-flex flex-wrap gap-2 mb-3' }, contactoBotones(c),
-			h('a', { href: `#/ia/buscar`, class: 'btn btn-sm btn-outline-primary ms-auto' }, '✨ Buscarle propiedades (IA)')),
+		pageHeader(c.nombre, etapa, contactoBotones(c),
+			iconoBtn('icon-magic', 'Buscarle propiedades con IA', { href: '#/ia/buscar' })),
 		h('div', { class: 'row g-4' },
-			h('div', { class: 'col-xl-7' },
-				h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, 'Registrar o agendar'),
-					h('div', { class: 'card-body' }, formularioActividad(c, recargar))),
-				pendientes.length ? h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, `Pendientes (${pendientes.length})`),
+			h('div', { class: 'col-xl-4' },
+				tarjetaCard('Registrar o agendar', h('div', { class: 'card-body' }, formularioActividad(c, recargar))),
+				pendientes.length ? tarjetaCard(`Pendientes (${pendientes.length})`,
 					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-						h('span', {}, tipoActividad(a.tipo)[2]),
+						iconoActividad(a.tipo),
 						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaCorta(a.fecha) : 'Sin fecha')),
 						chipVencimiento(a),
-						h('button', { class: 'btn btn-sm btn-outline-success', onclick: () => completar(a) }, 'Hecho'))))) : null,
-				h('div', { class: 'card' }, h('div', { class: 'card-header bg-white fw-semibold' }, 'Historial'),
-					h('div', { class: 'card-body' }, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.')))),
-			h('div', { class: 'col-xl-5' },
-				h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, 'Propiedades de interés'),
-					h('div', { class: 'card-body' },
-						interes.length ? h('ul', { class: 'list-unstyled mb-3' }, interes.map((pid) => {
-							const p = propiedades.find((x) => x.id === pid);
-							return h('li', { class: 'd-flex align-items-center gap-2 mb-2' },
-								h('a', { href: `#/propiedades/${pid}`, class: 'small me-auto' }, p ? p.titulo : 'Propiedad no disponible'),
-								p ? h('span', { class: 'small text-muted' }, money(p.precio, p.moneda)) : null,
-								h('button', { class: 'btn btn-sm btn-light', title: 'Quitar', onclick: () => quitarInteres(pid) }, '×'));
-						})) : h('p', { class: 'small text-muted' }, 'Ninguna todavía.'),
-						selProp)),
-				h('div', { class: 'card' }, h('div', { class: 'card-header bg-white fw-semibold' }, 'Datos del cliente'),
+						iconoBtn('icon-check', 'Marcar como hecha', { onclick: () => completar(a) }))))) : null,
+				tarjetaCard('Propiedades de interés', h('div', { class: 'card-body' },
+					interes.length ? h('ul', { class: 'list-unstyled mb-2' }, interes.map((pid) => {
+						const p = propiedades.find((x) => x.id === pid);
+						return h('li', { class: 'd-flex align-items-center gap-2' },
+							h('span', { class: 'icon-home crm-icono', 'aria-hidden': 'true' }),
+							h('div', { class: 'small me-auto' }, h('a', { href: `#/propiedades/${pid}` }, p ? p.titulo : 'Propiedad no disponible'),
+								p ? h('div', { class: 'text-muted' }, money(p.precio, p.moneda)) : null),
+							iconoBtn('icon-times', 'Quitar de interés', { onclick: () => quitarInteres(pid) }));
+					})) : null,
+					selProp))),
+			h('div', { class: 'col-xl-8' },
+				tarjetaCard('Datos del cliente',
 					h('div', { class: 'card-body' }, vigilarFormulario(form, 'clientes'), form.el,
 						h('div', { class: 'd-flex gap-2 mt-3' },
 							h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar datos'),
-							session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: eliminar }, 'Eliminar') : null))))));
+							session.isAdmin ? iconoBtn('icon-trash-o', 'Eliminar cliente', { onclick: eliminar }) : null))),
+				tarjetaCard('Historial',
+					h('div', { class: 'card-body' }, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.'))))));
 }
 
 export async function render(container, [id]) {

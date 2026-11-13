@@ -404,30 +404,52 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .card-body {
 	padding: 18px;
 }
+/* Tarjeta de indicador (statCard en ui.js): nombre con ícono arriba, número abajo, nota opcional. */
 .stat-card {
-	padding: 18px !important;
+	padding: 12px 14px;
+	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
-.stat-card:hover {
+a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));
 	transform: translateY(-1px);
 }
-.stat-card .stat-value {
-	font-size: 2rem;
-	font-weight: 700;
-	line-height: 1;
-	color: var(--adm-dark);
-	font-variant-numeric: tabular-nums;
-}
-/* Varias monedas en una tarjeta: un renglón por moneda, más pequeño. */
-.stat-card .stat-value > div {
-	font-size: 1.25rem;
-	line-height: 1.35;
-}
-.stat-card .stat-label {
+.stat-label {
 	color: var(--adm-muted);
 	font-size: 13px;
-	margin-top: 8px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.stat-label [class^="icon-"] {
+	color: var(--adm-primary);
+}
+.stat-value {
+	margin-top: 4px;
+	font-size: 1.45rem;
+	font-weight: 700;
+	line-height: 1.2;
+	color: var(--adm-dark);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+/* Varias monedas en una tarjeta: un renglón por moneda, más pequeño. */
+.stat-value > div {
+	font-size: 1.1rem;
+}
+.stat-nota {
+	color: var(--adm-muted);
+	font-size: 12px;
+	margin-top: 4px;
+}
+.stat-main {
+	border-color: var(--adm-primary);
+	background: color-mix(in oklab, var(--adm-primary) 6%, var(--adm-surface));
+}
+.stat-main .stat-value {
+	font-size: 1.9rem;
+	color: var(--adm-primary);
 }
 
 .alert {
@@ -456,11 +478,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	color: #8a1c13;
 }
 
-/* Tablas: toda caja de tabla cabe en la pantalla (--tabla-alto lo pone admin/js/tablas-alto.js;
-   la caja la arma cajaTabla() de admin/js/ui.js), así la barra para moverse de lado siempre se
-   ve sin bajar hasta el final; los títulos de columna quedan fijos arriba. */
+/* Tablas: un solo scroll por pantalla. --tabla-alto lo pone admin/js/tablas.js (la caja la
+   arma cajaTabla() de admin/js/ui.js): la tabla que va sola mide lo que queda de pantalla, con
+   los títulos fijos arriba; las demás van completas y baja la página. */
 .admin-main .table-responsive {
-	max-height: var(--tabla-alto, max(320px, calc(100vh - 60px - 9rem)));
+	max-height: var(--tabla-alto, none);
 	overflow: auto;
 	overscroll-behavior-x: contain;
 	scrollbar-width: thin;
@@ -479,8 +501,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	top: 0;
 	z-index: 2;
 }
-/* La primera columna (el nombre) queda fija al moverse de lado en pantallas angostas. */
-@media (max-width: 991.98px) {
+/* Tableta: la primera columna (el nombre) queda fija al moverse de lado. */
+@media (min-width: 576px) and (max-width: 991.98px) {
 	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
 	.table-admin:not(.tabla-propiedades) > thead > tr > :first-child {
 		position: sticky;
@@ -497,6 +519,42 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		min-width: 8.5rem;
 		max-width: 45vw;
 	}
+}
+/* Celular: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno con el
+   título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
+@media (max-width: 575.98px) {
+	.table-admin:not(.tabla-propiedades) > thead { display: none; }
+	.table-admin:not(.tabla-propiedades) > tbody > tr {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 14px;
+		padding: 12px 14px;
+		border-bottom: 1px solid #edf0f3;
+	}
+	.table-admin:not(.tabla-propiedades) > tbody > tr:last-child { border-bottom: 0; }
+	.table-admin:not(.tabla-propiedades) > tbody > tr > * {
+		border: 0;
+		padding: 0;
+		min-width: 0;
+		text-align: left !important;
+	}
+	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
+	.table-admin:not(.tabla-propiedades) > tbody > tr > [colspan] {
+		flex: 1 0 100%;
+		font-weight: 600;
+	}
+	.table-admin:not(.tabla-propiedades) > tbody > tr > :empty,
+	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-vacia { display: none; }
+	.table-admin:not(.tabla-propiedades) > tbody > tr > [data-label]::before {
+		content: attr(data-label);
+		margin-right: 5px;
+		font-size: 12px;
+		font-weight: 400;
+		color: var(--adm-muted);
+	}
+	/* Los botones de la fila van al final, a la derecha. */
+	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-acciones { margin-left: auto; }
 }
 
 .table-admin {
@@ -925,23 +983,25 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 /* CRM: tablero por etapas */
-.crm-tablero {
-	display: grid;
-	grid-template-columns: repeat(6, minmax(160px, 1fr));
-	gap: 12px;
-	overflow-x: auto;
-	padding-bottom: 8px;
-}
+/* Tablero sin scroll propio: las etapas se reparten el ancho y bajan de línea si no caben.
+   La etapa vacía ocupa solo su título; en celular van una debajo de otra. */
+.crm-tablero { display: flex; flex-wrap: wrap; gap: 8px; }
 .crm-columna {
+	flex: 1 1 150px;
+	min-width: 0;
 	background: var(--adm-bg);
 	border: 1px solid var(--adm-border);
 	border-radius: 10px;
-	padding: 10px;
-	min-height: 180px;
+	padding: 8px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	transition: background-color .15s ease, border-color .15s ease;
+}
+.crm-columna.vacia { flex: 0 0 auto; align-self: flex-start; }
+@media (max-width: 575.98px) {
+	.crm-tablero { flex-direction: column; }
+	.crm-columna.vacia { align-self: stretch; }
 }
 .crm-columna.sobre {
 	background: var(--eq-primary-soft);
@@ -959,8 +1019,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	background: #fff;
 	border: 1px solid var(--adm-border);
 	border-radius: 8px;
-	padding: 10px 12px;
+	padding: 8px 10px;
 	cursor: grab;
+	font-size: .8125rem;
+	display: flex;
+	gap: 4px;
+}
+.crm-card-datos { flex: 1; min-width: 0; }
+/* Dato de la ficha: ícono fijo a la izquierda y el texto al lado. */
+.crm-dato { display: flex; align-items: baseline; gap: 6px; color: var(--adm-text); overflow-wrap: anywhere; }
+.crm-icono { flex: none; width: 1em; text-align: center; color: var(--adm-muted); }
+.crm-card-acciones { flex: none; display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 575.98px) {
+	.crm-card-acciones { flex-direction: row; align-items: flex-start; }
 }
 .crm-card.arrastrando {
 	opacity: .5;
@@ -1492,9 +1563,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .imp-resumen { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .875rem; }
 .imp-aviso { padding: .625rem .875rem; font-size: .9rem; margin-bottom: .625rem; }
 
-
-/* La lista va debajo del paso 1: baja con la página (un solo scroll), sin scroll propio. */
-.imp-vista .table-responsive { max-height: none; }
 .imp-acciones .btn { min-height: 44px; }
 .imp-acciones .imp-nota { flex: 1 1 0; }
 .imp-progreso { height: 10px; margin-bottom: 1rem; }
@@ -1546,8 +1614,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .calc-grupo .card-header .me-2,
 .calc-resultados .card-header .me-2,
-.calc-glosario .card-header .me-2,
-.calc-kpi-label [class^="icon-"] {
+.calc-glosario .card-header .me-2 {
 	color: var(--adm-primary);
 }
 .calc-sufijo {
@@ -1617,33 +1684,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .calc-entradas .form-control-sm {
 	min-height: 38px;
-}
-.calc-kpi.stat-card:hover {
-	transform: none;
-}
-.calc-kpi .stat-value {
-	font-size: 1.45rem;
-	margin-top: 6px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-.calc-kpi-main {
-	border-color: var(--adm-primary);
-	background: color-mix(in oklab, var(--adm-primary) 6%, var(--adm-surface));
-}
-.calc-kpi-main .stat-value {
-	font-size: 1.9rem;
-	color: var(--adm-primary);
-}
-.calc-kpi-label {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--adm-muted);
-}
-.calc-kpi-nota {
-	font-size: 12px;
-	color: var(--adm-muted);
-	margin-top: 4px;
 }
 .calc-tabla {
 	font-variant-numeric: tabular-nums;
@@ -1927,10 +1967,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	white-space: nowrap;
 }
 @media (max-width: 575.98px) {
-	.calc-kpi .stat-value {
+	.stat-value {
 		font-size: 1.15rem;
 	}
-	.calc-kpi-main .stat-value {
+	.stat-value > div {
+		font-size: 1rem;
+	}
+	.stat-main .stat-value {
 		font-size: 1.75rem;
 	}
 	.calc-tabla {
@@ -2101,11 +2144,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	gap: 6px;
 	justify-content: flex-end;
 }
-.cot-lista td,
-.cot-lista th {
-	padding-top: 10px;
-	padding-bottom: 10px;
-}
 .cot-grupo .card-header {
 	background: var(--adm-surface);
 }
@@ -2261,27 +2299,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-decoration: none;
 }
 
-@media (max-width: 575.98px) {
-	.cot-lista thead {
-		display: none;
-	}
-	.cot-lista tr {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 2px 12px;
-		padding: 12px 14px;
-		border-bottom: 1px solid var(--adm-border);
-	}
-	.cot-lista td {
-		border: 0;
-		padding: 0;
-	}
-	.cot-lista td[data-label="Número"] { grid-column: 1; }
-	.cot-lista td[data-label="Total"] { grid-column: 2; grid-row: 1; font-weight: 700; }
-	.cot-lista td[data-label="Fecha"],
-	.cot-lista td[data-label="Cliente"] { grid-column: 1 / -1; font-size: 14px; }
-	.cot-lista td:last-child { grid-column: 1 / -1; padding-top: 8px; text-align: left !important; }
-}
 /* Computadora: la hoja queda a la par del formulario, entre la barra de arriba (60 px)
    y la barra de acciones de abajo, con su propio desplazamiento para llegar siempre al total. */
 @media (min-width: 1200px) {

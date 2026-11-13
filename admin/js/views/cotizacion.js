@@ -9,7 +9,7 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla } from '../ui.js';
+import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
@@ -57,8 +57,8 @@ async function cargarLista() {
 
 async function lista(container) {
 	const nueva = h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones/nueva' }, h('span', { class: 'icon-plus me-2', 'aria-hidden': 'true' }), 'Nueva cotización');
-	const misDatos = h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones/mis-datos' }, h('span', { class: 'icon-id-card-o me-2', 'aria-hidden': 'true' }), 'Mis datos para facturar');
-	const empresa = session.isAdmin ? h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones/empresa' }, h('span', { class: 'icon-building-o me-2', 'aria-hidden': 'true' }), 'Datos de la empresa') : null;
+	const misDatos = iconoBtn('icon-id-card-o', 'Mis datos para facturar', { href: '#/cotizaciones/mis-datos' });
+	const empresa = session.isAdmin ? iconoBtn('icon-building-o', 'Datos de la empresa', { href: '#/cotizaciones/empresa' }) : null;
 	const cuerpo = h('div', {}, spinner());
 	mount(container,
 		pageHeader('Cotización de servicios', empresa, misDatos, nueva),
@@ -84,18 +84,18 @@ async function lista(container) {
 			try { await deleteDoc(doc(db, COL, c.id)); items = items.filter((x) => x.id !== c.id); pintar(); toast('Cotización eliminada.'); } catch (err) { showError(err); }
 		};
 		const acciones = (c) => h('div', { class: 'cot-acciones' },
-			h('a', { class: 'btn btn-outline-primary btn-sm cot-btn', href: `#/cotizaciones/${encodeURIComponent(c.id)}` }, h('span', { class: 'icon-pencil me-1', 'aria-hidden': 'true' }), 'Abrir'),
+			iconoBtn('icon-pencil', `Abrir ${c.numero || 'cotización'}`, { href: `#/cotizaciones/${encodeURIComponent(c.id)}` }),
 			h('a', { class: 'btn btn-outline-secondary btn-sm cot-btn cot-btn-icono', href: `#/cotizaciones/duplicar/${encodeURIComponent(c.id)}`, title: 'Duplicar', 'aria-label': `Duplicar ${c.numero || 'cotización'}` }, h('span', { class: 'icon-clone', 'aria-hidden': 'true' })),
 			h('button', { type: 'button', class: 'btn btn-outline-danger btn-sm cot-btn cot-btn-icono', title: 'Eliminar', 'aria-label': `Eliminar ${c.numero || 'cotización'}`, onclick: () => borrar(c) }, h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' })));
 		cuerpo.replaceChildren(cajaTabla(
-			h('table', { class: 'table table-hover align-middle mb-0 cot-lista' },
+			h('table', { class: 'table table-hover table-admin' },
 				h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Número'), h('th', { scope: 'col' }, 'Fecha'), h('th', { scope: 'col' }, 'Cliente'), h('th', { scope: 'col', class: 'text-end' }, 'Total'), h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')))),
 				h('tbody', {}, items.map((c) => h('tr', {},
-					h('td', { 'data-label': 'Número' }, h('a', { href: `#/cotizaciones/${encodeURIComponent(c.id)}`, class: 'fw-semibold' }, c.numero || 'Sin número')),
-					h('td', { 'data-label': 'Fecha' }, fechaLarga(c.fecha)),
-					h('td', { 'data-label': 'Cliente' }, c.cliente?.nombre || h('span', { class: 'text-muted' }, 'Sin nombre'),
+					h('td', {}, h('a', { href: `#/cotizaciones/${encodeURIComponent(c.id)}`, class: 'fw-semibold' }, c.numero || 'Sin número')),
+					h('td', {}, fechaLarga(c.fecha)),
+					h('td', {}, c.cliente?.nombre || h('span', { class: 'text-muted' }, 'Sin nombre'),
 						c.propiedad?.texto ? h('div', { class: 'small text-muted' }, c.propiedad.texto) : null),
-					h('td', { 'data-label': 'Total', class: 'text-end text-nowrap' }, total(c)),
+					h('td', { class: 'text-end text-nowrap' }, total(c)),
 					h('td', { class: 'text-end' }, acciones(c)))))), { tarjeta: true }));
 	};
 	pintar();

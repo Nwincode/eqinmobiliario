@@ -1,13 +1,15 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
-import { portalesDe, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
+import { portalesDe, iconoPortal, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
 import { refrescarPortalesDe } from '../portal.js';
 
 const COLOR = { ok: 'success', actualizar: 'warning', baja: 'danger', pendiente: 'light', na: 'light' };
+// Ícono de cada estado en el tablero; los indicadores de arriba usan los mismos y sirven de leyenda.
+const ICONO = { ok: 'icon-check-circle text-success', actualizar: 'icon-refresh text-warning', baja: 'icon-ban text-danger', pendiente: 'icon-clock-o text-muted' };
 
 async function cargar() {
 	const [settingsSnap, propSnap, agentes] = await Promise.all([
@@ -137,20 +139,19 @@ async function renderTablero(container) {
 	mount(container,
 		pageHeader('Difusión en portales y redes'),
 		h('p', { class: 'text-muted' }, 'Dónde está publicada cada propiedad. Entra a una propiedad para copiar los textos ya adaptados a cada plataforma y descargar sus fotos.'),
-		h('div', { class: 'row g-3 mb-4' },
-			[['actualizar', 'Anuncios por actualizar', 'warning', 'Cambiaron datos o precio después de publicarlos.'],
-				['baja', 'Anuncios por dar de baja', 'danger', 'La propiedad se vendió, rentó o se despublicó.'],
-				['pendiente', 'Publicaciones pendientes', 'secondary', 'Plataformas donde aún no está la propiedad.']]
-				.map(([k, label, color, ayuda]) => h('div', { class: 'col-md-4' }, h('div', { class: `card stat-card h-100 border-${color}` }, h('div', { class: 'card-body' },
-					h('div', { class: 'stat-value' }, pendientes[k]), h('div', { class: 'stat-label' }, label), h('div', { class: 'small text-muted' }, ayuda)))))),
+		h('div', { class: 'row g-2 mb-3' },
+			[['actualizar', 'Actualizar', 'Cambiaron datos o precio después de publicarlos.'],
+				['baja', 'De baja', 'La propiedad se vendió, rentó o se despublicó.'],
+				['pendiente', 'Faltan', 'Plataformas donde aún no está la propiedad.']]
+				.map(([k, label, ayuda]) => h('div', { class: 'col-4', title: ayuda }, statCard(ICONO[k], label, pendientes[k])))),
 		visibles.length ? cajaTabla(
 			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
-				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center small' }, x.nombre)))),
+				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center text-wrap' }, h('span', { class: `${iconoPortal(x)} d-block mb-1`, 'aria-hidden': 'true' }), x.nombre)))),
 				h('tbody', {}, visibles.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/difusion/${p.id}`; } },
 					h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)),
 					portales.map((x) => {
 						const e = estadoDifusion(p, x.id);
-						return h('td', { class: 'text-center' }, e.id === 'na' ? h('span', { class: 'text-muted' }, '—') : badge(e.texto, COLOR[e.id]));
+						return h('td', { class: 'text-center' }, e.id === 'na' ? null : h('span', { class: ICONO[e.id], role: 'img', title: e.texto, 'aria-label': e.texto }));
 					}))))), { tarjeta: true }) : emptyState('Todavía no hay propiedades publicadas.'),
 		h('div', { class: 'card mt-4' }, h('div', { class: 'card-body small' },
 			h('strong', {}, 'Catálogos automáticos. '),

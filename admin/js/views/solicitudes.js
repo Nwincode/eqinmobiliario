@@ -4,7 +4,7 @@
 // Nada se borra: cada respuesta queda en el historial con quién y cuándo.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, collection, query, where, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
-import { h, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -186,8 +186,7 @@ export async function render(container, [codigo] = []) {
 	};
 	pintar();
 
-	const numero = (valor, texto) => h('div', { class: 'col-4' }, h('div', { class: 'card stat-card h-100' }, h('div', { class: 'card-body' },
-		h('div', { class: 'stat-value' }, valor), h('div', { class: 'stat-label' }, texto))));
+	const numero = (icono, valor, texto) => h('div', { class: 'col-4' }, statCard(icono, texto, valor));
 	const elegir = (campo, titulo, opciones) => h('select', {
 		class: 'form-select form-select-sm w-auto', 'aria-label': titulo, onchange: (e) => { filtro[campo] = e.target.value; pintar(); }
 	}, h('option', { value: '' }, titulo), opciones.map(([v, t]) => h('option', { value: v }, t)));
@@ -202,9 +201,9 @@ export async function render(container, [codigo] = []) {
 		pageHeader('Solicitudes'),
 		admin ? [
 			h('div', { class: 'row g-2 mb-3' },
-				numero(leads.filter((l) => estado(l) === 'pendiente').length, 'Sin responder'),
-				numero(leads.filter((l) => estado(l) === 'confirmada' && l.solicitud.historial?.at(-1)?.cuando.startsWith(hoy().slice(0, 7))).length, 'Confirmadas del mes'),
-				numero(Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Comisión por cobrar')),
+				numero('icon-clock-o', leads.filter((l) => estado(l) === 'pendiente').length, 'Sin responder'),
+				numero('icon-check', leads.filter((l) => estado(l) === 'confirmada' && l.solicitud.historial?.at(-1)?.cuando.startsWith(hoy().slice(0, 7))).length, 'Confirmadas'),
+				numero('icon-money', Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
 				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar'], ['alerta', 'Con alerta']]))

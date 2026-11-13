@@ -159,6 +159,16 @@ export function badge(text, color = 'secondary') {
 	return h('span', { class: `badge text-bg-${color}` }, text);
 }
 
+// Tarjeta de un indicador: ícono + nombre arriba, el número abajo y una nota opcional. Es la única del panel.
+// Varias monedas en `valor` (separadas por « · ») van una por renglón. Con `href` la tarjeta es un enlace.
+export function statCard(icono, label, valor, { nota, href, cls = '' } = {}) {
+	const partes = String(valor).split(' · ');
+	return h(href ? 'a' : 'div', { href, class: `card stat-card h-100 ${cls}` },
+		h('div', { class: 'stat-label' }, h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), label),
+		h('div', { class: 'stat-value' }, partes.length > 1 ? partes.map((v) => h('div', {}, v)) : partes),
+		nota ? h('div', { class: 'stat-nota' }, nota) : null);
+}
+
 // Botón solo de ícono (44 px de toque); con `href` es un enlace.
 export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
 	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
@@ -188,8 +198,8 @@ export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }
 
-// Caja de cualquier tabla del panel: se mueve de lado y de arriba abajo sin salirse de la
-// pantalla (el alto lo pone tablas-alto.js). Con { tarjeta: true } va dentro de una tarjeta.
+// Caja de cualquier tabla del panel: se mueve de lado; el alto lo pone tablas.js (un solo
+// scroll por pantalla). Con { tarjeta: true } va dentro de una tarjeta.
 // Sin tabla devuelve la caja vacía para llenarla después.
 export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
 	const caja = h('div', { class: cls ? `table-responsive ${cls}` : 'table-responsive' }, tabla);

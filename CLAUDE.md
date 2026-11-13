@@ -26,7 +26,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   diseño o deja un hueco, y lo aprovecha (subir datos a la misma línea, juntar filas) sin agregar relleno.
 - Tablas, fichas y listas: se usa el diseño que ya existe en el panel (mismo CSS y mismas piezas),
   salvo que el usuario pida algo distinto para una en particular.
-- Lo que se entiende con un ícono va en ícono, no en texto; en un mismo grupo de datos, todos con
+- Íconos en todo el sitio y el panel (no solo en tablas): dan información visual sin ocupar espacio.
+  Lo que se entiende con un ícono va en ícono, no en texto; en un mismo grupo de datos, todos con
   ícono o todos con texto, no revueltos.
 - Un solo scroll por pantalla: nada de una caja con scroll propio dentro de una página que ya baja.
 - Proporción: la foto pesa más que los controles (selectores, botones).
