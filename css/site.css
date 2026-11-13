@@ -2635,12 +2635,15 @@ a:hover > .eq-ic-fin,
 	font-size: 13px;
 	margin-bottom: 0;
 }
-.renta-supuestos {
-	margin-top: 12px;
+/* Desplegable de línea fina: supuestos de la calculadora y preguntas frecuentes de los listados. */
+.desplegable {
 	border-top: 1px solid var(--eq-line);
 	border-bottom: 1px solid var(--eq-line);
 }
-.renta-supuestos summary {
+.desplegable + .desplegable {
+	border-top: 0;
+}
+.desplegable summary {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -2650,15 +2653,42 @@ a:hover > .eq-ic-fin,
 	font-size: 14px;
 	color: var(--eq-primary);
 }
-.renta-supuestos summary .eq-ic {
+.desplegable summary .eq-ic {
 	color: var(--eq-primary);
 }
-.renta-supuestos[open] {
+.desplegable[open] {
 	padding-bottom: 14px;
 }
-.renta-supuestos summary:focus-visible {
+.desplegable summary:focus-visible {
 	outline: 2px solid var(--eq-focus);
 	outline-offset: 2px;
+}
+.renta-supuestos {
+	margin-top: 12px;
+}
+.faq {
+	max-width: 720px;
+}
+.faq summary {
+	justify-content: space-between;
+	padding: 10px 0;
+	list-style: none;
+}
+.faq summary::-webkit-details-marker {
+	display: none;
+}
+.faq summary::after {
+	content: "+";
+	font-size: 18px;
+	font-weight: 400;
+}
+.faq [open] summary::after {
+	content: "−";
+}
+.faq p {
+	margin: 0;
+	font-size: 14px;
+	color: var(--eq-ink);
 }
 .renta-resultado {
 	margin-top: 16px;
