@@ -57,6 +57,10 @@ const precioAntes = (p) => {
 	return a ? `<s class="precio-antes"><em class="visually-hidden">${TEXTOS[lng(p)].antes}: </em>${esc(formatPrice(a, p.moneda, p.operacion, lng(p)))}</s>` : '';
 };
 // Etiqueta de la operación: «En venta», «En renta» o «Renta vacacional».
+// Casas por noche: la dirección y el mapa exactos no se publican (solo la zona); se dan al confirmar la reserva.
+const porNoche = (p) => p.operacion === 'vacacional';
+// Ancla del cuadro de reserva de la ficha vacacional.
+const RESERVA = '#vac-titulo';
 const enOperacion = (p, t) => (p.operacion === 'vacacional' ? t.enVacacional : p.operacion === 'renta' ? t.enRenta : t.enVenta);
 const opNombre = (p, t) => (p.operacion === 'vacacional' ? t.vacacional : p.operacion === 'renta' ? t.renta : t.venta);
 const tipoLabel = (p) => (lng(p) === 'en' ? TIPOS_EN[p.tipo] : TIPOS[p.tipo]) || p.tipo;
@@ -329,9 +333,11 @@ function footer(ctx) {
 	</footer>`;
 }
 
-function whatsappFloat(ctx, mensaje) {
+// «reserva»: en la ficha de renta vacacional lleva al cuadro de reserva, para que toda consulta quede registrada.
+function whatsappFloat(ctx, mensaje, reserva = false) {
 	const site = ctx.site;
 	if (!site.whatsappFlotante || !site.whatsappFlotante.visible) return '';
+	if (reserva) return `<a href="${RESERVA}" class="wa-float" aria-label="${tr(ctx).vacReservar}"><span class="icon-whatsapp"></span></a>`;
 	const wa = whatsappLink(site.contacto.whatsapp, mensaje || site.whatsappFlotante.mensaje);
 	if (!wa) return '';
 	return `<a href="${esc(wa)}" class="wa-float" target="_blank" rel="noopener" aria-label="${tr(ctx).escribenos}" data-track="Contact"><span class="icon-whatsapp"></span></a>`;
@@ -355,7 +361,7 @@ function layout(ctx, page, body) {
 	${page.bare ? '' : nav(ctx, page.path)}
 	${body}
 	${page.bare ? '' : footer(ctx)}
-	${whatsappFloat(ctx, page.waMensaje)}
+	${whatsappFloat(ctx, page.waMensaje, page.waReserva)}
 	${scripts(page.extraJs)}
 </body>
 </html>
@@ -412,7 +418,7 @@ export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	const data = [
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
-		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()],
+		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${porNoche(p) ? '' : p.direccion} ${tipoLabel(p)}`.toLowerCase()],
 		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos }) => ({ bloqueos, huespedesMax, nochesMin, minimos }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	const t = TEXTOS[lng(p)];
@@ -472,7 +478,9 @@ function agentBox(ctx, agent, property) {
 	if (!agent) return '';
 	const t = tr(ctx);
 	const msg = property ? fmt(t.msgAsesor, { nombre: agent.nombre, titulo: property.titulo }) : '';
-	const wa = whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
+	// Renta vacacional: el WhatsApp lleva al cuadro de reserva (deja la solicitud con fechas y código).
+	const reserva = vacacionalVisible(property);
+	const wa = reserva ? RESERVA : whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
 	return `<div class="d-block agent-box p-4">
 						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy" width="80" height="80"></div>
 						<div class="text">
@@ -480,8 +488,8 @@ function agentBox(ctx, agent, property) {
 							<div class="meta mb-3">${esc(agent.cargo || t.asesorInmobiliario)}</div>
 							${agent.bio ? `<p>${esc(agent.bio)}</p>` : ''}
 							<ul class="list-unstyled d-flex flex-wrap gap-2 mb-0">
-								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a></li>` : ''}
-								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
+								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico"${reserva ? '' : ' target="_blank" rel="noopener" data-track="Contact"'} aria-label="${reserva ? t.vacReservar : 'WhatsApp'}">${ic('whatsapp')}</a></li>` : ''}
+								${agent.email && !reserva ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
 							</ul>
 						</div>
 					</div>`;
@@ -1017,7 +1025,7 @@ function factsList(p) {
 		['layers', t.fNiveles, p.niveles],
 		['calendar', t.fAnio, p.anioConstruccion],
 		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
-		['map-marker', t.fUbicacion, [p.direccion !== p.zona && p.direccion, lugarDe(p)].filter(Boolean).join(', ')],
+		['map-marker', t.fUbicacion, [p.direccion !== p.zona && !porNoche(p) && p.direccion, lugarDe(p)].filter(Boolean).join(', ')],
 		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
@@ -1125,8 +1133,8 @@ function listingLd(ctx, p) {
 				p.parqueos ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Parking spaces' : 'Parqueos', value: p.parqueos } : null,
 				p.m2Terreno ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Lot size (m²)' : 'Terreno (m²)', value: p.m2Terreno } : null
 			].filter(Boolean),
-			geo: geoDe(p.mapa),
-			address: { '@type': 'PostalAddress', streetAddress: p.direccion || undefined, addressLocality: lugarDe(p), addressRegion: 'Guatemala', addressCountry: 'GT' }
+			geo: porNoche(p) ? undefined : geoDe(p.mapa),
+			address: { '@type': 'PostalAddress', streetAddress: (!porNoche(p) && p.direccion) || undefined, addressLocality: lugarDe(p), addressRegion: 'Guatemala', addressCountry: 'GT' }
 		}
 	};
 }
@@ -1260,7 +1268,7 @@ export function propertyPage(ctx, p) {
 	const zona = (ctx.zonas || []).find((z) => z.nombre === p.zona);
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, zona ? { name: zona.nombre, url: (p.operacion === 'vacacional' && zona.urlVac) || zona.url } : null, { name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
 	const video = videoEmbedUrl(p.video);
-	const mapa = p.mapa ? mapEmbedUrl(p.mapa) : '';
+	const mapa = p.mapa && !porNoche(p) ? mapEmbedUrl(p.mapa) : '';
 	// Vendida o rentada: la página sigue en su enlace con el aviso y propiedades parecidas.
 	const cerrada = estadoDe(p).visibilidad === 'cerrada';
 	const esVac = vacacionalVisible(p) && !cerrada;
@@ -1284,7 +1292,7 @@ export function propertyPage(ctx, p) {
 	const tel = telLink(ctx);
 	const barra = `<div class="ficha-barra d-lg-none">
 		<a href="#${esVac ? 'vac-titulo' : 'ficha-form'}" class="btn btn-primary">${ic(cerrada ? 'envelope-o' : 'calendar')}${esVac ? t.vacReservar : cerrada ? t.quieroInfo : t.agendarVisita}</a>
-		${waFicha ? `<a href="${esc(waFicha)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a>` : ''}
+		${waFicha && !esVac ? `<a href="${esc(waFicha)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a>` : ''}
 		${tel ? `<a href="${tel}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.llamar}">${ic('phone')}</a>` : ''}
 		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>
 	</div>`;
@@ -1395,6 +1403,7 @@ ${esVac ? '' : lateral}
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
 		waMensaje: waMsg,
+		waReserva: esVac,
 		extraJs: esVac ? VAC_JS : !cerrada && rentaVisible(p) ? RENTA_JS : ''
 	}, body);
 }
@@ -1402,7 +1411,6 @@ ${esVac ? '' : lateral}
 // Propiedades parecidas que sí se ofrecen: primero misma zona y operación, luego cualquiera de las dos.
 // Las casas por noche solo se sugieren entre ellas: quien busca dónde quedarse no busca comprar, ni al revés.
 function parecidas(ctx, p, n) {
-	const porNoche = (o) => o.operacion === 'vacacional';
 	const puntos = (o) => (o.zona === p.zona ? 2 : 0) + (o.operacion === p.operacion ? 1 : 0) + (o.tipo === p.tipo ? 0.5 : 0);
 	return ctx.properties
 		.filter((o) => o.id !== p.id && porNoche(o) === porNoche(p) && (o.zona === p.zona || o.operacion === p.operacion))

@@ -207,8 +207,8 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
-				// Reserva: se abre el WhatsApp de quien atiende la casa con el mensaje ya escrito.
-				var wa = 'https://wa.me/' + String(form.eqWhatsapp || config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(reserva.whatsapp);
+				// Reserva: se abre el WhatsApp del equipo con el mensaje ya escrito (nunca el del dueño de la casa).
+				var wa = 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(reserva.whatsapp);
 				setStatus(form, reserva.gracias + ' <a class="btn btn-primary btn-sm mt-2" href="' + wa + '" target="_blank" rel="noopener"><span class="icon-whatsapp eq-ic" aria-hidden="true"></span>' + reserva.abrir + '</a>', true);
 				location.href = wa;
 			};

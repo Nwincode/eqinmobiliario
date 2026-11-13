@@ -296,7 +296,7 @@
 				return {
 					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
 					gracias: fmt(t.vacCodigo, { codigo: codigo }),
-					// Mensaje listo para el WhatsApp del socio (o del equipo): casa, fechas, total y código.
+					// Mensaje listo para el WhatsApp del equipo: casa, fechas, total y código.
 					whatsapp: fmt(t.vacWa, {
 						titulo: form.getAttribute('data-property-titulo') || '', codigo: codigo, noches: noches(c.noches),
 						fechas: fDia.format(fechaUTC(estado.llegada)) + ' – ' + fDia.format(fechaUTC(estado.salida)),
@@ -324,8 +324,6 @@
 					if (!res || !res.ocupadas) return;
 					// Casa en pausa: no se puede reservar por ahora.
 					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return; }
-					// WhatsApp de quien atiende la casa (el socio); sin él, el del equipo.
-					if (res.whatsapp && form) form.eqWhatsapp = res.whatsapp;
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
 					if (res.plan && res.plan.base > 0) D.plan = res.plan;
 					if (res.minimos) minimos = res.minimos;
