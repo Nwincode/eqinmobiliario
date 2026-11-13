@@ -195,6 +195,19 @@ export async function loadAll() {
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// Casa por noche que todavía trae la dirección o el mapa en su documento público (guardada antes de que fueran
+// privados): pasan a privado/llegada. Primero se guarda lo privado; después se vacía lo público.
+async function privatizarLlegada(p) {
+	const llegadaRef = doc(db, 'properties', p.id, 'privado', 'llegada');
+	const antes = (await getDoc(llegadaRef)).data() || {};
+	await setDoc(llegadaRef, { direccion: antes.direccion || p.direccion || '', mapa: antes.mapa || p.mapa || '', updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+	const cambios = { direccion: '', mapa: '' };
+	// Un título en inglés armado con la dirección se descarta: se vuelve a traducir solo.
+	if (p.direccion && JSON.stringify(p.en || {}).includes(p.direccion)) cambios.en = {};
+	await updateDoc(doc(db, 'properties', p.id), cambios);
+	Object.assign(p, cambios);
+}
+
 function canEdit(p) {
 	return session.isAdmin || (p.agentId && p.agentId === session.agentId);
 }
@@ -280,6 +293,13 @@ export async function render(container, [id]) {
 	if (id && id !== 'incompletos') return renderEditor(container, id);
 
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
+	const porPrivatizar = props.filter((p) => esVacacional(p) && (p.direccion || p.mapa) && canEdit(p));
+	if (porPrivatizar.length) {
+		try {
+			for (const p of porPrivatizar) await privatizarLlegada(p);
+			await markPending('Dirección de casas por noche: pasó a privada');
+		} catch (err) { console.warn(err); }
+	}
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
@@ -792,7 +812,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 				h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: async () => {
 					if (!(await confirmDialog('Se ordenará la descripción con la plantilla: tu párrafo de presentación queda arriba y debajo se arman Características, Amenidades, Detalles técnicos y lo que no incluye el precio, con los datos de esta ficha. Podés deshacerlo.', { okText: 'Mejorar', danger: false }))) return;
 					anterior = schema.descInput.value;
-					poner(generarDescripcion({ ...d, descripcion: anterior }));
+					poner(generarDescripcion({ ...d, ...(esVacacional(d) ? { direccion: '' } : {}), descripcion: anterior }));
 					deshacer.hidden = false;
 				} }, h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción'),
 				deshacer,
@@ -859,8 +879,6 @@ async function renderEditor(container, id) {
 	let socioGuardado = null;
 	if (!isNew && data.operacion === 'vacacional') {
 		try { const ps = await getDoc(privRef); socioGuardado = ps.exists() ? ps.data() : null; } catch { socioGuardado = null; }
-		const ll = (await getDoc(llegadaRef).catch(() => null))?.data();
-		if (ll) Object.assign(data, { direccion: ll.direccion || '', mapa: ll.mapa || '' });
 	}
 
 	if (!isNew && !canEdit(data)) {
@@ -874,6 +892,12 @@ async function renderEditor(container, id) {
 		return;
 	}
 
+	// Sin «catch»: si no se pudiera leer, es mejor el error que un formulario vacío que al guardar borre la dirección.
+	if (!isNew && data.operacion === 'vacacional') {
+		const ll = (await getDoc(llegadaRef)).data();
+		if (ll) Object.assign(data, { direccion: ll.direccion || '', mapa: ll.mapa || '' });
+	}
+	let eraVacacional = data.operacion === 'vacacional';
 	// Propietario ya asignado que no está en mi lista (lo lleva otro asesor): se muestra y se respeta, sin poder cambiarlo.
 	const ajeno = Boolean(data.propietarioId) && !propietarios.some((p) => p.id === data.propietarioId);
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
@@ -1026,7 +1050,8 @@ async function renderEditor(container, id) {
 			if (!isNew) await guardarLlegada();
 			await setDoc(ref, d);
 			if (isNew) await guardarLlegada();
-			if (!llegada && data.operacion === 'vacacional') await deleteDoc(llegadaRef).catch(() => {});
+			if (!llegada && eraVacacional) await deleteDoc(llegadaRef).catch(() => {});
+			eraVacacional = Boolean(llegada);
 			if (esVacacional(d)) {
 				await setDoc(privRef, {
 					precioBase: Number(socio.precioBase) || 0, precioFinde: Number(socio.precioFinde) || 0,

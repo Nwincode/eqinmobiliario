@@ -93,8 +93,8 @@ paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle R
 // La dirección y el mapa no están en ningún archivo del sitio ni en lo que la base le da a quien no tiene sesión.
 {
 	const EXACTO = /Calle Real 12|13\.8912/;
-	// grep sale con 1 cuando no encuentra nada (lo esperado).
-	let enSitio = [];
+	// grep sale con 1 cuando no encuentra nada (lo esperado); la carpeta tiene que existir.
+	let enSitio = [readFileSync(`${DIR}/sitio/dist/index.html`, 'utf8') ? '' : 'sin sitio'].filter(Boolean);
 	try { enSitio = execFileSync('grep', ['-rlE', 'Calle Real 12|13\\.8912', `${DIR}/sitio/dist`], { encoding: 'utf8' }).trim().split('\n').filter(Boolean); } catch { /* sin coincidencias */ }
 	const base = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
 	const publica = await (await fetch(`${base}/properties/${idCasa}`)).text();
@@ -103,6 +103,16 @@ paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle R
 	paso('La base no da la dirección ni el mapa a quien no tiene sesión', /Casa de prueba|titulo/.test(publica) && !EXACTO.test(publica) && privada.status === 403, `privada: ${privada.status}`);
 	await ir(admin.p, `#/propiedades/${idCasa}`);
 	paso('El administrador sigue viendo la dirección y el mapa en la ficha de la casa', /Calle Real 12/.test(await campo(admin.p, 'direccion').inputValue()) && /13\.8912/.test(await campo(admin.p, 'mapa').inputValue()));
+	// Casa guardada antes de este cambio (dirección y mapa en su documento público): pasa a privada sola al abrir Propiedades.
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, sv = (v) => ({ stringValue: v });
+	await fetch(`${base}/properties/casa-heredada`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: { titulo: sv('Casa heredada'), operacion: sv('vacacional'), direccion: sv('Avenida Vieja 7'), mapa: sv('https://maps.google.com/?q=14.1111,-90.2222'), publicado: { booleanValue: false } } }) });
+	await ir(admin.p, '#/propiedades', 4000);
+	const heredada = (await (await fetch(`${base}/properties/casa-heredada`, { headers: dueno })).json()).fields || {};
+	const suLlegada = (await (await fetch(`${base}/properties/casa-heredada/privado/llegada`, { headers: dueno })).json()).fields || {};
+	paso('Una casa guardada antes pasa su dirección y su mapa a privado sola', heredada.direccion?.stringValue === '' && heredada.mapa?.stringValue === ''
+		&& suLlegada.direccion?.stringValue === 'Avenida Vieja 7' && /14\.1111/.test(suLlegada.mapa?.stringValue || ''));
+	await fetch(`${base}/properties/casa-heredada/privado/llegada`, { method: 'DELETE', headers: dueno });
+	await fetch(`${base}/properties/casa-heredada`, { method: 'DELETE', headers: dueno });
 }
 const dias = () => cliente.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await dias().nth(3).click();
@@ -171,7 +181,8 @@ paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(tra
 await cliente.p.reload();
 await espera(2500);
 const fin = await cliente.p.locator('.vac-chat-mensajes').innerText();
-paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin));
+paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin)
+	&& /13\.8912/.test(await cliente.p.locator('.vac-chat-mensajes a[href*="maps"]').getAttribute('href').catch(() => '')));
 paso('Sin scroll de lado en «Tu reserva» (390 px)', await cliente.p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
 await cliente.p.screenshot({ path: `${CAPTURAS}/cliente-reserva.png`, fullPage: true });
 

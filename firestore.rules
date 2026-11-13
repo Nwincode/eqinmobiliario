@@ -395,8 +395,8 @@ service cloud.firestore {
                   // Ni un carácter distinto de lo guardado: así el socio no cuela su contacto en la dirección.
                   && (exists(llegadaDe())
                     ? (request.resource.data.keys().hasAll(['direccion', 'mapa'])
-                        && request.resource.data.direccion == get(llegadaDe()).data.direccion
-                        && request.resource.data.mapa == get(llegadaDe()).data.mapa)
+                        && request.resource.data.direccion == get(llegadaDe()).data.get('direccion', '')
+                        && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
