@@ -2606,16 +2606,24 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .cot-sel-acciones {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-end;
+	align-items: stretch;
 	flex: none;
 }
 .cot-sel-accion {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
 	min-height: 36px;
 	padding: 0 10px;
 	white-space: nowrap;
 	font-weight: 600;
 	color: var(--eq-primary);
 	border: 0;
+}
+.cot-sel-accion > span {
+	flex: none;
+	width: 18px;
+	text-align: center;
 }
 .cot-sel-accion:hover,
 .cot-sel-accion:focus-visible {
