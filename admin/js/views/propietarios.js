@@ -15,8 +15,13 @@ import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendien
 // Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
 // Si la casa es de otro asesor, Firestore no deja tocarla y se sigue con las demás.
 function vincularCasas(id, ahora = [], antes = []) {
-	const cambios = [...ahora.map((p) => [p, id]), ...antes.filter((p) => !ahora.includes(p)).map((p) => [p, ''])];
-	return Promise.all(cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})));
+	const quitadas = antes.filter((p) => !ahora.includes(p));
+	const cambios = [...ahora.map((p) => [p, id]), ...quitadas.map((p) => [p, ''])];
+	return Promise.all([
+		...cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})),
+		// El acuerdo era con este dueño: una casa que deja de ser suya no se lo lleva al siguiente.
+		...quitadas.map((p) => deleteDoc(doc(db, 'properties', p, 'privado', 'acuerdo')).catch(() => {}))
+	]);
 }
 
 // Ficha corta de una casa (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
@@ -113,7 +118,11 @@ async function migrarAcuerdos(lista, propiedades, acuerdos) {
 			for (const c of casas) {
 				if (acuerdos[c.id] !== null || !(session.isAdmin || (c.agentId && c.agentId === session.agentId))) continue;
 				const heredado = acuerdoHeredado(p, c.operacion);
-				await setDoc(doc(db, 'properties', c.id, 'privado', 'acuerdo'), { ...heredado, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+				const destino = doc(db, 'properties', c.id, 'privado', 'acuerdo');
+				// Se vuelve a mirar justo antes: si alguien lo guardó mientras tanto, se respeta.
+				const ya = await getDoc(destino);
+				if (ya.exists()) { acuerdos[c.id] = ya.data(); continue; }
+				await setDoc(destino, { ...heredado, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 				acuerdos[c.id] = heredado;
 			}
 			const veoTodas = (p.propiedades || []).every((x) => propiedades.some((c) => c.id === x.propertyId));
@@ -143,7 +152,7 @@ async function renderLista(container) {
 	// Lo que gana la empresa con cada quien, según lo que tiene: venta (%), renta (meses) y por noche (margen de la casa).
 	const comisionDe = (p) => {
 		const ops = operacionesDe(p, propiedades);
-		const acordado = (campo, op) => [...new Set(casasDe(p, propiedades).filter((c) => c.operacion === op).map((c) => acuerdoDe(acuerdos[c.id], p, op)[campo]).filter(Boolean).map(Number))];
+		const acordado = (campo, op) => [...new Set(casasDe(p, propiedades).filter((c) => c.operacion === op).map((c) => acuerdoDe(acuerdos[c.id], p, op)[campo]).filter((v) => v !== undefined && v !== '').map(Number))];
 		const pct = acordado('comisionPct', 'venta'), meses = acordado('comisionRentaMeses', 'renta');
 		return [
 			ops.includes('venta') ? `Venta ${pct.length ? pct.join(' y ') : reglas.comisionVentaPct} %` : '',
@@ -186,7 +195,7 @@ async function renderEditor(container, id) {
 		return;
 	}
 	// El régimen acordado con la agencia es pequeño contribuyente (5 %) salvo que se indique otro.
-	const data = { comisionRegimen: 'pequeno', ...(nuevo ? { exclusiva: false, agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data()) };
+	const data = nuevo ? { agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data();
 	const acuerdos = await loadAcuerdos(casasDe({ id: ref.id, ...data }, propiedades));
 	// Ficha de antes con «tipo: socio»: pasa a propietario; lo de socio lo dicen sus casas.
 	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
@@ -265,7 +274,7 @@ async function renderEditor(container, id) {
 	// La exclusiva de cada casa, de su acuerdo (o de lo que quedó en la persona, mientras no se pase).
 	function exclusivaDe(p) {
 		const acuerdo = acuerdoDe(acuerdos[p.id], data, p.operacion);
-		return acuerdo.exclusiva ? [' ', estadoExclusiva(acuerdo)] : [];
+		return [acuerdo.exclusiva ? [' ', estadoExclusiva(acuerdo)] : null, acuerdo.contrato ? [' ', badge('Con contrato', 'light')] : null];
 	}
 	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
 	function pintarCasa(el, item) {

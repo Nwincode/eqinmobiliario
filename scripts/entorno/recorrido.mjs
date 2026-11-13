@@ -395,8 +395,19 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await poner('properties/leg-propia/privado/acuerdo', { exclusiva: bv(false), comisionPct: nv(9) });
 		await poner('propietarios/legado-dos', { nombre: sv('Dueña con acuerdo de antes'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-venta', 'leg-renta', 'leg-propia']), ...viejo });
 		await poner('propietarios/legado-solo', { nombre: sv('Dueño de antes sin casas'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista([]), exclusiva: bv(true), exclusivaFin: sv(pronto), comisionPct: nv(3) });
+		// Dos casos delicados: (1) el asesor guarda una casa suya cuyo dueño lleva otro (no lo ve) ANTES de que el
+		// acuerdo de antes haya pasado: no debe dejar un acuerdo vacío que tape el del dueño; (2) una casa enlazada
+		// solo desde la lista del dueño (sin «propietarioId») no pierde su acuerdo al guardarla.
+		const casa = (extra) => ({ tipo: sv('casa'), moneda: sv('USD'), zona: sv('Zona 14'), ciudad: sv('Guatemala'), descripcion: sv('REGISTRO DE PRUEBA.'), publicado: bv(false), precio: nv(100000), ...extra });
+		await poner('properties/leg-ajena', casa({ titulo: sv('Casa de dueño ajeno'), slug: sv('leg-ajena'), codigo: sv('LEG-1'), operacion: sv('venta'), propietarioId: sv('legado-ajeno'), agentId: sv('asesor-prueba') }));
+		await poner('propietarios/legado-ajeno', { nombre: sv('Dueño que lleva otro'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-ajena']), exclusiva: bv(true), exclusivaFin: sv('2027-05-05'), comisionPct: nv(6) });
+		await poner('properties/leg-lista', casa({ titulo: sv('Casa enlazada solo en la lista'), slug: sv('leg-lista'), codigo: sv('LEG-2'), operacion: sv('venta') }));
+		await poner('properties/leg-lista/privado/acuerdo', { exclusiva: bv(false), comisionPct: nv(7) });
+		const guardarCasa = async (persona, id) => { await ir(persona.p, `#/propiedades/${id}`); await campo(persona.p, 'zona').fill('Zona 15'); await guardar(persona.p); return avisos(persona.p); };
+		const avisoAsesor = await guardarCasa(asesor, 'leg-ajena');
+		const ajenaAntes = await fetch(`${FS}/properties/leg-ajena/privado/acuerdo`, { headers: dueno });
+		const guardoAsesor = (await (await fetch(`${FS}/properties/leg-ajena`, { headers: dueno })).json()).fields?.zona?.stringValue === 'Zona 15';
 		await ir(admin.p, '#/propietarios', 6000);
-		const aviso = await admin.p.locator('.alert-warning').first().innerText().catch(() => '');
 		const f = async (ruta) => (await leer(ruta)).fields || {};
 		const num = (x) => Number(x?.doubleValue ?? x?.integerValue ?? NaN);
 		const [venta, renta, propia, dos, solo] = await Promise.all([f('properties/leg-venta/privado/acuerdo'), f('properties/leg-renta/privado/acuerdo'), f('properties/leg-propia/privado/acuerdo'), f('propietarios/legado-dos'), f('propietarios/legado-solo')]);
@@ -405,6 +416,13 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('No se escribe encima de un inmueble que ya tenía su acuerdo', num(propia.comisionPct) === 9 && propia.exclusiva?.booleanValue === false && !('exclusivaFin' in propia));
 		paso('De la persona se borra lo que ya pasó a sus inmuebles; quien no tiene casas conserva lo suyo', !('exclusiva' in dos) && !('comisionPct' in dos) && !('impuestoVenta' in dos) && dos.nombre?.stringValue === 'Dueña con acuerdo de antes'
 			&& solo.exclusiva?.booleanValue === true && num(solo.comisionPct) === 3, Object.keys(dos).join());
+		const [ajena, ajeno] = await Promise.all([f('properties/leg-ajena/privado/acuerdo'), f('propietarios/legado-ajeno')]);
+		paso('Guardar una casa cuyo dueño no veo no tapa su acuerdo: después pasa completo al inmueble', guardoAsesor && ajenaAntes.status === 404 && num(ajena.comisionPct) === 6 && ajena.exclusivaFin?.stringValue === '2027-05-05' && !('comisionPct' in ajeno), `${ajenaAntes.status} ${avisoAsesor}`);
+		const avisoAdmin = await guardarCasa(admin, 'leg-lista');
+		const enLista = await f('properties/leg-lista/privado/acuerdo');
+		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo', num(enLista.comisionPct) === 7, avisoAdmin);
+		await ir(admin.p, '#/propietarios', 5000);
+		const aviso = await admin.p.locator('.alert-warning').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
 		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
@@ -413,7 +431,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
 		await ir(admin.p, '#/propietarios/legado-solo');
 		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta \d\d\/\d\d\/\d{4}/.test(await admin.p.locator('.alert-info', { hasText: 'Acuerdo anotado' }).innerText().catch(() => '')));
-		for (const r of ['properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
+		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
 	}
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
 	await ir(admin.p, '#/propietarios/nuevo');

@@ -39,7 +39,8 @@ export function diasExclusiva(acuerdo, ahora = Date.now(), zona = '') {
 // Exclusivas vencidas o por vencer en «dias» días, una por inmueble, la que vence antes primero.
 // casas: [{ id, titulo, operacion, propietarioId, agentId }]; acuerdos: { [id]: acuerdo propio | null }; duenos: lista.
 export function exclusivasPorVencer(casas, acuerdos, duenos, { ahora = Date.now(), dias = 30, zona = '' } = {}) {
-	const dueno = (c) => duenos.find((d) => d.id === c.propietarioId || (d.propiedades || []).some((x) => x.propertyId === c.id)) || null;
+	// Manda el dueño que la casa dice tener; si no lo dice, el que la tiene en su lista.
+	const dueno = (c) => duenos.find((d) => c.propietarioId && d.id === c.propietarioId) || duenos.find((d) => (d.propiedades || []).some((x) => x.propertyId === c.id)) || null;
 	return casas.map((c) => {
 		const d = dueno(c), acuerdo = acuerdoDe(acuerdos[c.id], d, c.operacion);
 		return { casa: c, dueno: d, acuerdo, dias: diasExclusiva(acuerdo, ahora, zona) };

@@ -34,6 +34,13 @@ const porVencer = exclusivasPorVencer(casas, { v1: { exclusiva: true, exclusivaF
 assert.deepEqual(porVencer.map((x) => [x.casa.id, x.dueno.id, x.dias]), [['r1', 'd1', 19]]);
 assert.equal(exclusivasPorVencer(casas, { v1: { exclusiva: true, exclusivaFin: '2026-11-20' }, r1: {} }, [dueno], { ahora: AHORA, zona: '-06:00' }).length, 1);
 
+// Un acuerdo que no se pudo leer (undefined) usa lo heredado, igual que uno que no existe (null); 0 % es un acuerdo, no un vacío
+assert.equal(exclusivasPorVencer(casas, { v1: undefined, r1: undefined }, [dueno], { ahora: AHORA, zona: '-06:00' }).length, 2);
+assert.deepEqual(acuerdoDe({ comisionPct: 0 }, dueno, 'venta'), { comisionPct: 0 });
+// El dueño que la casa dice tener manda sobre quien solo la tiene en su lista
+const otro = { id: 'd2', nombre: 'Otro', exclusiva: true, exclusivaFin: '2026-11-20', propiedades: [{ propertyId: 'v1' }] };
+assert.equal(exclusivasPorVencer([casas[0]], { v1: null }, [otro, dueno], { ahora: AHORA, zona: '-06:00' })[0].dueno.id, 'd1');
+
 // Qué se puede borrar de la persona: solo lo ya copiado en todos los inmuebles donde aplica
 const dosCasas = [{ id: 'v1', operacion: 'venta' }, { id: 'r1', operacion: 'renta' }];
 assert.deepEqual(legadoSobrante(dueno, dosCasas, []), []);

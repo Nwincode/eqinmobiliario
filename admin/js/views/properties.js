@@ -18,7 +18,7 @@ import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
-import { acuerdoDe, camposDelAcuerdo } from '../acuerdo.js';
+import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
 import '/js/calc-vacacional.js';
 
@@ -79,7 +79,7 @@ export const faltaIngles = (d) => {
 const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
 export async function traducirEn(d) {
 	const datos = { ...d };
-	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
+	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio; delete datos.acuerdo;
 	delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
 	const r = await pedirIA('traducir', { propiedad: datos });
 	return {
@@ -950,14 +950,40 @@ async function renderEditor(container, id) {
 	// Acuerdo de este inmueble. Si todavía no tiene el suyo, se muestra lo que quedó en la ficha de su dueño
 	// (datos de antes) y al guardar pasa a ser de este inmueble.
 	const acuerdoRef = doc(db, 'properties', ref.id, 'privado', 'acuerdo');
-	const acuerdoPropio = isNew ? null : (await getDoc(acuerdoRef)).data() || null;
+	let acuerdoPropio = isNew ? null : (await getDoc(acuerdoRef)).data() || null;
 	const acuerdoInicial = acuerdoDe(acuerdoPropio, propietarios.find((p) => p.id === data.propietarioId), data.operacion);
+	// Si alguien cambió algo del bloque en esta visita (no basta comparar valores: el formulario pone los suyos por defecto).
+	let acuerdoTocado = false;
+	// Qué se guarda como acuerdo de este inmueble: un objeto, 'borrar' o null (no tocar lo que haya).
+	//  - Sin dueño: se borra solo si lo tenía y se lo quité aquí. Una casa enlazada solo desde la lista del dueño
+	//    no tiene «propietarioId»: su acuerdo no se toca.
+	//  - Cambió de dueño y no toqué el bloque: el acuerdo del dueño anterior no pasa al nuevo.
+	//  - Sin acuerdo propio y sin tocar: se guarda lo que hereda de su dueño para la operación de AHORA; si a ese
+	//    dueño no lo veo (lo lleva otro asesor), no escribo nada, para no tapar con un acuerdo vacío lo que él tiene.
+	//  - Lo que no aplica a la operación de ahora se conserva guardado (no se muestra): volver a venta no lo pierde.
+	function acuerdoPorGuardar(d, f) {
+		if (!d.propietarioId) return data.propietarioId ? 'borrar' : null;
+		const otroDueno = Boolean(data.propietarioId) && data.propietarioId !== d.propietarioId;
+		const previo = otroDueno ? null : acuerdoPropio;
+		const dueno = propietarios.find((p) => p.id === d.propietarioId);
+		const heredado = previo ? {} : acuerdoHeredado(dueno, d.operacion);
+		if (!previo && !acuerdoTocado) return dueno && Object.keys(heredado).length ? heredado : otroDueno && acuerdoPropio ? 'borrar' : null;
+		const escrito = Object.fromEntries(camposDelAcuerdo(d.operacion).map((k) => [k, f[k] ?? '']));
+		escrito.exclusiva = Boolean(escrito.exclusiva);
+		if (!escrito.exclusiva) Object.assign(escrito, { exclusivaInicio: '', exclusivaFin: '' });
+		const guardado = Object.fromEntries(CAMPOS_ACUERDO.filter((k) => previo?.[k] !== undefined).map((k) => [k, previo[k]]));
+		// Sin acuerdo propio, lo heredado llena lo que el formulario trae vacío (p. ej. al cambiar de operación).
+		const base = Object.fromEntries(Object.entries(heredado).filter(([k]) => !k.startsWith('exclusiva') && escrito[k] === ''));
+		return { ...guardado, ...escrito, ...base };
+	}
 	// Propietario ya asignado que no está en mi lista (lo lleva otro asesor): se muestra y se respeta, sin poder cambiarlo.
 	const ajeno = Boolean(data.propietarioId) && !propietarios.some((p) => p.id === data.propietarioId);
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
+	form.el.addEventListener('input', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
+	form.el.addEventListener('change', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
 	form.el.querySelector('input')?.addEventListener('input', (e) => {
@@ -1027,10 +1053,8 @@ async function renderEditor(container, id) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
-		// El acuerdo con el dueño tampoco (privado/acuerdo): solo lo que aplica a esta operación.
-		const acuerdo = Object.fromEntries(camposDelAcuerdo(d.operacion).map((k) => [k, d.acuerdo?.[k] ?? '']));
-		acuerdo.exclusiva = Boolean(acuerdo.exclusiva);
-		if (!acuerdo.exclusiva) Object.assign(acuerdo, { exclusivaInicio: '', exclusivaFin: '' });
+		// El acuerdo con el dueño tampoco (privado/acuerdo).
+		const delFormulario = d.acuerdo || {};
 		delete d.acuerdo;
 		let llegada = null;
 		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
@@ -1112,9 +1136,13 @@ async function renderEditor(container, id) {
 			await setDoc(ref, d);
 			if (isNew) await guardarLlegada();
 			if (!llegada && eraVacacional) await deleteDoc(llegadaRef).catch(() => {});
-			// Sin dueño no hay acuerdo. (Va después de guardar la casa: su regla la lee.)
-			if (d.propietarioId) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
-			else if (acuerdoPropio) await deleteDoc(acuerdoRef);
+			// (Va después de guardar la casa: su regla la lee.)
+			const acuerdo = acuerdoPorGuardar(d, delFormulario);
+			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
+			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			// Lo recién guardado es el punto de partida de un segundo «Guardar» sin recargar.
+			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
+			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
 			if (esVacacional(d)) {
 				await setDoc(privRef, {
