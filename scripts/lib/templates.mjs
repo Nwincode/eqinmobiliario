@@ -1852,13 +1852,15 @@ export function reservaPage(ctx) {
 							<header class="vac-chat-cabeza">
 								<a class="vac-chat-foto" data-out="casa" hidden><img alt="" width="96" height="72" loading="lazy"></a>
 								<div>
-									<p class="vac-chat-sello" data-out="estado">${ic('clock-o')}${ic('check-circle')}${ic('ban')}<span></span></p>
+									<p class="vac-chat-sello" data-out="estado">${ic('clock-o')}${ic('check-circle')}${ic('ban')}${ic('money')}<span></span></p>
 									<h2 class="h5 mb-0" data-out="titulo"></h2>
 								</div>
 								<ul class="vac-chat-datos">${dato('hashtag', 'codigo')}${dato('calendar', 'fechas')}${dato('moon-o', 'noches')}${dato('users', 'huespedes')}${dato('money', 'total')}</ul>
 							</header>
 							<ol class="vac-chat-mensajes" aria-live="polite"></ol>
 							<form class="vac-chat-form">
+								<input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+								<button type="button" class="btn btn-outline-primary btn-ico vac-chat-adjuntar">${ic('camera')}</button>
 								<textarea class="form-control" rows="2" maxlength="1000" required></textarea>
 								<button type="submit" class="btn btn-primary btn-ico">${ic('paper-plane')}</button>
 							</form>

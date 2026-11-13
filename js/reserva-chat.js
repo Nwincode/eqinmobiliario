@@ -44,6 +44,10 @@
 		return out;
 	}
 	function enlace(token) { return location.origin + '/reserva/#' + token; }
+	// Avisa por correo a quien le toca leer (lo decide el servidor con lo guardado). Si falla, el mensaje ya quedó.
+	function avisar(token) {
+		try { fetch('/api/aviso-chat', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: token }) }).catch(function () {}); } catch (e) { /* sin fetch keepalive */ }
+	}
 
 	// Abre la conversación de una solicitud recién enviada. Devuelve el token (promesa).
 	function crear(lead, r) {
@@ -62,7 +66,7 @@
 		});
 	}
 
-	window.EQChat = { crear: crear, enlace: enlace };
+	window.EQChat = { crear: crear, enlace: enlace, avisar: avisar };
 
 	// ------------------------------------------------------------ Página /reserva/
 	var caja = document.getElementById('reserva-chat');
@@ -98,10 +102,13 @@
 		var poner = function (k, v) { cuerpo.querySelector('[data-out="' + k + '"]').textContent = v; };
 		poner('titulo', c.propertyTitulo);
 		// Estado de la solicitud: lo marca quien la responde en el panel.
-		var estado = { confirmada: 'Confirmada', no: 'No', cancelada: 'Cancelada' }[c.estado] || 'Pendiente';
 		var sello = cuerpo.querySelector('[data-out="estado"]');
-		sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
-		sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
+		function ponerEstado(valor) {
+			var estado = { confirmada: 'Confirmada', pagada: 'Pagada', no: 'No', cancelada: 'Cancelada' }[valor] || 'Pendiente';
+			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
+			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
+		}
+		ponerEstado(c.estado);
 		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).
 		var casa = cuerpo.querySelector('[data-out="casa"]');
 		if (/^https:\/\//.test(c.foto || '')) {
@@ -127,21 +134,81 @@
 		cuerpo.hidden = false;
 
 		var QUIEN = { cliente: t.vacChatTu, socio: t.vacChatSocio, equipo: t.vacChatEquipo };
-		var pintados = -1;
-		function pintar(mensajes) {
-			if (mensajes.length === pintados) return;
-			pintados = mensajes.length;
+		var adjuntar = form.querySelector('.vac-chat-adjuntar');
+		var archivo = form.querySelector('input[type=file]');
+		adjuntar.setAttribute('aria-label', t.vacChatFoto);
+		adjuntar.title = t.vacChatFoto;
+		var FOTOS = 'https://firebasestorage.googleapis.com/v0/b/' + config.storageBucket + '/o/';
+		function alerta(texto) { aviso.textContent = texto || ''; aviso.className = 'vac-chat-aviso' + (texto ? ' vac-chat-alerta' : ''); }
+
+		// Datos de llegada: salen de la ficha de la casa (dirección, mapa, cómo llegar y horarios), no de un texto libre.
+		var casaDatos = null;
+		function llegada(li) {
+			var pinta = function (p) {
+				var v = (p.vacacional && p.vacacional.mapValue && p.vacacional.mapValue.fields) || {};
+				var txt = function (x) { return (x && x.stringValue) || ''; };
+				if (txt(p.direccion)) li.appendChild(el('p', '', txt(p.direccion)));
+				if (/^https:\/\//.test(txt(p.mapa))) {
+					var a = el('a', '', t.vacChatMapa);
+					a.href = txt(p.mapa); a.target = '_blank'; a.rel = 'noopener';
+					li.appendChild(a);
+				}
+				if (txt(v.comoLlegar)) li.appendChild(el('p', '', txt(v.comoLlegar)));
+				li.appendChild(el('p', '', fmt(t.vacChatHorario, { entrada: txt(v.checkIn) || '15:00', salida: txt(v.checkOut) || '11:00' })));
+			};
+			if (casaDatos) return pinta(casaDatos);
+			pedir(RAIZ + '/properties/' + c.propertyId).then(function (doc) { casaDatos = doc.fields || {}; pinta(casaDatos); }).catch(function () {});
+		}
+
+		var firma = '';
+		function pintar(mensajes, vistoOtros) {
+			// «Visto» va bajo mi último mensaje cuando el anfitrión o el equipo ya abrieron la conversación después.
+			var ultimoMio = mensajes.filter(function (m) { return m.de === 'cliente'; }).pop();
+			var visto = Boolean(ultimoMio && vistoOtros && ultimoMio.createdAt && vistoOtros >= ultimoMio.createdAt);
+			var nueva = mensajes.length + '|' + visto;
+			if (nueva === firma) return;
+			firma = nueva;
 			if (!mensajes.length) { lista.replaceChildren(el('li', 'vac-chat-vacio', t.vacChatVacio)); return; }
-			lista.replaceChildren.apply(lista, mensajes.map(function (m) {
-				var li = el('li', 'vac-chat-msj vac-chat-' + (m.de === 'cliente' ? 'mio' : 'otro') + (m.tipo === 'pago' ? ' vac-chat-pago' : ''));
-				if (m.tipo === 'pago') li.appendChild(el('strong', '', t.vacChatPago));
+			var filas = [];
+			mensajes.forEach(function (m) {
+				var li = el('li', 'vac-chat-msj vac-chat-' + (m.de === 'cliente' ? 'mio' : 'otro') + (m.tipo === 'pago' || m.tipo === 'llegada' ? ' vac-chat-pago' : ''));
+				var titulo = { pago: t.vacChatPago, llegada: t.vacChatLlegada, foto: t.vacChatComprobante }[m.tipo];
+				if (titulo) li.appendChild(el('strong', '', titulo));
 				li.appendChild(el('span', 'vac-chat-quien', (QUIEN[m.de] || QUIEN.equipo) + (m.createdAt ? ' · ' + hora.format(new Date(m.createdAt)) : '')));
-				li.appendChild(el('p', '', m.texto));
-				return li;
-			}));
+				if (m.tipo === 'llegada') llegada(li);
+				else if (m.tipo === 'foto') {
+					if (m.texto.indexOf(FOTOS) === 0) { var img = el('img'); img.src = m.texto; img.alt = t.vacChatComprobante; img.loading = 'lazy'; li.appendChild(img); }
+				} else li.appendChild(el('p', '', m.texto));
+				filas.push(li);
+				if (visto && m === ultimoMio) filas.push(el('li', 'vac-chat-visto', t.vacChatVisto));
+			});
+			lista.replaceChildren.apply(lista, filas);
 		}
 		function cargar() {
-			return pedir(RAIZ + '/chats/' + token + '/mensajes?pageSize=200&orderBy=createdAt').then(function (res) { pintar((res.documents || []).map(plano)); });
+			return Promise.all([
+				pedir(RAIZ + '/chats/' + token + '/mensajes?pageSize=300&orderBy=createdAt'),
+				pedir(RAIZ + '/chats/' + token)
+			]).then(function (res) {
+				var mensajes = (res[0].documents || []).map(plano), ahora = plano(res[1]);
+				ponerEstado(ahora.estado);
+				var vistoOtros = [ahora.vistoSocio, ahora.vistoEquipo].filter(Boolean).sort().pop() || '';
+				pintar(mensajes, vistoOtros);
+				// Marco como visto lo que me escribieron (solo si hay algo nuevo de ellos).
+				var ultimo = mensajes[mensajes.length - 1];
+				if (ultimo && ultimo.de !== 'cliente' && !document.hidden && (!ahora.vistoCliente || ahora.vistoCliente < ultimo.createdAt)) {
+					pedir(RAIZ + ':commit', { writes: [{
+						update: { name: RAIZ + '/chats/' + token, fields: {} }, updateMask: { fieldPaths: [] }, currentDocument: { exists: true },
+						updateTransforms: [{ fieldPath: 'vistoCliente', setToServerValue: 'REQUEST_TIME' }]
+					}] }).catch(function () {});
+				}
+			});
+		}
+		function mandar(campos) {
+			boton.disabled = true; adjuntar.disabled = true;
+			return crearDoc('chats/' + token + '/mensajes/' + alAzar(20), campos)
+				.then(function () { alerta(''); avisar(token); return cargar(); })
+				.catch(function () { alerta(t.vacChatFallo); })
+				.then(function () { boton.disabled = false; adjuntar.disabled = false; });
 		}
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {
@@ -152,15 +219,25 @@
 			var texto = campo.value.trim();
 			if (!texto) return;
 			// Teléfonos, correos y enlaces no pasan: los datos de contacto se entregan al confirmar la reserva.
-			if (V.tieneContacto(texto)) { aviso.textContent = t.vacChatBloqueo; aviso.className = 'vac-chat-aviso vac-chat-alerta'; return; }
-			boton.disabled = true;
-			crearDoc('chats/' + token + '/mensajes/' + alAzar(20), { de: str('cliente'), texto: str(texto) })
-				.then(function () { campo.value = ''; aviso.textContent = ''; aviso.className = 'vac-chat-aviso'; return cargar(); })
-				.catch(function () { aviso.textContent = t.vacChatFallo; aviso.className = 'vac-chat-aviso vac-chat-alerta'; })
-				.then(function () { boton.disabled = false; });
+			if (V.tieneContacto(texto)) return alerta(t.vacChatBloqueo);
+			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (!aviso.textContent) campo.value = ''; });
 		});
-		cargar().catch(function () { pintar([]); });
-		// Mensajes nuevos: se revisa cada 20 s mientras la página está a la vista.
-		setInterval(function () { if (!document.hidden) cargar().catch(function () {}); }, 20000);
+		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
+		adjuntar.addEventListener('click', function () { archivo.click(); });
+		archivo.addEventListener('change', function () {
+			var f = archivo.files[0];
+			archivo.value = '';
+			if (!f) return;
+			if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size >= 5 * 1024 * 1024) return alerta(t.vacChatFotoGrande);
+			var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + f.type.split('/')[1];
+			adjuntar.disabled = true;
+			fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': f.type }, body: f })
+				.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+				.then(function (r) { return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(FOTOS + encodeURIComponent(nombre) + '?alt=media&token=' + r.downloadTokens) }); })
+				.catch(function () { alerta(t.vacChatFallo); adjuntar.disabled = false; });
+		});
+		cargar().catch(function () { pintar([], ''); });
+		// Mensajes nuevos: se revisa cada 10 s mientras la página está a la vista.
+		setInterval(function () { if (!document.hidden) cargar().catch(function () {}); }, 10000);
 	}, sinReserva);
 })();

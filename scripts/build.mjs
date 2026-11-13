@@ -636,6 +636,7 @@ async function main() {
 		publicConfig: {
 			projectId: config.firebase.projectId || '',
 			apiKey: config.firebase.apiKey || '',
+			storageBucket: config.firebase.storageBucket || '',
 			whatsapp: site.contacto.whatsapp || '',
 			adsLead: site.tracking.adsId && site.tracking.adsLeadLabel ? `${site.tracking.adsId}/${site.tracking.adsLeadLabel}` : '',
 			adsContact: site.tracking.adsId && site.tracking.adsContactLabel ? `${site.tracking.adsId}/${site.tracking.adsContactLabel}` : ''

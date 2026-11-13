@@ -3129,12 +3129,14 @@ a:hover > .eq-ic-fin,
 	margin: 0;
 }
 .vac-chat-sello-pendiente .icon-clock-o,
+.vac-chat-sello-pagada .icon-money,
 .vac-chat-sello-confirmada .icon-check-circle,
 .vac-chat-sello-no .icon-ban,
 .vac-chat-sello-cancelada .icon-ban {
 	display: inline-block;
 }
-.vac-chat-sello-confirmada {
+.vac-chat-sello-confirmada,
+.vac-chat-sello-pagada {
 	color: var(--eq-whatsapp);
 }
 .vac-chat-sello-no,
@@ -3184,6 +3186,19 @@ a:hover > .eq-ic-fin,
 .vac-chat-pago strong {
 	display: block;
 	color: var(--eq-primary);
+}
+.vac-chat-msj img {
+	display: block;
+	max-width: 100%;
+	width: 220px;
+	border-radius: var(--eq-radius);
+	margin-top: 4px;
+}
+.vac-chat-visto {
+	align-self: flex-end;
+	margin-top: -6px;
+	font-size: 12px;
+	color: var(--eq-ink);
 }
 .vac-chat-quien {
 	display: block;

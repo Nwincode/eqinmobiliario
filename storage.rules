@@ -9,6 +9,14 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.activo == true;
     }
 
+    // Comprobante de pago que el cliente adjunta en el chat de su reserva: solo fotos, hasta 5 MB,
+    // en la carpeta de una conversación que existe, y sin reemplazar ni borrar las que ya subió.
+    match /chats/{token}/{archivo} {
+      allow create: if request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)')
+        && firestore.exists(/databases/(default)/documents/chats/$(token));
+    }
+
     match /{allPaths=**} {
       allow read: if true;
       allow write: if isStaff()
