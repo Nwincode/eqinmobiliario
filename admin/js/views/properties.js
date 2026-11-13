@@ -165,6 +165,8 @@ function desgloseVacacional(el, d) {
 		'La limpieza se cobra aparte sin margen y el depósito no lleva impuestos. Solo el equipo ve esta tabla.'));
 }
 export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
+// Amenidades de un toque en el editor; la ficha les pone su ícono.
+const AMENIDADES_COMUNES = ['Piscina', 'Jardín', 'Garita de seguridad', 'Amueblado', 'Cuarto de servicio', 'Estudio', 'Terraza', 'Churrasquera', 'Gimnasio', 'Área social', 'Juegos infantiles', 'Acepta mascotas', 'Aire acondicionado', 'Bodega', 'Cisterna', 'Paneles solares'];
 export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
 // Valores de una propiedad nueva (editor e importación).
@@ -241,6 +243,7 @@ async function exportarCsv(props, agentName, btn) {
 				asesor: agentName[p.agentId] || '', precio: p.precio, moneda: p.moneda, zona: p.zona, ciudad: p.ciudad,
 				direccion: p.direccion, condominio_siglas: p.condominioSiglas, habitaciones: p.habitaciones, banos: p.banos,
 				parqueos: p.parqueos, m2_construccion: p.m2Construccion, m2_terreno: p.m2Terreno,
+				niveles: p.niveles, anio_construccion: p.anioConstruccion, mantenimiento: p.mantenimiento,
 				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
 				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
 				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
@@ -738,7 +741,10 @@ function schema(agentOpts, isNew) {
 		{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, cols: 2 },
 		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3 },
 		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
-		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Piscina, garita, jardín… (Enter para agregar)' },
+		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
+		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
+		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, help: 'En la misma moneda del precio.' },
+		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
 			if (el.firstChild) return;

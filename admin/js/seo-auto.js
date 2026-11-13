@@ -38,13 +38,14 @@ export function autoSeoTitle(p, en = false) {
 	if (yaDice) {
 		return [lugar && `${t} | ${lugar}`, `${t} | Guatemala`, t].find((x) => x && x.length <= 65) || t;
 	}
+	if (!t) return lugar ? `${op} ${prep} ${lugar}` : op;
 	const candidates = [
-		lugar && `${p.titulo} | ${op} ${prep} ${lugar}`,
-		zona && `${p.titulo} | ${op} ${prep} ${zona}`,
-		`${p.titulo} | ${op}`,
-		p.titulo
-	].filter(Boolean);
-	return candidates.find((t) => t.length <= 65) || candidates[candidates.length - 1];
+		lugar && `${t} | ${op} ${prep} ${lugar}`,
+		zona && `${t} | ${op} ${prep} ${zona}`,
+		`${t} | ${op}`,
+		t
+	];
+	return candidates.find((x) => x && x.length <= 65) || t;
 }
 
 // Descripción automática para Google (máx. 155): precio, medidas y la presentación de la propiedad.

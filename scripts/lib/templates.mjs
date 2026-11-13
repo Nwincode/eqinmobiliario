@@ -944,11 +944,9 @@ function factsList(p) {
 		['building', t.fTipo, tipoLabel(p)],
 		['tag', t.fOperacion, opNombre(p, t)],
 		['info-circle', t.fEstado, estadoLabel(p)],
-		['bed', t.fHabitaciones, p.habitaciones],
-		['bath', t.fBanos, p.banos],
-		['car', t.fParqueos, p.parqueos],
-		['construccion', t.fConstruccion, p.m2Construccion ? area(p.m2Construccion, lng(p)) : ''],
-		['terreno', t.fTerreno, p.m2Terreno ? areaTerreno(p.m2Terreno, lng(p)) : ''],
+		['layers', t.fNiveles, p.niveles],
+		['calendar', t.fAnio, p.anioConstruccion],
+		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
 		['map-marker', t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
 		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
@@ -1045,6 +1043,7 @@ function listingLd(ctx, p) {
 			numberOfRooms: p.habitaciones || undefined,
 			numberOfBedrooms: p.habitaciones || undefined,
 			numberOfBathroomsTotal: p.banos || undefined,
+			yearBuilt: p.anioConstruccion || undefined,
 			floorSize: p.m2Construccion ? { '@type': 'QuantitativeValue', value: p.m2Construccion, unitCode: 'MTK' } : undefined,
 			amenityFeature: [
 				...(p.amenidades || []).map((a) => ({ '@type': 'LocationFeatureSpecification', name: a, value: true })),
@@ -1268,15 +1267,15 @@ export function propertyPage(ctx, p) {
 						<h2>${ic('file-text-o')}${t.descripcion}</h2>
 						<div class="prop-description">${markdown(p.descripcion)}</div>
 					</section>
+					${(p.amenidades || []).length ? `<section class="ficha-bloque">
+						<h2>${ic('check-square-o')}${t.amenidades}</h2>
+						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${ic(iconoTexto(a, 'check'))}${esc(a)}</li>`).join('')}</ul>
+					</section>` : ''}
 					<section class="ficha-bloque">
 						<h2>${ic('list-ul')}${t.caracteristicas}</h2>
 						${factsList(p)}
 					</section>
 					${esVac ? antesDeReservar(p) : ''}
-					${(p.amenidades || []).length ? `<section class="ficha-bloque">
-						<h2>${ic('check-square-o')}${t.amenidades}</h2>
-						<ul class="ficha-amenidades">${p.amenidades.map((a) => `<li>${ic(iconoTexto(a, 'check'))}${esc(a)}</li>`).join('')}</ul>
-					</section>` : ''}
 					${video ? `<section class="ficha-bloque"><h2>${ic('play-circle')}${t.video}</h2><div class="ratio ratio-16x9"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div></section>` : ''}
 					${mapa ? `<section class="ficha-bloque"><h2>${ic('map-marker')}${t.ubicacion}</h2><div class="ratio ratio-16x9"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></section>` : ''}
 					${!cerrada && mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
