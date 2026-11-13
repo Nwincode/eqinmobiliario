@@ -200,6 +200,8 @@ Para activarla (una vez):
 4. En Search Console → Configuración → Usuarios y permisos, agrega ese correo con permiso **Completo**.
 5. Opcional: `GSC_PROPERTY` si la propiedad no es `sc-domain:` del dominio (también se cambia en el panel).
 
+La sección muestra un **verificador de conexión**: qué pasos ya están hechos y cómo arreglar el que falta.
+
 ### Reseñas de Google en la portada
 
 La sección de reseñas puede mostrar, además de las reseñas del panel, la calificación de la ficha de Google Maps
