@@ -348,10 +348,13 @@ export function tituloEn(p) {
 	return t.length <= 90 ? t : t.slice(0, 90).replace(/\s+\S*$/, '');
 }
 
-// Traductor automático gratuito (sin clave). Si falla, se usa la plantilla.
+// Traductor automático gratuito (sin clave). Si falla, se usa la plantilla y no se le vuelve a
+// preguntar por unos minutos: así una importación larga no espera en cada fila.
+let traductorCaidoHasta = 0;
 async function traductorLibre(texto) {
 	const limpio = String(texto || '').trim();
 	if (!limpio) return '';
+	if (Date.now() < traductorCaidoHasta) throw new Error('Traductor no disponible');
 	// El servicio acepta hasta ~500 caracteres por consulta: se traduce por oraciones agrupadas.
 	const bloques = [];
 	for (const parrafo of limpio.split(/\n{2,}/)) {
@@ -374,6 +377,9 @@ async function traductorLibre(texto) {
 			const txt = body?.responseData?.translatedText || '';
 			if (Number(body?.responseStatus) !== 200 || !txt || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(txt)) throw new Error('Traductor no disponible');
 			return txt.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+		} catch (err) {
+			traductorCaidoHasta = Date.now() + 5 * 60000;
+			throw err;
 		} finally { clearTimeout(timer); }
 	};
 	const out = [];
