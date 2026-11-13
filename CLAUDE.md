@@ -54,3 +54,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
 - El panel se prueba con el emulador y datos inventados; nunca con datos reales.
 - Pull requests: Claude hace commit, push, PR y merge solo, salvo que una tarea diga que no.
+- Antes de unir, Claude recorre `docs/revision-antes-de-unir.md` (los errores que ya pasaron aquí y la
+  revisión que evita cada uno) y corre `npm test`; si toca reglas, reservas o el chat, también
+  `npm run test:reglas`. No se une con una prueba en rojo, ni en local ni en GitHub.
+- Lo que toca dinero, datos de clientes o reglas de seguridad lleva una segunda revisión independiente.
+- Un error nuevo se agrega a esa lista en el mismo cambio que lo corrige.

@@ -108,8 +108,10 @@ Cada cadena va en el orden en que conviene revisarla.
 
 ## 7. Cómo se prueba
 
-- Lógica sin pantalla: `scripts/test-*.mjs` (cada una se ejecuta sola con `node`).
+- Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.
+- Reglas de Firestore: `npm run test:reglas` (`scripts/emulador/`: levanta el emulador limpio y corre los casos).
+- Qué revisar antes de unir: `docs/revision-antes-de-unir.md`.
 - Sitio: `npm run build` y `npm run serve` (sirve `dist/`).
-- Reglas de Firestore: emulador, con datos inventados. Dentro de un lote las reglas ven el estado anterior: lo que depende de un cambio previo va en dos pasos.
+- Dentro de un lote las reglas ven el estado anterior: lo que depende de un cambio previo va en dos pasos.
 - Panel: datos inventados; nunca la base real.
 - No se puede probar en local: envío real de correos, Storage, funciones programadas.

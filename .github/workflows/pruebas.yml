@@ -1,0 +1,29 @@
+# Corre las pruebas en cada pull request y en cada cambio a main: sintaxis, lógica y reglas de Firestore.
+name: Pruebas
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # Las pruebas cargan código del proyecto que usa sus dependencias (p. ej. la lectura de Google).
+      - name: Dependencias
+        run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Sintaxis y lógica
+        run: npm test
+      - name: Reglas de Firestore (emulador)
+        run: npm run test:reglas
