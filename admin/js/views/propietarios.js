@@ -1,12 +1,14 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
 import { REGIMENES, MODOS } from '../cotizacion.js';
+import { OPERACIONES, TIPOS, MONEDAS, datosDe, loadAll, propiedadNueva, slugLibre, vacacionalPublico, guardarPrivadoVacacional } from './properties.js';
+import { generarCodigo } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
@@ -14,6 +16,65 @@ import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendien
 function vincularCasas(id, ahora = [], antes = []) {
 	const cambios = [...ahora.map((p) => [p, id]), ...antes.filter((p) => !ahora.includes(p)).map((p) => [p, ''])];
 	return Promise.all(cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})));
+}
+
+// Ficha corta de la casa elegida (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
+function fichaCasa(el, p) {
+	if (!p) return el.replaceChildren();
+	const chips = datosDe(p);
+	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
+	el.replaceChildren(h('a', { href: `#/propiedades/${p.id}`, target: '_blank', class: 'd-flex align-items-center gap-2 text-body text-decoration-none', title: 'Abrir la ficha de la propiedad' },
+		p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
+		h('div', { class: 'flex-grow-1' },
+			h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light')),
+			h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
+			chips.length ? h('div', { class: 'prop-datos' }, chips) : null),
+		h('div', { class: 'text-nowrap fw-semibold' }, formatPrice(p.precio, p.moneda, p.operacion))));
+}
+
+// «Nueva propiedad» desde la ficha del dueño: lo mínimo para que la casa exista, sin publicar y ya enlazada a él.
+// Lo demás (fotos, descripción, dirección) se completa en Propiedades; «Faltan» avisa qué le falta.
+function nuevaPropiedad(dueno, alCrear) {
+	const V = window.EQVacacional;
+	const socio = dueno.tipo === 'socio';
+	const porNoche = (d) => d.operacion === 'vacacional';
+	const form = renderForm([
+		{ name: 'titulo', label: 'Título', required: true, placeholder: 'Casa de playa en Monterrico' },
+		// La renta por noche es de socios: necesita su correo y sus datos de pago.
+		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES.filter(([v]) => socio || v !== 'vacacional') },
+		{ name: 'tipo', label: 'Tipo', type: 'select', cols: 6, options: TIPOS },
+		{ name: 'zona', label: 'Zona', cols: 6 },
+		{ name: 'ciudad', label: 'Ciudad', cols: 6 },
+		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 6, when: (d) => !porNoche(d), help: 'Vacío = «Precio a consultar».' },
+		{ name: 'precioSocio', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 6, when: porNoche, help: 'Lo que recibe el socio. Privado.' },
+		{ name: 'moneda', label: 'Moneda', type: 'select', cols: 6, options: MONEDAS }
+	], { operacion: socio ? 'vacacional' : 'venta', tipo: 'casa', ciudad: 'Guatemala', moneda: 'USD' });
+	const crear = h('button', { class: 'btn btn-primary', onclick: async () => {
+		if (!form.validate()) return;
+		const { precioSocio, ...d } = form.getData();
+		const vac = porNoche(d);
+		if (vac && !(Number(precioSocio) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+		crear.disabled = true;
+		try {
+			const [todas, agentes] = await Promise.all([loadAll(), loadAgents()]);
+			// El socio atiende él mismo sus casas; las demás quedan con el asesor del dueño (o conmigo, si soy asesor).
+			d.agentId = session.isAdmin ? (dueno.agentId || '') : session.agentId;
+			d.propietarioId = dueno.id;
+			d.slug = slugLibre(d.titulo, new Set(todas.map((p) => p.slug)));
+			const costo = { precioBase: Number(precioSocio), precioFinde: 0, margen: V.MARGEN, tarifas: [], nombre: dueno.nombre || '', telefono: dueno.telefono || '', icalUrl: '' };
+			if (vac) Object.assign(d, vacacionalPublico({ socio: costo, vacacional: {} }));
+			else delete d.vacacional;
+			d.codigo = generarCodigo(d, { agentes, codigos: todas.map((p) => p.codigo).filter(Boolean) });
+			const ref = doc(collection(db, 'properties'));
+			await setDoc(ref, propiedadNueva(d));
+			if (vac) await guardarPrivadoVacacional(ref.id, costo, { direccion: '', mapa: '' });
+			toast(`Propiedad creada sin publicar: ${d.codigo}. Complétala en Propiedades.`);
+			ventana.close();
+			alCrear({ id: ref.id, ...d });
+		} catch (err) { showError(err); crear.disabled = false; }
+	} }, 'Crear y enlazar');
+	const ventana = modal({ title: `Nueva propiedad de ${dueno.nombre}`, body: form.el,
+		footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), crear] });
 }
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
@@ -90,8 +151,9 @@ async function renderEditor(container, id) {
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
-			{ name: 'propertyId', label: 'Propiedad', type: 'select', options: opcionesProp, cols: 8 },
-			{ name: 'precioMinimo', label: 'Precio mínimo aceptado', type: 'number', cols: 4 }
+			{ name: 'propertyId', label: 'Propiedad', type: 'select', options: opcionesProp, cols: 8, crear: { label: 'Nueva propiedad…', abrir: (elegir) => crearPropiedad(elegir) } },
+			{ name: 'precioMinimo', label: 'Precio mínimo aceptado', type: 'number', cols: 4 },
+			{ type: 'custom', update: (el, _, item) => fichaCasa(el, propiedades.find((p) => p.id === item.propertyId)) }
 		] },
 		{ type: 'section', label: 'Exclusiva y comisión' },
 		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4 },
@@ -108,8 +170,9 @@ async function renderEditor(container, id) {
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
 
-	const guardar = async (btn) => {
-		if (!form.validate()) return;
+	// Guarda la ficha. Devuelve false si falta algo o falló (ya avisó).
+	const persistir = async () => {
+		if (!form.validate()) return false;
 		const d = form.getData();
 		d.telefonoNorm = telNorm(d.telefono);
 		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId);
@@ -119,15 +182,30 @@ async function renderEditor(container, id) {
 		if (!session.isAdmin) d.agentId = session.agentId;
 		// setDoc reemplaza el documento: se conservan la bitácora y el enlace del portal.
 		for (const k of ['bitacora', 'portalToken', 'proximoPaso', 'portalActualizado', 'portalPrivado']) if (data[k] !== undefined) d[k] = data[k];
-		btn.disabled = true;
 		try {
 			await setDoc(ref, d);
 			await vincularCasas(ref.id, d.propertyIds, data.propertyIds);
+			data.propertyIds = d.propertyIds;
 			if (d.portalToken) await publicarPortal({ ...d, id: ref.id }).catch((err) => console.warn('Portal sin actualizar', err));
-			toast('Propietario guardado.');
 			avisarCambio();
-			location.hash = '#/propietarios';
-		} catch (err) { showError(err); } finally { btn.disabled = false; }
+			return true;
+		} catch (err) { showError(err); return false; }
+	};
+	const guardar = async (btn) => {
+		btn.disabled = true;
+		if (await persistir()) { toast('Propietario guardado.'); location.hash = '#/propietarios'; }
+		btn.disabled = false;
+	};
+	// Casa que todavía no existe: se crea aquí mismo y queda elegida. La ficha del dueño se guarda antes y
+	// después, para que la casa nunca apunte a un dueño sin guardar ni quede fuera de su lista.
+	const crearPropiedad = async (elegir) => {
+		if (!(await persistir())) return;
+		nuevaPropiedad({ id: ref.id, ...form.getData() }, async (casa) => {
+			propiedades.push(casa);
+			opcionesProp.push([casa.id, casa.titulo]);
+			elegir(casa.id, casa.titulo);
+			await persistir();
+		});
 	};
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${data.nombre}?`, { okText: 'Eliminar' }))) return;

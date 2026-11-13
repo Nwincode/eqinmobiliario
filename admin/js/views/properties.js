@@ -186,6 +186,34 @@ export function datosIniciales() {
 	return { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} };
 }
 
+// Documento de una propiedad nueva: siempre sin publicar y con su historial de estado y de precio empezado.
+// Lo usan el importador y «Nueva propiedad» de la ficha del dueño.
+export function propiedadNueva(datos) {
+	const d = { ...datosIniciales(), descripcion: '', ...datos, publicado: false };
+	d.estado = estadoDe(d).valor;
+	d.estadoFecha = serverTimestamp();
+	d.historialEstado = [entradaHistorial(d.estado)];
+	d.historialPrecio = Number(d.precio) ? [{ precio: Number(d.precio), moneda: d.moneda || 'USD', fecha: Timestamp.now() }] : [];
+	d.createdAt = d.updatedAt = serverTimestamp();
+	d.createdBy = d.updatedBy = session.user.uid;
+	return d;
+}
+// URL libre a partir del título («usados» es un Set que se va llenando).
+export function slugLibre(titulo, usados) {
+	const base = slugify(titulo) || 'propiedad';
+	let s = base, n = 2;
+	while (usados.has(s)) s = `${base}-${n++}`;
+	usados.add(s);
+	return s;
+}
+// Lo privado de una casa por noche: el costo del socio y los datos de llegada (dirección y mapa).
+// Va después de crear la casa: su regla la lee.
+export async function guardarPrivadoVacacional(id, socio, llegada) {
+	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
+	await setDoc(doc(db, 'properties', id, 'privado', 'socio'), { ...socio, ...sello });
+	await setDoc(doc(db, 'properties', id, 'privado', 'llegada'), { ...llegada, ...sello });
+}
+
 export function publicUrl(p) {
 	return `${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
 }

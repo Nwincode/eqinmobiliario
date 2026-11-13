@@ -289,6 +289,42 @@ paso('El asesor abre la ficha de un inmueble y ve solo sus propietarios', opcion
 await ir(asesor.p, '#/solicitudes');
 paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await asesor.p.locator('.admin-main').innerText().catch(() => '')));
 
+// ---------------------------------------------------------------- 7. «Nueva propiedad» desde la ficha del dueño
+{
+	const propia = async (persona, ruta, datos, archivo) => {
+		await ir(persona.p, ruta);
+		await persona.p.locator('button', { hasText: 'Agregar propiedad' }).click();
+		await campo(persona.p, 'propertyId', 'select').selectOption('__crear');
+		await espera(2500);
+		const m = persona.p.locator('.modal.show');
+		for (const [k, v] of Object.entries(datos)) await campo(m, k).fill(v);
+		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}.png` });
+		const lado = await persona.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+		await m.locator('button', { hasText: 'Crear y enlazar' }).click();
+		await espera(4000);
+		const id = await campo(persona.p, 'propertyId', 'select').inputValue().catch(() => '');
+		const ficha = await persona.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
+		await persona.p.locator('.list-field').scrollIntoViewIfNeeded();
+		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-ficha.png` });
+		const lado2 = await persona.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+		return { id, lado: Math.max(lado, lado2), ficha, casa: id ? (await leer(`properties/${id}`)).fields || {} : {} };
+	};
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	const a = await propia(admin, '#/propietarios/socio-prueba', { titulo: 'Casa del lago (prueba)', zona: 'Amatitlán', precioSocio: '80' }, 'nueva-propiedad-390');
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	const privado = a.id ? (await leer(`properties/${a.id}/privado/socio`)).fields || {} : {};
+	const dueno = (await leer('propietarios/socio-prueba')).fields || {};
+	paso('El socio recibe una casa por noche nueva sin salir de su ficha', a.casa.operacion?.stringValue === 'vacacional' && a.casa.propietarioId?.stringValue === 'socio-prueba'
+		&& a.casa.publicado?.booleanValue === false && Number(a.casa.precio?.doubleValue || a.casa.precio?.integerValue) > 80 && Boolean(a.casa.codigo?.stringValue) && Boolean(a.casa.slug?.stringValue), await avisos(admin.p));
+	paso('Su precio de socio queda en privado y la casa en la lista del dueño, ya guardada', Number(privado.precioBase?.doubleValue || privado.precioBase?.integerValue) === 80 && JSON.stringify(dueno.propiedades || {}).includes(a.id || 'x'));
+	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
+	paso('La casa elegida se ve en una ficha corta bajo la lista', /Casa del lago/.test(a.ficha), a.ficha);
+	const idDueno = 'dueno-del-asesor';
+	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
+	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
+		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
+}
+
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
