@@ -1,7 +1,7 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
-import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
+import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
@@ -47,8 +47,11 @@ const guardarSocio = (v) => v && setDoc(v.privRef, { ...v.socio, updatedAt: serv
 
 export async function render(container) {
 	container.replaceChildren();
+	const encabezado = h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
+		iconoBtn('icon-arrow-left', 'Volver a propiedades', { href: '#/propiedades', class: 'cot-btn cot-btn-icono btn btn-link text-body' }),
+		h('h1', { class: 'h3 mb-0' }, 'Importar propiedades'));
 	if (!session.isAdmin) {
-		mount(container, pageHeader('Importar propiedades', h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
+		mount(container, encabezado,
 			h('div', { class: 'alert alert-info' }, 'Solo un administrador puede importar propiedades.'));
 		return;
 	}
@@ -118,7 +121,7 @@ export async function render(container) {
 		textoProgreso, progreso, final, registro));
 
 	mount(container, h('div', { class: 'imp-vista' },
-		pageHeader('Importar propiedades', h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver a propiedades')),
+		encabezado,
 		paso1, paso2, acciones, paso3));
 
 	// ---------- Lectura de archivos ----------

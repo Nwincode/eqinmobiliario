@@ -26,7 +26,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   diseño o deja un hueco, y lo aprovecha (subir datos a la misma línea, juntar filas) sin agregar relleno.
 - Tablas, fichas y listas: se usa el diseño que ya existe en el panel (mismo CSS y mismas piezas),
   salvo que el usuario pida algo distinto para una en particular.
-- Lo que se entiende con un ícono va en ícono, no en texto; no mezclar texto e íconos en un mismo grupo.
+- Lo que se entiende con un ícono va en ícono, no en texto; en un mismo grupo de datos, todos con
+  ícono o todos con texto, no revueltos.
 - Proporción: la foto pesa más que los controles (selectores, botones).
 - Si Claude ve algo mal maquetado, lo arregla de una vez, sin esperar a que el usuario lo señale.
 - Colores: solo de `css/tema.css` y de Contenido → Colores del panel; nunca escritos a mano.
