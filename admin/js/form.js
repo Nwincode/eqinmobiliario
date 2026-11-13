@@ -460,6 +460,8 @@ export function renderForm(schema, data, options = {}) {
 	return {
 		el,
 		state,
+		// Para quien cambia el estado por fuera de un campo (p. ej. un selector propio): vuelve a evaluar «when» y bloques.
+		refresh,
 		validate() {
 			for (const { field, target, control } of required) {
 				const v = getPath(target, field.name);

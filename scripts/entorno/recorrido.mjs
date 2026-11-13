@@ -322,10 +322,13 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Su precio de socio queda en privado y la casa en la lista del dueño, ya guardada', Number(privado.precioBase?.doubleValue || privado.precioBase?.integerValue) === 80 && JSON.stringify(dueno.propiedades || {}).includes(a.id || 'x'));
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
+	const seVe = (persona, texto) => persona.p.locator('.form-section', { hasText: texto }).first().isVisible().catch(() => false);
+	paso('Al socio (solo casas por noche) no se le piden impuestos de venta ni comisión acordada', !(await seVe(admin, 'Impuestos de la venta')) && !(await admin.p.locator('[data-campo="comisionPct"]').isVisible()) && await admin.p.locator('[data-campo="exclusiva"]').isVisible());
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
 		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
+	paso('Al propietario con una casa en venta sí se le piden', await seVe(asesor, 'Impuestos de la venta') && await asesor.p.locator('[data-campo="comisionPct"]').isVisible());
 	// Elegir una que ya existe: el selector la muestra con su ficha y el buscador la encuentra.
 	await ir(admin.p, '#/propietarios/socio-prueba');
 	await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
