@@ -3178,6 +3178,13 @@ a:hover > .eq-ic-fin,
 	align-self: flex-end;
 	background: var(--eq-primary-soft);
 }
+.vac-chat-pago {
+	border-color: var(--eq-primary);
+}
+.vac-chat-pago strong {
+	display: block;
+	color: var(--eq-primary);
+}
 .vac-chat-quien {
 	display: block;
 	font-size: 12px;

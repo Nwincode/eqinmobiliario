@@ -80,6 +80,7 @@ async function renderEditor(container, id) {
 		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6 } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
+		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
 			{ name: 'propertyId', label: 'Propiedad', type: 'select', options: opcionesProp, cols: 8 },

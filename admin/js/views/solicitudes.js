@@ -15,7 +15,7 @@ const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirm
 const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
 const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
 // Atraso de la comisión, según V.nivelComision().
-const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h · clientes a EQ', 'danger'], ['+72 h · fuera del sitio', 'danger']];
+const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
 
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
@@ -52,7 +52,8 @@ export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
 	const mio = session.profile?.propietarioId || '-';
 	const [snap, chatsSnap, propietarios, casas, reservas] = await Promise.all([
-		getDocs(query(collection(db, 'leads'), admin ? where('reserva.codigo', '>', '') : where('propietarioId', '==', mio))),
+		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
+		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
 		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
 		getDocs(admin ? collection(db, 'chats') : query(collection(db, 'chats'), where('propietarioId', '==', mio))),
 		admin ? loadPropietarios() : [], admin ? loadPropiedades() : [],
@@ -74,7 +75,7 @@ export async function render(container, [codigo] = []) {
 		const cargar = async () => {
 			const s = await getDocs(query(mensajes, orderBy('createdAt')));
 			lista.replaceChildren(...(s.docs.length ? s.docs.map((d) => d.data()).map((m) => h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}` },
-				h('div', { class: 'small opacity-75' }, `${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), m.texto))
+				h('div', { class: 'small opacity-75' }, `${m.tipo === 'pago' ? 'Datos de pago · ' : ''}${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), m.texto))
 				: [h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay mensajes.')]));
 		};
 		const campo = h('textarea', { class: 'form-control', rows: 2, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
@@ -92,11 +93,16 @@ export async function render(container, [codigo] = []) {
 		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, form) });
 		await cargar();
 	}
-	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId);
+	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId || (x.codigo && x.codigo === l.reserva.codigo && x.estado !== 'cancelada'));
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : estado(l) === 'pendiente' ? 1 : 2);
 	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
-	const leads = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((l) => l.reserva?.llegada)
+	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
+	const delChat = (d) => { const c = d.data(); return {
+		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
+		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda },
+		solicitud: c.estado ? { estado: c.estado } : undefined }; };
+	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
@@ -113,6 +119,8 @@ export async function render(container, [codigo] = []) {
 		const r = l.reserva;
 		const c = cuenta(l);
 		if (!c) return toast('A esta casa le falta el precio del socio.', 'warning');
+		const pago = refChat(l) ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : '';
+		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'Faltan tus datos de pago. Pedile al administrador que los guarde.', 'warning');
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la comisión de ${money(c.ganancia, r.moneda)} se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			const refCasa = doc(db, 'properties', l.propertyId);
@@ -123,13 +131,18 @@ export async function render(container, [codigo] = []) {
 			const lote = writeBatch(db);
 			lote.set(refReserva, {
 				propertyId: l.propertyId, propertyTitulo: l.propertyTitulo || p.titulo || '', agentId: p.agentId || '', propietarioId: p.propietarioId || '',
-				moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, noches: c.noches, huesped: l.nombre, telefono: l.telefono,
+				// Sin teléfono: el socio lee sus reservas. El contacto del cliente queda solo en la solicitud (leadId).
+				moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, noches: c.noches, huesped: String(l.nombre || '').trim().split(/\s+/)[0],
 				canal: 'web', estado: 'confirmada', leadId: l.id, codigo: r.codigo, costoSocio: c.costoSocio, alojamiento: c.alojamiento, ganancia: c.ganancia,
 				comision: { monto: c.ganancia, vence: r.llegada, pagada: false }, pagadoSocio: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
 			});
 			lote.update(refCasa, { 'vacacional.reservadas': V.unirRangos([...ocupadas, { desde: r.llegada, hasta: r.salida }]), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': refReserva.id, 'solicitud.costoSocio': c.costoSocio, 'solicitud.comision': c.ganancia }));
-			if (refChat(l)) lote.update(refChat(l), { estado: 'confirmada' });
+			if (refChat(l)) {
+				lote.update(refChat(l), { estado: 'confirmada' });
+				// Los datos de pago del socio viajan con la confirmación: sin reserva registrada, no hay a dónde pagar.
+				lote.set(doc(collection(db, 'chats', chats[r.codigo], 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
+			}
 			await lote.commit();
 			await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 			toast('Reserva confirmada.');

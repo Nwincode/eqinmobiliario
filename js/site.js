@@ -96,6 +96,8 @@
 
 	// Guarda el lead en Firestore por REST: no hace falta cargar el SDK en el sitio público.
 	function saveLead(lead) {
+		// El id se conserva en el lead: el chat de la reserva lo usa para enlazarse a su solicitud.
+		lead.id = randomId();
 		var base = 'projects/' + config.projectId + '/databases/(default)/documents';
 		var fields = {
 			nombre: str(lead.nombre),
@@ -129,7 +131,7 @@
 		}
 		var body = {
 			writes: [{
-				update: { name: base + '/leads/' + randomId(), fields: fields },
+				update: { name: base + '/leads/' + lead.id, fields: fields },
 				currentDocument: { exists: false },
 				updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }]
 			}]

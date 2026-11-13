@@ -192,7 +192,8 @@ service cloud.firestore {
       allow delete: if propio();
     }
     match /propietarios/{id} {
-      allow read: if propio();
+      // El socio lee solo su propia ficha (sus datos de pago para las reservas).
+      allow read: if propio() || (esSocio() && id == userDoc().data.propietarioId);
       allow create: if nuevoPropio();
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
@@ -312,9 +313,9 @@ service cloud.firestore {
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
         && request.resource.data.estado == 'nuevo'
         && request.resource.data.createdAt == request.time;
+      // El socio NO lee la solicitud (trae el teléfono y el correo del cliente): trabaja con el chat.
       allow read: if isAdmin()
-        || (isStaff() && resource.data.agentId == myAgentId())
-        || esSocioDe(resource.data);
+        || (isStaff() && resource.data.agentId == myAgentId());
       // El socio solo responde la solicitud; no cambia nada más ni la borra.
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
@@ -331,7 +332,9 @@ service cloud.firestore {
       allow list: if isStaff() || esSocioDe(resource.data);
       allow create: if token.size() >= 20
         && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
-            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'foto', 'url', 'createdAt'])
+            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
+        // La conversación es de una solicitud que existe, con ese mismo código.
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
         && isShortString(request.resource.data.get('foto', ''), 500)
         && isShortString(request.resource.data.get('url', ''), 200)
         && isNonEmptyString(request.resource.data.codigo, 20)
@@ -361,9 +364,14 @@ service cloud.firestore {
         allow read: if !signedIn() || isStaff() || esSocioDe(chat());
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
         // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
-        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt'])
+        // Única excepción, «pago»: los datos de pago del socio tal como los guardó el administrador,
+        // y solo los mandan el socio de la casa o el equipo (al confirmar la reserva).
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt'])
           && isNonEmptyString(request.resource.data.texto, 1000)
-          && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')
+          && (('tipo' in request.resource.data)
+            ? (request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente'
+                && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
+            : !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*'))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isStaff())

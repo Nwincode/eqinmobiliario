@@ -45,7 +45,8 @@ async function casa(container, id) {
 	const refSocio = doc(db, 'properties', id, 'privado', 'socio');
 	const mio = session.profile.propietarioId || '-';
 	const [sCasa, sSocio, sLeads] = await Promise.all([getDoc(refCasa), getDoc(refSocio),
-		getDocs(query(collection(db, 'leads'), where('propietarioId', '==', mio)))]);
+		// Solicitudes de sus casas: del chat de cada una (las solicitudes traen el contacto del cliente y el socio no las lee).
+		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio)))]);
 	if (!sCasa.exists()) return mount(container, emptyState('No encontramos esa casa.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis casas')));
 	const p = sCasa.data();
 	const s = sSocio.exists() ? sSocio.data() : {};
@@ -57,8 +58,8 @@ async function casa(container, id) {
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
 		huespedes: Number(v.huespedesMax) || 0, mes: hoy().slice(0, 7), desde: '', hasta: '', pide: '',
 		// Solicitudes de la web que todavía no respondió.
-		pedidas: sLeads.docs.map((d) => d.data()).filter((l) => l.propertyId === id && l.reserva?.llegada && !l.solicitud?.estado)
-			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }))
+		pedidas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && !c.estado)
+			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
 	};
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
 	const publico = (n) => plata(V.nochePublica(n, s.margen));

@@ -50,7 +50,7 @@
 		if (!config.projectId) return Promise.reject(new Error('sin base de datos'));
 		var token = alAzar(28);
 		return crearDoc('chats/' + token, {
-			codigo: str(r.codigo), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
+			codigo: str(r.codigo), leadId: str(lead.id), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
 			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
 			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
 			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
@@ -133,7 +133,8 @@
 			pintados = mensajes.length;
 			if (!mensajes.length) { lista.replaceChildren(el('li', 'vac-chat-vacio', t.vacChatVacio)); return; }
 			lista.replaceChildren.apply(lista, mensajes.map(function (m) {
-				var li = el('li', 'vac-chat-msj vac-chat-' + (m.de === 'cliente' ? 'mio' : 'otro'));
+				var li = el('li', 'vac-chat-msj vac-chat-' + (m.de === 'cliente' ? 'mio' : 'otro') + (m.tipo === 'pago' ? ' vac-chat-pago' : ''));
+				if (m.tipo === 'pago') li.appendChild(el('strong', '', t.vacChatPago));
 				li.appendChild(el('span', 'vac-chat-quien', (QUIEN[m.de] || QUIEN.equipo) + (m.createdAt ? ' · ' + hora.format(new Date(m.createdAt)) : '')));
 				li.appendChild(el('p', '', m.texto));
 				return li;
