@@ -11,6 +11,9 @@ function horas(msx) {
 	return hh < 1 ? `${Math.round(hh * 60)} min` : hh < 48 ? `${hh.toFixed(1)} h` : `${(hh / 24).toFixed(1)} días`;
 }
 
+// Lo que pide atención va en rojo junto a su total, no en otra columna.
+const alerta = (n, texto) => (n ? h('span', { class: 'text-danger fw-semibold' }, ` · ${n} ${texto}`) : null);
+
 export async function render(container) {
 	const [agentes, leads, clientes, actividades, reglas] = await Promise.all([loadAgents(), loadLeads(), loadClientes(), loadActividades(), loadReglas()]);
 	let dias = 30;
@@ -63,19 +66,17 @@ export async function render(container) {
 			h('div', { class: 'card mb-4 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
 				cajaTabla(h('table', { class: 'table table-admin mb-0' },
-					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Sin atender', 'Respuesta', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Comisión', 'Parte asesor'].map((t, i) => h('th', { class: i ? 'text-end text-wrap' : '' }, t)))),
+					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Respuesta', 'Actividades', 'Visitas', 'En proceso', 'Cierres', 'Comisión'].map((t, i) => h('th', { class: i ? 'text-end' : '' }, t)))),
 					h('tbody', {}, filas.map((f) => h('tr', {},
 						h('td', { class: 'fw-semibold text-nowrap' }, f.nombre),
-						h('td', { class: 'text-end' }, f.leads),
-						h('td', { class: `text-end ${f.sinRespuesta ? 'text-danger fw-semibold' : ''}` }, f.sinRespuesta),
+						h('td', { class: 'text-end' }, f.leads, alerta(f.sinRespuesta, 'sin atender')),
 						h('td', { class: 'text-end' }, horas(f.respuesta)),
-						h('td', { class: 'text-end' }, f.actividades),
+						h('td', { class: 'text-end' }, f.actividades, alerta(f.vencidas, f.vencidas === 1 ? 'vencida' : 'vencidas')),
 						h('td', { class: 'text-end' }, f.visitas),
-						h('td', { class: `text-end ${f.vencidas ? 'text-danger fw-semibold' : ''}` }, f.vencidas),
 						h('td', { class: 'text-end' }, `${f.enProceso}${f.pipeline ? ` · ${money(f.pipeline)}` : ''}`),
 						h('td', { class: 'text-end' }, `${f.cierres}${f.montoCerrado ? ` · ${money(f.montoCerrado)}` : ''}`),
-						h('td', { class: 'text-end' }, money(Math.round(f.comision))),
-							h('td', { class: 'text-end' }, money(Math.round(f.parteAsesor))))))))),
+						h('td', { class: 'text-end' }, money(Math.round(f.comision)),
+							f.parteAsesor ? h('span', { class: 'text-muted' }, ` · asesor ${money(Math.round(f.parteAsesor))}`) : null))))))),
 			h('div', { class: 'card' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
 				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },
