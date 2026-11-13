@@ -1377,6 +1377,14 @@ body.offcanvas-menu .ficha-barra {
 	color: var(--eq-ink);
 	margin-bottom: 20px;
 }
+.ficha-lugar a {
+	color: inherit;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.ficha-lugar a:hover {
+	color: var(--eq-primary);
+}
 .ficha-precio {
 	font-size: clamp(26px, 2.6vw, 32px);
 	font-weight: 600;
