@@ -667,7 +667,9 @@ export async function render(container, [id]) {
 	draw();
 	// Las que quedaron sin inglés (anteriores a la traducción automática al guardar) se traducen solas.
 	// No se repite sobre el mismo texto (en.fuente) ni toca el inglés corregido a mano.
-	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && !(p.en?.titulo && p.en?.descripcion) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
+	// Igual las casas vacacionales con cómo llegar, reglas o cancelación todavía sin traducir.
+	const faltaVac = (p) => TEXTOS_VAC.some((k) => p.vacacional?.[k] && !p.en?.vacacional?.[k]);
+	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && (!(p.en?.titulo && p.en?.descripcion) || faltaVac(p)) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
 	const traducidas = enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
 		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. Recuerda publicar.`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
