@@ -1,8 +1,8 @@
 // Rentas vacacionales: reservas de cada casa y estado de cuenta de cada propietario.
 // Una reserva confirmada bloquea sus fechas en el calendario público de la casa.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia } from '../ui.js';
+import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, orderBy, limit, serverTimestamp } from '../firebase.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner } from '../ui.js';
 import { session } from '../session.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
@@ -219,8 +219,23 @@ export async function render(container) {
 				: emptyState(filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'));
 	}
 
+	// Bitácora: los últimos cambios que los socios hicieron en sus casas (precios, días bloqueados, mínimos).
+	async function verCambios() {
+		const caja = h('div', {}, spinner());
+		modal({ title: 'Cambios de los socios', body: caja });
+		try {
+			const porCasa = await Promise.all(casas.map(async (c) => (await getDocs(query(collection(db, 'properties', c.id, 'bitacora'), orderBy('cuando', 'desc'), limit(10))))
+				.docs.map((d) => ({ casa: c.titulo, ...d.data() }))));
+			const cambios = porCasa.flat().sort((a, b) => (b.cuando?.seconds || 0) - (a.cuando?.seconds || 0)).slice(0, 40);
+			caja.replaceChildren(cambios.length ? h('ul', { class: 'list-group list-group-flush' }, cambios.map((b) => h('li', { class: 'list-group-item px-0' },
+				h('div', {}, b.que),
+				h('div', { class: 'small text-muted' }, [b.casa, b.nombre, formatDate(b.cuando)].filter(Boolean).join(' · ')))))
+				: emptyState('Todavía ningún socio ha cambiado precios ni fechas.'));
+		} catch (err) { caja.replaceChildren(); showError(err); }
+	}
+
 	mount(container,
-		pageHeader('Rentas vacacionales', h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => editar() }, '+ Reserva')),
+		pageHeader('Rentas vacacionales', casas.length ? iconoBtn('icon-history', 'Cambios de los socios', { onclick: verCambios }) : null, h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => editar() }, '+ Reserva')),
 		casas.length ? cuerpo : emptyState('Todavía no hay casas de renta vacacional. Creá una propiedad con operación "Renta vacacional" o importalas todas de un Excel.',
 			h('a', { class: 'btn btn-outline-primary btn-sm', href: '#/propiedades/importar' }, 'Importar casas')));
 	if (casas.length) pintar();
