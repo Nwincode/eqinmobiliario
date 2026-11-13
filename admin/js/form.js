@@ -425,7 +425,12 @@ export function renderForm(schema, data, options = {}) {
 							h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))),
 						field.max && arr.length >= field.max ? null : h('button', {
 							type: 'button', class: 'btn btn-sm btn-outline-primary',
-							onclick: () => { arr.push({}); set(arr); draw(); }
+							// «onAdd»: para abrir de una vez cómo se llena el renglón nuevo; recibe cómo quitarlo si se cancela.
+							onclick: () => {
+								const item = {};
+								arr.push(item); set(arr); draw();
+								if (field.onAdd) field.onAdd(item, () => { const a = get() || [], k = a.indexOf(item); if (k > -1) { a.splice(k, 1); set(a); draw(); } });
+							}
 						}, `+ Agregar ${(field.itemLabel || 'elemento').toLowerCase()}`));
 				};
 				if (!Array.isArray(get())) setPath(target, field.name, []);
