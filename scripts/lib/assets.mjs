@@ -34,7 +34,7 @@ const JS_FILES = [
 const RENTA_FILES = ['js/calc-renta.js', 'js/calc-renta-ui.js'];
 
 // Renta vacacional: calendario y cotización de la ficha (solo en propiedades por noches).
-const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js'];
+const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js', 'js/reserva-chat.js'];
 
 // Clases que solo aparecen al ejecutar JavaScript (sliders, menú móvil, animaciones…).
 const SAFELIST = {

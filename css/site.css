@@ -1333,8 +1333,9 @@ h2.heading::after,
 body.offcanvas-menu .ficha-barra {
 	display: none;
 }
+/* Solo donde hay barra fija de acciones (la página de la reserva usa el mismo marco y no la tiene). */
 @media (max-width: 991.98px) {
-	.pagina-ficha {
+	.pagina-ficha:has(.ficha-barra) {
 		padding-bottom: calc(64px + env(safe-area-inset-bottom));
 	}
 	.pagina-ficha .wa-float {
@@ -3095,6 +3096,145 @@ a:hover > .eq-ic-fin,
 	font-size: 12px;
 	color: var(--eq-ink);
 	margin: .75rem 0 0;
+}
+
+/* Chat de la reserva (/reserva/): resumen de la solicitud, mensajes y campo para escribir. */
+.vac-chat-cabeza {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 12px 14px;
+	align-items: center;
+}
+.vac-chat-foto[hidden] + div {
+	grid-column: 1 / -1;
+}
+.vac-chat-foto img {
+	display: block;
+	width: 96px;
+	height: 72px;
+	object-fit: cover;
+	border-radius: var(--eq-radius);
+}
+.vac-chat-sello {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 4px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--eq-ink);
+}
+.vac-chat-sello .eq-ic {
+	display: none;
+	margin: 0;
+}
+.vac-chat-sello-pendiente .icon-clock-o,
+.vac-chat-sello-pagada .icon-money,
+.vac-chat-sello-confirmada .icon-check-circle,
+.vac-chat-sello-no .icon-ban,
+.vac-chat-sello-cancelada .icon-ban {
+	display: inline-block;
+}
+.vac-chat-sello-confirmada,
+.vac-chat-sello-pagada {
+	color: var(--eq-whatsapp);
+}
+.vac-chat-sello-no,
+.vac-chat-sello-cancelada {
+	color: var(--eq-danger);
+}
+.vac-chat-sigue {
+	grid-column: 1 / -1;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-primary-soft);
+	color: var(--eq-text);
+	font-size: 14px;
+}
+.vac-chat-datos {
+	grid-column: 1 / -1;
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 18px;
+	padding: 0 0 16px;
+	margin: 0;
+	border-bottom: 1px solid var(--eq-line);
+	font-size: 14px;
+	color: var(--eq-ink);
+}
+.vac-chat-mensajes {
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 16px 0;
+	margin: 0;
+}
+.vac-chat-msj {
+	max-width: 85%;
+	padding: 8px 12px;
+	border-radius: var(--eq-radius-card);
+	background: var(--eq-mist);
+	border: 1px solid var(--eq-line);
+}
+.vac-chat-msj p {
+	margin: 0;
+	color: var(--eq-text);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.vac-chat-mio {
+	align-self: flex-end;
+	background: var(--eq-primary-soft);
+}
+.vac-chat-pago {
+	border-color: var(--eq-primary);
+}
+.vac-chat-pago strong {
+	display: block;
+	color: var(--eq-primary);
+}
+.vac-chat-msj img {
+	display: block;
+	max-width: 100%;
+	width: 220px;
+	border-radius: var(--eq-radius);
+	margin-top: 4px;
+}
+.vac-chat-visto {
+	align-self: flex-end;
+	margin-top: -6px;
+	font-size: 12px;
+	color: var(--eq-ink);
+}
+.vac-chat-quien {
+	display: block;
+	font-size: 12px;
+	color: var(--eq-ink);
+}
+.vac-chat-vacio,
+.vac-chat-estado {
+	color: var(--eq-ink);
+}
+.vac-chat-form {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+}
+.vac-chat-form .btn {
+	flex: none;
+}
+.vac-chat-aviso {
+	font-size: 13px;
+	margin: 8px 0 0;
+}
+.vac-chat-aviso:empty {
+	display: none;
+}
+.vac-chat-alerta {
+	color: var(--eq-danger);
 }
 @media (max-width: 575.98px) {
 	.vac-card.lead-card {

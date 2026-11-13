@@ -3,9 +3,10 @@
 // Comisión: el socio la paga a EQ el día de llegada y sube su comprobante; solo el administrador la marca pagada.
 // Nada se borra: cada respuesta queda en el historial con quién y cuándo.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, updateDoc, collection, query, where, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
+import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
+import { traductorLibre } from '../reglas.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
@@ -15,7 +16,7 @@ const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirm
 const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
 const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
 // Atraso de la comisión, según V.nivelComision().
-const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h · clientes a EQ', 'danger'], ['+72 h · fuera del sitio', 'danger']];
+const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
 
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
@@ -51,15 +52,100 @@ const respuesta = (nuevo, que, extra = {}) => ({
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, propietarios, casas, reservas] = await Promise.all([
-		getDocs(query(collection(db, 'leads'), admin ? where('reserva.codigo', '>', '') : where('propietarioId', '==', mio))),
+	const [snap, chatsSnap, propietarios, casas, reservas] = await Promise.all([
+		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
+		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
+		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
+		getDocs(admin ? collection(db, 'chats') : query(collection(db, 'chats'), where('propietarioId', '==', mio))),
 		admin ? loadPropietarios() : [], admin ? loadPropiedades() : [],
 		admin ? loadReservas() : getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))]);
-	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId);
+	const chats = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.id]));
+	const datosChat = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.data()]));
+	// Aviso por correo a quien le toca leer (lo decide el servidor con lo guardado). Si falla, el mensaje ya quedó.
+	const avisarChat = (id) => { fetch('/api/aviso-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: id }) }).catch(() => {}); };
+	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
+	// Chats donde lo último lo escribió el cliente: falta responderle.
+	const porResponder = new Set((await Promise.all(Object.entries(chats).map(async ([cod, id]) => {
+		const ultimo = (await getDocs(query(collection(db, 'chats', id, 'mensajes'), orderBy('createdAt')))).docs.at(-1)?.data();
+		return ultimo?.de === 'cliente' ? cod : null;
+	}))).filter(Boolean));
+	const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
+	const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago' };
+	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar.
+	const RAPIDAS = ['Sí, está disponible en esas fechas.', 'Lo siento, esas fechas ya no están disponibles.', '¿A qué hora piensan llegar?', 'Ya recibí tu pago, ¡gracias!'];
+	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: todo se coordina aquí.
+	async function abrirChat(l) {
+		const ref = refChat(l);
+		const mensajes = collection(db, 'chats', ref.id, 'mensajes');
+		const yo = admin ? 'equipo' : 'socio';
+		const ingles = datosChat[l.reserva.codigo]?.idioma === 'en';
+		const traducidos = new Map();
+		let traducir = false;
+		// Mismas burbujas del asistente de IA (admin.css): las mías a la derecha.
+		const lista = h('div', { class: 'ia-chat-log mb-3' });
+		const cuerpo = (m) => m.tipo === 'foto' ? h('a', { href: m.texto, target: '_blank', rel: 'noopener' }, h('img', { src: m.texto, alt: 'Comprobante de pago', class: 'img-fluid rounded', loading: 'lazy' }))
+			: m.tipo === 'llegada' ? 'Se le mostraron al cliente la dirección, el mapa y cómo llegar.'
+			: [m.texto, traducir && m.de === 'cliente' && traducidos.get(m.texto) ? h('div', { class: 'small opacity-75 mt-1' }, traducidos.get(m.texto)) : null];
+		const cargar = async () => {
+			const [s, c] = await Promise.all([getDocs(query(mensajes, orderBy('createdAt'))), getDoc(ref)]);
+			const todos = s.docs.map((d) => d.data());
+			// Cliente que escribe en inglés: sus mensajes se muestran también en español.
+			if (traducir) await Promise.all(todos.filter((m) => m.de === 'cliente' && !m.tipo && !traducidos.has(m.texto)).map(async (m) => traducidos.set(m.texto, await traductorLibre(m.texto, 'en|es'))));
+			const ultimoMio = todos.filter((m) => m.de === yo).at(-1);
+			const visto = ultimoMio && ms(c.data()?.vistoCliente) >= ms(ultimoMio.createdAt) && ms(ultimoMio.createdAt) > 0;
+			lista.replaceChildren(...(todos.length ? todos.flatMap((m) => [h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}` },
+				h('div', { class: 'small opacity-75' }, `${TIPOS[m.tipo] ? `${TIPOS[m.tipo]} · ` : ''}${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), cuerpo(m)),
+				visto && m === ultimoMio ? h('div', { class: 'small text-muted text-end' }, 'Visto') : null])
+				: [h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay mensajes.')]));
+			// Lo que escribió el cliente queda visto por mí.
+			if (todos.at(-1) && todos.at(-1).de !== yo) await updateDoc(ref, { [admin ? 'vistoEquipo' : 'vistoSocio']: serverTimestamp() });
+		};
+		const mostrar = async () => { try { await cargar(); } catch (err) { showError(err); } };
+		const campo = h('textarea', { class: 'form-control', rows: 2, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
+		const form = h('form', { class: 'd-flex align-items-end gap-2', onsubmit: async (e) => {
+			e.preventDefault();
+			let texto = campo.value.trim();
+			if (!texto) return;
+			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
+			try {
+				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
+				if (traducir) texto = `${await traductorLibre(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
+				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
+				campo.value = '';
+				avisarChat(ref.id);
+				await cargar();
+			} catch (err) { showError(err); }
+		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
+		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' }, RAPIDAS.map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => { campo.value = r; campo.focus(); } }, r)),
+			ingles ? iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }) : null);
+		// Mensajes nuevos cada 10 s mientras la conversación está abierta.
+		const reloj = setInterval(mostrar, 10000);
+		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, rapidas, form), onClose: () => { clearInterval(reloj); recargar(); } });
+		await mostrar();
+	}
+	// Dinero recibido: el cliente ve «Pago recibido» y los datos de llegada guardados en la casa.
+	async function pagoRecibido(l) {
+		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste el pago? El cliente verá la dirección, el mapa y cómo llegar.`, { okText: 'Pago recibido' }))) return;
+		await hacer(async () => {
+			const lote = writeBatch(db);
+			lote.update(refChat(l), { estado: 'pagada' });
+			lote.set(doc(collection(db, 'chats', refChat(l).id, 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada', createdAt: serverTimestamp() });
+			await lote.commit();
+			avisarChat(refChat(l).id);
+			toast('Listo: el cliente ya ve los datos de llegada.');
+		});
+	}
+	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId || (x.codigo && x.codigo === l.reserva.codigo && x.estado !== 'cancelada'));
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
-	const orden = (l) => (l.reserva.codigo === codigo ? 0 : estado(l) === 'pendiente' ? 1 : 2);
+	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
+	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
 	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
-	const leads = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((l) => l.reserva?.llegada)
+	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
+	const delChat = (d) => { const c = d.data(); return {
+		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
+		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda },
+		solicitud: c.estado ? { estado: c.estado === 'pagada' ? 'confirmada' : c.estado } : undefined }; };
+	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
@@ -76,6 +162,8 @@ export async function render(container, [codigo] = []) {
 		const r = l.reserva;
 		const c = cuenta(l);
 		if (!c) return toast('A esta casa le falta el precio del socio.', 'warning');
+		const pago = refChat(l) ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : '';
+		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'Faltan tus datos de pago. Pedile al administrador que los guarde.', 'warning');
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la comisión de ${money(c.ganancia, r.moneda)} se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			const refCasa = doc(db, 'properties', l.propertyId);
@@ -86,12 +174,18 @@ export async function render(container, [codigo] = []) {
 			const lote = writeBatch(db);
 			lote.set(refReserva, {
 				propertyId: l.propertyId, propertyTitulo: l.propertyTitulo || p.titulo || '', agentId: p.agentId || '', propietarioId: p.propietarioId || '',
-				moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, noches: c.noches, huesped: l.nombre, telefono: l.telefono,
+				// Sin teléfono: el socio lee sus reservas. El contacto del cliente queda solo en la solicitud (leadId).
+				moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, noches: c.noches, huesped: String(l.nombre || '').trim().split(/\s+/)[0],
 				canal: 'web', estado: 'confirmada', leadId: l.id, codigo: r.codigo, costoSocio: c.costoSocio, alojamiento: c.alojamiento, ganancia: c.ganancia,
 				comision: { monto: c.ganancia, vence: r.llegada, pagada: false }, pagadoSocio: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
 			});
 			lote.update(refCasa, { 'vacacional.reservadas': V.unirRangos([...ocupadas, { desde: r.llegada, hasta: r.salida }]), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': refReserva.id, 'solicitud.costoSocio': c.costoSocio, 'solicitud.comision': c.ganancia }));
+			if (refChat(l)) {
+				lote.update(refChat(l), { estado: 'confirmada' });
+				// Los datos de pago del socio viajan con la confirmación: sin reserva registrada, no hay a dónde pagar.
+				lote.set(doc(collection(db, 'chats', chats[r.codigo], 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
+			}
 			await lote.commit();
 			await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 			toast('Reserva confirmada.');
@@ -120,7 +214,12 @@ export async function render(container, [codigo] = []) {
 
 	async function noSeDio(l) {
 		const motivo = await pedirMotivo(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
-		if (motivo) await hacer(() => updateDoc(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo })));
+		if (motivo) await hacer(async () => {
+			const lote = writeBatch(db);
+			lote.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
+			if (refChat(l)) lote.update(refChat(l), { estado: 'no' });
+			await lote.commit();
+		});
 	}
 
 	async function cancelar(l) {
@@ -134,6 +233,7 @@ export async function render(container, [codigo] = []) {
 			lote.update(doc(db, 'reservas', l.solicitud.reservaId), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
 			lote.update(refCasa, { 'vacacional.reservadas': V.liberarNoches(p.vacacional?.reservadas, r.llegada, r.salida), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
+			if (refChat(l)) lote.update(refChat(l), { estado: 'cancelada' });
 			await lote.commit();
 			await markPending(`${p.titulo}: reserva ${r.codigo} cancelada`);
 			toast('Reserva cancelada. Las fechas quedaron libres.');
@@ -157,8 +257,10 @@ export async function render(container, [codigo] = []) {
 		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
-				h('strong', {}, r.codigo), h('span', {}, l.nombre), badge(...ESTADOS[est]),
+				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
+				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
+				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
 			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
@@ -168,14 +270,18 @@ export async function render(container, [codigo] = []) {
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			ultimo ? h('div', { class: 'small text-muted' }, `${ultimo.que} ${ultimo.nombre} · ${formatDate(ultimo.cuando)}${sol.motivo ? ` · ${sol.motivo}` : ''}`) : null,
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
-				est === 'no' && admin
+				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat.
+				!admin ? null : est === 'no'
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
+				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
+				est === 'confirmada' && datosChat[r.codigo] && datosChat[r.codigo].estado !== 'pagada' ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
-				est === 'confirmada' && r.salida > hoy() ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
+				// Con el pago recibido, cancelar anularía la comisión: solo el administrador.
+				est === 'confirmada' && r.salida > hoy() && (session.isAdmin || datosChat[r.codigo]?.estado !== 'pagada') ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
 	}
 
 	const lista = h('div', {});

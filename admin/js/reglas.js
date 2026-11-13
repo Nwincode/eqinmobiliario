@@ -351,7 +351,8 @@ export function tituloEn(p) {
 // Traductor automático gratuito (sin clave). Si falla, se usa la plantilla y no se le vuelve a
 // preguntar por unos minutos: así una importación larga no espera en cada fila.
 let traductorCaidoHasta = 0;
-async function traductorLibre(texto) {
+// «par»: idiomas de origen y destino (es|en para las fichas; en|es para leer a un cliente que escribe en inglés).
+export async function traductorLibre(texto, par = 'es|en') {
 	const limpio = String(texto || '').trim();
 	if (!limpio) return '';
 	if (Date.now() < traductorCaidoHasta) throw new Error('Traductor no disponible');
@@ -372,7 +373,7 @@ async function traductorLibre(texto) {
 		const ctrl = new AbortController();
 		const timer = setTimeout(() => ctrl.abort(), 8000);
 		try {
-			const res = await fetch(`https://api.mymemory.translated.net/get?langpair=es|en&q=${encodeURIComponent(q.trim())}`, { signal: ctrl.signal });
+			const res = await fetch(`https://api.mymemory.translated.net/get?langpair=${par}&q=${encodeURIComponent(q.trim())}`, { signal: ctrl.signal });
 			const body = await res.json();
 			const txt = body?.responseData?.translatedText || '';
 			if (Number(body?.responseStatus) !== 200 || !txt || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(txt)) throw new Error('Traductor no disponible');

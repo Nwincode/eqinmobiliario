@@ -296,13 +296,7 @@
 				return {
 					// Lo que ve el cliente al enviar: su código para dar seguimiento a la reserva.
 					gracias: fmt(t.vacCodigo, { codigo: codigo }),
-					// Mensaje listo para el WhatsApp del equipo: casa, fechas, total y código.
-					whatsapp: fmt(t.vacWa, {
-						titulo: form.getAttribute('data-property-titulo') || '', codigo: codigo, noches: noches(c.noches),
-						fechas: fDia.format(fechaUTC(estado.llegada)) + ' – ' + fDia.format(fechaUTC(estado.salida)),
-						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
-					}) + '\n' + location.origin + '/admin/#/solicitudes/' + codigo,
-					abrir: t.vacAbrirWa,
+					ver: t.vacChatVer,
 					datos: {
 						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'

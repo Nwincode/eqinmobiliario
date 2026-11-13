@@ -306,7 +306,19 @@
 		return (bloqueos || []).some(function (b) { return b.desde < fechas.salida && b.hasta > fechas.llegada; }) ? 'bloqueada' : '';
 	}
 
+	// Chat de la reserva: ¿el mensaje trae un teléfono, un correo o un enlace? Los datos de contacto
+	// se entregan al confirmar la reserva; antes, nadie los pasa por el chat.
+	// Fechas, horas y montos no cuentan como teléfono; los números escritos con letras sí.
+	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
+	function tieneContacto(texto) {
+		var t = String(texto || '').toLowerCase();
+		if (/@|\barroba\b|https?:|www\.|wa\.me|\.(com|net|org|gt)\b/.test(t)) return true;
+		t = t.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
+		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t);
+	}
+
 	return {
+		tieneContacto: tieneContacto,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
 		esFecha: esFecha, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,

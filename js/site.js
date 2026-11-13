@@ -96,6 +96,8 @@
 
 	// Guarda el lead en Firestore por REST: no hace falta cargar el SDK en el sitio público.
 	function saveLead(lead) {
+		// El id se conserva en el lead: el chat de la reserva lo usa para enlazarse a su solicitud.
+		lead.id = randomId();
 		var base = 'projects/' + config.projectId + '/databases/(default)/documents';
 		var fields = {
 			nombre: str(lead.nombre),
@@ -129,7 +131,7 @@
 		}
 		var body = {
 			writes: [{
-				update: { name: base + '/leads/' + randomId(), fields: fields },
+				update: { name: base + '/leads/' + lead.id, fields: fields },
 				currentDocument: { exists: false },
 				updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }]
 			}]
@@ -194,7 +196,8 @@
 			var button = form.querySelector('button[type=submit]');
 			button.disabled = true;
 
-			var done = function () {
+			// «chat»: token de la conversación de la reserva (vacío si no se pudo abrir).
+			var done = function (chat) {
 				// Conversiones mejoradas de Google Ads: gtag cifra (SHA-256) el correo y el teléfono
 				// antes de enviarlos; mejoran la atribución de anuncios sin exponer los datos.
 				if (window.gtag) {
@@ -207,10 +210,9 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
-				// Reserva: se abre el WhatsApp del equipo con el mensaje ya escrito (nunca el del dueño de la casa).
-				var wa = 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(reserva.whatsapp);
-				setStatus(form, reserva.gracias + ' <a class="btn btn-primary btn-sm mt-2" href="' + wa + '" target="_blank" rel="noopener"><span class="icon-whatsapp eq-ic" aria-hidden="true"></span>' + reserva.abrir + '</a>', true);
-				location.href = wa;
+				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
+				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
+				if (chat) location.href = window.EQChat.enlace(chat);
 			};
 			var fail = function () {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
@@ -233,7 +235,15 @@
 				if (!lead.propietarioId) throw err;
 				delete lead.propietarioId;
 				return saveLead(lead);
-			}).then(function () { avisarEquipo(lead); done(); }, fail).then(function () { button.disabled = false; });
+			}).then(function () {
+				// Chat de la reserva: si no se pudo abrir, la solicitud igual quedó guardada.
+				var chat = reserva && window.EQChat ? window.EQChat.crear(lead, reserva.datos).catch(function () { return ''; }) : Promise.resolve('');
+				return chat.then(function (token) {
+					// Reserva con chat: avisos al socio, al equipo y al cliente con su enlace. Lo demás, el aviso de siempre al equipo.
+					if (token) window.EQChat.avisar(token); else avisarEquipo(lead);
+					done(token);
+				});
+			}, fail).then(function () { button.disabled = false; });
 		});
 	});
 
