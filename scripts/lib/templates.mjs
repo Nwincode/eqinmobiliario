@@ -1514,7 +1514,7 @@ export function vipLandingPage(ctx, p) {
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
 	const portada = v.portada || firstPhoto(p);
 	const video = videoEmbedUrl(v.video || p.video);
-	const mapa = (v.mapa || p.mapa) ? mapEmbedUrl(v.mapa || p.mapa) : '';
+	const mapa = !porNoche(p) && (v.mapa || p.mapa) ? mapEmbedUrl(v.mapa || p.mapa) : '';
 	const precio = v.ocultarPrecio ? t.precioConsultar : price(p);
 	const waNumber = (agent && agent.whatsapp) || s.contacto.whatsapp;
 	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));

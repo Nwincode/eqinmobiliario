@@ -103,7 +103,7 @@ function revisionInventario(props) {
 		[(p) => (p.fotos || []).length >= 8, 'Al menos 8 fotos (las fichas con más fotos reciben más clics y aparecen en Google Imágenes).'],
 		[(p) => String(p.descripcion || '').split(/\s+/).filter(Boolean).length >= 120, 'Descripción de 120 palabras o más.', (p) => [`#/ia/redactar/${p.id}`, 'Redactarla']],
 		[(p) => Boolean(p.zona && p.ciudad), 'Zona y ciudad completas.'],
-		[(p) => /@-?\d|[?&](q|ll|query)=-?\d/.test(p.mapa || ''), 'Ubicación en el mapa con coordenadas (enlace de Google Maps con @lat,lng).'],
+		[(p) => p.operacion === 'vacacional' || /@-?\d|[?&](q|ll|query)=-?\d/.test(p.mapa || ''), 'Ubicación en el mapa con coordenadas (enlace de Google Maps con @lat,lng).'],
 		[(p) => Boolean(p.m2Construccion || p.m2Terreno), 'Metros cuadrados indicados.'],
 		[(p) => p.operacion === 'renta' || Boolean(p.precio), 'Precio publicado (Google y los compradores en EE. UU. filtran por precio).'],
 		[(p) => Boolean(p.en && p.en.titulo && p.en.descripcion), 'Traducción al inglés (para el mercado de EE. UU.).', () => ['#/propiedades', 'Completar SEO']],

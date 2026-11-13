@@ -130,7 +130,9 @@ service cloud.firestore {
         allow read, write: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
         // El socio ve y cambia sus precios netos; nunca el margen, el contacto ni el iCal.
-        allow get: if docId == 'socio' && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
+        // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
+        // con el pago recibido; solo el equipo la escribe.
+        allow get: if docId in ['socio', 'llegada'] && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
         allow update: if docId == 'socio' && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data)
           && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy']);
       }
@@ -374,19 +376,31 @@ service cloud.firestore {
         // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
         //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
-        //  - llegada: la página del cliente muestra la dirección y el mapa guardados en la casa (al recibir el pago);
+        //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
         //  - foto: el comprobante del cliente, subido a la carpeta de su reserva.
-        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt'])
+        function llegadaDe() {
+          return /databases/$(database)/documents/properties/$(chat().propertyId)/privado/llegada;
+        }
+        function sinLlegada() {
+          return !request.resource.data.keys().hasAny(['direccion', 'mapa']);
+        }
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa'])
           && isNonEmptyString(request.resource.data.texto, 1000)
           && (('tipo' in request.resource.data)
-            ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente'
+            ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()
                   && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
                 // La dirección se muestra solo con el pago recibido.
                 || (request.resource.data.tipo == 'llegada' && request.resource.data.de != 'cliente' && request.resource.data.texto == 'llegada'
-                  && chat().get('estado', '') == 'pagada')
-                || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente'
+                  && chat().get('estado', '') == 'pagada'
+                  // Ni un carácter distinto de lo guardado: así el socio no cuela su contacto en la dirección.
+                  && (exists(llegadaDe())
+                    ? (request.resource.data.keys().hasAll(['direccion', 'mapa'])
+                        && request.resource.data.direccion == get(llegadaDe()).data.get('direccion', '')
+                        && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
+                    : sinLlegada()))
+                || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
-            : !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*'))
+            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isStaff())

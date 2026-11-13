@@ -41,9 +41,20 @@ async function prepararVacacional(id, it, previo = null) {
 	const vacacional = { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(previo?.vacacional || {}), ...(it.vac || {}) };
 	const pub = vacacionalPublico({ socio, vacacional });
 	const { updatedAt, updatedBy, ...resto } = socio;
-	return { privRef, pub, socio: resto };
+	// La dirección y el mapa de una casa por noche son privados (privado/llegada): no van al documento público.
+	// Vale lo del CSV; si no lo trae, lo ya guardado en privado; si tampoco, lo que la casa tenía en público.
+	const llegadaRef = doc(db, 'properties', id, 'privado', 'llegada');
+	const antes = previo ? ((await getDoc(llegadaRef)).data() || {}) : {};
+	const llegada = { direccion: it.datos.direccion ?? antes.direccion ?? previo?.direccion ?? '', mapa: antes.mapa ?? previo?.mapa ?? '' };
+	return { privRef, pub: { ...pub, direccion: '', mapa: '' }, socio: resto, llegada, llegadaRef };
 }
-const guardarSocio = (v) => v && setDoc(v.privRef, { ...v.socio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+// Lo privado de una casa por noche: el costo del socio y los datos de llegada.
+const guardarSocio = async (v) => {
+	if (!v) return;
+	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
+	await setDoc(v.privRef, { ...v.socio, ...sello });
+	await setDoc(v.llegadaRef, { ...v.llegada, ...sello });
+};
 
 export async function render(container) {
 	container.replaceChildren();
@@ -401,8 +412,8 @@ export async function render(container) {
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
 					const en = await enIngles({ ...p, ...cambios });
 					if (en) cambios.en = en;
-					await guardar(() => updateDoc(pref, cambios), r.fotos);
 					await guardarSocio(vac);
+					await guardar(() => updateDoc(pref, cambios), r.fotos);
 					Object.assign(p, cambios);
 					cuenta.actualizadas++;
 					anotar('ok', 'icon-refresh', `Actualizada: ${it.datos.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto nueva' : 'fotos nuevas'}${r.repetidas ? `, ${r.repetidas} ya ${r.repetidas === 1 ? 'estaba' : 'estaban'}` : ''})`, r.fallas);
@@ -426,6 +437,7 @@ export async function render(container) {
 					d.updatedAt = serverTimestamp();
 					d.updatedBy = session.user.uid;
 					await guardar(() => setDoc(nref, d), r.fotos);
+					await guardarSocio(vac);
 					existentes.push({ id: nref.id, ...d });
 					cuenta.creadas++;
 					anotar('ok', 'icon-check-circle', `Creada: ${d.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto' : 'fotos'})`, r.fallas);
