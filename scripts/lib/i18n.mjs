@@ -17,7 +17,7 @@ const ES = {
 	// Renta vacacional (cuadro de reserva de la ficha)
 	vacTitulo: 'Reserva tu estancia', vacPorNoche: 'por noche', vacImpuestos: '+ impuestos (IVA 12 % e INGUAT 10 %)',
 	vacCalendario: 'Calendario de disponibilidad', vacMesAnterior: 'Mes anterior', vacMesSiguiente: 'Mes siguiente',
-	vlBuscar: 'Buscar casas disponibles', vlComo: 'Cómo reservar', vlPaso1: 'Elegí fechas y huéspedes', vlPaso2: 'Ves el total y enviás la solicitud', vlPaso3: 'Te confirmamos con un código de reserva', vlSinCasas: 'No hay casas libres para esas fechas y huéspedes.',
+	vlBuscar: 'Buscar casas disponibles', vlComo: 'Cómo reservar', vlPaso1: 'Elige fechas y huéspedes', vlPaso2: 'Ves el total y envías la solicitud', vlPaso3: 'Te confirmamos con un código de reserva', vlSinCasas: 'No hay casas libres para esas fechas y huéspedes.',
 	vacLlegada: 'Llegada', vacSalida: 'Salida', vacCheckIn: 'desde las {hora}', vacCheckOut: 'hasta las {hora}', vacSinFecha: 'Elige una fecha',
 	vacHuespedes: 'Huéspedes', vacHuesped1: '1 huésped', vacHuespedesN: '{n} huéspedes', vacMinimo: 'Estancia mínima: {n} noches.',
 	vacOcupado: 'ocupado', vacLlegadaElegida: 'llegada', vacSalidaElegida: 'salida', vacNoDisponible: 'no disponible',
@@ -36,7 +36,7 @@ const ES = {
 	vacReglas: 'Reglas de la casa', vacReglasGenerales: '', vacCancelacion: 'Cancelación', vacCancelacionGeneral: '',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas', porZona: 'Buscar por zona', porZonaTipo: 'Buscar por zona y tipo',
 	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', zonas: 'Zonas',
-	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué querés vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
+	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué quieres vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
 	plantilla: 'Diseño basado en una plantilla de', escribenos: 'Escríbenos por WhatsApp',
 	buscarPropiedades: 'Buscar propiedades', buscar: 'Buscar', anterior: 'Anterior', siguiente: 'Siguiente', navCarrusel: 'Navegación del carrusel',
 	masInfo: 'Más información', sobre: 'sobre', deEstrellas: 'de 5 estrellas', escribir: 'Escribir',
