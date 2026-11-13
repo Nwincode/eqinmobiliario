@@ -604,6 +604,7 @@ export async function render(container, [id]) {
 		const borradas = new Set();
 		await enMasa(async (p) => {
 			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
+			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'llegada')).catch(() => {});
 			await deleteDoc(doc(db, 'properties', p.id));
 			borradas.add(p.id);
 			await borrarFotos(p);
@@ -853,9 +854,13 @@ async function renderEditor(container, id) {
 	const data = isNew ? datosIniciales() : snap.data();
 	// Datos privados del socio (renta vacacional). Si no hay permiso o no existe, queda vacío.
 	const privRef = doc(db, 'properties', ref.id, 'privado', 'socio');
+	// Dirección y mapa de una casa por noche: privados (el cliente los recibe con el pago). Ver privado/llegada.
+	const llegadaRef = doc(db, 'properties', ref.id, 'privado', 'llegada');
 	let socioGuardado = null;
 	if (!isNew && data.operacion === 'vacacional') {
 		try { const ps = await getDoc(privRef); socioGuardado = ps.exists() ? ps.data() : null; } catch { socioGuardado = null; }
+		const ll = (await getDoc(llegadaRef).catch(() => null))?.data();
+		if (ll) Object.assign(data, { direccion: ll.direccion || '', mapa: ll.mapa || '' });
 	}
 
 	if (!isNew && !canEdit(data)) {
@@ -944,6 +949,7 @@ async function renderEditor(container, id) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
+		let llegada = null;
 		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
 		const dueno = propietarios.find((p) => p.id === d.propietarioId) || null;
 		if (esVacacional(d)) {
@@ -955,6 +961,9 @@ async function renderEditor(container, id) {
 			}
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			Object.assign(d, vacacionalPublico({ ...d, socio }));
+			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
+			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
+			Object.assign(d, { direccion: '', mapa: '' });
 		} else {
 			delete d.vacacional;
 		}
@@ -1012,7 +1021,12 @@ async function renderEditor(container, id) {
 		llenarAltFotos(d);
 		btn.disabled = true;
 		try {
+			// Lo privado se guarda antes de quitarlo de lo público (en una casa nueva, después: su regla lee la casa).
+			const guardarLlegada = () => llegada && setDoc(llegadaRef, { ...llegada, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			if (!isNew) await guardarLlegada();
 			await setDoc(ref, d);
+			if (isNew) await guardarLlegada();
+			if (!llegada && data.operacion === 'vacacional') await deleteDoc(llegadaRef).catch(() => {});
 			if (esVacacional(d)) {
 				await setDoc(privRef, {
 					precioBase: Number(socio.precioBase) || 0, precioFinde: Number(socio.precioFinde) || 0,
@@ -1061,6 +1075,7 @@ async function renderEditor(container, id) {
 		if (!(await confirmDialog(`¿Eliminar "${data.titulo}"? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		try {
 			await deleteDoc(privRef).catch(() => {});
+			await deleteDoc(llegadaRef).catch(() => {});
 			await deleteDoc(ref);
 			await borrarFotos({ ...data, id });
 			await markPending(`Propiedad eliminada: ${data.titulo}`);

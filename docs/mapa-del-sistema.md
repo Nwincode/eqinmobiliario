@@ -65,10 +65,10 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 
 | Colección | Qué guarda | Anidado |
 |---|---|---|
-| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `bitacora/` |
+| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `bitacora/` |
 | `propietarios/{id}` | Dueños, socios (`tipo: socio`, `datosPago`, `email`) y colaboradores (`tipo: colaborador`, `empresa`). Lista `propiedades`. | — |
 | `leads/{id}` | Lo que llega de los formularios. En una reserva: `reserva{}` y `solicitud{}`. **El socio no lo lee.** | — |
-| `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto) |
+| `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto; el de llegada lleva `direccion` y `mapa`) |
 | `reservas/{id}` | Reserva confirmada y su comisión. Sin teléfono del cliente. | — |
 | `clientes`, `actividades`, `requerimientos`, `cotizaciones`, `emisoresAsesor` | CRM y cotizaciones. | — |
 | `agents`, `testimonials`, `pages`, `posts` | Contenido del sitio. | — |
@@ -94,7 +94,9 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Reserva por noche, de punta a punta** → `scripts/lib/templates.mjs` `reservaBox` → `js/vacacional.js` (fechas, código) → `js/site.js` (guarda el lead) → `js/reserva-chat.js` (`crear` el chat, página «Tu reserva») → `netlify/functions/aviso-chat.mjs` + `netlify/lib/avisos-chat.mjs` → `admin/js/views/solicitudes.js` (chat, Confirmada, Pago recibido, Cancelar) → `admin/js/views/rentas.js` (reserva y comisión) → `netlify/functions/solicitudes-sin-respuesta.mjs` → `firestore.rules` (`leads`, `chats`, `mensajes`, `reservas`) y `storage.rules` (`chats/`).
 
-**Reglas de ingreso de la reserva** (no aflojar): filtro de contacto en `js/calc-vacacional.js` y su piso en `firestore.rules`; datos de pago solo al confirmar; dirección solo con pago recibido; el socio no lee `leads` ni cancela con el pago recibido. Pruebas: emulador de Firestore.
+**Reglas de ingreso de la reserva** (no aflojar): filtro de contacto en `js/calc-vacacional.js` y su piso en `firestore.rules`; datos de pago solo al confirmar; dirección solo con pago recibido (vive en `privado/llegada` y viaja en el mensaje, idéntica a lo guardado); el socio no lee `leads` ni cancela con el pago recibido. Pruebas: emulador de Firestore.
+
+**Dirección y mapa de una casa por noche** → `admin/js/views/properties.js` (los saca del documento público al guardar) e `importar.js` → `properties/{id}/privado/llegada` → `admin/js/views/solicitudes.js` `pagoRecibido` (los copia al mensaje) → `js/reserva-chat.js` (los muestra) → `firestore.rules` (`privado`, `mensajes`) → `scripts/build.mjs` (los borra de toda casa por noche antes de generar).
 
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 

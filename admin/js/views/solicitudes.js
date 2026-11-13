@@ -134,7 +134,10 @@ export async function render(container, [codigo] = []) {
 			// En dos pasos y en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado
 			// (dentro de un mismo lote todavía ven el estado anterior y lo rechazan).
 			if (datosChat[l.reserva.codigo].estado !== 'pagada') await updateDoc(refChat(l), { estado: 'pagada' });
-			await addDoc(collection(db, 'chats', refChat(l).id, 'mensajes'), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada', createdAt: serverTimestamp() });
+			// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
+			const ll = (await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada'))).data();
+			await addDoc(collection(db, 'chats', refChat(l).id, 'mensajes'), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada',
+				...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
 			avisarChat(refChat(l).id);
 			toast('Listo: el cliente ya ve los datos de llegada.');
 		});

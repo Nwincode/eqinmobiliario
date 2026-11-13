@@ -146,16 +146,27 @@
 		var FOTOS = 'https://firebasestorage.googleapis.com/v0/b/' + config.storageBucket + '/o/';
 		function alerta(texto) { aviso.textContent = texto || ''; aviso.className = 'vac-chat-aviso' + (texto ? ' vac-chat-alerta' : ''); }
 
-		// Datos de llegada: salen de la ficha de la casa (dirección, mapa, cómo llegar y horarios), no de un texto libre.
+		// El mapa se guarda como enlace, como código «Insertar mapa» o como dirección o coordenadas: siempre sale un enlace.
+		function enlaceMapa(mapa) {
+			var s = String(mapa || '').trim();
+			var url = (/src=["'](https:\/\/[^"']+)["']/.exec(s) || [])[1] || (/^https:\/\/\S+$/.test(s) ? s : '');
+			return url || (s && !/[<>]/.test(s) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s) : '');
+		}
+
+		// Datos de llegada: la dirección y el mapa vienen en el mensaje (privados hasta el pago); cómo llegar y
+		// horarios, de la ficha de la casa. Nunca de un texto libre.
 		var casaDatos = null;
-		function llegada(li) {
+		function llegada(li, m) {
 			var pinta = function (p) {
 				var v = (p.vacacional && p.vacacional.mapValue && p.vacacional.mapValue.fields) || {};
 				var txt = function (x) { return (x && x.stringValue) || ''; };
-				if (txt(p.direccion)) li.appendChild(el('p', '', txt(p.direccion)));
-				if (/^https:\/\//.test(txt(p.mapa))) {
+				// Mensajes anteriores a este cambio no la traen: se lee de la casa, como antes.
+				var direccion = m.direccion === undefined ? txt(p.direccion) : m.direccion;
+				var mapa = enlaceMapa(m.mapa === undefined ? txt(p.mapa) : m.mapa);
+				if (direccion) li.appendChild(el('p', '', direccion));
+				if (mapa) {
 					var a = el('a', '', t.vacChatMapa);
-					a.href = txt(p.mapa); a.target = '_blank'; a.rel = 'noopener';
+					a.href = mapa; a.target = '_blank'; a.rel = 'noopener';
 					li.appendChild(a);
 				}
 				if (txt(v.comoLlegar)) li.appendChild(el('p', '', txt(v.comoLlegar)));
@@ -180,7 +191,7 @@
 				var titulo = { pago: t.vacChatPago, llegada: t.vacChatLlegada, foto: t.vacChatComprobante }[m.tipo];
 				if (titulo) li.appendChild(el('strong', '', titulo));
 				li.appendChild(el('span', 'vac-chat-quien', (QUIEN[m.de] || QUIEN.equipo) + (m.createdAt ? ' · ' + hora.format(new Date(m.createdAt)) : '')));
-				if (m.tipo === 'llegada') llegada(li);
+				if (m.tipo === 'llegada') llegada(li, m);
 				else if (m.tipo === 'foto') {
 					if (m.texto.indexOf(FOTOS) === 0) { var img = el('img'); img.src = m.texto; img.alt = t.vacChatComprobante; img.loading = 'lazy'; li.appendChild(img); }
 				} else li.appendChild(el('p', '', m.texto));

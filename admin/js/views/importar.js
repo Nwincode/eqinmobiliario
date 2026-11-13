@@ -41,9 +41,18 @@ async function prepararVacacional(id, it, previo = null) {
 	const vacacional = { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(previo?.vacacional || {}), ...(it.vac || {}) };
 	const pub = vacacionalPublico({ socio, vacacional });
 	const { updatedAt, updatedBy, ...resto } = socio;
-	return { privRef, pub, socio: resto };
+	// La dirección de una casa por noche es privada (privado/llegada): sale de lo que va al documento público.
+	const llegada = 'direccion' in it.datos ? { direccion: it.datos.direccion } : null;
+	if (llegada) it.datos.direccion = '';
+	return { privRef, pub, socio: resto, llegada, llegadaRef: doc(db, 'properties', id, 'privado', 'llegada') };
 }
-const guardarSocio = (v) => v && setDoc(v.privRef, { ...v.socio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+const guardarSocio = async (v) => {
+	if (!v) return;
+	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
+	await setDoc(v.privRef, { ...v.socio, ...sello });
+	// «merge»: conserva el mapa ya guardado (el CSV no lo trae).
+	if (v.llegada) await setDoc(v.llegadaRef, { mapa: '', ...((await getDoc(v.llegadaRef)).data() || {}), ...v.llegada, ...sello });
+};
 
 export async function render(container) {
 	container.replaceChildren();

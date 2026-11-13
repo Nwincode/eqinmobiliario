@@ -583,6 +583,9 @@ async function main() {
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
 	const todas = normalizeProperties(data.properties);
+	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
+	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
+	for (const p of todas) if (p.operacion === 'vacacional') Object.assign(p, { direccion: '', mapa: '' });
 	// Tampoco se ofrecen las casas de un socio con una comisión atrasada más de 72 h (vuelven solas al pagarla).
 	const mora = data.source === 'firestore' && datosConfigurados() ? await sociosEnMora() : null;
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.

@@ -90,6 +90,20 @@ await cliente.p.goto(`${SITIO}${ficha}`);
 await espera(1200);
 const html = await cliente.p.content();
 paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle Real 12|maps\.google|agent-box/.test(html));
+// La dirección y el mapa no están en ningún archivo del sitio ni en lo que la base le da a quien no tiene sesión.
+{
+	const EXACTO = /Calle Real 12|13\.8912/;
+	// grep sale con 1 cuando no encuentra nada (lo esperado).
+	let enSitio = [];
+	try { enSitio = execFileSync('grep', ['-rlE', 'Calle Real 12|13\\.8912', `${DIR}/sitio/dist`], { encoding: 'utf8' }).trim().split('\n').filter(Boolean); } catch { /* sin coincidencias */ }
+	const base = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
+	const publica = await (await fetch(`${base}/properties/${idCasa}`)).text();
+	const privada = await fetch(`${base}/properties/${idCasa}/privado/llegada`);
+	paso('La dirección y el mapa no están en ningún archivo del sitio', enSitio.length === 0, enSitio.slice(0, 3).join(', '));
+	paso('La base no da la dirección ni el mapa a quien no tiene sesión', /Casa de prueba|titulo/.test(publica) && !EXACTO.test(publica) && privada.status === 403, `privada: ${privada.status}`);
+	await ir(admin.p, `#/propiedades/${idCasa}`);
+	paso('El administrador sigue viendo la dirección y el mapa en la ficha de la casa', /Calle Real 12/.test(await campo(admin.p, 'direccion').inputValue()) && /13\.8912/.test(await campo(admin.p, 'mapa').inputValue()));
+}
 const dias = () => cliente.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await dias().nth(3).click();
 await dias().nth(6).click();
