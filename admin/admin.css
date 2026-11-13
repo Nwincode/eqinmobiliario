@@ -404,30 +404,52 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .card-body {
 	padding: 18px;
 }
+/* Tarjeta de indicador (statCard en ui.js): nombre con ícono arriba, número abajo, nota opcional. */
 .stat-card {
-	padding: 18px !important;
+	padding: 12px 14px;
+	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
-.stat-card:hover {
+a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));
 	transform: translateY(-1px);
 }
-.stat-card .stat-value {
-	font-size: 2rem;
-	font-weight: 700;
-	line-height: 1;
-	color: var(--adm-dark);
-	font-variant-numeric: tabular-nums;
-}
-/* Varias monedas en una tarjeta: un renglón por moneda, más pequeño. */
-.stat-card .stat-value > div {
-	font-size: 1.25rem;
-	line-height: 1.35;
-}
-.stat-card .stat-label {
+.stat-label {
 	color: var(--adm-muted);
 	font-size: 13px;
-	margin-top: 8px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.stat-label [class^="icon-"] {
+	color: var(--adm-primary);
+}
+.stat-value {
+	margin-top: 4px;
+	font-size: 1.45rem;
+	font-weight: 700;
+	line-height: 1.2;
+	color: var(--adm-dark);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+/* Varias monedas en una tarjeta: un renglón por moneda, más pequeño. */
+.stat-value > div {
+	font-size: 1.1rem;
+}
+.stat-nota {
+	color: var(--adm-muted);
+	font-size: 12px;
+	margin-top: 4px;
+}
+.stat-main {
+	border-color: var(--adm-primary);
+	background: color-mix(in oklab, var(--adm-primary) 6%, var(--adm-surface));
+}
+.stat-main .stat-value {
+	font-size: 1.9rem;
+	color: var(--adm-primary);
 }
 
 .alert {
@@ -1543,8 +1565,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .calc-grupo .card-header .me-2,
 .calc-resultados .card-header .me-2,
-.calc-glosario .card-header .me-2,
-.calc-kpi-label [class^="icon-"] {
+.calc-glosario .card-header .me-2 {
 	color: var(--adm-primary);
 }
 .calc-sufijo {
@@ -1614,33 +1635,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .calc-entradas .form-control-sm {
 	min-height: 38px;
-}
-.calc-kpi.stat-card:hover {
-	transform: none;
-}
-.calc-kpi .stat-value {
-	font-size: 1.45rem;
-	margin-top: 6px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-.calc-kpi-main {
-	border-color: var(--adm-primary);
-	background: color-mix(in oklab, var(--adm-primary) 6%, var(--adm-surface));
-}
-.calc-kpi-main .stat-value {
-	font-size: 1.9rem;
-	color: var(--adm-primary);
-}
-.calc-kpi-label {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--adm-muted);
-}
-.calc-kpi-nota {
-	font-size: 12px;
-	color: var(--adm-muted);
-	margin-top: 4px;
 }
 .calc-tabla {
 	font-variant-numeric: tabular-nums;
@@ -1924,10 +1918,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	white-space: nowrap;
 }
 @media (max-width: 575.98px) {
-	.calc-kpi .stat-value {
+	.stat-value {
 		font-size: 1.15rem;
 	}
-	.calc-kpi-main .stat-value {
+	.stat-value > div {
+		font-size: 1rem;
+	}
+	.stat-main .stat-value {
 		font-size: 1.75rem;
 	}
 	.calc-tabla {

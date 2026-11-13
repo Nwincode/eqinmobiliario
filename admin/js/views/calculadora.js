@@ -1,7 +1,7 @@
 // Calculadora de renta del panel: análisis completo de inversión (año 1, escenarios, flujo a largo plazo, TIR y VPN).
 // El motor es el mismo del sitio (js/calc-renta.js → window.EQRenta), así los números coinciden con la ficha pública.
 import '/js/calc-renta.js';
-import { h, mount, pageHeader, toast, cajaTabla } from '../ui.js';
+import { h, statCard, mount, pageHeader, toast, cajaTabla } from '../ui.js';
 
 const R = window.EQRenta;
 
@@ -217,10 +217,7 @@ export async function render(container) {
 	const resumenImpresion = h('p', { class: 'print-only calc-print-resumen' });
 
 	function kpi(icono, label, valor, nota, destacado) {
-		return h('div', { class: destacado ? 'col-12' : 'col-6 col-md-4' }, h('div', { class: `card stat-card calc-kpi h-100${destacado ? ' calc-kpi-main' : ''}` },
-			h('div', { class: 'calc-kpi-label' }, h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), label),
-			h('div', { class: 'stat-value' }, valor),
-			nota ? h('div', { class: 'calc-kpi-nota' }, nota) : null));
+		return h('div', { class: destacado ? 'col-12' : 'col-6 col-md-4' }, statCard(icono, label, valor, { nota, cls: destacado ? 'stat-main' : '' }));
 	}
 
 	function tabla(cols, filas, { total = [], cls = '' } = {}) {

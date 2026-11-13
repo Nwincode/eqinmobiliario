@@ -1,6 +1,6 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
@@ -137,12 +137,11 @@ async function renderTablero(container) {
 	mount(container,
 		pageHeader('Difusión en portales y redes'),
 		h('p', { class: 'text-muted' }, 'Dónde está publicada cada propiedad. Entra a una propiedad para copiar los textos ya adaptados a cada plataforma y descargar sus fotos.'),
-		h('div', { class: 'row g-3 mb-4' },
-			[['actualizar', 'Anuncios por actualizar', 'warning', 'Cambiaron datos o precio después de publicarlos.'],
-				['baja', 'Anuncios por dar de baja', 'danger', 'La propiedad se vendió, rentó o se despublicó.'],
-				['pendiente', 'Publicaciones pendientes', 'secondary', 'Plataformas donde aún no está la propiedad.']]
-				.map(([k, label, color, ayuda]) => h('div', { class: 'col-md-4' }, h('div', { class: `card stat-card h-100 border-${color}` }, h('div', { class: 'card-body' },
-					h('div', { class: 'stat-value' }, pendientes[k]), h('div', { class: 'stat-label' }, label), h('div', { class: 'small text-muted' }, ayuda)))))),
+		h('div', { class: 'row g-2 mb-3' },
+			[['actualizar', 'icon-refresh', 'Actualizar', 'Cambiaron datos o precio después de publicarlos.'],
+				['baja', 'icon-ban', 'De baja', 'La propiedad se vendió, rentó o se despublicó.'],
+				['pendiente', 'icon-clock-o', 'Faltan', 'Plataformas donde aún no está la propiedad.']]
+				.map(([k, icono, label, ayuda]) => h('div', { class: 'col-4', title: ayuda }, statCard(icono, label, pendientes[k])))),
 		visibles.length ? cajaTabla(
 			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
 				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center small' }, x.nombre)))),

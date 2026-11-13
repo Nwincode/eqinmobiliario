@@ -1,6 +1,6 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
 import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
-import { h, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
+import { h, statCard, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
 import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDe } from '../crm.js';
@@ -58,8 +58,8 @@ export async function render(container) {
 
 		cuerpo.replaceChildren(
 			h('div', { class: 'row g-3 mb-4' }, [
-				['Leads recibidos', tot('leads')], ['Actividades realizadas', tot('actividades')], ['Visitas', tot('visitas')], ['Cierres', tot('cierres')]
-			].map(([l, v]) => h('div', { class: 'col-6 col-lg-3' }, h('div', { class: 'card stat-card h-100' }, h('div', { class: 'card-body' }, h('div', { class: 'stat-value' }, v), h('div', { class: 'stat-label' }, l)))))),
+				['icon-envelope-o', 'Leads', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
+			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
 			h('div', { class: 'card mb-4 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
 				cajaTabla(h('table', { class: 'table table-admin mb-0' },

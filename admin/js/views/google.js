@@ -1,6 +1,6 @@
 // Google: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 
@@ -35,10 +35,7 @@ function variacion(ahora, antes, invertir = false) {
 	return h('span', { class: `small ${bueno ? 'text-success' : 'text-danger'}` }, `${d > 0 ? '▲' : '▼'} ${Math.abs(d * 100).toFixed(0)} % vs. periodo anterior`);
 }
 
-function kpi(label, valor, extra) {
-	return h('div', { class: 'col-6 col-lg-3' }, h('div', { class: 'card stat-card h-100' }, h('div', { class: 'card-body' },
-		h('div', { class: 'stat-value' }, valor), h('div', { class: 'stat-label' }, label), extra || null)));
-}
+const kpi = (icono, label, valor, nota) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, valor, { nota }));
 
 function tabla(cabeceras, filas, vacio = 'Sin datos en este periodo.') {
 	if (!filas.length) return h('p', { class: 'text-muted small mb-0' }, vacio);
@@ -165,10 +162,10 @@ function renderDatos(cont, d, props) {
 	mount(cont,
 		h('p', { class: 'small text-muted' }, `Datos de ${d.rango.startDate} a ${d.rango.endDate} · ${d.propiedad}`),
 		h('div', { class: 'row g-3 mb-4' },
-			kpi('Clics desde Google', num(d.totales.clics), variacion(d.totales.clics, d.previos.clics)),
-			kpi('Veces que apareciste', num(d.totales.impresiones), variacion(d.totales.impresiones, d.previos.impresiones)),
-			kpi('CTR (clics / apariciones)', pct(d.totales.ctr), variacion(d.totales.ctr, d.previos.ctr)),
-			kpi('Posición promedio', pos(d.totales.posicion), variacion(d.totales.posicion, d.previos.posicion, true))),
+			kpi('icon-mouse-pointer', 'Clics', num(d.totales.clics), variacion(d.totales.clics, d.previos.clics)),
+			kpi('icon-eye', 'Apariciones', num(d.totales.impresiones), variacion(d.totales.impresiones, d.previos.impresiones)),
+			kpi('icon-percent', 'Clics por aparición', pct(d.totales.ctr), variacion(d.totales.ctr, d.previos.ctr)),
+			kpi('icon-trophy', 'Posición', pos(d.totales.posicion), variacion(d.totales.posicion, d.previos.posicion, true))),
 		card(`Oportunidades: ${oportunidades.length} búsquedas para ganar más clics`,
 			h('p', { class: 'small text-muted' }, 'Búsquedas en las que ya apareces, ordenadas por los clics extra que podrías ganar. Son las mejoras con más retorno.'),
 			tabla(['Búsqueda', 'Página', 'Posición', 'Impresiones', 'Clics posibles', 'Qué hacer'], oportunidades.map((o) => {

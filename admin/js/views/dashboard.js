@@ -1,15 +1,11 @@
 import { db, getDocs, collection } from '../firebase.js';
-import { h, pageHeader, formatDate, toDate , mount } from '../ui.js';
+import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, fechaCorta, ms } from '../crm.js';
 
-function stat(label, value, href) {
-	return h('div', { class: 'col-6 col-lg-3' },
-		h('a', { href, class: 'card stat-card text-decoration-none h-100' },
-			h('div', { class: 'card-body' }, h('div', { class: 'stat-value' }, value), h('div', { class: 'stat-label' }, label))));
-}
+const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
 export async function render(container) {
 	const canSeeLeads = session.isAdmin || session.agentId;
@@ -61,10 +57,10 @@ export async function render(container) {
 					a.clienteId ? [' · ', h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente')] : null)))
 					: h('p', { class: 'small text-muted mb-0' }, 'No hay actividades agendadas para hoy.'))) : null,
 		h('div', { class: 'row g-3 mb-4' },
-			stat(session.isAdmin ? 'Propiedades publicadas' : 'Mis propiedades publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
-			stat('Propiedades VIP', props.filter((p) => p.vip && p.publicado).length, '#/propiedades'),
-			stat('Leads nuevos sin atender', nuevos.length, '#/leads'),
-			stat('Leads últimos 30 días', last30.length, '#/leads')),
+			stat('icon-home', session.isAdmin ? 'Publicadas' : 'Mis publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
+			stat('icon-star', 'VIP', props.filter((p) => p.vip && p.publicado).length, '#/propiedades'),
+			stat('icon-envelope-o', 'Leads sin atender', nuevos.length, '#/leads'),
+			stat('icon-calendar', 'Leads en 30 días', last30.length, '#/leads')),
 		canSeeLeads ? h('div', { class: 'row g-3' },
 			h('div', { class: 'col-lg-7' }, h('div', { class: 'card h-100' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Leads recientes'),
