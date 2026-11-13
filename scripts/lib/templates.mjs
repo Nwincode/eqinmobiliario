@@ -478,8 +478,8 @@ function agentBox(ctx, agent, property) {
 	if (!agent) return '';
 	const t = tr(ctx);
 	const msg = property ? fmt(t.msgAsesor, { nombre: agent.nombre, titulo: property.titulo }) : '';
-	// Renta vacacional: el WhatsApp lleva al cuadro de reserva (deja la solicitud con fechas y código).
-	const reserva = vacacionalVisible(property);
+	// Renta vacacional que se ofrece: el WhatsApp lleva al cuadro de reserva (deja la solicitud con fechas y código).
+	const reserva = vacacionalVisible(property) && estadoDe(property).visibilidad !== 'cerrada';
 	const wa = reserva ? RESERVA : whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
 	return `<div class="d-block agent-box p-4">
 						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy" width="80" height="80"></div>
