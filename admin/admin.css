@@ -983,26 +983,25 @@ a.stat-card:hover {
 }
 
 /* CRM: tablero por etapas */
-.crm-tablero {
-	display: grid;
-	grid-template-columns: repeat(6, minmax(160px, 1fr));
-	gap: 12px;
-	overflow-x: auto;
-	padding-bottom: 8px;
-}
-@media (max-width: 575.98px) {
-	.crm-tablero { grid-template-columns: repeat(6, minmax(230px, 1fr)); }
-}
+/* Tablero sin scroll propio: las etapas se reparten el ancho y bajan de línea si no caben.
+   La etapa vacía ocupa solo su título; en celular van una debajo de otra. */
+.crm-tablero { display: flex; flex-wrap: wrap; gap: 8px; }
 .crm-columna {
+	flex: 1 1 150px;
+	min-width: 0;
 	background: var(--adm-bg);
 	border: 1px solid var(--adm-border);
 	border-radius: 10px;
-	padding: 10px;
-	min-height: 180px;
+	padding: 8px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	transition: background-color .15s ease, border-color .15s ease;
+}
+.crm-columna.vacia { flex: 0 0 auto; align-self: flex-start; }
+@media (max-width: 575.98px) {
+	.crm-tablero { flex-direction: column; }
+	.crm-columna.vacia { align-self: stretch; }
 }
 .crm-columna.sobre {
 	background: var(--eq-primary-soft);
@@ -1020,8 +1019,19 @@ a.stat-card:hover {
 	background: #fff;
 	border: 1px solid var(--adm-border);
 	border-radius: 8px;
-	padding: 10px 12px;
+	padding: 8px 10px;
 	cursor: grab;
+	font-size: .8125rem;
+	display: flex;
+	gap: 4px;
+}
+.crm-card-datos { flex: 1; min-width: 0; }
+/* Dato de la ficha: ícono fijo a la izquierda y el texto al lado. */
+.crm-dato { display: flex; align-items: baseline; gap: 6px; color: var(--adm-text); overflow-wrap: anywhere; }
+.crm-icono { flex: none; width: 1em; text-align: center; color: var(--adm-muted); }
+.crm-card-acciones { flex: none; display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 575.98px) {
+	.crm-card-acciones { flex-direction: row; align-items: flex-start; }
 }
 .crm-card.arrastrando {
 	opacity: .5;

@@ -3,7 +3,7 @@ import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
-import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, fechaCorta, ms } from '../crm.js';
+import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -53,7 +53,7 @@ export async function render(container) {
 					sinSeguimiento.length ? h('a', { href: '#/clientes', class: 'badge text-bg-warning text-decoration-none' }, `${sinSeguimiento.length} clientes sin seguimiento agendado`) : null,
 					exclusivas.length ? h('a', { href: '#/propietarios', class: 'badge text-bg-warning text-decoration-none' }, `${exclusivas.length} exclusivas por vencer`) : null),
 				deHoy.length ? h('ul', { class: 'list-unstyled mb-0' }, deHoy.slice(0, 8).map((a) => h('li', { class: 'small mb-1' },
-					`${tipoActividad(a.tipo)[2]} ${fechaCorta(a.fecha)} · ${a.titulo || tipoActividad(a.tipo)[1]}`,
+					iconoActividad(a.tipo), ` ${fechaCorta(a.fecha)} · ${a.titulo || tipoActividad(a.tipo)[1]}`,
 					a.clienteId ? [' · ', h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente')] : null)))
 					: h('p', { class: 'small text-muted mb-0' }, 'No hay actividades agendadas para hoy.'))) : null,
 		h('div', { class: 'row g-3 mb-4' },
