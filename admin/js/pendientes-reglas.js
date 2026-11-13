@@ -43,8 +43,8 @@ export const REGLAS = {
 			['nombre', 'Nombre', (p) => vacio(p.nombre)],
 			['telefono', 'Teléfono o correo', (p) => vacio(p.telefono) && vacio(p.email)],
 			// Socio de renta vacacional: sin correo no se entera de las solicitudes y sin datos de pago no puede confirmarlas.
-			['email', 'Correo (para avisarle de las solicitudes)', (p) => p.tipo === 'socio' && vacio(p.email)],
-			['datosPago', 'Datos de pago para reservas', (p) => p.tipo === 'socio' && vacio(p.datosPago)]
+			['email', 'Correo (para avisarle de las solicitudes)', (p) => (p.porNoche || p.tipo === 'socio') && vacio(p.email)],
+			['datosPago', 'Datos de pago para reservas', (p) => (p.porNoche || p.tipo === 'socio') && vacio(p.datosPago)]
 		]
 	},
 	asesores: {

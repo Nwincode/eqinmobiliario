@@ -36,6 +36,7 @@ agrega aquí en el mismo cambio que lo corrige.
 | El botón de WhatsApp apuntaba a un cuadro que no existe en casas cerradas. | Probar el cambio en los otros estados del registro (cerrada, pausada, sin datos, VIP). |
 | La mora de un socio sacaba del sitio también sus casas en venta. | Un dato que ahora llega a más registros: revisar todo lo que lo lee. |
 | Al socio de renta por noche se le pedían impuestos de venta y comisión acordada; una casa por noche se podía marcar VIP (landing sin caja de reserva) y pedía «mantenimiento al mes». | Cada opción que cambia el caso (operación, tipo de dueño, rol): recorrer **todos** los campos, bloques y páginas de esa pantalla y preguntarse cuáles aplican a ese caso. |
+| «Socio» era un tipo que se elegía a mano: quien tenía una casa por noche y otra en venta necesitaba dos fichas. | Lo que se deduce de los datos no se pregunta. Antes de agregar un «tipo», ver si un mismo registro puede ser dos a la vez. |
 | El socio se escribía tres veces (casa, propietario, usuario). | Lo que ya está guardado no se vuelve a pedir: se elige o se rellena solo. |
 | Se programó de nuevo algo que ya existía. | Buscar primero si ya existe (CSS sobre todo) y reutilizarlo. |
 
