@@ -220,7 +220,7 @@ function motivoVisibilidad(p) {
 }
 
 // Datos que describen el inmueble en la lista, cada uno con su ícono.
-function datosDe(p) {
+export function datosDe(p) {
 	const n = (v) => Number(v) > 0;
 	return [
 		n(p.habitaciones) && ['icon-bed', p.habitaciones, 'habitaciones'],
@@ -379,14 +379,13 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
-				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
-				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
-				datos.length ? h('div', { class: 'prop-datos' }, datos) : null,
-				p.descripcion ? h('div', { class: 'small text-muted prop-desc' }, recortar(stripMd(p.descripcion), 220)) : null,
-				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'mt-1 d-flex flex-wrap gap-1 prop-chips' },
+				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'prop-chips' },
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
-					chipFaltan(faltanDe(p))) : null),
+					chipFaltan(faltanDe(p))) : null,
+				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
+				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
+				datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
 			h('td', { class: 'text-nowrap celda-precio' },
 				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
 				h('div', { class: 'small text-muted celda-operacion' }, OPERACION_LABEL[p.operacion] || 'Venta')),
@@ -622,6 +621,7 @@ export async function render(container, [id]) {
 		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
 		session.isAdmin ? btnEliminar : null,
+		iconoBtn('icon-download', 'Exportar seleccionadas (CSV)', { onclick: (e) => exportarCsv(elegidas(), agentName, e.currentTarget) }),
 		btnMas, masAcciones);
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
