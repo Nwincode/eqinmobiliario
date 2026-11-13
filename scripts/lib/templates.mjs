@@ -752,9 +752,11 @@ function operaciones(ctx) {
 
 // «Buscar por zona y tipo»: enlaces a cada zona y a cada tipo con propiedades (y cuántas tienen) y a las
 // operaciones. Va al final de la portada y de los listados, para que las personas y Google lleguen a cada página.
-function porZona(ctx, actual = '') {
+// En los listados de renta vacacional las zonas son los destinos: solo los que tienen casas por noche.
+function porZona(ctx, actual = '', vac = false) {
 	const enlaces = (lista) => lista.filter((x) => x.url !== actual).map((x) => `<a href="${x.url}">${esc(x.nombre)} (${x.total})</a>`).join('');
-	const zonas = enlaces(ctx.zonas || []), tipos = enlaces(ctx.landings || []);
+	const destinos = (ctx.zonas || []).filter((z) => z.urlVac).map((z) => ({ nombre: z.nombre, url: z.urlVac, total: z.vacacional }));
+	const zonas = enlaces(vac ? destinos : ctx.zonas || []), tipos = enlaces(ctx.landings || []);
 	if (!zonas && !tipos) return '';
 	return `<nav class="section pt-0" aria-labelledby="por-zona">
 		<div class="container">
@@ -803,7 +805,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
 	const hayVacacional = ctx.properties.some((p) => p.operacion === 'vacacional');
-	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, (zona || operacion) && { name: t.propiedades, url: rt(ctx).propiedades }, { name: heading, url: path }].filter(Boolean);
+	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, (zona || operacion) && { name: t.propiedades, url: rt(ctx).propiedades }, vac && zona && { name: t.vacacional, url: rt(ctx).vacacional }, { name: heading, url: path }].filter(Boolean);
 	const itemListLd = {
 		'@context': 'https://schema.org',
 		'@type': 'ItemList',
@@ -814,8 +816,9 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
+			${vac ? vacBuscador(ctx, list) : ''}
 			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
-			${vac ? vacBuscador(ctx, list) : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
+			${vac ? '' : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
 				<div class="col-12 filtros-cabeza d-md-none">
 					<strong>${t.buscar}</strong>
 					<button type="button" class="btn btn-outline-secondary btn-ico" id="filtros-cerrar" aria-label="${t.cerrarFiltros}">${ic('close')}</button>
@@ -886,7 +889,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		</div>
 	</div>` : ''}
 
-	${porZona(ctx, path)}
+	${porZona(ctx, path, vac)}
 
 	<div class="section bg-light" id="contacto-listado">
 		<div class="container">
@@ -1255,7 +1258,7 @@ export function propertyPage(ctx, p) {
 	const agent = ctx.agentsById[p.agentId];
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
 	const zona = (ctx.zonas || []).find((z) => z.nombre === p.zona);
-	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, zona ? { name: zona.nombre, url: zona.url } : null, { name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
+	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades }, zona ? { name: zona.nombre, url: (p.operacion === 'vacacional' && zona.urlVac) || zona.url } : null, { name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
 	const video = videoEmbedUrl(p.video);
 	const mapa = p.mapa ? mapEmbedUrl(p.mapa) : '';
 	// Vendida o rentada: la página sigue en su enlace con el aviso y propiedades parecidas.

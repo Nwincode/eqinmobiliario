@@ -98,7 +98,8 @@ Si el lead preguntó por una propiedad que ya no está disponible o hay otras qu
 - Conserva los nombres propios (residenciales, zonas como "Zona 16").
 - Junto a los m² agrega los pies cuadrados (1 m² = 10.764 sq ft).
 - No agregues datos que no estén en el original.
-- El título SEO debe tener máx. 65 caracteres e incluir el tipo de inmueble y "Guatemala" o la zona; la descripción SEO máx. 155.`,
+- El título SEO debe tener máx. 65 caracteres e incluir el tipo de inmueble y "Guatemala" o la zona; la descripción SEO máx. 155.
+- Renta vacacional (operacion "vacacional"): escribe para un turista que busca dónde quedarse ("vacation rental", "sleeps 8") y traduce cómo llegar, las reglas (una por línea, como vienen) y la cancelación.`,
 		schema: obj({
 			titulo: str('Título en inglés'),
 			descripcion: str('Descripción en markdown simple'),
@@ -108,7 +109,10 @@ Si el lead preguntó por una propiedad que ya no está disponible o hay otras qu
 			vipTitular: str('Titular VIP en inglés (vacío si no hay)'),
 			vipSubtitular: str('Subtítulo VIP en inglés (vacío si no hay)'),
 			puntosClave: strArr('Puntos clave en inglés'),
-			ctaTexto: str('Texto del botón en inglés (vacío si no hay)')
+			ctaTexto: str('Texto del botón en inglés (vacío si no hay)'),
+			comoLlegar: str('vacacional.comoLlegar en inglés (vacío si no hay)'),
+			reglas: str('vacacional.reglas en inglés, una por línea (vacío si no hay)'),
+			cancelacion: str('vacacional.cancelacion en inglés (vacío si no hay)')
 		})
 	},
 
