@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, TIPOS, TIPOS_LANDING } from './lib/util.mjs';
-import { dinero } from '../admin/js/formato.js';
+import { dinero, telefonoWa } from '../admin/js/formato.js';
 import { amenidadesEn } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
@@ -607,7 +607,8 @@ async function main() {
 		if (slugsEn.has(p.slug)) p.slug = `${p.slug}-${slugify(p.id).slice(0, 8)}`;
 		slugsEn.add(p.slug);
 	}
-	const propsEn = todasEn.filter((p) => visibilidadDe(p) === 'visible');
+	// La misma regla que en español (incluye la pausa por mora): una sola función para los dos idiomas.
+	const propsEn = todasEn.filter(seOfrece);
 	const hayVacacionalEn = propsEn.some((p) => p.operacion === 'vacacional');
 	// Pares de URLs español ↔ inglés para el selector de idioma.
 	const altMap = new Map();
@@ -642,7 +643,8 @@ async function main() {
 			projectId: config.firebase.projectId || '',
 			apiKey: config.firebase.apiKey || '',
 			storageBucket: config.firebase.storageBucket || '',
-			whatsapp: site.contacto.whatsapp || '',
+			// Ya con código de país (telefonoWa): js/site.js arma con él sus enlaces de WhatsApp.
+			whatsapp: telefonoWa(site.contacto.whatsapp),
 			adsLead: site.tracking.adsId && site.tracking.adsLeadLabel ? `${site.tracking.adsId}/${site.tracking.adsLeadLabel}` : '',
 			adsContact: site.tracking.adsId && site.tracking.adsContactLabel ? `${site.tracking.adsId}/${site.tracking.adsContactLabel}` : ''
 		}
@@ -853,7 +855,7 @@ async function main() {
 			es._alternates = p._alternates = { es: T.propertyUrl(es), en: T.propertyUrl(p) };
 			registrarPar(T.propertyUrl(es), T.propertyUrl(p));
 			await writePage(T.propertyUrl(p), fichaHtml(ctxEn, p));
-			if (visibilidadDe(p) === 'visible') urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
+			if (seOfrece(p)) urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
 		}
 		for (const page of pagesEn) {
 			await writePage(page.url, T.contentPage(ctxEn, page));

@@ -5,7 +5,7 @@ import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } 
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS, datosDe } from './properties.js';
-import { estadoDe } from '../estados.js';
+import { estadoDe, operacionDe, enOperacion } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
@@ -36,7 +36,7 @@ function datos(p) {
 	const n = (v) => Number(v).toLocaleString('en-US');
 	return [
 		['Tipo', TIPO_LABEL[p.tipo] || ''],
-		['Operación', p.operacion === 'renta' ? 'Renta' : 'Venta'],
+		['Operación', operacionDe(p)],
 		['Zona', p.zona],
 		['Habitaciones', p.habitaciones],
 		['Baños', p.banos],
@@ -67,7 +67,7 @@ function ubicacion(p) {
 }
 
 function etiquetaTipo(p) {
-	return `${TIPO_LABEL[p.tipo] || 'Propiedad'} en ${p.operacion === 'renta' ? 'renta' : 'venta'}`;
+	return `${TIPO_LABEL[p.tipo] || 'Propiedad'} ${enOperacion(p)}`;
 }
 
 function cabeceraPagina(empresa, n, total) {

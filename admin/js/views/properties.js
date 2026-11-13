@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -119,15 +119,15 @@ async function marcarFotos(p, progreso) {
 }
 
 export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
-export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta'], ['vacacional', 'Renta vacacional']];
-const OPERACION_LABEL = Object.fromEntries(OPERACIONES);
+// La lista de operaciones vive en estados.js; se reexporta para quien ya la importa de aquí.
+export { OPERACIONES };
 const esVacacional = (d) => d.operacion === 'vacacional';
 const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).padStart(2, '0')}:00`; return [hh, hh]; });
 
 // Renta vacacional. Lo privado (costo del socio, margen, contacto, enlace iCal) vive en
 // properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
 // los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+const hoyISO = () => V.hoy();
 const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
 export function vacacionalPublico(d) {
 	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
@@ -448,7 +448,7 @@ export async function render(container, [id]) {
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
 			h('td', { class: 'text-nowrap celda-precio' },
 				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('div', { class: 'small text-muted celda-operacion' }, OPERACION_LABEL[p.operacion] || 'Venta')),
+				h('div', { class: 'small text-muted celda-operacion' }, operacionDe(p))),
 			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
 			h('td', { class: 'celda-visible', onclick: detener },
 				h('div', { class: 'form-check form-switch mb-1' }, chk,
@@ -1211,30 +1211,40 @@ async function renderEditor(container, id, emb = null) {
 		}
 	};
 
-	// La copia reutiliza las fotos sin su ruta de almacenamiento, para que borrar
-	// fotos de la copia no elimine las de la original.
+	// Duplicar: nace como toda propiedad nueva (propiedadNueva), sin publicar, con URL y código propios y sin el
+	// historial, las URL anteriores, la difusión ni la versión en inglés de la original. Reutiliza las fotos sin su
+	// ruta de almacenamiento, para que borrar fotos de la copia no elimine las de la original. Una casa por noche
+	// lleva también su privado (socio y llegada); el acuerdo con el dueño no se copia.
 	const duplicate = async (btn) => {
 		btn.disabled = true;
 		try {
-			const copy = collection(db, 'properties');
-			const newRef = doc(copy);
+			const newRef = doc(collection(db, 'properties'));
+			const vac = esVacacional(data);
+			// Sin «catch»: «no se pudo leer» no es «no existe» (la copia quedaría sin precio del socio ni dirección).
+			const [socioPriv, llegadaPriv] = vac ? await Promise.all([getDoc(privRef), getDoc(llegadaRef)]) : [];
+			const { historialPrecio, historialEstado, slugsAnteriores, difusion, en, codigo, ...base } = data;
 			const titulo = `${data.titulo} (copia)`;
-			await setDoc(newRef, {
-				...data,
+			const d = propiedadNueva({
+				...base,
 				titulo,
-				slug: slugify(titulo),
+				slug: slugLibre(titulo, new Set(all.map((p) => p.slug).filter(Boolean))),
+				// Todos los códigos cuentan, también el de la original.
 				codigo: generarCodigo(data, { agentes, codigos: all.map((p) => p.codigo).filter(Boolean) }),
 				publicado: false,
 				destacada: false,
-				estado: estadoDe(data).valor,
-				estadoFecha: serverTimestamp(),
-				historialEstado: [entradaHistorial(estadoDe(data).valor)],
 				fotos: (data.fotos || []).map(({ url, alt }) => ({ url, alt: alt || '' })),
 				agentId: session.isAdmin ? data.agentId || '' : session.agentId,
-				createdAt: serverTimestamp(),
-				updatedAt: serverTimestamp(),
-				createdBy: session.user.uid
+				// La dirección y el mapa de una casa por noche son privados (data los trae de privado/llegada).
+				...(vac ? { direccion: '', mapa: '' } : {})
 			});
+			await setDoc(newRef, d);
+			// Después de crear la casa: su regla la lee.
+			if (vac) {
+				const sinSello = (s) => { const { updatedAt, updatedBy, ...resto } = s.data() || {}; return resto; };
+				await guardarPrivadoVacacional(newRef.id, sinSello(socioPriv), sinSello(llegadaPriv));
+			}
+			const dueno = propietarios.find((p) => p.id === data.propietarioId);
+			if (dueno) await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: newRef.id }) });
 			toast('Copia creada como borrador. Ajusta los datos y guarda.');
 			location.hash = `#/propiedades/${newRef.id}`;
 		} catch (err) {

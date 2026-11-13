@@ -946,13 +946,33 @@ a {
 .property-item .img img {
 	border-radius: 0;
 }
+/* Todas las tarjetas de una fila miden lo mismo: la tarjeta llena su columna y el pie (precio y datos)
+   va pegado abajo, tenga el título una línea o dos. */
 .property-item {
 	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
 }
 .property-item .property-content {
 	position: static;
 	margin: 0;
 	padding: 12px 14px 14px;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+}
+.property-item .prop-pie {
+	margin-top: auto;
+}
+/* En el carrusel de la portada también: las tarjetas se estiran a la más alta. */
+.property-slider.tns-slider {
+	display: flex;
+}
+.property-slider.tns-slider > .tns-item {
+	display: block;
+	flex: none;
+	height: auto;
 }
 .prop-etiqueta {
 	display: block;

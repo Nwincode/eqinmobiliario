@@ -3,11 +3,12 @@
 // El socio escribe SU precio; el del cliente (con la comisión) lo calcula el sistema.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, addDoc, collection, query, where, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, hoy, dia } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
 import { prefijoMoneda, decimales } from '../formato.js';
 
 const V = window.EQVacacional;
+const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
 const fecha = (iso) => new Date(`${iso}T12:00:00`);
 const rango = (r) => (r.desde === r.hasta ? dia(r.desde) : `${r.desde.slice(0, 7) === r.hasta.slice(0, 7) ? Number(r.desde.slice(8)) : dia(r.desde)} – ${dia(r.hasta)}`);
 const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };

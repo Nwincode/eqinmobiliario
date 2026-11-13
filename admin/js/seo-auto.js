@@ -1,5 +1,6 @@
 // SEO automático de una propiedad. Lo usan el panel (para llenar los campos al guardar)
 // y el generador del sitio (scripts/lib/templates.mjs), así los dos dan el mismo resultado.
+import { operacionDe } from './estados.js';
 
 export function stripMarkdown(md) {
 	return String(md || '')
@@ -25,8 +26,7 @@ export function recortar(text, max) {
 
 // Título automático que cabe en Google (~65 caracteres): se acorta quitando detalles.
 export function autoSeoTitle(p, en = false) {
-	const op = p.operacion === 'vacacional' ? (en ? 'Vacation Rental' : 'Renta vacacional')
-		: en ? (p.operacion === 'renta' ? 'For Rent' : 'For Sale') : (p.operacion === 'renta' ? 'Renta' : 'Venta');
+	const op = en ? ({ vacacional: 'Vacation Rental', renta: 'For Rent' }[p.operacion] || 'For Sale') : operacionDe(p);
 	const prep = en ? 'in' : 'en';
 	// Si el título ya dice la operación, no se repite ("… en venta … | Venta").
 	const t = String(p.titulo || '');

@@ -472,6 +472,36 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await admin.p.setViewportSize({ width: 1280, height: 900 });
 }
 
+// ---------------------------------------------------------------- «Duplicar» una casa por noche
+{
+	await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
+	await admin.p.locator('button', { hasText: /^Duplicar$/ }).click();
+	await admin.p.waitForFunction((id) => /#\/propiedades\/[^/]+$/.test(location.hash) && !location.hash.endsWith(id), idCasa, { timeout: 15000 }).catch(() => {});
+	const idCopia = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1] || '';
+	const hay = idCopia && idCopia !== idCasa;
+	const original = (await leer(`properties/${idCasa}`)).fields || {};
+	const copia = hay ? (await leer(`properties/${idCopia}`)).fields || {} : {};
+	const socioOriginal = (await leer(`properties/${idCasa}/privado/socio`)).fields || {};
+	const socioCopia = hay ? (await leer(`properties/${idCopia}/privado/socio`)).fields || {} : {};
+	const llegadaCopia = hay ? (await leer(`properties/${idCopia}/privado/llegada`)).fields || {} : {};
+	const acuerdoCopia = hay ? await fetch(`${FS}/properties/${idCopia}/privado/acuerdo`, { headers: { Authorization: 'Bearer owner' } }) : { status: 0 };
+	const lista = JSON.stringify((await leer('propietarios/socio-prueba')).fields?.propiedades || {});
+	const valor = (f) => f?.stringValue ?? f?.integerValue ?? f?.doubleValue;
+	const fallo = [
+		!hay && 'sin copia',
+		copia.publicado?.booleanValue !== false && 'publicada',
+		(!valor(copia.slug) || valor(copia.slug) === valor(original.slug)) && 'misma URL',
+		(!valor(copia.codigo) || valor(copia.codigo) === valor(original.codigo)) && 'mismo código',
+		(copia.slugsAnteriores || copia.difusion || (copia.historialEstado?.arrayValue?.values || []).length !== 1) && 'arrastra historial',
+		/Calle Real 12|13\.8912/.test(JSON.stringify(copia)) && 'dirección en lo público',
+		!/Calle Real 12/.test(valor(llegadaCopia.direccion) || '') && 'sin llegada',
+		(!Number(valor(socioCopia.precioBase)) || Number(valor(socioCopia.precioBase)) !== Number(valor(socioOriginal.precioBase))) && 'sin precio del socio',
+		acuerdoCopia.status !== 404 && 'copió el acuerdo',
+		!lista.includes(idCopia || 'x') && 'no está en la lista del socio'
+	].filter(Boolean);
+	paso('«Duplicar» una casa por noche: borrador con URL y código propios, su privado copiado (sin el acuerdo) y en la lista del socio', fallo.length === 0, fallo.join(', '));
+}
+
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);

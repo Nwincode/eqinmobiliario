@@ -41,6 +41,19 @@ export function visibilidadDe(p) {
 // Se puede ofrecer (sitio, catálogos, portales, IA): visible y no vendida/rentada/pausada/retirada.
 export const seOfrece = (p) => visibilidadDe(p) === 'visible';
 
+// Operación de una propiedad: la lista y cómo se nombra en todo el sistema (panel, difusión, PDF, SEO).
+export const OPERACIONES = [['venta', 'Venta'], ['renta', 'Renta'], ['vacacional', 'Renta vacacional']];
+const OPERACION_LABEL = Object.fromEntries(OPERACIONES);
+const OPERACION_EN = { venta: 'for sale', renta: 'for rent', vacacional: 'for vacation rental' };
+// «Venta» · «Renta» · «Renta vacacional» (lo desconocido o vacío cuenta como venta).
+export const operacionDe = (p) => OPERACION_LABEL[p && p.operacion] || OPERACION_LABEL.venta;
+// «en venta» · «en renta» · «en renta vacacional» (en inglés: «for sale» · «for rent» · «for vacation rental»).
+export const enOperacion = (p, lang = 'es') => (lang === 'en'
+	? OPERACION_EN[p && p.operacion] || OPERACION_EN.venta
+	: `en ${operacionDe(p).toLowerCase()}`);
+// Para un hashtag: «EnVenta» · «EnRenta» · «EnRentaVacacional».
+export const operacionHashtag = (p) => enOperacion(p).replace(/(?:^|\s+)(\S)/g, (_, c) => c.toUpperCase());
+
 // Amenidades frecuentes: el panel las ofrece de un toque y la ficha en inglés las traduce sola
 // cuando la propiedad no trae su lista en inglés.
 export const AMENIDADES_COMUNES = [

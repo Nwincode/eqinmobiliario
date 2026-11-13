@@ -98,11 +98,17 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Dirección y mapa de una casa por noche** → `admin/js/views/properties.js` (los saca del documento público al guardar) e `importar.js` → `properties/{id}/privado/llegada` → `admin/js/views/solicitudes.js` `pagoRecibido` (los copia al mensaje) → `js/reserva-chat.js` (los muestra) → `firestore.rules` (`privado`, `mensajes`) → `scripts/build.mjs` (los borra de toda casa por noche antes de generar).
 
-**Crear, editar o eliminar una propiedad** → una sola ficha: `admin/js/views/properties.js` `renderEditor` (en su página, o en una ventana con `abrirFicha`, que usa `propietarios.js` desde la ficha del dueño). `propiedadNueva` (lo que lleva toda propiedad al nacer) la usan la ficha y `importar.js`; `eliminarPropiedad`, la ficha y el listado. El importador crea desde un CSV con `slugLibre` y `guardarPrivadoVacacional`.
+**Crear, editar o eliminar una propiedad** → una sola ficha: `admin/js/views/properties.js` `renderEditor` (en su página, o en una ventana con `abrirFicha`, que usa `propietarios.js` desde la ficha del dueño). `propiedadNueva` (lo que lleva toda propiedad al nacer) la usan la ficha y `importar.js`; `eliminarPropiedad`, la ficha y el listado. El importador crea desde un CSV con `slugLibre` y `guardarPrivadoVacacional`. «Duplicar» (en la ficha) usa las mismas: `propiedadNueva`, `slugLibre` y, si es por noche, `guardarPrivadoVacacional` (el acuerdo no se copia).
 
 **Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las tres categorías en la misma ficha: con casas por noche, datos de pago; con venta o renta, el asesor que la atiende; sin casas todavía, nada de eso) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`.
 
 **Acuerdo con el dueño (exclusiva, comisión, impuestos), por inmueble** → `admin/js/acuerdo.js` (qué aplica a cada operación, herencia de lo que antes se guardaba en la persona, exclusivas por vencer; sin dependencias) → `admin/js/views/properties.js` (bloque «Acuerdo con el dueño»; `acuerdoPorGuardar` decide qué se escribe en `privado/acuerdo`; nunca va al documento público ni a `traducirEn` / `netlify/functions/ia.mjs`) → `admin/js/crm.js` `loadAcuerdos` → `admin/js/views/propietarios.js` (listado, fichas cortas, `migrarAcuerdos`) → `admin/js/views/dashboard.js` → `admin/js/portal.js` (solo la fecha va al portal) → `admin/js/views/cotizacion.js` → `netlify/lib/resumen.mjs` → `firestore.rules` (`privado`) → `scripts/test-acuerdo.mjs`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
+
+**«Hoy» de la renta por noche** → `js/calc-vacacional.js` `hoy()` (día de Guatemala; lo usan el sitio, el panel y las funciones) → `scripts/test-vacacional.mjs`.
+
+**Enlace de WhatsApp** → `admin/js/formato.js` `telefonoWa` / `whatsappUrl` → `scripts/lib/util.mjs` `whatsappLink` → `scripts/build.mjs` (config del sitio) → `admin/js/portal.js`.
+
+**Etiqueta de la operación** («Venta», «en renta vacacional», hashtag) → `admin/js/estados.js` (`OPERACIONES`, `operacionDe`, `enOperacion`, `operacionHashtag`; `properties.js` reexporta `OPERACIONES`) → `listado.js`, `difusion.js`, `reglas.js`, `seo-auto.js`, `cotizacion.js`.
 
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 
