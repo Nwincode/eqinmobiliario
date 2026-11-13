@@ -42,8 +42,8 @@ function nuevaPropiedad(dueno, alCrear) {
 	const porNoche = (d) => d.operacion === 'vacacional';
 	const form = renderForm([
 		{ name: 'titulo', label: 'Título', required: true, placeholder: 'Casa de playa en Monterrico' },
-		// La renta por noche es de socios: necesita su correo y sus datos de pago.
-		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES.filter(([v]) => socio || v !== 'vacacional') },
+		// Cada dueño con su categoría: el socio, casas por noche (necesita correo y datos de pago); los demás, venta o renta.
+		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES.filter(([v]) => (v === 'vacacional') === socio) },
 		{ name: 'tipo', label: 'Tipo', type: 'select', cols: 6, options: TIPOS },
 		{ name: 'zona', label: 'Zona', cols: 6 },
 		{ name: 'ciudad', label: 'Ciudad', cols: 6 },
@@ -223,9 +223,9 @@ async function renderEditor(container, id) {
 		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
 		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
 		const lista = h('div', { class: 'list-group' });
-		// Primero las que van con este dueño: por noche para un socio; venta y renta para los demás.
-		const afin = (p) => (p.operacion === 'vacacional') === (form.state.tipo === 'socio');
-		const casas = propiedades.filter((p) => !enOtroRenglon.has(p.id)).sort((a, b) => afin(b) - afin(a));
+		// Solo las de su categoría: casas por noche para un socio; venta y renta para los demás.
+		const socio = form.state.tipo === 'socio';
+		const casas = propiedades.filter((p) => !enOtroRenglon.has(p.id) && (p.operacion === 'vacacional') === socio);
 		const dibujar = () => {
 			const q = sinTildes(buscar.value.trim());
 			const visibles = casas.filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
@@ -234,7 +234,7 @@ async function renderEditor(container, id) {
 					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
 				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
 					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
-				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, 'Ninguna propiedad coincide. Puedes crearla con «Nueva propiedad».'));
+				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${socio ? 'casas por noche' : 'propiedades en venta o renta'} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
