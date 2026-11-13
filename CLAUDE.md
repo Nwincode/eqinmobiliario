@@ -28,6 +28,7 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   salvo que el usuario pida algo distinto para una en particular.
 - Lo que se entiende con un ícono va en ícono, no en texto; en un mismo grupo de datos, todos con
   ícono o todos con texto, no revueltos.
+- Un solo scroll por pantalla: nada de una caja con scroll propio dentro de una página que ya baja.
 - Proporción: la foto pesa más que los controles (selectores, botones).
 - Si Claude ve algo mal maquetado, lo arregla de una vez, sin esperar a que el usuario lo señale.
 - Colores: solo de `css/tema.css` y de Contenido → Colores del panel; nunca escritos a mano.

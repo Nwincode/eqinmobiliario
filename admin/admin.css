@@ -1493,6 +1493,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .imp-aviso { padding: .625rem .875rem; font-size: .9rem; margin-bottom: .625rem; }
 
 
+/* La lista va debajo del paso 1: baja con la página (un solo scroll), sin scroll propio. */
+.imp-vista .table-responsive { max-height: none; }
 .imp-acciones .btn { min-height: 44px; }
 .imp-acciones .imp-nota { flex: 1 1 0; }
 .imp-progreso { height: 10px; margin-bottom: 1rem; }
