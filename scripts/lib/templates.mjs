@@ -1320,6 +1320,17 @@ export function propertyPage(ctx, p) {
 		<div class="flb-fotos" hidden>${fotos.map((f, i) => `<span data-src="${esc(f.url)}" data-alt="${esc(photoAlt(p, i))}"></span>`).join('')}</div>
 	</dialog>`;
 
+	// Precio, acción y asesor. En renta vacacional va justo después del precio y los datos, para que en
+	// celular el calendario quede arriba; en computadora sigue siendo la columna derecha.
+	const lateral = `<aside class="col-lg-4">
+					<div class="ficha-contacto${esVac ? '' : ' ficha-contacto-corta'}">
+						${esVac ? reservaBox(ctx, p) + agentBox(ctx, agent, p) : cerrada
+							? agentBox(ctx, agent, p) + `<div class="lead-card" id="ficha-form">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })}</div>`
+							: visitaBox(ctx, p, agent)}
+						${shareButtons(ctx, p)}
+					</div>
+				</aside>`;
+
 	const body = `
 	${galeria}
 	<div class="ficha">
@@ -1330,7 +1341,7 @@ export function propertyPage(ctx, p) {
 					: `<li class="breadcrumb-item"><a href="${esc(c.url)}">${i === 0 ? ic('home') : ''}${esc(c.name)}</a></li>`).join('')}</ol>
 			</nav>
 			${aviso}
-			<div class="row justify-content-between">
+			<div class="row justify-content-between${esVac ? ' ficha-vac' : ''}">
 				<div class="col-lg-7">
 					<header class="ficha-cabecera">
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
@@ -1339,6 +1350,9 @@ export function propertyPage(ctx, p) {
 						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
+					${esVac ? `</div>
+				${lateral}
+				<div class="col-lg-7">` : ''}
 					<section class="ficha-bloque">
 						<h2>${ic('file-text-o')}${t.descripcion}</h2>
 						<div class="prop-description">${markdown(p.descripcion)}</div>
@@ -1357,14 +1371,7 @@ export function propertyPage(ctx, p) {
 					${!cerrada && mortgageCalculator(ctx, p) ? `<section class="ficha-bloque">${mortgageCalculator(ctx, p)}</section>` : ''}
 					${!cerrada ? rentaCalculator(ctx, p) : ''}
 				</div>
-				<aside class="col-lg-4">
-					<div class="ficha-contacto${esVac ? '' : ' ficha-contacto-corta'}">
-						${esVac ? reservaBox(ctx, p) + agentBox(ctx, agent, p) : cerrada
-							? agentBox(ctx, agent, p) + `<div class="lead-card" id="ficha-form">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })}</div>`
-							: visitaBox(ctx, p, agent)}
-						${shareButtons(ctx, p)}
-					</div>
-				</aside>
+${esVac ? '' : lateral}
 			</div>
 		</div>
 	</div>

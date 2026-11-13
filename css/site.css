@@ -1514,6 +1514,22 @@ body.offcanvas-menu .ficha-barra {
 	gap: 16px;
 	margin-top: 8px;
 }
+/* Renta vacacional: cabecera, cuadro de reserva y resto. En computadora el cuadro es la columna derecha. */
+@media (min-width: 992px) {
+	.ficha-vac {
+		display: grid;
+		grid-template-columns: 58.3333% 33.3333%;
+		grid-template-rows: auto 1fr;
+	}
+	.ficha-vac > * {
+		width: auto;
+		grid-column: 1;
+	}
+	.ficha-vac > aside {
+		grid-column: 2;
+		grid-row: 1 / span 2;
+	}
+}
 .ficha-contacto .agent-box {
 	border: 1px solid var(--eq-line);
 	border-radius: 10px;
