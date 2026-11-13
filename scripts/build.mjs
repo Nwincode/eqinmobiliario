@@ -199,21 +199,25 @@ function textosTipo(l, lista, nombre, en = false) {
 		: `${total} ${(total === 1 ? TIPOS[l.tipo] : n.plural).toLowerCase()} ${l.op === 'renta' ? 'en renta' : 'en venta'}`;
 	// Precios solo si todos están en la misma moneda y a la vista (los ocultos de VIP no cuentan).
 	const conPrecio = lista.filter((p) => Number(p.precio) > 0 && !(p.vipLanding && p.vipLanding.ocultarPrecio));
-	const monedas = [...new Set(conPrecio.map((p) => p.moneda || 'USD'))];
-	const precios = conPrecio.map((p) => Number(p.precio));
 	const mes = l.op === 'renta' ? (en ? ' a month' : ' al mes') : '';
-	const [min, max] = monedas.length === 1 ? [dinero(Math.min(...precios), monedas[0]), dinero(Math.max(...precios), monedas[0])] : [];
-	const desde = min ? ` ${en ? 'from' : 'desde'} ${min}${mes}` : '';
-	const zonas = [...new Set(lista.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+	const o = en ? ' or ' : ' o ', y = en ? ' and ' : ' y ';
+	// Un rango por moneda, sin convertir: [mínimo, máximo] tal como están publicados.
+	const rangos = [...new Set(conPrecio.map((p) => p.moneda || 'USD'))].sort().reverse().map((m) => {
+		const precios = conPrecio.filter((p) => (p.moneda || 'USD') === m).map((p) => Number(p.precio));
+		return [dinero(Math.min(...precios), m), dinero(Math.max(...precios), m)];
+	});
+	const desde = rangos.length ? ` ${en ? 'from' : 'desde'} ${rangos.map((r) => r[0]).join(o)}${mes}` : '';
+	const rango = rangos.map(([a, b]) => (a === b ? `${en ? 'at' : 'en'} ${a}` : `${en ? 'from' : 'desde'} ${a} ${en ? 'to' : 'hasta'} ${b}`)).join(y) + mes;
+	const zonas = [...new Set(lista.map((p) => p.zona || p.ciudad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const lista2 = new Intl.ListFormat(en ? 'en' : 'es', { type: 'conjunction' }).format(zonas);
 	const heading = `${l.nombre} ${en ? 'in' : 'en'} Guatemala`;
 	const faq = en ? [
-		min && { pregunta: `How much does ${n.enUn} ${l.op === 'renta' ? 'for rent ' : ''}cost in Guatemala?`, respuesta: `We currently list ${cuantos}, ${min === max ? `at ${min}${mes}` : `from ${min} to ${max}${mes}`}.` },
+		rangos.length && { pregunta: `How much does ${n.enUn} ${l.op === 'renta' ? 'for rent ' : ''}cost in Guatemala?`, respuesta: `We currently list ${cuantos}, ${rango}.` },
 		zonas.length && { pregunta: `Where are the ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'}?`, respuesta: `Right now there are ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'} in ${lista2}.` },
 		{ pregunta: `How do I visit ${n.enUn}?`, respuesta: 'Message us through the form or WhatsApp and we will schedule your visit, in person or by live video call.' }
 	] : [
-		min && { pregunta: `¿Cuánto cuesta ${n.un} ${l.op === 'renta' ? 'en renta' : 'en venta'} en Guatemala?`, respuesta: `Hoy tenemos ${cuantos}, ${min === max ? `en ${min}${mes}` : `desde ${min} hasta ${max}${mes}`}.` },
-		zonas.length && { pregunta: `¿En qué zonas hay ${l.nombre.toLowerCase()}?`, respuesta: `Hoy hay ${l.nombre.toLowerCase()} en ${lista2}.` },
+		rangos.length && { pregunta: `¿Cuánto cuesta ${n.un} ${l.op === 'renta' ? 'en renta' : 'en venta'} en Guatemala?`, respuesta: `Hoy tenemos ${cuantos}, ${rango}.` },
+		zonas.length && { pregunta: `¿Dónde hay ${l.nombre.toLowerCase()}?`, respuesta: `Hoy hay ${l.nombre.toLowerCase()} en ${lista2}.` },
 		{ pregunta: `¿Cómo visito ${n.un}?`, respuesta: 'Escríbenos por el formulario o por WhatsApp y coordinamos tu visita, presencial o por videollamada.' }
 	];
 	return {

@@ -329,33 +329,32 @@
 			}
 		};
 
+		// Va al listado de una operación conservando los filtros de la dirección; «cambios» pone o quita los suyos.
+		function ir(op, cambios) {
+			var params = new URLSearchParams(location.search);
+			Object.keys(cambios).forEach(function (k) { cambios[k] ? params.set(k, cambios[k]) : params.delete(k); });
+			var qs = params.toString();
+			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
+		}
+
 		// La operación cambia de página para que cada listado tenga su propia URL indexable.
 		form.addEventListener('change', function (e) {
 			if (e.target.name !== 'operacion') return;
 			var op = form.elements.operacion.value;
 			if (op === preset) return;
-			// En la página de una zona se conserva la zona como filtro del nuevo listado.
-			var params = new URLSearchParams(location.search);
-			if (presetZona) params.set('zona', presetZona);
-			if (presetTipo) params.set('tipo', presetTipo);
-			var qs = params.toString();
-			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
+			// En la página de una zona o de un tipo, ese filtro se conserva en el nuevo listado.
+			var fijos = {};
+			if (presetZona) fijos.zona = presetZona;
+			if (presetTipo) fijos.tipo = presetTipo;
+			ir(op, fijos);
 		});
 
-		// En la página de una zona, elegir otra zona lleva al listado general filtrado.
-		if (presetZona) {
-			form.elements.zona.addEventListener('change', function () {
-				var z = form.elements.zona.value;
-				location.href = rutas[preset] + (z ? '?zona=' + encodeURIComponent(z) : '');
-			});
-		}
-
-		// En la página de un tipo («Casas en venta»), elegir otro tipo lleva al listado de la operación filtrado.
+		// En la página de una zona o de un tipo («Casas en venta»), elegir otra zona u otro tipo lleva al
+		// listado de la operación con ese filtro.
+		if (presetZona) form.elements.zona.addEventListener('change', function () { ir(preset, { zona: form.elements.zona.value }); });
 		if (presetTipo) {
 			form.addEventListener('change', function (e) {
-				if (e.target.name !== 'tipo') return;
-				var tp = form.elements.tipo.value;
-				location.href = rutas[preset] + (tp ? '?tipo=' + encodeURIComponent(tp) : '');
+				if (e.target.name === 'tipo') ir(preset, { tipo: form.elements.tipo.value });
 			});
 		}
 
