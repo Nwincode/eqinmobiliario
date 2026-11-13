@@ -11,7 +11,6 @@ import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
 
 const V = window.EQVacacional;
-const PLAZO = 2 * 60 * 60 * 1000; // lo mismo que avisa el correo al administrador
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
 const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
@@ -21,6 +20,9 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h · cli
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
 const choca = (rangos, r) => (rangos || []).some((x) => x.desde < r.salida && x.hasta > r.llegada);
+// Lo que el administrador debe atender; el texto sale en la tarjeta de Inicio.
+const ALERTAS = { tarde: 'Sin responder', mora: 'Comisión con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
+const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
 function hace(desde) {
 	const min = Math.max(1, Math.round((Date.now() - desde) / 60000));
 	return min < 60 ? `hace ${min} min` : min < 1440 ? `hace ${Math.round(min / 60)} h` : `hace ${Math.round(min / 1440)} d`;
@@ -56,6 +58,7 @@ export async function render(container, [codigo] = []) {
 	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId);
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : estado(l) === 'pendiente' ? 1 : 2);
+	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
 	const leads = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 
@@ -142,11 +145,10 @@ export async function render(container, [codigo] = []) {
 		const sol = l.solicitud || {};
 		const est = estado(l);
 		const c = sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : cuenta(l);
-		const tarde = est === 'pendiente' && Date.now() - ms(l.createdAt) > PLAZO;
+		const aviso = alerta(l);
+		const tarde = aviso === 'tarde';
 		const ultimo = sol.historial?.at(-1);
-		const casa = casas.find((p) => p.id === l.propertyId);
-		// Alerta: dijo que no se dio, pero esas fechas están bloqueadas en su calendario.
-		const evasion = admin && est === 'no' && choca(casa?.vacacional?.bloqueos, r);
+		const evasion = aviso === 'bloqueada';
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const res = est === 'confirmada' ? reservaDe(l) : null;
 		const com = res?.comision?.monto > 0 ? res.comision : null;
@@ -179,7 +181,7 @@ export async function render(container, [codigo] = []) {
 	const lista = h('div', {});
 	const filtro = { socio: '', estado: '' };
 	const pintar = () => {
-		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : estado(l) === filtro.estado)));
+		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
 	};
 	pintar();
@@ -205,9 +207,30 @@ export async function render(container, [codigo] = []) {
 				numero(Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Comisión por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
-				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar']]))
+				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar'], ['alerta', 'Con alerta']]))
 		] : peor >= 2 ? h('div', { class: 'alert alert-danger d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), peor === 3
 			? 'Tienes una comisión con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
 			: 'Tienes una comisión con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
 		lista);
+}
+
+// Tarjeta de Inicio (solo el administrador): solicitudes con alerta, cada una con enlace directo.
+export async function tarjetaAlertas(leads, casas) {
+	const reservas = await loadReservas();
+	const lista = leads.filter((l) => l.reserva?.llegada).map((l) => [l, alertaDe(l, reservas.find((x) => x.id === l.solicitud?.reservaId), casas.find((p) => p.id === l.propertyId))]).filter(([, a]) => a);
+	if (!lista.length) return null;
+	return h('section', { class: 'card mb-4 tarjeta-pendientes', 'aria-labelledby': 'alertas-titulo' },
+		h('div', { class: 'card-header tarjeta-pendientes-cab' },
+			h('span', { class: 'tarjeta-pendientes-icono icon-bell', 'aria-hidden': 'true' }),
+			h('div', { class: 'me-auto' },
+				h('h2', { class: 'tarjeta-pendientes-titulo', id: 'alertas-titulo' }, 'Alertas de reservas'),
+				h('div', { class: 'tarjeta-pendientes-ayuda' }, 'Solicitudes que necesitan que las revises.')),
+			h('span', { class: 'nav-aviso' }, String(lista.length))),
+		h('ul', { class: 'pendientes-filas' }, lista.slice(0, 5).map(([l, a]) => h('li', {},
+			h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}`, class: 'pendientes-fila' },
+				h('span', { class: 'pendientes-fila-texto' },
+					h('span', { class: 'pendientes-fila-nombre' }, `${l.reserva.codigo} · ${l.propertyTitulo || l.nombre}`),
+					h('span', { class: 'pendientes-fila-falta' }, a === 'tarde' ? `${ALERTAS[a]} · ${hace(ms(l.createdAt))}` : ALERTAS[a])),
+				h('span', { class: 'pendientes-fila-flecha icon-angle-right', 'aria-hidden': 'true' }))))),
+		lista.length > 5 ? h('a', { href: '#/solicitudes', class: 'pendientes-mas' }, `Ver ${lista.length - 5} más`, h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' })) : null);
 }

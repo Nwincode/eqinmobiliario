@@ -296,6 +296,16 @@
 		return out;
 	}
 
+	// Alerta de una solicitud para el administrador: 'tarde' (sin responder en 2 h), 'mora' (comisión con
+	// más de 72 h) o 'bloqueada' (dijeron que no se dio y esas fechas están bloqueadas en el calendario).
+	var PLAZO_RESPUESTA = 2 * 3600000;
+	function alertaSolicitud(estado, creado, fechas, reserva, bloqueos, ahora) {
+		if (estado === 'pendiente') return ahora - creado > PLAZO_RESPUESTA ? 'tarde' : '';
+		if (estado === 'confirmada') return nivelComision(reserva, ahora) === 3 ? 'mora' : '';
+		if (estado !== 'no') return '';
+		return (bloqueos || []).some(function (b) { return b.desde < fechas.salida && b.hasta > fechas.llegada; }) ? 'bloqueada' : '';
+	}
+
 	return {
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
@@ -305,6 +315,6 @@
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
 		choquesReserva: choquesReserva, rangosReservados: rangosReservados, resumenReservas: resumenReservas,
-		nivelComision: nivelComision, sociosEnMora: sociosEnMora
+		nivelComision: nivelComision, sociosEnMora: sociosEnMora, alertaSolicitud: alertaSolicitud
 	};
 });

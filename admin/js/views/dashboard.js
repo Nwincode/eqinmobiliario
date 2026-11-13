@@ -22,6 +22,8 @@ export async function render(container) {
 		canSeeLeads ? loadPropietarios().catch(() => []) : [],
 		cargarPendientes().catch(() => null)
 	]);
+	const todas = propSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+	const alertas = session.isAdmin ? await import('./solicitudes.js').then((m) => m.tarjetaAlertas(leads, todas)).catch(() => null) : null;
 	// Lo que hay que atender hoy (el administrador con ficha de asesor ve lo suyo y lo no asignado).
 	const mias = actividades.filter((a) => !a.hecha && (!session.isAdmin || !session.agentId || a.agentId === session.agentId || !a.agentId));
 	const vencidas = mias.filter((a) => vencimiento(a) === 'vencida');
@@ -29,7 +31,7 @@ export async function render(container) {
 	const conPendiente = new Set(actividades.filter((a) => !a.hecha && a.clienteId).map((a) => a.clienteId));
 	const sinSeguimiento = clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id));
 	const exclusivas = propietarios.filter((p) => p.exclusiva && p.exclusivaFin && (new Date(`${p.exclusivaFin}T23:59:59`) - Date.now()) / 86400000 <= 30);
-	let props = propSnap.docs.map((d) => d.data());
+	let props = todas;
 	if (!session.isAdmin) props = props.filter((p) => p.agentId === session.agentId);
 
 	const monthAgo = Date.now() - 30 * 24 * 3600 * 1000;
@@ -45,6 +47,7 @@ export async function render(container) {
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
 			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
+		alertas,
 		pend ? tarjetaPendientes(pend) : null,
 		canSeeLeads ? h('div', { class: 'card mb-4' },
 			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
