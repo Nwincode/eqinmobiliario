@@ -555,6 +555,39 @@
 		});
 	}
 
+	// ------------------------------------------------------------ Fotos de las tarjetas
+	// Delegado en el documento: el carrusel de portada clona tarjetas y los filtros las reordenan.
+
+	var cargarFotos = function (e) {
+		var caja = e.target.closest && e.target.closest('.prop-fotos');
+		if (!caja) return;
+		caja.querySelectorAll('img[data-src]').forEach(function (img) {
+			img.src = img.getAttribute('data-src');
+			img.removeAttribute('data-src');
+		});
+	};
+	document.addEventListener('pointerover', cargarFotos, { passive: true });
+	document.addEventListener('touchstart', cargarFotos, { passive: true });
+	document.addEventListener('focusin', cargarFotos);
+	document.addEventListener('click', function (e) {
+		var flecha = e.target.closest('.prop-fotos .eq-flecha');
+		if (!flecha) return;
+		var tira = flecha.parentNode.querySelector('.img');
+		var n = tira.children.length;
+		var i = Math.round(tira.scrollLeft / tira.clientWidth) + (flecha.classList.contains('eq-flecha-prev') ? -1 : 1);
+		tira.scrollLeft = ((i + n) % n) * tira.clientWidth;
+	});
+	// «scroll» no burbujea: se escucha en captura.
+	document.addEventListener('scroll', function (e) {
+		var tira = e.target;
+		if (!tira.classList || !tira.classList.contains('img') || !tira.clientWidth) return;
+		var i = Math.round(tira.scrollLeft / tira.clientWidth);
+		var caja = tira.parentNode;
+		var contador = caja.querySelector('.foto-contador');
+		if (contador) contador.textContent = (i + 1) + ' / ' + tira.children.length;
+		caja.querySelectorAll('.prop-puntos i').forEach(function (p, j) { p.classList.toggle('on', j === i); });
+	}, { capture: true, passive: true });
+
 	// ------------------------------------------------------------ Galería de la ficha
 
 	var fichaLb = document.getElementById('ficha-lightbox');
@@ -602,7 +635,7 @@
 				contador.textContent = (fotoVisible() + 1) + ' / ' + fotosFicha.length;
 			}, { passive: true });
 			// Flechas del carrusel: dan la vuelta al llegar al final.
-			[['.ficha-flecha-prev', -1], ['.ficha-flecha-next', 1]].forEach(function (f) {
+			[['.ficha-flecha.eq-flecha-prev', -1], ['.ficha-flecha.eq-flecha-next', 1]].forEach(function (f) {
 				document.querySelector(f[0]).addEventListener('click', function () {
 					var i = (fotoVisible() + f[1] + fotosFicha.length) % fotosFicha.length;
 					galeria.scrollLeft = i * galeria.clientWidth;
