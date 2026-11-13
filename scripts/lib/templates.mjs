@@ -385,11 +385,21 @@ export function propertyCard(p, { lazy = true } = {}) {
 		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${p.direccion} ${tipoLabel(p)}`.toLowerCase()],
 		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos }) => ({ bloqueos, huespedesMax, nochesMin, minimos }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
+	const t = TEXTOS[lng(p)];
+	// Hasta 8 fotos por tarjeta; solo la primera se descarga, el resto al primer gesto (js/site.js).
+	const fotos = (p.fotos || []).filter((f) => f && f.url).slice(0, 8);
+	const varias = fotos.length > 1;
 	return `<div class="property-item" ${data}>
-								<a href="${url}" class="img" tabindex="-1">
-									<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${lazy ? ' loading="lazy"' : ''} width="800" height="600">
+								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
+									<a href="${url}" class="img" tabindex="-1">
+										<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${lazy ? ' loading="lazy"' : ''} width="800" height="600">
+										${fotos.slice(1).map((f, i) => `<img data-src="${esc(f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
+									</a>
 									${estadoBadge(p)}
-								</a>
+									${varias ? `<button type="button" class="eq-flecha eq-flecha-sobre eq-flecha-prev" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
+									<button type="button" class="eq-flecha eq-flecha-sobre eq-flecha-next" aria-label="${t.siguienteFoto}">${chevron(FLECHA_NEXT)}</button>
+									${fotos.length > 5 ? `<span class="foto-contador" aria-hidden="true">1 / ${fotos.length}</span>` : `<span class="prop-puntos" aria-hidden="true">${fotos.map((_, i) => `<i${i ? '' : ' class="on"'}></i>`).join('')}</span>`}` : ''}
+								</div>
 								<div class="property-content">
 									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
 									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
@@ -1232,9 +1242,9 @@ export function propertyPage(ctx, p) {
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
 	${fotos.length > 1 ? `<button type="button" class="ficha-ver-todas" data-index="0">${ic('camera')}${fmt(t.verFotosN, { n: fotos.length })}</button>
-	<span class="ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>
-	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-prev" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
-	<button type="button" class="eq-flecha ficha-flecha ficha-flecha-next" aria-label="${t.siguienteFoto}">${chevron(FLECHA_NEXT)}</button>` : ''}
+	<span class="foto-contador ficha-contador" aria-hidden="true">1 / ${fotos.length}</span>
+	<button type="button" class="eq-flecha eq-flecha-sobre eq-flecha-prev ficha-flecha" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
+	<button type="button" class="eq-flecha eq-flecha-sobre eq-flecha-next ficha-flecha" aria-label="${t.siguienteFoto}">${chevron(FLECHA_NEXT)}</button>` : ''}
 	</div>
 	<dialog class="ficha-lightbox" id="ficha-lightbox" aria-label="${t.galeriaFotos}">
 		<button type="button" class="flb-cerrar" aria-label="${t.cerrar}">${ic('close')}</button>

@@ -2,19 +2,104 @@
 
 /* Los colores y medidas se definen en css/tema.css. */
 
-/* Tarjetas de propiedad: fotos con proporción uniforme aunque vengan de distintos tamaños */
-.property-item .img {
-	display: block;
+/* Tarjetas de propiedad: fotos con proporción uniforme. El enlace `.img` es la tira de fotos:
+   se desliza con el dedo o con las flechas (js/site.js, «Fotos de las tarjetas»). */
+.prop-fotos {
+	position: relative;
+	z-index: 2; /* encima del enlace que cubre toda la tarjeta */
 	overflow: hidden;
 }
+.property-item .img {
+	display: flex;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scroll-snap-type: x mandatory;
+	scrollbar-width: none;
+}
+.property-item .img::-webkit-scrollbar {
+	display: none;
+}
 .property-item .img img {
-	width: 100%;
+	flex: 0 0 100%;
 	aspect-ratio: 4 / 3;
 	object-fit: cover;
+	scroll-snap-align: start;
 	transition: transform .4s ease;
 }
-.property-item .img:hover img {
+/* El acercamiento solo con una foto: en la tira, agrandarla desbordaría el deslizamiento. */
+.property-item .img:hover img:only-child {
 	transform: scale(1.04);
+}
+/* Flecha y contador encima de una foto (tarjetas y ficha en celular). */
+.eq-flecha-sobre,
+.foto-contador,
+.prop-puntos {
+	position: absolute;
+	z-index: 3;
+}
+.eq-flecha-sobre {
+	top: 50%;
+	transform: translateY(-50%);
+	border-color: transparent;
+	background: color-mix(in srgb, var(--eq-dark) 45%, transparent);
+	color: var(--eq-white);
+}
+.eq-flecha-sobre.eq-flecha-prev { left: 8px; }
+.eq-flecha-sobre.eq-flecha-next { right: 8px; }
+.foto-contador {
+	right: 12px;
+	bottom: 12px;
+	padding: 4px 10px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--eq-dark) 70%, transparent);
+	color: var(--eq-white);
+	font-size: 12px;
+	pointer-events: none;
+}
+.prop-puntos {
+	left: 0;
+	right: 0;
+	bottom: 10px;
+	display: flex;
+	justify-content: center;
+	gap: 5px;
+	pointer-events: none;
+}
+.prop-puntos i {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: color-mix(in srgb, var(--eq-white) 55%, transparent);
+}
+.prop-puntos .on {
+	background: var(--eq-white);
+}
+/* Con ratón las flechas aparecen al pasar; al tacto se desliza con el dedo. */
+.prop-fotos .eq-flecha {
+	opacity: 0;
+	transition: opacity .2s ease;
+}
+.prop-fotos:hover .eq-flecha,
+.prop-fotos .eq-flecha:focus-visible {
+	opacity: 1;
+}
+@media (hover: none) {
+	.prop-fotos .eq-flecha {
+		display: none;
+	}
+	/* En el carrusel de portada el dedo mueve las tarjetas, no las fotos. */
+	.property-slider .property-item .img {
+		overflow-x: hidden;
+	}
+	.property-slider .prop-puntos,
+	.property-slider .foto-contador {
+		display: none;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.property-item .img {
+		scroll-behavior: smooth;
+	}
 }
 
 .prop-badges {
@@ -25,6 +110,7 @@
 	gap: 6px;
 	flex-wrap: wrap;
 	z-index: 3;
+	pointer-events: none;
 }
 .prop-badges-inline {
 	position: static;
@@ -1016,7 +1102,6 @@ a {
 
 .property-item .img,
 .property-item .img img {
-	display: block;
 	width: 100% !important;
 	max-width: none;
 }
@@ -1028,7 +1113,7 @@ a {
 	border-radius: 0;
 	overflow: visible;
 }
-.property-slider .property-item > .img {
+.property-slider .prop-fotos {
 	border-radius: 14px 14px 0 0;
 	overflow: hidden;
 }
@@ -1110,7 +1195,7 @@ h2.heading::after,
 .property-slider .property-item {
 	border: 0;
 }
-.property-slider .property-item > .img {
+.property-slider .prop-fotos {
 	border-radius: 10px 10px 0 0;
 }
 .property-slider .property-item > .property-content {
@@ -1599,28 +1684,12 @@ body.offcanvas-menu .ficha-barra {
 	}
 	.ficha-flecha {
 		display: inline-flex;
-		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
-		border-color: transparent;
-		background: color-mix(in srgb, var(--eq-dark) 45%, transparent);
-		color: var(--eq-white);
 	}
-	.ficha-flecha-prev { left: 8px; }
-	.ficha-flecha-next { right: 8px; }
 	.ficha-ver-todas {
 		display: none;
 	}
 	.ficha-contador {
 		display: block;
-		position: absolute;
-		right: 12px;
-		bottom: 12px;
-		padding: 4px 10px;
-		border-radius: 6px;
-		background: color-mix(in srgb, var(--eq-dark) 70%, transparent);
-		color: #fff;
-		font-size: 12px;
 	}
 	.ficha .prop-facts {
 		grid-template-columns: 1fr;
