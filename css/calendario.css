@@ -3,7 +3,7 @@
    Colores de css/tema.css.
    ================================================================ */
 /* Flechas de carrusel (#property-nav, #testimonial-nav): solo el chevrón fino,
-   círculo discreto y 44 px de área táctil. Regla «Botones de carrusel» de CLAUDE.md. */
+   sin caja ni borde, con 44 px de área táctil. Regla «Botones de carrusel» de CLAUDE.md. */
 .eq-flechas {
 	display: inline-flex;
 	gap: 8px;
@@ -18,18 +18,17 @@
 	width: 44px;
 	height: 44px;
 	padding: 0;
-	border: 1px solid var(--eq-line);
+	border: 0;
 	border-radius: 50%;
 	background: transparent;
 	color: var(--eq-dark);
 	cursor: pointer;
-	transition: color .2s ease, border-color .2s ease, background-color .2s ease;
+	transition: color .2s ease, background-color .2s ease;
 }
 /* Solo con ratón: en pantallas táctiles el :hover se queda pegado después de tocar. */
 @media (hover: hover) {
 	.eq-flecha:hover {
 		color: var(--eq-primary);
-		border-color: color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
 		background: var(--eq-primary-soft);
 	}
 	.eq-flecha-prev:hover .eq-flecha-ic {

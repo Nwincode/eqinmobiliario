@@ -539,13 +539,11 @@ export function homePage(ctx) {
 
 	${slider.length ? `<div class="section">
 		<div class="container">
-			<div class="row mb-5 align-items-center">
-				<div class="col-lg-6">
-					<h2 class="font-weight-bold text-primary heading">${esc(s.destacadas.titulo)}</h2>
+			<div class="row mb-4 align-items-center">
+				<div class="col">
+					<h2 class="font-weight-bold text-primary heading mb-0">${esc(s.destacadas.titulo)}</h2>
 				</div>
-				<div class="col-lg-6 text-lg-end">
-					<p><a href="${r.propiedades}" class="btn btn-primary btn-lg">${esc(s.destacadas.boton)}${ic('arrow-right', true)}</a></p>
-				</div>
+				${slider.length > 3 ? `<div class="col-auto">${flechasCarrusel('property-nav', t)}</div>` : ''}
 			</div>
 			<div class="row">
 				<div class="col-12">
@@ -555,16 +553,16 @@ export function homePage(ctx) {
 						<div class="property-slider">
 							${slider.map((p, i) => propertyCard(p, { lazy: i > 2 })).join('\n')}
 						</div>
-						${slider.length > 1 ? `${flechasCarrusel('property-nav', t)}` : ''}
 					</div>`}
 				</div>
 			</div>
+			<p class="text-center mt-4 mb-0"><a href="${r.propiedades}" class="btn btn-primary">${esc(s.destacadas.boton)}${ic('arrow-right', true)}</a></p>
 		</div>
 	</div>` : ''}
 
 	${s.features.visible ? `<section class="features-1">
 		<div class="container">
-			<div class="row">
+			<div class="row g-3 g-lg-4">
 				${(s.features.items || []).map((f, i) => `<div class="col-6 col-lg-3" data-aos="fade-up" data-aos-delay="${300 + i * 100}">
 					<div class="box-feature">
 						<span class="${esc(f.icono || 'flaticon-house')}"></span>
@@ -579,7 +577,7 @@ export function homePage(ctx) {
 
 	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
 		<div class="container">
-			<div class="row mb-5 align-items-center">
+			<div class="row mb-4 align-items-center">
 				<div class="col">
 					<h2 class="font-weight-bold heading text-primary mb-0">${esc(s.testimonios.titulo)}</h2>
 				</div>
@@ -608,14 +606,14 @@ export function homePage(ctx) {
 
 	${s.servicios.visible ? `<div id="servicios" class="section section-4 bg-light">
 		<div class="container">
-			<div class="row justify-content-center text-center mb-5">
+			<div class="row justify-content-center text-center mb-4">
 				<div class="col-lg-5">
-					<h2 class="font-weight-bold heading text-primary mb-4">${esc(s.servicios.titulo)}</h2>
-					<p class="text-black-50">${esc(s.servicios.subtitulo)}</p>
+					<h2 class="font-weight-bold heading text-primary mb-3">${esc(s.servicios.titulo)}</h2>
+					<p class="text-black-50 mb-0">${esc(s.servicios.subtitulo)}</p>
 				</div>
 			</div>
-			<div class="row justify-content-between mb-5">
-				<div class="col-lg-7 mb-5 mb-lg-0 order-lg-2">
+			<div class="row justify-content-between">
+				<div class="col-lg-7 mb-4 mb-lg-0 order-lg-2">
 					<div class="img-about dots">
 						<img src="${esc(s.servicios.imagen)}" alt="${esc(s.servicios.titulo)}" class="img-fluid" loading="lazy" width="1200" height="800">
 					</div>
@@ -630,9 +628,9 @@ export function homePage(ctx) {
 					</div>`).join('\n')}
 				</div>
 			</div>
-			${s.contadores.visible ? `<div class="row section-counter mt-5">
+			${s.contadores.visible ? `<div class="row section-counter mt-4">
 				${(s.contadores.items || []).map((c, i) => `<div class="col-6 col-lg-3" data-aos="fade-up" data-aos-delay="${300 + i * 100}">
-					<div class="counter-wrap mb-5 mb-lg-0">
+					<div class="counter-wrap">
 						${c.icono ? `<span class="${esc(c.icono)} counter-icono" aria-hidden="true"></span>` : ''}
 						<span class="number"><span class="countup text-primary">${esc(c.valor)}</span></span>
 						<span class="caption text-black-50">${esc(c.etiqueta)}</span>
@@ -645,25 +643,25 @@ export function homePage(ctx) {
 	${s.cta.visible ? `<div class="section">
 		<div class="row justify-content-center footer-cta" data-aos="fade-up">
 			<div class="col-lg-7 mx-auto text-center">
-				<h2 class="mb-4">${esc(s.cta.titulo)}</h2>
-				<p><a href="${esc(s.cta.enlace)}" class="btn btn-primary btn-lg">${ic('briefcase')}${esc(s.cta.boton)}</a></p>
+				<h2 class="mb-3">${esc(s.cta.titulo)}</h2>
+				<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>
 			</div>
 		</div>
 	</div>` : ''}
 
 	${s.asesores.visible && ctx.agents.length ? `<div id="asesores" class="section section-5 bg-light">
 		<div class="container">
-			<div class="row justify-content-center text-center mb-5">
-				<div class="col-lg-6 mb-5">
-					<h2 class="font-weight-bold heading text-primary mb-4">${esc(s.asesores.titulo)}</h2>
-					<p class="text-black-50">${esc(s.asesores.subtitulo)}</p>
+			<div class="row justify-content-center text-center mb-2">
+				<div class="col-lg-6">
+					<h2 class="font-weight-bold heading text-primary mb-3">${esc(s.asesores.titulo)}</h2>
+					<p class="text-black-50 mb-0">${esc(s.asesores.subtitulo)}</p>
 				</div>
 			</div>
-			<div class="row">
+			<div class="row g-4">
 				${ctx.agents.map((a) => {
 					const wa = whatsappLink(a.whatsapp);
-					return `<div class="col-sm-6 col-lg-4 mb-5">
-					<div class="h-100 person">
+					return `<div class="col-sm-6 col-lg-4">
+					<div class="person">
 						<img src="${esc(a.foto || '/images/person_1-min.webp')}" alt="${esc(a.nombre)}" class="img-fluid" loading="lazy" width="90" height="90">
 						<div class="person-contents">
 							<h3 class="h2 mb-0">${esc(a.nombre)}</h3>
@@ -683,7 +681,7 @@ export function homePage(ctx) {
 	<div id="${ctx.lang === 'en' ? 'contact' : 'contacto'}" class="section">
 		<div class="container">
 			<div class="row justify-content-between align-items-start">
-				<div class="col-lg-5 mb-5">
+				<div class="col-lg-5 mb-4 mb-lg-0">
 					<h2 class="font-weight-bold heading text-primary mb-4">${esc(s.contacto.titulo)}</h2>
 					<p class="text-black-50 mb-4">${esc(s.contacto.subtitulo)}</p>
 					<ul class="list-unstyled contact-list">
