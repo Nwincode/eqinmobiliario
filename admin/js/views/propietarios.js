@@ -45,7 +45,7 @@ async function renderLista(container) {
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
 		h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
-		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || 'Sin asignar') : null);
+		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (p.tipo === 'socio' ? '—' : 'Sin asignar')) : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
 		tabla.replaceChildren(vis.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
@@ -83,7 +83,8 @@ async function renderEditor(container, id) {
 			help: 'Socio: necesita correo (ahí le llegan las solicitudes) y datos de pago. Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
 		{ name: 'empresa', label: 'Empresa o inmobiliaria', cols: 6, when: (d) => d.tipo === 'colaborador' },
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
-		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6 } : null,
+		// El socio de renta vacacional atiende él mismo sus casas: no lleva asesor responsable.
+		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6, when: (d) => d.tipo !== 'socio' } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
