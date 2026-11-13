@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla, iconoBtn, menuMas } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -187,10 +187,10 @@ export function datosIniciales() {
 	return { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} };
 }
 
-// Documento de una propiedad nueva: siempre sin publicar y con su historial de estado y de precio empezado.
-// Lo usan el importador y «Nueva propiedad» de la ficha del dueño.
+// Lo que lleva toda propiedad al nacer: su historial de estado y de precio empezado y quién la creó.
+// Una sola para todo el panel: la usan la ficha (al guardar una nueva) y el importador.
 export function propiedadNueva(datos) {
-	const d = { ...datosIniciales(), descripcion: '', ...datos, publicado: false };
+	const d = { ...datosIniciales(), descripcion: '', ...datos };
 	d.estado = estadoDe(d).valor;
 	d.estadoFecha = serverTimestamp();
 	d.historialEstado = [entradaHistorial(d.estado)];
@@ -198,6 +198,13 @@ export function propiedadNueva(datos) {
 	d.createdAt = d.updatedAt = serverTimestamp();
 	d.createdBy = d.updatedBy = session.user.uid;
 	return d;
+}
+// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento y sus fotos.
+// Una sola para todo el panel: la usan la ficha y el listado.
+export async function eliminarPropiedad(p) {
+	for (const privado of ['socio', 'llegada', 'acuerdo']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
+	await deleteDoc(doc(db, 'properties', p.id));
+	await borrarFotos(p);
 }
 // URL libre a partir del título («usados» es un Set que se va llenando).
 export function slugLibre(titulo, usados) {
@@ -652,12 +659,8 @@ export async function render(container, [id]) {
 		if (!(await confirmDialog(`¿Eliminar ${nombreDe(l)}? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		const borradas = new Set();
 		await enMasa(async (p) => {
-			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
-			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'llegada')).catch(() => {});
-			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'acuerdo')).catch(() => {});
-			await deleteDoc(doc(db, 'properties', p.id));
+			await eliminarPropiedad(p);
 			borradas.add(p.id);
-			await borrarFotos(p);
 		}, 'Propiedades eliminadas', (k) => `${k} eliminada${k === 1 ? '' : 's'}.`, lista);
 		for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
 		draw();
@@ -911,7 +914,10 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	];
 }
 
-async function renderEditor(container, id) {
+// La ficha del inmueble: la única forma de crear o editar una propiedad en todo el panel. Se usa en su página
+// (#/propiedades/…) y, con «emb», dentro de una ventana abierta desde otra pantalla (ver abrirFicha): ahí no
+// navega; avisa con emb.alGuardar(casa) y emb.alEliminar(id) y pone sus botones en emb.pie.
+async function renderEditor(container, id, emb = null) {
 	const isNew = id === 'nuevo';
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
 	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
@@ -920,7 +926,7 @@ async function renderEditor(container, id) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
 	}
-	const data = isNew ? datosIniciales() : snap.data();
+	const data = isNew ? { ...datosIniciales(), ...(emb?.inicial || {}) } : snap.data();
 	// Datos privados del socio (renta vacacional). Si no hay permiso o no existe, queda vacío.
 	const privRef = doc(db, 'properties', ref.id, 'privado', 'socio');
 	// Dirección y mapa de una casa por noche: privados (el cliente los recibe con el pago). Ver privado/llegada.
@@ -1096,31 +1102,32 @@ async function renderEditor(container, id) {
 		if (!isNew && data.slug && data.slug !== d.slug) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
-		// Fecha e historial del estado (setDoc reemplaza el documento: el historial se arma completo).
-		d.estado = estadoDe(d).valor;
-		d.historialEstado = data.historialEstado || [];
-		if (isNew || estadoDe(data).valor !== d.estado) {
-			d.estadoFecha = serverTimestamp();
-			d.historialEstado = [...d.historialEstado, entradaHistorial(d.estado)];
-		} else if (data.estadoFecha) {
-			d.estadoFecha = data.estadoFecha;
-		}
-		// Historial de precio (se muestra al propietario en su portal).
-		d.historialPrecio = data.historialPrecio || [];
-		const precioNuevo = Number(d.precio) || 0;
-		const ultimo = d.historialPrecio[d.historialPrecio.length - 1];
-		if (precioNuevo && (!ultimo || Number(ultimo.precio) !== precioNuevo || ultimo.moneda !== d.moneda)) {
-			if (!ultimo && !isNew && Number(data.precio) && Number(data.precio) !== precioNuevo) {
-				d.historialPrecio.push({ precio: Number(data.precio), moneda: data.moneda || 'USD', fecha: data.createdAt || Timestamp.now() });
-			}
-			const sinCambio = !ultimo && !isNew && Number(data.precio) === precioNuevo;
-			d.historialPrecio = [...d.historialPrecio, { precio: precioNuevo, moneda: d.moneda || 'USD', fecha: (sinCambio && data.createdAt) || Timestamp.now() }];
-		}
-		d.updatedAt = serverTimestamp();
-		d.updatedBy = session.user.uid;
 		if (isNew) {
-			d.createdAt = serverTimestamp();
-			d.createdBy = session.user.uid;
+			// Lo que lleva toda propiedad al nacer: historial de estado y de precio, y quién la creó.
+			Object.assign(d, propiedadNueva(d));
+		} else {
+			// Fecha e historial del estado (setDoc reemplaza el documento: el historial se arma completo).
+			d.estado = estadoDe(d).valor;
+			d.historialEstado = data.historialEstado || [];
+			if (estadoDe(data).valor !== d.estado) {
+				d.estadoFecha = serverTimestamp();
+				d.historialEstado = [...d.historialEstado, entradaHistorial(d.estado)];
+			} else if (data.estadoFecha) {
+				d.estadoFecha = data.estadoFecha;
+			}
+			// Historial de precio (se muestra al propietario en su portal).
+			d.historialPrecio = data.historialPrecio || [];
+			const precioNuevo = Number(d.precio) || 0;
+			const ultimo = d.historialPrecio[d.historialPrecio.length - 1];
+			if (precioNuevo && (!ultimo || Number(ultimo.precio) !== precioNuevo || ultimo.moneda !== d.moneda)) {
+				if (!ultimo && Number(data.precio) && Number(data.precio) !== precioNuevo) {
+					d.historialPrecio.push({ precio: Number(data.precio), moneda: data.moneda || 'USD', fecha: data.createdAt || Timestamp.now() });
+				}
+				const sinCambio = !ultimo && Number(data.precio) === precioNuevo;
+				d.historialPrecio = [...d.historialPrecio, { precio: precioNuevo, moneda: d.moneda || 'USD', fecha: (sinCambio && data.createdAt) || Timestamp.now() }];
+			}
+			d.updatedAt = serverTimestamp();
+			d.updatedBy = session.user.uid;
 		}
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
@@ -1166,9 +1173,11 @@ async function renderEditor(container, id) {
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
+			const casa = { id: ref.id, ...d };
 			if (!traducirAhora) {
 				toast('Propiedad guardada. Recuerda publicar para ver los cambios en el sitio.');
-				if (isNew) location.hash = `#/propiedades/${ref.id}`;
+				if (emb) emb.alGuardar(casa);
+				else if (isNew) location.hash = `#/propiedades/${ref.id}`;
 				return;
 			}
 			btn.textContent = 'Traduciendo al inglés…';
@@ -1178,7 +1187,8 @@ async function renderEditor(container, id) {
 			} catch (err) {
 				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés".', 'warning');
 			}
-			if (isNew) location.hash = `#/propiedades/${ref.id}`;
+			if (emb) emb.alGuardar(casa);
+			else if (isNew) location.hash = `#/propiedades/${ref.id}`;
 			else await recargar();
 		} catch (err) {
 			showError(err);
@@ -1191,14 +1201,11 @@ async function renderEditor(container, id) {
 	const remove = async () => {
 		if (!(await confirmDialog(`¿Eliminar "${data.titulo}"? Se borrarán también sus fotos. Esta acción no se puede deshacer.`, { okText: 'Eliminar' }))) return;
 		try {
-			await deleteDoc(privRef).catch(() => {});
-			await deleteDoc(llegadaRef).catch(() => {});
-			await deleteDoc(acuerdoRef).catch(() => {});
-			await deleteDoc(ref);
-			await borrarFotos({ ...data, id });
+			await eliminarPropiedad({ ...data, id: ref.id });
 			await markPending(`Propiedad eliminada: ${data.titulo}`);
 			toast('Propiedad eliminada.');
-			location.hash = '#/propiedades';
+			if (emb) emb.alEliminar(ref.id);
+			else location.hash = '#/propiedades';
 		} catch (err) {
 			showError(err);
 		}
@@ -1254,6 +1261,17 @@ async function renderEditor(container, id) {
 	};
 
 	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
+	const eliminarBtn = !isNew && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: remove }, 'Eliminar') : null;
+	const cuerpo = [
+		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,
+		vigilarFormulario(form, 'propiedades'),
+		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el))];
+	if (emb) {
+		// Dentro de una ventana: mismos datos y mismo guardado; los botones van al pie de la ventana.
+		mount(container, ...cuerpo);
+		emb.pie.replaceChildren(saveBtn, h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), ...(eliminarBtn ? [eliminarBtn] : []));
+		return;
+	}
 	mount(container, 
 		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
 			!isNew ? h('a', { href: `#/difusion/${id}`, class: 'btn btn-outline-primary' }, '📣 Difundir en portales') : null,
@@ -1261,14 +1279,24 @@ async function renderEditor(container, id) {
 			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, 'EN · Traducir al inglés') : null,
 			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
-		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,
-		vigilarFormulario(form, 'propiedades'),
-		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
+		...cuerpo,
 		h('div', { class: 'sticky-actions' },
 			saveBtn,
 			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Cancelar'),
 			!isNew ? h('button', { class: 'btn btn-outline-secondary', onclick: (e) => duplicate(e.currentTarget) }, 'Duplicar') : null,
-			!isNew && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: remove }, 'Eliminar') : null));
+			eliminarBtn));
+}
+
+// Abre la ficha del inmueble en una ventana, desde otra pantalla (p. ej. la ficha de su dueño), para crear una
+// («nuevo», con «inicial»: dueño y operación ya puestos) o editarla. Es la misma ficha de #/propiedades/….
+export function abrirFicha(id, { inicial, titulo, alGuardar, alEliminar } = {}) {
+	const cuerpo = h('div', {}, spinner()), pie = h('div', { class: 'd-flex flex-wrap gap-2 w-100' });
+	const ventana = modal({ title: titulo || (id === 'nuevo' ? 'Nueva propiedad' : 'Editar propiedad'), size: 'modal-xl modal-fullscreen-lg-down', body: cuerpo, footer: pie });
+	renderEditor(cuerpo, id, {
+		inicial, pie,
+		alGuardar: (casa) => { ventana.close(); if (alGuardar) alGuardar(casa); },
+		alEliminar: (casaId) => { ventana.close(); if (alEliminar) alEliminar(casaId); }
+	}).catch(showError);
 }
 
 export { spinner };

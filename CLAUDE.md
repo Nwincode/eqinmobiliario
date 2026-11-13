@@ -10,6 +10,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   socio), ¿qué más cambia de lo que está encadenado?». Va al mapa del sistema, recorre cada pantalla, campo y
   página que dependa de esa opción y quita, cambia o agrega lo que corresponda con lógica; no espera a que el
   usuario lo encuentre uno por uno.
+- Una sola pieza por cada fin, en todo el sistema: no existen dos formularios, dos ventanas ni dos funciones
+  con programación distinta para lo mismo (crear una casa, elegir una propiedad, borrar, calcular un precio).
+  Se usa la que ya existe, adaptada al caso (p. ej. la ficha del inmueble abierta en una ventana). Si Claude
+  encuentra algo hecho dos veces, lo unifica o lo avisa.
 - Antes de programar algo nuevo, buscar si ya existe y reutilizarlo (CSS sobre todo; también JS y HTML).
   Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
 - Nada de parches encima de código viejo: si algo está mal, se arregla en su origen.
