@@ -1268,6 +1268,7 @@ async function renderEditor(container, id, emb = null) {
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el))];
 	if (emb) {
 		// Dentro de una ventana: mismos datos y mismo guardado; los botones van al pie de la ventana.
+		container.replaceChildren();
 		mount(container, ...cuerpo);
 		emb.pie.replaceChildren(saveBtn, h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), ...(eliminarBtn ? [eliminarBtn] : []));
 		return;

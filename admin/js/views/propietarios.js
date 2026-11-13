@@ -293,7 +293,8 @@ async function renderEditor(container, id) {
 			// La casa ya no existe: sale de la lista de esta persona y la ficha se vuelve a armar.
 			alEliminar: async (casaId) => {
 				form.state.propiedades = (form.state.propiedades || []).filter((x) => x.propertyId !== casaId);
-				if (await persistir()) await renderEditor(container, ref.id);
+				// (mount agrega: primero se vacía, o la ficha quedaría dos veces.)
+				if (await persistir()) { container.replaceChildren(); await renderEditor(container, ref.id); }
 			}
 		});
 	};
