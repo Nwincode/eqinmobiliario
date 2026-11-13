@@ -6,6 +6,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "serve": "node scripts/serve.mjs",
+    "test": "node scripts/emulador/sintaxis.mjs && for t in scripts/test-*.mjs; do node $t > /dev/null || exit 1; done && echo \"Todas las pruebas pasan.\"",
+    "test:reglas": "bash scripts/emulador/correr.sh",
     "test:renta": "node scripts/test-calc-renta.mjs",
     "test:cotizacion": "node scripts/test-cotizacion.mjs",
     "test:pendientes": "node scripts/test-pendientes.mjs",
