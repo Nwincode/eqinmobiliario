@@ -17,7 +17,6 @@ const SIN_DUENO = 'Sin propietario asignado';
 // El mes "2026-11" → "noviembre de 2026".
 const nombreMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-// En celular solo quedan las columnas que importan; el resto aparece desde tableta.
 const moverMes = (mes, n) => { const d = new Date(`${mes}-15T12:00:00`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5)), 0).getDate();
 
@@ -169,9 +168,9 @@ export async function render(container) {
 
 		cuerpo.replaceChildren(
 			h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
-				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body', 'aria-label': 'Mes anterior', onclick: () => { estado.mes = moverMes(estado.mes, -1); pintar(); } }, '‹'),
+				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body text-decoration-none fs-5', 'aria-label': 'Mes anterior', onclick: () => { estado.mes = moverMes(estado.mes, -1); pintar(); } }, '‹'),
 				h('strong', {}, mayuscula(nombreMes(estado.mes))),
-				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body', 'aria-label': 'Mes siguiente', onclick: () => { estado.mes = moverMes(estado.mes, 1); pintar(); } }, '›')),
+				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body text-decoration-none fs-5', 'aria-label': 'Mes siguiente', onclick: () => { estado.mes = moverMes(estado.mes, 1); pintar(); } }, '›')),
 			h('div', { class: 'row g-3 mb-4' },
 				stat('icon-check', 'Reservas', total.reservas),
 				stat('icon-moon-o', 'Noches', total.noches),
@@ -204,16 +203,15 @@ export async function render(container) {
 
 			h('h2', { class: 'h6' }, filtro ? `Reservas de ${filtro.nombre}` : 'Reservas del mes'),
 			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Fechas', 'Casa', 'Huésped', 'Canal', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 4 ? 'text-end' : '' }, t)))),
-				h('tbody', {}, visibles.map((r) => h('tr', { role: 'button', onclick: () => editar(r) },
+				h('thead', {}, h('tr', {}, ['Fechas', 'Casa', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
+				h('tbody', {}, visibles.map((r) => { const dueno = duenoDe(r.propertyId)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r) },
 					h('td', { class: 'text-nowrap' }, `${dia(r.llegada)} – ${dia(r.salida)}`, h('div', { class: 'small text-muted' }, nNoches(r.noches))),
-					h('td', { class: 'text-wrap' }, r.propertyTitulo, h('div', { class: 'small text-muted' }, duenoDe(r.propertyId)?.nombre || SIN_DUENO)),
-					h('td', {}, r.huesped || '—'),
-					h('td', {}, etiqueta(CANALES, r.canal)),
+					h('td', { class: 'text-wrap' }, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted' }, dueno) : null),
+					h('td', {}, r.huesped || '—', h('div', { class: 'small text-muted' }, etiqueta(CANALES, r.canal))),
 					h('td', {}, estadoBadge(r)),
 					h('td', { class: 'text-end' }, h('div', {}, money(r.costoSocio, r.moneda)),
 						r.estado !== 'confirmada' ? null : r.pagadoSocio ? badge('Pagado', 'success') : badge('Por pagar', 'warning')),
-					h('td', { class: 'text-end text-nowrap' }, money(r.ganancia, r.moneda)))))), { tarjeta: true })
+					h('td', { class: 'text-end text-nowrap' }, money(r.ganancia, r.moneda))); }))), { tarjeta: true })
 				: emptyState(filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'));
 	}
 
