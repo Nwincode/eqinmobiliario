@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Fotos públicas; solo el equipo activo puede subir o borrar imágenes (máx. 10 MB).
+// Fotos públicas (cada una por su dirección); solo el equipo activo puede listar, subir o borrar imágenes (máx. 10 MB).
 service firebase.storage {
   match /b/{bucket}/o {
     function isStaff() {
@@ -18,7 +18,10 @@ service firebase.storage {
     }
 
     match /{allPaths=**} {
-      allow read: if true;
+      // Cada foto se abre con su dirección; la lista de archivos solo la ve el equipo
+      // (los nombres de las carpetas de los chats son la llave de cada reserva).
+      allow get: if true;
+      allow list: if isStaff();
       allow write: if isStaff()
         && (request.resource == null
             || (request.resource.size < 10 * 1024 * 1024
