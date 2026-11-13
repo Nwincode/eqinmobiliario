@@ -58,6 +58,12 @@ export async function render(container, [codigo] = []) {
 		admin ? loadPropietarios() : [], admin ? loadPropiedades() : [],
 		admin ? loadReservas() : getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))]);
 	const chats = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.id]));
+	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
+	// Chats donde lo último lo escribió el cliente: falta responderle.
+	const porResponder = new Set((await Promise.all(Object.entries(chats).map(async ([cod, id]) => {
+		const ultimo = (await getDocs(query(collection(db, 'chats', id, 'mensajes'), orderBy('createdAt')))).docs.at(-1)?.data();
+		return ultimo?.de === 'cliente' ? cod : null;
+	}))).filter(Boolean));
 	const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
 	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: el contacto se entrega al confirmar.
 	async function abrirChat(l) {
@@ -123,6 +129,7 @@ export async function render(container, [codigo] = []) {
 			});
 			lote.update(refCasa, { 'vacacional.reservadas': V.unirRangos([...ocupadas, { desde: r.llegada, hasta: r.salida }]), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': refReserva.id, 'solicitud.costoSocio': c.costoSocio, 'solicitud.comision': c.ganancia }));
+			if (refChat(l)) lote.update(refChat(l), { estado: 'confirmada' });
 			await lote.commit();
 			await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 			toast('Reserva confirmada.');
@@ -151,7 +158,12 @@ export async function render(container, [codigo] = []) {
 
 	async function noSeDio(l) {
 		const motivo = await pedirMotivo(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
-		if (motivo) await hacer(() => updateDoc(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo })));
+		if (motivo) await hacer(async () => {
+			const lote = writeBatch(db);
+			lote.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
+			if (refChat(l)) lote.update(refChat(l), { estado: 'no' });
+			await lote.commit();
+		});
 	}
 
 	async function cancelar(l) {
@@ -165,6 +177,7 @@ export async function render(container, [codigo] = []) {
 			lote.update(doc(db, 'reservas', l.solicitud.reservaId), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
 			lote.update(refCasa, { 'vacacional.reservadas': V.liberarNoches(p.vacacional?.reservadas, r.llegada, r.salida), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
+			if (refChat(l)) lote.update(refChat(l), { estado: 'cancelada' });
 			await lote.commit();
 			await markPending(`${p.titulo}: reserva ${r.codigo} cancelada`);
 			toast('Reserva cancelada. Las fechas quedaron libres.');
@@ -190,6 +203,7 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
+				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
 			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),

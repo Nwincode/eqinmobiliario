@@ -361,7 +361,7 @@ function layout(ctx, page, body) {
 	${page.bare ? '' : nav(ctx, page.path)}
 	${body}
 	${page.bare ? '' : footer(ctx)}
-	${whatsappFloat(ctx, page.waMensaje, page.waReserva)}
+	${page.sinFlotante ? '' : whatsappFloat(ctx, page.waMensaje, page.waReserva)}
 	${scripts(page.extraJs)}
 </body>
 </html>
@@ -457,6 +457,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
+		${origen === 'reserva' ? `<div class="mb-3"><label class="form-label" for="lf-email-reserva">${t.vacCorreo} *</label><input id="lf-email-reserva" class="form-control" name="email" type="email" required maxlength="120" autocomplete="email"></div>` : ''}
 		${mensaje === false ? '' : visita
 		// Agendar visita: solo lo necesario; el mensaje va listo y oculto.
 		? `<input type="hidden" name="mensaje" value="${esc(msg)}">`
@@ -1243,7 +1244,7 @@ function reservaBox(ctx, p) {
 							<select id="vac-huespedes" class="form-select" name="huespedes">${huespedes}</select>
 						</div>
 						<div class="vac-desglose" data-out="desglose" aria-live="polite" hidden></div>
-						${leadForm({ origen: 'reserva', property: p, agentId: p.agentId, boton: t.vacSolicitar, icono: 'whatsapp', lang, mensaje: false })}
+						${leadForm({ origen: 'reserva', property: p, agentId: p.agentId, boton: t.vacSolicitar, icono: 'calendar', lang, mensaje: false })}
 						<p class="vac-nota">${ic('info-circle')}${t.vacSinCobro}</p>
 					</section>`;
 }
@@ -1849,7 +1850,11 @@ export function reservaPage(ctx) {
 						<p class="vac-chat-estado mb-0" role="status">${t.vacChatCargando}</p>
 						<div class="vac-chat-cuerpo" hidden>
 							<header class="vac-chat-cabeza">
-								<h2 class="h5 mb-2" data-out="titulo"></h2>
+								<a class="vac-chat-foto" data-out="casa" hidden><img alt="" width="96" height="72" loading="lazy"></a>
+								<div>
+									<p class="vac-chat-sello" data-out="estado">${ic('clock-o')}${ic('check-circle')}${ic('ban')}<span></span></p>
+									<h2 class="h5 mb-0" data-out="titulo"></h2>
+								</div>
 								<ul class="vac-chat-datos">${dato('hashtag', 'codigo')}${dato('calendar', 'fechas')}${dato('moon-o', 'noches')}${dato('users', 'huespedes')}${dato('money', 'total')}</ul>
 							</header>
 							<ol class="vac-chat-mensajes" aria-live="polite"></ol>
@@ -1865,8 +1870,8 @@ export function reservaPage(ctx) {
 			</div>
 		</div>
 	</div>`;
-	// Mismo marco que la ficha (sin portada): la conversación es lo primero que se ve.
-	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"' }, body);
+	// Mismo marco que la ficha (sin portada): la conversación es lo primero que se ve. Sin WhatsApp flotante: aquí se conversa en la página.
+	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
 }
 
 export function notFoundPage(ctx) {

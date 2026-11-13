@@ -331,7 +331,9 @@ service cloud.firestore {
       allow list: if isStaff() || esSocioDe(resource.data);
       allow create: if token.size() >= 20
         && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
-            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'createdAt'])
+            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'foto', 'url', 'createdAt'])
+        && isShortString(request.resource.data.get('foto', ''), 500)
+        && isShortString(request.resource.data.get('url', ''), 200)
         && isNonEmptyString(request.resource.data.codigo, 20)
         && isNonEmptyString(request.resource.data.propertyId, 60)
         && isShortString(request.resource.data.propertyTitulo, 200)
@@ -345,7 +347,11 @@ service cloud.firestore {
         && request.resource.data.propietarioId
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
         && request.resource.data.createdAt == request.time;
-      allow update, delete: if isAdmin();
+      // Al responder la solicitud, el equipo o el socio de la casa marcan el estado que ve el cliente; nada más.
+      allow update: if isAdmin()
+        || ((isStaff() || esSocioDe(resource.data)) && soloCambia(['estado'])
+            && request.resource.data.estado in ['confirmada', 'no', 'cancelada']);
+      allow delete: if isAdmin();
 
       match /mensajes/{id} {
         function chat() {

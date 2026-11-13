@@ -3099,7 +3099,50 @@ a:hover > .eq-ic-fin,
 }
 
 /* Chat de la reserva (/reserva/): resumen de la solicitud, mensajes y campo para escribir. */
+.vac-chat-cabeza {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 12px 14px;
+	align-items: center;
+}
+.vac-chat-foto[hidden] + div {
+	grid-column: 1 / -1;
+}
+.vac-chat-foto img {
+	display: block;
+	width: 96px;
+	height: 72px;
+	object-fit: cover;
+	border-radius: var(--eq-radius);
+}
+.vac-chat-sello {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 4px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--eq-ink);
+}
+.vac-chat-sello .eq-ic {
+	display: none;
+	margin: 0;
+}
+.vac-chat-sello-pendiente .icon-clock-o,
+.vac-chat-sello-confirmada .icon-check-circle,
+.vac-chat-sello-no .icon-ban,
+.vac-chat-sello-cancelada .icon-ban {
+	display: inline-block;
+}
+.vac-chat-sello-confirmada {
+	color: var(--eq-whatsapp);
+}
+.vac-chat-sello-no,
+.vac-chat-sello-cancelada {
+	color: var(--eq-danger);
+}
 .vac-chat-datos {
+	grid-column: 1 / -1;
 	list-style: none;
 	display: flex;
 	flex-wrap: wrap;

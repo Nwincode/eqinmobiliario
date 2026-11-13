@@ -208,12 +208,9 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
-				// Reserva: se abre el WhatsApp del equipo con el mensaje ya escrito (nunca el del dueño de la casa).
-				// El enlace de «Mi reserva» va en el mensaje: al cliente le queda guardado en su WhatsApp.
-				var miReserva = chat ? window.EQChat.enlace(chat) : '';
-				var wa = 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(reserva.whatsapp + (miReserva ? '\n' + reserva.enlace.replace('{url}', miReserva) : ''));
-				setStatus(form, reserva.gracias + (miReserva ? ' <a class="btn btn-outline-primary btn-sm mt-2" href="' + miReserva + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : '') + ' <a class="btn btn-primary btn-sm mt-2" href="' + wa + '" target="_blank" rel="noopener"><span class="icon-whatsapp eq-ic" aria-hidden="true"></span>' + reserva.abrir + '</a>', true);
-				location.href = wa;
+				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
+				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
+				if (chat) location.href = window.EQChat.enlace(chat);
 			};
 			var fail = function () {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';

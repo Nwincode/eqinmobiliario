@@ -53,7 +53,9 @@
 			codigo: str(r.codigo), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
 			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
 			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
-			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es')
+			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
+			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
+			foto: str(((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500)), url: str(location.pathname.slice(0, 200))
 		}).then(function () {
 			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
 			return token;
@@ -95,6 +97,18 @@
 		var cuerpo = caja.querySelector('.vac-chat-cuerpo');
 		var poner = function (k, v) { cuerpo.querySelector('[data-out="' + k + '"]').textContent = v; };
 		poner('titulo', c.propertyTitulo);
+		// Estado de la solicitud: lo marca quien la responde en el panel.
+		var estado = { confirmada: 'Confirmada', no: 'No', cancelada: 'Cancelada' }[c.estado] || 'Pendiente';
+		var sello = cuerpo.querySelector('[data-out="estado"]');
+		sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
+		sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
+		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).
+		var casa = cuerpo.querySelector('[data-out="casa"]');
+		if (/^https:\/\//.test(c.foto || '')) {
+			casa.querySelector('img').src = c.foto;
+			if (/^\/[^\/]/.test(c.url || '')) { casa.href = c.url; casa.setAttribute('aria-label', t.vacChatVerCasa); }
+			casa.hidden = false;
+		}
 		poner('codigo', c.codigo);
 		poner('fechas', fecha(c.llegada) + ' – ' + fecha(c.salida));
 		poner('noches', c.noches === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: c.noches }));
@@ -128,6 +142,10 @@
 		function cargar() {
 			return pedir(RAIZ + '/chats/' + token + '/mensajes?pageSize=200&orderBy=createdAt').then(function (res) { pintar((res.documents || []).map(plano)); });
 		}
+		// Enter envía; Mayús + Enter baja de línea.
+		campo.addEventListener('keydown', function (e) {
+			if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : boton.click(); }
+		});
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			var texto = campo.value.trim();
