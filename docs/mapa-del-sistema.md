@@ -100,6 +100,8 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Crear una propiedad** → `admin/js/views/properties.js` (`propiedadNueva`, `slugLibre`, `guardarPrivadoVacacional`): las usan `importar.js` y `propietarios.js` `nuevaPropiedad`. La ficha de Propiedades guarda por su cuenta (también edita).
 
+**Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` (según sus casas: comisión acordada solo con venta o renta; impuestos de la venta solo si vende). **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
+
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 
 **«Faltan»** → `admin/js/pendientes-reglas.js` → `scripts/test-pendientes.mjs`.

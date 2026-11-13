@@ -60,6 +60,7 @@ await campo(admin.p, 'titulo').fill('Casa de prueba Monterrico');
 await campo(admin.p, 'operacion').selectOption('vacacional');
 await espera(300);
 paso('Renta vacacional: no se pide asesor responsable', !(await admin.p.locator('[data-campo="agentId"]').isVisible()));
+paso('Renta vacacional: tampoco VIP ni mantenimiento al mes', !(await admin.p.locator('[data-campo="vip"]').isVisible()) && !(await admin.p.locator('[data-campo="mantenimiento"]').isVisible()));
 paso('Renta vacacional: no se pide nombre ni teléfono del socio', await admin.p.locator('[data-campo="socio.nombre"], [data-campo="socio.telefono"]').count() === 0);
 await campo(admin.p, 'propietarioId').selectOption('socio-prueba');
 await campo(admin.p, 'socio.precioBase').fill('100');
@@ -75,7 +76,7 @@ await guardar(admin.p);
 const idCasa = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1];
 paso('La casa se guarda', Boolean(idCasa) && idCasa !== 'nuevo', await avisos(admin.p));
 await ir(admin.p, '#/propietarios/socio-prueba');
-paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', (await admin.p.locator('[data-campo="propiedades"]').innerHTML()).includes(idCasa));
+paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
 
 // ---------------------------------------------------------------- 2. Publicar (lo que hace el botón en producción)
 execFileSync('bash', [path.join(REPO, 'scripts/entorno/levantar.sh'), 'publicar'], { stdio: 'pipe', env: { ...process.env, ENTORNO_DIR: DIR } });
