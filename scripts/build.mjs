@@ -192,34 +192,22 @@ function buildLandings(properties, ocupadas, en = false) {
 	return out;
 }
 
-// Textos de una página por tipo, escritos con lo que de verdad hay publicado (precios, zonas, cantidad).
+// Textos de una página por tipo, escritos con lo que de verdad hay publicado (precios, cantidad).
 function textosTipo(l, lista, nombre, en = false) {
 	const n = TIPOS_LANDING[l.tipo], total = lista.length;
 	const cuantos = en ? `${total} ${n.enN[total === 1 ? 0 : 1]} ${l.op === 'renta' ? 'for rent' : 'for sale'}`
 		: `${total} ${(total === 1 ? TIPOS[l.tipo] : n.plural).toLowerCase()} ${l.op === 'renta' ? 'en renta' : 'en venta'}`;
-	// Precios solo si todos están en la misma moneda y a la vista (los ocultos de VIP no cuentan).
+	// Precios a la vista (los ocultos de VIP no cuentan).
 	const conPrecio = lista.filter((p) => Number(p.precio) > 0 && !(p.vipLanding && p.vipLanding.ocultarPrecio));
 	const mes = l.op === 'renta' ? (en ? ' a month' : ' al mes') : '';
-	const o = en ? ' or ' : ' o ', y = en ? ' and ' : ' y ';
+	const o = en ? ' or ' : ' o ';
 	// Un rango por moneda, sin convertir: [mínimo, máximo] tal como están publicados.
 	const rangos = [...new Set(conPrecio.map((p) => p.moneda || 'USD'))].sort().reverse().map((m) => {
 		const precios = conPrecio.filter((p) => (p.moneda || 'USD') === m).map((p) => Number(p.precio));
 		return [dinero(Math.min(...precios), m), dinero(Math.max(...precios), m)];
 	});
 	const desde = rangos.length ? ` ${en ? 'from' : 'desde'} ${rangos.map((r) => r[0]).join(o)}${mes}` : '';
-	const rango = rangos.map(([a, b]) => (a === b ? `${en ? 'at' : 'en'} ${a}` : `${en ? 'from' : 'desde'} ${a} ${en ? 'to' : 'hasta'} ${b}`)).join(y) + mes;
-	const zonas = [...new Set(lista.map((p) => p.zona || p.ciudad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-	const lista2 = new Intl.ListFormat(en ? 'en' : 'es', { type: 'conjunction' }).format(zonas);
 	const heading = `${l.nombre} ${en ? 'in' : 'en'} Guatemala`;
-	const faq = en ? [
-		rangos.length && { pregunta: `How much does ${n.enUn} ${l.op === 'renta' ? 'for rent ' : ''}cost in Guatemala?`, respuesta: `We currently list ${cuantos}, ${rango}.` },
-		zonas.length && { pregunta: `Where are the ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'}?`, respuesta: `Right now there are ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'} in ${lista2}.` },
-		{ pregunta: `How do I visit ${n.enUn}?`, respuesta: 'Message us through the form or WhatsApp and we will schedule your visit, in person or by live video call.' }
-	] : [
-		rangos.length && { pregunta: `¿Cuánto cuesta ${n.un} ${l.op === 'renta' ? 'en renta' : 'en venta'} en Guatemala?`, respuesta: `Hoy tenemos ${cuantos}, ${rango}.` },
-		zonas.length && { pregunta: `¿Dónde hay ${l.nombre.toLowerCase()}?`, respuesta: `Hoy hay ${l.nombre.toLowerCase()} en ${lista2}.` },
-		{ pregunta: `¿Cómo visito ${n.un}?`, respuesta: 'Escríbenos por el formulario o por WhatsApp y coordinamos tu visita, presencial o por videollamada.' }
-	];
 	return {
 		path: l.url,
 		operacion: l.op,
@@ -229,8 +217,7 @@ function textosTipo(l, lista, nombre, en = false) {
 		description: en ? `${cuantos} in Guatemala${desde}. USD prices, live video tours and English-speaking support for buyers in the US.`
 			: `${cuantos} en Guatemala${desde}. Fotos, precios y asesoría personalizada para agendar tu visita presencial o por videollamada.`,
 		intro: en ? `${cuantos}${desde}. Can't find what you need? Tell us and we'll send you options that aren't listed yet.`
-			: `${cuantos}${desde}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`,
-		faq: faq.filter(Boolean)
+			: `${cuantos}${desde}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`
 	};
 }
 

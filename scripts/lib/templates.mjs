@@ -795,7 +795,7 @@ function vacBuscador(ctx, list) {
 			</form>`;
 }
 
-export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', tipo = '', intro = '', alternates = null, contenido = '', imagen = '', faq = [] }) {
+export function listingPage(ctx, { path, title, heading, description, operacion = '', zona = '', tipo = '', intro = '', alternates = null, contenido = '', imagen = '' }) {
 	const heroImg = imagen || ctx.site.hero.imagenes[0] || '/images/hero_bg_1.webp';
 	const t = tr(ctx);
 	const vac = operacion === 'vacacional';
@@ -885,14 +885,6 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			</div>
 		</div>
 	</div>` : ''}
-	${faq.length ? `<section class="section pt-0" aria-labelledby="faq">
-		<div class="container">
-			<h2 class="h5 mb-3" id="faq">${t.faq}</h2>
-			<div class="faq">
-				${faq.map((x) => `<details class="desplegable"><summary>${esc(x.pregunta)}</summary><p>${esc(x.respuesta)}</p></details>`).join('\n\t\t\t\t')}
-			</div>
-		</div>
-	</section>` : ''}
 
 	${porZona(ctx, path)}
 
@@ -911,11 +903,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		title,
 		description,
 		alternates,
-		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd, faq.length && {
-			'@context': 'https://schema.org',
-			'@type': 'FAQPage',
-			mainEntity: faq.map((x) => ({ '@type': 'Question', name: x.pregunta, acceptedAnswer: { '@type': 'Answer', text: x.respuesta } }))
-		}].filter(Boolean),
+		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd].filter(Boolean),
 		// Un listado sin propiedades no aporta nada a Google: no se indexa hasta que tenga alguna.
 		noindex: !list.length,
 		image: imagen || (list.length ? firstPhoto(list[0]) : undefined),
@@ -976,7 +964,7 @@ function rentaWidget(ctx, p = null) {
 							${p ? `<p id="rc-renta-ayuda" class="renta-ayuda col-12 mt-1">${t.rentaSugerida}</p>` : ''}
 							<div class="col-sm-6"><label class="form-label" for="rc-uso">${t.rentaUso}</label><select id="rc-uso" class="form-select" name="uso">${opt('habitacional', t.rentaHabitacional, uso === 'habitacional')}${opt('mixto', t.rentaMixto, uso === 'mixto')}${opt('comercial', t.rentaComercial, uso === 'comercial')}</select></div>
 						</div>
-						<details class="desplegable renta-supuestos">
+						<details class="renta-supuestos">
 							<summary>${ic('sliders')}${t.rentaSupuestos}</summary>
 							<div class="row g-3 pt-2">
 								<div class="col-6">${num('rc-vacancia', 'vacancia', t.rentaVacancia, 5, 'min="0" max="100" step="1"')}</div>
