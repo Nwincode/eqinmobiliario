@@ -20,7 +20,8 @@ export default async () => {
 		// Guatemala va 6 horas detrás de UTC, sin horario de verano. A las 7 se recogen también las de la noche.
 		const sonLas7 = (new Date(ahora).getUTCHours() + 18) % 24 === 7;
 		const ventana = sonLas7 ? 10 * HORA : HORA;
-		if (sonLas7) await recordarComisiones(ahora);
+		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
+		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;
 		const [nuevas, cambiadas] = await Promise.all([
 			desde('leads', 'createdAt', new Date(ahora - ventana - PLAZO)),
@@ -30,12 +31,14 @@ export default async () => {
 		const canceladas = cambiadas.filter((l) => l.solicitud?.estado === 'cancelada');
 		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
 		const hoy = new Date(ahora - 6 * HORA).toISOString().slice(0, 10);
-		const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
-		const mensajes = (await Promise.all(vigentes.map(async (c) => {
-			const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
-			return sinResponder(lista, { ahora, plazo: PLAZO, ventana }) ? { nombre: c.nombre, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId,
-				reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, huespedes: c.huespedes, moneda: c.moneda, total: c.total } } : null;
-		}))).filter(Boolean);
+		const mensajes = await (async () => {
+			const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
+			return (await Promise.all(vigentes.map(async (c) => {
+				const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
+				return sinResponder(lista, { ahora, plazo: PLAZO, ventana }) ? { nombre: c.nombre, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId,
+					reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, huespedes: c.huespedes, moneda: c.moneda, total: c.total } } : null;
+			}))).filter(Boolean);
+		})().catch((err) => { console.error('Mensajes sin responder:', err.message); return []; });
 		if (!sinRespuesta.length && !canceladas.length && !mensajes.length) return;
 
 		const socios = {};
