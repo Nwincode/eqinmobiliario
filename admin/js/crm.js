@@ -58,6 +58,14 @@ export async function loadPropiedades() {
 	return props;
 }
 
+// Acuerdo con el dueño de cada inmueble (properties/{id}/privado/acuerdo), para varias casas a la vez.
+// Por casa: su acuerdo; null si todavía no tiene; undefined si no se pudo leer (sin permiso o sin red), para que
+// nadie lo tome por «no tiene» y escriba encima.
+export async function loadAcuerdos(casas) {
+	const pares = await Promise.all(casas.map(async (c) => [c.id, await getDoc(doc(db, 'properties', c.id, 'privado', 'acuerdo')).then((s) => (s.exists() ? s.data() : null), () => undefined)]));
+	return Object.fromEntries(pares);
+}
+
 export const ms = (v) => toDate(v)?.getTime() || 0;
 
 // Regla general de comisión (settings/crm): se usa cuando el cliente no tiene una comisión propia.

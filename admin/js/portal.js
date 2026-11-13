@@ -4,7 +4,8 @@ import {
 	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
-import { loadActividades, loadClientes, loadPropietarios, ms } from './crm.js';
+import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
+import { acuerdoDe } from './acuerdo.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
 import { slugify } from './ui.js';
@@ -114,6 +115,9 @@ export async function armarPortal(prop) {
 		getDoc(doc(db, 'settings', 'site')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({}))
 	]);
 	const ahora = Date.now();
+	// La exclusiva es de cada inmueble (privado/acuerdo): al portal va solo la fecha en que vence la primera.
+	const acuerdos = await loadAcuerdos(props.filter(Boolean));
+	const exclusivaFin = props.filter(Boolean).map((p) => acuerdoDe(acuerdos[p.id], prop, p.operacion)).filter((a) => a.exclusiva && a.exclusivaFin).map((a) => a.exclusivaFin).sort()[0] || '';
 	const portales = portalesDe(site);
 	const enActivo = Boolean(site.en) && site.en.activo !== false;
 	const visitas = await visitasDe(prop, { actividades, clientes });
@@ -194,7 +198,7 @@ export async function armarPortal(prop) {
 		propietarioId: prop.id,
 		nombre: primerNombre(prop.nombre),
 		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: String(ag.whatsapp || ag.telefono || '').replace(/[^\d+]/g, ''), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
-		exclusivaFin: prop.exclusiva && prop.exclusivaFin ? prop.exclusivaFin : '',
+		exclusivaFin,
 		proximoPaso: recorta(prop.proximoPaso, 400),
 		propiedades,
 		updatedAt: serverTimestamp()

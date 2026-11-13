@@ -17,7 +17,8 @@ import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
-import { sinTildes } from '../cotizacion.js';
+import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
+import { acuerdoDe, camposDelAcuerdo } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
 import '/js/calc-vacacional.js';
 
@@ -653,6 +654,7 @@ export async function render(container, [id]) {
 		await enMasa(async (p) => {
 			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'socio')).catch(() => {});
 			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'llegada')).catch(() => {});
+			await deleteDoc(doc(db, 'properties', p.id, 'privado', 'acuerdo')).catch(() => {});
 			await deleteDoc(doc(db, 'properties', p.id));
 			borradas.add(p.id);
 			await borrarFotos(p);
@@ -765,6 +767,7 @@ export async function render(container, [id]) {
 function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
+	const conDueno = (d) => Boolean(d.propietarioId);
 	return [
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
@@ -813,6 +816,22 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
 			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
 		] },
+
+		// Acuerdo con el dueño de ESTE inmueble (exclusiva, comisión, impuestos): privado, en privado/acuerdo.
+		// Cada operación con lo suyo (admin/js/acuerdo.js): la exclusiva, siempre; comisión en venta (%) y renta
+		// (meses); impuestos del traspaso solo en venta. En la renta por noche la empresa gana el margen.
+		{ type: 'section', label: 'Acuerdo con el dueño', when: conDueno, help: 'Privado: no sale en la página. Es de este inmueble; otro inmueble del mismo dueño puede tener otro acuerdo.' },
+		{ name: 'acuerdo.exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4, when: conDueno },
+		{ name: 'acuerdo.exclusivaInicio', label: 'Exclusiva desde', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva) },
+		{ name: 'acuerdo.exclusivaFin', label: 'Exclusiva hasta', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva), help: 'Avisamos 30 días antes de que venza.' },
+		{ name: 'acuerdo.comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', help: 'Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses de renta)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES, default: 'pequeno', when: (d) => conDueno(d) && !esVacacional(d) },
+		{ name: 'acuerdo.comisionModo', label: 'Cómo se cobra la comisión', type: 'select', cols: 4, options: MODOS, when: (d) => conDueno(d) && !esVacacional(d) },
+		{ name: 'acuerdo.impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
+		{ name: 'acuerdo.impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
+		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
+		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
 
 		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
 		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
@@ -928,11 +947,16 @@ async function renderEditor(container, id) {
 		if (ll) Object.assign(data, { direccion: ll.direccion || '', mapa: ll.mapa || '' });
 	}
 	let eraVacacional = data.operacion === 'vacacional';
+	// Acuerdo de este inmueble. Si todavía no tiene el suyo, se muestra lo que quedó en la ficha de su dueño
+	// (datos de antes) y al guardar pasa a ser de este inmueble.
+	const acuerdoRef = doc(db, 'properties', ref.id, 'privado', 'acuerdo');
+	const acuerdoPropio = isNew ? null : (await getDoc(acuerdoRef)).data() || null;
+	const acuerdoInicial = acuerdoDe(acuerdoPropio, propietarios.find((p) => p.id === data.propietarioId), data.operacion);
 	// Propietario ya asignado que no está en mi lista (lo lleva otro asesor): se muestra y se respeta, sin poder cambiarlo.
 	const ajeno = Boolean(data.propietarioId) && !propietarios.some((p) => p.id === data.propietarioId);
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
-	const datosForm = { ...data, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
@@ -1003,6 +1027,11 @@ async function renderEditor(container, id) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
+		// El acuerdo con el dueño tampoco (privado/acuerdo): solo lo que aplica a esta operación.
+		const acuerdo = Object.fromEntries(camposDelAcuerdo(d.operacion).map((k) => [k, d.acuerdo?.[k] ?? '']));
+		acuerdo.exclusiva = Boolean(acuerdo.exclusiva);
+		if (!acuerdo.exclusiva) Object.assign(acuerdo, { exclusivaInicio: '', exclusivaFin: '' });
+		delete d.acuerdo;
 		let llegada = null;
 		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
 		const dueno = propietarios.find((p) => p.id === d.propietarioId) || null;
@@ -1083,6 +1112,9 @@ async function renderEditor(container, id) {
 			await setDoc(ref, d);
 			if (isNew) await guardarLlegada();
 			if (!llegada && eraVacacional) await deleteDoc(llegadaRef).catch(() => {});
+			// Sin dueño no hay acuerdo. (Va después de guardar la casa: su regla la lee.)
+			if (d.propietarioId) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			else if (acuerdoPropio) await deleteDoc(acuerdoRef);
 			eraVacacional = Boolean(llegada);
 			if (esVacacional(d)) {
 				await setDoc(privRef, {
@@ -1133,6 +1165,7 @@ async function renderEditor(container, id) {
 		try {
 			await deleteDoc(privRef).catch(() => {});
 			await deleteDoc(llegadaRef).catch(() => {});
+			await deleteDoc(acuerdoRef).catch(() => {});
 			await deleteDoc(ref);
 			await borrarFotos({ ...data, id });
 			await markPending(`Propiedad eliminada: ${data.titulo}`);

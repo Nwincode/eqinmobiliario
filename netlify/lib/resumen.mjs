@@ -1,6 +1,7 @@
 // Resumen de la mañana: lo que cada asesor debe atender hoy.
 // Lo usan la función programada (resumen-diario) y el botón de prueba del panel.
-import { listar } from './firestore.mjs';
+import { listar, leerPrivado } from './firestore.mjs';
+import { exclusivasPorVencer } from '../../admin/js/acuerdo.js';
 import { enviarCorreo, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
 
 const DIA = 86_400_000;
@@ -25,6 +26,10 @@ export async function datosResumen(ahora = Date.now()) {
 			return [];
 		}))
 	);
+	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo). Si un acuerdo no se puede leer, ese
+	// inmueble usa lo que quedó en su dueño y el resumen sale igual.
+	const conDueno = propiedades.filter((c) => c.propietarioId || propietarios.some((p) => (p.propiedades || []).some((x) => x.propertyId === c.id)));
+	const acuerdos = Object.fromEntries(await Promise.all(conDueno.map(async (c) => [c.id, await leerPrivado(`properties/${c.id}/privado/acuerdo`).catch(() => undefined)])));
 	const { inicio, fin } = hoyGT(ahora);
 	const pend = actividades.filter((a) => !a.hecha && ms(a.fecha));
 	const conPendiente = new Set(pend.filter((a) => a.clienteId).map((a) => a.clienteId));
@@ -35,11 +40,9 @@ export async function datosResumen(ahora = Date.now()) {
 		leads: leads.filter((l) => (l.estado || 'nuevo') === 'nuevo').sort((a, b) => ms(b.createdAt) - ms(a.createdAt)),
 		sinSeguimiento: clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id))
 			.sort((a, b) => ms(a.ultimoContacto) - ms(b.ultimoContacto)),
-		exclusivas: propietarios.filter((p) => {
-			if (!p.exclusiva || !p.exclusivaFin) return false;
-			const dias = (new Date(`${p.exclusivaFin}T23:59:59-06:00`).getTime() - ahora) / DIA;
-			return dias <= 30;
-		}).sort((a, b) => String(a.exclusivaFin).localeCompare(String(b.exclusivaFin))),
+		exclusivas: exclusivasPorVencer(conDueno, acuerdos, propietarios, { ahora, zona: '-06:00' }).map((x) => ({
+			agentId: x.casa.agentId || x.dueno?.agentId || '', titulo: x.casa.titulo || x.casa.codigo || 'Inmueble', nombre: x.dueno?.nombre || '', exclusivaFin: x.acuerdo.exclusivaFin
+		})),
 		incompletas: propiedades.filter((p) => p.publicado === true &&(!(p.fotos || []).length || !Number(p.precio)))
 	};
 	return { secciones, asesores, ahora };
@@ -52,7 +55,7 @@ const SECCIONES = [
 	['sinSeguimiento', 'Clientes sin próximo paso', '#/clientes', (c) => `${c.nombre || 'Sin nombre'}${c.ultimoContacto ? ` · último contacto ${fecha(c.ultimoContacto)}` : ' · sin contacto registrado'}`],
 	['exclusivas', 'Exclusivas por vencer', '#/propietarios', (p) => {
 		const [y, m, d] = String(p.exclusivaFin).split('-');
-		return `${p.nombre || 'Propietario'} · vence ${d}/${m}/${y}`;
+		return `${p.titulo}${p.nombre ? ` — ${p.nombre}` : ''} · vence ${d}/${m}/${y}`;
 	}],
 	['incompletas', 'Propiedades visibles sin fotos o sin precio', '#/propiedades', (p) => `${p.titulo || p.codigo || 'Sin título'} · falta ${[!(p.fotos || []).length && 'fotos', !Number(p.precio) && 'precio'].filter(Boolean).join(' y ')}`]
 ];
