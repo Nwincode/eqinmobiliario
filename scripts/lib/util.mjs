@@ -62,6 +62,11 @@ export const TIPOS = {
 // Etiquetas públicas de cada estado (la lista y sus reglas viven en admin/js/estados.js).
 export const ESTADOS = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.es]));
 
+// «Zona 16, Guatemala»; si zona y ciudad son lo mismo (Antigua Guatemala) no se repite.
+export function lugarDe(p) {
+	return [p.zona, p.ciudad !== p.zona && p.ciudad].filter(Boolean).join(', ');
+}
+
 export function plural(n, uno, varios) {
 	return `${n} ${Number(n) === 1 ? uno : varios}`;
 }

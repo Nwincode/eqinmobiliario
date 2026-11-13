@@ -1,6 +1,6 @@
 // Plantillas HTML del sitio público. Cada función devuelve un string.
 import {
-	esc, formatPrice, TIPOS, ESTADOS, plural, truncate, markdown, stripMarkdown, resumenSeo,
+	esc, formatPrice, TIPOS, ESTADOS, plural, lugarDe, truncate, markdown, stripMarkdown, resumenSeo,
 	videoEmbedUrl, mapEmbedUrl, whatsappLink, cifra
 } from './util.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
@@ -958,7 +958,7 @@ function factsList(p) {
 		['layers', t.fNiveles, p.niveles],
 		['calendar', t.fAnio, p.anioConstruccion],
 		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
-		['map-marker', t.fUbicacion, [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', ')],
+		['map-marker', t.fUbicacion, [p.direccion, lugarDe(p)].filter(Boolean).join(', ')],
 		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
@@ -1062,7 +1062,7 @@ function listingLd(ctx, p) {
 				p.m2Terreno ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Lot size (m²)' : 'Terreno (m²)', value: p.m2Terreno } : null
 			].filter(Boolean),
 			geo: geoDe(p.mapa),
-			address: { '@type': 'PostalAddress', streetAddress: p.direccion || undefined, addressLocality: [p.zona, p.ciudad].filter(Boolean).join(', '), addressRegion: 'Guatemala', addressCountry: 'GT' }
+			address: { '@type': 'PostalAddress', streetAddress: p.direccion || undefined, addressLocality: lugarDe(p), addressRegion: 'Guatemala', addressCountry: 'GT' }
 		}
 	};
 }
@@ -1224,8 +1224,7 @@ export function propertyPage(ctx, p) {
 		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>
 	</div>`;
 
-	const ciudad = p.ciudad && p.ciudad !== p.zona ? p.ciudad : '';
-	const lugar = [p.zona, ciudad].filter(Boolean).join(', ');
+	const lugar = lugarDe(p);
 	const datosClave = [
 		[esVac ? datosVacacional(p).huespedesMax : '', t.vacHuespedes, 'users'],
 		[esVac ? p.vacacional.camas : '', t.fCamas, 'airline_seat_individual_suite'],
@@ -1271,7 +1270,7 @@ export function propertyPage(ctx, p) {
 					<header class="ficha-cabecera">
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
-						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona ? `<a href="${zona.url}">${esc(p.zona)}</a>${ciudad ? `, ${esc(ciudad)}` : ''}` : esc(lugar)}</p>` : ''}
+						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona ? `<a href="${zona.url}">${esc(p.zona)}</a>${esc(lugar.slice(p.zona.length))}` : esc(lugar)}</p>` : ''}
 						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
@@ -1402,7 +1401,7 @@ export function vipIndexPage(ctx) {
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
-							<span class="vip-card-meta">${ic('map-marker')}${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
+							<span class="vip-card-meta">${ic('map-marker')}${esc(lugarDe(p))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
 						</span>
 					</a>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.vipPronto} <a href="${r.contacto}">${t.contactanos}</a> ${t.paraConocerlas}</p>`}
@@ -1457,7 +1456,7 @@ export function vipLandingPage(ctx, p) {
 
 	<section class="vip-hero" style="${bgStyle(ctx, portada)}">
 		<div class="vip-hero-inner container">
-			<span class="vip-eyebrow" data-aos="fade-up">${ic('diamond')}${t.propiedadExclusiva} · ${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</span>
+			<span class="vip-eyebrow" data-aos="fade-up">${ic('diamond')}${t.propiedadExclusiva} · ${esc(lugarDe(p))}</span>
 			<h1 data-aos="fade-up" data-aos-delay="100">${esc(v.titular || p.titulo)}</h1>
 			${v.subtitular ? `<p class="vip-sub" data-aos="fade-up" data-aos-delay="200">${esc(v.subtitular)}</p>` : ''}
 			<p class="vip-price" data-aos="fade-up" data-aos-delay="250">${esc(precio)}</p>
@@ -1529,7 +1528,7 @@ export function vipLandingPage(ctx, p) {
 	${mapa ? `<section class="vip-section">
 		<div class="container">
 			<span class="vip-kicker">${ic('map-marker')}${t.ubicacion}</span>
-			<h2 class="vip-h2 mb-4">${esc([p.zona, p.ciudad].filter(Boolean).join(', '))}</h2>
+			<h2 class="vip-h2 mb-4">${esc(lugarDe(p))}</h2>
 			<div class="ratio ratio-21x9 vip-map"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
 		</div>
 	</section>` : ''}

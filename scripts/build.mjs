@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
-import { deepMerge, slugify, byOrder, cifra } from './lib/util.mjs';
+import { deepMerge, slugify, byOrder, cifra, lugarDe } from './lib/util.mjs';
 import { dinero } from '../admin/js/formato.js';
 import { amenidadesEn } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
@@ -289,7 +289,7 @@ function llmsTxt(ctx, properties, pages) {
 		...[['venta', 'En venta'], ['renta', 'En renta'], ['vacacional', 'Renta vacacional por noche']].filter(([op]) => hay(properties, op)).map(([op, texto]) => `- [${texto}](${base}/propiedades/${op}/)`),
 		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
 		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${[p.zona, p.ciudad].filter(Boolean).join(', ')}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
@@ -316,7 +316,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Enlace', `${base}${T.propertyUrl(p)}`),
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
-		dato('Ubicación', [p.zona, p.ciudad].filter(Boolean).join(', ')),
+		dato('Ubicación', lugarDe(p)),
 		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? dinero(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
@@ -415,7 +415,7 @@ ${disponibles.filter((p) => fotos(p).length).map((p) => {
 		<price_freq>${p.operacion === 'renta' ? 'month' : 'sale'}</price_freq>
 		<new_build>0</new_build>
 		<type>${tipoKyero[p.tipo] || 'house'}</type>
-		<town>${xmlEsc([p.zona, p.ciudad].filter(Boolean).join(', ') || 'Guatemala')}</town>
+		<town>${xmlEsc(lugarDe(p) || 'Guatemala')}</town>
 		<province>Guatemala</province>
 		<country>Guatemala</country>${geo ? `
 		<location><latitude>${geo.lat}</latitude><longitude>${geo.lng}</longitude></location>` : ''}
