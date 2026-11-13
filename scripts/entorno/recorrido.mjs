@@ -323,12 +323,12 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	const seVe = (persona, texto) => persona.p.locator('.form-section', { hasText: texto }).first().isVisible().catch(() => false);
-	paso('Al socio (solo casas por noche) no se le piden impuestos de venta ni comisión acordada', !(await seVe(admin, 'Impuestos de la venta')) && !(await admin.p.locator('[data-campo="comisionPct"]').isVisible()) && await admin.p.locator('[data-campo="exclusiva"]').isVisible());
+	paso('Al socio (solo casas por noche) no se le piden impuestos de venta ni comisión acordada', !(await admin.p.locator('[data-campo="impuestoVenta"]').isVisible()) && !(await admin.p.locator('[data-campo="comisionPct"]').isVisible()) && !(await admin.p.locator('[data-campo="agentId"]').isVisible()) && await admin.p.locator('[data-campo="exclusiva"]').isVisible());
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
 		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
-	paso('Al propietario con una casa en venta sí se le piden', await seVe(asesor, 'Impuestos de la venta') && await asesor.p.locator('[data-campo="comisionPct"]').isVisible());
+	paso('Al propietario con una casa en venta sí se le piden', await asesor.p.locator('[data-campo="impuestoVenta"]').isVisible() && await asesor.p.locator('[data-campo="comisionPct"]').isVisible());
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
@@ -338,16 +338,16 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	};
 	// Una sola ficha por persona: el socio ve sus casas por noche y, cambiando de pestaña, le agrego una en venta.
 	const delSocio = await abrirSelector('#/propietarios/socio-prueba');
-	await admin.p.locator('.modal.show .btn-group button', { hasText: 'Venta y renta' }).click();
+	await admin.p.locator('.modal.show .btn-group button', { hasText: 'Venta' }).click();
 	await espera(300);
 	const enVenta = await admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
-	paso('El selector abre al socio en «Por noche» y cada pestaña muestra solo su categoría', !delSocio.some((x) => /Venta|Renta ·/.test(x)) && enVenta.length > 0 && !enVenta.some((x) => /vacacional/i.test(x)), `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
+	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => /Venta|Renta ·/.test(x)) && enVenta.length > 0 && enVenta.every((x) => /Venta/.test(x)) && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
 	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click();
 	await espera(600);
 	const titulos = await admin.p.locator('.list-field .prop-zona').allInnerTexts();
 	paso('La misma ficha muestra sus casas por noche y la de venta, y pide lo de las dos', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
-		&& await seVe(admin, 'Impuestos de la venta') && await admin.p.locator('[data-campo="comisionPct"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
+		&& await admin.p.locator('[data-campo="impuestoVenta"]').isVisible() && await admin.p.locator('[data-campo="comisionPct"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
 	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
@@ -366,6 +366,14 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await espera(600);
 	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.some((x) => /vacacional/i.test(x)) && halladas.length === 1
 		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
+	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
+	await ir(admin.p, '#/propietarios/nuevo');
+	const visibles = [];
+	for (const c of ['agentId', 'comisionPct', 'datosPago', 'exclusiva', 'impuestoVenta']) if (await admin.p.locator(`[data-campo="${c}"]`).isVisible()) visibles.push(c);
+	paso('A un dueño nuevo, sin casas todavía, no se le pide asesor, comisión, datos de pago, exclusiva ni impuestos', visibles.length === 0 && await admin.p.locator('[data-campo="nombre"]').isVisible(), visibles.join(', '));
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await admin.p.screenshot({ path: `${CAPTURAS}/dueno-nuevo-390.png`, fullPage: true });
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));

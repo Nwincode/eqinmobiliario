@@ -5,7 +5,7 @@ import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
-import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
+import { loadPropietarios, loadPropiedades, telNorm, loadReglas } from '../crm.js';
 import { REGIMENES, MODOS, sinTildes } from '../cotizacion.js';
 import { OPERACIONES, TIPOS, MONEDAS, datosDe, loadAll, propiedadNueva, slugLibre, vacacionalPublico, guardarPrivadoVacacional } from './properties.js';
 import { generarCodigo } from '../importar.js';
@@ -79,14 +79,16 @@ function nuevaPropiedad(dueno, operacion, alCrear) {
 
 // Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
 // noche y otras en venta o renta, en una sola ficha. De eso depende qué se le pide y se le muestra:
-//  - con casas por noche es socio de renta vacacional: correo y datos de pago;
+//  - con casas por noche es socio de renta vacacional: datos de pago (y su correo recibe las solicitudes);
 //  - con venta o renta: asesor responsable y comisión acordada (en la renta por noche la empresa gana el margen);
 //  - si vende: impuestos de la venta.
-// Sin casas todavía: venta y renta, salvo que ya estuviera marcado como socio.
+// Sin casas todavía no se le pide nada de eso: primero se agregan sus propiedades. (Una ficha de antes sin casas
+// enlazadas conserva a la vista lo que ya tenía guardado.)
 export const esSocio = (d) => Boolean(d.porNoche) || d.tipo === 'socio'; // «tipo: socio» = fichas de antes
 function operacionesDe(d, propiedades) {
 	const ops = (d.propiedades || []).map((x) => propiedades.find((p) => p.id === x.propertyId)?.operacion).filter(Boolean);
-	return ops.length ? ops : esSocio(d) ? ['vacacional'] : ['venta', 'renta'];
+	if (ops.length) return ops;
+	return [...(esSocio(d) ? ['vacacional'] : []), ...(d.comisionPct || d.exclusiva || d.impuestoVenta || d.contrato ? ['venta', 'renta'] : [])];
 }
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
@@ -113,12 +115,21 @@ async function renderLista(container) {
 	const faltanDe = (p) => revisar('propietarios', p);
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
+	// Lo que gana la empresa con cada quien, según lo que tiene: venta (%), renta (meses) y por noche (margen de la casa).
+	const comisionDe = (p) => {
+		const ops = operacionesDe(p, propiedades);
+		const meses = p.comisionRentaMeses || reglas.comisionRentaMeses;
+		return [
+			ops.includes('venta') ? `Venta ${p.comisionPct || reglas.comisionVentaPct} %` : '',
+			ops.includes('renta') ? `Renta ${meses} ${Number(meses) === 1 ? 'mes' : 'meses'}` : '',
+			ops.includes('vacacional') ? 'Por noche: margen' : ''
+		].filter(Boolean).join(' · ') || '—';
+	};
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
 		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, esSocio(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
-		h('td', { class: 'small' }, !operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? h('span', { class: 'text-muted' }, 'Margen por casa')
-			: p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
+		h('td', { class: 'small' }, comisionDe(p)),
 		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—')) : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
@@ -152,7 +163,9 @@ async function renderEditor(container, id) {
 	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
 	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
 	const vende = (d) => operacionesDe(d, propiedades).includes('venta');
+	const renta = (d) => operacionesDe(d, propiedades).includes('renta');
 	const conNoche = (d) => operacionesDe(d, propiedades).includes('vacacional');
+	const conCasas = (d) => operacionesDe(d, propiedades).length > 0;
 	const form = renderForm([
 		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
 		// Ser socio de renta vacacional no se elige: lo es quien tiene al menos una casa por noche.
@@ -161,30 +174,35 @@ async function renderEditor(container, id) {
 			help: 'Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
 		{ name: 'empresa', label: 'Empresa o inmobiliaria', cols: 6, when: (d) => d.tipo === 'colaborador' },
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
-		// Las casas por noche las atiende el socio mismo: el asesor responsable es para lo que tenga en venta o renta.
-		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6, when: conComision } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', type: 'telefono', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
-		{ type: 'custom', when: conNoche, update: (el) => { el.className = 'form-text mt-0'; el.textContent = 'Socio de renta vacacional (tiene casas por noche): a ese correo le llegan las solicitudes de reserva.'; } },
-		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
-		{ type: 'section', label: 'Propiedades' },
+		// Primero, qué tiene con nosotros. De ahí en adelante cada bloque sale solo si le aplica (ver «operacionesDe»);
+		// a quien todavía no tiene casas no se le pide asesor, comisión, datos de pago ni impuestos.
+		{ type: 'section', label: 'Propiedades', when: conCasas },
+		{ type: 'section', label: 'Propiedades', when: (d) => !conCasas(d), help: 'Agrega sus propiedades: según lo que tenga (por noche, renta o venta), abajo se pide solo lo que le corresponde.' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', onAdd: (item, quitar) => elegirCasa(item, quitar), fields: [
 			{ type: 'custom', update: (el, _, item) => pintarCasa(el, item) }
 		] },
-		// De aquí en adelante, cada bloque sale solo si aplica a lo que este dueño tiene con nosotros (ver «operaciones»).
-		{ type: 'section', label: 'Exclusiva y comisión', when: conComision },
-		{ type: 'section', label: 'Exclusiva', when: (d) => !conComision(d), help: 'En la renta por noche no hay comisión acordada: la empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
-		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4 },
-		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4 },
-		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4 },
-		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, when: conComision, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		// Venta, renta y renta por noche no son lo mismo: cada una con su bloque y lo que se le pide.
+		{ type: 'section', label: 'Renta por noche', when: conNoche, help: 'Es socio de renta vacacional: a su correo le llegan las solicitudes de reserva y atiende él mismo sus casas. La empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
+		{ name: 'datosPago', label: 'Datos de pago para las reservas', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva.' },
+		{ type: 'section', label: 'Venta', when: vende },
+		{ name: 'comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: vende, help: `Vacío = regla general: ${reglas.comisionVentaPct} % del precio.` },
+		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: vende, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
+		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: vende, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
+		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, when: vende, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
+		{ type: 'section', label: 'Renta', when: renta },
+		{ name: 'comisionRentaMeses', label: 'Comisión de renta (meses de renta)', type: 'number', min: 0, step: 0.5, cols: 4, when: renta, help: `Vacío = regla general: ${reglas.comisionRentaMeses} ${reglas.comisionRentaMeses === 1 ? 'mes' : 'meses'} de renta.` },
+		// Lo que comparten la venta y la renta: quién lo atiende y cómo se cobra la comisión.
+		{ type: 'section', label: 'Asesor y cobro de la comisión', when: conComision, help: 'Para lo que tiene en venta o en renta. Las casas por noche no llevan asesor.' },
+		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 4, when: conComision } : null,
 		{ name: 'comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, when: conComision, options: REGIMENES },
 		{ name: 'comisionModo', label: 'Cómo se cobra', type: 'select', cols: 4, when: conComision, options: MODOS, help: 'Las mismas opciones de Cotización de servicios.' },
-		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, placeholder: 'https://…' },
-		{ type: 'section', label: 'Impuestos de la venta', when: vende },
-		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 6, when: vende, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
-		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 6, when: vende, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
-		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, when: vende, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
+		{ type: 'section', label: 'Exclusiva', when: conCasas },
+		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4, when: conCasas },
+		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4, when: conCasas },
+		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4, when: conCasas },
+		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, when: conCasas, placeholder: 'https://…' },
 		{ type: 'section', label: 'Notas' },
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
@@ -232,21 +250,22 @@ async function renderEditor(container, id) {
 		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
 		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
 		const lista = h('div', { class: 'list-group' });
-		// Dos categorías, una a la vez: abre en la del renglón (o en la que esta persona ya tiene) y se cambia arriba.
+		// Tres categorías, una a la vez: abre en la del renglón (o en la primera que esta persona ya tiene) y se cambia arriba.
+		const CATEGORIAS = [['venta', 'Venta', 'icon-home'], ['renta', 'Renta', 'icon-key'], ['vacacional', 'Por noche', 'icon-moon-o']];
 		const actual = propiedades.find((p) => p.id === item.propertyId);
-		let noche = actual ? actual.operacion === 'vacacional' : !conComision(form.state);
-		const pestana = (esNoche, texto, icono) => h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => { noche = esNoche; dibujar(); } }, h('span', { class: icono, 'aria-hidden': 'true' }), ` ${texto}`);
-		const pestanas = [pestana(false, 'Venta y renta', 'icon-home'), pestana(true, 'Por noche', 'icon-moon-o')];
+		const tiene = operacionesDe(form.state, propiedades);
+		let categoria = actual?.operacion || CATEGORIAS.map(([v]) => v).find((v) => tiene.includes(v)) || 'venta';
+		const pestanas = CATEGORIAS.map(([valor, texto, icono]) => h('button', { type: 'button', class: 'btn btn-outline-primary', dataset: { categoria: valor }, onclick: () => { categoria = valor; dibujar(); } }, h('span', { class: icono, 'aria-hidden': 'true' }), ` ${texto}`));
 		const dibujar = () => {
 			const q = sinTildes(buscar.value.trim());
-			pestanas.forEach((b, k) => { const on = Boolean(k) === noche; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
-			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && (p.operacion === 'vacacional') === noche).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
+			pestanas.forEach((b) => { const on = b.dataset.categoria === categoria; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && p.operacion === categoria).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
 			lista.replaceChildren(
-				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { creando = true; ventana.close(); crearPropiedad(noche ? 'vacacional' : 'venta', (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
+				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
 					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
 				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
 					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
-				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${noche ? 'casas por noche' : 'propiedades en venta o renta'} que coincidan. Puedes crearla con «Nueva propiedad».`));
+				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
