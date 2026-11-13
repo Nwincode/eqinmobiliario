@@ -1017,7 +1017,7 @@ function factsList(p) {
 		['layers', t.fNiveles, p.niveles],
 		['calendar', t.fAnio, p.anioConstruccion],
 		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
-		['map-marker', t.fUbicacion, [p.direccion, lugarDe(p)].filter(Boolean).join(', ')],
+		['map-marker', t.fUbicacion, [p.direccion !== p.zona && p.direccion, lugarDe(p)].filter(Boolean).join(', ')],
 		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
@@ -1393,10 +1393,12 @@ export function propertyPage(ctx, p) {
 }
 
 // Propiedades parecidas que sí se ofrecen: primero misma zona y operación, luego cualquiera de las dos.
+// Las casas por noche solo se sugieren entre ellas: quien busca dónde quedarse no busca comprar, ni al revés.
 function parecidas(ctx, p, n) {
+	const porNoche = (o) => o.operacion === 'vacacional';
 	const puntos = (o) => (o.zona === p.zona ? 2 : 0) + (o.operacion === p.operacion ? 1 : 0) + (o.tipo === p.tipo ? 0.5 : 0);
 	return ctx.properties
-		.filter((o) => o.id !== p.id && (o.zona === p.zona || o.operacion === p.operacion))
+		.filter((o) => o.id !== p.id && porNoche(o) === porNoche(p) && (o.zona === p.zona || o.operacion === p.operacion))
 		.map((o, i) => [o, puntos(o), i])
 		.sort((a, b) => b[1] - a[1] || a[2] - b[2])
 		.slice(0, n)
