@@ -41,7 +41,7 @@ async function renderLista(container) {
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, p.telefono || p.email || ''), chipFaltan(faltanDe(p))),
+		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
 		h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
@@ -76,7 +76,11 @@ async function renderEditor(container, id) {
 	const data = { comisionRegimen: 'pequeno', ...(nuevo ? { exclusiva: false, agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data()) };
 	const opcionesProp = [['', 'Elegir propiedad…'], ...propiedades.map((p) => [p.id, p.titulo])];
 	const form = renderForm([
-		{ name: 'nombre', label: 'Nombre del propietario', required: true, cols: 6 },
+		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
+		{ name: 'tipo', label: 'Es', type: 'select', options: [['propietario', 'Propietario (dueño)'], ['colaborador', 'Asesor colaborador (nos pasó el inmueble)']], default: 'propietario', cols: 6,
+			help: 'Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
+		{ name: 'empresa', label: 'Empresa o inmobiliaria', cols: 6, when: (d) => d.tipo === 'colaborador' },
+		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6 } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },

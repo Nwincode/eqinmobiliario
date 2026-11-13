@@ -13,6 +13,7 @@ export const REGLAS = {
 		aplica: (p) => p.estado !== 'retirada',
 		campos: [
 			['titulo', 'Título', (p) => vacio(p.titulo)],
+			['propietarioId', 'Propietario o colaborador', (p) => vacio(p.propietarioId)],
 			['precio', 'Precio', (p) => vacio(p.precio) || Number(p.precio) <= 0],
 			['ciudad', 'Ciudad o municipio', (p) => vacio(p.ciudad)],
 			['zona', 'Zona', (p) => vacio(p.zona) && CIUDADES_CON_ZONA.includes(String(p.ciudad || '').trim().toLowerCase())],

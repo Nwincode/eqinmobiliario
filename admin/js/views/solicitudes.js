@@ -65,10 +65,14 @@ export async function render(container, [codigo] = []) {
 	const avisarChat = (id) => { fetch('/api/aviso-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: id }) }).catch(() => {}); };
 	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
 	// Chats donde lo último lo escribió el cliente: falta responderle.
-	const porResponder = new Set((await Promise.all(Object.entries(chats).map(async ([cod, id]) => {
-		const ultimo = (await getDocs(query(collection(db, 'chats', id, 'mensajes'), orderBy('createdAt')))).docs.at(-1)?.data();
-		return ultimo?.de === 'cliente' ? cod : null;
-	}))).filter(Boolean));
+	const porResponder = new Set();
+	// Chats que ya mandaron los datos de llegada (si el segundo paso de «Pago recibido» falló, el botón sigue ahí).
+	const conLlegada = new Set();
+	await Promise.all(Object.entries(chats).map(async ([cod, id]) => {
+		const todos = (await getDocs(query(collection(db, 'chats', id, 'mensajes'), orderBy('createdAt')))).docs.map((d) => d.data());
+		if (todos.at(-1)?.de === 'cliente') porResponder.add(cod);
+		if (todos.some((m) => m.tipo === 'llegada')) conLlegada.add(cod);
+	}));
 	const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
 	const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago' };
 	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar.
@@ -127,10 +131,10 @@ export async function render(container, [codigo] = []) {
 	async function pagoRecibido(l) {
 		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste el pago? El cliente verá la dirección, el mapa y cómo llegar.`, { okText: 'Pago recibido' }))) return;
 		await hacer(async () => {
-			const lote = writeBatch(db);
-			lote.update(refChat(l), { estado: 'pagada' });
-			lote.set(doc(collection(db, 'chats', refChat(l).id, 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada', createdAt: serverTimestamp() });
-			await lote.commit();
+			// En dos pasos y en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado
+			// (dentro de un mismo lote todavía ven el estado anterior y lo rechazan).
+			if (datosChat[l.reserva.codigo].estado !== 'pagada') await updateDoc(refChat(l), { estado: 'pagada' });
+			await addDoc(collection(db, 'chats', refChat(l).id, 'mensajes'), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada', createdAt: serverTimestamp() });
 			avisarChat(refChat(l).id);
 			toast('Listo: el cliente ya ve los datos de llegada.');
 		});
@@ -276,7 +280,7 @@ export async function render(container, [codigo] = []) {
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
-				est === 'confirmada' && datosChat[r.codigo] && datosChat[r.codigo].estado !== 'pagada' ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
+				est === 'confirmada' && datosChat[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,

@@ -585,7 +585,8 @@ async function main() {
 	const todas = normalizeProperties(data.properties);
 	// Tampoco se ofrecen las casas de un socio con una comisión atrasada más de 72 h (vuelven solas al pagarla).
 	const mora = data.source === 'firestore' && datosConfigurados() ? await sociosEnMora() : null;
-	const seOfrece = (p) => visibilidadDe(p) === 'visible' && mora?.[p.propietarioId] !== 3;
+	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.
+	const seOfrece = (p) => visibilidadDe(p) === 'visible' && !(p.operacion === 'vacacional' && mora?.[p.propietarioId] === 3);
 	const properties = todas.filter(seOfrece);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
