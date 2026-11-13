@@ -713,7 +713,7 @@ export async function render(container, [id]) {
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 
-function schema(agentOpts, isNew, socioOpts) {
+function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	const vip = (d) => Boolean(d.vip);
 	return [
 		{ type: 'section', label: 'Datos principales' },
@@ -726,8 +726,10 @@ function schema(agentOpts, isNew, socioOpts) {
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
 		// Renta vacacional: la atiende su socio; el asesor sale solo de la ficha del socio y no se pregunta.
 		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin, when: (d) => !esVacacional(d) },
-		{ name: 'propietarioId', label: 'Socio (dueño de la casa)', type: 'select', options: socioOpts, cols: 3, when: esVacacional,
-			help: 'Se crea una sola vez en Propietarios: de ahí salen su asesor, su correo para los avisos y sus datos de pago.' },
+		// De quién es el inmueble o quién nos lo pasó. En renta vacacional es el socio que la atiende.
+		// Si lo lleva otro asesor no se cambia aquí: su lista de casas (Propietarios) volvería a reclamarla.
+		{ name: 'propietarioId', label: 'Propietario o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
+			help: 'Dueño o asesor colaborador. Se crea una vez en Propietarios.' },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
@@ -843,7 +845,7 @@ async function renderEditor(container, id) {
 	const isNew = id === 'nuevo';
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
 	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
-	const socioOpts = [['', 'Elegir socio…'], ...propietarios.map((p) => [p.id, p.nombre])];
+	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : p.nombre])];
 	if (!isNew && !snap.exists()) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -867,9 +869,12 @@ async function renderEditor(container, id) {
 		return;
 	}
 
+	// Propietario ya asignado que no está en mi lista (lo lleva otro asesor): se muestra y se respeta, sin poder cambiarlo.
+	const ajeno = Boolean(data.propietarioId) && !propietarios.some((p) => p.id === data.propietarioId);
+	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
-	const form = renderForm(schema(agentOpts, isNew, socioOpts), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
 	form.el.querySelector('input')?.addEventListener('input', (e) => {
@@ -940,11 +945,14 @@ async function renderEditor(container, id) {
 		const socio = d.socio || {};
 		delete d.socio;
 		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
-		const dueno = esVacacional(d) ? propietarios.find((p) => p.id === d.propietarioId) : null;
+		const dueno = propietarios.find((p) => p.id === d.propietarioId) || null;
 		if (esVacacional(d)) {
-			if (!dueno) return toast('Elige el socio de la casa. Si todavía no existe, créalo en Propietarios.', 'warning');
-			if (dueno.agentId) d.agentId = dueno.agentId;
-			Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
+			if (!d.propietarioId) return toast('Elige el socio de la casa. Si todavía no existe, créalo en Propietarios.', 'warning');
+			// Socio de otro asesor: se conserva lo ya guardado de él.
+			if (dueno) {
+				if (dueno.agentId) d.agentId = dueno.agentId;
+				Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
+			}
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			Object.assign(d, vacacionalPublico({ ...d, socio }));
 		} else {
@@ -1015,10 +1023,12 @@ async function renderEditor(container, id) {
 				});
 			}
 			// La casa queda también en la lista del socio (y sale de la del anterior, si cambió).
+			// arrayUnion: no pisa lo que otra persona haya agregado a esa lista mientras tanto.
 			if (dueno && !(dueno.propiedades || []).some((x) => x.propertyId === ref.id)) {
-				await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: [...(dueno.propiedades || []), { propertyId: ref.id }] });
+				await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: ref.id }) });
 			}
-			const anterior = dueno && data.propietarioId && data.propietarioId !== dueno.id && propietarios.find((p) => p.id === data.propietarioId);
+			// Si se cambió o se quitó, sale de la lista del anterior (cuando lo llevo yo).
+			const anterior = data.propietarioId && data.propietarioId !== d.propietarioId && propietarios.find((p) => p.id === data.propietarioId);
 			if (anterior) await updateDoc(doc(db, 'propietarios', anterior.id), { propiedades: (anterior.propiedades || []).filter((x) => x.propertyId !== ref.id) });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
