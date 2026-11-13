@@ -1,34 +1,32 @@
-// Cada tabla del panel cabe en la pantalla, así la barra para moverse de lado siempre se ve
-// sin bajar hasta el final de la página:
-// - si la caja empieza en la primera pantalla, mide lo que queda de pantalla desde ahí;
-// - si empieza más abajo (o lo que queda es muy poco), mide la pantalla entera menos la barra
-//   de arriba, así al llegar a ella se ve completa con su barra de lado.
+// Un solo scroll por pantalla:
+// - si la vista es una sola tabla y lo demás cabe en la pantalla (computadora), la tabla mide
+//   lo que queda de pantalla: la página no baja, baja la tabla con sus títulos fijos y la barra
+//   para moverse de lado siempre a la vista;
+// - en cualquier otro caso (celular, varias tablas, o contenido que ya obliga a bajar) la tabla
+//   va completa y baja la página.
 // Se vuelve a medir cuando cambia el contenido, se abre un <details>, una pestaña o una
 // sección escondida, cargan imágenes o letras, o cambia el tamaño de la ventana.
 const SELECTOR = '.table-responsive';
 const MINIMO = 240;
-const MARGEN = 16;
-
-// Alto de la barra de arriba si se queda fija al bajar (position: sticky / fixed).
-function altoBarra() {
-	const barra = document.querySelector('.admin-topbar');
-	if (!barra) return 0;
-	const pos = getComputedStyle(barra).position;
-	return pos === 'sticky' || pos === 'fixed' ? barra.getBoundingClientRect().height : 0;
-}
+const ANCHO_MOVIL = 992;
 
 export function vigilarTablas(main) {
 	let pendiente = false;
 	const ajustar = () => {
 		pendiente = false;
-		const pantalla = window.innerHeight;
-		const completa = Math.max(MINIMO, Math.round(pantalla - altoBarra() - 2 * MARGEN));
-		for (const caja of main.querySelectorAll(SELECTOR)) {
-			// Escondida (details cerrado, pestaña o sección oculta): se mide cuando se vea.
-			if (!caja.getClientRects().length) continue;
-			const arriba = caja.getBoundingClientRect().top + window.scrollY;
-			const resto = Math.round(pantalla - arriba - MARGEN);
-			const alto = `${resto >= MINIMO ? Math.min(resto, completa) : completa}px`;
+		// Escondidas (details cerrado, pestaña o sección oculta) no cuentan: se miden al verse.
+		const cajas = [...main.querySelectorAll(SELECTOR)].filter((c) => c.getClientRects().length);
+		const sola = cajas.length === 1 && window.innerWidth >= ANCHO_MOVIL;
+		for (const caja of cajas) {
+			let alto = 'none';
+			if (sola) {
+				// Lo de arriba y lo de abajo de la caja no dependen de su propio alto: la medida no se persigue a sí misma.
+				const r = caja.getBoundingClientRect();
+				const arriba = r.top + window.scrollY;
+				const abajo = document.documentElement.scrollHeight - (r.bottom + window.scrollY);
+				const resto = Math.floor(window.innerHeight - arriba - abajo);
+				if (resto >= MINIMO) alto = `${resto}px`;
+			}
 			if (caja.style.getPropertyValue('--tabla-alto') !== alto) caja.style.setProperty('--tabla-alto', alto);
 		}
 	};
