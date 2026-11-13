@@ -40,7 +40,6 @@
 .eq-flecha-sobre {
 	top: 50%;
 	transform: translateY(-50%);
-	border-color: transparent;
 	background: color-mix(in srgb, var(--eq-dark) 45%, transparent);
 	color: var(--eq-white);
 }
@@ -1025,64 +1024,7 @@ a {
 	color: var(--eq-dark);
 }
 
-/* Tarjetas destacadas (features): blancas sobre bruma, icono en azul */
-.features-1 {
-	background-color: var(--eq-mist) !important;
-	padding-bottom: 40px;
-}
-.features-1 .box-feature {
-	background: #fff;
-	border-radius: 14px;
-	padding: 32px 24px;
-	box-shadow: 0 10px 30px -20px color-mix(in srgb, var(--eq-dark) 45%, transparent);
-	height: 100%;
-}
-.features-1 .box-feature span[class^="flaticon"],
-.features-1 .box-feature [class*=" flaticon"] {
-	color: var(--eq-primary);
-}
-.features-1 .box-feature h3 {
-	color: var(--eq-dark);
-}
-
-/* Servicios: iconos en círculo azul */
-.feature-h .wrap-icon {
-	background: var(--eq-dark) !important;
-	color: var(--eq-cyan) !important;
-}
-
-/* Contadores: franja azul noche con cifras en cian */
-.section-counter {
-	background: var(--eq-dark);
-	border-radius: 18px;
-	padding: 44px 24px 12px;
-	margin-left: 0;
-	margin-right: 0;
-}
-.section-counter .counter-wrap .number,
-.section-counter .countup {
-	color: var(--eq-cyan) !important;
-}
-.section-counter .caption {
-	color: rgba(255, 255, 255, .82) !important;
-}
-
-/* Llamado a la acción: bloque azul */
-.footer-cta {
-	background: linear-gradient(135deg, var(--eq-dark) 0%, var(--eq-blue-dark) 100%);
-	border-radius: 18px;
-	padding: 56px 24px;
-	margin: 0 auto;
-	max-width: 1110px;
-}
-.footer-cta h2 {
-	color: #fff;
-}
-
 /* Reseñas y asesores */
-.sec-testimonials {
-	background: #fff;
-}
 .testimonial .name,
 .person .btn {
 	display: inline-flex;
@@ -1093,13 +1035,6 @@ a {
 .person .h5 {
 	color: var(--eq-dark);
 }
-.person,
-.section-5 .person {
-	background: #fff;
-	border-radius: 14px;
-	box-shadow: 0 10px 30px -22px color-mix(in srgb, var(--eq-dark) 50%, transparent);
-}
-
 .property-item .img,
 .property-item .img img {
 	width: 100% !important;
@@ -1114,15 +1049,14 @@ a {
 	overflow: visible;
 }
 .property-slider .prop-fotos {
-	border-radius: 14px 14px 0 0;
+	border-radius: 10px 10px 0 0;
 	overflow: hidden;
 }
 .property-slider .property-item > .property-content {
-	background: #fff;
-	border: 1px solid color-mix(in srgb, var(--eq-dark) 6%, transparent);
+	background: var(--eq-white);
+	border: 1px solid var(--eq-line);
 	border-top: 0;
-	border-radius: 0 0 14px 14px;
-	box-shadow: 0 14px 28px -20px color-mix(in srgb, var(--eq-dark) 40%, transparent);
+	border-radius: 0 0 10px 10px;
 }
 
 /* ================================================================
@@ -1131,9 +1065,11 @@ a {
    Celeste = acento mínimo (líneas, cifras, búsqueda). Sin sombras
    pesadas, sin degradados, sin decoración que no informe.
    ================================================================ */
-.section {
-	padding-top: 6rem;
-	padding-bottom: 6rem;
+/* Un solo aire vertical para todas las secciones de la portada. */
+.section,
+.features-1 {
+	padding-top: clamp(2.75rem, 6vw, 4.5rem);
+	padding-bottom: clamp(2.75rem, 6vw, 4.5rem);
 }
 h1, h2, .heading {
 	letter-spacing: -0.01em;
@@ -1167,7 +1103,7 @@ h2.heading::after,
 }
 .sec-testimonials,
 .section-4 {
-	background: #fff !important;
+	background: var(--eq-white) !important;
 }
 
 /* Sin decoración de la plantilla */
@@ -1180,10 +1116,6 @@ h2.heading::after,
 
 /* Tarjetas: borde fino, sin sombra */
 .property-item,
-.property-slider .property-item > .property-content,
-.features-1 .box-feature,
-.person,
-.section-5 .person,
 .lead-card,
 .calc-card {
 	box-shadow: none !important;
@@ -1195,19 +1127,11 @@ h2.heading::after,
 .property-slider .property-item {
 	border: 0;
 }
-.property-slider .prop-fotos {
-	border-radius: 10px 10px 0 0;
-}
-.property-slider .property-item > .property-content {
-	border: 1px solid var(--eq-line);
-	border-top: 0;
-	border-radius: 0 0 10px 10px;
-}
 .property-item .property-content .price span::after {
 	height: 2px !important;
 }
 .prop-badge {
-	background: #fff;
+	background: var(--eq-white);
 	color: var(--eq-dark);
 	border-radius: 6px;
 }
@@ -1216,11 +1140,38 @@ h2.heading::after,
 .section-5 .person {
 	border: 1px solid var(--eq-line);
 	border-radius: 10px;
-	background: #fff;
+	background: var(--eq-white);
+}
+.features-1 .box-feature {
+	height: 100%;
+	padding: 20px 14px;
+}
+/* La foto del asesor sobresale 45 px por arriba: la tarjeta deja ese espacio. */
+.person {
+	margin-top: 45px;
+	height: calc(100% - 45px);
+}
+.person .person-contents {
+	padding: 20px 24px 24px;
+}
+.person .person-contents p:last-child {
+	margin-bottom: 0;
+}
+@media (min-width: 992px) {
+	.features-1 .box-feature {
+		padding: 28px 22px;
+	}
 }
 .features-1 .box-feature span[class^="flaticon"],
-.features-1 .box-feature [class*=" flaticon"] {
+.features-1 .box-feature [class*=" flaticon"],
+.features-1 .box-feature h3 {
 	color: var(--eq-dark);
+}
+.features-1 .box-feature p:last-child {
+	margin-bottom: 0;
+}
+.features-1 .learn-more {
+	white-space: nowrap;
 }
 
 /* Servicios: icono de línea, sin círculo de color */
@@ -1237,11 +1188,12 @@ h2.heading::after,
 
 /* Cifras: limpias sobre blanco, número negro y línea celeste */
 .section-counter {
-	background: transparent;
+	margin-left: 0;
+	margin-right: 0;
 	border-top: 1px solid var(--eq-line);
 	border-bottom: 1px solid var(--eq-line);
-	border-radius: 0;
-	padding: 40px 0 8px;
+	padding: 32px 0;
+	row-gap: 28px;
 }
 .section-counter .counter-wrap .number,
 .section-counter .countup {
@@ -1262,8 +1214,14 @@ h2.heading::after,
 
 /* Bloque destacado: azul plano, texto blanco, botón blanco */
 .footer-cta {
+	max-width: 1110px;
+	margin: 0 auto;
+	padding: 40px 24px;
 	background: var(--eq-primary);
 	border-radius: 12px;
+}
+.footer-cta h2 {
+	color: var(--eq-white);
 }
 
 /* Bloque para compradores en EE. UU.: sin degradado ni sombras */
@@ -1706,12 +1664,6 @@ body.offcanvas-menu .ficha-barra {
 	}
 }
 
-/* Sobrio: fondos neutros; el celeste queda solo en detalles mínimos */
-.bg-light,
-.features-1,
-.exterior-block {
-	background: var(--eq-mist) !important;
-}
 .site-nav .site-navigation .site-menu > li.nav-cta > a {
 	background: transparent;
 	color: #fff;
@@ -2082,24 +2034,11 @@ a:hover > .eq-ic-fin,
 	margin: 0;
 	font-size: 18px;
 }
-/* Reseñas: las flechas a la altura del texto del título, no del título más su raya
-   (la raya de h2.heading::after mide 16 px de margen + 2 px). */
+/* Carruseles de portada: las flechas van en la fila del título, a la altura de su texto
+   y no del título más su raya (la raya de h2.heading::after mide 16 px de margen + 2 px). */
+#property-nav,
 #testimonial-nav {
 	margin-bottom: 18px;
-}
-/* Destacadas: las flechas a los lados de los puntos, debajo de las tarjetas. */
-#property-nav {
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: 21px;
-	z-index: 3;
-	display: flex;
-	justify-content: space-between;
-	pointer-events: none;
-}
-#property-nav .eq-flecha {
-	pointer-events: auto;
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;

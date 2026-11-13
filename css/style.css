@@ -9831,14 +9831,14 @@ textarea {
 .property-slider-wrap, .img-property-slide-wrap {
   position: relative; }
   .property-slider-wrap .tns-outer .tns-inner, .img-property-slide-wrap .tns-outer .tns-inner {
-    padding-bottom: 100px !important; }
+    padding-bottom: 44px !important; }
   .property-slider-wrap .tns-nav, .img-property-slide-wrap .tns-nav {
     position: absolute;
     left: 50%;
     -webkit-transform: translateX(-50%);
     -ms-transform: translateX(-50%);
     transform: translateX(-50%);
-    bottom: 40px;
+    bottom: 0;
     z-index: 2; }
     .property-slider-wrap .tns-nav button, .img-property-slide-wrap .tns-nav button {
       background: none;
@@ -9948,7 +9948,9 @@ textarea {
       object-fit: cover; }
 
 .feature-h {
-  margin-bottom: 30px; }
+  margin-bottom: 20px; }
+  .feature-h:last-child {
+    margin-bottom: 0; }
   .feature-h .wrap-icon {
     -webkit-box-flex: 0;
     -ms-flex: 0 0 80px;
@@ -10110,7 +10112,6 @@ textarea {
   font-weight: 700; }
 
 .features-1 {
-  padding-top: 30px;
   position: relative;
   z-index: 8;
   text-align: center;
@@ -10119,8 +10120,7 @@ textarea {
 .box-feature {
   background: #fff;
   border-radius: 4px;
-  padding: 30px;
-  margin-bottom: 30px; }
+  padding: 30px; }
   .box-feature h3, .box-feature .h3 {
     font-size: 16px;
     margin: 0;
@@ -10235,7 +10235,7 @@ nav[aria-label="breadcrumb"] li:before {
     width: 0%; }
 
 .sec-testimonials {
-  padding-bottom: 8rem; }
+  padding-bottom: 6.5rem; }
 
 .contact-info i {
   font-size: 20px;
