@@ -885,16 +885,14 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			</div>
 		</div>
 	</div>` : ''}
-	${faq.length ? `<div class="section pt-0">
+	${faq.length ? `<section class="section pt-0" aria-labelledby="faq">
 		<div class="container">
-			<div class="row justify-content-center">
-				<section class="col-lg-8 content-page" aria-labelledby="faq">
-					<h2 id="faq">${t.faq}</h2>
-					${faq.map((x) => `<h3>${esc(x.pregunta)}</h3>\n\t\t\t\t\t<p>${esc(x.respuesta)}</p>`).join('\n\t\t\t\t\t')}
-				</section>
+			<h2 class="h5 mb-3" id="faq">${t.faq}</h2>
+			<div class="faq">
+				${faq.map((x) => `<details class="desplegable"><summary>${esc(x.pregunta)}</summary><p>${esc(x.respuesta)}</p></details>`).join('\n\t\t\t\t')}
 			</div>
 		</div>
-	</div>` : ''}
+	</section>` : ''}
 
 	${porZona(ctx, path)}
 
@@ -978,7 +976,7 @@ function rentaWidget(ctx, p = null) {
 							${p ? `<p id="rc-renta-ayuda" class="renta-ayuda col-12 mt-1">${t.rentaSugerida}</p>` : ''}
 							<div class="col-sm-6"><label class="form-label" for="rc-uso">${t.rentaUso}</label><select id="rc-uso" class="form-select" name="uso">${opt('habitacional', t.rentaHabitacional, uso === 'habitacional')}${opt('mixto', t.rentaMixto, uso === 'mixto')}${opt('comercial', t.rentaComercial, uso === 'comercial')}</select></div>
 						</div>
-						<details class="renta-supuestos">
+						<details class="desplegable renta-supuestos">
 							<summary>${ic('sliders')}${t.rentaSupuestos}</summary>
 							<div class="row g-3 pt-2">
 								<div class="col-6">${num('rc-vacancia', 'vacancia', t.rentaVacancia, 5, 'min="0" max="100" step="1"')}</div>
