@@ -86,14 +86,6 @@
 	.prop-fotos .eq-flecha {
 		display: none;
 	}
-	/* En el carrusel de portada el dedo mueve las tarjetas, no las fotos. */
-	.property-slider .property-item .img {
-		overflow-x: hidden;
-	}
-	.property-slider .prop-puntos,
-	.property-slider .foto-contador {
-		display: none;
-	}
 }
 @media (prefers-reduced-motion: no-preference) {
 	.property-item .img {
@@ -1077,8 +1069,8 @@ a {
 /* Un solo aire vertical para todas las secciones de la portada. */
 .section,
 .features-1 {
-	padding-top: clamp(2.75rem, 6vw, 4.5rem);
-	padding-bottom: clamp(2.75rem, 6vw, 4.5rem);
+	padding-top: clamp(1.5rem, 3vw, 2.25rem);
+	padding-bottom: clamp(1.5rem, 3vw, 2.25rem);
 }
 h1, h2, .heading {
 	letter-spacing: -0.01em;
@@ -2051,11 +2043,35 @@ a:hover > .eq-ic-fin,
 	margin: 0;
 	font-size: 18px;
 }
-/* Carruseles de portada: las flechas van en la fila del título, a la altura de su texto
-   y no del título más su raya (la raya de h2.heading::after mide 16 px de margen + 2 px). */
-#property-nav,
+/* Reseñas: las flechas van en la fila del título, a la altura de su texto y no del título
+   más su raya (la raya de h2.heading::after mide 16 px de margen + 2 px). */
 #testimonial-nav {
 	margin-bottom: 18px;
+}
+/* Propiedades: una flecha a cada costado del carrusel, a media altura de la foto (4:3).
+   Al tacto no hay flechas: las tarjetas se deslizan con el dedo. */
+.property-slider-wrap {
+	position: relative;
+}
+#property-nav {
+	display: contents;
+}
+#property-nav .eq-flecha {
+	position: absolute;
+	top: calc((100% - 80px) * .32);
+	z-index: 2;
+}
+#property-nav .eq-flecha-prev { left: -6px; }
+#property-nav .eq-flecha-next { right: -6px; }
+@media (hover: hover) {
+	.property-slider-wrap {
+		padding-inline: 38px;
+	}
+}
+@media (hover: none) {
+	#property-nav .eq-flecha {
+		display: none;
+	}
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;
@@ -3115,7 +3131,6 @@ a:hover > .eq-ic-fin,
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 	column-gap: 16px;
-	max-width: 720px;
 	margin-bottom: 12px;
 }
 .pie-enlaces a {
