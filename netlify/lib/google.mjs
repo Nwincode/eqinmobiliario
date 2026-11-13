@@ -18,7 +18,13 @@ export function propiedadPorDefecto() {
 export async function googleToken(scope = SCOPE) {
 	const guardado = cache.get(scope);
 	if (guardado && guardado.exp > Date.now() + 60_000) return guardado.token;
-	const key = await importPKCS8(process.env.GOOGLE_SA_KEY.replace(/\\n/g, '\n'), 'RS256');
+	let key;
+	try {
+		// La clave puede venir pegada tal cual del JSON: entre comillas y con \n escritos.
+		key = await importPKCS8(process.env.GOOGLE_SA_KEY.trim().replace(/^"|"$/g, '').replace(/\\n/g, '\n'), 'RS256');
+	} catch {
+		throw new Error('GOOGLE_SA_KEY no es una clave válida: debe ser el "private_key" completo del JSON, desde -----BEGIN PRIVATE KEY----- hasta -----END PRIVATE KEY-----.');
+	}
 	const now = Math.floor(Date.now() / 1000);
 	const assertion = await new SignJWT({ scope })
 		.setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
@@ -48,9 +54,15 @@ export async function gsc(method, url, body) {
 	const data = text ? JSON.parse(text) : {};
 	if (!res.ok) {
 		const msg = data.error?.message || `Error ${res.status}`;
-		throw new Error(res.status === 403
-			? `Sin permiso en Search Console. Agrega ${process.env.GOOGLE_SA_EMAIL} como usuario de la propiedad. (${msg})`
-			: msg);
+		// Google responde 403 tanto si la API está apagada como si la cuenta no es usuaria de la propiedad.
+		const apiApagada = /has not been used|is disabled/i.test(msg);
+		const err = new Error(apiApagada
+			? 'La API "Google Search Console API" no está activada en Google Cloud.'
+			: res.status === 403
+				? `Sin permiso en Search Console. Agrega ${process.env.GOOGLE_SA_EMAIL} como usuario de la propiedad. (${msg})`
+				: msg);
+		err.falta = apiApagada ? 'api' : res.status === 403 ? 'permiso' : '';
+		throw err;
 	}
 	return data;
 }

@@ -2,7 +2,7 @@
 // Solo usuarios activos del panel; enviar el sitemap requiere rol de administrador.
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { staffUser, json } from '../lib/auth.mjs';
-import { gsc, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
+import { gsc, googleToken, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const API = 'https://searchconsole.googleapis.com/webmasters/v3/sites';
@@ -78,6 +78,29 @@ export async function resumen(prop, dias) {
 	return { propiedad: prop, rango: actual, totales: totales[0] || fila({}), previos: previos[0] || fila({}), porDia, consultas, paginas, paises, dispositivos, oportunidades, caidas, consultasUsa };
 }
 
+// Verificador de la conexión: recorre los pasos en orden y dice en cuál se detiene (`falta`).
+const PASOS = ['variables', 'clave', 'api', 'permiso', 'sitemap'];
+export async function estado(prop) {
+	const base = { propiedad: prop, cuenta: process.env.GOOGLE_SA_EMAIL || '' };
+	const hasta = (falta, detalle = '') => ({ ...base, falta, detalle, hechos: PASOS.slice(0, PASOS.indexOf(falta)) });
+	if (!googleConfigurado()) {
+		return hasta('variables', `Falta ${[!process.env.GOOGLE_SA_EMAIL && 'GOOGLE_SA_EMAIL', !process.env.GOOGLE_SA_KEY && 'GOOGLE_SA_KEY'].filter(Boolean).join(' y ')}.`);
+	}
+	try {
+		await googleToken();
+	} catch (err) {
+		return hasta('clave', err.message);
+	}
+	let lista;
+	try {
+		lista = await gsc('GET', `${API}/${encodeURIComponent(prop)}/sitemaps`);
+	} catch (err) {
+		return hasta(err.falta || 'permiso', err.message);
+	}
+	const enviado = (lista.sitemap || []).some((s) => s.path === `${SITE_URL}/sitemap.xml`);
+	return enviado ? { ...base, falta: '', detalle: '', hechos: PASOS } : hasta('sitemap');
+}
+
 export default async (req) => {
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido.' });
 	let usuario;
@@ -95,6 +118,7 @@ export default async (req) => {
 		return json(400, { error: 'Solicitud inválida.' });
 	}
 	const { accion, datos = {} } = entrada || {};
+	if (accion === 'estado') return json(200, await estado(propiedadValida(datos.propiedad)));
 	if (!googleConfigurado()) {
 		return json(200, { configurado: false, propiedad: propiedadValida(datos.propiedad) });
 	}

@@ -1,6 +1,6 @@
 // Google: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 
@@ -64,15 +64,36 @@ function card(titulo, ...contenido) {
 	return h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), h('div', { class: 'card-body' }, ...contenido));
 }
 
-function guiaConexion(propiedad) {
-	return card('Conecta Search Console (una sola vez)',
-		h('p', {}, 'Así verás aquí qué buscan las personas en Google cuando encuentran el sitio, en qué posición apareces y qué páginas conviene mejorar. Además, el sitemap se enviará solo a Google en cada publicación.'),
-		h('ol', { class: 'small' },
-			h('li', {}, 'En Google Cloud Console (console.cloud.google.com), dentro del proyecto de Firebase "', siteConfig.firebase?.projectId || '', '", activa la API "Google Search Console API".'),
-			h('li', {}, 'En "IAM y administración → Cuentas de servicio" crea una cuenta (p. ej. "search-console") y descarga una clave JSON. No la compartas con nadie.'),
-			h('li', {}, 'En Netlify → Site configuration → Environment variables agrega GOOGLE_SA_EMAIL (el client_email del JSON) y GOOGLE_SA_KEY (el private_key completo).'),
-			h('li', {}, 'En Search Console → Configuración → Usuarios y permisos, agrega ese correo como usuario con permiso "Completo".'),
-			h('li', {}, 'Vuelve a publicar el sitio. Propiedad que se consultará: ', h('code', {}, propiedad), ' (se cambia en Contenido del sitio → Google y anuncios).')));
+// Pasos de la conexión, en el orden en que los revisa /api/gsc (acción "estado"): [clave, qué se comprueba, cómo se arregla].
+const PASOS = [
+	['variables', 'Variables guardadas en Netlify', () => 'En Netlify → Project configuration → Environment variables agrega GOOGLE_SA_EMAIL (el client_email del JSON) y GOOGLE_SA_KEY (el private_key completo). Después publica de nuevo: Deploys → Trigger deploy.'],
+	['clave', 'Google acepta la clave', () => 'Revisa en Netlify que GOOGLE_SA_EMAIL y GOOGLE_SA_KEY sean el client_email y el private_key del mismo JSON. Después publica de nuevo: Deploys → Trigger deploy.'],
+	['api', 'API de Search Console activada', () => `En console.cloud.google.com, proyecto "${siteConfig.firebase?.projectId || ''}", busca "Google Search Console API" y presiona Habilitar.`],
+	['permiso', 'La cuenta puede ver la propiedad', (e) => ['En Search Console → Ajustes → Usuarios y permisos → Añadir usuario, pega ', h('code', { class: 'user-select-all' }, e.cuenta), ' con permiso "Completo". Propiedad consultada: ', h('code', {}, e.propiedad), '.']],
+	['sitemap', 'Sitemap enviado a Google', () => 'Presiona "Enviar sitemap a Google". Después se envía solo en cada publicación.']
+];
+
+// Verificador: conectado en una línea, o la lista de pasos con el arreglo del que falta.
+function verificador(e, revisar) {
+	const otraVez = iconoBtn('icon-refresh', 'Verificar de nuevo', { onclick: revisar });
+	if (!e.falta) {
+		return h('div', { class: 'd-flex align-items-center gap-2 small mb-3' },
+			h('span', { class: 'icon-check-circle text-success', 'aria-hidden': 'true' }),
+			h('span', { class: 'flex-grow-1' }, 'Search Console conectado · ', h('span', { class: 'text-muted text-break' }, e.propiedad)), otraVez);
+	}
+	const hechos = new Set(e.hechos);
+	return h('div', { class: 'card mb-4' },
+		h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center gap-2' },
+			h('span', { class: 'flex-grow-1' }, 'Conexión con Search Console'), badge(`${e.hechos.length} de ${PASOS.length}`, 'warning'), otraVez),
+		h('ul', { class: 'list-group list-group-flush' }, PASOS.map(([clave, titulo, arreglo]) => {
+			const falta = clave === e.falta;
+			const icono = hechos.has(clave) ? 'icon-check-circle text-success' : falta ? 'icon-exclamation-circle text-warning' : 'icon-clock-o text-muted';
+			return h('li', { class: 'list-group-item d-flex gap-2' },
+				h('span', { class: `${icono} mt-1`, 'aria-hidden': 'true' }),
+				h('div', { class: falta || hechos.has(clave) ? '' : 'text-muted' }, h('div', { class: falta ? 'fw-semibold' : '' }, titulo),
+					falta ? h('div', { class: 'small mt-1' }, arreglo(e)) : null,
+					falta && e.detalle ? h('div', { class: 'small text-muted text-break mt-1' }, e.detalle) : null));
+		})));
 }
 
 // Revisión local del inventario: no depende de Google.
@@ -201,22 +222,24 @@ export async function render(container) {
 		try {
 			const r = await pedirGSC('enviarSitemap', { propiedad });
 			toast(r.configurado === false ? 'Primero conecta Search Console.' : 'Sitemap enviado a Google.', r.configurado === false ? 'warning' : 'success');
+			cargar();
 		} catch (err) { showError(err); } finally { e.target.disabled = false; }
 	} }, 'Enviar sitemap a Google') : null;
 
 	const cargar = async () => {
+		let zona = datos;
 		datos.replaceChildren(spinner('Consultando Search Console…'));
 		try {
-			const r = await pedirGSC('resumen', { dias, propiedad });
-			if (!r.configurado) {
-				datos.replaceChildren(guiaConexion(r.propiedad));
-				return;
-			}
-			ultimo = r;
+			const e = await pedirGSC('estado', { propiedad });
+			zona = h('div');
+			datos.replaceChildren(verificador(e, cargar), zona);
+			if (e.falta && e.falta !== 'sitemap') return;
+			zona.replaceChildren(spinner('Consultando Search Console…'));
+			ultimo = await pedirGSC('resumen', { dias, propiedad });
 			exportar.disabled = false;
-			renderDatos(datos, r, props);
+			renderDatos(zona, ultimo, props);
 		} catch (err) {
-			datos.replaceChildren(h('div', { class: 'alert alert-warning' }, err.message));
+			zona.replaceChildren(h('div', { class: 'alert alert-warning' }, err.message));
 		}
 	};
 	selector.addEventListener('change', () => { dias = Number(selector.value); cargar(); });
