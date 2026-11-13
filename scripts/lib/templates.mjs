@@ -146,9 +146,9 @@ const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;5
 
 function head(ctx, page) {
 	const site = ctx.site;
-	// Google corta los títulos de más de ~65 caracteres: si sobra, se quita el nombre de la marca del final.
+	// Google corta los títulos de más de ~60 caracteres: si sobra, se quita el nombre de la marca del final.
 	let title = page.title || site.seo.titulo;
-	while (title.length > 65 && title.includes(' | ')) title = title.slice(0, title.lastIndexOf(' | '));
+	while (title.length > 60 && title.includes(' | ')) title = title.slice(0, title.lastIndexOf(' | '));
 	const description = truncate(page.description || site.seo.descripcion, 160);
 	const image = absUrl(ctx, page.image || site.seo.imagen);
 	const url = absUrl(ctx, page.path);
@@ -214,6 +214,7 @@ function nav(ctx, active) {
 								<ul class="dropdown">
 									<li><a href="${r.venta}">${ic('home')}${t.comprar}</a></li>
 									<li><a href="${r.renta}">${ic('key')}${t.rentar}</a></li>
+									${ctx.properties.some((p) => p.operacion === 'vacacional') ? `<li><a href="${r.vacacional}">${ic('plane')}${t.vacacional}</a></li>` : ''}
 									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
 									<li><a href="${r.propiedades}">${ic('th-large')}${t.verTodas}</a></li>
 								</ul>
@@ -748,7 +749,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	const zonas = [...new Set(ctx.properties.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 	const tipos = [...new Set(ctx.properties.map((p) => p.tipo).filter(Boolean))];
 	const hayVacacional = ctx.properties.some((p) => p.operacion === 'vacacional');
-	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, { name: heading, url: path }];
+	const crumbs = [{ name: t.inicio, url: rt(ctx).inicio }, (zona || operacion) && { name: t.propiedades, url: rt(ctx).propiedades }, { name: heading, url: path }].filter(Boolean);
 	const itemListLd = {
 		'@context': 'https://schema.org',
 		'@type': 'ItemList',
@@ -847,7 +848,9 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		description,
 		alternates,
 		jsonLd: [breadcrumbLd(ctx, crumbs), itemListLd],
-		image: imagen || undefined,
+		// Un listado sin propiedades no aporta nada a Google: no se indexa hasta que tenga alguna.
+		noindex: !list.length,
+		image: imagen || (list.length ? firstPhoto(list[0]) : undefined),
 		extraJs: vac ? VAC_JS : '',
 		preloadImage: heroImg,
 		bodyAttrs: `data-listing="1" data-preset-operacion="${esc(operacion)}" data-preset-zona="${esc(zona)}" data-base="${rt(ctx).propiedades}" data-ruta-venta="${rt(ctx).venta}" data-ruta-renta="${rt(ctx).renta}"${hayVacacional ? ` data-ruta-vacacional="${rt(ctx).vacacional}"` : ''}`
@@ -1221,7 +1224,8 @@ export function propertyPage(ctx, p) {
 		<button type="button" class="btn btn-outline-primary btn-ico js-copy-link" data-compartir data-url="${esc(absUrl(ctx, propertyUrl(p)))}" aria-label="${t.compartir}">${ic('share-alt')}</button>
 	</div>`;
 
-	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
+	const ciudad = p.ciudad && p.ciudad !== p.zona ? p.ciudad : '';
+	const lugar = [p.zona, ciudad].filter(Boolean).join(', ');
 	const datosClave = [
 		[esVac ? datosVacacional(p).huespedesMax : '', t.vacHuespedes, 'users'],
 		[esVac ? p.vacacional.camas : '', t.fCamas, 'airline_seat_individual_suite'],
@@ -1267,7 +1271,7 @@ export function propertyPage(ctx, p) {
 					<header class="ficha-cabecera">
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
-						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${esc(lugar)}</p>` : ''}
+						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona ? `<a href="${zona.url}">${esc(p.zona)}</a>${ciudad ? `, ${esc(ciudad)}` : ''}` : esc(lugar)}</p>` : ''}
 						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
