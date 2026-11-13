@@ -1344,6 +1344,7 @@ body.offcanvas-menu .ficha-barra {
 	list-style: none;
 	display: flex;
 	flex-wrap: wrap;
+	gap: 20px 40px;
 	padding: 24px 0;
 	margin: 28px 0 0;
 	border-top: 1px solid var(--eq-line);
@@ -1352,12 +1353,6 @@ body.offcanvas-menu .ficha-barra {
 .ficha-datos li {
 	display: flex;
 	flex-direction: column;
-	padding: 0 28px;
-	border-left: 1px solid var(--eq-line);
-}
-.ficha-datos li:first-child {
-	padding-left: 0;
-	border-left: 0;
 }
 .ficha-datos strong {
 	font-size: 22px;
@@ -1627,9 +1622,6 @@ body.offcanvas-menu .ficha-barra {
 		color: #fff;
 		font-size: 12px;
 	}
-	.ficha-datos li {
-		padding: 0 16px;
-	}
 	.ficha .prop-facts {
 		grid-template-columns: 1fr;
 	}
@@ -1711,11 +1703,6 @@ body.offcanvas-menu .ficha-barra {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: 18px 12px;
-	}
-	.ficha-datos li,
-	.ficha-datos li:first-child {
-		padding: 0;
-		border-left: 0;
 	}
 	.ficha-datos strong {
 		font-size: 20px;

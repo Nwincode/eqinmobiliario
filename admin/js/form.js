@@ -243,7 +243,10 @@ export function renderForm(schema, data, options = {}) {
 			case 'tags': {
 				const list = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' });
 				const input = h('input', { class: 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter' });
+				const sugeridas = h('div', { class: 'd-flex flex-wrap gap-1 mt-2' });
 				const draw = () => {
+					const puestas = (get() || []).map((t) => t.toLowerCase());
+					sugeridas.replaceChildren(...(field.sugerencias || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
 					list.replaceChildren(...(get() || []).map((t, i) => h('span', { class: 'badge text-bg-light border d-inline-flex align-items-center gap-1 fw-normal fs-6' }, t,
 						h('button', { type: 'button', class: 'btn-close btn-close-sm', style: 'font-size:.6rem', 'aria-label': `Quitar ${t}`, onclick: () => { const arr = [...(get() || [])]; arr.splice(i, 1); set(arr); draw(); } }))));
 				};
@@ -257,7 +260,7 @@ export function renderForm(schema, data, options = {}) {
 				input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
 				input.addEventListener('blur', add);
 				draw();
-				control = h('div', {}, list, input);
+				control = h('div', {}, list, input, sugeridas);
 				break;
 			}
 

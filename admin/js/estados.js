@@ -40,3 +40,14 @@ export function visibilidadDe(p) {
 
 // Se puede ofrecer (sitio, catálogos, portales, IA): visible y no vendida/rentada/pausada/retirada.
 export const seOfrece = (p) => visibilidadDe(p) === 'visible';
+
+// Amenidades frecuentes: el panel las ofrece de un toque y la ficha en inglés las traduce sola
+// cuando la propiedad no trae su lista en inglés.
+export const AMENIDADES_COMUNES = [
+	['Piscina', 'Pool'], ['Jardín', 'Garden'], ['Garita de seguridad', 'Gated security'], ['Amueblado', 'Furnished'],
+	['Cuarto de servicio', 'Service quarters'], ['Estudio', 'Study'], ['Terraza', 'Terrace'], ['Churrasquera', 'BBQ grill'],
+	['Gimnasio', 'Gym'], ['Área social', 'Social area'], ['Juegos infantiles', 'Playground'], ['Acepta mascotas', 'Pets allowed'],
+	['Aire acondicionado', 'Air conditioning'], ['Bodega', 'Storage room'], ['Cisterna', 'Water cistern'], ['Paneles solares', 'Solar panels']
+];
+const AMENIDAD_EN = new Map(AMENIDADES_COMUNES.map(([es, en]) => [es.toLowerCase(), en]));
+export const amenidadesEn = (lista) => (lista || []).map((a) => AMENIDAD_EN.get(String(a).trim().toLowerCase())).filter(Boolean);

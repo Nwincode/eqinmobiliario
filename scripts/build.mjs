@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra } from './lib/util.mjs';
 import { dinero } from '../admin/js/formato.js';
+import { amenidadesEn } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -125,7 +126,7 @@ function propiedadEn(p) {
 		slug: slugify(e.slug || e.titulo) || p.slug,
 		titulo: e.titulo,
 		descripcion: e.descripcion,
-		amenidades: e.amenidades || [],
+		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
 		seo: e.seo || {},
 		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
 		fotos: (p.fotos || []).map((f) => ({ url: f.url }))
