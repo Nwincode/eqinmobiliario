@@ -763,7 +763,8 @@ export async function render(container, [id]) {
 }
 
 function schema(agentOpts, isNew, socioOpts, ajeno = false) {
-	const vip = (d) => Boolean(d.vip);
+	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
+	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	return [
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
@@ -784,7 +785,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
 		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
 		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: 4 },
-		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4 },
+		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4, when: (d) => !esVacacional(d) },
 
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
 		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
@@ -813,7 +814,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
 		] },
 
-		{ type: 'section', label: 'Ubicación' },
+		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
+		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
 		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
 		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
 		{ name: 'direccion', label: 'Residencial / dirección', cols: 4 },
@@ -827,7 +829,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
 		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
 		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
-		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, help: 'En la misma moneda del precio.' },
+		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d), help: 'En la misma moneda del precio.' },
 		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES.map(([es]) => es) },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
@@ -1016,6 +1018,8 @@ async function renderEditor(container, id) {
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
 			Object.assign(d, { direccion: '', mapa: '' });
+			// Lo que no aplica a una casa por noche no se guarda aunque venga de cuando era venta o renta.
+			Object.assign(d, { vip: false, mantenimiento: '' });
 		} else {
 			delete d.vacacional;
 		}

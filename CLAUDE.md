@@ -6,6 +6,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Lo que ya está guardado no se vuelve a pedir: se sugiere o se rellena solo.
 - Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa y qué archivos se tocan juntos
   (las «cadenas»). Se lee antes de un cambio que cruza partes del sistema y se actualiza en el mismo commit.
+- Antes de dar por resuelto un problema, Claude se pregunta: «si se elige esta opción (p. ej. renta vacacional, o
+  socio), ¿qué más cambia de lo que está encadenado?». Va al mapa del sistema, recorre cada pantalla, campo y
+  página que dependa de esa opción y quita, cambia o agrega lo que corresponda con lógica; no espera a que el
+  usuario lo encuentre uno por uno.
 - Antes de programar algo nuevo, buscar si ya existe y reutilizarlo (CSS sobre todo; también JS y HTML).
   Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
 - Nada de parches encima de código viejo: si algo está mal, se arregla en su origen.

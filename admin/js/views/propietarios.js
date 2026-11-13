@@ -6,7 +6,7 @@ import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, telNorm, loadReglas, textoRegla } from '../crm.js';
-import { REGIMENES, MODOS } from '../cotizacion.js';
+import { REGIMENES, MODOS, sinTildes } from '../cotizacion.js';
 import { OPERACIONES, TIPOS, MONEDAS, datosDe, loadAll, propiedadNueva, slugLibre, vacacionalPublico, guardarPrivadoVacacional } from './properties.js';
 import { generarCodigo } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
@@ -18,20 +18,21 @@ function vincularCasas(id, ahora = [], antes = []) {
 	return Promise.all(cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})));
 }
 
-// Ficha corta de la casa elegida (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
-function fichaCasa(el, p) {
-	if (!p) return el.replaceChildren();
+// Ficha corta de una casa (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
+// Devuelve las piezas; quien la usa pone el contenedor (el botón que la elige o el que la cambia).
+function fichaCasa(p, aviso = '') {
 	const chips = datosDe(p);
 	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
-	el.replaceChildren(h('a', { href: `#/propiedades/${p.id}`, target: '_blank', class: 'd-flex flex-wrap align-items-center gap-2 text-body text-decoration-none', title: 'Abrir la ficha de la propiedad' },
+	return [
 		p.fotos?.[0]?.url ? h('img', { class: 'thumb flex-shrink-0', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia flex-shrink-0', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
 		// En celular el precio baja a su propia línea; el título no se aprieta.
-		h('div', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
-			h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light')),
-			h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
-			chips.length ? h('div', { class: 'prop-datos' }, chips) : null),
-		h('div', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))));
+		h('span', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
+			h('span', { class: 'd-block fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light'), aviso ? badge(aviso, 'warning') : null),
+			h('span', { class: 'd-block small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
+			chips.length ? h('span', { class: 'd-block prop-datos' }, chips) : null),
+		h('span', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))];
 }
+const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
 
 // «Nueva propiedad» desde la ficha del dueño: lo mínimo para que la casa exista, sin publicar y ya enlazada a él.
 // Lo demás (fotos, descripción, dirección) se completa en Propiedades; «Faltan» avisa qué le falta.
@@ -78,6 +79,14 @@ function nuevaPropiedad(dueno, alCrear) {
 		footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), crear] });
 }
 
+// Qué tiene un dueño con nosotros: la operación de cada una de sus casas; sin casas todavía, lo que dice su tipo.
+// De eso depende qué se le pide y se le muestra: comisión acordada solo si hay venta o renta (en la renta por
+// noche la empresa gana el margen de cada casa); impuestos de la venta solo si vende.
+function operacionesDe(d, propiedades) {
+	const ops = (d.propiedades || []).map((x) => propiedades.find((p) => p.id === x.propertyId)?.operacion).filter(Boolean);
+	return ops.length ? ops : d.tipo === 'socio' ? ['vacacional'] : ['venta', 'renta'];
+}
+
 // Días que faltan para que venza la exclusiva (negativo = vencida).
 function diasExclusiva(p) {
 	if (!p.exclusiva || !p.exclusivaFin) return null;
@@ -106,7 +115,8 @@ async function renderLista(container) {
 		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : p.tipo === 'socio' ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
-		h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
+		h('td', { class: 'small' }, !operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? h('span', { class: 'text-muted' }, 'Margen por casa')
+			: p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
 		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (p.tipo === 'socio' ? '—' : 'Sin asignar')) : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
@@ -136,7 +146,8 @@ async function renderEditor(container, id) {
 	}
 	// El régimen acordado con la agencia es pequeño contribuyente (5 %) salvo que se indique otro.
 	const data = { comisionRegimen: 'pequeno', ...(nuevo ? { exclusiva: false, agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data()) };
-	const opcionesProp = [['', 'Elegir propiedad…'], ...propiedades.map((p) => [p.id, p.titulo])];
+	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
+	const vende = (d) => operacionesDe(d, propiedades).includes('venta');
 	const form = renderForm([
 		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
 		{ name: 'tipo', label: 'Es', type: 'select', default: 'propietario', cols: 6, options: [
@@ -152,22 +163,24 @@ async function renderEditor(container, id) {
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
-			{ name: 'propertyId', label: 'Propiedad', type: 'select', options: opcionesProp, cols: 8, crear: { label: 'Nueva propiedad…', abrir: (elegir) => crearPropiedad(elegir) } },
-			{ name: 'precioMinimo', label: 'Precio mínimo aceptado', type: 'number', cols: 4 },
-			{ type: 'custom', update: (el, _, item) => fichaCasa(el, propiedades.find((p) => p.id === item.propertyId)) }
+			{ type: 'custom', label: 'Propiedad', cols: 8, update: (el, _, item) => pintarCasa(el, item) },
+			{ name: 'precioMinimo', label: 'Precio mínimo aceptado', type: 'number', cols: 4 }
 		] },
-		{ type: 'section', label: 'Exclusiva y comisión' },
+		// De aquí en adelante, cada bloque sale solo si aplica a lo que este dueño tiene con nosotros (ver «operaciones»).
+		{ type: 'section', label: 'Exclusiva y comisión', when: conComision },
+		{ type: 'section', label: 'Exclusiva', when: (d) => !conComision(d), help: 'En la renta por noche no hay comisión acordada: la empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
 		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4 },
 		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4 },
 		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4 },
-		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
-		{ name: 'comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES },
-		{ name: 'comisionModo', label: 'Cómo se cobra', type: 'select', cols: 4, options: MODOS, help: 'Las mismas opciones de Cotización de servicios.' },
-		{ type: 'section', label: 'Impuestos de la venta' },
-		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 6, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
-		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 6, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
-		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
+		{ name: 'comisionPct', label: 'Comisión acordada %', type: 'number', cols: 4, when: conComision, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		{ name: 'comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, when: conComision, options: REGIMENES },
+		{ name: 'comisionModo', label: 'Cómo se cobra', type: 'select', cols: 4, when: conComision, options: MODOS, help: 'Las mismas opciones de Cotización de servicios.' },
 		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, placeholder: 'https://…' },
+		{ type: 'section', label: 'Impuestos de la venta', when: vende },
+		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 6, when: vende, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
+		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 6, when: vende, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
+		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, when: vende, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
+		{ type: 'section', label: 'Notas' },
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
 
@@ -197,14 +210,43 @@ async function renderEditor(container, id) {
 		if (await persistir()) { toast('Propietario guardado.'); location.hash = '#/propietarios'; }
 		btn.disabled = false;
 	};
+	// La casa de cada renglón: su ficha corta, que al tocarla abre el selector para elegirla o cambiarla.
+	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
+	function pintarCasa(el, item) {
+		const p = propiedades.find((x) => x.id === item.propertyId);
+		el.replaceChildren(h('button', { type: 'button', class: `btn btn-light border w-100 ${FILA_CASA}`, title: p ? 'Cambiar la propiedad' : '', onclick: () => elegirCasa(item) },
+			p ? fichaCasa(p) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
+	}
+	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
+	const elegirCasa = (item) => {
+		const enOtroRenglon = new Set((form.state.propiedades || []).map((x) => x.propertyId).filter((x) => x && x !== item.propertyId));
+		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
+		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
+		const lista = h('div', { class: 'list-group' });
+		// Primero las que van con este dueño: por noche para un socio; venta y renta para los demás.
+		const afin = (p) => (p.operacion === 'vacacional') === (form.state.tipo === 'socio');
+		const casas = propiedades.filter((p) => !enOtroRenglon.has(p.id)).sort((a, b) => afin(b) - afin(a));
+		const dibujar = () => {
+			const q = sinTildes(buscar.value.trim());
+			const visibles = casas.filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
+			lista.replaceChildren(
+				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { ventana.close(); crearPropiedad((casaId) => { item.propertyId = casaId; form.refresh(); }); } },
+					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
+				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
+					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
+				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, 'Ninguna propiedad coincide. Puedes crearla con «Nueva propiedad».'));
+		};
+		buscar.addEventListener('input', dibujar);
+		dibujar();
+		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, buscar, lista) });
+	};
 	// Casa que todavía no existe: se crea aquí mismo y queda elegida. La ficha del dueño se guarda antes y
 	// después, para que la casa nunca apunte a un dueño sin guardar ni quede fuera de su lista.
 	const crearPropiedad = async (elegir) => {
 		if (!(await persistir())) return;
 		nuevaPropiedad({ id: ref.id, ...form.getData() }, async (casa) => {
 			propiedades.push(casa);
-			opcionesProp.push([casa.id, casa.titulo]);
-			elegir(casa.id, casa.titulo);
+			elegir(casa.id);
 			await persistir();
 		});
 	};
