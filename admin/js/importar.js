@@ -13,6 +13,14 @@ export function clave(s) {
 	return normalizar(s).replace(/[^a-z0-9]/g, '');
 }
 
+// Propiedad que parece la misma aunque tenga otro código: misma operación y mismo título,
+// o misma dirección con el mismo precio. Sirve para avisar antes de crearla dos veces.
+export function buscarParecida(d, lista) {
+	const t = clave(d.titulo), dir = clave(d.direccion);
+	return lista.find((p) => (p.operacion || '') === (d.operacion || '')
+		&& ((t && clave(p.titulo) === t) || (dir && clave(p.direccion) === dir && Number(p.precio) === Number(d.precio)))) || null;
+}
+
 // ---------- CSV ----------
 
 // Bytes → texto. UTF-8; si salen caracteres de reemplazo (�), prueba windows-1252 (Excel en español).
@@ -535,7 +543,7 @@ export async function sha256(buffer) {
 // Plantilla CSV (encabezados + 2 ejemplos).
 export const PLANTILLA = [
 	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'niveles', 'anio_construccion', 'mantenimiento', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical', 'socio_nombre', 'socio_telefono'],
-	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', '', '', ''],
-	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', '', '', ''],
-	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', 'Juan Pérez', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics', 'Nombre del socio', '5555-5555']
+	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', '2', '2018', '150', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', '', '', ''],
+	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', '', '2020', '250', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', '', '', ''],
+	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', 'Juan Pérez', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', '1', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics', 'Nombre del socio', '5555-5555']
 ];
