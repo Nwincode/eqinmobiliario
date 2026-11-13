@@ -358,7 +358,7 @@ function feeds(ctx, properties, propsEn) {
 	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
 	// Los catálogos piden JPG: el CDN de imágenes de Netlify convierte las fotos WebP al vuelo.
 	const fotos = (p) => (p.fotos || []).map((f) => f.url).filter(Boolean)
-		.map((u) => `${base}/.netlify/images?url=${encodeURIComponent(u)}&fm=jpg&w=1600&q=85`);
+		.map((u) => `${base}${T.fotoCdn(u, 1600, '&fm=jpg&q=85')}`);
 	const sinPrecio = (p) => !p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio);
 
 	// Meta (Facebook/Instagram): catálogo de inmuebles ("home listings").
@@ -566,7 +566,7 @@ async function main() {
 		zonas: buildZonas(properties),
 		mobileVariant: (url) => {
 			const m = /^\/images\/(.+)\.webp$/.exec(url || '');
-			return m && existsSync(path.join(ROOT, 'images', `${m[1]}-800.webp`)) ? `/images/${m[1]}-800.webp` : null;
+			return m && existsSync(path.join(ROOT, 'images', `${m[1]}-800.webp`)) ? `/images/${m[1]}-800.webp` : T.fotoAncho(url, 800);
 		},
 		publicConfig: {
 			projectId: config.firebase.projectId || '',
@@ -661,7 +661,7 @@ async function main() {
 		urls.push({
 			path: T.propertyUrl(p),
 			priority: p.vip ? '0.9' : '0.8',
-			lastmod: String(p.updatedAt || '').slice(0, 10) || undefined,
+			lastmod: String(p.updatedAt || p.createdAt || '').slice(0, 10) || undefined,
 			images: (p.fotos || []).map((f) => f.url)
 		});
 	}

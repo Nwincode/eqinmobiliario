@@ -83,6 +83,14 @@ function firstPhoto(p) {
 	return (p.fotos && p.fotos[0] && p.fotos[0].url) || '/images/hero_bg_1.webp';
 }
 
+// Ancho en pantalla de una tarjeta de propiedad y de cada foto de la galería de la ficha
+// (css/site.css: .ficha-galeria-N). En celular la galería es un carrusel a todo el ancho.
+const SIZES_TARJETA = '(max-width: 767px) 100vw, (max-width: 991px) 50vw, 33vw';
+function sizesGaleria(n, i) {
+	const [principal, resto] = n <= 1 ? [100] : n <= 3 ? [67, 33] : [50, 25];
+	return `(max-width: 767px) 100vw, ${i ? resto : principal}vw`;
+}
+
 function photoAlt(p, i = 0) {
 	const foto = p.fotos && p.fotos[i];
 	return (foto && foto.alt) || `${p.titulo} – ${lng(p) === 'en' ? 'photo' : 'foto'} ${i + 1}`;
@@ -94,8 +102,31 @@ function bgStyle(ctx, url) {
 	return `--bg:url('${esc(url)}')${mobile ? `;--bg-m:url('${esc(mobile)}')` : ''}`;
 }
 
-function preloadTags(ctx, url) {
+// CDN de imágenes de Netlify (netlify.toml → [images]): sirve una foto a otro ancho o formato.
+export const fotoCdn = (u, w, extra = '') => `/.netlify/images?url=${encodeURIComponent(u)}&w=${w}${extra}`;
+
+// Foto de Firebase Storage a un ancho menor. Solo en Netlify: fuera de ahí el CDN no existe
+// y la foto se sirve tal cual (null).
+export function fotoAncho(url, w) {
+	return process.env.NETLIFY === 'true' && /^https:\/\/firebasestorage\.googleapis\.com\//.test(url || '') ? fotoCdn(url, w) : null;
+}
+
+// Versiones reducidas de una foto; vacío si la foto no pasa por el CDN.
+function fotoSrcset(url, anchos = [480, 800, 1200]) {
+	return anchos.map((w) => [fotoAncho(url, w), w]).filter(([u]) => u).map(([u, w]) => `${u} ${w}w`).join(', ');
+}
+
+// Atributos srcset/sizes de un <img>; `sizes` es el ancho que ocupa en pantalla.
+function fotoAttrs(url, sizes, anchos) {
+	const set = fotoSrcset(url, anchos);
+	return set ? ` srcset="${esc(set)}" sizes="${sizes}"` : '';
+}
+
+// `sizes`: la imagen es un <img> con srcset y la precarga tiene que pedir la misma versión.
+function preloadTags(ctx, url, sizes) {
 	if (!url) return '';
+	const set = sizes && fotoSrcset(url);
+	if (set) return `<link rel="preload" as="image" href="${esc(url)}" imagesrcset="${esc(set)}" imagesizes="${sizes}" fetchpriority="high">`;
 	const mobile = ctx.mobileVariant(url);
 	if (!mobile) return `<link rel="preload" as="image" href="${esc(url)}" fetchpriority="high">`;
 	return `<link rel="preload" as="image" href="${esc(mobile)}" media="(max-width: 800px)" fetchpriority="high">
@@ -182,7 +213,7 @@ function head(ctx, page) {
 	<meta name="twitter:description" content="${esc(description)}">
 	<meta name="twitter:image" content="${esc(image)}">
 	<meta name="theme-color" content="${colorTema(site.tema, 'dark')}">
-	${preloadTags(ctx, page.preloadImage)}
+	${preloadTags(ctx, page.preloadImage, page.preloadSizes)}
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
 	${page.noReferrer ? '<meta name="referrer" content="no-referrer">' : ''}
 	${(page.extraCss || []).map((h) => `<link rel="stylesheet" href="${esc(h)}">`).join('\n\t')}
@@ -336,8 +367,8 @@ function pageHero(ctx, title, image, crumbs) {
 		<div class="container">
 			<div class="row justify-content-center align-items-center">
 				<div class="col-lg-9 text-center mt-5">
-					<h1 class="heading" data-aos="fade-up">${esc(title)}</h1>
-					<nav aria-label="breadcrumb" data-aos="fade-up" data-aos-delay="200">
+					<h1 class="heading">${esc(title)}</h1>
+					<nav aria-label="breadcrumb">
 						<ol class="breadcrumb text-center justify-content-center">
 							${crumbs.map((c, i) => i === crumbs.length - 1
 								? `<li class="breadcrumb-item active text-white-50" aria-current="page">${esc(c.name)}</li>`
@@ -392,8 +423,8 @@ export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
 									<a href="${url}" class="img" tabindex="-1">
-										<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${lazy ? ' loading="lazy"' : ''} width="800" height="600">
-										${fotos.slice(1).map((f, i) => `<img data-src="${esc(f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
+										<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${fotoAttrs(firstPhoto(p), SIZES_TARJETA, [480, 800])}${lazy ? ' loading="lazy"' : ''} width="800" height="600">
+										${fotos.slice(1).map((f, i) => `<img data-src="${esc(fotoAncho(f.url, 800) || f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
 									</a>
 									${estadoBadge(p)}
 									${varias ? `<button type="button" class="eq-flecha eq-flecha-sobre eq-flecha-prev" aria-label="${t.anteriorFoto}">${chevron(FLECHA_PREV)}</button>
@@ -521,13 +552,13 @@ export function homePage(ctx) {
 	const body = `
 	<div class="hero">
 		<div class="hero-slide">
-			${heroImgs.map((img) => `<div class="img overlay" style="${bgStyle(ctx, img)}"></div>`).join('\n\t\t\t')}
+			${heroImgs.map((img, i) => `<div class="img overlay" ${i ? 'data-bg' : 'style'}="${bgStyle(ctx, img)}"></div>`).join('\n\t\t\t')}
 		</div>
 		<div class="container">
 			<div class="row justify-content-center align-items-center">
 				<div class="col-lg-9 text-center">
-					<h1 class="heading" data-aos="fade-up">${esc(s.hero.titulo)}</h1>
-					<form action="${r.propiedades}" method="get" class="narrow-w form-search d-flex align-items-stretch mb-3" data-aos="fade-up" data-aos-delay="200" role="search">
+					<h1 class="heading">${esc(s.hero.titulo)}</h1>
+					<form action="${r.propiedades}" method="get" class="narrow-w form-search d-flex align-items-stretch mb-3" role="search">
 						<label class="visually-hidden" for="hero-q">${t.buscarPropiedades}</label>
 						<input id="hero-q" type="search" name="q" class="form-control px-4" placeholder="${esc(s.hero.placeholderBusqueda)}">
 						<button type="submit" class="btn btn-primary">${ic('search')}${t.buscar}</button>
@@ -1262,7 +1293,7 @@ export function propertyPage(ctx, p) {
 	const galeria = `<div class="ficha-galeria-wrap">
 	<section class="ficha-galeria ficha-galeria-${Math.min(fotos.length, 5)}" aria-label="${t.galeriaFotos}">
 		${visibles.map((f, i) => `<button type="button" class="ficha-foto" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">
-			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
+			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, sizesGaleria(fotos.length, i))}${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
 		</button>`).join('')}
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
@@ -1339,6 +1370,7 @@ export function propertyPage(ctx, p) {
 		path: propertyUrl(p),
 		alternates: p._alternates,
 		preloadImage: firstPhoto(p),
+		preloadSizes: sizesGaleria((p.fotos || []).length, 0),
 		title: seoTitle(p),
 		description: seoDescription(p),
 		image: firstPhoto(p),
@@ -1421,7 +1453,7 @@ export function vipIndexPage(ctx) {
 			<div class="row">
 				${vips.length ? vips.map((p) => `<div class="col-md-6 mb-5">
 					<a class="vip-card" href="${propertyUrl(p)}">
-						<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" loading="lazy">
+						<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}"${fotoAttrs(firstPhoto(p), '(max-width: 767px) 100vw, 50vw')} loading="lazy">
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
@@ -1480,11 +1512,11 @@ export function vipLandingPage(ctx, p) {
 
 	<section class="vip-hero" style="${bgStyle(ctx, portada)}">
 		<div class="vip-hero-inner container">
-			<span class="vip-eyebrow" data-aos="fade-up">${ic('diamond')}${t.propiedadExclusiva} · ${esc(lugarDe(p))}</span>
-			<h1 data-aos="fade-up" data-aos-delay="100">${esc(v.titular || p.titulo)}</h1>
-			${v.subtitular ? `<p class="vip-sub" data-aos="fade-up" data-aos-delay="200">${esc(v.subtitular)}</p>` : ''}
-			<p class="vip-price" data-aos="fade-up" data-aos-delay="250">${esc(precio)}</p>
-			<div class="d-flex flex-wrap gap-3" data-aos="fade-up" data-aos-delay="300">
+			<span class="vip-eyebrow">${ic('diamond')}${t.propiedadExclusiva} · ${esc(lugarDe(p))}</span>
+			<h1>${esc(v.titular || p.titulo)}</h1>
+			${v.subtitular ? `<p class="vip-sub">${esc(v.subtitular)}</p>` : ''}
+			<p class="vip-price">${esc(precio)}</p>
+			<div class="d-flex flex-wrap gap-3">
 				<a href="#vip-contacto" class="btn btn-vip btn-lg">${ic('calendar')}${esc(cta)}</a>
 				${wa ? `<a href="${esc(wa)}" class="btn btn-outline-light btn-lg" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> ${t.hablarAsesor}</a>` : ''}
 			</div>

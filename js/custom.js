@@ -43,6 +43,14 @@
 				autoplayButtonOutput: false,
 				controlsContainer: '#hero-nav',
 			});
+			// Solo la primera foto se descarga con la página; las demás, cuando ya cargó.
+			var fondos = function() {
+				document.querySelectorAll('.hero-slide [data-bg]').forEach(function(el) {
+					el.style.cssText = el.getAttribute('data-bg');
+				});
+			};
+			if (document.readyState === 'complete') fondos();
+			else window.addEventListener('load', fondos);
 		}
 
 
