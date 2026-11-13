@@ -3,7 +3,8 @@ import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
-import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
+import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
+import { exclusivasPorVencer } from '../acuerdo.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -26,7 +27,9 @@ export async function render(container) {
 	const deHoy = mias.filter((a) => vencimiento(a) === 'hoy').sort((a, b) => ms(a.fecha) - ms(b.fecha));
 	const conPendiente = new Set(actividades.filter((a) => !a.hecha && a.clienteId).map((a) => a.clienteId));
 	const sinSeguimiento = clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id));
-	const exclusivas = propietarios.filter((p) => p.exclusiva && p.exclusivaFin && (new Date(`${p.exclusivaFin}T23:59:59`) - Date.now()) / 86400000 <= 30);
+	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo); cuento las de los inmuebles con dueño que veo.
+	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && (c.propietarioId || propietarios.some((p) => (p.propiedades || []).some((x) => x.propertyId === c.id))));
+	const exclusivas = exclusivasPorVencer(conDueno, await loadAcuerdos(conDueno), propietarios);
 	let props = todas;
 	if (!session.isAdmin) props = props.filter((p) => p.agentId === session.agentId);
 

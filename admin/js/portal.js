@@ -4,7 +4,8 @@ import {
 	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
-import { loadActividades, loadClientes, loadPropietarios, ms } from './crm.js';
+import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
+import { acuerdoDe } from './acuerdo.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
 import { slugify } from './ui.js';
@@ -114,6 +115,8 @@ export async function armarPortal(prop) {
 		getDoc(doc(db, 'settings', 'site')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({}))
 	]);
 	const ahora = Date.now();
+	// La exclusiva es de cada inmueble (privado/acuerdo); se calcula más abajo, ya con lo guardado la vez anterior.
+	const acuerdos = await loadAcuerdos(props.filter(Boolean));
 	const portales = portalesDe(site);
 	const enActivo = Boolean(site.en) && site.en.activo !== false;
 	const visitas = await visitasDe(prop, { actividades, clientes });
@@ -157,7 +160,12 @@ export async function armarPortal(prop) {
 		const { lista: interesados, numeros } = numerarClientes(filas, ant.numeros);
 		let consultasN = contar((consultas[p.id] || []).map((l) => ms(l.createdAt)), ahora);
 		if (visibles && ant.consultas && ant.consultas.total > consultasN.total) consultasN = ant.consultas;
+		// Hasta cuándo va la exclusiva de esta casa. Si quien actualiza no puede leer su acuerdo (la lleva otro
+		// asesor), vale la fecha guardada la vez anterior: el portal no cambia según quién lo actualice.
+		const acuerdo = acuerdos[p.id] === undefined ? null : acuerdoDe(acuerdos[p.id], prop, p.operacion);
+		const exclusivaHasta = acuerdo ? (acuerdo.exclusiva && acuerdo.exclusivaFin) || '' : ant.exclusivaHasta || '';
 		privado[p.id] = {
+			exclusivaHasta,
 			numeros,
 			clientes: Object.fromEntries(filas.map(({ id, ...f }) => [id, f])),
 			consultas: consultasN
@@ -194,7 +202,8 @@ export async function armarPortal(prop) {
 		propietarioId: prop.id,
 		nombre: primerNombre(prop.nombre),
 		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: String(ag.whatsapp || ag.telefono || '').replace(/[^\d+]/g, ''), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
-		exclusivaFin: prop.exclusiva && prop.exclusivaFin ? prop.exclusivaFin : '',
+		// Solo la fecha, y solo de lo que sigue en oferta y no ha vencido: la que vence primero.
+		exclusivaFin: props.filter((p) => p && seOfrece(p)).map((p) => privado[p.id]?.exclusivaHasta).filter((f) => f && f >= new Date(ahora - 6 * 3600000).toISOString().slice(0, 10)).sort()[0] || '',
 		proximoPaso: recorta(prop.proximoPaso, 400),
 		propiedades,
 		updatedAt: serverTimestamp()

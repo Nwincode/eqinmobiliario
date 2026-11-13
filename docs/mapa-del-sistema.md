@@ -65,8 +65,8 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 
 | Colección | Qué guarda | Anidado |
 |---|---|---|
-| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `bitacora/` |
-| `propietarios/{id}` | Una ficha por persona: `tipo` (propietario o colaborador, con `empresa`) y la lista `propiedades`. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. | — |
+| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `privado/acuerdo` (exclusiva, comisión e impuestos acordados con el dueño para ese inmueble), `bitacora/` |
+| `propietarios/{id}` | Una ficha por persona: contacto, `tipo` (propietario o colaborador, con `empresa`), `agentId` (el asesor que la ve) y la lista `propiedades`. Sin exclusiva ni comisión: eso es de cada inmueble. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. | — |
 | `leads/{id}` | Lo que llega de los formularios. En una reserva: `reserva{}` y `solicitud{}`. **El socio no lo lee.** | — |
 | `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto; el de llegada lleva `direccion` y `mapa`) |
 | `reservas/{id}` | Reserva confirmada y su comisión. Sin teléfono del cliente. | — |
@@ -100,7 +100,9 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Crear una propiedad** → `admin/js/views/properties.js` (`propiedadNueva`, `slugLibre`, `guardarPrivadoVacacional`): las usan `importar.js` y `propietarios.js` `nuevaPropiedad`. La ficha de Propiedades guarda por su cuenta (también edita).
 
-**Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las tres categorías en la misma ficha, cada una con su bloque: por noche, datos de pago; venta, comisión en % e impuestos; renta, comisión en meses; asesor y forma de cobro para venta y renta. Sin casas todavía no se pide nada de eso) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
+**Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las tres categorías en la misma ficha: con casas por noche, datos de pago; con venta o renta, el asesor que la atiende; sin casas todavía, nada de eso) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`.
+
+**Acuerdo con el dueño (exclusiva, comisión, impuestos), por inmueble** → `admin/js/acuerdo.js` (qué aplica a cada operación, herencia de lo que antes se guardaba en la persona, exclusivas por vencer; sin dependencias) → `admin/js/views/properties.js` (bloque «Acuerdo con el dueño»; `acuerdoPorGuardar` decide qué se escribe en `privado/acuerdo`; nunca va al documento público ni a `traducirEn` / `netlify/functions/ia.mjs`) → `admin/js/crm.js` `loadAcuerdos` → `admin/js/views/propietarios.js` (listado, fichas cortas, `migrarAcuerdos`) → `admin/js/views/dashboard.js` → `admin/js/portal.js` (solo la fecha va al portal) → `admin/js/views/cotizacion.js` → `netlify/lib/resumen.mjs` → `firestore.rules` (`privado`) → `scripts/test-acuerdo.mjs`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
 
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 

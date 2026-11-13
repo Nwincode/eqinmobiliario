@@ -118,6 +118,23 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await espera('socio mete un mapa en los datos de pago', crear('socio1', msj(), { ...pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno'), mapa: 'x' }), false);
 	await espera('cliente mete una dirección en su mensaje', crear(null, msj(), { ...m('cliente', 'Hola'), direccion: 'x' }), false);
 }
+// Acuerdo con el dueño de cada inmueble (exclusiva, comisión, impuestos): privado; solo el administrador y el asesor de esa casa
+{
+	const escribir = (quien, ruta, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `projects/demo-eq/databases/(default)/documents/${ruta}`, fields: campos(o) } }] }) }).then((r) => r.status);
+	await poner('users/asesor7', { rol: 'asesor', activo: true, agentId: 'a7', nombre: 'Asesor de la casa en venta' });
+	await poner('properties/prueba-casa-en-venta', { titulo: 'Casa en venta (prueba)', operacion: 'venta', publicado: true, agentId: 'a7', propietarioId: 'o2' });
+	const ACUERDO = 'properties/prueba-casa-en-venta/privado/acuerdo';
+	const acuerdo = { exclusiva: true, exclusivaFin: '2027-01-31', comisionPct: 4, impuestoVenta: 'iva' };
+	await espera('asesor de la casa guarda el acuerdo con el dueño', escribir('asesor7', ACUERDO, acuerdo), true);
+	await espera('asesor de la casa lee el acuerdo', leer('asesor7', ACUERDO), true);
+	await espera('administrador lee el acuerdo', leer('admin1', ACUERDO), true);
+	await espera('anónimo lee el acuerdo de una casa publicada', leer(null, ACUERDO), false);
+	await espera('asesor de otra casa lee el acuerdo', leer('asesor9', ACUERDO), false);
+	await espera('asesor de otra casa cambia el acuerdo', escribir('asesor9', ACUERDO, { ...acuerdo, comisionPct: 1 }), false);
+	await espera('socio dueño de la casa lee el acuerdo', leer('socio2', ACUERDO), false);
+	await espera('socio dueño de la casa cambia el acuerdo', escribir('socio2', ACUERDO, { ...acuerdo, comisionPct: 0 }), false);
+	await espera('socio lee el acuerdo de su casa por noche', leer('socio1', 'properties/prueba-casa-playa-monterrico/privado/acuerdo'), false);
+}
 await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T) }), true);
 await espera('cliente manda como foto un enlace de otro sitio', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: 'https://ejemplo.com/foto.jpg' }), false);
 await espera('cliente manda una foto de otra reserva', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('OtroTokenLargoYAlAzar23456789') }), false);

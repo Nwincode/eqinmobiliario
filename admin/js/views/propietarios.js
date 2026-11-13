@@ -1,33 +1,39 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
-import { loadPropietarios, loadPropiedades, telNorm, loadReglas } from '../crm.js';
-import { REGIMENES, MODOS, sinTildes } from '../cotizacion.js';
+import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
+import { sinTildes } from '../cotizacion.js';
 import { OPERACIONES, TIPOS, MONEDAS, datosDe, loadAll, propiedadNueva, slugLibre, vacacionalPublico, guardarPrivadoVacacional } from './properties.js';
 import { generarCodigo } from '../importar.js';
+import { CAMPOS_ACUERDO, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
 // Si la casa es de otro asesor, Firestore no deja tocarla y se sigue con las demás.
 function vincularCasas(id, ahora = [], antes = []) {
-	const cambios = [...ahora.map((p) => [p, id]), ...antes.filter((p) => !ahora.includes(p)).map((p) => [p, ''])];
-	return Promise.all(cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})));
+	const quitadas = antes.filter((p) => !ahora.includes(p));
+	const cambios = [...ahora.map((p) => [p, id]), ...quitadas.map((p) => [p, ''])];
+	return Promise.all([
+		...cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})),
+		// El acuerdo era con este dueño: una casa que deja de ser suya no se lo lleva al siguiente.
+		...quitadas.map((p) => deleteDoc(doc(db, 'properties', p, 'privado', 'acuerdo')).catch(() => {}))
+	]);
 }
 
 // Ficha corta de una casa (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
 // Devuelve las piezas; quien la usa pone el contenedor (el botón que la elige o el que la cambia).
-function fichaCasa(p, aviso = '') {
+function fichaCasa(p, avisos = []) {
 	const chips = datosDe(p);
 	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
 	return [
 		p.fotos?.[0]?.url ? h('img', { class: 'thumb flex-shrink-0', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia flex-shrink-0', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
 		// En celular el precio baja a su propia línea; el título no se aprieta.
 		h('span', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
-			h('span', { class: 'd-block fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light'), aviso ? badge(aviso, 'warning') : null),
+			h('span', { class: 'd-block fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light'), avisos),
 			h('span', { class: 'd-block small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
 			chips.length ? h('span', { class: 'd-block prop-datos' }, chips) : null),
 		h('span', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))];
@@ -78,12 +84,11 @@ function nuevaPropiedad(dueno, operacion, alCrear) {
 }
 
 // Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
-// noche y otras en venta o renta, en una sola ficha. De eso depende qué se le pide y se le muestra:
+// noche y otras en venta o renta, en una sola ficha. De eso depende lo poco que se le pide a la persona:
 //  - con casas por noche es socio de renta vacacional: datos de pago (y su correo recibe las solicitudes);
-//  - con venta o renta: asesor responsable y comisión acordada (en la renta por noche la empresa gana el margen);
-//  - si vende: impuestos de la venta.
-// Sin casas todavía no se le pide nada de eso: primero se agregan sus propiedades. (Una ficha de antes sin casas
-// enlazadas conserva a la vista lo que ya tenía guardado.)
+//  - con venta o renta: el asesor que la atiende.
+// La exclusiva, la comisión y los impuestos no son de la persona: son de cada inmueble (admin/js/acuerdo.js).
+// Sin casas todavía no se le pide nada de eso: primero se agregan sus propiedades.
 export const esSocio = (d) => Boolean(d.porNoche) || d.tipo === 'socio'; // «tipo: socio» = fichas de antes
 function operacionesDe(d, propiedades) {
 	const ops = (d.propiedades || []).map((x) => propiedades.find((p) => p.id === x.propertyId)?.operacion).filter(Boolean);
@@ -91,44 +96,74 @@ function operacionesDe(d, propiedades) {
 	return [...(esSocio(d) ? ['vacacional'] : []), ...(d.comisionPct || d.exclusiva || d.impuestoVenta || d.contrato ? ['venta', 'renta'] : [])];
 }
 
-// Días que faltan para que venza la exclusiva (negativo = vencida).
-function diasExclusiva(p) {
-	if (!p.exclusiva || !p.exclusivaFin) return null;
-	const fin = new Date(`${p.exclusivaFin}T23:59:59`).getTime();
-	return Math.ceil((fin - Date.now()) / 86400000);
-}
-
-export function estadoExclusiva(p) {
-	const d = diasExclusiva(p);
-	if (d === null) return p.exclusiva ? badge('Exclusiva sin fecha', 'secondary') : badge('Sin exclusiva', 'light');
+// Estado de la exclusiva de un inmueble, a partir de su acuerdo (admin/js/acuerdo.js).
+export function estadoExclusiva(acuerdo) {
+	const d = diasExclusiva(acuerdo);
+	if (d === null) return acuerdo?.exclusiva ? badge('Exclusiva sin fecha', 'secondary') : badge('Sin exclusiva', 'light');
 	if (d < 0) return badge(`Vencida hace ${-d} días`, 'danger');
 	if (d <= 30) return badge(`Vence en ${d} días`, 'warning');
 	return badge(`Exclusiva · ${d} días`, 'success');
 }
+const casasDe = (p, propiedades) => propiedades.filter((c) => c.propietarioId === p.id || (p.propiedades || []).some((x) => x.propertyId === c.id));
+
+// El acuerdo (exclusiva, comisión, impuestos) se guardaba una sola vez en la persona; ahora es de cada inmueble.
+// Lo que quedó en la persona se copia a cada inmueble suyo que todavía no tiene acuerdo propio y que yo puedo
+// escribir; nunca se escribe encima de uno que ya existe ni de uno que no se pudo leer. De la persona se borra
+// solo lo que ya quedó en todos los inmuebles donde aplica, y solo si veo todas sus casas.
+async function migrarAcuerdos(lista, propiedades, acuerdos) {
+	for (const p of lista) {
+		if (!CAMPOS_ACUERDO.some((k) => p[k] !== undefined)) continue;
+		try {
+			const casas = casasDe(p, propiedades);
+			for (const c of casas) {
+				if (acuerdos[c.id] !== null || !(session.isAdmin || (c.agentId && c.agentId === session.agentId))) continue;
+				const heredado = acuerdoHeredado(p, c.operacion);
+				const destino = doc(db, 'properties', c.id, 'privado', 'acuerdo');
+				// Se vuelve a mirar justo antes: si alguien lo guardó mientras tanto, se respeta.
+				const ya = await getDoc(destino);
+				if (ya.exists()) { acuerdos[c.id] = ya.data(); continue; }
+				await setDoc(destino, { ...heredado, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+				acuerdos[c.id] = heredado;
+			}
+			const veoTodas = (p.propiedades || []).every((x) => propiedades.some((c) => c.id === x.propertyId));
+			const sobrante = veoTodas ? legadoSobrante(p, casas, casas.filter((c) => acuerdos[c.id]).map((c) => c.id)) : [];
+			if (sobrante.length) {
+				await updateDoc(doc(db, 'propietarios', p.id), Object.fromEntries(sobrante.map((k) => [k, deleteField()])));
+				sobrante.forEach((k) => delete p[k]);
+			}
+		} catch (err) { console.warn('Acuerdo sin pasar al inmueble', p.id, err); }
+	}
+}
 
 async function renderLista(container) {
 	const [lista, propiedades, agentes, reglas] = await Promise.all([loadPropietarios(), loadPropiedades(), loadAgents(), loadReglas()]);
+	const acuerdos = await loadAcuerdos(propiedades.filter((c) => lista.some((p) => casasDe(p, [c]).length)));
+	await migrarAcuerdos(lista, propiedades, acuerdos);
 	const tituloProp = Object.fromEntries(propiedades.map((p) => [p.id, p.titulo]));
 	const nombreAsesor = Object.fromEntries(agentes.map((a) => [a.id, a.nombre]));
-	const porVencer = lista.filter((p) => { const d = diasExclusiva(p); return d !== null && d <= 30; });
-	lista.sort((a, b) => (diasExclusiva(a) ?? 9999) - (diasExclusiva(b) ?? 9999));
+	// La exclusiva es de cada inmueble: de cada persona se muestra la más urgente de las suyas.
+	const acuerdosDe = (p) => casasDe(p, propiedades).map((c) => acuerdoDe(acuerdos[c.id], p, c.operacion));
+	const masUrgente = (p) => acuerdosDe(p).filter((a) => a.exclusiva).sort((a, b) => (diasExclusiva(a) ?? 9999) - (diasExclusiva(b) ?? 9999))[0] || null;
+	const porVencer = exclusivasPorVencer(propiedades, acuerdos, lista);
+	lista.sort((a, b) => (diasExclusiva(masUrgente(a)) ?? 9999) - (diasExclusiva(masUrgente(b)) ?? 9999));
 	const faltanDe = (p) => revisar('propietarios', p);
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
 	// Lo que gana la empresa con cada quien, según lo que tiene: venta (%), renta (meses) y por noche (margen de la casa).
 	const comisionDe = (p) => {
 		const ops = operacionesDe(p, propiedades);
-		const meses = p.comisionRentaMeses || reglas.comisionRentaMeses;
+		const acordado = (campo, op) => [...new Set(casasDe(p, propiedades).filter((c) => c.operacion === op).map((c) => acuerdoDe(acuerdos[c.id], p, op)[campo]).filter((v) => v !== undefined && v !== '').map(Number))];
+		const pct = acordado('comisionPct', 'venta'), meses = acordado('comisionRentaMeses', 'renta');
 		return [
-			ops.includes('venta') ? `Venta ${p.comisionPct || reglas.comisionVentaPct} %` : '',
-			ops.includes('renta') ? `Renta ${meses} ${Number(meses) === 1 ? 'mes' : 'meses'}` : '',
+			ops.includes('venta') ? `Venta ${pct.length ? pct.join(' y ') : reglas.comisionVentaPct} %` : '',
+			ops.includes('renta') ? `Renta ${meses.length ? meses.join(' y ') : reglas.comisionRentaMeses} ${String(meses.length ? meses.at(-1) : reglas.comisionRentaMeses) === '1' ? 'mes' : 'meses'}` : '',
 			ops.includes('vacacional') ? 'Por noche: margen' : ''
 		].filter(Boolean).join(' · ') || '—';
 	};
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
 		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, esSocio(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
-		h('td', {}, estadoExclusiva(p)),
+		h('td', {}, estadoExclusiva(masUrgente(p))),
 		h('td', { class: 'small' }, comisionDe(p)),
 		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—')) : null);
 	const dibujar = () => {
@@ -143,8 +178,10 @@ async function renderLista(container) {
 
 	mount(container,
 		pageHeader('Propietarios', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, '+ Propietario')),
-		h('p', { class: 'text-muted' }, 'Dueños de los inmuebles que manejan: contacto, propiedades, exclusiva y comisión acordada.'),
-		porVencer.length ? h('div', { class: 'alert alert-warning' }, `${porVencer.length} exclusiva(s) vencidas o por vencer en 30 días. Contacta al propietario para renovarla.`) : null,
+		h('p', { class: 'text-muted' }, 'Dueños de los inmuebles que manejan: contacto y propiedades. La exclusiva y la comisión se acuerdan en cada inmueble.'),
+		porVencer.length ? h('div', { class: 'alert alert-warning' }, h('strong', {}, `${porVencer.length === 1 ? 'Una exclusiva vencida o por vencer' : `${porVencer.length} exclusivas vencidas o por vencer`} en 30 días. `),
+			porVencer.slice(0, 5).map((x, k) => [k ? ' · ' : '', h('a', { href: `#/propiedades/${x.casa.id}`, class: 'alert-link' }, x.casa.titulo || 'Inmueble'), ` (${x.dueno?.nombre || 'sin dueño'}, ${x.dias < 0 ? `venció hace ${-x.dias} días` : `en ${x.dias} días`})`]),
+			porVencer.length > 5 ? ` y ${porVencer.length - 5} más.` : '') : null,
 		lista.length ? [h('div', { class: 'form-check mb-3' }, solo, h('label', { class: 'form-check-label', for: 'solo-incompletos' }, 'Solo con datos por completar')), tabla]
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
 }
@@ -158,14 +195,21 @@ async function renderEditor(container, id) {
 		return;
 	}
 	// El régimen acordado con la agencia es pequeño contribuyente (5 %) salvo que se indique otro.
-	const data = { comisionRegimen: 'pequeno', ...(nuevo ? { exclusiva: false, agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data()) };
+	const data = nuevo ? { agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data();
+	const acuerdos = await loadAcuerdos(casasDe({ id: ref.id, ...data }, propiedades));
 	// Ficha de antes con «tipo: socio»: pasa a propietario; lo de socio lo dicen sus casas.
 	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
 	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
-	const vende = (d) => operacionesDe(d, propiedades).includes('venta');
-	const renta = (d) => operacionesDe(d, propiedades).includes('renta');
 	const conNoche = (d) => operacionesDe(d, propiedades).includes('vacacional');
 	const conCasas = (d) => operacionesDe(d, propiedades).length > 0;
+	// Lo que todavía queda en la persona del acuerdo de antes (se pasa a sus inmuebles; ver migrarAcuerdos).
+	const legado = (d) => [
+		d.exclusiva ? `exclusiva${d.exclusivaFin ? ` hasta ${String(d.exclusivaFin).split('-').reverse().join('/')}` : ''}` : '',
+		d.comisionPct ? `comisión de venta ${d.comisionPct} %` : '',
+		d.comisionRentaMeses ? `comisión de renta ${d.comisionRentaMeses} meses` : '',
+		d.impuestoVenta ? `impuesto del traspaso: ${d.impuestoVenta === 'iva' ? 'IVA' : 'timbres'}` : '',
+		d.contrato ? 'enlace al contrato' : ''
+	].filter(Boolean);
 	const form = renderForm([
 		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
 		// Ser socio de renta vacacional no se elige: lo es quien tiene al menos una casa por noche.
@@ -186,23 +230,14 @@ async function renderEditor(container, id) {
 		// Venta, renta y renta por noche no son lo mismo: cada una con su bloque y lo que se le pide.
 		{ type: 'section', label: 'Renta por noche', when: conNoche, help: 'Es socio de renta vacacional: a su correo le llegan las solicitudes de reserva y atiende él mismo sus casas. La empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
 		{ name: 'datosPago', label: 'Datos de pago para las reservas', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva.' },
-		{ type: 'section', label: 'Venta', when: vende },
-		{ name: 'comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: vende, help: `Vacío = regla general: ${reglas.comisionVentaPct} % del precio.` },
-		{ name: 'impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: vende, options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
-		{ name: 'impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: vende, options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
-		{ name: 'notasImpuestos', label: 'Notas de impuestos', cols: 12, when: vende, placeholder: 'Ej.: IUSI al día, ISR por ganancia de capital, gastos de escritura…' },
-		{ type: 'section', label: 'Renta', when: renta },
-		{ name: 'comisionRentaMeses', label: 'Comisión de renta (meses de renta)', type: 'number', min: 0, step: 0.5, cols: 4, when: renta, help: `Vacío = regla general: ${reglas.comisionRentaMeses} ${reglas.comisionRentaMeses === 1 ? 'mes' : 'meses'} de renta.` },
-		// Lo que comparten la venta y la renta: quién lo atiende y cómo se cobra la comisión.
-		{ type: 'section', label: 'Asesor y cobro de la comisión', when: conComision, help: 'Para lo que tiene en venta o en renta. Las casas por noche no llevan asesor.' },
-		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 4, when: conComision } : null,
-		{ name: 'comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, when: conComision, options: REGIMENES },
-		{ name: 'comisionModo', label: 'Cómo se cobra', type: 'select', cols: 4, when: conComision, options: MODOS, help: 'Las mismas opciones de Cotización de servicios.' },
-		{ type: 'section', label: 'Exclusiva', when: conCasas },
-		{ name: 'exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4, when: conCasas },
-		{ name: 'exclusivaInicio', label: 'Desde', type: 'date', cols: 4, when: conCasas },
-		{ name: 'exclusivaFin', label: 'Hasta', type: 'date', cols: 4, when: conCasas },
-		{ name: 'contrato', label: 'Enlace al contrato (Drive, Dropbox…)', cols: 8, when: conCasas, placeholder: 'https://…' },
+		// La exclusiva, la comisión y los impuestos son de cada inmueble: se ponen en la ficha del inmueble
+		// («Acuerdo con el dueño»). Aquí queda solo quién atiende a esta persona, que decide qué asesor la ve.
+		session.isAdmin ? { type: 'section', label: 'Asesor', when: conComision, help: 'El asesor que atiende a esta persona por lo que tiene en venta o renta: es quien la ve en su panel. Sus casas por noche no llevan asesor.' } : null,
+		session.isAdmin ? { name: 'agentId', label: 'Asesor que lo atiende', type: 'select', options: agentes, cols: 6, when: conComision } : null,
+		{ type: 'custom', when: (d) => legado(d).length > 0, update: (el, d) => {
+			el.className = 'alert alert-info small mb-0';
+			el.textContent = `Acuerdo anotado antes en esta ficha: ${legado(d).join(' · ')}. Ahora es de cada inmueble: se pasa solo al inmueble cuando se abre Propietarios, o al guardar la ficha del inmueble.`;
+		} },
 		{ type: 'section', label: 'Notas' },
 		{ name: 'notas', label: 'Notas', type: 'textarea', rows: 3 }
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
@@ -236,11 +271,16 @@ async function renderEditor(container, id) {
 		btn.disabled = false;
 	};
 	// La casa de cada renglón: su ficha corta, que al tocarla abre el selector para elegirla o cambiarla.
+	// La exclusiva de cada casa, de su acuerdo (o de lo que quedó en la persona, mientras no se pase).
+	function exclusivaDe(p) {
+		const acuerdo = acuerdoDe(acuerdos[p.id], data, p.operacion);
+		return [acuerdo.exclusiva ? [' ', estadoExclusiva(acuerdo)] : null, acuerdo.contrato ? [' ', badge('Con contrato', 'light')] : null];
+	}
 	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
 	function pintarCasa(el, item) {
 		const p = propiedades.find((x) => x.id === item.propertyId);
 		el.replaceChildren(h('button', { type: 'button', class: `btn btn-light border w-100 ${FILA_CASA}`, title: p ? 'Cambiar la propiedad' : '', onclick: () => elegirCasa(item) },
-			p ? fichaCasa(p) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
+			p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
 	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.
@@ -264,7 +304,7 @@ async function renderEditor(container, id) {
 				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
 					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
 				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
-					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
+					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? [' ', badge('Ya tiene dueño', 'warning')] : []))),
 				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
@@ -292,10 +332,10 @@ async function renderEditor(container, id) {
 
 	mount(container,
 		pageHeader(nuevo ? 'Nuevo propietario' : data.nombre, h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Volver')),
-		!nuevo ? h('div', { class: 'd-flex flex-wrap gap-2 mb-3 align-items-center' }, estadoExclusiva(data),
+		!nuevo ? h('div', { class: 'd-flex flex-wrap gap-2 mb-3 align-items-center' },
 			data.telefono ? h('a', { href: whatsappUrl(data.telefono, `Hola ${String(data.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
 			data.telefono ? h('a', { href: `tel:${data.telefono}`, class: 'btn btn-sm btn-outline-primary' }, 'Llamar') : null,
-			data.contrato ? h('a', { href: data.contrato, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-outline-primary' }, 'Ver contrato') : null) : null,
+			null) : null,
 		vigilarFormulario(form, 'propietarios'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
 		!nuevo ? seccionPortal(Object.assign(data, { id: ref.id }), propiedades) : null,

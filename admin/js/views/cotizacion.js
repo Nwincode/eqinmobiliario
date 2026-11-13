@@ -9,6 +9,7 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
+import { acuerdoDe } from '../acuerdo.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
@@ -563,8 +564,14 @@ async function editor(container, id, { duplicar = false } = {}) {
 			// La tarifa por noche de una renta vacacional no es base de ningún servicio: se deja para escribirla.
 			l[base(l)] = p && op !== 'vacacional' ? c.propiedad.precio ?? '' : '';
 			if (p) l.moneda = c.propiedad.moneda;
-			const pct = Number(duenoDe(c.propiedad.id)?.comisionPct);
-			if (l.tipo === 'compraventa' && pct > 0) l.pct = pct;
+			// Comisión acordada para este inmueble (privado/acuerdo; si aún no tiene, lo que quedó en su dueño).
+			if (p && l.tipo === 'compraventa') {
+				const pid = p.id;
+				getDoc(doc(db, 'properties', pid, 'privado', 'acuerdo')).then((s) => (s.exists() ? s.data() : null), () => null).then((propio) => {
+					const pct = Number(acuerdoDe(propio, duenoDe(pid), 'venta').comisionPct);
+					if (pct > 0 && c.propiedad.id === pid && c.lineas.includes(l)) { l.pct = pct; pintarLineas(); }
+				});
+			}
 		}
 		selCliente.pintar(); pintarAsesor(); pintarLineas();
 	}
