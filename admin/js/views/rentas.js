@@ -4,6 +4,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, orderBy, limit, serverTimestamp } from '../firebase.js';
 import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner } from '../ui.js';
 import { session } from '../session.js';
+import { campoTelefono } from '../form.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 
@@ -44,12 +45,13 @@ export async function render(container) {
 		const select = (name, opciones) => h('select', { class: 'form-select', name },
 			opciones.map(([v, t]) => h('option', { value: v, selected: String(d[name] ?? '') === v }, t)));
 		const resumen = h('div', { class: 'col-12 small text-muted' });
+		const telefono = campoTelefono(d.telefono);
 		const form = h('form', { class: 'row g-2' },
 			campo('Casa', select('propertyId', [['', 'Elegí la casa…'], ...casas.map((p) => [p.id, p.titulo])]), 12),
 			campo('Llegada', input('llegada', 'date', { required: true })),
 			campo('Salida', input('salida', 'date', { required: true })),
 			campo('Huésped', input('huesped')),
-			campo('Teléfono', input('telefono', 'tel')),
+			campo('Teléfono', telefono),
 			campo('Canal', select('canal', CANALES)),
 			campo('Estado', select('estado', ESTADOS)),
 			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any' })),
@@ -97,7 +99,7 @@ export async function render(container) {
 				...v, id: d.id || doc(collection(db, 'reservas')).id,
 				propertyTitulo: casa.titulo, agentId: casa.agentId || session.agentId || '', moneda: casa.moneda || 'USD',
 				noches: V.nochesEntre(v.llegada, v.salida), ganancia: V.r2(v.alojamiento - v.costoSocio),
-				huesped: f.huesped.value.trim(), telefono: f.telefono.value.trim(), canal: f.canal.value, estado: f.estado.value,
+				huesped: f.huesped.value.trim(), telefono: telefono.valor(), canal: f.canal.value, estado: f.estado.value,
 				pagadoSocio: f.pagadoSocio.checked, pagadoFecha: f.pagadoSocio.checked ? (d.pagadoFecha || hoy()) : '',
 				notas: f.notas.value.trim(), leadId: d.leadId || '', codigo: d.codigo || ''
 			};

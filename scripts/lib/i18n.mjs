@@ -17,7 +17,7 @@ const ES = {
 	// Renta vacacional (cuadro de reserva de la ficha)
 	vacTitulo: 'Reserva tu estancia', vacPorNoche: 'por noche', vacImpuestos: '+ impuestos (IVA 12 % e INGUAT 10 %)',
 	vacCalendario: 'Calendario de disponibilidad', vacMesAnterior: 'Mes anterior', vacMesSiguiente: 'Mes siguiente',
-	vlBuscar: 'Buscar casas disponibles', vlComo: 'Cómo reservar', vlPaso1: 'Elige fechas y huéspedes', vlPaso2: 'Ves el total y envías la solicitud', vlPaso3: 'Te confirmamos con un código de reserva', vlSinCasas: 'No hay casas libres para esas fechas y huéspedes.',
+	vlBuscar: 'Buscar casas disponibles', vlComo: 'Cómo reservar', vlPaso1: 'Elige fechas y huéspedes', vlPaso2: 'Ves el total y envías la solicitud', vlPaso3: 'Te confirmamos con un código de reserva', vlTotal1: '{total} · 1 noche, con impuestos', vlTotalN: '{total} · {n} noches, con impuestos', vlSinCasas: 'No hay casas libres para esas fechas y huéspedes.',
 	vacLlegada: 'Llegada', vacSalida: 'Salida', vacCheckIn: 'desde las {hora}', vacCheckOut: 'hasta las {hora}', vacSinFecha: 'Elige una fecha',
 	vacHuespedes: 'Huéspedes', vacHuesped1: '1 huésped', vacHuespedesN: '{n} huéspedes', vacMinimo: 'Estancia mínima: {n} noches.',
 	vacOcupado: 'ocupado', vacLlegadaElegida: 'llegada', vacSalidaElegida: 'salida', vacNoDisponible: 'no disponible',
@@ -145,7 +145,7 @@ const EN = {
 	htmlLang: 'en', ogLocale: 'en_US', dateLocale: 'en-US',
 	vacTitulo: 'Book your stay', vacPorNoche: 'per night', vacImpuestos: '+ taxes (12% VAT and 10% INGUAT tourism tax)',
 	vacCalendario: 'Availability calendar', vacMesAnterior: 'Previous month', vacMesSiguiente: 'Next month',
-	vlBuscar: 'Search available homes', vlComo: 'How to book', vlPaso1: 'Pick dates and guests', vlPaso2: 'See the total and send your request', vlPaso3: 'We confirm with a booking code', vlSinCasas: 'No homes are free for those dates and guests.',
+	vlBuscar: 'Search available homes', vlComo: 'How to book', vlPaso1: 'Pick dates and guests', vlPaso2: 'See the total and send your request', vlPaso3: 'We confirm with a booking code', vlTotal1: '{total} · 1 night, taxes included', vlTotalN: '{total} · {n} nights, taxes included', vlSinCasas: 'No homes are free for those dates and guests.',
 	vacLlegada: 'Check-in', vacSalida: 'Check-out', vacCheckIn: 'from {hora}', vacCheckOut: 'by {hora}', vacSinFecha: 'Pick a date',
 	vacHuespedes: 'Guests', vacHuesped1: '1 guest', vacHuespedesN: '{n} guests', vacMinimo: 'Minimum stay: {n} nights.',
 	vacOcupado: 'booked', vacLlegadaElegida: 'check-in', vacSalidaElegida: 'check-out', vacNoDisponible: 'unavailable',
