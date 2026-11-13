@@ -2,7 +2,7 @@
 // Fichas en celular: cada celda lleva el título de su columna (data-label) para que admin.css
 // lo muestre cuando la fila se vuelve ficha; la columna sin título (los botones) va al final.
 // Un solo scroll por pantalla:
-// - si la vista es una sola tabla y lo demás cabe en la pantalla (computadora), la tabla mide
+// - si la vista es una sola tabla y le queda al menos media pantalla (computadora), la tabla mide
 //   lo que queda de pantalla: la página no baja, baja la tabla con sus títulos fijos y la barra
 //   para moverse de lado siempre a la vista;
 // - en cualquier otro caso (celular, varias tablas, o contenido que ya obliga a bajar) la tabla
@@ -10,7 +10,7 @@
 // Se vuelve a medir cuando cambia el contenido, se abre un <details>, una pestaña o una
 // sección escondida, cargan imágenes o letras, o cambia el tamaño de la ventana.
 const SELECTOR = '.table-responsive';
-const MINIMO = 240;
+const MINIMO = 0.5; // parte de la pantalla que debe quedarle a la tabla; con menos, baja la página
 const ANCHO_MOVIL = 992;
 
 const TABLAS = 'table.table-admin:not(.tabla-propiedades)';
@@ -48,7 +48,7 @@ export function vigilarTablas(main) {
 				const arriba = r.top + window.scrollY;
 				const abajo = document.documentElement.scrollHeight - (r.bottom + window.scrollY);
 				const resto = Math.floor(window.innerHeight - arriba - abajo);
-				if (resto >= MINIMO) alto = `${resto}px`;
+				if (resto >= window.innerHeight * MINIMO) alto = `${resto}px`;
 			}
 			if (caja.style.getPropertyValue('--tabla-alto') !== alto) caja.style.setProperty('--tabla-alto', alto);
 		}

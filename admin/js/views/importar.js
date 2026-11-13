@@ -149,6 +149,7 @@ export async function render(container) {
 		const files = [...inCarpeta.files];
 		if (!files.length) return;
 		inZip.value = '';
+		soltarVistas();
 		fotos = files.map((f) => ({ ruta: f.webkitRelativePath || f.name, tipo: f.type, tamano: f.size, abrir: async () => f }));
 		fuenteFotos = files[0].webkitRelativePath?.split('/')[0] || 'carpeta';
 		estadoFotos.textContent = `Carpeta «${fuenteFotos}»: ${files.length} archivos.`;
@@ -160,6 +161,7 @@ export async function render(container) {
 		inCarpeta.value = '';
 		try {
 			const entradas = await leerZip(f);
+			soltarVistas();
 			fotos = entradas.map((e) => {
 				const nombre = e.nombre.split('/').pop();
 				return { ruta: e.nombre, tipo: '', tamano: e.tamano, abrir: async () => comoArchivo(await e.leer(), nombre), cifrado: e.cifrado };
@@ -239,6 +241,16 @@ export async function render(container) {
 		return ['success', 'icon-check-circle', 'Nueva', ''];
 	}
 	const repetidaDe = (it) => (it.parecida._fila ? `Igual a la fila ${it.parecida._fila}` : `Ya está en el panel${it.parecida.codigo ? ` como ${it.parecida.codigo}` : ''}`);
+	// La primera foto de la fila, tal como quedará de portada. Se abre una sola vez por archivo.
+	function miniatura(f) {
+		if (!f) return h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, icono('icon-camera'));
+		const img = h('img', { class: 'thumb', alt: '' });
+		f.vista ??= f.abrir().then((b) => URL.createObjectURL(b), () => null); // si no abre, la subida lo avisa
+		f.vista.then((url) => { if (url) img.src = url; });
+		return img;
+	}
+	const soltarVistas = () => fotos.forEach((f) => f.vista?.then((url) => url && URL.revokeObjectURL(url)));
+
 	const chip = (color, ic, texto) => badge([icono(ic), ` ${texto}`], color);
 
 	let grupos = { sinFila: [], ignorados: 0 };
@@ -276,11 +288,11 @@ export async function render(container) {
 					onchange: (e) => { eleccion.set(it.fila, e.target.checked); dibujar(); }
 				}))),
 				h('td', { class: 'celda-num' }, it.fila),
-				h('td', { class: 'celda-foto' }, h('span', { class: 'thumb thumb-vacia', title: plural(it.fotos.length, 'foto', 'fotos') }, icono('icon-picture-o'), ` ${it.fotos.length}`)),
+				h('td', { class: 'celda-foto' }, miniatura(it.fotos[0])),
 				h('td', { class: 'celda-titulo' },
 					d.codigo ? h('div', { class: 'prop-codigo' }, d.codigo) : null,
 					h('div', { class: 'prop-chips' },
-						chip(color, ic, texto), detalle ? h('span', { class: `small ${color === 'danger' ? 'text-danger' : 'text-muted'}` }, detalle) : null),
+						chip(color, ic, texto), it.fotos.length ? chip('secondary', 'icon-picture-o', it.fotos.length) : null, detalle ? h('span', { class: `small ${color === 'danger' ? 'text-danger' : 'text-muted'}` }, detalle) : null),
 					h('div', { class: 'fw-semibold prop-titulo' }, d.titulo || '(sin título)'),
 					lugar ? h('div', { class: 'small text-muted prop-zona' }, icono('icon-map-marker'), ` ${lugar}`) : null,
 					datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
