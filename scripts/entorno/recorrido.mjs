@@ -325,6 +325,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
+		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
 	// Elegir una que ya existe: el selector la muestra con su ficha y el buscador la encuentra.
 	await ir(admin.p, '#/propietarios/socio-prueba');
 	await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
@@ -339,7 +340,6 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('El selector busca y muestra cada inmueble con su ficha; al tocarlo queda elegido', halladas.length === 1 && /zona 10/i.test(halladas[0])
 		&& /Apartamento/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
 	await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Quitar' }).click();
-		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
