@@ -10,7 +10,7 @@ import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla } from '../ui.js';
-import { session } from '../session.js';
+import { session, loadAgents } from '../session.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
 	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
@@ -468,7 +468,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 				else if (buscando && !cancelar.hidden) { ev.preventDefault(); cancelar.click(); }
 			}
 		});
-		const accion = (icono, texto, alClic, etq) => h('button', { type: 'button', class: 'btn btn-link btn-sm cot-btn cot-sel-accion', 'aria-label': etq, onclick: alClic },
+		const accion = (icono, texto, alClic, etq) => h('button', { type: 'button', class: 'btn btn-sm cot-sel-accion', 'aria-label': etq, onclick: alClic },
 			h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
 		function pintar() {
 			const t = tarjeta();
@@ -516,10 +516,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const selPropiedad = selector({
 		clave: 'propiedad', etiqueta: 'Propiedad (opcional)',
 		placeholder: 'Busca por código, título o zona',
-		ayuda: 'Al elegirla se llena el precio o la renta del servicio. ¿No está?', enlace: enlaceA('icon-plus', 'Agrégala en Propiedades', '#/propiedades/nuevo'),
+		ayuda: 'Al elegirla se llenan el cliente (su propietario), el asesor y el precio. ¿No está?', enlace: enlaceA('icon-plus', 'Agrégala en Propiedades', '#/propiedades/nuevo'),
 		campos: ['codigo', 'titulo', 'zona', 'ciudad', 'direccion'],
 		opcion: (x) => { const s = snapshotPropiedad(x, tiposProp); const d = datosPropiedad(s); return h('span', { class: 'cot-sel-op-txt cot-sel-op-prop' }, miniatura(s.foto, '', 'cot-sel-op-foto'),
-			h('span', {}, h('span', { class: 'cot-sel-op-nombre' }, d.titulo), h('span', { class: 'cot-sel-op-sub' }, [s.codigo, s.operacion === 'renta' ? 'En renta' : 'En venta', s.zona].filter(Boolean).join(' · ')))); },
+			h('span', {}, h('span', { class: 'cot-sel-op-nombre' }, d.titulo), h('span', { class: 'cot-sel-op-sub' }, [s.codigo, d.rasgos[0], s.zona].filter(Boolean).join(' · ')))); },
 		tarjeta: () => {
 			const p = c.propiedad;
 			if (!p.id && !p.texto) return null;
@@ -531,18 +531,50 @@ async function editor(container, id, { duplicar = false } = {}) {
 				sub: [h('div', { class: 'cot-sel-sub' }, [d.codigo, ...d.rasgos.slice(0, 1), d.lugar].filter(Boolean).join(' · ')),
 					anterior ? h('div', { class: 'cot-sel-nota' }, 'Guardada en una cotización anterior, sin foto ni datos. Elígela de la lista para completarlos.') : null] };
 		},
-		alQuitar: () => { c.propiedad = snapshotPropiedad(null); },
+		alQuitar: () => elegirPropiedad(null),
 		alElegir: (p) => elegirPropiedad(p)
 	});
-	function elegirPropiedad(p) {
-		c.propiedad = snapshotPropiedad(p, tiposProp);
-		if (p && Number(p.precio) > 0) {
-			// Llena el precio o la renta del primer servicio que aún no lo tenga.
-			const venta = p.operacion !== 'renta';
-			const l = c.lineas.find((x) => (venta ? x.tipo === 'compraventa' && !x.precio : (x.tipo === 'arrendamiento' || x.tipo === 'administracion') && !x.renta));
-			if (l) { if (venta) l.precio = Number(p.precio); else l.renta = Number(p.precio); l.moneda = p.moneda === 'GTQ' ? 'GTQ' : 'USD'; pintarLineas(); }
-		}
+	// Inventario, propietarios y asesores: de ahí sale todo lo que se llena solo al elegir un inmueble.
+	let inventario = [];
+	let duenos = [];
+	let agentes = [];
+	const duenoDe = (pid) => (pid ? duenos.find((o) => o.id === inventario.find((p) => p.id === pid)?.propietarioId || (o.propiedades || []).some((x) => x.propertyId === pid)) : null);
+	const agenteDe = (pid) => agentes.find((a) => a.id === inventario.find((p) => p.id === pid)?.agentId);
+	const nombreSesion = session.profile?.nombre || '';
+	function ponerAsesor(a) {
+		c.asesor = a ? a.nombre : nombreSesion;
+		if (a) c.asesorContacto = { telefono: a.telefono || a.whatsapp || '', email: a.email || '' }; else delete c.asesorContacto;
 	}
+	// Al elegir, cambiar o quitar el inmueble se reemplaza lo que venía del anterior (cliente, asesor, precio y moneda).
+	// Lo que el usuario escribió a mano se respeta: solo se toca lo que está vacío o coincide con el inmueble anterior.
+	function elegirPropiedad(p) {
+		const antes = c.propiedad;
+		c.propiedad = snapshotPropiedad(p, tiposProp);
+		const duenoAntes = duenoDe(antes.id);
+		if (!c.cliente.nombre || (duenoAntes && c.cliente.id === duenoAntes.id)) c.cliente = snapshotCliente(p ? duenoDe(p.id) : null);
+		const agenteAntes = agenteDe(antes.id);
+		if (!c.asesor || mismoNombre(c.asesor, nombreSesion) || (agenteAntes && c.asesor === agenteAntes.nombre)) ponerAsesor(p ? agenteDe(p.id) : null);
+		const base = (l) => (l.tipo === 'compraventa' ? 'precio' : l.tipo === 'arrendamiento' || l.tipo === 'administracion' ? 'renta' : '');
+		const i = c.lineas.findIndex((l) => base(l) && (!l[base(l)] || Number(l[base(l)]) === antes.precio));
+		if (i >= 0) {
+			const op = c.propiedad.operacion;
+			const tipo = op === 'venta' ? 'compraventa' : op === 'renta' && base(c.lineas[i]) !== 'renta' ? 'arrendamiento' : c.lineas[i].tipo;
+			const l = tipo === c.lineas[i].tipo ? c.lineas[i] : (c.lineas[i] = lineaVacia(tipo));
+			// La tarifa por noche de una renta vacacional no es base de ningún servicio: se deja para escribirla.
+			l[base(l)] = p && op !== 'vacacional' ? c.propiedad.precio ?? '' : '';
+			if (p) l.moneda = c.propiedad.moneda;
+			const pct = Number(duenoDe(c.propiedad.id)?.comisionPct);
+			if (l.tipo === 'compraventa' && pct > 0) l.pct = pct;
+		}
+		selCliente.pintar(); pintarAsesor(); pintarLineas();
+	}
+	// Asesor: lista de todos los asesores; un nombre guardado que ya no está en la lista se conserva.
+	const selAsesor = h('select', { class: 'form-select', id: uid('asesor'), onchange: (e) => { ponerAsesor(agentes.find((a) => a.nombre === e.target.value)); if (!c.asesorContacto) c.asesor = e.target.value; cambio(); } });
+	function pintarAsesor() {
+		const nombres = [...new Set([c.asesor, ...agentes.map((a) => a.nombre)].filter(Boolean))];
+		selAsesor.replaceChildren(...(c.asesor ? [] : [h('option', { value: '' }, 'Elige el asesor')]), ...nombres.map((n) => h('option', { value: n, selected: n === c.asesor }, n)));
+	}
+	pintarAsesor();
 	const cliente = grupo('icon-user', 'Cliente y cotización',
 		selCliente.el,
 		selPropiedad.el,
@@ -550,7 +582,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		campo('numero', 'Número', { attrs: { autocomplete: 'off' } }),
 		campo('fecha', 'Fecha', { tipo: 'date' }),
 		campo('vigenciaDias', 'Vigencia (días)', { tipo: 'number', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
-		campo('asesor', 'Asesor'));
+		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: selAsesor.id }, 'Asesor'), selAsesor));
 
 	// Servicios.
 	const contLineas = h('div', { class: 'cot-lineas' });
@@ -825,9 +857,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 		].filter(Boolean);
 
 		// Cierre: asesor con su contacto y línea de aceptación del cliente.
-		const contactoAsesor = c.asesor && (mismoNombre(c.asesor, asesorDatos.nombre) || mismoNombre(c.asesor, session.profile?.nombre))
-			? [asesorDatos.telefono ? h('div', {}, ico('icon-phone'), nb(asesorDatos.telefono)) : null,
-				asesorDatos.email ? h('div', {}, ico('icon-envelope-o'), asesorDatos.email) : null]
+		const ca = c.asesorContacto || (c.asesor && (mismoNombre(c.asesor, asesorDatos.nombre) || mismoNombre(c.asesor, nombreSesion)) ? asesorDatos : null);
+		const contactoAsesor = ca
+			? [ca.telefono ? h('div', {}, ico('icon-phone'), nb(ca.telefono)) : null,
+				ca.email ? h('div', {}, ico('icon-envelope-o'), ca.email) : null]
 			: [];
 		const cierre = h('section', { class: 'cot-doc-cierre' },
 			h('div', { class: 'cot-doc-asesor' },
@@ -928,11 +961,11 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const btnGuardar = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: guardar }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar');
 	const barra = h('div', { class: 'sticky-actions cot-barra no-print' },
 		btnGuardar,
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF'),
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), 'Copiar para WhatsApp'),
+		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', 'aria-label': 'Descargar PDF', title: 'Descargar PDF', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Descargar PDF')),
+		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', 'aria-label': 'Copiar para WhatsApp', title: 'Copiar para WhatsApp', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Copiar para WhatsApp')),
 		// En celular: ver la hoja completa sin tener que bajar hasta ella.
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', onclick: verHoja },
-			h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), 'Ver hoja completa'),
+		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', 'aria-label': 'Ver hoja completa', title: 'Ver hoja completa', onclick: verHoja },
+			h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Ver hoja completa')),
 		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
 
 	const titulo = id && !duplicar ? 'Cotización' : 'Nueva cotización';
@@ -959,7 +992,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 	// Clientes y propiedades: aparte, para que la cotización funcione aunque falle la lectura.
 	// El asesor solo ve sus clientes (reglas de Firestore); las propiedades son todas las del inventario.
 	const porNombre = (a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
-	const { loadClientes } = await import('../crm.js');
+	const { loadClientes, loadPropietarios } = await import('../crm.js');
+	loadPropietarios().then((l) => { duenos = l; }).catch((err) => console.warn('Cotización: no se pudieron leer los propietarios', err));
+	loadAgents().then((l) => { agentes = l; pintarAsesor(); }).catch((err) => console.warn('Cotización: no se pudieron leer los asesores', err));
 	loadClientes().then((l) => selCliente.cargar(l.filter((x) => x.nombre).sort(porNombre)))
 		.catch((err) => { console.warn('Cotización: no se pudieron leer los clientes', err); selCliente.fallar(); });
 	try {
@@ -967,6 +1002,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		tiposProp = TIPOS;
 		const props = (await loadAll()).filter((p) => p.titulo || p.codigo)
 			.sort((a, b) => String(a.codigo || a.titulo).localeCompare(String(b.codigo || b.titulo), 'es', { numeric: true }));
+		inventario = props;
 		selPropiedad.cargar(props);
 	} catch (err) {
 		console.warn('Cotización: no se pudo leer el inventario', err);

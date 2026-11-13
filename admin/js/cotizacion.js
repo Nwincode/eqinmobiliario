@@ -344,6 +344,9 @@ const mil = miles;
 // «EQ-101 · Casa en San Antonio · Zona 16»: el texto corto de siempre (lista, WhatsApp, cotizaciones de antes).
 export const textoPropiedad = (p) => [p?.codigo, p?.titulo, p?.zona].map(texto).filter(Boolean).join(' · ');
 
+// Cómo se nombra cada operación del inventario en la cotización.
+export const ETQ_OPERACION = { venta: 'en venta', renta: 'en renta', vacacional: 'en renta vacacional' };
+
 // Copia de la propiedad. `tipos` es la lista [valor, etiqueta] del inventario (para guardar «Casa», no «casa»).
 export function snapshotPropiedad(p, tipos = []) {
 	if (!p) return { id: '', texto: '' };
@@ -354,7 +357,7 @@ export function snapshotPropiedad(p, tipos = []) {
 		id: p.id || '', texto: textoPropiedad(p),
 		codigo: texto(p.codigo), titulo: texto(p.titulo),
 		tipo, tipoTexto: (tipos.find(([v]) => v === tipo) || [])[1] || (tipo ? tipo[0].toUpperCase() + tipo.slice(1) : ''),
-		operacion: p.operacion === 'renta' ? 'renta' : 'venta',
+		operacion: ETQ_OPERACION[p.operacion] ? p.operacion : 'venta',
 		zona: texto(p.zona), ciudad: texto(p.ciudad), direccion: texto(p.direccion),
 		precio: cifra(p.precio), moneda: p.moneda === 'GTQ' ? 'GTQ' : 'USD',
 		habitaciones: cifra(p.habitaciones), banos: cifra(p.banos), parqueos: cifra(p.parqueos),
@@ -377,7 +380,7 @@ export function datosPropiedad(s) {
 		if (partes.length < 2) return { titulo: partes[0] || '', codigo: '', lugar: '', rasgos: [], precio: '' };
 		return { codigo: partes[0], titulo: partes[1], lugar: partes.slice(2).join(', '), rasgos: [], precio: '' };
 	}
-	const clase = [p.tipoTexto, p.operacion === 'renta' ? 'en renta' : p.operacion === 'venta' ? 'en venta' : ''].filter(Boolean).join(' ');
+	const clase = [p.tipoTexto, ETQ_OPERACION[p.operacion]].filter(Boolean).join(' ');
 	const m2 = p.m2Construccion ? `${mil(p.m2Construccion)} m²${p.m2Terreno ? ' de construcción' : ''}` : '';
 	const rasgos = [
 		clase ? clase[0].toUpperCase() + clase.slice(1) : '',
@@ -386,7 +389,7 @@ export function datosPropiedad(s) {
 		p.parqueos ? `${mil(p.parqueos)} ${p.parqueos === 1 ? 'parqueo' : 'parqueos'}` : '',
 		m2, p.m2Terreno ? `${mil(p.m2Terreno)} m² de terreno` : ''
 	].filter(Boolean);
-	const precio = p.precio ? `${dinero(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : ''}` : '';
+	const precio = p.precio ? `${dinero(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : p.operacion === 'vacacional' ? ' por noche' : ''}` : '';
 	return { titulo: p.titulo || p.codigo, codigo: p.titulo ? p.codigo : '', lugar: [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', '), rasgos, precio };
 }
 

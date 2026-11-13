@@ -2322,13 +2322,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 @media (max-width: 575.98px) {
-	.cot-barra .cot-btn {
-		flex: 1 1 calc(50% - 8px);
-	}
-	.cot-barra .btn-link {
-		flex-basis: 100%;
-		margin-left: 0 !important;
-	}
 	.cot-lista thead {
 		display: none;
 	}
@@ -2422,13 +2415,25 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	.cot-barra {
 		padding: 8px 10px;
 	}
+	/* Una sola fila: «Guardar» con texto y lo demás de ícono (el nombre va en aria-label). */
+	.cot-barra {
+		flex-wrap: nowrap;
+	}
 	.cot-barra .cot-btn {
+		flex: none;
+		min-width: 44px;
 		padding-left: 10px;
 		padding-right: 10px;
 		white-space: nowrap;
 	}
-	.cot-barra .cot-btn .me-2 {
-		margin-right: 6px !important;
+	.cot-barra .btn-primary {
+		flex: 1;
+	}
+	.cot-barra .btn-outline-primary .me-2 {
+		margin-right: 0 !important;
+	}
+	.cot-barra-txt {
+		display: none;
 	}
 	.cot-barra .btn-link {
 		display: none;
@@ -2606,8 +2611,16 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .cot-sel-accion {
 	min-height: 36px;
-	padding: 0 4px;
+	padding: 0 10px;
 	white-space: nowrap;
+	font-weight: 600;
+	color: var(--eq-primary);
+	border: 0;
+}
+.cot-sel-accion:hover,
+.cot-sel-accion:focus-visible {
+	color: var(--eq-primary);
+	background: var(--eq-primary-soft);
 }
 @media (max-width: 575.98px) {
 	.cot-sel-tarjeta {
