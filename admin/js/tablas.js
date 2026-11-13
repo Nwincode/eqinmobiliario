@@ -1,5 +1,5 @@
 // Lo que comparten todas las tablas del panel.
-// Fichas en celular: cada celda lleva el título de su columna (data-label) para que admin.css
+// Fichas en celular y tableta: cada celda lleva el título de su columna (data-label) para que admin.css
 // lo muestre cuando la fila se vuelve ficha; la columna sin título (los botones) va al final.
 // Un solo scroll por pantalla:
 // - si la vista es una sola tabla y le queda al menos media pantalla (computadora), la tabla mide
@@ -11,7 +11,7 @@
 // sección escondida, cargan imágenes o letras, o cambia el tamaño de la ventana.
 const SELECTOR = '.table-responsive';
 const MINIMO = 0.5; // parte de la pantalla que debe quedarle a la tabla; con menos, baja la página
-const ANCHO_MOVIL = 992;
+const ANCHO_MOVIL = 1200; // el mismo corte de admin.css: debajo, las filas son fichas
 
 const TABLAS = 'table.table-admin:not(.tabla-propiedades)';
 

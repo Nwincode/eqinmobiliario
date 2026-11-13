@@ -54,3 +54,8 @@ export function autoSeoDescripcion(p, precio, datos = []) {
 	const extra = datos.filter(Boolean).join(', ');
 	return recortar(`${precio}.${extra ? ` ${extra}.` : ''} ${resumenSeo(p.descripcion)}`, 155);
 }
+
+// Huéspedes que caben en una renta vacacional (0 si no aplica): va en la descripción en vez de los m².
+export function huespedesDe(p) {
+	return p.operacion === 'vacacional' && p.vacacional ? Math.max(0, Math.round(Number(p.vacacional.huespedesMax) || 0)) : 0;
+}

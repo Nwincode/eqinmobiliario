@@ -6,7 +6,7 @@ import {
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
-import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion } from '../../admin/js/seo-auto.js';
+import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
@@ -1076,6 +1076,7 @@ const DISPONIBILIDAD_LD = { disponible: 'InStock', proximamente: 'PreOrder', res
 function listingLd(ctx, p) {
 	const agent = ctx.agentsById && ctx.agentsById[p.agentId];
 	const video = videoEmbedUrl(p.video);
+	const vac = p.operacion === 'vacacional' && p.vacacional;
 	const offer = {
 		'@type': 'Offer',
 		url: absUrl(ctx, propertyUrl(p)),
@@ -1112,6 +1113,10 @@ function listingLd(ctx, p) {
 			numberOfBathroomsTotal: p.banos || undefined,
 			yearBuilt: p.anioConstruccion || undefined,
 			floorSize: p.m2Construccion ? { '@type': 'QuantitativeValue', value: p.m2Construccion, unitCode: 'MTK' } : undefined,
+			// Renta vacacional: cuántos caben, camas y mascotas (lo que filtra quien busca dónde quedarse).
+			occupancy: huespedesDe(p) ? { '@type': 'QuantitativeValue', maxValue: huespedesDe(p), unitCode: 'C62' } : undefined,
+			bed: vac && Number(p.vacacional.camas) > 0 ? { '@type': 'BedDetails', numberOfBeds: Number(p.vacacional.camas) } : undefined,
+			petsAllowed: vac ? { si: true, no: false }[p.vacacional.mascotas] : undefined,
 			amenityFeature: [
 				...(p.amenidades || []).map((a) => ({ '@type': 'LocationFeatureSpecification', name: a, value: true })),
 				p.parqueos ? { '@type': 'LocationFeatureSpecification', name: lng(p) === 'en' ? 'Parking spaces' : 'Parqueos', value: p.parqueos } : null,
@@ -1136,7 +1141,8 @@ function seoDescription(p) {
 	return (p.seo && p.seo.descripcion) || autoSeoDescripcion(p, price(p), [
 		p.habitaciones && plural(p.habitaciones, t.habitacion, t.habitaciones),
 		p.banos && plural(p.banos, t.bano, t.banos),
-		p.m2Construccion && area(p.m2Construccion, lng(p))
+		// Renta vacacional: a quien busca dónde quedarse le importa cuántos caben, no los m².
+		huespedesDe(p) ? (huespedesDe(p) === 1 ? t.vacHuesped1 : t.vacHuespedesN.replace('{n}', huespedesDe(p))) : p.m2Construccion && area(p.m2Construccion, lng(p))
 	]);
 }
 

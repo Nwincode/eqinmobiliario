@@ -212,7 +212,7 @@ export async function render(container) {
 					h('td', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
 					h('td', {}, dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null),
 					h('td', {}, estadoBadge(r)),
-					h('td', { class: 'text-end text-nowrap' }, dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1', 'Al propietario'),
+					h('td', { class: 'text-end' }, dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1 text-nowrap', 'Al propietario'),
 						r.estado !== 'confirmada' ? null : r.pagadoSocio ? badge('Pagado', 'success') : badge('Por pagar', 'warning')),
 					h('td', { class: 'text-end text-nowrap' }, r.ganancia ? dato('icon-money', money(r.ganancia, r.moneda), '', 'Ganancia') : '—')); }))), { tarjeta: true })
 				: emptyState(filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'));

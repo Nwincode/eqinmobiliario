@@ -501,31 +501,13 @@ a.stat-card:hover {
 	top: 0;
 	z-index: 2;
 }
-/* Tableta: la primera columna (el nombre) queda fija al moverse de lado. */
-@media (min-width: 576px) and (max-width: 991.98px) {
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
-	.table-admin:not(.tabla-propiedades) > thead > tr > :first-child {
-		position: sticky;
-		left: 0;
-		z-index: 1;
-		background: #fff;
-		box-shadow: 1px 0 0 var(--adm-border);
-	}
-	.table-admin:not(.tabla-propiedades) > thead > tr > :first-child { z-index: 3; background: #f8fafb; }
-	/* Filas de una línea: se leen de lado sin que cada fila se haga altísima. */
-	.table-admin:not(.tabla-propiedades) td { white-space: nowrap; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child {
-		white-space: normal;
-		max-width: 45vw;
-	}
-}
 /* El nombre (primera columna) no se aplasta aunque las demás columnas pidan espacio. */
-@media (min-width: 576px) {
+@media (min-width: 1200px) {
 	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child { min-width: 11rem; }
 }
-/* Celular: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno con el
-   título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
-@media (max-width: 575.98px) {
+/* Celular y tableta: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno
+   con el título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
+@media (max-width: 1199.98px) {
 	.table-admin:not(.tabla-propiedades) > thead { display: none; }
 	.table-admin:not(.tabla-propiedades) > tbody > tr {
 		display: flex;
@@ -1337,11 +1319,11 @@ a.stat-card:hover {
 .menu-mas-lista .dropdown-item > span { width: 1rem; text-align: center; color: var(--adm-muted); }
 .menu-mas-lista .menu-mas-peligro, .menu-mas-lista .menu-mas-peligro > span { color: var(--eq-danger); }
 /* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
 	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
 	.tabla-propiedades .prop-codigo { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-titulo { min-width: 12rem; }
+	.tabla-propiedades .celda-titulo { min-width: 9rem; }
 	.tabla-propiedades .celda-precio { width: 1%; }
 	.tabla-propiedades .celda-estado { width: 1%; }
 	.tabla-propiedades .celda-visible { width: 1%; }
@@ -1351,7 +1333,7 @@ a.stat-card:hover {
 	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
 	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: top; padding: .5rem .5rem 0 .25rem; }
 }
-@media (min-width: 768px) and (max-width: 1699.98px) {
+@media (min-width: 1200px) and (max-width: 1699.98px) {
 	.tabla-propiedades .celda-asesor,
 	.tabla-propiedades .celda-fecha { display: none; }
 }
@@ -1388,7 +1370,7 @@ a.stat-card:hover {
 }
 /* Etiquetas de la propiedad: en computadora van en la línea del código, que quedaba vacía. */
 .prop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
 	.tabla-propiedades .prop-codigo, .tabla-propiedades .prop-chips { display: inline-flex; vertical-align: middle; }
 	.tabla-propiedades .prop-codigo { margin-right: .5rem; }
 }
@@ -1397,7 +1379,7 @@ a.stat-card:hover {
 .prop-zona [class^="icon-"] { color: var(--adm-muted); }
 .tabla-propiedades .motivo-obvio { display: none; } /* el interruptor ya lo dice */
 .btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
 	.tabla-propiedades .thumb { width: 112px; height: 84px; }
 }
 
@@ -1423,13 +1405,19 @@ a.stat-card:hover {
 	#toasts .btn-close { pointer-events: auto; }
 	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
-
+}
+/* Tarjetas también en tableta (de dos en dos): la tabla no cabe y nada se mueve de lado. */
+@media (max-width: 1199.98px) {
 	.tabla-propiedades thead {
 		display: none;
 	}
 	.tabla-propiedades,
 	.tabla-propiedades tbody {
 		display: block;
+	}
+	@media (min-width: 768px) {
+		.tabla-propiedades tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.tabla-propiedades tbody tr:nth-child(odd) { border-right: 1px solid var(--adm-border); }
 	}
 	.tabla-propiedades tbody tr {
 		display: grid;
