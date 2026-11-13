@@ -294,7 +294,10 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const propia = async (persona, ruta, datos, archivo) => {
 		await ir(persona.p, ruta);
 		await persona.p.locator('button', { hasText: 'Agregar propiedad' }).click();
-		await campo(persona.p, 'propertyId', 'select').selectOption('__crear');
+		await persona.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
+		await espera(800);
+		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-selector.png` });
+		await persona.p.locator('.modal.show button', { hasText: 'Nueva propiedad' }).click();
 		await espera(2500);
 		const m = persona.p.locator('.modal.show');
 		for (const [k, v] of Object.entries(datos)) await campo(m, k).fill(v);
@@ -302,7 +305,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const lado = await persona.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
 		await m.locator('button', { hasText: 'Crear y enlazar' }).click();
 		await espera(4000);
-		const id = await campo(persona.p, 'propertyId', 'select').inputValue().catch(() => '');
+		const id = ((await leer(`propietarios/${ruta.split('/').pop()}`)).fields?.propiedades?.arrayValue?.values || []).pop()?.mapValue?.fields?.propertyId?.stringValue || '';
 		const ficha = await persona.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
 		await persona.p.locator('.list-field').scrollIntoViewIfNeeded();
 		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-ficha.png` });
@@ -318,10 +321,24 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		&& a.casa.publicado?.booleanValue === false && Number(a.casa.precio?.doubleValue || a.casa.precio?.integerValue) > 80 && Boolean(a.casa.codigo?.stringValue) && Boolean(a.casa.slug?.stringValue), await avisos(admin.p));
 	paso('Su precio de socio queda en privado y la casa en la lista del dueño, ya guardada', Number(privado.precioBase?.doubleValue || privado.precioBase?.integerValue) === 80 && JSON.stringify(dueno.propiedades || {}).includes(a.id || 'x'));
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
-	paso('La casa elegida se ve en una ficha corta bajo la lista', /Casa del lago/.test(a.ficha), a.ficha);
+	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
+	// Elegir una que ya existe: el selector la muestra con su ficha y el buscador la encuentra.
+	await ir(admin.p, '#/propietarios/socio-prueba');
+	await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
+	await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
+	await espera(800);
+	await admin.p.locator('.modal.show input[type=search]').fill('zona 10');
+	await espera(300);
+	const halladas = await admin.p.locator('.modal.show .list-group-item .prop-titulo').allInnerTexts();
+	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
+	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Apartamento' }).first().click().catch(() => {});
+	await espera(600);
+	paso('El selector busca y muestra cada inmueble con su ficha; al tocarlo queda elegido', halladas.length === 1 && /zona 10/i.test(halladas[0])
+		&& /Apartamento/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
+	await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Quitar' }).click();
 		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
 }
 

@@ -224,20 +224,6 @@ export function renderForm(schema, data, options = {}) {
 				control.value = get() ?? field.default ?? control.options[0]?.value ?? '';
 				if (get() === undefined) setPath(target, field.name, control.value);
 				if (field.disabled) control.disabled = true;
-				// «crear»: opción para dar de alta ahí mismo lo que no está en la lista. Nunca queda elegida:
-				// al crear se elige el registro nuevo; al cancelar se queda lo que había.
-				if (field.crear) {
-					const CREAR = '__crear';
-					const opcion = h('option', { value: CREAR }, `＋ ${field.crear.label}`);
-					// Arriba, justo después de «Elegir…».
-					if (control.options[0] && !control.options[0].value) control.options[0].after(opcion); else control.prepend(opcion);
-					control.addEventListener('change', () => {
-						if (control.value !== CREAR) return set(control.value);
-						control.value = get() ?? '';
-						field.crear.abrir((valor, etiqueta) => { control.append(h('option', { value: valor }, etiqueta)); control.value = valor; set(valor); });
-					});
-					break;
-				}
 				control.addEventListener('change', () => set(control.value));
 				break;
 

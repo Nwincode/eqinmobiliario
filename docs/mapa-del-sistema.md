@@ -23,7 +23,7 @@ Las rutas son desde la raíz del repositorio.
   - Herramientas: `calculadora.js`, `cotizacion.js`, `ia.js`, `google.js`, `reportes.js`.
   - Sitio web: `content.js` (textos, colores, zonas), `pages.js`, `blog.js`, `agents.js`, `testimonials.js`, `publish.js`, `users.js`, `dashboard.js`.
 - Piezas que usan todas las pantallas (cambiar aquí cambia todo el panel):
-  - `form.js`: formularios desde un esquema (tipos de campo, `when`, `required`). Tipo `telefono` = código + número. Un `select` con `crear` trae la opción «＋ Nueva…» para dar de alta ahí mismo lo que falta.
+  - `form.js`: formularios desde un esquema (tipos de campo, `when`, `required`). Tipo `telefono` = código + número. Un bloque `custom` dentro de una lista recibe su elemento.
   - `ui.js`: `h`, `modal`, `toast`, `badge`, `iconoBtn`, `cajaTabla`, `emptyState`.
   - `tablas.js` + `admin/admin.css`: tablas que pasan a fichas bajo 1200 px.
   - `session.js`: usuario, rol (`isAdmin`, `esSocio`, `agentId`), `markPending`.
@@ -88,7 +88,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Un campo nuevo de la propiedad** → `admin/js/views/properties.js` (`schema` y guardado) → `admin/js/pendientes-reglas.js` si es obligatorio → `scripts/lib/templates.mjs` si se muestra → `admin/js/seo-auto.js` y JSON-LD si importa a Google → `admin/js/views/importar.js` y `docs/formato-inventario-propiedades.md` si entra por CSV → `firestore.rules` solo si lo escribe alguien que no es del equipo.
 
-**Dueño del inmueble (propietario, socio, colaborador)** → `admin/js/views/propietarios.js` (`tipo`, lista de casas con su ficha corta, `vincularCasas`, `nuevaPropiedad`: crea la casa sin salir) ↔ `admin/js/views/properties.js` (`propietarioId`, enlace en ambos sentidos) → `admin/js/views/users.js` (usuario socio) → `firestore.rules` (`esSocioDe`) → `scripts/build.mjs` (mora: solo casas por noche).
+**Dueño del inmueble (propietario, socio, colaborador)** → `admin/js/views/propietarios.js` (`tipo`, lista de casas: `elegirCasa` es el selector con buscador y una ficha por inmueble (`fichaCasa`); `nuevaPropiedad` crea la casa sin salir; `vincularCasas`) ↔ `admin/js/views/properties.js` (`propietarioId`, enlace en ambos sentidos) → `admin/js/views/users.js` (usuario socio) → `firestore.rules` (`esSocioDe`) → `scripts/build.mjs` (mora: solo casas por noche).
 
 **Precio de la renta por noche** → `js/calc-vacacional.js` (única fórmula) → `admin/js/views/properties.js` y `mis-casas.js` (precio del socio → precio público) → `js/vacacional.js` (desglose) → `netlify/functions/disponibilidad.mjs` (precio al día) → `scripts/test-vacacional.mjs`.
 
