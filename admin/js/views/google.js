@@ -214,10 +214,10 @@ export async function render(container) {
 	const datos = h('div', {}, spinner('Consultando Search Console…'));
 	const selector = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Periodo' },
 		[[7, 'Últimos 7 días'], [28, 'Últimos 28 días'], [90, 'Últimos 3 meses']].map(([v, l]) => h('option', { value: v, selected: v === dias }, l)));
-	const exportar = h('button', { class: 'btn btn-sm btn-outline-primary', disabled: true, onclick: () => ultimo && downloadCsv(`google-busquedas-${ultimo.rango.endDate}.csv`, [
+	const exportar = iconoBtn('icon-download', 'Exportar búsquedas a Excel (CSV)', { disabled: true, onclick: () => ultimo && downloadCsv(`google-busquedas-${ultimo.rango.endDate}.csv`, [
 		['Búsqueda', 'Clics', 'Impresiones', 'CTR', 'Posición'],
 		...ultimo.consultas.map((r) => [r.claves[0], r.clics, r.impresiones, (r.ctr * 100).toFixed(2), r.posicion.toFixed(1)])
-	]) }, 'Exportar búsquedas (CSV)');
+	]) });
 	const enviar = session.isAdmin ? h('button', { class: 'btn btn-sm btn-primary', onclick: async (e) => {
 		e.target.disabled = true;
 		try {

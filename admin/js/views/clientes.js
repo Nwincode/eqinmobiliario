@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
+import { h, iconoBtn, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -99,7 +99,7 @@ async function renderLista(container) {
 			h('div', { class: 'small text-muted' }, [TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1], c.zonas].filter(Boolean).join(' · ')),
 			c.montoEstimado ? h('div', { class: 'small fw-semibold mt-1' }, money(c.montoEstimado, c.moneda)) : null,
 			revisar('clientes', c).length ? h('div', { class: 'mt-2' }, chipFaltan(revisar('clientes', c))) : null,
-			prox ? h('div', { class: 'small mt-2 d-flex gap-1 align-items-center' }, chipVencimiento(prox), h('span', {}, `${tipoActividad(prox.tipo)[2]} ${prox.titulo || tipoActividad(prox.tipo)[1]} · ${fechaCorta(prox.fecha)}`))
+			prox ? h('div', { class: 'small mt-2 d-flex flex-wrap gap-1 align-items-center' }, chipVencimiento(prox), h('span', {}, `${tipoActividad(prox.tipo)[2]} ${prox.titulo || tipoActividad(prox.tipo)[1]} · ${fechaCorta(prox.fecha)}`))
 				: h('div', { class: 'small text-danger mt-2' }, 'Sin seguimiento agendado'),
 			session.isAdmin && c.agentId ? h('div', { class: 'small text-muted mt-1' }, nombreAsesor[c.agentId] || '') : null);
 		card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', c.id); card.classList.add('arrastrando'); });
@@ -162,7 +162,7 @@ async function renderLista(container) {
 	mount(container,
 		pageHeader('Clientes',
 			h('div', { class: 'btn-group' }, botonVista('tablero', 'Tablero'), botonVista('lista', 'Lista')),
-			h('button', { class: 'btn btn-outline-primary', onclick: exportar }, 'Exportar'),
+			iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: exportar }),
 			h('a', { href: '#/clientes/nuevo', class: 'btn btn-primary' }, '+ Cliente')),
 		aviso,
 		h('div', { class: 'row g-2 mb-3' },

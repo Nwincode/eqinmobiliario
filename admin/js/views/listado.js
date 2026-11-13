@@ -4,7 +4,7 @@ import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js
 import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
-import { TIPOS } from './properties.js';
+import { TIPOS, datosDe } from './properties.js';
 import { estadoDe } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
@@ -379,14 +379,17 @@ export async function render(container) {
 		tbody.replaceChildren(...visibles.map((p) => {
 			const check = h('input', { class: 'form-check-input', type: 'checkbox', checked: elegidas.has(p.id), 'aria-label': `Incluir ${p.titulo}` });
 			check.addEventListener('change', () => { if (check.checked) elegidas.add(p.id); else elegidas.delete(p.id); draw(false); });
+			const chips = datosDe(p);
 			return h('tr', {},
-				h('td', {}, check),
-				h('td', {}, h('img', { class: 'thumb', src: p.fotos?.[0]?.url || '', alt: '' })),
-				h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo || '(sin título)'), h('div', { class: 'small text-muted' }, ubicacion(p))),
-				h('td', { class: 'text-nowrap' }, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('td', { class: 'small text-muted' }, datos(p).filter(([k]) => ['Habitaciones', 'Baños', 'Construcción'].includes(k)).map(([k, v]) => `${v} ${k === 'Construcción' ? '' : k.toLowerCase()}`.trim()).join(' · ')));
+				h('td', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, check)),
+				h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
+				h('td', { class: 'celda-titulo' },
+					h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
+					h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${ubicacion(p)}`),
+					chips.length ? h('div', { class: 'prop-datos' }, chips) : null),
+				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(p.precio, p.moneda, p.operacion))));
 		}));
-		if (!visibles.length) tbody.replaceChildren(h('tr', {}, h('td', { colspan: 5, class: 'text-center text-muted py-4' }, 'Ninguna propiedad cumple con estos filtros.')));
+		if (!visibles.length) tbody.replaceChildren(h('tr', {}, h('td', { colspan: 4, class: 'text-center text-muted py-4' }, 'Ninguna propiedad cumple con estos filtros.')));
 	};
 	todas.addEventListener('change', () => { visibles.forEach((p) => (todas.checked ? elegidas.add(p.id) : elegidas.delete(p.id))); draw(false); });
 	[fOperacion, fTipo, fZona, fMoneda, fMin, fMax, fHab, fDisponibles, fPublicadas].forEach((el) => el.addEventListener('input', () => draw(true)));
@@ -431,8 +434,8 @@ export async function render(container) {
 		h('div', { class: 'card overflow-hidden mb-3' },
 			h('div', { class: 'd-flex justify-content-between align-items-center p-3 pb-0' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-check-square-o me-2 text-primary', 'aria-hidden': 'true' }), '2. Elige las propiedades'), count),
 			cajaTabla(
-				h('table', { class: 'table table-admin mb-0' },
-					h('thead', {}, h('tr', {}, h('th', {}, todas), ['', 'Propiedad', 'Precio', 'Características'].map((t) => h('th', {}, t)))),
+				h('table', { class: 'table table-admin tabla-propiedades mb-0 align-middle' },
+					h('thead', {}, h('tr', {}, h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, todas)), [['', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio']].map(([t, c]) => h('th', { class: c }, t)))),
 					tbody))),
 		h('div', { class: 'card p-3 mb-3' },
 			h('h2', { class: 'h6 mb-3' }, h('span', { class: 'icon-file-text-o me-2 text-primary', 'aria-hidden': 'true' }), '3. Datos del PDF'),

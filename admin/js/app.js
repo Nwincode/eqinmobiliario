@@ -7,7 +7,7 @@ import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { session, getPublishState, revisarAutoPublicar } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
-import { vigilarTablas } from './tablas-alto.js';
+import { vigilarTablas } from './tablas.js';
 
 const ROUTES = [
 	{ path: 'mis-casas', label: 'Mis casas', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },

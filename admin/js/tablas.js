@@ -1,3 +1,6 @@
+// Lo que comparten todas las tablas del panel.
+// Fichas en celular: cada celda lleva el título de su columna (data-label) para que admin.css
+// lo muestre cuando la fila se vuelve ficha; la columna sin título (los botones) va al final.
 // Un solo scroll por pantalla:
 // - si la vista es una sola tabla y lo demás cabe en la pantalla (computadora), la tabla mide
 //   lo que queda de pantalla: la página no baja, baja la tabla con sus títulos fijos y la barra
@@ -10,10 +13,30 @@ const SELECTOR = '.table-responsive';
 const MINIMO = 240;
 const ANCHO_MOVIL = 992;
 
+const TABLAS = 'table.table-admin:not(.tabla-propiedades)';
+
+function etiquetar(main) {
+	for (const tabla of main.querySelectorAll(TABLAS)) {
+		const titulos = [...tabla.querySelectorAll(':scope > thead th')].map((th) => (th.querySelector('.visually-hidden') ? '' : th.textContent.trim()));
+		if (!titulos.length) continue;
+		for (const fila of tabla.querySelectorAll(':scope > tbody > tr')) {
+			[...fila.children].forEach((celda, i) => {
+				if (!i || celda.colSpan > 1) return;
+				const vacia = celda.textContent.trim() === '—';
+				if (celda.classList.contains('ficha-vacia') !== vacia) celda.classList.toggle('ficha-vacia', vacia);
+				if (titulos[i]) {
+					if (celda.dataset.label !== titulos[i]) celda.dataset.label = titulos[i];
+				} else if (!celda.classList.contains('ficha-acciones')) celda.classList.add('ficha-acciones');
+			});
+		}
+	}
+}
+
 export function vigilarTablas(main) {
 	let pendiente = false;
 	const ajustar = () => {
 		pendiente = false;
+		etiquetar(main);
 		// Escondidas (details cerrado, pestaña o sección oculta) no cuentan: se miden al verse.
 		const cajas = [...main.querySelectorAll(SELECTOR)].filter((c) => c.getClientRects().length);
 		const sola = cajas.length === 1 && window.innerWidth >= ANCHO_MOVIL;

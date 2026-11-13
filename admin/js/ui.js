@@ -198,7 +198,7 @@ export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }
 
-// Caja de cualquier tabla del panel: se mueve de lado; el alto lo pone tablas-alto.js (un solo
+// Caja de cualquier tabla del panel: se mueve de lado; el alto lo pone tablas.js (un solo
 // scroll por pantalla). Con { tarjeta: true } va dentro de una tarjeta.
 // Sin tabla devuelve la caja vacía para llenarla después.
 export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
