@@ -195,7 +195,7 @@ async function renderEditor(container, id) {
 	const conCasas = (d) => operacionesDe(d, propiedades).length > 0;
 	// Lo que todavía queda en la persona del acuerdo de antes (se pasa a sus inmuebles; ver migrarAcuerdos).
 	const legado = (d) => [
-		d.exclusiva ? `exclusiva${d.exclusivaFin ? ` hasta ${formatDate(d.exclusivaFin)}` : ''}` : '',
+		d.exclusiva ? `exclusiva${d.exclusivaFin ? ` hasta ${String(d.exclusivaFin).split('-').reverse().join('/')}` : ''}` : '',
 		d.comisionPct ? `comisión de venta ${d.comisionPct} %` : '',
 		d.comisionRentaMeses ? `comisión de renta ${d.comisionRentaMeses} meses` : '',
 		d.impuestoVenta ? `impuesto del traspaso: ${d.impuestoVenta === 'iva' ? 'IVA' : 'timbres'}` : '',

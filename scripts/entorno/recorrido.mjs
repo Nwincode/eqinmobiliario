@@ -337,13 +337,13 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await asesor.p.locator('[data-campo="acuerdo.exclusiva"] input').check();
 	await campo(asesor.p, 'acuerdo.exclusivaFin').fill('2027-03-31');
 	await campo(asesor.p, 'acuerdo.comisionPct').fill('4.5');
-	await campo(asesor.p, 'descripcion').fill('REGISTRO DE PRUEBA. Apartamento para probar el acuerdo con el dueño.');
+	await campo(asesor.p, 'descripcion').fill('REGISTRO DE PRUEBA. Apartamento de prueba en zona 10.');
 	await guardar(asesor.p);
 	const suAcuerdo = (await leer(`properties/${b.id}/privado/acuerdo`)).fields || {};
-	const publica = JSON.stringify((await leer(`properties/${b.id}`)).fields || {});
+	const publica = Object.keys((await leer(`properties/${b.id}`)).fields || {}).join();
 	paso('El acuerdo de una casa en venta se llena en su ficha (sin comisión de renta) y se guarda en privado, no en la casa', enCasa.join() === 'acuerdo.exclusiva,acuerdo.comisionPct,acuerdo.impuestoVenta'
 		&& suAcuerdo.exclusiva?.booleanValue === true && suAcuerdo.exclusivaFin?.stringValue === '2027-03-31' && Number(suAcuerdo.comisionPct?.doubleValue ?? suAcuerdo.comisionPct?.integerValue ?? suAcuerdo.comisionPct?.stringValue) === 4.5
-		&& !/exclusiva|comisionPct|acuerdo/.test(publica), `${enCasa.join()} ${await avisos(asesor.p)}`);
+		&& /titulo/.test(publica) && !/exclusiva|comision|impuesto|contrato|acuerdo/i.test(publica), `${enCasa.join()} ${await avisos(asesor.p)}`);
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
@@ -412,7 +412,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await ir(admin.p, '#/inicio', 5000);
 		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
 		await ir(admin.p, '#/propietarios/legado-solo');
-		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta/.test(await admin.p.locator('.alert-info').innerText().catch(() => '')));
+		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta \d\d\/\d\d\/\d{4}/.test(await admin.p.locator('.alert-info', { hasText: 'Acuerdo anotado' }).innerText().catch(() => '')));
 		for (const r of ['properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
 	}
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
