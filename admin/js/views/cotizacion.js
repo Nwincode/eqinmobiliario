@@ -468,7 +468,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 				else if (buscando && !cancelar.hidden) { ev.preventDefault(); cancelar.click(); }
 			}
 		});
-		const accion = (icono, texto, alClic, etq) => h('button', { type: 'button', class: 'btn btn-link btn-sm cot-btn cot-sel-accion', 'aria-label': etq, onclick: alClic },
+		const accion = (icono, texto, alClic, etq) => h('button', { type: 'button', class: 'btn btn-sm cot-sel-accion', 'aria-label': etq, onclick: alClic },
 			h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
 		function pintar() {
 			const t = tarjeta();

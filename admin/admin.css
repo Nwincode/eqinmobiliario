@@ -2611,8 +2611,16 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .cot-sel-accion {
 	min-height: 36px;
-	padding: 0 4px;
+	padding: 0 10px;
 	white-space: nowrap;
+	font-weight: 600;
+	color: var(--eq-primary);
+	border: 0;
+}
+.cot-sel-accion:hover,
+.cot-sel-accion:focus-visible {
+	color: var(--eq-primary);
+	background: var(--eq-primary-soft);
 }
 @media (max-width: 575.98px) {
 	.cot-sel-tarjeta {
