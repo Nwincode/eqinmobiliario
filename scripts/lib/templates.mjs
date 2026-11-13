@@ -212,9 +212,7 @@ function nav(ctx, active) {
 	const propMenu = `<li class="has-children${propActive}">
 								<a href="${r.propiedades}">${t.propiedades}</a>
 								<ul class="dropdown">
-									<li><a href="${r.venta}">${ic('home')}${t.comprar}</a></li>
-									<li><a href="${r.renta}">${ic('key')}${t.rentar}</a></li>
-									${ctx.properties.some((p) => p.operacion === 'vacacional') ? `<li><a href="${r.vacacional}">${ic('plane')}${t.vacacional}</a></li>` : ''}
+									${operaciones(ctx).map((a) => `<li>${a}</li>`).join('')}
 									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
 									<li><a href="${r.propiedades}">${ic('th-large')}${t.verTodas}</a></li>
 								</ul>
@@ -679,6 +677,8 @@ export function homePage(ctx) {
 
 	${bloqueExterior(ctx)}
 
+	${porZona(ctx)}
+
 	<div id="${ctx.lang === 'en' ? 'contact' : 'contacto'}" class="section">
 		<div class="container">
 			<div class="row justify-content-between align-items-start">
@@ -709,6 +709,27 @@ export function homePage(ctx) {
 		image: s.seo.imagen,
 		jsonLd: [orgLd, webLd]
 	}, body);
+}
+
+// Enlaces a Comprar, Rentar y Renta vacacional (esta solo si hay alguna): los usan el menú y «Buscar por zona».
+function operaciones(ctx) {
+	const t = tr(ctx), r = rt(ctx);
+	return [[r.venta, 'home', t.comprar], [r.renta, 'key', t.rentar], ctx.properties.some((p) => p.operacion === 'vacacional') && [r.vacacional, 'plane', t.vacacional]]
+		.filter(Boolean).map(([url, icono, txt]) => `<a href="${url}">${ic(icono)}${txt}</a>`);
+}
+
+// «Buscar por zona»: enlaces a cada zona con propiedades (y cuántas tiene) y a las operaciones.
+// Va al final de la portada y de los listados, para que las personas y Google lleguen a cada zona.
+function porZona(ctx, actual = '') {
+	const zonas = (ctx.zonas || []).filter((z) => z.nombre !== actual);
+	if (!zonas.length) return '';
+	return `<nav class="section pt-0" aria-labelledby="por-zona">
+		<div class="container">
+			<h2 class="h5 mb-3" id="por-zona">${tr(ctx).porZona}</h2>
+			<div class="chips mb-3">${zonas.map((z) => `<a href="${z.url}">${esc(z.nombre)} (${z.total})</a>`).join('')}</div>
+			<div class="chips">${operaciones(ctx).join('')}</div>
+		</div>
+	</nav>`;
 }
 
 // ---------------------------------------------------------------- Listado
@@ -831,6 +852,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			</div>
 		</div>
 	</div>` : ''}
+
+	${porZona(ctx, zona)}
 
 	<div class="section bg-light" id="contacto-listado">
 		<div class="container">

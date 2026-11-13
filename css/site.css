@@ -267,7 +267,8 @@
 	position: absolute;
 	opacity: 0;
 }
-.chips span {
+.chips label > span,
+.chips a {
 	display: inline-flex;
 	align-items: center;
 	min-height: 44px;
@@ -276,6 +277,14 @@
 	border-radius: 22px;
 	font-size: 14px;
 	cursor: pointer;
+}
+.chips a {
+	color: var(--eq-dark);
+	text-decoration: none;
+}
+.chips a:hover {
+	border-color: var(--eq-primary);
+	color: var(--eq-primary);
 }
 .chips input:checked + span {
 	background: var(--eq-primary);
