@@ -80,7 +80,7 @@ const ES = {
 	rentaCta: 'Pide un análisis completo con un asesor',
 	rentaListo: 'Listo: pusimos el cálculo en tu mensaje. Completa tus datos y envíalo.',
 	rentaResumen: 'Hola, quiero un análisis completo de inversión para alquilar.\nPrecio: {precio}\nRenta: {renta} al mes\nUso: {uso}\nIngreso neto estimado: {neto} al mes\nRendimiento neto: {rend} al año (bruto {bruto})\nSupuestos: vacancia {vacancia} %, gastos {gastos} %\nPrimer año: renta {bruta} − vacancia {vacMonto} = ingreso efectivo {efectivo} − gastos {gastosMonto} − IUSI {iusi}{comisionResta} − ISR {isr}{ivaResta} = te queda {netoAnual}{ivaNota}',
-	rentaPagTitulo: 'Calculadora de renta', rentaPagMeta: 'Calculadora de renta: ¿cuánto te deja una propiedad en alquiler?',
+	rentaPagTitulo: 'Calculadora de renta', rentaPagMeta: 'Calculadora de renta: cuánto deja un inmueble en alquiler',
 	rentaPagDesc: 'Calcula el ingreso neto mensual y el rendimiento de una propiedad en alquiler en Guatemala, con vacancia, gastos, IUSI e ISR.',
 	rentaPagLead: 'Escribe el precio de la propiedad y la renta que esperas cobrar. Te mostramos cuánto te queda al mes después de vacancia, gastos e impuestos.',
 	rentaPagForm: 'Pide tu análisis completo', rentaPagFormTexto: 'Un asesor revisa contigo los números, el régimen fiscal y propiedades que encajan con tu meta.',
