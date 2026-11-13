@@ -65,7 +65,9 @@ async function borrarFotos(p) {
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
 // Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
 // "fuente" guarda el texto en español traducido, para saber si cambió después.
-export const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
+// Las casas vacacionales suman cómo llegar, reglas y cancelación (solo si los tienen).
+const TEXTOS_VAC = ['comoLlegar', 'reglas', 'cancelacion'];
+export const fuenteEs = (d) => [d.titulo || '', d.descripcion || '', ...TEXTOS_VAC.map((k) => d.vacacional?.[k]).filter(Boolean)].join('\n');
 // ¿Hay que traducir? Falta el inglés, o el español cambió y el inglés no se corrigió a mano.
 export const faltaIngles = (d) => {
 	const en = d.en || {};
@@ -85,6 +87,7 @@ export async function traducirEn(d) {
 			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
 		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
+		vacacional: Object.fromEntries(TEXTOS_VAC.map((k) => [k, r[k] || ''])),
 		slugsAnteriores: titulosEnAnteriores(d.en, r.titulo),
 		fuente: fuenteEs(d),
 		manual: false
@@ -571,6 +574,7 @@ export async function render(container, [id]) {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
+					vacacional: p.en?.vacacional || {},
 					slugsAnteriores: titulosEnAnteriores(p.en, t.en.titulo),
 					fuente: fuenteEs(d), manual: false
 				};
@@ -663,7 +667,9 @@ export async function render(container, [id]) {
 	draw();
 	// Las que quedaron sin inglés (anteriores a la traducción automática al guardar) se traducen solas.
 	// No se repite sobre el mismo texto (en.fuente) ni toca el inglés corregido a mano.
-	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && !(p.en?.titulo && p.en?.descripcion) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
+	// Igual las casas vacacionales con cómo llegar, reglas o cancelación todavía sin traducir.
+	const faltaVac = (p) => TEXTOS_VAC.some((k) => p.vacacional?.[k] && !p.en?.vacacional?.[k]);
+	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && (!(p.en?.titulo && p.en?.descripcion) || faltaVac(p)) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
 	const traducidas = enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
 		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. Recuerda publicar.`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
@@ -808,6 +814,9 @@ function schema(agentOpts, isNew) {
 		{ name: 'en.vipLanding.ctaTexto', label: 'VIP button (English)', cols: 6, when: vip },
 		{ name: 'en.vipLanding.subtitular', label: 'VIP subtitle (English)', type: 'textarea', rows: 2, when: vip },
 		{ name: 'en.vipLanding.puntosClave', label: 'VIP highlights (English)', type: 'tags', when: vip },
+		{ name: 'en.vacacional.comoLlegar', label: 'Getting there (English)', type: 'textarea', rows: 2, when: esVacacional },
+		{ name: 'en.vacacional.reglas', label: 'House rules (English, one per line)', type: 'textarea', rows: 3, when: esVacacional },
+		{ name: 'en.vacacional.cancelacion', label: 'Cancellation (English)', type: 'textarea', rows: 2, when: esVacacional },
 		{ name: 'en.seo.titulo', label: 'Google title (English)', maxlength: 70, cols: 6 },
 		{ name: 'en.seo.descripcion', label: 'Google description (English)', maxlength: 160, cols: 6 },
 
@@ -913,7 +922,7 @@ async function renderEditor(container, id) {
 	['input', 'change'].forEach((t) => form.el.addEventListener(t, (e) => { if (e.target !== codigoInput) rehacerCodigo(); }));
 	rehacerCodigo();
 
-	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}]);
+	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}, TEXTOS_VAC.map((k) => en?.vacacional?.[k] || '')]);
 
 	const recargar = async () => {
 		const view = document.getElementById('view').firstElementChild;

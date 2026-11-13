@@ -128,6 +128,8 @@ function propiedadEn(p) {
 		descripcion: e.descripcion,
 		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
 		seo: e.seo || {},
+		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
+		vacacional: p.vacacional && { ...p.vacacional, ...Object.fromEntries(Object.entries(e.vacacional || {}).filter(([, x]) => x)) },
 		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
 		fotos: (p.fotos || []).map((f) => ({ url: f.url }))
 	};
@@ -281,7 +283,9 @@ function resumenInventario(lista, en = false) {
 	return `${partes.length > 1 ? `${partes.slice(0, -1).join(', ')}${y}${partes[partes.length - 1]}` : partes[0]}.${rango}`;
 }
 
-function buildZonas(properties, base = '/propiedades/') {
+// urlVac: página del destino de renta vacacional. Si la zona solo tiene casas por noche es la misma
+// de la zona; si también tiene venta o renta, una propia con solo esas casas.
+function buildZonas(properties, base = '/propiedades/', baseVac = '/propiedades/vacacional/') {
 	const counts = new Map();
 	for (const p of properties) if (p.zona) counts.set(p.zona, (counts.get(p.zona) || 0) + 1);
 	return [...counts.entries()]
@@ -289,7 +293,8 @@ function buildZonas(properties, base = '/propiedades/') {
 			let slug = slugify(nombre);
 			if (['venta', 'renta', 'vacacional', 'for-sale', 'for-rent', 'vacation-rentals'].includes(slug)) slug = `zona-${slug}`;
 			const cuenta = (op) => properties.filter((p) => p.zona === nombre && (p.operacion || 'venta') === op).length;
-			return { nombre, slug, total, venta: cuenta('venta'), renta: cuenta('renta'), vacacional: cuenta('vacacional'), url: `${base}${slug}/` };
+			const vacacional = cuenta('vacacional'), url = `${base}${slug}/`;
+			return { nombre, slug, total, venta: cuenta('venta'), renta: cuenta('renta'), vacacional, url, urlVac: vacacional ? (vacacional === total ? url : `${baseVac}${slug}/`) : '' };
 		})
 		.filter((z) => z.slug)
 		.sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
@@ -720,6 +725,20 @@ async function main() {
 			urls.push({ path: url, priority: '0.8', lastmod: ultimaFecha(properties.filter((p) => p.zona === z.nombre && p.operacion === op)) });
 		}
 	}
+	// Destinos de renta vacacional en zonas que también tienen venta o renta: página con solo las casas por noche.
+	const zonasEn = enActivo ? buildZonas(propsEn, '/en/properties/', '/en/properties/vacation-rentals/') : [];
+	const propio = (z) => z && z.urlVac && z.urlVac !== z.url;
+	const escribirDestinos = async (c, zonas, en) => {
+		for (const z of zonas.filter(propio)) {
+			const casas = c.properties.filter((p) => p.zona === z.nombre && p.operacion === 'vacacional');
+			const es = ctx.zonas.find((x) => x.nombre === z.nombre), otra = zonasEn.find((x) => x.nombre === z.nombre);
+			const alternates = propio(es) && propio(otra) ? { es: es.urlVac, en: otra.urlVac } : null;
+			if (alternates && !en) registrarPar(alternates.es, alternates.en);
+			await writePage(z.urlVac, T.listingPage(c, { path: z.urlVac, zona: z.nombre, operacion: 'vacacional', alternates, ...textosZona({ ...z, total: z.vacacional }, casas, nombre, en) }));
+			urls.push({ path: z.urlVac, priority: '0.8', lastmod: ultimaFecha(casas) });
+		}
+	};
+	await escribirDestinos(ctx, ctx.zonas, false);
 
 	await writePage('/blog/', T.blogIndexPage(ctx));
 	urls.push({ path: '/blog/', priority: '0.6', lastmod: ctx.posts.map((x) => String(x.fecha || '').slice(0, 10)).filter(Boolean).sort().pop() });
@@ -773,7 +792,7 @@ async function main() {
 			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
 			pages: pagesEn,
 			posts: postsEn,
-			zonas: buildZonas(propsEn, '/en/properties/'),
+			zonas: zonasEn,
 			landings: landingsEn
 		};
 		ctxEn.agentsById = Object.fromEntries(ctxEn.agents.map((a) => [a.id, a]));
@@ -819,6 +838,7 @@ async function main() {
 			}
 			urls.push({ path: z.url, priority: '0.8', lastmod: ultimaFecha(propsEn.filter((p) => p.zona === z.nombre)) });
 		}
+		await escribirDestinos(ctxEn, zonasEn, true);
 		await writePage('/en/luxury/', T.vipIndexPage(ctxEn));
 		urls.push({ path: '/en/luxury/', priority: '0.8' });
 		for (const p of todasEn) {

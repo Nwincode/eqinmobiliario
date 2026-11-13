@@ -3206,7 +3206,9 @@ a:hover > .eq-ic-fin,
    Listado vacacional: buscador por fechas y pasos para reservar
    ================================================================ */
 .vac-buscar {
+	/* Se monta sobre la foto de portada: va encima de ella para que se pueda tocar. */
 	position: relative;
+	z-index: 2;
 	display: flex;
 	align-items: center;
 	gap: 10px;

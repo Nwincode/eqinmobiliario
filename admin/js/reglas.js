@@ -422,8 +422,21 @@ async function traducir({ propiedad: p }) {
 	else if (datosEn(p).length && !/bedroom|sq ft/i.test(descripcion)) descripcion += `\n\nKey facts: ${unirEn(datosEn(p))}. Price: ${precioEn(p)}.`;
 	const d = datosEn(p);
 	const vip = p.vip ? p.vipLanding || {} : {};
+	// Textos de la renta vacacional, línea por línea (las reglas van una por línea). Si el traductor
+	// no responde quedan vacíos y la ficha en inglés muestra el original.
+	const v = p.vacacional || {};
+	const porLineas = async (texto) => {
+		const en = [];
+		try {
+			for (const l of String(texto || '').split('\n')) en.push(await traductorLibre(l));
+		} catch {
+			return '';
+		}
+		return en.join('\n');
+	};
+	const comoLlegar = await porLineas(v.comoLlegar), reglas = await porLineas(v.reglas), cancelacion = await porLineas(v.cancelacion);
 	return {
-		titulo, descripcion, amenidades,
+		titulo, descripcion, amenidades, comoLlegar, reglas, cancelacion,
 		seoTitulo: `${tipo} ${op} ${p.zona || ''} Guatemala${n(p.habitaciones) ? ` | ${n(p.habitaciones)} Bed` : ''}`.replace(/\s+/g, ' ').slice(0, 65),
 		seoDescripcion: `${tipo} ${op.toLowerCase()} in ${p.zona || 'Guatemala'}, Guatemala${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioEn(p)}.`.slice(0, 155),
 		vipTitular: vip.titular ? titulo : '',
