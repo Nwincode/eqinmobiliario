@@ -5,7 +5,7 @@ import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, slugify, cajaTabl
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn, datosDe } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn, datosDe, propiedadNueva, slugLibre, guardarPrivadoVacacional } from './properties.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -46,15 +46,9 @@ async function prepararVacacional(id, it, previo = null) {
 	const llegadaRef = doc(db, 'properties', id, 'privado', 'llegada');
 	const antes = previo ? ((await getDoc(llegadaRef)).data() || {}) : {};
 	const llegada = { direccion: it.datos.direccion ?? antes.direccion ?? previo?.direccion ?? '', mapa: antes.mapa ?? previo?.mapa ?? '' };
-	return { privRef, pub: { ...pub, direccion: '', mapa: '' }, socio: resto, llegada, llegadaRef };
+	return { id, pub: { ...pub, direccion: '', mapa: '' }, socio: resto, llegada };
 }
-// Lo privado de una casa por noche: el costo del socio y los datos de llegada.
-const guardarSocio = async (v) => {
-	if (!v) return;
-	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
-	await setDoc(v.privRef, { ...v.socio, ...sello });
-	await setDoc(v.llegadaRef, { ...v.llegada, ...sello });
-};
+const guardarSocio = (v) => v && guardarPrivadoVacacional(v.id, v.socio, v.llegada);
 
 export async function render(container) {
 	container.replaceChildren();
@@ -351,13 +345,6 @@ export async function render(container) {
 		}
 	}
 
-	function slugLibre(titulo, usados) {
-		const base = slugify(titulo) || 'propiedad';
-		let s = base, n = 2;
-		while (usados.has(s)) s = `${base}-${n++}`;
-		usados.add(s);
-		return s;
-	}
 
 	async function importar() {
 		const lista = plan.filter(seImporta);
@@ -422,20 +409,9 @@ export async function render(container) {
 					const vac = await prepararVacacional(nref.id, it);
 					const r = await subirFotos(it, `properties/${nref.id}`, []);
 					fotosHechas += it.fotos.length;
-					const d = { ...datosIniciales(), agentId: '', descripcion: '', ...it.datos, ...(vac ? vac.pub : {}) };
-					d.publicado = false;
-					d.slug = slugLibre(titulo, slugs);
+					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), slug: slugLibre(titulo, slugs), fotos: r.fotos });
 					const en = await enIngles(d);
 					if (en) d.en = en;
-					d.estado = estadoDe(d).valor;
-					d.estadoFecha = serverTimestamp();
-					d.historialEstado = [entradaHistorial(d.estado)];
-					d.historialPrecio = Number(d.precio) ? [{ precio: Number(d.precio), moneda: d.moneda || 'USD', fecha: Timestamp.now() }] : [];
-					d.fotos = r.fotos;
-					d.createdAt = serverTimestamp();
-					d.createdBy = session.user.uid;
-					d.updatedAt = serverTimestamp();
-					d.updatedBy = session.user.uid;
 					await guardar(() => setDoc(nref, d), r.fotos);
 					await guardarSocio(vac);
 					existentes.push({ id: nref.id, ...d });
