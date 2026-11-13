@@ -6,6 +6,8 @@ import {
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
 import { acuerdoDe } from './acuerdo.js';
+import { telefonoWa } from './formato.js';
+import '/js/calc-vacacional.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
 import { slugify } from './ui.js';
@@ -201,9 +203,9 @@ export async function armarPortal(prop) {
 		agentId: prop.agentId || '',
 		propietarioId: prop.id,
 		nombre: primerNombre(prop.nombre),
-		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: String(ag.whatsapp || ag.telefono || '').replace(/[^\d+]/g, ''), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
+		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: telefonoWa(ag.whatsapp || ag.telefono), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
 		// Solo la fecha, y solo de lo que sigue en oferta y no ha vencido: la que vence primero.
-		exclusivaFin: props.filter((p) => p && seOfrece(p)).map((p) => privado[p.id]?.exclusivaHasta).filter((f) => f && f >= new Date(ahora - 6 * 3600000).toISOString().slice(0, 10)).sort()[0] || '',
+		exclusivaFin: props.filter((p) => p && seOfrece(p)).map((p) => privado[p.id]?.exclusivaHasta).filter((f) => f && f >= window.EQVacacional.hoy(ahora)).sort()[0] || '',
 		proximoPaso: recorta(prop.proximoPaso, 400),
 		propiedades,
 		updatedAt: serverTimestamp()

@@ -9,6 +9,9 @@ import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, boton,
 import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
+import '../../js/calc-vacacional.js';
+
+const V = globalThis.EQVacacional;
 
 const HORA = 3600_000;
 const PLAZO = 2 * HORA;
@@ -30,7 +33,7 @@ export default async () => {
 		const sinRespuesta = nuevas.filter((l) => l.reserva?.codigo && !l.solicitud?.estado && enVentana(l.createdAt.getTime() + PLAZO));
 		const canceladas = cambiadas.filter((l) => l.solicitud?.estado === 'cancelada');
 		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
-		const hoy = new Date(ahora - 6 * HORA).toISOString().slice(0, 10);
+		const hoy = V.hoy(ahora);
 		const mensajes = await (async () => {
 			const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
 			return (await Promise.all(vigentes.map(async (c) => {
@@ -71,7 +74,7 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 
 // Comisiones que se pagan hoy: un correo a cada socio con las suyas, para que pague y suba su comprobante sin que el equipo lo persiga.
 async function recordarComisiones(ahora) {
-	const hoy = new Date(ahora - 6 * HORA).toISOString().slice(0, 10);
+	const hoy = V.hoy(ahora);
 	const deHoy = (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.comision?.monto > 0 && !r.comision.pagada && r.comision.vence === hoy && r.propietarioId);
 	for (const id of new Set(deHoy.map((r) => r.propietarioId))) {
 		const socio = await leerPrivado(`propietarios/${id}`).catch(() => null);

@@ -7,7 +7,6 @@
 	if (!V) return;
 
 	function pad(n) { return (n < 10 ? '0' : '') + n; }
-	function hoyLocal() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 	function fmt(s, datos) { return String(s || '').replace(/\{(\w+)\}/g, function (m, k) { return datos[k] != null ? datos[k] : m; }); }
 	function fechaUTC(f) { return new Date(f + 'T12:00:00Z'); }
 	function diaSemana(f) { return fechaUTC(f).getUTCDay(); }
@@ -36,7 +35,7 @@
 		var locale = EN ? 'en-US' : 'es-GT';
 		var prefijo = D.moneda === 'GTQ' ? 'Q' : 'US$';
 		var corto = D.moneda === 'GTQ' ? 'Q' : '$';
-		var hoy = hoyLocal();
+		var hoy = V.hoy();
 		var mesMin = mesDe(hoy);
 		var mesMax = sumarMeses(mesMin, 18);
 		var nochesMin = Math.max(1, D.nochesMin || 1);
@@ -347,7 +346,7 @@
 	// y lleva esa elección a la ficha para no volver a pedirla.
 	var buscar = document.getElementById('vac-buscar');
 	if (buscar) {
-		var hoyB = hoyLocal();
+		var hoyB = V.hoy();
 		buscar.llegada.min = hoyB;
 		buscar.llegada.addEventListener('change', function () {
 			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : hoyB;

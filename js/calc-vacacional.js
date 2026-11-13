@@ -76,6 +76,9 @@
 	function aDia(s) { return Math.round(Date.parse(s + 'T00:00:00Z') / DIA); }
 	function deDia(n) { return new Date(n * DIA).toISOString().slice(0, 10); }
 	function sumarDias(s, n) { return deDia(aDia(s) + n); }
+	// «Hoy» para todo lo de la renta por noche: la fecha de Guatemala (UTC−6 todo el año), la misma en el sitio,
+	// el panel y las funciones, esté donde esté quien pregunta. Una sola: no se calcula en ningún otro lado.
+	function hoy(ahora) { return new Date((ahora == null ? Date.now() : ahora) - 6 * 3600000).toISOString().slice(0, 10); }
 	function nochesEntre(llegada, salida) {
 		if (!esFecha(llegada) || !esFecha(salida)) return 0;
 		return Math.max(0, aDia(salida) - aDia(llegada));
@@ -321,7 +324,7 @@
 		tieneContacto: tieneContacto,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
-		esFecha: esFecha, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
+		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
 		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,

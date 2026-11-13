@@ -65,7 +65,7 @@ export default async (req) => {
 			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }));
 		atraso = mora?.[p.propietarioId] || 0;
 	}
-	const hoy = new Date().toISOString().slice(0, 10);
+	const hoy = V.hoy();
 	const ocupadas = V.unirRangos([...manuales, ...apartadas, ...(airbnb || [])]).filter((r) => r.hasta > hoy);
 	// Precios al público y mínimos de noches al día: el socio los cambia sin esperar a que se publique el sitio.
 	const v = p.vacacional || {};

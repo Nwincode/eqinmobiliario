@@ -127,7 +127,7 @@ const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).pad
 // Renta vacacional. Lo privado (costo del socio, margen, contacto, enlace iCal) vive en
 // properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
 // los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+const hoyISO = () => V.hoy();
 const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
 export function vacacionalPublico(d) {
 	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);

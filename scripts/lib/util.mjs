@@ -1,5 +1,5 @@
 import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
-import { miles, dinero } from '../../admin/js/formato.js';
+import { miles, dinero, telefonoWa } from '../../admin/js/formato.js';
 // Utilidades compartidas por el generador del sitio.
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -168,8 +168,10 @@ export function mapEmbedUrl(value) {
 	return `https://maps.google.com/maps?q=${encodeURIComponent(url)}&z=15&output=embed`;
 }
 
+// El número sale de telefonoWa (admin/js/formato.js), como en el panel: uno de 8 dígitos lleva el 502 delante.
+// Sin número devuelve '' (las plantillas lo usan para no pintar el botón).
 export function whatsappLink(numero, mensaje = '') {
-	const n = String(numero || '').replace(/\D/g, '');
+	const n = telefonoWa(numero);
 	if (!n) return '';
 	return `https://wa.me/${n}${mensaje ? `?text=${encodeURIComponent(mensaje)}` : ''}`;
 }
