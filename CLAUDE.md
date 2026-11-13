@@ -4,6 +4,8 @@
 Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - La plataforma existe para quitarle trabajo al usuario, no para darle más.
 - Lo que ya está guardado no se vuelve a pedir: se sugiere o se rellena solo.
+- Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa y qué archivos se tocan juntos
+  (las «cadenas»). Se lee antes de un cambio que cruza partes del sistema y se actualiza en el mismo commit.
 - Antes de programar algo nuevo, buscar si ya existe y reutilizarlo (CSS sobre todo; también JS y HTML).
   Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
 - Nada de parches encima de código viejo: si algo está mal, se arregla en su origen.
