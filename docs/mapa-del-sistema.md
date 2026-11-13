@@ -66,7 +66,7 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 | Colección | Qué guarda | Anidado |
 |---|---|---|
 | `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `bitacora/` |
-| `propietarios/{id}` | Dueños, socios (`tipo: socio`, `datosPago`, `email`) y colaboradores (`tipo: colaborador`, `empresa`). Lista `propiedades`. | — |
+| `propietarios/{id}` | Una ficha por persona: `tipo` (propietario o colaborador, con `empresa`) y la lista `propiedades`. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. | — |
 | `leads/{id}` | Lo que llega de los formularios. En una reserva: `reserva{}` y `solicitud{}`. **El socio no lo lee.** | — |
 | `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto; el de llegada lleva `direccion` y `mapa`) |
 | `reservas/{id}` | Reserva confirmada y su comisión. Sin teléfono del cliente. | — |
@@ -100,7 +100,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Crear una propiedad** → `admin/js/views/properties.js` (`propiedadNueva`, `slugLibre`, `guardarPrivadoVacacional`): las usan `importar.js` y `propietarios.js` `nuevaPropiedad`. La ficha de Propiedades guarda por su cuenta (también edita).
 
-**Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` (según sus casas: comisión acordada solo con venta o renta; impuestos de la venta solo si vende). **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
+**Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las dos categorías en la misma ficha: datos de pago con casas por noche; asesor y comisión acordada con venta o renta; impuestos de la venta si vende) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
 
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 

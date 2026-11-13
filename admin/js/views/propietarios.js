@@ -36,21 +36,19 @@ const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
 
 // «Nueva propiedad» desde la ficha del dueño: lo mínimo para que la casa exista, sin publicar y ya enlazada a él.
 // Lo demás (fotos, descripción, dirección) se completa en Propiedades; «Faltan» avisa qué le falta.
-function nuevaPropiedad(dueno, alCrear) {
+function nuevaPropiedad(dueno, operacion, alCrear) {
 	const V = window.EQVacacional;
-	const socio = dueno.tipo === 'socio';
 	const porNoche = (d) => d.operacion === 'vacacional';
 	const form = renderForm([
 		{ name: 'titulo', label: 'Título', required: true, placeholder: 'Casa de playa en Monterrico' },
-		// Cada dueño con su categoría: el socio, casas por noche (necesita correo y datos de pago); los demás, venta o renta.
-		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES.filter(([v]) => (v === 'vacacional') === socio) },
+		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES },
 		{ name: 'tipo', label: 'Tipo', type: 'select', cols: 6, options: TIPOS },
 		{ name: 'zona', label: 'Zona', cols: 6 },
 		{ name: 'ciudad', label: 'Ciudad', cols: 6 },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 6, when: (d) => !porNoche(d), help: 'Vacío = «Precio a consultar».' },
 		{ name: 'precioSocio', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 6, when: porNoche, help: 'Lo que recibe el socio. Privado.' },
 		{ name: 'moneda', label: 'Moneda', type: 'select', cols: 6, options: MONEDAS }
-	], { operacion: socio ? 'vacacional' : 'venta', tipo: 'casa', ciudad: 'Guatemala', moneda: 'USD' });
+	], { operacion, tipo: 'casa', ciudad: 'Guatemala', moneda: 'USD' });
 	const crear = h('button', { class: 'btn btn-primary', onclick: async () => {
 		if (!form.validate()) return;
 		const { precioSocio, ...d } = form.getData();
@@ -79,12 +77,16 @@ function nuevaPropiedad(dueno, alCrear) {
 		footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), crear] });
 }
 
-// Qué tiene un dueño con nosotros: la operación de cada una de sus casas; sin casas todavía, lo que dice su tipo.
-// De eso depende qué se le pide y se le muestra: comisión acordada solo si hay venta o renta (en la renta por
-// noche la empresa gana el margen de cada casa); impuestos de la venta solo si vende.
+// Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
+// noche y otras en venta o renta, en una sola ficha. De eso depende qué se le pide y se le muestra:
+//  - con casas por noche es socio de renta vacacional: correo y datos de pago;
+//  - con venta o renta: asesor responsable y comisión acordada (en la renta por noche la empresa gana el margen);
+//  - si vende: impuestos de la venta.
+// Sin casas todavía: venta y renta, salvo que ya estuviera marcado como socio.
+export const esSocio = (d) => Boolean(d.porNoche) || d.tipo === 'socio'; // «tipo: socio» = fichas de antes
 function operacionesDe(d, propiedades) {
 	const ops = (d.propiedades || []).map((x) => propiedades.find((p) => p.id === x.propertyId)?.operacion).filter(Boolean);
-	return ops.length ? ops : d.tipo === 'socio' ? ['vacacional'] : ['venta', 'renta'];
+	return ops.length ? ops : esSocio(d) ? ['vacacional'] : ['venta', 'renta'];
 }
 
 // Días que faltan para que venza la exclusiva (negativo = vencida).
@@ -112,12 +114,12 @@ async function renderLista(container) {
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : p.tipo === 'socio' ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
+		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, esSocio(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
 		h('td', { class: 'small' }, !operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? h('span', { class: 'text-muted' }, 'Margen por casa')
 			: p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
-		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (p.tipo === 'socio' ? '—' : 'Sin asignar')) : null);
+		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—')) : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
 		tabla.replaceChildren(vis.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
@@ -146,21 +148,25 @@ async function renderEditor(container, id) {
 	}
 	// El régimen acordado con la agencia es pequeño contribuyente (5 %) salvo que se indique otro.
 	const data = { comisionRegimen: 'pequeno', ...(nuevo ? { exclusiva: false, agentId: session.isAdmin ? '' : session.agentId, propiedades: [] } : snap.data()) };
+	// Ficha de antes con «tipo: socio»: pasa a propietario; lo de socio lo dicen sus casas.
+	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
 	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
 	const vende = (d) => operacionesDe(d, propiedades).includes('venta');
+	const conNoche = (d) => operacionesDe(d, propiedades).includes('vacacional');
 	const form = renderForm([
 		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
+		// Ser socio de renta vacacional no se elige: lo es quien tiene al menos una casa por noche.
 		{ name: 'tipo', label: 'Es', type: 'select', default: 'propietario', cols: 6, options: [
-			['propietario', 'Propietario (vende o renta su inmueble)'], ['socio', 'Socio de renta vacacional (atiende sus casas por noche)'],
-			['colaborador', 'Asesor colaborador (nos pasó el inmueble)']],
-			help: 'Socio: necesita correo (ahí le llegan las solicitudes) y datos de pago. Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
+			['propietario', 'Propietario (dueño del inmueble)'], ['colaborador', 'Asesor colaborador (nos pasó el inmueble)']],
+			help: 'Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
 		{ name: 'empresa', label: 'Empresa o inmobiliaria', cols: 6, when: (d) => d.tipo === 'colaborador' },
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
-		// El socio de renta vacacional atiende él mismo sus casas: no lleva asesor responsable.
-		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6, when: (d) => d.tipo !== 'socio' } : null,
+		// Las casas por noche las atiende el socio mismo: el asesor responsable es para lo que tenga en venta o renta.
+		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6, when: conComision } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', type: 'telefono', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
-		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
+		{ type: 'custom', when: conNoche, update: (el) => { el.className = 'form-text mt-0'; el.textContent = 'Socio de renta vacacional (tiene casas por noche): a ese correo le llegan las solicitudes de reserva.'; } },
+		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
 			{ type: 'custom', label: 'Propiedad', cols: 8, update: (el, _, item) => pintarCasa(el, item) },
@@ -191,6 +197,7 @@ async function renderEditor(container, id) {
 		d.telefonoNorm = telNorm(d.telefono);
 		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId);
 		d.propertyIds = d.propiedades.map((x) => x.propertyId);
+		d.porNoche = d.propiedades.length ? conNoche(d) : Boolean(data.porNoche);
 		d.updatedAt = serverTimestamp();
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;
@@ -223,28 +230,31 @@ async function renderEditor(container, id) {
 		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
 		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
 		const lista = h('div', { class: 'list-group' });
-		// Solo las de su categoría: casas por noche para un socio; venta y renta para los demás.
-		const socio = form.state.tipo === 'socio';
-		const casas = propiedades.filter((p) => !enOtroRenglon.has(p.id) && (p.operacion === 'vacacional') === socio);
+		// Dos categorías, una a la vez: abre en la del renglón (o en la que esta persona ya tiene) y se cambia arriba.
+		const actual = propiedades.find((p) => p.id === item.propertyId);
+		let noche = actual ? actual.operacion === 'vacacional' : !conComision(form.state);
+		const pestana = (esNoche, texto, icono) => h('button', { type: 'button', class: 'btn btn-outline-primary', onclick: () => { noche = esNoche; dibujar(); } }, h('span', { class: icono, 'aria-hidden': 'true' }), ` ${texto}`);
+		const pestanas = [pestana(false, 'Venta y renta', 'icon-home'), pestana(true, 'Por noche', 'icon-moon-o')];
 		const dibujar = () => {
 			const q = sinTildes(buscar.value.trim());
-			const visibles = casas.filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
+			pestanas.forEach((b, k) => { const on = Boolean(k) === noche; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && (p.operacion === 'vacacional') === noche).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
 			lista.replaceChildren(
-				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { ventana.close(); crearPropiedad((casaId) => { item.propertyId = casaId; form.refresh(); }); } },
+				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { ventana.close(); crearPropiedad(noche ? 'vacacional' : 'venta', (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
 					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
 				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
 					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
-				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${socio ? 'casas por noche' : 'propiedades en venta o renta'} que coincidan. Puedes crearla con «Nueva propiedad».`));
+				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${noche ? 'casas por noche' : 'propiedades en venta o renta'} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
-		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, buscar, lista) });
+		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas), buscar, lista) });
 	};
 	// Casa que todavía no existe: se crea aquí mismo y queda elegida. La ficha del dueño se guarda antes y
 	// después, para que la casa nunca apunte a un dueño sin guardar ni quede fuera de su lista.
-	const crearPropiedad = async (elegir) => {
+	const crearPropiedad = async (operacion, elegir) => {
 		if (!(await persistir())) return;
-		nuevaPropiedad({ id: ref.id, ...form.getData() }, async (casa) => {
+		nuevaPropiedad({ id: ref.id, ...form.getData() }, operacion, async (casa) => {
 			propiedades.push(casa);
 			elegir(casa.id);
 			await persistir();

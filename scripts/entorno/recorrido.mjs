@@ -338,9 +338,20 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await espera(800);
 		return admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
 	};
+	// Una sola ficha por persona: el socio ve sus casas por noche y, cambiando de pestaña, le agrego una en venta.
 	const delSocio = await abrirSelector('#/propietarios/socio-prueba');
-	paso('Al socio el selector no le ofrece casas en venta ni en renta', !delSocio.some((x) => /Venta|Renta ·/.test(x)), delSocio.join(' | '));
-	await admin.p.locator('.modal.show .btn-close').click();
+	await admin.p.locator('.modal.show .btn-group button', { hasText: 'Venta y renta' }).click();
+	await espera(300);
+	const enVenta = await admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
+	paso('El selector abre al socio en «Por noche» y cada pestaña muestra solo su categoría', !delSocio.some((x) => /Venta|Renta ·/.test(x)) && enVenta.length > 0 && !enVenta.some((x) => /vacacional/i.test(x)), `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
+	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click();
+	await espera(600);
+	const titulos = await admin.p.locator('.list-field .prop-zona').allInnerTexts();
+	paso('La misma ficha muestra sus casas por noche y la de venta, y pide lo de las dos', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
+		&& await seVe(admin, 'Impuestos de la venta') && await admin.p.locator('[data-campo="comisionPct"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
+	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
 	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
 	await admin.p.locator('.modal.show input[type=search]').fill('mirabel');
 	await espera(300);
