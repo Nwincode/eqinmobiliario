@@ -409,7 +409,8 @@ export async function render(container) {
 					const vac = await prepararVacacional(nref.id, it);
 					const r = await subirFotos(it, `properties/${nref.id}`, []);
 					fotosHechas += it.fotos.length;
-					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), slug: slugLibre(titulo, slugs), fotos: r.fotos });
+					// Lo importado entra siempre sin publicar: se revisa antes de mostrarlo.
+					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), slug: slugLibre(titulo, slugs), fotos: r.fotos, publicado: false });
 					const en = await enIngles(d);
 					if (en) d.en = en;
 					await guardar(() => setDoc(nref, d), r.fotos);

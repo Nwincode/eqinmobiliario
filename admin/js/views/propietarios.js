@@ -1,14 +1,13 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice, iconoBtn } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl, copiar } from '../ia.js';
 import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
 import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
 import { sinTildes } from '../cotizacion.js';
-import { OPERACIONES, TIPOS, MONEDAS, datosDe, loadAll, propiedadNueva, slugLibre, vacacionalPublico, guardarPrivadoVacacional } from './properties.js';
-import { generarCodigo } from '../importar.js';
+import { OPERACIONES, datosDe, abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
@@ -39,49 +38,6 @@ function fichaCasa(p, avisos = []) {
 		h('span', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))];
 }
 const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
-
-// «Nueva propiedad» desde la ficha del dueño: lo mínimo para que la casa exista, sin publicar y ya enlazada a él.
-// Lo demás (fotos, descripción, dirección) se completa en Propiedades; «Faltan» avisa qué le falta.
-function nuevaPropiedad(dueno, operacion, alCrear) {
-	const V = window.EQVacacional;
-	const porNoche = (d) => d.operacion === 'vacacional';
-	const form = renderForm([
-		{ name: 'titulo', label: 'Título', required: true, placeholder: 'Casa de playa en Monterrico' },
-		{ name: 'operacion', label: 'Operación', type: 'select', cols: 6, options: OPERACIONES },
-		{ name: 'tipo', label: 'Tipo', type: 'select', cols: 6, options: TIPOS },
-		{ name: 'zona', label: 'Zona', cols: 6 },
-		{ name: 'ciudad', label: 'Ciudad', cols: 6 },
-		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 6, when: (d) => !porNoche(d), help: 'Vacío = «Precio a consultar».' },
-		{ name: 'precioSocio', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 6, when: porNoche, help: 'Lo que recibe el socio. Privado.' },
-		{ name: 'moneda', label: 'Moneda', type: 'select', cols: 6, options: MONEDAS }
-	], { operacion, tipo: 'casa', ciudad: 'Guatemala', moneda: 'USD' });
-	const crear = h('button', { class: 'btn btn-primary', onclick: async () => {
-		if (!form.validate()) return;
-		const { precioSocio, ...d } = form.getData();
-		const vac = porNoche(d);
-		if (vac && !(Number(precioSocio) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
-		crear.disabled = true;
-		try {
-			const [todas, agentes] = await Promise.all([loadAll(), loadAgents()]);
-			// El socio atiende él mismo sus casas; las demás quedan con el asesor del dueño (o conmigo, si soy asesor).
-			d.agentId = session.isAdmin ? (dueno.agentId || '') : session.agentId;
-			d.propietarioId = dueno.id;
-			d.slug = slugLibre(d.titulo, new Set(todas.map((p) => p.slug)));
-			const costo = { precioBase: Number(precioSocio), precioFinde: 0, margen: V.MARGEN, tarifas: [], nombre: dueno.nombre || '', telefono: dueno.telefono || '', icalUrl: '' };
-			if (vac) Object.assign(d, vacacionalPublico({ socio: costo, vacacional: {} }));
-			else delete d.vacacional;
-			d.codigo = generarCodigo(d, { agentes, codigos: todas.map((p) => p.codigo).filter(Boolean) });
-			const ref = doc(collection(db, 'properties'));
-			await setDoc(ref, propiedadNueva(d));
-			if (vac) await guardarPrivadoVacacional(ref.id, costo, { direccion: '', mapa: '' });
-			toast(`Propiedad creada sin publicar: ${d.codigo}. Complétala en Propiedades.`);
-			ventana.close();
-			alCrear({ id: ref.id, ...d });
-		} catch (err) { showError(err); crear.disabled = false; }
-	} }, 'Crear y enlazar');
-	const ventana = modal({ title: `Nueva propiedad de ${dueno.nombre}`, body: form.el,
-		footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), crear] });
-}
 
 // Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
 // noche y otras en venta o renta, en una sola ficha. De eso depende lo poco que se le pide a la persona:
@@ -279,8 +235,11 @@ async function renderEditor(container, id) {
 	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
 	function pintarCasa(el, item) {
 		const p = propiedades.find((x) => x.id === item.propertyId);
-		el.replaceChildren(h('button', { type: 'button', class: `btn btn-light border w-100 ${FILA_CASA}`, title: p ? 'Cambiar la propiedad' : '', onclick: () => elegirCasa(item) },
-			p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
+		el.replaceChildren(h('div', { class: 'd-flex align-items-stretch gap-2' },
+			h('button', { type: 'button', class: `btn btn-light border flex-grow-1 ${FILA_CASA}`, style: 'min-width: 0', title: p ? 'Cambiar por otra propiedad' : '', onclick: () => elegirCasa(item) },
+				p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']),
+			// Fotos, datos, acuerdo o eliminarla: todo en su ficha, que se abre aquí mismo.
+			p ? iconoBtn('icon-pencil', 'Editar la propiedad (datos, fotos, acuerdo)', { class: 'cot-btn cot-btn-icono btn btn-outline-primary', onclick: () => editarPropiedad(item) }) : null));
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
 	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.
@@ -312,14 +271,31 @@ async function renderEditor(container, id) {
 		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas), buscar, lista),
 			onClose: () => { if (quitar && !creando && !item.propertyId) quitar(); } });
 	};
-	// Casa que todavía no existe: se crea aquí mismo y queda elegida. La ficha del dueño se guarda antes y
-	// después, para que la casa nunca apunte a un dueño sin guardar ni quede fuera de su lista.
+	// Crear o corregir una casa sin salir de aquí: se abre la ficha del inmueble (la misma de Propiedades) en una
+	// ventana. La ficha de la persona se guarda antes y después, para que la casa nunca apunte a un dueño sin
+	// guardar ni quede fuera de su lista.
 	const crearPropiedad = async (operacion, elegir) => {
 		if (!(await persistir())) return;
-		nuevaPropiedad({ id: ref.id, ...form.getData() }, operacion, async (casa) => {
+		abrirFicha('nuevo', { titulo: `Nueva propiedad de ${form.state.nombre}`, inicial: { propietarioId: ref.id, operacion }, alGuardar: async (casa) => {
 			propiedades.push(casa);
 			elegir(casa.id);
 			await persistir();
+		} });
+	};
+	const editarPropiedad = async (item) => {
+		if (!(await persistir())) return;
+		abrirFicha(item.propertyId, {
+			alGuardar: async (casa) => {
+				propiedades.splice(propiedades.findIndex((p) => p.id === casa.id), 1, casa);
+				Object.assign(acuerdos, await loadAcuerdos([casa]));
+				form.refresh();
+			},
+			// La casa ya no existe: sale de la lista de esta persona y la ficha se vuelve a armar.
+			alEliminar: async (casaId) => {
+				form.state.propiedades = (form.state.propiedades || []).filter((x) => x.propertyId !== casaId);
+				// (mount agrega: primero se vacía, o la ficha quedaría dos veces.)
+				if (await persistir()) { container.replaceChildren(); await renderEditor(container, ref.id); }
+			}
 		});
 	};
 	const eliminar = async () => {
