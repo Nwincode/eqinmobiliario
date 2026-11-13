@@ -252,6 +252,7 @@
 		var preset = document.body.getAttribute('data-preset-operacion') || '';
 		var rutas = { '': document.body.getAttribute('data-base') || '/propiedades/', venta: document.body.getAttribute('data-ruta-venta') || '/propiedades/venta/', renta: document.body.getAttribute('data-ruta-renta') || '/propiedades/renta/', vacacional: document.body.getAttribute('data-ruta-vacacional') || '' };
 		var presetZona = document.body.getAttribute('data-preset-zona') || '';
+		var presetTipo = document.body.getAttribute('data-preset-tipo') || '';
 		var page = 1;
 		var lastSearch = '';
 
@@ -316,7 +317,7 @@
 			if (pushState) {
 				var qs = new URLSearchParams();
 				['q', 'tipo', 'zona', 'habitaciones', 'min', 'max', 'orden'].forEach(function (k) {
-					if (f[k].value && !(k === 'orden' && f[k].value === 'recientes')) qs.set(k, f[k].value);
+					if (f[k].value && !(k === 'orden' && f[k].value === 'recientes') && !(k === 'tipo' && f[k].value === presetTipo)) qs.set(k, f[k].value);
 				});
 				if (page > 1) qs.set('pagina', page);
 				history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : ''));
@@ -328,29 +329,38 @@
 			}
 		};
 
+		// Va al listado de una operación conservando los filtros de la dirección; «cambios» pone o quita los suyos.
+		function ir(op, cambios) {
+			var params = new URLSearchParams(location.search);
+			Object.keys(cambios).forEach(function (k) { cambios[k] ? params.set(k, cambios[k]) : params.delete(k); });
+			var qs = params.toString();
+			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
+		}
+
 		// La operación cambia de página para que cada listado tenga su propia URL indexable.
 		form.addEventListener('change', function (e) {
 			if (e.target.name !== 'operacion') return;
 			var op = form.elements.operacion.value;
 			if (op === preset) return;
-			// En la página de una zona se conserva la zona como filtro del nuevo listado.
-			var params = new URLSearchParams(location.search);
-			if (presetZona) params.set('zona', presetZona);
-			var qs = params.toString();
-			location.href = (rutas[op] || rutas['']) + (qs ? '?' + qs : '');
+			// En la página de una zona o de un tipo, ese filtro se conserva en el nuevo listado.
+			var fijos = {};
+			if (presetZona) fijos.zona = presetZona;
+			if (presetTipo) fijos.tipo = presetTipo;
+			ir(op, fijos);
 		});
 
-		// En la página de una zona, elegir otra zona lleva al listado general filtrado.
-		if (presetZona) {
-			form.elements.zona.addEventListener('change', function () {
-				var z = form.elements.zona.value;
-				location.href = rutas[preset] + (z ? '?zona=' + encodeURIComponent(z) : '');
+		// En la página de una zona o de un tipo («Casas en venta»), elegir otra zona u otro tipo lleva al
+		// listado de la operación con ese filtro.
+		if (presetZona) form.elements.zona.addEventListener('change', function () { ir(preset, { zona: form.elements.zona.value }); });
+		if (presetTipo) {
+			form.addEventListener('change', function (e) {
+				if (e.target.name === 'tipo') ir(preset, { tipo: form.elements.tipo.value });
 			});
 		}
 
 		var timer;
 		form.addEventListener('input', function (e) {
-			if (e.target.name === 'operacion' || (presetZona && e.target.name === 'zona')) return;
+			if (e.target.name === 'operacion' || (presetZona && e.target.name === 'zona') || (presetTipo && e.target.name === 'tipo')) return;
 			clearTimeout(timer);
 			timer = setTimeout(function () { page = 1; apply(true); }, 250);
 		});

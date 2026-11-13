@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
-import { deepMerge, slugify, byOrder, cifra, lugarDe } from './lib/util.mjs';
+import { deepMerge, slugify, byOrder, cifra, lugarDe, TIPOS, TIPOS_LANDING } from './lib/util.mjs';
 import { dinero } from '../admin/js/formato.js';
 import { amenidadesEn } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
@@ -173,6 +173,67 @@ function guiaZona(site, nombre, lang = 'es') {
 // ¿Hay alguna propiedad de esa operación (y zona)? Un listado vacío no se indexa ni se enlaza.
 const hay = (list, op = '', zona = '') => list.some((p) => (!op || p.operacion === op) && (!zona || p.zona === zona));
 
+// El primer título que cabe en 60 caracteres con el nombre del sitio; si ninguno cabe, el último sin el nombre.
+const tituloCorto = (nombre, ...c) => c.map((t) => `${t} | ${nombre}`).find((t) => t.length <= 60) || c[c.length - 1];
+
+// Páginas por tipo y operación («Casas en venta en Guatemala»): una por cada tipo con propiedades en venta o
+// en renta. No se crea si repetiría el listado de la operación (todo es de ese tipo) o si la dirección ya existe.
+function buildLandings(properties, ocupadas, en = false) {
+	const out = [];
+	for (const [op, es, eng] of [['venta', 'en venta', 'for sale'], ['renta', 'en renta', 'for rent']]) {
+		const deOp = properties.filter((p) => p.operacion === op);
+		for (const [tipo, n] of Object.entries(TIPOS_LANDING)) {
+			const total = deOp.filter((p) => p.tipo === tipo).length;
+			const nombre = en ? `${n.en} ${eng}` : `${n.plural} ${es}`;
+			const url = `${en ? '/en' : ''}/${slugify(nombre)}/`;
+			if (total && total < deOp.length && !ocupadas.has(url)) out.push({ tipo, op, nombre, url, total });
+		}
+	}
+	return out;
+}
+
+// Textos de una página por tipo, escritos con lo que de verdad hay publicado (precios, zonas, cantidad).
+function textosTipo(l, lista, nombre, en = false) {
+	const n = TIPOS_LANDING[l.tipo], total = lista.length;
+	const cuantos = en ? `${total} ${n.enN[total === 1 ? 0 : 1]} ${l.op === 'renta' ? 'for rent' : 'for sale'}`
+		: `${total} ${(total === 1 ? TIPOS[l.tipo] : n.plural).toLowerCase()} ${l.op === 'renta' ? 'en renta' : 'en venta'}`;
+	// Precios solo si todos están en la misma moneda y a la vista (los ocultos de VIP no cuentan).
+	const conPrecio = lista.filter((p) => Number(p.precio) > 0 && !(p.vipLanding && p.vipLanding.ocultarPrecio));
+	const mes = l.op === 'renta' ? (en ? ' a month' : ' al mes') : '';
+	const o = en ? ' or ' : ' o ', y = en ? ' and ' : ' y ';
+	// Un rango por moneda, sin convertir: [mínimo, máximo] tal como están publicados.
+	const rangos = [...new Set(conPrecio.map((p) => p.moneda || 'USD'))].sort().reverse().map((m) => {
+		const precios = conPrecio.filter((p) => (p.moneda || 'USD') === m).map((p) => Number(p.precio));
+		return [dinero(Math.min(...precios), m), dinero(Math.max(...precios), m)];
+	});
+	const desde = rangos.length ? ` ${en ? 'from' : 'desde'} ${rangos.map((r) => r[0]).join(o)}${mes}` : '';
+	const rango = rangos.map(([a, b]) => (a === b ? `${en ? 'at' : 'en'} ${a}` : `${en ? 'from' : 'desde'} ${a} ${en ? 'to' : 'hasta'} ${b}`)).join(y) + mes;
+	const zonas = [...new Set(lista.map((p) => p.zona || p.ciudad).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+	const lista2 = new Intl.ListFormat(en ? 'en' : 'es', { type: 'conjunction' }).format(zonas);
+	const heading = `${l.nombre} ${en ? 'in' : 'en'} Guatemala`;
+	const faq = en ? [
+		rangos.length && { pregunta: `How much does ${n.enUn} ${l.op === 'renta' ? 'for rent ' : ''}cost in Guatemala?`, respuesta: `We currently list ${cuantos}, ${rango}.` },
+		zonas.length && { pregunta: `Where are the ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'}?`, respuesta: `Right now there are ${n.enN[1]} ${l.op === 'renta' ? 'for rent' : 'for sale'} in ${lista2}.` },
+		{ pregunta: `How do I visit ${n.enUn}?`, respuesta: 'Message us through the form or WhatsApp and we will schedule your visit, in person or by live video call.' }
+	] : [
+		rangos.length && { pregunta: `¿Cuánto cuesta ${n.un} ${l.op === 'renta' ? 'en renta' : 'en venta'} en Guatemala?`, respuesta: `Hoy tenemos ${cuantos}, ${rango}.` },
+		zonas.length && { pregunta: `¿Dónde hay ${l.nombre.toLowerCase()}?`, respuesta: `Hoy hay ${l.nombre.toLowerCase()} en ${lista2}.` },
+		{ pregunta: `¿Cómo visito ${n.un}?`, respuesta: 'Escríbenos por el formulario o por WhatsApp y coordinamos tu visita, presencial o por videollamada.' }
+	];
+	return {
+		path: l.url,
+		operacion: l.op,
+		tipo: l.tipo,
+		heading,
+		title: tituloCorto(nombre, heading, l.nombre),
+		description: en ? `${cuantos} in Guatemala${desde}. USD prices, live video tours and English-speaking support for buyers in the US.`
+			: `${cuantos} en Guatemala${desde}. Fotos, precios y asesoría personalizada para agendar tu visita presencial o por videollamada.`,
+		intro: en ? `${cuantos}${desde}. Can't find what you need? Tell us and we'll send you options that aren't listed yet.`
+			: `${cuantos}${desde}. Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.`,
+		faq: faq.filter(Boolean)
+	};
+}
+
 // Textos automáticos de una página de zona, escritos según lo que de verdad hay publicado en ella.
 // Lo que se edita en el panel (Contenido del sitio → Zonas) siempre gana sobre esto.
 function textosZona(z, lista, nombre, en = false) {
@@ -180,7 +241,7 @@ function textosZona(z, lista, nombre, en = false) {
 	const capital = ciudades.size === 1 && /^(ciudad de )?guatemala( city)?$/i.test([...ciudades][0]);
 	const lugar = /guatemala/i.test(z.nombre) ? z.nombre : `${z.nombre}, ${en && capital ? 'Guatemala City' : 'Guatemala'}`;
 	const n = z.total;
-	const titulo = (...c) => c.map((t) => `${t} | ${nombre}`).find((t) => t.length <= 60) || c[c.length - 1];
+	const titulo = (...c) => tituloCorto(nombre, ...c);
 	const resumen = resumenInventario(lista, en);
 	if (z.vacacional === n) {
 		return en ? {
@@ -288,6 +349,7 @@ function llmsTxt(ctx, properties, pages) {
 		`- [Todas las propiedades](${base}/propiedades/)`,
 		...[['venta', 'En venta'], ['renta', 'En renta'], ['vacacional', 'Renta vacacional por noche']].filter(([op]) => hay(properties, op)).map(([op, texto]) => `- [${texto}](${base}/propiedades/${op}/)`),
 		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
+		...ctx.landings.map((l) => `- [${l.nombre} en Guatemala](${base}${l.url})`),
 		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
 			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
@@ -573,6 +635,7 @@ async function main() {
 		enActivo,
 		altLang: enActivo ? (ruta) => altMap.get(ruta) || '/en/' : null,
 		zonas: buildZonas(properties),
+		landings: buildLandings(properties, new Set(pages.map((p) => p.url))),
 		mobileVariant: (url) => {
 			const m = /^\/images\/(.+)\.webp$/.exec(url || '');
 			return m && existsSync(path.join(ROOT, 'images', `${m[1]}-800.webp`)) ? `/images/${m[1]}-800.webp` : T.fotoAncho(url, 800);
@@ -617,6 +680,22 @@ async function main() {
 		await writePage(l.path, T.listingPage(ctx, l));
 		if (hay(properties, l.operacion)) urls.push({ path: l.path, priority: '0.9', lastmod: ultimaFecha(properties.filter((p) => !l.operacion || p.operacion === l.operacion)) });
 	}
+
+	// Páginas por tipo. La versión en inglés existe solo si ese tipo también tiene propiedades traducidas.
+	const landingsEn = enActivo ? buildLandings(propsEn, new Set(normalizePages(data.pagesEn, '/en').map((p) => p.url)), true) : [];
+	const parTipo = (l) => {
+		const es = ctx.landings.find((x) => x.tipo === l.tipo && x.op === l.op), en = landingsEn.find((x) => x.tipo === l.tipo && x.op === l.op);
+		return es && en ? { es: es.url, en: en.url } : null;
+	};
+	const escribirTipos = async (c, lista, en) => {
+		for (const l of lista) {
+			const deTipo = c.properties.filter((p) => p.operacion === l.op && p.tipo === l.tipo);
+			await writePage(l.url, T.listingPage(c, { ...textosTipo(l, deTipo, nombre, en), alternates: parTipo(l) }));
+			urls.push({ path: l.url, priority: '0.8', lastmod: ultimaFecha(deTipo) });
+		}
+	};
+	ctx.landings.map(parTipo).filter(Boolean).forEach((a) => registrarPar(a.es, a.en));
+	await escribirTipos(ctx, ctx.landings, false);
 
 	const zonaOpts = new Map();
 	for (const z of ctx.zonas) {
@@ -707,7 +786,8 @@ async function main() {
 			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
 			pages: pagesEn,
 			posts: postsEn,
-			zonas: buildZonas(propsEn, '/en/properties/')
+			zonas: buildZonas(propsEn, '/en/properties/'),
+			landings: landingsEn
 		};
 		ctxEn.agentsById = Object.fromEntries(ctxEn.agents.map((a) => [a.id, a]));
 		const LE = siteEn.listados || {};
@@ -729,6 +809,7 @@ async function main() {
 			await writePage(l.path, T.listingPage(ctxEn, l));
 			if (hay(propsEn, l.operacion)) urls.push({ path: l.path, priority: '0.9', lastmod: ultimaFecha(propsEn.filter((p) => !l.operacion || p.operacion === l.operacion)) });
 		}
+		await escribirTipos(ctxEn, landingsEn, true);
 		for (const z of ctxEn.zonas) {
 			const es = ctx.zonas.find((x) => x.nombre === z.nombre);
 			const alternates = es ? { es: es.url, en: z.url } : null;
