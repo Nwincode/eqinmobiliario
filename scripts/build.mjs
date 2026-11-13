@@ -341,6 +341,7 @@ function llmsTxt(ctx, properties, pages) {
 		`- [Todas las propiedades](${base}/propiedades/)`,
 		...[['venta', 'En venta'], ['renta', 'En renta'], ['vacacional', 'Renta vacacional por noche']].filter(([op]) => hay(properties, op)).map(([op, texto]) => `- [${texto}](${base}/propiedades/${op}/)`),
 		...ctx.zonas.map((z) => `- [Propiedades en ${z.nombre}](${base}${z.url})`),
+		...ctx.zonas.filter((z) => z.urlVac && z.urlVac !== z.url).map((z) => `- [Renta vacacional en ${z.nombre}](${base}${z.urlVac})`),
 		...ctx.landings.map((l) => `- [${l.nombre} en Guatemala](${base}${l.url})`),
 		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
 			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} habitaciones` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
