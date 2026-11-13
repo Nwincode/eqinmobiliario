@@ -376,7 +376,7 @@ function estadoBadge(p, inline = false) {
 	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
 }
 
-export function propertyCard(p, { lazy = true } = {}) {
+export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	const url = propertyUrl(p);
 	const data = [
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
@@ -386,7 +386,8 @@ export function propertyCard(p, { lazy = true } = {}) {
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	const t = TEXTOS[lng(p)];
 	// Hasta 8 fotos por tarjeta; solo la primera se descarga, el resto al primer gesto (js/site.js).
-	const fotos = (p.fotos || []).filter((f) => f && f.url).slice(0, 8);
+	// En la portada va una sola: ahí las flechas mueven el carrusel de tarjetas, no las fotos.
+	const fotos = (p.fotos || []).filter((f) => f && f.url).slice(0, unaFoto ? 1 : 8);
 	const varias = fotos.length > 1;
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
@@ -542,16 +543,16 @@ export function homePage(ctx) {
 				<div class="col">
 					<h2 class="font-weight-bold text-primary heading mb-0">${esc(s.destacadas.titulo)}</h2>
 				</div>
-				${slider.length > 3 ? `<div class="col-auto">${flechasCarrusel('property-nav', t)}</div>` : ''}
 			</div>
 			<div class="row">
 				<div class="col-12">
 					${slider.length <= 3 ? `<div class="row justify-content-center g-4 propiedades-pocas">
-						${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { lazy: false })}</div>`).join('\n')}
+						${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { lazy: false, unaFoto: true })}</div>`).join('\n')}
 					</div>` : `<div class="property-slider-wrap">
 						<div class="property-slider">
-							${slider.map((p, i) => propertyCard(p, { lazy: i > 2 })).join('\n')}
+							${slider.map((p, i) => propertyCard(p, { lazy: i > 2, unaFoto: true })).join('\n')}
 						</div>
+						${flechasCarrusel('property-nav', t)}
 					</div>`}
 				</div>
 			</div>
