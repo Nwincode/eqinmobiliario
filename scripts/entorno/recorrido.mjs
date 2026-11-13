@@ -323,12 +323,27 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	const seVe = (persona, texto) => persona.p.locator('.form-section', { hasText: texto }).first().isVisible().catch(() => false);
-	paso('Al socio (solo casas por noche) no se le piden impuestos de venta ni comisión acordada', !(await admin.p.locator('[data-campo="impuestoVenta"]').isVisible()) && !(await admin.p.locator('[data-campo="comisionPct"]').isVisible()) && !(await admin.p.locator('[data-campo="agentId"]').isVisible()) && await admin.p.locator('[data-campo="exclusiva"]').isVisible());
+	const enFicha = async (persona, campos) => { const v = []; for (const c of campos) if (await persona.p.locator(`[data-campo="${c}"]`).isVisible()) v.push(c); return v; };
+	const delAcuerdo = ['exclusiva', 'comisionPct', 'comisionRentaMeses', 'impuestoVenta', 'contrato'];
+	paso('Al socio (solo casas por noche) se le piden sus datos de pago, sin asesor ni acuerdo en su ficha', (await enFicha(admin, [...delAcuerdo, 'agentId'])).length === 0 && await admin.p.locator('[data-campo="datosPago"]').isVisible());
 	const idDueno = 'dueno-del-asesor';
 	const b = await propia(asesor, `#/propietarios/${idDueno}`, { titulo: 'Apartamento zona 10 (prueba)', zona: 'Zona 10', precio: '150000' }, 'nueva-propiedad-1280');
 	paso('El asesor crea una casa en venta para su propietario, a su nombre', b.casa.operacion?.stringValue === 'venta' && b.casa.propietarioId?.stringValue === idDueno
 		&& Boolean(b.casa.agentId?.stringValue) && b.casa.publicado?.booleanValue === false && !('vacacional' in b.casa), await avisos(asesor.p));
-	paso('Al propietario con una casa en venta sí se le piden', await asesor.p.locator('[data-campo="impuestoVenta"]').isVisible() && await asesor.p.locator('[data-campo="comisionPct"]').isVisible());
+	paso('La exclusiva, la comisión y los impuestos ya no se piden en la ficha de la persona', (await enFicha(asesor, delAcuerdo)).length === 0);
+	// Se acuerdan en cada inmueble: el asesor de la casa los llena en su ficha y quedan en privado.
+	await ir(asesor.p, `#/propiedades/${b.id}`);
+	const enCasa = await enFicha(asesor, ['acuerdo.exclusiva', 'acuerdo.comisionPct', 'acuerdo.impuestoVenta', 'acuerdo.comisionRentaMeses']);
+	await asesor.p.locator('[data-campo="acuerdo.exclusiva"] input').check();
+	await campo(asesor.p, 'acuerdo.exclusivaFin').fill('2027-03-31');
+	await campo(asesor.p, 'acuerdo.comisionPct').fill('4.5');
+	await campo(asesor.p, 'descripcion').fill('REGISTRO DE PRUEBA. Apartamento para probar el acuerdo con el dueño.');
+	await guardar(asesor.p);
+	const suAcuerdo = (await leer(`properties/${b.id}/privado/acuerdo`)).fields || {};
+	const publica = JSON.stringify((await leer(`properties/${b.id}`)).fields || {});
+	paso('El acuerdo de una casa en venta se llena en su ficha (sin comisión de renta) y se guarda en privado, no en la casa', enCasa.join() === 'acuerdo.exclusiva,acuerdo.comisionPct,acuerdo.impuestoVenta'
+		&& suAcuerdo.exclusiva?.booleanValue === true && suAcuerdo.exclusivaFin?.stringValue === '2027-03-31' && Number(suAcuerdo.comisionPct?.doubleValue ?? suAcuerdo.comisionPct?.integerValue ?? suAcuerdo.comisionPct?.stringValue) === 4.5
+		&& !/exclusiva|comisionPct|acuerdo/.test(publica), `${enCasa.join()} ${await avisos(asesor.p)}`);
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
@@ -346,8 +361,8 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click();
 	await espera(600);
 	const titulos = await admin.p.locator('.list-field .prop-zona').allInnerTexts();
-	paso('La misma ficha muestra sus casas por noche y la de venta, y pide lo de las dos', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
-		&& await admin.p.locator('[data-campo="impuestoVenta"]').isVisible() && await admin.p.locator('[data-campo="comisionPct"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
+	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
+		&& await admin.p.locator('[data-campo="agentId"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
 	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
@@ -366,6 +381,40 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await espera(600);
 	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.some((x) => /vacacional/i.test(x)) && halladas.length === 1
 		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
+	// Acuerdos anotados antes en la persona: al abrir Propietarios pasan a cada inmueble, sin escribir encima ni perder nada.
+	{
+		const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+		const sv = (v) => ({ stringValue: v }), bv = (v) => ({ booleanValue: v }), nv = (v) => ({ doubleValue: v });
+		const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields }) });
+		const lista = (ids) => ({ arrayValue: { values: ids.map((x) => ({ mapValue: { fields: { propertyId: sv(x) } } })) } });
+		const pronto = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+		const viejo = { exclusiva: bv(true), exclusivaFin: sv(pronto), comisionPct: nv(4), comisionRentaMeses: nv(2), impuestoVenta: sv('iva'), comisionRegimen: sv('pequeno') };
+		await poner('properties/leg-venta', { titulo: sv('Casa heredada en venta'), operacion: sv('venta'), propietarioId: sv('legado-dos'), publicado: bv(true), slug: sv('leg-venta') });
+		await poner('properties/leg-renta', { titulo: sv('Apartamento heredado en renta'), operacion: sv('renta'), propietarioId: sv('legado-dos'), publicado: bv(false) });
+		await poner('properties/leg-propia', { titulo: sv('Casa con acuerdo propio'), operacion: sv('venta'), propietarioId: sv('legado-dos'), publicado: bv(false) });
+		await poner('properties/leg-propia/privado/acuerdo', { exclusiva: bv(false), comisionPct: nv(9) });
+		await poner('propietarios/legado-dos', { nombre: sv('Dueña con acuerdo de antes'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-venta', 'leg-renta', 'leg-propia']), ...viejo });
+		await poner('propietarios/legado-solo', { nombre: sv('Dueño de antes sin casas'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista([]), exclusiva: bv(true), exclusivaFin: sv(pronto), comisionPct: nv(3) });
+		await ir(admin.p, '#/propietarios', 6000);
+		const aviso = await admin.p.locator('.alert-warning').first().innerText().catch(() => '');
+		const f = async (ruta) => (await leer(ruta)).fields || {};
+		const num = (x) => Number(x?.doubleValue ?? x?.integerValue ?? NaN);
+		const [venta, renta, propia, dos, solo] = await Promise.all([f('properties/leg-venta/privado/acuerdo'), f('properties/leg-renta/privado/acuerdo'), f('properties/leg-propia/privado/acuerdo'), f('propietarios/legado-dos'), f('propietarios/legado-solo')]);
+		paso('El acuerdo de antes pasa a cada inmueble con lo que le toca (venta: % e impuestos; renta: meses)', venta.exclusiva?.booleanValue === true && venta.exclusivaFin?.stringValue === pronto && num(venta.comisionPct) === 4 && venta.impuestoVenta?.stringValue === 'iva' && !('comisionRentaMeses' in venta)
+			&& renta.exclusiva?.booleanValue === true && num(renta.comisionRentaMeses) === 2 && !('comisionPct' in renta) && !('impuestoVenta' in renta), JSON.stringify(Object.keys(venta)) + JSON.stringify(Object.keys(renta)));
+		paso('No se escribe encima de un inmueble que ya tenía su acuerdo', num(propia.comisionPct) === 9 && propia.exclusiva?.booleanValue === false && !('exclusivaFin' in propia));
+		paso('De la persona se borra lo que ya pasó a sus inmuebles; quien no tiene casas conserva lo suyo', !('exclusiva' in dos) && !('comisionPct' in dos) && !('impuestoVenta' in dos) && dos.nombre?.stringValue === 'Dueña con acuerdo de antes'
+			&& solo.exclusiva?.booleanValue === true && num(solo.comisionPct) === 3, Object.keys(dos).join());
+		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
+		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
+		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
+		paso('Quien no tiene sesión no ve el acuerdo de una casa publicada', /Casa heredada/.test(sinSesion) && !/exclusiva|comisionPct/.test(sinSesion) && privadoSinSesion.status === 403, String(privadoSinSesion.status));
+		await ir(admin.p, '#/inicio', 5000);
+		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
+		await ir(admin.p, '#/propietarios/legado-solo');
+		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta/.test(await admin.p.locator('.alert-info').innerText().catch(() => '')));
+		for (const r of ['properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
+	}
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
 	await ir(admin.p, '#/propietarios/nuevo');
 	const visibles = [];
