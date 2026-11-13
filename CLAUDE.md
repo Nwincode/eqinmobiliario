@@ -7,6 +7,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Antes de programar algo nuevo, buscar si ya existe y reutilizarlo (CSS sobre todo; también JS y HTML).
   Precios, números, m² → sq ft y enlaces de WhatsApp salen de `admin/js/formato.js`.
 - Nada de parches encima de código viejo: si algo está mal, se arregla en su origen.
+- Cada dato con su formato, uno solo en todo el sistema: los teléfonos llevan código de país
+  (`admin/js/formato.js`: «+código número»); correos, fechas y montos se validan al entrar.
+  Antes de entregar un campo nuevo, Claude revisa qué puede escribir ahí alguien de otro país u otro caso.
 - Gastar pocos tokens: respuestas cortas y sin trabajo que no se pidió.
 
 ## Cómo se conversa

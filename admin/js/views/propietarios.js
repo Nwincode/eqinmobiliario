@@ -85,7 +85,7 @@ async function renderEditor(container, id) {
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		// El socio de renta vacacional atiende él mismo sus casas: no lleva asesor responsable.
 		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6, when: (d) => d.tipo !== 'socio' } : null,
-		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 6 },
+		{ name: 'telefono', label: 'Teléfono / WhatsApp', type: 'telefono', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },

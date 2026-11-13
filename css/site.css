@@ -189,6 +189,12 @@
 	padding: 28px;
 	box-shadow: 0 15px 40px -20px color-mix(in srgb, var(--eq-dark) 25%, transparent);
 }
+/* Código de país del teléfono: angosto, pegado al número. */
+.lf-codigo {
+	flex: 0 0 auto;
+	width: auto;
+	max-width: 8rem;
+}
 .lead-form .form-label {
 	font-size: 13px;
 	font-weight: 500;
