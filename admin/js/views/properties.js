@@ -651,6 +651,12 @@ export async function render(container, [id]) {
 	};
 	filtros.forEach((el) => el.addEventListener('input', draw));
 	draw();
+	// Las que quedaron sin inglés (anteriores a la traducción automática al guardar) se traducen solas.
+	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && !(p.en?.titulo && p.en?.descripcion));
+	if (sinIngles.length) {
+		enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
+			(k) => `${k} propiedad${k === 1 ? '' : 'es'} sin inglés: ya se tradujo sola. Recuerda publicar.`, sinIngles);
+	}
 	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
 	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
