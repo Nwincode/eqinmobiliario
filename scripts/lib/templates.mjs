@@ -560,7 +560,7 @@ export function homePage(ctx) {
 					<h1 class="heading">${esc(s.hero.titulo)}</h1>
 					<form action="${r.propiedades}" method="get" class="narrow-w form-search d-flex align-items-stretch mb-3" role="search">
 						<label class="visually-hidden" for="hero-q">${t.buscarPropiedades}</label>
-						<input id="hero-q" type="search" name="q" class="form-control px-4" placeholder="${esc(s.hero.placeholderBusqueda)}">
+						<input id="hero-q" type="search" name="q" autocomplete="off" class="form-control px-4" placeholder="${esc(s.hero.placeholderBusqueda)}">
 						<button type="submit" class="btn btn-primary">${ic('search')}${t.buscar}</button>
 					</form>
 				</div>
@@ -829,7 +829,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 				</div>` : ''}
 				<div class="col-12 col-md-6 col-lg-4">
 					<label class="form-label" for="f-q">${t.buscar}</label>
-					<input class="form-control" id="f-q" name="q" type="search" placeholder="${t.buscarPh}">
+					<input class="form-control" id="f-q" name="q" type="search" autocomplete="off" placeholder="${t.buscarPh}">
 				</div>
 				<div class="col-12 col-md-6 col-lg-4">
 					<label class="form-label" for="f-zona">${t.zona}</label>

@@ -5,7 +5,7 @@ import { h, mount, toast, errorMessage, pageHeader, downloadCsv, slugify, cajaTa
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn } from './properties.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -365,6 +365,8 @@ export async function render(container) {
 		const anotar = (clase, ic, texto, detalle) => registro.append(h('li', { class: `imp-log-${clase}` }, icono(ic), ' ', texto,
 			detalle?.length ? h('ul', { class: 'text-muted' }, detalle.map((d) => h('li', {}, d))) : null));
 
+		// Inglés al importar. Si el traductor falla, la fila no: se traduce sola al abrir Propiedades.
+		const enIngles = (d) => (faltaIngles(d) ? traducirEn(d).catch(() => null) : null);
 		for (const it of lista) {
 			const titulo = it.datos.titulo;
 			avanzar(`Importando ${hechas + 1} de ${lista.length}: ${titulo}`);
@@ -388,6 +390,8 @@ export async function render(container) {
 						cambios.historialPrecio = [...(p.historialPrecio || []), { precio, moneda, fecha: Timestamp.now() }];
 					}
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
+					const en = await enIngles({ ...p, ...cambios });
+					if (en) cambios.en = en;
 					await updateDoc(pref, cambios);
 					await guardarSocio(vac);
 					Object.assign(p, cambios);
@@ -401,6 +405,8 @@ export async function render(container) {
 					const d = { ...datosIniciales(), agentId: '', descripcion: '', ...it.datos, ...(vac ? vac.pub : {}) };
 					d.publicado = false;
 					d.slug = slugLibre(titulo, slugs);
+					const en = await enIngles(d);
+					if (en) d.en = en;
 					d.estado = estadoDe(d).valor;
 					d.estadoFecha = serverTimestamp();
 					d.historialEstado = [entradaHistorial(d.estado)];

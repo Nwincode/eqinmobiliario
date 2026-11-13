@@ -299,6 +299,7 @@ export function filaAPropiedad(fila, { opciones, agentes = [] }) {
 		else datos[campo] = n;
 	}
 	for (const c of ['zona', 'ciudad', 'direccion', 'descripcion']) if (txt(c)) datos[c] = txt(c);
+	if (/^\d+$/.test(datos.zona || '')) datos.zona = `Zona ${datos.zona}`; // "15" → "Zona 15"
 	if (txt('condominio_siglas')) datos.condominioSiglas = normalizarCodigo(txt('condominio_siglas')).replace(/-/g, '');
 	if (txt('amenidades')) datos.amenidades = parseLista(txt('amenidades'));
 	if (txt('video')) {

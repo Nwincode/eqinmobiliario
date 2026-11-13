@@ -24,7 +24,11 @@ const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 const enUSD = (precio, moneda) => (moneda === 'GTQ' ? n(precio) / TC : n(precio));
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
-const lugar = (p) => [p.direccion, p.zona, p.ciudad].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(', ');
+// ¿El texto `a` ya nombra a `b`? Compara sin acentos y por palabras completas ("zona 1" no es "zona 10").
+const nombra = (a, b) => new RegExp(`(^|[^a-z0-9])${sinAcentos(b).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(sinAcentos(a));
+// Quita las partes que otra ya dice ("Vista Hermosa, zona 15" + "Zona 15" → solo la primera).
+const sinRepetir = (partes) => partes.filter(Boolean).filter((x, i, a) => !a.some((y, j) => j !== i && nombra(y, x) && (j < i || !nombra(x, y))));
+const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');
 const url = (p) => (p.slug ? `${location.origin}/propiedad/${p.slug}/` : location.origin);
 
 // ------------------------------------------------------------ Leer un pedido escrito
@@ -259,7 +263,7 @@ function descripcion({ propiedad: p, notas = '' }) {
 	const donde = lugar(p);
 	const d = datosClave(p);
 	const amen = [...new Set([...(p.amenidades || []), ...amenidadesDe(notas)])];
-	const titulo = `${tipo} ${op} en ${p.direccion && p.direccion !== p.zona ? `${p.direccion}, ` : ''}${p.zona || p.ciudad || 'Guatemala'}`.slice(0, 70);
+	const titulo = `${tipo} ${op} en ${sinRepetir([p.direccion, p.zona]).join(', ') || p.ciudad || 'Guatemala'}`.slice(0, 70);
 	const parrafos = [
 		`${tipo} ${op} ubicada en ${donde || 'Guatemala'}.${d.length ? ` Cuenta con ${unir(d)}.` : ''}`,
 		String(notas || '').trim(),
@@ -327,12 +331,30 @@ function datosEn(p) {
 	return d;
 }
 const unirEn = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);
-const precioEn = (p) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(n(p.precio))}${p.operacion === 'renta' ? '/month' : ''}`;
+const OP_EN = { renta: 'for Rent', vacacional: 'for Vacation Rental' };
+const opEn = (p) => OP_EN[p.operacion] || 'for Sale';
+const precioEn = (p) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(n(p.precio))}${{ renta: '/month', vacacional: '/night' }[p.operacion] || ''}`;
 
-// Traductor automático gratuito (sin clave). Si falla, se usa la plantilla.
+// Título en inglés: tipo + operación + lugar, sin repetir la zona ni cortar palabras.
+export function tituloEn(p) {
+	// La dirección a veces empieza con el tipo en español ("Terreno camino…"): ya lo dice el título.
+	const es = (TIPO_ES[p.tipo] || '').split(' ')[0];
+	let sitio = sinRepetir([p.direccion, p.zona]).join(', ') || p.ciudad || 'Guatemala';
+	if (es) sitio = sitio.replace(new RegExp(`^[${es[0]}${es[0].toLowerCase()}]${es.slice(1)}\\s+(?=[a-záéíóúñ])`), '').replace(/^en\s+/, '');
+	const base = `${TIPO_EN[p.tipo] || 'Property'} ${opEn(p)} in `;
+	const partes = capital(sitio).split(/,\s*/);
+	while (partes.length > 1 && (base + partes.join(', ')).length > 90) partes.pop();
+	const t = base + partes.join(', ');
+	return t.length <= 90 ? t : t.slice(0, 90).replace(/\s+\S*$/, '');
+}
+
+// Traductor automático gratuito (sin clave). Si falla, se usa la plantilla y no se le vuelve a
+// preguntar por unos minutos: así una importación larga no espera en cada fila.
+let traductorCaidoHasta = 0;
 async function traductorLibre(texto) {
 	const limpio = String(texto || '').trim();
 	if (!limpio) return '';
+	if (Date.now() < traductorCaidoHasta) throw new Error('Traductor no disponible');
 	// El servicio acepta hasta ~500 caracteres por consulta: se traduce por oraciones agrupadas.
 	const bloques = [];
 	for (const parrafo of limpio.split(/\n{2,}/)) {
@@ -355,6 +377,9 @@ async function traductorLibre(texto) {
 			const txt = body?.responseData?.translatedText || '';
 			if (Number(body?.responseStatus) !== 200 || !txt || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(txt)) throw new Error('Traductor no disponible');
 			return txt.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+		} catch (err) {
+			traductorCaidoHasta = Date.now() + 5 * 60000;
+			throw err;
 		} finally { clearTimeout(timer); }
 	};
 	const out = [];
@@ -371,18 +396,22 @@ function descripcionPlantillaEn(p, amenEn) {
 	const tipo = TIPO_EN[p.tipo] || 'Property';
 	const d = datosEn(p);
 	return [
-		`${tipo} for ${p.operacion === 'renta' ? 'rent' : 'sale'} in ${lugar(p) || 'Guatemala'}.${d.length ? ` It features ${unirEn(d)}.` : ''}`,
+		`${tipo} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.${d.length ? ` It features ${unirEn(d)}.` : ''}`,
 		amenEn.length ? `**Amenities:**\n${amenEn.map((a) => `- ${a}`).join('\n')}` : '',
 		`Price: ${precioEn(p)}. Contact an advisor for full details or to schedule an in-person or live video tour.`
 	].filter(Boolean).join('\n\n');
 }
 
+// Título que armaba la regla anterior (repetía la zona y cortaba a 90 letras). Solo sirve para reconocer
+// los que quedaron guardados así y corregirlos; un título escrito por alguien no coincide.
+export const tituloEnViejo = (p) => `${TIPO_EN[p.tipo] || 'Property'} ${p.operacion === 'renta' ? 'for Rent' : 'for Sale'} in ${
+	p.direccion && p.direccion !== p.zona ? `${p.direccion}, ${p.zona || ''}` : p.zona || p.ciudad || 'Guatemala'}`.replace(/,\s*$/, '').slice(0, 90);
+
 async function traducir({ propiedad: p }) {
 	const tipo = TIPO_EN[p.tipo] || 'Property';
-	const op = p.operacion === 'renta' ? 'for Rent' : 'for Sale';
+	const op = opEn(p);
 	const amenidades = (p.amenidades || []).map(traducirAmenidad).map(capital);
-	const sitio = p.direccion && p.direccion !== p.zona ? `${p.direccion}, ${p.zona || ''}` : p.zona || p.ciudad || 'Guatemala';
-	const titulo = `${tipo} ${op} in ${sitio}`.replace(/,\s*$/, '').slice(0, 90);
+	const titulo = tituloEn(p);
 	let descripcion = '';
 	try {
 		descripcion = await traductorLibre(p.descripcion);

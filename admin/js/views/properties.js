@@ -9,6 +9,7 @@ import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
+import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
@@ -64,8 +65,15 @@ async function borrarFotos(p) {
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
 // Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
 // "fuente" guarda el texto en español traducido, para saber si cambió después.
-const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
-async function traducirEn(d) {
+export const fuenteEs = (d) => `${d.titulo || ''}\n${d.descripcion || ''}`;
+// ¿Hay que traducir? Falta el inglés, o el español cambió y el inglés no se corrigió a mano.
+export const faltaIngles = (d) => {
+	const en = d.en || {};
+	return Boolean(d.titulo) && (!String(en.titulo || '').trim() || (!en.manual && (!String(en.descripcion || '').trim() || en.fuente !== fuenteEs(d))));
+};
+// La dirección en inglés sale del título: al cambiarlo se guarda el anterior para redirigir.
+const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
+export async function traducirEn(d) {
 	const datos = { ...d };
 	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio;
 	delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
@@ -77,6 +85,7 @@ async function traducirEn(d) {
 			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
 		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
+		slugsAnteriores: titulosEnAnteriores(d.en, r.titulo),
 		fuente: fuenteEs(d),
 		manual: false
 	};
@@ -537,7 +546,7 @@ export async function render(container, [id]) {
 			}
 			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 			const en = d.en || {};
-			if (!String(en.titulo || '').trim() || !String(en.descripcion || '').trim() || (!en.manual && en.fuente !== fuenteEs(d))) cambios.en = await traducirEn(d);
+			if (faltaIngles(d)) cambios.en = await traducirEn(d);
 			if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
 		}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`, lista);
 	};
@@ -563,6 +572,7 @@ export async function render(container, [id]) {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
+					slugsAnteriores: titulosEnAnteriores(p.en, t.en.titulo),
 					fuente: fuenteEs(d), manual: false
 				};
 				await guardarMasa(cambios, cambios)(p);
@@ -654,10 +664,19 @@ export async function render(container, [id]) {
 	// Las que quedaron sin inglés (anteriores a la traducción automática al guardar) se traducen solas.
 	// No se repite sobre el mismo texto (en.fuente) ni toca el inglés corregido a mano.
 	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && !(p.en?.titulo && p.en?.descripcion) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
-	if (sinIngles.length) {
-		enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
-			(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. Recuerda publicar.`, sinIngles);
-	}
+	const traducidas = enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
+		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. Recuerda publicar.`, sinIngles);
+	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
+	const tituloMalo = props.filter((p) => canEdit(p) && p.en?.titulo && p.en?.descripcion && !p.en.manual && !sinIngles.includes(p)
+		&& p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p));
+	traducidas.then(() => enMasa(async (p) => {
+		const titulo = tituloEn(p);
+		const vip = p.en.vipLanding;
+		const en = { ...p.en, titulo, slugsAnteriores: titulosEnAnteriores(p.en, titulo),
+			...(vip?.titular === p.en.titulo ? { vipLanding: { ...vip, titular: titulo } } : {}) };
+		await guardarMasa({ en }, { en })(p);
+	}, 'Títulos en inglés corregidos',
+		(k) => `${k === 1 ? '1 título en inglés se corrigió solo' : `${k} títulos en inglés se corrigieron solos`}. Recuerda publicar.`, tituloMalo));
 	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
 	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
@@ -963,7 +982,7 @@ async function renderEditor(container, id) {
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
 		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
-		const traducirAhora = Boolean(d.titulo) && (!String(d.en.titulo || '').trim() || (!d.en.manual && d.en.fuente !== fuenteEs(d)));
+		const traducirAhora = faltaIngles(d);
 		if (!d.vip && d.titulo) llenarSeo(d);
 		llenarAltFotos(d);
 		btn.disabled = true;

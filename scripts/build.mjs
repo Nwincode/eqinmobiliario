@@ -489,6 +489,15 @@ function redirects(ctx, todas = ctx.properties) {
 				add(`/vip/${s}/`, url);
 			}
 		}
+		// Títulos anteriores en inglés (la dirección en inglés sale del título).
+		const en = ctx.enActivo && propiedadEn(p);
+		for (const old of (en && p.en.slugsAnteriores) || []) {
+			const s = slugify(old);
+			if (s && s !== en.slug) {
+				add(`/en/property/${s}/`, T.propertyUrl(en));
+				add(`/en/luxury/${s}/`, T.propertyUrl(en));
+			}
+		}
 	}
 	for (const r of ctx.site.seo.redirecciones || []) {
 		const from = String(r.desde || '').trim();
