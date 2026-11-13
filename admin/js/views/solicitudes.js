@@ -73,7 +73,7 @@ export async function render(container, [codigo] = []) {
 	const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago' };
 	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar.
 	const RAPIDAS = ['Sí, está disponible en esas fechas.', 'Lo siento, esas fechas ya no están disponibles.', '¿A qué hora piensan llegar?', 'Ya recibí tu pago, ¡gracias!'];
-	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: el contacto se entrega al confirmar.
+	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: todo se coordina aquí.
 	async function abrirChat(l) {
 		const ref = refChat(l);
 		const mensajes = collection(db, 'chats', ref.id, 'mensajes');
@@ -106,7 +106,7 @@ export async function render(container, [codigo] = []) {
 			e.preventDefault();
 			let texto = campo.value.trim();
 			if (!texto) return;
-			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces. El contacto se entrega al confirmar la reserva.', 'warning');
+			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
 			try {
 				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
 				if (traducir) texto = `${await traductorLibre(texto, 'es|en')}\n(${texto})`.slice(0, 1000);

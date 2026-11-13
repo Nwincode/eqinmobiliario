@@ -236,10 +236,13 @@
 				delete lead.propietarioId;
 				return saveLead(lead);
 			}).then(function () {
-				avisarEquipo(lead);
 				// Chat de la reserva: si no se pudo abrir, la solicitud igual quedó guardada.
 				var chat = reserva && window.EQChat ? window.EQChat.crear(lead, reserva.datos).catch(function () { return ''; }) : Promise.resolve('');
-				return chat.then(done);
+				return chat.then(function (token) {
+					// Reserva con chat: avisos al socio, al equipo y al cliente con su enlace. Lo demás, el aviso de siempre al equipo.
+					if (token) window.EQChat.avisar(token); else avisarEquipo(lead);
+					done(token);
+				});
 			}, fail).then(function () { button.disabled = false; });
 		});
 	});
