@@ -41,7 +41,10 @@ export const REGLAS = {
 		aplica: () => true,
 		campos: [
 			['nombre', 'Nombre', (p) => vacio(p.nombre)],
-			['telefono', 'Teléfono o correo', (p) => vacio(p.telefono) && vacio(p.email)]
+			['telefono', 'Teléfono o correo', (p) => vacio(p.telefono) && vacio(p.email)],
+			// Socio de renta vacacional: sin correo no se entera de las solicitudes y sin datos de pago no puede confirmarlas.
+			['email', 'Correo (para avisarle de las solicitudes)', (p) => p.tipo === 'socio' && vacio(p.email)],
+			['datosPago', 'Datos de pago para reservas', (p) => p.tipo === 'socio' && vacio(p.datosPago)]
 		]
 	},
 	asesores: {

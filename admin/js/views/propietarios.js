@@ -41,7 +41,7 @@ async function renderLista(container) {
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
+		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : p.tipo === 'socio' ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(p)),
 		h('td', { class: 'small' }, p.comisionPct ? `${p.comisionPct} %` : h('span', { class: 'text-muted' }, `${reglas.comisionVentaPct} % (general)`)),
@@ -77,14 +77,16 @@ async function renderEditor(container, id) {
 	const opcionesProp = [['', 'Elegir propiedad…'], ...propiedades.map((p) => [p.id, p.titulo])];
 	const form = renderForm([
 		// Quién nos dio el inmueble: su dueño, o un asesor de otra oficina que lo comparte con nosotros.
-		{ name: 'tipo', label: 'Es', type: 'select', options: [['propietario', 'Propietario (dueño)'], ['colaborador', 'Asesor colaborador (nos pasó el inmueble)']], default: 'propietario', cols: 6,
-			help: 'Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
+		{ name: 'tipo', label: 'Es', type: 'select', default: 'propietario', cols: 6, options: [
+			['propietario', 'Propietario (vende o renta su inmueble)'], ['socio', 'Socio de renta vacacional (atiende sus casas por noche)'],
+			['colaborador', 'Asesor colaborador (nos pasó el inmueble)']],
+			help: 'Socio: necesita correo (ahí le llegan las solicitudes) y datos de pago. Colaborador: su comisión acordada es la parte que comparte con nosotros.' },
 		{ name: 'empresa', label: 'Empresa o inmobiliaria', cols: 6, when: (d) => d.tipo === 'colaborador' },
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		session.isAdmin ? { name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentes, cols: 6 } : null,
 		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
-		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
+		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: (d) => d.tipo === 'socio', placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
 		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
 			{ name: 'propertyId', label: 'Propiedad', type: 'select', options: opcionesProp, cols: 8 },

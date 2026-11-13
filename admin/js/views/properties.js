@@ -845,7 +845,7 @@ async function renderEditor(container, id) {
 	const isNew = id === 'nuevo';
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
 	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
-	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : p.nombre])];
+	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : p.tipo === 'socio' ? `${p.nombre} (socio)` : p.nombre])];
 	if (!isNew && !snap.exists()) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -1027,6 +1027,8 @@ async function renderEditor(container, id) {
 			if (dueno && !(dueno.propiedades || []).some((x) => x.propertyId === ref.id)) {
 				await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: ref.id }) });
 			}
+			// Quien tiene una casa por noche es socio: su ficha pasa a pedir correo y datos de pago.
+			if (dueno && esVacacional(d) && dueno.tipo !== 'socio') await updateDoc(doc(db, 'propietarios', dueno.id), { tipo: 'socio' });
 			// Si se cambió o se quitó, sale de la lista del anterior (cuando lo llevo yo).
 			const anterior = data.propietarioId && data.propietarioId !== d.propietarioId && propietarios.find((p) => p.id === data.propietarioId);
 			if (anterior) await updateDoc(doc(db, 'propietarios', anterior.id), { propiedades: (anterior.propiedades || []).filter((x) => x.propertyId !== ref.id) });
