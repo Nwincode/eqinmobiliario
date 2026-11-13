@@ -142,6 +142,22 @@ function fileInput(multiple, onFiles) {
 	return input;
 }
 
+// Teléfono con su código de país, para cualquier formulario del panel. Se guarda como «+código número» (formato.js).
+// Devuelve el grupo (código + número); `.valor()` da el teléfono listo para guardar.
+export function campoTelefono(valor, { onChange, required = false, placeholder, disabled = false } = {}) {
+	const { codigo, numero } = partirTelefono(valor);
+	const sel = h('select', { class: 'form-select campo-codigo', 'aria-label': 'Código de país' },
+		CODIGOS_PAIS.map(([c, pais]) => h('option', { value: c }, `+${c} ${pais}`)), codigo ? null : h('option', { value: '' }, 'Otro'));
+	sel.value = codigo;
+	const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required, placeholder });
+	num.value = numero;
+	const grupo = h('div', { class: 'input-group' }, sel, num);
+	grupo.valor = () => unirTelefono(sel.value, num.value);
+	if (onChange) { sel.addEventListener('change', () => onChange(grupo.valor())); num.addEventListener('input', () => onChange(grupo.valor())); }
+	if (disabled) { sel.disabled = true; num.disabled = true; }
+	return grupo;
+}
+
 export function renderForm(schema, data, options = {}) {
 	const state = clonar(data || {});
 	const folder = options.folder || 'uploads';
@@ -416,21 +432,9 @@ export function renderForm(schema, data, options = {}) {
 				break;
 			}
 
-			// Teléfono con su código de país; se guarda como «+código número» (formato.js).
-			case 'telefono': {
-				const { codigo, numero } = partirTelefono(get());
-				const sel = h('select', { class: 'form-select campo-codigo', 'aria-label': 'Código de país' },
-					CODIGOS_PAIS.map(([c, pais]) => h('option', { value: c }, `+${c} ${pais}`)), codigo ? null : h('option', { value: '' }, 'Otro'));
-				sel.value = codigo;
-				const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required: field.required, placeholder: field.placeholder });
-				num.value = numero;
-				const guardar = () => set(unirTelefono(sel.value, num.value));
-				sel.addEventListener('change', guardar);
-				num.addEventListener('input', guardar);
-				if (field.disabled) { sel.disabled = true; num.disabled = true; }
-				control = h('div', { class: 'input-group' }, sel, num);
+			case 'telefono':
+				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
 				break;
-			}
 
 			default:
 				control = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });

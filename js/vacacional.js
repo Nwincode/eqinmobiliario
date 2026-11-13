@@ -364,6 +364,14 @@
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;
+				// El precio de la tarjeta pasa a ser el total de esas fechas (con limpieza e impuestos), que es lo que se compara.
+				var c = d.plan ? V.cotizarEstancia({ plan: d.plan, llegada: q.llegada, salida: q.salida, limpieza: d.limpieza }) : null;
+				var precio = col.querySelector('.price span');
+				if (c && c.total > 0 && precio) {
+					precio.textContent = buscar.getAttribute(c.noches === 1 ? 'data-total1' : 'data-totaln')
+						.replace('{total}', (d.moneda === 'GTQ' ? 'Q ' : 'US$ ') + c.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+						.replace('{n}', c.noches);
+				}
 				Array.prototype.forEach.call(col.querySelectorAll('a[href]'), function (a) {
 					a.href = a.pathname + '?llegada=' + q.llegada + '&salida=' + q.salida + '&huespedes=' + q.huespedes;
 				});

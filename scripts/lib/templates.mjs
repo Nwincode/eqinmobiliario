@@ -420,7 +420,7 @@ export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
 		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${porNoche(p) ? '' : p.direccion} ${tipoLabel(p)}`.toLowerCase()],
-		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos }) => ({ bloqueos, huespedesMax, nochesMin, minimos }))(datosVacacional(p)))]] : [])
+		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	const t = TEXTOS[lng(p)];
 	// Hasta 8 fotos por tarjeta; solo la primera se descarga, el resto al primer gesto (js/site.js).
@@ -793,7 +793,7 @@ function chips(col, titulo, name, opciones, sel = '') {
 function vacBuscador(ctx, list) {
 	const t = tr(ctx);
 	const max = Math.max(2, ...list.map((p) => datosVacacional(p).huespedesMax));
-	return `<form class="vac-buscar" id="vac-buscar" role="search" aria-label="${t.vlBuscar}">
+	return `<form class="vac-buscar" id="vac-buscar" data-total1="${esc(t.vlTotal1)}" data-totaln="${esc(t.vlTotalN)}" role="search" aria-label="${t.vlBuscar}">
 				${ic('calendar')}
 				<div class="vac-buscar-campos">
 					<span class="vac-buscar-fechas">
