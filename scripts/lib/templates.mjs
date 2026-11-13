@@ -479,9 +479,7 @@ function agentBox(ctx, agent, property) {
 	if (!agent) return '';
 	const t = tr(ctx);
 	const msg = property ? fmt(t.msgAsesor, { nombre: agent.nombre, titulo: property.titulo }) : '';
-	// Renta vacacional que se ofrece: el WhatsApp lleva al cuadro de reserva (deja la solicitud con fechas y código).
-	const reserva = vacacionalVisible(property) && estadoDe(property).visibilidad !== 'cerrada';
-	const wa = reserva ? RESERVA : whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
+	const wa = whatsappLink(agent.whatsapp || ctx.site.contacto.whatsapp, msg);
 	return `<div class="d-block agent-box p-4">
 						<div class="img mb-3"><img src="${esc(agent.foto || '/images/person_1-min.webp')}" alt="${esc(agent.nombre)}" class="img-fluid" loading="lazy" width="80" height="80"></div>
 						<div class="text">
@@ -489,8 +487,8 @@ function agentBox(ctx, agent, property) {
 							<div class="meta mb-3">${esc(agent.cargo || t.asesorInmobiliario)}</div>
 							${agent.bio ? `<p>${esc(agent.bio)}</p>` : ''}
 							<ul class="list-unstyled d-flex flex-wrap gap-2 mb-0">
-								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico"${reserva ? '' : ' target="_blank" rel="noopener" data-track="Contact"'} aria-label="${reserva ? t.vacReservar : 'WhatsApp'}">${ic('whatsapp')}</a></li>` : ''}
-								${agent.email && !reserva ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
+								${wa ? `<li><a href="${esc(wa)}" class="btn btn-success btn-ico" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}</a></li>` : ''}
+								${agent.email ? `<li><a href="mailto:${esc(agent.email)}" class="btn btn-outline-primary btn-ico" data-track="Contact" aria-label="${t.correoBtn}">${ic('envelope-o')}</a></li>` : ''}
 							</ul>
 						</div>
 					</div>`;
@@ -1329,11 +1327,12 @@ export function propertyPage(ctx, p) {
 		<div class="flb-fotos" hidden>${fotos.map((f, i) => `<span data-src="${esc(f.url)}" data-alt="${esc(photoAlt(p, i))}"></span>`).join('')}</div>
 	</dialog>`;
 
-	// Precio, acción y asesor. En renta vacacional va justo después del precio y los datos, para que en
+	// Precio, acción y asesor (la casa por noche no muestra asesor: la atiende su anfitrión por la reserva).
+	// En renta vacacional va justo después del precio y los datos, para que en
 	// celular el calendario quede arriba; en computadora sigue siendo la columna derecha.
 	const lateral = `<aside class="col-lg-4">
 					<div class="ficha-contacto${esVac ? '' : ' ficha-contacto-corta'}">
-						${esVac ? reservaBox(ctx, p) + agentBox(ctx, agent, p) : cerrada
+						${esVac ? reservaBox(ctx, p) : cerrada
 							? agentBox(ctx, agent, p) + `<div class="lead-card" id="ficha-form">${leadForm({ origen: 'propiedad', property: p, agentId: p.agentId, titulo: t.buscasParecida, boton: t.quieroInfo, lang: ctx.lang, mensaje: waMsg })}</div>`
 							: visitaBox(ctx, p, agent)}
 						${shareButtons(ctx, p)}

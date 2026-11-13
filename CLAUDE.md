@@ -11,6 +11,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 
 ## Cómo se conversa
 - Si el usuario pregunta algo, responder primero y directo (sí/no y por qué); después lo demás.
+- Proactivo siempre, nunca una respuesta para salir del paso: si el usuario se topa con algo que no cuadra
+  (un dato que el sistema pide de más, un paso repetido, algo que no tiene sentido), Claude no le explica
+  cómo saltarlo: busca por qué pasa, dice qué está mal y lo arregla en su origen.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - La compactación del contexto es automática (autocompact); no se hace a mano. Antes de que ocurra:
   commit y push de lo hecho. Se sigue en el mismo chat.

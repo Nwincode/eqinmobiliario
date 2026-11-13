@@ -18,6 +18,7 @@ import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
 import { sinTildes } from '../cotizacion.js';
+import { loadPropietarios } from '../crm.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -712,7 +713,7 @@ export async function render(container, [id]) {
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 
-function schema(agentOpts, isNew) {
+function schema(agentOpts, isNew, socioOpts) {
 	const vip = (d) => Boolean(d.vip);
 	return [
 		{ type: 'section', label: 'Datos principales' },
@@ -723,7 +724,10 @@ function schema(agentOpts, isNew) {
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
 		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
 		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
-		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin },
+		// Renta vacacional: la atiende su socio; el asesor sale solo de la ficha del socio y no se pregunta.
+		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin, when: (d) => !esVacacional(d) },
+		{ name: 'propietarioId', label: 'Socio (dueño de la casa)', type: 'select', options: socioOpts, cols: 3, when: esVacacional,
+			help: 'Se crea una sola vez en Propietarios: de ahí salen su asesor, su correo para los avisos y sus datos de pago.' },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
@@ -752,8 +756,6 @@ function schema(agentOpts, isNew) {
 		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
 		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
-		{ name: 'socio.nombre', label: 'Nombre del socio', cols: 6, when: esVacacional, help: 'Privado: no sale en la página.' },
-		{ name: 'socio.telefono', label: 'Teléfono del socio', type: 'tel', cols: 6, when: esVacacional, help: 'Privado.' },
 		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
 		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de Airbnb)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
 			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
@@ -840,7 +842,8 @@ function schema(agentOpts, isNew) {
 async function renderEditor(container, id) {
 	const isNew = id === 'nuevo';
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
-	const [snap, agentOpts, all] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll()]);
+	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
+	const socioOpts = [['', 'Elegir socio…'], ...propietarios.map((p) => [p.id, p.nombre])];
 	if (!isNew && !snap.exists()) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -866,7 +869,7 @@ async function renderEditor(container, id) {
 
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
-	const form = renderForm(schema(agentOpts, isNew), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts), datosForm, { folder: `properties/${ref.id}` });
 	const slugInput = schema.slugInput;
 	slugInput.addEventListener('input', () => { slugTouched = true; });
 	form.el.querySelector('input')?.addEventListener('input', (e) => {
@@ -936,7 +939,12 @@ async function renderEditor(container, id) {
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
+		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
+		const dueno = esVacacional(d) ? propietarios.find((p) => p.id === d.propietarioId) : null;
 		if (esVacacional(d)) {
+			if (!dueno) return toast('Elige el socio de la casa. Si todavía no existe, créalo en Propietarios.', 'warning');
+			if (dueno.agentId) d.agentId = dueno.agentId;
+			Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			Object.assign(d, vacacionalPublico({ ...d, socio }));
 		} else {
@@ -1006,6 +1014,12 @@ async function renderEditor(container, id) {
 					updatedAt: serverTimestamp(), updatedBy: session.user.uid
 				});
 			}
+			// La casa queda también en la lista del socio (y sale de la del anterior, si cambió).
+			if (dueno && !(dueno.propiedades || []).some((x) => x.propertyId === ref.id)) {
+				await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: [...(dueno.propiedades || []), { propertyId: ref.id }] });
+			}
+			const anterior = dueno && data.propietarioId && data.propietarioId !== dueno.id && propietarios.find((p) => p.id === data.propietarioId);
+			if (anterior) await updateDoc(doc(db, 'propietarios', anterior.id), { propiedades: (anterior.propiedades || []).filter((x) => x.propertyId !== ref.id) });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
