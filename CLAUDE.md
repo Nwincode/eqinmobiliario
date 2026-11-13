@@ -12,8 +12,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 ## Cómo se conversa
 - Si el usuario pregunta algo, responder primero y directo (sí/no y por qué); después lo demás.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
-- Al 15 % de uso del contexto: commit y push de lo hecho, y `/compact` dejando claro qué se pidió,
-  qué quedó y qué falta. Se sigue en el mismo chat. (`.claude/settings.json` lo hace automático.)
+- La compactación del contexto es automática (autocompact); no se hace a mano. Antes de que ocurra:
+  commit y push de lo hecho. Se sigue en el mismo chat.
 
 ## Diseño
 - Lo hace Claude directo, sin agentes de diseño ni agentes revisores.
