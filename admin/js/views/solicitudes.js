@@ -237,13 +237,16 @@ export async function render(container, [codigo] = []) {
 
 	async function cancelar(l) {
 		const r = l.reserva;
+		// La reserva se busca por la solicitud o por su código: el socio no lee la solicitud, solo su chat.
+		const reserva = reservaDe(l);
+		if (!reserva) return toast('No encontramos la reserva de esta solicitud. Avísale al administrador.', 'danger');
 		const motivo = await pedirMotivo(`¿Por qué se cancela ${r.codigo}?`, MOTIVOS_CANCELAR);
 		if (!motivo) return;
 		await hacer(async () => {
 			const refCasa = doc(db, 'properties', l.propertyId);
 			const p = (await getDoc(refCasa)).data();
 			const lote = writeBatch(db);
-			lote.update(doc(db, 'reservas', l.solicitud.reservaId), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
+			lote.update(doc(db, 'reservas', reserva.id), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
 			lote.update(refCasa, { 'vacacional.reservadas': V.liberarNoches(p.vacacional?.reservadas, r.llegada, r.salida), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
 			if (refChat(l)) cerrarChat(lote, l, 'cancelada', 'La reserva se canceló.');

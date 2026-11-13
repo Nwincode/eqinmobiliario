@@ -188,6 +188,56 @@ await otro.p.reload();
 await espera(2500);
 paso('Ese cliente ve «No disponible» y el mensaje', /No disponible/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText()));
 
+// ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
+const FS = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
+const leer = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).json();
+const reservadas = async () => JSON.stringify((await leer(`properties/${idCasa}`)).fields.vacacional.mapValue.fields.reservadas || {});
+const tercero = await persona(390);
+await tercero.p.goto(`${SITIO}${ficha}`);
+await espera(1500);
+await tercero.p.locator('.vac-cal-next').click();
+await espera(400);
+const libres3 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
+await libres3().nth(12).click();
+await libres3().nth(14).click();
+await tercero.p.fill('.vac-card [name=nombre]', 'Marta Tercera');
+await tercero.p.fill('.vac-card [name=telefono]', '5555 4321');
+await tercero.p.fill('.vac-card [name=email]', 'marta@example.com');
+await tercero.p.locator('.vac-card button[type=submit]').click();
+await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
+await espera(1500);
+const codigo3 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();
+const llegada3 = (await leer(`chats/${(tercero.p.url().match(/#(\w+)/) || [])[1]}`)).fields?.llegada?.stringValue || '';
+await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
+await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Confirmada' }).click();
+await espera(800);
+await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
+await espera(4000);
+paso('El socio confirma una tercera reserva y las fechas quedan ocupadas', Boolean(llegada3) && (await reservadas()).includes(llegada3), codigo3);
+await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Cancelar' }).click();
+await espera(800);
+await socio.p.locator('.modal button', { hasText: 'Cliente canceló' }).click();
+await espera(4500);
+paso('El socio cancela esa reserva (el cliente no pagó)', /Cancelada/.test(await socio.p.locator('.card', { hasText: codigo3 }).first().locator('.badge').first().innerText().catch(() => '')), await avisos(socio.p));
+paso('Las fechas canceladas vuelven a quedar libres', !(await reservadas()).includes(llegada3));
+await tercero.p.reload();
+await espera(2500);
+paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
+
+// ---------------------------------------------------------------- 4d. El control de cada hora (lo que el socio deja sin responder)
+{
+	const hace = (min) => ({ timestampValue: new Date(Date.now() - min * 60_000).toISOString() });
+	const sv = (v) => ({ stringValue: v });
+	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	const hoy = new Date().toISOString().slice(0, 10), manana = new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10);
+	// Una solicitud sin responder hace 2 h 30 min y un chat donde el cliente escribió hace 2 h 30 min.
+	await poner('leads/vieja', { nombre: sv('Rita Vieja'), telefono: sv('+502 5555 1111'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), createdAt: hace(150),
+		reserva: { mapValue: { fields: { codigo: sv('EQ-VIEJA'), llegada: sv(hoy), salida: sv(manana), huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 } } } } });
+	await poner('chats/TokenDelChatSinResponder1234', { codigo: sv('EQ-MUDO'), nombre: sv('Rita'), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), llegada: sv(hoy), salida: sv(manana), huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 }, createdAt: hace(200) });
+	await poner('chats/TokenDelChatSinResponder1234/mensajes/m1', { de: sv('cliente'), texto: sv('¿Hay alguien?'), createdAt: hace(150) });
+	execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
+}
+
 // ---------------------------------------------------------------- 5. Lo que ve el equipo y los correos
 await ir(admin.p, `#/solicitudes/${codigo}`, 3500);
 paso('El administrador sí ve el nombre completo del cliente', /Ana Prueba/.test(await admin.p.locator('.admin-main').innerText()));
@@ -198,6 +248,10 @@ paso('Correo al socio por la solicitud nueva', resumen.some((r) => /socio@exampl
 paso('Correo al cliente con su enlace', resumen.some((r) => /ana@example\.com ← Tu solicitud/.test(r)));
 paso('Correo al cliente con la confirmación (datos de pago)', resumen.some((r) => /ana@example\.com ← .*confirmada/.test(r)));
 paso('Correo al socio cuando el cliente adjunta su comprobante', resumen.some((r) => /socio@example\.com ← .*comprobante/.test(r)));
+paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@example\.com ← .*cancelada/.test(r)));
+const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
+paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
+paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) && !/wa\.me/.test(JSON.stringify(alerta)) && /admin\/#\/solicitudes\/EQ-VIEJA/.test(JSON.stringify(alerta)));
 paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no disponible/.test(r)));
 paso('Correo al cliente con el pago recibido (datos de llegada)', resumen.some((r) => /ana@example\.com ← .*pago recibido/.test(r)));
 paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos.some((c) => /305 555 1234|5555 0001/.test(JSON.stringify(c)) || (para(c).includes('socio@') && /ana@example/.test(JSON.stringify({ ...c, to: '' })))));
@@ -210,7 +264,7 @@ paso('El asesor abre la ficha de un inmueble y ve solo sus propietarios', opcion
 await ir(asesor.p, '#/solicitudes');
 paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await asesor.p.locator('.admin-main').innerText().catch(() => '')));
 
-for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
+for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();

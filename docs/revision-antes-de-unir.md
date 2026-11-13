@@ -21,6 +21,8 @@ agrega aquí en el mismo cambio que lo corrige.
 | «Pago recibido» se dio por probado con dos pasos sueltos; el panel lo mandaba junto y las reglas lo rechazaban. | Se prueba el camino real que usa la persona, no una imitación. En un lote, las reglas ven el estado anterior. |
 | Al confirmar una reserva no salía el correo al cliente: el recorrido imitaba al panel y nunca pasó por ese botón. | El recorrido usa los botones reales del panel y revisa los correos que habrían salido. |
 | Una foto ya subida se podía reemplazar (la regla decía «crear», pero no exigía que no existiera). | En reglas de Storage, «crear» lleva `resource == null`; probar también reemplazar y borrar. |
+| «Cancelar» del socio dejó de funcionar al cambiar de dónde lee sus solicitudes: se corrigió un lugar que usaba el dato y no el otro. | Al cambiar la forma de un dato, buscar **todos** los usos de cada campo que desaparece, y recorrer cada botón de esa pantalla con ese rol. |
+| Una función nueva dentro de un control que ya existía podía, al fallar, callar la alerta de siempre. | Lo nuevo que se agrega a un proceso que ya avisa va aislado: su falla se registra y no detiene lo anterior. |
 | El panel se probó solo como administrador. | Cada rol que toca el cambio: administrador, asesor, socio y visitante sin sesión. |
 | Las pruebas de las reglas vivían en una carpeta temporal y se iban a perder. | Toda prueba que sirvió para confiar en un cambio se guarda en el repositorio. |
 | Se quiso forzar o esconder un error para seguir. | El error se entiende y se arregla en su origen; no se tapa. |
