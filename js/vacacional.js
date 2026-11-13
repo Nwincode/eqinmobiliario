@@ -302,7 +302,7 @@
 						fechas: fDia.format(fechaUTC(estado.llegada)) + ' – ' + fDia.format(fechaUTC(estado.salida)),
 						huespedes: n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n }), total: dinero(c.total)
 					}) + '\n' + location.origin + '/admin/#/solicitudes/' + codigo,
-					abrir: t.vacAbrirWa,
+					abrir: t.vacAbrirWa, ver: t.vacChatVer, enlace: t.vacChatEnlace,
 					datos: {
 						codigo: codigo, llegada: estado.llegada, salida: estado.salida, noches: c.noches, huespedes: n,
 						subtotal: c.subtotal, impuestos: c.impuestos, total: c.total, deposito: c.deposito, moneda: D.moneda || 'USD'

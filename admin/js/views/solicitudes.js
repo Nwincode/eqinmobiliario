@@ -3,7 +3,7 @@
 // Comisión: el socio la paga a EQ el día de llegada y sube su comprobante; solo el administrador la marca pagada.
 // Nada se borra: cada respuesta queda en el historial con quién y cuándo.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, updateDoc, collection, query, where, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
+import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
 import { session, markPending } from '../session.js';
 import { whatsappUrl, nNoches } from '../formato.js';
@@ -51,10 +51,41 @@ const respuesta = (nuevo, que, extra = {}) => ({
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, propietarios, casas, reservas] = await Promise.all([
+	const [snap, chatsSnap, propietarios, casas, reservas] = await Promise.all([
 		getDocs(query(collection(db, 'leads'), admin ? where('reserva.codigo', '>', '') : where('propietarioId', '==', mio))),
+		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
+		getDocs(admin ? collection(db, 'chats') : query(collection(db, 'chats'), where('propietarioId', '==', mio))),
 		admin ? loadPropietarios() : [], admin ? loadPropiedades() : [],
 		admin ? loadReservas() : getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))]);
+	const chats = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.id]));
+	const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
+	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: el contacto se entrega al confirmar.
+	async function abrirChat(l) {
+		const mensajes = collection(db, 'chats', chats[l.reserva.codigo], 'mensajes');
+		const yo = admin ? 'equipo' : 'socio';
+		// Mismas burbujas del asistente de IA (admin.css): las mías a la derecha.
+		const lista = h('div', { class: 'ia-chat-log mb-3' });
+		const cargar = async () => {
+			const s = await getDocs(query(mensajes, orderBy('createdAt')));
+			lista.replaceChildren(...(s.docs.length ? s.docs.map((d) => d.data()).map((m) => h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}` },
+				h('div', { class: 'small opacity-75' }, `${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), m.texto))
+				: [h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay mensajes.')]));
+		};
+		const campo = h('textarea', { class: 'form-control', rows: 2, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
+		const form = h('form', { class: 'd-flex align-items-end gap-2', onsubmit: async (e) => {
+			e.preventDefault();
+			const texto = campo.value.trim();
+			if (!texto) return;
+			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces. El contacto se entrega al confirmar la reserva.', 'warning');
+			try {
+				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
+				campo.value = '';
+				await cargar();
+			} catch (err) { showError(err); }
+		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
+		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, form) });
+		await cargar();
+	}
 	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId);
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : estado(l) === 'pendiente' ? 1 : 2);
@@ -157,7 +188,7 @@ export async function render(container, [codigo] = []) {
 		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
-				h('strong', {}, r.codigo), h('span', {}, l.nombre), badge(...ESTADOS[est]),
+				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
@@ -168,9 +199,11 @@ export async function render(container, [codigo] = []) {
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			ultimo ? h('div', { class: 'small text-muted' }, `${ultimo.que} ${ultimo.nombre} · ${formatDate(ultimo.cuando)}${sol.motivo ? ` · ${sol.motivo}` : ''}`) : null,
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
-				est === 'no' && admin
+				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat.
+				!admin ? null : est === 'no'
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
+				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,

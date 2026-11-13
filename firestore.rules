@@ -322,5 +322,49 @@ service cloud.firestore {
         || (esSocioDe(resource.data) && soloCambia(['solicitud', 'updatedAt']));
       allow delete: if isAdmin();
     }
+
+    // Chat de una solicitud de reserva (cliente, socio y equipo). El id es la llave: largo y al azar,
+    // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
+    match /chats/{token} {
+      // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
+      allow get: if true;
+      allow list: if isStaff() || esSocioDe(resource.data);
+      allow create: if token.size() >= 20
+        && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
+            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'createdAt'])
+        && isNonEmptyString(request.resource.data.codigo, 20)
+        && isNonEmptyString(request.resource.data.propertyId, 60)
+        && isShortString(request.resource.data.propertyTitulo, 200)
+        && isShortString(request.resource.data.nombre, 40)
+        && isNonEmptyString(request.resource.data.llegada, 10)
+        && isNonEmptyString(request.resource.data.salida, 10)
+        && request.resource.data.noches is number && request.resource.data.huespedes is number
+        && request.resource.data.total is number && isShortString(request.resource.data.moneda, 3)
+        && request.resource.data.idioma in ['es', 'en']
+        // El socio de la conversación es el dueño real de la casa.
+        && request.resource.data.propietarioId
+            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if isAdmin();
+
+      match /mensajes/{id} {
+        function chat() {
+          return get(/databases/$(database)/documents/chats/$(token)).data;
+        }
+        // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
+        allow read: if !signedIn() || isStaff() || esSocioDe(chat());
+        // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
+        // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt'])
+          && isNonEmptyString(request.resource.data.texto, 1000)
+          && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')
+          && request.resource.data.createdAt == request.time
+          && ((request.resource.data.de == 'cliente' && !signedIn())
+            || (request.resource.data.de == 'equipo' && isStaff())
+            || (request.resource.data.de == 'socio' && esSocioDe(chat())));
+        // Nada se edita ni se borra: la conversación es el registro.
+        allow update, delete: if false;
+      }
+    }
   }
 }

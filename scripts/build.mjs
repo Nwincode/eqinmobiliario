@@ -875,6 +875,8 @@ async function main() {
 	}
 
 	await writePage('/404.html', T.notFoundPage(ctx));
+	// Reserva y chat del cliente (renta vacacional): fuera del sitemap.
+	if (hayVacacional) await writePage('/reserva/', T.reservaPage(ctx));
 	await writePage('/propietarios/', T.portalPage(ctx));
 	await writePage('/calculadora-de-renta/', T.rentalCalculatorPage(ctx));
 	urls.push({ path: '/calculadora-de-renta/', priority: '0.5' });

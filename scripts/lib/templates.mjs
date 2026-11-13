@@ -1829,6 +1829,46 @@ export function blogPostPage(ctx, post) {
 	}, body);
 }
 
+// Página del cliente con su solicitud de reserva y el chat (js/reserva-chat.js la llena con el token del enlace).
+// Fuera de Google y del sitemap: solo llega quien tiene su enlace.
+export function reservaPage(ctx) {
+	const t = tr(ctx);
+	const textos = Object.fromEntries(['es', 'en'].map((l) => [l, Object.fromEntries(Object.entries(TEXTOS[l]).filter(([k]) => /^vac(Chat|Noche1|NochesN|Huesped1|HuespedesN)/.test(k)))]));
+	const dato = (icono, k) => `<li>${ic(icono)}<span data-out="${k}"></span></li>`;
+	const body = `
+	<div class="ficha">
+		<div class="container">
+			<div class="row justify-content-center">
+				<div class="col-lg-7">
+					<nav aria-label="breadcrumb" class="ficha-migas">
+						<ol class="breadcrumb"><li class="breadcrumb-item"><a href="${rt(ctx).inicio}">${ic('home')}${t.inicio}</a></li><li class="breadcrumb-item active" aria-current="page">${t.vacChatTitulo}</li></ol>
+					</nav>
+					<h1 class="ficha-titulo mb-4">${t.vacChatTitulo}</h1>
+					<section class="lead-card vac-chat" id="reserva-chat">
+						<script type="application/json" class="vac-chat-textos">${JSON.stringify(textos).replace(/</g, '\\u003c')}</script>
+						<p class="vac-chat-estado mb-0" role="status">${t.vacChatCargando}</p>
+						<div class="vac-chat-cuerpo" hidden>
+							<header class="vac-chat-cabeza">
+								<h2 class="h5 mb-2" data-out="titulo"></h2>
+								<ul class="vac-chat-datos">${dato('hashtag', 'codigo')}${dato('calendar', 'fechas')}${dato('moon-o', 'noches')}${dato('users', 'huespedes')}${dato('money', 'total')}</ul>
+							</header>
+							<ol class="vac-chat-mensajes" aria-live="polite"></ol>
+							<form class="vac-chat-form">
+								<textarea class="form-control" rows="2" maxlength="1000" required></textarea>
+								<button type="submit" class="btn btn-primary btn-ico">${ic('paper-plane')}</button>
+							</form>
+							<p class="vac-chat-aviso" role="status"></p>
+							<p class="vac-nota">${ic('lock')}<span data-out="nota"></span></p>
+						</div>
+					</section>
+				</div>
+			</div>
+		</div>
+	</div>`;
+	// Mismo marco que la ficha (sin portada): la conversación es lo primero que se ve.
+	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"' }, body);
+}
+
 export function notFoundPage(ctx) {
 	const t = tr(ctx);
 	const body = `
