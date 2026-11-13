@@ -201,6 +201,22 @@ test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {
 		GTQ: { costoSocio: 300, pagado: 0, porPagar: 300, ganancia: 60 } } });
 });
 
+test('alertas de solicitudes: sin responder, comisión +72 h y fechas bloqueadas', () => {
+	const gt = (fecha, hora) => Date.parse(`${fecha}T${hora}:00-06:00`);
+	const f = { llegada: '2026-12-10', salida: '2026-12-12' };
+	const creado = gt('2026-12-01', '08:00');
+	assert.equal(V.alertaSolicitud('pendiente', creado, f, null, [], gt('2026-12-01', '10:00')), '');
+	assert.equal(V.alertaSolicitud('pendiente', creado, f, null, [], gt('2026-12-01', '10:01')), 'tarde');
+	const res = { estado: 'confirmada', comision: { monto: 50, vence: '2026-12-10', pagada: false } };
+	assert.equal(V.alertaSolicitud('confirmada', creado, f, res, [], gt('2026-12-13', '23:59')), '');
+	assert.equal(V.alertaSolicitud('confirmada', creado, f, res, [], gt('2026-12-14', '00:00')), 'mora');
+	assert.equal(V.alertaSolicitud('confirmada', creado, f, undefined, [], gt('2027-01-01', '00:00')), '');
+	// La salida no ocupa noche: un bloqueo que empieza ese día no cuenta.
+	assert.equal(V.alertaSolicitud('no', creado, f, null, [{ desde: '2026-12-12', hasta: '2026-12-14' }], 0), '');
+	assert.equal(V.alertaSolicitud('no', creado, f, null, [{ desde: '2026-12-11', hasta: '2026-12-14' }], 0), 'bloqueada');
+	assert.equal(V.alertaSolicitud('cancelada', creado, f, null, [{ desde: '2026-12-11', hasta: '2026-12-14' }], 0), '');
+});
+
 test('comisión: al día, vencida, +24 h (desvío) y +72 h (fuera del sitio)', () => {
 	const r = (extra = {}, comision = {}) => ({ estado: 'confirmada', propietarioId: 's1', comision: { monto: 50, vence: '2026-12-10', pagada: false, ...comision }, ...extra });
 	const gt = (fecha, hora) => Date.parse(`${fecha}T${hora}:00-06:00`);
