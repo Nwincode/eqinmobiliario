@@ -101,28 +101,32 @@ function revisionInventario(props) {
 	const publicadas = props.filter((p) => p.publicado);
 	const titulos = new Map();
 	publicadas.forEach((p) => titulos.set((p.titulo || '').toLowerCase(), (titulos.get((p.titulo || '').toLowerCase()) || 0) + 1));
+	// Cada regla: [cumple, qué falta, enlace a la herramienta del panel que lo resuelve (opcional)].
 	const reglas = [
 		[(p) => (p.fotos || []).length >= 8, 'Al menos 8 fotos (las fichas con más fotos reciben más clics y aparecen en Google Imágenes).'],
-		[(p) => String(p.descripcion || '').split(/\s+/).filter(Boolean).length >= 120, 'Descripción de 120 palabras o más.'],
+		[(p) => String(p.descripcion || '').split(/\s+/).filter(Boolean).length >= 120, 'Descripción de 120 palabras o más.', (p) => [`#/ia/redactar/${p.id}`, 'Redactarla']],
 		[(p) => Boolean(p.zona && p.ciudad), 'Zona y ciudad completas.'],
 		[(p) => /@-?\d|[?&](q|ll|query)=-?\d/.test(p.mapa || ''), 'Ubicación en el mapa con coordenadas (enlace de Google Maps con @lat,lng).'],
 		[(p) => Boolean(p.m2Construccion || p.m2Terreno), 'Metros cuadrados indicados.'],
 		[(p) => p.operacion === 'renta' || Boolean(p.precio), 'Precio publicado (Google y los compradores en EE. UU. filtran por precio).'],
-		[(p) => Boolean(p.en && p.en.titulo && p.en.descripcion), 'Traducción al inglés (para el mercado de EE. UU.).'],
-		[(p) => Boolean(p.video), 'Video o recorrido (aparece en resultados de video).'],
+		[(p) => Boolean(p.en && p.en.titulo && p.en.descripcion), 'Traducción al inglés (para el mercado de EE. UU.).', () => ['#/propiedades', 'Completar SEO']],
 		[(p) => (titulos.get((p.titulo || '').toLowerCase()) || 0) < 2, 'Título único (no repetido en otra ficha).']
 	];
 	const filas = publicadas.map((p) => {
-		const fallas = reglas.filter(([ok]) => !ok(p)).map(([, txt]) => txt);
+		const fallas = reglas.filter(([ok]) => !ok(p));
 		return { p, fallas, puntaje: Math.round(((reglas.length - fallas.length) / reglas.length) * 100) };
 	}).sort((a, b) => a.puntaje - b.puntaje);
 	const promedio = filas.length ? Math.round(filas.reduce((s, x) => s + x.puntaje, 0) / filas.length) : 0;
 	return card(`Revisión SEO del inventario · promedio ${promedio}/100`,
-		h('p', { class: 'small text-muted' }, 'Cada ficha se califica con lo que más pesa para posicionar propiedades. Corrige primero las de menor puntaje.'),
+		h('p', { class: 'small text-muted' }, 'Cada ficha se califica con lo que más pesa para posicionar propiedades. El inglés y los textos para Google se llenan solos con ',
+			h('a', { href: '#/propiedades' }, 'Propiedades → Completar SEO'), '. Un video suma, pero no baja el puntaje.'),
 		tabla(['Propiedad', 'Puntaje', 'Qué falta'], filas.slice(0, 50).map(({ p, fallas, puntaje }) => h('tr', {},
 			h('td', {}, h('a', { href: `#/propiedades/${p.id}` }, p.titulo || '(sin título)')),
 			h('td', { class: 'text-end' }, badge(`${puntaje}`, puntaje >= 80 ? 'success' : puntaje >= 55 ? 'warning' : 'danger')),
-			h('td', { class: 'text-end small' }, fallas.length ? h('ul', { class: 'mb-0 text-start ps-3' }, fallas.map((f) => h('li', {}, f))) : '✓ Completa'))),
+			h('td', { class: 'text-end small' }, fallas.length ? h('ul', { class: 'mb-0 text-start ps-3' }, fallas.map(([, txt, arreglo]) => {
+				const [href, etiqueta] = arreglo ? arreglo(p) : [];
+				return h('li', {}, txt, href ? [' ', h('a', { href }, etiqueta)] : null);
+			})) : '✓ Completa'))),
 		'No hay propiedades publicadas.'));
 }
 

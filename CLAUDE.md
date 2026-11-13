@@ -28,6 +28,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   entera; área de toque de al menos 44 px.
 - Carruseles: solo flechas finas `<` `>`, sin texto ni cajas pesadas, con `aria-label`.
 
+## SEO
+- En cada cambio al sitio público, Claude revisa el SEO de lo que toca (título, descripción, datos
+  estructurados, sitemap, velocidad) y propone mejoras para que la página responda mejor a Google.
+
 ## Seguridad y GitHub
 - No pedir ni aceptar contraseñas. No compartir el JSON de la cuenta de servicio (clave privada).
 - El panel se prueba con el emulador y datos inventados; nunca con datos reales.
