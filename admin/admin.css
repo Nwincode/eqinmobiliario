@@ -516,9 +516,12 @@ a.stat-card:hover {
 	.table-admin:not(.tabla-propiedades) td { white-space: nowrap; }
 	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child {
 		white-space: normal;
-		min-width: 8.5rem;
 		max-width: 45vw;
 	}
+}
+/* El nombre (primera columna) no se aplasta aunque las demás columnas pidan espacio. */
+@media (min-width: 576px) {
+	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child { min-width: 11rem; }
 }
 /* Celular: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno con el
    título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
@@ -553,6 +556,8 @@ a.stat-card:hover {
 		font-weight: 400;
 		color: var(--adm-muted);
 	}
+	/* Tabla cuyos datos ya llevan ícono: la ficha no repite el título de la columna. */
+	.table-admin.fichas-icono > tbody > tr > [data-label]::before { content: none; }
 	/* Los botones de la fila van al final, a la derecha. */
 	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-acciones { margin-left: auto; }
 }

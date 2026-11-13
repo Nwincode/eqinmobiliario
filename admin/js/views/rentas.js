@@ -12,6 +12,9 @@ const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Air
 const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['pendiente', 'Pendiente', 'warning'], ['cancelada', 'Cancelada', 'light']];
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || lista[0])[1];
 const estadoBadge = (r) => { const e = ESTADOS.find(([k]) => k === r.estado) || ESTADOS[1]; return badge(e[1], e[2]); };
+// Un dato con su ícono delante; `titulo` lo nombra cuando el ícono solo no basta.
+const dato = (icono, texto, cls = '', titulo) => h('span', { class: cls || null, title: titulo || null },
+	h('span', { class: `${icono} text-muted me-1`, 'aria-hidden': 'true' }), titulo ? h('span', { class: 'visually-hidden' }, `${titulo}: `) : null, String(texto));
 const SIN_DUENO = 'Sin propietario asignado';
 
 // El mes "2026-11" → "noviembre de 2026".
@@ -202,16 +205,16 @@ export async function render(container) {
 				}))), { tarjeta: true })),
 
 			h('h2', { class: 'h6' }, filtro ? `Reservas de ${filtro.nombre}` : 'Reservas del mes'),
-			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Fechas', 'Casa', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
+			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin fichas-icono mb-0' },
+				h('thead', {}, h('tr', {}, ['Casa', 'Fechas', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
 				h('tbody', {}, visibles.map((r) => { const dueno = duenoDe(r.propertyId)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r) },
-					h('td', { class: 'text-nowrap' }, `${dia(r.llegada)} – ${dia(r.salida)}`, h('div', { class: 'small text-muted' }, nNoches(r.noches))),
-					h('td', { class: 'text-wrap' }, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted' }, dueno) : null),
-					h('td', {}, r.huesped || '—', h('div', { class: 'small text-muted' }, etiqueta(CANALES, r.canal))),
+					h('td', {}, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null),
+					h('td', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
+					h('td', {}, dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null),
 					h('td', {}, estadoBadge(r)),
-					h('td', { class: 'text-end' }, h('div', {}, money(r.costoSocio, r.moneda)),
+					h('td', { class: 'text-end text-nowrap' }, dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1', 'Al propietario'),
 						r.estado !== 'confirmada' ? null : r.pagadoSocio ? badge('Pagado', 'success') : badge('Por pagar', 'warning')),
-					h('td', { class: 'text-end text-nowrap' }, money(r.ganancia, r.moneda))); }))), { tarjeta: true })
+					h('td', { class: 'text-end text-nowrap' }, r.ganancia ? dato('icon-money', money(r.ganancia, r.moneda), '', 'Ganancia') : '—')); }))), { tarjeta: true })
 				: emptyState(filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'));
 	}
 
