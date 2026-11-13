@@ -20,7 +20,7 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		{ name: 'tipo', label: 'Tipo de cliente', type: 'select', options: TIPOS_CLIENTE, cols: 3 },
 		{ name: 'idioma', label: 'Idioma', type: 'select', options: [['es', 'Español'], ['en', 'Inglés']], cols: 3 },
-		{ name: 'telefono', label: 'Teléfono / WhatsApp', cols: 4 },
+		{ name: 'telefono', label: 'Teléfono / WhatsApp', type: 'telefono', cols: 4 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 4 },
 		{ name: 'nit', label: 'NIT', cols: 4, placeholder: 'CF si no tiene', help: 'Sale en sus cotizaciones.' },
 		session.isAdmin ? { name: 'agentId', label: 'Asesor', type: 'select', options: agentes, cols: 4 } : null,

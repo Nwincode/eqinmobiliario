@@ -6,6 +6,7 @@ import {
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
+import { CODIGOS_PAIS } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -456,7 +457,11 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}"${property && property.propietarioId ? ` data-propietario-id="${esc(property.propietarioId)}"` : ''} data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
-		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label><input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" required maxlength="30" autocomplete="tel"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}></div>
+		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label>
+			<div class="input-group">
+				<select class="form-select lf-codigo" name="codigo" aria-label="${t.codigoPais}" autocomplete="tel-country-code">${CODIGOS_PAIS.map(([c, pais]) => `<option value="${c}"${c === (lang === 'en' ? '1' : '502') ? ' selected' : ''}>+${c} ${pais}</option>`).join('')}</select>
+				<input id="lf-tel-${esc(origen)}" class="form-control" name="telefono" type="tel" inputmode="tel" required maxlength="24" autocomplete="tel-national"${t.telefonoPh ? ` placeholder="${t.telefonoPh}"` : ''}>
+			</div></div>
 		${origen === 'reserva' ? `<div class="mb-3"><label class="form-label" for="lf-email-reserva">${t.vacCorreo} *</label><input id="lf-email-reserva" class="form-control" name="email" type="email" required maxlength="120" autocomplete="email"></div>` : ''}
 		${mensaje === false ? '' : visita
 		// Agendar visita: solo lo necesario; el mensaje va listo y oculto.

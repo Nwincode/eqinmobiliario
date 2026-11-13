@@ -62,7 +62,7 @@ const ES = {
 	enVenta: 'En venta', enRenta: 'En renta', enVacacional: 'Renta vacacional', verDetalles: 'Ver detalles', precioRebajado: 'Precio rebajado', antes: 'Antes', precioConsultar: 'Precio a consultar', mes: '/mes',
 	habitacion: 'habitación', habitaciones: 'habitaciones', bano: 'baño', banos: 'baños',
 	// Formulario
-	nombre: 'Nombre', telefono: 'Teléfono / WhatsApp', telefonoPh: '', correo: 'Correo electrónico', mensaje: 'Mensaje',
+	nombre: 'Nombre', telefono: 'Teléfono / WhatsApp', codigoPais: 'Código de país', telefonoPh: '', correo: 'Correo electrónico', mensaje: 'Mensaje',
 	fechaVisita: 'Fecha (opcional)', tipoVisita: 'Tipo de visita', presencial: 'Presencial', videollamada: 'Videollamada',
 	enviar: 'Enviar', empresa: 'Empresa', msgInteres: 'Hola, me interesa la propiedad "{titulo}". ¿Me pueden dar más información?',
 	// Asesor
@@ -132,7 +132,7 @@ const ES = {
 	noEncontrada: 'Página no encontrada', noExiste: 'La página que buscas no existe o la propiedad ya no está disponible.', verPropiedades: 'Ver propiedades',
 	otroIdioma: 'EN', otroIdiomaLabel: 'View this page in English',
 	// Mensajes que muestra el navegador (formularios, búsqueda, calculadora)
-	jsErrorDatos: 'Escribe tu nombre y un teléfono válido (8 dígitos o más).',
+	jsErrorDatos: 'Escribe tu nombre y un teléfono válido.',
 	jsGracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 	jsFallo: 'No pudimos enviar el formulario.', jsSoy: 'Hola, soy ', jsVisita: ' Me gustaría visitarla el ', jsTel: ' Mi teléfono: ',
 	buscarFiltrar: 'Buscar y filtrar', cerrarFiltros: 'Cerrar filtros', jsVer: 'Ver',
@@ -188,7 +188,7 @@ const EN = {
 	basadoEn: 'Based on', leerMas: 'Read more', leerMenos: 'Read less', verResena: 'View review', publicadaEn: 'Posted on', anonimo: 'Google user',
 	enVenta: 'For sale', enRenta: 'For rent', enVacacional: 'Vacation rental', verDetalles: 'View details', precioRebajado: 'Price reduced', antes: 'Was', precioConsultar: 'Price on request', mes: '/mo',
 	habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
-	nombre: 'Full name', telefono: 'Phone / WhatsApp', telefonoPh: '+1 555 123 4567', correo: 'Email', mensaje: 'Message',
+	nombre: 'Full name', telefono: 'Phone / WhatsApp', codigoPais: 'Country code', telefonoPh: '555 123 4567', correo: 'Email', mensaje: 'Message',
 	fechaVisita: 'Date (optional)', tipoVisita: 'Visit type', presencial: 'In person', videollamada: 'Video tour',
 	enviar: 'Send', empresa: 'Company', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
 	asesorInmobiliario: 'Real estate advisor', correoBtn: 'Email', msgAsesor: 'Hi {nombre}, I\'m interested in "{titulo}".',
@@ -250,7 +250,7 @@ const EN = {
 	blogLead: 'Looking for a home in Guatemala? Get free advice', masArticulos: 'More articles',
 	noEncontrada: 'Page not found', noExiste: "The page you're looking for doesn't exist or the property is no longer available.", verPropiedades: 'View properties',
 	otroIdioma: 'ES', otroIdiomaLabel: 'Ver esta página en español',
-	jsErrorDatos: 'Please enter your name and a valid phone number (8+ digits).',
+	jsErrorDatos: 'Please enter your name and a valid phone number.',
 	jsGracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 	jsFallo: 'We couldn\'t send the form.', jsSoy: 'Hi, my name is ', jsVisita: ' I would like to visit on ', jsTel: ' My phone: ',
 	buscarFiltrar: 'Search and filter', cerrarFiltros: 'Close filters', jsVer: 'Show',

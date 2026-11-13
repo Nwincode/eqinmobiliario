@@ -5,6 +5,7 @@
 // Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder,
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError } from './ui.js';
+import { CODIGOS_PAIS, partirTelefono, unirTelefono } from './formato.js';
 import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase.js';
 
 export function getPath(obj, path) {
@@ -157,6 +158,8 @@ export function renderForm(schema, data, options = {}) {
 	function fieldWrapper(field, control) {
 		const id = `f-${Math.random().toString(36).slice(2, 9)}`;
 		if (control.matches && control.matches('input, select, textarea')) control.id = id;
+		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre).
+		if (field.type === 'telefono') control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
 		return h('div', { class: `col-12 col-md-${field.cols || 12}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
@@ -410,6 +413,22 @@ export function renderForm(schema, data, options = {}) {
 				if (!Array.isArray(get())) setPath(target, field.name, []);
 				draw();
 				control = box;
+				break;
+			}
+
+			// Teléfono con su código de país; se guarda como «+código número» (formato.js).
+			case 'telefono': {
+				const { codigo, numero } = partirTelefono(get());
+				const sel = h('select', { class: 'form-select campo-codigo', 'aria-label': 'Código de país' },
+					CODIGOS_PAIS.map(([c, pais]) => h('option', { value: c }, `+${c} ${pais}`)), codigo ? null : h('option', { value: '' }, 'Otro'));
+				sel.value = codigo;
+				const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required: field.required, placeholder: field.placeholder });
+				num.value = numero;
+				const guardar = () => set(unirTelefono(sel.value, num.value));
+				sel.addEventListener('change', guardar);
+				num.addEventListener('input', guardar);
+				if (field.disabled) { sel.disabled = true; num.disabled = true; }
+				control = h('div', { class: 'input-group' }, sel, num);
 				break;
 			}
 

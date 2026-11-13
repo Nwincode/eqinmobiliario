@@ -5,13 +5,13 @@
 	var config = window.EQ_CONFIG || {};
 	var EN = document.documentElement.lang === 'en';
 	var T = EN ? {
-		errorDatos: 'Please enter your name and a valid phone number (8+ digits).',
+		errorDatos: 'Please enter your name and a valid phone number.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
-		errorDatos: 'Escribe tu nombre y un teléfono válido (8 dígitos o más).',
+		errorDatos: 'Escribe tu nombre y un teléfono válido.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
 		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
@@ -167,7 +167,8 @@
 			if (form.empresa && form.empresa.value) return; // trampa para bots
 			var lead = {
 				nombre: form.nombre.value.trim(),
-				telefono: form.telefono.value.trim(),
+				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
+				telefono: (function (numero) { return !numero || numero.charAt(0) === '+' || !form.codigo ? numero : '+' + form.codigo.value + ' ' + numero; })(form.telefono.value.trim()),
 				email: form.email ? form.email.value.trim() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',
@@ -189,7 +190,9 @@
 			}
 			lead.idioma = EN ? 'en' : 'es';
 			if (campana) lead.campana = campana;
-			if (!lead.nombre || lead.telefono.replace(/\D/g, '').length < 8) {
+			// Número sin contar el código: 7 dígitos o más (8 en Guatemala); con el código, hasta 15.
+			var digitos = form.telefono.value.replace(/\D/g, '').length, minimo = form.codigo && form.codigo.value === '502' && form.telefono.value.trim().charAt(0) !== '+' ? 8 : 7;
+			if (!lead.nombre || digitos < minimo || lead.telefono.replace(/\D/g, '').length > 15) {
 				setStatus(form, T.errorDatos, false);
 				return;
 			}

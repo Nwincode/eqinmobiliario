@@ -11,7 +11,8 @@
     "test:pendientes": "node scripts/test-pendientes.mjs",
     "test:portal": "node scripts/test-portal-clientes.mjs",
     "test:vacacional": "node scripts/test-vacacional.mjs",
-    "test:avisos-chat": "node scripts/test-avisos-chat.mjs"
+    "test:avisos-chat": "node scripts/test-avisos-chat.mjs",
+    "test:telefono": "node scripts/test-telefono.mjs"
   },
   "engines": {
     "node": ">=22"

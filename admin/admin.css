@@ -3680,3 +3680,10 @@ a.stat-card:hover {
 	border-radius: var(--eq-radius);
 	background: var(--eq-primary-soft);
 }
+
+/* Código de país del teléfono: angosto, pegado al número. */
+.campo-codigo {
+	flex: 0 0 auto;
+	width: auto;
+	max-width: 8rem;
+}
