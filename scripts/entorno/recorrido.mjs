@@ -295,7 +295,6 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const propia = async (persona, ruta, datos, archivo) => {
 		await ir(persona.p, ruta);
 		await persona.p.locator('button', { hasText: 'Agregar propiedad' }).click();
-		await persona.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
 		await espera(800);
 		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-selector.png` });
 		await persona.p.locator('.modal.show button', { hasText: 'Nueva propiedad' }).click();
@@ -334,7 +333,6 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
 		await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
-		await admin.p.locator('.list-field-item').last().locator('button', { hasText: 'Elegir propiedad' }).click();
 		await espera(800);
 		return admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
 	};
@@ -353,6 +351,13 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
 	const delDueno = await abrirSelector('#/propietarios/dueno-del-asesor');
+	// «Agregar propiedad» abre el selector de una vez; cerrarlo sin elegir no deja un renglón vacío.
+	await admin.p.locator('.modal.show .btn-close').click();
+	await espera(700);
+	const renglones = await admin.p.locator('.list-field-item').count();
+	paso('Cerrar el selector sin elegir no deja un renglón vacío', await admin.p.locator('.list-field-item button', { hasText: 'Elegir propiedad' }).count() === 0, `${renglones} renglones`);
+	await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
+	await espera(800);
 	await admin.p.locator('.modal.show input[type=search]').fill('mirabel');
 	await espera(300);
 	const halladas = await admin.p.locator('.modal.show .list-group-item .prop-titulo').allInnerTexts();

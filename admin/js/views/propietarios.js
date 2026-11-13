@@ -168,7 +168,7 @@ async function renderEditor(container, id) {
 		{ type: 'custom', when: conNoche, update: (el) => { el.className = 'form-text mt-0'; el.textContent = 'Socio de renta vacacional (tiene casas por noche): a ese correo le llegan las solicitudes de reserva.'; } },
 		{ name: 'datosPago', label: 'Datos de pago para reservas vacacionales', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Solo socios de renta vacacional.' },
 		{ type: 'section', label: 'Propiedades' },
-		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', fields: [
+		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', onAdd: (item, quitar) => elegirCasa(item, quitar), fields: [
 			{ type: 'custom', update: (el, _, item) => pintarCasa(el, item) }
 		] },
 		// De aquí en adelante, cada bloque sale solo si aplica a lo que este dueño tiene con nosotros (ver «operaciones»).
@@ -225,7 +225,9 @@ async function renderEditor(container, id) {
 			p ? fichaCasa(p) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
-	const elegirCasa = (item) => {
+	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.
+	const elegirCasa = (item, quitar) => {
+		let creando = false;
 		const enOtroRenglon = new Set((form.state.propiedades || []).map((x) => x.propertyId).filter((x) => x && x !== item.propertyId));
 		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
 		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
@@ -240,7 +242,7 @@ async function renderEditor(container, id) {
 			pestanas.forEach((b, k) => { const on = Boolean(k) === noche; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
 			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && (p.operacion === 'vacacional') === noche).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
 			lista.replaceChildren(
-				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { ventana.close(); crearPropiedad(noche ? 'vacacional' : 'venta', (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
+				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { creando = true; ventana.close(); crearPropiedad(noche ? 'vacacional' : 'venta', (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
 					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
 				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
 					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? 'Ya tiene dueño' : ''))),
@@ -248,7 +250,8 @@ async function renderEditor(container, id) {
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
-		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas), buscar, lista) });
+		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas), buscar, lista),
+			onClose: () => { if (quitar && !creando && !item.propertyId) quitar(); } });
 	};
 	// Casa que todavía no existe: se crea aquí mismo y queda elegida. La ficha del dueño se guarda antes y
 	// después, para que la casa nunca apunte a un dueño sin guardar ni quede fuera de su lista.
