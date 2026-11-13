@@ -23,6 +23,12 @@ test('noche al público = socio × (1 + 20 %)', () => {
 	assert.equal(V.nochePublica(0), 0);
 });
 
+test('«hoy» es el día de Guatemala (UTC−6), no el del servidor ni el del navegador', () => {
+	assert.equal(V.hoy(Date.parse('2026-11-14T05:30:00Z')), '2026-11-13'); // 23:30 del 13 en Guatemala
+	assert.equal(V.hoy(Date.parse('2026-11-14T06:00:00Z')), '2026-11-14'); // medianoche del 14 en Guatemala
+	assert.match(V.hoy(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
 test('desglose del panel', () => {
 	const d = V.desgloseNoche(100, 20);
 	assert.equal(d.precioSocio, 100);

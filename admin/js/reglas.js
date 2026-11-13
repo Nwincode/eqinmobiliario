@@ -1,6 +1,7 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
 import { M2_A_FT2, dinero, decimales } from './formato.js';
+import { enOperacion, operacionHashtag } from './estados.js';
 
 const TC = 7.7; // 1 US$ ≈ 7.7 Q
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -259,7 +260,7 @@ function datosClave(p) {
 
 function descripcion({ propiedad: p, notas = '' }) {
 	const tipo = TIPO_ES[p.tipo] || 'Propiedad';
-	const op = p.operacion === 'renta' ? 'en renta' : 'en venta';
+	const op = enOperacion(p);
 	const donde = lugar(p);
 	const d = datosClave(p);
 	const amen = [...new Set([...(p.amenidades || []), ...amenidadesDe(notas)])];
@@ -272,7 +273,7 @@ function descripcion({ propiedad: p, notas = '' }) {
 	].filter(Boolean);
 	const corto = `${tipo} ${op} en ${p.zona || p.ciudad || 'Guatemala'}${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${fmt(p.precio, p.moneda)}.`;
 	const zonaTag = sinAcentos(p.zona || 'guatemala').replace(/\s+/g, '');
-	const hashtags = ['#BienesRaicesGuatemala', `#${tipo.split(' ')[0]}${p.operacion === 'renta' ? 'EnRenta' : 'EnVenta'}`, `#${zonaTag}`, '#Guatemala', '#Inmuebles', '#EquipoInmobiliario'].join(' ');
+	const hashtags = ['#BienesRaicesGuatemala', `#${tipo.split(' ')[0]}${operacionHashtag(p)}`, `#${zonaTag}`, '#Guatemala', '#Inmuebles', '#EquipoInmobiliario'].join(' ');
 	const puntos = [...d.slice(0, 4), ...amen.slice(0, 2)].slice(0, 6);
 	return {
 		titulo,

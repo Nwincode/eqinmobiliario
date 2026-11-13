@@ -3,7 +3,7 @@ import { slugify } from './ui.js';
 import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
-import { seOfrece } from './estados.js';
+import { seOfrece, enOperacion, operacionHashtag } from './estados.js';
 import { conEmojis } from './descripcion.js';
 import { dinero, M2_A_FT2 } from './formato.js';
 
@@ -44,8 +44,8 @@ const TIPO = {
 	en: { casa: 'House', apartamento: 'Condo', terreno: 'Land', oficina: 'Office', local: 'Retail space', bodega: 'Warehouse', finca: 'Estate' }
 };
 const L = {
-	es: { venta: 'en venta', renta: 'en renta', precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', mes: '/mes', consultar: 'Precio a consultar', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
-	en: { venta: 'for sale', renta: 'for rent', precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', mes: '/mo', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
+	es: { precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', mes: '/mes', consultar: 'Precio a consultar', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
+	en: { precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', mes: '/mo', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
 };
 
 // Código de la propiedad (campo «Código» del panel); las antiguas sin código usan EQ-xxxxxx.
@@ -81,7 +81,7 @@ function cortar(texto, max) {
 
 function hashtags(p) {
 	const zona = String(p.zona || '').replace(/\s+/g, '');
-	const op = p.operacion === 'renta' ? 'EnRenta' : 'EnVenta';
+	const op = operacionHashtag(p);
 	const tipo = (TIPO.es[p.tipo] || 'Propiedad').split(' ')[0];
 	return [`#${tipo}${op}`, zona && `#${zona}`, '#BienesRaicesGuatemala', '#Guatemala', `#Inmobiliaria`, p.ciudad && `#${String(p.ciudad).replace(/\s+/g, '')}`, '#EquipoInmobiliario']
 		.filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' ');
@@ -102,7 +102,7 @@ export function textoPara(p, portal, { agente, contacto } = {}) {
 	const tel = (agente && agente.telefono) || contacto || '';
 	const quien = agente && agente.nombre ? `${agente.nombre} · ${tel}` : tel;
 	const enlace = enlaceFicha(p, portal);
-	const tipoOp = `${TIPO[lang][p.tipo] || ''} ${t[p.operacion === 'renta' ? 'renta' : 'venta']}`.trim();
+	const tipoOp = `${TIPO[lang][p.tipo] || ''} ${enOperacion(p, lang)}`.trim();
 
 	let tituloFinal = '';
 	if (portal.tituloMax) {
