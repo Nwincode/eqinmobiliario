@@ -1855,6 +1855,7 @@ export function reservaPage(ctx) {
 									<p class="vac-chat-sello" data-out="estado">${ic('clock-o')}${ic('check-circle')}${ic('ban')}${ic('money')}<span></span></p>
 									<h2 class="h5 mb-0" data-out="titulo"></h2>
 								</div>
+								<p class="vac-chat-sigue" data-out="sigue" role="status"></p>
 								<ul class="vac-chat-datos">${dato('hashtag', 'codigo')}${dato('calendar', 'fechas')}${dato('moon-o', 'noches')}${dato('users', 'huespedes')}${dato('money', 'total')}</ul>
 							</header>
 							<ol class="vac-chat-mensajes" aria-live="polite"></ol>

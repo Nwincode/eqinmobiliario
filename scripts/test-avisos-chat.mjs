@@ -1,6 +1,6 @@
 // Pruebas de los avisos por correo del chat de la reserva (netlify/lib/avisos-chat.mjs). Sin dependencias.
 import assert from 'node:assert/strict';
-import { avisosChat } from '../netlify/lib/avisos-chat.mjs';
+import { avisosChat, sinResponder } from '../netlify/lib/avisos-chat.mjs';
 
 const AHORA = Date.parse('2026-11-13T12:00:00Z');
 const hace = (min) => new Date(AHORA - min * 60_000);
@@ -15,12 +15,12 @@ function test(nombre, fn) {
 
 test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', () => {
 	const a = avisos([]);
-	assert.deepEqual(a.map((x) => x.para), [['socio@example.com', 'equipo@example.com'], ['ana@example.com']]);
+	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['ana@example.com']]);
 	assert.equal(a[0].url, 'https://ejemplo.gt/admin/#/solicitudes/EQ-PRUEBA');
 	assert.equal(a[1].url, 'https://ejemplo.gt/reserva/#TokenDePruebaLargoYAlAzar2345');
 });
 test('solicitud vieja sin mensajes: no se vuelve a avisar', () => assert.equal(avisos([], { createdAt: hace(30) }).length, 0));
-test('el cliente escribe: se avisa a la casa, no al cliente', () => assert.deepEqual(avisos([m('cliente', 1)]).map((x) => x.para), [['socio@example.com', 'equipo@example.com']]));
+test('el cliente escribe: se avisa a la casa, no al cliente', () => assert.deepEqual(avisos([m('cliente', 1)]).map((x) => x.para), [['socio@example.com']]));
 test('el socio responde: se avisa al cliente', () => assert.deepEqual(avisos([m('cliente', 5), m('socio', 1)]).map((x) => x.para), [['ana@example.com']]));
 test('segundo mensaje seguido del mismo lado: sin aviso', () => {
 	assert.equal(avisos([m('cliente', 3), m('cliente', 1)]).length, 0);
@@ -29,6 +29,15 @@ test('segundo mensaje seguido del mismo lado: sin aviso', () => {
 test('datos de pago y de llegada: siempre al cliente', () => {
 	assert.match(avisos([m('socio', 2), m('socio', 1, 'pago')])[0].asunto, /confirmada/);
 	assert.match(avisos([m('socio', 2, 'pago'), m('socio', 1, 'llegada')])[0].asunto, /pago recibido/);
+});
+test('comprobante del cliente: al socio, para que marque el pago', () => assert.match(avisos([m('socio', 3, 'pago'), m('cliente', 1, 'foto')])[0].asunto, /comprobante/));
+test('socio sin correo guardado: el aviso va al equipo', () => assert.deepEqual(avisosChat({ chat, mensajes: [m('cliente', 1)], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA })[0].para, ['equipo@example.com']));
+test('control de cada hora: mensaje del cliente con más de 2 h sin respuesta, una sola vez', () => {
+	const opciones = { ahora: AHORA, plazo: 120 * 60_000, ventana: 60 * 60_000 };
+	assert.equal(sinResponder([m('socio', 200), m('cliente', 150)], opciones), true);
+	assert.equal(sinResponder([m('cliente', 60)], opciones), false);
+	assert.equal(sinResponder([m('cliente', 300)], opciones), false);
+	assert.equal(sinResponder([m('cliente', 150), m('socio', 10)], opciones), false);
 });
 test('mensaje viejo: sin aviso', () => assert.equal(avisos([m('cliente', 30)]).length, 0));
 test('ningún aviso lleva teléfono ni correo de la otra parte', () => {

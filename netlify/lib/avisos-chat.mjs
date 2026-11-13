@@ -6,11 +6,22 @@ const lado = (m) => (m.de === 'cliente' ? 'cliente' : 'casa');
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v) || 0);
 
 // chat: documento del chat (con id = token); mensajes: en orden; correos: { cliente, socio, equipo: [] }.
+// Para el control de cada hora: ¿lo último lo escribió el cliente y lleva más de `plazo` sin respuesta,
+// vencido dentro de la `ventana` que se revisa? (cada caso se avisa una sola vez).
+export function sinResponder(mensajes, { ahora, plazo, ventana }) {
+	const ultimo = mensajes[mensajes.length - 1];
+	if (!ultimo || ultimo.de !== 'cliente') return false;
+	const vence = ms(ultimo.createdAt) + plazo;
+	return vence > ahora - ventana && vence <= ahora;
+}
+
 export function avisosChat({ chat, mensajes, correos, sitio, ahora = Date.now() }) {
 	const reserva = `${sitio}/reserva/#${chat.id}`;
 	const panel = `${sitio}/admin/#/solicitudes/${chat.codigo}`;
 	const resumen = `${chat.propertyTitulo} · ${chat.llegada} → ${chat.salida} · ${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`;
-	const casa = [correos.socio, ...(correos.equipo || [])].filter(Boolean);
+	// La reserva la atiende el socio: el equipo solo recibe estos avisos si el socio no tiene correo guardado.
+	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
+	const casa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
 	const en = chat.idioma === 'en';
 	const alCliente = (asunto, titulo, intro) => (correos.cliente ? [{ para: [correos.cliente], asunto, titulo, intro, boton: en ? 'See my booking' : 'Ver mi reserva', url: reserva }] : []);
 	const aLaCasa = (asunto, titulo, intro) => (casa.length ? [{ para: casa, asunto, titulo, intro, boton: 'Abrir la solicitud', url: panel }] : []);
@@ -30,6 +41,8 @@ export function avisosChat({ chat, mensajes, correos, sitio, ahora = Date.now() 
 		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the payment details.' : 'Entra a tu reserva para ver los datos de pago.');
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'Payment received' : 'Recibimos tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
+	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,
+		`${resumen}. Revisa tu cuenta y marca «Pago recibido»: el cliente recibe solo la dirección y cómo llegar.`);
 	// Varios mensajes seguidos del mismo lado: solo se avisa del primero.
 	const anterior = mensajes[mensajes.length - 2];
 	if (anterior && lado(anterior) === lado(ultimo) && !anterior.tipo) return [];

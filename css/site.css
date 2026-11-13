@@ -3143,6 +3143,15 @@ a:hover > .eq-ic-fin,
 .vac-chat-sello-cancelada {
 	color: var(--eq-danger);
 }
+.vac-chat-sigue {
+	grid-column: 1 / -1;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: var(--eq-radius);
+	background: var(--eq-primary-soft);
+	color: var(--eq-text);
+	font-size: 14px;
+}
 .vac-chat-datos {
 	grid-column: 1 / -1;
 	list-style: none;

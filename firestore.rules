@@ -352,8 +352,12 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       // Al responder la solicitud, el equipo o el socio de la casa marcan el estado que ve el cliente; nada más.
       allow update: if isAdmin()
-        || ((isStaff() || esSocioDe(resource.data)) && soloCambia(['estado'])
-            && request.resource.data.estado in ['confirmada', 'pagada', 'no', 'cancelada'])
+        || (isStaff() && soloCambia(['estado']) && request.resource.data.estado in ['confirmada', 'pagada', 'no', 'cancelada'])
+        // El socio solo avanza: pendiente → confirmada o no; confirmada → pagada o cancelada.
+        // Con el pago recibido ya no cancela (eso anularía la comisión): lo hace el administrador.
+        || (esSocioDe(resource.data) && soloCambia(['estado'])
+            && ((resource.data.get('estado', '') == '' && request.resource.data.estado in ['confirmada', 'no'])
+              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado in ['pagada', 'cancelada'])))
         // «Visto»: cada quien marca solo el suyo, con la hora del servidor.
         || (!signedIn() && soloCambia(['vistoCliente']) && request.resource.data.vistoCliente == request.time)
         || (esSocioDe(resource.data) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time)
@@ -377,14 +381,17 @@ service cloud.firestore {
           && (('tipo' in request.resource.data)
             ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente'
                   && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
-                || (request.resource.data.tipo == 'llegada' && request.resource.data.de != 'cliente' && request.resource.data.texto == 'llegada')
+                // La dirección se muestra solo con el pago recibido.
+                || (request.resource.data.tipo == 'llegada' && request.resource.data.de != 'cliente' && request.resource.data.texto == 'llegada'
+                  && chat().get('estado', '') == 'pagada')
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente'
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
             : !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*'))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isStaff())
-            || (request.resource.data.de == 'socio' && esSocioDe(chat())));
+            // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
+            || (request.resource.data.de == 'socio' && esSocioDe(chat()) && !(chat().get('estado', '') in ['no', 'cancelada'])));
         // Nada se edita ni se borra: la conversación es el registro.
         allow update, delete: if false;
       }

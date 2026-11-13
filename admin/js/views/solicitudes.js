@@ -280,7 +280,8 @@ export async function render(container, [codigo] = []) {
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
-				est === 'confirmada' && r.salida > hoy() ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
+				// Con el pago recibido, cancelar anularía la comisión: solo el administrador.
+				est === 'confirmada' && r.salida > hoy() && (session.isAdmin || datosChat[r.codigo]?.estado !== 'pagada') ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
 	}
 
 	const lista = h('div', {});

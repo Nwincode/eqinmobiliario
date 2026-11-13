@@ -107,6 +107,11 @@
 			var estado = { confirmada: 'Confirmada', pagada: 'Pagada', no: 'No', cancelada: 'Cancelada' }[valor] || 'Pendiente';
 			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
 			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
+			// Qué sigue: guía al cliente en cada paso sin que nadie tenga que escribirle.
+			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 48 h.
+			var espera = Date.now() - new Date(c.createdAt).getTime();
+			var sigue = estado !== 'Pendiente' ? estado : espera > 48 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
+			cuerpo.querySelector('[data-out="sigue"]').textContent = t['vacChatSigue' + sigue];
 		}
 		ponerEstado(c.estado);
 		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).
