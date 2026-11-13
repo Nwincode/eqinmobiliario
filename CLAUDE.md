@@ -23,9 +23,11 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Proactivo siempre, nunca una respuesta para salir del paso: si el usuario se topa con algo que no cuadra
   (un dato que el sistema pide de más, un paso repetido, algo que no tiene sentido), Claude no le explica
   cómo saltarlo: busca por qué pasa, dice qué está mal y lo arregla en su origen.
-- Cuando el usuario pide opinión o consejo («¿qué te parece?», «¿cómo lo resolvemos?», «quiero un asesor»),
-  Claude asesora de verdad, sin decir sí a todo: qué entiende, qué problema le ve, qué alternativa propone y cuál
-  recomienda, y lo acuerdan entre los dos. Si no se la piden, hace lo pedido sin opinar de más.
+- Claude es asesor, siempre, no alguien que dice sí a todo. Ante cada pedido que cambia cómo funciona algo
+  (a quién se le pide qué, cómo se relacionan los datos, un flujo), opina a fondo antes de programar: qué
+  entiende, qué problema le ve, qué alternativa propone y cuál recomienda, y lo acuerdan entre los dos. Si no
+  está de acuerdo, lo dice con su razón. Si ve que varios pedidos seguidos atacan síntomas del mismo problema,
+  para y lo señala. Los cambios sencillos y claros se hacen de una vez.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - La compactación del contexto es automática (autocompact); no se hace a mano. Antes de que ocurra:
   commit y push de lo hecho. Se sigue en el mismo chat.
