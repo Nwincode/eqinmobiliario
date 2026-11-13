@@ -7,7 +7,7 @@ import { session, loadAgents, markPending } from '../session.js';
 import { estadoDe } from '../estados.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico } from './properties.js';
 import {
-	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo,
+	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
 } from '../importar.js';
 
@@ -186,7 +186,7 @@ export async function render(container) {
 		const vistos = new Map();
 		plan = filasCsv.filas.map((fila) => {
 			const r = filaAPropiedad(fila, { opciones, agentes });
-			const item = { fila: fila._fila, ...r, fotos: [], pequenas: 0, existente: null, accion: '', generado: false };
+			const item = { fila: fila._fila, ...r, fotos: [], pequenas: 0, existente: null, parecida: null, accion: '', generado: false };
 			if (r.datos.codigo) {
 				item.existente = porCodigo.get(r.datos.codigo) || null;
 				if (vistos.has(r.datos.codigo)) item.errores.push(`Código repetido (también en la fila ${vistos.get(r.datos.codigo)})`);
@@ -202,6 +202,16 @@ export async function render(container) {
 				usados.push(it.datos.codigo);
 			}
 			if (it.existente) it.accion = selGlobal.value;
+		}
+		// Sin código igual pero parecida a una del panel o a una fila anterior: se avisa y, si no se dice otra cosa, se salta.
+		const anteriores = [];
+		for (const it of plan) {
+			if (it.errores.length) continue;
+			if (!it.existente) {
+				it.parecida = buscarParecida(it.datos, [...existentes, ...anteriores]);
+				if (it.parecida) it.accion = 'saltar';
+			}
+			anteriores.push({ ...it.datos, _fila: it.fila });
 		}
 		const grupos = agruparFotos(fotos, plan.map((it) => ({ claves: [it.carpeta, it.datos.codigo] })));
 		plan.forEach((it, i) => { it.fotos = grupos.porFila.get(i) || []; });
@@ -228,11 +238,14 @@ export async function render(container) {
 		if (it.existente) return it.accion === 'saltar'
 			? { clase: 'secondary', icono: 'icon-ban', texto: 'Ya existe: se salta' }
 			: { clase: 'info', icono: 'icon-refresh', texto: 'Ya existe: se actualiza' };
+		if (it.parecida) return it.accion === 'saltar'
+			? { clase: 'warning', icono: 'icon-files-o', texto: 'Parece repetida: se salta' }
+			: { clase: 'warning', icono: 'icon-files-o', texto: 'Parece repetida: se crea' };
 		if (!it.fotos.length) return { clase: 'warning', icono: 'icon-camera', texto: 'Sin fotos' };
 		if (it.pequenas) return { clase: 'warning', icono: 'icon-exclamation-triangle', texto: `${it.pequenas} ${it.pequenas === 1 ? 'foto pequeña' : 'fotos pequeñas'}` };
 		return { clase: 'success', icono: 'icon-check-circle', texto: 'Lista' };
 	}
-	const seImporta = (it) => !it.errores.length && !(it.existente && it.accion === 'saltar');
+	const seImporta = (it) => !it.errores.length && it.accion !== 'saltar';
 
 	function dibujar(grupos) {
 		paso3.hidden = false;
@@ -241,8 +254,9 @@ export async function render(container) {
 		const chip = (clase, ic, texto) => h('span', { class: `imp-chip imp-tono-${clase}` }, icono(ic), ' ', texto);
 		resumen.replaceChildren();
 		mount(resumen,
-			chip('success', 'icon-check-circle', plural(n((it) => !it.errores.length && !it.existente), 'nueva', 'nuevas')),
+			chip('success', 'icon-check-circle', plural(n((it) => !it.errores.length && !it.existente && !it.parecida), 'nueva', 'nuevas')),
 			n((it) => it.existente) ? chip('info', 'icon-refresh', plural(n((it) => it.existente), 'ya existe', 'ya existen')) : null,
+			n((it) => it.parecida) ? chip('warning', 'icon-files-o', plural(n((it) => it.parecida), 'parece repetida', 'parecen repetidas')) : null,
 			n((it) => it.errores.length) ? chip('danger', 'icon-times-circle', `${n((it) => it.errores.length)} con error`) : null,
 			n((it) => !it.errores.length && !it.fotos.length) ? chip('warning', 'icon-camera', `${n((it) => !it.errores.length && !it.fotos.length)} sin fotos`) : null,
 			chip('muted', 'icon-picture-o', plural(plan.reduce((s, it) => s + (seImporta(it) ? it.fotos.length : 0), 0), 'foto a subir', 'fotos a subir')));
@@ -266,6 +280,11 @@ export async function render(container) {
 					h('option', { value: 'actualizar', selected: it.accion === 'actualizar' }, 'Actualizar'),
 					h('option', { value: 'saltar', selected: it.accion === 'saltar' }, 'Saltar'));
 				accion.addEventListener('change', () => { it.accion = accion.value; dibujar(grupos); });
+			} else if (it.parecida && !it.errores.length) {
+				accion = h('select', { class: 'form-select form-select-sm', 'aria-label': `Qué hacer con ${it.datos.titulo}` },
+					h('option', { value: 'saltar', selected: it.accion === 'saltar' }, 'Saltar'),
+					h('option', { value: 'crear', selected: it.accion === 'crear' }, 'Crear de todos modos'));
+				accion.addEventListener('change', () => { it.accion = accion.value; dibujar(grupos); });
 			}
 			return h('tr', { class: it.errores.length ? 'imp-fila-error' : '' },
 				h('td', { class: 'imp-c-fila text-muted small' }, h('span', { class: 'd-md-none' }, 'Fila '), it.fila),
@@ -273,6 +292,7 @@ export async function render(container) {
 				h('td', { class: 'imp-c-titulo' },
 					h('div', { class: 'fw-semibold' }, it.datos.titulo || '(sin título)'),
 					it.existente ? h('div', { class: 'small text-muted' }, `En el panel: ${it.existente.titulo || it.existente.id}`) : null,
+					it.parecida ? h('div', { class: 'small text-muted' }, it.parecida._fila ? `Igual a la fila ${it.parecida._fila}` : `Ya está en el panel${it.parecida.codigo ? ` como ${it.parecida.codigo}` : ''}`) : null,
 					!it.errores.length && it.pequenas ? h('div', { class: 'small text-muted' }, `${it.pequenas === 1 ? 'Una foto mide' : `${it.pequenas} fotos miden`} menos de ${FOTO_MINIMA} px y puede${it.pequenas === 1 ? '' : 'n'} verse borrosa${it.pequenas === 1 ? '' : 's'}.`) : null,
 				it.errores.length ? h('ul', { class: 'imp-errores small' }, it.errores.map((x) => h('li', {}, x))) : null),
 				h('td', { class: 'imp-c-fotos text-nowrap' }, icono('icon-picture-o'), ` ${it.fotos.length}`, h('span', { class: 'visually-hidden' }, ' fotos')),
@@ -331,7 +351,7 @@ export async function render(container) {
 		paso4.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		registro.replaceChildren();
 		final.replaceChildren();
-		const cuenta = { creadas: 0, actualizadas: 0, saltadas: plan.filter((it) => it.existente && it.accion === 'saltar' && !it.errores.length).length, error: plan.filter((it) => it.errores.length).length };
+		const cuenta = { creadas: 0, actualizadas: 0, saltadas: plan.filter((it) => it.accion === 'saltar' && !it.errores.length).length, error: plan.filter((it) => it.errores.length).length };
 		const slugs = new Set(existentes.map((p) => p.slug).filter(Boolean));
 		const totalFotos = lista.reduce((s, it) => s + it.fotos.length, 0) || 1;
 		let hechas = 0, fotosHechas = 0;
