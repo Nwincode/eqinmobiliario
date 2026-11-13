@@ -159,6 +159,12 @@ export async function render(container, [codigo] = []) {
 		const s = netos[l.propertyId];
 		return s && V.gananciaEstancia({ llegada: l.reserva.llegada, salida: l.reserva.salida, margen: s.margen, planSocio: { base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] } });
 	};
+	// Reserva que no se da o se cancela: el cliente lo ve en su página (estado y un mensaje) y le llega el correo.
+	// El mensaje va en el mismo lote, antes de que el chat quede cerrado para el socio.
+	const cerrarChat = (lote, l, estadoNuevo, texto) => {
+		lote.set(doc(collection(db, 'chats', refChat(l).id, 'mensajes')), { de: admin ? 'equipo' : 'socio', texto, createdAt: serverTimestamp() });
+		lote.update(refChat(l), { estado: estadoNuevo });
+	};
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	const hacer = async (tarea) => { try { await tarea(); await recargar(); } catch (err) { showError(err); } };
 
@@ -191,6 +197,8 @@ export async function render(container, [codigo] = []) {
 				lote.set(doc(collection(db, 'chats', chats[r.codigo], 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
 			}
 			await lote.commit();
+			// Correo al cliente: su reserva está confirmada y ya tiene los datos de pago.
+			if (refChat(l)) avisarChat(refChat(l).id);
 			await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 			toast('Reserva confirmada.');
 		});
@@ -221,8 +229,9 @@ export async function render(container, [codigo] = []) {
 		if (motivo) await hacer(async () => {
 			const lote = writeBatch(db);
 			lote.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-			if (refChat(l)) lote.update(refChat(l), { estado: 'no' });
+			if (refChat(l)) cerrarChat(lote, l, 'no', 'Lo sentimos: la casa no está disponible en esas fechas.');
 			await lote.commit();
+			if (refChat(l)) avisarChat(refChat(l).id);
 		});
 	}
 
@@ -237,8 +246,9 @@ export async function render(container, [codigo] = []) {
 			lote.update(doc(db, 'reservas', l.solicitud.reservaId), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
 			lote.update(refCasa, { 'vacacional.reservadas': V.liberarNoches(p.vacacional?.reservadas, r.llegada, r.salida), updatedAt: serverTimestamp() });
 			lote.update(doc(db, 'leads', l.id), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
-			if (refChat(l)) lote.update(refChat(l), { estado: 'cancelada' });
+			if (refChat(l)) cerrarChat(lote, l, 'cancelada', 'La reserva se canceló.');
 			await lote.commit();
+			if (refChat(l)) avisarChat(refChat(l).id);
 			await markPending(`${p.titulo}: reserva ${r.codigo} cancelada`);
 			toast('Reserva cancelada. Las fechas quedaron libres.');
 		});

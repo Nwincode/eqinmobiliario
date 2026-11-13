@@ -110,8 +110,12 @@ Cada cadena va en el orden en que conviene revisarla.
 
 - Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.
 - Reglas de Firestore: `npm run test:reglas` (`scripts/emulador/`: levanta el emulador limpio y corre los casos).
+- Entorno de pruebas completo (`scripts/entorno/`): `npm run entorno` levanta panel, sitio y funciones contra los emuladores
+  de Firebase (inicio de sesión, base con `firestore.rules`, fotos con `storage.rules`) con datos inventados y tres usuarios
+  de prueba; `npm run recorrido` hace la reserva por noche de punta a punta entrando al panel como administrador, socio y
+  asesor, y como cliente. Los correos no se envían: quedan anotados. `levantar.sh publicar` hace lo que el botón Publicar.
 - Qué revisar antes de unir: `docs/revision-antes-de-unir.md`.
 - Sitio: `npm run build` y `npm run serve` (sirve `dist/`).
 - Dentro de un lote las reglas ven el estado anterior: lo que depende de un cambio previo va en dos pasos.
 - Panel: datos inventados; nunca la base real.
-- No se puede probar en local: envío real de correos, Storage, funciones programadas.
+- No se puede probar en local: que un correo llegue de verdad a una bandeja, las funciones programadas y lo propio de Netlify.

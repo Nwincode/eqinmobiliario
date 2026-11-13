@@ -39,6 +39,11 @@ test('control de cada hora: mensaje del cliente con más de 2 h sin respuesta, u
 	assert.equal(sinResponder([m('cliente', 300)], opciones), false);
 	assert.equal(sinResponder([m('cliente', 150), m('socio', 10)], opciones), false);
 });
+test('reserva que no se dio o se canceló: siempre al cliente', () => {
+	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no disponible/);
+	assert.match(avisos([m('socio', 3, 'pago'), m('equipo', 1)], { estado: 'cancelada' })[0].asunto, /cancelada/);
+	assert.deepEqual(avisos([m('socio', 1)], { estado: 'cancelada' })[0].para, ['ana@example.com']);
+});
 test('mensaje viejo: sin aviso', () => assert.equal(avisos([m('cliente', 30)]).length, 0));
 test('ningún aviso lleva teléfono ni correo de la otra parte', () => {
 	for (const a of [...avisos([]), ...avisos([m('cliente', 1)]), ...avisos([m('cliente', 5), m('socio', 1)])]) assert.doesNotMatch(JSON.stringify({ ...a, para: '' }), /@|\d{8}/);

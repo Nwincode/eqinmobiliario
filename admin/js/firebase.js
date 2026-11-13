@@ -2,14 +2,14 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
 	getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
-	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential
+	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential, connectAuthEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
 	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
-	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, Timestamp, onSnapshot
+	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, Timestamp, onSnapshot, connectFirestoreEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
-	getStorage, ref, uploadBytes, getDownloadURL, deleteObject
+	getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const res = await fetch('/site.config.json', { cache: 'no-store' });
@@ -23,11 +23,22 @@ export const auth = app ? getAuth(app) : null;
 export const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null;
 export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : null;
 
+// Entorno de pruebas local (scripts/entorno/): si la configuración trae «emuladores», el panel habla con
+// los emuladores de Firebase en esta máquina y no con la base real. El site.config.json del repositorio no los trae.
+const emuladores = siteConfig.emuladores;
+const conAuthLocal = (a) => connectAuthEmulator(a, `http://${emuladores.auth}`, { disableWarnings: true });
+if (app && emuladores) {
+	conAuthLocal(auth);
+	connectFirestoreEmulator(db, ...emuladores.firestore.split(':').map((x, i) => (i ? Number(x) : x)));
+	if (storage) connectStorageEmulator(storage, ...emuladores.storage.split(':').map((x, i) => (i ? Number(x) : x)));
+}
+
 // Crea una cuenta sin cerrar la sesión del administrador (usa una app secundaria).
 export async function createAccount(email, password) {
 	const secondary = initializeApp(firebaseConfig, `alta-${Date.now()}`);
 	try {
 		const secAuth = getAuth(secondary);
+		if (emuladores) conAuthLocal(secAuth);
 		const cred = await createUserWithEmailAndPassword(secAuth, email, password);
 		await signOut(secAuth);
 		return cred.user.uid;

@@ -41,6 +41,13 @@ export function avisosChat({ chat, mensajes, correos, sitio, ahora = Date.now() 
 		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the payment details.' : 'Entra a tu reserva para ver los datos de pago.');
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'Payment received' : 'Recibimos tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
+	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.
+	if (['no', 'cancelada'].includes(chat.estado) && lado(ultimo) === 'casa') {
+		const no = chat.estado === 'no';
+		return alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not available' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no disponible' : 'cancelada'}`,
+			en ? (no ? 'Those dates are not available' : 'Your booking was cancelled') : (no ? 'Esas fechas no están disponibles' : 'Tu reserva se canceló'),
+			en ? 'Open your booking to see the details.' : 'Entra a tu reserva para ver el detalle.');
+	}
 	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,
 		`${resumen}. Revisa tu cuenta y marca «Pago recibido»: el cliente recibe solo la dirección y cómo llegar.`);
 	// Varios mensajes seguidos del mismo lado: solo se avisa del primero.
