@@ -262,4 +262,15 @@ test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y mo
 		assert.equal(V.tieneContacto(t), false, t);
 });
 
+const { mascotasUnaVez, amenidadesPara } = await import('../admin/js/estados.js');
+test('mascotas: en una casa por noche se dicen una sola vez, en el selector', () => {
+	const a = mascotasUnaVez({ operacion: 'vacacional', amenidades: ['Piscina', 'Acepta mascotas'], en: { amenidades: ['Pool', 'Pets allowed'] } });
+	assert.deepEqual([a.amenidades, a.en.amenidades, a.vacacional.mascotas], [['Piscina'], ['Pool'], 'si']);
+	// Lo que diga el selector manda; una casa en venta no se toca.
+	assert.equal(mascotasUnaVez({ operacion: 'vacacional', amenidades: ['Pet friendly'], vacacional: { mascotas: 'no' } }).vacacional.mascotas, 'no');
+	assert.deepEqual(mascotasUnaVez({ operacion: 'venta', amenidades: ['Acepta mascotas'] }).amenidades, ['Acepta mascotas']);
+	assert.equal(amenidadesPara('vacacional').includes('Acepta mascotas'), false);
+	assert.equal(amenidadesPara('venta').includes('Acepta mascotas'), true);
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

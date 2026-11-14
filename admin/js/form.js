@@ -270,7 +270,7 @@ export function renderForm(schema, data, options = {}) {
 				const sugeridas = h('div', { class: 'd-flex flex-wrap gap-1 mt-2' });
 				const draw = () => {
 					const puestas = (get() || []).map((t) => t.toLowerCase());
-					sugeridas.replaceChildren(...(field.sugerencias || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
+					sugeridas.replaceChildren(...((typeof field.sugerencias === 'function' ? field.sugerencias(state) : field.sugerencias) || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
 					list.replaceChildren(...(get() || []).map((t, i) => h('span', { class: 'badge text-bg-light border d-inline-flex align-items-center gap-1 fw-normal fs-6' }, t,
 						h('button', { type: 'button', class: 'btn-close btn-close-sm', style: 'font-size:.6rem', 'aria-label': `Quitar ${t}`, onclick: () => { const arr = [...(get() || [])]; arr.splice(i, 1); set(arr); draw(); } }))));
 				};
@@ -285,6 +285,8 @@ export function renderForm(schema, data, options = {}) {
 				input.addEventListener('blur', add);
 				draw();
 				if (target === state) pintores.set(field.name, draw);
+				// Sugerencias que dependen de otro campo: se vuelven a pintar con cada cambio.
+				if (typeof field.sugerencias === 'function') customs.push({ el: sugeridas, update: draw });
 				control = h('div', {}, list, input, sugeridas);
 				break;
 			}

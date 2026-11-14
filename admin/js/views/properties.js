@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -852,7 +852,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
 		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
 		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d), help: 'En la misma moneda del precio.' },
-		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES.map(([es]) => es) },
+		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
 			if (el.firstChild) return;
@@ -987,6 +987,7 @@ async function renderEditor(container, id, emb = null) {
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	mascotasUnaVez(datosForm);
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
 	form.el.addEventListener('input', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
 	form.el.addEventListener('change', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
@@ -1058,7 +1059,7 @@ async function renderEditor(container, id, emb = null) {
 	// ni el mapa (privados) y el precio es el que ve el cliente, no el del socio.
 	const paraTraducir = () => {
 		const d = form.getData();
-		return esVacacional(d) ? { ...d, ...vacacionalPublico(d), direccion: '', mapa: '' } : d;
+		return esVacacional(d) ? { ...d, ...vacacionalPublico(mascotasUnaVez(d)), direccion: '', mapa: '' } : d;
 	};
 	const traducirEnVivo = async () => {
 		const s = form.state;
@@ -1106,6 +1107,7 @@ async function renderEditor(container, id, emb = null) {
 				Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
 			}
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			mascotasUnaVez(d);
 			Object.assign(d, vacacionalPublico({ ...d, socio }));
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };

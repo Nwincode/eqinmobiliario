@@ -115,7 +115,8 @@ export function leerPedido(texto, { zonas = [], tipos = TIPOS } = {}) {
 
 // ------------------------------------------------------------ Comparar una propiedad con un pedido
 
-const textoProp = (p) => sinAcentos([p.titulo, p.descripcion, (p.amenidades || []).join(' ')].join(' '));
+// (En una casa por noche, las mascotas se dicen en su selector, no como amenidad.)
+const textoProp = (p) => sinAcentos([p.titulo, p.descripcion, (p.amenidades || []).join(' '), p.vacacional?.mascotas === 'si' ? 'acepta mascotas' : ''].join(' '));
 const zonaCoincide = (p, zonas) => {
 	if (!zonas.length) return true;
 	const pz = sinAcentos(`${p.zona} ${p.direccion} ${p.ciudad}`);
