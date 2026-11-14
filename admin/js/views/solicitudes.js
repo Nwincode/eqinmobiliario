@@ -280,7 +280,7 @@ export async function render(container, [codigo] = []) {
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
-				// (las reglas lo exigen: socioPuedeCancelar en firestore.rules).
+				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
 				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
 	}
 
