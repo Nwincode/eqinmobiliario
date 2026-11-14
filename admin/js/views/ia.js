@@ -1,7 +1,7 @@
 // Asistente: tareas del día a día del asesor.
 // Sin IA funciona con reglas y plantillas; si la IA está configurada en Netlify, la usa y se suma el chat.
 import {
-	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp
+	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, arrayUnion
 } from '../firebase.js';
 import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, cajaTabla } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
@@ -9,6 +9,7 @@ import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge } from './leads.js';
 import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
+import { refrescarPortalesDe } from '../portal.js';
 
 const TABS = [
 	['buscar', 'Buscar para un cliente', 'icon-search'],
@@ -175,12 +176,15 @@ function tabRedactar(cont, props, idInicial) {
 					const patch = {
 						titulo: f.titulo.get(), descripcion: f.descripcion.get(),
 						'seo.titulo': f.seoTitulo.get(), 'seo.descripcion': f.seoDescripcion.get(),
-						amenidades: [...new Set([...(p.amenidades || []), ...(r.amenidades || [])])],
+						// Las detectadas se suman a las que tenga AHORA (otra pantalla pudo cambiarlas).
+						...(r.amenidades?.length ? { amenidades: arrayUnion(...r.amenidades) } : {}),
 						updatedAt: serverTimestamp(), updatedBy: session.user.uid
 					};
 					if (p.vip) Object.assign(patch, { 'vipLanding.titular': f.vipTitular.get(), 'vipLanding.subtitular': f.vipSubtitular.get(), 'vipLanding.puntosClave': f.puntos.get().split('\n').map((s) => s.trim()).filter(Boolean) });
 					await updateDoc(doc(db, 'properties', p.id), patch);
 					await markPending(`Propiedad (borrador): ${f.titulo.get()}`);
+					// Lo que ve su dueño en su panel (cómo se anuncia) también.
+					refrescarPortalesDe([p.id]);
 					toast('Listo: la propiedad se actualizó. Publica para verlo en el sitio.');
 				} catch (err) { showError(err); }
 			});

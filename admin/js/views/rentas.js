@@ -58,7 +58,7 @@ export async function render(container) {
 		const resumen = h('div', { class: 'col-12 small text-muted' });
 		const telefono = campoTelefono(d.telefono);
 		const form = h('form', { class: 'row g-2' },
-			campo('Casa', select('propertyId', [['', 'Elegí la casa…'], ...casas.map((p) => [p.id, p.titulo])]), 12),
+			campo('Casa', select('propertyId', [['', 'Elige la casa…'], ...casas.map((p) => [p.id, p.titulo])]), 12),
 			campo('Llegada', input('llegada', 'date', { required: true })),
 			campo('Salida', input('salida', 'date', { required: true })),
 			campo('Huésped', input('huesped')),
@@ -108,7 +108,7 @@ export async function render(container) {
 		const guardar = async (btn) => {
 			const v = leer();
 			const casa = casaDe[v.propertyId];
-			if (!casa) return toast('Elegí la casa.', 'warning');
+			if (!casa) return toast('Elige la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
 			btn.disabled = true;
 			try {
@@ -243,7 +243,7 @@ export async function render(container) {
 
 	mount(container,
 		pageHeader('Rentas vacacionales', casas.length ? iconoBtn('icon-history', 'Cambios de los socios', { onclick: verCambios }) : null, h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => editar().catch(showError) }, '+ Reserva')),
-		casas.length ? cuerpo : emptyState('Todavía no hay casas de renta vacacional. Creá una propiedad con operación "Renta vacacional" o importalas todas de un Excel.',
+		casas.length ? cuerpo : emptyState('Todavía no hay casas de renta vacacional. Crea una propiedad con operación "Renta vacacional" o impórtalas todas de un Excel.',
 			h('a', { class: 'btn btn-outline-primary btn-sm', href: '#/propiedades/importar' }, 'Importar casas')));
 	if (casas.length) pintar();
 }

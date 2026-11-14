@@ -58,10 +58,10 @@ async function lista(container) {
 		pageHeader('Mis propiedades'),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
-			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avisale al administrador.')
-			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no podés confirmar reservas. Pedile al administrador que los guarde en tu ficha.')) : null,
+			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')
+			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar reservas. Pídele al administrador que los guarde en tu ficha.')) : null,
 		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
-		!casas.length ? emptyState('Todavía no tenés propiedades asignadas. Escribile a tu asesor y las activamos.') : [
+		!casas.length ? emptyState('Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
 			casas.length > 8 ? h('input', { class: 'form-control mb-3', type: 'search', placeholder: 'Buscar propiedad', 'aria-label': 'Buscar propiedad', oninput: (e) => pintar(e.target.value) }) : null,
 			filas]);
 }
@@ -74,7 +74,7 @@ async function enVenta(container, id, titulo, propia) {
 	const p = (resumen?.propiedades || []).find((x) => x.id === id);
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p?.titulo || titulo || 'Propiedad')),
-		p ? resumenCasa(resumen, p, { responder: propia }) : emptyState('Tu asesor todavía está preparando el resumen de esta propiedad. Volvé a entrar en un rato.'));
+		p ? resumenCasa(resumen, p, { responder: propia }) : emptyState('Tu asesor todavía está preparando el resumen de esta propiedad. Vuelve a entrar en un rato.'));
 }
 
 async function casa(container, id) {
@@ -196,7 +196,7 @@ async function casa(container, id) {
 
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
 	function barra() {
-		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, 'Tocá un día (y otro para marcar varios) para bloquear, habilitar o cambiar el precio.');
+		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, 'Toca un día (y otro para marcar varios) para bloquear, habilitar o cambiar el precio.');
 		const cerrar = iconoBtn('icon-close', 'Cancelar', { onclick: () => { e.pide = ''; calendario(); } });
 		// Bloquear pide el motivo: un toque.
 		if (e.pide === 'motivo') return h('div', { class: 'mc-barra' },
@@ -213,7 +213,7 @@ async function casa(container, id) {
 			});
 			const listo = () => {
 				const n = esPrecio ? V.r2(Number(campo.value) || 0) : Math.floor(Number(campo.value) || 0);
-				if (n < 1) return toast(esPrecio ? 'Escribí el precio.' : 'Escribí cuántas noches.', 'warning');
+				if (n < 1) return toast(esPrecio ? 'Escribe el precio.' : 'Escribe cuántas noches.', 'warning');
 				aplicar(e.pide, n);
 			};
 			campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') listo(); });
@@ -268,7 +268,7 @@ async function casa(container, id) {
 				h('thead', {}, h('tr', {}, ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d) => h('th', { scope: 'col' }, d)))),
 				h('tbody', {}, semanas)),
 			h('p', { class: 'small text-muted my-2' },
-				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ', h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin comisión.'),
+				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ', h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin el margen de EQ.'),
 			barra());
 	}
 

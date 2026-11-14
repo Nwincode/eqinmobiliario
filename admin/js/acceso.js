@@ -1,6 +1,7 @@
-// Acceso al panel de una persona de Propietarios (propietario o colaborador): la única forma de darle entrada.
-// Su usuario del panel (users/{uid}: rol «socio», con su ficha) y un correo de Firebase para que ponga ella su
-// contraseña. Nadie ve ni escribe una contraseña: la que se crea aquí es al azar y se descarta.
+// Entrada al panel: la única forma de crear una cuenta, para el equipo (crearUsuarioEquipo, desde Usuarios) y para una
+// persona de Propietarios, propietario o colaborador (darAcceso, desde su ficha). Su usuario del panel (users/{uid}) y
+// un correo de Firebase para que ponga ella su contraseña. Nadie ve ni escribe una contraseña: la que se crea aquí es
+// al azar y se descarta.
 // En la ficha queda una copia del estado («acceso») para que el asesor, que no lee los usuarios, sepa si entra.
 // Lo usan la ficha de la persona (views/propietarios.js) y Usuarios (views/users.js).
 import { auth, db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, createAccount, sendPasswordResetEmail, firestoreRest } from './firebase.js';
@@ -58,39 +59,53 @@ const guardarUsuario = (uid, prop, email, nombre) => setDoc(doc(db, 'users', uid
 	nombre: nombre || '', email, rol: 'socio', propietarioId: prop.id, agentId: '', activo: true,
 	createdAt: serverTimestamp(), createdBy: session.user.uid
 });
+// La cuenta de un correo: la que quedó a medias en esta sesión, o una nueva con contraseña al azar.
+const nuevaCuenta = async (email) => sinTerminar.get(email) || createAccount(email, nuevoToken());
+// Su usuario del panel: si falla, se intenta una vez más; si vuelve a fallar, el próximo clic sigue desde aquí.
+async function terminarCuenta(uid, email, guardar) {
+	try {
+		await guardar().catch(() => guardar());
+	} catch (err) {
+		sinTerminar.set(email, uid);
+		throw new Error(`Se creó la cuenta de ${email}, pero no se pudo terminar de darle acceso (${err?.code || err?.message || 'error'}). Vuelve a intentarlo: sigue donde quedó.`);
+	}
+	sinTerminar.delete(email);
+}
+
+// Alguien del equipo (administrador o asesor): su cuenta y el correo para que ponga su contraseña.
+export async function crearUsuarioEquipo({ nombre, email: correo, rol, agentId, activo }) {
+	const email = correoDe(correo);
+	const uid = await nuevaCuenta(email);
+	await terminarCuenta(uid, email, () => setDoc(doc(db, 'users', uid), {
+		nombre, email, rol, agentId: agentId || '', propietarioId: '', activo, createdAt: serverTimestamp(), createdBy: session.user.uid
+	}));
+	await sendPasswordResetEmail(auth, email);
+	return `Listo: le enviamos a ${email} un correo para que ponga su contraseña y entre al panel.`;
+}
 
 // Devuelve el aviso para mostrar; si no se puede, lanza un error que dice qué hacer.
 export async function darAcceso(prop, correo, nombre, { porNoche = false } = {}) {
 	const motivo = await motivoParaNoAbrir(prop, porNoche);
 	if (motivo) throw new Error(motivo);
 	const email = correoDe(correo);
-	let uid = sinTerminar.get(email);
-	if (!uid) {
-		try {
-			uid = await createAccount(email, nuevoToken());
-		} catch (err) {
-			if (err?.code !== 'auth/email-already-in-use') throw err;
-			// Usuarios guardados con ese correo (los de antes pueden tenerlo con mayúsculas).
-			const s = await getDocs(query(collection(db, 'users'), where('email', 'in', [...new Set([email, String(correo || '').trim()])])));
-			const usuarios = s.docs.map((d) => ({ uid: d.id, ...d.data() }));
-			const suyo = usuarios.find((u) => u.propietarioId === prop.id && u.rol === 'socio');
-			if (suyo) {
-				await ponerAcceso(prop, suyo, true, { porNoche });
-				await sendPasswordResetEmail(auth, email);
-				return `${email} ya tenía su cuenta: se la devolvimos y le enviamos el correo para poner su contraseña.`;
-			}
-			if (usuarios.length) throw new Error(`${email} ya entra al panel como otra persona (${usuarios[0].nombre || usuarios[0].rol}). Poné otro correo en esta ficha y tocá «Dar acceso» de nuevo.`);
-			throw new Error(`${email} ya tiene una cuenta para entrar, pero sin acceso al panel (puede ser de cuando entraba al portal con su correo). Desde aquí no se puede usar. Para arreglarlo: consola de Firebase → Authentication → Usuarios → buscá ${email} → ⋮ → Borrar cuenta. Después tocá «Dar acceso» otra vez.`);
-		}
-	}
-	// El usuario del panel: si falla, se intenta una vez más; si vuelve a fallar, el próximo clic sigue desde aquí.
+	let uid;
 	try {
-		await guardarUsuario(uid, prop, email, nombre).catch(() => guardarUsuario(uid, prop, email, nombre));
+		uid = await nuevaCuenta(email);
 	} catch (err) {
-		sinTerminar.set(email, uid);
-		throw new Error(`Se creó la cuenta de ${email}, pero no se pudo terminar de darle acceso (${err?.code || err?.message || 'error'}). Tocá «Dar acceso» otra vez: sigue donde quedó.`);
+		if (err?.code !== 'auth/email-already-in-use') throw err;
+		// Usuarios guardados con ese correo (los de antes pueden tenerlo con mayúsculas).
+		const s = await getDocs(query(collection(db, 'users'), where('email', 'in', [...new Set([email, String(correo || '').trim()])])));
+		const usuarios = s.docs.map((d) => ({ uid: d.id, ...d.data() }));
+		const suyo = usuarios.find((u) => u.propietarioId === prop.id && u.rol === 'socio');
+		if (suyo) {
+			await ponerAcceso(prop, suyo, true, { porNoche });
+			await sendPasswordResetEmail(auth, email);
+			return `${email} ya tenía su cuenta: se la devolvimos y le enviamos el correo para poner su contraseña.`;
+		}
+		if (usuarios.length) throw new Error(`${email} ya entra al panel como otra persona (${usuarios[0].nombre || usuarios[0].rol}). Pon otro correo en esta ficha y toca «Dar acceso» de nuevo.`);
+		throw new Error(`${email} ya tiene una cuenta para entrar, pero sin acceso al panel (puede ser de cuando entraba al portal con su correo). Desde aquí no se puede usar. Para arreglarlo: consola de Firebase → Authentication → Usuarios → busca ${email} → ⋮ → Borrar cuenta. Después toca «Dar acceso» otra vez.`);
 	}
-	sinTerminar.delete(email);
+	await terminarCuenta(uid, email, () => guardarUsuario(uid, prop, email, nombre));
 	// Una sola entrada por persona: si tenía otra (p. ej. con su correo de antes), queda desactivada.
 	for (const otro of await accesosDe(prop.id)) if (otro.uid !== uid && otro.activo !== false) await updateDoc(doc(db, 'users', otro.uid), { activo: false, updatedAt: serverTimestamp() });
 	await updateDoc(doc(db, 'propietarios', prop.id), { acceso: { email, activo: true } });

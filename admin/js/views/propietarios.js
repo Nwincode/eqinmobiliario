@@ -227,7 +227,7 @@ async function renderEditor(container, id) {
 			const conId = { ...d, ...((await getDoc(ref)).data() || {}), id: ref.id };
 			data.porNoche = conId.porNoche;
 			// Si no se pudo, se dice en pantalla: lo que ve en su panel (sus datos de pago incluidos) quedaría viejo.
-			await publicarPortal(conId).catch((err) => { console.warn('Resumen del dueño sin actualizar', err); toast(`La ficha se guardó, pero no se pudo poner al día lo que ve en su panel (datos de pago incluidos): ${errorMessage(err)} Volvé a guardar.`, 'warning'); });
+			await publicarPortal(conId).catch((err) => { console.warn('Resumen del dueño sin actualizar', err); toast(`La ficha se guardó, pero no se pudo poner al día lo que ve en su panel (datos de pago incluidos): ${errorMessage(err)} Vuelve a guardar.`, 'warning'); });
 			if (conId.portalToken) Object.assign(data, { portalToken: conId.portalToken, portalVersion: conId.portalVersion, portalPrivado: conId.portalPrivado });
 			avisarCambio();
 			return true;
@@ -351,10 +351,10 @@ function avisoResumenes(lista) {
 	let faltan = [];
 	const pintar = async () => {
 		const nuevas = await reglasNuevas();
-		const pasos = 'Publicá las reglas: firebase deploy --only firestore:rules --project eqinmobiliariobd. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		const pasos = 'Publica las reglas: firebase deploy --only firestore:rules,storage --project eqinmobiliariobd. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
 		caja.hidden = nuevas && !faltan.length && !fallas.size;
 		caja.replaceChildren(
-			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Dejá esta pantalla abierta hasta que llegue a 0.' : ['Dejá esta pantalla abierta. Cuando llegue a 0: ', pasos])
+			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Deja esta pantalla abierta hasta que llegue a 0.' : ['Deja esta pantalla abierta. Cuando llegue a 0: ', pasos])
 				: !nuevas ? h('div', {}, h('strong', {}, 'Lo que ve cada dueño ya está al día. Falta publicar las reglas nuevas de la base. '), pasos) : null,
 			fallas.size ? h('div', { class: 'mt-2' }, h('strong', {}, `No se pudo con ${fallas.size}: `),
 				[...fallas.entries()].map(([p, err], k) => [k ? ' · ' : '', h('a', { href: `#/propietarios/${p.id}`, class: 'alert-link' }, p.nombre || 'sin nombre'), ` (${errorMessage(err)})`]), ' ',
@@ -412,7 +412,7 @@ function seccionPortal(prop, propiedades, ficha) {
 		const dar = boton('icon-key', 'Dar acceso', async () => {
 			// El correo de ahora (aunque se haya cambiado arriba sin guardar): la ficha se guarda con él antes.
 			const correo = correoDe(ficha.correo());
-			if (!correo) { ficha.enfocarCorreo(); return toast(`Escribí el correo de ${prop.nombre || `este ${quien}`} arriba: con ese entra al panel.`, 'warning'); }
+			if (!correo) { ficha.enfocarCorreo(); return toast(`Escribe el correo de ${prop.nombre || `este ${quien}`} arriba: con ese entra al panel.`, 'warning'); }
 			if (!(await ficha.persistir())) return;
 			toast(await darAcceso(prop, correo, ficha.nombre() || prop.nombre, { porNoche }));
 			pintarAcceso();
@@ -430,9 +430,9 @@ function seccionPortal(prop, propiedades, ficha) {
 				])),
 			session.isAdmin && motivo && !activo ? h('p', { class: 'small text-muted mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), motivo) : null,
 			otroCorreo ? h('div', { class: 'alert alert-warning small mb-0' }, `Los avisos le llegan a ${correoFicha}, pero entra al panel con ${estado.email}. El correo de entrada no se cambia desde el panel: `,
-				activo ? 'tocá «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
+				activo ? 'toca «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
 					: `«Dar acceso» crea su entrada con ${correoFicha} (la de ${estado.email} queda apagada). Si ${correoFicha} ya tuviera una cuenta, el panel te dice cuál borrar en Firebase → Authentication.`) : null,
-			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pedíselo al administrador.'));
+			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pídeselo al administrador.'));
 	}
 
 
@@ -557,7 +557,7 @@ function seccionPortal(prop, propiedades, ficha) {
 			formPaso,
 			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su panel. Lo más nuevo arriba.'), listaCom),
 			h('div', {}, h('h3', { class: 'h6' }, 'Bitácora del asesor'), formBit, listaBit),
-			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribí un comentario para el dueño y marcalo como visible. No escribas el nombre del cliente.'), listaVis)));
+			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribe un comentario para el dueño y márcalo como visible. No escribas el nombre del cliente.'), listaVis)));
 }
 
 export async function render(container, [id]) {

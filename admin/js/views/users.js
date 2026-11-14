@@ -1,22 +1,22 @@
 import {
-	auth, db, doc, getDocs, setDoc, updateDoc, collection, serverTimestamp, createAccount, sendPasswordResetEmail
+	auth, db, doc, getDocs, updateDoc, collection, serverTimestamp, sendPasswordResetEmail
 } from '../firebase.js';
 import { h, toast, showError, pageHeader, badge, modal, formatDate , mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { loadPropietarios } from '../crm.js';
 import { etiquetaDueno, tieneCasasPorNoche } from '../duenos.js';
-import { ponerAcceso, motivoParaNoAbrir } from '../acceso.js';
+import { ponerAcceso, motivoParaNoAbrir, crearUsuarioEquipo } from '../acceso.js';
 
-// Aquí se crean solo cuentas del equipo. Propietarios y colaboradores entran con «Dar acceso» en su ficha
-// (Propietarios): una sola forma de darles entrada. Sus usuarios se listan aquí con el nombre que les corresponde.
+// Aquí se crean solo cuentas del equipo, con la misma pieza que da acceso a los dueños (admin/js/acceso.js): nadie
+// escribe una contraseña; la persona recibe un correo para poner la suya. Propietarios y colaboradores entran con
+// «Dar acceso» en su ficha (Propietarios). Sus usuarios se listan aquí con el nombre que les corresponde.
 const ROLES = [['asesor', 'Asesor (sus propiedades y leads)'], ['admin', 'Administrador (acceso total)']];
 const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'info'] };
 
 function userForm(agents, user = {}) {
 	const nombre = h('input', { class: 'form-control', value: user.nombre || '' });
 	const email = h('input', { class: 'form-control', type: 'email', value: user.email || '', disabled: Boolean(user.uid) });
-	const pass = h('input', { class: 'form-control', type: 'text', placeholder: 'Mínimo 8 caracteres' });
-	const rol = h('select', { class: 'form-select' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
+const rol = h('select', { class: 'form-select' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
 	rol.value = user.rol || 'asesor';
 	const agentId = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
 	agentId.value = user.agentId || '';
@@ -31,15 +31,13 @@ function userForm(agents, user = {}) {
 	const body = h('div', { class: 'row g-3' },
 		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Nombre *'), nombre),
 		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Correo *'), email),
-		user.uid ? null : h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Contraseña temporal *'), pass,
-			h('div', { class: 'form-text' }, 'Compártela con la persona; podrá cambiarla con "¿Olvidaste tu contraseña?".')),
-		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Rol'), rol),
+h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Rol'), rol),
 		cajaAsesor,
 		h('div', { class: 'col-12' }, h('div', { class: 'form-check form-switch' }, activo, h('label', { class: 'form-check-label', for: 'u-activo' }, 'Acceso activo'))));
 
 	return {
 		body,
-		values: () => ({ nombre: nombre.value.trim(), email: email.value.trim(), password: pass.value, rol: rol.value, activo: activo.checked, agentId: agentId.value })
+		values: () => ({ nombre: nombre.value.trim(), email: email.value.trim(), rol: rol.value, activo: activo.checked, agentId: agentId.value })
 	};
 }
 
@@ -68,16 +66,10 @@ export async function render(container) {
 						const boton = e.currentTarget;
 						const v = f.values();
 						if (!v.nombre || !v.email) return toast('Completa nombre y correo.', 'warning');
-						if (v.password.length < 8) return toast('La contraseña temporal debe tener al menos 8 caracteres.', 'warning');
-						if (falta(v)) return toast(falta(v), 'warning');
+if (falta(v)) return toast(falta(v), 'warning');
 						boton.disabled = true;
 						try {
-							const uid = await createAccount(v.email, v.password);
-							await setDoc(doc(db, 'users', uid), {
-								nombre: v.nombre, email: v.email, rol: v.rol, agentId: v.agentId, propietarioId: '', activo: v.activo,
-								createdAt: serverTimestamp(), createdBy: session.user.uid
-							});
-							toast('Usuario creado.');
+							toast(await crearUsuarioEquipo(v));
 							m.close();
 							reload();
 						} catch (err) {

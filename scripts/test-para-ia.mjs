@@ -58,4 +58,8 @@ t('paraIA limpia cada parte de una tarea (propiedad, inventario, lead y requerim
 	assert.deepEqual(d.requerimientos[0], { id: 'r1', cliente: 'Luis', texto: 'casa zona 16', criterios: {}, estado: '' });
 });
 
+t('Un texto suelto al traductor (chat de Solicitudes) sale sin teléfono ni correo', () => {
+	assert.equal(paraIA({ texto: 'escribime a ana@example.com o al 5555 1234' }).texto, 'escribime a [correo] o al [teléfono]');
+});
+
 console.log(`${ok} pruebas de para-ia pasan.`);

@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader , mount } from '../ui.js';
 import { renderForm, getPath, setPath, clonar } from '../form.js';
 import { markPending } from '../session.js';
@@ -400,25 +400,43 @@ export async function render(container) {
 	});
 	show(grupos[0].id);
 
-	const save = async (btn) => {
-		for (const { g, form } of forms) {
-			if (!form.validate()) { show(g.id); return; }
-		}
+	// Lo que dicen los formularios, campo por campo (varias pestañas editan partes distintas de la misma sección, p. ej.
+	// "seo"), con las fotos del carrusel como URLs simples. Firestore no acepta undefined: lo nunca llenado no va.
+	const campos = forms.flatMap(({ g }) => g.fields.filter((f) => f.name).map((f) => f.name));
+	const armar = () => {
 		const out = clonar(data);
-		// Campo por campo: varias pestañas editan partes distintas de la misma sección (p. ej. "seo").
 		forms.forEach(({ g, form }) => {
 			const d = form.getData();
 			g.fields.filter((f) => f.name).forEach((f) => {
 				const v = getPath(d, f.name);
-				// Firestore no acepta undefined: los campos nunca llenados no se guardan.
 				if (v !== undefined) setPath(out, f.name, v);
 			});
 		});
-		out.hero.imagenes = (out.hero.imagenes || []).map((i) => i.url).filter(Boolean);
-		out.updatedAt = serverTimestamp();
+		out.hero.imagenes = (out.hero.imagenes || []).map((i) => (typeof i === 'string' ? i : i.url)).filter(Boolean);
+		return out;
+	};
+	// Lo que mostraban al abrir (o al último guardado): se guarda solo lo que cambió aquí, sobre lo guardado AHORA
+	// (otra pestaña o persona pudo cambiar otra parte del contenido mientras tanto).
+	let alAbrir = armar();
+	const igual = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+	const save = async (btn) => {
+		for (const { g, form } of forms) {
+			if (!form.validate()) { show(g.id); return; }
+		}
+		const mio = armar();
+		const cambiados = campos.filter((k) => !igual(getPath(alAbrir, k), getPath(mio, k)));
+		let out = null;
 		btn.disabled = true;
 		try {
-			await setDoc(ref, out);
+			await runTransaction(db, async (tx) => {
+				const ahora = await tx.get(ref);
+				out = ahora.exists() ? ahora.data() : clonar(mio);
+				for (const k of cambiados) { const v = getPath(mio, k); if (v !== undefined) setPath(out, k, v); }
+				out.updatedAt = serverTimestamp();
+				tx.set(ref, out);
+			});
+			alAbrir = mio;
 			await Promise.all(forms.map(({ form }) => form.flushDeletes()));
 			await markPending('Contenido del sitio');
 			aplicarTema(out.tema);

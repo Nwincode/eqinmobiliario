@@ -233,9 +233,9 @@ if (!configured) {
 		root.replaceChildren(spinner('Verificando acceso…'));
 		try {
 			const snap = await getDoc(doc(db, 'users', user.uid));
-			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene acceso al panel. Si sos propietario o colaborador, pedíselo a tu asesor.');
+			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene acceso al panel. Si eres propietario o colaborador, pídeselo a tu asesor.');
 			const profile = snap.data();
-			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si creés que es un error, escribile a tu asesor.');
+			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si crees que es un error, escríbele a tu asesor.');
 			session.profile = profile;
 			if (session.esSocio) {
 				// Su nombre de rol (propietario o colaborador) y si tiene casas por noche (Solicitudes).

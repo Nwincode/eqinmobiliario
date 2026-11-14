@@ -61,5 +61,6 @@ export function paraIA(datos = {}) {
 	if (Array.isArray(d.inventario)) d.inventario = d.inventario.map(propiedadParaIA);
 	if (d.lead) d.lead = leadParaIA(d.lead);
 	if (Array.isArray(d.requerimientos)) d.requerimientos = d.requerimientos.map(requerimientoParaIA);
+	if (typeof d.texto === 'string') d.texto = sinContacto(d.texto);
 	return d;
 }

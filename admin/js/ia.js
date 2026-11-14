@@ -1,7 +1,7 @@
 // Herramientas del asesor. Si la IA está configurada en Netlify (ANTHROPIC_API_KEY) se usa;
 // si no, o si falla, se resuelven con reglas y plantillas (admin/js/reglas.js), sin costo.
 import { session } from './session.js';
-import { REGLAS } from './reglas.js';
+import { REGLAS, traductorLibre } from './reglas.js';
 import { paraIA } from './para-ia.js';
 
 let iaActiva = null;
@@ -54,6 +54,10 @@ export async function pedirIA(tarea, todo) {
 	if (!local) throw new Error('Esta herramienta necesita la IA, que no está activada.');
 	return local(datos);
 }
+
+// Un texto suelto al traductor gratuito (el chat de Solicitudes): la misma salida y la misma limpieza (paraIA: sin
+// teléfonos ni correos), aunque el chat ya los filtra.
+export const traducirTexto = (texto, par) => traductorLibre(paraIA({ texto }).texto, par);
 
 export { telefonoWa, whatsappUrl } from './formato.js';
 

@@ -637,7 +637,7 @@ export async function render(container, [id]) {
 			const descripcion = generarDescripcion(propiedadParaIA(p));
 			if (descripcion === p.descripcion) return;
 			await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
-		}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`, lista);
+		}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revísalas y publica.`, lista);
 	};
 	const btnMejorar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => mejorar() },
 		h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción');
@@ -655,7 +655,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'icon-undo', 'aria-hidden': 'true' }), ' Volver a la anterior');
 	const traducir = async (lista) => {
 		const l = lista || elegidas();
-		if (!(await confirmDialog(`¿Traducir al inglés ${nombreDe(l)}? Las que corregiste a mano en inglés se respetan. Revisá la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
+		if (!(await confirmDialog(`¿Traducir al inglés ${nombreDe(l)}? Las que corregiste a mano en inglés se respetan. Revisa la traducción antes de publicar.`, { okText: 'Traducir', danger: false }))) return;
 		await enMasa(async (p) => {
 			if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
 			const en = await traducirEn(p);
@@ -712,7 +712,7 @@ export async function render(container, [id]) {
 					fuente: fuenteEs(d), manual: false
 				};
 				await guardarMasa(cambios, cambios)(p);
-			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revisalos y publicá.`);
+			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revísalos y publica.`);
 		} },
 		h('span', { class: 'icon-pencil', 'aria-hidden': 'true' }), ' Poner textos preparados');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
@@ -952,7 +952,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 					deshacer.hidden = false;
 				} }, h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción'),
 				deshacer,
-				h('span', { class: 'small text-muted' }, 'Revisá el primer párrafo: ubicación y lo que hace especial a la propiedad.')));
+				h('span', { class: 'small text-muted' }, 'Revisa el primer párrafo: ubicación y lo que hace especial a la propiedad.')));
 		} },
 		{ name: 'video', label: 'Video (YouTube o Vimeo)', type: 'url', placeholder: 'https://www.youtube.com/watch?v=…' },
 

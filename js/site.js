@@ -142,10 +142,10 @@
 	}
 
 	// Avisa por correo al equipo (si está configurado en Netlify). Si falla, no pasa nada:
-	// el lead ya quedó guardado.
+	// el lead ya quedó guardado. Solo va su id: la función lee el lead guardado.
 	function avisarEquipo(lead) {
 		try {
-			fetch('/api/aviso-lead', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lead) })
+			fetch('/api/aviso-lead', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: lead.id }) })
 				.catch(function () {});
 		} catch (err) { /* navegador sin fetch keepalive */ }
 	}

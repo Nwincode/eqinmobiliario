@@ -58,8 +58,7 @@ Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar es
 | aliada | no | nombre de la agencia aliada si la propiedad es de una aliada (no se publica). En ese caso `asesor` = el asesor del equipo que la atiende |
 | destacada | no | `si` · `no` |
 | fotos | no | enlaces de Drive separados por `;` |
-| propietario_nombre | no | solo para el CRM |
-| propietario_telefono | no | `+502 5555 5555` |
+| propietario | en renta por noche, sí | teléfono (`+502 5555 5555`), correo o nombre de una ficha que **ya existe** en Propietarios (el panel no crea dueños desde el CSV). Con él la casa queda enlazada a su dueño. También se aceptan los encabezados `propietario_telefono` o `propietario_nombre` |
 | exclusiva_hasta | no | fecha `AAAA-MM-DD` |
 | comision_pct | no | número, ej. `5` |
 | notas | no | lo que haya que verificar |

@@ -841,7 +841,7 @@ const duenos = [];
 	await guardar(admin.p);
 	await ir(asesor.p, '#/propietarios/dueno-mixto', 3000);
 	const vistaAsesor = await asesor.p.locator('#acceso-panel').innerText().catch(() => '');
-	paso('El asesor ve que la dueña entra al panel (aun después de guardar su ficha), sin botones para darlo o quitarlo', /Entra con mixta@example\.com/.test(vistaAsesor) && /pedíselo al administrador/.test(vistaAsesor)
+	paso('El asesor ve que la dueña entra al panel (aun después de guardar su ficha), sin botones para darlo o quitarlo', /Entra con mixta@example\.com/.test(vistaAsesor) && /pídeselo al administrador/.test(vistaAsesor)
 		&& await asesor.p.locator('#acceso-panel button').count() === 0, vistaAsesor.replace(/\s+/g, ' '));
 	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
 	await admin.p.locator('#acceso-panel button', { hasText: 'Quitar acceso' }).click();
@@ -867,6 +867,93 @@ const duenos = [];
 		/Tu portal ahora es tu panel/.test(textoVieja) && await vieja.p.locator('a[href="/admin/"]').count() === 1 && await vieja.p.locator('a[href*="wa.me"]', { hasText: 'Pedir mi acceso' }).count() === 1
 		&& /noindex/.test(await vieja.p.content()) && await lado(vieja.p) <= 0);
 	await vieja.p.screenshot({ path: `${PANEL}/pagina-vieja-390.png`, fullPage: true });
+}
+
+// ---------------------------------------------------------------- Dueño que cambia, casas por noche sin asesor, estado de cuenta
+{
+	const sv = (x) => ({ stringValue: x }), nv = (x) => ({ integerValue: String(x) }), bv = (x) => ({ booleanValue: x });
+	const pon = (ruta, fields, mascara) => fetch(`${FS}/${ruta}${mascara ? `?${mascara.map((k) => `updateMask.fieldPaths=${k}`).join('&')}` : ''}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	const lista = (ids) => ({ arrayValue: { values: ids.map((id) => ({ mapValue: { fields: { propertyId: sv(id) } } })) } });
+	const mapa = (o) => ({ mapValue: { fields: o } });
+	const f = async (ruta) => (await leer(ruta)).fields || {};
+	const txt = (x) => x?.stringValue ?? '';
+	// Fechas desde hoy en Guatemala; la reserva pasada, en el mes anterior (Rentas se abre en el de hoy).
+	const dia = (n) => new Date(Date.now() - 6 * 3600e3 + n * 864e5).toISOString().slice(0, 10);
+	const mesAntes = new Date(`${dia(0).slice(0, 7)}-15T12:00:00Z`); mesAntes.setUTCMonth(mesAntes.getUTCMonth() - 1);
+	const antes1 = `${mesAntes.toISOString().slice(0, 7)}-01`, antes3 = `${mesAntes.toISOString().slice(0, 7)}-03`;
+	await pon('propietarios/r2-dueno', { tipo: sv('propietario'), nombre: sv('Dueña R2 (prueba)'), telefono: sv('+502 5555 0201'), agentId: sv(''), porNoche: bv(true), propiedades: lista(['r2-noche']), datosPago: sv('Banco R2 cuenta 1') });
+	await pon('propietarios/r2-nuevo', { tipo: sv('propietario'), nombre: sv('Dueño nuevo R2 (prueba)'), telefono: sv('+502 5555 0202'), agentId: sv(''), propiedades: lista([]), datosPago: sv('Banco R2 cuenta 2') });
+	await pon('propietarios/r2-antes', { tipo: sv('propietario'), nombre: sv('Dueño anterior R2 (prueba)'), telefono: sv('+502 5555 0203'), agentId: sv(''), propiedades: lista([]) });
+	// Una casa por noche de antes, con asesor; su reserva pasada la ganó otro dueño (r2-antes).
+	await pon('properties/r2-noche', { titulo: sv('Casa por noche R2 (prueba)'), slug: sv('casa-noche-r2'), codigo: sv('R2-1'), operacion: sv('vacacional'), tipo: sv('casa'), estado: sv('disponible'),
+		moneda: sv('USD'), precio: nv(120), zona: sv('Monterrico'), ciudad: sv('Monterrico'), descripcion: sv('REGISTRO DE PRUEBA. Casa por noche para el cambio de dueño.'),
+		propietarioId: sv('r2-dueno'), agentId: sv('asesor-prueba'), publicado: bv(false), vacacional: mapa({ base: nv(120), huespedesMax: nv(4) }) });
+	await pon('properties/r2-noche/privado/socio', { precioBase: nv(100), margen: nv(20) });
+	const reserva = (llegada, salida, dueno) => ({ propertyId: sv('r2-noche'), propertyTitulo: sv('Casa por noche R2 (prueba)'), propietarioId: sv(dueno), agentId: sv('asesor-prueba'), estado: sv('confirmada'),
+		canal: sv('directo'), huesped: sv('Huésped R2'), llegada: sv(llegada), salida: sv(salida), noches: nv(2), costoSocio: nv(200), alojamiento: nv(240), ganancia: nv(40), moneda: sv('USD'), pagadoSocio: bv(false), leadId: sv(''), codigo: sv('') });
+	await pon('reservas/r2-pasada', reserva(antes1, antes3, 'r2-antes'));
+	await pon('reservas/r2-viene', reserva(dia(20), dia(22), 'r2-dueno'));
+	const solicitud = (codigo, llegada, salida) => ({ nombre: sv('Cliente R2'), telefono: sv('+502 5555 0299'), email: sv('r2@example.com'), propertyId: sv('r2-noche'), propietarioId: sv('r2-dueno'),
+		agentId: sv('asesor-prueba'), estado: sv('nuevo'), reserva: mapa({ codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(2) }) });
+	await pon('leads/r2-abierta', solicitud('EQ-R2A', dia(30), dia(32)));
+	await pon('leads/r2-vieja', solicitud('EQ-R2V', dia(-12), dia(-10)));
+	const CHAT = 'ChatAbiertoDeR2LargoYAlAzar12345';
+	await pon(`chats/${CHAT}`, { codigo: sv('EQ-R2A'), propertyId: sv('r2-noche'), propietarioId: sv('r2-dueno'), leadId: sv('r2-abierta'), llegada: sv(dia(30)), salida: sv(dia(32)), nombre: sv('Cliente') });
+
+	// Casas por noche sin asesor: al abrir Propiedades, la casa de antes, sus reservas y solicitudes lo pierden.
+	await ir(admin.p, '#/propiedades', 5000);
+	const [c7, r7, l7] = await Promise.all([f('properties/r2-noche'), f('reservas/r2-viene'), f('leads/r2-abierta')]);
+	const leeAsesor = await asesor.p.evaluate(async () => { const fb = await import('/admin/js/firebase.js'); return fb.getDoc(fb.doc(fb.db, 'leads', 'r2-abierta')).then(() => 'leyó', (e) => e.code); });
+	paso('Casa por noche de antes: al abrir Propiedades pierde el asesor, y también sus reservas y solicitudes (el asesor ya no lee el teléfono del huésped)',
+		txt(c7.agentId) === '' && txt(r7.agentId) === '' && txt(l7.agentId) === '' && leeAsesor === 'permission-denied', `${txt(c7.agentId)}|${txt(r7.agentId)}|${txt(l7.agentId)} · ${leeAsesor}`);
+
+	// No queda sin dueño una casa por noche con huéspedes por venir: eliminar a su dueña se detiene antes de tocar nada.
+	await ir(admin.p, '#/propietarios/r2-dueno', 3500);
+	await admin.p.locator('.sticky-actions button', { hasText: 'Eliminar' }).click();
+	await admin.p.locator('.modal.show button', { hasText: /^Eliminar$/ }).click();
+	await espera(3500);
+	const aviso3 = await avisos(admin.p);
+	const sigue = await fetch(`${FS}/propietarios/r2-dueno`, { headers: { Authorization: 'Bearer owner' } });
+	paso('Eliminar a la dueña de una casa por noche con huéspedes por venir se detiene y lo dice; su ficha y la casa siguen como estaban',
+		/no puede quedar sin dueño/.test(aviso3) && sigue.status === 200 && txt((await f('properties/r2-noche')).propietarioId) === 'r2-dueno', aviso3);
+
+	// Cambio de dueño desde la ficha de la casa: sus reservas, solicitudes y chats por venir pasan al nuevo; lo pasado no.
+	await ir(admin.p, '#/propiedades/r2-noche', 4000);
+	await campo(admin.p, 'propietarioId').selectOption('r2-nuevo');
+	await espera(300);
+	await guardar(admin.p);
+	await espera(3000);
+	const [c2, viene, pasada, abierta, vieja, chat2, nuevo, anterior] = await Promise.all(['properties/r2-noche', 'reservas/r2-viene', 'reservas/r2-pasada', 'leads/r2-abierta', 'leads/r2-vieja', `chats/${CHAT}`, 'propietarios/r2-nuevo', 'propietarios/r2-dueno'].map(f));
+	paso('Cambiar el dueño de una casa por noche pasa al nuevo sus reservas, solicitudes y chats por venir (y lo pasado queda con quien lo ganó)',
+		txt(c2.propietarioId) === 'r2-nuevo' && txt(viene.propietarioId) === 'r2-nuevo' && txt(pasada.propietarioId) === 'r2-antes' && txt(abierta.propietarioId) === 'r2-nuevo'
+		&& txt(vieja.propietarioId) === 'r2-dueno' && txt(chat2.propietarioId) === 'r2-nuevo' && JSON.stringify(nuevo.propiedades).includes('r2-noche') && nuevo.porNoche?.booleanValue === true
+		&& !JSON.stringify(anterior.propiedades || {}).includes('r2-noche') && anterior.porNoche?.booleanValue === false && txt(c2.agentId) === '',
+		`${txt(c2.propietarioId)} ${txt(viene.propietarioId)} ${txt(pasada.propietarioId)} ${txt(abierta.propietarioId)} ${txt(vieja.propietarioId)} ${txt(chat2.propietarioId)} · ${await avisos(admin.p)}`);
+
+	// Estado de cuenta de Rentas: la reserva pasada sale con quien la ganó; editarla no se la pasa al dueño de hoy.
+	await ir(admin.p, '#/rentas', 3500);
+	await admin.p.locator('button[aria-label="Mes anterior"]').first().click();
+	await espera(800);
+	const fila8 = await admin.p.locator('tr', { hasText: 'Dueño anterior R2' }).first().innerText().catch(() => '');
+	await admin.p.locator('tr', { hasText: 'Casa por noche R2' }).first().click();
+	await espera(1500);
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await espera(3000);
+	paso('Rentas: la reserva pasada cuenta para el dueño que la ganó, y editarla no se la pasa al dueño de hoy',
+		/Dueño anterior R2[\s\S]*\b1\b/.test(fila8) && txt((await f('reservas/r2-pasada')).propietarioId) === 'r2-antes', `${fila8.replace(/\s+/g, ' ')} · ${await avisos(admin.p)}`);
+
+	// «Mis propiedades» en una transacción: lo que otra pestaña bloqueó mientras tanto no se pierde, y el precio público
+	// sale del suyo con el margen vigente (las reglas lo exigen).
+	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
+	await pon(`properties/${idCasa}`, { vacacional: mapa({ bloqueos: { arrayValue: { values: [mapa({ desde: sv(dia(40)), hasta: sv(dia(42)), motivo: sv('Otra pestaña') })] } } }) }, ['vacacional.bloqueos']);
+	await socio.p.fill('#mc-base', '115');
+	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await espera(3000);
+	const num = (x) => Number(x?.doubleValue ?? x?.integerValue);
+	const v5 = (await f(`properties/${idCasa}`)).vacacional?.mapValue?.fields || {};
+	const s5 = await f(`properties/${idCasa}/privado/socio`);
+	paso('«Mis propiedades» guarda solo lo que cambió: no borra lo que otra pestaña bloqueó, y su precio y el público van juntos',
+		JSON.stringify(v5.bloqueos || {}).includes(dia(40)) && num(s5.precioBase) === 115 && num(v5.base) === 138, `${num(s5.precioBase)} → ${num(v5.base)} · ${await avisos(socio.p)}`);
 }
 
 // ---------------------------------------------------------------- Acciones en lote y dos «Guardar» seguidos

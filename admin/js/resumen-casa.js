@@ -44,14 +44,14 @@ function respuesta(resumen, p) {
 				tipo, texto: txt, fecha: serverTimestamp(), origen: 'propietario', idioma: 'es'
 			});
 			caja.replaceChildren(h('div', { class: 'alert alert-success small mb-0', role: 'status' }, ic('icon-check-circle'),
-				tipo === 'aprobado' ? 'Gracias: tu asesor ya sabe que estás de acuerdo con el anuncio.' : 'Gracias: tu asesor recibió lo que querés cambiar.'));
+				tipo === 'aprobado' ? 'Gracias: tu asesor ya sabe que estás de acuerdo con el anuncio.' : 'Gracias: tu asesor recibió lo que quieres cambiar.'));
 		} catch (err) { showError(err); btn.disabled = false; }
 	};
 	// (Sin «d-grid»: su display gana a «hidden» y la caja se vería abierta.)
 	const form = h('form', { hidden: true, onsubmit: (e) => {
 		e.preventDefault();
 		const t = texto.value.trim();
-		if (!t) { texto.focus(); return toast('Escribí qué querés cambiar.', 'warning'); }
+		if (!t) { texto.focus(); return toast('Escribe qué quieres cambiar.', 'warning'); }
 		enviar('cambios', t, e.submitter);
 	} },
 	h('label', { class: 'form-label small', for: texto.id }, '¿Qué te gustaría cambiar? (el precio, una foto, un dato…)'), texto,
