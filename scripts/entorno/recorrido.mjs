@@ -390,7 +390,7 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const ajeno = await api('colab', { accion: 'confirmar', leadId: a.id });
 	paso('Servidor: otro dueño no confirma una solicitud de una casa que no es suya (403)', ajeno.status === 403 && !(await existe(`reservas/${a.id}`)), resp(ajeno));
 	const dos = await api('socio', { accion: 'confirmar', leadId: lead1 });
-	paso('Servidor: la misma solicitud no se confirma dos veces (409)', dos.status === 409, resp(dos));
+	paso('Servidor: la misma solicitud no se confirma dos veces (409, «ya respondida»: el panel recarga)', dos.status === 409 && dos.yaRespondida === true, resp(dos));
 	const b = await sembrar('srv-b', llegada1, 1);
 	const choca = await api('socio', { accion: 'confirmar', leadId: b.id });
 	paso('Servidor: fechas que chocan con otra reserva confirmada no se confirman y no se escribe nada (422)', choca.status === 422 && !(await existe(`reservas/${b.id}`)) && !(await leer(`chats/${b.token}`)).fields?.estado, resp(choca));
@@ -466,6 +466,16 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		const rd = (await leer(`reservas/${d.id}`)).fields || {};
 		paso('Transición: sin la cuenta de escritura (503) y con las reglas de antes, el socio confirma por el camino de antes', puestas === 200 && r7.status === 503 && rd.estado?.stringValue === 'confirmada'
 			&& (await leer(`chats/${d.token}`)).fields?.estado?.stringValue === 'confirmada' && /Confirmada/.test(await socio.p.locator('.card', { hasText: d.codigo }).first().innerText()), `${resp(r7)} · reglas ${puestas} · ${await avisos(socio.p)}`);
+		// Reglas nuevas y el servidor sin cuenta: el camino de antes ya no pasa y se dice por qué (no «no cuadra»).
+		await reglas('firestore.rules');
+		const hh = await sembrar('srv-h', iso(260));
+		await ir(socio.p, `#/solicitudes/${hh.codigo}`, 3500);
+		await socio.p.locator('.card', { hasText: hh.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
+		await espera(800);
+		await socio.p.locator('.modal button', { hasText: 'Fechas no disponibles' }).click();
+		await espera(3500);
+		const aviso = await avisos(socio.p);
+		paso('Reglas nuevas sin la cuenta de escritura: el socio ve «El servidor de reservas no está disponible», no un error crudo', /servidor de reservas no está disponible/.test(aviso) && !(await leer(`chats/${hh.token}`)).fields?.estado, aviso);
 	} finally {
 		await escritura(true);
 		const nuevas = await reglas('firestore.rules');

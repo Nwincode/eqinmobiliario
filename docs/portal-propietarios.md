@@ -102,7 +102,9 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
    y Storage → Reglas, pegando cada archivo completo; o con
    `firebase deploy --only firestore:rules,storage --project eqinmobiliariobd`). Desde aquí, lo que el dueño confirma,
    cancela o cobra solo lo escribe el servidor.
-8. **El administrador abre Solicitudes**: las solicitudes de antes reciben el índice de su chat. Si el aviso nombra
+8. **Inmediatamente después de publicar las reglas (sin esperar), el administrador abre Solicitudes**: las solicitudes
+   de antes reciben el índice de su chat. Mientras no lo tengan, el servidor no las atiende y el panel del dueño las
+   manda por el camino de antes, que las reglas nuevas ya niegan. Si el aviso nombra
    una solicitud con más de un chat, revisarla a mano. Sin este paso, el socio no puede confirmar ni cancelar esas
    solicitudes (el administrador sí).
 9. **Dar acceso** desde su ficha a cada dueño de venta o renta y a cada colaborador (el botón se habilita solo). Los

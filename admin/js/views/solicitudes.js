@@ -34,7 +34,7 @@ function hace(desde) {
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, chatsSnap, propietarios, casas, reservas, mias, servidor] = await Promise.all([
+	const [snap, chatsSnap, propietarios, casas, reservas, mias] = await Promise.all([
 		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
 		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
 		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
@@ -44,9 +44,7 @@ export async function render(container, [codigo] = []) {
 		// Sus casas por noche de hoy: un chat que terminó con una casa que ya no es suya (cambió de dueño, se borró o pasó a
 		// venta) se queda con su nombre y se ve (y su comprobante a EQ se sube), pero las reglas ya no le dejan leerlo ni
 		// responderlo: sin chat ni botones de respuesta.
-		admin ? null : misCasas().then((l) => new Set(l.filter((c) => c.operacion === 'vacacional').map((c) => c.id))),
-		// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).
-		session.isAdmin ? estadoServidor().catch(() => 'error') : null]);
+		admin ? null : misCasas().then((l) => new Set(l.filter((c) => c.operacion === 'vacacional').map((c) => c.id)))]);
 	const deHoy = (propertyId) => admin || mias.has(propertyId);
 	// Chats de antes de su índice: el administrador se lo pone al abrir esta pantalla (con las reglas de antes no se puede: se salta).
 	const variosChats = admin ? await ponerIndices(snap.docs, chatsSnap.docs).catch((err) => { console.warn('Índice de chats', err); return []; }) : [];
@@ -152,7 +150,14 @@ export async function render(container, [codigo] = []) {
 		[id, (await getDoc(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || null])));
 	const cuenta = (l) => cuentaDe(l.reserva, netos[l.propertyId]);
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
-	const hacer = async (tarea) => { try { await tarea(); await recargar(); } catch (err) { showError(err); } };
+	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
+	const hacer = async (tarea) => {
+		try { await tarea(); await recargar(); } catch (err) {
+			if (err?.yaRespondida) return recargar();
+			if (err?.servidor) return toast(err.message, 'warning');
+			showError(err);
+		}
+	};
 
 	async function confirmar(l) {
 		const r = l.reserva;
@@ -186,7 +191,7 @@ export async function render(container, [codigo] = []) {
 				await confirmarSolicitud(l, c, { chat: chatDe(l), pago, modo });
 				toast('Reserva confirmada.');
 			} catch (err) {
-				if (err instanceof ChoqueDeFechas || err?.servidor) toast(err.message, 'warning');
+				if (err instanceof ChoqueDeFechas || (err?.servidor && !err.yaRespondida)) toast(err.message, 'warning');
 				// Lo que cotizó el cliente no cuadra con lo que la base acepta (p. ej. un chat de antes): se dice, sin el error crudo.
 				else if (!admin && err?.code === 'permission-denied') toast('No se pudo confirmar: lo que se le cotizó al cliente no cuadra con los precios guardados de la casa. Avísale al administrador para que la confirme.', 'warning');
 				else throw err;
@@ -230,7 +235,7 @@ export async function render(container, [codigo] = []) {
 				toast('Reserva cancelada. Las fechas quedaron libres.');
 			} catch (err) {
 				// El servidor (o las reglas) no dejan al dueño cancelar una reserva de antes (sin su chat guardado) ni una ya pagada o empezada.
-				if (err?.servidor) toast(err.message, 'warning');
+				if (err?.servidor && !err.yaRespondida) toast(err.message, 'warning');
 				else if (!admin && err?.code === 'permission-denied') toast('Esta reserva ya no la puedes cancelar tú (es de antes, ya se pagó o ya empezó): avísale al administrador.', 'warning');
 				else throw err;
 			}
@@ -303,10 +308,17 @@ export async function render(container, [codigo] = []) {
 	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelComision(r, Date.now())));
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
+	// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).
+	// Se pinta cuando llega, sin hacer esperar a la pantalla.
+	const indicador = h('div', {});
+	if (session.isAdmin) estadoServidor().catch(() => 'error').then((servidor) => {
+		indicador.className = 'small text-muted mb-2 d-flex align-items-center gap-1';
+		indicador.replaceChildren(h('span', { class: servidor === 'activo' ? 'icon-check text-success' : 'icon-exclamation-triangle text-warning', 'aria-hidden': 'true' }),
+			`Reservas por servidor: ${servidor === 'activo' ? 'activo' : servidor === 'sin configurar' ? 'sin configurar' : 'con error (revisa la cuenta de escritura en Netlify)'}`);
+	});
 	mount(container,
 		pageHeader('Solicitudes'),
-		servidor ? h('div', { class: 'small text-muted mb-2 d-flex align-items-center gap-1' }, h('span', { class: servidor === 'activo' ? 'icon-check text-success' : 'icon-exclamation-triangle text-warning', 'aria-hidden': 'true' }),
-			`Reservas por servidor: ${servidor === 'activo' ? 'activo' : servidor === 'sin configurar' ? 'sin configurar' : 'con error (revisa la cuenta de escritura en Netlify)'}`) : null,
+		indicador,
 		variosChats.length ? h('div', { class: 'alert alert-warning d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
 			`${variosChats.join(', ')}: ${variosChats.length === 1 ? 'esta solicitud tiene' : 'estas solicitudes tienen'} más de un chat. Revisa cuál es el del cliente; hasta entonces el socio no puede confirmarla ni cancelarla.`) : null,
 		admin ? [

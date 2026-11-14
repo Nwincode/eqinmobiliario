@@ -122,7 +122,7 @@ const ACCIONES = {
 // ¿La cuenta de escritura no sirve? (Google rechaza su clave, o la base le niega el permiso: falta el rol.)
 const sinCuenta = (err) => err?.rechazo || err?.codigo === 'PERMISSION_DENIED' || err?.status === 401 || err?.status === 403;
 
-export default async (req) => {
+export default async (req, context) => {
 	if (req.method === 'GET') {
 		let admin = null;
 		try { admin = await staffUser(req); } catch { /* token inválido */ }
@@ -150,18 +150,20 @@ export default async (req) => {
 	try {
 		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || '')));
 	} catch (err) {
-		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}) });
+		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
-		if (err?.codigo === 'ALREADY_EXISTS' || err?.codigo === 'FAILED_PRECONDITION') return json(409, { error: YA });
-		if (sinCuenta(err)) { console.error('Reservas: cuenta de escritura', err.message); return json(503, { error: 'La cuenta de escritura no funciona', detalle: err.message }); }
+		if (err?.codigo === 'ALREADY_EXISTS' || err?.codigo === 'FAILED_PRECONDITION') return json(409, { error: YA, yaRespondida: true });
+		if (sinCuenta(err)) { console.error('Reservas: cuenta de escritura', err.message); return json(503, { error: 'La cuenta de escritura no funciona' }); }
 		console.error('Reservas:', err.message);
 		return json(500, { error: 'No se pudo guardar. Vuelve a intentarlo.' });
 	}
-	// Los correos (al cliente y, si el socio canceló, al equipo) salen de aquí, con lo ya guardado. Si fallan, lo escrito queda.
-	let avisos = 0;
-	try { avisos = await enviarAvisosChat(hecho.token); } catch (err) { console.error('Reservas: avisos', err.message); avisos = -1; }
+	// Los correos (al cliente y, si el socio canceló, al equipo) salen de aquí, con lo ya guardado; si fallan, lo escrito
+	// queda. Lo guardado se responde sin esperarlos cuando Netlify deja terminar trabajo después de responder
+	// (context.waitUntil); si no, se esperan antes de responder (la función sigue aunque el panel se desconecte).
 	const { token, ...resto } = hecho;
-	return json(200, { ok: true, accion, ...resto, avisos });
+	const avisos = enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });
+	if (typeof context?.waitUntil === 'function') { context.waitUntil(avisos); return json(200, { ok: true, accion, ...resto }); }
+	return json(200, { ok: true, accion, ...resto, avisos: await avisos });
 };
 
 export const config = { path: '/api/reservas' };

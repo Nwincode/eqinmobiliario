@@ -164,14 +164,30 @@ export async function ponerAlDiaReservas(reservas, casas) {
 // (y manda los correos). null = el servidor todavía no tiene su cuenta de escritura (503) o el chat es de antes, sin su
 // índice: se sigue por el camino de antes.
 // Un error del servidor se muestra con su texto (`err.servidor` = el código: 403, 409, 422…).
+let sinServidor = false;
 export async function porServidor(accion, leadId, extra = {}) {
+	sinServidor = false;
 	const token = await session.user.getIdToken();
 	const res = await fetch('/api/reservas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accion, leadId, ...extra }) });
 	const cuerpo = await res.json().catch(() => ({}));
 	// Sin cuenta de escritura (503) o un chat de antes sin su índice: lo deciden las reglas publicadas.
+	sinServidor = res.status === 503;
 	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
-	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status });
+	// `yaRespondida`: otra pestaña (o un intento cuya respuesta se perdió) ya lo hizo: la pantalla se recarga.
+	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida) });
 	return cuerpo;
+}
+// Lo del socio que siguió por el camino de antes porque el servidor respondió 503: si las reglas ya son las nuevas, lo
+// niegan; eso no es culpa de la solicitud (no se dice «no cuadra»): el servidor no está disponible.
+function conCaminoDeAntes(fn) {
+	return async (...args) => {
+		try {
+			return await fn(...args);
+		} catch (err) {
+			if (session.esSocio && sinServidor && err?.code === 'permission-denied') throw Object.assign(new Error('El servidor de reservas no está disponible: avísale al administrador.'), { servidor: 503 });
+			throw err;
+		}
+	};
 }
 // ¿El servidor ya escribe las reservas del socio? 'activo', 'sin configurar' o 'error' (el aviso de Solicitudes).
 export async function estadoServidor() {
@@ -203,7 +219,7 @@ const cerrarChat = (tx, chat, estado, texto) => {
 // los datos de pago del socio. `cuenta` = cuentaDe(...) de esas fechas; `pago` = datos de pago (con chat).
 // `modo`: con qué se registra lo cobrado (montosDeConfirmacion; el socio, siempre 'mayor').
 // Devuelve lo que quedó registrado: { ganancia, moneda }.
-export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', modo = 'mayor' } = {}) {
+export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', modo = 'mayor' } = {}) {
 	if (session.esSocio) {
 		const hecho = await porServidor('confirmar', l.id);
 		if (hecho) { await markPending(`${l.propertyTitulo}: reserva ${l.reserva.codigo} confirmada`); return hecho; }
@@ -238,7 +254,7 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', mo
 	if (chat) avisarChat(chat.ref.id);
 	await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 	return { ganancia: datos.ganancia, moneda: datos.moneda };
-}
+});
 
 // Lee, dentro de la transacción, que la solicitud siga sin responder: el chat (lo lee cualquiera con el enlace) y, para
 // el equipo, la solicitud misma (el socio no la lee).
@@ -248,7 +264,7 @@ async function sinResponder(tx, l, chat) {
 }
 
 // La solicitud no se dio: la solicitud y el chat lo dicen, y el cliente recibe el mensaje. No hay reserva.
-export async function noSeDio(l, motivo, chat = null) {
+export const noSeDio = conCaminoDeAntes(async function noSeDio(l, motivo, chat = null) {
 	if (session.esSocio && await porServidor('no', l.id, { motivo })) return;
 	await runTransaction(db, async (tx) => {
 		await sinResponder(tx, l, chat);
@@ -256,12 +272,12 @@ export async function noSeDio(l, motivo, chat = null) {
 		if (chat) cerrarChat(tx, chat, 'no', TEXTO_NO);
 	});
 	if (chat) avisarChat(chat.ref.id);
-}
+});
 
 // Cancela una reserva, venga de Rentas o de Solicitudes: sus fechas quedan libres y, si vino de la web, la
 // solicitud y el chat dicen «cancelada» y el cliente recibe el mensaje. `chat`: el de Solicitudes (si no, se busca).
 // El socio, por el servidor (la reserva de una solicitud lleva el id de la solicitud).
-export async function cancelarReserva(r, motivo, { chat } = {}) {
+export const cancelarReserva = conCaminoDeAntes(async function cancelarReserva(r, motivo, { chat } = {}) {
 	if (session.esSocio && await porServidor('cancelar', r.leadId, { motivo })) {
 		await markPending(`${r.propertyTitulo}: reserva ${r.codigo || dia(r.llegada)} cancelada`);
 		return true;
@@ -281,7 +297,7 @@ export async function cancelarReserva(r, motivo, { chat } = {}) {
 	await markPending(`${r.propertyTitulo}: reserva ${r.codigo || dia(r.llegada)} cancelada`);
 	// Si el cliente se enteró por su chat (una reserva sin chat, no).
 	return Boolean(cierra);
-}
+});
 
 // El cliente le pagó al socio: ve «Pago recibido» y los datos de llegada guardados en la casa.
 // El socio, por el servidor (todo junto). El administrador (y el socio con el servidor sin configurar), en dos pasos y
@@ -289,7 +305,7 @@ export async function cancelarReserva(r, motivo, { chat } = {}) {
 // ven el estado anterior y lo rechazan).
 // Se puede repetir sin recargar si el segundo paso falló: el estado se vuelve a leer (no el que había al abrir) y,
 // si ya dice «pagada», no se vuelve a escribir.
-export async function pagoRecibido(chat, propertyId, leadId) {
+export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, propertyId, leadId) {
 	if (session.esSocio && await porServidor('pago', leadId)) { chat.estado = 'pagada'; return; }
 	if ((await getDoc(chat.ref)).data()?.estado !== 'pagada') await updateDoc(chat.ref, { estado: 'pagada' });
 	chat.estado = 'pagada';
@@ -297,7 +313,7 @@ export async function pagoRecibido(chat, propertyId, leadId) {
 	const ll = (await getDoc(doc(db, 'properties', propertyId, 'privado', 'llegada'))).data();
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
 	avisarChat(chat.ref.id);
-}
+});
 
 // El socio subió la foto de su transferencia de la comisión.
 export const ponerComprobante = (res, url) => updateDoc(refReserva(res.id), { 'comision.comprobante': url, updatedAt: serverTimestamp() });
