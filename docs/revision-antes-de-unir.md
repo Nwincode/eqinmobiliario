@@ -173,3 +173,4 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Respuestas largas, trabajo que no se pidió, compactar a mano. | Respuesta corta y directa; solo lo pedido; la compactación es automática. |
 | Se entregó sin decir qué quedó sin probar. | Cada entrega dice qué se probó, con qué, y qué no. |
 | Se quitaron los centavos de los precios ≥ 1,000 sin preguntarle al dueño; él los quiere siempre. | Un cambio de cómo se ve un dato (formato de precio, fecha, moneda) se consulta antes con el dueño. |
+| El sitio averiguaba si las reglas nuevas estaban publicadas leyendo un documento de id fijo; cualquiera podía crearlo y hacer que todos los clientes usaran el camino viejo (sin las protecciones). | Una sonda de «¿qué reglas hay?» consulta un id al azar en cada carga, nunca un id fijo que alguien pueda crear. |

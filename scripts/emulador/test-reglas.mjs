@@ -41,7 +41,7 @@ await espera('nadie cambia el índice de una solicitud a otro chat', fetch(`${H}
 await espera('anónimo lee el índice', leer(null, 'chatsPorSolicitud/lead1'), false);
 await espera('administrador lee el índice (control)', leer('admin1', 'chatsPorSolicitud/lead1'), true);
 {
-	const probar = await leer(null, 'chatsPorSolicitud/prueba-reglas');
+	const probar = await leer(null, `chatsPorSolicitud/prueba-${Math.random().toString(36).slice(2)}`);
 	n++; if (probar !== 404) fallas++; console.log(`${probar === 404 ? 'ok   ' : 'FALLA'} 404    · leer un índice que no existe responde «no existe» (así el sitio sabe que las reglas son las nuevas) (${probar})`);
 }
 // Solicitud de antes (sin índice): su chat ya existe. Nadie le inventa otro chat con su índice ni le pone índice a un

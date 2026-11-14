@@ -52,7 +52,8 @@
 	// otra respuesta o sin red, se escribe como piden las nuevas (si falla, se ve el error: no se esconde).
 	var reglas = null;
 	function reglasDeAntes() {
-		if (!reglas) reglas = fetch(API + RAIZ + '/chatsPorSolicitud/prueba-reglas' + (LLAVE ? '?' + LLAVE : ''))
+		// Un id al azar en cada carga: nadie puede crear de antemano el documento que se consulta y engañar a todos los clientes.
+		if (!reglas) reglas = fetch(API + RAIZ + '/chatsPorSolicitud/prueba-' + alAzar(24) + (LLAVE ? '?' + LLAVE : ''))
 			.then(function (r) { return r.status === 403; }, function () { return false; });
 		return reglas;
 	}
