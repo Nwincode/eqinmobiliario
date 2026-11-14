@@ -284,7 +284,18 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña crea la reserva sin solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ leadId: 'no-existe' })), false);
 	await espera('dueña crea la reserva con otro id que el de la solicitud', crearR('mixto1', 'reservas/r-otro-id', delSocio()), false);
 	await espera('dueña infla las noches para anular el margen', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ noches: 1e9, costoSocio: 360, ganancia: 0 }, { monto: 0 })), false);
-	// Su noche más barata ahora es la más barata de sus 10 precios por fechas (90): 3 noches no bajan de 270.
+	// Su noche más barata para esas fechas: base o fin de semana (100); sus precios por fechas de 2027 no tocan diciembre.
+	// Truco: un precio por fechas viejo de 1 (en los dos documentos, cuadra con el margen) no baja el piso.
+	{
+		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }) : sv(x)])) } });
+		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
+		const viejo = (precio) => ({ desde: '2000-01-01', hasta: '2000-01-01', precio });
+		const truco = await fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+			{ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: { tarifas: lista([viejo(1)]) } }, updateMask: { fieldPaths: ['tarifas'] } },
+			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista([viejo(1.2)]) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+		await espera('dueña pone un precio por fechas viejo de 1 en los dos documentos (cuadra con el margen)', Promise.resolve(truco), true);
+		await espera('dueña crea la reserva con su parte = noches × ese precio viejo', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 3, alojamiento: 3.6, ganancia: 0.6 }, { monto: 0.6 })), false);
+	}
 	await espera('dueña crea la reserva con su parte menor que su noche más barata', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 30, alojamiento: 36, ganancia: 6 }, { monto: 6 })), false);
 	await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), true);
 	await espera('dueña crea una segunda reserva para la misma solicitud', escribirR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 100, alojamiento: 120, ganancia: 20 })), false);
@@ -325,6 +336,45 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor sin vincular lee una reserva sin asesor', leer('asesor-sin', 'reservas/r-mano'), false);
 	await espera('asesor sin vincular lee una solicitud sin asesor', leer('asesor-sin', 'leads/lead1'), false);
 	await espera('asesor sin vincular lee el precio del dueño de una casa sin asesor', leer('asesor-sin', 'properties/mx-noche/privado/socio'), false);
+	// El caso más pesado para las reglas: 10 precios por fechas que tocan la estancia (el más barato, 90: piso 270).
+	{
+		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }) : sv(x)])) } });
+		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
+		const diez = Array.from({ length: 10 }, (_, k) => ({ desde: '2026-11-25', hasta: `2026-12-0${k < 9 ? k + 1 : 9}`, precio: 90 + k }));
+		const puso = await fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+			{ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: { tarifas: lista(diez) } }, updateMask: { fieldPaths: ['tarifas'] } },
+			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(diez.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }))) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+		await espera('dueña pone 10 precios por fechas que tocan diciembre (control)', Promise.resolve(puso), true);
+		await raw('leads/lead-res-noche2', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN2'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
+		const otra = (extra, monto) => crearR('mixto1', 'reservas/lead-res-noche2', delSocio({ leadId: 'lead-res-noche2', codigo: 'EQ-RN2', ...extra }, { monto }));
+		await espera('con 10 precios por fechas: su parte menor que la más barata de las que tocan', otra({ costoSocio: 260, alojamiento: 312, ganancia: 52 }, 52), false);
+		await espera('con 10 precios por fechas: su parte con la más barata que toca (control)', otra({ costoSocio: 270, alojamiento: 324, ganancia: 54 }, 54), true);
+	}
+	// Más de 10 precios por fechas (de antes): la dueña solo puede quitar, no cambiar ni agregar.
+	{
+		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? { integerValue: String(x) } : sv(x)])) } });
+		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
+		const doce = Array.from({ length: 12 }, (_, k) => ({ desde: `2028-${String(k + 1).padStart(2, '0')}-01`, hasta: `2028-${String(k + 1).padStart(2, '0')}-05`, precio: 100 }));
+		const pub = (xs) => xs.map((x) => ({ ...x, precio: 120 }));
+		await raw('properties/mx-noche-12', { titulo: sv('Casa con 12 precios por fechas'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '120' }, tarifas: lista(pub(doce)) } } } });
+		await raw('properties/mx-noche-12/privado/socio', { precioBase: { integerValue: '100' }, tarifas: lista(doce) });
+		const escribir = (soc, publico) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+			{ update: { name: `${R}/properties/mx-noche-12/privado/socio`, fields: { tarifas: lista(soc) } }, updateMask: { fieldPaths: ['tarifas'] } },
+			{ update: { name: `${R}/properties/mx-noche-12`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(publico) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+		const otro = [...doce.slice(1, 11), { ...doce[0], precio: 1 }];
+		await espera('dueña con 12 precios por fechas cambia uno (11 que no estaban así)', escribir(otro, pub(otro)), false);
+		await espera('dueña con 12 precios por fechas quita uno (control)', escribir(doce.slice(1), pub(doce.slice(1))), true);
+	}
+	// Un formulario lleva el asesor de su casa: una página vieja no le manda la solicitud de una casa por noche al asesor.
+	{
+		const lead = (agentId) => ({ nombre: 'Ana', telefono: '+502 5555 1234', email: '', mensaje: '', origen: 'reserva', pagina: '/x/', propertyId: 'mx-noche', propertyTitulo: 'Casa', agentId, estado: 'nuevo' });
+		await espera('formulario de una casa por noche con el asesor de una página vieja', crear(null, 'leads/lead-pagina-vieja', lead('a7')), false);
+		await espera('formulario de una casa por noche sin asesor (control)', crear(null, 'leads/lead-pagina-nueva', lead('')), true);
+	}
+	// Chats: del equipo solo el administrador (las casas por noche no llevan asesor).
+	await espera('un asesor lista los chats', consulta('asesor9', 'chats'), false);
+	await espera('un asesor lee los mensajes de un chat', leer('asesor9', `chats/${T}/mensajes`), false);
+	await espera('el administrador lista los chats (control)', consulta('admin1', 'chats'), true);
 	await espera('el equipo pasa una reserva por venir al dueño nuevo de la casa', parche('admin1', 'reservas/r-mano', ['propietarioId'], { propietarioId: sv('o2') }), true);
 	await espera('el dueño nuevo la ve', leer('socio2', 'reservas/r-mano'), true);
 	await espera('el dueño anterior ya no', leer('mixto1', 'reservas/r-mano'), false);
@@ -356,12 +406,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el dueño lista las fotos del sitio', listar('mixto1', 'properties/'), false);
 	await espera('storage: el dueño lista las carpetas de los chats', listar('mixto1', 'chats/'), false);
 	await espera('storage: un anónimo lista el bucket', listar(null, ''), false);
-	await espera('storage: el equipo lista las fotos (control)', listar('asesor9', 'properties/'), true);
+	await espera('storage: el administrador lista las fotos (control)', listar('admin1', 'properties/'), true);
+	await espera('storage: un asesor lista las carpetas de los chats', listar('asesor9', 'chats/'), false);
 	await espera('storage: el dueño reemplaza una foto del sitio', subir('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto al sitio', subir('mixto1', 'site/portada.png'), false);
 	await espera('storage: el dueño borra una foto del sitio', borrar('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: un acceso quitado sube una foto', subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
+	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
 	await espera('storage: el cliente sube el comprobante de su reserva', subir(null, `chats/${T}/comprobante1.png`), true);
 	await espera('storage: el cliente reemplaza su comprobante', subir(null, `chats/${T}/comprobante1.png`), false);
 	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);

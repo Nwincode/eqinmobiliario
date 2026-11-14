@@ -461,7 +461,9 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	const pid = property ? property.id : '';
 	const ptitle = property ? property.titulo : '';
 	const msg = mensaje === false ? '' : mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
-	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(agentId)}"${property && property.propietarioId ? ` data-propietario-id="${esc(property.propietarioId)}"` : ''} data-lang="${lang}" novalidate>
+	// Una casa por noche no lleva asesor: su solicitud la atienden el administrador y su dueño (las reglas lo exigen).
+	const asesor = property && property.operacion === 'vacacional' ? '' : agentId;
+	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(asesor)}"${property && property.propietarioId ? ` data-propietario-id="${esc(property.propietarioId)}"` : ''} data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label>

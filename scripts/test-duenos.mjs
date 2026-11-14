@@ -1,6 +1,7 @@
 // Pruebas de admin/js/duenos.js: casas de cada persona, exclusiva por inmueble y lo que llega a su panel.
 import assert from 'node:assert/strict';
 import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, etiquetaDueno, tieneCasasPorNoche, enlaceSeguro, reglasNuevasSegun } from '../admin/js/duenos.js';
+import { mapearDueno } from '../admin/js/importar.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -59,5 +60,15 @@ t('Solo enlaces seguros: https o del mismo sitio', () => {
 	assert.equal(enlaceSeguro('https://x.gt/a.jpg'), 'https://x.gt/a.jpg');
 	assert.equal(enlaceSeguro('/images/a.webp'), '/images/a.webp');
 	for (const u of ['javascript:alert(1)', '//otro.com/a', 'http://x.gt', 'data:image/png;base64,xx', null]) assert.equal(enlaceSeguro(u), '');
+});
+t('El importador enlaza al dueño solo con una ficha que coincide sin duda', () => {
+	const duenos = [{ id: 'a', nombre: 'Ana Pérez', telefono: '+502 5555 0001' }, { id: 'b', nombre: 'Ana Perez', telefono: '+502 5555 0002' }, { id: 'c', nombre: 'Luis Gómez', telefono: '5555 0003', email: 'luis@x.com' }];
+	assert.equal(mapearDueno('+502 5555-0001', duenos), 'a');
+	assert.equal(mapearDueno('55550003', duenos), 'c');
+	assert.equal(mapearDueno('luis gomez', duenos), 'c');
+	assert.equal(mapearDueno('Ana Pérez', duenos), 'ambiguo');
+	assert.equal(mapearDueno('0001', duenos), null);
+	assert.equal(mapearDueno('Ana', duenos), null);
+	assert.equal(mapearDueno('', duenos), '');
 });
 console.log(`\n${ok} pruebas de dueños correctas.`);

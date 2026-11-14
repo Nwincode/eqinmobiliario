@@ -186,6 +186,9 @@ export const ESTADOS = ESTADOS_PROPIEDAD.map((e) => [e.valor, e.label]);
 export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 
 // Valores de una propiedad nueva (editor e importación).
+// Precios por fechas de una casa por noche: hasta 10 (las reglas los revisan uno por uno; ver firestore.rules).
+export const MAX_TARIFAS = 10;
+
 export function datosIniciales() {
 	return { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} };
 }
@@ -881,7 +884,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
 		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
-		{ name: 'socio.tarifas', label: 'Precios por fechas (temporada, feriados)', type: 'list', itemLabel: 'Tarifa', when: esVacacional, fields: [
+		// Hasta 10 (MAX_TARIFAS): las reglas revisan una por una que el precio público cuadre con el del dueño.
+		{ name: 'socio.tarifas', label: `Precios por fechas (temporada, feriados; hasta ${MAX_TARIFAS})`, type: 'list', itemLabel: 'Tarifa', max: MAX_TARIFAS, when: esVacacional, fields: [
 			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
 			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
 			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, step: 0.01, cols: 4 }
@@ -1208,6 +1212,7 @@ async function renderEditor(container, id, emb = null) {
 		// El dueño de la casa ya está en Propietarios: su nombre y teléfono salen de ahí, no se vuelven a escribir.
 		if (esVacacional(d)) {
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			if ((socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).length > MAX_TARIFAS) return toast(`Hasta ${MAX_TARIFAS} precios por fechas: quita los que ya pasaron o junta los que se pueda.`, 'warning');
 			mascotasUnaVez(d);
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };

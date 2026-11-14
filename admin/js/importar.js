@@ -270,16 +270,19 @@ export function mapearAsesor(v, agentes) {
 	return a ? a.id : null;
 }
 
-// Dueño por id, teléfono (los últimos 8 números), correo o nombre, entre las fichas de Propietarios.
-// Devuelve el id, '' si vacío o null si no se encontró.
+// Dueño por id, teléfono completo (los mismos números; con o sin código de país), correo o nombre exacto (sin tildes
+// ni mayúsculas), entre las fichas de Propietarios. Solo enlaza si una sola ficha coincide.
+// Devuelve el id, '' si vacío, null si ninguna coincide o 'ambiguo' si coinciden varias.
 export function mapearDueno(v, duenos) {
 	const k = clave(v), numeros = String(v).replace(/\D/g, '');
 	if (!k) return '';
-	const d = duenos.find((x) => x.id === String(v).trim())
-		|| (numeros.length >= 8 ? duenos.find((x) => String(x.telefono || '').replace(/\D/g, '').endsWith(numeros.slice(-8))) : null)
-		|| duenos.find((x) => clave(x.email || '') === k)
-		|| duenos.find((x) => clave(x.nombre || '') === k);
-	return d ? d.id : null;
+	const mismoTel = (t) => {
+		const n = String(t || '').replace(/\D/g, '');
+		const [corto, largo] = n.length < numeros.length ? [n, numeros] : [numeros, n];
+		return corto.length >= 8 && largo.endsWith(corto) && largo.length - corto.length <= 3;
+	};
+	const ids = new Set(duenos.filter((x) => x.id === String(v).trim() || mismoTel(x.telefono) || (x.email && clave(x.email) === k) || clave(x.nombre || '') === k).map((x) => x.id));
+	return ids.size === 1 ? [...ids][0] : ids.size ? 'ambiguo' : null;
 }
 
 // ---------- Fila del CSV → datos de propiedad ----------
@@ -305,7 +308,8 @@ export function filaAPropiedad(fila, { opciones, agentes = [], duenos = [] }) {
 	}
 	if (txt('propietario')) {
 		const id = mapearDueno(txt('propietario'), duenos);
-		if (id) datos.propietarioId = id;
+		if (id === 'ambiguo') errores.push(`Dueño ambiguo: «${txt('propietario')}» coincide con varias fichas de Propietarios (usa su teléfono completo)`);
+		else if (id) datos.propietarioId = id;
 		else errores.push(`Dueño no encontrado en Propietarios: «${txt('propietario')}» (créalo primero en Propietarios)`);
 	}
 	const numeros = { precio: 'precio', habitaciones: 'habitaciones', banos: 'banos', parqueos: 'parqueos', m2_construccion: 'm2Construccion', m2_terreno: 'm2Terreno', niveles: 'niveles', anio_construccion: 'anioConstruccion', mantenimiento: 'mantenimiento' };

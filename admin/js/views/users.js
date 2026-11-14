@@ -16,7 +16,7 @@ const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'in
 function userForm(agents, user = {}) {
 	const nombre = h('input', { class: 'form-control', value: user.nombre || '' });
 	const email = h('input', { class: 'form-control', type: 'email', value: user.email || '', disabled: Boolean(user.uid) });
-const rol = h('select', { class: 'form-select' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
+	const rol = h('select', { class: 'form-select' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
 	rol.value = user.rol || 'asesor';
 	const agentId = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
 	agentId.value = user.agentId || '';
@@ -66,7 +66,7 @@ export async function render(container) {
 						const boton = e.currentTarget;
 						const v = f.values();
 						if (!v.nombre || !v.email) return toast('Completa nombre y correo.', 'warning');
-if (falta(v)) return toast(falta(v), 'warning');
+						if (falta(v)) return toast(falta(v), 'warning');
 						boton.disabled = true;
 						try {
 							toast(await crearUsuarioEquipo(v));
