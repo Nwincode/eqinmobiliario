@@ -6,7 +6,9 @@ import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios, revisarCasa } from './properties.js';
+import { loadPropietarios } from '../crm.js';
+import { asignarDueno } from '../enlace-dueno.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -64,7 +66,7 @@ export async function render(container) {
 			h('div', { class: 'alert alert-info' }, 'Solo un administrador puede importar propiedades.'));
 		return;
 	}
-	const [agentes, existentes] = await Promise.all([loadAgents(), loadAll()]);
+	const [agentes, existentes, duenos] = await Promise.all([loadAgents(), loadAll(), loadPropietarios()]);
 	const opciones = { operacion: OPERACIONES, tipo: TIPOS, estado: ESTADOS, moneda: MONEDAS };
 
 	let filasCsv = null;      // [{ datos, errores, ... }]
@@ -194,7 +196,7 @@ export async function render(container) {
 		const usados = existentes.map((p) => p.codigo).filter(Boolean);
 		const vistos = new Map();
 		plan = filasCsv.filas.map((fila) => {
-			const r = filaAPropiedad(fila, { opciones, agentes });
+			const r = filaAPropiedad(fila, { opciones, agentes, duenos });
 			const item = { fila: fila._fila, ...r, fotos: [], pequenas: 0, existente: null, parecida: null, generado: false };
 			if (r.datos.codigo) {
 				item.existente = porCodigo.get(r.datos.codigo) || null;
@@ -206,6 +208,8 @@ export async function render(container) {
 			const base = item.existente || datosIniciales();
 			const choque = incoherencia({ operacion: r.datos.operacion || base.operacion, estado: r.datos.estado, tipo: r.datos.tipo || (r.datos.operacion ? base.tipo : '') });
 			if (choque) item.errores.push(choque);
+			// Lo mismo que pide la ficha (revisarCasa): una casa por noche lleva su dueño. Al importar se vuelve a revisar.
+			if ((r.datos.operacion || base.operacion) === 'vacacional' && !(r.datos.propietarioId || base.propietarioId)) item.errores.push('Renta por noche: falta su dueño (columna «propietario», de una ficha de Propietarios)');
 			return item;
 		});
 		// Códigos generados, en orden y sin chocar con los existentes ni con los del CSV.
@@ -343,6 +347,14 @@ export async function render(container) {
 		return { fotos: subidas.filter(Boolean), fallas, repetidas };
 	}
 
+	// La casa ya guardada con su dueño: si cambió el dueño o la operación, asignarDueno pone al día las listas, `porNoche`
+	// y lo que pasa al dueño nuevo. (Casa ya escrita: escribirCasa false.)
+	async function enlazar(antes, guardada) {
+		const nuevo = guardada.propietarioId || '';
+		if (!(antes.propietarioId || nuevo) || (antes.propietarioId === nuevo && antes.operacion === guardada.operacion)) return;
+		await asignarDueno(antes, nuevo, { duenos, casas: existentes, escribirCasa: false });
+	}
+
 	// Si la propiedad no se guarda, sus fotos recién subidas se borran: no quedan huérfanas.
 	async function guardar(escribir, fotosNuevas) {
 		try {
@@ -388,6 +400,10 @@ export async function render(container) {
 			try {
 				if (it.existente) {
 					const p = it.existente;
+					// Las mismas revisiones de la ficha (revisarCasa), antes de subir fotos: dueño y sin asesor si es por noche;
+					// no deja de serlo con huéspedes por venir y, si deja de serlo, sin lo de por noche (precios públicos y
+					// dirección privada).
+					const { ajustes, sinLlegada } = await revisarCasa(p, { ...p, ...it.datos }, p.id);
 					const vac = await prepararVacacional(p.id, it, p);
 					const r = await subirFotos(it, `properties/${p.id}`, (p.fotos || []).map((f) => f.hash).filter(Boolean));
 					fotosHechas += it.fotos.length;
@@ -395,28 +411,35 @@ export async function render(container) {
 					// bloqueados, difusión…) queda como está, y el historial de estado y de precio sale de lo guardado.
 					const cambios = { ...it.datos, ...(vac ? vac.pub : {}) };
 					delete cambios.codigo;
+					Object.assign(cambios, ajustes);
+					if (sinLlegada) cambios.vacacional = undefined;
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
 					const en = await enIngles({ ...p, ...cambios, vacacional: { ...(p.vacacional || {}), ...(cambios.vacacional || {}) } });
 					if (en) cambios.en = en;
 					let guardada = null;
-					await guardar(async () => { guardada = await guardarCambios(p.id, cambios, vac ? { socio: vac.socio, llegada: vac.llegada } : {}); }, r.fotos);
+					await guardar(async () => { guardada = await guardarCambios(p.id, cambios, vac ? { socio: vac.socio, llegada: vac.llegada } : { sinLlegada }); }, r.fotos);
+					const antes = { id: p.id, propietarioId: p.propietarioId || '', operacion: p.operacion };
 					for (const k of Object.keys(p)) if (k !== 'id') delete p[k];
 					Object.assign(p, guardada);
+					// Su dueño, con la única forma de enlazar (listas, `porNoche`, reservas y solicitudes por venir).
+					await enlazar(antes, guardada);
 					cuenta.actualizadas++;
 					anotar('ok', 'icon-refresh', `Actualizada: ${it.datos.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto nueva' : 'fotos nuevas'}${r.repetidas ? `, ${r.repetidas} ya ${r.repetidas === 1 ? 'estaba' : 'estaban'}` : ''})`, r.fallas);
 				} else {
 					const nref = doc(collection(db, 'properties'));
+					const { ajustes } = await revisarCasa(null, { ...datosIniciales(), ...it.datos }, nref.id);
 					const vac = await prepararVacacional(nref.id, it);
 					const r = await subirFotos(it, `properties/${nref.id}`, []);
 					fotosHechas += it.fotos.length;
 					// Lo importado entra siempre sin publicar: se revisa antes de mostrarlo.
-					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), slug: slugLibre(titulo, slugs), fotos: r.fotos, publicado: false });
+					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), ...ajustes, slug: slugLibre(titulo, slugs), fotos: r.fotos, publicado: false });
 					const en = await enIngles(d);
 					if (en) d.en = en;
 					await guardar(() => setDoc(nref, d), r.fotos);
 					// Lo privado va después de crear la casa: su regla la lee.
 					if (vac) await guardarPrivadoVacacional(nref.id, vac.socio, vac.llegada);
 					existentes.push({ id: nref.id, ...d });
+					await enlazar({ id: nref.id, propietarioId: '', operacion: d.operacion }, d);
 					cuenta.creadas++;
 					anotar('ok', 'icon-check-circle', `Creada: ${d.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto' : 'fotos'})`, r.fallas);
 				}

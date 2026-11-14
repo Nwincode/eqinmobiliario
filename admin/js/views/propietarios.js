@@ -1,5 +1,5 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { auth, db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, sendPasswordResetEmail } from '../firebase.js';
+import { auth, db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, sendPasswordResetEmail, arrayUnion, arrayRemove, runTransaction } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
@@ -12,19 +12,29 @@ import { abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, comisionDe, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
-import { asignarDueno } from '../enlace-dueno.js';
+import { asignarDueno, revisarSinDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
-// forma de enlazar (asignarDueno: la casa manda; cada lista y `porNoche` se ponen al día y el acuerdo no pasa al siguiente).
+// forma de enlazar (asignarDueno: la casa manda; la lista `propiedades` de cada persona y su `porNoche` los pone al día
+// él, en una transacción, y el acuerdo no pasa al siguiente). La ficha no escribe su lista entera.
 // Una casa que se quita y que solo estaba en la lista (sin propietarioId) también era de esta persona: su acuerdo se va.
+// Una que se quita y dice ser de otro solo sale de esta lista. Las que no veo (de otro asesor) se quedan como están.
+const casaDe = (propiedades, pid) => propiedades.find((c) => c.id === pid);
+// Las casas que dejan de ser de esta persona al guardar (se revisan antes de escribir nada: revisarSinDueno).
+const queSuelta = (id, ahora, antes, propiedades) => antes.filter((x) => !ahora.includes(x)).map((pid) => casaDe(propiedades, pid))
+	.filter((c) => c && (!c.propietarioId || c.propietarioId === id));
 async function vincularCasas(id, ahora, antes, { duenos, propiedades }) {
-	const casa = (pid) => propiedades.find((c) => c.id === pid) || { id: pid };
 	// Cada casa ya enlazada se anota aquí también, para que la siguiente vuelta vea a sus dueños como quedaron.
-	for (const pid of ahora) { const c = casa(pid); await asignarDueno({ id: pid, propietarioId: c.propietarioId || '', operacion: c.operacion }, id, { duenos, casas: propiedades }); c.propietarioId = id; }
+	for (const c of ahora.map((pid) => casaDe(propiedades, pid)).filter(Boolean)) {
+		await asignarDueno({ id: c.id, propietarioId: c.propietarioId || '', operacion: c.operacion }, id, { duenos, casas: propiedades });
+		c.propietarioId = id;
+	}
 	for (const pid of antes.filter((x) => !ahora.includes(x))) {
-		const c = casa(pid);
+		const c = casaDe(propiedades, pid);
+		if (!c) continue;
 		if (!c.propietarioId || c.propietarioId === id) { await asignarDueno({ id: pid, propietarioId: id, operacion: c.operacion }, '', { duenos, casas: propiedades }); c.propietarioId = ''; }
+		else await updateDoc(doc(db, 'propietarios', id), { propiedades: arrayRemove({ propertyId: pid }) }).catch(() => {});
 	}
 }
 
@@ -191,28 +201,31 @@ async function renderEditor(container, id) {
 		const d = form.getData();
 		d.telefonoNorm = telNorm(d.telefono);
 		// Solo el enlace a la casa (antes se guardaba también un «precio mínimo aceptado»: aquí no se regatea).
-		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId).map((x) => ({ propertyId: x.propertyId }));
-		// Con sus casas (la misma regla que asignarDueno): se enciende y se apaga; quien no ve todas las casas solo la enciende.
-		// Al guardar, sus casas son las de su lista (vincularCasas enlaza esas y suelta las demás).
-		d.porNoche = propiedades.some((c) => c.operacion === 'vacacional' && d.propiedades.some((x) => x.propertyId === c.id)) || (!session.isAdmin && Boolean(data.porNoche));
+		const lista = (d.propiedades || []).filter((x) => x.propertyId).map((x) => x.propertyId);
 		d.updatedAt = serverTimestamp();
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;
 		try {
 			// setDoc reemplaza el documento: se conservan la bitácora, el resumen del dueño y su acceso, tal como están
 			// guardados AHORA (mientras la ficha estaba abierta, otra pantalla pudo rehacer el resumen o cambiar el acceso).
+			// Antes: lo que la ficha mostró al abrirse (sus casas); se sueltan solo las que se quitaron a mano. Una casa por
+			// noche con huéspedes por venir no queda sin dueño: se revisa antes de escribir nada.
+			const antes = (data.propiedades || []).map((x) => x.propertyId);
+			await revisarSinDueno(queSuelta(ref.id, lista, antes, propiedades));
+			// La lista de sus casas y `porNoche` también se conservan como están: los pone al día asignarDueno (vincularCasas).
 			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
-			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso']) {
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
-				else delete data[k];
+				else if (k === 'propiedades') d[k] = [];
+				else { delete d[k]; delete data[k]; }
 			}
 			await setDoc(ref, d);
-			// Antes: lo que la ficha mostró al abrirse (sus casas); se sueltan solo las que se quitaron a mano.
-			const antes = (data.propiedades || []).map((x) => x.propertyId);
-			await vincularCasas(ref.id, d.propiedades.map((x) => x.propertyId), antes, { duenos, propiedades });
-			data.propiedades = d.propiedades;
+			await vincularCasas(ref.id, lista, antes, { duenos, propiedades });
+			data.propiedades = lista.map((propertyId) => ({ propertyId }));
 			// Su resumen (lo que lee en su panel, con sus datos de pago): se arma o se actualiza con cada guardado.
-			const conId = { ...d, id: ref.id };
+			// (Con la lista y `porNoche` como los dejó asignarDueno.)
+			const conId = { ...d, ...((await getDoc(ref)).data() || {}), id: ref.id };
+			data.porNoche = conId.porNoche;
 			// Si no se pudo, se dice en pantalla: lo que ve en su panel (sus datos de pago incluidos) quedaría viejo.
 			await publicarPortal(conId).catch((err) => { console.warn('Resumen del dueño sin actualizar', err); toast(`La ficha se guardó, pero no se pudo poner al día lo que ve en su panel (datos de pago incluidos): ${errorMessage(err)} Volvé a guardar.`, 'warning'); });
 			if (conId.portalToken) Object.assign(data, { portalToken: conId.portalToken, portalVersion: conId.portalVersion, portalPrivado: conId.portalPrivado });
@@ -300,11 +313,13 @@ async function renderEditor(container, id) {
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${data.nombre}?`, { okText: 'Eliminar' }))) return;
 		try {
+			// Sus casas dejan de apuntarle: las de su lista y también las que dicen ser suyas sin estar en ella.
+			const suyas = [...new Set([...(data.propiedades || []).map((x) => x.propertyId), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
+			// Una casa por noche con huéspedes por venir no queda sin dueño: antes de tocar nada.
+			await revisarSinDueno(queSuelta(ref.id, [], suyas, propiedades));
 			// Primero su acceso y su resumen: sin ficha no hay a quién mostrarle nada.
 			for (const u of await accesosDe(ref.id)) if (u.activo !== false) await updateDoc(doc(db, 'users', u.uid), { activo: false, updatedAt: serverTimestamp() });
 			if (data.portalToken) await borrarCopia(data.portalToken);
-			// Sus casas dejan de apuntarle: las de su lista y también las que dicen ser suyas sin estar en ella.
-			const suyas = [...new Set([...(data.propiedades || []).map((x) => x.propertyId), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
 			await deleteDoc(ref); await vincularCasas(ref.id, [], suyas, { duenos, propiedades }); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
@@ -421,10 +436,16 @@ function seccionPortal(prop, propiedades, ficha) {
 	}
 
 
-	// Bitácora: privada en el propietario; al portal solo van las entradas visibles.
-	const guardarBitacora = async (lista) => {
-		await updateDoc(doc(db, 'propietarios', prop.id), { bitacora: lista, updatedAt: serverTimestamp() });
-		prop.bitacora = lista;
+	// Bitácora: privada en el propietario; al portal solo van las entradas visibles. Una entrada nueva se agrega
+	// (arrayUnion); cambiar o borrar una se hace sobre la lista guardada AHORA (otra pestaña pudo agregar otra).
+	const refProp = doc(db, 'propietarios', prop.id);
+	const guardarBitacora = async (cambio) => {
+		if (cambio.agregar) await updateDoc(refProp, { bitacora: arrayUnion(cambio.agregar), updatedAt: serverTimestamp() });
+		else await runTransaction(db, async (tx) => {
+			const lista = ((await tx.get(refProp)).data()?.bitacora || []).flatMap((x) => (x.id !== cambio.id ? [x] : cambio.borrar ? [] : [{ ...x, ...cambio.con }]));
+			tx.update(refProp, { bitacora: lista, updatedAt: serverTimestamp() });
+		});
+		prop.bitacora = (await getDoc(refProp)).data()?.bitacora || [];
 		pintarBitacora();
 		await refrescar();
 	};
@@ -435,11 +456,11 @@ function seccionPortal(prop, propiedades, ficha) {
 				h('div', { class: 'small text-muted' }, `${formatDate(`${b.fecha}T12:00:00`, false)} · ${nombreTipo(b.tipo)}${b.propertyId && misProps.length > 1 ? ` · ${titulo[b.propertyId] || ''}` : ''}`),
 				h('div', { style: 'white-space: pre-line' }, b.texto)),
 			h('div', { class: 'form-check form-switch mb-0 align-self-center' },
-				h('input', { class: 'form-check-input', type: 'checkbox', id: `vis-${b.id}`, checked: Boolean(b.visible), onchange: (e) => ocupado(null, () => guardarBitacora((prop.bitacora || []).map((x) => (x.id === b.id ? { ...x, visible: e.target.checked } : x)))) }),
+				h('input', { class: 'form-check-input', type: 'checkbox', id: `vis-${b.id}`, checked: Boolean(b.visible), onchange: (e) => ocupado(null, () => guardarBitacora({ id: b.id, con: { visible: e.target.checked } })) }),
 				h('label', { class: 'form-check-label small', for: `vis-${b.id}` }, `Visible para el ${quien}`)),
 			h('button', { class: 'btn btn-sm btn-link text-danger p-0 align-self-center', type: 'button', 'aria-label': 'Borrar entrada', onclick: async () => {
 				if (!(await confirmDialog('¿Borrar esta entrada de la bitácora?', { okText: 'Borrar' }))) return;
-				ocupado(null, () => guardarBitacora((prop.bitacora || []).filter((x) => x.id !== b.id)));
+				ocupado(null, () => guardarBitacora({ id: b.id, borrar: true }));
 			} }, 'Borrar')))
 			: [h('div', { class: 'list-group-item text-muted small' }, 'Sin entradas todavía.')]));
 	}
@@ -454,7 +475,7 @@ function seccionPortal(prop, propiedades, ficha) {
 		const texto = fTexto.value.trim();
 		if (!texto) return toast('Escribe qué pasó.', 'warning');
 		const entrada = { id: Math.random().toString(36).slice(2, 10), fecha: fFecha.value || hoy(), tipo: fTipo.value, texto, propertyId: fProp ? fProp.value : '', visible: fVisible.checked };
-		ocupado(e.submitter, async () => { await guardarBitacora([...(prop.bitacora || []), entrada]); fTexto.value = ''; toast('Agregado a la bitácora.'); });
+		ocupado(e.submitter, async () => { await guardarBitacora({ agregar: entrada }); fTexto.value = ''; toast('Agregado a la bitácora.'); });
 	} },
 		h('div', { class: 'col-6 col-md-3' }, h('label', { class: 'form-label small', for: 'bit-fecha' }, 'Fecha'), fFecha),
 		h('div', { class: 'col-6 col-md-3' }, h('label', { class: 'form-label small', for: 'bit-tipo' }, 'Tipo'), fTipo),

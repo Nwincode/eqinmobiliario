@@ -1,9 +1,11 @@
 // «Mis propiedades»: el panel del dueño (propietario o colaborador). Todas sus casas, de las tres categorías:
 //  - por noche: las atiende él (precios, personas, días bloqueados y mínimos de noches; cada cambio queda en la
-//    bitácora de la casa). Escribe SU precio; el del cliente (con la comisión) lo calcula el sistema;
+//    bitácora de la casa). Escribe SU precio; el del cliente (con el margen de EQ) lo calcula el sistema. Cada cambio
+//    se guarda en una sola transacción sobre lo guardado AHORA (solo lo que cambió): su precio, el público y la
+//    bitácora van juntos (las reglas exigen que el público cuadre con el suyo);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, updateDoc, addDoc, collection, query, where, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
@@ -21,6 +23,12 @@ const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMon
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
+// Precios especiales que cuentan: con fechas y precio válidos y que no han terminado (los que ya pasaron se quitan
+// al guardar). Hasta 10 a la vez: las reglas revisan uno por uno que el público cuadre con el suyo.
+const MAX_TARIFAS = 10;
+const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) && V.esFecha(t.hasta) && t.hasta >= t.desde && Number(t.precio) > 0 && t.hasta >= hoy())
+	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)) }));
+const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
 const flecha = (lado, titulo, onclick, disabled) => h('button', {
@@ -99,21 +107,47 @@ async function casa(container, id) {
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
 	const publico = (n) => plata(V.nochePublica(n, s.margen));
 
-	async function guardar(descripcion) {
+	// Un cambio del dueño: `cambio(actual)` dice qué campos quedan y cómo, calculado sobre lo guardado AHORA (otra
+	// pestaña, el equipo o una reserva pudieron cambiar algo con esta pantalla abierta). Se escribe solo eso, en una
+	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
+	// casa y la bitácora. Devuelve true si quedó guardado; la pantalla se pone al día con lo que quedó.
+	async function guardar(descripcion, cambio) {
 		try {
-			// El margen lo pone el equipo y puede haber cambiado con esta pantalla abierta: el precio público sale del vigente.
-			const vigente = await getDoc(refSocio);
-			if (vigente.exists() && vigente.data().margen !== undefined) s.margen = vigente.data().margen;
-			const pub = V.planPublico(plan(), s.margen);
-			await guardarPrivadoVacacional(id, { precioBase: e.base, precioFinde: e.finde, tarifas: e.tarifas });
-			await updateDoc(refCasa, {
-				precio: V.precioDesde(pub, hoy()) || null, 'vacacional.base': pub.base, 'vacacional.finde': pub.finde, 'vacacional.tarifas': pub.tarifas,
-				'vacacional.bloqueos': e.bloqueos, 'vacacional.minimos': e.minimos, 'vacacional.huespedesMax': e.huespedes, updatedAt: serverTimestamp()
+			const r = await runTransaction(db, async (tx) => {
+				const [c, so] = await Promise.all([tx.get(refCasa), tx.get(refSocio)]);
+				const cv = c.data()?.vacacional || {}, sv = so.exists() ? so.data() : {};
+				const actual = { base: Number(sv.precioBase) || 0, finde: Number(sv.precioFinde) || 0, tarifas: sv.tarifas || [],
+					bloqueos: V.unirRangos(cv.bloqueos || []), minimos: cv.minimos || [], huespedes: huespedesMaxDe(cv.huespedesMax) };
+				const nuevo = cambio(actual);
+				const casa = {};
+				if ('bloqueos' in nuevo) casa['vacacional.bloqueos'] = nuevo.bloqueos;
+				if ('minimos' in nuevo) casa['vacacional.minimos'] = nuevo.minimos;
+				if ('huespedes' in nuevo) casa['vacacional.huespedesMax'] = nuevo.huespedes;
+				if ('tarifas' in nuevo) {
+					nuevo.tarifas = vigentes(nuevo.tarifas);
+					if (nuevo.tarifas.length > MAX_TARIFAS) throw new Error(`Hasta ${MAX_TARIFAS} precios especiales a la vez: quita uno antes de poner otro.`);
+				}
+				if (['base', 'finde', 'tarifas'].some((k) => k in nuevo)) {
+					const plan = { base: actual.base, finde: actual.finde, tarifas: vigentes(actual.tarifas), ...nuevo };
+					const pub = V.planPublico(plan, sv.margen);
+					const suyo = {};
+					if ('base' in nuevo) { suyo.precioBase = plan.base; casa['vacacional.base'] = pub.base; }
+					if ('finde' in nuevo) { suyo.precioFinde = plan.finde; casa['vacacional.finde'] = pub.finde; }
+					if ('tarifas' in nuevo) { suyo.tarifas = plan.tarifas; casa['vacacional.tarifas'] = pub.tarifas; }
+					casa.precio = V.precioDesde(pub, hoy()) || null;
+					await guardarPrivadoVacacional(id, suyo, null, tx);
+				}
+				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
+				tx.set(doc(collection(refCasa, 'bitacora')), { que: descripcion, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
+				return { ...actual, ...nuevo, margen: sv.margen };
 			});
-			await addDoc(collection(refCasa, 'bitacora'), { que: descripcion, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
-			await markPending(`${p.titulo}: ${descripcion}`);
+			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
+			s.margen = r.margen;
+			markPending(`${p.titulo}: ${descripcion}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
 			toast('Guardado.');
-		} catch (err) { showError(err); }
+			return true;
+		} catch (err) { showError(err); return false; }
+		finally { pintar(); }
 	}
 
 	// ------------------------------------------------------------ Precios de siempre
@@ -128,9 +162,8 @@ async function casa(container, id) {
 					class: 'form-control', id: `mc-${campo}`, type: 'number', inputmode: 'decimal', min: '0', value: e[campo] || '',
 					onchange: (ev) => {
 						const n = V.r2(Math.max(0, Number(ev.target.value) || 0));
-						if (campo === 'base' && !n) { ev.target.value = e.base || ''; return toast('Escribí el precio por noche.', 'warning'); }
-						e[campo] = n; pinta(); pintar();
-						guardar(`precio ${titulo.toLowerCase()}`);
+						if (campo === 'base' && !n) { ev.target.value = e.base || ''; return toast('Escribe el precio por noche.', 'warning'); }
+						guardar(`precio ${titulo.toLowerCase()}`, () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
 					}
 				})), ve);
 	};
@@ -150,14 +183,15 @@ async function casa(container, id) {
 	function aplicar(que, valor) {
 		const { desde, hasta } = e;
 		const fin = V.sumarDias(hasta, 1);
-		if (que === 'bloquear') e.bloqueos = V.unirRangos([...e.bloqueos, { desde, hasta: fin }]);
-		if (que === 'habilitar') e.bloqueos = V.liberarNoches(e.bloqueos, desde, fin);
-		if (que === 'precio') e.tarifas = [...V.quitarRango(e.tarifas, desde, hasta), { desde, hasta, precio: valor }].sort(porFecha);
-		if (que === 'minimo') e.minimos = [...V.quitarRango(e.minimos, desde, hasta), { desde, hasta, noches: valor }].sort(porFecha);
+		const cambio = {
+			bloquear: (a) => ({ bloqueos: V.unirRangos([...a.bloqueos, { desde, hasta: fin }]) }),
+			habilitar: (a) => ({ bloqueos: V.liberarNoches(a.bloqueos, desde, fin) }),
+			precio: (a) => ({ tarifas: [...V.quitarRango(a.tarifas, desde, hasta), { desde, hasta, precio: valor }].sort(porFecha) }),
+			minimo: (a) => ({ minimos: [...V.quitarRango(a.minimos, desde, hasta), { desde, hasta, noches: valor }].sort(porFecha) })
+		}[que];
 		const texto = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' }[que];
 		soltar();
-		pintar();
-		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}`);
+		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}`, cambio);
 	}
 
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
@@ -247,7 +281,7 @@ async function casa(container, id) {
 			h('ul', { class: 'list-group' }, vigentes.map((r) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 				h('span', { class: 'flex-grow-1' }, h('strong', {}, rango(r)), h('span', { class: 'd-block small text-muted' }, texto(r))),
 				iconoBtn('icon-trash', `Quitar ${titulo.toLowerCase()} ${rango(r)}`, {
-					onclick: () => { e[campo] = e[campo].filter((x) => x !== r); pintar(); guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}`); }
+					onclick: () => guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}`, (a) => ({ [campo]: a[campo].filter((x) => !mismoRango(x, r)) }))
 				})))));
 	};
 	function pintar() {
@@ -271,7 +305,7 @@ async function casa(container, id) {
 				h('input', {
 					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '',
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
-					onchange: (ev) => { e.huespedes = huespedesMaxDe(ev.target.value); ev.target.value = e.huespedes; guardar(`personas máximo ${e.huespedes}`); }
+					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(`personas máximo ${n}`, () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
 				})))),
 		cal, listas);
 }

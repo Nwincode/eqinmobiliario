@@ -37,6 +37,9 @@ export async function render(container) {
 	if (await ponerAlDiaReservas(reservas, casas).catch((err) => { console.warn('Reservas de antes sin poner al día', err); return 0; })) reservas = await loadReservas();
 	// La misma regla en todo el sistema: el dueño es el que la casa dice tener (si no lo dice, el de la lista).
 	const duenoDe = (pid) => duenoDeCasa(casaDe[pid] || { id: pid }, propietarios);
+	// El dueño de una reserva es el que la ganó (su propietarioId; la casa pudo cambiar de dueño después). Una de antes
+	// sin él, el de su casa. Si su ficha ya no existe, se muestra igual, aparte.
+	const duenoDeReserva = (r) => (r.propietarioId ? propietarios.find((p) => p.id === r.propietarioId) || { id: r.propietarioId, nombre: 'Propietario que ya no está en Propietarios' } : duenoDe(r.propertyId));
 	const estado = { mes: hoy().slice(0, 7), dueno: null }; // dueno: null = todos
 	const cuerpo = h('div');
 
@@ -101,11 +104,13 @@ export async function render(container) {
 		form.addEventListener('input', pintar);
 		if (d.id || d.costoSocio) pintar(); else sugerir();
 
-		const guardar = async () => {
+		// El botón queda apagado mientras guarda: dos toques no crean dos reservas.
+		const guardar = async (btn) => {
 			const v = leer();
 			const casa = casaDe[v.propertyId];
 			if (!casa) return toast('Elegí la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
+			btn.disabled = true;
 			try {
 				await guardarReserva(r.id ? r : null, casa, {
 					...v, huesped: f.huesped.value.trim(), canal: f.canal.value, estado: f.estado.value, pagadoSocio: f.pagadoSocio.checked
@@ -114,6 +119,7 @@ export async function render(container) {
 				toast('Reserva guardada.');
 				await volver();
 			} catch (e) { if (e instanceof ChoqueDeFechas) toast(e.message, 'danger'); else showError(e); }
+			finally { btn.disabled = false; }
 		};
 		// Hecha a mano: se borra y sus fechas quedan libres. De la web: se cancela, con motivo, y el cliente lo ve en su chat.
 		const borrar = async () => {
@@ -123,14 +129,14 @@ export async function render(container) {
 		const cancelar = async () => {
 			const motivo = await elegirOpcion('¿Por qué se cancela?', MOTIVOS_CANCELAR);
 			if (!motivo) return;
-			try { await cancelarReserva(r, motivo); m.close(); toast('Reserva cancelada. Las fechas quedaron libres y el cliente lo ve en su chat.'); await volver(); } catch (e) { showError(e); }
+			try { const avisado = await cancelarReserva(r, motivo); m.close(); toast(`Reserva cancelada. Las fechas quedaron libres${avisado ? ' y el cliente lo ve en su chat' : ''}.`); await volver(); } catch (e) { showError(e); }
 		};
 		const m = modal({
 			title: d.id ? 'Reserva' : 'Nueva reserva', body: form,
 			footer: [
 				!d.id ? null : !web ? iconoBtn('icon-trash', 'Borrar reserva', { onclick: borrar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' })
 					: d.estado === 'confirmada' ? iconoBtn('icon-ban', 'Cancelar reserva', { onclick: cancelar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' }) : null,
-				h('button', { type: 'button', class: 'btn btn-primary', onclick: guardar }, 'Guardar')
+				h('button', { type: 'button', class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar')
 			]
 		});
 	}
@@ -154,21 +160,22 @@ export async function render(container) {
 		const confirmadas = delMes.filter((r) => r.estado === 'confirmada');
 		const total = V.resumenReservas(delMes);
 
-		// Un renglón por propietario, aunque no tenga reservas este mes.
+		// Un renglón por propietario, aunque no tenga reservas este mes: los dueños de hoy de cada casa y quien ganó
+		// cada reserva (aunque la casa ya sea de otro).
 		const grupos = new Map();
-		for (const c of casas) {
-			const o = duenoDe(c.id);
-			const g = grupos.get(o?.id || '') || { id: o?.id || '', nombre: o?.nombre || SIN_DUENO, telefono: o?.telefono, casas: 0, reservas: [] };
-			g.casas++;
-			grupos.set(g.id, g);
-		}
-		for (const r of confirmadas) grupos.get(duenoDe(r.propertyId)?.id || '')?.reservas.push(r);
+		const grupo = (o) => {
+			const id = o?.id || '';
+			if (!grupos.has(id)) grupos.set(id, { id, nombre: o?.nombre || SIN_DUENO, telefono: o?.telefono, casas: 0, reservas: [] });
+			return grupos.get(id);
+		};
+		for (const c of casas) grupo(duenoDe(c.id)).casas++;
+		for (const r of confirmadas) grupo(duenoDeReserva(r)).reservas.push(r);
 		const filas = [...grupos.values()].sort((a, b) => b.reservas.length - a.reservas.length || a.nombre.localeCompare(b.nombre));
 
 		const stat = (icono, label, value) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value));
 
 		const filtro = estado.dueno === null ? null : grupos.get(estado.dueno);
-		const visibles = filtro ? delMes.filter((r) => (duenoDe(r.propertyId)?.id || '') === filtro.id) : delMes;
+		const visibles = filtro ? delMes.filter((r) => (duenoDeReserva(r)?.id || '') === filtro.id) : delMes;
 
 		cuerpo.replaceChildren(
 			h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
@@ -192,7 +199,7 @@ export async function render(container) {
 						h('td', { class: 'text-end' }, String(g.casas)),
 						h('td', { class: 'text-end' }, String(res.reservas)),
 						h('td', { class: 'text-end' }, String(res.noches)),
-						h('td', { class: 'text-end' }, `${Math.round(res.noches * 100 / (g.casas * diasDelMes(estado.mes)))} %`),
+						h('td', { class: 'text-end' }, g.casas ? `${Math.round(res.noches * 100 / (g.casas * diasDelMes(estado.mes)))} %` : '—'),
 						h('td', { class: 'text-end fw-semibold' }, dinero(res.porMoneda, 'porPagar')),
 						h('td', { class: 'text-end text-muted' }, dinero(res.porMoneda, 'pagado')),
 						h('td', { class: 'text-end text-nowrap', onclick: (e) => e.stopPropagation() },
@@ -208,7 +215,7 @@ export async function render(container) {
 			h('h2', { class: 'h6' }, filtro ? `Reservas de ${filtro.nombre}` : 'Reservas del mes'),
 			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin fichas-icono mb-0' },
 				h('thead', {}, h('tr', {}, ['Casa', 'Fechas', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
-				h('tbody', {}, visibles.map((r) => { const dueno = duenoDe(r.propertyId)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r).catch(showError) },
+				h('tbody', {}, visibles.map((r) => { const dueno = duenoDeReserva(r)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r).catch(showError) },
 					h('td', {}, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null),
 					h('td', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
 					h('td', {}, dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null),

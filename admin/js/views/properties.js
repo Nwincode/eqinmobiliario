@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -227,6 +227,37 @@ export function slugLibre(titulo, usados) {
 	usados.add(s);
 	return s;
 }
+// Lo que se revisa antes de guardar una casa, venga de la ficha o del importador (una sola regla para los dos):
+//  - una casa por noche lleva dueño y no lleva asesor (agentId ''): sus solicitudes las atienden el administrador y
+//    su dueño, y así ningún asesor lee el teléfono de sus huéspedes; tampoco lleva VIP ni mantenimiento. Por eso
+//    solo el administrador la crea o la cambia (las reglas dejan al asesor solo casas con su agentId);
+//  - con huéspedes por venir no deja de ser por noche (perderían sus fechas).
+// antes = la casa guardada (null si es nueva); d = como queda: se le ponen los ajustes. Lanza un Error con el motivo.
+// Devuelve { ajustes, sinLlegada }: sinLlegada = dejó de ser por noche (su dirección y mapa privados se borran).
+export async function revisarCasa(antes, d, id) {
+	const era = antes?.operacion === 'vacacional', es = esVacacional(d);
+	if ((es || era) && !session.isAdmin) throw new Error('Las casas por noche las lleva el administrador (no llevan asesor).');
+	if (es && !d.propietarioId) throw new Error('Elige el dueño de la casa por noche. Si todavía no existe, créalo en Propietarios.');
+	if (era && !es) {
+		const pendientes = await porVenir(id);
+		if (pendientes.length) throw new Error(avisoPorVenir(pendientes, 'No puede dejar de ser renta por noche'));
+	}
+	const ajustes = es ? { agentId: '', vip: false, mantenimiento: '' } : {};
+	Object.assign(d, ajustes);
+	return { ajustes, sinLlegada: era && !es };
+}
+
+// Casas por noche de antes con un asesor: lo pierden, y también sus reservas y solicitudes (con ese agentId el asesor
+// leía el teléfono y el correo de los huéspedes). Primero lo que cuelga; al final la casa, así lo que falle se
+// vuelve a intentar la próxima vez. Solo el administrador.
+async function sinAsesorPorNoche(p) {
+	const deCasa = (col) => getDocs(query(collection(db, col), where('propertyId', '==', p.id)));
+	const [reservas, leads] = await Promise.all([deCasa('reservas'), deCasa('leads')]);
+	for (const d of [...reservas.docs, ...leads.docs]) if (d.data().agentId) await updateDoc(d.ref, { agentId: '' });
+	await updateDoc(doc(db, 'properties', p.id), { agentId: '' });
+	p.agentId = '';
+}
+
 // Lo privado de una casa por noche (costo del socio, dirección y mapa) se escribe con guardarPrivadoVacacional
 // (admin/js/privado-casa.js); se reexporta para quien ya lo importa de aquí.
 export { guardarPrivadoVacacional };
@@ -359,6 +390,10 @@ export async function render(container, [id]) {
 	if (id && id !== 'incompletos') return renderEditor(container, id);
 
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
+	if (session.isAdmin) {
+		const conAsesor = props.filter((p) => esVacacional(p) && p.agentId);
+		try { for (const p of conAsesor) await sinAsesorPorNoche(p); } catch (err) { console.warn('Casas por noche con asesor sin poner al día', err); }
+	}
 	const porPrivatizar = props.filter((p) => esVacacional(p) && (p.direccion || p.mapa) && canEdit(p));
 	if (porPrivatizar.length) {
 		try {
@@ -579,8 +614,12 @@ export async function render(container, [id]) {
 		if (!v) return;
 		const agentId = v === '=ninguno' ? '' : v;
 		const nombre = agentName[agentId] || 'sin asesor';
+		// Una casa por noche no lleva asesor (revisarCasa): se nombra y no se toca.
+		const porNoche = elegidas().filter(esVacacional);
+		if (porNoche.length) toast(`Las casas por noche no llevan asesor: no se cambió ${porNoche.length === 1 ? `«${porNoche[0].titulo}»` : `en ${porNoche.length} propiedades`}.`, 'warning');
 		await enMasa(guardarMasa({ agentId }, { agentId }), `Asesor asignado: ${nombre}`,
-			(n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`);
+			(n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`, elegidas().filter((p) => !esVacacional(p)));
+		seleccion.clear();
 		selMasaAsesor.value = '';
 	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
@@ -1154,12 +1193,10 @@ async function renderEditor(container, id, emb = null) {
 		btn.disabled = false;
 		const mio = form.getData();
 		const d = clonar(mio);
-		// Una casa por noche con huéspedes por venir no pasa a venta o renta: perdería las fechas que ya tienen.
-		if (!isNew && eraVacacional && !esVacacional(d)) {
-			let pendientes;
-			try { pendientes = await porVenir(ref.id); } catch (err) { return showError(err); }
-			if (pendientes.length) return toast(avisoPorVenir(pendientes, 'No puede dejar de ser renta por noche'), 'warning');
-		}
+		// Lo mismo que revisa el importador: dueño de la casa por noche, sin asesor, sin pasar a venta con huéspedes por venir.
+		let sinLlegada = false;
+		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
+		catch (err) { return toast(errorMessage(err), 'warning'); }
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
@@ -1167,19 +1204,13 @@ async function renderEditor(container, id, emb = null) {
 		const delFormulario = d.acuerdo || {};
 		delete d.acuerdo;
 		let llegada = null;
-		// El socio de la casa ya está en Propietarios: su nombre, teléfono y asesor salen de ahí, no se vuelven a escribir.
-		const dueno = propietarios.find((p) => p.id === d.propietarioId) || null;
+		// El dueño de la casa ya está en Propietarios: su nombre y teléfono salen de ahí, no se vuelven a escribir.
 		if (esVacacional(d)) {
-			if (!d.propietarioId) return toast('Elige el socio de la casa. Si todavía no existe, créalo en Propietarios.', 'warning');
-			// Socio de otro asesor: se conserva lo ya guardado de él.
-			if (dueno?.agentId) d.agentId = dueno.agentId;
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			mascotasUnaVez(d);
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
 			Object.assign(d, { direccion: '', mapa: '' });
-			// Lo que no aplica a una casa por noche no se guarda aunque venga de cuando era venta o renta.
-			Object.assign(d, { vip: false, mantenimiento: '' });
 		} else {
 			delete d.vacacional;
 		}
@@ -1231,23 +1262,25 @@ async function renderEditor(container, id, emb = null) {
 				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
 				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
 					socio: esVacacional(d) ? cambiosEntre(alAbrir.socio, socio, []) : null,
-					llegada, sinLlegada: !llegada && eraVacacional
+					llegada, sinLlegada
 				});
 			}
 			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar (también el acuerdo y «data», abajo).
 			alAbrir = comoQuedo(mio);
-			// (Va después de guardar la casa: su regla la lee.)
+			// La casa queda en la lista de su dueño y sale de la de cualquier otro; su `porNoche` se recalcula y sus
+			// reservas, solicitudes y chats por venir pasan al dueño nuevo (una sola forma de enlazar: asignarDueno).
+			// Una casa enlazada solo desde la lista de su dueño (sin propietarioId antes ni ahora) se deja como está.
+			// Con un dueño de otro asesor que no cambia no hay nada que poner al día (y su ficha no se puede leer).
+			// Va antes del acuerdo: si fallara, el acuerdo no se marca guardado y el siguiente «Guardar» lo vuelve a
+			// decidir con el dueño anterior a la vista (no borra uno recién guardado).
+			if ((data.propietarioId || d.propietarioId) && !(ajeno && data.propietarioId === d.propietarioId)) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
+			// El acuerdo lo decide acuerdoPorGuardar. (Va después de guardar la casa: su regla la lee.)
 			const acuerdo = acuerdoPorGuardar(d, delFormulario);
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
 			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
-			// La casa queda en la lista de su dueño y sale de la de cualquier otro; su `porNoche` se recalcula
-			// (una sola forma de enlazar: asignarDueno). El acuerdo ya lo decidió acuerdoPorGuardar.
-			// Una casa enlazada solo desde la lista de su dueño (sin propietarioId antes ni ahora) se deja como está.
-			// Con un dueño de otro asesor que no cambia no hay nada que poner al día (y su ficha no se puede leer).
-			if ((data.propietarioId || d.propietarioId) && !(ajeno && data.propietarioId === d.propietarioId)) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			// Lo que la ficha compara con «data» (dueño, URL, operación) queda como se guardó: un segundo «Guardar» no
 			// vuelve a sacar la casa del dueño anterior ni le borra el acuerdo al nuevo.
@@ -1319,7 +1352,8 @@ async function renderEditor(container, id, emb = null) {
 				publicado: false,
 				destacada: false,
 				fotos: (data.fotos || []).map(({ url, alt }) => ({ url, alt: alt || '' })),
-				agentId: session.isAdmin ? data.agentId || '' : session.agentId,
+				// Una casa por noche no lleva asesor (revisarCasa).
+				agentId: vac ? '' : session.isAdmin ? data.agentId || '' : session.agentId,
 				// La dirección y el mapa de una casa por noche son privados (data los trae de privado/llegada).
 				...(vac ? { direccion: '', mapa: '' } : {})
 			});
