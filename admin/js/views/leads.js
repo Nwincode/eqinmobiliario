@@ -116,7 +116,9 @@ export async function render(container) {
 		mount(container, h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor, así que no tienes leads asignados.'));
 		return;
 	}
-	const [leads, agents] = await Promise.all([loadLeads(), loadAgents()]);
+	const [todos, agents] = await Promise.all([loadLeads(), loadAgents()]);
+	// Las solicitudes de reserva por noche se atienden en Solicitudes.
+	const leads = todos.filter((l) => !window.EQVacacional.esSolicitudReserva(l));
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 
 	const search = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o propiedad…' });

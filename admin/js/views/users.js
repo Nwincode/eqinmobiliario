@@ -64,11 +64,13 @@ export async function render(container) {
 				h('button', {
 					class: 'btn btn-primary',
 					onclick: async (e) => {
+						// El botón se toma antes de esperar: después del «await» el evento ya no lo trae.
+						const boton = e.currentTarget;
 						const v = f.values();
 						if (!v.nombre || !v.email) return toast('Completa nombre y correo.', 'warning');
 						if (v.password.length < 8) return toast('La contraseña temporal debe tener al menos 8 caracteres.', 'warning');
 						if (falta(v)) return toast(falta(v), 'warning');
-						e.currentTarget.disabled = true;
+						boton.disabled = true;
 						try {
 							const uid = await createAccount(v.email, v.password);
 							await setDoc(doc(db, 'users', uid), {
@@ -80,7 +82,7 @@ export async function render(container) {
 							reload();
 						} catch (err) {
 							showError(err);
-							e.currentTarget.disabled = false;
+							boton.disabled = false;
 						}
 					}
 				}, 'Crear usuario')

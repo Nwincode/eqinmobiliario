@@ -212,13 +212,44 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
     }
+    // Reserva que crea el socio al confirmar una solicitud (ver match /reservas).
+    function reservaDelSocioValida(r) {
+      let casa = get(/databases/$(database)/documents/properties/$(r.propertyId)).data;
+      let solicitud = get(/databases/$(database)/documents/leads/$(r.leadId)).data;
+      let socio = /databases/$(database)/documents/properties/$(r.propertyId)/privado/socio;
+      let margen = exists(socio) ? get(socio).data.get('margen', 20) : 20;
+      return r.keys().hasOnly(['propertyId', 'propertyTitulo', 'agentId', 'propietarioId', 'moneda', 'llegada', 'salida', 'noches',
+            'huesped', 'canal', 'estado', 'leadId', 'codigo', 'costoSocio', 'alojamiento', 'ganancia', 'pagadoSocio', 'pagadoFecha',
+            'comision', 'createdAt', 'updatedAt'])
+        && r.leadId is string && r.leadId.size() > 0 && r.leadId.size() <= 60
+        && exists(/databases/$(database)/documents/leads/$(r.leadId))
+        && solicitud.get('propertyId', '') == r.propertyId
+        && solicitud.get(['reserva', 'codigo'], '') == r.codigo
+        && solicitud.get(['reserva', 'llegada'], '') == r.llegada
+        && solicitud.get(['reserva', 'salida'], '') == r.salida
+        && r.noches == solicitud.get(['reserva', 'noches'], -1)
+        && r.agentId == casa.get('agentId', '')
+        && r.canal == 'web' && r.pagadoSocio == false && r.get('pagadoFecha', '') == ''
+        && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
+        && r.costoSocio is number && r.alojamiento is number && r.ganancia is number && r.noches is number
+        && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
+        && r.ganancia >= r.alojamiento - r.costoSocio - 0.01
+        && r.ganancia >= r.costoSocio * margen / 100 - 0.01 * r.noches - 0.01
+        && r.comision is map && r.comision.keys().hasOnly(['monto', 'vence', 'pagada'])
+        && r.comision.pagada == false && r.comision.vence == r.llegada && r.comision.monto == r.ganancia;
+    }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
     match /reservas/{id} {
       allow read: if propio() || esSocioDe(resource.data);
       // El socio crea la reserva al confirmar una solicitud de su casa y solo puede cancelarla, con motivo.
+      // Lo que crea tiene la forma de admin/js/reservas.js confirmarSolicitud: de una solicitud que existe (mismo código,
+      // casa y fechas), del asesor de la casa, sin pago marcado y con la comisión entera (la ganancia, que no puede ser
+      // menor que el margen de la casa sobre su parte) y sin pagar.
+      // Su id es el de la solicitud: una sola reserva por solicitud (crear sobre una que ya existe no es «crear»).
       allow create: if nuevoPropio()
-        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada'
-            && esSocioDeCasaPorNoche(request.resource.data.get('propertyId', '')));
+        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
+            && esSocioDeCasaPorNoche(request.resource.data.get('propertyId', ''))
+            && reservaDelSocioValida(request.resource.data));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
       allow update: if (propio() && conservaAsesor()
             && (isAdmin() || request.resource.data.get(['comision', 'pagada'], false) == resource.data.get(['comision', 'pagada'], false)))

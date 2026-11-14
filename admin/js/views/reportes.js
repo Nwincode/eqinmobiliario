@@ -3,7 +3,7 @@ import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
-import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDe } from '../crm.js';
+import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
 
 function horas(msx) {
 	if (!Number.isFinite(msx)) return '—';
@@ -24,7 +24,7 @@ export async function render(container) {
 	const calcular = () => {
 		const desde = Date.now() - dias * 86400000;
 		const filas = [...agentes.map((a) => ({ id: a.id, nombre: a.nombre })), { id: '', nombre: 'Sin asignar' }].map((a) => {
-			const misLeads = leads.filter((l) => (l.agentId || '') === a.id && ms(l.createdAt) >= desde);
+			const misLeads = leads.filter((l) => !window.EQVacacional.esSolicitudReserva(l) && (l.agentId || '') === a.id && ms(l.createdAt) >= desde);
 			const misClientes = clientes.filter((c) => (c.agentId || '') === a.id);
 			const misActs = actividades.filter((x) => (x.agentId || '') === a.id);
 			const hechas = misActs.filter((x) => x.hecha && ms(x.hechaEn || x.createdAt) >= desde && x.tipo !== 'nota');
@@ -36,7 +36,7 @@ export async function render(container) {
 			}).filter((t) => t !== null);
 			const cierres = misClientes.filter((c) => c.etapa === 'cierre' && ms(c.updatedAt) >= desde);
 			const montoCerrado = cierres.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
-			const comision = cierres.reduce((s, c) => s + comisionDe(c, reglas), 0);
+			const comision = cierres.reduce((s, c) => s + comisionDeNegocio(c, reglas), 0);
 			const enProceso = misClientes.filter((c) => ['visita', 'oferta'].includes(c.etapa));
 			return {
 				...a,

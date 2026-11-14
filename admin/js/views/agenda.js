@@ -1,6 +1,6 @@
 // Agenda: seguimientos, visitas y tareas por fecha (vencidas, hoy, próximos días).
 import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
 	TIPOS_ACTIVIDAD, tipoActividad, iconoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
@@ -43,7 +43,12 @@ export async function render(container) {
 		} catch (err) { showError(err); }
 	};
 	const borrar = async (a) => {
-		try { await deleteDoc(doc(db, 'actividades', a.id)); actividades.splice(actividades.indexOf(a), 1); dibujar(); } catch (err) { showError(err); }
+		if (!(await confirmDialog(`¿Eliminar «${a.titulo || 'esta actividad'}»?`, { okText: 'Eliminar' }))) return;
+		try {
+			await deleteDoc(doc(db, 'actividades', a.id)); actividades.splice(actividades.indexOf(a), 1); dibujar();
+			// Una visita borrada deja de contar en el resumen del dueño.
+			if (a.tipo === 'visita') refrescarPorCliente(clientes.find((c) => c.id === a.clienteId), a.propertyId);
+		} catch (err) { showError(err); }
 	};
 
 	const dibujar = () => {

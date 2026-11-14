@@ -9,6 +9,8 @@ import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
 import { fichaCasa, FILA_CASA } from '../ficha-casa.js';
 import { resumenCasa } from '../resumen-casa.js';
+import { huespedesMaxDe } from '../cambios-casa.js';
+import { guardarPrivadoVacacional } from '../privado-casa.js';
 
 const V = window.EQVacacional;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
@@ -89,7 +91,7 @@ async function casa(container, id) {
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
-		huespedes: Number(v.huespedesMax) || 0, mes: hoy().slice(0, 7), desde: '', hasta: '', pide: '',
+		huespedes: huespedesMaxDe(v.huespedesMax), mes: hoy().slice(0, 7), desde: '', hasta: '', pide: '',
 		// Solicitudes de la web que todavía no respondió.
 		pedidas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && !c.estado)
 			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
@@ -100,10 +102,10 @@ async function casa(container, id) {
 	async function guardar(descripcion) {
 		const pub = V.planPublico(plan(), s.margen);
 		try {
-			await updateDoc(refSocio, { precioBase: e.base, precioFinde: e.finde, tarifas: e.tarifas, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+			await guardarPrivadoVacacional(id, { precioBase: e.base, precioFinde: e.finde, tarifas: e.tarifas });
 			await updateDoc(refCasa, {
 				precio: V.precioDesde(pub, hoy()) || null, 'vacacional.base': pub.base, 'vacacional.finde': pub.finde, 'vacacional.tarifas': pub.tarifas,
-				'vacacional.bloqueos': e.bloqueos, 'vacacional.minimos': e.minimos, 'vacacional.huespedesMax': e.huespedes || null, updatedAt: serverTimestamp()
+				'vacacional.bloqueos': e.bloqueos, 'vacacional.minimos': e.minimos, 'vacacional.huespedesMax': e.huespedes, updatedAt: serverTimestamp()
 			});
 			await addDoc(collection(refCasa, 'bitacora'), { que: descripcion, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
 			await markPending(`${p.titulo}: ${descripcion}`);
@@ -265,7 +267,8 @@ async function casa(container, id) {
 				h('label', { class: 'form-label', for: 'mc-huespedes' }, 'Personas máximo'),
 				h('input', {
 					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '',
-					onchange: (ev) => { e.huespedes = Math.max(0, Math.floor(Number(ev.target.value) || 0)); guardar(`personas máximo ${e.huespedes || 'sin límite'}`); }
+					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
+					onchange: (ev) => { e.huespedes = huespedesMaxDe(ev.target.value); ev.target.value = e.huespedes; guardar(`personas máximo ${e.huespedes}`); }
 				})))),
 		cal, listas);
 }

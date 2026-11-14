@@ -236,6 +236,36 @@
 			.map(function (r) { return { desde: r.llegada, hasta: r.salida }; }));
 	}
 
+	// Un lead que es una solicitud de reserva por noche: lo atiende Solicitudes (con su chat), no es un interesado del
+	// CRM: no cuenta en «Leads sin atender», ni en Reportes, ni en el resumen diario, ni crea un cliente.
+	function esSolicitudReserva(l) { return Boolean(l && l.reserva); }
+
+	// Un cambio de reserva (crear, editar, cancelar, borrar) en UNA casa: las fechas que quedan reservadas y el choque,
+	// si lo hay. La fuente son las reservas (leídas en ese momento), no la lista vieja de una pestaña.
+	//  o = { guardadas: lo que tiene la casa ahora, reservas: las que quien cambia puede leer de esa casa,
+	//        antes: la reserva como estaba (null si es nueva), despues: como queda (null si se borra),
+	//        propertyId, completas: true si `reservas` son TODAS las de la casa (el administrador) }.
+	// Quien no las ve todas (el socio no lee las de antes sin propietarioId; el asesor, solo las suyas) parte de lo
+	// guardado: quita solo las noches de esta reserva y suma las confirmadas que ve; así no libera fechas ajenas.
+	function cambioDeReserva(o) {
+		var pid = o.propertyId, antes = o.antes || null, despues = o.despues || null;
+		var id = (despues || antes || {}).id;
+		var lista = (o.reservas || []).filter(function (r) { return r && r.id !== id; }).concat(despues ? [despues] : []);
+		var base = unirRangos(o.guardadas);
+		if (antes && confirmada(antes) && antes.propertyId === pid) base = liberarNoches(base, antes.llegada, antes.salida);
+		var reservadas = o.completas ? rangosReservados(lista, pid) : unirRangos(base.concat(rangosReservados(lista, pid)));
+		var choque = null;
+		if (despues && confirmada(despues) && despues.propertyId === pid) {
+			choque = choquesReserva(despues, lista)[0] || null;
+			// Quien no ve todas: también choca con lo guardado que no es de esta reserva.
+			if (!choque && !o.completas) {
+				var r = base.filter(function (x) { return x.desde < despues.salida && despues.llegada < x.hasta; })[0];
+				if (r) choque = { llegada: r.desde, salida: r.hasta };
+			}
+		}
+		return { reservadas: reservadas, choque: choque };
+	}
+
 	// Estado de cuenta: reservas, noches y, por moneda, lo que toca al propietario y la ganancia.
 	function resumenReservas(lista) {
 		var out = { reservas: 0, noches: 0, porMoneda: {} };
@@ -329,7 +359,7 @@
 		parseICal: parseICal,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
-		choquesReserva: choquesReserva, rangosReservados: rangosReservados, resumenReservas: resumenReservas,
+		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,
 		nivelComision: nivelComision, sociosEnMora: sociosEnMora, alertaSolicitud: alertaSolicitud
 	};
 });

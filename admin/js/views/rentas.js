@@ -1,12 +1,14 @@
 // Rentas vacacionales: reservas de cada casa y estado de cuenta de cada propietario.
-// Una reserva confirmada bloquea sus fechas en el calendario público de la casa.
+// Una reserva confirmada bloquea sus fechas en el calendario público de la casa. Crear, editar, cancelar, borrar y
+// marcar lo pagado pasan por admin/js/reservas.js (lo mismo que usa Solicitudes): la reserva la ve también su dueño.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, orderBy, limit, serverTimestamp } from '../firebase.js';
-import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner } from '../ui.js';
-import { session } from '../session.js';
+import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
+import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
+import { duenoDe as duenoDeCasa } from '../duenos.js';
+import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, deSolicitud, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas, MOTIVOS_CANCELAR } from '../reservas.js';
 
 const V = window.EQVacacional;
 const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Airbnb'], ['booking', 'Booking'], ['otro', 'Otro']];
@@ -28,18 +30,24 @@ const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5
 const dinero = (porMoneda, campo) => Object.entries(porMoneda).filter(([, m]) => m[campo]).map(([mon, m]) => money(m[campo], mon)).join(' · ') || '—';
 
 export async function render(container) {
-	const [reservas, todas, propietarios] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios()]);
+	let [reservas, todas, propietarios] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios()]);
 	const casas = todas.filter((p) => p.operacion === 'vacacional').sort((a, b) => String(a.titulo).localeCompare(String(b.titulo)));
 	const casaDe = Object.fromEntries(casas.map((p) => [p.id, p]));
-	const duenoDe = (pid) => propietarios.find((o) => (o.propiedades || []).some((x) => x.propertyId === pid));
+	// Reservas de antes (con teléfono o sin el dueño de su casa): se ponen al día una vez y se vuelven a leer.
+	if (await ponerAlDiaReservas(reservas, casas).catch((err) => { console.warn('Reservas de antes sin poner al día', err); return 0; })) reservas = await loadReservas();
+	// La misma regla en todo el sistema: el dueño es el que la casa dice tener (si no lo dice, el de la lista).
+	const duenoDe = (pid) => duenoDeCasa(casaDe[pid] || { id: pid }, propietarios);
 	const estado = { mes: hoy().slice(0, 7), dueno: null }; // dueno: null = todos
 	const cuerpo = h('div');
 
 	const volver = async () => { container.replaceChildren(); await render(container); };
 
 	// ------------------------------------------------------------ Editor de una reserva
-	function editar(r = {}) {
-		const d = { canal: 'directo', estado: 'confirmada', ...r };
+	async function editar(r = {}) {
+		// El teléfono y las notas no van en la reserva (la lee su dueño): se leen aparte.
+		const contacto = r.id ? await contactoDe(r) : {};
+		const d = { canal: 'directo', estado: 'confirmada', ...r, telefono: contacto.telefono || '', notas: contacto.notas || '' };
+		const web = deSolicitud(d);
 		const campo = (label, input, cols = 6) => h('div', { class: `col-${cols === 12 ? 12 : 6} col-md-${cols}` }, h('label', { class: 'form-label small mb-1 d-block' }, label, input));
 		const input = (name, type = 'text', extra = {}) => h('input', { class: 'form-control', name, type, value: d[name] ?? '', ...extra });
 		const select = (name, opciones) => h('select', { class: 'form-select', name },
@@ -53,7 +61,8 @@ export async function render(container) {
 			campo('Huésped', input('huesped')),
 			campo('Teléfono', telefono),
 			campo('Canal', select('canal', CANALES)),
-			campo('Estado', select('estado', ESTADOS)),
+			// Una reserva de la web se cancela con su botón (avisa al cliente en su chat).
+			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta(ESTADOS, d.estado))) : select('estado', ESTADOS)),
 			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any' })),
 			campo('Cobrado al huésped (sin impuestos)', input('alojamiento', 'number', { min: 0, step: 'any' })),
 			resumen,
@@ -62,6 +71,8 @@ export async function render(container) {
 				h('span', { class: 'form-check-label' }, 'Ya se le pagó al propietario'))),
 			campo('Notas', h('textarea', { class: 'form-control', name: 'notas', rows: 2 }, d.notas || ''), 12));
 		const f = form.elements;
+		// Una reserva de la web conserva la casa y las fechas de su solicitud (para cambiarlas: cancelar y hacer otra).
+		if (web) for (const n of ['propertyId', 'llegada', 'salida']) f[n].disabled = true;
 		const leer = () => ({
 			propertyId: f.propertyId.value, llegada: f.llegada.value, salida: f.salida.value,
 			costoSocio: Number(f.costoSocio.value) || 0, alojamiento: Number(f.alojamiento.value) || 0
@@ -95,49 +106,37 @@ export async function render(container) {
 			const casa = casaDe[v.propertyId];
 			if (!casa) return toast('Elegí la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
-			const nueva = {
-				...v, id: d.id || doc(collection(db, 'reservas')).id,
-				propertyTitulo: casa.titulo, agentId: casa.agentId || session.agentId || '', moneda: casa.moneda || 'USD',
-				noches: V.nochesEntre(v.llegada, v.salida), ganancia: V.r2(v.alojamiento - v.costoSocio),
-				huesped: f.huesped.value.trim(), telefono: telefono.valor(), canal: f.canal.value, estado: f.estado.value,
-				pagadoSocio: f.pagadoSocio.checked, pagadoFecha: f.pagadoSocio.checked ? (d.pagadoFecha || hoy()) : '',
-				notas: f.notas.value.trim(), leadId: d.leadId || '', codigo: d.codigo || ''
-			};
-			const choque = nueva.estado === 'confirmada' && V.choquesReserva(nueva, reservas)[0];
-			if (choque) return toast(`Esas fechas chocan con otra reserva: ${dia(choque.llegada)} – ${dia(choque.salida)}${choque.huesped ? ` (${choque.huesped})` : ''}.`, 'danger');
 			try {
-				const { id, ...datos } = nueva;
-				await setDoc(doc(db, 'reservas', id), { ...datos, updatedAt: serverTimestamp(), ...(d.id ? {} : { createdAt: serverTimestamp() }) }, { merge: true });
-				await bloquear([...reservas.filter((x) => x.id !== id), nueva], [nueva.propertyId, d.propertyId]);
+				await guardarReserva(r.id ? r : null, casa, {
+					...v, huesped: f.huesped.value.trim(), canal: f.canal.value, estado: f.estado.value, pagadoSocio: f.pagadoSocio.checked
+				}, { telefono: telefono.valor(), notas: f.notas.value.trim() });
 				m.close();
 				toast('Reserva guardada.');
 				await volver();
-			} catch (e) { showError(e); }
+			} catch (e) { if (e instanceof ChoqueDeFechas) toast(e.message, 'danger'); else showError(e); }
 		};
+		// Hecha a mano: se borra y sus fechas quedan libres. De la web: se cancela, con motivo, y el cliente lo ve en su chat.
 		const borrar = async () => {
 			if (!await confirmDialog('¿Borrar esta reserva? Sus fechas vuelven a quedar libres.', { okText: 'Borrar' })) return;
-			try {
-				await deleteDoc(doc(db, 'reservas', d.id));
-				await bloquear(reservas.filter((x) => x.id !== d.id), [d.propertyId]);
-				m.close();
-				await volver();
-			} catch (e) { showError(e); }
+			try { await borrarReserva(r); m.close(); await volver(); } catch (e) { showError(e); }
+		};
+		const cancelar = async () => {
+			const motivo = await elegirOpcion('¿Por qué se cancela?', MOTIVOS_CANCELAR);
+			if (!motivo) return;
+			try { await cancelarReserva(r, motivo); m.close(); toast('Reserva cancelada. Las fechas quedaron libres y el cliente lo ve en su chat.'); await volver(); } catch (e) { showError(e); }
 		};
 		const m = modal({
 			title: d.id ? 'Reserva' : 'Nueva reserva', body: form,
 			footer: [
-				d.id ? iconoBtn('icon-trash', 'Borrar reserva', { onclick: borrar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' }) : null,
+				!d.id ? null : !web ? iconoBtn('icon-trash', 'Borrar reserva', { onclick: borrar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' })
+					: d.estado === 'confirmada' ? iconoBtn('icon-ban', 'Cancelar reserva', { onclick: cancelar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' }) : null,
 				h('button', { type: 'button', class: 'btn btn-primary', onclick: guardar }, 'Guardar')
 			]
 		});
 	}
 
-	// Las fechas confirmadas de cada casa tocada se copian a la propiedad (calendario público).
-	const bloquear = (lista, ids) => Promise.all([...new Set(ids.filter(Boolean))].map((pid) =>
-		updateDoc(doc(db, 'properties', pid), { 'vacacional.reservadas': V.rangosReservados(lista, pid) })));
-
 	const pagar = async (lista) => {
-		await Promise.all(lista.map((r) => updateDoc(doc(db, 'reservas', r.id), { pagadoSocio: true, pagadoFecha: hoy(), updatedAt: serverTimestamp() })));
+		await pagadoAlPropietario(lista);
 		toast(lista.length === 1 ? 'Pago registrado.' : `${lista.length} pagos registrados.`);
 		await volver();
 	};
@@ -209,7 +208,7 @@ export async function render(container) {
 			h('h2', { class: 'h6' }, filtro ? `Reservas de ${filtro.nombre}` : 'Reservas del mes'),
 			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin fichas-icono mb-0' },
 				h('thead', {}, h('tr', {}, ['Casa', 'Fechas', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
-				h('tbody', {}, visibles.map((r) => { const dueno = duenoDe(r.propertyId)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r) },
+				h('tbody', {}, visibles.map((r) => { const dueno = duenoDe(r.propertyId)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r).catch(showError) },
 					h('td', {}, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null),
 					h('td', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
 					h('td', {}, dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null),
@@ -236,7 +235,7 @@ export async function render(container) {
 	}
 
 	mount(container,
-		pageHeader('Rentas vacacionales', casas.length ? iconoBtn('icon-history', 'Cambios de los socios', { onclick: verCambios }) : null, h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => editar() }, '+ Reserva')),
+		pageHeader('Rentas vacacionales', casas.length ? iconoBtn('icon-history', 'Cambios de los socios', { onclick: verCambios }) : null, h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: () => editar().catch(showError) }, '+ Reserva')),
 		casas.length ? cuerpo : emptyState('Todavía no hay casas de renta vacacional. Creá una propiedad con operación "Renta vacacional" o importalas todas de un Excel.',
 			h('a', { class: 'btn btn-outline-primary btn-sm', href: '#/propiedades/importar' }, 'Importar casas')));
 	if (casas.length) pintar();

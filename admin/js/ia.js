@@ -2,6 +2,7 @@
 // si no, o si falla, se resuelven con reglas y plantillas (admin/js/reglas.js), sin costo.
 import { session } from './session.js';
 import { REGLAS } from './reglas.js';
+import { paraIA } from './para-ia.js';
 
 let iaActiva = null;
 
@@ -37,7 +38,10 @@ async function llamarIA(tarea, datos) {
 	return body;
 }
 
-export async function pedirIA(tarea, datos) {
+// Todo lo que sale pasa por paraIA (solo lo público de cada propiedad, sin contacto de clientes): también lo que
+// usan las reglas sin IA, porque el traductor gratuito es un servicio de fuera.
+export async function pedirIA(tarea, todo) {
+	const datos = paraIA(todo);
 	const local = REGLAS[tarea];
 	if (await estadoIA()) {
 		try {

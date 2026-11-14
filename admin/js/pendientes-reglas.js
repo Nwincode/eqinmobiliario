@@ -1,5 +1,6 @@
 // Reglas de «Datos por completar», sin dependencias del navegador (se prueban en Node).
 // Para cambiar qué se pide, edita REGLAS.
+import { tieneCasasPorNoche } from './duenos.js';
 const vacio = (v) => v === undefined || v === null || String(v).trim() === '';
 const CON_CUARTOS = ['casa', 'apartamento'];
 // Ciudades donde se usa «zona»; fuera de ellas basta la ciudad.
@@ -45,8 +46,8 @@ export const REGLAS = {
 			['nombre', 'Nombre', (p) => vacio(p.nombre)],
 			['telefono', 'Teléfono o correo', (p) => vacio(p.telefono) && vacio(p.email)],
 			// Socio de renta vacacional: sin correo no se entera de las solicitudes y sin datos de pago no puede confirmarlas.
-			['email', 'Correo (para avisarle de las solicitudes)', (p) => (p.porNoche || p.tipo === 'socio') && vacio(p.email)],
-			['datosPago', 'Datos de pago para reservas', (p) => (p.porNoche || p.tipo === 'socio') && vacio(p.datosPago)]
+			['email', 'Correo (para avisarle de las solicitudes)', (p) => tieneCasasPorNoche(p) && vacio(p.email)],
+			['datosPago', 'Datos de pago para reservas', (p) => tieneCasasPorNoche(p) && vacio(p.datosPago)]
 		]
 	},
 	asesores: {
