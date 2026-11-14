@@ -24,28 +24,39 @@ export function recortar(text, max) {
 	return t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`;
 }
 
-// Título automático que cabe en Google (~65 caracteres): se acorta quitando detalles.
+// ¿El texto `a` ya nombra a `b`? Sin acentos ni mayúsculas y por palabras completas ("zona 1" no es "zona 10").
+const sinAcentos = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export const nombra = (a, b) => Boolean(sinAcentos(b).trim()) && new RegExp(`(^|[^a-z0-9])${sinAcentos(b).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(sinAcentos(a));
+// Quita las partes que otra ya dice ("Vista Hermosa, zona 15" + "Zona 15" → solo la primera). Una sola forma de
+// juntar lugares en todo el sistema: ubicación de la ficha, títulos, descripciones y textos del panel.
+export const sinRepetir = (partes) => partes.map((x) => String(x || '').trim()).filter(Boolean)
+	.filter((x, i, a) => !a.some((y, j) => j !== i && nombra(y, x) && (j < i || !nombra(x, y))));
+
+// Largo máximo de un título: Google corta los de más de ~60 caracteres.
+export const TITULO_MAX = 60;
+// Un título largo se acorta quitando lo que va después de la última coma; si no tiene comas, se corta en una palabra.
+function acortar(t, max = TITULO_MAX) {
+	const partes = t.split(/,\s+/);
+	while (partes.length > 1 && partes.join(', ').length > max) partes.pop();
+	return recortar(partes.join(', '), max);
+}
+
+// Título automático que cabe en Google (60 caracteres): se acorta quitando detalles.
 export function autoSeoTitle(p, en = false) {
 	const op = en ? ({ vacacional: 'Vacation Rental', renta: 'For Rent' }[p.operacion] || 'For Sale') : operacionDe(p);
 	const prep = en ? 'in' : 'en';
-	// Si el título ya dice la operación, no se repite ("… en venta … | Venta").
-	const t = String(p.titulo || '');
+	const t = acortar(String(p.titulo || '').trim());
 	// Zona o ciudad que el título ya nombra no se repiten.
-	const nuevo = (x) => (x && !t.toLowerCase().includes(String(x).toLowerCase()) ? x : '');
+	const nuevo = (x) => (x && !nombra(t, x) ? String(x).trim() : '');
 	const zona = nuevo(p.zona);
-	const lugar = [zona, nuevo(p.ciudad)].filter(Boolean).join(', ');
+	const ciudad = zona && nombra(zona, p.ciudad) ? '' : nuevo(p.ciudad);
+	const lugar = [zona, ciudad].filter(Boolean).join(', ');
+	const cabe = (x) => x && x.length <= TITULO_MAX;
+	// Si el título ya dice la operación, no se repite ("… en venta … | Venta").
 	const yaDice = /\b(venta|vendo|renta|alquiler|alquilo|vacacional|for sale|for rent|vacation)\b/i.test(t);
-	if (yaDice) {
-		return [lugar && `${t} | ${lugar}`, `${t} | Guatemala`, t].find((x) => x && x.length <= 65) || t;
-	}
 	if (!t) return lugar ? `${op} ${prep} ${lugar}` : op;
-	const candidates = [
-		lugar && `${t} | ${op} ${prep} ${lugar}`,
-		zona && `${t} | ${op} ${prep} ${zona}`,
-		`${t} | ${op}`,
-		t
-	];
-	return candidates.find((x) => x && x.length <= 65) || t;
+	const sufijos = yaDice ? [lugar, zona, ciudad, 'Guatemala'] : [lugar && `${op} ${prep} ${lugar}`, zona && `${op} ${prep} ${zona}`, ciudad && `${op} ${prep} ${ciudad}`, op];
+	return sufijos.filter(Boolean).map((x) => `${t} | ${x}`).find(cabe) || t;
 }
 
 // Descripción automática para Google (máx. 155): precio, medidas y la presentación de la propiedad.

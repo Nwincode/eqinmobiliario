@@ -52,6 +52,8 @@ const ES = {
 	vacChatNota: 'Guarda este enlace: con él vuelves a tu reserva. La dirección aparece aquí cuando se recibe tu pago.',
 	vacReglas: 'Reglas de la casa', vacReglasGenerales: '', vacCancelacion: 'Cancelación', vacCancelacionGeneral: '',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas', porZona: 'Buscar por zona', porZonaTipo: 'Buscar por zona y tipo',
+	// Bloque de precios de una zona (listingPage → bloquePrecios)
+	preciosTitulo: 'Precios en {zona}', preciosRango: 'Rango', preciosMediana: 'Precio mediano', preciosPorM2: 'Precio mediano por m²', preciosPorFt2: 'Precio mediano por sq ft', preciosBase: 'Con {n} precios publicados en {moneda}.',
 	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', zonas: 'Zonas',
 	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué quieres vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
 	plantilla: 'Diseño basado en una plantilla de', escribenos: 'Escríbenos por WhatsApp',
@@ -131,8 +133,8 @@ const ES = {
 	blogLead: '¿Buscas una propiedad? Te asesoramos sin costo', masArticulos: 'Más artículos',
 	noEncontrada: 'Página no encontrada', noExiste: 'La página que buscas no existe o la propiedad ya no está disponible.', verPropiedades: 'Ver propiedades',
 	duenosTitulo: 'Propietarios y colaboradores', duenosLead: 'Tu portal ahora es tu panel',
-	duenosTexto: 'Lo que veías aquí (cómo va tu propiedad, consultas, visitas y ofertas) ahora está en tu panel, junto con todas tus propiedades. Entrás con tu correo y tu contraseña.',
-	duenosEntrar: 'Entrar a mi panel', duenosPrimeraVez: '¿Primera vez? Pedile el acceso a tu asesor: te llega un correo para poner tu contraseña.',
+	duenosTexto: 'Lo que veías aquí (cómo va tu propiedad, consultas, visitas y ofertas) ahora está en tu panel, junto con todas tus propiedades. Entras con tu correo y tu contraseña.',
+	duenosEntrar: 'Entrar a mi panel', duenosPrimeraVez: '¿Primera vez? Pídele el acceso a tu asesor: te llega un correo para poner tu contraseña.',
 	duenosPedir: 'Pedir mi acceso', duenosMsgWa: 'Hola, quiero el acceso a mi panel de propietario.',
 	otroIdioma: 'EN', otroIdiomaLabel: 'View this page in English',
 	// Mensajes que muestra el navegador (formularios, búsqueda, calculadora)
@@ -183,6 +185,7 @@ const EN = {
 	vacChatNota: 'Save this link to come back to your booking. The address appears here once your payment is received.',
 	vacReglas: 'House rules', vacReglasGenerales: '', vacCancelacion: 'Cancellation', vacCancelacionGeneral: '',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all', porZona: 'Browse by area', porZonaTipo: 'Browse by area and type',
+	preciosTitulo: 'Prices in {zona}', preciosRango: 'Price range', preciosMediana: 'Median price', preciosPorM2: 'Median price per m²', preciosPorFt2: 'Median price per sq ft', preciosBase: 'Based on {n} listed prices in {moneda}.',
 	abrirMenu: 'Open menu', enlaces: 'Links', zonas: 'Areas',
 	vendeBoton: 'List your property', vendeQue: 'What do you want to sell or rent out?', vendeQuePh: 'House in zone 15, 3 bedrooms…', cerrarAviso: 'Close language notice',
 	plantilla: 'Design based on a template by', escribenos: 'Message us on WhatsApp',
