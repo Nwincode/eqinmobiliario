@@ -105,12 +105,11 @@ const GROUPS = [
 			{ name: 'en.contadores.items', label: 'Counters', type: 'list', itemLabel: 'Counter', max: 4, fields: [
 				{ name: 'valor', label: 'Number', type: 'number', cols: 4 },
 				{ name: 'etiqueta', label: 'Label', cols: 8 }] },
-			{ type: 'section', label: 'Reviews, team and contact' },
+			{ type: 'section', label: 'Reviews, team and contact', help: 'El horario en inglés no se escribe: sale solo del horario en español (Contacto), con los días y las horas en a.m./p.m.' },
 			{ name: 'en.testimonios.titulo', label: 'Reviews title', cols: 6 },
 			{ name: 'en.asesores.titulo', label: 'Team title', cols: 6 },
 			{ name: 'en.asesores.subtitulo', label: 'Team text', type: 'textarea', rows: 2 },
 			{ name: 'en.contacto.titulo', label: 'Contact title', cols: 6 },
-			{ name: 'en.contacto.horario', label: 'Business hours', cols: 6 },
 			{ name: 'en.contacto.subtitulo', label: 'Contact text', type: 'textarea', rows: 2 },
 			{ name: 'en.whatsappFlotante.mensaje', label: 'WhatsApp button message' },
 			{ type: 'section', label: 'Menu and footer' },

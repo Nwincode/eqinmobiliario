@@ -7,7 +7,7 @@ import { buscar, paginaDeZona, zonasHermanas, padres, nombreTipo } from './landi
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
-import { CODIGOS_PAIS } from '../../admin/js/formato.js';
+import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -112,13 +112,15 @@ function bgStyle(ctx, url) {
 	return `--bg:url('${esc(url)}')${mobile ? `;--bg-m:url('${esc(mobile)}')` : ''}`;
 }
 
-// CDN de imágenes de Netlify (netlify.toml → [images]): sirve una foto a otro ancho o formato.
+// CDN de imágenes de Netlify (netlify.toml → [images]): sirve una foto a otro ancho o formato (`/.netlify/images?url=…&w=…`).
+// Pasan por él las fotos de Firebase Storage (permitidas en `remote_images`) y las del propio sitio (/images/…).
+// Fuera de Netlify no existe: `npm run serve` redirige cada pedido a la foto original (scripts/serve.mjs).
 export const fotoCdn = (u, w, extra = '') => `/.netlify/images?url=${encodeURIComponent(u)}&w=${w}${extra}`;
+const pasaPorCdn = (url) => /^https:\/\/firebasestorage\.googleapis\.com\//.test(url || '') || /^\/images\/[^?#]+\.(webp|jpe?g|png)$/i.test(url || '');
 
-// Foto de Firebase Storage a un ancho menor. Solo en Netlify: fuera de ahí el CDN no existe
-// y la foto se sirve tal cual (null).
+// Foto a un ancho menor; null si la foto no pasa por el CDN (se usa la original).
 export function fotoAncho(url, w) {
-	return process.env.NETLIFY === 'true' && /^https:\/\/firebasestorage\.googleapis\.com\//.test(url || '') ? fotoCdn(url, w) : null;
+	return pasaPorCdn(url) ? fotoCdn(url, w) : null;
 }
 
 // Versiones reducidas de una foto; vacío si la foto no pasa por el CDN.
@@ -126,10 +128,14 @@ function fotoSrcset(url, anchos = [480, 800, 1200]) {
 	return anchos.map((w) => [fotoAncho(url, w), w]).filter(([u]) => u).map(([u, w]) => `${u} ${w}w`).join(', ');
 }
 
-// Atributos srcset/sizes de un <img>; `sizes` es el ancho que ocupa en pantalla.
-function fotoAttrs(url, sizes, anchos) {
-	const set = fotoSrcset(url, anchos);
-	return set ? ` srcset="${esc(set)}" sizes="${sizes}"` : '';
+// La única pieza que escribe una foto del sitio (tarjetas, galería de la ficha, VIP, blog): la original en `src`
+// (respaldo), las versiones del CDN en `srcset` con el ancho que ocupa en pantalla (`sizes`), y width/height del
+// ancho mayor pedido con la proporción en que se muestra (así no salta la página al cargar).
+export function imgFoto(url, { alt = '', sizes, anchos = [480, 800, 1200], aspecto = [4, 3], lazy = true, prioridad = false, clase = '' } = {}) {
+	const set = sizes ? fotoSrcset(url, anchos) : '';
+	const ancho = Math.max(...anchos);
+	return `<img src="${esc(url)}" alt="${esc(alt)}"${clase ? ` class="${clase}"` : ''}${set ? ` srcset="${esc(set)}" sizes="${sizes}"` : ''}`
+		+ `${prioridad ? ' fetchpriority="high"' : lazy ? ' loading="lazy"' : ''} width="${ancho}" height="${Math.round((ancho * aspecto[1]) / aspecto[0])}">`;
 }
 
 // `sizes`: la imagen es un <img> con srcset y la precarga tiene que pedir la misma versión.
@@ -424,9 +430,10 @@ function estadoBadge(p, inline = false) {
 export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	const url = propertyUrl(p);
 	const data = [
-		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', p.precio || 0],
+		// Precio en US$ (formato.js `enUSD`, un solo tipo de cambio): así el orden y los filtros comparan Q con US$.
+		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(p.precio, p.moneda))],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
-		['texto', `${p.titulo} ${p.zona} ${p.ciudad} ${porNoche(p) ? '' : p.direccion} ${tipoLabel(p)}`.toLowerCase()],
+		['texto', [p.titulo, p.zona, p.ciudad, porNoche(p) ? '' : p.direccion, tipoLabel(p)].filter(Boolean).join(' ').toLowerCase()],
 		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	const t = TEXTOS[lng(p)];
@@ -437,7 +444,7 @@ export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
 									<a href="${url}" class="img" tabindex="-1">
-										<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}" class="img-fluid"${fotoAttrs(firstPhoto(p), SIZES_TARJETA, [480, 800])}${lazy ? ' loading="lazy"' : ''} width="800" height="600">
+										${imgFoto(firstPhoto(p), { alt: photoAlt(p), clase: 'img-fluid', sizes: SIZES_TARJETA, anchos: [480, 800], lazy })}
 										${fotos.slice(1).map((f, i) => `<img data-src="${esc(fotoAncho(f.url, 800) || f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
 									</a>
 									${estadoBadge(p)}
@@ -667,7 +674,7 @@ export function homePage(ctx) {
 			<div class="row justify-content-between">
 				<div class="col-lg-7 mb-4 mb-lg-0 order-lg-2">
 					<div class="img-about dots">
-						<img src="${esc(s.servicios.imagen)}" alt="${esc(s.servicios.titulo)}" class="img-fluid" loading="lazy" width="1200" height="800">
+						${imgFoto(s.servicios.imagen, { alt: s.servicios.titulo, clase: 'img-fluid', sizes: '(max-width: 991px) 100vw, 58vw', aspecto: [3, 2] })}
 					</div>
 				</div>
 				<div class="col-lg-4">
@@ -909,11 +916,11 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					</select>
 				</div>
 				<div class="col-6 col-lg-2">
-					<label class="form-label" for="f-min">${t.precioMin}</label>
+					<label class="form-label" for="f-min">${t.precioMin} (US$)</label>
 					<input class="form-control" id="f-min" name="min" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
 				<div class="col-6 col-lg-2">
-					<label class="form-label" for="f-max">${t.precioMax}</label>
+					<label class="form-label" for="f-max">${t.precioMax} (US$)</label>
 					<input class="form-control" id="f-max" name="max" type="number" min="0" step="1000" inputmode="numeric">
 				</div>
 				${chips('col-12 col-lg-6', t.operacion, 'operacion', [['', t.todas], ['venta', t.venta], ['renta', t.renta], ['vacacional', t.vacacional]]
@@ -1382,7 +1389,7 @@ export function propertyPage(ctx, p) {
 	const galeria = `<div class="ficha-galeria-wrap">
 	<section class="ficha-galeria ficha-galeria-${Math.min(fotos.length, 5)}" aria-label="${t.galeriaFotos}">
 		${visibles.map((f, i) => `<button type="button" class="ficha-foto" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">
-			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, sizesGaleria(fotos.length, i))}${i ? ' loading="lazy"' : ' fetchpriority="high"'} width="1200" height="900">
+			${imgFoto(f.url, { alt: photoAlt(p, i), sizes: sizesGaleria(fotos.length, i), prioridad: !i })}
 		</button>`).join('')}
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
@@ -1552,7 +1559,7 @@ export function vipIndexPage(ctx, entrada = null) {
 			<div class="row">
 				${vips.length ? vips.map((p) => `<div class="col-md-6 mb-5">
 					<a class="vip-card" href="${propertyUrl(p)}">
-						<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}"${fotoAttrs(firstPhoto(p), '(max-width: 767px) 100vw, 50vw')} loading="lazy" width="800" height="500">
+						${imgFoto(firstPhoto(p), { alt: photoAlt(p), sizes: '(max-width: 767px) 100vw, 50vw', aspecto: [16, 10] })}
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
@@ -1676,7 +1683,7 @@ export function vipLandingPage(ctx, p) {
 			<span class="vip-kicker">${ic('camera')}${t.galeria}</span>
 			<h2 class="vip-h2 mb-4">${t.recorre}</h2>
 			<div class="vip-gallery">
-				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${celdaGaleriaVip(i, fotos.length)}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}"><img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, i ? '(max-width: 767px) 50vw, 33vw' : '(max-width: 767px) 100vw, 67vw')} loading="lazy" width="800" height="600"></button>`).join('\n')}
+				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${celdaGaleriaVip(i, fotos.length)}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">${imgFoto(f.url, { alt: photoAlt(p, i), sizes: i ? '(max-width: 767px) 50vw, 33vw' : '(max-width: 767px) 100vw, 67vw' })}</button>`).join('\n')}
 			</div>
 		</div>
 	</section>
@@ -1856,7 +1863,7 @@ export function blogIndexPage(ctx) {
 			<div class="row">
 				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
 					<article class="post-card">
-						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.webp')}" alt="${esc(post.titulo)}"${fotoAttrs(post.imagen, SIZES_TARJETA, [480, 800])} loading="lazy" width="800" height="450"></a>
+						<a href="${esc(post.url)}" class="post-card-img">${imgFoto(post.imagen || '/images/hero_bg_1.webp', { alt: post.titulo, sizes: SIZES_TARJETA, anchos: [480, 800], aspecto: [16, 9] })}</a>
 						<div class="post-card-body">
 							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${ic('calendar')}${esc(postDate(post, ctx))}</time>
 							<h2 class="h5 mt-2"><a href="${esc(post.url)}">${esc(post.titulo)}</a></h2>

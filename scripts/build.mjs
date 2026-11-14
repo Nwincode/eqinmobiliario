@@ -9,7 +9,7 @@ import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
 import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
-import { montoPrecio, telefonoWa } from '../admin/js/formato.js';
+import { montoPrecio, telefonoWa, horarioEn } from '../admin/js/formato.js';
 import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
@@ -547,6 +547,8 @@ async function main() {
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const nombre = site.general.nombreCorto;
 	const siteEn = enActivo ? deepMerge(site, site.en || {}) : null;
+	// El horario se escribe una vez, en español; el de inglés sale de él (un `en.contacto.horario` viejo se ignora).
+	if (siteEn) siteEn.contacto = { ...siteEn.contacto, horario: horarioEn(site.contacto.horario) };
 	const pagesEn = enActivo ? normalizePages(data.pagesEn, '/en') : [];
 	// Listados y páginas de aterrizaje de los dos idiomas (scripts/lib/landings.mjs). Se planean antes de escribir
 	// nada: de ellos dependen los enlaces de todas las páginas (menú, pie, migas, enlaces del blog).

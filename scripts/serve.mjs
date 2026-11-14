@@ -16,7 +16,14 @@ const TYPES = {
 };
 
 createServer(async (req, res) => {
-	const urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+	const pedido = new URL(req.url, 'http://x');
+	// El CDN de imágenes de Netlify (/.netlify/images?url=…&w=…) no existe aquí: se manda a la foto original.
+	if (pedido.pathname === '/.netlify/images') {
+		const original = pedido.searchParams.get('url') || '';
+		if (!/^(https:\/\/|\/(?!\/))/.test(original)) return res.writeHead(400).end();
+		return res.writeHead(302, { Location: original }).end();
+	}
+	const urlPath = decodeURIComponent(pedido.pathname);
 	let file = path.join(DIST, urlPath);
 	if (!file.startsWith(DIST)) return res.writeHead(403).end();
 	try {

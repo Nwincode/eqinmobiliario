@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { PurgeCSS } from 'purgecss';
-import { transform } from 'esbuild';
+import { transform, build } from 'esbuild';
 
 const CSS_FILES = [
 	'css/tema.css',
@@ -48,6 +48,17 @@ const SAFELIST = {
 	variables: [/.*/]
 };
 
+// Los formatos de admin/js/formato.js que usa js/site.js, como window.EQFormato: la misma regla que el panel y
+// el generador (correo válido, precio de una propiedad, US$ para comparar precios), sin una segunda copia.
+export const FORMATO_NAVEGADOR = ['correoValido', 'montoPrecio', 'enUSD'];
+async function formatoParaElNavegador(root) {
+	const r = await build({
+		stdin: { contents: `export { ${FORMATO_NAVEGADOR.join(', ')} } from './admin/js/formato.js';`, resolveDir: root, loader: 'js' },
+		bundle: true, format: 'iife', globalName: 'EQFormato', write: false, target: 'es2017', logLevel: 'silent'
+	});
+	return r.outputFiles[0].text;
+}
+
 function hash(text) {
 	return createHash('sha256').update(text).digest('hex').slice(0, 10);
 }
@@ -86,7 +97,7 @@ export async function buildAssets({ root, dist }) {
 	});
 	const minCss = (await transform(purged.css, { loader: 'css', minify: true })).code;
 
-	const js = (await Promise.all(JS_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
+	const js = [await formatoParaElNavegador(root), ...(await Promise.all(JS_FILES.map((f) => readFile(path.join(root, f), 'utf8'))))].join(';\n');
 	const minJs = (await transform(js, { loader: 'js', minify: true, target: 'es2017' })).code;
 
 	const rentaJs = (await Promise.all(RENTA_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
