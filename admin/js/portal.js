@@ -243,9 +243,15 @@ export const VERSION_RESUMEN = 3;
 // Publica (o actualiza) el resumen. Crea su id la primera vez. Devuelve el id.
 export async function publicarPortal(prop) {
 	// Antes de crear un id nuevo se vuelve a mirar la ficha: si otro guardado ya lo creó, se usa ese (uno por persona).
-	const token = prop.portalToken || (await getDoc(doc(db, 'propietarios', prop.id)).catch(() => null))?.data()?.portalToken || nuevoToken();
+	const ficha = prop.portalToken ? prop : (await getDoc(doc(db, 'propietarios', prop.id)).catch(() => null))?.data() || {};
+	// El id de un resumen de una versión anterior fue un enlace que se mandó por WhatsApp y que abría sin contraseña.
+	// El resumen nuevo lleva teléfono y datos de pago: nace con un id nuevo y el anterior se borra, para que ese
+	// enlace nunca los muestre (tampoco mientras las reglas nuevas no estén publicadas).
+	const viejo = ficha.portalToken && (ficha.portalVersion ?? prop.portalVersion) !== VERSION_RESUMEN ? ficha.portalToken : '';
+	const token = (!viejo && ficha.portalToken) || nuevoToken();
 	const { datos, privado } = await armarPortal(prop);
 	await setDoc(doc(db, 'portalPropietarios', token), datos);
+	if (viejo) await borrarCopia(viejo).catch(() => {});
 	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: token, portalVersion: VERSION_RESUMEN, portalPrivado: privado, portalActualizado: serverTimestamp() });
 	Object.assign(prop, { portalPrivado: privado, portalToken: token, portalVersion: VERSION_RESUMEN, portalActualizado: new Date() });
 	return token;
