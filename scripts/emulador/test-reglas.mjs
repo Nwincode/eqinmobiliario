@@ -380,6 +380,24 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const otra = (extra, monto) => crearR('mixto1', 'reservas/lead-res-noche2', delSocio({ leadId: 'lead-res-noche2', codigo: 'EQ-RN2', chat: 'ChatDeLaReservaRN2LargoYAlAzar', ...extra }, { monto }));
 		await espera('con 10 precios por fechas: su parte menor que la más barata de las que tocan', otra({ costoSocio: 260, alojamiento: 312, ganancia: 52 }, 52), false);
 		await espera('con 10 precios por fechas: su parte con la más barata que toca (control)', otra({ costoSocio: 270, alojamiento: 324, ganancia: 54 }, 54), true);
+		// El lote real de «Confirmada» (admin/js/reservas.js confirmarSolicitud): reserva, fechas de la casa, solicitud, chat
+		// y datos de pago juntos, en la casa con 10 precios por fechas (el caso más pesado para el tope de 1000 operaciones).
+		{
+			const C3 = 'ChatDeLaReservaRN3LargoYAlAzar';
+			await raw('leads/lead-res-noche3', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN3'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
+			await raw(`chats/${C3}`, { leadId: sv('lead-res-noche3'), codigo: sv('EQ-RN3'), propietarioId: sv('m1'), propertyId: sv('mx-noche') });
+			const res = delSocio({ leadId: 'lead-res-noche3', codigo: 'EQ-RN3', chat: C3, costoSocio: 270, alojamiento: 324, ganancia: 54 }, { monto: 54 });
+			const ts = (campo) => ({ fieldPath: campo, setToServerValue: 'REQUEST_TIME' });
+			const lote = await fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+				{ update: { name: `${R}/reservas/lead-res-noche3`, fields: Object.fromEntries(Object.entries(res).map(([k, x]) => [k, vv(x)])) }, currentDocument: { exists: false }, updateTransforms: [ts('createdAt'), ts('updatedAt')] },
+				{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { reservadas: { arrayValue: { values: [mapa({ desde: '2026-12-01', hasta: '2026-12-03' })] } } } } } } }, updateMask: { fieldPaths: ['vacacional.reservadas'] }, updateTransforms: [ts('updatedAt')] },
+				{ update: { name: `${R}/leads/lead-res-noche3`, fields: { solicitud: { mapValue: { fields: { estado: sv('confirmada'), reservaId: sv('lead-res-noche3'), costoSocio: { integerValue: '270' }, comision: { integerValue: '54' },
+					historial: { arrayValue: { values: [mapa({ que: 'Confirmó', quien: 'mixto1', nombre: 'Dueña', cuando: new Date().toISOString() })] } } } } } } },
+					updateMask: { fieldPaths: ['solicitud.estado', 'solicitud.reservaId', 'solicitud.costoSocio', 'solicitud.comision', 'solicitud.historial'] }, updateTransforms: [ts('updatedAt')] },
+				{ update: { name: `${R}/chats/${C3}`, fields: { estado: sv('confirmada') } }, updateMask: { fieldPaths: ['estado'] }, currentDocument: { exists: true } },
+				{ update: { name: `${R}/chats/${C3}/mensajes/pago`, fields: { de: sv('socio'), tipo: sv('pago'), texto: sv('Banco 1') } }, currentDocument: { exists: false }, updateTransforms: [ts('createdAt')] }] }) }).then((r) => r.status);
+			await espera('el lote real de «Confirmada» del socio, con 10 precios por fechas (control)', Promise.resolve(lote), true);
+		}
 	}
 	// Más de 10 precios por fechas (de antes): la dueña solo puede quitar, no cambiar ni agregar.
 	{

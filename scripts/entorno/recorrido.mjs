@@ -1026,11 +1026,25 @@ const duenos = [];
 	// Un chat terminado de una casa que ya no es suya (cambió de dueño) se queda con su nombre: su pantalla sigue cargando.
 	const sv = (x) => ({ stringValue: x });
 	await fetch(`${FS}/chats/ChatDeCasaQueYaNoEsDelSocio12345`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
-		body: JSON.stringify({ fields: { codigo: sv('EQ-AJENA'), propertyId: sv('r2-noche'), propietarioId: sv('socio-prueba'), leadId: sv('r2-vieja'), llegada: sv('2026-01-10'), salida: sv('2026-01-12'), estado: sv('confirmada'), nombre: sv('Cliente') } }) });
+		body: JSON.stringify({ fields: { codigo: sv('EQ-AJENA'), propertyId: sv('r2-noche'), propietarioId: sv('socio-prueba'), leadId: sv('r2-vieja'), llegada: sv('2026-01-10'), salida: sv('2026-01-12'), estado: sv('confirmada'), nombre: sv('Cliente'),
+			noches: { integerValue: '2' }, huespedes: { integerValue: '2' }, total: { doubleValue: 300 }, moneda: sv('USD'), idioma: sv('es'), createdAt: { timestampValue: '2026-01-01T12:00:00Z' } } }) });
 	const antes = socio.errores.length;
 	await ir(socio.p, '#/solicitudes', 4000);
 	const pantalla = await socio.p.locator('.admin-main').innerText().catch(() => '');
-	paso('Las Solicitudes del socio cargan aunque una de sus casas haya cambiado de dueño', pantalla.includes(codigo3) && !pantalla.includes('EQ-AJENA') && socio.errores.length === antes, `${await avisos(socio.p)}`);
+	const ajena = socio.p.locator('.card', { hasText: 'EQ-AJENA' }).first();
+	const sinChat = await ajena.locator('[aria-label="Chat con el cliente"]').count() === 0 && await ajena.locator('button', { hasText: /Cancelar|Pago recibido|Confirmada/ }).count() === 0;
+	paso('Las Solicitudes del socio cargan aunque una de sus casas haya cambiado de dueño (esa se ve, sin chat ni botones)', pantalla.includes(codigo3) && pantalla.includes('EQ-AJENA') && sinChat && socio.errores.length === antes, `${pantalla.includes(codigo3)} ${pantalla.includes('EQ-AJENA')} ${sinChat} · ${pantalla.slice(0, 200).replace(/\s+/g, ' ')}`);
+	// El comprobante de la comisión por el botón real (la dirección que da getDownloadURL pasa la regla del comprobante).
+	const [elegir] = await Promise.all([socio.p.waitForEvent('filechooser'), socio.p.locator('.card', { hasText: codigo }).first().locator('[aria-label^="Subir comprobante"]').click()]);
+	await elegir.setFiles(png);
+	await espera(4000);
+	const recibo = await socio.p.evaluate(async () => {
+		const fb = await import('/admin/js/firebase.js');
+		const { session } = await import('/admin/js/session.js');
+		const res = (await fb.getDocs(fb.query(fb.collection(fb.db, 'reservas'), fb.where('propietarioId', '==', session.profile.propietarioId)))).docs;
+		return res.map((d) => d.data().comision?.comprobante || '').find(Boolean) || '';
+	});
+	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /\/o\/comprobantes%2F.+alt=media&token=/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
 	// Un asesor sin «orden» (se deja vacío al crearlo) sigue en las listas de asesores.
 	const nombres = await admin.p.evaluate(async () => (await (await import('/admin/js/session.js')).loadAgents(true)).map((a) => a.nombre));
 	paso('Un asesor sin «orden» aparece en la lista de asesores (Usuarios, Propiedades, Propietarios, Leads)', nombres.includes('Asesora sin orden (prueba)'), nombres.join(', '));

@@ -331,7 +331,7 @@ service cloud.firestore {
         // El chat del cliente de esa misma solicitud (con él se sabe después si el cliente ya pagó). Un chat solo nace con
         // el código de su solicitud (match /chats), así que basta el leadId. (Las reglas cuentan hasta 1000 operaciones.)
         && get(/databases/$(database)/documents/chats/$(r.chat)).data.leadId == r.leadId
-        && r.leadId is string && r.leadId.size() > 0 && r.leadId.size() <= 60
+        // (El id de la reserva es el leadId: match /reservas lo exige.)
         && solicitud.get('propertyId', '') == r.propertyId
         && solicitud.get(['reserva', 'codigo'], '') == r.codigo
         && solicitud.get(['reserva', 'llegada'], '') == r.llegada
@@ -340,7 +340,7 @@ service cloud.firestore {
         && r.agentId == casa.get('agentId', '')
         && r.canal == 'web' && r.pagadoSocio == false && r.get('pagadoFecha', '') == ''
         && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
-        && r.costoSocio is number && r.alojamiento is number && r.ganancia is number && r.noches is number
+        // Montos que no son números niegan al compararse (las reglas cuentan hasta 1000 operaciones: nada de más).
         && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
         // Su parte no baja de su noche más barata por cada noche (con la comisión sobre ella, EQ cobra al menos eso).
         && r.costoSocio >= r.noches * nocheMasBarata(socio, r.llegada, r.salida) - 0.01 * r.noches - 0.01
@@ -378,9 +378,10 @@ service cloud.firestore {
       // casa y fechas), del asesor de la casa, sin pago marcado y con la comisión entera (la ganancia, que no puede ser
       // menor que el margen de la casa sobre su parte) y sin pagar.
       // Su id es el de la solicitud: una sola reserva por solicitud (crear sobre una que ya existe no es «crear»).
-      allow create: if isAdmin()
-        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
-            && reservaDelSocioValida(request.resource.data));
+      // (El socio primero: así su caso, el más pesado, no gasta operaciones en revisar si es administrador.)
+      allow create: if (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
+            && reservaDelSocioValida(request.resource.data))
+        || isAdmin();
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
       allow update: if isAdmin()
         || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['estado', 'motivo', 'updatedAt'])

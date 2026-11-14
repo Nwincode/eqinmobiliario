@@ -32,7 +32,7 @@ function hace(desde) {
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, chatsTodos, propietarios, casas, reservas, mias] = await Promise.all([
+	const [snap, chatsSnap, propietarios, casas, reservas, mias] = await Promise.all([
 		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
 		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
 		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
@@ -40,10 +40,11 @@ export async function render(container, [codigo] = []) {
 		admin ? loadPropietarios() : [], admin ? loadPropiedades() : [],
 		admin ? loadReservas() : getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
 		// Sus casas por noche de hoy: un chat que terminó con una casa que ya no es suya (cambió de dueño, se borró o pasó a
-		// venta) se queda con su nombre, pero las reglas ya no le dejan leerlo ni responderlo.
+		// venta) se queda con su nombre y se ve (y su comprobante a EQ se sube), pero las reglas ya no le dejan leerlo ni
+		// responderlo: sin chat ni botones de respuesta.
 		admin ? null : misCasas().then((l) => new Set(l.filter((c) => c.operacion === 'vacacional').map((c) => c.id)))]);
-	const chatsSnap = { docs: admin ? chatsTodos.docs : chatsTodos.docs.filter((d) => mias.has(d.data().propertyId)) };
-	const chats = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.id]));
+	const deHoy = (propertyId) => admin || mias.has(propertyId);
+	const chats = Object.fromEntries(chatsSnap.docs.filter((d) => deHoy(d.data().propertyId)).map((d) => [d.data().codigo, d.id]));
 	const datosChat = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.data()]));
 	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
 	// El chat de la solicitud con el estado que ve el cliente (lo que reservas.js necesita para escribir en él).
@@ -125,7 +126,7 @@ export async function render(container, [codigo] = []) {
 	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId || (x.codigo && x.codigo === l.reserva.codigo && x.estado !== 'cancelada'));
 	// El socio cancela mientras el cliente no ha pagado (reserva y chat «confirmada») y antes del día de llegada.
 	// Una reserva de antes, sin su chat guardado, muestra el botón pero la cancela el administrador (cancelar lo dice).
-	const puedeCancelar = (l) => { const x = reservaDe(l); return x?.estado === 'confirmada' && datosChat[l.reserva.codigo]?.estado === 'confirmada' && l.reserva.llegada > hoy(); };
+	const puedeCancelar = (l) => { const x = reservaDe(l); return deHoy(l.propertyId) && x?.estado === 'confirmada' && datosChat[l.reserva.codigo]?.estado === 'confirmada' && l.reserva.llegada > hoy(); };
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
@@ -139,7 +140,7 @@ export async function render(container, [codigo] = []) {
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
-	const netos = Object.fromEntries(await Promise.all([...new Set(leads.map((l) => l.propertyId))].map(async (id) =>
+	const netos = Object.fromEntries(await Promise.all([...new Set(leads.map((l) => l.propertyId).filter(Boolean))].map(async (id) =>
 		[id, (await getDoc(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || null])));
 	const cuenta = (l) => {
 		const s = netos[l.propertyId];
@@ -195,12 +196,17 @@ export async function render(container, [codigo] = []) {
 		// La reserva se busca por la solicitud o por su código: el socio no lee la solicitud, solo su chat.
 		const reserva = reservaDe(l);
 		if (!reserva) return toast('No encontramos la reserva de esta solicitud. Avísale al administrador.', 'danger');
-		if (!admin && !reserva.chat) return toast('Esta reserva es de antes: para cancelarla, avísale al administrador.', 'warning');
 		const motivo = await elegirOpcion(`¿Por qué se cancela ${r.codigo}?`, MOTIVOS_CANCELAR);
 		if (!motivo) return;
 		await hacer(async () => {
-			await cancelarReserva({ ...reserva, leadId: reserva.leadId || l.id }, motivo, { chat: chatDe(l) });
-			toast('Reserva cancelada. Las fechas quedaron libres.');
+			try {
+				await cancelarReserva({ ...reserva, leadId: reserva.leadId || l.id }, motivo, { chat: chatDe(l) });
+				toast('Reserva cancelada. Las fechas quedaron libres.');
+			} catch (err) {
+				// Las reglas no dejan al dueño cancelar una reserva de antes (sin su chat guardado) ni una ya pagada o empezada.
+				if (!admin && err?.code === 'permission-denied') toast('Esta reserva ya no la puedes cancelar tú (es de antes, ya se pagó o ya empezó): avísale al administrador.', 'warning');
+				else throw err;
+			}
 		});
 	}
 
@@ -239,8 +245,8 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
-				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
-				est === 'confirmada' && datosChat[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
+				est === 'pendiente' && deHoy(l.propertyId) ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
+				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
