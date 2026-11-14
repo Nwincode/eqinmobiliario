@@ -4,8 +4,8 @@ import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyStat
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl } from '../ia.js';
-import { publicarPortal, borrarCopia, visitasDe, escucharComentarios, reglasNuevas, VERSION_RESUMEN, TIPOS_BITACORA } from '../portal.js';
-import { correoDe, accesosDe, accesoDe, ponerAcceso, darAcceso } from '../acceso.js';
+import { publicarPortal, borrarCopia, visitasDe, escucharComentarios, VERSION_RESUMEN, TIPOS_BITACORA } from '../portal.js';
+import { correoDe, accesosDe, accesoDe, ponerAcceso, darAcceso, reglasNuevas, motivoParaNoAbrir } from '../acceso.js';
 import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
 import { sinTildes } from '../cotizacion.js';
 import { abrirFicha } from './properties.js';
@@ -68,10 +68,6 @@ async function migrarAcuerdos(lista, propiedades, acuerdos) {
 }
 
 async function renderLista(container) {
-	// Con las reglas de antes, aviso de qué falta y en qué orden (se va solo cuando estén publicadas).
-	const avisoReglas = session.isAdmin && !(await reglasNuevas()) ? h('div', { class: 'alert alert-warning small', id: 'aviso-reglas' },
-		h('strong', {}, 'Falta publicar las reglas nuevas de la base. '),
-		'1) Esta pantalla ya está rehaciendo lo que ve cada dueño en su panel (espera unos segundos). 2) Publicá las reglas: firebase deploy --only firestore:rules --project eqinmobiliariobd. 3) Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.') : null;
 	const [lista, propiedades, agentes, reglas] = await Promise.all([loadPropietarios(), loadPropiedades(), loadAgents(), loadReglas()]);
 	const acuerdos = await loadAcuerdos(propiedades.filter((c) => lista.some((p) => casasDe(p, [c]).length)));
 	await migrarAcuerdos(lista, propiedades, acuerdos);
@@ -114,15 +110,13 @@ async function renderLista(container) {
 
 	mount(container,
 		pageHeader('Propietarios', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, '+ Propietario')),
-		avisoReglas,
+		session.isAdmin ? avisoResumenes(lista) : null,
 		h('p', { class: 'text-muted' }, 'Dueños de los inmuebles que manejan: contacto y propiedades. La exclusiva y la comisión se acuerdan en cada inmueble.'),
 		porVencer.length ? h('div', { class: 'alert alert-warning' }, h('strong', {}, `${porVencer.length === 1 ? 'Una exclusiva vencida o por vencer' : `${porVencer.length} exclusivas vencidas o por vencer`} en 30 días. `),
 			porVencer.slice(0, 5).map((x, k) => [k ? ' · ' : '', h('a', { href: `#/propiedades/${x.casa.id}`, class: 'alert-link' }, x.casa.titulo || 'Inmueble'), ` (${x.dueno?.nombre || 'sin dueño'}, ${x.dias < 0 ? `venció hace ${-x.dias} días` : `en ${x.dias} días`})`]),
 			porVencer.length > 5 ? ` y ${porVencer.length - 5} más.` : '') : null,
 		lista.length ? [h('div', { class: 'form-check mb-3' }, solo, h('label', { class: 'form-check-label', for: 'solo-incompletos' }, 'Solo con datos por completar')), tabla]
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
-	// Quien entra al panel necesita su resumen: se arma aparte, sin esperar (ver asegurarResumenes).
-	if (session.isAdmin) asegurarResumenes(lista).catch((err) => console.warn('Resúmenes de dueños', err));
 }
 
 async function renderEditor(container, id) {
@@ -296,7 +290,9 @@ async function renderEditor(container, id) {
 			// Primero su acceso y su resumen: sin ficha no hay a quién mostrarle nada.
 			for (const u of await accesosDe(ref.id)) if (u.activo !== false) await updateDoc(doc(db, 'users', u.uid), { activo: false, updatedAt: serverTimestamp() });
 			if (data.portalToken) await borrarCopia(data.portalToken);
-			await deleteDoc(ref); await vincularCasas(ref.id, [], data.propertyIds); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
+			// Sus casas dejan de apuntarle: las de su lista y también las que dicen ser suyas sin estar en ella.
+			const suyas = [...new Set([...(data.propertyIds || []), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
+			await deleteDoc(ref); await vincularCasas(ref.id, [], suyas); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
 	mount(container,
@@ -317,14 +313,40 @@ async function renderEditor(container, id) {
 			!nuevo && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: eliminar }, 'Eliminar') : null));
 }
 
-// Quien ya tiene acceso (o es socio de renta por noche) necesita su resumen: lo que lee en su panel, con sus datos
-// de pago. Al abrir Propietarios se arma el de quien todavía no lo tiene o lo tiene de una versión anterior (el portal
-// de antes, sin datos de pago): una vez; después se actualiza solo.
-async function asegurarResumenes(lista) {
-	const conAcceso = new Set((await getDocs(query(collection(db, 'users'), where('rol', '==', 'socio'))).catch(() => ({ docs: [] }))).docs.map((d) => d.data().propietarioId));
-	for (const p of lista.filter((x) => x.portalVersion !== VERSION_RESUMEN && (x.portalToken || tieneCasasPorNoche(x) || conAcceso.has(x.id)))) {
-		try { await publicarPortal(p); } catch (err) { console.warn('Resumen del dueño sin armar', p.id, err); }
-	}
+// Quien entra al panel (o tiene casas por noche, o tuvo el portal de antes) necesita su resumen al día: lo que lee en
+// su panel, con sus datos de pago. Al abrir Propietarios se rehace el de quien no lo tiene en la versión actual, uno
+// por uno, y el aviso de arriba cuenta cuántos faltan, dice en pantalla los que fallaron (con «Reintentar») y, si las
+// reglas nuevas no están publicadas, cuándo publicarlas (al llegar a 0).
+function avisoResumenes(lista) {
+	const caja = h('div', { id: 'aviso-reglas', class: 'alert alert-warning small', role: 'status', hidden: true });
+	const fallas = new Map();
+	let faltan = [];
+	const pintar = async () => {
+		const nuevas = await reglasNuevas();
+		const pasos = 'Publicá las reglas: firebase deploy --only firestore:rules --project eqinmobiliariobd. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		caja.hidden = nuevas && !faltan.length && !fallas.size;
+		caja.replaceChildren(
+			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Dejá esta pantalla abierta hasta que llegue a 0.' : ['Dejá esta pantalla abierta. Cuando llegue a 0: ', pasos])
+				: !nuevas ? h('div', {}, h('strong', {}, 'Lo que ve cada dueño ya está al día. Falta publicar las reglas nuevas de la base. '), pasos) : null,
+			fallas.size ? h('div', { class: 'mt-2' }, h('strong', {}, `No se pudo con ${fallas.size}: `),
+				[...fallas.entries()].map(([p, err], k) => [k ? ' · ' : '', h('a', { href: `#/propietarios/${p.id}`, class: 'alert-link' }, p.nombre || 'sin nombre'), ` (${errorMessage(err)})`]), ' ',
+				h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', onclick: () => correr([...fallas.keys()]) }, h('span', { class: 'icon-refresh me-1', 'aria-hidden': 'true' }), 'Reintentar')) : null);
+	};
+	const correr = async (quienes) => {
+		quienes.forEach((p) => fallas.delete(p));
+		faltan = [...new Set([...faltan, ...quienes])];
+		await pintar();
+		for (const p of quienes) {
+			try { await publicarPortal(p); } catch (err) { console.warn('Resumen del dueño sin armar', p.id, err); fallas.set(p, err); }
+			faltan = faltan.filter((x) => x !== p);
+			await pintar();
+		}
+	};
+	(async () => {
+		const conAcceso = new Set((await getDocs(query(collection(db, 'users'), where('rol', '==', 'socio'))).catch(() => ({ docs: [] }))).docs.map((d) => d.data().propietarioId));
+		await correr(lista.filter((x) => x.portalVersion !== VERSION_RESUMEN && (x.portalToken || tieneCasasPorNoche(x) || conAcceso.has(x.id))));
+	})().catch((err) => console.warn('Resúmenes de dueños', err));
+	return caja;
 }
 
 // ——— Lo que ve el dueño en su panel ———
@@ -349,39 +371,43 @@ function seccionPortal(prop, propiedades, ficha) {
 	};
 
 	// Acceso al panel: estado y botones (solo el administrador da o quita acceso).
-	// Mientras las reglas nuevas no estén publicadas, con las de antes un dueño sin casas por noche podría leer su ficha
-	// entera y cambiar el precio de su casa en venta: a esa persona todavía no se le abre la entrada.
+	// Lo que hace falta para abrirle la entrada (motivoParaNoAbrir, en admin/js/acceso.js) depende de si tiene casas por noche.
 	const porNoche = tieneCasasPorNoche(prop) || casasDe(prop, propiedades).some((c) => c.operacion === 'vacacional');
 	async function pintarAcceso() {
-		const [u, nuevas] = await Promise.all([session.isAdmin ? accesoDe(prop.id).catch(() => null) : null, reglasNuevas()]);
+		const [u, motivo] = await Promise.all([session.isAdmin ? accesoDe(prop.id).catch(() => null) : null, motivoParaNoAbrir(prop, porNoche)]);
 		const estado = session.isAdmin ? (u ? { email: u.email, activo: u.activo !== false } : null) : prop.acceso || null;
-		const esperaReglas = !nuevas && !porNoche;
+		const activo = Boolean(u && u.activo !== false);
 		const correoFicha = correoDe(ficha.correo());
+		const otroCorreo = Boolean(estado && correoFicha && correoFicha !== correoDe(estado.email));
 		const boton = (icono, texto, fn, cls = 'btn-outline-primary', bloqueado = false) => h('button', { type: 'button', class: `btn btn-sm ${cls}`, disabled: bloqueado, onclick: (e) => ocupado(e.currentTarget, fn) },
 			h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
+		// «Dar acceso»: sin cuenta, o con la de antes apagada y otro correo en la ficha (crea la nueva; la vieja sigue apagada).
+		const dar = boton('icon-key', 'Dar acceso', async () => {
+			// El correo de ahora (aunque se haya cambiado arriba sin guardar): la ficha se guarda con él antes.
+			const correo = correoDe(ficha.correo());
+			if (!correo) { ficha.enfocarCorreo(); return toast(`Escribí el correo de ${prop.nombre || `este ${quien}`} arriba: con ese entra al panel.`, 'warning'); }
+			if (!(await ficha.persistir())) return;
+			toast(await darAcceso(prop, correo, ficha.nombre() || prop.nombre, { porNoche }));
+			pintarAcceso();
+		}, 'btn-primary', Boolean(motivo));
 		acceso.replaceChildren(
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				estado ? badge(estado.activo ? 'Entra al panel' : 'Acceso quitado', estado.activo ? 'success' : 'secondary') : badge('Sin acceso al panel', 'light'),
 				estado ? h('span', { class: 'small' }, h('span', { class: 'icon-envelope-o me-1 text-muted', 'aria-hidden': 'true' }), `Entra con ${estado.email}`) : null,
-				...(!session.isAdmin ? [] : !u ? [boton('icon-key', 'Dar acceso', async () => {
-					// El correo de ahora (aunque se haya cambiado arriba sin guardar): la ficha se guarda con él antes.
-					const correo = correoDe(ficha.correo());
-					if (!correo) { ficha.enfocarCorreo(); return toast(`Escribí el correo de ${prop.nombre || `este ${quien}`} arriba: con ese entra al panel.`, 'warning'); }
-					if (!(await ficha.persistir())) return;
-					const r = await darAcceso(prop, correo, ficha.nombre() || prop.nombre);
-					toast(r);
-					pintarAcceso();
-				}, 'btn-primary', esperaReglas)] : [
-					u.activo !== false ? boton('icon-envelope-o', 'Reenviar correo para poner contraseña', async () => { await sendPasswordResetEmail(auth, u.email); toast(`Le enviamos a ${u.email} el correo para poner su contraseña.`); }) : null,
-					u.activo !== false
-						? boton('icon-ban', 'Quitar acceso', async () => { if (await confirmDialog(`${prop.nombre || 'Esta persona'} ya no podrá entrar al panel.`, { okText: 'Quitar acceso' })) { await ponerAcceso(prop, u, false); toast('Acceso quitado.'); pintarAcceso(); } }, 'btn-outline-danger')
-						: boton('icon-check', 'Devolver acceso', async () => { await ponerAcceso(prop, u, true); toast(`Ya puede entrar otra vez con ${u.email}.`); pintarAcceso(); }, 'btn-outline-primary', esperaReglas)
+				...(!session.isAdmin ? [] : !u ? [dar] : activo ? [
+					boton('icon-envelope-o', 'Reenviar correo para poner contraseña', async () => { await sendPasswordResetEmail(auth, u.email); toast(`Le enviamos a ${u.email} el correo para poner su contraseña.`); }),
+					boton('icon-ban', 'Quitar acceso', async () => { if (await confirmDialog(`${prop.nombre || 'Esta persona'} ya no podrá entrar al panel.`, { okText: 'Quitar acceso' })) { await ponerAcceso(prop, u, false); toast('Acceso quitado.'); pintarAcceso(); } }, 'btn-outline-danger')
+				] : [
+					otroCorreo ? dar : null,
+					boton('icon-check', otroCorreo ? `Devolver acceso con ${u.email}` : 'Devolver acceso', async () => { await ponerAcceso(prop, u, true, { porNoche }); toast(`Ya puede entrar otra vez con ${u.email}.`); pintarAcceso(); }, 'btn-outline-primary', Boolean(motivo))
 				])),
-			session.isAdmin && esperaReglas && !(u && u.activo !== false) ? h('p', { class: 'small text-muted mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), 'Primero hay que publicar las reglas nuevas de la base (ver el aviso en Propietarios).') : null,
-			estado && correoFicha && correoFicha !== correoDe(estado.email)
-				? h('div', { class: 'alert alert-warning small mb-0' }, `Los avisos le llegan a ${correoFicha}, pero entra al panel con ${estado.email}. Para cambiar el correo de entrada: quitá el acceso y dalo de nuevo.`) : null,
+			session.isAdmin && motivo && !activo ? h('p', { class: 'small text-muted mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), motivo) : null,
+			otroCorreo ? h('div', { class: 'alert alert-warning small mb-0' }, `Los avisos le llegan a ${correoFicha}, pero entra al panel con ${estado.email}. El correo de entrada no se cambia desde el panel: `,
+				activo ? 'tocá «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
+					: `«Dar acceso» crea su entrada con ${correoFicha} (la de ${estado.email} queda apagada). Si ${correoFicha} ya tuviera una cuenta, el panel te dice cuál borrar en Firebase → Authentication.`) : null,
 			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pedíselo al administrador.'));
 	}
+
 
 	// Bitácora: privada en el propietario; al portal solo van las entradas visibles.
 	const guardarBitacora = async (lista) => {

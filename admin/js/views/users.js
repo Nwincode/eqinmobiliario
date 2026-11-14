@@ -4,8 +4,8 @@ import {
 import { h, toast, showError, pageHeader, badge, modal, formatDate , mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { loadPropietarios } from '../crm.js';
-import { etiquetaDueno } from '../duenos.js';
-import { ponerAcceso } from '../acceso.js';
+import { etiquetaDueno, tieneCasasPorNoche } from '../duenos.js';
+import { ponerAcceso, motivoParaNoAbrir } from '../acceso.js';
 
 // Aquí se crean solo cuentas del equipo. Propietarios y colaboradores entran con «Dar acceso» en su ficha
 // (Propietarios): una sola forma de darles entrada. Sus usuarios se listan aquí con el nombre que les corresponde.
@@ -89,12 +89,15 @@ export async function render(container) {
 	};
 
 	// Propietario o colaborador: su acceso se maneja en su ficha (ahí se da, se quita y se reenvía el correo).
-	const editDueno = (u) => {
+	const editDueno = async (u) => {
 		const p = fichaDe(u);
+		const porNoche = tieneCasasPorNoche(p);
+		// Para volver a abrirle la entrada valen las mismas condiciones que en su ficha (motivoParaNoAbrir).
+		const motivo = u.activo === false ? await motivoParaNoAbrir(p, porNoche) : '';
 		// El mismo interruptor que «Quitar acceso» / «Devolver acceso» de su ficha (ponerAcceso).
-		const activo = h('input', { class: 'form-check-input', type: 'checkbox', id: 'u-activo-dueno', checked: u.activo !== false, onchange: async (e) => {
+		const activo = h('input', { class: 'form-check-input', type: 'checkbox', id: 'u-activo-dueno', checked: u.activo !== false, disabled: Boolean(motivo), onchange: async (e) => {
 			e.target.disabled = true;
-			try { await ponerAcceso(p || { id: u.propietarioId }, u, e.target.checked); toast(e.target.checked ? 'Acceso devuelto.' : 'Acceso quitado.'); m.close(); reload(); }
+			try { await ponerAcceso(p || null, u, e.target.checked, { porNoche }); toast(e.target.checked ? 'Acceso devuelto.' : 'Acceso quitado.'); m.close(); reload(); }
 			catch (err) { showError(err); e.target.checked = !e.target.checked; e.target.disabled = false; }
 		} });
 		const m = modal({
@@ -102,6 +105,7 @@ export async function render(container) {
 			body: h('div', { class: 'd-grid gap-2' },
 				h('p', { class: 'mb-0' }, badge(...rolDe(u)), ' ', h('span', { class: 'small' }, u.email)),
 				h('div', { class: 'form-check form-switch' }, activo, h('label', { class: 'form-check-label', for: 'u-activo-dueno' }, 'Acceso activo')),
+				motivo ? h('p', { class: 'small text-muted mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), motivo) : null,
 				h('p', { class: 'small text-muted mb-0' }, 'Dar acceso o reenviarle el correo para poner su contraseña se hace en su ficha.')),
 			footer: [p ? h('a', { class: 'btn btn-primary', href: `#/propietarios/${p.id}`, 'data-bs-dismiss': 'modal' }, h('span', { class: 'icon-key me-1', 'aria-hidden': 'true' }), 'Abrir su ficha')
 				: h('span', { class: 'small text-muted' }, 'Su ficha ya no existe.')]

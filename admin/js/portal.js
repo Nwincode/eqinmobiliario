@@ -3,7 +3,7 @@
 // Lleva lo que la persona necesita de su ficha (nombre, correo, teléfono, datos de pago) y, de cada casa en venta o
 // renta, cómo va. Las casas por noche no van aquí: el dueño las ve y las cambia en vivo (views/mis-casas.js).
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot, firestoreRest
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, siteConfig, onSnapshot, runTransaction
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
@@ -11,7 +11,7 @@ import { telefonoWa } from './formato.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
 import { filasClientes, numerarClientes, combinarClientes, eventosAuto, fechaOferta } from './portal-clientes.js';
-import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, nuevoToken, enlaceSeguro, reglasNuevasSegun } from './duenos.js';
+import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, nuevoToken, enlaceSeguro } from './duenos.js';
 
 const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
 const DIA = 86400000;
@@ -235,12 +235,6 @@ export async function borrarCopia(token) {
 // Versión del resumen: la ficha la guarda (portalVersion) para saber a quién le falta rehacerlo (asegurarResumenes).
 export const VERSION_RESUMEN = 3;
 
-// ¿Ya están publicadas las reglas nuevas de la base? (ver reglasNuevasSegun). Una vez por sesión.
-let reglasCache = null;
-export function reglasNuevas() {
-	reglasCache ||= fetch(`${firestoreRest}/portalPropietarios/prueba-reglas`, { cache: 'no-store' }).then((r) => reglasNuevasSegun(r.status), () => false);
-	return reglasCache;
-}
 
 // Los resúmenes de una persona (el asesor solo puede buscar entre los suyos).
 async function resumenesDe(propietarioId) {
@@ -249,22 +243,48 @@ async function resumenesDe(propietarioId) {
 }
 
 // Publica (o actualiza) el resumen: uno solo por persona. Devuelve su id.
-export async function publicarPortal(prop) {
-	// Lo guardado manda (no lo que se leyó al abrir la pantalla): otro guardado pudo crearlo o cambiarlo mientras tanto.
-	const ficha = (await getDoc(doc(db, 'propietarios', prop.id)).catch(() => null))?.data() || prop;
-	// El id de un resumen de una versión anterior fue un enlace que se mandó por WhatsApp y que abría sin contraseña.
-	// El resumen nuevo lleva teléfono y datos de pago: nace con un id nuevo y el anterior se borra, para que ese
-	// enlace nunca los muestre (tampoco mientras las reglas nuevas no estén publicadas).
-	const vigente = ficha.portalToken && ficha.portalVersion === VERSION_RESUMEN ? ficha.portalToken : '';
-	const token = vigente || nuevoToken();
-	const { datos, privado } = await armarPortal({ ...prop, portalPrivado: ficha.portalPrivado || prop.portalPrivado });
-	await setDoc(doc(db, 'portalPropietarios', token), datos);
-	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: token, portalVersion: VERSION_RESUMEN, portalPrivado: privado, portalActualizado: serverTimestamp() });
-	// Cualquier otro resumen de la misma persona (el de antes, o uno que quedó de dos guardados a la vez) se borra.
-	const otros = new Set([...(await resumenesDe(prop.id).catch(() => [])), ficha.portalToken, prop.portalToken].filter((x) => x && x !== token));
+// En esta pestaña, uno a la vez por persona (lo de fondo, un guardado y un refresco no se pisan).
+const enCurso = new Map();
+export function publicarPortal(prop) {
+	const turno = (enCurso.get(prop.id) || Promise.resolve()).catch(() => {}).then(() => publicarUno(prop));
+	enCurso.set(prop.id, turno);
+	turno.finally(() => { if (enCurso.get(prop.id) === turno) enCurso.delete(prop.id); }).catch(() => {});
+	return turno;
+}
+
+async function publicarUno(prop) {
+	const ref = doc(db, 'propietarios', prop.id);
+	// 1) El id se reserva en la ficha con una transacción, ANTES de escribir el resumen: si otra pestaña o persona
+	//    publica a la vez, la segunda ve el id ya reservado y lo usa (nunca dos ids para una persona).
+	//    El id de un resumen de una versión anterior fue un enlace que se mandó por WhatsApp y que abría sin contraseña;
+	//    el resumen nuevo lleva teléfono y datos de pago: nace con un id nuevo y el anterior se borra (paso 3).
+	const { token, anterior, privadoAnterior } = await runTransaction(db, async (tx) => {
+		const f = (await tx.get(ref)).data() || {};
+		if (f.portalToken && f.portalVersion === VERSION_RESUMEN) return { token: f.portalToken, anterior: '', privadoAnterior: f.portalPrivado };
+		const nuevo = nuevoToken();
+		tx.update(ref, { portalToken: nuevo, portalVersion: VERSION_RESUMEN });
+		return { token: nuevo, anterior: f.portalToken || '', privadoAnterior: f.portalPrivado };
+	});
+	// 2) El resumen. Si no se pudo escribir, la ficha deja de darlo por hecho (la próxima vez se rehace).
+	let privado;
+	try {
+		const armado = await armarPortal({ ...prop, portalPrivado: privadoAnterior || prop.portalPrivado });
+		privado = armado.privado;
+		await setDoc(doc(db, 'portalPropietarios', token), armado.datos);
+	} catch (err) {
+		await runTransaction(db, async (tx) => {
+			const f = (await tx.get(ref)).data() || {};
+			if (f.portalToken === token && !(await getDoc(doc(db, 'portalPropietarios', token)).catch(() => null))?.exists()) tx.update(ref, { portalVersion: deleteField() });
+		}).catch(() => {});
+		throw err;
+	}
+	await updateDoc(ref, { portalPrivado: privado, portalActualizado: serverTimestamp() });
+	// 3) Cualquier otro resumen de la misma persona se borra, menos el que la ficha tiene AHORA.
+	const ahora = (await getDoc(ref).catch(() => null))?.data()?.portalToken || token;
+	const otros = new Set([...(await resumenesDe(prop.id).catch(() => [])), anterior].filter((x) => x && x !== token && x !== ahora));
 	for (const id of otros) await borrarCopia(id).catch((err) => console.warn('Resumen viejo sin borrar', id, err));
-	Object.assign(prop, { portalPrivado: privado, portalToken: token, portalVersion: VERSION_RESUMEN, portalActualizado: new Date() });
-	return token;
+	Object.assign(prop, { portalPrivado: privado, portalToken: ahora, portalVersion: VERSION_RESUMEN, portalActualizado: new Date() });
+	return ahora;
 }
 
 // Actualización automática: cuando cambia una propiedad, una visita o la etapa de un cliente,

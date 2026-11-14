@@ -65,12 +65,15 @@ casa suya; la lee el equipo.
    (sus datos de pago salen de su ficha mientras las reglas viejas lo permiten). Propietarios muestra un aviso con
    estos pasos, y «Dar acceso» queda deshabilitado para quien no tiene casas por noche (con las reglas de antes podría
    leer su ficha entera y cambiar el precio de su casa en venta). Los enlaces viejos del portal todavía abren.
-2. **El administrador abre Propietarios una vez** y espera unos segundos: se rehace el resumen de cada socio y de cada
-   portal de antes, **con un id nuevo**; el anterior se borra, así que los enlaces viejos de WhatsApp dejan de abrir
-   aquí (muestran la página «Tu portal ahora es tu panel»). Sin este paso, después del 3 un socio sin resumen no
-   puede confirmar reservas (el panel le dice que faltan sus datos de pago).
-3. **Se publican las reglas:** `firebase deploy --only firestore:rules --project eqinmobiliariobd`. El aviso de
-   Propietarios desaparece solo; el socio ya lee su resumen y no su ficha.
+2. **El administrador abre Propietarios y la deja abierta hasta que el aviso de arriba llegue a 0.** El aviso cuenta
+   a cuántas personas (con acceso, con casas por noche o con el portal de antes) les falta el resumen nuevo; se rehace
+   **con un id nuevo** y el anterior se borra, así que los enlaces viejos de WhatsApp dejan de abrir (muestran la
+   página «Tu portal ahora es tu panel»). Si alguien falla, el aviso lo nombra con «Reintentar». Si se cierra la
+   pestaña antes, al volver a abrir Propietarios sigue con los que faltan. Al llegar a 0, el aviso dice que el
+   siguiente paso es publicar las reglas. Sin este paso, después del 3 un socio sin resumen no puede confirmar
+   reservas (el panel le dice que faltan sus datos de pago).
+3. **Se publican las reglas** (cuando el aviso esté en 0): `firebase deploy --only firestore:rules --project eqinmobiliariobd`.
+   El aviso de Propietarios desaparece solo; el socio ya lee su resumen y no su ficha.
 4. **Dar acceso** a cada dueño de venta o renta y a cada colaborador, desde su ficha: el botón ya está habilitado.
    Los socios que ya entraban no necesitan nada.
 

@@ -48,9 +48,12 @@ t('Colaborador o propietario: el tipo y la etiqueta salen de la ficha', () => {
 	assert.equal(etiquetaDueno(undefined), 'Propietario');
 	assert.ok(tieneCasasPorNoche({ tipo: 'socio' }) && tieneCasasPorNoche({ porNoche: true }) && !tieneCasasPorNoche({ tipo: 'colaborador' }));
 });
-t('Reglas nuevas solo si la lectura sin sesión se niega (403); 404, 200, otro error o sin red = reglas de antes', () => {
-	assert.equal(reglasNuevasSegun(403), true);
-	for (const s of [404, 200, 500, 0, undefined]) assert.equal(reglasNuevasSegun(s), false);
+t('Reglas nuevas solo si la lectura sin sesión se niega (403 PERMISSION_DENIED); 404, 200, otro error o sin red = reglas de antes', () => {
+	const negado = { error: { code: 403, status: 'PERMISSION_DENIED' } };
+	assert.equal(reglasNuevasSegun(403, negado), true);
+	assert.equal(reglasNuevasSegun(403, null), false);
+	assert.equal(reglasNuevasSegun(403, { error: { status: 'UNAUTHENTICATED' } }), false);
+	for (const s of [404, 200, 500, 0, undefined]) assert.equal(reglasNuevasSegun(s, negado), false);
 });
 t('Solo enlaces seguros: https o del mismo sitio', () => {
 	assert.equal(enlaceSeguro('https://x.gt/a.jpg'), 'https://x.gt/a.jpg');

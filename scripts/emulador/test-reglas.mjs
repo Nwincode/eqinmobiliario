@@ -24,7 +24,7 @@ await fetch(`${H}/leads/lead1`, { method: 'PATCH', headers: cab('dueño'), body:
 const T = 'TokenDePruebaLargoYAlAzar2345';
 const chat = { leadId: 'lead1', codigo: 'EQ-PRUEBA', propertyId: 'prueba-casa-playa-monterrico', propertyTitulo: 'Casa de playa', propietarioId: 'o1', nombre: 'Ana', llegada: '2026-11-16', salida: '2026-11-20', noches: 4, huespedes: 2, total: 1122.4, moneda: 'USD', idioma: 'es' };
 let fallas = 0, n = 0;
-const espera = async (nombre, promesa, ok) => { const s = await promesa; const bien = ok ? s === 200 : s === 403 || s === 400; n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${ok ? 'permite' : 'niega  '} · ${nombre} (${s})`); };
+const espera = async (nombre, promesa, ok) => { const s = await promesa; const bien = ok ? s === 200 : s === 403; n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${ok ? 'permite' : 'niega  '} · ${nombre} (${s})`); };
 const m = (de, texto) => ({ de, texto });
 let i = 0; const msj = () => `chats/${T}/mensajes/m${++i}`;
 
@@ -245,6 +245,17 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña escribe en un chat de su casa en venta', crear('mixto1', `chats/${CV}/mensajes/v1`, m('socio', 'Hola')), false);
 	await espera('dueña confirma un chat de su casa en venta', parche('mixto1', `chats/${CV}`, ['estado'], { estado: sv('confirmada') }), false);
 	await espera('dueña lee los mensajes de un chat de su casa en venta', leer('mixto1', `chats/${CV}/mensajes`), false);
+	// Controles: lo mismo en su casa por noche sí se puede (con los campos opcionales ausentes)
+	await espera('dueña cancela una reserva de su casa por noche (control)', parche('mixto1', 'reservas/r-noche', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('Cliente canceló') }), true);
+	await raw('leads/lead-noche', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1') });
+	await espera('dueña responde una solicitud de su casa por noche (control)', parche('mixto1', 'leads/lead-noche', ['solicitud'], { solicitud: { mapValue: { fields: { estado: sv('confirmada') } } } }), true);
+	const CN = 'ChatDeUnaCasaPorNocheLargoYAlAzar123';
+	await raw(`chats/${CN}`, { propietarioId: sv('m1'), propertyId: sv('mx-noche'), codigo: sv('EQ-N') });
+	await espera('dueña escribe en el chat de su casa por noche (control)', crear('mixto1', `chats/${CN}/mensajes/n1`, m('socio', 'Hola, bienvenidos')), true);
+	await espera('dueña lee el chat de su casa por noche (control)', leer('mixto1', `chats/${CN}/mensajes`), true);
+	await espera('dueña confirma el chat de su casa por noche (control)', parche('mixto1', `chats/${CN}`, ['estado'], { estado: sv('confirmada') }), true);
+	await raw('reservas/r-sin-casa', { propietarioId: sv('m1'), estado: sv('confirmada') });
+	await espera('reserva vieja sin propertyId: se niega limpio (sin error)', parche('mixto1', 'reservas/r-sin-casa', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('x') }), false);
 	// El equipo: el asesor no crea ni cambia usuarios
 	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
 	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);

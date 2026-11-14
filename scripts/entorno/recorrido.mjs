@@ -109,7 +109,27 @@ await ir(admin.p, '#/propietarios', 1500);
 		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'socio-prueba' } } } } }) })).json()).filter((x) => x.document);
 	paso('Al abrir Propietarios, el resumen viejo del socio (portal de antes) se rehace con sus datos de pago, con un id nuevo; el enlace viejo deja de existir y queda uno solo',
 		/123-456789-0/.test(r?.datosPago?.stringValue || '') && !('notas' in (r || {})) && !('exclusivaFin' in (r || {})) && Number(r?.v?.integerValue) === 3 && viejo.status === 404 && todos.length === 1, `${viejo.status} · ${todos.length} resúmenes`);
-	paso('Con las reglas nuevas publicadas, Propietarios no muestra el aviso de las reglas', await admin.p.locator('#aviso-reglas').count() === 0);
+	await admin.p.locator('#aviso-reglas').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+	paso('Con las reglas nuevas publicadas, el aviso de Propietarios se va solo al terminar de poner al día los resúmenes', await admin.p.locator('#aviso-reglas').isHidden());
+	// Dos publicaciones a la vez del mismo resumen viejo (dos pestañas: administrador y asesor) terminan en uno solo, al que apunta la ficha.
+	{
+		const deColab = async () => ((await (await fetch(`${FSr}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'colab-prueba' } } } } }) })).json()).filter((x) => x.document).map((x) => x.document.name.split('/').pop()));
+		await fetch(`${FSr}/propietarios/colab-prueba?updateMask.fieldPaths=portalVersion`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { portalVersion: { integerValue: '2' } } }) });
+		const publicar = (p) => p.evaluate(async () => {
+			const fb = await import('/admin/js/firebase.js');
+			const m = await import('/admin/js/portal.js');
+			const s = await fb.getDoc(fb.doc(fb.db, 'propietarios', 'colab-prueba'));
+			return Promise.all([m.publicarPortal({ id: s.id, ...s.data() }), m.publicarPortal({ id: s.id, ...s.data() })]);
+		});
+		const otraPestana = await entrar('admin');
+		await Promise.all([publicar(admin.p), publicar(otraPestana.p)]);
+		await otraPestana.p.close();
+		await espera(1000);
+		const quedan = await deColab();
+		const ficha = (await (await fetch(`${FSr}/propietarios/colab-prueba`, { headers: { Authorization: 'Bearer owner' } })).json()).fields || {};
+		paso('Cuatro publicaciones a la vez (dos pestañas) del mismo resumen viejo: queda uno solo y la ficha apunta a él', quedan.length === 1 && ficha.portalToken?.stringValue === quedan[0] && Number(ficha.portalVersion?.integerValue) === 3, `${quedan.length} · ${quedan.join()} · ${ficha.portalToken?.stringValue}`);
+	}
 }
 await ir(admin.p, '#/propietarios/socio-prueba');
 paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
@@ -487,7 +507,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const enLista = await f('properties/leg-lista/privado/acuerdo');
 		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo', num(enLista.comisionPct) === 7, avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
-		const aviso = await admin.p.locator('.alert-warning').first().innerText().catch(() => '');
+		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
 		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
@@ -579,6 +599,7 @@ const duenos = [];
 	const viejas = await entrar('admin', { reglasViejas: true });
 	duenos.push(['administrador con reglas de antes', viejas]);
 	await ir(viejas.p, '#/propietarios', 3000);
+	await viejas.p.locator('#aviso-reglas', { hasText: 'ya está al día' }).waitFor({ timeout: 30000 }).catch(() => {});
 	const aviso = await viejas.p.locator('#aviso-reglas').innerText().catch(() => '');
 	await viejas.p.screenshot({ path: `${PANEL}/reglas-viejas-aviso-1280.png` });
 	await ir(viejas.p, '#/propietarios/dueno-del-asesor', 3500);
@@ -592,7 +613,7 @@ const duenos = [];
 	await viejas.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
 	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-390.png` });
 	paso('Con las reglas de antes: aviso en Propietarios con el orden, y «Dar acceso» deshabilitado (con el porqué) para un dueño sin casas por noche',
-		/publicar las reglas nuevas/.test(aviso) && /firebase deploy/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
+		/ya está al día/.test(aviso) && /publicar las reglas nuevas/.test(aviso) && /firebase deploy/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
 	await viejas.p.close();
 	// La contraseña la pone ella, con el enlace del correo (aquí, con el código que guarda el emulador).
 	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oobCode: oob?.oobCode, newPassword: CLAVE }) });

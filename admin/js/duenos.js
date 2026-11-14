@@ -18,9 +18,9 @@ export function nuevoToken() {
 }
 
 // ¿Ya están publicadas las reglas nuevas de la base? Se sabe por cómo responde, sin sesión, la lectura de un resumen
-// cualquiera: las de antes la dejaban (200, o 404 si no existe); las nuevas la niegan (403). Otra respuesta o sin red:
-// se toma como «de antes», el lado seguro.
-export const reglasNuevasSegun = (status) => status === 403;
+// cualquiera: las de antes la dejaban (200, o 404 si no existe); las nuevas la niegan (403 con PERMISSION_DENIED).
+// Otra respuesta (un 403 de otra cosa, sin cuerpo…) o sin red: se toma como «de antes», el lado seguro.
+export const reglasNuevasSegun = (status, cuerpo) => status === 403 && cuerpo?.error?.status === 'PERMISSION_DENIED';
 
 // Cómo se le dice a la persona en el panel (encabezado, Usuarios, su ficha). Entran con el mismo rol («socio»).
 export const etiquetaDueno = (tipo) => (tipo === 'colaborador' ? 'Colaborador' : 'Propietario');
