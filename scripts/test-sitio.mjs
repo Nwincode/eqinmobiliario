@@ -107,10 +107,10 @@ test('zona × tipo × operación cuelga de la página de tipo, con migas y canon
 test('bloque de precios: rango, mediana y m², sin mezclar monedas', () => {
 	const h = de('/propiedades/zona-16/');
 	assert.match(h, /Precios en Zona 16/);
-	assert.match(h, /US\$ 198,000 – US\$ 515,000/);
-	assert.match(h, /Precio mediano<\/dt><dd>US\$ 350,000</);
-	assert.match(de('/propiedades/zona-15/'), /Q 2,500,000 – Q 3,400,000/);
-	assert.match(de('/propiedades/renta/zona-10/'), /US\$ 1,800 \/mes/);
+	assert.match(h, /US\$ 198,000\.00 – US\$ 515,000\.00/);
+	assert.match(h, /Precio mediano<\/dt><dd>US\$ 350,000\.00</);
+	assert.match(de('/propiedades/zona-15/'), /Q 2,500,000\.00 – Q 3,400,000\.00/);
+	assert.match(de('/propiedades/renta/zona-10/'), /US\$ 1,800\.00 \/mes/);
 	assert.doesNotMatch(de('/propiedades/zona-1/'), /zona-precios/);
 	// En el título y la descripción, el tipo que domina y un dato propio de la zona.
 	// «Casas en venta en Zona 16» es de su propia página: la zona no compite con ella por el mismo título.
@@ -170,17 +170,17 @@ test('VIP con propiedades se indexa; tarjetas sin puntos y con ancho y alto', ()
 	assert.deepEqual(cards.slice(0, 3), [false, false, true]);
 });
 
-test('precio de una propiedad: sin centavos si es entero y de 1,000 o más; con centavos si no (una sola regla)', () => {
-	assert.equal(precioTexto(350000, 'USD'), 'US$ 350,000');
-	assert.equal(precioTexto(5000, 'GTQ', 'renta'), 'Q 5,000 /mes');
+test('precio de una propiedad: siempre con centavos, como lo pidió el dueño (una sola regla)', () => {
+	assert.equal(precioTexto(350000, 'USD'), 'US$ 350,000.00');
+	assert.equal(precioTexto(5000, 'GTQ', 'renta'), 'Q 5,000.00 /mes');
 	assert.equal(precioTexto(1250.5, 'USD'), 'US$ 1,250.50');
 	assert.equal(precioTexto(120, 'USD', 'vacacional'), 'Desde US$ 120.00 por noche');
-	assert.equal(precioTexto(1200, 'USD', 'vacacional', 'en'), 'From US$ 1,200 per night');
+	assert.equal(precioTexto(1200, 'USD', 'vacacional', 'en'), 'From US$ 1,200.00 per night');
 	assert.equal(precioTexto(0), 'Precio a consultar');
 	// Lo que se cobra o se suma sigue con centavos.
 	assert.equal(dinero(350000, 'USD'), 'US$ 350,000.00');
 	assert.equal(formatPrice, precioTexto);
-	assert.match(de(Object.keys(html).find((u) => /^\/propiedad\/casa-en-venta-en-zona-16-1\//.test(u))), /US\$ 350,000</);
+	assert.match(de(Object.keys(html).find((u) => /^\/propiedad\/casa-en-venta-en-zona-16-1\//.test(u))), /US\$ 350,000\.00</);
 });
 
 test('artículo sin imagen: el JSON-LD usa la imagen del sitio', () => {

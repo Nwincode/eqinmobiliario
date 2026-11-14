@@ -163,3 +163,4 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Se actuó sobre una suposición de lo que el usuario quiso decir. | Si el mensaje admite dos lecturas, preguntar en una línea antes de programar. |
 | Respuestas largas, trabajo que no se pidió, compactar a mano. | Respuesta corta y directa; solo lo pedido; la compactación es automática. |
 | Se entregó sin decir qué quedó sin probar. | Cada entrega dice qué se probó, con qué, y qué no. |
+| Se quitaron los centavos de los precios ≥ 1,000 sin preguntarle al dueño; él los quiere siempre. | Un cambio de cómo se ve un dato (formato de precio, fecha, moneda) se consulta antes con el dueño. |

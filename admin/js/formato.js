@@ -23,11 +23,9 @@ export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
 // Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
 // («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
 // Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.
-export const montoPrecio = (n, moneda) => {
-	const x = Number(n) || 0;
-	return Number.isInteger(x) && Math.abs(x) >= 1000 ? `${prefijoMoneda(moneda)} ${x.toLocaleString('en-US')}` : dinero(x, moneda);
-};
-// Precio de una propiedad según su operación, en español o inglés: «US$ 250,000», «Q 5,000 /mes»,
+// Decisión del dueño: los precios llevan siempre centavos («US$ 350,000.00», «US$ 120.00»), igual que las cuentas.
+export const montoPrecio = (n, moneda) => dinero(Number(n) || 0, moneda);
+// Precio de una propiedad según su operación, en español o inglés: «US$ 250,000.00», «Q 5,000.00 /mes»,
 // «Desde US$ 120.00 por noche»; sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión,
 // las reglas sin IA y el generador del sitio (scripts/lib/util.mjs `formatPrice`).
 const PRECIO = {
