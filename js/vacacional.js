@@ -68,10 +68,9 @@
 			n = Number(n) || 0;
 			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
+		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
 		function dineroCorto(n) {
-			n = Math.round(Number(n) || 0);
-			if (n >= 10000) return corto + (Math.round(n / 100) / 10).toLocaleString('en-US') + 'k';
-			return corto + n.toLocaleString('en-US');
+			return corto + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
 		function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 		function noches(n) { return n === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: n }); }

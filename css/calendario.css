@@ -118,7 +118,8 @@
 	font-weight: 500;
 }
 .vac-dia-precio {
-	font-size: 10px;
+	font-size: 9px;
+	letter-spacing: -0.2px;
 	color: var(--eq-ink);
 	margin-top: 2px;
 	white-space: nowrap;
