@@ -410,8 +410,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
-/* Tres indicadores en una fila angosta (resumen de una casa del dueño): el nombre baja de línea en vez de cortarse. */
-.stat-envuelve .stat-label { white-space: normal; }
+/* Tres indicadores en una fila angosta (resumen de una casa del dueño): en celular el ícono va arriba del nombre,
+   para que el nombre quepa entero. */
+@media (max-width: 575.98px) {
+	.stat-envuelve .stat-label [class^="icon-"] { display: block; margin-bottom: 2px; }
+}
 a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));
 	transform: translateY(-1px);
