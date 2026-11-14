@@ -66,7 +66,9 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
 
 0. **Revisar en Netlify** que estén `GOOGLE_SA_EMAIL` y `GOOGLE_SA_KEY` (la cuenta de servicio con el rol «Cloud
    Datastore Viewer»). Sin ellas no salen los avisos de solicitudes y del chat ni el control de cada hora.
-1. **Se publica el código** (Netlify).
+1. **Se publica el código** (Netlify). El sitio se publica **antes** que las reglas: las reglas nuevas revisan la cotización de
+   cada solicitud (subtotal, impuestos del 22 %, total y noches = las de las fechas) y el subtotal del chat; una página
+   publicada antes, con otro formato, dejaría de guardar solicitudes.
 2. **El administrador abre Propiedades**: a las casas por noche se les quita el asesor y pasan a privado su dirección y
    su mapa. Después, **Publicar** el sitio y esperar a que termine (así las páginas ya no mandan el asesor viejo en
    las solicitudes: con las reglas nuevas esas solicitudes se rechazarían).

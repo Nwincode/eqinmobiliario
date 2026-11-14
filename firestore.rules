@@ -507,7 +507,17 @@ service cloud.firestore {
       return r.get('subtotal', -1) is number && r.subtotal >= 0
         && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
         && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
-        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches);
+        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches)
+        // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
+        && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
+    }
+    // Noches entre dos fechas 'AAAA-MM-DD' (salida − llegada en días).
+    function nochesEntre(llegada, salida) {
+      let a = llegada.split('-');
+      let b = salida.split('-');
+      return llegada.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && salida.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        ? (timestamp.date(int(b[0]), int(b[1]), int(b[2])) - timestamp.date(int(a[0]), int(a[1]), int(a[2]))).seconds() / 86400
+        : -1;
     }
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.

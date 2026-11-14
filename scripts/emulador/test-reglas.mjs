@@ -527,7 +527,14 @@ await espera('dueña crea una reserva de su casa por noche al confirmar (control
 			fields: { ...campos(lead('')), reserva: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'number' ? { doubleValue: x } : sv(x)])) } } } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((x) => x.status);
 		const bien = { codigo: 'EQ-COT', llegada: '2027-03-01', salida: '2027-03-04', noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD' };
-		await espera('solicitud con el subtotal inflado (y los impuestos de antes)', conReserva('lead-cot-1', { ...bien, subtotal: 100000 }), false);
+		// Inflar el subtotal sin inflar los impuestos ni el total no pasa (el cliente vería y pagaría otra cosa).
+		await espera('solicitud con el subtotal inflado y los impuestos y el total de antes', conReserva('lead-cot-1', { ...bien, subtotal: 100000 }), false);
+		// Inflado pero coherente (100,000 + 22,000 = 122,000) sí pasa la regla: lo frena «Confirmada», donde el
+		// administrador elige registrar con los precios de hoy (montosDeConfirmacion). Se deja probado para que se sepa.
+		await espera('solicitud inflada pero coherente: la regla la deja (la frena el administrador al confirmar)', conReserva('lead-cot-9', { ...bien, subtotal: 100000, impuestos: 22000, total: 122000 }), true);
+		await espera('solicitud de 3 noches que declara 1 (menos comisión)', conReserva('lead-cot-10', { ...bien, noches: 1, subtotal: 100, impuestos: 22, total: 122 }), false);
+		await espera('solicitud con fechas que no son fechas', conReserva('lead-cot-11', { ...bien, llegada: 'mañana' }), false);
+		await espera('solicitud de un mes que cruza de año, con sus 31 noches (control)', conReserva('lead-cot-12', { ...bien, llegada: '2026-12-15', salida: '2027-01-15', noches: 31 }), true);
 		await espera('solicitud con impuestos que no son el 22 %', conReserva('lead-cot-2', { ...bien, impuestos: 10, total: 410 }), false);
 		await espera('solicitud con un total que no es subtotal + impuestos', conReserva('lead-cot-3', { ...bien, total: 1 }), false);
 		await espera('solicitud con el subtotal como texto', conReserva('lead-cot-4', { ...bien, subtotal: 'mucho' }), false);

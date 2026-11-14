@@ -8,7 +8,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas } from '../session.js';
-import { confirmarSolicitud, montosDeConfirmacion, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
+import { confirmarSolicitud, montosDeConfirmacion, difierenMontos, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -165,12 +165,24 @@ export async function render(container, [codigo] = []) {
 		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.', 'warning');
 		// Lo que se va a guardar (montosDeConfirmacion, lo mismo que usa confirmarSolicitud), no la cuenta con los precios de hoy.
 		const casa = (await getDoc(doc(db, 'properties', l.propertyId))).data();
-		const m = montosDeConfirmacion(l, c, casa);
-		const distinto = m.ganancia !== m.hoy ? ` Se cotizó ${money(m.ganancia, r.moneda)}; con los precios de hoy serían ${money(m.hoy, r.moneda)}: se registra lo cotizado.` : '';
+		let modo = 'mayor';
+		const base = montosDeConfirmacion(l, c, casa);
+		if (admin && difierenMontos(base)) {
+			// El administrador decide con qué se registra; primero lo que conviene: los precios de hoy si lo cotizado es mayor
+			// (pudo inflarse) y lo cotizado si es menor (es lo que se le prometió al cliente).
+			const cot = `Registrar lo cotizado (ganancia de EQ ${money(base.gananciaCotizada, r.moneda)})`;
+			const deHoy = `Registrar con los precios de hoy (ganancia de EQ ${money(base.hoy, r.moneda)})`;
+			const opciones = base.cotizado > base.deHoy ? [deHoy, cot] : [cot, deHoy];
+			const elegida = await elegirOpcion(`${r.codigo}: se cotizaron ${money(base.cotizado, r.moneda)} de alojamiento; con los precios de hoy serían ${money(base.deHoy, r.moneda)}. ¿Con cuál se registra?`, opciones);
+			if (!elegida) return;
+			modo = elegida === cot ? 'cotizado' : 'hoy';
+		}
+		const m = montosDeConfirmacion(l, c, casa, admin ? modo : 'mayor');
+		const distinto = !admin && m.ganancia !== m.hoy ? ` Se cotizó ${money(m.ganancia, r.moneda)}; con los precios de hoy serían ${money(m.hoy, r.moneda)}: se registra lo cotizado.` : '';
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(m.ganancia, r.moneda)}) se paga el día de llegada.${distinto}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
-				await confirmarSolicitud(l, c, { chat: chatDe(l), pago });
+				await confirmarSolicitud(l, c, { chat: chatDe(l), pago, modo });
 				toast('Reserva confirmada.');
 			} catch (err) {
 				if (err instanceof ChoqueDeFechas) toast(err.message, 'warning');
