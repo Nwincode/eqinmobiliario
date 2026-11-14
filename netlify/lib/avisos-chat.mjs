@@ -15,16 +15,22 @@ export function sinResponder(mensajes, { ahora, plazo, ventana }) {
 	return vence > ahora - ventana && vence <= ahora;
 }
 
-export function avisosChat({ chat, mensajes, correos, sitio, ahora = Date.now() }) {
+// El título de la casa sale de la casa guardada (en inglés si el cliente escribe en inglés), nunca del chat.
+export const tituloDe = (chat, casa) => String((chat.idioma === 'en' && casa?.en?.titulo) || casa?.titulo || '').slice(0, 200);
+
+// casa: la propiedad guardada (o null).
+export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora = Date.now() }) {
+	// Lo que viaja en el asunto y el texto con la forma que pone el sitio: si no, no sale ningún correo (texto libre de alguien).
+	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
 	const reserva = `${sitio}/reserva/#${chat.id}`;
 	const panel = `${sitio}/admin/#/solicitudes/${chat.codigo}`;
-	const resumen = `${chat.propertyTitulo} · ${chat.llegada} → ${chat.salida} · ${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`;
+	const resumen = [tituloDe(chat, casa), `${chat.llegada} → ${chat.salida}`, `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`].filter(Boolean).join(' · ');
 	// La reserva la atiende el socio: el equipo solo recibe estos avisos si el socio no tiene correo guardado.
 	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
-	const casa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
+	const deLaCasa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
 	const en = chat.idioma === 'en';
 	const alCliente = (asunto, titulo, intro) => (correos.cliente ? [{ para: [correos.cliente], asunto, titulo, intro, boton: en ? 'See my booking' : 'Ver mi reserva', url: reserva }] : []);
-	const aLaCasa = (asunto, titulo, intro) => (casa.length ? [{ para: casa, asunto, titulo, intro, boton: 'Abrir la solicitud', url: panel }] : []);
+	const aLaCasa = (asunto, titulo, intro) => (deLaCasa.length ? [{ para: deLaCasa, asunto, titulo, intro, boton: 'Abrir la solicitud', url: panel }] : []);
 
 	const ultimo = mensajes[mensajes.length - 1];
 	// Solicitud recién enviada (todavía sin mensajes): al socio y al equipo para que respondan; al cliente, su enlace.

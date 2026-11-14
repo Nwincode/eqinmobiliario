@@ -40,7 +40,7 @@ export const respuesta = (nuevo, que, extra = {}) => ({
 export async function deLaCasa(propertyId) {
 	const filtros = [where('propertyId', '==', propertyId)];
 	if (session.esSocio) filtros.push(where('propietarioId', '==', session.profile?.propietarioId || '-'));
-	else if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentId || '-'));
+	else if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentFiltro));
 	return (await getDocs(query(collection(db, 'reservas'), ...filtros))).docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -96,7 +96,7 @@ export function nuevaReserva(casa, c) {
 		agentId: casa.agentId || '', propietarioId: casa.propietarioId || '',
 		moneda: c.moneda || casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: V.nochesEntre(c.llegada, c.salida),
 		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado || 'confirmada',
-		leadId: c.leadId || '', codigo: c.codigo || '', costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio),
+		leadId: c.leadId || '', codigo: c.codigo || '', ...(c.chat ? { chat: c.chat } : {}), costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio),
 		pagadoSocio: Boolean(c.pagadoSocio), pagadoFecha: c.pagadoSocio ? (c.pagadoFecha || V.hoy()) : ''
 	};
 }
@@ -182,6 +182,10 @@ export async function ponerAlDiaReservas(reservas, casas) {
 // Chat de una reserva de la web: { ref, estado }. Solicitudes ya lo tiene; Rentas lo busca por el código.
 async function chatDe(r, chat) {
 	if (chat !== undefined) return chat;
+	if (r.chat && !session.esSocio) {
+		const s = await getDoc(doc(db, 'chats', r.chat));
+		if (s.exists()) return { ref: s.ref, estado: s.data().estado || '' };
+	}
 	if (!r.codigo || session.esSocio) return null;
 	const s = (await getDocs(query(collection(db, 'chats'), where('codigo', '==', r.codigo)))).docs[0];
 	return s ? { ref: s.ref, estado: s.data().estado || '' } : null;
@@ -209,7 +213,9 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 		}),
 	};
 	datos.comision = comisionDeReserva(datos);
-	await cambiar({
+	// La reserva guarda su chat: con él las reglas saben si el cliente ya pagó (el socio no cancela una pagada).
+	if (chat) datos.chat = chat.ref.id;
+	const escribirTodo = () => cambiar({
 		despues: { id, ...datos },
 		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
 		revisar: async (tx) => sinResponder(tx, l, chat),
@@ -223,6 +229,14 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 			}
 		}
 	});
+	try {
+		await escribirTodo();
+	} catch (err) {
+		// Reglas de antes (todavía sin «chat» en la reserva del socio): se guarda sin él; esa reserva la cancela el administrador.
+		if (!(session.esSocio && datos.chat && err?.code === 'permission-denied')) throw err;
+		delete datos.chat;
+		await escribirTodo();
+	}
 	if (chat) avisarChat(chat.ref.id);
 	await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 }

@@ -12,15 +12,9 @@ import { json } from '../lib/auth.mjs';
 import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
 import { telefonoWa as telWa } from '../../admin/js/formato.js';
 import { enviarCorreo, correoConfigurado, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
+import { limitador, ipDe } from '../lib/limite.mjs';
 
-const hits = new Map();
-function limitado(ip) {
-	const now = Date.now();
-	const lista = (hits.get(ip) || []).filter((t) => now - t < 10 * 60_000);
-	lista.push(now);
-	hits.set(ip, lista);
-	return lista.length > 5;
-}
+const limitado = limitador(5);
 
 const cut = (v, n) => String(v ?? '').trim().slice(0, n);
 // Leads ya avisados por esta instancia (id → hora), para no mandar dos veces el mismo.
@@ -29,7 +23,7 @@ const avisados = new Map();
 export default async (req, context) => {
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!correoConfigurado()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
-	if (limitado(context?.ip || req.headers.get('x-nf-client-connection-ip') || 'anon')) return json(429, { error: 'Demasiados avisos seguidos' });
+	if (limitado(ipDe(req, context))) return json(429, { error: 'Demasiados avisos seguidos' });
 
 	let id;
 	try {

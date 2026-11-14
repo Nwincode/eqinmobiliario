@@ -51,7 +51,7 @@ export async function render(container, rest = []) {
 async function cargarLista() {
 	const col = collection(db, COL);
 	// El asesor solo puede leer las suyas (reglas de Firestore); el administrador, todas.
-	const snap = await getDocs(session.isAdmin ? col : query(col, where('agentId', '==', session.agentId)));
+	const snap = await getDocs(session.isAdmin ? col : query(col, where('agentId', '==', session.agentFiltro)));
 	const ms = (v) => (v && typeof v.toDate === 'function' ? v.toDate().getTime() : 0);
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 		.sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || ms(b.createdAt) - ms(a.createdAt));

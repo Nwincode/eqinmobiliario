@@ -138,7 +138,7 @@ const ES = {
 	duenosPedir: 'Pedir mi acceso', duenosMsgWa: 'Hola, quiero el acceso a mi panel de propietario.',
 	otroIdioma: 'EN', otroIdiomaLabel: 'View this page in English',
 	// Mensajes que muestra el navegador (formularios, búsqueda, calculadora)
-	jsErrorDatos: 'Escribe tu nombre y un teléfono válido.',
+	jsErrorDatos: 'Escribe tu nombre y un teléfono válido.', jsErrorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).',
 	jsGracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 	jsFallo: 'No pudimos enviar el formulario.', jsSoy: 'Hola, soy ', jsVisita: ' Me gustaría visitarla el ', jsTel: ' Mi teléfono: ',
 	buscarFiltrar: 'Buscar y filtrar', cerrarFiltros: 'Cerrar filtros', jsVer: 'Ver',
@@ -261,7 +261,7 @@ const EN = {
 	duenosEntrar: 'Go to my dashboard', duenosPrimeraVez: 'First time? Ask your agent for access: you will get an email to set your password.',
 	duenosPedir: 'Ask for access', duenosMsgWa: 'Hi, I would like access to my owner dashboard.',
 	otroIdioma: 'ES', otroIdiomaLabel: 'Ver esta página en español',
-	jsErrorDatos: 'Please enter your name and a valid phone number.',
+	jsErrorDatos: 'Please enter your name and a valid phone number.', jsErrorCorreo: 'Please check your email (e.g. name@email.com).',
 	jsGracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 	jsFallo: 'We couldn\'t send the form.', jsSoy: 'Hi, my name is ', jsVisita: ' I would like to visit on ', jsTel: ' My phone: ',
 	buscarFiltrar: 'Search and filter', cerrarFiltros: 'Close filters', jsVer: 'Show',
@@ -279,7 +279,7 @@ const TECNICOS = new Set(['htmlLang', 'ogLocale', 'dateLocale', 'otroIdioma']);
 export const GRUPOS_TEXTOS = [
 	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'zonas', 'vendeBoton', 'vendeQue', 'vendeQuePh', 'cerrarAviso', 'plantilla', 'escribenos']],
 	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
-	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsGracias', 'jsFallo']],
+	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsErrorCorreo', 'jsGracias', 'jsFallo']],
 	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
 	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'vacacional', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'listadoVacio', 'verTodasPropiedades', 'cuentanos', 'teAyudamos', 'noEncuentras', 'buscarFiltrar', 'cerrarFiltros', 'jsVer', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],
 	['Ficha de propiedad', ['verFotosN', 'caracteristicas', 'anteriorFoto', 'siguienteFoto', 'descripcion', 'amenidades', 'video', 'ubicacion', 'agendaVisita', 'agendarVisita', 'llamar', 'quieroInfo', 'similares', 'fTipo', 'fOperacion', 'fEstado', 'fHabitaciones', 'fBanos', 'fParqueos', 'fConstruccion', 'fTerreno', 'fNiveles', 'fAnio', 'fMantenimiento', 'fUbicacion', 'fPrecioM2', 'fCodigo', 'compartir', 'compartirWa', 'compartirFb', 'copiarEnlace']],

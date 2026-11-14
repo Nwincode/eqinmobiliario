@@ -87,6 +87,12 @@ agrega aquí en el mismo cambio que lo corrige.
 | Un segundo «Guardar» sin recargar, después de cambiar el dueño, borraba el acuerdo recién guardado: comparaba con lo leído al abrir. | Después de guardar, lo guardado es el nuevo punto de partida (datos, dueño, acuerdo, operación). Probar dos «Guardar» seguidos sin que el primero recargue. |
 | Guardar una ficha abierta desde antes borraba el resumen que otra pantalla acababa de crear, y quedaban dos. | Al reemplazar un documento, lo que escriben otras pantallas se vuelve a leer justo antes de guardar; un dato «uno por persona» se asegura al escribirlo (se borran los demás). |
 | El dueño de una casa en venta podía, por regla, crear reservas y escribir en chats de esa casa. | Cada permiso nuevo de un rol se revisa en TODAS las colecciones donde ese rol escribe, no solo en la pantalla que se cambió. |
+| El socio podía cancelar por escritura directa una reserva ya pagada o ya empezada: la comisión salía de la mora sin alerta (la pantalla lo escondía, la regla no). | Lo que esconde la pantalla en algo que toca dinero, la regla lo exige con datos que el socio no controla (el chat guardado en la reserva, la fecha de llegada), con pruebas negativas y un control positivo. |
+| Solicitudes del dueño se caía entera si una de sus casas cambió de dueño (leía mensajes que la regla ya le niega, todo en un `Promise.all`); su comprobante de una reserva pasada subía la foto pero no se guardaba. | Lecturas de varias cosas a la vez: cada una con su `catch`, y solo las que la regla deja. Storage y Firestore piden lo mismo para el mismo dato. |
+| El chat aceptaba un título libre y el correo «Recibimos tu solicitud» lo repetía al correo que escribiera cualquiera. | Un correo a un tercero no lleva texto que puso quien llama: sale de lo guardado (la casa) y con límite por IP. |
+| Un asesor sin «orden» desaparecía de Usuarios, Propiedades, Propietarios y Leads (`orderBy` deja fuera a quien no tiene el campo). | `orderBy` solo en campos que siempre están; si no, se ordena en el navegador (`porOrden`). |
+| El asesor sin asesor vinculado filtraba con `''` o `'-'` y la regla esperaba `'(sin asesor)'`: error en vez de lista vacía. | El valor «sin asesor» es uno solo (`SIN_ASESOR`) en el panel y en las reglas. |
+| Un asesor podía crear o cambiar reservas, resúmenes de dueños de otro asesor, la bitácora y las fotos de casas de otros, y pasar su casa a «por noche» con su agentId. | Cada colección: ¿quién la escribe en la pantalla? La regla da eso y nada más (admin, o el asesor de ESA casa o persona). |
 
 Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una segunda revisión independiente antes de unir.
 
@@ -116,6 +122,13 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Una etiqueta de precio se salía 11 px a 390 (`minmax(140px)` y `nowrap`); el WhatsApp flotante tapaba el enlace «VIP» del pie; el texto chico dorado no se leía sobre la foto; el selector de orden medía 42 px. | Medir a 390 y 1280: nada se sale, nada fijo tapa un enlace, texto sobre foto con velo, toques de 44 px. |
 | La estancia mínima salía dos veces en la caja de reserva; «Huéspedes» y «Huéspedes máximo» para el mismo dato. | Un dato, un texto, un lugar en la pantalla. |
 | El carrusel de la portada ponía sus fotos en fila (1560 px a 390): en iOS se podía arrastrar de lado. | Lo que es más ancho que la pantalla a propósito se recorta en su contenedor (`.hero`). |
+| El orden por precio y los filtros mín./máx. comparaban Q con US$ (Q 970,000 salía arriba de US$ 378,200). | Lo que compara montos de monedas distintas pasa por `enUSD` (un solo `TIPO_CAMBIO`, formato.js); los campos dicen su moneda. |
+| Los formularios aceptaban «ana@» (solo se revisaban nombre y teléfono). | Cada dato con su regla al entrar: el correo con `correoValido` (formato.js), la misma en el sitio y en las funciones. |
+| El horario decía 5 p. m. en español y 6 p. m. en inglés: se guardaba dos veces. | Un dato que solo cambia de idioma se escribe una vez y el otro idioma se genera (`horarioEn`). |
+| Las tarjetas bajaban fotos de 1920 px para mostrarlas a 282 px (la revisión se hizo con un build local, donde el CDN estaba apagado). | Toda foto con `imgFoto` (srcset del CDN también en local; `serve.mjs` redirige); medir el peso de cada página, no solo verla. |
+| Cada página bajaba la fuente de íconos entera (300 KB) para usar ~70. | La fuente del sitio lleva solo sus íconos (`scripts/fuente-iconos.mjs`); `test-sitio.mjs` revisa que no falte ninguno. |
+| Con «reducir movimiento» del sistema seguían las animaciones y los carruseles avanzaban solos, sin pausa. | Animaciones y avance solo apagados con `prefers-reduced-motion`; todo carrusel que avanza solo se pausa con el cursor y el foco. |
+| En la landing VIP a 390 la barra fija repetía los botones de la portada. | La barra fija aparece cuando el botón de la portada sale de la pantalla y se esconde junto al formulario. |
 | «US$ 350,000.00» en precios de propiedades. | Precio de una propiedad con `precioTexto`/`montoPrecio` (sin centavos si es entero y ≥ 1,000); lo que se cobra o se suma, con `dinero`. Una sola función para panel y sitio. |
 | «Armar borrador» mandaba a la IA casi toda la propiedad (historial con nombres y uid del equipo, difusión, dueño); «Seguimiento» mandaba el teléfono y el correo del lead; la traducción en lote no pasaba por la limpieza. | Una sola salida (`pedirIA`) y una sola limpieza, con lista de lo permitido (`para-ia.js`); lo nuevo que se mande a la IA se agrega ahí, no en cada pantalla. |
 | Una casa por noche salía «En venta» en la calculadora (su precio por noche como precio de compra), en las búsquedas contra un presupuesto de compra y en difusión sin «por noche» y con #HomesForSale. | Cada precio con su operación (`precioTexto`, `operacionHashtag`); donde se compara un precio, filtrar por operación. |
@@ -143,6 +156,8 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Un enlace escrito en Contenido (portada: «Propiedades en renta») llevaba a un listado sin casas, y ese listado decía «No encontramos propiedades con esos filtros» sin filtro alguno. | Todo enlace configurable a un listado pasa por `visible`; un listado vacío dice que está vacío y ofrece todas las propiedades y contacto (`test-sitio.mjs`, sitio sin renta). |
 | Páginas que se indexan enlazaban zonas que no se indexan («Zona 1 (1)»). | Las pastillas de zona solo enlazan páginas `indexable` (regla `bastante`). |
 | El JSON-LD de un artículo sin foto no llevaba imagen. | Sin foto, la imagen del sitio (`seo.imagen`). |
+| El contenido escrito con «##» salía como h3 bajo el h1 (salto de nivel en 17 páginas); el aviso de una casa vendida iba con h2 antes del h1. | Los títulos del markdown empiezan en el nivel que les toca (`markdown(…, nivel)`); `test-sitio.mjs` revisa el orden en todas las páginas. |
+| En inglés la descripción y el JSON-LD decían solo m². | Medidas en inglés con sus sq ft (`conPiesCuadrados`, formato.js). |
 | La ficha por noche cargaba en cada página todos los textos del chat. | Lo que viaja a la página en JSON se filtra a lo que usa ese JavaScript; el chat, solo en /reserva/. |
 
 ## 7. Cómo se le responde al usuario
@@ -154,3 +169,4 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Se actuó sobre una suposición de lo que el usuario quiso decir. | Si el mensaje admite dos lecturas, preguntar en una línea antes de programar. |
 | Respuestas largas, trabajo que no se pidió, compactar a mano. | Respuesta corta y directa; solo lo pedido; la compactación es automática. |
 | Se entregó sin decir qué quedó sin probar. | Cada entrega dice qué se probó, con qué, y qué no. |
+| Se quitaron los centavos de los precios ≥ 1,000 sin preguntarle al dueño; él los quiere siempre. | Un cambio de cómo se ve un dato (formato de precio, fecha, moneda) se consulta antes con el dueño. |

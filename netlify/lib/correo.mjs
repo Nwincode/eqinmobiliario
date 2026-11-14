@@ -10,6 +10,7 @@
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { colorTema, contraste } from '../../admin/js/tema-def.js';
 import { leerPublico } from './firestore.mjs';
+import { correoValido } from '../../admin/js/formato.js';
 
 export const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const NOMBRE = 'Equipo Inmobiliario';
@@ -24,7 +25,7 @@ export function servicioCorreo() {
 export const correoConfigurado = () => Boolean(servicioCorreo() && destinatariosEquipo().length);
 
 export function destinatariosEquipo() {
-	return String(process.env.AVISO_CORREO || '').split(',').map((s) => s.trim()).filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+	return String(process.env.AVISO_CORREO || '').split(',').map((s) => s.trim()).filter(correoValido);
 }
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

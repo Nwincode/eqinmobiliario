@@ -5,13 +5,13 @@
 	var config = window.EQ_CONFIG || {};
 	var EN = document.documentElement.lang === 'en';
 	var T = EN ? {
-		errorDatos: 'Please enter your name and a valid phone number.',
+		errorDatos: 'Please enter your name and a valid phone number.', errorCorreo: 'Please check your email (e.g. name@email.com).',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
-		errorDatos: 'Escribe tu nombre y un teléfono válido.',
+		errorDatos: 'Escribe tu nombre y un teléfono válido.', errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
 		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
@@ -194,6 +194,12 @@
 			var digitos = form.telefono.value.replace(/\D/g, '').length, minimo = form.codigo && form.codigo.value === '502' && form.telefono.value.trim().charAt(0) !== '+' ? 8 : 7;
 			if (!lead.nombre || digitos < minimo || lead.telefono.replace(/\D/g, '').length > 15) {
 				setStatus(form, T.errorDatos, false);
+				return;
+			}
+			// El correo (obligatorio solo en la reserva; si se escribe, siempre) con la misma regla del panel y las funciones (admin/js/formato.js).
+			if ((lead.email || (form.email && form.email.required)) && !EQFormato.correoValido(lead.email)) {
+				setStatus(form, T.errorCorreo, false);
+				if (form.email.focus) form.email.focus();
 				return;
 			}
 			var button = form.querySelector('button[type=submit]');
@@ -468,6 +474,8 @@
 				if (!r.max && !r.min && suelto) r.max = monto(suelto[1] || suelto[2]);
 				if (r.max < 100) r.max = 0;
 				if (r.min < 100) r.min = 0;
+				// Los filtros de precio van en US$ (data-precio): un monto en quetzales se convierte con el tipo de cambio único.
+				r.moneda = /(^|[^a-z])(q\.?\s*\d|quetzal)/.test(t) ? 'GTQ' : 'USD';
 				return r;
 			};
 			var etiqueta = function (sel, v) {
@@ -481,7 +489,8 @@
 				track('Search', { search_string: texto });
 				var f = form.elements;
 				var hab = Math.min(4, r.habitaciones || 0);
-				var valores = { tipo: r.tipo, zona: r.zona, habitaciones: hab ? String(hab) : '', max: r.max ? String(Math.round(r.max)) : '', min: r.min ? String(Math.round(r.min)) : '', q: '' };
+				var usd = function (v) { return v ? String(Math.round(EQFormato.enUSD(v, r.moneda))) : ''; };
+				var valores = { tipo: r.tipo, zona: r.zona, habitaciones: hab ? String(hab) : '', max: usd(r.max), min: usd(r.min), q: '' };
 				var nada = !r.operacion && !r.tipo && !r.zona && !hab && !r.max && !r.min;
 				if (nada) {
 					var VACIAS = /^(busco|buscamos|quiero|necesito|una?|unos?|unas?|el|la|los|las|de|del|en|con|para|por|que|y|o|me|mi|i|want|need|looking|for|a|an|the|in|with|and|or|of|to)$/;
@@ -500,8 +509,9 @@
 				if (r.tipo) partes.push(etiqueta(f.tipo, r.tipo));
 				if (r.zona) partes.push(etiqueta(f.zona, r.zona));
 				if (hab) partes.push(hab + (EN ? '+ bedrooms' : '+ habitaciones'));
-				if (r.max) partes.push((EN ? 'up to ' : 'hasta ') + Math.round(r.max).toLocaleString('en-US'));
-				if (r.min) partes.push((EN ? 'from ' : 'desde ') + Math.round(r.min).toLocaleString('en-US'));
+				var montoTexto = function (v) { return EQFormato.montoPrecio(Math.round(v), r.moneda) + (r.moneda === 'GTQ' ? ' (≈ ' + EQFormato.montoPrecio(Math.round(EQFormato.enUSD(v, 'GTQ')), 'USD') + ')' : ''); };
+				if (r.max) partes.push((EN ? 'up to ' : 'hasta ') + montoTexto(r.max));
+				if (r.min) partes.push((EN ? 'from ' : 'desde ') + montoTexto(r.min));
 				iaStatus.textContent = partes.length ? (EN ? 'Showing: ' : 'Mostrando: ') + partes.join(' · ') : (EN ? 'Searching by keywords. You can refine with the filters below.' : 'Buscando por palabras. Puedes afinar con los filtros de abajo.');
 			};
 			iaBtn.addEventListener('click', buscarIA);
@@ -513,9 +523,10 @@
 
 	document.querySelectorAll('[data-calc]').forEach(function (box) {
 		var precio = parseFloat(box.getAttribute('data-precio')) || 0;
-		var prefijo = box.getAttribute('data-moneda') === 'GTQ' ? 'Q' : 'US$';
+		var moneda = box.getAttribute('data-moneda') === 'GTQ' ? 'GTQ' : 'USD';
 		var out = box.querySelector('.calc-result');
-		var fmt = function (n) { return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+		// El mismo formato que el precio de la propiedad: «US$ 70,000» (entero), «US$ 1,234.56» (cuota).
+		var fmt = function (n) { return EQFormato.montoPrecio(Math.round(n * 100) / 100, moneda); };
 		var calc = function () {
 			var enganche = Math.min(90, Math.max(0, parseFloat(box.querySelector('[name=enganche]').value) || 0));
 			var tasa = Math.max(0, parseFloat(box.querySelector('[name=tasa]').value) || 0) / 100 / 12;
@@ -576,6 +587,33 @@
 			if (e.key === 'ArrowLeft') show(current - 1);
 			if (e.key === 'ArrowRight') show(current + 1);
 		});
+	}
+
+	// ------------------------------------------------------------ Barra fija de la landing VIP
+	// En celular: un control por pantalla. La barra sale cuando el botón de la portada ya no se ve
+	// y se esconde mientras se ve el formulario de contacto.
+
+	var barraVip = document.querySelector('.vip-sticky-cta');
+	var botonPortada = document.querySelector('.vip-hero .btn-vip');
+	var contactoVip = document.getElementById('vip-contacto');
+	if (barraVip && botonPortada && 'IntersectionObserver' in window) {
+		var visto = { portada: true, contacto: false };
+		var pintarBarra = function () {
+			var oculta = visto.portada || visto.contacto;
+			barraVip.classList.toggle('vip-sticky-oculta', oculta);
+			barraVip.setAttribute('aria-hidden', oculta ? 'true' : 'false');
+			barraVip.querySelectorAll('a').forEach(function (a) { a.tabIndex = oculta ? -1 : 0; });
+		};
+		var mirar = function (el, clave) {
+			if (!el) return;
+			new IntersectionObserver(function (entradas) {
+				visto[clave] = entradas[entradas.length - 1].isIntersecting;
+				pintarBarra();
+			}).observe(el);
+		};
+		pintarBarra();
+		mirar(botonPortada, 'portada');
+		mirar(contactoVip, 'contacto');
 	}
 
 	// ------------------------------------------------------------ Fotos de las tarjetas
