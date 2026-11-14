@@ -2,10 +2,13 @@
 // el administrador ve todas, con lo que falta responder y la comisión por cobrar.
 // Comisión: el socio la paga a EQ el día de llegada y sube su comprobante; solo el administrador la marca pagada.
 // Nada se borra: cada respuesta queda en el historial con quién y cuándo.
+// Confirmar, cancelar, «No se dio», pago recibido y comisión pagada pasan por admin/js/reservas.js (lo mismo que usa
+// Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
-import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
-import { session, markPending, cargarMiResumen } from '../session.js';
+import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
+import { session, cargarMiResumen } from '../session.js';
+import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
 import { traductorLibre } from '../reglas.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -13,14 +16,11 @@ import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../c
 
 const V = window.EQVacacional;
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
-const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
-const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
 // Atraso de la comisión, según V.nivelComision().
 const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
 
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
-const choca = (rangos, r) => (rangos || []).some((x) => x.desde < r.salida && x.hasta > r.llegada);
 // Lo que el administrador debe atender; el texto sale en la tarjeta de Inicio.
 const ALERTAS = { tarde: 'Sin responder', mora: 'Comisión con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
 const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
@@ -28,26 +28,6 @@ function hace(desde) {
 	const min = Math.max(1, Math.round((Date.now() - desde) / 60000));
 	return min < 60 ? `hace ${min} min` : min < 1440 ? `hace ${Math.round(min / 60)} h` : `hace ${Math.round(min / 1440)} d`;
 }
-
-// Un toque para decir por qué: devuelve el motivo elegido, o null si se cerró.
-function pedirMotivo(titulo, motivos) {
-	return new Promise((resolve) => {
-		let elegido = null;
-		const m = modal({
-			title: titulo,
-			body: h('div', { class: 'd-grid gap-2' }, motivos.map((t) => h('button', {
-				type: 'button', class: 'cot-btn btn btn-outline-secondary', onclick: () => { elegido = t; m.close(); }
-			}, t))),
-			onClose: () => resolve(elegido)
-		});
-	});
-}
-
-// Lo que cambia en la solicitud al responderla, con su renglón de historial.
-const respuesta = (nuevo, que, extra = {}) => ({
-	'solicitud.estado': nuevo, ...extra, updatedAt: serverTimestamp(),
-	'solicitud.historial': arrayUnion({ que, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() })
-});
 
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
@@ -61,9 +41,9 @@ export async function render(container, [codigo] = []) {
 		admin ? loadReservas() : getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })))]);
 	const chats = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.id]));
 	const datosChat = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.data()]));
-	// Aviso por correo a quien le toca leer (lo decide el servidor con lo guardado). Si falla, el mensaje ya quedó.
-	const avisarChat = (id) => { fetch('/api/aviso-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: id }) }).catch(() => {}); };
 	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
+	// El chat de la solicitud con el estado que ve el cliente (lo que reservas.js necesita para escribir en él).
+	const chatDe = (l) => (refChat(l) ? { ref: refChat(l), estado: datosChat[l.reserva.codigo]?.estado || '' } : null);
 	// Chats donde lo último lo escribió el cliente: falta responderle.
 	const porResponder = new Set();
 	// Chats que ya mandaron los datos de llegada (si el segundo paso de «Pago recibido» falló, el botón sigue ahí).
@@ -131,14 +111,7 @@ export async function render(container, [codigo] = []) {
 	async function pagoRecibido(l) {
 		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste el pago? El cliente verá la dirección, el mapa y cómo llegar.`, { okText: 'Pago recibido' }))) return;
 		await hacer(async () => {
-			// En dos pasos y en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado
-			// (dentro de un mismo lote todavía ven el estado anterior y lo rechazan).
-			if (datosChat[l.reserva.codigo].estado !== 'pagada') await updateDoc(refChat(l), { estado: 'pagada' });
-			// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
-			const ll = (await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada'))).data();
-			await addDoc(collection(db, 'chats', refChat(l).id, 'mensajes'), { de: admin ? 'equipo' : 'socio', tipo: 'llegada', texto: 'llegada',
-				...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
-			avisarChat(refChat(l).id);
+			await marcarPagoRecibido(chatDe(l), l.propertyId);
 			toast('Listo: el cliente ya ve los datos de llegada.');
 		});
 	}
@@ -162,12 +135,6 @@ export async function render(container, [codigo] = []) {
 		const s = netos[l.propertyId];
 		return s && V.gananciaEstancia({ llegada: l.reserva.llegada, salida: l.reserva.salida, margen: s.margen, planSocio: { base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] } });
 	};
-	// Reserva que no se da o se cancela: el cliente lo ve en su página (estado y un mensaje) y le llega el correo.
-	// El mensaje va en el mismo lote, antes de que el chat quede cerrado para el socio.
-	const cerrarChat = (lote, l, estadoNuevo, texto) => {
-		lote.set(doc(collection(db, 'chats', refChat(l).id, 'mensajes')), { de: admin ? 'equipo' : 'socio', texto, createdAt: serverTimestamp() });
-		lote.update(refChat(l), { estado: estadoNuevo });
-	};
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	const hacer = async (tarea) => { try { await tarea(); await recargar(); } catch (err) { showError(err); } };
 
@@ -180,31 +147,10 @@ export async function render(container, [codigo] = []) {
 		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pedile al administrador que los guarde en tu ficha.', 'warning');
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la comisión de ${money(c.ganancia, r.moneda)} se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
-			const refCasa = doc(db, 'properties', l.propertyId);
-			const p = (await getDoc(refCasa)).data();
-			const ocupadas = p.vacacional?.reservadas || [];
-			if (choca(ocupadas, r)) return toast('Esas fechas ya tienen otra reserva confirmada.', 'warning');
-			const refReserva = doc(collection(db, 'reservas'));
-			const lote = writeBatch(db);
-			lote.set(refReserva, {
-				propertyId: l.propertyId, propertyTitulo: l.propertyTitulo || p.titulo || '', agentId: p.agentId || '', propietarioId: p.propietarioId || '',
-				// Sin teléfono: el socio lee sus reservas. El contacto del cliente queda solo en la solicitud (leadId).
-				moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, noches: c.noches, huesped: String(l.nombre || '').trim().split(/\s+/)[0],
-				canal: 'web', estado: 'confirmada', leadId: l.id, codigo: r.codigo, costoSocio: c.costoSocio, alojamiento: c.alojamiento, ganancia: c.ganancia,
-				comision: { monto: c.ganancia, vence: r.llegada, pagada: false }, pagadoSocio: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-			});
-			lote.update(refCasa, { 'vacacional.reservadas': V.unirRangos([...ocupadas, { desde: r.llegada, hasta: r.salida }]), updatedAt: serverTimestamp() });
-			lote.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': refReserva.id, 'solicitud.costoSocio': c.costoSocio, 'solicitud.comision': c.ganancia }));
-			if (refChat(l)) {
-				lote.update(refChat(l), { estado: 'confirmada' });
-				// Los datos de pago del socio viajan con la confirmación: sin reserva registrada, no hay a dónde pagar.
-				lote.set(doc(collection(db, 'chats', chats[r.codigo], 'mensajes')), { de: admin ? 'equipo' : 'socio', tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
-			}
-			await lote.commit();
-			// Correo al cliente: su reserva está confirmada y ya tiene los datos de pago.
-			if (refChat(l)) avisarChat(refChat(l).id);
-			await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
-			toast('Reserva confirmada.');
+			try {
+				await confirmarSolicitud(l, c, { chat: chatDe(l), pago });
+				toast('Reserva confirmada.');
+			} catch (err) { if (err instanceof ChoqueDeFechas) toast(err.message, 'warning'); else throw err; }
 		});
 	}
 
@@ -212,7 +158,7 @@ export async function render(container, [codigo] = []) {
 	function subirComprobante(res) {
 		const archivo = h('input', { type: 'file', accept: 'image/*', onchange: () => archivo.files[0] && hacer(async () => {
 			const { url } = await uploadImage(archivo.files[0], `comprobantes/${res.id}`);
-			await updateDoc(doc(db, 'reservas', res.id), { 'comision.comprobante': url, updatedAt: serverTimestamp() });
+			await ponerComprobante(res, url);
 			toast('Comprobante enviado.');
 		}) });
 		archivo.click();
@@ -221,22 +167,14 @@ export async function render(container, [codigo] = []) {
 	async function pagada(l, res, nivel) {
 		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la comisión de ${money(res.comision.monto, res.moneda)}?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
-			await updateDoc(doc(db, 'reservas', res.id), { 'comision.pagada': true, 'comision.pagadaEl': new Date().toISOString(), updatedAt: serverTimestamp() });
-			// Sus casas estaban fuera del sitio: vuelven al publicar.
-			if (nivel === 3) await markPending(`${l.propertyTitulo}: comisión pagada, las casas del socio vuelven al sitio`);
+			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || l.propertyTitulo }, nivel);
 			toast('Comisión pagada.');
 		});
 	}
 
 	async function noSeDio(l) {
-		const motivo = await pedirMotivo(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
-		if (motivo) await hacer(async () => {
-			const lote = writeBatch(db);
-			lote.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-			if (refChat(l)) cerrarChat(lote, l, 'no', 'Lo sentimos: la casa no está disponible en esas fechas.');
-			await lote.commit();
-			if (refChat(l)) avisarChat(refChat(l).id);
-		});
+		const motivo = await elegirOpcion(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
+		if (motivo) await hacer(() => noSeDioReserva(l, motivo, chatDe(l)));
 	}
 
 	async function cancelar(l) {
@@ -244,19 +182,10 @@ export async function render(container, [codigo] = []) {
 		// La reserva se busca por la solicitud o por su código: el socio no lee la solicitud, solo su chat.
 		const reserva = reservaDe(l);
 		if (!reserva) return toast('No encontramos la reserva de esta solicitud. Avísale al administrador.', 'danger');
-		const motivo = await pedirMotivo(`¿Por qué se cancela ${r.codigo}?`, MOTIVOS_CANCELAR);
+		const motivo = await elegirOpcion(`¿Por qué se cancela ${r.codigo}?`, MOTIVOS_CANCELAR);
 		if (!motivo) return;
 		await hacer(async () => {
-			const refCasa = doc(db, 'properties', l.propertyId);
-			const p = (await getDoc(refCasa)).data();
-			const lote = writeBatch(db);
-			lote.update(doc(db, 'reservas', reserva.id), { estado: 'cancelada', motivo, updatedAt: serverTimestamp() });
-			lote.update(refCasa, { 'vacacional.reservadas': V.liberarNoches(p.vacacional?.reservadas, r.llegada, r.salida), updatedAt: serverTimestamp() });
-			lote.update(doc(db, 'leads', l.id), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
-			if (refChat(l)) cerrarChat(lote, l, 'cancelada', 'La reserva se canceló.');
-			await lote.commit();
-			if (refChat(l)) avisarChat(refChat(l).id);
-			await markPending(`${p.titulo}: reserva ${r.codigo} cancelada`);
+			await cancelarReserva({ ...reserva, leadId: reserva.leadId || l.id }, motivo, { chat: chatDe(l) });
 			toast('Reserva cancelada. Las fechas quedaron libres.');
 		});
 	}

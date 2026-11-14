@@ -256,6 +256,21 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña confirma el chat de su casa por noche (control)', parche('mixto1', `chats/${CN}`, ['estado'], { estado: sv('confirmada') }), true);
 	await raw('reservas/r-sin-casa', { propietarioId: sv('m1'), estado: sv('confirmada') });
 	await espera('reserva vieja sin propertyId: se niega limpio (sin error)', parche('mixto1', 'reservas/r-sin-casa', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('x') }), false);
+	// Reserva hecha a mano en Rentas (admin/js/reservas.js): lleva el propietarioId de su casa (la ve su dueño) y el
+	// teléfono y las notas del huésped van aparte, en properties/{casa}/privado/reserva-{id}, que el dueño no lee.
+	await espera('el equipo crea una reserva a mano con el dueño de la casa', crear('admin1', 'reservas/r-mano', { propertyId: 'mx-noche', propietarioId: 'm1', estado: 'confirmada', canal: 'airbnb', huesped: 'Pedro', costoSocio: 300, alojamiento: 360, ganancia: 60, moneda: 'USD', agentId: '' }), true);
+	await espera('el equipo guarda el contacto del huésped en lo privado de la casa', crear('admin1', 'properties/mx-noche/privado/reserva-r-mano', { telefono: '+502 5555 1234', notas: 'Llega tarde' }), true);
+	await espera('la dueña ve la reserva hecha a mano de su casa', leer('mixto1', 'reservas/r-mano'), true);
+	await espera('la dueña lista las reservas de su casa (por casa y por dueño)', fetch(`${H}:runQuery`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'reservas' }], where: { compositeFilter: { op: 'AND', filters: [
+		{ fieldFilter: { field: { fieldPath: 'propertyId' }, op: 'EQUAL', value: sv('mx-noche') } }, { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: sv('m1') } }] } } } }) }).then((r) => r.status), true);
+	await espera('la dueña no lee el contacto del huésped', leer('mixto1', 'properties/mx-noche/privado/reserva-r-mano'), false);
+	await espera('la dueña no lista lo privado de su casa', leer('mixto1', 'properties/mx-noche/privado'), false);
+	await espera('otro dueño no ve esa reserva', leer('socio2', 'reservas/r-mano'), false);
+	await espera('la dueña crea una reserva a nombre de otro dueño', crear('mixto1', 'reservas/r-otro', { propertyId: 'mx-noche', propietarioId: 'o2', estado: 'confirmada' }), false);
+	await espera('la dueña crea una reserva pendiente (solo confirma)', crear('mixto1', 'reservas/r-pend', { propertyId: 'mx-noche', propietarioId: 'm1', estado: 'pendiente' }), false);
+	await espera('la dueña cambia los montos de su reserva', parche('mixto1', 'reservas/r-mano', ['costoSocio'], { costoSocio: { doubleValue: 999 } }), false);
+	await espera('la dueña cancela su reserva hecha a mano, con motivo (control)', parche('mixto1', 'reservas/r-mano', ['estado', 'motivo', 'updatedAt'], { estado: sv('cancelada'), motivo: sv('Cliente canceló'), updatedAt: { timestampValue: new Date().toISOString() } }), true);
+	await espera('la dueña quita de su casa las fechas reservadas (al cancelar)', parche('mixto1', 'properties/mx-noche', ['vacacional.reservadas', 'updatedAt'], { vacacional: { mapValue: { fields: { reservadas: { arrayValue: { values: [] } } } } }, updatedAt: { timestampValue: new Date().toISOString() } }), true);
 	// El equipo: el asesor no crea ni cambia usuarios
 	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
 	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);

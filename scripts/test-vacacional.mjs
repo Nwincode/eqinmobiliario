@@ -207,6 +207,39 @@ test('reservas: choques, fechas bloqueadas y estado de cuenta', () => {
 		GTQ: { costoSocio: 300, pagado: 0, porPagar: 300, ganancia: 60 } } });
 });
 
+test('reservas: un cambio recalcula las fechas desde las reservas, no desde una lista vieja', () => {
+	const r = (id, llegada, salida, extra = {}) => ({ id, propertyId: 'casa1', llegada, salida, estado: 'confirmada', ...extra });
+	const a = r('a', '2026-12-01', '2026-12-04'), b = r('b', '2026-12-10', '2026-12-12');
+	const guardadas = [{ desde: '2026-12-01', hasta: '2026-12-04' }, { desde: '2026-12-10', hasta: '2026-12-12' }];
+	// Administrador (las ve todas): cancelar «a» deja solo «b», aunque lo guardado traiga algo de más.
+	const cancelada = { ...a, estado: 'cancelada' };
+	igual(V.cambioDeReserva({ guardadas: [...guardadas, { desde: '2026-12-20', hasta: '2026-12-22' }], reservas: [a, b], antes: a, despues: cancelada, propertyId: 'casa1', completas: true }).reservadas,
+		[{ desde: '2026-12-10', hasta: '2026-12-12' }]);
+	// Una pestaña vieja (todavía cree confirmada a «a», ya cancelada) crea «c»: «a» no revive.
+	const c = r('c', '2026-12-05', '2026-12-07');
+	igual(V.cambioDeReserva({ guardadas: [{ desde: '2026-12-10', hasta: '2026-12-12' }], reservas: [cancelada, b], antes: null, despues: c, propertyId: 'casa1', completas: true }).reservadas,
+		[{ desde: '2026-12-05', hasta: '2026-12-07' }, { desde: '2026-12-10', hasta: '2026-12-12' }]);
+	// El socio no ve una reserva de antes (sin propietarioId) del 20 al 22: cancelar «a» no la libera.
+	const conAjena = [...guardadas, { desde: '2026-12-20', hasta: '2026-12-22' }];
+	igual(V.cambioDeReserva({ guardadas: conAjena, reservas: [a, b], antes: a, despues: cancelada, propertyId: 'casa1' }).reservadas,
+		[{ desde: '2026-12-10', hasta: '2026-12-12' }, { desde: '2026-12-20', hasta: '2026-12-22' }]);
+	// ... ni deja reservar encima de ella.
+	igual(V.cambioDeReserva({ guardadas: conAjena, reservas: [a, b], antes: null, despues: r('d', '2026-12-21', '2026-12-23'), propertyId: 'casa1' }).choque,
+		{ llegada: '2026-12-20', salida: '2026-12-22' });
+	// Choque con una reserva confirmada (la salida de una es la llegada de otra: no chocan).
+	assert.equal(V.cambioDeReserva({ guardadas, reservas: [a, b], antes: null, despues: r('e', '2026-12-03', '2026-12-05'), propertyId: 'casa1', completas: true }).choque.id, 'a');
+	assert.equal(V.cambioDeReserva({ guardadas, reservas: [a, b], antes: null, despues: r('e', '2026-12-04', '2026-12-10'), propertyId: 'casa1', completas: true }).choque, null);
+	// Editar las fechas de «a»: no choca consigo misma y libera las de antes.
+	const movida = { ...a, llegada: '2026-12-02', salida: '2026-12-06' };
+	const x = V.cambioDeReserva({ guardadas, reservas: [a, b], antes: a, despues: movida, propertyId: 'casa1' });
+	igual([x.reservadas, x.choque], [[{ desde: '2026-12-02', hasta: '2026-12-06' }, { desde: '2026-12-10', hasta: '2026-12-12' }], null]);
+	// Pasa a otra casa: en la de antes se libera; una pendiente no ocupa fechas.
+	igual(V.cambioDeReserva({ guardadas, reservas: [a, b], antes: a, despues: { ...a, propertyId: 'casa2' }, propertyId: 'casa1' }).reservadas, [{ desde: '2026-12-10', hasta: '2026-12-12' }]);
+	igual(V.cambioDeReserva({ guardadas: [], reservas: [], antes: null, despues: r('p', '2026-12-01', '2026-12-03', { estado: 'pendiente' }), propertyId: 'casa1', completas: true }), { reservadas: [], choque: null });
+	// Borrar: deja de estar en la lista.
+	igual(V.cambioDeReserva({ guardadas, reservas: [a, b], antes: b, despues: null, propertyId: 'casa1', completas: true }).reservadas, [{ desde: '2026-12-01', hasta: '2026-12-04' }]);
+});
+
 test('alertas de solicitudes: sin responder, comisión +72 h y fechas bloqueadas', () => {
 	const gt = (fecha, hora) => Date.parse(`${fecha}T${hora}:00-06:00`);
 	const f = { llegada: '2026-12-10', salida: '2026-12-12' };

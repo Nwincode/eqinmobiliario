@@ -3,9 +3,12 @@
 // se prueba con scripts/test-duenos.mjs.
 import { acuerdoDe } from './acuerdo.js';
 
-// Tiene casas por noche (fichas de antes: «tipo: socio»). No confundir con session.esSocio, que es el ROL del usuario
-// del panel (todo dueño que entra, tenga o no casas por noche).
-export const tieneCasasPorNoche = (d) => Boolean(d?.porNoche) || d?.tipo === 'socio';
+// Tiene casas por noche. Con la lista de propiedades se mira en sus casas (la verdad); sin ella, la marca `porNoche`
+// que asignarDueno (admin/js/enlace-dueno.js) recalcula con cada cambio (fichas de antes: «tipo: socio»).
+// No confundir con session.esSocio, que es el ROL del usuario del panel (todo dueño que entra, tenga o no casas por noche).
+export const tieneCasasPorNoche = (d, propiedades) => (propiedades
+	? casasDe(d, propiedades).some((c) => c.operacion === 'vacacional')
+	: Boolean(d?.porNoche) || d?.tipo === 'socio');
 
 // Un enlace o una foto que se puede mostrar: https o del mismo sitio («/…»); nada de javascript:, data: ni «//otro».
 export const enlaceSeguro = (u) => (/^(https:\/\/|\/(?!\/))/.test(String(u || '')) ? String(u) : '');
@@ -25,8 +28,14 @@ export const reglasNuevasSegun = (status, cuerpo) => status === 403 && cuerpo?.e
 // Cómo se le dice a la persona en el panel (encabezado, Usuarios, su ficha). Entran con el mismo rol («socio»).
 export const etiquetaDueno = (tipo) => (tipo === 'colaborador' ? 'Colaborador' : 'Propietario');
 
-// Casas de una persona: las que dicen ser suyas (propietarioId) y las de su lista.
-export const casasDe = (p, propiedades) => propiedades.filter((c) => c.propietarioId === p.id || (p.propiedades || []).some((x) => x.propertyId === c.id));
+// Casas de una persona. Manda lo que dice la casa (propietarioId); la lista de la persona cuenta solo para las casas
+// que no dicen de quién son (enlazadas antes solo desde la ficha). Una casa que ya es de otro no se le cuenta.
+export const casasDe = (p, propiedades) => propiedades.filter((c) => (c.propietarioId ? c.propietarioId === p.id : (p.propiedades || []).some((x) => x.propertyId === c.id)));
+// Dueño de una casa (la misma regla, al revés): el que la casa dice tener; si no lo dice, el que la tiene en su lista.
+export const duenoDe = (casa, duenos) => (!casa ? null : casa.propietarioId ? duenos.find((d) => d.id === casa.propietarioId) || null
+	: duenos.find((d) => (d.propiedades || []).some((x) => x.propertyId === casa.id)) || null);
+// Tiene dueño (que yo vea o no): lo dice la casa o alguna lista.
+export const conDueno = (casa, duenos) => Boolean(casa?.propietarioId) || Boolean(duenoDe(casa, duenos));
 
 // Al resumen de venta y renta no van las casas por noche: esas el dueño las ve y las cambia en vivo.
 export const vaAlResumen = (casa) => Boolean(casa) && casa.operacion !== 'vacacional';

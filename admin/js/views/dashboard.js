@@ -5,6 +5,7 @@ import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.j
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
 import { exclusivasPorVencer } from '../acuerdo.js';
+import { conDueno } from '../duenos.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -28,15 +29,17 @@ export async function render(container) {
 	const conPendiente = new Set(actividades.filter((a) => !a.hecha && a.clienteId).map((a) => a.clienteId));
 	const sinSeguimiento = clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id));
 	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo); cuento las de los inmuebles con dueño que veo.
-	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && (c.propietarioId || propietarios.some((p) => (p.propiedades || []).some((x) => x.propertyId === c.id))));
+	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && conDueno(c, propietarios));
 	const exclusivas = exclusivasPorVencer(conDueno, await loadAcuerdos(conDueno), propietarios);
 	let props = todas;
 	if (!session.isAdmin) props = props.filter((p) => p.agentId === session.agentId);
 
 	const monthAgo = Date.now() - 30 * 24 * 3600 * 1000;
-	const last30 = leads.filter((l) => (toDate(l.createdAt)?.getTime() || 0) > monthAgo);
-	const nuevos = leads.filter((l) => (l.estado || 'nuevo') === 'nuevo');
-	const byEstado = ESTADOS.map(([v, l]) => [l, leads.filter((x) => (x.estado || 'nuevo') === v).length]);
+	// Interesados del CRM: las solicitudes de reserva por noche van aparte (Solicitudes, tarjeta de alertas).
+	const interesados = leads.filter((l) => !window.EQVacacional.esSolicitudReserva(l));
+	const last30 = interesados.filter((l) => (toDate(l.createdAt)?.getTime() || 0) > monthAgo);
+	const nuevos = interesados.filter((l) => (l.estado || 'nuevo') === 'nuevo');
+	const byEstado = ESTADOS.map(([v, l]) => [l, interesados.filter((x) => (x.estado || 'nuevo') === v).length]);
 	const byOrigen = Object.entries(last30.reduce((acc, l) => { const k = fuenteLead(l).split(' · ')[0]; acc[k] = (acc[k] || 0) + 1; return acc; }, {}));
 	const max = Math.max(1, ...byEstado.map(([, n]) => n));
 
@@ -67,7 +70,7 @@ export async function render(container) {
 		canSeeLeads ? h('div', { class: 'row g-3' },
 			h('div', { class: 'col-lg-7' }, h('div', { class: 'card h-100' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Leads recientes'),
-				leads.length ? h('ul', { class: 'list-group list-group-flush' }, leads.slice(0, 8).map((l) =>
+				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) =>
 					h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 						h('div', { class: 'me-auto' },
 							h('div', { class: 'fw-semibold' }, l.nombre),

@@ -9,7 +9,8 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { acuerdoDe } from '../acuerdo.js';
+import { acuerdoDe, comisionDe } from '../acuerdo.js';
+import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
@@ -539,7 +540,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 	let inventario = [];
 	let duenos = [];
 	let agentes = [];
-	const duenoDe = (pid) => (pid ? duenos.find((o) => o.id === inventario.find((p) => p.id === pid)?.propietarioId || (o.propiedades || []).some((x) => x.propertyId === pid)) : null);
+	// Regla general de comisión (settings/crm); hasta que se lea vale la de siempre.
+	let reglas = null;
+	const duenoDe = (pid) => (pid ? duenoDeCasa(inventario.find((p) => p.id === pid) || { id: pid }, duenos) : null);
 	const agenteDe = (pid) => agentes.find((a) => a.id === inventario.find((p) => p.id === pid)?.agentId);
 	const nombreSesion = session.profile?.nombre || '';
 	function ponerAsesor(a) {
@@ -560,16 +563,21 @@ async function editor(container, id, { duplicar = false } = {}) {
 		if (i >= 0) {
 			const op = c.propiedad.operacion;
 			const tipo = op === 'venta' ? 'compraventa' : op === 'renta' && base(c.lineas[i]) !== 'renta' ? 'arrendamiento' : c.lineas[i].tipo;
-			const l = tipo === c.lineas[i].tipo ? c.lineas[i] : (c.lineas[i] = lineaVacia(tipo));
+			const l = tipo === c.lineas[i].tipo ? c.lineas[i] : (c.lineas[i] = lineaVacia(tipo, 'USD', reglas));
 			// La tarifa por noche de una renta vacacional no es base de ningún servicio: se deja para escribirla.
 			l[base(l)] = p && op !== 'vacacional' ? c.propiedad.precio ?? '' : '';
 			if (p) l.moneda = c.propiedad.moneda;
-			// Comisión acordada para este inmueble (privado/acuerdo; si aún no tiene, lo que quedó en su dueño).
-			if (p && l.tipo === 'compraventa') {
+			// Comisión de este inmueble (comisionDe: su acuerdo en privado/acuerdo, o lo que quedó en su dueño; si no, la
+			// regla general): el % de la compraventa o los meses por año del arrendamiento, y cómo se cobra.
+			if (p && ['compraventa', 'arrendamiento'].includes(l.tipo) && ['venta', 'renta'].includes(op)) {
 				const pid = p.id;
 				getDoc(doc(db, 'properties', pid, 'privado', 'acuerdo')).then((s) => (s.exists() ? s.data() : null), () => null).then((propio) => {
-					const pct = Number(acuerdoDe(propio, duenoDe(pid), 'venta').comisionPct);
-					if (pct > 0 && c.propiedad.id === pid && c.lineas.includes(l)) { l.pct = pct; pintarLineas(); }
+					if (c.propiedad.id !== pid || !c.lineas.includes(l)) return;
+					const com = comisionDe(op, acuerdoDe(propio, duenoDe(pid), op), reglas);
+					if (l.tipo === 'compraventa' && com.tipo === 'pct') l.pct = com.valor;
+					if (l.tipo === 'arrendamiento' && com.tipo === 'meses') l.mesesPorAnio = com.valor;
+					if (com.modo && com.modo !== c.modo) { c.modo = com.modo; const r = modoRadios.querySelector(`input[value="${com.modo}"]`); if (r) r.checked = true; pintarAyudaModo(); }
+					pintarLineas(); cambio();
 				});
 			}
 		}
@@ -645,7 +653,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 				h('div', { class: 'cot-linea-head' },
 					h('span', { class: `${ICONOS[l.tipo] || 'icon-pencil'} cot-linea-icono`, 'aria-hidden': 'true' }),
 					h('label', { class: 'visually-hidden', for: idTipo }, `Servicio ${i + 1}`),
-					h('select', { class: 'form-select cot-linea-tipo', id: idTipo, onchange: (e) => { const nuevo = lineaVacia(e.target.value, l.moneda); nuevo.precio = l.precio; nuevo.renta = l.renta; c.lineas[i] = nuevo; pintarLineas(); cambio(); } },
+					h('select', { class: 'form-select cot-linea-tipo', id: idTipo, onchange: (e) => { const nuevo = lineaVacia(e.target.value, l.moneda, reglas); nuevo.precio = l.precio; nuevo.renta = l.renta; c.lineas[i] = nuevo; pintarLineas(); cambio(); } },
 						SERVICIOS.map(([v, t]) => h('option', { value: v, selected: l.tipo === v }, t))),
 					quitar),
 				h('div', { class: 'row g-3' }, campos),
@@ -699,7 +707,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		h('div', { class: 'cot-agregar-botones', role: 'group', 'aria-labelledby': uid('agregar') },
 			SERVICIOS.map(([v, t]) => h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm cot-btn', onclick: () => {
 				const ult = c.lineas[c.lineas.length - 1];
-				c.lineas.push(lineaVacia(v, ult?.moneda || 'USD')); pintarLineas(); cambio();
+				c.lineas.push(lineaVacia(v, ult?.moneda || 'USD', reglas)); pintarLineas(); cambio();
 				contLineas.lastElementChild?.querySelector('input[type="number"], input:not([type])')?.focus();
 			} }, h('span', { class: `${ICONOS[v]} me-2`, 'aria-hidden': 'true' }), v === 'administracion' ? 'Administración' : t))));
 	const servicios = h('section', { class: 'card cot-grupo mb-3' },
@@ -999,7 +1007,13 @@ async function editor(container, id, { duplicar = false } = {}) {
 	// Clientes y propiedades: aparte, para que la cotización funcione aunque falle la lectura.
 	// El asesor solo ve sus clientes (reglas de Firestore); las propiedades son todas las del inventario.
 	const porNombre = (a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
-	const { loadClientes, loadPropietarios } = await import('../crm.js');
+	const { loadClientes, loadPropietarios, loadReglas } = await import('../crm.js');
+	// Cotización nueva sin inmueble: la compraventa empieza con el % de la regla general.
+	loadReglas().then((r) => {
+		reglas = r;
+		const l = c.lineas[0];
+		if (!id && !c.propiedad.id && l?.tipo === 'compraventa' && !l.precio) { c.lineas[0] = lineaVacia('compraventa', l.moneda, r); pintarLineas(); }
+	});
 	loadPropietarios().then((l) => { duenos = l; }).catch((err) => console.warn('Cotización: no se pudieron leer los propietarios', err));
 	loadAgents().then((l) => { agentes = l; pintarAsesor(); }).catch((err) => console.warn('Cotización: no se pudieron leer los asesores', err));
 	loadClientes().then((l) => selCliente.cargar(l.filter((x) => x.nombre).sort(porNombre)))

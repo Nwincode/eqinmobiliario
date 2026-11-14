@@ -1,5 +1,6 @@
 // Utilidades de interfaz del panel.
 import { dinero } from './formato.js';
+import '/js/calc-vacacional.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -60,7 +61,8 @@ export function formatDate(v, withTime = true) {
 }
 
 // Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
-export const hoy = () => new Date().toLocaleDateString('en-CA');
+// «Hoy» es el día de Guatemala, el mismo del sitio y de las funciones (una sola cuenta: js/calc-vacacional.js).
+export const hoy = () => window.EQVacacional.hoy();
 export const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
 
 export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
@@ -141,6 +143,20 @@ export function confirmDialog(message, { okText = 'Confirmar', danger = true } =
 			onClose: () => { if (!answered) resolve(false); }
 		});
 		ok.addEventListener('click', () => { answered = true; resolve(true); m.close(); });
+	});
+}
+
+// Un toque para elegir una opción (p. ej. por qué se cancela): devuelve la elegida, o null si se cerró.
+export function elegirOpcion(titulo, opciones) {
+	return new Promise((resolve) => {
+		let elegida = null;
+		const m = modal({
+			title: titulo,
+			body: h('div', { class: 'd-grid gap-2' }, opciones.map((t) => h('button', {
+				type: 'button', class: 'cot-btn btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
+			}, t))),
+			onClose: () => resolve(elegida)
+		});
 	});
 }
 

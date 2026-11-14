@@ -1,7 +1,9 @@
 // Acuerdo con el dueño por inmueble (admin/js/acuerdo.js): qué aplica a cada operación, la herencia de los datos
 // que antes vivían en la persona, las exclusivas por vencer y qué campos viejos ya se pueden borrar.
 import assert from 'node:assert/strict';
-import { camposDelAcuerdo, acuerdoHeredado, acuerdoDe, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../admin/js/acuerdo.js';
+import { camposDelAcuerdo, acuerdoHeredado, acuerdoDe, diasExclusiva, exclusivasPorVencer, legadoSobrante, comisionDe, montoComision, textoComision, REGLAS_POR_DEFECTO } from '../admin/js/acuerdo.js';
+import { calcularLinea, mesesArrendamiento, lineaVacia } from '../admin/js/cotizacion.js';
+import { duenoDe, casasDe } from '../admin/js/duenos.js';
 
 // Cada operación con lo suyo
 assert.ok(camposDelAcuerdo('venta').includes('impuestoVenta') && camposDelAcuerdo('venta').includes('comisionPct'));
@@ -49,5 +51,36 @@ assert.deepEqual(legadoSobrante(dueno, dosCasas, ['v1', 'r1']).sort(), ['comisio
 // Sin casa en venta, la comisión de venta y los impuestos no tienen dónde caer: se quedan en la persona
 assert.deepEqual(legadoSobrante(dueno, [{ id: 'n1', operacion: 'vacacional' }], ['n1']).sort(), ['exclusiva', 'exclusivaFin']);
 assert.deepEqual(legadoSobrante(dueno, [], []), []);
+
+// Comisión de un inmueble: acuerdo → regla general → la de siempre; un 0 acordado vale 0
+const general = { comisionVentaPct: 6, comisionRentaMeses: 2 };
+assert.deepEqual([comisionDe('venta', { comisionPct: 4 }, general).valor, comisionDe('venta', { comisionPct: 4 }, general).fuente], [4, 'acuerdo']);
+assert.deepEqual([comisionDe('venta', {}, general).valor, comisionDe('venta', {}, general).fuente], [6, 'general']);
+assert.equal(comisionDe('venta', { comisionPct: '' }, null).valor, REGLAS_POR_DEFECTO.comisionVentaPct);
+assert.equal(comisionDe('venta', { comisionPct: 0 }, general).valor, 0);
+assert.deepEqual([comisionDe('renta', { comisionRentaMeses: 1.5 }, general).tipo, comisionDe('renta', { comisionRentaMeses: 1.5 }, general).valor], ['meses', 1.5]);
+assert.equal(comisionDe('renta', null, general).valor, 2);
+assert.equal(comisionDe('renta', null, undefined).valor, 1);
+assert.equal(comisionDe('vacacional', { comisionPct: 4 }, general), null); // por noche: margen, no comisión
+assert.deepEqual([comisionDe('venta', { comisionRegimen: 'general', comisionModo: 'separado' }).regimen, comisionDe('venta', { comisionModo: 'separado' }).modo], ['general', 'separado']);
+assert.equal(montoComision(comisionDe('venta', { comisionPct: 4 }), 100000), 4000);
+assert.equal(montoComision(comisionDe('renta', { comisionRentaMeses: 1.5 }), 1000), 1500);
+assert.equal(montoComision(comisionDe('renta', null), 1000, mesesArrendamiento(7)), 6000); // 7 años = 6 rentas
+assert.equal(montoComision(null, 1000), 0);
+assert.deepEqual([textoComision(comisionDe('venta')), textoComision(comisionDe('renta'))], ['5 %', '1 mes de renta']);
+// La cotización usa la misma cuenta: con lo de siempre no cambia ningún número
+assert.equal(calcularLinea({ ...lineaVacia('compraventa'), precio: 100000 }, 'general', 'separado').honorario, 5000);
+assert.equal(calcularLinea({ ...lineaVacia('compraventa', 'USD', general), precio: 100000 }, 'general', 'separado').honorario, 6000);
+assert.equal(calcularLinea({ ...lineaVacia('arrendamiento'), renta: 1000, anios: 7 }, 'general', 'separado').honorario, 6000);
+assert.equal(calcularLinea({ ...lineaVacia('arrendamiento'), renta: 1000, anios: 2, mesesPorAnio: 1.5 }, 'general', 'separado').honorario, 3000);
+assert.equal(calcularLinea({ tipo: 'arrendamiento', renta: 1000, anios: 1 }, 'general', 'separado').honorario, 1000); // cotización de antes, sin mesesPorAnio
+
+// Dueño de una casa: manda la casa; la lista solo para las que no dicen de quién son
+const ana = { id: 'ana', propiedades: [{ propertyId: 'c1' }, { propertyId: 'c2' }] }, beto = { id: 'beto', propiedades: [] };
+const c1 = { id: 'c1', propietarioId: 'beto' }, c2 = { id: 'c2' };
+assert.equal(duenoDe(c1, [ana, beto]).id, 'beto');
+assert.equal(duenoDe(c2, [ana, beto]).id, 'ana');
+assert.equal(duenoDe({ id: 'c3' }, [ana, beto]), null);
+assert.deepEqual(casasDe(ana, [c1, c2]).map((c) => c.id), ['c2']);
 
 console.log('Acuerdo por inmueble: todo bien.');
