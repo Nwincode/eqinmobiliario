@@ -112,9 +112,11 @@ async function casa(container, id) {
 	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
 	// casa y la bitácora. Devuelve true si quedó guardado; la pantalla se pone al día con lo que quedó.
 	async function guardar(descripcion, cambio) {
+		let sinPrecioPropio = false;
 		try {
 			const r = await runTransaction(db, async (tx) => {
 				const [c, so] = await Promise.all([tx.get(refCasa), tx.get(refSocio)]);
+				sinPrecioPropio = !so.exists();
 				const cv = c.data()?.vacacional || {}, sv = so.exists() ? so.data() : {};
 				const actual = { base: Number(sv.precioBase) || 0, finde: Number(sv.precioFinde) || 0, tarifas: sv.tarifas || [],
 					bloqueos: V.unirRangos(cv.bloqueos || []), minimos: cv.minimos || [], huespedes: huespedesMaxDe(cv.huespedesMax) };
@@ -155,7 +157,12 @@ async function casa(container, id) {
 			markPending(`${p.titulo}: ${descripcion}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
 			toast('Guardado.');
 			return true;
-		} catch (err) { showError(err); return false; }
+		} catch (err) {
+			// Casa por noche sin su precio guardado todavía: con las reglas de antes el dueño no puede crearlo.
+			if (sinPrecioPropio && err?.code === 'permission-denied') toast('Esta casa todavía no tiene tu precio registrado. Pídele al administrador que lo ponga en la ficha de la casa; después ya puedes cambiarlo aquí.', 'warning');
+			else showError(err);
+			return false;
+		}
 		finally { pintar(); }
 	}
 

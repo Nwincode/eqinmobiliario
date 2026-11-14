@@ -41,7 +41,7 @@ export function money(monto, moneda = 'USD') {
 async function cargar(nombre, filtroAsesor = '') {
 	const col = collection(db, nombre);
 	let q = col;
-	if (!session.isAdmin) q = query(col, where('agentId', '==', session.agentId || '-'));
+	if (!session.isAdmin) q = query(col, where('agentId', '==', session.agentFiltro));
 	else if (filtroAsesor) q = query(col, where('agentId', '==', filtroAsesor));
 	const snap = await getDocs(q);
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

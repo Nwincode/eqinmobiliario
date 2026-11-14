@@ -50,4 +50,16 @@ test('ningún aviso lleva teléfono ni correo de la otra parte', () => {
 });
 test('cliente en inglés: su correo va en inglés', () => assert.match(avisos([m('cliente', 5), m('socio', 1)], { idioma: 'en' })[0].asunto, /you have a reply/));
 
+test('el título del correo sale de la casa guardada, no del chat', () => {
+	const casa = { titulo: 'Casa de playa en Monterrico', en: { titulo: 'Beach house in Monterrico' } };
+	const nuevo = (extra) => avisosChat({ chat: { ...chat, propertyTitulo: 'Gana dinero en estafa.example', ...extra }, casa, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	const a = nuevo({});
+	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro) && !/estafa/.test(JSON.stringify(x))));
+	assert.match(nuevo({ idioma: 'en' })[1].intro, /Beach house in Monterrico/);
+	assert.ok(avisosChat({ chat, casa: null, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA }).every((x) => !/Casa de playa ·/.test(x.intro)));
+});
+test('código o fechas con texto libre: no sale ningún correo', () => {
+	assert.equal(avisos([], { codigo: 'Visita estafa.example' }).length, 0);
+	assert.equal(avisos([], { llegada: 'gana $$$' }).length, 0);
+});
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
