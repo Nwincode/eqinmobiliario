@@ -47,7 +47,8 @@ Las rutas son desde la raíz del repositorio.
 - `scripts/lib/templates.mjs`: el HTML de cada página (`layout`, `listingPage`, `propertyPage`, `leadForm`, `reservaBox`, `reservaPage`…).
 - `scripts/lib/i18n.mjs`: **todos** los textos, en español e inglés, y las rutas de cada idioma. El sitio público usa «tú».
 - `scripts/lib/util.mjs`: `lugarDe` (lugar sin repetir) y `departamentoDe` (tabla de municipios → departamento).
-- `scripts/lib/assets.mjs`: empaqueta CSS y JS y quita el CSS sin uso (las clases que solo crea JavaScript van en `SAFELIST`).
+- `scripts/lib/assets.mjs`: empaqueta CSS y JS y quita el CSS sin uso (las clases que solo crea JavaScript van en `SAFELIST`). Pone delante de `js/site.js` lo de `admin/js/formato.js` que usa el navegador (`window.EQFormato`: `correoValido`, `montoPrecio`, `enUSD`; lista `FORMATO_NAVEGADOR`) y cambia la fuente de íconos por la del sitio (`fonts/icomoon/fonts/icomoon-sitio.woff2`, solo los íconos que usa; se regenera con `node scripts/fuente-iconos.mjs` cuando el build avisa «íconos fuera de la fuente del sitio»).
+- Fotos: `scripts/lib/templates.mjs` `imgFoto` es la única pieza que escribe una foto (tarjetas, galería de la ficha, VIP, blog, servicios): original en `src`, versiones del CDN de imágenes de Netlify (`/.netlify/images?url=…&w=…`, `netlify.toml` → `[images]`) en `srcset`, width/height con la proporción. En local, `scripts/serve.mjs` redirige ese CDN a la foto original.
 - En el navegador:
   - `js/site.js`: formularios (guarda el lead), filtros, seguimiento.
   - `js/calc-vacacional.js`: fórmulas de la renta por noche y filtro de contacto del chat. **Lo usan el sitio, el panel y las funciones.**
@@ -119,6 +120,12 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **«Hoy»** → `js/calc-vacacional.js` `hoy()` (día de Guatemala; lo usan el sitio, el panel (`admin/js/ui.js` `hoy`) y las funciones) → `scripts/test-vacacional.mjs`.
 
+**Precio para ordenar y filtrar (Q y US$)** → `admin/js/formato.js` `TIPO_CAMBIO` / `enUSD` (único tipo de cambio de referencia) → `scripts/lib/templates.mjs` `propertyCard` (`data-precio` en US$) → `js/site.js` (`apply`; la búsqueda por frase pasa a US$ un monto en Q) → `admin/js/reglas.js` (búsquedas sin IA) y `netlify/lib/tareas.mjs` (instrucción a la IA). Aparte, editables: el de la cotización (`settings/cotizacion`, inicial `TC_DEF` en `admin/js/cotizacion.js`) y el de la calculadora de renta (`js/calc-renta.js` `PARAMS.tipoCambio`).
+
+**Horario de atención** → un solo dato, `contacto.horario` en español (Contenido) → `admin/js/formato.js` `horarioEn` (días y 24 h → a.m./p.m.) → `scripts/build.mjs` (lo pone en el sitio en inglés; `en.contacto.horario` ya no se usa ni se edita).
+
+**Correo de un formulario** → `admin/js/formato.js` `correoValido` → `js/site.js` (por `EQFormato`) y `netlify/lib/correo.mjs`.
+
 **Enlace de WhatsApp** → `admin/js/formato.js` `telefonoWa` / `whatsappUrl` → `scripts/lib/util.mjs` `whatsappLink` → `scripts/build.mjs` (config del sitio) → `admin/js/portal.js`.
 
 **Etiqueta de la operación** («Venta», «en renta vacacional», hashtag) → `admin/js/estados.js` (`OPERACIONES`, `operacionDe`, `enOperacion`, `operacionHashtag`, en español o inglés; `properties.js` reexporta `OPERACIONES`) → `listado.js`, `difusion.js`, `reglas.js`, `seo-auto.js`, `cotizacion.js`. El precio con su operación («/mes», «por noche») → `admin/js/formato.js` `precioTexto` (el generador aún tiene su copia en `scripts/lib/util.mjs` `formatPrice`). Una casa por noche no entra donde se compara un precio de compra o de renta al mes: `calculadora.js` y `reglas.js` `evaluar`.
@@ -154,7 +161,7 @@ Cada cadena va en el orden en que conviene revisarla.
   de prueba (administrador, asesor, socio y colaborador; a la dueña mixta le da acceso el recorrido); `npm run recorrido` hace la reserva por noche de punta a punta entrando al panel como administrador, socio y
   asesor, y como cliente. Los correos no se envían: quedan anotados. `levantar.sh publicar` hace lo que el botón Publicar.
 - Qué revisar antes de unir: `docs/revision-antes-de-unir.md`.
-- Sitio: `npm run build` y `npm run serve` (sirve `dist/`; `DIST_DIR=…` sirve otra carpeta). `GUARDAR=<carpeta> node scripts/test-sitio.mjs` deja el sitio de ejemplo para verlo.
+- Sitio: `npm run build` y `npm run serve` (sirve `dist/`; `DIST_DIR=…` sirve otra carpeta; las fotos del CDN de Netlify se redirigen a la original). `GUARDAR=<carpeta> node scripts/test-sitio.mjs` deja el sitio de ejemplo para verlo.
 - Dentro de un lote las reglas ven el estado anterior: lo que depende de un cambio previo va en dos pasos.
 - Panel: datos inventados; nunca la base real.
 - No se puede probar en local: que un correo llegue de verdad a una bandeja, las funciones programadas y lo propio de Netlify.
