@@ -5,6 +5,13 @@ export const M2_A_FT2 = 10.7639;
 // Vara cuadrada de Guatemala: 1 v² = 0.698737 m².
 export const M2_A_V2 = 1.43115;
 
+// Tipo de cambio de referencia (quetzales por dólar). Uno solo para ordenar y filtrar precios en Q y en US$
+// en el sitio (el generador pone `data-precio` en US$), y para las búsquedas sin IA del panel (reglas.js).
+// La cotización tiene el suyo, editable, en settings/cotizacion (admin/js/cotizacion.js `TC_DEF` es el inicial).
+export const TIPO_CAMBIO = 7.7;
+// Un monto en US$ (para comparar precios en monedas distintas). Sin moneda se toma US$.
+export const enUSD = (n, moneda) => (moneda === 'GTQ' ? (Number(n) || 0) / TIPO_CAMBIO : Number(n) || 0);
+
 const PREFIJO_MONEDA = { USD: 'US$', GTQ: 'Q' };
 export const prefijoMoneda = (moneda) => PREFIJO_MONEDA[moneda] || moneda;
 
@@ -35,6 +42,54 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 }
 // «1 noche», «3 noches».
 export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
+
+// ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
+// («ana@» o «ana@correo» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
+// y las funciones.
+export const correoValido = (correo) => {
+	const c = String(correo || '').trim();
+	return c.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.\d]{2,}$/.test(c);
+};
+
+// Horario de atención en inglés a partir del escrito en español (un solo dato: Contenido → Contacto → Horario).
+// Frases, días, conectores y horas de 24 h a 12 h: «Lunes a sábado, 8:00 a 17:00» → «Monday to Saturday, 8:00 a.m. to 5:00 p.m.».
+// Lo que no reconoce lo deja como está (scripts/test-sitio.mjs tiene los casos).
+const FRASES_EN = [[/todos los d[ií]as/gi, 'every day'], [/(con )?cita previa/gi, 'by appointment'], [/24 horas/gi, '24 hours'], [/hora de guatemala/gi, 'Guatemala time']];
+const PALABRAS_EN = { lunes: 'Monday', martes: 'Tuesday', miercoles: 'Wednesday', jueves: 'Thursday', viernes: 'Friday', sabado: 'Saturday', sabados: 'Saturdays',
+	domingo: 'Sunday', domingos: 'Sundays', feriado: 'holiday', feriados: 'holidays', festivos: 'holidays', cerrado: 'closed', abierto: 'open',
+	a: 'to', al: 'to', hasta: 'to', y: 'and', e: 'and', o: 'or', de: 'from', desde: 'from', con: 'by', cita: 'appointment', los: '', las: '', solo: 'only' };
+export function horarioEn(horario) {
+	const horas = [];
+	const guardar = (h, m = '00', ap = '') => {
+		const n = Number(h);
+		const doce = ap ? `${n % 12 || 12}:${m} ${ap.toLowerCase()}.m.` : n > 24 || Number(m) > 59 ? `${h}:${m}` : `${n % 12 || 12}:${m} ${n >= 12 && n < 24 ? 'p.m.' : 'a.m.'}`;
+		horas.push(doce);
+		return `\u0000${horas.length - 1}\u0000`;
+	};
+	let en = String(horario || '').trim();
+	for (const [re, x] of FRASES_EN) en = en.replace(re, x);
+	en = en
+		.replace(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b\.?/gi, (_, h, m, ap) => guardar(h, m, ap)) // «8 a. m.», «5:30 pm»
+		.replace(/\b(\d{1,2}):(\d{2})(?:\s*(?:h|hrs|horas)\b)?/g, (_, h, m) => guardar(h, m)) // «17:00», «17:00 h»
+		.replace(/\b(\d{1,2})\s*(?:h|hrs|horas)\b/g, (_, h) => guardar(h)) // «17 h»
+		.replace(/[A-Za-zÁÉÍÓÚáéíóúÑñ]+/g, (w) => {
+			const k = w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+			return Object.hasOwn(PALABRAS_EN, k) ? PALABRAS_EN[k] : w;
+		})
+		.replace(/\u0000(\d+)\u0000/g, (_, i) => horas[i])
+		.replace(/\s{2,}/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
+	return en.charAt(0).toUpperCase() + en.slice(1);
+}
+
+// Texto en inglés con los m² también en pies cuadrados: «149 m² apartment» → «149 m² (1,604 sq ft) apartment».
+// Lo que ya trae sus sq ft al lado («1,604 sq ft (149 m²)», «2,226 m² (23,966 sq ft)») no se toca.
+export function conPiesCuadrados(texto) {
+	// Sin «lookbehind» (Safari viejo no lo lee y este archivo lo usa todo el panel): el carácter de antes se captura.
+	return String(texto || '').replace(/(^|[^(\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\s?m(?:²|2\b))(?!\s*\(?[\d,.]+\s*sq\s*ft)/g, (todo, antes, entero, dec = '', unidad) => {
+		const m2 = Number(entero.replace(/,/g, '') + dec);
+		return m2 ? `${antes}${entero}${dec}${unidad} (${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft)` : todo;
+	});
+}
 
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
 // Códigos de país que ofrece cada campo de teléfono, primero los que más escriben; cualquier otro

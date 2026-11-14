@@ -9,7 +9,7 @@ import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
 import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
-import { montoPrecio, telefonoWa } from '../admin/js/formato.js';
+import { montoPrecio, telefonoWa, horarioEn, conPiesCuadrados } from '../admin/js/formato.js';
 import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
@@ -138,10 +138,11 @@ function propiedadEn(p) {
 		_lang: 'en',
 		slug: slugify(e.slug || e.titulo) || p.slug,
 		titulo: e.titulo,
-		descripcion: sinBloquesGenerados(e.descripcion),
+		// En inglés, cada m² con sus pies cuadrados (descripción, meta y JSON-LD).
+		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
 		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
-		seo: seoTraducido(p, e.seo),
+		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
 		vacacional: p.vacacional && { ...p.vacacional, ...Object.fromEntries(Object.entries(e.vacacional || {}).filter(([, x]) => x)) },
 		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
@@ -547,6 +548,8 @@ async function main() {
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const nombre = site.general.nombreCorto;
 	const siteEn = enActivo ? deepMerge(site, site.en || {}) : null;
+	// El horario se escribe una vez, en español; el de inglés sale de él (un `en.contacto.horario` viejo se ignora).
+	if (siteEn) siteEn.contacto = { ...siteEn.contacto, horario: horarioEn(site.contacto.horario) };
 	const pagesEn = enActivo ? normalizePages(data.pagesEn, '/en') : [];
 	// Listados y páginas de aterrizaje de los dos idiomas (scripts/lib/landings.mjs). Se planean antes de escribir
 	// nada: de ellos dependen los enlaces de todas las páginas (menú, pie, migas, enlaces del blog).

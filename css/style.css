@@ -10135,9 +10135,9 @@ textarea {
 
 .custom-pagination a {
   display: inline-block;
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
   font-weight: 700;
   border-radius: 50%;
   background: color-mix(in srgb, var(--eq-dark) 10%, transparent);

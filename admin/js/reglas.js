@@ -1,10 +1,9 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
-import { M2_A_FT2, dinero, decimales, precioTexto } from './formato.js';
+import { M2_A_FT2, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD } from './formato.js';
 import { enOperacion, operacionHashtag } from './estados.js';
 import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
-const TC = 7.7; // 1 US$ ≈ 7.7 Q
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
 const TIPO_ES = { casa: 'Casa', apartamento: 'Apartamento', terreno: 'Terreno', oficina: 'Oficina', local: 'Local comercial', bodega: 'Bodega', finca: 'Finca' };
 const TIPO_EN = { casa: 'House', apartamento: 'Apartment', terreno: 'Lot', oficina: 'Office', local: 'Retail space', bodega: 'Warehouse', finca: 'Farm' };
@@ -25,7 +24,6 @@ const n = (v) => Number(v) || 0;
 const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 // El precio con su operación («/mes», «por noche»): el formato único de formato.js.
 const precioDe = (p) => precioTexto(p.precio, p.moneda, p.operacion);
-const enUSD = (precio, moneda) => (moneda === 'GTQ' ? n(precio) / TC : n(precio));
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
 const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');

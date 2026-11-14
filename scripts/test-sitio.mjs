@@ -9,9 +9,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedEjemplo } from './lib/sitio-ejemplo.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
-import { precioTexto, dinero } from '../admin/js/formato.js';
+import { precioTexto, dinero, TIPO_CAMBIO, enUSD, correoValido, horarioEn, conPiesCuadrados } from '../admin/js/formato.js';
 import { formatPrice } from './lib/util.mjs';
-import { celdaGaleriaVip } from './lib/templates.mjs';
+import { celdaGaleriaVip, imgFoto } from './lib/templates.mjs';
+import { codigosEnCss } from './lib/assets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-sitio-'));
@@ -53,7 +54,7 @@ test('todo JSON-LD se puede leer', () => {
 });
 
 test('sitemap = exactamente las páginas que se indexan (salvo fichas vendidas o pausadas)', () => {
-	const indexables = Object.keys(html).filter((u) => indexa(html[u]) && !/ficha-cerrada|<h2 id="ficha-aviso-titulo">/.test(html[u]));
+	const indexables = Object.keys(html).filter((u) => indexa(html[u]) && !/ficha-cerrada|id="ficha-aviso-titulo"/.test(html[u]));
 	assert.deepEqual([...sitemap].sort(), indexables.sort());
 });
 
@@ -217,6 +218,83 @@ test('galería VIP: sin celdas sueltas con cualquier número de fotos', () => {
 		const cel = celdas.slice(1).reduce((a, c) => a + (/vg-m2/.test(c) ? 2 : 1), 0);
 		assert.equal(cel % 2, 0, `${n} fotos: en celular queda una celda suelta`);
 	}
+});
+
+test('precios de las tarjetas en US$ (un tipo de cambio): Q 970,000 queda debajo de US$ 378,200 al ordenar', () => {
+	const h = de('/propiedades/');
+	const precios = [...h.matchAll(/class="property-item"[^>]*data-precio="(\d+)"/g)].map((m) => Number(m[1]));
+	assert.ok(precios.includes(Math.round(970000 / TIPO_CAMBIO)), 'la casa de Q 970,000 no está en US$');
+	assert.ok(!precios.includes(970000) && !precios.includes(2500000), 'quedan precios en quetzales');
+	assert.match(h, /Precio mínimo \(US\$\)<\/label>/);
+});
+
+test('buscador de las tarjetas sin «undefined» ni espacios dobles cuando falta un dato', () => {
+	for (const [u, h] of Object.entries(html)) {
+		for (const m of h.matchAll(/data-texto="([^"]*)"/g)) assert.ok(!/undefined|null|\s{2}/.test(m[1]), `${u}: «${m[1]}»`);
+	}
+});
+
+test('títulos en orden en todas las páginas (sin saltar de h1 a h3, nada antes del h1)', () => {
+	for (const [u, h] of Object.entries(html)) {
+		let antes = 0;
+		for (const m of h.matchAll(/<h([1-6])\b/g)) {
+			assert.ok(Number(m[1]) <= antes + 1, `${u}: h${antes} → h${m[1]}`);
+			antes = Number(m[1]);
+		}
+	}
+});
+
+test('fotos: srcset del CDN de Netlify, la original de respaldo y width/height con la proporción pedida', () => {
+	let fotos = 0;
+	for (const [u, h] of Object.entries(html)) {
+		for (const [img] of h.matchAll(/<img [^>]*srcset="[^"]*"[^>]*>/g)) {
+			fotos++;
+			const src = attr(img, /src="([^"]+)"/), w = Number(attr(img, /width="(\d+)"/)), alto = Number(attr(img, /height="(\d+)"/));
+			assert.ok(!src.startsWith('/.netlify/'), `${u}: src debe ser la original`);
+			for (const [, url, ancho] of attr(img, /srcset="([^"]+)"/).matchAll(/(\S+) (\d+)w/g)) {
+				assert.equal(url.replace(/&amp;/g, '&'), `/.netlify/images?url=${encodeURIComponent(src.replace(/&amp;/g, '&'))}&w=${ancho}`, u);
+			}
+			assert.ok(w > 0 && alto > 0 && [4 / 3, 16 / 10, 16 / 9, 3 / 2].some((r) => Math.abs(w / alto - r) < 0.01), `${u}: ${w}×${alto}`);
+		}
+	}
+	assert.ok(fotos > 50, `solo ${fotos} fotos con srcset`);
+	assert.equal(imgFoto('/images/a.webp', { sizes: '100vw', anchos: [480, 800], aspecto: [16, 9] }).match(/width="(\d+)" height="(\d+)"/).slice(1).join('×'), '800×450');
+	assert.doesNotMatch(imgFoto('https://otro.com/a.jpg', { sizes: '100vw' }), /srcset/, 'una foto de otro sitio no pasa por el CDN');
+});
+
+test('íconos: la fuente del sitio tiene todos los que pide el CSS (sin bajar la completa)', () => {
+	const { sitio } = JSON.parse(readFileSync(path.join(ROOT, 'fonts/icomoon/sitio.json'), 'utf8'));
+	const css = readFileSync(path.join(dist, attr(de('/'), /href="(\/assets\/[^"]+\/site\.css)"/)), 'utf8');
+	const faltan = codigosEnCss(css).filter((c) => !sitio.includes(c.toString(16)));
+	assert.deepEqual(faltan.map((c) => c.toString(16)), [], 'regenera con node scripts/fuente-iconos.mjs');
+	assert.match(css, /icomoon-sitio\.woff2\?v=/);
+	assert.doesNotMatch(css, /icomoon\.(ttf|eot|svg)/);
+	assert.doesNotMatch(log, /íconos fuera de la fuente del sitio/);
+});
+
+test('horario: el inglés sale del español (días y 12 h); el guardado en inglés no se usa', () => {
+	assert.equal(horarioEn('Lunes a sábado, 8:00 a 17:00'), 'Monday to Saturday, 8:00 a.m. to 5:00 p.m.');
+	assert.equal(horarioEn('Lunes a viernes de 8:00 a 12:30 y 14:00 a 18:00; domingos cerrado'), 'Monday to Friday from 8:00 a.m. to 12:30 p.m. and 2:00 p.m. to 6:00 p.m.; Sundays closed');
+	assert.equal(horarioEn('Lunes a viernes 8 a. m. a 5 p. m.'), 'Monday to Friday 8:00 a.m. to 5:00 p.m.');
+	assert.equal(horarioEn('Todos los días con cita previa'), 'Every day by appointment');
+	assert.equal(horarioEn('Horario por WhatsApp'), 'Horario por WhatsApp', 'lo que no reconoce queda igual');
+	assert.equal(horarioEn(''), '');
+	const es = attr(de('/'), /icon-clock-o"><\/span>([^<]+)/), en = attr(de('/en/'), /icon-clock-o"><\/span>([^<]+)/);
+	assert.equal(en, horarioEn(es));
+});
+
+test('correo: una sola regla (formato.js) también en el JavaScript del sitio', () => {
+	for (const c of ['ana@', 'ana@correo', 'ana @correo.com', 'ana@correo.c', 'ana@@correo.com', '']) assert.equal(correoValido(c), false, c);
+	for (const c of ['ana@correo.com', 'ana.p+x@sub.dominio.gt', 'ANA@CORREO.COM']) assert.equal(correoValido(c), true, c);
+	const js = readFileSync(path.join(dist, attr(de('/'), /src="(\/assets\/[^"]+\/site\.js)"/)), 'utf8');
+	assert.match(js, /EQFormato/);
+	assert.match(readFileSync(path.join(ROOT, 'js/site.js'), 'utf8'), /EQFormato\.correoValido\(lead\.email\)/);
+});
+
+test('en inglés, los m² llevan sus sq ft (descripción, meta y JSON-LD)', () => {
+	assert.equal(conPiesCuadrados('149 m² apartment on 229.30 m2.'), '149 m² (1,604 sq ft) apartment on 229.30 m2 (2,468 sq ft).');
+	assert.equal(conPiesCuadrados('1,604 sq ft (149 m²); a 2,226.47 m² (23,966 sq ft) lot'), '1,604 sq ft (149 m²); a 2,226.47 m² (23,966 sq ft) lot');
+	assert.equal(enUSD(7700, 'GTQ'), 1000);
 });
 
 // Sitio sin casas en renta: el listado vacío lo dice como tal (no como filtro) y ningún enlace del contenido lleva ahí.

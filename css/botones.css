@@ -45,7 +45,7 @@
 .btn:focus-visible {
 	outline: 2px solid var(--eq-focus);
 	outline-offset: 2px;
-	box-shadow: none;
+	box-shadow: 0 0 0 2px var(--eq-dark);
 }
 .btn:disabled,
 .btn.disabled {
