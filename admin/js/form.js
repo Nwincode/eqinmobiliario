@@ -167,7 +167,10 @@ export function renderForm(schema, data, options = {}) {
 	// Cómo repintar cada campo de texto o de etiquetas cuando su valor se pone desde fuera (ver «poner»).
 	const pintores = new Map();
 
+	// Selectores cuyas opciones dependen del estado: van primero, porque pueden cambiar un valor del que depende un «when».
+	const vivos = [];
 	const refresh = () => {
+		vivos.forEach((pintar) => pintar());
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
 		customs.forEach(({ el, update }) => update(el, state));
 		if (options.onChange) options.onChange(state);
@@ -221,14 +224,28 @@ export function renderForm(schema, data, options = {}) {
 				}
 				break;
 
-			case 'select':
-				control = h('select', { class: 'form-select' },
-					(typeof field.options === 'function' ? field.options() : field.options).map(([v, l]) => h('option', { value: v }, l)));
-				control.value = get() ?? field.default ?? control.options[0]?.value ?? '';
-				if (get() === undefined) setPath(target, field.name, control.value);
+			case 'select': {
+				// «options» puede ser una función del estado (p. ej. los estados que aplican a la operación elegida):
+				// se vuelve a pintar con cada cambio y, si lo elegido ya no aplica, pasa a la primera opción.
+				const vivas = typeof field.options === 'function';
+				let pintadas = '';
+				const pintar = () => {
+					const ops = vivas ? field.options(state) : field.options, firma = JSON.stringify(ops);
+					if (firma === pintadas) return;
+					const primera = !pintadas;
+					pintadas = firma;
+					control.replaceChildren(...ops.map(([v, l]) => h('option', { value: v }, l)));
+					const cabe = (v) => ops.some(([x]) => x === v);
+					control.value = primera && !vivas ? get() ?? field.default ?? ops[0]?.[0] ?? '' : cabe(get()) ? get() : cabe(field.default) ? field.default : ops[0]?.[0] ?? '';
+					if (get() === undefined || (vivas && get() !== control.value)) setPath(target, field.name, control.value);
+				};
+				control = h('select', { class: 'form-select' });
+				pintar();
+				if (vivas) vivos.push(pintar);
 				if (field.disabled) control.disabled = true;
 				control.addEventListener('change', () => set(control.value));
 				break;
+			}
 
 			case 'checkbox': {
 				const id = `f-${Math.random().toString(36).slice(2, 9)}`;
