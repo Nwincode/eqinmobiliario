@@ -7,3 +7,6 @@ dist/
 # Respaldos locales
 *.bundle
 eqinmobiliario-sitio.zip
+
+# Copias de trabajo temporales de los agentes
+.claude/worktrees/
