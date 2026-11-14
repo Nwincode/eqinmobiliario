@@ -1220,13 +1220,12 @@ async function renderEditor(container, id, emb = null) {
 					llegada, sinLlegada: !llegada && eraVacacional
 				});
 			}
-			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar.
+			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar (también el acuerdo y «data», abajo).
 			alAbrir = comoQuedo(mio);
 			// (Va después de guardar la casa: su regla la lee.)
 			const acuerdo = acuerdoPorGuardar(d, delFormulario);
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
 			else if (acuerdo) await setDoc(acuerdoRef, { ...acuerdo, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
-			// Lo recién guardado es el punto de partida de un segundo «Guardar» sin recargar.
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
