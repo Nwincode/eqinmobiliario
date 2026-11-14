@@ -164,6 +164,8 @@ export function renderForm(schema, data, options = {}) {
 	const conditionals = [];
 	const required = [];
 	const customs = [];
+	// Cómo repintar cada campo de texto o de etiquetas cuando su valor se pone desde fuera (ver «poner»).
+	const pintores = new Map();
 
 	const refresh = () => {
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
@@ -213,6 +215,7 @@ export function renderForm(schema, data, options = {}) {
 				control = h('textarea', { class: 'form-control', rows: field.rows || (field.type === 'markdown' ? 10 : 3), placeholder: field.placeholder, maxlength: field.maxlength });
 				control.value = get() ?? '';
 				control.addEventListener('input', () => set(control.value));
+				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
 				if (field.type === 'markdown' && !field.help) {
 					field = { ...field, help: 'Formato: ## Título, **negrita**, *cursiva*, - lista, [texto](https://enlace).' };
 				}
@@ -281,6 +284,7 @@ export function renderForm(schema, data, options = {}) {
 				input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
 				input.addEventListener('blur', add);
 				draw();
+				if (target === state) pintores.set(field.name, draw);
 				control = h('div', {}, list, input, sugeridas);
 				break;
 			}
@@ -448,6 +452,7 @@ export function renderForm(schema, data, options = {}) {
 				control.value = get() ?? '';
 				if (field.disabled) control.disabled = true;
 				control.addEventListener('input', () => set(control.value));
+				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
 				if (field.onInput) control.addEventListener('input', () => field.onInput(control.value, state));
 		}
 
@@ -467,6 +472,12 @@ export function renderForm(schema, data, options = {}) {
 		state,
 		// Para quien cambia el estado por fuera de un campo (p. ej. un selector propio): vuelve a evaluar «when» y bloques.
 		refresh,
+		// Escribe un valor en un campo de texto o de etiquetas desde fuera (p. ej. la traducción automática) y lo muestra.
+		poner(nombre, valor) {
+			setPath(state, nombre, valor);
+			pintores.get(nombre)?.();
+			refresh();
+		},
 		validate() {
 			for (const { field, target, control } of required) {
 				const v = getPath(target, field.name);

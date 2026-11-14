@@ -72,6 +72,12 @@ await campo(admin.p, 'habitaciones').fill('3');
 await campo(admin.p, 'vacacional.comoLlegar').fill('A 2 horas de la capital; los últimos 2 km son de terracería.');
 await campo(admin.p, 'descripcion').fill('REGISTRO DE PRUEBA. Casa de playa para probar la reserva.');
 await admin.p.locator('[data-campo="publicado"] input').check();
+// La versión en inglés se ve antes de guardar, y sin la dirección privada de la casa.
+await admin.p.waitForFunction(() => document.querySelector('[data-campo="en.titulo"] input')?.value, null, { timeout: 40000 }).catch(() => {});
+const enVivo = `${await campo(admin.p, 'en.titulo').inputValue()} | ${await campo(admin.p, 'en.descripcion').inputValue()}`;
+paso('La versión en inglés se traduce sola mientras se llena la ficha, sin la dirección privada', enVivo.length > 20 && /Monterrico/.test(enVivo) && !/Calle Real/.test(enVivo), enVivo.slice(0, 120));
+const columnas = await admin.p.locator('.tabla-vacacional thead th').allInnerTexts();
+paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y lo que paga el cliente', /Socio.*Ganancia.*Precio sin impuestos.*IVA 12.*INGUAT 10.*El cliente paga/.test(columnas.join(' ')) && /146\.40/.test(await admin.p.locator('.tabla-vacacional tbody tr').first().innerText()), columnas.join(' · '));
 await guardar(admin.p);
 const idCasa = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1];
 paso('La casa se guarda', Boolean(idCasa) && idCasa !== 'nuevo', await avisos(admin.p));
