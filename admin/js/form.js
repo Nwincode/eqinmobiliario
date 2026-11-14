@@ -169,8 +169,11 @@ export function renderForm(schema, data, options = {}) {
 
 	// Selectores cuyas opciones dependen del estado: van primero, porque pueden cambiar un valor del que depende un «when».
 	const vivos = [];
+	const anchos = [];
+	const anchoDe = (field) => (typeof field.cols === 'function' ? field.cols(state) : field.cols) || 12;
 	const refresh = () => {
 		vivos.forEach((pintar) => pintar());
+		anchos.forEach(({ el, field }) => { el.className = el.className.replace(/\bcol-md-\d+/, `col-md-${anchoDe(field)}`); });
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
 		customs.forEach(({ el, update }) => update(el, state));
 		if (options.onChange) options.onChange(state);
@@ -182,9 +185,12 @@ export function renderForm(schema, data, options = {}) {
 		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre).
 		if (field.type === 'telefono') control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
-		return h('div', { class: `col-12 col-md-${field.cols || 12}`, dataset: field.name ? { campo: field.name } : null },
+		const caja = h('div', { class: `col-12 col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
 			field.help ? h('div', { class: 'form-text' }, field.help) : null);
+		// Ancho que depende de otro campo (p. ej. una fila que pierde un campo en cierta operación): se recalcula.
+		if (typeof field.cols === 'function') anchos.push({ el: caja, field });
+		return caja;
 	}
 
 	function renderField(field, target) {

@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -517,8 +517,15 @@ export async function render(container, [id]) {
 		const estado = selMasaEstado.value;
 		if (!estado) return;
 		const label = estadoDe({ estado }).label;
+		// Solo a las que ese estado aplica (una casa por noche no queda «Vendida»); las demás se nombran y no se tocan.
+		const elegidasAhora = elegidas();
+		const fuera = elegidasAhora.filter((p) => incoherencia({ operacion: p.operacion || 'venta', estado }));
+		if (fuera.length) toast(`${incoherencia({ operacion: fuera[0].operacion || 'venta', estado })}: no se cambió ${fuera.length === 1 ? `«${fuera[0].titulo}»` : `en ${fuera.length} propiedades`}.`, 'warning');
+		const lista = elegidasAhora.filter((p) => !fuera.includes(p));
+		if (!lista.length) { selMasaEstado.value = ''; return; }
 		enMasa(guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
-			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`);
+			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`, lista);
+		seleccion.clear();
 	});
 	const selMasaAsesor = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar asesor a las seleccionadas' },
 		h('option', { value: '' }, 'Asignar asesor…'),
@@ -760,6 +767,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	const conDueno = (d) => Boolean(d.propietarioId);
 	// Un terreno no tiene cuartos, baños, parqueos, construcción, niveles ni año: no se le preguntan.
 	const construido = (d) => d.tipo !== 'terreno';
+	// Una casa por noche no lleva precio ni VIP: moneda, orden, visible y destacada caben en una sola fila.
+	const fila = (d) => (esVacacional(d) ? 3 : 4);
 	// La vista previa de Google usa el precio que verá el cliente (el de una casa por noche sale del precio del socio).
 	const conPrecio = (d) => (esVacacional(d) ? { ...d, ...vacacionalPublico(d) } : d);
 	return [
@@ -778,10 +787,10 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'propietarioId', label: 'Propietario, socio o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
 			help: 'El dueño, el socio de una casa por noche o un asesor colaborador. Se crea una vez en Propietarios.' },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
-		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
-		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
-		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: 4, default: isNew ? false : undefined },
-		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: 4 },
+		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: fila },
+		{ name: 'orden', label: 'Orden', type: 'number', cols: fila, help: 'Número menor aparece primero.' },
+		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: fila, default: isNew ? false : undefined },
+		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: fila },
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4, when: (d) => !esVacacional(d) },
 
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },

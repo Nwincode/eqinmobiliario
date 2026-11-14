@@ -85,6 +85,8 @@ paso('La versión en inglés se traduce sola mientras se llena la ficha, sin la 
 const opcionesDe = (c) => campo(admin.p, c).locator('option').allInnerTexts();
 const delaCasa = `${(await opcionesDe('estado')).join('/')} · ${(await opcionesDe('tipo')).join('/')}`;
 paso('Renta vacacional: solo los estados y tipos que aplican a una casa por noche', !/Vendida|Rentada|oferta|Terreno|Bodega|Oficina|Local/.test(delaCasa) && /Disponible.*Pausada.*Casa.*Finca/.test(delaCasa), delaCasa);
+const fila1 = await admin.p.evaluate(() => ['moneda', 'orden', 'publicado', 'destacada'].map((c) => document.querySelector(`[data-campo="${c}"]`)?.getBoundingClientRect().top));
+paso('Renta vacacional: moneda, orden, visible y destacada en una sola fila (sin hueco)', fila1.every((t) => t && Math.abs(t - fila1[0]) < 4), fila1.map(Math.round).join(','));
 const faltan = await admin.p.locator('.admin-main .alert').first().innerText().catch(() => '');
 paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el precio, ni se piden m² ni parqueos', !/Precio|m²|Parqueos/.test(faltan), faltan.replace(/\s+/g, ' ').slice(0, 140));
 const google = await admin.p.locator('.card-body').innerText();
