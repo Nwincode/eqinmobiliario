@@ -313,17 +313,17 @@ paso('El socio confirma una tercera reserva y las fechas quedan ocupadas', Boole
 	const neto = num((await leer(`properties/${idCasa}/privado/socio`)).fields?.precioBase);
 	paso('Guardar la ficha abierta desde antes no libera la noche que el socio confirmó ni deshace el precio que cambió en «Mis propiedades»',
 		(await reservadas()).includes(llegada3) && neto === 110 && num(v.base) === 132 && num(v.camas) === 4, `socio ${neto} · público ${num(v.base)} · camas ${num(v.camas)} · ${await avisos(admin.p)}`);
-	// Lo que la ficha de una casa por noche manda a traducir (IA o traductor gratuito): nada privado ni interno.
-	await admin.p.evaluate(() => {
-		window.__salidas = [];
-		const f = window.fetch;
-		window.fetch = (u, o) => { window.__salidas.push(`${u} ${o?.body || ''}`); return f(u, o); };
-	});
-	await admin.p.locator('button', { hasText: 'EN · Traducir al inglés' }).click();
-	await espera(5000);
-	const salidas = await admin.p.evaluate(() => window.__salidas.map((x) => { try { return decodeURIComponent(x); } catch { return x; } }).join('\n'));
-	paso('Lo que la ficha de una casa por noche manda a traducir no lleva la dirección, el dueño, el historial ni el costo del socio',
-		/Monterrico/.test(salidas) && !/Calle Real|13\.8912|socio-prueba|historialEstado|precioBase|porUid/.test(salidas), salidas.replace(/\s+/g, ' ').slice(0, 160));
+	// Lo que sale a la IA o al traductor (pedirIA lo pasa todo por paraIA): con la casa guardada de verdad, más su
+	// dirección y su costo privados encima (lo peor que una pantalla podría mandar), no sale nada privado ni interno.
+	const salidas = await admin.p.evaluate(async (id) => {
+		const fb = await import('/admin/js/firebase.js');
+		const { paraIA } = await import('/admin/js/para-ia.js');
+		const leerDoc = async (...r) => (await fb.getDoc(fb.doc(fb.db, ...r))).data() || {};
+		const casa = { id, ...(await leerDoc('properties', id)), ...(await leerDoc('properties', id, 'privado', 'llegada')), socio: await leerDoc('properties', id, 'privado', 'socio') };
+		return JSON.stringify(paraIA({ propiedad: casa }));
+	}, idCasa);
+	paso('Lo que sale a traducir de una casa por noche no lleva la dirección, el dueño, el historial ni el costo del socio',
+		/Monterrico/.test(salidas) && !/Calle Real|13\.8912|socio-prueba|historialEstado|precioBase|porUid/.test(salidas), salidas.slice(0, 160));
 	await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
 }
 await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Cancelar' }).click();
