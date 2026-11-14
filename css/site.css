@@ -294,10 +294,16 @@
 /* Ordenar: botón de ícono con el desplegable nativo encima (invisible). */
 .listing-orden {
 	position: relative;
+	min-height: 44px;
 }
 .listing-orden select {
 	position: absolute;
-	inset: 0;
+	/* Cubre también el borde del botón: 44 × 44 px de toque. */
+	inset: -1px;
+	width: calc(100% + 2px);
+	height: calc(100% + 2px);
+	min-height: 44px;
+	padding: 0;
 	opacity: 0;
 	cursor: pointer;
 }
@@ -499,6 +505,11 @@
 .hero.page-inner,
 .vip-hero {
 	background-image: var(--bg);
+}
+/* El carrusel de la portada pone sus fotos en fila (más ancho que la pantalla): se recorta para que no haya scroll de lado. */
+.hero {
+	overflow: hidden;
+	overflow: clip;
 }
 @media (max-width: 800px) {
 	.hero-slide .img,
@@ -1373,6 +1384,10 @@ body.offcanvas-menu .ficha-barra {
 }
 .ficha-migas .breadcrumb-item.active {
 	color: var(--eq-dark);
+}
+/* Migas sobre fondo claro: el separador en gris del tema (sobre la portada oscura va en blanco, css/style.css). */
+.ficha-migas .breadcrumb-item + .breadcrumb-item::before {
+	color: var(--eq-ink);
 }
 .ficha-tipo {
 	font-size: 13px;
@@ -3489,16 +3504,21 @@ a:hover > .eq-ic-fin,
 
 /* Precios de una zona: el rango a lo ancho y mediana y m² juntos debajo (sin hueco); en computadora, una fila. */
 .zona-precios .prop-facts {
-	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.zona-precios .prop-facts > div:first-child {
+.zona-precios .prop-facts dt {
+	white-space: normal;
+}
+.zona-precios .prop-facts > div:first-child,
+.zona-precios .prop-facts > div:last-child:nth-child(even) {
 	grid-column: 1 / -1;
 }
 @media (min-width: 768px) {
 	.zona-precios .prop-facts {
 		grid-template-columns: 2fr 1fr 1fr;
 	}
-	.zona-precios .prop-facts > div:first-child {
+	.zona-precios .prop-facts > div:first-child,
+	.zona-precios .prop-facts > div:last-child:nth-child(even) {
 		grid-column: auto;
 	}
 }

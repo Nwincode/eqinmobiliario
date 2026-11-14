@@ -31,7 +31,7 @@ const ES = {
 	vacCodigo: '¡Solicitud enviada! Tu código de reserva es {codigo}. Te respondemos en menos de 2 horas.',
 	
 	vacResumen: 'Solicitud de reserva: llegada {llegada}, salida {salida} ({noches}), {huespedes}. Total aprox. {total} con impuestos.',
-	fHuespedesMax: 'Huéspedes máximo', fNochesMin: 'Estancia mínima', fCamas: 'Camas', fMascotas: 'Mascotas', fLimpieza: 'Limpieza (por estancia)',
+	fNochesMin: 'Estancia mínima', fCamas: 'Camas', fMascotas: 'Mascotas', fLimpieza: 'Limpieza (por estancia)',
 	vacAntes: 'Antes de reservar', vacMascotasSi: 'Se aceptan', vacMascotasNo: 'No se aceptan', vacComoLlegar: 'Cómo llegar',
 	// Chat de la reserva (/reserva/)
 	vacChatTitulo: 'Tu reserva', vacChatCargando: 'Cargando tu reserva…', vacChatVer: 'Ver mi reserva y chatear', vacCorreo: 'Correo (te avisamos ahí cuando te respondan)',
@@ -53,7 +53,7 @@ const ES = {
 	vacReglas: 'Reglas de la casa', vacReglasGenerales: '', vacCancelacion: 'Cancelación', vacCancelacionGeneral: '',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas', porZona: 'Buscar por zona', porZonaTipo: 'Buscar por zona y tipo',
 	// Bloque de precios de una zona (listingPage → bloquePrecios)
-	preciosTitulo: 'Precios en {zona}', preciosRango: 'Rango', preciosMediana: 'Precio mediano', preciosPorM2: 'Precio mediano por m²', preciosPorFt2: 'Precio mediano por sq ft', preciosBase: 'Con {n} precios publicados en {moneda}.',
+	preciosTitulo: 'Precios en {zona}', preciosRango: 'Rango', preciosMediana: 'Precio mediano', preciosPorM2: 'Precio mediano por\u00a0m²', preciosPorFt2: 'Precio mediano por\u00a0sq\u00a0ft', preciosBase: 'Con {n} precios publicados en {moneda}.',
 	abrirMenu: 'Abrir menú', enlaces: 'Enlaces', zonas: 'Zonas',
 	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué quieres vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
 	plantilla: 'Diseño basado en una plantilla de', escribenos: 'Escríbenos por WhatsApp',
@@ -75,7 +75,7 @@ const ES = {
 	buscarPh: 'Zona, residencial, tipo…', operacion: 'Operación', todas: 'Todas', todos: 'Todos', venta: 'Venta', renta: 'Renta', vacacional: 'Renta vacacional',
 	tipo: 'Tipo', zona: 'Zona', ordenar: 'Ordenar', recientes: 'Más recientes', precioAsc: 'Precio: menor a mayor', precioDesc: 'Precio: mayor a menor',
 	precioMin: 'Precio mínimo', precioMax: 'Precio máximo', limpiar: 'Limpiar', propiedad: 'propiedad', propiedadesN: 'propiedades',
-	sinResultados: 'No encontramos propiedades con esos filtros.', cuentanos: 'Cuéntanos qué buscas', teAyudamos: 'y te ayudamos.',
+	sinResultados: 'No encontramos propiedades con esos filtros.', listadoVacio: 'Por ahora no hay propiedades aquí.', verTodasPropiedades: 'Ve todas las propiedades', cuentanos: 'Cuéntanos qué buscas', teAyudamos: 'y te ayudamos.',
 	paginacion: 'Paginación', noEncuentras: '¿No encuentras lo que buscas? Te ayudamos',
 	// Ficha
 	calcTitulo: 'Calcula tu cuota mensual', enganche: 'Enganche %', tasa: 'Tasa anual %', anios: 'Años',
@@ -165,7 +165,7 @@ const EN = {
 	vacCodigo: 'Request sent! Your booking code is {codigo}. We reply in under 2 hours.',
 	
 	vacResumen: 'Booking request: check-in {llegada}, check-out {salida} ({noches}), {huespedes}. Approx. total {total} incl. taxes.',
-	fHuespedesMax: 'Max. guests', fNochesMin: 'Minimum stay', fCamas: 'Beds', fMascotas: 'Pets', fLimpieza: 'Cleaning fee (per stay)',
+	fNochesMin: 'Minimum stay', fCamas: 'Beds', fMascotas: 'Pets', fLimpieza: 'Cleaning fee (per stay)',
 	vacAntes: 'Before you book', vacMascotasSi: 'Allowed', vacMascotasNo: 'Not allowed', vacComoLlegar: 'Getting there',
 	vacChatTitulo: 'Your booking', vacChatCargando: 'Loading your booking…', vacChatVer: 'See my booking and chat', vacCorreo: 'Email (we notify you there when we reply)',
 	vacChatSin: 'We could not find this booking. Open the link you received when you booked.',
@@ -185,7 +185,7 @@ const EN = {
 	vacChatNota: 'Save this link to come back to your booking. The address appears here once your payment is received.',
 	vacReglas: 'House rules', vacReglasGenerales: '', vacCancelacion: 'Cancellation', vacCancelacionGeneral: '',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all', porZona: 'Browse by area', porZonaTipo: 'Browse by area and type',
-	preciosTitulo: 'Prices in {zona}', preciosRango: 'Price range', preciosMediana: 'Median price', preciosPorM2: 'Median price per m²', preciosPorFt2: 'Median price per sq ft', preciosBase: 'Based on {n} listed prices in {moneda}.',
+	preciosTitulo: 'Prices in {zona}', preciosRango: 'Price range', preciosMediana: 'Median price', preciosPorM2: 'Median price per\u00a0m²', preciosPorFt2: 'Median price per\u00a0sq\u00a0ft', preciosBase: 'Based on {n} listed prices in {moneda}.',
 	abrirMenu: 'Open menu', enlaces: 'Links', zonas: 'Areas',
 	vendeBoton: 'List your property', vendeQue: 'What do you want to sell or rent out?', vendeQuePh: 'House in zone 15, 3 bedrooms…', cerrarAviso: 'Close language notice',
 	plantilla: 'Design based on a template by', escribenos: 'Message us on WhatsApp',
@@ -204,7 +204,7 @@ const EN = {
 	buscarPh: 'Area, community, type…', operacion: 'Listing type', todas: 'All', todos: 'All', venta: 'For sale', renta: 'For rent', vacacional: 'Vacation rental',
 	tipo: 'Property type', zona: 'Area', ordenar: 'Sort by', recientes: 'Newest', precioAsc: 'Price: low to high', precioDesc: 'Price: high to low',
 	precioMin: 'Min price', precioMax: 'Max price', limpiar: 'Clear', propiedad: 'property', propiedadesN: 'properties',
-	sinResultados: 'No properties match those filters.', cuentanos: 'Tell us what you are looking for', teAyudamos: 'and we will help.',
+	sinResultados: 'No properties match those filters.', listadoVacio: 'There are no properties here yet.', verTodasPropiedades: 'See all properties', cuentanos: 'Tell us what you are looking for', teAyudamos: 'and we will help.',
 	paginacion: 'Pagination', noEncuentras: "Can't find what you need? We'll search for you",
 	calcTitulo: 'Estimate your monthly payment', enganche: 'Down %', tasa: 'Interest %', anios: 'Years',
 	calcNota: 'Estimate only; the final payment depends on the lender. We can help you explore financing options.',
@@ -281,12 +281,12 @@ export const GRUPOS_TEXTOS = [
 	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
 	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsGracias', 'jsFallo']],
 	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
-	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'vacacional', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'cuentanos', 'teAyudamos', 'noEncuentras', 'buscarFiltrar', 'cerrarFiltros', 'jsVer', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],
+	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'vacacional', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'listadoVacio', 'verTodasPropiedades', 'cuentanos', 'teAyudamos', 'noEncuentras', 'buscarFiltrar', 'cerrarFiltros', 'jsVer', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],
 	['Ficha de propiedad', ['verFotosN', 'caracteristicas', 'anteriorFoto', 'siguienteFoto', 'descripcion', 'amenidades', 'video', 'ubicacion', 'agendaVisita', 'agendarVisita', 'llamar', 'quieroInfo', 'similares', 'fTipo', 'fOperacion', 'fEstado', 'fHabitaciones', 'fBanos', 'fParqueos', 'fConstruccion', 'fTerreno', 'fNiveles', 'fAnio', 'fMantenimiento', 'fUbicacion', 'fPrecioM2', 'fCodigo', 'compartir', 'compartirWa', 'compartirFb', 'copiarEnlace']],
 	['Propiedad vendida o no disponible', ['avisoVendida', 'avisoRentada', 'avisoCerradaTexto', 'verSimilares', 'buscasParecida', 'noDisponibleTitulo', 'noDisponibleTexto']],
 	['Calculadora de cuota', ['calcTitulo', 'enganche', 'tasa', 'anios', 'calcNota', 'jsCuota', 'jsAlMes', 'jsEnganche', 'jsPrestamo']],
 	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaPlazoContrato', 'rentaPlazoAnio', 'rentaPlazoAnios', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDEfectivo', 'rentaDGastos', 'rentaDIusi', 'rentaDComision', 'rentaDExento', 'rentaDIsr', 'rentaDIvaPeq', 'rentaDIvaGen', 'rentaDNeto', 'rentaDNetoMes', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
-	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacPausada', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'vacReservar', 'fHuespedesMax', 'fNochesMin', 'fCamas', 'fMascotas', 'fLimpieza', 'vacAntes', 'vacMascotasSi', 'vacMascotasNo', 'vacComoLlegar', 'vacReglas', 'vacReglasGenerales', 'vacCancelacion', 'vacCancelacionGeneral']],
+	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacPausada', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'vacReservar', 'fNochesMin', 'fCamas', 'fMascotas', 'fLimpieza', 'vacAntes', 'vacMascotasSi', 'vacMascotasNo', 'vacComoLlegar', 'vacReglas', 'vacReglasGenerales', 'vacCancelacion', 'vacCancelacionGeneral']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
 	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']],
 	['Página de propietarios', ['duenosTitulo', 'duenosLead', 'duenosTexto', 'duenosEntrar', 'duenosPrimeraVez', 'duenosPedir', 'duenosMsgWa']]

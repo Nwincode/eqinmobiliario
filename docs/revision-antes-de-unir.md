@@ -110,6 +110,12 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Carruseles con puntos y tarjetas unas con puntos y otras con «1 / 8». | Carruseles con `nav: false`; la misma pieza (`propertyCard`) para todas las tarjetas. |
 | Enlaces y campos de 14 a 38 px en celular (migas, «Leer más», ES/EN, fechas del buscador). | Medir en 390 px que todo lo que se toca mida 44 px o más. |
 | Botones de zona con ícono y de tipo sin ícono en el mismo grupo. | En un grupo de enlaces, todos con ícono o ninguno. |
+| El separador de las migas era blanco al 30 % también sobre fondo blanco (invisible en la ficha). | Un color pensado para un fondo oscuro se limita a ese fondo (`.hero`); mirar cada pieza en fondo claro y oscuro. |
+| Galería VIP con un bloque vacío bajo tres miniaturas (1280) y una celda suelta (390). | Rejillas con número variable de elementos: probar 2 a 14 fotos sin huecos (`celdaGaleriaVip`, `test-sitio.mjs`). |
+| Una etiqueta de precio se salía 11 px a 390 (`minmax(140px)` y `nowrap`); el WhatsApp flotante tapaba el enlace «VIP» del pie; el texto chico dorado no se leía sobre la foto; el selector de orden medía 42 px. | Medir a 390 y 1280: nada se sale, nada fijo tapa un enlace, texto sobre foto con velo, toques de 44 px. |
+| La estancia mínima salía dos veces en la caja de reserva; «Huéspedes» y «Huéspedes máximo» para el mismo dato. | Un dato, un texto, un lugar en la pantalla. |
+| El carrusel de la portada ponía sus fotos en fila (1560 px a 390): en iOS se podía arrastrar de lado. | Lo que es más ancho que la pantalla a propósito se recorta en su contenedor (`.hero`). |
+| «US$ 350,000.00» en precios de propiedades. | Precio de una propiedad con `precioTexto`/`montoPrecio` (sin centavos si es entero y ≥ 1,000); lo que se cobra o se suma, con `dinero`. Una sola función para panel y sitio. |
 | «Armar borrador» mandaba a la IA casi toda la propiedad (historial con nombres y uid del equipo, difusión, dueño); «Seguimiento» mandaba el teléfono y el correo del lead; la traducción en lote no pasaba por la limpieza. | Una sola salida (`pedirIA`) y una sola limpieza, con lista de lo permitido (`para-ia.js`); lo nuevo que se mande a la IA se agrega ahí, no en cada pantalla. |
 | Una casa por noche salía «En venta» en la calculadora (su precio por noche como precio de compra), en las búsquedas contra un presupuesto de compra y en difusión sin «por noche» y con #HomesForSale. | Cada precio con su operación (`precioTexto`, `operacionHashtag`); donde se compara un precio, filtrar por operación. |
 
@@ -133,6 +139,10 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | `addressRegion` decía «Guatemala» para todo, también Monterrico. | Departamento con `departamentoDe`; si no se conoce, se omite. |
 | Títulos de 68 a 73 caracteres y en inglés «Lot for Sale Guatemala». | Título automático de 60 (`autoSeoTitle`), el guardado como automático se recalcula al publicar. |
 | Textos del sitio con «vos» (Revisá, Pedile, Entrás) junto a «tú». | El sitio público usa «tú»: revisar textos nuevos de `i18n.mjs`, plantillas y textos generados. |
+| Un enlace escrito en Contenido (portada: «Propiedades en renta») llevaba a un listado sin casas, y ese listado decía «No encontramos propiedades con esos filtros» sin filtro alguno. | Todo enlace configurable a un listado pasa por `visible`; un listado vacío dice que está vacío y ofrece todas las propiedades y contacto (`test-sitio.mjs`, sitio sin renta). |
+| Páginas que se indexan enlazaban zonas que no se indexan («Zona 1 (1)»). | Las pastillas de zona solo enlazan páginas `indexable` (regla `bastante`). |
+| El JSON-LD de un artículo sin foto no llevaba imagen. | Sin foto, la imagen del sitio (`seo.imagen`). |
+| La ficha por noche cargaba en cada página todos los textos del chat. | Lo que viaja a la página en JSON se filtra a lo que usa ese JavaScript; el chat, solo en /reserva/. |
 
 ## 7. Cómo se le responde al usuario
 

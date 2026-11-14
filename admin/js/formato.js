@@ -13,9 +13,16 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
-// Precio de una propiedad según su operación, en español o inglés: «US$ 250,000.00», «Q 5,000.00 /mes»,
-// «Desde US$ 120.00 por noche»; sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión y
-// las reglas sin IA. (El generador tiene todavía su copia idéntica en scripts/lib/util.mjs.)
+// Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
+// («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
+// Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.
+export const montoPrecio = (n, moneda) => {
+	const x = Number(n) || 0;
+	return Number.isInteger(x) && Math.abs(x) >= 1000 ? `${prefijoMoneda(moneda)} ${x.toLocaleString('en-US')}` : dinero(x, moneda);
+};
+// Precio de una propiedad según su operación, en español o inglés: «US$ 250,000», «Q 5,000 /mes»,
+// «Desde US$ 120.00 por noche»; sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión,
+// las reglas sin IA y el generador del sitio (scripts/lib/util.mjs `formatPrice`).
 const PRECIO = {
 	es: { consultar: 'Precio a consultar', mes: ' /mes', noche: (x) => `Desde ${x} por noche` },
 	en: { consultar: 'Price on request', mes: ' /mo', noche: (x) => `From ${x} per night` }
@@ -23,8 +30,8 @@ const PRECIO = {
 export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
 	const t = PRECIO[lang] || PRECIO.es;
 	if (!Number(precio)) return t.consultar;
-	if (operacion === 'vacacional') return t.noche(dinero(precio, moneda));
-	return `${dinero(precio, moneda)}${operacion === 'renta' ? t.mes : ''}`;
+	if (operacion === 'vacacional') return t.noche(montoPrecio(precio, moneda));
+	return `${montoPrecio(precio, moneda)}${operacion === 'renta' ? t.mes : ''}`;
 }
 // «1 noche», «3 noches».
 export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;

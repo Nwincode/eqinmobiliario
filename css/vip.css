@@ -32,7 +32,8 @@
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .15) 40%, rgba(0, 0, 0, .75) 100%);
+	/* El mismo velo de las portadas del sitio (css/site.css .hero.overlay), más oscuro donde van los textos. */
+	background: linear-gradient(180deg, color-mix(in srgb, var(--eq-dark) 55%, transparent) 0%, color-mix(in srgb, var(--eq-dark) 20%, transparent) 35%, color-mix(in srgb, var(--eq-dark) 70%, transparent) 60%, color-mix(in srgb, var(--eq-dark) 85%, transparent) 100%);
 }
 .vip-hero-inner {
 	position: relative;
@@ -46,6 +47,8 @@
 	letter-spacing: .2em;
 	font-size: 12px;
 	color: var(--vip-gold);
+	font-weight: 600;
+	text-shadow: 0 1px 3px var(--eq-dark);
 	margin-bottom: 1rem;
 }
 .vip-hero h1 {
@@ -160,11 +163,13 @@
 .vip-dark .vip-kicker {
 	color: var(--vip-gold);
 }
+/* Galería sin huecos con cualquier número de fotos: cuántas columnas ocupa cada celda lo decide
+   celdaGaleriaVip (scripts/lib/templates.mjs). Celular: 2 columnas; desde 768 px: 4, la primera foto 2×2. */
 .vip-gallery {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-	grid-auto-rows: 220px;
-	gap: 12px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-auto-rows: 140px;
+	gap: 8px;
 }
 .vip-gallery-item {
 	padding: 0;
@@ -188,10 +193,26 @@
 .vip-gallery-item:focus-visible img {
 	transform: scale(1.05);
 }
-@media (max-width: 575.98px) {
+.vip-gallery-item.vg-m2 {
+	grid-column: span 2;
+}
+@media (min-width: 768px) {
 	.vip-gallery {
-		grid-template-columns: 1fr 1fr;
-		grid-auto-rows: 140px;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-auto-rows: clamp(160px, 18vw, 220px);
+		gap: 12px;
+	}
+	.vip-gallery-item.vg-m2 {
+		grid-column: auto;
+	}
+	.vip-gallery-item.vg-d2 {
+		grid-column: span 2;
+	}
+	.vip-gallery-item.vg-d4 {
+		grid-column: span 4;
+	}
+	.vip-gallery-item.vg-dr2 {
+		grid-row: span 2;
 	}
 }
 
@@ -274,8 +295,12 @@
 	color: #fff;
 }
 @media (min-width: 768px) {
+	/* El botón flotante de WhatsApp (56 px a 20 px del borde) no tapa los enlaces del pie. */
 	.vip-footer {
-		padding-bottom: 28px;
+		padding-bottom: calc(28px + env(safe-area-inset-bottom));
+	}
+	.vip-footer .container {
+		padding-right: 88px;
 	}
 }
 

@@ -4,7 +4,7 @@
 // del contenido que apuntan a un listado que no existe (van a su padre).
 import { slugify, TIPOS, TIPOS_LANDING, truncate, departamentoDe } from './util.mjs';
 import { RUTAS } from './i18n.mjs';
-import { dinero } from '../../admin/js/formato.js';
+import { montoPrecio } from '../../admin/js/formato.js';
 import { sinRepetir, TITULO_MAX } from '../../admin/js/seo-auto.js';
 
 // Una página de zona (zona, zona + operación, zona + tipo + operación) se indexa solo con al menos tantas
@@ -205,7 +205,7 @@ export function resumenInventario(lista, en = false) {
 		if (!l.length) continue;
 		const conPrecio = visiblesConPrecio(l);
 		const monedas = new Set(conPrecio.map((p) => p.moneda || 'USD'));
-		const desde = monedas.size === 1 ? ` ${en ? 'from' : 'desde'} ${dinero(Math.min(...conPrecio.map((p) => Number(p.precio))), [...monedas][0])}${en ? tail : cola}` : '';
+		const desde = monedas.size === 1 ? ` ${en ? 'from' : 'desde'} ${montoPrecio(Math.min(...conPrecio.map((p) => Number(p.precio))), [...monedas][0])}${en ? tail : cola}` : '';
 		// El sustantivo solo en la primera parte: «2 propiedades en venta… y 1 en renta…».
 		const que = en ? (o === 'vacacional' ? (l.length === 1 ? 'vacation rental' : eng) : `${partes.length ? '' : l.length === 1 ? 'property ' : 'properties '}${eng}`)
 			: `${partes.length ? '' : l.length === 1 ? 'propiedad ' : 'propiedades '}${es}`;
@@ -300,8 +300,8 @@ function datoPrecio(s, en) {
 	// Solo si todos los precios a la vista son de esa moneda: el dato no deja fuera a nadie.
 	if (!s || s.n !== s.total) return '';
 	const unidad = { renta: en ? ' a month' : ' al mes', vacacional: en ? ' a night' : ' por noche' }[s.operacion] || '';
-	const m2 = s.porM2 ? (en ? `, ${dinero(Math.round(s.porM2), s.moneda)}/m²` : `, ${dinero(Math.round(s.porM2), s.moneda)} por m²`) : '';
-	return en ? `: median price ${dinero(s.mediana, s.moneda)}${unidad}${m2}` : `: precio mediano ${dinero(s.mediana, s.moneda)}${unidad}${m2}`;
+	const m2 = s.porM2 ? (en ? `, ${montoPrecio(Math.round(s.porM2), s.moneda)}/m²` : `, ${montoPrecio(Math.round(s.porM2), s.moneda)} por m²`) : '';
+	return en ? `: median price ${montoPrecio(s.mediana, s.moneda)}${unidad}${m2}` : `: precio mediano ${montoPrecio(s.mediana, s.moneda)}${unidad}${m2}`;
 }
 
 // Sin estadísticas (menos de MIN_PRECIOS precios): «desde» el menor, si todos están en una moneda.
@@ -309,7 +309,7 @@ function datoDesde(lista, o, en) {
 	const c = visiblesConPrecio(lista.filter((p) => op(p) === o));
 	if (!c.length || new Set(c.map((p) => p.moneda || 'USD')).size > 1) return '';
 	const unidad = { renta: en ? ' a month' : ' al mes', vacacional: en ? ' a night' : ' por noche' }[o] || '';
-	return ` ${en ? 'from' : 'desde'} ${dinero(Math.min(...c.map((p) => Number(p.precio))), c[0].moneda || 'USD')}${unidad}`;
+	return ` ${en ? 'from' : 'desde'} ${montoPrecio(Math.min(...c.map((p) => Number(p.precio))), c[0].moneda || 'USD')}${unidad}`;
 }
 
 // Textos de una página de tipo o de zona del plan: { heading, title, description, intro, precios }.
