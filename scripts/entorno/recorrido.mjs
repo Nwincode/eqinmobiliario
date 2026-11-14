@@ -58,7 +58,7 @@ const guardar = async (p) => { await p.locator('button', { hasText: /^Guardar$/ 
 const avisos = async (p) => (await p.locator('.toast').allInnerTexts()).join(' | ').replace(/\s+/g, ' ').slice(0, 160);
 // Lo que responde /api/reservas al tocar un botón del socio (así se sabe que lo hizo el servidor): se pide antes del clic.
 const delServidor = (p) => p.waitForResponse((x) => x.url().endsWith('/api/reservas') && x.request().method() === 'POST', { timeout: 20000 })
-	.then(async (x) => ({ status: x.status(), ...(await x.json().catch(() => ({}))) })).catch(() => ({ status: 0 }));
+	.then(async (x) => ({ status: x.status(), ...(await Promise.race([x.json().catch(() => ({})), espera(3000).then(() => ({}))])) })).catch(() => ({ status: 0 }));
 const porServidor = (x, accion) => x.status === 200 && x.ok === true && x.accion === accion;
 const resp = (x) => `servidor ${x.status}${x.error ? ` ${x.error}` : ''}`;
 

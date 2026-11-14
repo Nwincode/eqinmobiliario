@@ -166,8 +166,8 @@ export async function ponerAlDiaReservas(reservas, casas) {
 export async function porServidor(accion, leadId, extra = {}) {
 	const token = await session.user.getIdToken();
 	const res = await fetch('/api/reservas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accion, leadId, ...extra }) });
-	if (res.status === 503) return null;
 	const cuerpo = await res.json().catch(() => ({}));
+	if (res.status === 503) return null;
 	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status });
 	return cuerpo;
 }
