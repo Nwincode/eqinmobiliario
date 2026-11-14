@@ -1,5 +1,5 @@
 import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
-import { miles, dinero, telefonoWa } from '../../admin/js/formato.js';
+import { miles, telefonoWa } from '../../admin/js/formato.js';
 // Utilidades compartidas por el generador del sitio.
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -40,14 +40,8 @@ export function deepMerge(base, override) {
 // Número con coma en miles y millones y punto en decimales (2,226.47), como se usa en Guatemala.
 export const cifra = miles;
 
-export function formatPrice(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
-	if (!precio) return lang === 'en' ? 'Price on request' : 'Precio a consultar';
-	if (operacion === 'vacacional') {
-		return lang === 'en' ? `From ${dinero(precio, moneda)} per night` : `Desde ${dinero(precio, moneda)} por noche`;
-	}
-	const suffix = operacion === 'renta' ? (lang === 'en' ? ' /mo' : ' /mes') : '';
-	return `${dinero(precio, moneda)}${suffix}`;
-}
+// Precio de una propiedad: el mismo del panel (admin/js/formato.js), una sola regla.
+export { precioTexto as formatPrice } from '../../admin/js/formato.js';
 
 export const TIPOS = {
 	casa: 'Casa',
