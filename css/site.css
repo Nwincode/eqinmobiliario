@@ -442,6 +442,21 @@
 	color: var(--eq-primary);
 	margin-top: 2rem;
 }
+/* Los títulos del contenido empiezan en h2 (scripts/lib/util.mjs `markdown`) con el tamaño que tenían de h3. */
+.content-page h2 {
+	font-size: calc(1.3rem + .6vw);
+}
+.content-page h3 {
+	font-size: calc(1.275rem + .3vw);
+}
+@media (min-width: 1200px) {
+	.content-page h2 {
+		font-size: 1.75rem;
+	}
+	.content-page h3 {
+		font-size: 1.5rem;
+	}
+}
 
 /* Compartir propiedad */
 .share-buttons {
@@ -619,6 +634,16 @@ body {
 :focus-visible {
 	outline: 2px solid var(--eq-cyan);
 	outline-offset: 2px;
+}
+/* Campos: la plantilla les quita el contorno al enfocarlos. Con el teclado llevan el mismo anillo que los botones
+   (celeste con un borde oscuro: se ve sobre fondo claro y oscuro). */
+.form-control:focus-visible,
+.form-select:focus-visible,
+.form-check-input:focus-visible,
+.custom-pagination a:focus-visible {
+	outline: 2px solid var(--eq-focus);
+	outline-offset: 2px;
+	box-shadow: 0 0 0 2px var(--eq-dark);
 }
 h2.heading::after,
 .section-title::after {
@@ -1771,10 +1796,22 @@ body.offcanvas-menu .ficha-barra {
 		height: auto;
 		max-height: calc(100vh - 140px);
 	}
+	/* Hasta 3 por fila y sin celdas sueltas: 4 datos van 2 + 2; 5 van 3 + 2 (las medidas, al final, más anchas). */
 	.ficha-datos {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(6, minmax(0, 1fr));
 		gap: 18px 12px;
+	}
+	.ficha-datos li {
+		grid-column: span 2;
+	}
+	.ficha-datos[data-n="1"] li {
+		grid-column: span 6;
+	}
+	.ficha-datos[data-n="2"] li,
+	.ficha-datos[data-n="4"] li,
+	.ficha-datos[data-n="5"] li:nth-child(n+4) {
+		grid-column: span 3;
 	}
 	.ficha-datos strong {
 		font-size: 20px;
@@ -2573,7 +2610,9 @@ a:hover > .eq-ic-fin,
 .ficha-aviso-texto {
 	min-width: 0;
 }
-.ficha-aviso h2 {
+/* El aviso de una casa cerrada va antes del h1 de la ficha: su título no es un encabezado (orden de los títulos). */
+.ficha-aviso h2,
+.ficha-aviso .ficha-aviso-titular {
 	font-size: 20px;
 	font-weight: 600;
 	line-height: 1.3;

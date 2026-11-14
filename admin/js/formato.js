@@ -81,6 +81,15 @@ export function horarioEn(horario) {
 	return en.charAt(0).toUpperCase() + en.slice(1);
 }
 
+// Texto en inglés con los m² también en pies cuadrados: «149 m² apartment» → «149 m² (1,604 sq ft) apartment».
+// Lo que ya trae sus sq ft al lado («1,604 sq ft (149 m²)», «2,226 m² (23,966 sq ft)») no se toca.
+export function conPiesCuadrados(texto) {
+	return String(texto || '').replace(/(?<![(\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s?m(?:²|2\b)(?!\s*\(?[\d,.]+\s*sq\s*ft)/g, (todo, entero, dec = '') => {
+		const m2 = Number(entero.replace(/,/g, '') + dec);
+		return m2 ? `${todo} (${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft)` : todo;
+	});
+}
+
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
 // Códigos de país que ofrece cada campo de teléfono, primero los que más escriben; cualquier otro
 // se escribe completo, empezando con «+».

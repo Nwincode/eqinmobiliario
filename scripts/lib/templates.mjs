@@ -38,7 +38,7 @@ const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 // Enlaces según lo que existe (scripts/lib/landings.mjs crearEnlaces): un listado vacío no se enlaza y un enlace
 // del contenido a un listado que no existe va a su padre. Sin plan (pruebas sueltas), todo queda igual.
 const visible = (ctx, href) => !ctx.enlaces || ctx.enlaces.visible(href);
-const md = (ctx, texto) => markdown(texto, ctx.enlaces ? ctx.enlaces.resolver : null);
+const md = (ctx, texto, nivel = 2) => markdown(texto, ctx.enlaces ? ctx.enlaces.resolver : null, nivel);
 const lng = (p) => p._lang || 'es';
 const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
 
@@ -1065,7 +1065,7 @@ function rentaWidget(ctx, p = null) {
 						<div class="renta-desglose" data-out="desglose" hidden></div>
 						<p class="renta-iva" data-out="iva" hidden></p>
 						<div class="renta-escenarios" data-out="escenarios" hidden>
-							<h3 class="renta-sub">${t.rentaEscenarios}</h3>
+							<${p ? 'h3' : 'h2'} class="renta-sub">${t.rentaEscenarios}</${p ? 'h3' : 'h2'}>
 							<div class="renta-esc-grid"></div>
 						</div>
 						<button type="button" class="btn btn-primary w-100 renta-cta" data-renta-cta>${ic('comments')}${t.rentaCta}</button>
@@ -1356,7 +1356,7 @@ export function propertyPage(ctx, p) {
 	const aviso = cerrada ? `<section class="ficha-aviso" aria-labelledby="ficha-aviso-titulo">
 				<span class="ficha-aviso-icono" aria-hidden="true">${ic('key')}</span>
 				<div class="ficha-aviso-texto">
-					<h2 id="ficha-aviso-titulo">${p.estado === 'rentada' ? t.avisoRentada : t.avisoVendida}</h2>
+					<p class="ficha-aviso-titular" id="ficha-aviso-titulo">${p.estado === 'rentada' ? t.avisoRentada : t.avisoVendida}</p>
 					<p>${t.avisoCerradaTexto}</p>
 					<div class="ficha-aviso-acciones">
 						${related.length ? `<a href="#similares" class="btn btn-primary">${ic('th-large')}${t.verSimilares}</a>` : `<a href="${r.propiedades}" class="btn btn-primary">${ic('search')}${t.verPropiedades}</a>`}
@@ -1436,13 +1436,13 @@ export function propertyPage(ctx, p) {
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona && lugar.startsWith(p.zona) ? `<a href="${zona.url}">${esc(p.zona)}</a>${esc(lugar.slice(p.zona.length))}` : esc(lugar)}</p>` : ''}
 						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
 					</header>
-					${datosClave.length ? `<ul class="ficha-datos">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
+					${datosClave.length ? `<ul class="ficha-datos" data-n="${datosClave.length}">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					${esVac ? `</div>
 				${lateral}
 				<div class="col-lg-7">` : ''}
 					<section class="ficha-bloque">
 						<h2>${ic('file-text-o')}${t.descripcion}</h2>
-						<div class="prop-description">${md(ctx, p.descripcion)}</div>
+						<div class="prop-description">${md(ctx, p.descripcion, 3)}</div>
 					</section>
 					${(p.amenidades || []).length ? `<section class="ficha-bloque">
 						<h2>${ic('check-square-o')}${t.amenidades}</h2>
@@ -1666,7 +1666,7 @@ export function vipLandingPage(ctx, p) {
 				<div class="col-lg-7" data-aos="fade-up">
 					<span class="vip-kicker">${ic('home')}${t.laPropiedad}</span>
 					<h2 class="vip-h2">${esc(p.titulo)}</h2>
-					<div class="vip-text">${md(ctx, p.descripcion)}</div>
+					<div class="vip-text">${md(ctx, p.descripcion, 3)}</div>
 				</div>
 				${(v.puntosClave || []).length ? `<div class="col-lg-5" data-aos="fade-up" data-aos-delay="150">
 					<div class="vip-highlights">

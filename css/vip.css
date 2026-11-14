@@ -48,7 +48,10 @@
 	font-size: 12px;
 	color: var(--vip-gold);
 	font-weight: 600;
-	text-shadow: 0 1px 3px var(--eq-dark);
+	/* Texto chico sobre una foto: con su propio fondo oscuro el contraste no depende de la foto (≥ 4.5:1). */
+	background: color-mix(in srgb, var(--eq-dark) 80%, transparent);
+	padding: 4px 10px;
+	border-radius: 4px;
 	margin-bottom: 1rem;
 }
 .vip-hero h1 {
@@ -317,11 +320,14 @@
 	}
 }
 
+/* Barra fija del celular: aparece cuando el botón de la portada ya no se ve y se esconde mientras se ve el
+   formulario (js/site.js, «Barra fija de la landing VIP»). Sin JavaScript se queda visible. */
 .vip-sticky-cta {
 	position: fixed;
 	left: 0;
 	right: 0;
 	bottom: 0;
+	transition: transform .25s ease;
 	display: flex;
 	gap: 10px;
 	padding: 12px 16px;
@@ -331,4 +337,15 @@
 }
 .vip-sticky-cta .btn-vip {
 	flex: 1;
+}
+.vip-sticky-cta.vip-sticky-oculta {
+	transform: translateY(110%);
+	visibility: hidden;
+	transition: transform .25s ease, visibility 0s .25s;
+}
+@media (prefers-reduced-motion: reduce) {
+	.vip-sticky-cta,
+	.vip-sticky-cta.vip-sticky-oculta {
+		transition: none;
+	}
 }

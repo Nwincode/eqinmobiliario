@@ -589,6 +589,33 @@
 		});
 	}
 
+	// ------------------------------------------------------------ Barra fija de la landing VIP
+	// En celular: un control por pantalla. La barra sale cuando el botón de la portada ya no se ve
+	// y se esconde mientras se ve el formulario de contacto.
+
+	var barraVip = document.querySelector('.vip-sticky-cta');
+	var botonPortada = document.querySelector('.vip-hero .btn-vip');
+	var contactoVip = document.getElementById('vip-contacto');
+	if (barraVip && botonPortada && 'IntersectionObserver' in window) {
+		var visto = { portada: true, contacto: false };
+		var pintarBarra = function () {
+			var oculta = visto.portada || visto.contacto;
+			barraVip.classList.toggle('vip-sticky-oculta', oculta);
+			barraVip.setAttribute('aria-hidden', oculta ? 'true' : 'false');
+			barraVip.querySelectorAll('a').forEach(function (a) { a.tabIndex = oculta ? -1 : 0; });
+		};
+		var mirar = function (el, clave) {
+			if (!el) return;
+			new IntersectionObserver(function (entradas) {
+				visto[clave] = entradas[entradas.length - 1].isIntersecting;
+				pintarBarra();
+			}).observe(el);
+		};
+		pintarBarra();
+		mirar(botonPortada, 'portada');
+		mirar(contactoVip, 'contacto');
+	}
+
 	// ------------------------------------------------------------ Fotos de las tarjetas
 	// Delegado en el documento: el carrusel de portada clona tarjetas y los filtros las reordenan.
 

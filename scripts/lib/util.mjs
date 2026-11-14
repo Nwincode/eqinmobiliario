@@ -132,8 +132,11 @@ function inlineMarkdown(text, enlace) {
 }
 
 // Markdown mínimo para las páginas de contenido: títulos, párrafos, listas, negritas y enlaces.
-export function markdown(md, enlace = null) {
+// Los títulos siguen el orden de la página: el más alto que se escribió (# o ##) pasa a `nivel` (h2 bajo el h1 de
+// la página; h3 dentro de una sección con h2) y los demás le siguen, sin saltar niveles.
+export function markdown(md, enlace = null, nivel = 2) {
 	const lines = String(md || '').replace(/\r/g, '').split('\n');
+	const alto = Math.min(5, ...lines.map((l) => (/^\s*(#{1,4})\s+/.exec(l) || [, '#####'])[1].length));
 	const html = [];
 	let para = [];
 	let list = null;
@@ -158,7 +161,7 @@ export function markdown(md, enlace = null) {
 		} else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) {
 			flushPara();
 			flushList();
-			const level = Math.min(m[1].length + 1, 5);
+			const level = Math.min(m[1].length - alto + nivel, 6);
 			html.push(`<h${level}>${inlineMarkdown(m[2], enlace)}</h${level}>`);
 		} else if ((m = line.match(/^[-*]\s+(.*)$/)) || (m = line.match(/^\d+[.)]\s+(.*)$/))) {
 			flushPara();
