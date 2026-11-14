@@ -61,6 +61,7 @@ await campo(admin.p, 'operacion').selectOption('vacacional');
 await espera(300);
 paso('Renta vacacional: no se pide asesor responsable', !(await admin.p.locator('[data-campo="agentId"]').isVisible()));
 paso('Renta vacacional: tampoco VIP ni mantenimiento al mes', !(await admin.p.locator('[data-campo="vip"]').isVisible()) && !(await admin.p.locator('[data-campo="mantenimiento"]').isVisible()));
+paso('Renta vacacional: las mascotas se dicen solo en su selector, no también como amenidad', await admin.p.locator('[data-campo="amenidades"] button', { hasText: 'mascotas' }).count() === 0 && await admin.p.locator('[data-campo="amenidades"] button', { hasText: 'Piscina' }).count() === 1);
 paso('Renta vacacional: no se pide nombre ni teléfono del socio', await admin.p.locator('[data-campo="socio.nombre"], [data-campo="socio.telefono"]').count() === 0);
 await campo(admin.p, 'propietarioId').selectOption('socio-prueba');
 await campo(admin.p, 'socio.precioBase').fill('100');
