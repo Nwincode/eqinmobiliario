@@ -164,7 +164,11 @@
 				botonesCampo[i].classList.toggle('is-activo', activo && !(estado.llegada && estado.salida));
 			}
 			if (!estado.llegada) ayuda.textContent = t.vacEligeLlegada;
-			else if (!estado.salida) ayuda.textContent = t.vacEligeSalida + (minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1)) > 1 ? ' ' + fmt(t.vacMinimo, { n: minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1)) }) : '');
+			else if (!estado.salida) {
+				// La estancia mínima de siempre ya está escrita bajo el precio; aquí solo la de esas fechas si es otra.
+				var minimo = minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
+				ayuda.textContent = t.vacEligeSalida + (minimo > 1 && minimo !== nochesMin ? ' ' + fmt(t.vacMinimo, { n: minimo }) : '');
+			}
 			else ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.';
 			pintarDesglose();
 		}

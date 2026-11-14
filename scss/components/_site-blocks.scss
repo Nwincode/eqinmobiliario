@@ -694,13 +694,14 @@
 	}
 }
 
-nav[aria-label="breadcrumb"] {
+// Migas sobre la portada oscura; las de fondo claro (.ficha-migas) llevan su color en css/site.css.
+.hero nav[aria-label="breadcrumb"] {
 	a {
 		color: $white;
 	}
 	li {
 		&:before {
-			color: rgba($white, .3)!important;
+			color: rgba($white, .5)!important;
 		}
 	}
 }

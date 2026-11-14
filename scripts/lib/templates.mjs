@@ -398,7 +398,7 @@ function pageHero(ctx, title, image, crumbs) {
 function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
-	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.fHuespedesMax) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.vacHuespedes) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
 		// Construcción y terreno, los dos cuando existen (en una casa el terreno pesa tanto como lo construido).
 		+ dato('construccion', p.m2Construccion && area(p.m2Construccion, lng(p)), t.fConstruccion) + dato('terreno', p.m2Terreno && areaTerreno(p.m2Terreno, lng(p)), t.fTerreno);
 }
@@ -519,7 +519,7 @@ function bloqueExterior(ctx) {
 					<span class="exterior-kicker">${ic('plane')}${esc(b.etiqueta || '')}</span>
 					<h2 class="font-weight-bold heading text-primary mb-3">${esc(b.titulo)}</h2>
 					<p class="text-black-50 mb-4">${esc(b.texto)}</p>
-					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
+					${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
 				</div>
 				<div class="col-lg-6">
 					<ul class="exterior-list">${(b.puntos || []).map((pt) => `<li><span class="icon-check"></span>${esc(pt)}</li>`).join('')}</ul>
@@ -620,7 +620,7 @@ export function homePage(ctx) {
 						<span class="${esc(f.icono || 'flaticon-house')}"></span>
 						<h3 class="mb-3">${esc(f.titulo)}</h3>
 						<p>${esc(f.texto)}</p>
-						${f.enlace ? `<p><a href="${esc(f.enlace)}" class="learn-more">${t.masInfo}<span class="visually-hidden"> ${t.sobre} ${esc(f.titulo)}</span>${ic('arrow-right', true)}</a></p>` : ''}
+						${f.enlace && visible(ctx, f.enlace) ? `<p><a href="${esc(f.enlace)}" class="learn-more">${t.masInfo}<span class="visually-hidden"> ${t.sobre} ${esc(f.titulo)}</span>${ic('arrow-right', true)}</a></p>` : ''}
 					</div>
 				</div>`).join('\n')}
 			</div>
@@ -696,7 +696,7 @@ export function homePage(ctx) {
 		<div class="row justify-content-center footer-cta" data-aos="fade-up">
 			<div class="col-lg-7 mx-auto text-center">
 				<h2 class="mb-3">${esc(s.cta.titulo)}</h2>
-				<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>
+				${s.cta.enlace && visible(ctx, s.cta.enlace) ? `<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>` : ''}
 			</div>
 		</div>
 	</div>` : ''}
@@ -788,7 +788,8 @@ function porZona(ctx, e = null) {
 		: [...new Set(plan.filter((x) => x.zona).map((x) => x.zona))].map((z) => {
 			const deZona = ctx.properties.filter((p) => p.zona === z && (!vac || p.operacion === 'vacacional'));
 			const pg = deZona.length && paginaDeZona(plan, z, vac ? 'vacacional' : '');
-			return pg ? [pg.url, z, deZona.length] : null;
+			// Solo páginas que se indexan (landings.mjs `bastante`); las casas de una zona chica ya están en el listado de arriba.
+			return pg && pg.indexable ? [pg.url, z, deZona.length] : null;
 		}).filter(Boolean).sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1], 'es', { numeric: true }));
 	const zonasHtml = zonas.filter(([url]) => url !== actual).map(([url, z, n]) => chip(url, 'map-marker', z, n)).join('');
 	// Solo las páginas de tipo que se indexan (con pocas casas, sus casas ya están en el listado de la operación).
@@ -883,7 +884,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		<div class="container">
 			${vac ? vacBuscador(ctx, list) : ''}
 			${vac ? contexto : ''}
-			${vac ? '' : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
+			${vac || !list.length ? '' : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
 				<div class="col-12 filtros-cabeza d-md-none">
 					<strong>${t.buscar}</strong>
 					<button type="button" class="btn btn-outline-secondary btn-ico" id="filtros-cerrar" aria-label="${t.cerrarFiltros}">${ic('close')}</button>
@@ -939,11 +940,13 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 				</label>
 			</div>`}
 
-			<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
+			${list.length ? `<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
 				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 1 })}</div>`).join('\n')}
 			</div>
-			<p class="text-center text-black-50 py-5" id="listing-empty"${list.length ? ' hidden' : ''}>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
-			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>
+			<p class="text-center text-black-50 py-5" id="listing-empty" hidden>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
+			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>`
+			// Listado sin casas (no es un filtro): se dice así y se ofrece lo que sí hay, sin buscador que no filtraría nada.
+			: `<p class="text-center text-black-50 py-5" id="listing-empty">${t.listadoVacio}${path === rt(ctx).propiedades ? '' : ` <a href="${rt(ctx).propiedades}">${t.verTodasPropiedades}</a>.`} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>`}
 			${vac ? `<h2 class="h5 mt-4 mb-3">${t.vlComo}</h2>
 			<ol class="vac-pasos">${[t.vlPaso1, t.vlPaso2, t.vlPaso3].map((x) => `<li>${x}</li>`).join('')}</ol>` : ''}
 		</div>
@@ -1269,7 +1272,8 @@ function reservaBox(ctx, p) {
 	const t = tr(ctx);
 	const lang = ctx.lang || 'es';
 	const d = datosVacacional(p);
-	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('vac')));
+	// Textos de la ficha por noche; los del chat viajan solo a /reserva/ (de ellos aquí solo hace falta «Ver tu reserva»).
+	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('vac') && (!k.startsWith('vacChat') || k === 'vacChatVer')));
 	const json = JSON.stringify({ ...d, moneda: p.moneda || 'USD', t: textos }).replace(/</g, '\\u003c');
 	const huespedes = Array.from({ length: d.huespedesMax }, (_, i) => i + 1)
 		.map((n) => `<option value="${n}"${n === Math.min(2, d.huespedesMax) ? ' selected' : ''}>${n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n })}</option>`).join('');
@@ -1326,9 +1330,11 @@ export function propertyPage(ctx, p) {
 	const r = rt(ctx);
 	const agent = ctx.agentsById[p.agentId];
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
-	// Su zona y la página más específica de su zona (zona + operación, o zona + tipo + operación) si existen.
-	const zona = p.zona ? buscar(ctx.plan || [], 'zona', { zona: p.zona }) : null;
-	const fina = p.zona ? paginaDeZona(ctx.plan || [], p.zona, p.operacion, p.tipo) : null;
+	// Su zona y la página más específica de su zona (zona + operación, o zona + tipo + operación) si existen y se
+	// indexan (landings.mjs `bastante`); una zona con pocas casas no se enlaza: sus casas ya están en el listado de arriba.
+	const indexable = (x) => (x && x.indexable ? x : null);
+	const zona = p.zona ? indexable(buscar(ctx.plan || [], 'zona', { zona: p.zona })) : null;
+	const fina = p.zona ? indexable(paginaDeZona(ctx.plan || [], p.zona, p.operacion, p.tipo)) : null;
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades },
 		zona && { name: p.zona, url: zona.url }, fina && fina !== zona && { name: fina.opts ? fina.opts.heading : p.zona, url: fina.url },
 		{ name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
@@ -1568,6 +1574,27 @@ export function vipIndexPage(ctx, entrada = null) {
 	}, body);
 }
 
+// Galería VIP sin huecos con cualquier número de fotos (css/vip.css): la primera, grande; las demás llenan el alto de
+// la grande y las filas de abajo, y la última fila se reparte entera. Computadora: 4 columnas (la grande, 2×2);
+// celular: 2 columnas (la grande a lo ancho). Clases: vg-d2 / vg-d4 = 2 o 4 columnas, vg-dr2 = 2 filas, vg-m2 = 2 columnas en celular.
+export function celdaGaleriaVip(i, n) {
+	if (i === 0) return ' is-wide';
+	const m = n - 1; // miniaturas
+	const c = [];
+	if (m === 1) c.push('vg-d2', 'vg-dr2');
+	else if (m === 2) c.push('vg-d2');
+	else if (m === 3 && i === 3) c.push('vg-d2');
+	else if (m > 4 && i > 4) {
+		const resto = (m - 4) % 4; // fotos en la última fila de abajo
+		const enUltima = resto && i > m - resto;
+		if (enUltima && resto === 1) c.push('vg-d4');
+		else if (enUltima && resto === 2) c.push('vg-d2');
+		else if (enUltima && resto === 3 && i === m) c.push('vg-d2');
+	}
+	if (m % 2 && i === m) c.push('vg-m2');
+	return c.length ? ` ${c.join(' ')}` : '';
+}
+
 export function vipLandingPage(ctx, p) {
 	const s = ctx.site;
 	const t = tr(ctx);
@@ -1620,7 +1647,7 @@ export function vipLandingPage(ctx, p) {
 
 	${facts.length ? `<section class="vip-facts">
 		<div class="container">
-			<ul>
+			<ul style="--n:${facts.length}">
 				${facts.map(([icon, val, label]) => `<li><span class="${icon}"></span><strong>${esc(val)}</strong><small>${esc(label)}</small></li>`).join('')}
 			</ul>
 		</div>
@@ -1649,7 +1676,7 @@ export function vipLandingPage(ctx, p) {
 			<span class="vip-kicker">${ic('camera')}${t.galeria}</span>
 			<h2 class="vip-h2 mb-4">${t.recorre}</h2>
 			<div class="vip-gallery">
-				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${i === 0 ? ' is-wide' : ''}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}"><img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, i ? '(max-width: 767px) 50vw, 33vw' : '(max-width: 767px) 100vw, 67vw')} loading="lazy" width="800" height="600"></button>`).join('\n')}
+				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${celdaGaleriaVip(i, fotos.length)}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}"><img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, i ? '(max-width: 767px) 50vw, 33vw' : '(max-width: 767px) 100vw, 67vw')} loading="lazy" width="800" height="600"></button>`).join('\n')}
 			</div>
 		</div>
 	</section>
@@ -1859,7 +1886,7 @@ export function blogPostPage(ctx, post) {
 		headline: post.titulo,
 		inLanguage: t.htmlLang,
 		description: truncate(description, 300),
-		image: post.imagen ? absUrl(ctx, post.imagen) : undefined,
+		image: absUrl(ctx, post.imagen || ctx.site.seo.imagen || '/logo-equipo-inmobiliario.png'),
 		datePublished: post.fecha || post.createdAt || undefined,
 		dateModified: post.updatedAt || post.fecha || undefined,
 		author: { '@type': post.autor ? 'Person' : 'Organization', name: post.autor || ctx.site.general.nombre },

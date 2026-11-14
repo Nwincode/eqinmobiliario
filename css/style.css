@@ -10210,11 +10210,11 @@ textarea {
     transform: rotate(180deg);
     top: 2px; }
 
-nav[aria-label="breadcrumb"] a {
+.hero nav[aria-label="breadcrumb"] a {
   color: #fff; }
 
-nav[aria-label="breadcrumb"] li:before {
-  color: rgba(255, 255, 255, 0.3) !important; }
+.hero nav[aria-label="breadcrumb"] li:before {
+  color: rgba(255, 255, 255, 0.5) !important; }
 
 .learn-more {
   position: relative;

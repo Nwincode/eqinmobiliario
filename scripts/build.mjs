@@ -9,7 +9,7 @@ import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
 import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
-import { dinero, telefonoWa } from '../admin/js/formato.js';
+import { montoPrecio, telefonoWa } from '../admin/js/formato.js';
 import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
@@ -300,7 +300,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
 		dato('Ubicación', lugarDe(p)),
-		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? dinero(p.precio, p.moneda || 'USD') : ''),
+		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
 		dato('Parqueos', p.parqueos),

@@ -9,6 +9,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedEjemplo } from './lib/sitio-ejemplo.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
+import { precioTexto, dinero } from '../admin/js/formato.js';
+import { formatPrice } from './lib/util.mjs';
+import { celdaGaleriaVip } from './lib/templates.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-sitio-'));
@@ -103,10 +106,10 @@ test('zona × tipo × operación cuelga de la página de tipo, con migas y canon
 test('bloque de precios: rango, mediana y m², sin mezclar monedas', () => {
 	const h = de('/propiedades/zona-16/');
 	assert.match(h, /Precios en Zona 16/);
-	assert.match(h, /US\$ 198,000\.00 – US\$ 515,000\.00/);
-	assert.match(h, /Precio mediano<\/dt><dd>US\$ 350,000\.00/);
-	assert.match(de('/propiedades/zona-15/'), /Q 2,500,000\.00 – Q 3,400,000\.00/);
-	assert.match(de('/propiedades/renta/zona-10/'), /US\$ 1,800\.00 \/mes/);
+	assert.match(h, /US\$ 198,000 – US\$ 515,000/);
+	assert.match(h, /Precio mediano<\/dt><dd>US\$ 350,000</);
+	assert.match(de('/propiedades/zona-15/'), /Q 2,500,000 – Q 3,400,000/);
+	assert.match(de('/propiedades/renta/zona-10/'), /US\$ 1,800 \/mes/);
 	assert.doesNotMatch(de('/propiedades/zona-1/'), /zona-precios/);
 	// En el título y la descripción, el tipo que domina y un dato propio de la zona.
 	// «Casas en venta en Zona 16» es de su propia página: la zona no compite con ella por el mismo título.
@@ -119,7 +122,7 @@ test('inglés: zona × operación con su par en español', () => {
 	const h = de('/en/properties/for-sale/zona-10/');
 	assert.match(h, /hreflang="es" href="https:\/\/eqinmobiliario.gt\/propiedades\/venta\/zona-10\/"/);
 	assert.ok(sitemap.has('/en/properties/for-sale/zona-10/'));
-	assert.match(de('/en/properties/zona-16/'), /Median price per sq ft/);
+	assert.match(de('/en/properties/zona-16/'), /Median price per\ssq\sft/);
 });
 
 test('enlaces del contenido a listados que no existen van al padre que sí tiene casas', () => {
@@ -165,6 +168,79 @@ test('VIP con propiedades se indexa; tarjetas sin puntos y con ancho y alto', ()
 	const cards = [...de('/propiedades/').matchAll(/<div class="property-item"[\s\S]*?<img src="[^"]+"[^>]*>/g)].map((m) => /loading="lazy"/.test(m[0]));
 	assert.deepEqual(cards.slice(0, 3), [false, false, true]);
 });
+
+test('precio de una propiedad: sin centavos si es entero y de 1,000 o más; con centavos si no (una sola regla)', () => {
+	assert.equal(precioTexto(350000, 'USD'), 'US$ 350,000');
+	assert.equal(precioTexto(5000, 'GTQ', 'renta'), 'Q 5,000 /mes');
+	assert.equal(precioTexto(1250.5, 'USD'), 'US$ 1,250.50');
+	assert.equal(precioTexto(120, 'USD', 'vacacional'), 'Desde US$ 120.00 por noche');
+	assert.equal(precioTexto(1200, 'USD', 'vacacional', 'en'), 'From US$ 1,200 per night');
+	assert.equal(precioTexto(0), 'Precio a consultar');
+	// Lo que se cobra o se suma sigue con centavos.
+	assert.equal(dinero(350000, 'USD'), 'US$ 350,000.00');
+	assert.equal(formatPrice, precioTexto);
+	assert.match(de(Object.keys(html).find((u) => /^\/propiedad\/casa-en-venta-en-zona-16-1\//.test(u))), /US\$ 350,000</);
+});
+
+test('artículo sin imagen: el JSON-LD usa la imagen del sitio', () => {
+	const ld = [...de('/blog/guia-ejemplo-zona-14/').matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1])).find((x) => x['@type'] === 'BlogPosting');
+	assert.match(ld.image, /^https:\/\/eqinmobiliario\.gt\/.+\.(jpg|webp|png)$/);
+});
+
+test('la ficha por noche no carga los textos del chat (solo /reserva/)', () => {
+	const vac = Object.keys(html).find((u) => /^\/propiedad\/.*monterrico/.test(u));
+	const datos = JSON.parse(/<script type="application\/json" class="vac-datos">([\s\S]*?)<\/script>/.exec(de(vac))[1]);
+	assert.deepEqual(Object.keys(datos.t).filter((k) => k.startsWith('vacChat')), ['vacChatVer']);
+	assert.match(de('/reserva/'), /vacChatSin/);
+});
+
+test('ninguna página que se indexa enlaza un listado que no se indexa (pastillas, migas, ubicación)', () => {
+	const malos = [];
+	for (const [u, h] of Object.entries(html)) {
+		if (!indexa(h)) continue;
+		for (const [, href] of h.matchAll(/href="(\/[^"#?]*)"/g)) {
+			const d = html[href];
+			if (d && /data-listing="1"/.test(d) && !indexa(d)) malos.push(`${u} → ${href}`);
+		}
+	}
+	assert.deepEqual([...new Set(malos)], []);
+});
+
+test('galería VIP: sin celdas sueltas con cualquier número de fotos', () => {
+	for (let n = 2; n <= 14; n++) {
+		const celdas = Array.from({ length: n }, (_, i) => celdaGaleriaVip(i, n));
+		// Computadora: 4 columnas, la primera 2×2 (y si hay una sola miniatura, 2×2 también).
+		const area = celdas.slice(1).reduce((a, c) => a + (/vg-d4/.test(c) ? 4 : /vg-d2/.test(c) ? 2 : 1) * (/vg-dr2/.test(c) ? 2 : 1), 4);
+		assert.equal(area % 4, 0, `${n} fotos: en computadora queda un hueco (${celdas.join('|')})`);
+		assert.ok(area >= 8, `${n} fotos: las miniaturas no llenan el alto de la grande`);
+		// Celular: 2 columnas, la primera 2×2.
+		const cel = celdas.slice(1).reduce((a, c) => a + (/vg-m2/.test(c) ? 2 : 1), 0);
+		assert.equal(cel % 2, 0, `${n} fotos: en celular queda una celda suelta`);
+	}
+});
+
+// Sitio sin casas en renta: el listado vacío lo dice como tal (no como filtro) y ningún enlace del contenido lleva ahí.
+{
+	const seedSin = path.join(tmp, 'seed-sin-renta.json');
+	const datos = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+	datos.properties = datos.properties.filter((p) => p.operacion !== 'renta');
+	writeFileSync(seedSin, JSON.stringify(datos));
+	const distSin = path.join(tmp, 'dist-sin-renta');
+	execFileSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...env, SEED_FILE: seedSin, DIST_DIR: distSin }, stdio: ['ignore', 'pipe', 'pipe'] });
+	const leer = (u) => readFileSync(path.join(distSin, u, 'index.html'), 'utf8');
+	test('enlaces de Contenido (portada) a un listado sin casas se esconden', () => {
+		assert.ok(datos.settings.features.items.some((f) => f.enlace === '/propiedades/renta/'));
+		assert.doesNotMatch(leer(''), /href="\/propiedades\/renta\/"/);
+		assert.match(leer(''), /href="\/propiedades\/venta\/" class="learn-more"/);
+	});
+	test('listado vacío: mensaje propio con enlace a todas, sin filtros', () => {
+		const h = leer('propiedades/renta');
+		assert.match(h, /Por ahora no hay propiedades aquí\. <a href="\/propiedades\/">Ve todas las propiedades<\/a>\. <a href="#contacto-listado">Cuéntanos qué buscas<\/a>/);
+		assert.doesNotMatch(h, /No encontramos propiedades con esos filtros|id="listing-filters"/);
+		assert.match(h, /<meta name="robots" content="noindex/);
+		assert.match(readFileSync(path.join(distSin, 'en/properties/for-rent/index.html'), 'utf8'), /There are no properties here yet\. <a href="\/en\/properties\/">See all properties<\/a>/);
+	});
+}
 
 if (!process.env.GUARDAR) rmSync(tmp, { recursive: true, force: true });
 console.log(`${ok} pruebas del sitio generado pasan${process.exitCode ? ' (con fallas)' : ''}.`);
