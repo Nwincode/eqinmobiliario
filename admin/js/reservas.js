@@ -187,7 +187,8 @@ const cerrarChat = (tx, chat, estado, texto) => {
 export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } = {}) {
 	const r = l.reserva;
 	const p = (await getDoc(doc(db, 'properties', l.propertyId))).data();
-	const id = doc(collection(db, 'reservas')).id;
+	// Una reserva por solicitud: su id es el de la solicitud (las reglas lo exigen al socio).
+	const id = l.id;
 	const datos = {
 		...nuevaReserva({ id: l.propertyId, ...p }, {
 			propertyTitulo: l.propertyTitulo, moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',

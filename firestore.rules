@@ -227,6 +227,7 @@ service cloud.firestore {
         && solicitud.get(['reserva', 'codigo'], '') == r.codigo
         && solicitud.get(['reserva', 'llegada'], '') == r.llegada
         && solicitud.get(['reserva', 'salida'], '') == r.salida
+        && r.noches == solicitud.get(['reserva', 'noches'], -1)
         && r.agentId == casa.get('agentId', '')
         && r.canal == 'web' && r.pagadoSocio == false && r.get('pagadoFecha', '') == ''
         && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
@@ -244,8 +245,9 @@ service cloud.firestore {
       // Lo que crea tiene la forma de admin/js/reservas.js confirmarSolicitud: de una solicitud que existe (mismo código,
       // casa y fechas), del asesor de la casa, sin pago marcado y con la comisión entera (la ganancia, que no puede ser
       // menor que el margen de la casa sobre su parte) y sin pagar.
+      // Su id es el de la solicitud: una sola reserva por solicitud (crear sobre una que ya existe no es «crear»).
       allow create: if nuevoPropio()
-        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada'
+        || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
             && esSocioDeCasaPorNoche(request.resource.data.get('propertyId', ''))
             && reservaDelSocioValida(request.resource.data));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
