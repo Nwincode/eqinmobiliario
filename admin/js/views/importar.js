@@ -4,7 +4,7 @@ import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timest
 import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
-import { estadoDe } from '../estados.js';
+import { estadoDe, incoherencia } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional } from './properties.js';
 import {
@@ -199,6 +199,10 @@ export async function render(container) {
 				else vistos.set(r.datos.codigo, item.fila);
 				usados.push(r.datos.codigo);
 			}
+			// Lo que la fila no dice se toma de la propiedad que actualiza (o de lo que nace por defecto).
+			const base = item.existente || datosIniciales();
+			const choque = incoherencia({ operacion: r.datos.operacion || base.operacion, estado: r.datos.estado, tipo: r.datos.tipo || (r.datos.operacion ? base.tipo : '') });
+			if (choque) item.errores.push(choque);
 			return item;
 		});
 		// Códigos generados, en orden y sin chocar con los existentes ni con los del CSV.

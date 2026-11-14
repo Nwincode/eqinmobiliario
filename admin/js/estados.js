@@ -69,6 +69,14 @@ const ESTADOS_FUERA = { venta: ['rentada'], renta: ['vendida'], vacacional: ['re
 export const estadosPara = (operacion) => ESTADOS_PROPIEDAD.filter((e) => !(ESTADOS_FUERA[operacion] || []).includes(e.valor));
 const TIPOS_POR_NOCHE = ['casa', 'apartamento', 'finca'];
 export const tipoAplica = (tipo, operacion) => operacion !== 'vacacional' || TIPOS_POR_NOCHE.includes(tipo);
+// Qué no cuadra entre la operación, el estado y el tipo de una casa ('' si todo cuadra). Lo usan el formulario
+// (que ya ni lo ofrece), el cambio de estado en lote y la importación, con el mismo texto.
+const NOMBRE_OP = { venta: 'una casa en venta', renta: 'una casa en renta', vacacional: 'una casa por noche' };
+export function incoherencia({ operacion = 'venta', estado, tipo } = {}) {
+	if (estado && !estadosPara(operacion).some((e) => e.valor === estado)) return `«${estadoDe({ estado }).label}» no aplica a ${NOMBRE_OP[operacion] || 'esta operación'}`;
+	if (tipo && !tipoAplica(tipo, operacion)) return `Ese tipo de inmueble no se renta por noche`;
+	return '';
+}
 
 // Mascotas en una casa por noche: se dice una sola vez, en su selector (sí / no / sin indicar), no también como
 // amenidad. Quita esa amenidad de la lista y, si el selector estaba sin indicar, lo deja en «sí». Devuelve la casa.

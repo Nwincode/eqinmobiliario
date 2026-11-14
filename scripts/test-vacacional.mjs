@@ -273,4 +273,13 @@ test('mascotas: en una casa por noche se dicen una sola vez, en el selector', ()
 	assert.equal(amenidadesPara('venta').includes('Acepta mascotas'), true);
 });
 
+const { incoherencia } = await import('../admin/js/estados.js');
+test('estado y tipo según la operación: lo que no aplica se nombra, lo que aplica pasa', () => {
+	assert.match(incoherencia({ operacion: 'vacacional', estado: 'vendida' }), /no aplica a una casa por noche/);
+	assert.match(incoherencia({ operacion: 'venta', estado: 'rentada' }), /no aplica a una casa en venta/);
+	assert.match(incoherencia({ operacion: 'vacacional', tipo: 'terreno' }), /no se renta por noche/);
+	for (const c of [{ operacion: 'vacacional', estado: 'pausada', tipo: 'casa' }, { operacion: 'venta', estado: 'vendida', tipo: 'terreno' }, { operacion: 'renta', estado: 'rentada' }, {}])
+		assert.equal(incoherencia(c), '', JSON.stringify(c));
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
