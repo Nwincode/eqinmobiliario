@@ -674,7 +674,7 @@ export function homePage(ctx) {
 			<div class="row justify-content-between">
 				<div class="col-lg-7 mb-4 mb-lg-0 order-lg-2">
 					<div class="img-about dots">
-						${imgFoto(s.servicios.imagen, { alt: s.servicios.titulo, clase: 'img-fluid', sizes: '(max-width: 991px) 100vw, 58vw', aspecto: [3, 2] })}
+						${imgFoto(s.servicios.imagen, { alt: s.servicios.titulo, clase: 'img-fluid', aspecto: [3, 2] })}
 					</div>
 				</div>
 				<div class="col-lg-4">

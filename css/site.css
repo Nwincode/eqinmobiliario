@@ -443,17 +443,17 @@
 	margin-top: 2rem;
 }
 /* Los títulos del contenido empiezan en h2 (scripts/lib/util.mjs `markdown`) con el tamaño que tenían de h3. */
-.content-page h2 {
+.content-page > h2 {
 	font-size: calc(1.3rem + .6vw);
 }
-.content-page h3 {
+.content-page > h3 {
 	font-size: calc(1.275rem + .3vw);
 }
 @media (min-width: 1200px) {
-	.content-page h2 {
+	.content-page > h2 {
 		font-size: 1.75rem;
 	}
-	.content-page h3 {
+	.content-page > h3 {
 		font-size: 1.5rem;
 	}
 }

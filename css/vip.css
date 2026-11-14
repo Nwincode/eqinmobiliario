@@ -49,7 +49,7 @@
 	color: var(--vip-gold);
 	font-weight: 600;
 	/* Texto chico sobre una foto: con su propio fondo oscuro el contraste no depende de la foto (≥ 4.5:1). */
-	background: color-mix(in srgb, var(--eq-dark) 80%, transparent);
+	background: var(--eq-dark);
 	padding: 4px 10px;
 	border-radius: 4px;
 	margin-bottom: 1rem;
