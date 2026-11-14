@@ -50,9 +50,13 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.
 	if (['no', 'cancelada'].includes(chat.estado) && lado(ultimo) === 'casa') {
 		const no = chat.estado === 'no';
-		return alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not available' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no disponible' : 'cancelada'}`,
+		// Cada cancelación del socio le llega también al equipo (con ella sale una comisión de la mora).
+		const equipo = !no && ultimo.de === 'socio' && (correos.equipo || []).filter(Boolean).length
+			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva`, titulo: `El socio canceló ${chat.codigo}`,
+				intro: `${resumen}. Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
+		return [...equipo, ...alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not available' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no disponible' : 'cancelada'}`,
 			en ? (no ? 'Those dates are not available' : 'Your booking was cancelled') : (no ? 'Esas fechas no están disponibles' : 'Tu reserva se canceló'),
-			en ? 'Open your booking to see the details.' : 'Entra a tu reserva para ver el detalle.');
+			en ? 'Open your booking to see the details.' : 'Entra a tu reserva para ver el detalle.')];
 	}
 	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,
 		`${resumen}. Revisa tu cuenta y marca «Pago recibido»: el cliente recibe solo la dirección y cómo llegar.`);

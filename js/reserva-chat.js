@@ -30,12 +30,10 @@
 			? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : undefined)
 			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 	}
-	// Guarda un documento nuevo con la hora del servidor.
-	function crearDoc(ruta, fields) {
-		return pedir(RAIZ + ':commit', { writes: [{
-			update: { name: RAIZ + '/' + ruta, fields: fields }, currentDocument: { exists: false },
-			updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }]
-		}] });
+	// Un documento nuevo con la hora del servidor (como escritura de un lote).
+	function nuevo(ruta, fields) {
+		return { update: { name: RAIZ + '/' + ruta, fields: fields }, currentDocument: { exists: false },
+			updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] };
 	}
 	function alAzar(n) {
 		var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', out = '';
@@ -53,13 +51,19 @@
 	function crear(lead, r) {
 		if (!config.projectId) return Promise.reject(new Error('sin base de datos'));
 		var token = alAzar(28);
-		return crearDoc('chats/' + token, {
+		var chat = nuevo('chats/' + token, {
 			codigo: str(r.codigo), leadId: str(lead.id), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
 			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
 			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
 			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
 			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
 			foto: str(((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500)), url: str(location.pathname.slice(0, 200))
+		});
+		// Un chat por solicitud: nace junto con su índice (chatsPorSolicitud/{solicitud}, que solo se crea una vez).
+		// Con las reglas de antes (sin ese índice) el lote se niega y el chat se abre solo.
+		var indice = { update: { name: RAIZ + '/chatsPorSolicitud/' + lead.id, fields: { token: str(token) } }, currentDocument: { exists: false } };
+		return pedir(RAIZ + ':commit', { writes: [chat, indice] }).catch(function () {
+			return pedir(RAIZ + ':commit', { writes: [chat] });
 		}).then(function () {
 			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
 			return token;
@@ -219,9 +223,18 @@
 				}
 			});
 		}
+		// La foto del comprobante va junto con la marca «el cliente adjuntó su comprobante» en el chat (desde ahí el
+		// anfitrión ya no cancela solo). Con las reglas de antes, que no la conocen, el mensaje va solo.
+		function guardarMensaje(campos) {
+			var msj = nuevo('chats/' + token + '/mensajes/' + alAzar(20), campos);
+			if (!campos.tipo || campos.tipo.stringValue !== 'foto') return pedir(RAIZ + ':commit', { writes: [msj] });
+			var marca = { update: { name: RAIZ + '/chats/' + token, fields: {} }, updateMask: { fieldPaths: [] }, currentDocument: { exists: true },
+				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
+			return pedir(RAIZ + ':commit', { writes: [msj, marca] }).catch(function () { return pedir(RAIZ + ':commit', { writes: [msj] }); });
+		}
 		function mandar(campos) {
 			boton.disabled = true; adjuntar.disabled = true;
-			return crearDoc('chats/' + token + '/mensajes/' + alAzar(20), campos)
+			return guardarMensaje(campos)
 				.then(function () { alerta(''); avisar(token); return cargar(); })
 				.catch(function () { alerta(t.vacChatFallo); })
 				.then(function () { boton.disabled = false; adjuntar.disabled = false; });

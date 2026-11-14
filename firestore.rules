@@ -328,9 +328,9 @@ service cloud.firestore {
         && r.keys().hasOnly(['propertyId', 'propertyTitulo', 'agentId', 'propietarioId', 'moneda', 'llegada', 'salida', 'noches',
             'huesped', 'canal', 'estado', 'leadId', 'codigo', 'chat', 'costoSocio', 'alojamiento', 'ganancia', 'pagadoSocio', 'pagadoFecha',
             'comision', 'createdAt', 'updatedAt'])
-        // El chat del cliente de esa misma solicitud (con él se sabe después si el cliente ya pagó). Un chat solo nace con
-        // el código de su solicitud (match /chats), así que basta el leadId. (Las reglas cuentan hasta 1000 operaciones.)
-        && get(/databases/$(database)/documents/chats/$(r.chat)).data.leadId == r.leadId
+        // EL chat del cliente de esa solicitud (su índice chatsPorSolicitud): con él se sabe después si ya pagó.
+        // (Las reglas cuentan hasta 1000 operaciones: nada de más aquí.)
+        && get(/databases/$(database)/documents/chatsPorSolicitud/$(r.leadId)).data.token == r.chat
         // (El id de la reserva es el leadId: match /reservas lo exige.)
         && solicitud.get('propertyId', '') == r.propertyId
         && solicitud.get(['reserva', 'codigo'], '') == r.codigo
@@ -357,10 +357,12 @@ service cloud.firestore {
     }
     // El socio cancela su reserva solo mientras el cliente no ha pagado y no ha llegado: la reserva y su chat siguen
     // «confirmada» y el día de llegada no empezó. Una reserva sin chat (a mano, o de antes) la cancela el administrador.
+    // También: el chat es EL de la solicitud (su índice) y el cliente no ha adjuntado su comprobante de pago.
     function socioPuedeCancelar(r) {
+      let chat = get(/databases/$(database)/documents/chats/$(r.chat)).data;
       return r.get('estado', '') == 'confirmada' && isNonEmptyString(r.get('chat', ''), 60)
-        && get(/databases/$(database)/documents/chats/$(r.chat)).data.get('estado', '') == 'confirmada'
-        && get(/databases/$(database)/documents/chats/$(r.chat)).data.get('leadId', '') == r.get('leadId', '-')
+        && get(/databases/$(database)/documents/chatsPorSolicitud/$(r.get('leadId', '-'))).data.token == r.chat
+        && chat.get('estado', '') == 'confirmada' && !('comprobanteCliente' in chat)
         && antesDelDia(r.get('llegada', ''));
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js).
@@ -467,15 +469,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Lo que el socio escribe en una solicitud (admin/js/reservas.js `respuesta`): solo estos campos y solo hacia adelante:
-    // sin responder → confirmada o no se dio; confirmada → cancelada.
-    function respuestaDelSocio(antes, s) {
+    // Estado de la reserva de una solicitud tal como queda en este mismo lote (su id es el de la solicitud; '' = no hay).
+    // El socio confirma, manda sus datos de pago o cancela solo junto con la reserva: no cobra sin comisión registrada
+    // ni esconde una reserva viva (admin/js/reservas.js lo escribe todo en una transacción).
+    function reservaQueda(leadId) {
+      let ruta = /databases/$(database)/documents/reservas/$(leadId);
+      return leadId is string && leadId != '' && existsAfter(ruta) ? getAfter(ruta).data.get('estado', '') : '';
+    }
+    // Lo que el socio escribe en una solicitud (admin/js/reservas.js `respuesta`): solo estos campos, solo hacia adelante
+    // (sin responder → confirmada o no se dio; confirmada → cancelada), con la reserva en el mismo estado, y al historial
+    // solo se le agrega un renglón.
+    function respuestaDelSocio(antes, s, viejo, leadId) {
+      let h = s.get('historial', []);
+      let hv = viejo.get('historial', []);
       return s is map
         && s.keys().hasOnly(['estado', 'historial', 'motivo', 'reservaId', 'costoSocio', 'comision'])
-        && ((antes == 'pendiente' && s.get('estado', '') in ['confirmada', 'no'])
-          || (antes == 'confirmada' && s.get('estado', '') == 'cancelada'))
+        && ((antes == 'pendiente' && s.get('estado', '') == 'no')
+          || (antes == 'pendiente' && s.get('estado', '') == 'confirmada' && reservaQueda(leadId) == 'confirmada')
+          || (antes == 'confirmada' && s.get('estado', '') == 'cancelada' && reservaQueda(leadId) == 'cancelada'))
         && isShortString(s.get('motivo', ''), 100)
-        && s.get('historial', []) is list
+        && h is list && h.size() == hv.size() + 1 && h.hasAll(hv)
         && (s.get('costoSocio', 0) is number) && (s.get('comision', 0) is number) && isShortString(s.get('reservaId', ''), 60);
     }
     match /leads/{id} {
@@ -519,13 +532,24 @@ service cloud.firestore {
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId)
         || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['solicitud', 'updatedAt'])
-            && respuestaDelSocio(resource.data.get(['solicitud', 'estado'], 'pendiente'), request.resource.data.solicitud));
+            && respuestaDelSocio(resource.data.get(['solicitud', 'estado'], 'pendiente'), request.resource.data.solicitud,
+                 resource.data.get('solicitud', {}), id));
       allow delete: if isAdmin();
     }
 
     // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
     // equipo solo entra el administrador). El id es la llave: largo y al azar,
     // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
+    // Índice de un chat por solicitud: lo crea el cliente junto con su chat, una sola vez (crear sobre uno que ya existe
+    // no es «crear»). Con él, la reserva del socio y su cancelación usan EL chat de la solicitud, no uno inventado.
+    match /chatsPorSolicitud/{leadId} {
+      allow create: if request.resource.data.keys().hasOnly(['token'])
+        && request.resource.data.token is string
+        && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId;
+      allow get: if isAdmin()
+        || esSocioDeCasaPorNoche(get(/databases/$(database)/documents/chats/$(resource.data.token)).data.get('propertyId', ''));
+      allow update, delete: if false;
+    }
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
@@ -536,10 +560,10 @@ service cloud.firestore {
         // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId
-        // El título es el de la casa (en español o en inglés, según la página): no se cuela texto libre en los correos.
-        && request.resource.data.propertyTitulo in [
-            get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('titulo', ''),
-            get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get(['en', 'titulo'], '')]
+        // Uno por solicitud: nace junto con su índice chatsPorSolicitud/{leadId} (que solo se crea una vez).
+        // (El título no se compara con el de la casa: una página publicada antes de cambiarlo no abriría el chat; los
+        // correos toman el título de la casa guardada.)
+        && getAfter(/databases/$(database)/documents/chatsPorSolicitud/$(request.resource.data.leadId)).data.token == token
         && isShortString(request.resource.data.get('foto', ''), 500)
         && isShortString(request.resource.data.get('url', ''), 200)
         && isNonEmptyString(request.resource.data.codigo, 20)
@@ -557,11 +581,19 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
       // Al responder la solicitud, el administrador o el socio de la casa marcan el estado que ve el cliente; nada más.
       allow update: if isAdmin()
-        // El socio solo avanza: pendiente → confirmada o no; confirmada → pagada o cancelada.
+        // El socio solo avanza: pendiente → confirmada (con su reserva en el mismo lote) o no; confirmada → pagada o
+        // cancelada (con la reserva cancelada en el mismo lote, si la hay).
         // Con el pago recibido ya no cancela (eso anularía la comisión): lo hace el administrador.
         || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['estado'])
-            && ((resource.data.get('estado', '') == '' && request.resource.data.estado in ['confirmada', 'no'])
-              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado in ['pagada', 'cancelada'])))
+            && ((resource.data.get('estado', '') == '' && request.resource.data.estado == 'no')
+              || (resource.data.get('estado', '') == '' && request.resource.data.estado == 'confirmada'
+                  && reservaQueda(resource.data.get('leadId', '')) == 'confirmada')
+              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado == 'pagada')
+              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado == 'cancelada'
+                  && reservaQueda(resource.data.get('leadId', '')) in ['', 'cancelada'])))
+        // El cliente adjuntó su comprobante de pago (con la foto, en el mismo lote): desde ahí el socio ya no cancela.
+        // Solo el cliente sin sesión lo marca, con la hora del servidor (nadie lo quita: solo se puede poner la hora de ahora).
+        || (!signedIn() && soloCambia(['comprobanteCliente']) && request.resource.data.comprobanteCliente == request.time)
         // «Visto»: cada quien marca solo el suyo, con la hora del servidor.
         || (!signedIn() && soloCambia(['vistoCliente']) && request.resource.data.vistoCliente == request.time)
         || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time);
@@ -589,6 +621,8 @@ service cloud.firestore {
           && isNonEmptyString(request.resource.data.texto, 1000)
           && (('tipo' in request.resource.data)
             ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()
+                  // El socio manda sus datos de pago solo con la reserva (y su comisión) registrada en el mismo lote.
+                  && (request.resource.data.de != 'socio' || reservaQueda(chat().get('leadId', '')) == 'confirmada')
                   && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
                 // La dirección se muestra solo con el pago recibido.
                 || (request.resource.data.tipo == 'llegada' && request.resource.data.de != 'cliente' && request.resource.data.texto == 'llegada'

@@ -9,6 +9,12 @@ const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
 const casa = { titulo: 'Casa', propietarioId: 'o1', precio: 100, ciudad: 'Antigua', descripcion: 'x', fotos: [{}], tipo: 'casa', m2Construccion: 90, habitaciones: 3, banos: 2, parqueos: 1 };
 t('casa completa no pide nada', () => assert.deepEqual(campos('propiedades', casa), []));
 t('casa sin cuartos ni fotos', () => assert.deepEqual(campos('propiedades', { ...casa, fotos: [], habitaciones: '', banos: null }), ['fotos', 'habitaciones', 'banos']));
+t('casa por noche sin precio del socio (cargado) lo pide; sin cargarlo, no', () => {
+	const noche = { ...casa, operacion: 'vacacional' };
+	assert.deepEqual(campos('propiedades', { ...noche, socio: {} }), ['socio.precioBase']);
+	assert.deepEqual(campos('propiedades', { ...noche, socio: { precioBase: 100 } }), []);
+	assert.deepEqual(campos('propiedades', noche), []);
+});
 t('casa sin propietario ni colaborador', () => assert.deepEqual(campos('propiedades', { ...casa, propietarioId: '' }), ['propietarioId']));
 t('precio 0 cuenta como faltante', () => assert.deepEqual(campos('propiedades', { ...casa, precio: 0 }), ['precio']));
 t('zona solo en la capital y municipios cercanos', () => {

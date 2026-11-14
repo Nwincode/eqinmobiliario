@@ -17,6 +17,9 @@ export const REGLAS = {
 			['propietarioId', 'Propietario o colaborador', (p) => vacio(p.propietarioId)],
 			// (El precio de una casa por noche sale del precio del socio; en el formulario todavía no está calculado.)
 			['precio', 'Precio', (p) => !(Number(p.precio) > 0) && !(p.operacion === 'vacacional' && Number(p.socio?.precioBase) > 0)],
+			// Sin precio del socio (privado/socio) la reserva de la web no tiene piso para su parte. Solo donde se cargó
+			// (la ficha y el listado del administrador traen `socio`; otras pantallas no lo leen).
+			['socio.precioBase', 'Precio por noche del socio', (p) => p.operacion === 'vacacional' && p.socio !== undefined && !(Number(p.socio?.precioBase) > 0)],
 			['ciudad', 'Ciudad o municipio', (p) => vacio(p.ciudad)],
 			['zona', 'Zona', (p) => vacio(p.zona) && CIUDADES_CON_ZONA.includes(String(p.ciudad || '').trim().toLowerCase())],
 			['descripcion', 'Descripción', (p) => vacio(p.descripcion)],
