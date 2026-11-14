@@ -114,7 +114,9 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **«Faltan»** → `admin/js/pendientes-reglas.js` → `scripts/test-pendientes.mjs`.
 
-**Traducción al inglés** → `netlify/lib/tareas.mjs` (con IA) y `admin/js/reglas.js` (sin IA) → `admin/js/views/properties.js` `traducirEn`, `fuenteEs` → `scripts/build.mjs` `propiedadEn`.
+**Mascotas en una casa por noche** → un solo dato, el selector `vacacional.mascotas`; `admin/js/estados.js` `mascotasUnaVez` y `amenidadesPara` quitan la amenidad repetida → `admin/js/views/properties.js` (al abrir y al guardar) → `scripts/build.mjs` (al publicar) → `admin/js/reglas.js` `textoProp` (búsquedas).
+
+**Traducción al inglés** → `netlify/lib/tareas.mjs` (con IA) y `admin/js/reglas.js` (sin IA) → `admin/js/views/properties.js` `traducirEn`, `fuenteEs`, `traducirEnVivo` (se traduce al salir del campo, con `paraTraducir`: sin dirección ni mapa privados; `form.poner` la muestra) → `scripts/build.mjs` `propiedadEn`.
 
 **Página nueva del sitio** → `scripts/lib/templates.mjs` → `scripts/build.mjs` (escribirla, sitemap, hreflang) → `scripts/lib/i18n.mjs` (rutas y textos) → `scripts/lib/assets.mjs` si lleva JavaScript propio.
 

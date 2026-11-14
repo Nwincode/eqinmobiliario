@@ -4,14 +4,14 @@ import {
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal } from '../ui.js';
-import { renderForm, deleteImage, uploadImage, procesarImagen } from '../form.js';
+import { renderForm, deleteImage, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, AMENIDADES_COMUNES, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -165,16 +165,16 @@ function desgloseVacacional(el, d) {
 	const pub = V.planPublico(planSocioDe(s), s.margen);
 	const ejemplo = V.gananciaEstancia({ planSocio: planSocioDe(s), margen: s.margen, llegada: hoyISO(), salida: V.sumarDias(hoyISO(), 7) });
 	el.replaceChildren(cajaTabla(h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
-		h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Noche'), h('th', { scope: 'col', class: 'text-end' }, 'Socio'),
-			h('th', { scope: 'col', class: 'text-end' }, `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`), h('th', { scope: 'col', class: 'text-end' }, 'Al público'),
-			h('th', { scope: 'col', class: 'text-end' }, 'Impuestos 22 %'))),
+		// En el orden en que se arma el precio: lo del socio, la ganancia, el precio, cada impuesto y lo que paga el cliente.
+		h('thead', {}, h('tr', {}, ['Noche', 'Socio', `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`, 'Precio sin impuestos', `IVA ${V.IVA} %`, `INGUAT ${V.INGUAT} %`, 'El cliente paga']
+			.map((t, i) => h('th', { scope: 'col', class: i ? 'text-end' : null }, t)))),
 		h('tbody', {}, filas.map(([nombre, p]) => {
 			const n = V.desgloseNoche(p, s.margen);
-			return h('tr', {}, h('td', {}, nombre), h('td', { class: 'text-end' }, m(n.precioSocio)), h('td', { class: 'text-end' }, m(n.ganancia)),
-				h('td', { class: 'text-end fw-semibold' }, m(n.nochePublica)), h('td', { class: 'text-end' }, m(n.impuestos)));
+			return h('tr', {}, h('td', {}, nombre), [n.precioSocio, n.ganancia, n.nochePublica, n.iva, n.inguat].map((x) => h('td', { class: 'text-end' }, m(x))),
+				h('td', { class: 'text-end fw-semibold' }, m(n.nocheConImpuestos)));
 		})))),
 	h('p', { class: 'small text-muted mb-0' },
-		`En la página se publica "desde ${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA 12 % e INGUAT 10 %). `,
+		`En la página se publica "desde ${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA ${V.IVA} % e INGUAT ${V.INGUAT} %). `,
 		`Ejemplo de 7 noches desde hoy: el socio recibe ${m(ejemplo.costoSocio)} y la ganancia es ${m(ejemplo.ganancia)}. `,
 		'La limpieza se cobra aparte sin margen y el depósito no lleva impuestos. Solo el equipo ve esta tabla.'));
 }
@@ -852,7 +852,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
 		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
 		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d), help: 'En la misma moneda del precio.' },
-		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: AMENIDADES_COMUNES.map(([es]) => es) },
+		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
 			if (el.firstChild) return;
@@ -883,7 +883,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
 
-		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'Se llena sola al guardar y se actualiza cuando cambias el título o la descripción en español. Si corriges algo aquí a mano, se respeta y ya no se reemplaza (para volver a traducir, usa "EN · Traducir al inglés" arriba). La traducción es automática: revísala antes de publicar.' },
+		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'No hay que escribirla: se traduce sola en cuanto terminas el título y la descripción en español, y se vuelve a traducir si los cambias. Revísala; si corriges algo aquí a mano, se respeta y ya no se reemplaza.' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
 		{ name: 'en.descripcion', label: 'Description (English)', type: 'markdown', rows: 6 },
 		{ name: 'en.amenidades', label: 'Amenities (English)', type: 'tags' },
@@ -987,6 +987,7 @@ async function renderEditor(container, id, emb = null) {
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
+	mascotasUnaVez(datosForm);
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
 	form.el.addEventListener('input', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
 	form.el.addEventListener('change', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
@@ -1047,6 +1048,45 @@ async function renderEditor(container, id, emb = null) {
 
 	const textoEn = (en) => JSON.stringify([en?.titulo || '', en?.descripcion || '', en?.amenidades || [], en?.seo || {}, en?.vipLanding || {}, TEXTOS_VAC.map((k) => en?.vacacional?.[k] || '')]);
 
+	// La versión en inglés se ve mientras se llena la ficha: se traduce sola al terminar de escribir el español
+	// (al salir del campo), sin esperar a «Guardar». Lo corregido a mano se respeta.
+	const CAMPOS_EN = ['titulo', 'descripcion', 'amenidades', 'seo.titulo', 'seo.descripcion', 'vipLanding.titular', 'vipLanding.ctaTexto',
+		'vipLanding.subtitular', 'vipLanding.puntosClave', ...TEXTOS_VAC.map((k) => `vacacional.${k}`)];
+	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve();
+	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status' });
+	form.el.querySelector('[data-campo="en.titulo"]').before(estadoEn);
+	// Lo que se manda a traducir: lo mismo que queda público al guardar. De una casa por noche no van la dirección
+	// ni el mapa (privados) y el precio es el que ve el cliente, no el del socio.
+	const paraTraducir = () => {
+		const d = form.getData();
+		// «en» es el guardado: las direcciones anteriores en inglés salen de lo publicado, no de un borrador sin guardar.
+		d.en = data.en || {};
+		if (esVacacional(d)) return { ...d, ...vacacionalPublico(mascotasUnaVez(d)), direccion: '', mapa: '' };
+		delete d.vacacional;
+		return d;
+	};
+	const traducirEnVivo = async () => {
+		const s = form.state;
+		s.en = s.en || {};
+		if (s.en.titulo && textoEn(s.en) !== textoEn(enAuto)) s.en.manual = true;
+		if (!String(s.descripcion || '').trim() || !faltaIngles(s)) return;
+		const turno = ++turnoEn, antes = textoEn(s.en);
+		estadoEn.textContent = 'Traduciendo al inglés…';
+		try {
+			const en = await traducirEn(paraTraducir());
+			if (turno !== turnoEn) return;
+			// Si alguien corrigió el inglés mientras se traducía, manda su corrección.
+			if (textoEn(form.state.en) !== antes) { form.state.en.manual = true; estadoEn.textContent = ''; return; }
+			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
+			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
+			enAuto = clonar(form.state.en);
+			estadoEn.textContent = 'Traducción automática lista: revísala.';
+		} catch {
+			if (turno === turnoEn) estadoEn.textContent = 'No se pudo traducir ahora; se intenta de nuevo al guardar.';
+		}
+	};
+	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
+
 	const recargar = async () => {
 		const view = document.getElementById('view').firstElementChild;
 		view.replaceChildren();
@@ -1055,6 +1095,10 @@ async function renderEditor(container, id, emb = null) {
 
 	const save = async (btn) => {
 		if (!form.validate()) return;
+		// Si la traducción en vivo va en camino, se espera: así no se traduce dos veces.
+		btn.disabled = true;
+		await enCurso;
+		btn.disabled = false;
 		const d = form.getData();
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
@@ -1073,6 +1117,7 @@ async function renderEditor(container, id, emb = null) {
 				Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
 			}
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			mascotasUnaVez(d);
 			Object.assign(d, vacacionalPublico({ ...d, socio }));
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
@@ -1131,7 +1176,7 @@ async function renderEditor(container, id, emb = null) {
 		}
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
-		if (d.en.titulo && textoEn(d.en) !== textoEn(data.en)) d.en.manual = true;
+		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
 		const traducirAhora = faltaIngles(d);
 		if (!d.vip && d.titulo) llenarSeo(d);
 		llenarAltFotos(d);
@@ -1258,7 +1303,7 @@ async function renderEditor(container, id, emb = null) {
 		btn.disabled = true;
 		btn.textContent = 'Traduciendo…';
 		try {
-			const datos = form.getData();
+			const datos = paraTraducir();
 			await updateDoc(ref, { en: await traducirEn(datos), updatedAt: serverTimestamp() });
 			await markPending(`Traducción al inglés: ${datos.titulo}`);
 			toast('Versión en inglés lista. Revísala abajo y publica.');

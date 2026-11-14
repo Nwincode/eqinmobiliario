@@ -164,6 +164,8 @@ export function renderForm(schema, data, options = {}) {
 	const conditionals = [];
 	const required = [];
 	const customs = [];
+	// Cómo repintar cada campo de texto o de etiquetas cuando su valor se pone desde fuera (ver «poner»).
+	const pintores = new Map();
 
 	const refresh = () => {
 		conditionals.forEach(({ el, when }) => { el.hidden = !when(state); });
@@ -213,6 +215,7 @@ export function renderForm(schema, data, options = {}) {
 				control = h('textarea', { class: 'form-control', rows: field.rows || (field.type === 'markdown' ? 10 : 3), placeholder: field.placeholder, maxlength: field.maxlength });
 				control.value = get() ?? '';
 				control.addEventListener('input', () => set(control.value));
+				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
 				if (field.type === 'markdown' && !field.help) {
 					field = { ...field, help: 'Formato: ## Título, **negrita**, *cursiva*, - lista, [texto](https://enlace).' };
 				}
@@ -267,7 +270,7 @@ export function renderForm(schema, data, options = {}) {
 				const sugeridas = h('div', { class: 'd-flex flex-wrap gap-1 mt-2' });
 				const draw = () => {
 					const puestas = (get() || []).map((t) => t.toLowerCase());
-					sugeridas.replaceChildren(...(field.sugerencias || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
+					sugeridas.replaceChildren(...((typeof field.sugerencias === 'function' ? field.sugerencias(state) : field.sugerencias) || []).filter((s) => !puestas.includes(s.toLowerCase())).map((s) => h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', onclick: () => { set([...(get() || []), s]); draw(); } }, `+ ${s}`)));
 					list.replaceChildren(...(get() || []).map((t, i) => h('span', { class: 'badge text-bg-light border d-inline-flex align-items-center gap-1 fw-normal fs-6' }, t,
 						h('button', { type: 'button', class: 'btn-close btn-close-sm', style: 'font-size:.6rem', 'aria-label': `Quitar ${t}`, onclick: () => { const arr = [...(get() || [])]; arr.splice(i, 1); set(arr); draw(); } }))));
 				};
@@ -281,6 +284,9 @@ export function renderForm(schema, data, options = {}) {
 				input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
 				input.addEventListener('blur', add);
 				draw();
+				if (target === state) pintores.set(field.name, draw);
+				// Sugerencias que dependen de otro campo: se vuelven a pintar con cada cambio.
+				if (typeof field.sugerencias === 'function') customs.push({ el: sugeridas, update: draw });
 				control = h('div', {}, list, input, sugeridas);
 				break;
 			}
@@ -448,6 +454,7 @@ export function renderForm(schema, data, options = {}) {
 				control.value = get() ?? '';
 				if (field.disabled) control.disabled = true;
 				control.addEventListener('input', () => set(control.value));
+				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
 				if (field.onInput) control.addEventListener('input', () => field.onInput(control.value, state));
 		}
 
@@ -467,6 +474,12 @@ export function renderForm(schema, data, options = {}) {
 		state,
 		// Para quien cambia el estado por fuera de un campo (p. ej. un selector propio): vuelve a evaluar «when» y bloques.
 		refresh,
+		// Escribe un valor en un campo de texto o de etiquetas desde fuera (p. ej. la traducción automática) y lo muestra.
+		poner(nombre, valor) {
+			setPath(state, nombre, valor);
+			pintores.get(nombre)?.();
+			refresh();
+		},
 		validate() {
 			for (const { field, target, control } of required) {
 				const v = getPath(target, field.name);

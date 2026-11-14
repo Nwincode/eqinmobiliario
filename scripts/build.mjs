@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, TIPOS, TIPOS_LANDING } from './lib/util.mjs';
 import { dinero, telefonoWa } from '../admin/js/formato.js';
-import { amenidadesEn } from '../admin/js/estados.js';
+import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -586,7 +586,7 @@ async function main() {
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
-	for (const p of todas) if (p.operacion === 'vacacional') Object.assign(p, { direccion: '', mapa: '', vip: false });
+	for (const p of todas) if (p.operacion === 'vacacional') Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 	// Tampoco se ofrecen las casas de un socio con una comisión atrasada más de 72 h (vuelven solas al pagarla).
 	const mora = data.source === 'firestore' && datosConfigurados() ? await sociosEnMora() : null;
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.

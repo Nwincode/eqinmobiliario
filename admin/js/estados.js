@@ -62,5 +62,16 @@ export const AMENIDADES_COMUNES = [
 	['Gimnasio', 'Gym'], ['Área social', 'Social area'], ['Juegos infantiles', 'Playground'], ['Acepta mascotas', 'Pets allowed'],
 	['Aire acondicionado', 'Air conditioning'], ['Bodega', 'Storage room'], ['Cisterna', 'Water cistern'], ['Paneles solares', 'Solar panels']
 ];
+// Mascotas en una casa por noche: se dice una sola vez, en su selector (sí / no / sin indicar), no también como
+// amenidad. Quita esa amenidad de la lista y, si el selector estaba sin indicar, lo deja en «sí». Devuelve la casa.
+const esMascota = (a) => /mascota|\bpets?\b/i.test(String(a));
+export const amenidadesPara = (operacion) => AMENIDADES_COMUNES.map(([es]) => es).filter((a) => operacion !== 'vacacional' || !esMascota(a));
+export function mascotasUnaVez(p) {
+	if (p.operacion !== 'vacacional' || !(p.amenidades || []).some(esMascota)) return p;
+	p.amenidades = p.amenidades.filter((a) => !esMascota(a));
+	if (p.en?.amenidades) p.en.amenidades = p.en.amenidades.filter((a) => !esMascota(a));
+	p.vacacional = { ...(p.vacacional || {}), mascotas: p.vacacional?.mascotas || 'si' };
+	return p;
+}
 const AMENIDAD_EN = new Map(AMENIDADES_COMUNES.map(([es, en]) => [es.toLowerCase(), en]));
 export const amenidadesEn = (lista) => (lista || []).map((a) => AMENIDAD_EN.get(String(a).trim().toLowerCase())).filter(Boolean);

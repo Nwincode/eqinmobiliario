@@ -68,6 +68,10 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Datos en texto que se entendían con un ícono; numeración que empezaba en 2. | Íconos donde dan la información; contar que los números empiecen donde deben. |
 | Una etiqueta del menú se partía en dos líneas; una ayuda de cinco líneas bajo un campo. | Textos cortos; revisar la captura después de cambiar una etiqueta. |
 | El buscador quedaba tapado por la portada y no se podía tocar. | Lo que se ve ¿se puede tocar? Probar el clic, no solo la imagen. |
+| Los campos en inglés se veían vacíos y habilitados hasta guardar: parecía que había que llenarlos a mano. | Un campo que el sistema llena solo se llena a la vista, mientras se escribe; no se deja vacío esperando a «Guardar». |
+| Una casa por noche decía «Acepta mascotas» dos veces: como amenidad y en su selector de mascotas. | Antes de agregar un campo, buscar si ese dato ya se pide en otro lado; un dato, un solo lugar (`mascotasUnaVez`). |
+| La tabla de precios por noche ponía «Al público» antes de los impuestos y no decía cuánto paga el cliente. | Los montos van en el orden en que se suman y terminan en el total que paga el cliente. |
+| El botón «Traducir» de una casa por noche mandaba la dirección privada al traductor. | Todo lo que sale a un servicio externo pasa por la misma limpieza que lo que se publica (`paraTraducir`). |
 
 ## 6. Cómo se le responde al usuario
 
