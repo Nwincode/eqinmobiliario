@@ -5,7 +5,7 @@
 // Confirmar, cancelar, «No se dio», pago recibido y comisión pagada pasan por admin/js/reservas.js (lo mismo que usa
 // Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
@@ -44,6 +44,8 @@ export async function render(container, [codigo] = []) {
 		// responderlo: sin chat ni botones de respuesta.
 		admin ? null : misCasas().then((l) => new Set(l.filter((c) => c.operacion === 'vacacional').map((c) => c.id)))]);
 	const deHoy = (propertyId) => admin || mias.has(propertyId);
+	// Chats de antes de su índice: el administrador se lo pone al abrir esta pantalla (con las reglas de antes no se puede: se salta).
+	const variosChats = admin ? await ponerIndices(snap.docs, chatsSnap.docs).catch((err) => { console.warn('Índice de chats', err); return []; }) : [];
 	const chats = Object.fromEntries(chatsSnap.docs.filter((d) => deHoy(d.data().propertyId)).map((d) => [d.data().codigo, d.id]));
 	const datosChat = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.data()]));
 	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
@@ -276,6 +278,8 @@ export async function render(container, [codigo] = []) {
 
 	mount(container,
 		pageHeader('Solicitudes'),
+		variosChats.length ? h('div', { class: 'alert alert-warning d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
+			`${variosChats.join(', ')}: ${variosChats.length === 1 ? 'esta solicitud tiene' : 'estas solicitudes tienen'} más de un chat. Revisa cuál es el del cliente; hasta entonces el socio no puede confirmarla ni cancelarla.`) : null,
 		admin ? [
 			h('div', { class: 'row g-2 mb-3' },
 				numero('icon-clock-o', leads.filter((l) => estado(l) === 'pendiente').length, 'Sin responder'),
@@ -288,6 +292,23 @@ export async function render(container, [codigo] = []) {
 			? 'Tienes un pago a EQ con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
 			: 'Tienes un pago a EQ con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
 		lista);
+}
+
+// Un chat por solicitud (chatsPorSolicitud/{solicitud} → su token): los chats de antes de este cambio no lo tienen y el
+// administrador se lo pone, apuntando al chat cuya solicitud es esa. Si una solicitud tiene más de un chat no se adivina:
+// devuelve sus códigos para el aviso.
+async function ponerIndices(leads, chats) {
+	const con = new Set((await getDocs(collection(db, 'chatsPorSolicitud'))).docs.map((d) => d.id));
+	const porSolicitud = {};
+	for (const c of chats) if (c.data().leadId) (porSolicitud[c.data().leadId] ||= []).push(c);
+	const varios = [];
+	for (const l of leads) {
+		const lista = porSolicitud[l.id] || [];
+		if (!lista.length || con.has(l.id)) continue;
+		if (lista.length > 1) { varios.push(l.data().reserva?.codigo || l.id); continue; }
+		await setDoc(doc(db, 'chatsPorSolicitud', l.id), { token: lista[0].id });
+	}
+	return varios;
 }
 
 // Tarjeta de Inicio (solo el administrador): solicitudes con alerta, cada una con enlace directo.
