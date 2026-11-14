@@ -238,6 +238,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	// La reserva que crea el socio al confirmar (admin/js/reservas.js confirmarSolicitud): de una solicitud real, con la comisión entera.
 	const vv = (v) => (v && typeof v === 'object' ? { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, vv(x)])) } } : val(v));
 	const crearR = (quien, ruta, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/${ruta}`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, vv(x)])) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }, { fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	// Lo mismo sin la condición de «no existe»: como lo hace la app (set), que sobre una reserva que ya existe es un cambio.
+	const escribirR = (quien, ruta, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/${ruta}`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, vv(x)])) }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }, { fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
 	await raw('leads/lead-res-noche', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
 	const delSocio = (extra = {}, comision = {}) => ({ propertyId: 'mx-noche', propertyTitulo: 'Casa por noche', agentId: '', propietarioId: 'm1', moneda: 'USD', llegada: '2026-12-01', salida: '2026-12-04', noches: 3,
 		huesped: 'Ana', canal: 'web', estado: 'confirmada', leadId: 'lead-res-noche', codigo: 'EQ-RN', costoSocio: 300, alojamiento: 360, ganancia: 60, pagadoSocio: false, pagadoFecha: '',
@@ -253,7 +255,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña crea la reserva con otro id que el de la solicitud', crearR('mixto1', 'reservas/r-otro-id', delSocio()), false);
 	await espera('dueña infla las noches para anular el margen', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ noches: 1e9, costoSocio: 360, ganancia: 0 }, { monto: 0 })), false);
 	await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), true);
-	await espera('dueña crea una segunda reserva para la misma solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), false);
+	await espera('dueña crea una segunda reserva para la misma solicitud', escribirR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 100, alojamiento: 120, ganancia: 20 })), false);
 	await espera('dueña marca pagada la comisión de su reserva', parche('mixto1', 'reservas/lead-res-noche', ['comision.pagada'], { comision: { mapValue: { fields: { pagada: { booleanValue: true } } } } }), false);
 	await espera('dueña baja la comisión de su reserva', parche('mixto1', 'reservas/lead-res-noche', ['comision.monto'], { comision: { mapValue: { fields: { monto: { doubleValue: 1 } } } } }), false);
 	await raw('reservas/r-venta2', { propertyId: sv('mx-venta'), propietarioId: sv('m1'), estado: sv('confirmada') });
