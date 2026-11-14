@@ -92,7 +92,8 @@ export function nuevaReserva(casa, c) {
 	const costoSocio = V.r2(Number(c.costoSocio) || 0), alojamiento = V.r2(Number(c.alojamiento) || 0);
 	return {
 		propertyId: casa.id, propertyTitulo: c.propertyTitulo || casa.titulo || '',
-		agentId: casa.agentId || (session.esSocio ? '' : session.agentId) || '', propietarioId: casa.propietarioId || '',
+		// El asesor de la casa (una casa por noche no lleva: ''), el mismo que exigen las reglas a quien no es administrador.
+		agentId: casa.agentId || '', propietarioId: casa.propietarioId || '',
 		moneda: c.moneda || casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: V.nochesEntre(c.llegada, c.salida),
 		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado || 'confirmada',
 		leadId: c.leadId || '', codigo: c.codigo || '', costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio),
@@ -107,9 +108,12 @@ export function nuevaReserva(casa, c) {
 // Una sola cuenta: la usan la confirmación y el cambio de montos en Rentas.
 export const comisionDeReserva = (r, previa = {}) => ({ ...previa, monto: r.ganancia, vence: r.llegada, pagada: Boolean(previa.pagada) });
 
+// Una reserva que ya terminó (salida antes de hoy) en la misma casa sigue con el dueño que la ganó, aunque la casa
+// haya cambiado de dueño después (asignarDueno solo pasa al nuevo las que no han terminado).
 export async function guardarReserva(antes, casa, campos, contacto) {
 	const id = antes?.id || doc(collection(db, 'reservas')).id;
 	const datos = { ...nuevaReserva(casa, { ...antes, ...campos, propertyTitulo: casa.titulo, moneda: casa.moneda || antes?.moneda }), leadId: antes?.leadId || '', codigo: antes?.codigo || '' };
+	if (antes?.propietarioId && antes.propertyId === casa.id && datos.salida < V.hoy()) datos.propietarioId = antes.propietarioId;
 	const web = antes && deSolicitud(antes);
 	if (web && datos.estado !== antes.estado) throw new Error('El estado de una reserva de la web se cambia con «Cancelar reserva».');
 	// Las fechas y la casa de una reserva de la web son las de la solicitud y el chat del cliente: para cambiarlas se
@@ -257,13 +261,18 @@ export async function cancelarReserva(r, motivo, { chat } = {}) {
 	});
 	if (cierra) avisarChat(delCliente.ref.id);
 	await markPending(`${r.propertyTitulo}: reserva ${r.codigo || dia(r.llegada)} cancelada`);
+	// Si el cliente se enteró por su chat (una reserva sin chat, no).
+	return Boolean(cierra);
 }
 
 // El cliente le pagó al socio: ve «Pago recibido» y los datos de llegada guardados en la casa.
 // En dos pasos y en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado
 // (dentro de un mismo lote todavía ven el estado anterior y lo rechazan).
+// Se puede repetir sin recargar si el segundo paso falló: el estado se vuelve a leer (no el que había al abrir) y,
+// si ya dice «pagada», no se vuelve a escribir (las reglas no dejan al socio pasar de «pagada» a «pagada»).
 export async function pagoRecibido(chat, propertyId) {
-	if (chat.estado !== 'pagada') await updateDoc(chat.ref, { estado: 'pagada' });
+	if ((await getDoc(chat.ref)).data()?.estado !== 'pagada') await updateDoc(chat.ref, { estado: 'pagada' });
+	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
 	const ll = (await getDoc(doc(db, 'properties', propertyId, 'privado', 'llegada'))).data();
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });

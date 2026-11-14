@@ -1,6 +1,7 @@
 // Propiedades de prueba: sirven para probar el panel, la subida de fotos y el sitio.
-// Todas llevan demo: true para poder borrarlas juntas.
-import { db, doc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp } from './firebase.js';
+// Todas llevan demo: true para poder borrarlas juntas. Nacen como toda propiedad (propiedadNueva: historial, quién la
+// creó y el asesor de quien la crea), con operaciones y valores que acepta el panel.
+import { db, doc, getDocs, setDoc, deleteDoc, collection, query, where } from './firebase.js';
 import { uploadImage, deleteImage } from './form.js';
 import { markPending } from './session.js';
 
@@ -15,7 +16,7 @@ const DEMOS = [
 	},
 	{
 		id: 'prueba-apartamento-zona-15', fotos: ['img_7.jpg', 'img_8.jpg'],
-		titulo: 'Apartamento de prueba en zona 15', operacion: 'alquiler', tipo: 'apartamento', precio: 1400, moneda: 'USD',
+		titulo: 'Apartamento de prueba en zona 15', operacion: 'renta', tipo: 'apartamento', precio: 1400, moneda: 'USD',
 		zona: 'Zona 15', habitaciones: 2, banos: 2, parqueos: 2, m2Construccion: 110, m2Terreno: 0,
 		amenidades: ['Piscina', 'Gimnasio', 'Área social'],
 		descripcion: 'Apartamento de prueba en alquiler. Sirve para ver cómo aparecen las propiedades en renta.',
@@ -40,13 +41,14 @@ async function fotoDesdeSitio(nombre) {
 
 // Crea las propiedades de prueba subiendo sus fotos a Storage.
 export async function cargarDemos({ publicar = false, onProgress = () => {} } = {}) {
+	const { propiedadNueva } = await import('./views/properties.js');
 	let n = 0;
 	for (const { id, fotos, ...datos } of DEMOS) {
 		onProgress(`Subiendo fotos de "${datos.titulo}"…`);
 		const subidas = [];
 		for (const nombre of fotos) subidas.push(await uploadImage(await fotoDesdeSitio(nombre), `properties/${id}`));
 		const slug = id;
-		await setDoc(doc(db, 'properties', id), {
+		await setDoc(doc(db, 'properties', id), propiedadNueva({
 			...datos,
 			slug,
 			ciudad: 'Guatemala',
@@ -57,14 +59,11 @@ export async function cargarDemos({ publicar = false, onProgress = () => {} } = 
 			vipLanding: {},
 			estado: 'disponible',
 			publicado: publicar,
-			agentId: 'joaquin-arriola',
 			orden: 90 + n,
 			seo: {},
 			en: { amenidades: [], seo: {}, ...datos.en },
-			demo: true,
-			createdAt: serverTimestamp(),
-			updatedAt: serverTimestamp()
-		});
+			demo: true
+		}));
 		n++;
 	}
 	await markPending('Propiedades de prueba agregadas');

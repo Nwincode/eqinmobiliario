@@ -1,4 +1,4 @@
-# Corre las pruebas en cada pull request y en cada cambio a main: sintaxis, lógica y reglas de Firestore.
+# Corre las pruebas en cada pull request y en cada cambio a main: sintaxis, lógica y reglas de Firestore y Storage.
 name: Pruebas
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
 jobs:
   pruebas:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,5 +25,6 @@ jobs:
           java-version: 21
       - name: Sintaxis y lógica
         run: npm test
-      - name: Reglas de Firestore (emulador)
+      # Firestore y Storage con firebase-tools (lo instala scripts/emulador/correr.sh).
+      - name: Reglas de Firestore y Storage (emuladores)
         run: npm run test:reglas

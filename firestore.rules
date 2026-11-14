@@ -47,14 +47,53 @@ service cloud.firestore {
     function isAdmin() {
       return isStaff() && userDoc().data.rol == 'admin';
     }
+    // El asesor de quien está en el panel. Uno sin asesor vinculado no coincide con nada: los registros sin asesor
+    // (agentId '', p. ej. las casas por noche y sus reservas y solicitudes) son solo del administrador y del dueño.
     function myAgentId() {
-      return userDoc().data.agentId;
+      return userDoc().data.get('agentId', '') == '' ? '(sin asesor)' : userDoc().data.agentId;
     }
     function isNonEmptyString(v, max) {
       return v is string && v.size() > 0 && v.size() <= max;
     }
     function isShortString(v, max) {
       return v is string && v.size() <= max;
+    }
+
+    // Precio por noche que ve el cliente = precio del dueño × (1 + margen / 100), al centavo (js/calc-vacacional.js
+    // nochePublica). Cuando el dueño cambia sus precios, el público y el suyo van juntos (una transacción en
+    // «Mis propiedades») y tienen que cuadrar: así no baja su parte sin bajar la del cliente (la comisión de EQ sale
+    // de su parte) ni quita el margen del precio público.
+    function enBanda(publico, socio, margen) {
+      return math.abs(publico - socio * (100 + margen) / 100.0) <= 0.011;
+    }
+    // Fin de semana: sin precio propio (0) en uno, sin precio propio en el otro.
+    function findeEnBanda(publico, socio, margen) {
+      return socio == 0 ? publico == 0 : enBanda(publico, socio, margen);
+    }
+    // Precios por fechas: la misma lista en el mismo orden, mismas fechas y cada precio en banda.
+    // Las reglas no recorren listas (y cuentan cada operación): se revisan una a una, hasta 10 (el panel del dueño
+    // guarda solo las que no han pasado).
+    function tarifaEnBanda(p, s, margen) {
+      return p.desde == s.desde && p.hasta == s.hasta && enBanda(p.precio, s.precio, margen);
+    }
+    function tarifasEnBanda(pub, soc, m) {
+      let n = pub.size();
+      return n == soc.size() && n <= 10
+        && (n < 1 || tarifaEnBanda(pub[0], soc[0], m)) && (n < 2 || tarifaEnBanda(pub[1], soc[1], m))
+        && (n < 3 || tarifaEnBanda(pub[2], soc[2], m)) && (n < 4 || tarifaEnBanda(pub[3], soc[3], m))
+        && (n < 5 || tarifaEnBanda(pub[4], soc[4], m)) && (n < 6 || tarifaEnBanda(pub[5], soc[5], m))
+        && (n < 7 || tarifaEnBanda(pub[6], soc[6], m)) && (n < 8 || tarifaEnBanda(pub[7], soc[7], m))
+        && (n < 9 || tarifaEnBanda(pub[8], soc[8], m)) && (n < 10 || tarifaEnBanda(pub[9], soc[9], m));
+    }
+    // Lo que el dueño cambia de sus precios (en la casa o en privado/socio) cuadra con el otro documento tal como
+    // queda (getAfter): solo se revisa lo que cambió, para que una casa con un precio viejo no le impida bloquear días.
+    // casa / socio: los dos documentos después del cambio; cambia: los campos de precio que tocó.
+    function preciosCuadran(casa, socio, cambia) {
+      let v = casa.get('vacacional', {});
+      let m = socio.get('margen', 20);
+      return (!cambia.hasAny(['base', 'precioBase']) || enBanda(v.get('base', 0), socio.get('precioBase', 0), m))
+        && (!cambia.hasAny(['finde', 'precioFinde']) || findeEnBanda(v.get('finde', 0), socio.get('precioFinde', 0), m))
+        && (!cambia.hasAny(['tarifas']) || tarifasEnBanda(v.get('tarifas', []), socio.get('tarifas', []), m));
     }
 
     // Primer administrador: solo se puede crear mientras meta/bootstrap no exista.
@@ -125,7 +164,13 @@ service cloud.firestore {
         || (esSocioPorNoche(resource.data) && request.resource.data.get('operacion', '') == 'vacacional'
             && soloCambia(['vacacional', 'precio', 'updatedAt'])
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
-                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax']));
+                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax'])
+            // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
+            // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
+            && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
+              || preciosCuadran(request.resource.data,
+                 getAfter(/databases/$(database)/documents/properties/$(id)/privado/socio).data,
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys())));
       allow delete: if isAdmin();
 
       // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.
@@ -136,17 +181,21 @@ service cloud.firestore {
           && request.resource.data.cuando == request.time;
       }
 
-      // Renta vacacional: costo del socio, margen, contacto y enlace iCal. Nunca es público
-      // (la propiedad sí lo es). Solo el equipo: admin o el asesor de la propiedad.
+      // Lo privado de la casa: precio del socio, margen e iCal (privado/socio), dirección y mapa (llegada), acuerdo con
+      // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
+      // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
       match /privado/{docId} {
         allow read, write: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
-        // El socio ve y cambia sus precios netos; nunca el margen, el contacto ni el iCal.
+        // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
+        // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
         // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
         // con el pago recibido; solo el equipo la escribe.
         allow get: if docId in ['socio', 'llegada'] && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
         allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
-          && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy']);
+          && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
+               request.resource.data.diff(resource.data).affectedKeys());
       }
     }
 
@@ -212,6 +261,29 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
     }
+    // La noche más barata del dueño en privado/socio: base, fin de semana o un precio por fechas (hasta 10; con más,
+    // 0 = sin piso). Su parte de una reserva no puede ser menor que eso por cada noche.
+    function menor(a, b) {
+      return b > 0 && b < a ? b : a;
+    }
+    function nocheMasBarata(s) {
+      let t = s.get('tarifas', []);
+      let n = t.size();
+      let a = menor(s.get('precioBase', 0), s.get('precioFinde', 0));
+      return n == 0 ? a : n > 10 ? 0 : menorDeTarifas(t, n, a);
+    }
+    function menorDeTarifas(t, n, a) {
+      let b = menor(a, t[0].precio);
+      let c = n < 2 ? b : menor(b, t[1].precio);
+      let d = n < 3 ? c : menor(c, t[2].precio);
+      let e = n < 4 ? d : menor(d, t[3].precio);
+      let f = n < 5 ? e : menor(e, t[4].precio);
+      let g = n < 6 ? f : menor(f, t[5].precio);
+      let h = n < 7 ? g : menor(g, t[6].precio);
+      let i = n < 8 ? h : menor(h, t[7].precio);
+      let j = n < 9 ? i : menor(i, t[8].precio);
+      return n < 10 ? j : menor(j, t[9].precio);
+    }
     // Reserva que crea el socio al confirmar una solicitud (ver match /reservas).
     function reservaDelSocioValida(r) {
       let casa = get(/databases/$(database)/documents/properties/$(r.propertyId)).data;
@@ -233,6 +305,8 @@ service cloud.firestore {
         && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
         && r.costoSocio is number && r.alojamiento is number && r.ganancia is number && r.noches is number
         && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
+        // Su parte no baja de su noche más barata por cada noche (con la comisión sobre ella, EQ cobra al menos eso).
+        && r.costoSocio >= r.noches * (exists(socio) ? nocheMasBarata(get(socio).data) : 0) - 0.01 * r.noches - 0.01
         && r.ganancia >= r.alojamiento - r.costoSocio - 0.01
         && r.ganancia >= r.costoSocio * margen / 100 - 0.01 * r.noches - 0.01
         && r.comision is map && r.comision.keys().hasOnly(['monto', 'vence', 'pagada'])

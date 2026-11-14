@@ -193,7 +193,37 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña mixta lee su propia ficha (notas internas)', leer('mixto1', 'propietarios/m1'), false);
 	await espera('dueña mixta lista sus casas (venta y por noche)', consulta('mixto1', 'properties', 'propietarioId', 'm1'), true);
 	await espera('dueña mixta cambia el precio de su casa en venta', parche('mixto1', 'properties/mx-venta', ['precio'], { precio: { doubleValue: 1 } }), false);
-	await espera('dueña mixta cambia el precio de su casa por noche', parche('mixto1', 'properties/mx-noche', ['precio', 'vacacional.base'], { precio: { doubleValue: 130 }, vacacional: { mapValue: { fields: { base: { doubleValue: 130 } } } } }), true);
+	// Sus precios (privado/socio) y los públicos van juntos y cuadran con el margen (20 %): «Mis propiedades» los
+	// escribe en una transacción. El panel guarda los enteros como enteros: se prueban los dos.
+	{
+		const num = (x) => (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x });
+		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? { arrayValue: { values: x.map(mapa) } } : typeof x === 'number' ? num(x) : sv(x)])) } });
+		const casa = (vac, extra = {}) => ({ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: mapa(vac), ...extra } }, updateMask: { fieldPaths: [...Object.keys(vac).map((k) => `vacacional.${k}`), ...Object.keys(extra)] } });
+		const suyo = (o) => ({ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: mapa(o).mapValue.fields }, updateMask: { fieldPaths: Object.keys(o) } });
+		const juntos = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		await espera('dueña cambia solo el precio público de su casa por noche', parche('mixto1', 'properties/mx-noche', ['precio', 'vacacional.base'], { precio: { doubleValue: 130 }, vacacional: { mapValue: { fields: { base: { doubleValue: 130 } } } } }), false);
+		await espera('dueña baja solo su precio (el público queda igual)', juntos('mixto1', [suyo({ precioBase: 50 })]), false);
+		await espera('dueña quita el margen: público igual a su precio', juntos('mixto1', [suyo({ precioBase: 110 }), casa({ base: 110 }, { precio: num(110) })]), false);
+		await espera('dueña sube su precio y el público juntos (control)', juntos('mixto1', [suyo({ precioBase: 110 }), casa({ base: 132 }, { precio: num(132) })]), true);
+		await espera('dueña vuelve a su precio con decimales (control)', juntos('mixto1', [suyo({ precioBase: 100.5 }), casa({ base: 120.6 })]), true);
+		await espera('dueña vuelve a su precio en enteros (control)', juntos('mixto1', [suyo({ precioBase: 100 }), casa({ base: 120 })]), true);
+		await espera('dueña pone fin de semana público sin el suyo', juntos('mixto1', [casa({ finde: 150 })]), false);
+		await espera('dueña pone su fin de semana y el público (control)', juntos('mixto1', [suyo({ precioFinde: 125 }), casa({ finde: 150 })]), true);
+		const t = (precio) => ({ desde: '2026-12-20', hasta: '2026-12-31', precio });
+		await espera('dueña pone un precio por fechas público sin margen', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [t(80)] })]), false);
+		await espera('dueña pone un precio por fechas solo en el suyo', juntos('mixto1', [suyo({ tarifas: [t(80)] })]), false);
+		await espera('dueña pone dos precios por fechas suyos y uno público', juntos('mixto1', [suyo({ tarifas: [t(80), { ...t(70), desde: '2027-01-02', hasta: '2027-01-05' }] }), casa({ tarifas: [t(96)] })]), false);
+		await espera('dueña pone un precio por fechas con otras fechas en el público', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [{ ...t(96), hasta: '2027-03-31' }] })]), false);
+		await espera('dueña pone un precio por fechas con su margen (control)', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [t(96)] })]), true);
+		const diez = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-01`, hasta: `2027-${String(k + 1).padStart(2, '0')}-05`, precio: 90 + k }));
+		const conMargen = (lista) => lista.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }));
+		await espera('dueña pone 10 precios por fechas, cada uno con su margen (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez) })]), true);
+		await espera('dueña pone 11 precios por fechas', juntos('mixto1', [suyo({ tarifas: [...diez, t(80)] }), casa({ tarifas: conMargen([...diez, t(80)]) })]), false);
+		await raw('properties/mx-noche-sin-precio', { titulo: sv('Casa por noche sin precio del dueño'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '0' } } } } });
+		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
+		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
+		await espera('dueña se cambia el margen de su casa', juntos('mixto1', [suyo({ margen: 0 })]), false);
+	}
 	await espera('dueña mixta convierte su casa por noche en venta', parche('mixto1', 'properties/mx-noche', ['operacion'], { operacion: sv('venta') }), false);
 	await espera('dueña mixta lee el acuerdo de su casa en venta', leer('mixto1', 'properties/mx-venta/privado/acuerdo'), false);
 	await espera('dueña mixta lee el acuerdo de su casa por noche', leer('mixto1', 'properties/mx-noche/privado/acuerdo'), false);
@@ -254,6 +284,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña crea la reserva sin solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ leadId: 'no-existe' })), false);
 	await espera('dueña crea la reserva con otro id que el de la solicitud', crearR('mixto1', 'reservas/r-otro-id', delSocio()), false);
 	await espera('dueña infla las noches para anular el margen', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ noches: 1e9, costoSocio: 360, ganancia: 0 }, { monto: 0 })), false);
+	// Su noche más barata ahora es la más barata de sus 10 precios por fechas (90): 3 noches no bajan de 270.
+	await espera('dueña crea la reserva con su parte menor que su noche más barata', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 30, alojamiento: 36, ganancia: 6 }, { monto: 6 })), false);
 	await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), true);
 	await espera('dueña crea una segunda reserva para la misma solicitud', escribirR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 100, alojamiento: 120, ganancia: 20 })), false);
 	await espera('dueña marca pagada la comisión de su reserva', parche('mixto1', 'reservas/lead-res-noche', ['comision.pagada'], { comision: { mapValue: { fields: { pagada: { booleanValue: true } } } } }), false);
@@ -288,6 +320,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('la dueña no lee el contacto del huésped', leer('mixto1', 'properties/mx-noche/privado/reserva-r-mano'), false);
 	await espera('la dueña no lista lo privado de su casa', leer('mixto1', 'properties/mx-noche/privado'), false);
 	await espera('otro dueño no ve esa reserva', leer('socio2', 'reservas/r-mano'), false);
+	// Un asesor sin asesor vinculado (agentId vacío) no coincide con lo que no lleva asesor (casas por noche, sus reservas y solicitudes).
+	await poner('users/asesor-sin', { rol: 'asesor', activo: true, agentId: '', nombre: 'Asesor sin vincular' });
+	await espera('asesor sin vincular lee una reserva sin asesor', leer('asesor-sin', 'reservas/r-mano'), false);
+	await espera('asesor sin vincular lee una solicitud sin asesor', leer('asesor-sin', 'leads/lead1'), false);
+	await espera('asesor sin vincular lee el precio del dueño de una casa sin asesor', leer('asesor-sin', 'properties/mx-noche/privado/socio'), false);
 	await espera('el equipo pasa una reserva por venir al dueño nuevo de la casa', parche('admin1', 'reservas/r-mano', ['propietarioId'], { propietarioId: sv('o2') }), true);
 	await espera('el dueño nuevo la ve', leer('socio2', 'reservas/r-mano'), true);
 	await espera('el dueño anterior ya no', leer('mixto1', 'reservas/r-mano'), false);
@@ -300,6 +337,41 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	// El equipo: el asesor no crea ni cambia usuarios
 	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
 	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);
+}
+// Storage (storage.rules): fotos del sitio, comprobantes del cliente (chats/{token}) y de la comisión (comprobantes/{reserva}).
+// Un dueño con acceso al panel no es del equipo: no lista el bucket (las carpetas de los chats son las llaves de las
+// reservas) ni cambia o borra las fotos del sitio.
+{
+	const B = 'http://127.0.0.1:9199/v0/b/demo-eq.appspot.com/o';
+	const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+	const auth = (quien) => (quien === 'dueño' ? { Authorization: 'Bearer owner' } : quien ? { Authorization: `Bearer ${jwt(quien)}` } : {});
+	const subir = (quien, ruta, tipo = 'image/png') => fetch(`${B}?uploadType=media&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': tipo, ...auth(quien) }, body: png }).then((r) => r.status);
+	const listar = (quien, prefijo) => fetch(`${B}?prefix=${encodeURIComponent(prefijo)}`, { headers: auth(quien) }).then((r) => r.status);
+	const borrar = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { method: 'DELETE', headers: auth(quien) }).then((r) => r.status);
+	const bajar = (ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`).then((r) => r.status);
+	await poner('users/asesor9', { rol: 'asesor', activo: true, agentId: 'a9', nombre: 'Asesor' });
+	await espera('storage: el administrador sube una foto de una casa', subir('admin1', 'properties/casa1/foto1.png'), true);
+	await espera('storage: un asesor sube una foto de una casa', subir('asesor9', 'properties/casa1/foto2.png'), true);
+	await espera('storage: cualquiera abre una foto por su dirección', bajar('properties/casa1/foto1.png'), true);
+	await espera('storage: el dueño lista las fotos del sitio', listar('mixto1', 'properties/'), false);
+	await espera('storage: el dueño lista las carpetas de los chats', listar('mixto1', 'chats/'), false);
+	await espera('storage: un anónimo lista el bucket', listar(null, ''), false);
+	await espera('storage: el equipo lista las fotos (control)', listar('asesor9', 'properties/'), true);
+	await espera('storage: el dueño reemplaza una foto del sitio', subir('mixto1', 'properties/casa1/foto1.png'), false);
+	await espera('storage: el dueño sube una foto al sitio', subir('mixto1', 'site/portada.png'), false);
+	await espera('storage: el dueño borra una foto del sitio', borrar('mixto1', 'properties/casa1/foto1.png'), false);
+	await espera('storage: un acceso quitado sube una foto', subir('apagado1', 'properties/casa1/foto3.png'), false);
+	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
+	await espera('storage: el cliente sube el comprobante de su reserva', subir(null, `chats/${T}/comprobante1.png`), true);
+	await espera('storage: el cliente reemplaza su comprobante', subir(null, `chats/${T}/comprobante1.png`), false);
+	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);
+	await espera('storage: nadie borra el comprobante del cliente (ni el equipo)', borrar('admin1', `chats/${T}/comprobante1.png`), false);
+	await espera('storage: la dueña sube el comprobante de la comisión de su reserva', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), true);
+	await espera('storage: la dueña reemplaza ese comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
+	await espera('storage: otro dueño sube un comprobante a esa reserva', subir('socio2', 'comprobantes/lead-res-noche/pago2.png'), false);
+	await espera('storage: la dueña sube un comprobante a una reserva que no existe', subir('mixto1', 'comprobantes/no-existe/pago.png'), false);
+	await espera('storage: el equipo reemplaza el comprobante de la comisión', subir('admin1', 'comprobantes/lead-res-noche/pago1.png'), false);
+	await espera('storage: la dueña borra el comprobante de la comisión', borrar('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);

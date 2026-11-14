@@ -1,7 +1,7 @@
 // Noches ocupadas de una renta vacacional. GET /api/disponibilidad?id=<id de la propiedad>
 // Une las fechas bloqueadas y las reservas confirmadas del panel con el calendario de Airbnb (iCal) del socio
 // y con las solicitudes de reserva sin responder de las últimas 2 horas (las fechas se apartan mientras tanto).
-// La solicitud siempre va al WhatsApp del equipo: el contacto del socio nunca sale de aquí.
+// La solicitud va al chat de la reserva (la atiende el dueño desde su panel): el contacto del socio nunca sale de aquí.
 // Si el socio debe una comisión hace más de 72 h, la casa queda en pausa.
 // El enlace iCal es privado (properties/{id}/privado/socio) y se lee con la cuenta de servicio
 // (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY, rol "Cloud Datastore Viewer"). La respuesta lleva solo fechas:

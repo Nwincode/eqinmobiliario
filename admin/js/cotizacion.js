@@ -9,7 +9,7 @@
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
 import { miles } from './formato.js';
 import { OPERACIONES, enOperacion } from './estados.js';
-import { REGLAS_POR_DEFECTO, montoComision } from './acuerdo.js';
+import { REGLAS_POR_DEFECTO, montoComision, comisionDe } from './acuerdo.js';
 
 export const IVA_GENERAL = 0.12;
 export const TASA_PEQUENO = 0.05;
@@ -108,13 +108,15 @@ export const adminActiva = (l) => Boolean(l) && l.tipo === 'administracion' && l
 export const lineaApagada = (l) => Boolean(l) && l.tipo === 'administracion' && l.activa === false;
 
 // Calcula una línea de servicio. Devuelve el honorario base y los textos de cálculo.
-export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
+// Una línea sin % (o sin meses por año) usa la regla general de comisión (comisionDe con settings/crm), no un número fijo.
+export function calcularLinea(linea, regimen = 'general', modo = 'todo', reglas = REGLAS_POR_DEFECTO) {
+	const general = (op) => comisionDe(op, null, reglas || REGLAS_POR_DEFECTO).valor;
 	const l = linea || {};
 	const moneda = l.moneda === 'GTQ' ? 'GTQ' : 'USD';
 	// falta: el primer dato que falta para calcular la línea ('' si está completa).
 	let base = 0, mensual = false, concepto = '', detalle = '', listo = false, meses = null, falta = '';
 	if (l.tipo === 'compraventa') {
-		const precio = num(l.precio), pct = num(l.pct, REGLAS_POR_DEFECTO.comisionVentaPct);
+		const precio = num(l.precio), pct = num(l.pct, general('venta'));
 		base = montoComision({ tipo: 'pct', valor: pct }, precio);
 		listo = precio > 0;
 		falta = listo ? '' : 'precio';
@@ -123,7 +125,7 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 	} else if (l.tipo === 'arrendamiento') {
 		const renta = num(l.renta);
 		const anios = Math.min(30, Math.max(0, num(l.anios, 1)));
-		const porAnio = num(l.mesesPorAnio, REGLAS_POR_DEFECTO.comisionRentaMeses);
+		const porAnio = num(l.mesesPorAnio, general('renta'));
 		meses = mesesArrendamiento(anios) * porAnio;
 		base = montoComision({ tipo: 'meses', valor: porAnio }, renta, mesesArrendamiento(anios));
 		listo = renta > 0 && anios > 0;
@@ -162,9 +164,9 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 
 // Líneas que impiden guardar e imprimir: la administración sin su porcentaje (o renta) o sin su monto fijo.
 // Las demás líneas incompletas solo se omiten de la hoja, como antes.
-export function pendientes(cot) {
+export function pendientes(cot, reglas) {
 	const c = cot || {};
-	const r = calcularCotizacion(c);
+	const r = calcularCotizacion(c, reglas);
 	const out = [];
 	(c.lineas || []).forEach((l, i) => {
 		const x = r.lineas[i];
@@ -240,17 +242,17 @@ export function liquidacionTotal(t, regimen, { isrPct = ISR_DEF, isrPctAlto = IS
 		isrBaseBaja: general ? e.baseBaja : 0, isrBaseAlta: general ? e.baseAlta : 0, isr, neto, pctAsesor: pctA, asesor, empresa: redondear(neto - asesor) };
 }
 
-export function liquidacion(cot, opciones = {}) {
-	const r = calcularCotizacion(cot);
+export function liquidacion(cot, opciones = {}, reglas) {
+	const r = calcularCotizacion(cot, reglas);
 	return r.totales.map((t) => liquidacionTotal(t, r.regimen, opciones));
 }
 
 // Calcula toda la cotización: líneas y totales por moneda, separando lo que se paga una vez de lo mensual.
-export function calcularCotizacion(cot) {
+export function calcularCotizacion(cot, reglas) {
 	const c = cot || {};
 	const regimen = c.regimen === 'pequeno' ? 'pequeno' : 'general';
 	const modo = c.modo === 'separado' ? 'separado' : 'todo';
-	const lineas = (c.lineas || []).map((l) => calcularLinea(l, regimen, modo));
+	const lineas = (c.lineas || []).map((l) => calcularLinea(l, regimen, modo, reglas));
 	const totales = [];
 	for (const l of lineas) {
 		if (!l.listo) continue;
@@ -315,9 +317,9 @@ export function textoLinea(l, regimen, modo) {
 }
 
 // Resumen en texto plano para pegar en WhatsApp (con *negritas* de WhatsApp).
-export function textoWhatsApp(cot) {
+export function textoWhatsApp(cot, reglas) {
 	const c = cot || {};
-	const r = calcularCotizacion(c);
+	const r = calcularCotizacion(c, reglas);
 	const nombre = String(c.cliente?.nombre || '').trim().split(/\s+/)[0];
 	const out = [];
 	out.push(`${nombre ? `Hola ${nombre}, ` : ''}te comparto la cotización ${c.numero || ''} de ${c.emisor?.nombre || 'Equipo Inmobiliario'}:`.replace(/\s+:/, ':'));

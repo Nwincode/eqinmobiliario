@@ -127,11 +127,12 @@ async function predeterminados() {
 			if (d.empresa) Object.assign(def.empresa, lleno(d.empresa));
 			def.empresa.regimen = regimenValido(def.empresa.regimen);
 			for (const k of ['isrPct', 'isrPctAlto', 'isrLimite', 'tipoCambio']) if (Number.isFinite(d[k])) def[k] = d[k];
-			if (Number.isFinite(d.pctAsesor)) def.pctAsesor = d.pctAsesor;
 			if (d.condiciones) def.condiciones = d.condiciones;
 			if (d.vigenciaDias) def.vigenciaDias = d.vigenciaDias;
 		}
 	} catch (err) { console.warn('Cotización: no se pudo leer settings/cotizacion', err); }
+	// La parte del asesor: la misma de Reportes (regla general, settings/crm).
+	def.pctAsesor = (await (await import('../crm.js')).loadReglas()).parteAsesorPct;
 	return def;
 }
 
@@ -255,7 +256,7 @@ async function vistaEmpresa(container) {
 		fila(v, 'tipoCambio', 'Tipo de cambio', { tipo: 'number', sufijo: 'Q por US$', attrs: { min: '0', step: 'any', inputmode: 'decimal' },
 			ayuda: 'Para pasar el límite a dólares cuando el honorario está en US$.' }),
 		fila(v, 'pctAsesor', 'Porcentaje para el asesor', { tipo: 'number', sufijo: '% del neto', attrs: { min: '0', max: '100', step: 'any', inputmode: 'decimal' },
-			ayuda: 'Se aplica después de impuestos. 100 % si todo el neto es del asesor. Se puede cambiar en cada cotización.' }));
+			ayuda: 'Se aplica después de impuestos. Es la misma «Parte del asesor» de Reportes. Se puede cambiar en cada cotización.' }));
 	const nuevas = grupoCard('icon-file-text-o', 'Cotizaciones nuevas',
 		fila(v, 'vigenciaDias', 'Vigencia', { tipo: 'number', sufijo: 'días', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
 		fila(v, 'condiciones', 'Condiciones de pago', { col: 'col-12', area: true }));
@@ -270,7 +271,9 @@ async function vistaEmpresa(container) {
 		empresa.usarLogo = emp.usarLogo !== false;
 		btn.disabled = true;
 		try {
-			await setDoc(doc(db, 'settings', 'cotizacion'), { empresa, isrPct: isr, isrPctAlto: isrAlto, isrLimite: lim, tipoCambio: tc, pctAsesor: pa, vigenciaDias: Math.round(vig), condiciones: String(v.condiciones || ''), updatedAt: serverTimestamp() }, { merge: true });
+			await setDoc(doc(db, 'settings', 'cotizacion'), { empresa, isrPct: isr, isrPctAlto: isrAlto, isrLimite: lim, tipoCambio: tc, vigenciaDias: Math.round(vig), condiciones: String(v.condiciones || ''), updatedAt: serverTimestamp() }, { merge: true });
+			// La parte del asesor vive en la regla general (una sola, con Reportes).
+			await setDoc(doc(db, 'settings', 'crm'), { parteAsesorPct: pa, updatedAt: serverTimestamp() }, { merge: true });
 			sucio = false; estado.textContent = '';
 			toast('Datos de la empresa guardados.');
 		} catch (err) { showError(err); } finally { btn.disabled = false; }
@@ -669,8 +672,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 		pintarAyudaModo();
 	}
 	function actualizarResumenes() {
-		const r = calcularCotizacion(c);
-		const pend = pendientes(c);
+		const r = calcularCotizacion(c, reglas);
+		const pend = pendientes(c, reglas);
 		resumenes.forEach(([l, el], i) => {
 			const idx = c.lineas.indexOf(l);
 			const x = r.lineas[idx] || r.lineas[i];
@@ -698,7 +701,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	}
 	// Antes de guardar, imprimir o copiar: la administración necesita su porcentaje o su monto.
 	function revisarPendientes(accion) {
-		const pend = pendientes(c);
+		const pend = pendientes(c, reglas);
 		if (!pend.length) return true;
 		pend.forEach(({ linea, campo: k }) => {
 			const el = document.getElementById(uid(`l${linea}-${k}`));
@@ -737,7 +740,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		h('div', { class: 'form-text', id: `${idPctA}-ayuda` }, `Después de impuestos. Predeterminado: ${numero(def.pctAsesor)} %.`));
 	function pintarLiquidacion() {
 		if (c.emisorTipo !== 'empresa') return;
-		const ls = liquidacion(c, opcionesLiq());
+		const ls = liquidacion(c, opcionesLiq(), reglas);
 		if (!ls.length) { liqCuerpo.replaceChildren(h('p', { class: 'text-muted small mb-0' }, 'Agrega un servicio con su precio para ver cuánto le queda al asesor.')); return; }
 		const fila = (etq, v, { clase = '', signo = '', nota } = {}) => h('div', { class: `cot-liq-fila ${clase}` },
 			h('dt', {}, etq, nota ? h('span', { class: 'cot-liq-nota' }, nota) : null),
@@ -782,7 +785,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	// replaceChildren escribiría «null» como texto: se quitan los vacíos antes.
 	const montar = (el, ...hijos) => el.replaceChildren(...hijos.flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false));
 	function pintarDoc() {
-		const r = calcularCotizacion(c);
+		const r = calcularCotizacion(c, reglas);
 		const general = r.regimen === 'general';
 		const separado = general && r.modo === 'separado';
 		const e = c.emisor || {};
@@ -916,10 +919,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 		if (!session.isAdmin && !session.agentId) { toast('Tu usuario no tiene un asesor asignado; no se puede guardar.', 'danger'); return; }
 		if (!revisarPendientes('guardar')) return;
 		aplicarEmisor();
-		const r = calcularCotizacion(c);
+		const r = calcularCotizacion(c, reglas);
 		const pctA = Number(c.liquidacion.pctAsesor);
 		const liq = c.emisorTipo === 'empresa'
-			? { isrPct: def.isrPct, isrPctAlto: def.isrPctAlto, isrLimite: def.isrLimite, tipoCambio: def.tipoCambio, pctAsesor: c.liquidacion.pctAsesor === '' || !Number.isFinite(pctA) ? def.pctAsesor : pctA, totales: liquidacion(c, opcionesLiq()) }
+			? { isrPct: def.isrPct, isrPctAlto: def.isrPctAlto, isrLimite: def.isrLimite, tipoCambio: def.tipoCambio, pctAsesor: c.liquidacion.pctAsesor === '' || !Number.isFinite(pctA) ? def.pctAsesor : pctA, totales: liquidacion(c, opcionesLiq(), reglas) }
 			: null;
 		const datos = {
 			...c, vigenciaDias: Number(c.vigenciaDias) || VIGENCIA_DEF,
@@ -948,7 +951,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	}
 	async function copiarWhatsApp() {
 		if (!revisarPendientes('copiar')) return;
-		const texto = textoWhatsApp(c);
+		const texto = textoWhatsApp(c, reglas);
 		try { await navigator.clipboard.writeText(texto); } catch {
 			const ta = h('textarea', { class: 'visually-hidden' }, texto);
 			document.body.append(ta); ta.select();
