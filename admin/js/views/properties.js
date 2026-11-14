@@ -21,6 +21,8 @@ import { datosDe } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
+import { asignarDueno } from '../enlace-dueno.js';
+import { tieneCasasPorNoche } from '../duenos.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -828,7 +830,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'acuerdo.exclusivaInicio', label: 'Exclusiva desde', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva) },
 		{ name: 'acuerdo.exclusivaFin', label: 'Exclusiva hasta', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva), help: 'Avisamos 30 días antes de que venza.' },
 		{ name: 'acuerdo.comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', help: 'Vacío = regla general (Reportes).' },
-		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses de renta)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses por cada año de contrato)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Ej.: 1 = un mes de renta por año (contrato de 2 años = 2 rentas). Vacío = regla general (Reportes).' },
 		{ name: 'acuerdo.comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES, default: 'pequeno', when: (d) => conDueno(d) && !esVacacional(d) },
 		{ name: 'acuerdo.comisionModo', label: 'Cómo se cobra la comisión', type: 'select', cols: 4, options: MODOS, when: (d) => conDueno(d) && !esVacacional(d) },
 		{ name: 'acuerdo.impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
@@ -921,7 +923,7 @@ async function renderEditor(container, id, emb = null) {
 	const isNew = id === 'nuevo';
 	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
 	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
-	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : p.porNoche || p.tipo === 'socio' ? `${p.nombre} (socio)` : p.nombre])];
+	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : tieneCasasPorNoche(p, all) ? `${p.nombre} (socio)` : p.nombre])];
 	if (!isNew && !snap.exists()) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -1205,16 +1207,10 @@ async function renderEditor(container, id, emb = null) {
 					updatedAt: serverTimestamp(), updatedBy: session.user.uid
 				});
 			}
-			// La casa queda también en la lista del socio (y sale de la del anterior, si cambió).
-			// arrayUnion: no pisa lo que otra persona haya agregado a esa lista mientras tanto.
-			if (dueno && !(dueno.propiedades || []).some((x) => x.propertyId === ref.id)) {
-				await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: ref.id }) });
-			}
-			// Quien tiene una casa por noche es socio: su ficha pasa a pedir correo y datos de pago.
-			if (dueno && esVacacional(d) && !dueno.porNoche) await updateDoc(doc(db, 'propietarios', dueno.id), { porNoche: true });
-			// Si se cambió o se quitó, sale de la lista del anterior (cuando lo llevo yo).
-			const anterior = data.propietarioId && data.propietarioId !== d.propietarioId && propietarios.find((p) => p.id === data.propietarioId);
-			if (anterior) await updateDoc(doc(db, 'propietarios', anterior.id), { propiedades: (anterior.propiedades || []).filter((x) => x.propertyId !== ref.id) });
+			// La casa queda en la lista de su dueño y sale de la de cualquier otro; su `porNoche` se recalcula
+			// (una sola forma de enlazar: asignarDueno). El acuerdo ya lo decidió acuerdoPorGuardar.
+			// Una casa enlazada solo desde la lista de su dueño (sin propietarioId antes ni ahora) se deja como está.
+			if (data.propietarioId || d.propietarioId) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
@@ -1288,8 +1284,7 @@ async function renderEditor(container, id, emb = null) {
 				const sinSello = (s) => { const { updatedAt, updatedBy, ...resto } = s.data() || {}; return resto; };
 				await guardarPrivadoVacacional(newRef.id, sinSello(socioPriv), sinSello(llegadaPriv));
 			}
-			const dueno = propietarios.find((p) => p.id === data.propietarioId);
-			if (dueno) await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: newRef.id }) });
+			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			toast('Copia creada como borrador. Ajusta los datos y guarda.');
 			location.hash = `#/propiedades/${newRef.id}`;
 		} catch (err) {

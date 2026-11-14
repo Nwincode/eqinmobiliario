@@ -308,6 +308,125 @@ await tercero.p.reload();
 await espera(2500);
 paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
 
+// ---------------------------------------------------------------- 4e. Rentas vacacionales: la misma reserva para todos
+// Rentas y Solicitudes escriben por admin/js/reservas.js: la reserva hecha a mano la ve el dueño y bloquea el calendario;
+// cancelar en Rentas libera las fechas y avisa al cliente en su chat; una pestaña vieja no revive lo cancelado.
+let otraPestana = null;
+{
+	const iso = (d) => new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+	const ocupadas = async () => (await (await fetch(`${SITIO}/api/disponibilidad?id=${idCasa}`)).json()).ocupadas || [];
+	const ocupada = (rangos, f) => rangos.some((r) => r.desde <= f && f < r.hasta);
+	const buscar = async (col, campo, valor) => (await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: col }], where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: { stringValue: valor } } } } }) })).json()).filter((x) => x.document).map((x) => ({ id: x.document.name.split('/').pop(), ...x.document.fields }));
+	// Meses que hay que avanzar en Rentas para ver una fecha.
+	const meses = (f) => (Number(f.slice(0, 4)) - Number(iso(0).slice(0, 4))) * 12 + Number(f.slice(5, 7)) - Number(iso(0).slice(5, 7));
+	const alMes = async (p, f) => { for (let i = 0; i < meses(f); i++) { await p.locator('button[aria-label="Mes siguiente"]').click(); await espera(150); } };
+	const nuevaManual = async (p, llegada, salida, huesped) => {
+		await p.locator('button', { hasText: '+ Reserva' }).click();
+		await espera(800);
+		const m = p.locator('.modal.show');
+		await m.locator('[name=propertyId]').selectOption(idCasa);
+		await m.locator('[name=llegada]').fill(llegada);
+		await m.locator('[name=salida]').fill(salida);
+		await m.locator('[name=salida]').dispatchEvent('change');
+		await espera(1200);
+		await m.locator('[name=huesped]').fill(huesped);
+		await m.locator('input[type=tel]').fill('5555 7777');
+		await m.locator('[name=notas]').fill('NOTA INTERNA de la reserva');
+		await m.locator('[name=costoSocio]').fill('777');
+		await m.locator('[name=alojamiento]').fill('900');
+		await m.locator('.modal-footer button', { hasText: 'Guardar' }).click();
+		await espera(3000);
+	};
+	const cuentaDelDueno = async () => { await ir(socio.p, `#/mis-casas/${idCasa}`, 3000); return Number(((await socio.p.locator('.admin-main').innerText()).match(/(\d+) reservas? confirmadas?/) || [])[1] || 0); };
+	const antes = await cuentaDelDueno();
+	// Una reserva guardada antes de este cambio (con el teléfono del huésped y sin el dueño de la casa).
+	const sv = (v) => ({ stringValue: v });
+	await fetch(`${FS}/reservas/reserva-de-antes`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+		propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), estado: sv('pendiente'), llegada: sv(iso(200)), salida: sv(iso(202)), huesped: sv('Huésped de antes'),
+		telefono: sv('+502 5555 8888'), notas: sv('NOTA vieja'), canal: sv('directo'), moneda: sv('USD') } }) });
+	const l1 = iso(150), s1 = iso(153);
+	await ir(admin.p, '#/rentas', 3000);
+	const deAntes = (await leer('reservas/reserva-de-antes')).fields || {};
+	const suContacto = (await leer(`properties/${idCasa}/privado/reserva-reserva-de-antes`)).fields || {};
+	paso('Al abrir Rentas, una reserva de antes pasa el teléfono y las notas a privado y recibe el dueño de su casa', deAntes.propietarioId?.stringValue === 'socio-prueba' && !('telefono' in deAntes) && !('notas' in deAntes)
+		&& /8888/.test(suContacto.telefono?.stringValue || '') && /NOTA vieja/.test(suContacto.notas?.stringValue || ''), Object.keys(deAntes).join());
+	await nuevaManual(admin.p, l1, s1, 'Pedro Manual');
+	const m1 = (await buscar('reservas', 'huesped', 'Pedro Manual'))[0] || {};
+	const contacto = m1.id ? (await leer(`properties/${idCasa}/privado/reserva-${m1.id}`)).fields || {} : {};
+	paso('Reserva hecha a mano en Rentas: lleva el dueño de la casa, sin teléfono ni notas (van aparte, en privado)', m1.propietarioId?.stringValue === 'socio-prueba' && !('telefono' in m1) && !('notas' in m1)
+		&& /7777/.test(contacto.telefono?.stringValue || '') && /NOTA INTERNA/.test(contacto.notas?.stringValue || ''), await avisos(admin.p));
+	paso('Esa reserva bloquea sus fechas en la casa y en el calendario público', (await reservadas()).includes(l1) && ocupada(await ocupadas(), l1));
+	const despues = await cuentaDelDueno();
+	const contactoAjeno = await socio.p.evaluate(async ([casa, id]) => {
+		const m = await import('/admin/js/firebase.js');
+		return m.getDoc(m.doc(m.db, 'properties', casa, 'privado', `reserva-${id}`)).then(() => 'leyó', (e) => e.code);
+	}, [idCasa, m1.id || 'x']);
+	paso('El dueño ve la reserva hecha en Rentas en su panel, pero no el teléfono ni las notas del huésped', despues === antes + 1 && contactoAjeno === 'permission-denied', `${antes} → ${despues} · ${contactoAjeno}`);
+	// Una segunda pestaña de Rentas abierta desde antes (todavía cree confirmada la de Pedro).
+	otraPestana = await entrar('admin');
+	await ir(otraPestana.p, '#/rentas', 3000);
+	await alMes(otraPestana.p, l1);
+	// En la primera se cancela.
+	await ir(admin.p, '#/rentas', 3000);
+	await alMes(admin.p, l1);
+	await admin.p.locator('tr', { hasText: 'Pedro Manual' }).first().click();
+	await espera(1500);
+	await admin.p.locator('.modal.show [name=estado]').selectOption('cancelada');
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Guardar' }).click();
+	await espera(3000);
+	paso('Cancelar en Rentas una reserva hecha a mano libera sus fechas en la casa y en el calendario público', !(await reservadas()).includes(l1) && !ocupada(await ocupadas(), l1), await avisos(admin.p));
+	// La pestaña vieja guarda la de Pedro como la tenía (confirmada) y crea otra: lo cancelado no revive.
+	await otraPestana.p.locator('tr', { hasText: 'Pedro Manual' }).first().click();
+	await espera(1500);
+	await otraPestana.p.locator('.modal.show .modal-footer button', { hasText: 'Guardar' }).click();
+	await espera(2500);
+	const rechazo = await avisos(otraPestana.p);
+	await otraPestana.p.locator('.modal.show .btn-close').click().catch(() => {});
+	await espera(700);
+	const l2 = iso(160);
+	await nuevaManual(otraPestana.p, l2, iso(162), 'Rosa Manual');
+	const r = await reservadas();
+	paso('Dos pestañas: la vieja no revive una reserva cancelada (ni al guardarla ni al crear otra)', /cambió/.test(rechazo) && !r.includes(l1) && r.includes(l2)
+		&& (await buscar('reservas', 'huesped', 'Pedro Manual'))[0]?.estado?.stringValue === 'cancelada', rechazo);
+	// Una reserva de la web, confirmada por el socio, que el administrador cancela desde Rentas.
+	await tercero.p.goto(`${SITIO}${ficha}`);
+	await espera(1500);
+	for (let i = 0; i < 3; i++) { await tercero.p.locator('.vac-cal-next').click(); await espera(300); }
+	const libres4 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
+	await libres4().nth(5).click();
+	await libres4().nth(7).click();
+	await tercero.p.fill('.vac-card [name=nombre]', 'Marta Cuarta');
+	await tercero.p.fill('.vac-card [name=telefono]', '5555 4321');
+	await tercero.p.fill('.vac-card [name=email]', 'marta@example.com');
+	await tercero.p.locator('.vac-card button[type=submit]').click();
+	await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
+	await espera(1500);
+	const codigo4 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();
+	const token4 = (tercero.p.url().match(/#(\w+)/) || [])[1] || '';
+	const llegada4 = (await leer(`chats/${token4}`)).fields?.llegada?.stringValue || '';
+	await ir(socio.p, `#/solicitudes/${codigo4}`, 3500);
+	await socio.p.locator('.card', { hasText: codigo4 }).first().locator('button', { hasText: 'Confirmada' }).click();
+	await espera(800);
+	await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
+	await espera(4000);
+	const ocupada4 = Boolean(llegada4) && (await reservadas()).includes(llegada4);
+	await ir(admin.p, '#/rentas', 3000);
+	await alMes(admin.p, llegada4 || iso(0));
+	await admin.p.locator('tr', { hasText: 'Marta' }).filter({ hasText: 'Confirmada' }).first().click();
+	await espera(1500);
+	await admin.p.locator('.modal.show [aria-label="Cancelar reserva"]').click();
+	await espera(800);
+	await admin.p.locator('.modal.show button', { hasText: 'Cliente canceló' }).click();
+	await espera(4000);
+	const chat4 = (await leer(`chats/${token4}`)).fields || {};
+	const lead4 = (await buscar('leads', 'reserva.codigo', codigo4))[0] || {};
+	await tercero.p.reload();
+	await espera(2500);
+	paso('Cancelar en Rentas una reserva de la web: fechas libres, la solicitud y el chat dicen «cancelada» y el cliente lo ve', ocupada4 && !(await reservadas()).includes(llegada4) && chat4.estado?.stringValue === 'cancelada'
+		&& lead4.solicitud?.mapValue?.fields?.estado?.stringValue === 'cancelada' && /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()), `${codigo4} ${llegada4} ${await avisos(admin.p)}`);
+}
+
 // ---------------------------------------------------------------- 4d. El control de cada hora (lo que el socio deja sin responder)
 {
 	const hace = (min) => ({ timestampValue: new Date(Date.now() - min * 60_000).toISOString() });
@@ -431,6 +550,16 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('El acuerdo de una casa en venta se llena en su ficha (sin comisión de renta) y se guarda en privado, no en la casa', enCasa.join() === 'acuerdo.exclusiva,acuerdo.comisionPct,acuerdo.impuestoVenta'
 		&& suAcuerdo.exclusiva?.booleanValue === true && suAcuerdo.exclusivaFin?.stringValue === '2027-03-31' && Number(suAcuerdo.comisionPct?.doubleValue ?? suAcuerdo.comisionPct?.integerValue ?? suAcuerdo.comisionPct?.stringValue) === 4.5
 		&& /titulo/.test(publica) && !/exclusiva|comision|impuesto|contrato|acuerdo/i.test(publica), `${enCasa.join()} ${await avisos(asesor.p)}`);
+	// La cotización toma la comisión acordada para ese inmueble (4.5 %), no un 5 % fijo.
+	await ir(asesor.p, '#/cotizaciones/nueva', 3500);
+	const honorario = () => asesor.p.getByLabel(/^Honorario\s*\(%\)/).first().inputValue().catch(() => '');
+	const general = await honorario();
+	await asesor.p.locator('.cot-sel input[type=search]').nth(1).fill('zona 10');
+	await espera(600);
+	await asesor.p.locator('.cot-sel-op', { hasText: 'Apartamento zona 10' }).first().click();
+	await espera(2000);
+	const acordado = await honorario();
+	paso('Una cotización nueva empieza con la comisión general y, al elegir el inmueble, toma la acordada para él', general === '5' && acordado === '4.5', `${general} → ${acordado}`);
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
@@ -490,6 +619,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await poner('propietarios/legado-ajeno', { nombre: sv('Dueño que lleva otro'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-ajena']), exclusiva: bv(true), exclusivaFin: sv('2027-05-05'), comisionPct: nv(6) });
 		await poner('properties/leg-lista', casa({ titulo: sv('Casa enlazada solo en la lista'), slug: sv('leg-lista'), codigo: sv('LEG-2'), operacion: sv('venta') }));
 		await poner('properties/leg-lista/privado/acuerdo', { exclusiva: bv(false), comisionPct: nv(7) });
+		await poner('propietarios/legado-lista', { nombre: sv('Dueño de la casa en su lista'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-lista']) });
 		const guardarCasa = async (persona, id) => { await ir(persona.p, `#/propiedades/${id}`); await campo(persona.p, 'zona').fill('Zona 15'); await guardar(persona.p); return avisos(persona.p); };
 		const avisoAsesor = await guardarCasa(asesor, 'leg-ajena');
 		const ajenaAntes = await fetch(`${FS}/properties/leg-ajena/privado/acuerdo`, { headers: dueno });
@@ -507,7 +637,8 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('Guardar una casa cuyo dueño no veo no tapa su acuerdo: después pasa completo al inmueble', guardoAsesor && ajenaAntes.status === 404 && num(ajena.comisionPct) === 6 && ajena.exclusivaFin?.stringValue === '2027-05-05' && !('comisionPct' in ajeno), `${ajenaAntes.status} ${avisoAsesor}`);
 		const avisoAdmin = await guardarCasa(admin, 'leg-lista');
 		const enLista = await f('properties/leg-lista/privado/acuerdo');
-		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo', num(enLista.comisionPct) === 7, avisoAdmin);
+		const suLista = JSON.stringify((await f('propietarios/legado-lista')).propiedades || {});
+		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo ni la saca de su lista', num(enLista.comisionPct) === 7 && suLista.includes('leg-lista'), avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
 		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
@@ -518,7 +649,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
 		await ir(admin.p, '#/propietarios/legado-solo');
 		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta \d\d\/\d\d\/\d{4}/.test(await admin.p.locator('.alert-info', { hasText: 'Acuerdo anotado' }).innerText().catch(() => '')));
-		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
+		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-lista', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
 	}
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
 	await ir(admin.p, '#/propietarios/nuevo');
@@ -709,7 +840,7 @@ const duenos = [];
 	await vieja.p.screenshot({ path: `${PANEL}/pagina-vieja-390.png`, fullPage: true });
 }
 
-for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
+for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();

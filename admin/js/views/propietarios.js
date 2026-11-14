@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { auth, db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, sendPasswordResetEmail } from '../firebase.js';
-import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice, iconoBtn } from '../ui.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl } from '../ia.js';
@@ -9,21 +9,23 @@ import { correoDe, accesosDe, accesoDe, ponerAcceso, darAcceso, reglasNuevas, mo
 import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
 import { sinTildes } from '../cotizacion.js';
 import { abrirFicha } from './properties.js';
-import { CAMPOS_ACUERDO, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
+import { CAMPOS_ACUERDO, comisionDe, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
+import { asignarDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
-// Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
-// Si la casa es de otro asesor, Firestore no deja tocarla y se sigue con las demás.
-function vincularCasas(id, ahora = [], antes = []) {
-	const quitadas = antes.filter((p) => !ahora.includes(p));
-	const cambios = [...ahora.map((p) => [p, id]), ...quitadas.map((p) => [p, ''])];
-	return Promise.all([
-		...cambios.map(([p, propietarioId]) => updateDoc(doc(db, 'properties', p), { propietarioId }).catch(() => {})),
-		// El acuerdo era con este dueño: una casa que deja de ser suya no se lo lleva al siguiente.
-		...quitadas.map((p) => deleteDoc(doc(db, 'properties', p, 'privado', 'acuerdo')).catch(() => {}))
-	]);
+// Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
+// forma de enlazar (asignarDueno: la casa manda; cada lista y `porNoche` se ponen al día y el acuerdo no pasa al siguiente).
+// Una casa que se quita y que solo estaba en la lista (sin propietarioId) también era de esta persona: su acuerdo se va.
+async function vincularCasas(id, ahora, antes, { duenos, propiedades }) {
+	const casa = (pid) => propiedades.find((c) => c.id === pid) || { id: pid };
+	// Cada casa ya enlazada se anota aquí también, para que la siguiente vuelta vea a sus dueños como quedaron.
+	for (const pid of ahora) { const c = casa(pid); await asignarDueno({ id: pid, propietarioId: c.propietarioId || '', operacion: c.operacion }, id, { duenos, casas: propiedades }); c.propietarioId = id; }
+	for (const pid of antes.filter((x) => !ahora.includes(x))) {
+		const c = casa(pid);
+		if (!c.propietarioId || c.propietarioId === id) { await asignarDueno({ id: pid, propietarioId: id, operacion: c.operacion }, '', { duenos, casas: propiedades }); c.propietarioId = ''; }
+	}
 }
 
 // Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
@@ -82,13 +84,14 @@ async function renderLista(container) {
 	const solo = h('input', { type: 'checkbox', class: 'form-check-input', id: 'solo-incompletos', checked: /\/incompletos$/.test(location.hash) });
 	const tabla = h('div');
 	// Lo que gana la empresa con cada quien, según lo que tiene: venta (%), renta (meses) y por noche (margen de la casa).
-	const comisionDe = (p) => {
+	const comisionTexto = (p) => {
 		const ops = operacionesDe(p, propiedades);
-		const acordado = (campo, op) => [...new Set(casasDe(p, propiedades).filter((c) => c.operacion === op).map((c) => acuerdoDe(acuerdos[c.id], p, op)[campo]).filter((v) => v !== undefined && v !== '').map(Number))];
-		const pct = acordado('comisionPct', 'venta'), meses = acordado('comisionRentaMeses', 'renta');
+		// La de cada casa (comisionDe: su acuerdo, o la regla general); sin casas de esa operación, la regla general.
+		const valores = (op) => { const casas = casasDe(p, propiedades).filter((c) => c.operacion === op); return [...new Set((casas.length ? casas : [null]).map((c) => comisionDe(op, c && acuerdoDe(acuerdos[c.id], p, op), reglas).valor))]; };
+		const pct = valores('venta'), meses = valores('renta');
 		return [
-			ops.includes('venta') ? `Venta ${pct.length ? pct.join(' y ') : reglas.comisionVentaPct} %` : '',
-			ops.includes('renta') ? `Renta ${meses.length ? meses.join(' y ') : reglas.comisionRentaMeses} ${String(meses.length ? meses.at(-1) : reglas.comisionRentaMeses) === '1' ? 'mes' : 'meses'}` : '',
+			ops.includes('venta') ? `Venta ${pct.join(' y ')} %` : '',
+			ops.includes('renta') ? `Renta ${meses.join(' y ')} ${meses.at(-1) === 1 ? 'mes' : 'meses'}` : '',
 			ops.includes('vacacional') ? 'Por noche: margen' : ''
 		].filter(Boolean).join(' · ') || '—';
 	};
@@ -96,7 +99,7 @@ async function renderLista(container) {
 		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, tieneCasasPorNoche(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(masUrgente(p))),
-		h('td', { class: 'small' }, comisionDe(p)),
+		h('td', { class: 'small' }, comisionTexto(p)),
 		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—')) : null);
 	const dibujar = () => {
 		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
@@ -122,7 +125,7 @@ async function renderLista(container) {
 async function renderEditor(container, id) {
 	const nuevo = id === 'nuevo';
 	const ref = nuevo ? doc(collection(db, 'propietarios')) : doc(db, 'propietarios', id);
-	const [snap, agentes, propiedades, reglas] = await Promise.all([nuevo ? null : getDoc(ref), agentOptions(), loadPropiedades(), loadReglas()]);
+	const [snap, agentes, propiedades, reglas, duenos] = await Promise.all([nuevo ? null : getDoc(ref), agentOptions(), loadPropiedades(), loadReglas(), loadPropietarios()]);
 	if (!nuevo && !snap.exists()) {
 		mount(container, emptyState('No se encontró.', h('a', { href: '#/propietarios', class: 'btn btn-primary' }, 'Volver')));
 		return;
@@ -132,6 +135,13 @@ async function renderEditor(container, id) {
 	const acuerdos = await loadAcuerdos(casasDe({ id: ref.id, ...data }, propiedades));
 	// Ficha de antes con «tipo: socio»: pasa a propietario; lo de socio lo dicen sus casas.
 	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
+	// La lista de la ficha muestra sus casas tal como son (la casa manda: casasDe), más las de su lista que no puedo ver
+	// (las lleva otro asesor). Al guardar, solo se sueltan las que se quiten aquí a mano.
+	if (!nuevo) {
+		const visibles = new Set(propiedades.map((c) => c.id));
+		data.propiedades = [...casasDe({ id: ref.id, ...data }, propiedades).map((c) => ({ propertyId: c.id })),
+			...(data.propiedades || []).filter((x) => x.propertyId && !visibles.has(x.propertyId)).map((x) => ({ propertyId: x.propertyId }))];
+	}
 	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
 	const conNoche = (d) => operacionesDe(d, propiedades).includes('vacacional');
 	const conCasas = (d) => operacionesDe(d, propiedades).length > 0;
@@ -182,8 +192,9 @@ async function renderEditor(container, id) {
 		d.telefonoNorm = telNorm(d.telefono);
 		// Solo el enlace a la casa (antes se guardaba también un «precio mínimo aceptado»: aquí no se regatea).
 		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId).map((x) => ({ propertyId: x.propertyId }));
-		d.propertyIds = d.propiedades.map((x) => x.propertyId);
-		d.porNoche = d.propiedades.length ? conNoche(d) : Boolean(data.porNoche);
+		// Con sus casas (la misma regla que asignarDueno): se enciende y se apaga; quien no ve todas las casas solo la enciende.
+		// Al guardar, sus casas son las de su lista (vincularCasas enlaza esas y suelta las demás).
+		d.porNoche = propiedades.some((c) => c.operacion === 'vacacional' && d.propiedades.some((x) => x.propertyId === c.id)) || (!session.isAdmin && Boolean(data.porNoche));
 		d.updatedAt = serverTimestamp();
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;
@@ -196,8 +207,10 @@ async function renderEditor(container, id) {
 				else delete data[k];
 			}
 			await setDoc(ref, d);
-			await vincularCasas(ref.id, d.propertyIds, data.propertyIds);
-			data.propertyIds = d.propertyIds;
+			// Antes: lo que la ficha mostró al abrirse (sus casas); se sueltan solo las que se quitaron a mano.
+			const antes = (data.propiedades || []).map((x) => x.propertyId);
+			await vincularCasas(ref.id, d.propiedades.map((x) => x.propertyId), antes, { duenos, propiedades });
+			data.propiedades = d.propiedades;
 			// Su resumen (lo que lee en su panel, con sus datos de pago): se arma o se actualiza con cada guardado.
 			const conId = { ...d, id: ref.id };
 			// Si no se pudo, se dice en pantalla: lo que ve en su panel (sus datos de pago incluidos) quedaría viejo.
@@ -291,8 +304,8 @@ async function renderEditor(container, id) {
 			for (const u of await accesosDe(ref.id)) if (u.activo !== false) await updateDoc(doc(db, 'users', u.uid), { activo: false, updatedAt: serverTimestamp() });
 			if (data.portalToken) await borrarCopia(data.portalToken);
 			// Sus casas dejan de apuntarle: las de su lista y también las que dicen ser suyas sin estar en ella.
-			const suyas = [...new Set([...(data.propertyIds || []), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
-			await deleteDoc(ref); await vincularCasas(ref.id, [], suyas); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
+			const suyas = [...new Set([...(data.propiedades || []).map((x) => x.propertyId), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
+			await deleteDoc(ref); await vincularCasas(ref.id, [], suyas, { duenos, propiedades }); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
 	mount(container,
@@ -350,7 +363,6 @@ function avisoResumenes(lista) {
 }
 
 // ——— Lo que ve el dueño en su panel ———
-const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const nombreTipo = (t) => (TIPOS_BITACORA.find(([k]) => k === t) || TIPOS_BITACORA[5])[1];
 
 function seccionPortal(prop, propiedades, ficha) {
@@ -372,7 +384,7 @@ function seccionPortal(prop, propiedades, ficha) {
 
 	// Acceso al panel: estado y botones (solo el administrador da o quita acceso).
 	// Lo que hace falta para abrirle la entrada (motivoParaNoAbrir, en admin/js/acceso.js) depende de si tiene casas por noche.
-	const porNoche = tieneCasasPorNoche(prop) || casasDe(prop, propiedades).some((c) => c.operacion === 'vacacional');
+	const porNoche = tieneCasasPorNoche(prop, propiedades);
 	async function pintarAcceso() {
 		const [u, motivo] = await Promise.all([session.isAdmin ? accesoDe(prop.id).catch(() => null) : null, motivoParaNoAbrir(prop, porNoche)]);
 		const estado = session.isAdmin ? (u ? { email: u.email, activo: u.activo !== false } : null) : prop.acceso || null;

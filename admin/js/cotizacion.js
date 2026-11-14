@@ -9,6 +9,7 @@
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
 import { miles } from './formato.js';
 import { OPERACIONES, enOperacion } from './estados.js';
+import { REGLAS_POR_DEFECTO, montoComision } from './acuerdo.js';
 
 export const IVA_GENERAL = 0.12;
 export const TASA_PEQUENO = 0.05;
@@ -89,8 +90,13 @@ export function desglose(honorario, regimen, modo = 'todo') {
 	return { honorario: hon, impuesto, total: redondear(hon + impuesto), neto: hon, impuestoAparte: true };
 }
 
-export function lineaVacia(tipo = 'compraventa', moneda = 'USD') {
-	const l = { tipo, moneda, precio: '', pct: tipo === 'compraventa' ? 5 : '', renta: '', anios: 1, descripcion: '', monto: '' };
+// `reglas` = la regla general de comisión (settings/crm); sin ella, la de siempre. Al elegir el inmueble se pone la
+// acordada para él (comisionDe en admin/js/acuerdo.js). En arrendamiento, `mesesPorAnio` = meses de renta por año de
+// contrato (1 = la escala de ley tal cual).
+export function lineaVacia(tipo = 'compraventa', moneda = 'USD', reglas = REGLAS_POR_DEFECTO) {
+	const r = { ...REGLAS_POR_DEFECTO, ...(reglas || {}) };
+	const l = { tipo, moneda, precio: '', pct: tipo === 'compraventa' ? r.comisionVentaPct : '', renta: '', anios: 1, descripcion: '', monto: '' };
+	if (tipo === 'arrendamiento') l.mesesPorAnio = r.comisionRentaMeses;
 	// La administración no siempre se cobra: empieza apagada y solo cuenta cuando se enciende.
 	if (tipo === 'administracion') { l.adminTipo = 'pct'; l.activa = false; }
 	return l;
@@ -108,8 +114,8 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 	// falta: el primer dato que falta para calcular la línea ('' si está completa).
 	let base = 0, mensual = false, concepto = '', detalle = '', listo = false, meses = null, falta = '';
 	if (l.tipo === 'compraventa') {
-		const precio = num(l.precio), pct = num(l.pct, 5);
-		base = precio * pct / 100;
+		const precio = num(l.precio), pct = num(l.pct, REGLAS_POR_DEFECTO.comisionVentaPct);
+		base = montoComision({ tipo: 'pct', valor: pct }, precio);
 		listo = precio > 0;
 		falta = listo ? '' : 'precio';
 		concepto = 'Intermediación de compraventa';
@@ -117,12 +123,13 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 	} else if (l.tipo === 'arrendamiento') {
 		const renta = num(l.renta);
 		const anios = Math.min(30, Math.max(0, num(l.anios, 1)));
-		meses = mesesArrendamiento(anios);
-		base = renta * meses;
+		const porAnio = num(l.mesesPorAnio, REGLAS_POR_DEFECTO.comisionRentaMeses);
+		meses = mesesArrendamiento(anios) * porAnio;
+		base = montoComision({ tipo: 'meses', valor: porAnio }, renta, mesesArrendamiento(anios));
 		listo = renta > 0 && anios > 0;
 		falta = renta > 0 ? (anios > 0 ? '' : 'anios') : 'renta';
 		concepto = 'Comisión por contrato de arrendamiento';
-		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)`;
+		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)${porAnio !== 1 ? `; ${numero(porAnio)} ${porAnio === 1 ? 'mes' : 'meses'} de renta por año, según lo acordado` : ''}`;
 	} else if (lineaApagada(l)) {
 		mensual = true;
 		concepto = 'Administración de la propiedad';

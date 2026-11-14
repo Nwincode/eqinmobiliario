@@ -6,6 +6,7 @@ import {
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
 import { telefonoWa as telNorm, dinero } from './formato.js';
+import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -68,8 +69,9 @@ export async function loadAcuerdos(casas) {
 
 export const ms = (v) => toDate(v)?.getTime() || 0;
 
-// Regla general de comisión (settings/crm): se usa cuando el cliente no tiene una comisión propia.
-export const REGLAS_POR_DEFECTO = { comisionVentaPct: 5, comisionRentaMeses: 1, parteAsesorPct: 50 };
+// Regla general de comisión (settings/crm): la de un inmueble sin comisión acordada y la de un negocio sin comisión propia.
+// La cuenta es una sola: comisionDe en admin/js/acuerdo.js.
+export { REGLAS_POR_DEFECTO };
 
 export async function loadReglas() {
 	try {
@@ -81,18 +83,17 @@ export async function loadReglas() {
 	}
 }
 
-// Comisión de un negocio: la propia del cliente o la regla general
-// (venta: % del precio; renta: meses de renta, con el monto como renta mensual).
-export function comisionDe(c, reglas = REGLAS_POR_DEFECTO) {
-	const monto = Number(c.montoEstimado) || 0;
-	if (c.comisionPct !== undefined && c.comisionPct !== null && c.comisionPct !== '') return monto * Number(c.comisionPct) / 100;
-	if (c.operacion === 'renta') return monto * reglas.comisionRentaMeses;
-	return monto * reglas.comisionVentaPct / 100;
+// Comisión de un negocio de un cliente: la propia de ese negocio (un %), si no la regla general de su operación
+// (venta: % del precio; renta: meses de renta, con el monto como renta mensual y un año de contrato).
+// El cliente no guarda qué inmueble cerró: por eso aquí no entra el acuerdo de un inmueble.
+export function comisionDeNegocio(c, reglas = REGLAS_POR_DEFECTO) {
+	const propia = c.comisionPct !== undefined && c.comisionPct !== null && c.comisionPct !== '';
+	const regla = propia ? { tipo: 'pct', valor: Number(c.comisionPct) } : comisionDe(c.operacion === 'renta' ? 'renta' : 'venta', null, reglas);
+	return montoComision(regla, c.montoEstimado);
 }
 
 export function textoRegla(reglas = REGLAS_POR_DEFECTO) {
-	const meses = reglas.comisionRentaMeses;
-	return `${reglas.comisionVentaPct} % en venta · ${meses} ${meses === 1 ? 'mes' : 'meses'} de renta en alquiler`;
+	return `${textoComision(comisionDe('venta', null, reglas))} en venta · ${textoComision(comisionDe('renta', null, reglas))} en alquiler`;
 }
 
 // Estado de una actividad pendiente respecto a hoy.
@@ -136,7 +137,8 @@ export async function crearActividad(datos) {
 export async function sincronizarLeads(leads, clientes) {
 	const porTel = new Map(clientes.filter((c) => c.telefonoNorm).map((c) => [c.telefonoNorm, c]));
 	const porMail = new Map(clientes.filter((c) => c.email).map((c) => [String(c.email).toLowerCase(), c]));
-	const pendientes = leads.filter((l) => !l.clienteId);
+	// Una solicitud de reserva por noche no es un cliente del CRM (la atiende Solicitudes).
+	const pendientes = leads.filter((l) => !l.clienteId && !window.EQVacacional.esSolicitudReserva(l));
 	let vinculados = 0;
 	let nuevos = 0;
 	let batch = writeBatch(db);

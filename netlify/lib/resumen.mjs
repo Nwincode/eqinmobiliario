@@ -1,7 +1,9 @@
 // Resumen de la mañana: lo que cada asesor debe atender hoy.
 // Lo usan la función programada (resumen-diario) y el botón de prueba del panel.
+import '../../js/calc-vacacional.js';
 import { listar, leerPrivado } from './firestore.mjs';
 import { exclusivasPorVencer } from '../../admin/js/acuerdo.js';
+import { conDueno as tieneDueno } from '../../admin/js/duenos.js';
 import { enviarCorreo, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
 
 const DIA = 86_400_000;
@@ -28,7 +30,7 @@ export async function datosResumen(ahora = Date.now()) {
 	);
 	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo). Si un acuerdo no se puede leer, ese
 	// inmueble usa lo que quedó en su dueño y el resumen sale igual.
-	const conDueno = propiedades.filter((c) => c.propietarioId || propietarios.some((p) => (p.propiedades || []).some((x) => x.propertyId === c.id)));
+	const conDueno = propiedades.filter((c) => tieneDueno(c, propietarios));
 	const acuerdos = Object.fromEntries(await Promise.all(conDueno.map(async (c) => [c.id, await leerPrivado(`properties/${c.id}/privado/acuerdo`).catch(() => undefined)])));
 	const { inicio, fin } = hoyGT(ahora);
 	const pend = actividades.filter((a) => !a.hecha && ms(a.fecha));
@@ -37,7 +39,7 @@ export async function datosResumen(ahora = Date.now()) {
 	const secciones = {
 		vencidas: pend.filter((a) => ms(a.fecha) < inicio).sort((a, b) => ms(a.fecha) - ms(b.fecha)),
 		hoy: pend.filter((a) => ms(a.fecha) >= inicio && ms(a.fecha) < fin).sort((a, b) => ms(a.fecha) - ms(b.fecha)),
-		leads: leads.filter((l) => (l.estado || 'nuevo') === 'nuevo').sort((a, b) => ms(b.createdAt) - ms(a.createdAt)),
+		leads: leads.filter((l) => !globalThis.EQVacacional.esSolicitudReserva(l) && (l.estado || 'nuevo') === 'nuevo').sort((a, b) => ms(b.createdAt) - ms(a.createdAt)),
 		sinSeguimiento: clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id))
 			.sort((a, b) => ms(a.ultimoContacto) - ms(b.ultimoContacto)),
 		exclusivas: exclusivasPorVencer(conDueno, acuerdos, propietarios, { ahora, zona: '-06:00' }).map((x) => ({
