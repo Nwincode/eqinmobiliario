@@ -129,7 +129,7 @@ export function calcularLinea(linea, regimen = 'general', modo = 'todo') {
 		listo = renta > 0 && anios > 0;
 		falta = renta > 0 ? (anios > 0 ? '' : 'anios') : 'renta';
 		concepto = 'Comisión por contrato de arrendamiento';
-		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)`;
+		detalle = `Contrato de ${numero(anios)} año${anios === 1 ? '' : 's'} = ${rentas(meses)} de ${dinero(renta, moneda)} (renta mensual sin IVA)${porAnio !== 1 ? `; ${numero(porAnio)} ${porAnio === 1 ? 'mes' : 'meses'} de renta por año, según lo acordado` : ''}`;
 	} else if (lineaApagada(l)) {
 		mensual = true;
 		concepto = 'Administración de la propiedad';

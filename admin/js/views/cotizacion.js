@@ -9,7 +9,7 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
 } from '../firebase.js';
-import { acuerdoDe, comisionDe } from '../acuerdo.js';
+import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
@@ -574,8 +574,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 				getDoc(doc(db, 'properties', pid, 'privado', 'acuerdo')).then((s) => (s.exists() ? s.data() : null), () => null).then((propio) => {
 					if (c.propiedad.id !== pid || !c.lineas.includes(l)) return;
 					const com = comisionDe(op, acuerdoDe(propio, duenoDe(pid), op), reglas);
-					if (l.tipo === 'compraventa' && com.tipo === 'pct') l.pct = com.valor;
-					if (l.tipo === 'arrendamiento' && com.tipo === 'meses') l.mesesPorAnio = com.valor;
+					// Lo acordado manda; la regla general solo llena lo que nadie cambió a mano.
+					const intacto = (v, campo) => v === '' || v == null || [REGLAS_POR_DEFECTO[campo], reglas?.[campo]].some((b) => b != null && Number(v) === Number(b));
+					if (l.tipo === 'compraventa' && com.tipo === 'pct' && (com.fuente === 'acuerdo' || intacto(l.pct, 'comisionVentaPct'))) l.pct = com.valor;
+					if (l.tipo === 'arrendamiento' && com.tipo === 'meses' && (com.fuente === 'acuerdo' || intacto(l.mesesPorAnio, 'comisionRentaMeses'))) l.mesesPorAnio = com.valor;
 					if (com.modo && com.modo !== c.modo) { c.modo = com.modo; const r = modoRadios.querySelector(`input[value="${com.modo}"]`); if (r) r.checked = true; pintarAyudaModo(); }
 					pintarLineas(); cambio();
 				});

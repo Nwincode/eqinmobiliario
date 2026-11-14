@@ -20,10 +20,11 @@ import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendien
 // Una casa que se quita y que solo estaba en la lista (sin propietarioId) también era de esta persona: su acuerdo se va.
 async function vincularCasas(id, ahora, antes, { duenos, propiedades }) {
 	const casa = (pid) => propiedades.find((c) => c.id === pid) || { id: pid };
-	for (const pid of ahora) { const c = casa(pid); await asignarDueno({ id: pid, propietarioId: c.propietarioId || '', operacion: c.operacion }, id, { duenos, casas: propiedades }); }
+	// Cada casa ya enlazada se anota aquí también, para que la siguiente vuelta vea a sus dueños como quedaron.
+	for (const pid of ahora) { const c = casa(pid); await asignarDueno({ id: pid, propietarioId: c.propietarioId || '', operacion: c.operacion }, id, { duenos, casas: propiedades }); c.propietarioId = id; }
 	for (const pid of antes.filter((x) => !ahora.includes(x))) {
 		const c = casa(pid);
-		if (!c.propietarioId || c.propietarioId === id) await asignarDueno({ id: pid, propietarioId: id, operacion: c.operacion }, '', { duenos, casas: propiedades });
+		if (!c.propietarioId || c.propietarioId === id) { await asignarDueno({ id: pid, propietarioId: id, operacion: c.operacion }, '', { duenos, casas: propiedades }); c.propietarioId = ''; }
 	}
 }
 
@@ -184,7 +185,9 @@ async function renderEditor(container, id) {
 		d.telefonoNorm = telNorm(d.telefono);
 		// Solo el enlace a la casa (antes se guardaba también un «precio mínimo aceptado»: aquí no se regatea).
 		d.propiedades = (d.propiedades || []).filter((x) => x.propertyId).map((x) => ({ propertyId: x.propertyId }));
-		d.porNoche = d.propiedades.length ? conNoche(d) : Boolean(data.porNoche);
+		// Con sus casas (la misma regla que asignarDueno): se enciende y se apaga; quien no ve todas las casas solo la enciende.
+		// Al guardar, sus casas son las de su lista (vincularCasas enlaza esas y suelta las demás).
+		d.porNoche = propiedades.some((c) => c.operacion === 'vacacional' && d.propiedades.some((x) => x.propertyId === c.id)) || (!session.isAdmin && Boolean(data.porNoche));
 		d.updatedAt = serverTimestamp();
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;

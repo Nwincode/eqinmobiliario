@@ -338,8 +338,17 @@ let otraPestana = null;
 	};
 	const cuentaDelDueno = async () => { await ir(socio.p, `#/mis-casas/${idCasa}`, 3000); return Number(((await socio.p.locator('.admin-main').innerText()).match(/(\d+) reservas? confirmadas?/) || [])[1] || 0); };
 	const antes = await cuentaDelDueno();
+	// Una reserva guardada antes de este cambio (con el teléfono del huésped y sin el dueño de la casa).
+	const sv = (v) => ({ stringValue: v });
+	await fetch(`${FS}/reservas/reserva-de-antes`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+		propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), estado: sv('pendiente'), llegada: sv(iso(200)), salida: sv(iso(202)), huesped: sv('Huésped de antes'),
+		telefono: sv('+502 5555 8888'), notas: sv('NOTA vieja'), canal: sv('directo'), moneda: sv('USD') } }) });
 	const l1 = iso(150), s1 = iso(153);
 	await ir(admin.p, '#/rentas', 3000);
+	const deAntes = (await leer('reservas/reserva-de-antes')).fields || {};
+	const suContacto = (await leer(`properties/${idCasa}/privado/reserva-reserva-de-antes`)).fields || {};
+	paso('Al abrir Rentas, una reserva de antes pasa el teléfono y las notas a privado y recibe el dueño de su casa', deAntes.propietarioId?.stringValue === 'socio-prueba' && !('telefono' in deAntes) && !('notas' in deAntes)
+		&& /8888/.test(suContacto.telefono?.stringValue || '') && /NOTA vieja/.test(suContacto.notas?.stringValue || ''), Object.keys(deAntes).join());
 	await nuevaManual(admin.p, l1, s1, 'Pedro Manual');
 	const m1 = (await buscar('reservas', 'huesped', 'Pedro Manual'))[0] || {};
 	const contacto = m1.id ? (await leer(`properties/${idCasa}/privado/reserva-${m1.id}`)).fields || {} : {};
@@ -541,7 +550,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		&& /titulo/.test(publica) && !/exclusiva|comision|impuesto|contrato|acuerdo/i.test(publica), `${enCasa.join()} ${await avisos(asesor.p)}`);
 	// La cotización toma la comisión acordada para ese inmueble (4.5 %), no un 5 % fijo.
 	await ir(asesor.p, '#/cotizaciones/nueva', 3500);
-	const honorario = () => asesor.p.getByLabel(/^Honorario/).first().inputValue().catch(() => '');
+	const honorario = () => asesor.p.getByLabel(/^Honorario\s*\(%\)/).first().inputValue().catch(() => '');
 	const general = await honorario();
 	await asesor.p.locator('.cot-sel input[type=search]').nth(1).fill('zona 10');
 	await espera(600);
@@ -608,6 +617,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await poner('propietarios/legado-ajeno', { nombre: sv('Dueño que lleva otro'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-ajena']), exclusiva: bv(true), exclusivaFin: sv('2027-05-05'), comisionPct: nv(6) });
 		await poner('properties/leg-lista', casa({ titulo: sv('Casa enlazada solo en la lista'), slug: sv('leg-lista'), codigo: sv('LEG-2'), operacion: sv('venta') }));
 		await poner('properties/leg-lista/privado/acuerdo', { exclusiva: bv(false), comisionPct: nv(7) });
+		await poner('propietarios/legado-lista', { nombre: sv('Dueño de la casa en su lista'), tipo: sv('propietario'), agentId: sv(''), propiedades: lista(['leg-lista']) });
 		const guardarCasa = async (persona, id) => { await ir(persona.p, `#/propiedades/${id}`); await campo(persona.p, 'zona').fill('Zona 15'); await guardar(persona.p); return avisos(persona.p); };
 		const avisoAsesor = await guardarCasa(asesor, 'leg-ajena');
 		const ajenaAntes = await fetch(`${FS}/properties/leg-ajena/privado/acuerdo`, { headers: dueno });
@@ -625,7 +635,8 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('Guardar una casa cuyo dueño no veo no tapa su acuerdo: después pasa completo al inmueble', guardoAsesor && ajenaAntes.status === 404 && num(ajena.comisionPct) === 6 && ajena.exclusivaFin?.stringValue === '2027-05-05' && !('comisionPct' in ajeno), `${ajenaAntes.status} ${avisoAsesor}`);
 		const avisoAdmin = await guardarCasa(admin, 'leg-lista');
 		const enLista = await f('properties/leg-lista/privado/acuerdo');
-		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo', num(enLista.comisionPct) === 7, avisoAdmin);
+		const suLista = JSON.stringify((await f('propietarios/legado-lista')).propiedades || {});
+		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo ni la saca de su lista', num(enLista.comisionPct) === 7 && suLista.includes('leg-lista'), avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
 		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
@@ -636,7 +647,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
 		await ir(admin.p, '#/propietarios/legado-solo');
 		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta \d\d\/\d\d\/\d{4}/.test(await admin.p.locator('.alert-info', { hasText: 'Acuerdo anotado' }).innerText().catch(() => '')));
-		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
+		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-lista', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
 	}
 	// Ficha nueva: mientras no tenga casas no se le pide nada que dependa de ellas.
 	await ir(admin.p, '#/propietarios/nuevo');

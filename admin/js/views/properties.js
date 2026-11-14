@@ -1200,7 +1200,8 @@ async function renderEditor(container, id, emb = null) {
 			}
 			// La casa queda en la lista de su dueño y sale de la de cualquier otro; su `porNoche` se recalcula
 			// (una sola forma de enlazar: asignarDueno). El acuerdo ya lo decidió acuerdoPorGuardar.
-			await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
+			// Una casa enlazada solo desde la lista de su dueño (sin propietarioId antes ni ahora) se deja como está.
+			if (data.propietarioId || d.propietarioId) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
