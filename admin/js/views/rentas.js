@@ -8,7 +8,8 @@ import { campoTelefono } from '../form.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
-import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, deSolicitud, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas, MOTIVOS_CANCELAR } from '../reservas.js';
+import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
+import { deSolicitud, MOTIVOS_CANCELAR } from '../reservas-calculo.js';
 
 const V = window.EQVacacional;
 const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Airbnb'], ['booking', 'Booking'], ['otro', 'Otro']];

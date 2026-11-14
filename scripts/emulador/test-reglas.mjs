@@ -114,7 +114,9 @@ await espera('socio dueño cambia el total', act('socio1', { total: 1 }), false)
 await espera('socio confirma el chat sin crear la reserva', act('socio1', { estado: 'confirmada' }), false);
 await espera('socio manda sus datos de pago sin reserva', crear('socio1', msj(), { de: 'socio', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' }), false);
 await poner('reservas/lead1', { propertyId: 'prueba-casa-playa-monterrico', propietarioId: 'o1', estado: 'confirmada', leadId: 'lead1', codigo: 'EQ-PRUEBA' });
-await espera('socio dueño marca confirmada, con su reserva (control)', act('socio1', { estado: 'confirmada' }), true);
+// Desde las reservas por servidor (netlify/functions/reservas.mjs), el estado del chat lo escribe el servidor por el socio.
+await espera('socio dueño marca confirmada directo, con su reserva (lo hace el servidor)', act('socio1', { estado: 'confirmada' }), false);
+await espera('administrador marca confirmada (camino del administrador)', act('admin1', { estado: 'confirmada' }), true);
 await espera('socio dueño inventa un estado', act('socio1', { estado: 'regalada' }), false);
 // El socio y los datos del cliente
 await espera('socio dueño lee la solicitud (teléfono del cliente)', leer('socio1', 'leads/lead1'), false);
@@ -125,7 +127,8 @@ const solicitudDe = (quien, ruta, f, historial = [renglon('x')]) => fetch(`${H}/
 	body: JSON.stringify({ fields: { solicitud: { mapValue: { fields: { ...campos(f), historial: { arrayValue: { values: historial } } } } } } }) }).then((r) => r.status);
 const primero = renglon('Confirmó');
 await espera('socio responde la solicitud sin su renglón de historial', solicitudDe('socio1', 'leads/lead1', { estado: 'confirmada' }, []), false);
-await espera('socio dueño responde la solicitud sin leerla, con su reserva (control)', solicitudDe('socio1', 'leads/lead1', { estado: 'confirmada' }, [primero]), true);
+await espera('socio dueño responde la solicitud directo, con su reserva (lo hace el servidor)', solicitudDe('socio1', 'leads/lead1', { estado: 'confirmada' }, [primero]), false);
+await espera('administrador responde la solicitud (camino del administrador)', solicitudDe('admin1', 'leads/lead1', { estado: 'confirmada' }, [primero]), true);
 await espera('socio reescribe el historial de la solicitud', solicitudDe('socio1', 'leads/lead1', { estado: 'cancelada' }, [renglon('Otro'), renglon('Canceló')]), false);
 await espera('socio cancela la solicitud con la reserva viva (sale de «Por cobrar»)', solicitudDe('socio1', 'leads/lead1', { estado: 'cancelada' }, [primero, renglon('Canceló')]), false);
 await espera('socio regresa la solicitud a «sin responder»', solicitudDe('socio1', 'leads/lead1', { estado: 'pendiente' }), false);
@@ -136,7 +139,7 @@ await espera('socio lee su propia ficha (notas y bitácora internas)', leer('soc
 await espera('socio lee la ficha de otro socio', leer('socio1', 'propietarios/o2'), false);
 // Datos de pago
 const pago = (de, texto) => ({ de, texto, tipo: 'pago' });
-await espera('socio manda sus datos de pago guardados', crear('socio1', msj(), pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), true);
+await espera('socio manda sus datos de pago guardados directo (los manda el servidor)', crear('socio1', msj(), pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('socio manda como «pago» otro texto (su teléfono)', crear('socio1', msj(), pago('socio', 'Llamame al 5555 0001')), false);
 await espera('cliente manda un «pago»', crear(null, msj(), pago('cliente', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
 await espera('otro socio manda un «pago» en chat ajeno', crear('socio2', msj(), pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno')), false);
@@ -149,10 +152,11 @@ await espera('socio dueño marca su visto', visto('socio1', 'vistoSocio'), true)
 await espera('otro socio marca visto', visto('socio2', 'vistoSocio'), false);
 await espera('equipo marca su visto', visto('admin1', 'vistoEquipo'), true);
 await espera('socio manda la dirección antes de marcar el pago', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'llegada' }), false);
-await espera('socio dueño marca pago recibido', act('socio1', { estado: 'pagada' }), true);
+await espera('socio dueño marca pago recibido directo (lo hace el servidor)', act('socio1', { estado: 'pagada' }), false);
+await espera('administrador marca pago recibido (camino del administrador)', act('admin1', { estado: 'pagada' }), true);
 await espera('socio cancela después de recibir el pago', act('socio1', { estado: 'cancelada' }), false);
 await espera('socio regresa una pagada a confirmada', act('socio1', { estado: 'confirmada' }), false);
-await espera('socio manda los datos de llegada (sin texto libre)', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'llegada' }), true);
+await espera('socio manda los datos de llegada directo (los manda el servidor)', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'llegada' }), false);
 await espera('socio mete su teléfono en «llegada»', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'Llamame 5555 0001' }), false);
 await espera('cliente manda «llegada»', crear(null, msj(), { de: 'cliente', tipo: 'llegada', texto: 'llegada' }), false);
 const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${t}%2Fabc123.jpeg?alt=media&token=1a2b-3c4d`;
@@ -176,7 +180,8 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await espera('socio manda «llegada» con otro mapa', crear('socio1', msj(), llegada('socio', { ...dir, mapa: 'https://wa.me/50255550001' })), false);
 	await espera('socio manda «llegada» solo con la dirección', crear('socio1', msj(), llegada('socio', { direccion: dir.direccion })), false);
 	await espera('cliente manda «llegada» con la dirección', crear(null, msj(), llegada('cliente', dir)), false);
-	await espera('socio manda «llegada» con la dirección y el mapa guardados', crear('socio1', msj(), llegada('socio', dir)), true);
+	await espera('socio manda «llegada» con la dirección y el mapa guardados, directo (lo hace el servidor)', crear('socio1', msj(), llegada('socio', dir)), false);
+	await espera('equipo manda «llegada» con la dirección y el mapa guardados (camino del administrador)', crear('admin1', msj(), llegada('equipo', dir)), true);
 	await espera('socio mete una dirección en un mensaje normal', crear('socio1', msj(), { ...m('socio', 'Nos vemos'), direccion: 'Calle Real 12' }), false);
 	await espera('socio mete un mapa en los datos de pago', crear('socio1', msj(), { ...pago('socio', 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno'), mapa: 'x' }), false);
 	await espera('cliente mete una dirección en su mensaje', crear(null, msj(), { ...m('cliente', 'Hola'), direccion: 'x' }), false);
@@ -220,22 +225,23 @@ await espera('administrador cancela', act('admin1', { estado: 'cancelada' }), tr
 await espera('socio escribe en una reserva cancelada', crear('socio1', msj(), m('socio', 'La casa queda en Calle Real 12')), false);
 await espera('socio revive una cancelada', act('socio1', { estado: 'confirmada' }), false);
 await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('equipo', 'Lamentamos la cancelación.')), true);
-// Lotes: dentro de un mismo lote las reglas ven el estado ANTERIOR. «Pago recibido» junto (estado + llegada)
-// se rechaza —por eso el panel lo hace en dos pasos—; «Confirmar» junto (estado + datos de pago) sí pasa.
+// Lotes: dentro de un mismo lote las reglas ven el estado ANTERIOR. Ningún lote del socio que confirma o cobra pasa
+// (lo hace el servidor); «Confirmar» del administrador (estado + datos de pago) sí.
 {
 	const R = 'projects/demo-eq/databases/(default)/documents';
 	const L = 'TokenLoteDePruebaLargo123456';
 	// (El chat es de lead1, que ya tiene su reserva confirmada.)
-	const lote = async (estadoAntes, writes, leadId = 'lead1') => {
+	const lote = async (estadoAntes, writes, leadId = 'lead1', quien = 'socio1') => {
 		await fetch(`${H}/chats/${L}`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: campos({ propietarioId: 'o1', propertyId: 'prueba-casa-playa-monterrico', codigo: 'EQ-L', leadId, ...(estadoAntes ? { estado: estadoAntes } : {}) }) }) });
-		return fetch(`${H}:commit`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ writes }) }).then((x) => x.status);
+		return fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((x) => x.status);
 	};
 	const estado = (v) => ({ update: { name: `${R}/chats/${L}`, fields: campos({ estado: v }) }, updateMask: { fieldPaths: ['estado'] }, currentDocument: { exists: true } });
 	const mensaje = (id, f) => ({ update: { name: `${R}/chats/${L}/mensajes/${id}`, fields: campos(f) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] });
 	await espera('lote «pago recibido» (estado + llegada juntos)', lote('confirmada', [estado('pagada'), mensaje('l1', { de: 'socio', tipo: 'llegada', texto: 'llegada' })]), false);
 	await espera('lote «pago recibido» con la dirección correcta, junto al estado', lote('confirmada', [estado('pagada'), mensaje('l2', { de: 'socio', tipo: 'llegada', texto: 'llegada', direccion: 'Calle Real 12, Monterrico', mapa: 'https://maps.google.com/?q=13.8912,-90.4801' })]), false);
 	await espera('lote «confirmar» sin reserva (cobra sin comisión registrada)', lote('', [estado('confirmada'), mensaje('p0', { de: 'socio', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' })], 'solicitud-sin-reserva'), false);
-	await espera('lote «confirmar» (estado + datos de pago juntos)', lote('', [estado('confirmada'), mensaje('p1', { de: 'socio', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' })]), true);
+	await espera('lote «confirmar» del socio (estado + datos de pago juntos)', lote('', [estado('confirmada'), mensaje('p1', { de: 'socio', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' })]), false);
+	await espera('lote «confirmar» del administrador (estado + datos de pago juntos)', lote('', [estado('confirmada'), mensaje('p2', { de: 'equipo', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' })], 'lead1', 'admin1'), true);
 }
 // Un solo panel por dueño: una persona con una casa en venta y otra por noche (y un colaborador). Su resumen
 // (portalPropietarios) lo lee solo esa persona con su usuario; la venta la lleva el equipo; la de por noche, ella.
@@ -343,7 +349,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña pide cambios con texto (control)', comentario('mixto1', 'c10', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Cambiar la foto de la sala' })), true);
 	// Reservas, solicitudes y chat: solo de casas por noche
 	await espera('dueña crea una reserva de su casa en venta', crear('mixto1', 'reservas/r-venta', { propertyId: 'mx-venta', propietarioId: 'm1', estado: 'confirmada' }), false);
-	// La reserva que crea el socio al confirmar (admin/js/reservas.js confirmarSolicitud): de una solicitud real, con la comisión entera.
+	// La reserva de una solicitud: la crea el servidor por el socio (netlify/functions/reservas.mjs) o el administrador en el
+	// panel; el socio por escritura directa, no (ni con los montos que pedía la regla de antes).
 	const vv = (v) => (v && typeof v === 'object' ? { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, vv(x)])) } } : val(v));
 	const crearR = (quien, ruta, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/${ruta}`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, vv(x)])) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }, { fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
 	// Lo mismo sin la condición de «no existe»: como lo hace la app (set), que sobre una reserva que ya existe es un cambio.
@@ -360,20 +367,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await raw('chats/ChatDeLaReservaCaraLargoAlAzar2', { leadId: sv('lead-res-cara'), codigo: sv('EQ-RC'), propietarioId: sv('m1'), propertyId: sv('mx-noche') });
 	await raw('chatsPorSolicitud/lead-res-cara', { token: sv('ChatDeLaReservaCaraLargoAlAzar2') });
 	await raw('chatsPorSolicitud/lead-res-noche2', { token: sv('ChatDeLaReservaRN2LargoYAlAzar') });
-	await espera('dueña crea la reserva sin su chat', crearR('mixto1', 'reservas/lead-res-noche', (({ chat, ...x }) => x)(delSocio())), false);
-	await espera('dueña crea la reserva con el chat de otra solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ chat: 'ChatDeLaReservaRN2LargoYAlAzar' })), false);
-	await espera('dueña crea la reserva con la comisión ya pagada', crearR('mixto1', 'reservas/lead-res-noche', delSocio({}, { pagada: true })), false);
-	await espera('dueña crea la reserva con una comisión menor que la ganancia', crearR('mixto1', 'reservas/lead-res-noche', delSocio({}, { monto: 1 })), false);
-	await espera('dueña crea la reserva con una ganancia menor que el margen de la casa', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ alojamiento: 301, ganancia: 1 })), false);
-	await espera('dueña crea la reserva ya pagada a ella', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ pagadoSocio: true })), false);
-	await espera('dueña crea la reserva con un campo del equipo (notas)', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ notas: 'x' })), false);
-	await espera('dueña crea la reserva para el asesor que elija', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ agentId: 'a9' })), false);
-	await espera('dueña crea la reserva con otras fechas que las de la solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ salida: '2026-12-10' })), false);
-	await espera('dueña crea la reserva sin solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ leadId: 'no-existe' })), false);
-	await espera('dueña crea la reserva con otro id que el de la solicitud', crearR('mixto1', 'reservas/r-otro-id', delSocio()), false);
-	await espera('dueña infla las noches para anular el margen', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ noches: 1e9, costoSocio: 360, ganancia: 0 }, { monto: 0 })), false);
-	// Su noche más barata para esas fechas: base o fin de semana (100); sus precios por fechas de 2027 no tocan diciembre.
-	// Truco: un precio por fechas viejo de 1 (en los dos documentos, cuadra con el margen) no baja el piso.
+	await espera('dueña crea su reserva directo al confirmar, con los montos de siempre (la crea el servidor)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), false);
+	await espera('dueña crea su reserva directo por lo cotizado (la crea el servidor)', crearR('mixto1', 'reservas/lead-res-cara', delSocio({ leadId: 'lead-res-cara', codigo: 'EQ-RC', chat: 'ChatDeLaReservaCaraLargoAlAzar2', alojamiento: 500, ganancia: 200 })), false);
+	// Un precio por fechas viejo de 1, en los dos documentos y con el margen: es un precio suyo, se deja.
 	{
 		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }) : sv(x)])) } });
 		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
@@ -382,13 +378,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 			{ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: { tarifas: lista([viejo(1)]) } }, updateMask: { fieldPaths: ['tarifas'] } },
 			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista([viejo(1.2)]) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
 		await espera('dueña pone un precio por fechas viejo de 1 en los dos documentos (cuadra con el margen)', Promise.resolve(truco), true);
-		await espera('dueña crea la reserva con su parte = noches × ese precio viejo', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 3, alojamiento: 3.6, ganancia: 0.6 }, { monto: 0.6 })), false);
 	}
-	await espera('dueña crea la reserva con su parte menor que su noche más barata', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 30, alojamiento: 36, ganancia: 6 }, { monto: 6 })), false);
-		await espera('dueña confirma con menos de lo que se le cotizó al cliente (precio especial puesto después)', crearR('mixto1', 'reservas/lead-res-cara', delSocio({ leadId: 'lead-res-cara', codigo: 'EQ-RC', chat: 'ChatDeLaReservaCaraLargoAlAzar2' })), false);
-	await espera('dueña confirma por lo cotizado (control)', crearR('mixto1', 'reservas/lead-res-cara', delSocio({ leadId: 'lead-res-cara', codigo: 'EQ-RC', chat: 'ChatDeLaReservaCaraLargoAlAzar2', alojamiento: 500, ganancia: 200 })), true);
-	await espera('dueña confirma en otra moneda que la de la solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ moneda: 'GTQ' })), false);
-await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), true);
+	await espera('el administrador crea la reserva de la solicitud (camino del administrador)', crearR('admin1', 'reservas/lead-res-noche', delSocio()), true);
 	await espera('dueña crea una segunda reserva para la misma solicitud', escribirR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 100, alojamiento: 120, ganancia: 20 })), false);
 	await espera('dueña marca pagada la comisión de su reserva', parche('mixto1', 'reservas/lead-res-noche', ['comision.pagada'], { comision: { mapValue: { fields: { pagada: { booleanValue: true } } } } }), false);
 	await espera('dueña baja la comisión de su reserva', parche('mixto1', 'reservas/lead-res-noche', ['comision.monto'], { comision: { mapValue: { fields: { monto: { doubleValue: 1 } } } } }), false);
@@ -402,56 +393,39 @@ await espera('dueña crea una reserva de su casa por noche al confirmar (control
 	await espera('dueña confirma un chat de su casa en venta', parche('mixto1', `chats/${CV}`, ['estado'], { estado: sv('confirmada') }), false);
 	await espera('dueña lee los mensajes de un chat de su casa en venta', leer('mixto1', `chats/${CV}/mensajes`), false);
 	// Controles: lo mismo en su casa por noche sí se puede (con los campos opcionales ausentes)
-	// Cancelar: el socio solo mientras el cliente no ha pagado (reserva y chat «confirmada») y antes del día de llegada
-	// (de Guatemala). Si no, la comisión saldría de la mora y la casa no se pausaría.
+	// Cancelar: lo hace el servidor por el socio (revisa que el cliente no haya pagado ni llegado); el socio directo, no.
+	// El administrador, con el lote del panel (admin/js/reservas.js cancelarReserva).
 	{
 		const gt = (d) => new Date(Date.now() - 6 * 3600_000 + d * 86400_000).toISOString().slice(0, 10);
-		// conIndice: el chat es EL de la solicitud (chatsPorSolicitud); recibo: el cliente adjuntó su comprobante.
-		const preparar = async (id, { chatEstado = 'confirmada', llegada = gt(10), conChat = true, conIndice = true, recibo = false } = {}) => {
+		const preparar = async (id, { chatEstado = 'confirmada' } = {}) => {
 			const C = `ChatCancelar${id.replace(/[^A-Za-z0-9]/g, '')}LargoYAlAzar123`;
-			await raw(`chats/${C}`, { leadId: sv(id), codigo: sv(`EQ-${id}`), propietarioId: sv('m1'), propertyId: sv('mx-noche'), estado: sv(chatEstado), ...(recibo ? { comprobanteCliente: { timestampValue: new Date().toISOString() } } : {}) });
-			if (conIndice) await raw(`chatsPorSolicitud/${id}`, { token: sv(C) });
-			await raw(`reservas/${id}`, { propertyId: sv('mx-noche'), propietarioId: sv('m1'), estado: sv('confirmada'), leadId: sv(id), codigo: sv(`EQ-${id}`), llegada: sv(llegada), salida: sv(gt(40)), ...(conChat ? { chat: sv(C) } : {}) });
+			await raw(`chats/${C}`, { leadId: sv(id), codigo: sv(`EQ-${id}`), propietarioId: sv('m1'), propertyId: sv('mx-noche'), estado: sv(chatEstado) });
+			await raw(`chatsPorSolicitud/${id}`, { token: sv(C) });
+			await raw(`reservas/${id}`, { propertyId: sv('mx-noche'), propietarioId: sv('m1'), estado: sv('confirmada'), leadId: sv(id), codigo: sv(`EQ-${id}`), llegada: sv(gt(10)), salida: sv(gt(40)), chat: sv(C) });
 			await raw(`leads/${id}`, { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'),
 				solicitud: { mapValue: { fields: { estado: sv('confirmada'), historial: { arrayValue: { values: [{ mapValue: { fields: { que: sv('Confirmó') } } }] } } } } } });
 			return C;
 		};
-		// El lote real de «Cancelar» (admin/js/reservas.js cancelarReserva): reserva (con la hora del servidor), solicitud,
-		// chat y mensaje juntos. `quitar`: lo que se deja fuera del lote para probar que sin eso no pasa.
 		const fila = (que) => ({ mapValue: { fields: { que: sv(que) } } });
-		const lote = (id, C, { quitar = [], historial = [fila('Confirmó'), fila('Canceló')], hora = true } = {}) => {
-			const partes = {
-				reserva: { update: { name: `${R}/reservas/${id}`, fields: { estado: sv('cancelada'), motivo: sv('Cliente canceló') } }, updateMask: { fieldPaths: ['estado', 'motivo'] }, ...(hora ? { updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] } : {}) },
-				solicitud: { update: { name: `${R}/leads/${id}`, fields: { solicitud: { mapValue: { fields: { estado: sv('cancelada'), motivo: sv('Cliente canceló'), historial: { arrayValue: { values: historial } } } } } } }, updateMask: { fieldPaths: ['solicitud'] } },
-				aviso: { update: { name: `${R}/chats/${C}/mensajes/fin`, fields: { de: sv('socio'), texto: sv('La reserva se canceló.') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
-				chat: { update: { name: `${R}/chats/${C}`, fields: { estado: sv('cancelada') } }, updateMask: { fieldPaths: ['estado'] } }
-			};
-			const writes = Object.entries(partes).filter(([k]) => !quitar.includes(k)).map(([, w]) => w);
-			return fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes }) }).then((r) => r.status);
-		};
-		const cancelable = async (id, opciones, deLote) => lote(id, await preparar(id, opciones), deLote);
-		await espera('socio cancela después de que el cliente adjuntó su comprobante', cancelable('rc-recibo', { recibo: true }), false);
-		await espera('socio cancela con un chat que no es el índice de la solicitud (chat inventado)', cancelable('rc-sin-indice', { conIndice: false }), false);
-		await espera('socio cancela su reserva después de recibir el pago (chat «pagada»)', cancelable('rc-pagada', { chatEstado: 'pagada' }), false);
-		await espera('socio cancela su reserva cuando el cliente ya llegó', cancelable('rc-llego', { llegada: gt(-1) }), false);
-		await espera('socio cancela su reserva el día de llegada', cancelable('rc-hoy', { llegada: gt(0) }), false);
-		await espera('socio cancela una reserva de antes, sin su chat guardado', cancelable('rc-vieja', { conChat: false }), false);
-		await espera('socio cancela solo la reserva (el cliente sigue viendo los datos de pago)', cancelable('rc-solo', {}, { quitar: ['solicitud', 'aviso', 'chat'] }), false);
-		await espera('socio cancela la reserva y el chat, sin la solicitud', cancelable('rc-sin-sol', {}, { quitar: ['solicitud'] }), false);
-		await espera('socio cancela sin la hora del servidor (el control de cada hora no la vería)', cancelable('rc-sin-hora', {}, { hora: false }), false);
-		await espera('socio cancela la solicitud y el chat sin cancelar la reserva', cancelable('rc-sin-res', {}, { quitar: ['reserva'] }), false);
-		await espera('socio cancela borrando el historial de la solicitud', cancelable('rc-hist', {}, { historial: [fila('Canceló')] }), false);
-		await espera('el lote real de «Cancelar» del socio, antes de que el cliente pague y llegue (control)', cancelable('rc-ok'), true);
+		const lote = (quien, id, C) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [
+			{ update: { name: `${R}/reservas/${id}`, fields: { estado: sv('cancelada'), motivo: sv('Cliente canceló') } }, updateMask: { fieldPaths: ['estado', 'motivo'] }, updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] },
+			{ update: { name: `${R}/leads/${id}`, fields: { solicitud: { mapValue: { fields: { estado: sv('cancelada'), motivo: sv('Cliente canceló'), historial: { arrayValue: { values: [fila('Confirmó'), fila('Canceló')] } } } } } } }, updateMask: { fieldPaths: ['solicitud'] } },
+			{ update: { name: `${R}/chats/${C}/mensajes/fin`, fields: { de: sv(quien === 'admin1' ? 'equipo' : 'socio'), texto: sv('La reserva se canceló.') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
+			{ update: { name: `${R}/chats/${C}`, fields: { estado: sv('cancelada') } }, updateMask: { fieldPaths: ['estado'] } }] }) }).then((r) => r.status);
+		await espera('socio cancela directo con el lote de antes, sin que el cliente haya pagado (lo hace el servidor)', lote('mixto1', 'rc-ok', await preparar('rc-ok')), false);
+		await espera('socio cancela directo solo la reserva', parche('mixto1', 'reservas/rc-ok', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('Cliente canceló') }), false);
+		await espera('el administrador cancela con el lote del panel (camino del administrador)', lote('admin1', 'rc-ok', 'ChatCancelarrcokLargoYAlAzar123'), true);
+		await preparar('rc-pagada', { chatEstado: 'pagada' });
 		await espera('el administrador cancela una reserva pagada (control)', parche('admin1', 'reservas/rc-pagada', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('Acordado con el cliente') }), true);
 	}
 	await raw('leads/lead-noche', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1') });
 	await raw('reservas/lead-noche', { propertyId: sv('mx-noche'), propietarioId: sv('m1'), estado: sv('confirmada'), leadId: sv('lead-noche') });
-	await espera('dueña responde una solicitud de su casa por noche (control)', parche('mixto1', 'leads/lead-noche', ['solicitud'], { solicitud: { mapValue: { fields: { estado: sv('confirmada'), historial: { arrayValue: { values: [{ mapValue: { fields: { que: sv('Confirmó') } } }] } } } } } }), true);
+	await espera('dueña responde directo una solicitud de su casa por noche (lo hace el servidor)', parche('mixto1', 'leads/lead-noche', ['solicitud'], { solicitud: { mapValue: { fields: { estado: sv('confirmada'), historial: { arrayValue: { values: [{ mapValue: { fields: { que: sv('Confirmó') } } }] } } } } } }), false);
 	const CN = 'ChatDeUnaCasaPorNocheLargoYAlAzar123';
 	await raw(`chats/${CN}`, { propietarioId: sv('m1'), propertyId: sv('mx-noche'), codigo: sv('EQ-N'), leadId: sv('lead-noche') });
 	await espera('dueña escribe en el chat de su casa por noche (control)', crear('mixto1', `chats/${CN}/mensajes/n1`, m('socio', 'Hola, bienvenidos')), true);
 	await espera('dueña lee el chat de su casa por noche (control)', leer('mixto1', `chats/${CN}/mensajes`), true);
-	await espera('dueña confirma el chat de su casa por noche (control)', parche('mixto1', `chats/${CN}`, ['estado'], { estado: sv('confirmada') }), true);
+	await espera('dueña confirma directo el chat de su casa por noche (lo hace el servidor)', parche('mixto1', `chats/${CN}`, ['estado'], { estado: sv('confirmada') }), false);
 	await raw('reservas/r-sin-casa', { propietarioId: sv('m1'), estado: sv('confirmada') });
 	await espera('reserva vieja sin propertyId: se niega limpio (sin error)', parche('mixto1', 'reservas/r-sin-casa', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('x') }), false);
 	// Reserva hecha a mano en Rentas (admin/js/reservas.js): lleva el propietarioId de su casa (la ve su dueño) y el
@@ -479,11 +453,8 @@ await espera('dueña crea una reserva de su casa por noche al confirmar (control
 			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(diez.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }))) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
 		await espera('dueña pone 10 precios por fechas que tocan diciembre (control)', Promise.resolve(puso), true);
 		await raw('leads/lead-res-noche2', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN2'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
-		const otra = (extra, monto) => crearR('mixto1', 'reservas/lead-res-noche2', delSocio({ leadId: 'lead-res-noche2', codigo: 'EQ-RN2', chat: 'ChatDeLaReservaRN2LargoYAlAzar', ...extra }, { monto }));
-		await espera('con 10 precios por fechas: su parte menor que la más barata de las que tocan', otra({ costoSocio: 260, alojamiento: 312, ganancia: 52 }, 52), false);
-		await espera('con 10 precios por fechas: su parte con la más barata que toca (control)', otra({ costoSocio: 270, alojamiento: 324, ganancia: 54 }, 54), true);
-		// El lote real de «Confirmada» (admin/js/reservas.js confirmarSolicitud): reserva, fechas de la casa, solicitud, chat
-		// y datos de pago juntos, en la casa con 10 precios por fechas (el caso más pesado para el tope de 1000 operaciones).
+		// El lote de «Confirmada» que el socio mandaba antes (reserva, fechas de la casa, solicitud, chat y datos de pago):
+		// ya no pasa, ni con los montos que cuadran con sus 10 precios por fechas.
 		{
 			const C3 = 'ChatDeLaReservaRN3LargoYAlAzar';
 			await raw('leads/lead-res-noche3', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN3'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
@@ -499,7 +470,7 @@ await espera('dueña crea una reserva de su casa por noche al confirmar (control
 					updateMask: { fieldPaths: ['solicitud.estado', 'solicitud.reservaId', 'solicitud.costoSocio', 'solicitud.comision', 'solicitud.historial'] }, updateTransforms: [ts('updatedAt')] },
 				{ update: { name: `${R}/chats/${C3}`, fields: { estado: sv('confirmada') } }, updateMask: { fieldPaths: ['estado'] }, currentDocument: { exists: true } },
 				{ update: { name: `${R}/chats/${C3}/mensajes/pago`, fields: { de: sv('socio'), tipo: sv('pago'), texto: sv('Banco 1') } }, currentDocument: { exists: false }, updateTransforms: [ts('createdAt')] }] }) }).then((r) => r.status);
-			await espera('el lote real de «Confirmada» del socio, con 10 precios por fechas (control)', Promise.resolve(lote), true);
+			await espera('el lote de «Confirmada» del socio, directo (lo hace el servidor)', Promise.resolve(lote), false);
 		}
 	}
 	// Más de 10 precios por fechas (de antes): la dueña solo puede quitar, no cambiar ni agregar.
@@ -575,7 +546,7 @@ await espera('dueña crea una reserva de su casa por noche al confirmar (control
 		await espera('el dueño anterior lee los mensajes del chat de una casa que ya no es suya', leer('mixto1', `chats/${CA}/mensajes`), false);
 		await espera('el dueño anterior lista sus chats (también el de esa casa)', consulta('mixto1', 'chats', 'propietarioId', 'm1'), true);
 	}
-	await espera('la dueña quita de su casa las fechas reservadas (al cancelar)', parche('mixto1', 'properties/mx-noche', ['vacacional.reservadas', 'updatedAt'], { vacacional: { mapValue: { fields: { reservadas: { arrayValue: { values: [] } } } } }, updatedAt: { timestampValue: new Date().toISOString() } }), true);
+	await espera('la dueña quita de su casa las fechas reservadas (las escriben el administrador y el servidor)', parche('mixto1', 'properties/mx-noche', ['vacacional.reservadas', 'updatedAt'], { vacacional: { mapValue: { fields: { reservadas: { arrayValue: { values: [] } } } } }, updatedAt: { timestampValue: new Date().toISOString() } }), false);
 	// El equipo: el asesor no crea ni cambia usuarios
 	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
 	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);

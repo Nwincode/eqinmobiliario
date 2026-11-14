@@ -17,9 +17,20 @@ for (const archivo of await readdir(path.join(RAIZ, 'netlify/functions'))) {
 	if (m.config?.path) funciones.set(m.config.path, m.default);
 }
 
+// Solo aquí (este servidor no se publica): apagar y prender la cuenta de escritura de las reservas, para probar que el
+// panel sigue por el camino de antes cuando la función responde 503 (scripts/entorno/recorrido.mjs).
+const ESCRITURA = ['GOOGLE_SA_ESCRITURA_EMAIL', 'GOOGLE_SA_ESCRITURA_KEY'];
+const guardada = Object.fromEntries(ESCRITURA.map((k) => [k, process.env[k]]));
+
 http.createServer(async (req, res) => {
 	const url = new URL(req.url, 'http://localhost');
 	try {
+		if (url.pathname === '/__entorno/escritura' && req.method === 'POST') {
+			const prender = url.searchParams.get('activa') === '1';
+			for (const k of ESCRITURA) { if (prender) process.env[k] = guardada[k]; else delete process.env[k]; }
+			res.writeHead(200, { 'Content-Type': 'text/plain' });
+			return res.end(prender ? 'prendida' : 'apagada');
+		}
 		const funcion = funciones.get(url.pathname);
 		if (funcion) {
 			const cuerpo = ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(await Array.fromAsync(req));

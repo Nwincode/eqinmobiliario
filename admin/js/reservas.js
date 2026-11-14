@@ -3,11 +3,14 @@
 //  - Las fechas de la casa (vacacional.reservadas) se recalculan dentro de una transacción con las reservas leídas
 //    en ese momento (V.cambioDeReserva, en js/calc-vacacional.js): una pestaña abierta desde antes no revive ni
 //    borra fechas, y el choque de fechas se revisa en el mismo lugar para todos.
-//  - Lo que se escribe tiene la forma que aceptan las reglas (firestore.rules: reservas, leads, chats) para el
-//    equipo y para el socio: toda reserva lleva el propietarioId de su casa (así la ve su dueño) y nunca el teléfono
-//    ni las notas internas (esos viven en properties/{casa}/privado/reserva-{id}, que solo lee el equipo).
+//  - Lo que se escribe tiene la forma que aceptan las reglas (firestore.rules: reservas, leads, chats): toda reserva
+//    lleva el propietarioId de su casa (así la ve su dueño) y nunca el teléfono ni las notas internas (esos viven en properties/{casa}/privado/reserva-{id}, que solo lee el equipo).
 //  - Tres «pagos» distintos, cada uno con su función: el cliente le pagó al socio (pagoRecibido), el socio le pagó
 //    la comisión a EQ (comisionPagada) y EQ le pagó al propietario (pagadoAlPropietario).
+//  - Los montos y las revisiones salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
+//  - Lo que hace el SOCIO (confirmar, «No se dio», cancelar, pago recibido) lo hace el servidor (/api/reservas,
+//    netlify/functions/reservas.mjs): el panel solo le dice qué solicitud y qué acción. Si el servidor todavía no tiene
+//    su cuenta de escritura (503), sigue por el camino de antes, que las reglas publicadas aceptan o niegan.
 import '/js/calc-vacacional.js';
 import {
 	db, doc, getDoc, getDocs, setDoc, collection, query, where, runTransaction, updateDoc, addDoc,
@@ -16,12 +19,9 @@ import {
 import { session, markPending } from './session.js';
 import { dia } from './ui.js';
 
-const V = window.EQVacacional;
-export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
-export const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
+import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, TEXTO_NO, TEXTO_CANCELADA } from './reservas-calculo.js';
 
-// Viene de una solicitud de la web (tiene chat con el cliente y su solicitud en leads).
-export const deSolicitud = (r) => Boolean(r?.leadId || r?.codigo);
+const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
 const refReserva = (id) => doc(db, 'reservas', id);
 // Contacto del huésped y notas internas de una reserva hecha a mano: el socio lee la reserva, esto no.
@@ -86,28 +86,9 @@ async function cambiar({ antes = null, despues = null, escribir, ademas, revisar
 	});
 }
 
-// Lo que lleva toda reserva al nacer, venga de donde venga. `casa` = { id, titulo, agentId, propietarioId, moneda }.
-// Los montos: costoSocio (lo del propietario), alojamiento (lo cobrado sin impuestos) y la ganancia de EQ.
-export function nuevaReserva(casa, c) {
-	const costoSocio = V.r2(Number(c.costoSocio) || 0), alojamiento = V.r2(Number(c.alojamiento) || 0);
-	return {
-		propertyId: casa.id, propertyTitulo: c.propertyTitulo || casa.titulo || '',
-		// El asesor de la casa (una casa por noche no lleva: ''), el mismo que exigen las reglas a quien no es administrador.
-		agentId: casa.agentId || '', propietarioId: casa.propietarioId || '',
-		moneda: c.moneda || casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: V.nochesEntre(c.llegada, c.salida),
-		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado || 'confirmada',
-		leadId: c.leadId || '', codigo: c.codigo || '', ...(c.chat ? { chat: c.chat } : {}), costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio),
-		pagadoSocio: Boolean(c.pagadoSocio), pagadoFecha: c.pagadoSocio ? (c.pagadoFecha || V.hoy()) : ''
-	};
-}
-
 // ------------------------------------------------------------ A mano (Rentas vacacionales)
 // Crea o edita una reserva sin solicitud de cliente. `antes` = la que se abrió (null si es nueva); `contacto` =
 // { telefono, notas } del huésped, que van aparte. En una reserva de la web el estado se cambia con «Cancelar».
-// La comisión de una reserva de la web: la ganancia de EQ, que se paga el día de llegada (con ella se mide la mora).
-// Una sola cuenta: la usan la confirmación y el cambio de montos en Rentas.
-export const comisionDeReserva = (r, previa = {}) => ({ ...previa, monto: r.ganancia, vence: r.llegada, pagada: Boolean(previa.pagada) });
-
 // Una reserva que ya terminó (salida antes de hoy) en la misma casa sigue con el dueño que la ganó, aunque la casa
 // haya cambiado de dueño después (asignarDueno solo pasa al nuevo las que no han terminado).
 export async function guardarReserva(antes, casa, campos, contacto) {
@@ -179,6 +160,42 @@ export async function ponerAlDiaReservas(reservas, casas) {
 }
 
 // ------------------------------------------------------------ Desde una solicitud (Solicitudes, con chat)
+// Lo que hace el socio pasa por el servidor: le manda la acción y la solicitud, y el servidor lee, calcula y escribe todo
+// (y manda los correos). null = el servidor todavía no tiene su cuenta de escritura (503) o el chat es de antes, sin su
+// índice: se sigue por el camino de antes.
+// Un error del servidor se muestra con su texto (`err.servidor` = el código: 403, 409, 422…).
+let sinServidor = false;
+export async function porServidor(accion, leadId, extra = {}) {
+	sinServidor = false;
+	const token = await session.user.getIdToken();
+	const res = await fetch('/api/reservas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accion, leadId, ...extra }) });
+	const cuerpo = await res.json().catch(() => ({}));
+	// Sin cuenta de escritura (503) o un chat de antes sin su índice: lo deciden las reglas publicadas.
+	sinServidor = res.status === 503;
+	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
+	// `yaRespondida`: otra pestaña (o un intento cuya respuesta se perdió) ya lo hizo: la pantalla se recarga.
+	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida) });
+	return cuerpo;
+}
+// Lo del socio que siguió por el camino de antes porque el servidor respondió 503: si las reglas ya son las nuevas, lo
+// niegan; eso no es culpa de la solicitud (no se dice «no cuadra»): el servidor no está disponible.
+function conCaminoDeAntes(fn) {
+	return async (...args) => {
+		try {
+			return await fn(...args);
+		} catch (err) {
+			if (session.esSocio && sinServidor && err?.code === 'permission-denied') throw Object.assign(new Error('El servidor de reservas no está disponible: avísale al administrador.'), { servidor: 503 });
+			throw err;
+		}
+	};
+}
+// ¿El servidor ya escribe las reservas del socio? 'activo', 'sin configurar' o 'error' (el aviso de Solicitudes).
+export async function estadoServidor() {
+	const token = await session.user.getIdToken();
+	const res = await fetch('/api/reservas', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+	return res?.ok ? (await res.json()).estado : 'error';
+}
+
 // Chat de una reserva de la web: { ref, estado }. Solicitudes ya lo tiene; Rentas lo busca por el código.
 async function chatDe(r, chat) {
 	if (chat !== undefined) return chat;
@@ -191,52 +208,27 @@ async function chatDe(r, chat) {
 	return s ? { ref: s.ref, estado: s.data().estado || '' } : null;
 }
 // Mensaje al cliente y estado nuevo del chat. El mensaje va antes en el mismo lote: las reglas lo miran con el chat
-// todavía abierto (para el socio, un chat cancelado ya no recibe mensajes suyos).
+// todavía abierto.
 const cerrarChat = (tx, chat, estado, texto) => {
 	tx.set(doc(collection(chat.ref, 'mensajes')), { de: quienEscribe(), texto, createdAt: serverTimestamp() });
 	tx.update(chat.ref, { estado });
 };
 
-// La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda }) queda confirmada: nace su reserva con la
+// La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda, subtotal }) queda confirmada: nace su reserva con la
 // comisión (la ganancia, se paga el día de llegada), la solicitud y el chat dicen «confirmada» y el cliente recibe
-// los datos de pago del socio. `cuenta` = V.gananciaEstancia de esas fechas; `pago` = datos de pago (con chat).
-// Lo que se registra al confirmar una solicitud: su parte (precios de hoy del dueño), lo cobrado y la ganancia de EQ.
-// Al cliente se le cobra lo que se le cotizó (sin la limpieza, que no lleva margen): si después bajó un precio, el margen
-// o la limpieza, la ganancia sale de lo cotizado, no de los precios de hoy (las reglas lo exigen al socio).
-// Una sola cuenta: la usan el diálogo de «Confirmada» (lo que se muestra) y confirmarSolicitud (lo que se guarda).
-// `cuenta` = V.gananciaEstancia de esas fechas; `casa` = la propiedad.
-// `modo`: 'mayor' (el socio: el mayor entre lo cotizado y los precios de hoy, lo que exigen las reglas), 'cotizado' o
-// 'hoy' (el administrador elige cuando difieren: una cotización inflada no se registra sin que lo decida).
-// Devuelve también `cotizado` y `deHoy` (lo cobrado con cada uno) y la ganancia con cada uno.
-export function montosDeConfirmacion(l, cuenta, casa, modo = 'mayor') {
-	const cotizado = V.r2((Number(l.reserva?.subtotal) || 0) - (Number(casa?.vacacional?.limpieza) || 0));
-	const deHoy = V.r2(Number(cuenta.alojamiento) || 0);
-	const costoSocio = V.r2(Number(cuenta.costoSocio) || 0);
-	const alojamiento = modo === 'hoy' ? deHoy : modo === 'cotizado' && cotizado > 0 ? cotizado : V.r2(Math.max(deHoy, cotizado));
-	return { costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio), cotizado, deHoy,
-		gananciaCotizada: V.r2(Math.max(cotizado, 0) - costoSocio), hoy: V.r2(deHoy - costoSocio) };
-}
-// ¿Lo cotizado y los precios de hoy difieren en más de 1 %? (entonces el administrador elige con cuál se registra).
-export const difierenMontos = (m) => m.cotizado > 0 && Math.abs(m.cotizado - m.deHoy) > 0.01 * Math.max(m.cotizado, m.deHoy);
-
-export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', modo = 'mayor' } = {}) {
+// los datos de pago del socio. `cuenta` = cuentaDe(...) de esas fechas; `pago` = datos de pago (con chat).
+// `modo`: con qué se registra lo cobrado (montosDeConfirmacion; el socio, siempre 'mayor').
+// Devuelve lo que quedó registrado: { ganancia, moneda }.
+export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', modo = 'mayor' } = {}) {
+	if (session.esSocio) {
+		const hecho = await porServidor('confirmar', l.id);
+		if (hecho) { await markPending(`${l.propertyTitulo}: reserva ${l.reserva.codigo} confirmada`); return hecho; }
+	}
 	const r = l.reserva;
 	const p = (await getDoc(doc(db, 'properties', l.propertyId))).data();
-	// Una reserva por solicitud: su id es el de la solicitud (las reglas lo exigen al socio).
+	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
-	// El socio siempre con 'mayor' (lo que le exigen las reglas); el administrador, con lo que eligió.
-	const montos = montosDeConfirmacion(l, cuenta, p, session.esSocio ? 'mayor' : modo);
-	const datos = {
-		...nuevaReserva({ id: l.propertyId, ...p }, {
-			propertyTitulo: l.propertyTitulo, moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
-			// Solo el primer nombre: el socio lee sus reservas; el contacto del cliente queda en la solicitud (leadId).
-			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: montos.costoSocio,
-			alojamiento: montos.alojamiento
-		}),
-	};
-	datos.comision = comisionDeReserva(datos);
-	// La reserva guarda su chat: con él las reglas saben si el cliente ya pagó (el socio no cancela una pagada).
-	if (chat) datos.chat = chat.ref.id;
+	const { datos } = reservaDeSolicitud(l, cuenta, { id: l.propertyId, ...p }, { modo: session.esSocio ? 'mayor' : modo, chat: chat?.ref.id || '' });
 	const escribirTodo = () => cambiar({
 		despues: { id, ...datos },
 		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
@@ -261,59 +253,67 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', mo
 	}
 	if (chat) avisarChat(chat.ref.id);
 	await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
-}
+	return { ganancia: datos.ganancia, moneda: datos.moneda };
+});
 
 // Lee, dentro de la transacción, que la solicitud siga sin responder: el chat (lo lee cualquiera con el enlace) y, para
 // el equipo, la solicitud misma (el socio no la lee).
 async function sinResponder(tx, l, chat) {
 	const [c, sol] = await Promise.all([chat ? tx.get(chat.ref) : null, session.esSocio ? null : tx.get(doc(db, 'leads', l.id))]);
-	const yaChat = c?.data()?.estado, yaSol = sol?.data()?.solicitud?.estado;
-	if (yaChat || (yaSol && yaSol !== 'pendiente')) throw new Error('Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.');
+	if (yaRespondida(c?.data()?.estado, sol?.data()?.solicitud?.estado)) throw new Error('Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.');
 }
 
 // La solicitud no se dio: la solicitud y el chat lo dicen, y el cliente recibe el mensaje. No hay reserva.
-export async function noSeDio(l, motivo, chat = null) {
+export const noSeDio = conCaminoDeAntes(async function noSeDio(l, motivo, chat = null) {
+	if (session.esSocio && await porServidor('no', l.id, { motivo })) return;
 	await runTransaction(db, async (tx) => {
 		await sinResponder(tx, l, chat);
 		tx.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-		if (chat) cerrarChat(tx, chat, 'no', 'Lo sentimos: la casa no está disponible en esas fechas.');
+		if (chat) cerrarChat(tx, chat, 'no', TEXTO_NO);
 	});
 	if (chat) avisarChat(chat.ref.id);
-}
+});
 
 // Cancela una reserva, venga de Rentas o de Solicitudes: sus fechas quedan libres y, si vino de la web, la
 // solicitud y el chat dicen «cancelada» y el cliente recibe el mensaje. `chat`: el de Solicitudes (si no, se busca).
-export async function cancelarReserva(r, motivo, { chat } = {}) {
+// El socio, por el servidor (la reserva de una solicitud lleva el id de la solicitud).
+export const cancelarReserva = conCaminoDeAntes(async function cancelarReserva(r, motivo, { chat } = {}) {
+	if (session.esSocio && await porServidor('cancelar', r.leadId, { motivo })) {
+		await markPending(`${r.propertyTitulo}: reserva ${r.codigo || dia(r.llegada)} cancelada`);
+		return true;
+	}
 	const delCliente = await chatDe(r, chat);
 	const cierra = delCliente && !['cancelada', 'no'].includes(delCliente.estado);
 	await cambiar({
 		antes: r, despues: { ...r, estado: 'cancelada' },
-		// Solo estado, motivo y fecha: es lo único que el socio puede cambiar de su reserva.
+		// Solo estado, motivo y fecha: lo único que el socio podía cambiar de su reserva con las reglas de antes.
 		escribir: (tx, ref) => tx.set(ref, { estado: 'cancelada', motivo, updatedAt: serverTimestamp() }, { merge: true }),
 		ademas: (tx) => {
 			if (r.leadId) tx.update(doc(db, 'leads', r.leadId), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
-			if (cierra) cerrarChat(tx, delCliente, 'cancelada', 'La reserva se canceló.');
+			if (cierra) cerrarChat(tx, delCliente, 'cancelada', TEXTO_CANCELADA);
 		}
 	});
 	if (cierra) avisarChat(delCliente.ref.id);
 	await markPending(`${r.propertyTitulo}: reserva ${r.codigo || dia(r.llegada)} cancelada`);
 	// Si el cliente se enteró por su chat (una reserva sin chat, no).
 	return Boolean(cierra);
-}
+});
 
 // El cliente le pagó al socio: ve «Pago recibido» y los datos de llegada guardados en la casa.
-// En dos pasos y en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado
-// (dentro de un mismo lote todavía ven el estado anterior y lo rechazan).
+// El socio, por el servidor (todo junto). El administrador (y el socio con el servidor sin configurar), en dos pasos y
+// en este orden: las reglas solo dejan mandar la llegada cuando el pago YA está marcado (dentro de un mismo lote todavía
+// ven el estado anterior y lo rechazan).
 // Se puede repetir sin recargar si el segundo paso falló: el estado se vuelve a leer (no el que había al abrir) y,
-// si ya dice «pagada», no se vuelve a escribir (las reglas no dejan al socio pasar de «pagada» a «pagada»).
-export async function pagoRecibido(chat, propertyId) {
+// si ya dice «pagada», no se vuelve a escribir.
+export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, propertyId, leadId) {
+	if (session.esSocio && await porServidor('pago', leadId)) { chat.estado = 'pagada'; return; }
 	if ((await getDoc(chat.ref)).data()?.estado !== 'pagada') await updateDoc(chat.ref, { estado: 'pagada' });
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
 	const ll = (await getDoc(doc(db, 'properties', propertyId, 'privado', 'llegada'))).data();
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
 	avisarChat(chat.ref.id);
-}
+});
 
 // El socio subió la foto de su transferencia de la comisión.
 export const ponerComprobante = (res, url) => updateDoc(refReserva(res.id), { 'comision.comprobante': url, updatedAt: serverTimestamp() });

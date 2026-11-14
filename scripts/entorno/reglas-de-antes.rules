@@ -1,0 +1,701 @@
+rules_version = '2';
+
+// Roles:
+//  - admin:  todo.
+//  - asesor: sus propiedades y sus leads (los que tienen su agentId).
+//  - socio:  un dueño (propietario o colaborador) en su panel: su resumen y sus casas; cambia solo las de por noche.
+//  - público: lee contenido publicado y puede crear leads desde los formularios.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function isStaff() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.activo == true
+        && userDoc().data.rol in ['admin', 'asesor'];
+    }
+    // Dueño (propietario o colaborador; rol «socio»): entra al panel solo a lo suyo, el de la ficha que le dio acceso.
+    function esSocio() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.activo == true
+        && userDoc().data.rol == 'socio';
+    }
+    function esSocioDe(casa) {
+      return esSocio() && casa.get('propietarioId', '') != '' && casa.propietarioId == userDoc().data.propietarioId;
+    }
+    // Lo que el dueño cambia o lee en privado es solo de sus casas por noche; las de venta y renta las lleva el equipo.
+    function esSocioPorNoche(casa) {
+      return esSocioDe(casa) && casa.get('operacion', '') == 'vacacional';
+    }
+    // Lo mismo, por el id de la casa (reservas, solicitudes y chats llevan el propertyId).
+    // (Un registro viejo sin propertyId, o una casa que no existe, niega sin error.)
+    function esSocioDeCasaPorNoche(propertyId) {
+      return propertyId is string && propertyId != ''
+        && exists(/databases/$(database)/documents/properties/$(propertyId))
+        && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(propertyId)).data);
+    }
+    function soloCambia(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
+    }
+    function isAdmin() {
+      return isStaff() && userDoc().data.rol == 'admin';
+    }
+    // El asesor de quien está en el panel. Uno sin asesor vinculado no coincide con nada: los registros sin asesor
+    // (agentId '', p. ej. las casas por noche y sus reservas y solicitudes) son solo del administrador y del dueño.
+    function myAgentId() {
+      return userDoc().data.get('agentId', '') == '' ? '(sin asesor)' : userDoc().data.agentId;
+    }
+    function isNonEmptyString(v, max) {
+      return v is string && v.size() > 0 && v.size() <= max;
+    }
+    function isShortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // Precio por noche que ve el cliente = precio del dueño × (1 + margen / 100), al centavo (js/calc-vacacional.js
+    // nochePublica). Cuando el dueño cambia sus precios, el público y el suyo van juntos (una transacción en
+    // «Mis propiedades») y tienen que cuadrar: así no baja su parte sin bajar la del cliente (la comisión de EQ sale
+    // de su parte) ni quita el margen del precio público.
+    function enBanda(publico, socio, margen) {
+      return math.abs(publico - socio * (100 + margen) / 100.0) <= 0.011;
+    }
+    // Fin de semana: sin precio propio (0) en uno, sin precio propio en el otro.
+    function findeEnBanda(publico, socio, margen) {
+      return socio == 0 ? publico == 0 : enBanda(publico, socio, margen);
+    }
+    // Precios por fechas: la misma lista en el mismo orden, mismas fechas y cada precio en banda.
+    // Las reglas no recorren listas (y cuentan cada operación): se revisan una a una, hasta 10 (el panel del dueño
+    // guarda solo las que no han pasado).
+    function tarifaEnBanda(p, s, margen) {
+      return p.desde == s.desde && p.hasta == s.hasta && enBanda(p.precio, s.precio, margen);
+    }
+    function tarifasEnBanda(pub, soc, m) {
+      let n = pub.size();
+      return n == soc.size() && n <= 10
+        && (n < 1 || tarifaEnBanda(pub[0], soc[0], m)) && (n < 2 || tarifaEnBanda(pub[1], soc[1], m))
+        && (n < 3 || tarifaEnBanda(pub[2], soc[2], m)) && (n < 4 || tarifaEnBanda(pub[3], soc[3], m))
+        && (n < 5 || tarifaEnBanda(pub[4], soc[4], m)) && (n < 6 || tarifaEnBanda(pub[5], soc[5], m))
+        && (n < 7 || tarifaEnBanda(pub[6], soc[6], m)) && (n < 8 || tarifaEnBanda(pub[7], soc[7], m))
+        && (n < 9 || tarifaEnBanda(pub[8], soc[8], m)) && (n < 10 || tarifaEnBanda(pub[9], soc[9], m));
+    }
+    // Lo que el dueño cambia de sus precios (en la casa o en privado/socio) cuadra con el otro documento tal como
+    // queda (getAfter): solo se revisa lo que cambió, para que una casa con un precio viejo no le impida bloquear días.
+    // casa / socio: los dos documentos después del cambio; cambia: los campos de precio que tocó.
+    // casaAntes / socioAntes: los dos como estaban. Con más de 10 precios por fechas (de antes), el dueño solo puede
+    // quitar: las dos listas quedan más cortas y con lo que ya tenían (nada nuevo ni cambiado).
+    function preciosCuadran(casa, socio, cambia, casaAntes, socioAntes) {
+      let v = casa.get('vacacional', {});
+      let m = socio.get('margen', 20);
+      return (!cambia.hasAny(['base', 'precioBase']) || enBanda(v.get('base', 0), socio.get('precioBase', 0), m))
+        && (!cambia.hasAny(['finde', 'precioFinde']) || findeEnBanda(v.get('finde', 0), socio.get('precioFinde', 0), m))
+        && (!cambia.hasAny(['tarifas']) || tarifasEnBanda(v.get('tarifas', []), socio.get('tarifas', []), m)
+            || (quita(v.get('tarifas', []), casaAntes.get('vacacional', {}).get('tarifas', []))
+                && quita(socio.get('tarifas', []), socioAntes.get('tarifas', []))));
+    }
+    function quita(despues, antes) {
+      return despues.size() < antes.size() && antes.hasAll(despues);
+    }
+    // privado/socio de una casa tal como está (una casa por noche puede no tenerlo todavía: vacío, sin error).
+    function socioAntes(id) {
+      let ruta = /databases/$(database)/documents/properties/$(id)/privado/socio;
+      return exists(ruta) ? get(ruta).data : {};
+    }
+
+    // Primer administrador: solo se puede crear mientras meta/bootstrap no exista.
+    match /meta/bootstrap {
+      allow get: if true;
+      allow create: if signedIn()
+        && !exists(/databases/$(database)/documents/meta/bootstrap)
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin';
+    }
+
+    // Estado de publicación (cambios pendientes, última publicación).
+    match /meta/publish {
+      allow read, write: if isStaff();
+      // El socio solo deja el aviso de "hay cambios por publicar".
+      allow update: if esSocio() && soloCambia(['pendiente', 'ultimoCambio', 'ultimoCambioDesc', 'ultimoCambioPor']);
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        || (request.auth.uid == uid
+            && !exists(/databases/$(database)/documents/meta/bootstrap)
+            && existsAfter(/databases/$(database)/documents/meta/bootstrap)
+            && request.resource.data.rol == 'admin'
+            && request.resource.data.activo == true);
+      allow update: if isAdmin()
+        && !(uid == request.auth.uid && (request.resource.data.rol != 'admin' || request.resource.data.activo != true));
+      allow delete: if isAdmin() && uid != request.auth.uid;
+    }
+
+    match /settings/site {
+      allow get: if true;
+      allow write: if isAdmin();
+    }
+
+    // Datos internos (p. ej. el build hook de Netlify): solo el equipo.
+    match /settings/private {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Regla general de comisión del CRM: la ve el equipo, la cambia el administrador.
+    match /settings/crm {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+    // Cotizaciones: datos de la empresa que factura, ISR %, % para el asesor, vigencia y condiciones.
+    // Los lee el equipo; los cambia el administrador.
+    match /settings/cotizacion {
+      allow get: if isStaff();
+      allow write: if isAdmin();
+    }
+    // Datos del asesor para facturar sus cotizaciones (NIT, régimen): los ve y cambia el asesor dueño y el administrador.
+    // El id del documento es el agentId del asesor.
+    match /emisoresAsesor/{agentId} {
+      allow read, write: if isAdmin() || (isStaff() && myAgentId() == agentId);
+    }
+
+    match /properties/{id} {
+      allow get: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
+      allow list: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
+      // Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche (solo el administrador).
+      allow create: if isAdmin()
+        || (isStaff() && request.resource.data.agentId == myAgentId() && request.resource.data.get('operacion', '') != 'vacacional');
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId()
+            && request.resource.data.get('operacion', '') != 'vacacional')
+        // El socio solo toca precios, personas, días bloqueados o reservados y mínimos de noches de sus casas por noche.
+        || (esSocioPorNoche(resource.data) && request.resource.data.get('operacion', '') == 'vacacional'
+            && soloCambia(['vacacional', 'precio', 'updatedAt'])
+            && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
+                 .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax'])
+            // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
+            // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
+            && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
+              || preciosCuadran(request.resource.data,
+                 getAfter(/databases/$(database)/documents/properties/$(id)/privado/socio).data,
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys(),
+                 resource.data, socioAntes(id))));
+      allow delete: if isAdmin();
+
+      // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.
+      // La leen y escriben el administrador, el asesor de la casa y el dueño de una casa por noche.
+      function deLaBitacora() {
+        let casa = get(/databases/$(database)/documents/properties/$(id)).data;
+        return isAdmin() || (isStaff() && casa.get('agentId', '') == myAgentId()) || esSocioPorNoche(casa);
+      }
+      match /bitacora/{entrada} {
+        allow read: if deLaBitacora();
+        allow create: if deLaBitacora()
+          && request.resource.data.quien == request.auth.uid
+          && request.resource.data.cuando == request.time;
+      }
+
+      // Lo privado de la casa: precio del socio, margen e iCal (privado/socio), dirección y mapa (llegada), acuerdo con
+      // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
+      // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
+      match /privado/{docId} {
+        allow read, write: if isAdmin()
+          || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+        // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
+        // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
+        // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
+        // con el pago recibido; solo el equipo la escribe.
+        allow get: if docId in ['socio', 'llegada'] && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
+        allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
+          && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
+               request.resource.data.diff(resource.data).affectedKeys(), get(/databases/$(database)/documents/properties/$(id)).data, resource.data);
+        // Una casa por noche que todavía no tiene privado/socio: el dueño lo crea con sus precios, con las mismas
+        // condiciones (el margen, que no puede poner, queda el de siempre: 20 %).
+        allow create: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
+          && request.resource.data.keys().hasOnly(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
+               request.resource.data.keys(), get(/databases/$(database)/documents/properties/$(id)).data, {});
+      }
+    }
+
+    match /agents/{id} {
+      allow read: if resource.data.activo == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /testimonials/{id} {
+      allow read: if resource.data.activo == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /pages/{id} {
+      allow read: if resource.data.publicado == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /posts/{id} {
+      allow read: if resource.data.publicado == true || isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Requerimientos de clientes (búsquedas guardadas por los asesores).
+    match /requerimientos/{id} {
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow create: if isStaff()
+        && (isAdmin() || request.resource.data.agentId == myAgentId());
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == resource.data.agentId);
+      allow delete: if isAdmin();
+    }
+
+    // CRM: clientes, actividades (agenda e historial) y propietarios.
+    // El asesor solo ve y edita lo que tiene asignado; el administrador, todo.
+    function propio() {
+      return isAdmin() || (isStaff() && resource.data.agentId == myAgentId());
+    }
+    function nuevoPropio() {
+      return isStaff() && (isAdmin() || request.resource.data.agentId == myAgentId());
+    }
+    function conservaAsesor() {
+      return isAdmin() || request.resource.data.agentId == resource.data.agentId;
+    }
+    match /clientes/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+    match /actividades/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
+    match /propietarios/{id} {
+      // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if isAdmin();
+    }
+    // La noche más barata del dueño para unas fechas [llegada, salida): base, fin de semana o un precio por fechas que
+    // toque alguna de esas noches (hasta 10; con más, 0 = sin piso). Un precio por fechas de otras fechas no cuenta (si
+    // no, uno de 1 en el año 2000 bajaría el piso a 1). Fechas 'AAAA-MM-DD': se comparan como texto; «hasta» es la
+    // última noche (incluida). Su parte de una reserva no puede ser menor que eso por cada noche.
+    function menor(a, b) {
+      return b > 0 && b < a ? b : a;
+    }
+    // (Las reglas cuentan cada operación, hasta 1000 por pedido: una sola comparación por precio por fechas.)
+    function menorSiToca(a, x, ll, sa) {
+      return x.desde < sa && x.hasta >= ll && x.precio > 0 && x.precio < a ? x.precio : a;
+    }
+    function nocheMasBarata(s, llegada, salida) {
+      let t = s.get('tarifas', []);
+      let n = t.size();
+      let a = menor(s.get('precioBase', 0), s.get('precioFinde', 0));
+      return n == 0 ? a : n > 10 ? 0 : menorDeTarifas(t, n, a, llegada, salida);
+    }
+    function menorDeTarifas(t, n, a, ll, sa) {
+      let b = menorSiToca(a, t[0], ll, sa);
+      let c = n < 2 ? b : menorSiToca(b, t[1], ll, sa);
+      let d = n < 3 ? c : menorSiToca(c, t[2], ll, sa);
+      let e = n < 4 ? d : menorSiToca(d, t[3], ll, sa);
+      let f = n < 5 ? e : menorSiToca(e, t[4], ll, sa);
+      let g = n < 6 ? f : menorSiToca(f, t[5], ll, sa);
+      let h = n < 7 ? g : menorSiToca(g, t[6], ll, sa);
+      let i = n < 8 ? h : menorSiToca(h, t[7], ll, sa);
+      let j = n < 9 ? i : menorSiToca(i, t[8], ll, sa);
+      return n < 10 ? j : menorSiToca(j, t[9], ll, sa);
+    }
+    // Reserva que crea el socio al confirmar una solicitud (ver match /reservas).
+    function reservaDelSocioValida(r) {
+      let casa = get(/databases/$(database)/documents/properties/$(r.propertyId)).data;
+      let solicitud = get(/databases/$(database)/documents/leads/$(r.leadId)).data;
+      let rutaSocio = /databases/$(database)/documents/properties/$(r.propertyId)/privado/socio;
+      let socio = exists(rutaSocio) ? get(rutaSocio).data : {};
+      let margen = socio.get('margen', 20);
+      // De una casa por noche que es suya (esSocioDe ya revisó que r.propietarioId es el suyo).
+      return casa.get('operacion', '') == 'vacacional' && casa.get('propietarioId', '') == r.propietarioId
+        && r.keys().hasOnly(['propertyId', 'propertyTitulo', 'agentId', 'propietarioId', 'moneda', 'llegada', 'salida', 'noches',
+            'huesped', 'canal', 'estado', 'leadId', 'codigo', 'chat', 'costoSocio', 'alojamiento', 'ganancia', 'pagadoSocio', 'pagadoFecha',
+            'comision', 'createdAt', 'updatedAt'])
+        // EL chat del cliente de esa solicitud (su índice chatsPorSolicitud): con él se sabe después si ya pagó.
+        // (Las reglas cuentan hasta 1000 operaciones: nada de más aquí.)
+        && get(/databases/$(database)/documents/chatsPorSolicitud/$(r.leadId)).data.token == r.chat
+        // (El id de la reserva es el leadId: match /reservas lo exige.)
+        && solicitud.get('propertyId', '') == r.propertyId
+        && solicitud.get(['reserva', 'codigo'], '') == r.codigo
+        && solicitud.get(['reserva', 'llegada'], '') == r.llegada
+        && solicitud.get(['reserva', 'salida'], '') == r.salida
+        && r.noches == solicitud.get(['reserva', 'noches'], -1)
+        && r.agentId == casa.get('agentId', '')
+        && r.canal == 'web' && r.pagadoSocio == false && r.get('pagadoFecha', '') == ''
+        && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
+        // Montos que no son números niegan al compararse (las reglas cuentan hasta 1000 operaciones: nada de más).
+        && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
+        // Lo que se le cobra al cliente es lo que se le cotizó (sin la limpieza) y en su moneda: un precio especial puesto
+        // después de la solicitud no baja la ganancia de EQ, ni una moneda cambiada la divide.
+        && r.moneda == solicitud.get(['reserva', 'moneda'], 'USD')
+        && r.alojamiento >= solicitud.get(['reserva', 'subtotal'], 0) - casa.get(['vacacional', 'limpieza'], 0) - 0.01
+        // Su parte no baja de su noche más barata por cada noche (con la comisión sobre ella, EQ cobra al menos eso).
+        && r.costoSocio >= r.noches * nocheMasBarata(socio, r.llegada, r.salida) - 0.01 * r.noches - 0.01
+        && r.ganancia >= r.alojamiento - r.costoSocio - 0.01
+        && r.ganancia >= r.costoSocio * margen / 100 - 0.01 * r.noches - 0.01
+        && r.comision is map && r.comision.keys().hasOnly(['monto', 'vence', 'pagada'])
+        && r.comision.pagada == false && r.comision.vence == r.llegada && r.comision.monto == r.ganancia;
+    }
+    // Fecha 'AAAA-MM-DD' (día de Guatemala) que todavía no empieza: su medianoche en Guatemala es las 06:00 UTC.
+    function antesDelDia(fecha) {
+      let p = fecha.split('-');
+      return fecha is string && fecha.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.time < timestamp.date(int(p[0]), int(p[1]), int(p[2])) + duration.value(6, 'h');
+    }
+    // El socio cancela su reserva solo mientras el cliente no ha pagado y no ha llegado: la reserva y su chat siguen
+    // «confirmada» y el día de llegada no empezó. Una reserva sin chat (a mano, o de antes) la cancela el administrador.
+    // También: el chat es EL de la solicitud (su índice), el cliente no ha adjuntado su comprobante de pago, y en el mismo
+    // lote el chat y la solicitud quedan «cancelada» (el cliente se entera y deja de ver los datos de pago).
+    function socioPuedeCancelar(r) {
+      let chat = get(/databases/$(database)/documents/chats/$(r.chat)).data;
+      return r.get('estado', '') == 'confirmada' && isNonEmptyString(r.get('chat', ''), 60)
+        && get(/databases/$(database)/documents/chatsPorSolicitud/$(r.get('leadId', '-'))).data.token == r.chat
+        && chat.get('estado', '') == 'confirmada' && !('comprobanteCliente' in chat)
+        && getAfter(/databases/$(database)/documents/chats/$(r.chat)).data.get('estado', '') == 'cancelada'
+        && getAfter(/databases/$(database)/documents/leads/$(r.leadId)).data.get(['solicitud', 'estado'], '') == 'cancelada'
+        && antesDelDia(r.get('llegada', ''));
+    }
+    // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js).
+    function comprobanteValido(url, reservaId) {
+      return url is string && url.size() <= 600
+        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/[a-z0-9.-]+/o/comprobantes%2F'
+             + reservaId + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+');
+    }
+    // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
+    // Del equipo, solo el administrador las crea y cambia (Rentas y Solicitudes son suyas; una casa por noche no lleva asesor).
+    match /reservas/{id} {
+      allow read: if propio() || esSocioDe(resource.data);
+      // El socio crea la reserva al confirmar una solicitud de su casa y solo puede cancelarla, con motivo.
+      // Lo que crea tiene la forma de admin/js/reservas.js confirmarSolicitud: de una solicitud que existe (mismo código,
+      // casa y fechas), del asesor de la casa, sin pago marcado y con la comisión entera (la ganancia, que no puede ser
+      // menor que el margen de la casa sobre su parte) y sin pagar.
+      // Su id es el de la solicitud: una sola reserva por solicitud (crear sobre una que ya existe no es «crear»).
+      // (El socio primero: así su caso, el más pesado, no gasta operaciones en revisar si es administrador.)
+      allow create: if (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
+            && reservaDelSocioValida(request.resource.data))
+        || isAdmin();
+      // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
+      allow update: if isAdmin()
+        // (Con la hora del servidor: así el control de cada hora la encuentra y avisa al equipo.)
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['estado', 'motivo', 'updatedAt'])
+            && request.resource.data.estado == 'cancelada' && isNonEmptyString(request.resource.data.motivo, 100)
+            && request.resource.data.get('updatedAt', null) == request.time
+            && socioPuedeCancelar(resource.data))
+        // El comprobante lo pone quien ganó la reserva, aunque la casa ya no sea suya (lo mismo que storage.rules).
+        || (esSocioDe(resource.data) && soloCambia(['comision', 'updatedAt'])
+            && request.resource.data.comision.diff(resource.data.comision).affectedKeys().hasOnly(['comprobante'])
+            && comprobanteValido(request.resource.data.comision.comprobante, id));
+      allow delete: if isAdmin();
+    }
+    // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
+    match /cotizaciones/{id} {
+      allow read: if propio();
+      allow create: if nuevoPropio();
+      allow update: if propio() && conservaAsesor();
+      allow delete: if propio();
+    }
+
+    // Resumen del dueño (propietario o colaborador): copia sin datos de clientes, hecha por el equipo, con lo que la
+    // persona necesita de su ficha (nombre, correo, teléfono, datos de pago). La lee esa persona desde su panel
+    // (con su usuario) y el equipo; nadie sin sesión.
+    function portalValido(token) {
+      return token.size() >= 32
+        && request.resource.data.email is string
+        && request.resource.data.email == request.resource.data.email.lower()
+        && request.resource.data.agentId is string
+        && request.resource.data.propietarioId is string
+        && request.resource.data.propiedades is list
+        && request.resource.data.propiedades.size() <= 50;
+    }
+    // El asesor arma resúmenes solo de las personas que atiende (su ficha lleva su agentId).
+    function fichaDelAsesor(propietarioId) {
+      return isNonEmptyString(propietarioId, 128)
+        && exists(/databases/$(database)/documents/propietarios/$(propietarioId))
+        && get(/databases/$(database)/documents/propietarios/$(propietarioId)).data.get('agentId', '') == myAgentId();
+    }
+    function resumenPropio() {
+      return esSocio() && resource.data.propietarioId == userDoc().data.propietarioId;
+    }
+    match /portalPropietarios/{token} {
+      allow get, list: if resumenPropio()
+        || isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow create: if isStaff() && portalValido(token)
+        && (isAdmin() || (request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+      allow update: if isStaff() && portalValido(token)
+        && (isAdmin() || (resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+    }
+
+    // Respuesta del dueño al anuncio desde su panel: «aprobado» o «cambios» (con texto). Solo el dueño con sesión,
+    // de su propio resumen y de una casa suya. Solo crear: nadie los cambia ni los borra. Los lee solo el equipo.
+    function portalDelComentario() {
+      return get(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token)).data;
+    }
+    match /comentariosPropietarios/{id} {
+      allow create: if esSocio()
+        && request.resource.data.keys().hasOnly([
+            'token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen', 'idioma'])
+        && request.resource.data.keys().hasAll(['token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen'])
+        && request.resource.data.propietarioId == userDoc().data.propietarioId
+        && request.resource.data.token is string
+        && request.resource.data.token.size() >= 32
+        && request.resource.data.token.size() <= 128
+        && exists(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token))
+        && portalDelComentario().propietarioId == request.resource.data.propietarioId
+        && portalDelComentario().agentId == request.resource.data.agentId
+        && isNonEmptyString(request.resource.data.propiedadId, 60)
+        && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propiedadId)).data)
+        && request.resource.data.tipo in ['aprobado', 'cambios']
+        && request.resource.data.texto is string
+        && request.resource.data.texto.size() <= 2000
+        // Pedir cambios exige texto; la aprobación puede ir sin texto.
+        && (request.resource.data.tipo == 'aprobado' || request.resource.data.texto.size() >= 1)
+        && request.resource.data.origen == 'propietario'
+        && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
+        && request.resource.data.fecha == request.time;
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      allow update, delete: if false;
+    }
+
+    // Estado de la reserva de una solicitud tal como queda en este mismo lote (su id es el de la solicitud; '' = no hay).
+    // El socio confirma, manda sus datos de pago o cancela solo junto con la reserva: no cobra sin comisión registrada
+    // ni esconde una reserva viva (admin/js/reservas.js lo escribe todo en una transacción).
+    function reservaQueda(leadId) {
+      let ruta = /databases/$(database)/documents/reservas/$(leadId);
+      return leadId is string && leadId != '' && existsAfter(ruta) ? getAfter(ruta).data.get('estado', '') : '';
+    }
+    // Lo que el socio escribe en una solicitud (admin/js/reservas.js `respuesta`): solo estos campos, solo hacia adelante
+    // (sin responder → confirmada o no se dio; confirmada → cancelada), con la reserva en el mismo estado, y al historial
+    // solo se le agrega un renglón.
+    function respuestaDelSocio(antes, s, viejo, leadId) {
+      let h = s.get('historial', []);
+      let hv = viejo.get('historial', []);
+      return s is map
+        && s.keys().hasOnly(['estado', 'historial', 'motivo', 'reservaId', 'costoSocio', 'comision'])
+        && ((antes == 'pendiente' && s.get('estado', '') == 'no')
+          || (antes == 'pendiente' && s.get('estado', '') == 'confirmada' && reservaQueda(leadId) == 'confirmada')
+          || (antes == 'confirmada' && s.get('estado', '') == 'cancelada' && reservaQueda(leadId) == 'cancelada'))
+        && isShortString(s.get('motivo', ''), 100)
+        && h is list && h.size() == hv.size() + 1 && h.hasAll(hv)
+        && (s.get('costoSocio', 0) is number) && (s.get('comision', 0) is number) && isShortString(s.get('reservaId', ''), 60);
+    }
+    // Lo que cotizó el sitio en una solicitud de reserva (js/vacacional.js con V.cotizar): números, impuestos = 22 % del
+    // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
+    // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.
+    function reservaCotizada(r) {
+      return r.get('subtotal', -1) is number && r.subtotal >= 0
+        && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
+        && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
+        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches)
+        // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
+        && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
+    }
+    // Noches entre dos fechas 'AAAA-MM-DD' (salida − llegada en días).
+    function nochesEntre(llegada, salida) {
+      let a = llegada.split('-');
+      let b = salida.split('-');
+      return llegada.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && salida.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        ? (timestamp.date(int(b[0]), int(b[1]), int(b[2])) - timestamp.date(int(a[0]), int(a[1]), int(a[2]))).seconds() / 86400
+        : -1;
+    }
+    match /leads/{id} {
+      // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
+      allow create: if request.resource.data.keys().hasOnly([
+            'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
+            'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
+            'tipoVisita', 'idioma', 'campana', 'reserva', 'propietarioId'])
+        && isNonEmptyString(request.resource.data.nombre, 100)
+        && isNonEmptyString(request.resource.data.telefono, 30)
+        && isShortString(request.resource.data.email, 120)
+        && isShortString(request.resource.data.mensaje, 2000)
+        && isShortString(request.resource.data.origen, 30)
+        && isShortString(request.resource.data.pagina, 200)
+        && isShortString(request.resource.data.propertyId, 60)
+        && isShortString(request.resource.data.propertyTitulo, 200)
+        && isShortString(request.resource.data.agentId, 60)
+        && (!('fechaVisita' in request.resource.data) || isShortString(request.resource.data.fechaVisita, 20))
+        && (!('tipoVisita' in request.resource.data) || request.resource.data.tipoVisita in ['presencial', 'videollamada'])
+        && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
+        && (!('campana' in request.resource.data)
+            || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
+        && (!('reserva' in request.resource.data)
+            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
+                && reservaCotizada(request.resource.data.reserva)))
+        // El socio de la solicitud tiene que ser el dueño real de la casa.
+        && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
+            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
+        // El asesor del formulario es el de la casa (una casa por noche no lleva: ''); así una página publicada antes
+        // no le manda al asesor la solicitud ni el contacto de un huésped.
+        && (request.resource.data.propertyId == ''
+            || !exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
+            || request.resource.data.agentId
+              == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('agentId', ''))
+        && request.resource.data.estado == 'nuevo'
+        && request.resource.data.createdAt == request.time;
+      // El socio NO lee la solicitud (trae el teléfono y el correo del cliente): trabaja con el chat.
+      allow read: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId());
+      // El socio solo responde la solicitud; no cambia nada más ni la borra.
+      allow update: if isAdmin()
+        || (isStaff() && resource.data.agentId == myAgentId()
+            && request.resource.data.agentId == resource.data.agentId)
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['solicitud', 'updatedAt'])
+            && respuestaDelSocio(resource.data.get(['solicitud', 'estado'], 'pendiente'), request.resource.data.solicitud,
+                 resource.data.get('solicitud', {}), id));
+      allow delete: if isAdmin();
+    }
+
+    // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
+    // equipo solo entra el administrador). El id es la llave: largo y al azar,
+    // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
+    // Índice de un chat por solicitud: lo crea el cliente junto con su chat, una sola vez (crear sobre uno que ya existe
+    // no es «crear»). Con él, la reserva del socio y su cancelación usan EL chat de la solicitud, no uno inventado.
+    // Nace solo junto con su chat, en el mismo lote (el chat no existía y su createdAt es la hora de este pedido): nadie
+    // le pone índice a un chat inventado para una solicitud de antes. El administrador se lo pone a un chat que ya existe
+    // (Solicitudes, al abrirla: los chats de antes de este cambio).
+    // Leer uno que no existe responde «no existe» a cualquiera (así el sitio sabe que las reglas nuevas están publicadas).
+    // Versión de las reglas: leer reglas/r5 da «no existe» (404) desde esta versión y «sin permiso» (403) antes; así el
+    // sitio sabe si ya puede mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal). Nadie escribe aquí.
+    match /reglas/{version} {
+      allow get: if version == 'r5';
+    }
+    match /chatsPorSolicitud/{leadId} {
+      allow create: if request.resource.data.keys().hasOnly(['token'])
+        && request.resource.data.token is string && request.resource.data.token.size() >= 20
+        && ((!exists(/databases/$(database)/documents/chats/$(request.resource.data.token))
+            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId
+            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.createdAt == request.time)
+          || (isAdmin() && get(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId));
+      allow get: if resource == null || isAdmin()
+        || esSocioDeCasaPorNoche(get(/databases/$(database)/documents/chats/$(resource.data.token)).data.get('propertyId', ''));
+      allow list: if isAdmin();
+      allow update, delete: if false;
+    }
+    match /chats/{token} {
+      // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
+      allow get: if true;
+      allow list: if isAdmin() || esSocioDe(resource.data);
+      allow create: if token.size() >= 20
+        && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
+            'llegada', 'salida', 'noches', 'huespedes', 'total', 'subtotal', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
+        // El subtotal cotizado (opcional; los chats de antes no lo traen) es el de su solicitud.
+        && (!('subtotal' in request.resource.data)
+            || request.resource.data.subtotal == get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.get('subtotal', -1))
+        // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId
+        // De una solicitud recién enviada (el sitio abre el chat en seguida): a una solicitud de antes nadie le inventa un chat.
+        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.createdAt > request.time - duration.value(1, 'h')
+        // Uno por solicitud: nace junto con su índice chatsPorSolicitud/{leadId} (que solo se crea una vez).
+        // (El título no se compara con el de la casa: una página publicada antes de cambiarlo no abriría el chat; los
+        // correos toman el título de la casa guardada.)
+        && getAfter(/databases/$(database)/documents/chatsPorSolicitud/$(request.resource.data.leadId)).data.token == token
+        && isShortString(request.resource.data.get('foto', ''), 500)
+        && isShortString(request.resource.data.get('url', ''), 200)
+        && isNonEmptyString(request.resource.data.codigo, 20)
+        && isNonEmptyString(request.resource.data.propertyId, 60)
+        && isShortString(request.resource.data.propertyTitulo, 200)
+        && isShortString(request.resource.data.nombre, 40)
+        && isNonEmptyString(request.resource.data.llegada, 10)
+        && isNonEmptyString(request.resource.data.salida, 10)
+        && request.resource.data.noches is number && request.resource.data.huespedes is number
+        && request.resource.data.total is number && isShortString(request.resource.data.moneda, 3)
+        && request.resource.data.idioma in ['es', 'en']
+        // El socio de la conversación es el dueño real de la casa.
+        && request.resource.data.propietarioId
+            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
+        && request.resource.data.createdAt == request.time;
+      // Al responder la solicitud, el administrador o el socio de la casa marcan el estado que ve el cliente; nada más.
+      allow update: if isAdmin()
+        // El socio solo avanza: pendiente → confirmada (con su reserva en el mismo lote) o no; confirmada → pagada o
+        // cancelada (con la reserva cancelada en el mismo lote, si la hay).
+        // Con el pago recibido ya no cancela (eso anularía la comisión): lo hace el administrador.
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['estado'])
+            && ((resource.data.get('estado', '') == '' && request.resource.data.estado == 'no')
+              || (resource.data.get('estado', '') == '' && request.resource.data.estado == 'confirmada'
+                  && reservaQueda(resource.data.get('leadId', '')) == 'confirmada')
+              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado == 'pagada')
+              || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado == 'cancelada'
+                  && reservaQueda(resource.data.get('leadId', '')) in ['', 'cancelada'])))
+        // El cliente adjuntó su comprobante de pago (con la foto, en el mismo lote): desde ahí el socio ya no cancela.
+        // Solo el cliente sin sesión lo marca, con la hora del servidor (nadie lo quita: solo se puede poner la hora de ahora).
+        // Va con su foto: el mensaje (tipo foto, del cliente) que nace en el mismo lote, con el id que guarda comprobanteMensaje.
+        || (!signedIn() && soloCambia(['comprobanteCliente', 'comprobanteMensaje']) && request.resource.data.comprobanteCliente == request.time
+            && request.resource.data.comprobanteMensaje is string && request.resource.data.comprobanteMensaje.size() > 0
+            && getAfter(/databases/$(database)/documents/chats/$(token)/mensajes/$(request.resource.data.comprobanteMensaje)).data.tipo == 'foto'
+            && getAfter(/databases/$(database)/documents/chats/$(token)/mensajes/$(request.resource.data.comprobanteMensaje)).data.de == 'cliente'
+            && getAfter(/databases/$(database)/documents/chats/$(token)/mensajes/$(request.resource.data.comprobanteMensaje)).data.createdAt == request.time)
+        // «Visto»: cada quien marca solo el suyo, con la hora del servidor.
+        || (!signedIn() && soloCambia(['vistoCliente']) && request.resource.data.vistoCliente == request.time)
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time);
+      allow delete: if isAdmin();
+
+      match /mensajes/{id} {
+        function chat() {
+          return get(/databases/$(database)/documents/chats/$(token)).data;
+        }
+        // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
+        allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
+        // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
+        // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
+        // Mensajes con «tipo» (sin texto libre de quien los manda):
+        //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
+        //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
+        //  - foto: el comprobante del cliente, subido a la carpeta de su reserva.
+        function llegadaDe() {
+          return /databases/$(database)/documents/properties/$(chat().propertyId)/privado/llegada;
+        }
+        function sinLlegada() {
+          return !request.resource.data.keys().hasAny(['direccion', 'mapa']);
+        }
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa'])
+          && isNonEmptyString(request.resource.data.texto, 1000)
+          && (('tipo' in request.resource.data)
+            ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()
+                  // El socio manda sus datos de pago solo con la reserva (y su comisión) registrada en el mismo lote.
+                  && (request.resource.data.de != 'socio' || reservaQueda(chat().get('leadId', '')) == 'confirmada')
+                  && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
+                // La dirección se muestra solo con el pago recibido.
+                || (request.resource.data.tipo == 'llegada' && request.resource.data.de != 'cliente' && request.resource.data.texto == 'llegada'
+                  && chat().get('estado', '') == 'pagada'
+                  // Ni un carácter distinto de lo guardado: así el socio no cuela su contacto en la dirección.
+                  && (exists(llegadaDe())
+                    ? (request.resource.data.keys().hasAll(['direccion', 'mapa'])
+                        && request.resource.data.direccion == get(llegadaDe()).data.get('direccion', '')
+                        && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
+                    : sinLlegada()))
+                || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
+                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
+            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
+          && request.resource.data.createdAt == request.time
+          && ((request.resource.data.de == 'cliente' && !signedIn())
+            || (request.resource.data.de == 'equipo' && isAdmin())
+            // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
+            || (request.resource.data.de == 'socio' && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')) && !(chat().get('estado', '') in ['no', 'cancelada'])));
+        // Nada se edita ni se borra: la conversación es el registro.
+        allow update, delete: if false;
+      }
+    }
+  }
+}

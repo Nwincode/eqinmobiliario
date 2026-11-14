@@ -56,6 +56,11 @@ const ir = async (p, ruta, ms = 2500) => { await p.evaluate((r) => { location.ha
 const campo = (p, nombre, que = 'input, select, textarea') => p.locator(`[data-campo="${nombre}"]`).locator(que).last();
 const guardar = async (p) => { await p.locator('button', { hasText: /^Guardar$/ }).last().click(); await espera(3500); };
 const avisos = async (p) => (await p.locator('.toast').allInnerTexts()).join(' | ').replace(/\s+/g, ' ').slice(0, 160);
+// Lo que responde /api/reservas al tocar un botón del socio (así se sabe que lo hizo el servidor): se pide antes del clic.
+const delServidor = (p) => p.waitForResponse((x) => x.url().endsWith('/api/reservas') && x.request().method() === 'POST', { timeout: 20000 })
+	.then(async (x) => ({ status: x.status(), ...(await Promise.race([x.json().catch(() => ({})), espera(3000).then(() => ({}))])) })).catch(() => ({ status: 0 }));
+const porServidor = (x, accion) => x.status === 200 && x.ok === true && x.accion === accion;
+const resp = (x) => `servidor ${x.status}${x.error ? ` ${x.error}` : ''}`;
 
 // ---------------------------------------------------------------- 1. El administrador ingresa la casa
 const admin = await entrar('admin');
@@ -213,9 +218,11 @@ await socio.p.locator('.modal .btn-close').click();
 await espera(2500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmada' }).click();
 await espera(800);
+const confirmo = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
-await espera(4000);
-paso('El socio confirma la reserva', /Confirmada/.test(await socio.p.locator('.card', { hasText: codigo }).first().innerText()), await avisos(socio.p));
+const r1 = await confirmo;
+await espera(3000);
+paso('El socio confirma la reserva, por el servidor', porServidor(r1, 'confirmar') && /Confirmada/.test(await socio.p.locator('.card', { hasText: codigo }).first().innerText()), `${resp(r1)} · ${await avisos(socio.p)}`);
 
 await cliente.p.reload();
 await espera(2500);
@@ -231,10 +238,12 @@ paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.l
 await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Pago recibido' }).click();
 await espera(800);
+const pagoRes = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Pago recibido' }).last().click();
-await espera(4000);
+const r2 = await pagoRes;
+await espera(3000);
 const trasPago = await socio.p.locator('.card', { hasText: codigo }).first().innerText();
-paso('El socio marca «Pago recibido»', /Pago recibido/.test(trasPago), await avisos(socio.p));
+paso('El socio marca «Pago recibido», por el servidor', porServidor(r2, 'pago') && /Pago recibido/.test(trasPago), `${resp(r2)} · ${await avisos(socio.p)}`);
 paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(trasPago));
 
 await cliente.p.reload();
@@ -265,9 +274,11 @@ paso('Un segundo cliente solicita otras fechas', /^EQ-/.test(codigo2), codigo2);
 await ir(socio.p, `#/solicitudes/${codigo2}`, 3500);
 await socio.p.locator('.card', { hasText: codigo2 }).first().locator('button', { hasText: 'No se dio' }).click();
 await espera(800);
+const noRes = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Fechas no disponibles' }).click();
-await espera(4000);
-paso('El socio responde «No se dio»', /No se dio/.test(await socio.p.locator('.card', { hasText: codigo2 }).first().locator('.badge').first().innerText()), await avisos(socio.p));
+const r3 = await noRes;
+await espera(3000);
+paso('El socio responde «No se dio», por el servidor', porServidor(r3, 'no') && /No se dio/.test(await socio.p.locator('.card', { hasText: codigo2 }).first().locator('.badge').first().innerText()), `${resp(r3)} · ${await avisos(socio.p)}`);
 await otro.p.reload();
 await espera(2500);
 paso('Ese cliente ve «No disponible» y el mensaje', /No disponible/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText()));
@@ -298,9 +309,11 @@ await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
 await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
 await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Confirmada' }).click();
 await espera(800);
+const confirmo3 = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
-await espera(4000);
-paso('El socio confirma una tercera reserva y las fechas quedan ocupadas', Boolean(llegada3) && (await reservadas()).includes(llegada3), codigo3);
+const r4 = await confirmo3;
+await espera(3000);
+paso('El socio confirma una tercera reserva (por el servidor) y las fechas quedan ocupadas', porServidor(r4, 'confirmar') && Boolean(llegada3) && (await reservadas()).includes(llegada3), `${codigo3} · ${resp(r4)}`);
 {
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await socio.p.fill('#mc-base', '110');
@@ -328,13 +341,147 @@ paso('El socio confirma una tercera reserva y las fechas quedan ocupadas', Boole
 }
 await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Cancelar' }).click();
 await espera(800);
+const cancelo = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Cliente canceló' }).click();
-await espera(4500);
-paso('El socio cancela esa reserva (el cliente no pagó)', /Cancelada/.test(await socio.p.locator('.card', { hasText: codigo3 }).first().locator('.badge').first().innerText().catch(() => '')), await avisos(socio.p));
+const r5 = await cancelo;
+await espera(3500);
+paso('El socio cancela esa reserva (el cliente no pagó), por el servidor', porServidor(r5, 'cancelar') && /Cancelada/.test(await socio.p.locator('.card', { hasText: codigo3 }).first().locator('.badge').first().innerText().catch(() => '')), `${resp(r5)} · ${await avisos(socio.p)}`);
 paso('Las fechas canceladas vuelven a quedar libres', !(await reservadas()).includes(llegada3));
 await tercero.p.reload();
 await espera(2500);
 paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
+
+// ---------------------------------------------------------------- 4c2. Lo del socio, solo por el servidor
+// El servidor (netlify/functions/reservas.mjs) revisa de quién es, si ya se respondió y si las fechas chocan, y no toma
+// montos de quien llama; el socio no puede escribir lo mismo directo en la base. Si el servidor no tiene su cuenta de
+// escritura (503), el panel sigue por el camino de antes, que con las reglas de antes funciona.
+{
+	const iso = (d) => new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+	const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=pruebas';
+	const tokenDe = async (rol) => (await (await fetch(AUTH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${rol}@example.com`, password: CLAVE, returnSecureToken: true }) })).json()).idToken;
+	const api = async (rol, cuerpo) => {
+		const x = await fetch(`${SITIO}/api/reservas`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await tokenDe(rol)}` }, body: JSON.stringify(cuerpo) });
+		return { status: x.status, ...(await x.json().catch(() => ({}))) };
+	};
+	const RAIZ = 'projects/demo-eq/databases/(default)/documents';
+	const sv = (v) => ({ stringValue: v });
+	const nv = (v) => (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v });
+	const ahora = () => ({ timestampValue: new Date().toISOString() });
+	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	const existe = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).status === 200;
+	// Una solicitud como la deja el sitio (solicitud, chat con su subtotal e índice), en fechas lejanas y libres.
+	const sembrar = async (id, llegada, noches = 2, { indice = true } = {}) => {
+		const salida = new Date(Date.parse(`${llegada}T00:00:00Z`) + noches * 86400000).toISOString().slice(0, 10);
+		const subtotal = 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
+		const codigo = `EQ-${id.toUpperCase()}`, token = `Sembrado${id.replace(/[^A-Za-z0-9]/g, '')}LargoYAlAzar123456`;
+		const reserva = { codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(noches), huespedes: nv(2), subtotal: nv(subtotal), impuestos: nv(impuestos), total: nv(total), moneda: sv('USD') };
+		await poner(`leads/${id}`, { nombre: sv('Sol Sembrada'), telefono: sv('+502 5555 2222'), email: sv('sol@example.com'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'),
+			propietarioId: sv('socio-prueba'), agentId: sv(''), estado: sv('nuevo'), origen: sv('reserva'), createdAt: ahora(), reserva: { mapValue: { fields: reserva } } });
+		await poner(`chats/${token}`, { codigo: sv(codigo), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), nombre: sv('Sol'),
+			llegada: sv(llegada), salida: sv(salida), noches: nv(noches), huespedes: nv(2), total: nv(total), subtotal: nv(subtotal), moneda: sv('USD'), idioma: sv('es'), leadId: sv(id), createdAt: ahora() });
+		if (indice) await poner(`chatsPorSolicitud/${id}`, { token: sv(token) });
+		return { id, token, codigo, llegada, salida };
+	};
+	const leadDe = async (t) => (await leer(`chats/${t}`)).fields?.leadId?.stringValue || '';
+	const lead1 = await leadDe(token);
+	const llegada1 = (await leer(`chats/${token}`)).fields?.llegada?.stringValue || '';
+
+	const a = await sembrar('srv-a', iso(200));
+	const ajeno = await api('colab', { accion: 'confirmar', leadId: a.id });
+	paso('Servidor: otro dueño no confirma una solicitud de una casa que no es suya (403)', ajeno.status === 403 && !(await existe(`reservas/${a.id}`)), resp(ajeno));
+	const dos = await api('socio', { accion: 'confirmar', leadId: lead1 });
+	paso('Servidor: la misma solicitud no se confirma dos veces (409, «ya respondida»: el panel recarga)', dos.status === 409 && dos.yaRespondida === true, resp(dos));
+	const b = await sembrar('srv-b', llegada1, 1);
+	const choca = await api('socio', { accion: 'confirmar', leadId: b.id });
+	paso('Servidor: fechas que chocan con otra reserva confirmada no se confirman y no se escribe nada (422)', choca.status === 422 && !(await existe(`reservas/${b.id}`)) && !(await leer(`chats/${b.token}`)).fields?.estado, resp(choca));
+	const motivo = await api('socio', { accion: 'no', leadId: b.id, motivo: 'Llamame al 5555 0001' });
+	paso('Servidor: un motivo que no es de la lista no se acepta (400)', motivo.status === 400, resp(motivo));
+	// Montos en el pedido: no cuentan (salen de la casa y de la solicitud guardadas).
+	const conMontos = await api('socio', { accion: 'confirmar', leadId: a.id, costoSocio: 1, alojamiento: 1, ganancia: 0, comision: { monto: 0, pagada: true } });
+	const ra = (await leer(`reservas/${a.id}`)).fields || {};
+	const n = (f) => Number(f?.doubleValue ?? f?.integerValue);
+	const com = ra.comision?.mapValue?.fields || {};
+	paso('Servidor: los montos que mande quien llama no cuentan (su parte, ganancia y comisión salen de lo guardado)', conMontos.status === 200 && n(ra.costoSocio) >= 200 && n(ra.ganancia) > 0
+		&& n(com.monto) === n(ra.ganancia) && com.pagada?.booleanValue === false && ra.chat?.stringValue === a.token, `${resp(conMontos)} · parte ${n(ra.costoSocio)} · ganancia ${n(ra.ganancia)} · comisión ${n(com.monto)}`);
+	const cancelaA = await api('socio', { accion: 'cancelar', leadId: a.id, motivo: 'Cliente canceló' });
+	paso('Servidor: el socio cancela por el servidor y las fechas quedan libres', cancelaA.status === 200 && (await leer(`reservas/${a.id}`)).fields?.estado?.stringValue === 'cancelada' && !(await reservadas()).includes(a.llegada), resp(cancelaA));
+
+	// A la vez: la misma solicitud dos veces (una sola reserva) y dos solicitudes con fechas que se cruzan (una sola gana).
+	const f1 = await sembrar('srv-f', iso(230));
+	const mismas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: f1.id }), api('socio', { accion: 'confirmar', leadId: f1.id })])).map((x) => x.status).sort();
+	paso('Servidor: la misma solicitud confirmada dos veces a la vez deja una sola reserva (200 y 409)', mismas.join() === '200,409', mismas.join());
+	const g1 = await sembrar('srv-g1', iso(240)), g2 = await sembrar('srv-g2', iso(241));
+	const cruzadas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: g1.id }), api('socio', { accion: 'confirmar', leadId: g2.id })])).map((x) => x.status).sort();
+	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422)', cruzadas.join() === '200,422', cruzadas.join());
+	const trasPagar = await api('socio', { accion: 'cancelar', leadId: lead1, motivo: 'Cliente canceló' });
+	paso('Servidor: el socio no cancela una reserva ya pagada (409)', trasPagar.status === 409 && (await leer(`reservas/${lead1}`)).fields?.estado?.stringValue === 'confirmada', resp(trasPagar));
+
+	// El socio directo en la base (con las reglas nuevas): ni la reserva, ni el chat, ni los datos de pago.
+	const c = await sembrar('srv-c', iso(210));
+	const socioToken = await tokenDe('socio');
+	const directo = async (writes) => (await fetch(`${FS}:commit`, { method: 'POST', headers: { Authorization: `Bearer ${socioToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ writes }) })).status;
+	const reservaC = { propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), agentId: sv(''), propietarioId: sv('socio-prueba'), moneda: sv('USD'), llegada: sv(c.llegada), salida: sv(c.salida), noches: nv(2),
+		huesped: sv('Sol'), canal: sv('web'), estado: sv('confirmada'), leadId: sv(c.id), codigo: sv(c.codigo), chat: sv(c.token), costoSocio: nv(220), alojamiento: nv(264), ganancia: nv(44), pagadoSocio: { booleanValue: false }, pagadoFecha: sv(''),
+		comision: { mapValue: { fields: { monto: nv(44), vence: sv(c.llegada), pagada: { booleanValue: false } } } } };
+	const lote = await directo([
+		{ update: { name: `${RAIZ}/reservas/${c.id}`, fields: reservaC }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }, { fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] },
+		{ update: { name: `${RAIZ}/chats/${c.token}`, fields: { estado: sv('confirmada') } }, updateMask: { fieldPaths: ['estado'] } },
+		{ update: { name: `${RAIZ}/chats/${c.token}/mensajes/pago`, fields: { de: sv('socio'), tipo: sv('pago'), texto: sv('Banco de prueba, cuenta monetaria 123-456789-0, a nombre de Socio de prueba') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }]);
+	const soloChat = await directo([{ update: { name: `${RAIZ}/chats/${c.token}`, fields: { estado: sv('confirmada') } }, updateMask: { fieldPaths: ['estado'] } }]);
+	paso('El socio no confirma escribiendo directo en la base (reserva, chat y datos de pago; ni el chat solo): 403', lote === 403 && soloChat === 403 && !(await existe(`reservas/${c.id}`)), `lote ${lote} · chat ${soloChat}`);
+
+	// Transición: el servidor sin su cuenta de escritura (503) y las reglas de antes publicadas: el panel del socio
+	// confirma por el camino de antes, como hoy.
+	const reglas = async (archivo) => (await fetch('http://127.0.0.1:8085/emulator/v1/projects/demo-eq:securityRules', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content: readFileSync(`${REPO}/${archivo}`, 'utf8') }] } }) })).status;
+	const escritura = async (activa) => (await fetch(`${SITIO}/__entorno/escritura?activa=${activa ? 1 : 0}`, { method: 'POST' })).text();
+	const indicador = async () => { await ir(admin.p, '#/solicitudes', 3500); return (await admin.p.locator('.admin-main').innerText()).match(/Reservas por servidor: [^\n]+/)?.[0] || ''; };
+	const activo = await indicador();
+	const d = await sembrar('srv-d', iso(220));
+	const e = await sembrar('srv-e', iso(250), 2, { indice: false });
+	const puestas = await reglas('scripts/entorno/reglas-de-antes.rules');
+	try {
+		// Con la cuenta puesta y las reglas de antes: un chat de antes, sin su índice, lo responde el camino de antes.
+		await ir(socio.p, `#/solicitudes/${e.codigo}`, 3500);
+		await socio.p.locator('.card', { hasText: e.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
+		await espera(800);
+		const sinIndice = delServidor(socio.p);
+		await socio.p.locator('.modal button', { hasText: 'Fechas no disponibles' }).click();
+		const r8 = await sinIndice;
+		await espera(3000);
+		paso('Transición: un chat de antes sin índice (reglas de antes, cuenta puesta): el servidor no adivina y el socio responde por el camino de antes',
+			r8.status === 409 && r8.caminoDeAntes === true && (await leer(`chats/${e.token}`)).fields?.estado?.stringValue === 'no', `${resp(r8)} · ${await avisos(socio.p)}`);
+	} catch (err) { paso('Transición: chat de antes sin índice', false, err.message.slice(0, 160)); }
+	await escritura(false);
+	const apagado = await indicador();
+	paso('Solicitudes le dice al administrador si las reservas van por el servidor', /activo/.test(activo) && /sin configurar/.test(apagado), `${activo} → ${apagado}`);
+	try {
+		await ir(socio.p, `#/solicitudes/${d.codigo}`, 3500);
+		await socio.p.locator('.card', { hasText: d.codigo }).first().locator('button', { hasText: 'Confirmada' }).click();
+		await espera(800);
+		const sinCuenta = delServidor(socio.p);
+		await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
+		const r7 = await sinCuenta;
+		await espera(4000);
+		const rd = (await leer(`reservas/${d.id}`)).fields || {};
+		paso('Transición: sin la cuenta de escritura (503) y con las reglas de antes, el socio confirma por el camino de antes', puestas === 200 && r7.status === 503 && rd.estado?.stringValue === 'confirmada'
+			&& (await leer(`chats/${d.token}`)).fields?.estado?.stringValue === 'confirmada' && /Confirmada/.test(await socio.p.locator('.card', { hasText: d.codigo }).first().innerText()), `${resp(r7)} · reglas ${puestas} · ${await avisos(socio.p)}`);
+		// Reglas nuevas y el servidor sin cuenta: el camino de antes ya no pasa y se dice por qué (no «no cuadra»).
+		await reglas('firestore.rules');
+		const hh = await sembrar('srv-h', iso(260));
+		await ir(socio.p, `#/solicitudes/${hh.codigo}`, 3500);
+		await socio.p.locator('.card', { hasText: hh.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
+		await espera(800);
+		await socio.p.locator('.modal button', { hasText: 'Fechas no disponibles' }).click();
+		await espera(3500);
+		const aviso = await avisos(socio.p);
+		paso('Reglas nuevas sin la cuenta de escritura: el socio ve «El servidor de reservas no está disponible», no un error crudo', /servidor de reservas no está disponible/.test(aviso) && !(await leer(`chats/${hh.token}`)).fields?.estado, aviso);
+	} finally {
+		await escritura(true);
+		const nuevas = await reglas('firestore.rules');
+		paso('Las reglas nuevas vuelven a quedar puestas en el emulador', nuevas === 200);
+	}
+}
 
 // ---------------------------------------------------------------- 4e. Rentas vacacionales: la misma reserva para todos
 // Rentas y Solicitudes escriben por admin/js/reservas.js: la reserva hecha a mano la ve el dueño y bloquea el calendario;
@@ -436,9 +583,11 @@ let otraPestana = null;
 	await ir(socio.p, `#/solicitudes/${codigo4}`, 3500);
 	await socio.p.locator('.card', { hasText: codigo4 }).first().locator('button', { hasText: 'Confirmada' }).click();
 	await espera(800);
+	const confirmo4 = delServidor(socio.p);
 	await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
-	await espera(4000);
-	const ocupada4 = Boolean(llegada4) && (await reservadas()).includes(llegada4);
+	const r6 = await confirmo4;
+	await espera(3000);
+	const ocupada4 = porServidor(r6, 'confirmar') && Boolean(llegada4) && (await reservadas()).includes(llegada4);
 	await ir(admin.p, '#/rentas', 3000);
 	await alMes(admin.p, llegada4 || iso(0));
 	await admin.p.locator('tr', { hasText: 'Marta' }).filter({ hasText: 'Confirmada' }).first().click();
@@ -480,6 +629,7 @@ paso('Correo al cliente con su enlace', resumen.some((r) => /ana@example\.com �
 paso('Correo al cliente con la confirmación (datos de pago)', resumen.some((r) => /ana@example\.com ← .*confirmada/.test(r)));
 paso('Correo al socio cuando el cliente adjunta su comprobante', resumen.some((r) => /socio@example\.com ← .*comprobante/.test(r)));
 paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@example\.com ← .*cancelada/.test(r)));
+paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.some((r) => /equipo@example\.com ← .*el socio canceló/.test(r)));
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
 paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) && !/wa\.me/.test(JSON.stringify(alerta)) && /admin\/#\/solicitudes\/EQ-VIEJA/.test(JSON.stringify(alerta)));

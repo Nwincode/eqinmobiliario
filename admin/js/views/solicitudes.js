@@ -3,12 +3,14 @@
 // Comisión: el socio la paga a EQ el día de llegada y sube su comprobante; solo el administrador la marca pagada.
 // Nada se borra: cada respuesta queda en el historial con quién y cuándo.
 // Confirmar, cancelar, «No se dio», pago recibido y comisión pagada pasan por admin/js/reservas.js (lo mismo que usa
-// Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat.
+// Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat; lo del socio, por el
+// servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas } from '../session.js';
-import { confirmarSolicitud, montosDeConfirmacion, difierenMontos, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
+import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
+import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -121,14 +123,14 @@ export async function render(container, [codigo] = []) {
 	async function pagoRecibido(l) {
 		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste el pago? El cliente verá la dirección, el mapa y cómo llegar.`, { okText: 'Pago recibido' }))) return;
 		await hacer(async () => {
-			await marcarPagoRecibido(chatDe(l), l.propertyId);
+			await marcarPagoRecibido(chatDe(l), l.propertyId, l.id);
 			toast('Listo: el cliente ya ve los datos de llegada.');
 		});
 	}
 	const reservaDe = (l) => reservas.find((x) => x.id === l.solicitud?.reservaId || (x.codigo && x.codigo === l.reserva.codigo && x.estado !== 'cancelada'));
 	// El socio cancela mientras el cliente no ha pagado (reserva y chat «confirmada») y antes del día de llegada.
 	// Una reserva de antes, sin su chat guardado, muestra el botón pero la cancela el administrador (cancelar lo dice).
-	const puedeCancelar = (l) => { const x = reservaDe(l); return deHoy(l.propertyId) && x?.estado === 'confirmada' && datosChat[l.reserva.codigo]?.estado === 'confirmada' && l.reserva.llegada > hoy(); };
+	const puedeCancelar = (l) => { const x = reservaDe(l); return deHoy(l.propertyId) && x?.estado === 'confirmada' && datosChat[l.reserva.codigo]?.estado === 'confirmada' && antesDeLlegar(l.reserva.llegada); };
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
@@ -138,7 +140,7 @@ export async function render(container, [codigo] = []) {
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
 		// El subtotal cotizado viaja en el chat; uno de antes no lo trae y se saca del total que vio el cliente.
 		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda,
-			subtotal: typeof c.subtotal === 'number' ? c.subtotal : V.subtotalDeTotal(c.total) },
+			subtotal: subtotalCotizado(c) },
 		solicitud: c.estado ? { estado: c.estado === 'pagada' ? 'confirmada' : c.estado } : undefined }; };
 	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
@@ -146,12 +148,16 @@ export async function render(container, [codigo] = []) {
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
 	const netos = Object.fromEntries(await Promise.all([...new Set(leads.map((l) => l.propertyId).filter(Boolean))].map(async (id) =>
 		[id, (await getDoc(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || null])));
-	const cuenta = (l) => {
-		const s = netos[l.propertyId];
-		return s && V.gananciaEstancia({ llegada: l.reserva.llegada, salida: l.reserva.salida, margen: s.margen, planSocio: { base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] } });
-	};
+	const cuenta = (l) => cuentaDe(l.reserva, netos[l.propertyId]);
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
-	const hacer = async (tarea) => { try { await tarea(); await recargar(); } catch (err) { showError(err); } };
+	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
+	const hacer = async (tarea) => {
+		try { await tarea(); await recargar(); } catch (err) {
+			if (err?.yaRespondida) return recargar();
+			if (err?.servidor) return toast(err.message, 'warning');
+			showError(err);
+		}
+	};
 
 	async function confirmar(l) {
 		const r = l.reserva;
@@ -185,7 +191,7 @@ export async function render(container, [codigo] = []) {
 				await confirmarSolicitud(l, c, { chat: chatDe(l), pago, modo });
 				toast('Reserva confirmada.');
 			} catch (err) {
-				if (err instanceof ChoqueDeFechas) toast(err.message, 'warning');
+				if (err instanceof ChoqueDeFechas || (err?.servidor && !err.yaRespondida)) toast(err.message, 'warning');
 				// Lo que cotizó el cliente no cuadra con lo que la base acepta (p. ej. un chat de antes): se dice, sin el error crudo.
 				else if (!admin && err?.code === 'permission-denied') toast('No se pudo confirmar: lo que se le cotizó al cliente no cuadra con los precios guardados de la casa. Avísale al administrador para que la confirme.', 'warning');
 				else throw err;
@@ -228,8 +234,9 @@ export async function render(container, [codigo] = []) {
 				await cancelarReserva({ ...reserva, leadId: reserva.leadId || l.id }, motivo, { chat: chatDe(l) });
 				toast('Reserva cancelada. Las fechas quedaron libres.');
 			} catch (err) {
-				// Las reglas no dejan al dueño cancelar una reserva de antes (sin su chat guardado) ni una ya pagada o empezada.
-				if (!admin && err?.code === 'permission-denied') toast('Esta reserva ya no la puedes cancelar tú (es de antes, ya se pagó o ya empezó): avísale al administrador.', 'warning');
+				// El servidor (o las reglas) no dejan al dueño cancelar una reserva de antes (sin su chat guardado) ni una ya pagada o empezada.
+				if (err?.servidor && !err.yaRespondida) toast(err.message, 'warning');
+				else if (!admin && err?.code === 'permission-denied') toast('Esta reserva ya no la puedes cancelar tú (es de antes, ya se pagó o ya empezó): avísale al administrador.', 'warning');
 				else throw err;
 			}
 		});
@@ -278,7 +285,7 @@ export async function render(container, [codigo] = []) {
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
-				// (las reglas lo exigen: socioPuedeCancelar en firestore.rules).
+				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
 				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
 	}
 
@@ -301,8 +308,17 @@ export async function render(container, [codigo] = []) {
 	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelComision(r, Date.now())));
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
+	// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).
+	// Se pinta cuando llega, sin hacer esperar a la pantalla.
+	const indicador = h('div', {});
+	if (session.isAdmin) estadoServidor().catch(() => 'error').then((servidor) => {
+		indicador.className = 'small text-muted mb-2 d-flex align-items-center gap-1';
+		indicador.replaceChildren(h('span', { class: servidor === 'activo' ? 'icon-check text-success' : 'icon-exclamation-triangle text-warning', 'aria-hidden': 'true' }),
+			`Reservas por servidor: ${servidor === 'activo' ? 'activo' : servidor === 'sin configurar' ? 'sin configurar' : 'con error (revisa la cuenta de escritura en Netlify)'}`);
+	});
 	mount(container,
 		pageHeader('Solicitudes'),
+		indicador,
 		variosChats.length ? h('div', { class: 'alert alert-warning d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
 			`${variosChats.join(', ')}: ${variosChats.length === 1 ? 'esta solicitud tiene' : 'estas solicitudes tienen'} más de un chat. Revisa cuál es el del cliente; hasta entonces el socio no puede confirmarla ni cancelarla.`) : null,
 		admin ? [
