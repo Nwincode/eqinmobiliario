@@ -3459,7 +3459,8 @@ a:hover > .eq-ic-fin,
 .aviso-idioma a,
 .post-card-mas,
 .blog-mas a,
-.features-1 .learn-more {
+.features-1 .learn-more,
+.vip-footer a {
 	display: inline-block;
 	min-width: 44px;
 	padding-block: 14px;
@@ -3472,6 +3473,12 @@ a:hover > .eq-ic-fin,
 	margin-block: -10px;
 }
 .nav-brand {
+	min-height: 44px;
+}
+/* Cabecera de la landing VIP: botones de 44 px (en celular el WhatsApp va en la barra de abajo). */
+.vip-header .btn {
+	display: inline-flex;
+	align-items: center;
 	min-height: 44px;
 }
 /* Buscador por fechas: cada campo con su alto de toque, en una sola fila con los huéspedes. */

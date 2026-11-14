@@ -391,17 +391,15 @@ export async function traductorLibre(texto, par = 'es|en') {
 	return out.join('\n\n');
 }
 
-// Descripción en inglés armada con los datos de la propiedad (cuando no hay traductor).
-function descripcionPlantillaEn(p, amenEn) {
-	const tipo = TIPO_EN[p.tipo] || 'Property';
-	const d = datosEn(p);
+// Descripción en inglés cuando no hay traductor: la presentación (tipo, operación y lugar) y qué hacer. Como en
+// español (admin/js/descripcion.js), sin copiar campos (amenidades, precio): la página los muestra al día.
+function descripcionPlantillaEn(p) {
 	return [
-		`${tipo} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.${d.length ? ` It features ${unirEn(d)}.` : ''}`,
-		amenEn.length ? `**Amenities:**\n${amenEn.map((a) => `- ${a}`).join('\n')}` : '',
+		`${TIPO_EN[p.tipo] || 'Property'} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.`,
 		// Una casa por noche se reserva en la página: su precio cambia por fechas y lleva impuestos aparte.
 		p.operacion === 'vacacional' ? 'Pick your dates on this page to see availability and the total, taxes included.'
-			: `Price: ${precioEn(p)}. Contact an advisor for full details or to schedule an in-person or live video tour.`
-	].filter(Boolean).join('\n\n');
+			: 'Contact an advisor for full details or to schedule an in-person or live video tour.'
+	].join('\n\n');
 }
 
 // Título que armaba la regla anterior (repetía la zona y cortaba a 90 letras). Solo sirve para reconocer
@@ -430,8 +428,8 @@ async function traducir({ propiedad: p }) {
 	} catch {
 		descripcion = '';
 	}
-	if (!descripcion) descripcion = descripcionPlantillaEn(p, amenidades);
-	else if (datosEn(p).length && !/bedroom|sq ft/i.test(descripcion)) descripcion += `\n\nKey facts: ${unirEn(datosEn(p))}.${p.operacion === 'vacacional' ? '' : ` Price: ${precioEn(p)}.`}`;
+	// Sin «Key facts» al final: habitaciones, medidas y precio ya salen de sus campos en la página.
+	if (!descripcion) descripcion = descripcionPlantillaEn(p);
 	const d = datosEn(p);
 	const vip = p.vip ? p.vipLanding || {} : {};
 	// Textos de la renta vacacional, línea por línea (las reglas van una por línea). Si el traductor

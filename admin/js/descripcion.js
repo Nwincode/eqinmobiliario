@@ -62,6 +62,7 @@ function introduccion(p) {
 // quedaban viejas («Hasta 1 huésped» con la ficha en 7) y repetían los bloques de la página. Aquí se quita
 // exactamente cada sección generada: una línea que es solo uno de esos títulos en negrita y las viñetas que la
 // siguen. Lo demás (párrafos, la nota del precio, listas escritas a mano con otro título) queda igual.
+// También el párrafo «Key facts: … Price: …» que el traductor sin IA (admin/js/reglas.js) agregaba al inglés.
 const esTitulo = (l) => {
 	const m = /^\s*\*\*([^*]+?):?\*\*\s*:?\s*$/.exec(l);
 	return Boolean(m) && TITULOS.some((t) => t.toLowerCase() === m[1].trim().toLowerCase());
@@ -70,6 +71,7 @@ export function sinBloquesGenerados(descripcion = '') {
 	const lineas = String(descripcion || '').replace(/\r/g, '').split('\n');
 	const out = [];
 	for (let i = 0; i < lineas.length; i++) {
+		if (/^\s*Key facts: .*\.\s*$/.test(lineas[i])) continue;
 		if (!esTitulo(lineas[i])) { out.push(lineas[i]); continue; }
 		while (i + 1 < lineas.length && /^\s*([-*+]\s|$)/.test(lineas[i + 1]) && !(lineas[i + 1].trim() === '' && !/^\s*[-*+]\s/.test(lineas[i + 2] || ''))) i++;
 	}

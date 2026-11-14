@@ -81,12 +81,13 @@ export function lugarDe(p, conDireccion = false) {
 }
 
 // Departamento de Guatemala de cada municipio o lugar que usa el inventario (Google: addressRegion; portales:
-// provincia). Se busca primero la zona (Monterrico es un lugar con nombre propio) y después la ciudad. Si no
-// está en la tabla, no se inventa: queda vacío y quien lo usa omite el campo.
+// provincia). Se busca primero la zona (Monterrico es un lugar con nombre propio) y después la ciudad, y el
+// nombre tiene que ser el de la tabla completo: «Colonia Las Flores» no es Flores (Petén). Si no está en la
+// tabla, no se inventa: queda vacío y quien lo usa omite el campo.
 const DEPARTAMENTOS = {
 	Guatemala: ['guatemala', 'ciudad de guatemala', 'guatemala city', 'mixco', 'villa nueva', 'villa canales', 'santa catarina pinula',
 		'san jose pinula', 'fraijanes', 'san miguel petapa', 'amatitlan', 'chinautla', 'san juan sacatepequez', 'san pedro sacatepequez',
-		'san pedro ayampuc', 'palencia', 'chuarrancho', 'san raymundo', 'carretera a el salvador'],
+		'san pedro ayampuc', 'palencia', 'chuarrancho', 'san raymundo'],
 	'Sacatepéquez': ['antigua', 'antigua guatemala', 'la antigua guatemala', 'jocotenango', 'ciudad vieja', 'san lucas sacatepequez',
 		'santiago sacatepequez', 'sumpango', 'pastores', 'santa maria de jesus', 'san antonio aguas calientes', 'alotenango', 'sacatepequez'],
 	'Santa Rosa': ['monterrico', 'taxisco', 'chiquimulilla', 'cuilapa', 'santa rosa', 'barberena'],
@@ -104,15 +105,12 @@ const DEPARTAMENTOS = {
 	'El Progreso': ['el progreso', 'guastatoya', 'sanarate']
 };
 const sinTildes = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-const MUNICIPIOS = Object.entries(DEPARTAMENTOS).flatMap(([dep, lugares]) => lugares.map((l) => [l, dep]))
-	.sort((a, b) => b[0].length - a[0].length);
+const MUNICIPIOS = new Map(Object.entries(DEPARTAMENTOS).flatMap(([dep, lugares]) => lugares.map((l) => [l, dep])));
 export function departamentoDe(p) {
+	// «Zona 10» y «Km 25.5 Carretera a El Salvador» no son municipios: se sigue con la ciudad.
 	for (const campo of [p.zona, p.ciudad]) {
-		const t = sinTildes(campo);
-		if (!t) continue;
-		// «Zona 10» y «Km 25.5 Carretera a El Salvador» no son municipios: se sigue con la ciudad.
-		const hit = MUNICIPIOS.find(([l]) => new RegExp(`(^|[^a-z0-9])${l}([^a-z0-9]|$)`).test(t));
-		if (hit) return hit[1];
+		const dep = MUNICIPIOS.get(sinTildes(campo).replace(/^(municipio|ciudad) de /, ''));
+		if (dep) return dep;
 	}
 	return '';
 }

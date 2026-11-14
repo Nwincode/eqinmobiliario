@@ -1373,7 +1373,7 @@ export function propertyPage(ctx, p) {
 	const galeria = `<div class="ficha-galeria-wrap">
 	<section class="ficha-galeria ficha-galeria-${Math.min(fotos.length, 5)}" aria-label="${t.galeriaFotos}">
 		${visibles.map((f, i) => `<button type="button" class="ficha-foto" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">
-			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, sizesGaleria(fotos.length, i))}${i ? ' loading="lazy"' : ' fetchpriority="high"'}>
+			<img src="${esc(f.url)}" alt="${esc(photoAlt(p, i))}"${fotoAttrs(f.url, sizesGaleria(fotos.length, i))}${i ? ' loading="lazy"' : ' fetchpriority="high"'} width="1200" height="900">
 		</button>`).join('')}
 	</section>
 	${cerrada ? `<span class="ficha-sello">${ic('key')}${esc(estadoLabel(p))}</span>` : ''}
@@ -1597,7 +1597,7 @@ export function vipLandingPage(ctx, p) {
 			<div class="d-flex gap-2">
 				${ctx.altLang && p._alternates ? `<a href="${esc(ctx.altLang(propertyUrl(p), p))}" class="btn btn-sm btn-outline-light">${ic('globe')}${t.otroIdioma}</a>` : ''}
 				<a href="${r.vip}" class="btn btn-sm btn-outline-light d-none d-md-inline-block">${ic('diamond')}${t.masVip}</a>
-				${wa ? `<a href="${esc(wa)}" class="btn btn-sm btn-light" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a>` : ''}
+				${wa ? `<a href="${esc(wa)}" class="btn btn-sm btn-light d-none d-md-inline-flex" target="_blank" rel="noopener" data-track="Contact"><span class="icon-whatsapp me-1"></span> WhatsApp</a>` : ''}
 			</div>
 		</div>
 	</header>

@@ -150,8 +150,12 @@ test('ficha: sin bloques viejos en la descripción, ubicación sin repetir, depa
 test('VIP con propiedades se indexa; tarjetas sin puntos y con ancho y alto', () => {
 	assert.ok(indexa(de('/vip/')));
 	assert.doesNotMatch(de('/propiedades/'), /prop-puntos/);
-	for (const u of ['/vip/', '/blog/', '/propiedades/']) {
-		for (const m of de(u).matchAll(/<img\b[^>]*>/g)) assert.match(m[0], /width="\d+"|class="nav-logo-img"/, `${u}: ${m[0].slice(0, 120)}`);
+	// Toda imagen con src lleva ancho y alto (sin saltos al cargar), en todas las páginas.
+	for (const [u, h] of Object.entries(html)) {
+		for (const m of h.matchAll(/<img\b[^>]*\ssrc="[^"]*"[^>]*>/g)) {
+			if (/display:none/.test(m[0])) continue; // píxel de seguimiento
+			assert.match(m[0], /width="\d+"[^>]*height="\d+"|height="\d+"[^>]*width="\d+"|class="nav-logo-img"/, `${u}: ${m[0].slice(0, 120)}`);
+		}
 	}
 	// Solo las dos primeras tarjetas del listado se cargan de entrada.
 	const cards = [...de('/propiedades/').matchAll(/<div class="property-item"[\s\S]*?<img src="[^"]+"[^>]*>/g)].map((m) => /loading="lazy"/.test(m[0]));

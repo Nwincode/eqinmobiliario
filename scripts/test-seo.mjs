@@ -82,6 +82,11 @@ test('departamento: por zona y después por ciudad; si no se conoce, vacío', ()
 	assert.equal(departamentoDe({ zona: 'Antigua Guatemala', ciudad: 'Guatemala' }), 'Sacatepéquez');
 	assert.equal(departamentoDe({ ciudad: 'Panajachel' }), 'Sololá');
 	assert.equal(departamentoDe({ zona: 'Zona 4', ciudad: 'Narnia' }), '');
+	// Una colonia o aldea que contiene el nombre de otro lugar no es ese lugar.
+	assert.equal(departamentoDe({ zona: 'Colonia Las Flores', ciudad: 'Guatemala' }), 'Guatemala');
+	assert.equal(departamentoDe({ zona: 'Tikal Futura', ciudad: 'Guatemala' }), 'Guatemala');
+	assert.equal(departamentoDe({ zona: 'Santa Elena Barillas', ciudad: 'Villa Canales' }), 'Guatemala');
+	assert.equal(departamentoDe({ zona: 'Zona 10', ciudad: 'Ciudad de Guatemala' }), 'Guatemala');
 });
 
 test('enlaces a listados que no existen van al padre más cercano con casas; los vacíos no se muestran', () => {
@@ -119,6 +124,7 @@ test('descripción vieja: se quitan exactamente las secciones que armaba la plan
 	const vieja = 'Casa frente al mar.\n\n**Características de la propiedad**\n- Hasta 1 huésped\n\n**Amenidades**\n- Piscina\n- Jardín\n\n**Detalles técnicos**\n- Tipo: Casa\n\n**Para tu estadía**\n- Estadía mínima: 1 noche\n- Revisá el calendario\n\n*El precio no incluye gastos de escrituración ni timbres fiscales.*';
 	assert.equal(sinBloquesGenerados(vieja), 'Casa frente al mar.\n\n*El precio no incluye gastos de escrituración ni timbres fiscales.*');
 	assert.equal(sinBloquesGenerados('Intro.\n\n**Property features**\n- Up to 1 guest\n\n**For your stay**\n- Minimum stay: 1 night'), 'Intro.');
+	assert.equal(sinBloquesGenerados('Intro.\n\nKey facts: 4 bedrooms and 2 bathrooms. Price: $120.00/night.'), 'Intro.');
 	// Lo escrito a mano con otro título queda.
 	assert.equal(sinBloquesGenerados('Intro.\n\n**Lo mejor**\n- Vista'), 'Intro.\n\n**Lo mejor**\n- Vista');
 	// El generador ya no copia campos: solo la presentación y la nota del precio.
