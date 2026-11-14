@@ -5,7 +5,8 @@ import path from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+// DIST_DIR: servir otra carpeta (la misma variable que usa scripts/build.mjs).
+const DIST = process.env.DIST_DIR ? path.resolve(process.env.DIST_DIR) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const PORT = Number(process.env.PORT) || 8080;
 const TYPES = {
 	'.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript',

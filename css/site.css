@@ -32,8 +32,7 @@
 }
 /* Flecha y contador encima de una foto (tarjetas y ficha en celular). */
 .eq-flecha-sobre,
-.foto-contador,
-.prop-puntos {
+.foto-contador {
 	position: absolute;
 	z-index: 3;
 }
@@ -54,24 +53,6 @@
 	color: var(--eq-white);
 	font-size: 12px;
 	pointer-events: none;
-}
-.prop-puntos {
-	left: 0;
-	right: 0;
-	bottom: 10px;
-	display: flex;
-	justify-content: center;
-	gap: 5px;
-	pointer-events: none;
-}
-.prop-puntos i {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: color-mix(in srgb, var(--eq-white) 55%, transparent);
-}
-.prop-puntos .on {
-	background: var(--eq-white);
 }
 /* Con ratón las flechas aparecen al pasar; al tacto se desliza con el dedo. */
 .prop-fotos .eq-flecha {
@@ -392,6 +373,7 @@
 }
 .vip-card img {
 	width: 100%;
+	height: auto;
 	aspect-ratio: 16 / 10;
 	object-fit: cover;
 	transition: transform .5s ease;
@@ -492,8 +474,12 @@
 	height: 100%;
 	box-shadow: 0 10px 30px -20px rgba(0, 0, 0, .35);
 }
+.post-card-img {
+	display: block;
+}
 .post-card-img img {
 	width: 100%;
+	height: auto;
 	aspect-ratio: 16 / 9;
 	object-fit: cover;
 }
@@ -3460,4 +3446,59 @@ a:hover > .eq-ic-fin,
 @media (min-width: 768px) {
 	.vac-buscar { margin-top: -104px; margin-bottom: 40px; }
 	.vac-pasos { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ================================================================
+   Área de toque de al menos 44 px (regla del sitio)
+   Los enlaces que van dentro de una línea (migas, ubicación, contacto, «Leer más», aviso de idioma) crecen
+   hacia arriba y hacia abajo sin mover el texto: relleno y margen negativo del mismo tamaño.
+   ================================================================ */
+.breadcrumb a,
+.ficha-lugar a,
+.contact-list a,
+.aviso-idioma a,
+.post-card-mas,
+.blog-mas a,
+.features-1 .learn-more,
+.vip-footer a {
+	display: inline-block;
+	min-width: 44px;
+	padding-block: 14px;
+	margin-block: -14px;
+}
+/* El selector de idioma se ve igual de compacto; solo el enlace crece (sin fondo, no se nota). */
+.site-nav .lang-switch a {
+	min-width: 44px;
+	padding-block: 14px !important;
+	margin-block: -10px;
+}
+.nav-brand {
+	min-height: 44px;
+}
+/* Cabecera de la landing VIP: botones de 44 px (en celular el WhatsApp va en la barra de abajo). */
+.vip-header .btn {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
+/* Buscador por fechas: cada campo con su alto de toque, en una sola fila con los huéspedes. */
+.vac-buscar input,
+.vac-buscar select {
+	min-height: 44px;
+}
+
+/* Precios de una zona: el rango a lo ancho y mediana y m² juntos debajo (sin hueco); en computadora, una fila. */
+.zona-precios .prop-facts {
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.zona-precios .prop-facts > div:first-child {
+	grid-column: 1 / -1;
+}
+@media (min-width: 768px) {
+	.zona-precios .prop-facts {
+		grid-template-columns: 2fr 1fr 1fr;
+	}
+	.zona-precios .prop-facts > div:first-child {
+		grid-column: auto;
+	}
 }

@@ -2,6 +2,7 @@
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
 import { M2_A_FT2, dinero, decimales } from './formato.js';
 import { enOperacion, operacionHashtag } from './estados.js';
+import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
 const TC = 7.7; // 1 US$ ≈ 7.7 Q
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -25,10 +26,6 @@ const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 const enUSD = (precio, moneda) => (moneda === 'GTQ' ? n(precio) / TC : n(precio));
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
-// ¿El texto `a` ya nombra a `b`? Compara sin acentos y por palabras completas ("zona 1" no es "zona 10").
-const nombra = (a, b) => new RegExp(`(^|[^a-z0-9])${sinAcentos(b).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(sinAcentos(a));
-// Quita las partes que otra ya dice ("Vista Hermosa, zona 15" + "Zona 15" → solo la primera).
-const sinRepetir = (partes) => partes.filter(Boolean).filter((x, i, a) => !a.some((y, j) => j !== i && nombra(y, x) && (j < i || !nombra(x, y))));
 const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');
 const url = (p) => (p.slug ? `${location.origin}/propiedad/${p.slug}/` : location.origin);
 
@@ -394,23 +391,31 @@ export async function traductorLibre(texto, par = 'es|en') {
 	return out.join('\n\n');
 }
 
-// Descripción en inglés armada con los datos de la propiedad (cuando no hay traductor).
-function descripcionPlantillaEn(p, amenEn) {
-	const tipo = TIPO_EN[p.tipo] || 'Property';
-	const d = datosEn(p);
+// Descripción en inglés cuando no hay traductor: la presentación (tipo, operación y lugar) y qué hacer. Como en
+// español (admin/js/descripcion.js), sin copiar campos (amenidades, precio): la página los muestra al día.
+function descripcionPlantillaEn(p) {
 	return [
-		`${tipo} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.${d.length ? ` It features ${unirEn(d)}.` : ''}`,
-		amenEn.length ? `**Amenities:**\n${amenEn.map((a) => `- ${a}`).join('\n')}` : '',
+		`${TIPO_EN[p.tipo] || 'Property'} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.`,
 		// Una casa por noche se reserva en la página: su precio cambia por fechas y lleva impuestos aparte.
 		p.operacion === 'vacacional' ? 'Pick your dates on this page to see availability and the total, taxes included.'
-			: `Price: ${precioEn(p)}. Contact an advisor for full details or to schedule an in-person or live video tour.`
-	].filter(Boolean).join('\n\n');
+			: 'Contact an advisor for full details or to schedule an in-person or live video tour.'
+	].join('\n\n');
 }
 
 // Título que armaba la regla anterior (repetía la zona y cortaba a 90 letras). Solo sirve para reconocer
 // los que quedaron guardados así y corregirlos; un título escrito por alguien no coincide.
 export const tituloEnViejo = (p) => `${TIPO_EN[p.tipo] || 'Property'} ${p.operacion === 'renta' ? 'for Rent' : 'for Sale'} in ${
 	p.direccion && p.direccion !== p.zona ? `${p.direccion}, ${p.zona || ''}` : p.zona || p.ciudad || 'Guatemala'}`.replace(/,\s*$/, '').slice(0, 90);
+
+// SEO en inglés que armaba la regla anterior («Lot for Sale Guatemala»: sin zona cuando no había, y «Guatemala,
+// Guatemala»). Solo sirve para reconocer el que quedó guardado así: el sitio lo reemplaza por el automático.
+export function seoEnViejo(p) {
+	const tipo = TIPO_EN[p.tipo] || 'Property', op = opEn(p), d = datosEn(p);
+	return {
+		titulo: `${tipo} ${op} ${p.zona || ''} Guatemala${n(p.habitaciones) ? ` | ${n(p.habitaciones)} Bed` : ''}`.replace(/\s+/g, ' ').slice(0, 65),
+		descripcion: `${tipo} ${op.toLowerCase()} in ${p.zona || 'Guatemala'}, Guatemala${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioEn(p)}.`.slice(0, 155)
+	};
+}
 
 async function traducir({ propiedad: p }) {
 	const tipo = TIPO_EN[p.tipo] || 'Property';
@@ -423,8 +428,8 @@ async function traducir({ propiedad: p }) {
 	} catch {
 		descripcion = '';
 	}
-	if (!descripcion) descripcion = descripcionPlantillaEn(p, amenidades);
-	else if (datosEn(p).length && !/bedroom|sq ft/i.test(descripcion)) descripcion += `\n\nKey facts: ${unirEn(datosEn(p))}.${p.operacion === 'vacacional' ? '' : ` Price: ${precioEn(p)}.`}`;
+	// Sin «Key facts» al final: habitaciones, medidas y precio ya salen de sus campos en la página.
+	if (!descripcion) descripcion = descripcionPlantillaEn(p);
 	const d = datosEn(p);
 	const vip = p.vip ? p.vipLanding || {} : {};
 	// Textos de la renta vacacional, línea por línea (las reglas van una por línea). Si el traductor
@@ -442,8 +447,9 @@ async function traducir({ propiedad: p }) {
 	const comoLlegar = await porLineas(v.comoLlegar), reglas = await porLineas(v.reglas), cancelacion = await porLineas(v.cancelacion);
 	return {
 		titulo, descripcion, amenidades, comoLlegar, reglas, cancelacion,
-		seoTitulo: `${tipo} ${op} ${p.zona || ''} Guatemala${n(p.habitaciones) ? ` | ${n(p.habitaciones)} Bed` : ''}`.replace(/\s+/g, ' ').slice(0, 65),
-		seoDescripcion: `${tipo} ${op.toLowerCase()} in ${p.zona || 'Guatemala'}, Guatemala${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioEn(p)}.`.slice(0, 155),
+		// El mismo título automático que el sitio (admin/js/seo-auto.js), con el título ya traducido.
+		seoTitulo: autoSeoTitle({ ...p, titulo }, true),
+		seoDescripcion: `${tipo} ${op.toLowerCase()} in ${sinRepetir([p.zona, p.ciudad, 'Guatemala']).join(', ')}${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioEn(p)}.`.slice(0, 155),
 		vipTitular: vip.titular ? titulo : '',
 		vipSubtitular: vip.subtitular ? `${tipo} ${op.toLowerCase()} in ${p.zona || 'Guatemala'}${d.length ? ` with ${unirEn(d.slice(0, 2))}` : ''}.` : '',
 		puntosClave: (vip.puntosClave || []).length ? [...d.slice(0, 4), ...amenidades.slice(0, 2)].slice(0, 6) : [],

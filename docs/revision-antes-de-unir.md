@@ -81,8 +81,24 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | El cambio de estado en lote y la importación dejaban poner «Vendida» a una casa por noche, aunque el formulario ya no lo ofrecía. | Una regla de datos vive en una sola función (`incoherencia`) y la usan todas las entradas: formulario, lote e importación. |
 | La tabla de precios por noche ponía «Al público» antes de los impuestos y no decía cuánto paga el cliente. | Los montos van en el orden en que se suman y terminan en el total que paga el cliente. |
 | El botón «Traducir» de una casa por noche mandaba la dirección privada al traductor. | Todo lo que sale a un servicio externo pasa por la misma limpieza que lo que se publica (`paraTraducir`). |
+| Las fichas por noche decían «Hasta 1 huésped» y «Estadía mínima» en la descripción mientras los campos decían otra cosa: «Mejorar descripción» copiaba campos al texto. | Un texto generado no copia datos que ya son campos; lo viejo se limpia al publicar (`sinBloquesGenerados`). |
+| Carruseles con puntos y tarjetas unas con puntos y otras con «1 / 8». | Carruseles con `nav: false`; la misma pieza (`propertyCard`) para todas las tarjetas. |
+| Enlaces y campos de 14 a 38 px en celular (migas, «Leer más», ES/EN, fechas del buscador). | Medir en 390 px que todo lo que se toca mida 44 px o más. |
+| Botones de zona con ícono y de tipo sin ícono en el mismo grupo. | En un grupo de enlaces, todos con ícono o ninguno. |
 
-## 6. Cómo se le responde al usuario
+## 6. SEO del sitio público
+
+| Error que pasó | Revisión |
+|---|---|
+| Páginas de zona con una sola casa, /vip/ y /en/luxury/ «Muy pronto» se indexaban y estaban en el sitemap. | Una página vacía o con poco contenido va `noindex` y fuera del sitemap; la regla vive en `scripts/lib/landings.mjs` y el sitemap sale de la etiqueta robots (`npm test`: `test-sitio.mjs`). |
+| El blog enlazaba a `/propiedades/zona-16/`, que no existía. | Los enlaces del contenido pasan por `resolver` (van al listado padre) y el build avisa cualquier enlace interno roto. |
+| El pie tenía dos enlaces al mismo destino y otros a listados sin casas («Propiedades en renta», «Rentar»). | Menú, pie y pastillas pasan por `visible` y no repiten destino. |
+| «Centro Vivo, zona 1, Zona 1, Guatemala»: la ubicación repetía la zona. | Lugares con `sinRepetir` (una sola regla, por palabras completas). |
+| `addressRegion` decía «Guatemala» para todo, también Monterrico. | Departamento con `departamentoDe`; si no se conoce, se omite. |
+| Títulos de 68 a 73 caracteres y en inglés «Lot for Sale Guatemala». | Título automático de 60 (`autoSeoTitle`), el guardado como automático se recalcula al publicar. |
+| Textos del sitio con «vos» (Revisá, Pedile, Entrás) junto a «tú». | El sitio público usa «tú»: revisar textos nuevos de `i18n.mjs`, plantillas y textos generados. |
+
+## 7. Cómo se le responde al usuario
 
 | Error que pasó | Revisión |
 |---|---|

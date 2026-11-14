@@ -550,7 +550,7 @@ export async function render(container, [id]) {
 		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
 	const mejorar = async (lista) => {
 		const l = lista || elegidas();
-		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Se ordena con la plantilla (Características, Amenidades, Detalles técnicos y lo que no incluye el precio). El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
+		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Queda el párrafo de presentación y la nota de lo que no incluye el precio; se quitan las listas copiadas de la ficha (habitaciones, amenidades, estadía), que la página ya muestra de sus campos. El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
 		await enMasa(async (p) => {
 			const descripcion = generarDescripcion(p);
 			if (descripcion === p.descripcion) return;
@@ -862,7 +862,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 			const poner = (txt) => { schema.descInput.value = txt; schema.descInput.dispatchEvent(new Event('input')); };
 			el.append(h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: async () => {
-					if (!(await confirmDialog('Se ordenará la descripción con la plantilla: tu párrafo de presentación queda arriba y debajo se arman Características, Amenidades, Detalles técnicos y lo que no incluye el precio, con los datos de esta ficha. Podés deshacerlo.', { okText: 'Mejorar', danger: false }))) return;
+					if (!(await confirmDialog('Queda tu párrafo de presentación y la nota de lo que no incluye el precio; se quitan las listas copiadas de la ficha (habitaciones, amenidades, estadía), que la página ya muestra de sus campos. Puedes deshacerlo.', { okText: 'Mejorar', danger: false }))) return;
 					anterior = schema.descInput.value;
 					poner(generarDescripcion({ ...d, ...(esVacacional(d) ? { direccion: '' } : {}), descripcion: anterior }));
 					deshacer.hidden = false;

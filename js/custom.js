@@ -63,7 +63,7 @@
 				gutter: 30,
 				autoplay: true,
 				controls: false,
-				nav: true,
+				nav: false,
 				autoplayButtonOutput: false
 			});
 		}
@@ -76,6 +76,8 @@
 				gutter: 30,
 				items: 3,
 				autoplay: true,
+				// Sin puntos: solo las flechas finas (regla de carruseles).
+				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#property-nav',
 				responsive: {
@@ -109,6 +111,7 @@
 				items: 3,
 				gutter: 50,
 				autoplay: true,
+				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#testimonial-nav',
 				responsive: {
