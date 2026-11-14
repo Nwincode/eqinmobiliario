@@ -370,7 +370,7 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
 	const existe = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).status === 200;
 	// Una solicitud como la deja el sitio (solicitud, chat con su subtotal e índice), en fechas lejanas y libres.
-	const sembrar = async (id, llegada, noches = 2) => {
+	const sembrar = async (id, llegada, noches = 2, { indice = true } = {}) => {
 		const salida = new Date(Date.parse(`${llegada}T00:00:00Z`) + noches * 86400000).toISOString().slice(0, 10);
 		const subtotal = 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
 		const codigo = `EQ-${id.toUpperCase()}`, token = `Sembrado${id.replace(/[^A-Za-z0-9]/g, '')}LargoYAlAzar123456`;
@@ -379,7 +379,7 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 			propietarioId: sv('socio-prueba'), agentId: sv(''), estado: sv('nuevo'), origen: sv('reserva'), createdAt: ahora(), reserva: { mapValue: { fields: reserva } } });
 		await poner(`chats/${token}`, { codigo: sv(codigo), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), nombre: sv('Sol'),
 			llegada: sv(llegada), salida: sv(salida), noches: nv(noches), huespedes: nv(2), total: nv(total), subtotal: nv(subtotal), moneda: sv('USD'), idioma: sv('es'), leadId: sv(id), createdAt: ahora() });
-		await poner(`chatsPorSolicitud/${id}`, { token: sv(token) });
+		if (indice) await poner(`chatsPorSolicitud/${id}`, { token: sv(token) });
 		return { id, token, codigo, llegada, salida };
 	};
 	const leadDe = async (t) => (await leer(`chats/${t}`)).fields?.leadId?.stringValue || '';
@@ -406,6 +406,16 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const cancelaA = await api('socio', { accion: 'cancelar', leadId: a.id, motivo: 'Cliente canceló' });
 	paso('Servidor: el socio cancela por el servidor y las fechas quedan libres', cancelaA.status === 200 && (await leer(`reservas/${a.id}`)).fields?.estado?.stringValue === 'cancelada' && !(await reservadas()).includes(a.llegada), resp(cancelaA));
 
+	// A la vez: la misma solicitud dos veces (una sola reserva) y dos solicitudes con fechas que se cruzan (una sola gana).
+	const f1 = await sembrar('srv-f', iso(230));
+	const mismas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: f1.id }), api('socio', { accion: 'confirmar', leadId: f1.id })])).map((x) => x.status).sort();
+	paso('Servidor: la misma solicitud confirmada dos veces a la vez deja una sola reserva (200 y 409)', mismas.join() === '200,409', mismas.join());
+	const g1 = await sembrar('srv-g1', iso(240)), g2 = await sembrar('srv-g2', iso(241));
+	const cruzadas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: g1.id }), api('socio', { accion: 'confirmar', leadId: g2.id })])).map((x) => x.status).sort();
+	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422)', cruzadas.join() === '200,422', cruzadas.join());
+	const trasPagar = await api('socio', { accion: 'cancelar', leadId: lead1, motivo: 'Cliente canceló' });
+	paso('Servidor: el socio no cancela una reserva ya pagada (409)', trasPagar.status === 409 && (await leer(`reservas/${lead1}`)).fields?.estado?.stringValue === 'confirmada', resp(trasPagar));
+
 	// El socio directo en la base (con las reglas nuevas): ni la reserva, ni el chat, ni los datos de pago.
 	const c = await sembrar('srv-c', iso(210));
 	const socioToken = await tokenDe('socio');
@@ -428,7 +438,20 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const indicador = async () => { await ir(admin.p, '#/solicitudes', 3500); return (await admin.p.locator('.admin-main').innerText()).match(/Reservas por servidor: [^\n]+/)?.[0] || ''; };
 	const activo = await indicador();
 	const d = await sembrar('srv-d', iso(220));
+	const e = await sembrar('srv-e', iso(250), 2, { indice: false });
 	const puestas = await reglas('scripts/entorno/reglas-de-antes.rules');
+	try {
+		// Con la cuenta puesta y las reglas de antes: un chat de antes, sin su índice, lo responde el camino de antes.
+		await ir(socio.p, `#/solicitudes/${e.codigo}`, 3500);
+		await socio.p.locator('.card', { hasText: e.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
+		await espera(800);
+		const sinIndice = delServidor(socio.p);
+		await socio.p.locator('.modal button', { hasText: 'Fechas no disponibles' }).click();
+		const r8 = await sinIndice;
+		await espera(3000);
+		paso('Transición: un chat de antes sin índice (reglas de antes, cuenta puesta): el servidor no adivina y el socio responde por el camino de antes',
+			r8.status === 409 && r8.caminoDeAntes === true && (await leer(`chats/${e.token}`)).fields?.estado?.stringValue === 'no', `${resp(r8)} · ${await avisos(socio.p)}`);
+	} catch (err) { paso('Transición: chat de antes sin índice', false, err.message.slice(0, 160)); }
 	await escritura(false);
 	const apagado = await indicador();
 	paso('Solicitudes le dice al administrador si las reservas van por el servidor', /activo/.test(activo) && /sin configurar/.test(apagado), `${activo} → ${apagado}`);

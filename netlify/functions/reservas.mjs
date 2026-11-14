@@ -9,7 +9,8 @@
 // GET /api/reservas (administrador): { estado: 'activo' | 'sin configurar' | 'error' } para el aviso de Solicitudes.
 // Errores en JSON { error }: 401 sin sesión, 403 no es suyo, 404 no existe, 409 ya se respondió o no se puede,
 // 422 fechas que chocan o datos que faltan, 429 demasiados pedidos, 503 la cuenta de escritura no está (o Google la
-// rechaza): el panel entonces sigue por el camino de antes, que gobiernan las reglas publicadas.
+// rechaza): con 503 (o `caminoDeAntes`: un chat de antes sin índice) el panel sigue por el camino de antes, que
+// gobiernan las reglas publicadas.
 // Las reservas del administrador (Rentas y Solicitudes) siguen en el panel (admin/js/reservas.js).
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
@@ -36,7 +37,9 @@ async function cargar({ leer }, socio, leadId) {
 	if (!casa || casa.operacion !== 'vacacional' || !casa.propietarioId || casa.propietarioId !== socio.propietarioId) falla(403, 'Esta solicitud no es de una casa por noche tuya.');
 	const token = (await leer(`chatsPorSolicitud/${leadId}`))?.token;
 	const chat = TOKEN.test(token || '') ? await leer(`chats/${token}`) : null;
-	if (!chat || chat.leadId !== leadId) falla(409, 'Esta solicitud todavía no tiene su chat registrado: avísale al administrador (lo registra al abrir Solicitudes).');
+	// Un chat de antes, sin su índice: el servidor no adivina cuál es. El panel sigue por el camino de antes (lo deciden
+	// las reglas publicadas) hasta que el administrador abra Solicitudes y se lo ponga (ponerIndices).
+	if (!chat || chat.leadId !== leadId) throw Object.assign(new Respuesta(409, 'Esta solicitud todavía no tiene su chat registrado: avísale al administrador (lo registra al abrir Solicitudes).'), { caminoDeAntes: true });
 	return { lead, casa, token, chat };
 }
 
@@ -147,7 +150,7 @@ export default async (req) => {
 	try {
 		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || '')));
 	} catch (err) {
-		if (err instanceof Respuesta) return json(err.status, { error: err.message });
+		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
 		if (err?.codigo === 'ALREADY_EXISTS' || err?.codigo === 'FAILED_PRECONDITION') return json(409, { error: YA });
 		if (sinCuenta(err)) { console.error('Reservas: cuenta de escritura', err.message); return json(503, { error: 'La cuenta de escritura no funciona', detalle: err.message }); }

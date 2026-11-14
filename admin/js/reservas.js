@@ -161,13 +161,15 @@ export async function ponerAlDiaReservas(reservas, casas) {
 
 // ------------------------------------------------------------ Desde una solicitud (Solicitudes, con chat)
 // Lo que hace el socio pasa por el servidor: le manda la acción y la solicitud, y el servidor lee, calcula y escribe todo
-// (y manda los correos). null = el servidor todavía no tiene su cuenta de escritura (503): se sigue por el camino de antes.
+// (y manda los correos). null = el servidor todavía no tiene su cuenta de escritura (503) o el chat es de antes, sin su
+// índice: se sigue por el camino de antes.
 // Un error del servidor se muestra con su texto (`err.servidor` = el código: 403, 409, 422…).
 export async function porServidor(accion, leadId, extra = {}) {
 	const token = await session.user.getIdToken();
 	const res = await fetch('/api/reservas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accion, leadId, ...extra }) });
 	const cuerpo = await res.json().catch(() => ({}));
-	if (res.status === 503) return null;
+	// Sin cuenta de escritura (503) o un chat de antes sin su índice: lo deciden las reglas publicadas.
+	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
 	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status });
 	return cuerpo;
 }
