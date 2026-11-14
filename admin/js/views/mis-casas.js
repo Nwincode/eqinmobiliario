@@ -100,8 +100,11 @@ async function casa(container, id) {
 	const publico = (n) => plata(V.nochePublica(n, s.margen));
 
 	async function guardar(descripcion) {
-		const pub = V.planPublico(plan(), s.margen);
 		try {
+			// El margen lo pone el equipo y puede haber cambiado con esta pantalla abierta: el precio público sale del vigente.
+			const vigente = await getDoc(refSocio);
+			if (vigente.exists() && vigente.data().margen !== undefined) s.margen = vigente.data().margen;
+			const pub = V.planPublico(plan(), s.margen);
 			await guardarPrivadoVacacional(id, { precioBase: e.base, precioFinde: e.finde, tarifas: e.tarifas });
 			await updateDoc(refCasa, {
 				precio: V.precioDesde(pub, hoy()) || null, 'vacacional.base': pub.base, 'vacacional.finde': pub.finde, 'vacacional.tarifas': pub.tarifas,

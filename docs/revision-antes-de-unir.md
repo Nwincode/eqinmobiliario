@@ -101,6 +101,8 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 
 | Error que pasó | Revisión |
 |---|---|
+| Se podía borrar una casa por noche, o pasarla a venta, con huéspedes por venir; al borrarla quedaban sueltos los teléfonos de sus huéspedes. | Antes de borrar o cambiar de tipo un registro, mirar qué depende de él (`porVenir` en reservas.js) y borrar lo privado que cuelga de él. |
+| «Mis propiedades» calculaba el precio público con el margen que había al abrir la pantalla. | Lo que pone otra persona (el margen) se vuelve a leer justo antes de calcular con él. |
 | «Poner marca de agua» en lote se caía sin hacer nada y «Crear usuario» quedaba deshabilitado al fallar: leían `e.currentTarget` después de un `await` (ya es null). | El botón se guarda en una variable antes del primer `await`; buscar `currentTarget` en lo que se toque. Todo botón que se deshabilita se vuelve a habilitar si falla. |
 | «Duplicar» copiaba las noches reservadas y el calendario de Airbnb de la original; eliminar una casa la dejaba en la lista de su dueño. | Al copiar o borrar un registro, recorrer todo lo que cuelga de él (privado, listas de otros documentos, calendario). |
 

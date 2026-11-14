@@ -44,6 +44,14 @@ export async function deLaCasa(propertyId) {
 	return (await getDocs(query(collection(db, 'reservas'), ...filtros))).docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// Reservas confirmadas de una casa que todavía no terminan (hoy, día de Guatemala). Con alguna, la casa no se borra
+// ni deja de ser por noche: el huésped ya tiene esas fechas.
+export async function porVenir(propertyId) {
+	const hoy = window.EQVacacional.hoy();
+	return (await deLaCasa(propertyId)).filter((r) => r.estado === 'confirmada' && r.salida >= hoy);
+}
+export const avisoPorVenir = (lista, que) => `${que}: tiene ${lista.length === 1 ? 'una reserva confirmada por venir' : `${lista.length} reservas confirmadas por venir`} (${lista.slice(0, 3).map((r) => `${dia(r.llegada)} – ${dia(r.salida)}`).join(', ')}). Cancélalas primero en Rentas o en Solicitudes.`;
+
 export class ChoqueDeFechas extends Error {
 	constructor(c) { super(`Esas fechas chocan con otra reserva confirmada: ${dia(c.llegada)} – ${dia(c.salida)}${c.huesped ? ` (${c.huesped})` : ''}.`); this.choque = c; }
 }
