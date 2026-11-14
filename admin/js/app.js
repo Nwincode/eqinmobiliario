@@ -20,7 +20,7 @@ const ROUTES = [
 	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
 	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
 	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
-	{ path: 'rentas', label: 'Rentas vacacionales', icon: 'icon-calendar-check-o', group: 'Clientes', load: () => import('./views/rentas.js') },
+	{ path: 'rentas', label: 'Rentas vacacionales', icon: 'icon-calendar-check-o', group: 'Clientes', admin: true, load: () => import('./views/rentas.js') },
 	{ path: 'calculadora', label: 'Calculadora de renta', icon: 'icon-calculator', group: 'Herramientas', load: () => import('./views/calculadora.js') },
 	{ path: 'cotizaciones', label: 'Cotización de servicios', icon: 'icon-receipt', group: 'Herramientas', load: () => import('./views/cotizacion.js') },
 	{ path: 'ia', label: 'Asistente', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
@@ -233,9 +233,9 @@ if (!configured) {
 		root.replaceChildren(spinner('Verificando acceso…'));
 		try {
 			const snap = await getDoc(doc(db, 'users', user.uid));
-			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene acceso al panel. Si sos propietario o colaborador, pedíselo a tu asesor.');
+			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene acceso al panel. Si eres propietario o colaborador, pídeselo a tu asesor.');
 			const profile = snap.data();
-			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si creés que es un error, escribile a tu asesor.');
+			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si crees que es un error, escríbele a tu asesor.');
 			session.profile = profile;
 			if (session.esSocio) {
 				// Su nombre de rol (propietario o colaborador) y si tiene casas por noche (Solicitudes).

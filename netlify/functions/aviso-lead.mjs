@@ -1,8 +1,15 @@
 // Aviso inmediato por correo cuando alguien llena un formulario del sitio.
-// POST /api/aviso-lead (lo llama js/site.js después de guardar el lead en Firestore).
-// Solo escribe al equipo (AVISO_CORREO) y al asesor asignado: nunca a direcciones que mande el visitante.
+// POST /api/aviso-lead { id } (lo llama js/site.js después de guardar el lead en Firestore).
+// Lo que dice el correo sale del lead GUARDADO (se vuelve a leer por su id con la cuenta de servicio), no de lo que
+// trae la petición: así nadie usa esta dirección para mandarle al equipo un correo con lo que quiera. Solo uno recién
+// creado (10 minutos) y solo escribe al equipo (AVISO_CORREO) y al asesor asignado.
+// La lectura usa la misma cuenta de servicio que ya necesitan disponibilidad.mjs (el iCal privado), aviso-chat.mjs y los controles de
+// cada hora (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY): no hay nada nuevo que configurar. Sin ella no sale el
+// aviso (queda en el registro de la función); el visitante no lo nota: su lead ya quedó guardado y el sitio no espera
+// esta respuesta. Un mismo id se avisa una sola vez por instancia de la función (la cuenta solo lee: no puede marcar
+// el lead como avisado). Queda: dentro de esos 10 minutos, otra instancia podría repetir el aviso del mismo lead.
 import { json } from '../lib/auth.mjs';
-import { leerPublico } from '../lib/firestore.mjs';
+import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
 import { telefonoWa as telWa } from '../../admin/js/formato.js';
 import { enviarCorreo, correoConfigurado, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 
@@ -16,18 +23,37 @@ function limitado(ip) {
 }
 
 const cut = (v, n) => String(v ?? '').trim().slice(0, n);
+// Leads ya avisados por esta instancia (id → hora), para no mandar dos veces el mismo.
+const avisados = new Map();
 
 export default async (req, context) => {
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!correoConfigurado()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	if (limitado(context?.ip || req.headers.get('x-nf-client-connection-ip') || 'anon')) return json(429, { error: 'Demasiados avisos seguidos' });
 
-	let d;
+	let id;
 	try {
-		d = await req.json();
+		id = cut((await req.json())?.id, 60);
 	} catch {
 		return json(400, { error: 'Solicitud inválida' });
 	}
+	if (!/^[\w-]{8,60}$/.test(id)) return json(400, { error: 'Falta el lead' });
+	if (!datosConfigurados()) {
+		console.error('Aviso de lead: faltan GOOGLE_SA_EMAIL y GOOGLE_SA_KEY en Netlify; no se puede leer el lead y no sale el correo.');
+		return json(200, { enviado: false, motivo: 'Sin cuenta de servicio para leer el lead' });
+	}
+	for (const [k, t] of avisados) if (Date.now() - t > 10 * 60_000) avisados.delete(k);
+	if (avisados.has(id)) return json(200, { enviado: false, motivo: 'Ya se avisó' });
+	let d;
+	try {
+		d = await leerPrivado(`leads/${id}`);
+	} catch (err) {
+		console.error('Aviso de lead: no se pudo leer', err.message);
+		return json(502, { error: 'No se pudo leer el lead' });
+	}
+	const creado = d?.createdAt instanceof Date ? d.createdAt.getTime() : 0;
+	if (!d || Date.now() - creado > 10 * 60_000) return json(404, { error: 'Lead no encontrado' });
+	avisados.set(id, Date.now());
 	const lead = {
 		nombre: cut(d.nombre, 120),
 		telefono: cut(d.telefono, 40),

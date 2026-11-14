@@ -109,8 +109,10 @@ export const COLUMNAS = [
 	['deposito', ['deposito', 'deposito_reembolsable', 'deposit']],
 	['noches_min', ['noches_min', 'noches_minimas', 'minimo_noches', 'min_noches']],
 	['huespedes_max', ['huespedes_max', 'huespedes', 'capacidad', 'personas', 'max_huespedes']],
-	['ical', ['ical', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']]
-	// El socio (nombre, teléfono) no va en el CSV: se elige en la ficha y sus datos viven en Propietarios.
+	['ical', ['ical', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
+	// Su dueño: una ficha que ya existe en Propietarios, por su teléfono, nombre, correo o id (sus datos viven ahí; no
+	// se crean dueños desde el CSV). Obligatorio en una casa por noche.
+	['propietario', ['propietario', 'propietario_telefono', 'propietario_nombre', 'dueno', 'socio', 'propietario_id']]
 ];
 
 const ALIAS = new Map();
@@ -268,11 +270,26 @@ export function mapearAsesor(v, agentes) {
 	return a ? a.id : null;
 }
 
+// Dueño por id, teléfono completo (los mismos números; con o sin código de país), correo o nombre exacto (sin tildes
+// ni mayúsculas), entre las fichas de Propietarios. Solo enlaza si una sola ficha coincide.
+// Devuelve el id, '' si vacío, null si ninguna coincide o 'ambiguo' si coinciden varias.
+export function mapearDueno(v, duenos) {
+	const k = clave(v), numeros = String(v).replace(/\D/g, '');
+	if (!k) return '';
+	const mismoTel = (t) => {
+		const n = String(t || '').replace(/\D/g, '');
+		const [corto, largo] = n.length < numeros.length ? [n, numeros] : [numeros, n];
+		return corto.length >= 8 && largo.endsWith(corto) && largo.length - corto.length <= 3;
+	};
+	const ids = new Set(duenos.filter((x) => x.id === String(v).trim() || mismoTel(x.telefono) || (x.email && clave(x.email) === k) || clave(x.nombre || '') === k).map((x) => x.id));
+	return ids.size === 1 ? [...ids][0] : ids.size ? 'ambiguo' : null;
+}
+
 // ---------- Fila del CSV → datos de propiedad ----------
 
 // opciones: { operacion, tipo, estado, moneda } como listas [valor, etiqueta].
 // Devuelve { datos, errores }. datos solo trae los campos con valor en el CSV.
-export function filaAPropiedad(fila, { opciones, agentes = [] }) {
+export function filaAPropiedad(fila, { opciones, agentes = [], duenos = [] }) {
 	const datos = {}, errores = [];
 	const txt = (c) => String(fila[c] ?? '').trim();
 	if (txt('titulo')) datos.titulo = txt('titulo');
@@ -288,6 +305,12 @@ export function filaAPropiedad(fila, { opciones, agentes = [] }) {
 		const id = mapearAsesor(txt('asesor'), agentes);
 		if (id) datos.agentId = id;
 		else errores.push(`Asesor no encontrado: «${txt('asesor')}»`);
+	}
+	if (txt('propietario')) {
+		const id = mapearDueno(txt('propietario'), duenos);
+		if (id === 'ambiguo') errores.push(`Dueño ambiguo: «${txt('propietario')}» coincide con varias fichas de Propietarios (usa su teléfono completo)`);
+		else if (id) datos.propietarioId = id;
+		else errores.push(`Dueño no encontrado en Propietarios: «${txt('propietario')}» (créalo primero en Propietarios)`);
 	}
 	const numeros = { precio: 'precio', habitaciones: 'habitaciones', banos: 'banos', parqueos: 'parqueos', m2_construccion: 'm2Construccion', m2_terreno: 'm2Terreno', niveles: 'niveles', anio_construccion: 'anioConstruccion', mantenimiento: 'mantenimiento' };
 	for (const [c, campo] of Object.entries(numeros)) {
@@ -540,8 +563,8 @@ export async function sha256(buffer) {
 
 // Plantilla CSV (encabezados + 2 ejemplos).
 export const PLANTILLA = [
-	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'niveles', 'anio_construccion', 'mantenimiento', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical'],
-	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', '2', '2018', '150', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', ''],
-	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', '', '2020', '250', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', ''],
-	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', 'Juan Pérez', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', '1', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics']
+	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'propietario', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'niveles', 'anio_construccion', 'mantenimiento', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical'],
+	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', '2', '2018', '150', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', ''],
+	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', '', '2020', '250', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', ''],
+	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', '', '+502 5555 0001', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', '1', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics']
 ];

@@ -33,7 +33,14 @@ function esquema(agentes, reglas = REGLAS_POR_DEFECTO) {
 		{ name: 'requerimiento', label: 'Requerimiento', type: 'textarea', rows: 3, placeholder: 'Casa de 3 habitaciones, jardín, cerca de colegios…' },
 		{ type: 'section', label: 'Negocio' },
 		{ name: 'montoEstimado', label: 'Monto del negocio', type: 'number', cols: 4, help: 'Precio de venta; en renta, la renta mensual.' },
-		{ name: 'comisionPct', label: 'Comisión % (solo si es distinta)', type: 'number', cols: 4, help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		// Venta en %, renta en meses de renta (como la regla general): cada operación con su forma de cobrar.
+		{ name: 'comisionPct', label: 'Comisión % (solo si es distinta)', type: 'number', cols: 4, when: (d) => d.operacion !== 'renta', help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		{ name: 'comisionMeses', label: 'Comisión en meses de renta (solo si es distinta)', type: 'number', cols: 4, when: (d) => d.operacion === 'renta', help: `Vacío = regla general: ${textoRegla(reglas)}.` },
+		// Cliente de renta de antes con su comisión en %: se sigue usando hasta que se escriban los meses.
+		{ type: 'custom', when: (d) => d.operacion === 'renta' && d.comisionPct !== undefined && d.comisionPct !== null && d.comisionPct !== '' && (d.comisionMeses === undefined || d.comisionMeses === null || d.comisionMeses === ''), update: (el, d) => {
+			el.className = 'col-12 alert alert-warning small mb-0';
+			el.textContent = `Su comisión está en % (${d.comisionPct} % de la renta) y se sigue usando así. En renta va en meses: escribe los meses acordados.`;
+		} },
 		{ name: 'motivoPerdida', label: 'Motivo si se perdió', cols: 4 }
 	].filter(Boolean);
 }

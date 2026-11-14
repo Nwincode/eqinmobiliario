@@ -106,15 +106,21 @@ export async function render(container) {
 		btn.disabled = true;
 		try {
 			await setDoc(doc(db, 'settings', 'crm'), { ...nuevas, updatedAt: serverTimestamp() }, { merge: true });
-			Object.assign(reglas, nuevas);
+			Object.assign(reglas, nuevas, { parteAsesorFuente: 'regla' });
+			avisoParte.hidden = true;
 			toast('Regla de comisión guardada.');
 			calcular();
 		} catch (err) { showError(err); } finally { btn.disabled = false; }
 	};
+	// La parte del asesor que vale hoy y de dónde sale, mientras no se guarde aquí (antes había otra en Cotizaciones).
+	const DE_DONDE = { cotizaciones: 'la que se guardó en Cotizaciones', defecto: 'la de siempre (no hay una guardada)' };
+	const avisoParte = h('p', { class: 'small alert alert-warning py-2 mb-0 mt-3', hidden: reglas.parteAsesorFuente === 'regla' },
+		`Parte del asesor vigente: ${reglas.parteAsesorPct} %, ${DE_DONDE[reglas.parteAsesorFuente] || ''}. Es la misma para Reportes y las cotizaciones. Revisa este porcentaje y guarda la regla.`);
 	const tarjetaReglas = h('div', { class: 'card mb-4' },
 		h('div', { class: 'card-header bg-white fw-semibold' }, 'Regla general de comisión'),
 		h('div', { class: 'card-body' },
 			h('div', { class: 'row g-3 align-items-end' }, campos.map((c) => c.col)),
+			avisoParte,
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-3' },
 				h('span', { class: 'small text-muted me-auto' }, 'Se aplica a los clientes y propietarios sin comisión propia. Recomendado: 5 % en venta, 1 mes de renta y 50 % para el asesor.'),
 				h('button', { class: 'btn btn-primary btn-sm', onclick: (e) => guardarReglas(e.currentTarget) }, 'Guardar regla'))));

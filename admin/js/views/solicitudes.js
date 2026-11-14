@@ -9,7 +9,7 @@ import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, 
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
-import { traductorLibre } from '../reglas.js';
+import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
@@ -22,7 +22,7 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
 // Lo que el administrador debe atender; el texto sale en la tarjeta de Inicio.
-const ALERTAS = { tarde: 'Sin responder', mora: 'Comisión con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
+const ALERTAS = { tarde: 'Sin responder', mora: 'Ganancia de EQ con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
 const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
 function hace(desde) {
 	const min = Math.max(1, Math.round((Date.now() - desde) / 60000));
@@ -74,7 +74,7 @@ export async function render(container, [codigo] = []) {
 			const [s, c] = await Promise.all([getDocs(query(mensajes, orderBy('createdAt'))), getDoc(ref)]);
 			const todos = s.docs.map((d) => d.data());
 			// Cliente que escribe en inglés: sus mensajes se muestran también en español.
-			if (traducir) await Promise.all(todos.filter((m) => m.de === 'cliente' && !m.tipo && !traducidos.has(m.texto)).map(async (m) => traducidos.set(m.texto, await traductorLibre(m.texto, 'en|es'))));
+			if (traducir) await Promise.all(todos.filter((m) => m.de === 'cliente' && !m.tipo && !traducidos.has(m.texto)).map(async (m) => traducidos.set(m.texto, await traducirTexto(m.texto, 'en|es'))));
 			const ultimoMio = todos.filter((m) => m.de === yo).at(-1);
 			const visto = ultimoMio && ms(c.data()?.vistoCliente) >= ms(ultimoMio.createdAt) && ms(ultimoMio.createdAt) > 0;
 			lista.replaceChildren(...(todos.length ? todos.flatMap((m) => [h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}` },
@@ -93,7 +93,7 @@ export async function render(container, [codigo] = []) {
 			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
 			try {
 				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
-				if (traducir) texto = `${await traductorLibre(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
+				if (traducir) texto = `${await traducirTexto(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
 				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
 				campo.value = '';
 				avisarChat(ref.id);
@@ -140,12 +140,15 @@ export async function render(container, [codigo] = []) {
 
 	async function confirmar(l) {
 		const r = l.reserva;
+		// El precio del dueño y el margen (lo pone el equipo) pudieron cambiar con la pantalla abierta: se vuelven a leer.
+		const vigente = (await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'socio')).catch(() => null))?.data();
+		if (vigente) netos[l.propertyId] = vigente;
 		const c = cuenta(l);
 		if (!c) return toast('A esta casa le falta el precio del socio.', 'warning');
 		// Los datos de pago: el equipo los toma de la ficha; el dueño, de su resumen (cargarMiResumen).
 		const pago = !refChat(l) ? '' : admin ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : (await cargarMiResumen())?.datosPago;
-		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pedile al administrador que los guarde en tu ficha.', 'warning');
-		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la comisión de ${money(c.ganancia, r.moneda)} se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
+		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.', 'warning');
+		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(c.ganancia, r.moneda)}, su margen) se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
 				await confirmarSolicitud(l, c, { chat: chatDe(l), pago });
@@ -165,10 +168,10 @@ export async function render(container, [codigo] = []) {
 	}
 
 	async function pagada(l, res, nivel) {
-		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la comisión de ${money(res.comision.monto, res.moneda)}?`, { okText: 'Marcar pagada', danger: false }))) return;
+		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
 			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || l.propertyTitulo }, nivel);
-			toast('Comisión pagada.');
+			toast('Ganancia de EQ pagada.');
 		});
 	}
 
@@ -215,8 +218,8 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
 			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
-				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Comisión' : 'Comisión a pagar a EQ'} ${money(c.ganancia, r.moneda)}` : ''),
-			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Comisión: se paga el ${dia(com.vence)}`),
+				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, r.moneda)}` : ''),
+			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			ultimo ? h('div', { class: 'small text-muted' }, `${ultimo.que} ${ultimo.nombre} · ${formatDate(ultimo.cuando)}${sol.motivo ? ` · ${sol.motivo}` : ''}`) : null,
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
@@ -227,8 +230,8 @@ export async function render(container, [codigo] = []) {
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				est === 'confirmada' && datosChat[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
-				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
-				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,
+				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
+				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				// Con el pago recibido, cancelar anularía la comisión: solo el administrador.
 				est === 'confirmada' && r.salida > hoy() && (session.isAdmin || datosChat[r.codigo]?.estado !== 'pagada') ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
@@ -262,10 +265,10 @@ export async function render(container, [codigo] = []) {
 				numero('icon-money', Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
-				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar'], ['alerta', 'Con alerta']]))
+				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Ganancia de EQ por cobrar'], ['alerta', 'Con alerta']]))
 		] : peor >= 2 ? h('div', { class: 'alert alert-danger d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), peor === 3
-			? 'Tienes una comisión con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
-			: 'Tienes una comisión con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
+			? 'Tienes un pago a EQ con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
+			: 'Tienes un pago a EQ con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
 		lista);
 }
 

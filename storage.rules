@@ -1,12 +1,24 @@
 rules_version = '2';
 
-// Fotos públicas (cada una por su dirección); solo el equipo activo puede listar, subir o borrar imágenes (máx. 10 MB).
+// Fotos públicas (cada una por su dirección). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
+// o asesor activo; un dueño con acceso al panel no es del equipo); listar, solo el administrador. Los comprobantes tienen su regla:
+// se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los del cliente).
 service firebase.storage {
   match /b/{bucket}/o {
-    function isStaff() {
+    function usuario() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function conSesion() {
       return request.auth != null
         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.activo == true;
+        && usuario().activo == true;
+    }
+    function isStaff() {
+      return conSesion() && usuario().rol in ['admin', 'asesor'];
+    }
+    function foto(maxMb) {
+      return request.resource.size < maxMb * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
 
     // Comprobante de pago que el cliente adjunta en el chat de su reserva: solo fotos, hasta 5 MB,
@@ -18,16 +30,27 @@ service firebase.storage {
         && firestore.exists(/databases/(default)/documents/chats/$(token));
     }
 
+    // Comprobante de la comisión que el dueño (socio) le paga a EQ, en la carpeta de SU reserva
+    // (admin/js/views/solicitudes.js). Solo se agrega: nadie lo reemplaza ni lo borra.
+    match /comprobantes/{reservaId}/{archivo} {
+      allow create: if resource == null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif)')
+        && conSesion() && usuario().rol == 'socio'
+        && firestore.get(/databases/(default)/documents/reservas/$(reservaId)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
+    }
+
     match /{allPaths=**} {
-      // Cada foto se abre con su dirección; la lista de archivos solo la ve el equipo
-      // (los nombres de las carpetas de los chats son la llave de cada reserva).
+      // Cada foto se abre con su dirección; la lista de archivos solo la ve el administrador
+      // (los nombres de las carpetas de los chats son la llave de cada reserva; el panel no lista).
       allow get: if true;
-      allow list: if isStaff();
-      allow write: if isStaff()
-        && (request.resource == null
-            || (request.resource.size < 10 * 1024 * 1024
-                && request.resource.contentType.matches('image/.*')));
-      allow delete: if isStaff();
+      allow list: if conSesion() && usuario().rol == 'admin';
+    }
+    // Las fotos del sitio (propiedades, contenido, asesores…), cada una en su carpeta: el equipo.
+    // Los comprobantes (chats, comprobantes), solo con su regla de arriba.
+    match /{carpeta}/{resto=**} {
+      allow write: if isStaff() && !(carpeta in ['chats', 'comprobantes'])
+        && (request.resource == null || foto(10));
     }
   }
 }
