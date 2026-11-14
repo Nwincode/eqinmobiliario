@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -771,6 +771,10 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
+	// Un terreno no tiene cuartos, baños, parqueos, construcción, niveles ni año: no se le preguntan.
+	const construido = (d) => d.tipo !== 'terreno';
+	// La vista previa de Google usa el precio que verá el cliente (el de una casa por noche sale del precio del socio).
+	const conPrecio = (d) => (esVacacional(d) ? { ...d, ...vacacionalPublico(d) } : d);
 	return [
 		{ type: 'section', label: 'Datos principales' },
 		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
@@ -778,14 +782,14 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
 		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
 		{ name: 'operacion', label: 'Operación', type: 'select', options: OPERACIONES, cols: 3 },
-		{ name: 'tipo', label: 'Tipo', type: 'select', options: TIPOS, cols: 3 },
-		{ name: 'estado', label: 'Estado', type: 'select', options: ESTADOS, cols: 3, help: 'Vendida y rentada: solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
+		{ name: 'tipo', label: 'Tipo', type: 'select', options: (d) => TIPOS.filter(([v]) => tipoAplica(v, d.operacion)), cols: 3 },
+		{ name: 'estado', label: 'Estado', type: 'select', options: (d) => estadosPara(d.operacion).map((e) => [e.valor, e.label]), cols: 3, help: 'Las cerradas (vendida, rentada) solo se abren con su enlace. Pausada y retirada: no se ven en ningún lado.' },
 		// Renta vacacional: la atiende su socio; el asesor sale solo de la ficha del socio y no se pregunta.
 		{ name: 'agentId', label: 'Asesor responsable', type: 'select', options: agentOpts, cols: 3, disabled: !session.isAdmin, when: (d) => !esVacacional(d) },
 		// De quién es el inmueble o quién nos lo pasó. En renta vacacional es el socio que la atiende.
 		// Si lo lleva otro asesor no se cambia aquí: su lista de casas (Propietarios) volvería a reclamarla.
-		{ name: 'propietarioId', label: 'Propietario o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
-			help: 'Dueño o asesor colaborador. Se crea una vez en Propietarios.' },
+		{ name: 'propietarioId', label: 'Propietario, socio o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
+			help: 'El dueño, el socio de una casa por noche o un asesor colaborador. Se crea una vez en Propietarios.' },
 		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: 4 },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: 4, help: 'Número menor aparece primero.' },
@@ -844,14 +848,14 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
 
 		{ type: 'section', label: 'Características' },
-		{ name: 'habitaciones', label: 'Habitaciones', type: 'number', min: 0, cols: 2 },
-		{ name: 'banos', label: 'Baños', type: 'number', min: 0, step: 0.5, cols: 2 },
-		{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, cols: 2 },
-		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3 },
+		{ name: 'habitaciones', label: 'Habitaciones', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'banos', label: 'Baños', type: 'number', min: 0, step: 0.5, cols: 2, when: construido },
+		{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3, when: construido },
 		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
-		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2 },
-		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3 },
-		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d), help: 'En la misma moneda del precio.' },
+		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3, when: construido },
+		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d) && construido(d), help: 'En la misma moneda del precio.' },
 		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
@@ -902,7 +906,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
 			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
-			description: (d) => d.seo?.descripcion || (d.vip && d.vipLanding?.subtitular) || autoDescription(d),
+			description: (d) => d.seo?.descripcion || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],

@@ -62,6 +62,14 @@ export const AMENIDADES_COMUNES = [
 	['Gimnasio', 'Gym'], ['Área social', 'Social area'], ['Juegos infantiles', 'Playground'], ['Acepta mascotas', 'Pets allowed'],
 	['Aire acondicionado', 'Air conditioning'], ['Bodega', 'Storage room'], ['Cisterna', 'Water cistern'], ['Paneles solares', 'Solar panels']
 ];
+// Qué estados y qué tipos de inmueble aplican a cada operación: una venta no queda «Rentada», una renta no queda
+// «Vendida», y una casa por noche ni se vende ni recibe ofertas (sus fechas se reservan una por una) ni es un
+// terreno, una oficina, un local o una bodega.
+const ESTADOS_FUERA = { venta: ['rentada'], renta: ['vendida'], vacacional: ['reservada', 'vendida', 'rentada'] };
+export const estadosPara = (operacion) => ESTADOS_PROPIEDAD.filter((e) => !(ESTADOS_FUERA[operacion] || []).includes(e.valor));
+const TIPOS_POR_NOCHE = ['casa', 'apartamento', 'finca'];
+export const tipoAplica = (tipo, operacion) => operacion !== 'vacacional' || TIPOS_POR_NOCHE.includes(tipo);
+
 // Mascotas en una casa por noche: se dice una sola vez, en su selector (sí / no / sin indicar), no también como
 // amenidad. Quita esa amenidad de la lista y, si el selector estaba sin indicar, lo deja en «sí». Devuelve la casa.
 const esMascota = (a) => /mascota|\bpets?\b/i.test(String(a));

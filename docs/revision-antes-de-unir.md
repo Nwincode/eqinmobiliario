@@ -70,6 +70,7 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | El buscador quedaba tapado por la portada y no se podía tocar. | Lo que se ve ¿se puede tocar? Probar el clic, no solo la imagen. |
 | Los campos en inglés se veían vacíos y habilitados hasta guardar: parecía que había que llenarlos a mano. | Un campo que el sistema llena solo se llena a la vista, mientras se escribe; no se deja vacío esperando a «Guardar». |
 | Una casa por noche decía «Acepta mascotas» dos veces: como amenidad y en su selector de mascotas. | Antes de agregar un campo, buscar si ese dato ya se pide en otro lado; un dato, un solo lugar (`mascotasUnaVez`). |
+| En una casa por noche el formulario ofrecía «Vendida», «Terreno» o «Bodega», avisaba que faltaba el precio (ya puesto) y la vista de Google decía «A consultar»; a un terreno se le pedían cuartos y baños. | Al agregar una operación o un tipo, recorrer TODO el formulario con esa opción elegida: opciones de cada selector, avisos de «falta», vistas previas y textos automáticos (`estadosPara`, `tipoAplica`). |
 | La tabla de precios por noche ponía «Al público» antes de los impuestos y no decía cuánto paga el cliente. | Los montos van en el orden en que se suman y terminan en el total que paga el cliente. |
 | El botón «Traducir» de una casa por noche mandaba la dirección privada al traductor. | Todo lo que sale a un servicio externo pasa por la misma limpieza que lo que se publica (`paraTraducir`). |
 

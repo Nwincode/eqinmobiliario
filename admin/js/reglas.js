@@ -401,7 +401,9 @@ function descripcionPlantillaEn(p, amenEn) {
 	return [
 		`${tipo} ${opEn(p).toLowerCase()} in ${lugar(p) || 'Guatemala'}.${d.length ? ` It features ${unirEn(d)}.` : ''}`,
 		amenEn.length ? `**Amenities:**\n${amenEn.map((a) => `- ${a}`).join('\n')}` : '',
-		`Price: ${precioEn(p)}. Contact an advisor for full details or to schedule an in-person or live video tour.`
+		// Una casa por noche se reserva en la página: su precio cambia por fechas y lleva impuestos aparte.
+		p.operacion === 'vacacional' ? 'Pick your dates on this page to see availability and the total, taxes included.'
+			: `Price: ${precioEn(p)}. Contact an advisor for full details or to schedule an in-person or live video tour.`
 	].filter(Boolean).join('\n\n');
 }
 
@@ -422,7 +424,7 @@ async function traducir({ propiedad: p }) {
 		descripcion = '';
 	}
 	if (!descripcion) descripcion = descripcionPlantillaEn(p, amenidades);
-	else if (datosEn(p).length && !/bedroom|sq ft/i.test(descripcion)) descripcion += `\n\nKey facts: ${unirEn(datosEn(p))}. Price: ${precioEn(p)}.`;
+	else if (datosEn(p).length && !/bedroom|sq ft/i.test(descripcion)) descripcion += `\n\nKey facts: ${unirEn(datosEn(p))}.${p.operacion === 'vacacional' ? '' : ` Price: ${precioEn(p)}.`}`;
 	const d = datosEn(p);
 	const vip = p.vip ? p.vipLanding || {} : {};
 	// Textos de la renta vacacional, línea por línea (las reglas van una por línea). Si el traductor
