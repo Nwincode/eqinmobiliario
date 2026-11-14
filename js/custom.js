@@ -3,11 +3,33 @@
 	'use strict'
 
 
+	// Quien pidió menos movimiento al sistema (prefers-reduced-motion) ve todo quieto: sin animaciones al bajar
+	// y sin carruseles que avanzan solos (WCAG 2.2.2).
+	var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 	AOS.init({
 		duration: 800,
 		easing: 'slide',
-		once: true
+		once: true,
+		disable: quieto
 	});
+
+	// Un carrusel que avanza solo se detiene mientras el cursor o el foco del teclado están en él
+	// (tiny-slider hace lo del cursor con autoplayHoverPause; el foco, aquí).
+	var pausaConFoco = function (carrusel) {
+		var info = carrusel && carrusel.getInfo();
+		var caja = info && info.container && info.container.closest('.tns-outer');
+		if (!caja || quieto) return carrusel;
+		caja.addEventListener('focusin', function () { carrusel.pause(); });
+		caja.addEventListener('focusout', function (e) { if (!caja.contains(e.relatedTarget)) carrusel.play(); });
+		return carrusel;
+	};
+	// Opciones de todo carrusel que avanza solo.
+	var solo = function (opciones) {
+		opciones.autoplay = !quieto;
+		opciones.autoplayHoverPause = true;
+		return opciones;
+	};
 
 	// Carrusel con flechas propias (#property-nav, #testimonial-nav). tiny-slider le pone al
 	// grupo un nombre en inglés y saca los botones del orden de tabulación; aquí se deja el
@@ -15,7 +37,7 @@
 	var conFlechas = function (opciones) {
 		var grupo = document.querySelector(opciones.controlsContainer);
 		var nombre = grupo && grupo.getAttribute('aria-label');
-		var carrusel = tns(opciones);
+		var carrusel = pausaConFoco(tns(solo(opciones)));
 		if (grupo && grupo.isConnected) {
 			if (nombre) grupo.setAttribute('aria-label', nombre);
 			grupo.removeAttribute('tabindex');
@@ -33,16 +55,15 @@
 		
 
 		if ( heroSlider.length > 0 ) {
-			tns({
+			pausaConFoco(tns(solo({
 				container: '.hero-slide',
 				mode: 'carousel',
 				speed: 700,
-				autoplay: true,
 				controls: false,
 				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#hero-nav',
-			});
+			})));
 			// Solo la primera foto se descarga con la página; las demás, cuando ya cargó.
 			var fondos = function() {
 				document.querySelectorAll('.hero-slide [data-bg]').forEach(function(el) {
@@ -55,17 +76,16 @@
 
 
 		if ( imgPropertySlider.length > 0 ) {
-			tns({
+			pausaConFoco(tns(solo({
 				container: '.img-property-slide',
 				mode: 'carousel',
 				speed: 700,
 				items: 1,
 				gutter: 30,
-				autoplay: true,
 				controls: false,
 				nav: false,
 				autoplayButtonOutput: false
-			});
+			})));
 		}
 
 		if ( propertySlider.length> 0 ) {
@@ -75,7 +95,6 @@
 				speed: 700,
 				gutter: 30,
 				items: 3,
-				autoplay: true,
 				// Sin puntos: solo las flechas finas (regla de carruseles).
 				nav: false,
 				autoplayButtonOutput: false,
@@ -110,7 +129,6 @@
 				speed: 700,
 				items: 3,
 				gutter: 50,
-				autoplay: true,
 				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#testimonial-nav',

@@ -59,6 +59,39 @@ async function formatoParaElNavegador(root) {
 	return r.outputFiles[0].text;
 }
 
+// Íconos (icomoon) del sitio: los códigos que pide el CSS ya depurado (`content: "\e900"`), de U+E000 a U+F8FF.
+export const codigosEnCss = (css) => [...new Set([...css.matchAll(/content\s*:\s*["']\\([0-9a-f]{4,5})/gi)]
+	.map((m) => parseInt(m[1], 16)).filter((c) => c >= 0xe000 && c <= 0xf8ff))];
+
+// «U+e900-e903,U+f00c»: los códigos en rangos seguidos.
+function rangos(codigos) {
+	const out = [];
+	for (const c of [...codigos].sort((a, b) => a - b)) {
+		const ult = out[out.length - 1];
+		if (ult && c === ult[1] + 1) ult[1] = c; else out.push([c, c]);
+	}
+	return out.map(([a, b]) => `U+${a.toString(16)}${b > a ? `-${b.toString(16)}` : ''}`).join(',');
+}
+
+// El sitio baja solo la fuente con sus íconos (fonts/icomoon/fonts/icomoon-sitio.woff2, ~10 KB, la arma
+// scripts/fuente-iconos.mjs). Si el CSS pide uno que no está, ese código sale de la fuente completa (unicode-range:
+// el navegador la baja solo si la página lo usa) y el build avisa para regenerar.
+async function fuenteIconos(root, css) {
+	const dir = path.join(root, 'fonts/icomoon');
+	const { sitio, completa } = JSON.parse(await readFile(path.join(dir, 'sitio.json'), 'utf8'));
+	const enSitio = new Set(sitio.map((h) => parseInt(h, 16)));
+	const enCompleta = new Set(completa.map((h) => parseInt(h, 16)));
+	const faltan = codigosEnCss(css).filter((c) => enCompleta.has(c) && !enSitio.has(c));
+	if (faltan.length) console.warn(`⚠ ${faltan.length} íconos fuera de la fuente del sitio (${rangos(faltan)}): se bajan de la completa. Regenera con node scripts/fuente-iconos.mjs`);
+	// Las fuentes se guardan un año (netlify.toml → /fonts/*): la versión en la URL cambia con el archivo.
+	const v = async (f) => hash(await readFile(path.join(dir, 'fonts', f)));
+	const caras = `@font-face{font-family:icomoon;src:url(/fonts/icomoon/fonts/icomoon-sitio.woff2?v=${await v('icomoon-sitio.woff2')}) format("woff2");unicode-range:${rangos(enSitio)};font-weight:normal;font-style:normal;font-display:swap}`
+		+ (faltan.length ? `@font-face{font-family:icomoon;src:url(/fonts/icomoon/fonts/icomoon.woff2?v=${await v('icomoon.woff2')}) format("woff2");unicode-range:${rangos(faltan)};font-weight:normal;font-style:normal;font-display:swap}` : '');
+	const sinCara = css.replace(/@font-face\s*{[^}]*font-family:\s*['"]?icomoon['"]?;[^}]*}/, caras);
+	if (sinCara === css) throw new Error('assets.mjs: no se encontró la @font-face de icomoon en fonts/icomoon/style.css');
+	return sinCara;
+}
+
 function hash(text) {
 	return createHash('sha256').update(text).digest('hex').slice(0, 10);
 }
@@ -95,7 +128,7 @@ export async function buildAssets({ root, dist }) {
 		keyframes: false,
 		fontFace: false
 	});
-	const minCss = (await transform(purged.css, { loader: 'css', minify: true })).code;
+	const minCss = (await transform(await fuenteIconos(root, purged.css), { loader: 'css', minify: true })).code;
 
 	const js = [await formatoParaElNavegador(root), ...(await Promise.all(JS_FILES.map((f) => readFile(path.join(root, f), 'utf8'))))].join(';\n');
 	const minJs = (await transform(js, { loader: 'js', minify: true, target: 'es2017' })).code;
