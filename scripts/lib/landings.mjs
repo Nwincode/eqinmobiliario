@@ -11,6 +11,8 @@ import { sinRepetir, TITULO_MAX } from '../../admin/js/seo-auto.js';
 // propiedades a la vista; con menos es «poco contenido» para Google. Con menos, la zona sola existe sin indexar
 // (sus casas siguen enlazadas desde el listado de arriba) y las otras no se generan.
 export const MIN_INDEXABLE = 3;
+// La misma regla para tipo y zona: ¿hay suficientes propiedades para que la página se indexe?
+export const bastante = (lista) => lista.length >= MIN_INDEXABLE;
 // Bloque de precios: necesita al menos tantos precios a la vista en una misma moneda.
 export const MIN_PRECIOS = 3;
 
@@ -61,7 +63,7 @@ export function planListados(props, { lang = 'es', ocupadas = new Set() } = {}) 
 			const lista = props.filter((p) => op(p) === o && p.tipo === tipo);
 			const url = urlTipo(tipo, o, en);
 			if (!lista.length || repite(lista, porOp[o]) || ocupadas.has(url)) continue;
-			porTipo[`${o}|${tipo}`] = add({ pagina: 'tipo', operacion: o, tipo, url, lista, indexable: true });
+			porTipo[`${o}|${tipo}`] = add({ pagina: 'tipo', operacion: o, tipo, url, lista, indexable: bastante(lista) });
 		}
 	}
 	const zonas = [...new Set(props.map((p) => p.zona).filter(Boolean))];
@@ -70,16 +72,16 @@ export function planListados(props, { lang = 'es', ocupadas = new Set() } = {}) 
 		if (!slug) continue;
 		const deZona = props.filter((p) => p.zona === nombre);
 		const zona = repite(deZona, todas) ? null
-			: add({ pagina: 'zona', zona: nombre, slug, url: `${r.propiedades}${slug}/`, lista: deZona, indexable: deZona.length >= MIN_INDEXABLE });
+			: add({ pagina: 'zona', zona: nombre, slug, url: `${r.propiedades}${slug}/`, lista: deZona, indexable: bastante(deZona) });
 		for (const o of OPS) {
 			const lista = deZona.filter((p) => op(p) === o);
-			const zOp = lista.length >= MIN_INDEXABLE && !repite(lista, zona, porOp[o])
+			const zOp = bastante(lista) && !repite(lista, zona, porOp[o])
 				? add({ pagina: 'zonaOp', operacion: o, zona: nombre, slug, url: `${r[o]}${slug}/`, lista, indexable: true }) : null;
 			if (o === 'vacacional') continue;
 			for (const tipo of Object.keys(TIPOS_LANDING)) {
 				const deTipo = lista.filter((p) => p.tipo === tipo);
 				const url = `${urlTipo(tipo, o, en)}${slug}/`;
-				if (deTipo.length < MIN_INDEXABLE || repite(deTipo, zOp, zona, porTipo[`${o}|${tipo}`], porOp[o]) || ocupadas.has(url)) continue;
+				if (!bastante(deTipo) || repite(deTipo, zOp, zona, porTipo[`${o}|${tipo}`], porOp[o]) || ocupadas.has(url)) continue;
 				add({ pagina: 'zonaTipoOp', operacion: o, tipo, zona: nombre, slug, url, lista: deTipo, indexable: true });
 			}
 		}

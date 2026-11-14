@@ -23,6 +23,10 @@ test('poco contenido: la zona se indexa desde 3; con 1 o 2 existe sin indexar', 
 	assert.equal(MIN_INDEXABLE, 3);
 	assert.equal(buscar(plan, 'zona', { zona: 'Zona 16' }).indexable, true);
 	assert.equal(buscar(plan, 'zona', { zona: 'Zona 1' }).indexable, false);
+	// Tipo: misma regla (3 casas + 1 apartamento en venta → casas sí, apartamentos no).
+	const tipos = planListados([...props, p({ zona: 'Zona 1', tipo: 'apartamento' })]);
+	assert.equal(buscar(tipos, 'tipo', { operacion: 'venta', tipo: 'casa' }).indexable, true);
+	assert.equal(buscar(tipos, 'tipo', { operacion: 'venta', tipo: 'apartamento' }).indexable, false);
 	// Zona + operación con menos de 3 no se genera; igual a la zona, tampoco.
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 1' }), null);
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 16' }), null);

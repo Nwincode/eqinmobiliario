@@ -789,7 +789,8 @@ function porZona(ctx, e = null) {
 			return pg ? [pg.url, z, deZona.length] : null;
 		}).filter(Boolean).sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1], 'es', { numeric: true }));
 	const zonasHtml = zonas.filter(([url]) => url !== actual).map(([url, z, n]) => chip(url, 'map-marker', z, n)).join('');
-	const tipos = plan.filter((x) => x.pagina === 'tipo' && x.url !== actual).map((x) => chip(x.url, ICONO_TIPO[x.tipo] || 'building-o', nombreTipo(x.tipo, x.operacion, en), x.total)).join('');
+	// Solo las páginas de tipo que se indexan (con pocas casas, sus casas ya están en el listado de la operación).
+	const tipos = plan.filter((x) => x.pagina === 'tipo' && x.indexable && x.url !== actual).map((x) => chip(x.url, ICONO_TIPO[x.tipo] || 'building-o', nombreTipo(x.tipo, x.operacion, en), x.total)).join('');
 	if (!zonasHtml && !tipos) return '';
 	return `<nav class="section pt-0" aria-labelledby="por-zona">
 		<div class="container">

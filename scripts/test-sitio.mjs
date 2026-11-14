@@ -85,6 +85,10 @@ test('poco contenido: zona con 1 propiedad existe sin indexar; con 3 o más se i
 	assert.ok(!existsSync(path.join(dist, 'propiedades/venta/zona-16')));
 	assert.ok(indexa(de('/propiedades/venta/zona-10/')) && indexa(de('/propiedades/renta/zona-10/')));
 	assert.ok(!existsSync(path.join(dist, 'propiedades/venta/zona-1')));
+	// La misma regla en las páginas de tipo: 1 terreno → existe sin indexar y no se enlaza en «Buscar por tipo».
+	assert.equal(indexa(de('/terrenos-en-venta/')), false);
+	assert.equal(indexa(de('/casas-en-venta/')), true);
+	assert.doesNotMatch(/<nav class="section pt-0" aria-labelledby="por-zona">[\s\S]*?<\/nav>/.exec(de('/propiedades/'))[0], /terrenos-en-venta/);
 });
 
 test('zona × tipo × operación cuelga de la página de tipo, con migas y canonical', () => {
