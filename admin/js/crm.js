@@ -74,26 +74,32 @@ export const ms = (v) => toDate(v)?.getTime() || 0;
 export { REGLAS_POR_DEFECTO };
 
 // La parte del asesor es una sola (settings/crm.parteAsesorPct): la usan Reportes y la liquidación de las cotizaciones.
-// Antes las cotizaciones guardaban la suya en settings/cotizacion.pctAsesor: vale mientras la regla no tenga la suya.
+// Si la regla no la tiene guardada, vale la que se guardó antes en Cotizaciones (settings/cotizacion.pctAsesor); si
+// tampoco, 50 %. `parteAsesorFuente` dice de dónde salió ('regla', 'cotizaciones' o 'defecto'): Reportes lo muestra
+// para que el administrador la confirme (nada cambia de número sin que lo vea).
 export async function loadReglas() {
 	try {
 		const [snap, cot] = await Promise.all([getDoc(doc(db, 'settings', 'crm')), getDoc(doc(db, 'settings', 'cotizacion')).catch(() => null)]);
 		const d = snap.exists() ? { ...snap.data() } : {};
-		if (d.parteAsesorPct == null && Number.isFinite(cot?.data()?.pctAsesor)) d.parteAsesorPct = cot.data().pctAsesor;
-		return Object.fromEntries(Object.entries(REGLAS_POR_DEFECTO).map(([k, v]) => [k, Number.isFinite(Number(d[k])) && d[k] !== '' && d[k] != null ? Number(d[k]) : v]));
+		const valido = (v) => v !== '' && v != null && Number.isFinite(Number(v));
+		const parteAsesorFuente = valido(d.parteAsesorPct) ? 'regla' : valido(cot?.data()?.pctAsesor) ? 'cotizaciones' : 'defecto';
+		if (parteAsesorFuente === 'cotizaciones') d.parteAsesorPct = cot.data().pctAsesor;
+		return { ...Object.fromEntries(Object.entries(REGLAS_POR_DEFECTO).map(([k, v]) => [k, valido(d[k]) ? Number(d[k]) : v])), parteAsesorFuente };
 	} catch {
-		return { ...REGLAS_POR_DEFECTO };
+		return { ...REGLAS_POR_DEFECTO, parteAsesorFuente: 'defecto' };
 	}
 }
 
 // Comisión de un negocio de un cliente: la propia de ese negocio, si no la regla general de su operación
 // (venta: % del precio; renta: meses de renta, con el monto como renta mensual y un año de contrato). La propia va en la
-// misma forma: % en venta (comisionPct), meses en renta (comisionMeses); un % nunca se aplica a una renta.
+// misma forma: % en venta (comisionPct), meses en renta (comisionMeses). Un cliente de renta de antes con su % y sin
+// meses sigue con su % (no cambia su monto sin que nadie lo vea); su ficha pide los meses.
 // El cliente no guarda qué inmueble cerró: por eso aquí no entra el acuerdo de un inmueble.
 const dato = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
 export function comisionDeNegocio(c, reglas = REGLAS_POR_DEFECTO) {
 	const renta = c.operacion === 'renta';
-	const regla = renta ? (dato(c.comisionMeses) ? { tipo: 'meses', valor: Number(c.comisionMeses) } : comisionDe('renta', null, reglas))
+	const regla = renta ? (dato(c.comisionMeses) ? { tipo: 'meses', valor: Number(c.comisionMeses) }
+		: dato(c.comisionPct) ? { tipo: 'pct', valor: Number(c.comisionPct) } : comisionDe('renta', null, reglas))
 		: dato(c.comisionPct) ? { tipo: 'pct', valor: Number(c.comisionPct) } : comisionDe('venta', null, reglas);
 	return montoComision(regla, c.montoEstimado);
 }

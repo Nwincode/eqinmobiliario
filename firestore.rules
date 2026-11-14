@@ -88,12 +88,19 @@ service cloud.firestore {
     // Lo que el dueño cambia de sus precios (en la casa o en privado/socio) cuadra con el otro documento tal como
     // queda (getAfter): solo se revisa lo que cambió, para que una casa con un precio viejo no le impida bloquear días.
     // casa / socio: los dos documentos después del cambio; cambia: los campos de precio que tocó.
-    function preciosCuadran(casa, socio, cambia) {
+    // casaAntes / socioAntes: los dos como estaban. Con más de 10 precios por fechas (de antes), el dueño solo puede
+    // quitar: las dos listas quedan más cortas y con lo que ya tenían (nada nuevo ni cambiado).
+    function preciosCuadran(casa, socio, cambia, casaAntes, socioAntes) {
       let v = casa.get('vacacional', {});
       let m = socio.get('margen', 20);
       return (!cambia.hasAny(['base', 'precioBase']) || enBanda(v.get('base', 0), socio.get('precioBase', 0), m))
         && (!cambia.hasAny(['finde', 'precioFinde']) || findeEnBanda(v.get('finde', 0), socio.get('precioFinde', 0), m))
-        && (!cambia.hasAny(['tarifas']) || tarifasEnBanda(v.get('tarifas', []), socio.get('tarifas', []), m));
+        && (!cambia.hasAny(['tarifas']) || tarifasEnBanda(v.get('tarifas', []), socio.get('tarifas', []), m)
+            || (quita(v.get('tarifas', []), casaAntes.get('vacacional', {}).get('tarifas', []))
+                && quita(socio.get('tarifas', []), socioAntes.get('tarifas', []))));
+    }
+    function quita(despues, antes) {
+      return despues.size() < antes.size() && antes.hasAll(despues);
     }
 
     // Primer administrador: solo se puede crear mientras meta/bootstrap no exista.
@@ -170,7 +177,8 @@ service cloud.firestore {
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
               || preciosCuadran(request.resource.data,
                  getAfter(/databases/$(database)/documents/properties/$(id)/privado/socio).data,
-                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys())));
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys(),
+                 resource.data, get(/databases/$(database)/documents/properties/$(id)/privado/socio).data)));
       allow delete: if isAdmin();
 
       // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.
@@ -195,7 +203,7 @@ service cloud.firestore {
         allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
           && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
           && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
-               request.resource.data.diff(resource.data).affectedKeys());
+               request.resource.data.diff(resource.data).affectedKeys(), get(/databases/$(database)/documents/properties/$(id)).data, resource.data);
       }
     }
 
@@ -261,40 +269,48 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
     }
-    // La noche más barata del dueño en privado/socio: base, fin de semana o un precio por fechas (hasta 10; con más,
-    // 0 = sin piso). Su parte de una reserva no puede ser menor que eso por cada noche.
+    // La noche más barata del dueño para unas fechas [llegada, salida): base, fin de semana o un precio por fechas que
+    // toque alguna de esas noches (hasta 10; con más, 0 = sin piso). Un precio por fechas de otras fechas no cuenta (si
+    // no, uno de 1 en el año 2000 bajaría el piso a 1). Fechas 'AAAA-MM-DD': se comparan como texto; «hasta» es la
+    // última noche (incluida). Su parte de una reserva no puede ser menor que eso por cada noche.
     function menor(a, b) {
       return b > 0 && b < a ? b : a;
     }
-    function nocheMasBarata(s) {
+    // (Las reglas cuentan cada operación, hasta 1000 por pedido: una sola comparación por precio por fechas.)
+    function menorSiToca(a, x, ll, sa) {
+      return x.desde < sa && x.hasta >= ll && x.precio > 0 && x.precio < a ? x.precio : a;
+    }
+    function nocheMasBarata(s, llegada, salida) {
       let t = s.get('tarifas', []);
       let n = t.size();
       let a = menor(s.get('precioBase', 0), s.get('precioFinde', 0));
-      return n == 0 ? a : n > 10 ? 0 : menorDeTarifas(t, n, a);
+      return n == 0 ? a : n > 10 ? 0 : menorDeTarifas(t, n, a, llegada, salida);
     }
-    function menorDeTarifas(t, n, a) {
-      let b = menor(a, t[0].precio);
-      let c = n < 2 ? b : menor(b, t[1].precio);
-      let d = n < 3 ? c : menor(c, t[2].precio);
-      let e = n < 4 ? d : menor(d, t[3].precio);
-      let f = n < 5 ? e : menor(e, t[4].precio);
-      let g = n < 6 ? f : menor(f, t[5].precio);
-      let h = n < 7 ? g : menor(g, t[6].precio);
-      let i = n < 8 ? h : menor(h, t[7].precio);
-      let j = n < 9 ? i : menor(i, t[8].precio);
-      return n < 10 ? j : menor(j, t[9].precio);
+    function menorDeTarifas(t, n, a, ll, sa) {
+      let b = menorSiToca(a, t[0], ll, sa);
+      let c = n < 2 ? b : menorSiToca(b, t[1], ll, sa);
+      let d = n < 3 ? c : menorSiToca(c, t[2], ll, sa);
+      let e = n < 4 ? d : menorSiToca(d, t[3], ll, sa);
+      let f = n < 5 ? e : menorSiToca(e, t[4], ll, sa);
+      let g = n < 6 ? f : menorSiToca(f, t[5], ll, sa);
+      let h = n < 7 ? g : menorSiToca(g, t[6], ll, sa);
+      let i = n < 8 ? h : menorSiToca(h, t[7], ll, sa);
+      let j = n < 9 ? i : menorSiToca(i, t[8], ll, sa);
+      return n < 10 ? j : menorSiToca(j, t[9], ll, sa);
     }
     // Reserva que crea el socio al confirmar una solicitud (ver match /reservas).
     function reservaDelSocioValida(r) {
       let casa = get(/databases/$(database)/documents/properties/$(r.propertyId)).data;
       let solicitud = get(/databases/$(database)/documents/leads/$(r.leadId)).data;
-      let socio = /databases/$(database)/documents/properties/$(r.propertyId)/privado/socio;
-      let margen = exists(socio) ? get(socio).data.get('margen', 20) : 20;
-      return r.keys().hasOnly(['propertyId', 'propertyTitulo', 'agentId', 'propietarioId', 'moneda', 'llegada', 'salida', 'noches',
+      let rutaSocio = /databases/$(database)/documents/properties/$(r.propertyId)/privado/socio;
+      let socio = exists(rutaSocio) ? get(rutaSocio).data : {};
+      let margen = socio.get('margen', 20);
+      // De una casa por noche que es suya (esSocioDe ya revisó que r.propietarioId es el suyo).
+      return casa.get('operacion', '') == 'vacacional' && casa.get('propietarioId', '') == r.propietarioId
+        && r.keys().hasOnly(['propertyId', 'propertyTitulo', 'agentId', 'propietarioId', 'moneda', 'llegada', 'salida', 'noches',
             'huesped', 'canal', 'estado', 'leadId', 'codigo', 'costoSocio', 'alojamiento', 'ganancia', 'pagadoSocio', 'pagadoFecha',
             'comision', 'createdAt', 'updatedAt'])
         && r.leadId is string && r.leadId.size() > 0 && r.leadId.size() <= 60
-        && exists(/databases/$(database)/documents/leads/$(r.leadId))
         && solicitud.get('propertyId', '') == r.propertyId
         && solicitud.get(['reserva', 'codigo'], '') == r.codigo
         && solicitud.get(['reserva', 'llegada'], '') == r.llegada
@@ -306,7 +322,7 @@ service cloud.firestore {
         && r.costoSocio is number && r.alojamiento is number && r.ganancia is number && r.noches is number
         && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
         // Su parte no baja de su noche más barata por cada noche (con la comisión sobre ella, EQ cobra al menos eso).
-        && r.costoSocio >= r.noches * (exists(socio) ? nocheMasBarata(get(socio).data) : 0) - 0.01 * r.noches - 0.01
+        && r.costoSocio >= r.noches * nocheMasBarata(socio, r.llegada, r.salida) - 0.01 * r.noches - 0.01
         && r.ganancia >= r.alojamiento - r.costoSocio - 0.01
         && r.ganancia >= r.costoSocio * margen / 100 - 0.01 * r.noches - 0.01
         && r.comision is map && r.comision.keys().hasOnly(['monto', 'vence', 'pagada'])
@@ -322,7 +338,6 @@ service cloud.firestore {
       // Su id es el de la solicitud: una sola reserva por solicitud (crear sobre una que ya existe no es «crear»).
       allow create: if nuevoPropio()
         || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada' && id == request.resource.data.get('leadId', '')
-            && esSocioDeCasaPorNoche(request.resource.data.get('propertyId', ''))
             && reservaDelSocioValida(request.resource.data));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
       allow update: if (propio() && conservaAsesor()
@@ -427,6 +442,12 @@ service cloud.firestore {
         // El socio de la solicitud tiene que ser el dueño real de la casa.
         && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
+        // El asesor del formulario es el de la casa (una casa por noche no lleva: ''); así una página publicada antes
+        // no le manda al asesor la solicitud ni el contacto de un huésped.
+        && (request.resource.data.propertyId == ''
+            || !exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
+            || request.resource.data.agentId
+              == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('agentId', ''))
         && request.resource.data.estado == 'nuevo'
         && request.resource.data.createdAt == request.time;
       // El socio NO lee la solicitud (trae el teléfono y el correo del cliente): trabaja con el chat.
@@ -440,12 +461,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Chat de una solicitud de reserva (cliente, socio y equipo). El id es la llave: largo y al azar,
+    // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
+    // equipo solo entra el administrador). El id es la llave: largo y al azar,
     // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
-      allow list: if isStaff() || esSocioDe(resource.data);
+      allow list: if isAdmin() || esSocioDe(resource.data);
       allow create: if token.size() >= 20
         && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
             'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
@@ -466,9 +488,8 @@ service cloud.firestore {
         && request.resource.data.propietarioId
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
         && request.resource.data.createdAt == request.time;
-      // Al responder la solicitud, el equipo o el socio de la casa marcan el estado que ve el cliente; nada más.
+      // Al responder la solicitud, el administrador o el socio de la casa marcan el estado que ve el cliente; nada más.
       allow update: if isAdmin()
-        || (isStaff() && soloCambia(['estado']) && request.resource.data.estado in ['confirmada', 'pagada', 'no', 'cancelada'])
         // El socio solo avanza: pendiente → confirmada o no; confirmada → pagada o cancelada.
         // Con el pago recibido ya no cancela (eso anularía la comisión): lo hace el administrador.
         || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['estado'])
@@ -476,8 +497,7 @@ service cloud.firestore {
               || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado in ['pagada', 'cancelada'])))
         // «Visto»: cada quien marca solo el suyo, con la hora del servidor.
         || (!signedIn() && soloCambia(['vistoCliente']) && request.resource.data.vistoCliente == request.time)
-        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time)
-        || (isStaff() && soloCambia(['vistoEquipo']) && request.resource.data.vistoEquipo == request.time);
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.get('propertyId', '')) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time);
       allow delete: if isAdmin();
 
       match /mensajes/{id} {
@@ -485,7 +505,7 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/chats/$(token)).data;
         }
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
-        allow read: if !signedIn() || isStaff() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
+        allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
         // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
@@ -517,7 +537,7 @@ service cloud.firestore {
             : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
-            || (request.resource.data.de == 'equipo' && isStaff())
+            || (request.resource.data.de == 'equipo' && isAdmin())
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
             || (request.resource.data.de == 'socio' && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')) && !(chat().get('estado', '') in ['no', 'cancelada'])));
         // Nada se edita ni se borra: la conversación es el registro.

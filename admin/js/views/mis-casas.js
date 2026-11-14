@@ -123,9 +123,14 @@ async function casa(container, id) {
 				if ('bloqueos' in nuevo) casa['vacacional.bloqueos'] = nuevo.bloqueos;
 				if ('minimos' in nuevo) casa['vacacional.minimos'] = nuevo.minimos;
 				if ('huespedes' in nuevo) casa['vacacional.huespedesMax'] = nuevo.huespedes;
+				// Con más de 10 (de antes) solo se puede quitar: se guardan las mismas listas sin las quitadas, tal como
+				// estaban (las reglas lo revisan así: más cortas y con lo que ya tenían).
+				let soloQuita = false;
 				if ('tarifas' in nuevo) {
 					nuevo.tarifas = vigentes(nuevo.tarifas);
-					if (nuevo.tarifas.length > MAX_TARIFAS) throw new Error(`Hasta ${MAX_TARIFAS} precios especiales a la vez: quita uno antes de poner otro.`);
+					const tenia = (x) => actual.tarifas.some((t) => mismoRango(t, x));
+					soloQuita = nuevo.tarifas.length > MAX_TARIFAS;
+					if (soloQuita && !(nuevo.tarifas.every(tenia) && nuevo.tarifas.length < (sv.tarifas || []).length)) throw new Error(`Hasta ${MAX_TARIFAS} precios especiales a la vez: quita uno antes de poner otro.`);
 				}
 				if (['base', 'finde', 'tarifas'].some((k) => k in nuevo)) {
 					const plan = { base: actual.base, finde: actual.finde, tarifas: vigentes(actual.tarifas), ...nuevo };
@@ -133,7 +138,11 @@ async function casa(container, id) {
 					const suyo = {};
 					if ('base' in nuevo) { suyo.precioBase = plan.base; casa['vacacional.base'] = pub.base; }
 					if ('finde' in nuevo) { suyo.precioFinde = plan.finde; casa['vacacional.finde'] = pub.finde; }
-					if ('tarifas' in nuevo) { suyo.tarifas = plan.tarifas; casa['vacacional.tarifas'] = pub.tarifas; }
+					const queda = (t) => nuevo.tarifas.some((x) => mismoRango(t, x));
+					if ('tarifas' in nuevo) {
+						suyo.tarifas = soloQuita ? (sv.tarifas || []).filter(queda) : plan.tarifas;
+						casa['vacacional.tarifas'] = soloQuita ? (cv.tarifas || []).filter(queda) : pub.tarifas;
+					}
 					casa.precio = V.precioDesde(pub, hoy()) || null;
 					await guardarPrivadoVacacional(id, suyo, null, tx);
 				}
