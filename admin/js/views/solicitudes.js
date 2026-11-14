@@ -8,7 +8,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas } from '../session.js';
-import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
+import { confirmarSolicitud, montosDeConfirmacion, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, ChoqueDeFechas, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -136,7 +136,9 @@ export async function render(container, [codigo] = []) {
 	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
 	const delChat = (d) => { const c = d.data(); return {
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
-		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda },
+		// El subtotal cotizado viaja en el chat; uno de antes no lo trae y se saca del total que vio el cliente.
+		reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, noches: c.noches, huespedes: c.huespedes, total: c.total, moneda: c.moneda,
+			subtotal: typeof c.subtotal === 'number' ? c.subtotal : V.subtotalDeTotal(c.total) },
 		solicitud: c.estado ? { estado: c.estado === 'pagada' ? 'confirmada' : c.estado } : undefined }; };
 	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
@@ -161,12 +163,21 @@ export async function render(container, [codigo] = []) {
 		// Los datos de pago: el equipo los toma de la ficha; el dueño, de su resumen (cargarMiResumen).
 		const pago = !refChat(l) ? '' : admin ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : (await cargarMiResumen())?.datosPago;
 		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.', 'warning');
-		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(c.ganancia, r.moneda)}, su margen) se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
+		// Lo que se va a guardar (montosDeConfirmacion, lo mismo que usa confirmarSolicitud), no la cuenta con los precios de hoy.
+		const casa = (await getDoc(doc(db, 'properties', l.propertyId))).data();
+		const m = montosDeConfirmacion(l, c, casa);
+		const distinto = m.ganancia !== m.hoy ? ` Se cotizó ${money(m.ganancia, r.moneda)}; con los precios de hoy serían ${money(m.hoy, r.moneda)}: se registra lo cotizado.` : '';
+		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(m.ganancia, r.moneda)}) se paga el día de llegada.${distinto}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
 				await confirmarSolicitud(l, c, { chat: chatDe(l), pago });
 				toast('Reserva confirmada.');
-			} catch (err) { if (err instanceof ChoqueDeFechas) toast(err.message, 'warning'); else throw err; }
+			} catch (err) {
+				if (err instanceof ChoqueDeFechas) toast(err.message, 'warning');
+				// Lo que cotizó el cliente no cuadra con lo que la base acepta (p. ej. un chat de antes): se dice, sin el error crudo.
+				else if (!admin && err?.code === 'permission-denied') toast('No se pudo confirmar: lo que se le cotizó al cliente no cuadra con los precios guardados de la casa. Avísale al administrador para que la confirme.', 'warning');
+				else throw err;
+			}
 		});
 	}
 
@@ -216,13 +227,15 @@ export async function render(container, [codigo] = []) {
 		const r = l.reserva;
 		const sol = l.solicitud || {};
 		const est = estado(l);
-		const c = sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : cuenta(l);
+		// Una reserva ya confirmada muestra lo que quedó guardado (su comisión), no la cuenta con los precios de hoy.
+		const res = est === 'confirmada' ? reservaDe(l) : null;
+		const c = res ? { costoSocio: res.costoSocio, ganancia: res.comision?.monto ?? res.ganancia }
+			: sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : cuenta(l);
 		const aviso = alerta(l);
 		const tarde = aviso === 'tarde';
 		const ultimo = sol.historial?.at(-1);
 		const evasion = aviso === 'bloqueada';
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
-		const res = est === 'confirmada' ? reservaDe(l) : null;
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });

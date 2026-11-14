@@ -200,20 +200,30 @@ const cerrarChat = (tx, chat, estado, texto) => {
 // La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda }) queda confirmada: nace su reserva con la
 // comisión (la ganancia, se paga el día de llegada), la solicitud y el chat dicen «confirmada» y el cliente recibe
 // los datos de pago del socio. `cuenta` = V.gananciaEstancia de esas fechas; `pago` = datos de pago (con chat).
+// Lo que se registra al confirmar una solicitud: su parte (precios de hoy del dueño), lo cobrado y la ganancia de EQ.
+// Al cliente se le cobra lo que se le cotizó (sin la limpieza, que no lleva margen): si después bajó un precio, el margen
+// o la limpieza, la ganancia sale de lo cotizado, no de los precios de hoy (las reglas lo exigen al socio).
+// Una sola cuenta: la usan el diálogo de «Confirmada» (lo que se muestra) y confirmarSolicitud (lo que se guarda).
+// `cuenta` = V.gananciaEstancia de esas fechas; `casa` = la propiedad. `hoy`: la ganancia con los precios de hoy.
+export function montosDeConfirmacion(l, cuenta, casa) {
+	const cotizado = V.r2((Number(l.reserva?.subtotal) || 0) - (Number(casa?.vacacional?.limpieza) || 0));
+	const costoSocio = V.r2(Number(cuenta.costoSocio) || 0);
+	const alojamiento = V.r2(Math.max(Number(cuenta.alojamiento) || 0, cotizado));
+	return { costoSocio, alojamiento, ganancia: V.r2(alojamiento - costoSocio), hoy: V.r2(Number(cuenta.ganancia) || 0) };
+}
+
 export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } = {}) {
 	const r = l.reserva;
 	const p = (await getDoc(doc(db, 'properties', l.propertyId))).data();
 	// Una reserva por solicitud: su id es el de la solicitud (las reglas lo exigen al socio).
 	const id = l.id;
-	// Al cliente se le cobra lo que se le cotizó (sin la limpieza, que no lleva margen): si después bajó un precio por
-	// fechas, la ganancia de EQ sale de lo cotizado, no del precio nuevo (las reglas lo exigen al socio).
-	const cotizado = window.EQVacacional.r2((Number(r.subtotal) || 0) - (Number(p?.vacacional?.limpieza) || 0));
+	const montos = montosDeConfirmacion(l, cuenta, p);
 	const datos = {
 		...nuevaReserva({ id: l.propertyId, ...p }, {
 			propertyTitulo: l.propertyTitulo, moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
 			// Solo el primer nombre: el socio lee sus reservas; el contacto del cliente queda en la solicitud (leadId).
-			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: cuenta.costoSocio,
-			alojamiento: Math.max(cuenta.alojamiento, cotizado)
+			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: montos.costoSocio,
+			alojamiento: montos.alojamiento
 		}),
 	};
 	datos.comision = comisionDeReserva(datos);
@@ -225,7 +235,7 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 		revisar: async (tx) => sinResponder(tx, l, chat),
 		escribir: (tx, ref) => tx.set(ref, { ...datos, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
 		ademas: (tx) => {
-			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': cuenta.costoSocio, 'solicitud.comision': datos.ganancia }));
+			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia }));
 			if (chat) {
 				tx.update(chat.ref, { estado: 'confirmada' });
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.

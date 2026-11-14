@@ -58,23 +58,35 @@
 		return reglas;
 	}
 
+	// ¿Ya aceptan las reglas el subtotal en el chat (versión r5)? Leer reglas/r5 da «no existe» (404) con ellas y «sin
+	// permiso» (403) antes. Sin red o con otra respuesta, el chat va sin subtotal (el panel lo saca del total).
+	var conSubtotal = null;
+	function aceptaSubtotal() {
+		if (!conSubtotal) conSubtotal = fetch(API + RAIZ + '/reglas/r5' + (LLAVE ? '?' + LLAVE : ''))
+			.then(function (r) { return r.status === 404; }, function () { return false; });
+		return conSubtotal;
+	}
+
 	// Abre la conversación de una solicitud recién enviada. Devuelve el token (promesa).
 	function crear(lead, r) {
 		if (!config.projectId) return Promise.reject(new Error('sin base de datos'));
 		var token = alAzar(28);
-		var chat = nuevo('chats/' + token, {
+		var campos = {
 			codigo: str(r.codigo), leadId: str(lead.id), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
 			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
 			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
 			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
 			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
 			foto: str(((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500)), url: str(location.pathname.slice(0, 200))
-		});
+		};
 		// Un chat por solicitud: nace junto con su índice (chatsPorSolicitud/{solicitud}, que solo se crea una vez).
 		// Con las reglas de antes (que no conocen ese índice) el chat se abre solo.
 		var indice = { update: { name: RAIZ + '/chatsPorSolicitud/' + lead.id, fields: { token: str(token) } }, currentDocument: { exists: false } };
-		return reglasDeAntes().then(function (antes) {
-			return pedir(RAIZ + ':commit', { writes: antes ? [chat] : [chat, indice] });
+		// El subtotal cotizado (sin impuestos): con él el anfitrión confirma lo que se le cotizó al cliente.
+		return Promise.all([reglasDeAntes(), aceptaSubtotal()]).then(function (x) {
+			if (x[1] && typeof r.subtotal === 'number' && isFinite(r.subtotal)) campos.subtotal = num(r.subtotal);
+			var chat = nuevo('chats/' + token, campos);
+			return pedir(RAIZ + ':commit', { writes: x[0] ? [chat] : [chat, indice] });
 		}).then(function () {
 			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
 			return token;

@@ -315,4 +315,12 @@ test('estado y tipo según la operación: lo que no aplica se nombra, lo que apl
 		assert.equal(incoherencia(c), '', JSON.stringify(c));
 });
 
+test('subtotal desde el total: nunca por debajo del cotizado (1 a 5,000 al centavo, de 7 en 7)', () => {
+	for (let c = 100; c <= 500000; c += 7) {
+		const sub = c / 100, q = V.cotizar({ precios: [sub] });
+		const s2 = V.subtotalDeTotal(q.total);
+		assert.ok(s2 >= q.subtotal && s2 - q.subtotal <= 0.02, `${q.subtotal} → ${q.total} → ${s2}`);
+	}
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

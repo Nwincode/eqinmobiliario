@@ -500,6 +500,15 @@ service cloud.firestore {
         && h is list && h.size() == hv.size() + 1 && h.hasAll(hv)
         && (s.get('costoSocio', 0) is number) && (s.get('comision', 0) is number) && isShortString(s.get('reservaId', ''), 60);
     }
+    // Lo que cotizó el sitio en una solicitud de reserva (js/vacacional.js con V.cotizar): números, impuestos = 22 % del
+    // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
+    // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.
+    function reservaCotizada(r) {
+      return r.get('subtotal', -1) is number && r.subtotal >= 0
+        && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
+        && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
+        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches);
+    }
     match /leads/{id} {
       // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
       allow create: if request.resource.data.keys().hasOnly([
@@ -521,7 +530,8 @@ service cloud.firestore {
         && (!('campana' in request.resource.data)
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
         && (!('reserva' in request.resource.data)
-            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10))
+            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
+                && reservaCotizada(request.resource.data.reserva)))
         // El socio de la solicitud tiene que ser el dueño real de la casa.
         && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
@@ -555,6 +565,11 @@ service cloud.firestore {
     // le pone índice a un chat inventado para una solicitud de antes. El administrador se lo pone a un chat que ya existe
     // (Solicitudes, al abrirla: los chats de antes de este cambio).
     // Leer uno que no existe responde «no existe» a cualquiera (así el sitio sabe que las reglas nuevas están publicadas).
+    // Versión de las reglas: leer reglas/r5 da «no existe» (404) desde esta versión y «sin permiso» (403) antes; así el
+    // sitio sabe si ya puede mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal). Nadie escribe aquí.
+    match /reglas/{version} {
+      allow get: if version == 'r5';
+    }
     match /chatsPorSolicitud/{leadId} {
       allow create: if request.resource.data.keys().hasOnly(['token'])
         && request.resource.data.token is string && request.resource.data.token.size() >= 20
@@ -573,7 +588,10 @@ service cloud.firestore {
       allow list: if isAdmin() || esSocioDe(resource.data);
       allow create: if token.size() >= 20
         && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
-            'llegada', 'salida', 'noches', 'huespedes', 'total', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
+            'llegada', 'salida', 'noches', 'huespedes', 'total', 'subtotal', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
+        // El subtotal cotizado (opcional; los chats de antes no lo traen) es el de su solicitud.
+        && (!('subtotal' in request.resource.data)
+            || request.resource.data.subtotal == get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.get('subtotal', -1))
         // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId

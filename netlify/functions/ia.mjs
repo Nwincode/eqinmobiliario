@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { TAREAS, SISTEMA } from '../lib/tareas.mjs';
 import { staffUser, json } from '../lib/auth.mjs';
+import { leerPublico } from '../lib/firestore.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const MODEL = 'claude-opus-5-5';
@@ -22,6 +23,24 @@ function publicRateLimited(ip) {
 }
 
 const cut = (v, n) => String(v ?? '').slice(0, n);
+
+// La búsqueda pública solo corre si está encendida en Contenido (settings/site → ia.busquedaPublica), leído aquí y no
+// de lo que mande quien llama. Se recuerda 5 minutos por instancia.
+let publica = { hasta: 0, activa: false };
+async function busquedaPublicaActiva() {
+	if (Date.now() < publica.hasta) return publica.activa;
+	const site = await leerPublico('settings/site').catch(() => null);
+	publica = { hasta: Date.now() + 5 * 60_000, activa: Boolean(site?.ia?.busquedaPublica) };
+	return publica.activa;
+}
+// Lo único que entra de una tarea sin sesión: la frase y las listas de zonas y tipos, cortas. Ningún inventario.
+const datosPublicos = (d = {}) => ({
+	texto: cut(d.texto, 300),
+	zonas: (Array.isArray(d.zonas) ? d.zonas : []).slice(0, 80).map((z) => cut(z, 60)),
+	tipos: (Array.isArray(d.tipos) ? d.tipos : []).slice(0, 20).map((t) => cut(t, 30))
+});
+// Tamaño máximo del pedido: sin sesión, el de una frase y sus listas; con sesión, el del inventario del panel.
+const MAX_PUBLICO = 12_000, MAX_PANEL = 2_000_000;
 
 // Inventario compacto y acotado: solo campos útiles, con el enlace público de cada propiedad.
 function inventario(list) {
@@ -84,15 +103,18 @@ export default async (req, context) => {
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!process.env.ANTHROPIC_API_KEY) return json(503, { error: 'La IA no está configurada: falta ANTHROPIC_API_KEY en Netlify.' });
 
-	let body;
+	let body, crudo;
 	try {
-		body = await req.json();
+		crudo = await req.text();
+		if (crudo.length > MAX_PANEL) return json(413, { error: 'Demasiada información.' });
+		body = JSON.parse(crudo);
 	} catch {
 		return json(400, { error: 'Solicitud inválida' });
 	}
-	const def = TAREAS[body.tarea];
+	const def = TAREAS[body?.tarea];
 	if (!def) return json(400, { error: 'Tarea desconocida' });
-	const datos = body.datos || {};
+	if (!def.staff && crudo.length > MAX_PUBLICO) return json(413, { error: 'La búsqueda es demasiado larga.' });
+	const datos = def.staff ? body.datos || {} : datosPublicos(body.datos);
 
 	let usuario = null;
 	if (def.staff) {
@@ -102,6 +124,8 @@ export default async (req, context) => {
 			usuario = null;
 		}
 		if (!usuario) return json(401, { error: 'Inicia sesión en el panel para usar la IA.' });
+	} else if (!(await busquedaPublicaActiva())) {
+		return json(403, { error: 'La búsqueda por frase no está activa.' });
 	} else if (publicRateLimited(context?.ip || req.headers.get('x-nf-client-connection-ip') || 'anon')) {
 		return json(429, { error: 'Demasiadas búsquedas seguidas. Intenta en un minuto.' });
 	}
@@ -123,7 +147,7 @@ export default async (req, context) => {
 	try {
 		const response = await client.beta.messages.create({
 			model: MODEL,
-			max_tokens: 8000,
+			max_tokens: def.staff ? 8000 : 1000,
 			betas: ['server-side-fallback-2026-07-01'],
 			fallbacks: 'default',
 			system: [
