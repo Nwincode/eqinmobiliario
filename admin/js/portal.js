@@ -65,7 +65,7 @@ async function consultasPorPropiedad(ids) {
 			porId[id] = s.docs.map((d) => d.data());
 		}));
 	} else {
-		const s = await getDocs(query(collection(db, 'leads'), where('agentId', '==', session.agentId || '-')));
+		const s = await getDocs(query(collection(db, 'leads'), where('agentId', '==', session.agentFiltro)));
 		for (const d of s.docs) { const l = d.data(); if (porId[l.propertyId]) porId[l.propertyId].push(l); }
 	}
 	return porId;
@@ -212,7 +212,7 @@ export async function armarPortal(prop) {
 // El asesor solo puede leer los de sus propietarios: la consulta lleva su agentId.
 function consultaComentarios(prop) {
 	const filtros = [where('propietarioId', '==', prop.id)];
-	if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentId || '-'));
+	if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentFiltro));
 	return query(collection(db, 'comentariosPropietarios'), ...filtros);
 }
 const ordenarComentarios = (s) => s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.fecha) - ms(a.fecha));
@@ -238,7 +238,7 @@ export const VERSION_RESUMEN = 3;
 
 // Los resúmenes de una persona (el asesor solo puede buscar entre los suyos).
 async function resumenesDe(propietarioId) {
-	const filtros = [where('propietarioId', '==', propietarioId), ...(session.isAdmin ? [] : [where('agentId', '==', session.agentId || '-')])];
+	const filtros = [where('propietarioId', '==', propietarioId), ...(session.isAdmin ? [] : [where('agentId', '==', session.agentFiltro)])];
 	return (await getDocs(query(collection(db, 'portalPropietarios'), ...filtros))).docs.map((d) => d.id);
 }
 

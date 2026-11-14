@@ -1,8 +1,12 @@
 // Estado compartido de la sesión y ayudas comunes a todas las vistas.
 import {
-	db, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, collection, query, where, serverTimestamp
 } from './firebase.js';
 import { datosDelDueno, etiquetaDueno } from './duenos.js';
+
+// El asesor de quien no tiene asesor vinculado: el mismo texto que usa firestore.rules (myAgentId) y storage.rules.
+// Con él, el filtro «lo mío» de un asesor sin vincular coincide con la regla y devuelve vacío (no un error).
+export const SIN_ASESOR = '(sin asesor)';
 
 export const session = {
 	user: null,     // usuario de Firebase Auth
@@ -11,6 +15,8 @@ export const session = {
 	// Dueño (propietario o colaborador; rol «socio»): solo ve lo suyo. Sus casas por noche las cambia él.
 	get esSocio() { return Boolean(this.profile && this.profile.rol === 'socio'); },
 	get agentId() { return (this.profile && this.profile.agentId) || ''; },
+	// Para filtrar consultas por «mi asesor» (where agentId ==): nunca vacío.
+	get agentFiltro() { return this.agentId || SIN_ASESOR; },
 	dueno: null,     // su resumen (cargarMiResumen), solo para el dueño
 	porNoche: false, // tiene al menos una casa por noche (Solicitudes, datos de pago)
 	get rolVisible() { return this.isAdmin ? 'Administrador' : this.esSocio ? etiquetaDueno(this.dueno?.tipo) : 'Asesor'; }
@@ -43,10 +49,14 @@ export async function misCasas() {
 
 let agentsCache = null;
 
+// Orden de una lista con «orden» opcional (asesores, reseñas, páginas): los que no lo tienen van al final, por nombre.
+// Se ordena aquí y no con orderBy: la base deja fuera de un orderBy a los documentos sin ese campo.
+export const porOrden = (a, b) => (a.orden ?? 999) - (b.orden ?? 999) || String(a.nombre || a.titulo || '').localeCompare(String(b.nombre || b.titulo || ''));
+
 export async function loadAgents(force = false) {
 	if (agentsCache && !force) return agentsCache;
-	const snap = await getDocs(query(collection(db, 'agents'), orderBy('orden')));
-	agentsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+	const snap = await getDocs(collection(db, 'agents'));
+	agentsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porOrden);
 	return agentsCache;
 }
 

@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Fotos públicas (cada una por su dirección). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
-// o asesor activo; un dueño con acceso al panel no es del equipo); listar, solo el administrador. Los comprobantes tienen su regla:
+// o asesor activo; un dueño con acceso al panel no es del equipo; las de una propiedad, el administrador o su asesor);
+// listar, solo el administrador. Los comprobantes tienen su regla:
 // se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los del cliente).
 service firebase.storage {
   match /b/{bucket}/o {
@@ -46,11 +47,21 @@ service firebase.storage {
       allow get: if true;
       allow list: if conSesion() && usuario().rol == 'admin';
     }
-    // Las fotos del sitio (propiedades, contenido, asesores…), cada una en su carpeta: el equipo.
-    // Los comprobantes (chats, comprobantes), solo con su regla de arriba.
+    // Las fotos del sitio (contenido, asesores…), cada una en su carpeta: el equipo.
+    // Las de una propiedad y los comprobantes (chats, comprobantes), solo con su regla.
     match /{carpeta}/{resto=**} {
-      allow write: if isStaff() && !(carpeta in ['chats', 'comprobantes'])
+      allow write: if isStaff() && !(carpeta in ['chats', 'comprobantes', 'properties'])
         && (request.resource == null || foto(10));
+    }
+    // Fotos de una propiedad: el administrador o el asesor de esa casa. La ficha sube las fotos de una casa nueva antes
+    // de crearla (properties.js, importar.js): en una carpeta de una casa que todavía no existe sube cualquier asesor.
+    // Un asesor sin asesor vinculado no coincide con nada (lo mismo que myAgentId en firestore.rules).
+    match /properties/{casa}/{resto=**} {
+      allow write: if isStaff() && (request.resource == null || foto(10))
+        && (usuario().rol == 'admin'
+          || !firestore.exists(/databases/(default)/documents/properties/$(casa))
+          || firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('agentId', '')
+             == (usuario().get('agentId', '') == '' ? '(sin asesor)' : usuario().agentId));
     }
   }
 }

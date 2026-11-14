@@ -25,7 +25,7 @@ async function cargarPropiedades() {
 
 async function cargarRequerimientos() {
 	const col = collection(db, 'requerimientos');
-	const snap = await getDocs(session.isAdmin ? col : query(col, where('agentId', '==', session.agentId || '-')));
+	const snap = await getDocs(session.isAdmin ? col : query(col, where('agentId', '==', session.agentFiltro)));
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 		.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }

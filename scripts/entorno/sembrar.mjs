@@ -44,6 +44,8 @@ await poner('propietarios/socio-prueba', { tipo: 'socio', nombre: 'Socio de prue
 await poner(`portalPropietarios/${PORTAL_VIEJO}`, { v: 2, email: 'socio@example.com', agentId: '', propietarioId: 'socio-prueba', nombre: 'Socio', exclusivaFin: '', propiedades: [] });
 await poner('propietarios/dueno-del-asesor', { tipo: 'propietario', nombre: 'Dueño del asesor', telefono: '+502 5555 0003', agentId: 'asesor-prueba', propiedades: [] });
 await poner('agents/asesor-prueba', { nombre: 'Asesor de prueba', activo: true, orden: 99, email: 'asesor@example.com', whatsapp: '50255550002' });
+// Un asesor creado sin «orden» (crud.js no lo guarda si se deja vacío): tiene que salir en las listas igual.
+await poner('agents/asesora-sin-orden', { nombre: 'Asesora sin orden (prueba)', activo: true, email: 'sinorden@example.com' });
 // Un solo panel por dueño: una dueña con una casa en venta y otra por noche, y un colaborador con una casa en venta.
 await poner('propietarios/dueno-mixto', { tipo: 'propietario', nombre: 'Dueña mixta de prueba', telefono: '+502 5555 0004', email: 'mixta@example.com', agentId: 'asesor-prueba', porNoche: true,
 	propiedades: [{ propertyId: 'residencial-san-antonio' }, { propertyId: 'casa-noche-mixta' }], notas: 'NOTA INTERNA de prueba: no la ve la dueña',

@@ -2,7 +2,7 @@
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp } from './firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount, cajaTabla } from './ui.js';
 import { renderForm } from './form.js';
-import { markPending } from './session.js';
+import { markPending, porOrden } from './session.js';
 import { revisar, vigilarFormulario } from './pendientes.js';
 
 // cfg.pendientes: tipo de pendientes.js para marcar datos por completar.
@@ -10,8 +10,7 @@ import { revisar, vigilarFormulario } from './pendientes.js';
 export function crudView(cfg) {
 	async function loadAll() {
 		const snap = await getDocs(collection(db, cfg.collection));
-		return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-			.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || String(a.nombre || a.titulo || '').localeCompare(String(b.nombre || b.titulo || '')));
+		return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porOrden);
 	}
 
 	async function list(container) {

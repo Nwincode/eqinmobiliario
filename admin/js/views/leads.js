@@ -33,7 +33,7 @@ export function estadoBadge(estado) {
 // El asesor solo puede consultar sus propios leads (lo exigen las reglas de seguridad).
 export async function loadLeads() {
 	const col = collection(db, 'leads');
-	const q = session.isAdmin ? col : query(col, where('agentId', '==', session.agentId || '-'));
+	const q = session.isAdmin ? col : query(col, where('agentId', '==', session.agentFiltro));
 	const snap = await getDocs(q);
 	return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
 		.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
