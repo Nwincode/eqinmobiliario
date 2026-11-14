@@ -71,6 +71,17 @@
 		};
 	}
 
+	// El subtotal (sin impuestos) que se cotizó, sacado del total que vio el cliente (un chat de antes no lo trae): de los
+	// subtotales al centavo que con estos impuestos dan ese total, el mayor (así nunca queda por debajo del cotizado).
+	function subtotalDeTotal(total) {
+		var t = r2(num(total)), base = Math.round(t / (1 + (IVA + INGUAT) / 100) * 100), mejor = null;
+		for (var k = -3; k <= 3; k++) {
+			var s = (base + k) / 100;
+			if (s >= 0 && r2(s + r2(r2(s * IVA / 100) + r2(s * INGUAT / 100))) === t) mejor = s;
+		}
+		return mejor === null ? r2(t / (1 + (IVA + INGUAT) / 100)) : mejor;
+	}
+
 	// ---------------------------------------------------------------- Fechas
 	function esFecha(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + 'T00:00:00Z')); }
 	function aDia(s) { return Math.round(Date.parse(s + 'T00:00:00Z') / DIA); }
@@ -353,7 +364,7 @@
 	return {
 		tieneContacto: tieneContacto,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
-		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar,
+		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
 		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,

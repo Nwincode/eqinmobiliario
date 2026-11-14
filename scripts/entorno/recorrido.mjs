@@ -1045,6 +1045,18 @@ const duenos = [];
 		return res.map((d) => d.data().comision?.comprobante || '').find(Boolean) || '';
 	});
 	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /\/o\/comprobantes%2F.+alt=media&token=/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	// El chat lleva el subtotal cotizado (el de su solicitud) y la reserva confirmada registra al menos lo cotizado.
+	const q = await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'chats' }], where: { fieldFilter: { field: { fieldPath: 'codigo' }, op: 'EQUAL', value: { stringValue: codigo } } } } }) }).then((r) => r.json());
+	const ch = q.find((x) => x.document)?.document.fields || {};
+	const numero = (f) => Number(f?.doubleValue ?? f?.integerValue);
+	const sol = (await fetch(`${FS}/leads/${ch.leadId?.stringValue}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json())).fields || {};
+	const subSol = numero(sol.reserva?.mapValue?.fields?.subtotal);
+	const res1 = (await fetch(`${FS}/reservas/${ch.leadId?.stringValue}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json())).fields || {};
+	const casa1 = (await fetch(`${FS}/properties/${ch.propertyId?.stringValue}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json())).fields || {};
+	const limpieza = numero(casa1.vacacional?.mapValue?.fields?.limpieza) || 0;
+	paso('El chat lleva el subtotal cotizado de su solicitud, y la reserva registra al menos lo cotizado (sin la limpieza)', numero(ch.subtotal) === subSol && subSol > 0 && numero(res1.alojamiento) >= subSol - limpieza - 0.01,
+		`chat ${numero(ch.subtotal)} · solicitud ${subSol} · limpieza ${limpieza} · reserva ${numero(res1.alojamiento)}`);
 	// Chats de antes sin su índice (chatsPorSolicitud): el administrador se lo pone al abrir Solicitudes.
 	await ir(admin.p, '#/solicitudes', 4000);
 	const indice = await fetch(`${FS}/chatsPorSolicitud/r2-abierta`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
