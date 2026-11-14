@@ -1,12 +1,12 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
-import { db, doc, getDoc, collection, setDoc, updateDoc, serverTimestamp, Timestamp } from '../firebase.js';
+import { db, doc, getDoc, collection, setDoc } from '../firebase.js';
 import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
-import { estadoDe, incoherencia } from '../estados.js';
+import { incoherencia } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, entradaHistorial, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios } from './properties.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -31,25 +31,28 @@ const comoArchivo = (blob, nombre) => new File([blob], nombre, { type: blob.type
 
 const V = window.EQVacacional;
 
-// Renta vacacional: une lo del CSV con lo ya guardado y calcula los precios públicos (costo × margen).
+// Renta vacacional: lo del CSV y, en una casa nueva, lo que lleva toda casa por noche.
 // Devuelve null si no es vacacional. El costo del socio queda solo en properties/{id}/privado/socio.
+//  - Casa que ya era por noche: solo lo que trae el CSV (guardarCambios lo junta con lo guardado y calcula los
+//    precios públicos con el costo del socio guardado).
+//  - Nueva, o que pasa a ser por noche: lo que lleva toda casa por noche, más lo del CSV. En una nueva, «pub» trae
+//    ya los precios públicos (costo × margen).
 async function prepararVacacional(id, it, previo = null) {
 	if ((it.datos.operacion || previo?.operacion) !== 'vacacional') return null;
+	const yaPorNoche = previo?.operacion === 'vacacional';
 	const privRef = doc(db, 'properties', id, 'privado', 'socio');
 	const guardado = previo ? ((await getDoc(privRef).catch(() => null))?.data() || {}) : {};
-	const socio = { margen: V.MARGEN, tarifas: [], nombre: '', telefono: '', icalUrl: '', precioFinde: 0, ...guardado, ...(it.socio || {}) };
-	if (!(Number(socio.precioBase) > 0)) throw new Error('Falta el precio por noche del socio (columna socio_noche).');
-	const vacacional = { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(previo?.vacacional || {}), ...(it.vac || {}) };
-	const pub = vacacionalPublico({ socio, vacacional });
-	const { updatedAt, updatedBy, ...resto } = socio;
+	const socio = { ...(yaPorNoche ? {} : { margen: V.MARGEN, tarifas: [], icalUrl: '', precioFinde: 0, ...guardado }), ...(it.socio || {}) };
+	if (!(Number({ ...guardado, ...socio }.precioBase) > 0)) throw new Error('Falta el precio por noche del socio (columna socio_noche).');
+	const vacacional = { ...(yaPorNoche ? {} : { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00' }), ...(it.vac || {}) };
+	const pub = previo ? { vacacional } : vacacionalPublico({ socio, vacacional });
 	// La dirección y el mapa de una casa por noche son privados (privado/llegada): no van al documento público.
 	// Vale lo del CSV; si no lo trae, lo ya guardado en privado; si tampoco, lo que la casa tenía en público.
 	const llegadaRef = doc(db, 'properties', id, 'privado', 'llegada');
 	const antes = previo ? ((await getDoc(llegadaRef)).data() || {}) : {};
 	const llegada = { direccion: it.datos.direccion ?? antes.direccion ?? previo?.direccion ?? '', mapa: antes.mapa ?? previo?.mapa ?? '' };
-	return { id, pub: { ...pub, direccion: '', mapa: '' }, socio: resto, llegada };
+	return { id, pub: { ...pub, direccion: '', mapa: '' }, socio, llegada };
 }
-const guardarSocio = (v) => v && guardarPrivadoVacacional(v.id, v.socio, v.llegada);
 
 export async function render(container) {
 	container.replaceChildren();
@@ -385,28 +388,20 @@ export async function render(container) {
 			try {
 				if (it.existente) {
 					const p = it.existente;
-					const pref = doc(db, 'properties', p.id);
 					const vac = await prepararVacacional(p.id, it, p);
 					const r = await subirFotos(it, `properties/${p.id}`, (p.fotos || []).map((f) => f.hash).filter(Boolean));
 					fotosHechas += it.fotos.length;
-					const cambios = { ...it.datos, ...(vac ? vac.pub : {}), updatedAt: serverTimestamp(), updatedBy: session.user.uid };
+					// Solo lo que trae el CSV, con el mismo guardado de la ficha: lo demás (noches reservadas, días
+					// bloqueados, difusión…) queda como está, y el historial de estado y de precio sale de lo guardado.
+					const cambios = { ...it.datos, ...(vac ? vac.pub : {}) };
 					delete cambios.codigo;
-					if (cambios.estado && estadoDe(p).valor !== cambios.estado) {
-						cambios.estadoFecha = serverTimestamp();
-						cambios.historialEstado = [...(p.historialEstado || []), entradaHistorial(cambios.estado)];
-					}
-					const precio = Number(cambios.precio) || 0;
-					const moneda = cambios.moneda || p.moneda || 'USD';
-					const ultimo = (p.historialPrecio || []).at(-1);
-					if (precio && (!ultimo || Number(ultimo.precio) !== precio || ultimo.moneda !== moneda)) {
-						cambios.historialPrecio = [...(p.historialPrecio || []), { precio, moneda, fecha: Timestamp.now() }];
-					}
 					if (r.fotos.length) cambios.fotos = [...(p.fotos || []), ...r.fotos];
-					const en = await enIngles({ ...p, ...cambios });
+					const en = await enIngles({ ...p, ...cambios, vacacional: { ...(p.vacacional || {}), ...(cambios.vacacional || {}) } });
 					if (en) cambios.en = en;
-					await guardarSocio(vac);
-					await guardar(() => updateDoc(pref, cambios), r.fotos);
-					Object.assign(p, cambios);
+					let guardada = null;
+					await guardar(async () => { guardada = await guardarCambios(p.id, cambios, vac ? { socio: vac.socio, llegada: vac.llegada } : {}); }, r.fotos);
+					for (const k of Object.keys(p)) if (k !== 'id') delete p[k];
+					Object.assign(p, guardada);
 					cuenta.actualizadas++;
 					anotar('ok', 'icon-refresh', `Actualizada: ${it.datos.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto nueva' : 'fotos nuevas'}${r.repetidas ? `, ${r.repetidas} ya ${r.repetidas === 1 ? 'estaba' : 'estaban'}` : ''})`, r.fallas);
 				} else {
@@ -419,7 +414,8 @@ export async function render(container) {
 					const en = await enIngles(d);
 					if (en) d.en = en;
 					await guardar(() => setDoc(nref, d), r.fotos);
-					await guardarSocio(vac);
+					// Lo privado va después de crear la casa: su regla la lee.
+					if (vac) await guardarPrivadoVacacional(nref.id, vac.socio, vac.llegada);
 					existentes.push({ id: nref.id, ...d });
 					cuenta.creadas++;
 					anotar('ok', 'icon-check-circle', `Creada: ${d.codigo} · ${titulo} (${r.fotos.length} ${r.fotos.length === 1 ? 'foto' : 'fotos'})`, r.fallas);

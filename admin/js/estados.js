@@ -51,8 +51,8 @@ export const operacionDe = (p) => OPERACION_LABEL[p && p.operacion] || OPERACION
 export const enOperacion = (p, lang = 'es') => (lang === 'en'
 	? OPERACION_EN[p && p.operacion] || OPERACION_EN.venta
 	: `en ${operacionDe(p).toLowerCase()}`);
-// Para un hashtag: «EnVenta» · «EnRenta» · «EnRentaVacacional».
-export const operacionHashtag = (p) => enOperacion(p).replace(/(?:^|\s+)(\S)/g, (_, c) => c.toUpperCase());
+// Para un hashtag: «EnVenta» · «EnRenta» · «EnRentaVacacional» (en inglés: «ForSale» · «ForRent» · «ForVacationRental»).
+export const operacionHashtag = (p, lang = 'es') => enOperacion(p, lang).replace(/(?:^|\s+)(\S)/g, (_, c) => c.toUpperCase());
 
 // Amenidades frecuentes: el panel las ofrece de un toque y la ficha en inglés las traduce sola
 // cuando la propiedad no trae su lista en inglés.

@@ -151,9 +151,8 @@ function tabRedactar(cont, props, idInicial) {
 		const listo = cargando(btn);
 		out.replaceChildren(spinner('Escribiendo la ficha, el SEO y las publicaciones…'));
 		try {
-			const datos = { ...p };
-			delete datos.fotos; delete datos.createdAt; delete datos.updatedAt;
-			const r = await pedirIA('descripcion', { propiedad: datos, notas: notas.value });
+			// pedirIA manda solo lo público de la propiedad (admin/js/para-ia.js).
+			const r = await pedirIA('descripcion', { propiedad: p, notas: notas.value });
 			const campo = (label, value, rows = 3) => {
 				const t = h('textarea', { class: 'form-control', rows });
 				t.value = value || '';
@@ -228,7 +227,8 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 			const dias = lead.createdAt?.seconds ? Math.floor((Date.now() / 1000 - lead.createdAt.seconds) / 86400) : null;
 			const r = await pedirIA('seguimiento', {
 				lead: {
-					nombre: lead.nombre, telefono: lead.telefono, email: lead.email, mensaje: lead.mensaje, origen: lead.origen,
+					// El contexto del lead, no su contacto: el teléfono y el correo se quedan aquí, en los botones.
+					nombre: lead.nombre, mensaje: lead.mensaje, origen: lead.origen,
 					estado: lead.estado, propiedad: lead.propertyTitulo, diasDesdeQueEscribio: dias,
 					notas: (lead.notas || []).map((n) => n.texto)
 				},

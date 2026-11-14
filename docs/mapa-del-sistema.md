@@ -30,7 +30,9 @@ Las rutas son desde la raíz del repositorio.
   - `session.js`: usuario, rol (`isAdmin`, `esSocio`, `agentId`, `rolVisible`), `markPending`; del dueño, `cargarMiResumen` y `misCasas`.
   - `duenos.js` (puro): `esSocio`, `casasDe`, `etiquetaDueno`, `exclusivaHasta`, `datosDelDueno`. `ficha-casa.js`: ficha corta de una casa (`fichaCasa`, `datosDe`, `estadoExclusiva`). `acceso.js`: dar y quitar el acceso al panel de un dueño.
   - `crm.js`: cargas que respetan el rol (`loadPropietarios`, `loadPropiedades`, `loadReservas`).
-  - `formato.js`: dinero, m², teléfonos, WhatsApp. **También lo usan el generador y las funciones.**
+  - `formato.js`: dinero, precio según la operación (`precioTexto`; `ui.js` `formatPrice` es el mismo), m², teléfonos, WhatsApp. **También lo usan el generador y las funciones.**
+  - `cambios-casa.js` (puro): qué cambió la ficha (`cambiosEntre`), ponerlo sobre lo guardado ahora (`aplicarCambios`), el historial de estado y de precio (`historialCon`) y `huespedesMaxDe`. `privado-casa.js`: la única escritura de `privado/socio` y `privado/llegada` (`guardarPrivadoVacacional`, solo los campos que se pasan).
+  - `para-ia.js` (puro): lo único que sale a la IA o al traductor; `pedirIA` (`ia.js`) lo aplica a todo.
   - `estados.js`: estados de una propiedad y qué pasa en el sitio con cada uno.
   - `pendientes-reglas.js` + `pendientes.js`: «Faltan» (datos por completar).
   - `seo-auto.js`, `seo.js`, `reglas.js` (sin IA) e `ia.js` (con IA; tareas en `netlify/lib/tareas.mjs`).
@@ -67,7 +69,7 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 
 | Colección | Qué guarda | Anidado |
 |---|---|---|
-| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `privado/acuerdo` (exclusiva, comisión e impuestos acordados con el dueño para ese inmueble), `bitacora/` |
+| `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. Varias pantallas escriben partes distintas (ver «Crear, editar o eliminar una propiedad»). | `privado/socio` (precio del socio, margen, iCal; el contacto del socio vive en su ficha), `privado/llegada` (dirección y mapa de una casa por noche), `privado/acuerdo` (exclusiva, comisión e impuestos acordados con el dueño para ese inmueble), `bitacora/` |
 | `propietarios/{id}` | Una ficha por persona: contacto, `tipo` (propietario o colaborador, con `empresa`), `agentId` (el asesor que la ve) y la lista `propiedades`. Sin exclusiva ni comisión: eso es de cada inmueble. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. `acceso` = copia de si entra al panel. **Solo el equipo la lee.** | — |
 | `leads/{id}` | Lo que llega de los formularios. En una reserva: `reserva{}` y `solicitud{}`. **El socio no lo lee.** | — |
 | `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto; el de llegada lleva `direccion` y `mapa`) |
@@ -92,7 +94,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Dueño del inmueble (propietario, socio, colaborador)** → `admin/js/views/propietarios.js` (`tipo`, lista de casas: `elegirCasa` es el selector con buscador y una ficha por inmueble (`fichaCasa`); crear y editar abren la ficha del inmueble en una ventana (`abrirFicha`); `vincularCasas`) ↔ `admin/js/views/properties.js` (`propietarioId`, enlace en ambos sentidos) → acceso al panel desde su ficha (ver «Panel del dueño») → `firestore.rules` (`esSocioDe`) → `scripts/build.mjs` (mora: solo casas por noche).
 
-**Precio de la renta por noche** → `js/calc-vacacional.js` (única fórmula) → `admin/js/views/properties.js` y `mis-casas.js` (precio del socio → precio público) → `js/vacacional.js` (desglose) → `netlify/functions/disponibilidad.mjs` (precio al día) → `scripts/test-vacacional.mjs`.
+**Precio de la renta por noche** → `js/calc-vacacional.js` (única fórmula) → `admin/js/views/properties.js` (`vacacionalPublico` dentro de `guardarCambios`) y `mis-casas.js` (precio del socio → precio público; los dos escriben `privado/socio` con `guardarPrivadoVacacional` y los huéspedes con `huespedesMaxDe`) → `js/vacacional.js` (desglose) → `netlify/functions/disponibilidad.mjs` (precio al día) → `scripts/test-vacacional.mjs`.
 
 **Reserva por noche, de punta a punta** → `scripts/lib/templates.mjs` `reservaBox` → `js/vacacional.js` (fechas, código) → `js/site.js` (guarda el lead) → `js/reserva-chat.js` (`crear` el chat, página «Tu reserva») → `netlify/functions/aviso-chat.mjs` + `netlify/lib/avisos-chat.mjs` → `admin/js/views/solicitudes.js` (chat, Confirmada, Pago recibido, Cancelar) → `admin/js/views/rentas.js` (reserva y comisión) → `netlify/functions/solicitudes-sin-respuesta.mjs` → `firestore.rules` (`leads`, `chats`, `mensajes`, `reservas`) y `storage.rules` (`chats/`).
 
@@ -100,7 +102,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Dirección y mapa de una casa por noche** → `admin/js/views/properties.js` (los saca del documento público al guardar) e `importar.js` → `properties/{id}/privado/llegada` → `admin/js/views/solicitudes.js` `pagoRecibido` (los copia al mensaje) → `js/reserva-chat.js` (los muestra) → `firestore.rules` (`privado`, `mensajes`) → `scripts/build.mjs` (los borra de toda casa por noche antes de generar).
 
-**Crear, editar o eliminar una propiedad** → una sola ficha: `admin/js/views/properties.js` `renderEditor` (en su página, o en una ventana con `abrirFicha`, que usa `propietarios.js` desde la ficha del dueño). `propiedadNueva` (lo que lleva toda propiedad al nacer) la usan la ficha y `importar.js`; `eliminarPropiedad`, la ficha y el listado. El importador crea desde un CSV con `slugLibre` y `guardarPrivadoVacacional`. «Duplicar» (en la ficha) usa las mismas: `propiedadNueva`, `slugLibre` y, si es por noche, `guardarPrivadoVacacional` (el acuerdo no se copia).
+**Crear, editar o eliminar una propiedad** → una sola ficha: `admin/js/views/properties.js` `renderEditor` (en su página, o en una ventana con `abrirFicha`, que usa `propietarios.js` desde la ficha del dueño). `propiedadNueva` (lo que lleva toda propiedad al nacer) la usan la ficha, «Duplicar» y `importar.js`; `eliminarPropiedad` (también la quita de la lista del dueño), la ficha y el listado. **Guardar una que ya existe** es siempre `guardarCambios`: en una transacción vuelve a leer la casa y el costo del socio y pone encima solo lo que cambió quien guarda (`admin/js/cambios-casa.js`); de ahí salen los precios públicos por noche y el historial (`historialCon`). La usan la ficha y el importador. Lo que escriben otras pantallas en la misma casa: `vacacional.reservadas` (`solicitudes.js`, `rentas.js`), `vacacional.bloqueos`, `minimos`, `huespedesMax` y precios (`mis-casas.js`), `difusion.{portal}` (`views/difusion.js`), estado, visible, fotos y textos (acciones del listado). Tras guardar, lo guardado es el punto de partida del siguiente «Guardar». «Duplicar» usa `propiedadNueva`, `slugLibre` y, si es por noche, `guardarPrivadoVacacional` (sin noches reservadas, bloqueos, mínimos ni iCal; el acuerdo no se copia).
 
 **Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las tres categorías en la misma ficha: con casas por noche, datos de pago; con venta o renta, el asesor que la atiende; sin casas todavía, nada de eso) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`.
 
@@ -110,7 +112,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Enlace de WhatsApp** → `admin/js/formato.js` `telefonoWa` / `whatsappUrl` → `scripts/lib/util.mjs` `whatsappLink` → `scripts/build.mjs` (config del sitio) → `admin/js/portal.js`.
 
-**Etiqueta de la operación** («Venta», «en renta vacacional», hashtag) → `admin/js/estados.js` (`OPERACIONES`, `operacionDe`, `enOperacion`, `operacionHashtag`; `properties.js` reexporta `OPERACIONES`) → `listado.js`, `difusion.js`, `reglas.js`, `seo-auto.js`, `cotizacion.js`.
+**Etiqueta de la operación** («Venta», «en renta vacacional», hashtag) → `admin/js/estados.js` (`OPERACIONES`, `operacionDe`, `enOperacion`, `operacionHashtag`, en español o inglés; `properties.js` reexporta `OPERACIONES`) → `listado.js`, `difusion.js`, `reglas.js`, `seo-auto.js`, `cotizacion.js`. El precio con su operación («/mes», «por noche») → `admin/js/formato.js` `precioTexto` (el generador aún tiene su copia en `scripts/lib/util.mjs` `formatPrice`). Una casa por noche no entra donde se compara un precio de compra o de renta al mes: `calculadora.js` y `reglas.js` `evaluar`.
 
 **Estado de una propiedad** → `admin/js/estados.js` → `scripts/build.mjs` (`seOfrece`, páginas cerradas) → `scripts/lib/templates.mjs`.
 
@@ -118,7 +120,9 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Mascotas en una casa por noche** → un solo dato, el selector `vacacional.mascotas`; `admin/js/estados.js` `mascotasUnaVez` y `amenidadesPara` quitan la amenidad repetida → `admin/js/views/properties.js` (al abrir y al guardar) → `scripts/build.mjs` (al publicar) → `admin/js/reglas.js` `textoProp` (búsquedas).
 
-**Traducción al inglés** → `netlify/lib/tareas.mjs` (con IA) y `admin/js/reglas.js` (sin IA) → `admin/js/views/properties.js` `traducirEn`, `fuenteEs`, `traducirEnVivo` (se traduce al salir del campo, con `paraTraducir`: sin dirección ni mapa privados; `form.poner` la muestra) → `scripts/build.mjs` `propiedadEn`.
+**Traducción al inglés** → `netlify/lib/tareas.mjs` (con IA) y `admin/js/reglas.js` (sin IA; usa un traductor gratuito de fuera) → `admin/js/views/properties.js` `traducirEn`, `fuenteEs`, `traducirEnVivo` (se traduce al salir del campo, con `paraTraducir`: precios que ve el cliente; `form.poner` la muestra) → `scripts/build.mjs` `propiedadEn`.
+
+**Lo que sale a la IA o al traductor** → `admin/js/ia.js` `pedirIA` (única salida) → `admin/js/para-ia.js` `paraIA` (de cada propiedad, solo lo público; casa por noche sin dirección ni mapa; nada de socio, acuerdo, privado, historial, difusión, dueño, asesor ni uid; del lead y del requerimiento, primer nombre y lo que busca, sin teléfono ni correo) ← `views/ia.js` (buscar, redactar, seguimiento, clientes, chat) y `traducirEn` → `scripts/test-para-ia.mjs`. `generarDescripcion` también recibe `propiedadParaIA` (lo que escribe se publica).
 
 **Página nueva del sitio** → `scripts/lib/templates.mjs` → `scripts/build.mjs` (escribirla, sitemap, hreflang) → `scripts/lib/i18n.mjs` (rutas y textos) → `scripts/lib/assets.mjs` si lleva JavaScript propio.
 

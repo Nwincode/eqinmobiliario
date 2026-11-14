@@ -1,6 +1,6 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
-import { M2_A_FT2, dinero, decimales } from './formato.js';
+import { M2_A_FT2, dinero, decimales, precioTexto } from './formato.js';
 import { enOperacion, operacionHashtag } from './estados.js';
 
 const TC = 7.7; // 1 US$ ≈ 7.7 Q
@@ -22,6 +22,8 @@ const SINONIMOS_TIPO = {
 const sinAcentos = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const n = (v) => Number(v) || 0;
 const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
+// El precio con su operación («/mes», «por noche»): el formato único de formato.js.
+const precioDe = (p) => precioTexto(p.precio, p.moneda, p.operacion);
 const enUSD = (precio, moneda) => (moneda === 'GTQ' ? n(precio) / TC : n(precio));
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
@@ -132,6 +134,8 @@ export function evaluar(p, c) {
 	const cumple = [];
 	const falla = [];
 	if (c.operacion && c.operacion !== 'cualquiera' && p.operacion !== c.operacion) return null;
+	// Una casa por noche solo entra cuando se busca por noche: su precio es de una noche, no de compra ni de renta al mes.
+	if ((p.operacion === 'vacacional') !== (c.operacion === 'vacacional')) return null;
 	if (c.tipos?.length) {
 		if (!c.tipos.includes(p.tipo)) return null;
 		cumple.push(TIPO_ES[p.tipo] || p.tipo);
@@ -169,7 +173,7 @@ export function evaluar(p, c) {
 	return { puntaje: Math.max(5, Math.min(100, puntaje)), motivo: cumple.length ? `Cumple: ${unir(cumple)}.` : 'Encaja con lo que busca.', diferencias: falla.length ? `Ojo: ${unir(falla)}.` : '' };
 }
 
-const lineaProp = (p) => `• ${p.titulo} — ${fmt(p.precio, p.moneda)}${p.operacion === 'renta' ? '/mes' : ''}\n${url(p)}`;
+const lineaProp = (p) => `• ${p.titulo} — ${precioDe(p)}\n${url(p)}`;
 
 function buscar({ texto, inventario = [] }) {
 	const zonas = [...new Set(inventario.map((p) => p.zona).filter(Boolean))];
@@ -215,7 +219,7 @@ function seguimiento({ lead, propiedad, inventario = [] }) {
 		const c = { operacion: propiedad.operacion, tipos: [propiedad.tipo], zonas: propiedad.zona ? [propiedad.zona] : [], presupuestoMaximo: n(propiedad.precio) * 1.15, moneda: propiedad.moneda, habitacionesMinimas: 0, otros: [] };
 		inventario.filter((p) => p.id !== propiedad.id).map((p) => ({ p, r: evaluar(p, c) })).filter((x) => x.r && x.r.puntaje >= 60)
 			.sort((a, b) => b.r.puntaje - a.r.puntaje).slice(0, 3)
-			.forEach(({ p }) => sugeridas.push({ id: p.id, motivo: `Parecida: ${TIPO_ES[p.tipo] || p.tipo} en ${p.zona}, ${fmt(p.precio, p.moneda)}.` }));
+			.forEach(({ p }) => sugeridas.push({ id: p.id, motivo: `Parecida: ${TIPO_ES[p.tipo] || p.tipo} en ${p.zona}, ${precioDe(p)}.` }));
 	}
 
 	const saludo = `Hola${nombre ? ` ${nombre}` : ''}, le saluda su asesor de Equipo Inmobiliario.`;
@@ -241,7 +245,7 @@ function coincidencias({ propiedad: p, requerimientos = [] }) {
 		const nombre = String(req.cliente || '').split(' ')[0];
 		return {
 			id: req.id, puntaje: r.puntaje, motivo: [r.motivo, r.diferencias].filter(Boolean).join(' '),
-			mensajeWhatsApp: `Hola${nombre ? ` ${nombre}` : ''}, acaba de entrar una propiedad que se parece a lo que me pidió:\n${p.titulo} — ${fmt(p.precio, p.moneda)}${p.operacion === 'renta' ? '/mes' : ''}\n${url(p)}\n¿Le gustaría verla?`
+			mensajeWhatsApp: `Hola${nombre ? ` ${nombre}` : ''}, acaba de entrar una propiedad que se parece a lo que me pidió:\n${p.titulo} — ${precioDe(p)}\n${url(p)}\n¿Le gustaría verla?`
 		};
 	}).filter(Boolean).sort((a, b) => b.puntaje - a.puntaje).slice(0, 10);
 	return { coincidencias: lista };
@@ -270,23 +274,23 @@ function descripcion({ propiedad: p, notas = '' }) {
 		`${tipo} ${op} ubicada en ${donde || 'Guatemala'}.${d.length ? ` Cuenta con ${unir(d)}.` : ''}`,
 		String(notas || '').trim(),
 		amen.length ? `**Amenidades:**\n${amen.map((a) => `- ${a}`).join('\n')}` : '',
-		`Precio: ${fmt(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : ''}. Contacte a un asesor para más detalles o para agendar una visita.`
+		`Precio: ${precioDe(p)}. Contacte a un asesor para más detalles o para agendar una visita.`
 	].filter(Boolean);
-	const corto = `${tipo} ${op} en ${p.zona || p.ciudad || 'Guatemala'}${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${fmt(p.precio, p.moneda)}.`;
+	const corto = `${tipo} ${op} en ${p.zona || p.ciudad || 'Guatemala'}${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioDe(p)}.`;
 	const zonaTag = sinAcentos(p.zona || 'guatemala').replace(/\s+/g, '');
 	const hashtags = ['#BienesRaicesGuatemala', `#${tipo.split(' ')[0]}${operacionHashtag(p)}`, `#${zonaTag}`, '#Guatemala', '#Inmuebles', '#EquipoInmobiliario'].join(' ');
 	const puntos = [...d.slice(0, 4), ...amen.slice(0, 2)].slice(0, 6);
 	return {
 		titulo,
 		descripcion: parrafos.join('\n\n'),
-		seoTitulo: `${tipo} ${op} ${p.zona || 'Guatemala'} | ${d[0] || fmt(p.precio, p.moneda)}`.slice(0, 65),
+		seoTitulo: `${tipo} ${op} ${p.zona || 'Guatemala'} | ${d[0] || precioDe(p)}`.slice(0, 65),
 		seoDescripcion: corto.slice(0, 155),
 		vipTitular: p.direccion || titulo,
 		vipSubtitular: `${tipo} ${op} en ${p.zona || 'Guatemala'}${d.length ? ` con ${unir(d.slice(0, 2))}` : ''}.`,
 		puntosClave: puntos.length ? puntos : [donde].filter(Boolean),
 		amenidades: amen,
-		postInstagram: `${titulo}\n\n${d.length ? `${d.map((x) => `✔ ${x}`).join('\n')}\n` : ''}${fmt(p.precio, p.moneda)}${p.operacion === 'renta' ? '/mes' : ''}\n\nEscríbenos para agendar tu visita.\n${url(p)}\n\n${hashtags}`,
-		postFacebook: `${titulo}\n\n${parrafos[0]}\n${amen.length ? `\nAmenidades: ${amen.join(', ')}.\n` : ''}\nPrecio: ${fmt(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : ''}.\nMás información y fotos: ${url(p)}`
+		postInstagram: `${titulo}\n\n${d.length ? `${d.map((x) => `✔ ${x}`).join('\n')}\n` : ''}${precioDe(p)}\n\nEscríbenos para agendar tu visita.\n${url(p)}\n\n${hashtags}`,
+		postFacebook: `${titulo}\n\n${parrafos[0]}\n${amen.length ? `\nAmenidades: ${amen.join(', ')}.\n` : ''}\nPrecio: ${precioDe(p)}.\nMás información y fotos: ${url(p)}`
 	};
 }
 

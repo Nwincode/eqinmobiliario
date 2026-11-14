@@ -521,7 +521,8 @@ export async function render(container) {
 	// Inventario: se carga aparte para que la calculadora funcione aunque falle la lectura.
 	try {
 		const { loadAll } = await import('./properties.js');
-		props = (await loadAll()).filter((p) => Number(p.precio) > 0);
+		// Solo venta y renta: el precio de una casa por noche es de una noche, no de compra.
+		props = (await loadAll()).filter((p) => Number(p.precio) > 0 && p.operacion !== 'vacacional');
 		const op = (p) => h('option', { value: p.id }, [p.codigo, p.titulo, p.zona].filter(Boolean).join(' · '));
 		selProp.append(
 			h('optgroup', { label: 'En venta' }, props.filter((p) => p.operacion !== 'renta').map(op)),

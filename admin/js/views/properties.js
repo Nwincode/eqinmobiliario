@@ -1,5 +1,5 @@
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp, arrayUnion, Timestamp
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, Timestamp, runTransaction
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
@@ -21,6 +21,9 @@ import { datosDe } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
+import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
+import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
+import { propiedadParaIA } from '../para-ia.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -78,11 +81,9 @@ export const faltaIngles = (d) => {
 };
 // La dirección en inglés sale del título: al cambiarlo se guarda el anterior para redirigir.
 const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
+// Al traductor va solo lo público: pedirIA lo limpia con admin/js/para-ia.js.
 export async function traducirEn(d) {
-	const datos = { ...d };
-	delete datos.fotos; delete datos.en; delete datos.createdAt; delete datos.updatedAt; delete datos.socio; delete datos.acuerdo;
-	delete datos.estadoFecha; delete datos.historialEstado; delete datos.historialPrecio;
-	const r = await pedirIA('traducir', { propiedad: datos });
+	const r = await pedirIA('traducir', { propiedad: d });
 	return {
 		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
 		seo: {
@@ -139,16 +140,14 @@ export function vacacionalPublico(d) {
 		vacacional: {
 			base: pub.base, finde: pub.finde, tarifas: pub.tarifas,
 			nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
-			huespedesMax: Math.max(1, Math.floor(Number(v.huespedesMax) || 1)),
+			huespedesMax: huespedesMaxDe(v.huespedesMax),
 			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
 			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
 			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
 			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
-			bloqueos,
-			// Mínimos de noches por fechas: los pone el dueño en «Mis propiedades»; aquí solo se conservan.
-			minimos: v.minimos || [],
-			// Reservas confirmadas: las escribe Rentas vacacionales; aquí solo se conservan.
-			reservadas: V.unirRangos(v.reservadas || [])
+			bloqueos
+			// Los mínimos de noches (los pone el dueño) y las noches reservadas (Solicitudes y Rentas) no salen de
+			// aquí: guardarCambios los deja como están en la base.
 		}
 	};
 }
@@ -189,23 +188,28 @@ export function datosIniciales() {
 }
 
 // Lo que lleva toda propiedad al nacer: su historial de estado y de precio empezado y quién la creó.
-// Una sola para todo el panel: la usan la ficha (al guardar una nueva) y el importador.
+// Una sola para todo el panel: la usan la ficha (al guardar una nueva), «Duplicar» y el importador.
 export function propiedadNueva(datos) {
 	const d = { ...datosIniciales(), descripcion: '', ...datos };
-	d.estado = estadoDe(d).valor;
+	const hist = historialCon(null, d, autor());
+	Object.assign(d, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio });
 	d.estadoFecha = serverTimestamp();
-	d.historialEstado = [entradaHistorial(d.estado)];
-	d.historialPrecio = Number(d.precio) ? [{ precio: Number(d.precio), moneda: d.moneda || 'USD', fecha: Timestamp.now() }] : [];
 	d.createdAt = d.updatedAt = serverTimestamp();
 	d.createdBy = d.updatedBy = session.user.uid;
 	return d;
 }
-// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento y sus fotos.
-// Una sola para todo el panel: la usan la ficha y el listado.
+// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento, sus fotos y su
+// renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
 export async function eliminarPropiedad(p) {
 	for (const privado of ['socio', 'llegada', 'acuerdo']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
 	await deleteDoc(doc(db, 'properties', p.id));
 	await borrarFotos(p);
+	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya
+	// no existe y la ficha del dueño no la muestra: se anota en la consola y el borrado sigue.
+	try {
+		const duenos = await getDocs(query(collection(db, 'propietarios'), where('propiedades', 'array-contains', { propertyId: p.id })));
+		await Promise.all(duenos.docs.map((x) => updateDoc(x.ref, { propiedades: arrayRemove({ propertyId: p.id }) })));
+	} catch (err) { console.warn('No se pudo quitar la casa de la lista de su dueño', err); }
 }
 // URL libre a partir del título («usados» es un Set que se va llenando).
 export function slugLibre(titulo, usados) {
@@ -215,12 +219,42 @@ export function slugLibre(titulo, usados) {
 	usados.add(s);
 	return s;
 }
-// Lo privado de una casa por noche: el costo del socio y los datos de llegada (dirección y mapa).
-// Va después de crear la casa: su regla la lee.
-export async function guardarPrivadoVacacional(id, socio, llegada) {
-	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
-	await setDoc(doc(db, 'properties', id, 'privado', 'socio'), { ...socio, ...sello });
-	await setDoc(doc(db, 'properties', id, 'privado', 'llegada'), { ...llegada, ...sello });
+// Lo privado de una casa por noche (costo del socio, dirección y mapa) se escribe con guardarPrivadoVacacional
+// (admin/js/privado-casa.js); se reexporta para quien ya lo importa de aquí.
+export { guardarPrivadoVacacional };
+
+// Guarda los cambios de una propiedad que ya existe. Una sola para el panel: la ficha y el importador.
+// En una transacción vuelve a leer la casa (y el costo del socio) y pone encima solo lo que cambió quien guarda
+// (admin/js/cambios-casa.js): lo que otra pantalla escribió mientras tanto (noches reservadas, días bloqueados,
+// mínimos y precios del dueño, difusión, estado o visibilidad desde la lista) se queda. Con lo que resulta se
+// calculan los precios públicos de una casa por noche y el historial de estado y de precio. Devuelve la casa guardada.
+//  - cambios: campos de la casa («vacacional», campo por campo); undefined = quitarlo.
+//  - socio: solo los campos del costo del socio que cambiaron. llegada: dirección y mapa de una casa por noche.
+//  - sinLlegada: dejó de ser por noche; se borra privado/llegada.
+export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false } = {}) {
+	const ref = doc(db, 'properties', id);
+	const quien = autor();
+	return runTransaction(db, async (tx) => {
+		const snap = await tx.get(ref);
+		if (!snap.exists()) throw new Error('La propiedad ya no existe.');
+		const antes = snap.data();
+		const casa = aplicarCambios(antes, cambios);
+		const vac = esVacacional(casa);
+		if (vac) {
+			// El precio público sale del costo del socio guardado AHORA más lo que se cambió aquí.
+			const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio'))).data() || {};
+			const pub = vacacionalPublico({ ...casa, socio: { ...guardado, ...socioLimpio(socio || {}) } });
+			casa.precio = pub.precio;
+			casa.vacacional = { ...casa.vacacional, ...pub.vacacional };
+		}
+		const hist = historialCon(antes, casa, quien);
+		Object.assign(casa, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
+		if (hist.cambioEstado) casa.estadoFecha = serverTimestamp();
+		tx.set(ref, casa);
+		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx);
+		if (sinLlegada) tx.delete(doc(db, 'properties', id, 'privado', 'llegada'));
+		return casa;
+	});
 }
 
 export function publicUrl(p) {
@@ -249,10 +283,11 @@ function canEdit(p) {
 	return session.isAdmin || (p.agentId && p.agentId === session.agentId);
 }
 
-// Entrada del historial de estados (serverTimestamp no se permite dentro de arreglos).
-export function entradaHistorial(estado) {
-	return { estado, fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
+// Quién y cuándo, para el historial de estados (serverTimestamp no se permite dentro de arreglos).
+function autor() {
+	return { fecha: Timestamp.now(), por: session.profile?.nombre || session.user?.email || '', porUid: session.user?.uid || '' };
 }
+export const entradaHistorial = (estado) => entradaEstado(estado, autor());
 
 // Campos que registran un cambio de estado desde la lista: fecha y entrada en el historial.
 function cambioDeEstado(estado) {
@@ -295,7 +330,7 @@ async function exportarCsv(props, agentName, btn) {
 				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
 				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
 				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
-				ical: s.icalUrl, socio_nombre: s.nombre, socio_telefono: s.telefono,
+				ical: s.icalUrl,
 				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
 				enlace: p.slug ? `https://eqinmobiliario.gt/${p.vip ? 'vip' : 'propiedad'}/${p.slug}/` : '',
 				publicado: p.publicado ? 'sí' : 'no'
@@ -552,7 +587,7 @@ export async function render(container, [id]) {
 		const l = lista || elegidas();
 		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Se ordena con la plantilla (Características, Amenidades, Detalles técnicos y lo que no incluye el precio). El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
 		await enMasa(async (p) => {
-			const descripcion = generarDescripcion(p);
+			const descripcion = generarDescripcion(propiedadParaIA(p));
 			if (descripcion === p.descripcion) return;
 			await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
 		}, 'Descripciones mejoradas', (k) => `${k} descripción${k === 1 ? '' : 'es'} lista${k === 1 ? '' : 's'}. Revisalas y publicá.`, lista);
@@ -635,9 +670,10 @@ export async function render(container, [id]) {
 		h('span', { class: 'icon-pencil', 'aria-hidden': 'true' }), ' Poner textos preparados');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: async (e) => {
+			// El botón se toma antes de esperar: después del «await» el evento ya no lo trae (currentTarget = null).
+			const boton = e.currentTarget;
 			const n = seleccion.size;
 			if (!(await confirmDialog(`¿Poner la marca de agua a las fotos de ${n} propiedad${n === 1 ? '' : 'es'}? Las que ya la tienen se saltan. Puede tardar unos minutos; no cierres esta página.`, { okText: 'Poner marca', danger: false }))) return;
-			const boton = e.currentTarget;
 			const txt = boton.lastChild.textContent;
 			let hecha = 0;
 			await enMasa(async (p) => {
@@ -864,7 +900,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 				h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: async () => {
 					if (!(await confirmDialog('Se ordenará la descripción con la plantilla: tu párrafo de presentación queda arriba y debajo se arman Características, Amenidades, Detalles técnicos y lo que no incluye el precio, con los datos de esta ficha. Podés deshacerlo.', { okText: 'Mejorar', danger: false }))) return;
 					anterior = schema.descInput.value;
-					poner(generarDescripcion({ ...d, ...(esVacacional(d) ? { direccion: '' } : {}), descripcion: anterior }));
+					// Lo que se publica, como lo que sale a la IA: sin la dirección privada de una casa por noche.
+					poner(generarDescripcion(propiedadParaIA({ ...d, descripcion: anterior })));
 					deshacer.hidden = false;
 				} }, h('span', { class: 'icon-list-ul', 'aria-hidden': 'true' }), ' Mejorar descripción'),
 				deshacer,
@@ -989,6 +1026,14 @@ async function renderEditor(container, id, emb = null) {
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
 	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
+	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
+	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
+	const comoQuedo = (f) => {
+		const { socio = {}, acuerdo, ...datos } = clonar(f);
+		if (!esVacacional(f)) delete datos.vacacional;
+		return { datos, socio: esVacacional(f) ? socio : {} };
+	};
+	let alAbrir = comoQuedo(form.getData());
 	form.el.addEventListener('input', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
 	form.el.addEventListener('change', (e) => { if (e.target.closest('[data-campo^="acuerdo."]')) acuerdoTocado = true; });
 	const slugInput = schema.slugInput;
@@ -1099,7 +1144,8 @@ async function renderEditor(container, id, emb = null) {
 		btn.disabled = true;
 		await enCurso;
 		btn.disabled = false;
-		const d = form.getData();
+		const mio = form.getData();
+		const d = clonar(mio);
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
@@ -1112,13 +1158,9 @@ async function renderEditor(container, id, emb = null) {
 		if (esVacacional(d)) {
 			if (!d.propietarioId) return toast('Elige el socio de la casa. Si todavía no existe, créalo en Propietarios.', 'warning');
 			// Socio de otro asesor: se conserva lo ya guardado de él.
-			if (dueno) {
-				if (dueno.agentId) d.agentId = dueno.agentId;
-				Object.assign(socio, { nombre: dueno.nombre || '', telefono: dueno.telefono || '' });
-			}
+			if (dueno?.agentId) d.agentId = dueno.agentId;
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			mascotasUnaVez(d);
-			Object.assign(d, vacacionalPublico({ ...d, socio }));
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
 			Object.assign(d, { direccion: '', mapa: '' });
@@ -1147,47 +1189,39 @@ async function renderEditor(container, id, emb = null) {
 		if (!isNew && data.slug && data.slug !== d.slug) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
-		if (isNew) {
-			// Lo que lleva toda propiedad al nacer: historial de estado y de precio, y quién la creó.
-			Object.assign(d, propiedadNueva(d));
-		} else {
-			// Fecha e historial del estado (setDoc reemplaza el documento: el historial se arma completo).
-			d.estado = estadoDe(d).valor;
-			d.historialEstado = data.historialEstado || [];
-			if (estadoDe(data).valor !== d.estado) {
-				d.estadoFecha = serverTimestamp();
-				d.historialEstado = [...d.historialEstado, entradaHistorial(d.estado)];
-			} else if (data.estadoFecha) {
-				d.estadoFecha = data.estadoFecha;
-			}
-			// Historial de precio (se muestra al propietario en su portal).
-			d.historialPrecio = data.historialPrecio || [];
-			const precioNuevo = Number(d.precio) || 0;
-			const ultimo = d.historialPrecio[d.historialPrecio.length - 1];
-			if (precioNuevo && (!ultimo || Number(ultimo.precio) !== precioNuevo || ultimo.moneda !== d.moneda)) {
-				if (!ultimo && Number(data.precio) && Number(data.precio) !== precioNuevo) {
-					d.historialPrecio.push({ precio: Number(data.precio), moneda: data.moneda || 'USD', fecha: data.createdAt || Timestamp.now() });
-				}
-				const sinCambio = !ultimo && Number(data.precio) === precioNuevo;
-				d.historialPrecio = [...d.historialPrecio, { precio: precioNuevo, moneda: d.moneda || 'USD', fecha: (sinCambio && data.createdAt) || Timestamp.now() }];
-			}
-			d.updatedAt = serverTimestamp();
-			d.updatedBy = session.user.uid;
-		}
+		d.estado = estadoDe(d).valor;
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
 		const traducirAhora = faltaIngles(d);
-		if (!d.vip && d.titulo) llenarSeo(d);
+		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
+		if (!d.vip && d.titulo) {
+			const conPublico = esVacacional(d) ? { ...d, ...vacacionalPublico({ ...d, socio }) } : d;
+			llenarSeo(conPublico);
+			d.seo = conPublico.seo;
+		}
 		llenarAltFotos(d);
 		btn.disabled = true;
+		// La casa como quedó guardada (con lo que otras pantallas escribieron mientras tanto).
+		let guardada = null;
 		try {
-			// Lo privado se guarda antes de quitarlo de lo público (en una casa nueva, después: su regla lee la casa).
-			const guardarLlegada = () => llegada && setDoc(llegadaRef, { ...llegada, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
-			if (!isNew) await guardarLlegada();
-			await setDoc(ref, d);
-			if (isNew) await guardarLlegada();
-			if (!llegada && eraVacacional) await deleteDoc(llegadaRef).catch(() => {});
+			if (isNew) {
+				if (esVacacional(d)) Object.assign(d, vacacionalPublico({ ...d, socio }));
+				// Lo que lleva toda propiedad al nacer: historial de estado y de precio, y quién la creó.
+				Object.assign(d, propiedadNueva(d));
+				await setDoc(ref, d);
+				guardada = d;
+				// Lo privado va después de crear la casa: su regla la lee.
+				if (esVacacional(d)) await guardarPrivadoVacacional(ref.id, socio, llegada);
+			} else {
+				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
+				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
+					socio: esVacacional(d) ? cambiosEntre(alAbrir.socio, socio, []) : null,
+					llegada, sinLlegada: !llegada && eraVacacional
+				});
+			}
+			// Lo guardado es el punto de partida de un segundo «Guardar» sin recargar.
+			alAbrir = comoQuedo(mio);
 			// (Va después de guardar la casa: su regla la lee.)
 			const acuerdo = acuerdoPorGuardar(d, delFormulario);
 			if (acuerdo === 'borrar') await deleteDoc(acuerdoRef);
@@ -1196,15 +1230,6 @@ async function renderEditor(container, id, emb = null) {
 			if (acuerdo) acuerdoPropio = acuerdo === 'borrar' ? null : acuerdo;
 			acuerdoTocado = false;
 			eraVacacional = Boolean(llegada);
-			if (esVacacional(d)) {
-				await setDoc(privRef, {
-					precioBase: Number(socio.precioBase) || 0, precioFinde: Number(socio.precioFinde) || 0,
-					margen: socio.margen === null || socio.margen === undefined || socio.margen === '' ? V.MARGEN : Number(socio.margen),
-					tarifas: (socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio) })),
-					nombre: socio.nombre || '', telefono: socio.telefono || '', icalUrl: String(socio.icalUrl || '').trim(),
-					updatedAt: serverTimestamp(), updatedBy: session.user.uid
-				});
-			}
 			// La casa queda también en la lista del socio (y sale de la del anterior, si cambió).
 			// arrayUnion: no pisa lo que otra persona haya agregado a esa lista mientras tanto.
 			if (dueno && !(dueno.propiedades || []).some((x) => x.propertyId === ref.id)) {
@@ -1216,9 +1241,13 @@ async function renderEditor(container, id, emb = null) {
 			const anterior = data.propietarioId && data.propietarioId !== d.propietarioId && propietarios.find((p) => p.id === data.propietarioId);
 			if (anterior) await updateDoc(doc(db, 'propietarios', anterior.id), { propiedades: (anterior.propiedades || []).filter((x) => x.propertyId !== ref.id) });
 			if (!isNew) refrescarPortalesDe([ref.id]);
+			// Lo que la ficha compara con «data» (dueño, URL, operación) queda como se guardó: un segundo «Guardar» no
+			// vuelve a sacar la casa del dueño anterior ni le borra el acuerdo al nuevo.
+			for (const k of Object.keys(data)) delete data[k];
+			Object.assign(data, guardada, llegada || {});
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
-			const casa = { id: ref.id, ...d };
+			const casa = { id: ref.id, ...guardada };
 			if (!traducirAhora) {
 				toast('Propiedad guardada. Recuerda publicar para ver los cambios en el sitio.');
 				if (emb) emb.alGuardar(casa);
@@ -1227,7 +1256,7 @@ async function renderEditor(container, id, emb = null) {
 			}
 			btn.textContent = 'Traduciendo al inglés…';
 			try {
-				await updateDoc(ref, { en: await traducirEn(d), updatedAt: serverTimestamp() });
+				await updateDoc(ref, { en: await traducirEn(guardada), updatedAt: serverTimestamp() });
 				toast('Propiedad guardada y traducida al inglés. Recuerda publicar para ver los cambios en el sitio.');
 			} catch (err) {
 				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés".', 'warning');
@@ -1259,7 +1288,8 @@ async function renderEditor(container, id, emb = null) {
 	// Duplicar: nace como toda propiedad nueva (propiedadNueva), sin publicar, con URL y código propios y sin el
 	// historial, las URL anteriores, la difusión ni la versión en inglés de la original. Reutiliza las fotos sin su
 	// ruta de almacenamiento, para que borrar fotos de la copia no elimine las de la original. Una casa por noche
-	// lleva también su privado (socio y llegada); el acuerdo con el dueño no se copia.
+	// lleva también su privado (costo del socio y llegada), sin el calendario de Airbnb ni las noches reservadas o
+	// bloqueadas de la original; el acuerdo con el dueño no se copia.
 	const duplicate = async (btn) => {
 		btn.disabled = true;
 		try {
@@ -1269,8 +1299,11 @@ async function renderEditor(container, id, emb = null) {
 			const [socioPriv, llegadaPriv] = vac ? await Promise.all([getDoc(privRef), getDoc(llegadaRef)]) : [];
 			const { historialPrecio, historialEstado, slugsAnteriores, difusion, en, codigo, ...base } = data;
 			const titulo = `${data.titulo} (copia)`;
+			// La copia es otra casa: empieza sin noches reservadas, días bloqueados ni mínimos por fechas de la original.
+			const { reservadas, bloqueos, minimos, ...vacacional } = data.vacacional || {};
 			const d = propiedadNueva({
 				...base,
+				...(vac ? { vacacional } : {}),
 				titulo,
 				slug: slugLibre(titulo, new Set(all.map((p) => p.slug).filter(Boolean))),
 				// Todos los códigos cuentan, también el de la original.
@@ -1285,8 +1318,9 @@ async function renderEditor(container, id, emb = null) {
 			await setDoc(newRef, d);
 			// Después de crear la casa: su regla la lee.
 			if (vac) {
-				const sinSello = (s) => { const { updatedAt, updatedBy, ...resto } = s.data() || {}; return resto; };
-				await guardarPrivadoVacacional(newRef.id, sinSello(socioPriv), sinSello(llegadaPriv));
+				// El costo del socio sí (sin el calendario de Airbnb, que es de la original); la dirección y el mapa también.
+				const { icalUrl, ...socioCopia } = socioPriv.data() || {};
+				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
 			}
 			const dueno = propietarios.find((p) => p.id === data.propietarioId);
 			if (dueno) await updateDoc(doc(db, 'propietarios', dueno.id), { propiedades: arrayUnion({ propertyId: newRef.id }) });
