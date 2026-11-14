@@ -342,6 +342,10 @@ service cloud.firestore {
         && isShortString(r.huesped, 40) && isShortString(r.propertyTitulo, 200) && isShortString(r.moneda, 3)
         // Montos que no son números niegan al compararse (las reglas cuentan hasta 1000 operaciones: nada de más).
         && r.costoSocio >= 0 && r.alojamiento >= r.costoSocio
+        // Lo que se le cobra al cliente es lo que se le cotizó (sin la limpieza) y en su moneda: un precio especial puesto
+        // después de la solicitud no baja la ganancia de EQ, ni una moneda cambiada la divide.
+        && r.moneda == solicitud.get(['reserva', 'moneda'], 'USD')
+        && r.alojamiento >= solicitud.get(['reserva', 'subtotal'], 0) - casa.get(['vacacional', 'limpieza'], 0) - 0.01
         // Su parte no baja de su noche más barata por cada noche (con la comisión sobre ella, EQ cobra al menos eso).
         && r.costoSocio >= r.noches * nocheMasBarata(socio, r.llegada, r.salida) - 0.01 * r.noches - 0.01
         && r.ganancia >= r.alojamiento - r.costoSocio - 0.01

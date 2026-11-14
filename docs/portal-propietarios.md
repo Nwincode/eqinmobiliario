@@ -61,21 +61,30 @@ casa suya; la lee el equipo.
 
 ## Después de publicar el código: en este orden
 
-1. **Se publica el código** (Netlify). Con las reglas de antes todo sigue funcionando: el socio confirma reservas
-   (sus datos de pago salen de su ficha mientras las reglas viejas lo permiten). Propietarios muestra un aviso con
-   estos pasos, y «Dar acceso» queda deshabilitado para quien no tiene casas por noche (con las reglas de antes podría
-   leer su ficha entera y cambiar el precio de su casa en venta). Los enlaces viejos del portal todavía abren.
-2. **El administrador abre Propietarios y la deja abierta hasta que el aviso de arriba llegue a 0.** El aviso cuenta
-   a cuántas personas (con acceso, con casas por noche o con el portal de antes) les falta el resumen nuevo; se rehace
-   **con un id nuevo** y el anterior se borra, así que los enlaces viejos de WhatsApp dejan de abrir (muestran la
-   página «Tu portal ahora es tu panel»). Si alguien falla, el aviso lo nombra con «Reintentar». Si se cierra la
-   pestaña antes, al volver a abrir Propietarios sigue con los que faltan. Al llegar a 0, el aviso dice que el
-   siguiente paso es publicar las reglas. Sin este paso, después del 3 un socio sin resumen no puede confirmar
-   reservas (el panel le dice que faltan sus datos de pago).
-3. **Se publican las reglas** (cuando el aviso esté en 0): `firebase deploy --only firestore:rules --project eqinmobiliariobd`.
-   El aviso de Propietarios desaparece solo; el socio ya lee su resumen y no su ficha.
-4. **Dar acceso** a cada dueño de venta o renta y a cada colaborador, desde su ficha: el botón ya está habilitado.
-   Los socios que ya entraban no necesitan nada.
+Una sola lista para todo lo que cambió en reglas y datos (panel único, reservas, permisos por rol). Mientras no se
+publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita rechazos en el medio.
+
+0. **Revisar en Netlify** que estén `GOOGLE_SA_EMAIL` y `GOOGLE_SA_KEY` (la cuenta de servicio con el rol «Cloud
+   Datastore Viewer»). Sin ellas no salen los avisos de solicitudes y del chat ni el control de cada hora.
+1. **Se publica el código** (Netlify).
+2. **El administrador abre Propiedades**: a las casas por noche se les quita el asesor y pasan a privado su dirección y
+   su mapa. Después, **Publicar** el sitio y esperar a que termine (así las páginas ya no mandan el asesor viejo en
+   las solicitudes: con las reglas nuevas esas solicitudes se rechazarían).
+3. **El administrador abre Rentas vacacionales**: el teléfono y las notas de las reservas de antes pasan a lo privado
+   de la casa, y cada reserva recibe su dueño.
+4. **El administrador abre Propietarios y la deja abierta hasta que el aviso llegue a 0** (rehace el resumen de cada
+   persona con un id nuevo; los enlaces viejos de WhatsApp dejan de abrir). Si alguien falla, «Reintentar».
+5. **Se publican las reglas de la base y de archivos, las dos juntas** (en la consola de Firebase: Firestore → Reglas
+   y Storage → Reglas, pegando cada archivo completo; o con
+   `firebase deploy --only firestore:rules,storage --project eqinmobiliariobd`).
+6. **El administrador abre Solicitudes**: las solicitudes de antes reciben el índice de su chat. Si el aviso nombra
+   una solicitud con más de un chat, revisarla a mano. Sin este paso, el socio no puede confirmar ni cancelar esas
+   solicitudes (el administrador sí).
+7. **Dar acceso** desde su ficha a cada dueño de venta o renta y a cada colaborador (el botón se habilita solo). Los
+   socios que ya entraban no necesitan nada. Probar primero con un correo propio que el correo para poner la
+   contraseña llega (y no cae en spam).
+8. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
+   comprobante, revisar que llegan los correos. Después, borrar la casa y el socio de prueba.
 
 Pruebas: `npm run test:reglas` (dueña con una casa en venta y otra por noche, colaborador, acceso quitado) y el
 recorrido del entorno (`npm run recorrido`, paso 8).

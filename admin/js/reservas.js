@@ -205,11 +205,15 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 	const p = (await getDoc(doc(db, 'properties', l.propertyId))).data();
 	// Una reserva por solicitud: su id es el de la solicitud (las reglas lo exigen al socio).
 	const id = l.id;
+	// Al cliente se le cobra lo que se le cotizó (sin la limpieza, que no lleva margen): si después bajó un precio por
+	// fechas, la ganancia de EQ sale de lo cotizado, no del precio nuevo (las reglas lo exigen al socio).
+	const cotizado = window.EQVacacional.r2((Number(r.subtotal) || 0) - (Number(p?.vacacional?.limpieza) || 0));
 	const datos = {
 		...nuevaReserva({ id: l.propertyId, ...p }, {
 			propertyTitulo: l.propertyTitulo, moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
 			// Solo el primer nombre: el socio lee sus reservas; el contacto del cliente queda en la solicitud (leadId).
-			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: cuenta.costoSocio, alojamiento: cuenta.alojamiento
+			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: cuenta.costoSocio,
+			alojamiento: Math.max(cuenta.alojamiento, cotizado)
 		}),
 	};
 	datos.comision = comisionDeReserva(datos);
@@ -221,7 +225,7 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 		revisar: async (tx) => sinResponder(tx, l, chat),
 		escribir: (tx, ref) => tx.set(ref, { ...datos, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
 		ademas: (tx) => {
-			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': cuenta.costoSocio, 'solicitud.comision': cuenta.ganancia }));
+			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': cuenta.costoSocio, 'solicitud.comision': datos.ganancia }));
 			if (chat) {
 				tx.update(chat.ref, { estado: 'confirmada' });
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.
