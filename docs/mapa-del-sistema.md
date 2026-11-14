@@ -37,9 +37,12 @@ Las rutas son desde la raíz del repositorio.
 
 ## 3. Sitio público
 
-- `scripts/build.mjs`: lee los datos, decide qué páginas existen (listados, zonas, destinos, fichas, `/reserva/`, sitemap, feeds, `llms.txt`).
+- `scripts/build.mjs`: lee los datos (`DATOS=seed` usa el archivo de ejemplo; `DIST_DIR` cambia la carpeta de salida), escribe las páginas, sitemap, feeds, `llms.txt` y `_redirects`, y al final revisa los enlaces internos.
+- `scripts/lib/landings.mjs`: **qué listados existen y cuáles se indexan** (general, operación, tipo, VIP, zona, zona + operación, zona + tipo + operación, en los dos idiomas), sus textos automáticos, el bloque de precios y los enlaces (`crearEnlaces`: esconder vacíos, llevar al padre).
+- `scripts/lib/enlaces.mjs`: revisa que cada enlace interno de `dist/` lleve a algo.
 - `scripts/lib/templates.mjs`: el HTML de cada página (`layout`, `listingPage`, `propertyPage`, `leadForm`, `reservaBox`, `reservaPage`…).
-- `scripts/lib/i18n.mjs`: **todos** los textos, en español e inglés, y las rutas de cada idioma.
+- `scripts/lib/i18n.mjs`: **todos** los textos, en español e inglés, y las rutas de cada idioma. El sitio público usa «tú».
+- `scripts/lib/util.mjs`: `lugarDe` (lugar sin repetir) y `departamentoDe` (tabla de municipios → departamento).
 - `scripts/lib/assets.mjs`: empaqueta CSS y JS y quita el CSS sin uso (las clases que solo crea JavaScript van en `SAFELIST`).
 - En el navegador:
   - `js/site.js`: formularios (guarda el lead), filtros, seguimiento.
@@ -120,6 +123,12 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Traducción al inglés** → `netlify/lib/tareas.mjs` (con IA) y `admin/js/reglas.js` (sin IA) → `admin/js/views/properties.js` `traducirEn`, `fuenteEs`, `traducirEnVivo` (se traduce al salir del campo, con `paraTraducir`: sin dirección ni mapa privados; `form.poner` la muestra) → `scripts/build.mjs` `propiedadEn`.
 
+**Listados y páginas de aterrizaje (SEO)** → `scripts/lib/landings.mjs` `planListados` (regla de poco contenido, una sola función `bastante`: tipo y zona desde `MIN_INDEXABLE` = 3; nada igual a su padre; listado vacío sin indexar) → `textosListado` (título ≤ 60, tipo que domina, dato de la zona) y `estadisticasPrecio` (≥ 3 precios en una moneda) → `scripts/build.mjs` (`textosDelPlan`, pares de idioma solo entre páginas que se indexan, sitemap y `llms.txt` desde la etiqueta robots de cada página, `_redirects` por familia) → `scripts/lib/templates.mjs` (`listingPage`, `bloquePrecios`, `porZona`, migas con `padres`, ficha con `paginaDeZona`, menú y pie con `visible`, contenido con `md` → `resolver`) → `scripts/test-seo.mjs` y `scripts/test-sitio.mjs` (genera un sitio de ejemplo con `scripts/lib/sitio-ejemplo.mjs` y lo recorre).
+
+**Lugar de una propiedad** → `admin/js/seo-auto.js` `sinRepetir` (única regla; la usan `admin/js/reglas.js` y `admin/js/descripcion.js`) → `scripts/lib/util.mjs` `lugarDe` y `departamentoDe` → `scripts/lib/templates.mjs` (ficha, JSON-LD) y `scripts/build.mjs` (catálogos).
+
+**Descripción y SEO automáticos de una propiedad** → `admin/js/descripcion.js` (`generarDescripcion` solo presentación y nota del precio; `sinBloquesGenerados` quita las listas del formato viejo al publicar) → `admin/js/seo-auto.js` `autoSeoTitle` (60) → `admin/js/reglas.js` (traducción; `seoEnViejo` reconoce el SEO en inglés viejo) → `scripts/build.mjs` (`seoPropio`, `seoTraducido`: lo automático guardado se recalcula).
+
 **Página nueva del sitio** → `scripts/lib/templates.mjs` → `scripts/build.mjs` (escribirla, sitemap, hreflang) → `scripts/lib/i18n.mjs` (rutas y textos) → `scripts/lib/assets.mjs` si lleva JavaScript propio.
 
 **Panel del dueño** (propietario o colaborador; un solo panel para las tres categorías) → acceso: `admin/js/acceso.js` `darAcceso` / `ponerAcceso` (única forma; la usan la ficha en `views/propietarios.js`, con las mismas condiciones en las dos (`motivoParaNoAbrir`: sin ficha, o sin casas por noche mientras `reglasNuevas()` diga que siguen las reglas de antes), y `users.js`, que solo los lista y apaga) → `admin/js/firebase.js` `createAccount` → `admin/js/app.js` (menú: Solicitudes solo con casas por noche; etiqueta con `etiquetaDueno`) → resumen: `admin/js/portal.js` `armarPortal` (casas con `casasDe`, sin las por noche; exclusiva por inmueble; `anuncioDe`; datos de la ficha con `datosDelDueno`) ← `refrescarPortalesDe` (propiedad, difusión, clientes, agenda), guardar la ficha y `avisoResumenes` al abrir Propietarios (cuenta los que faltan; `publicarPortal` reserva el id con una transacción y deja uno solo por persona) → `admin/js/session.js` `cargarMiResumen` (resumen; si las reglas viejas lo niegan, la ficha) → `admin/js/views/mis-casas.js` + `admin/js/resumen-casa.js` → `admin/js/views/solicitudes.js` (datos de pago al confirmar) → `firestore.rules` (`portalPropietarios`, `comentariosPropietarios`, `esSocioPorNoche` y `esSocioDeCasaPorNoche` en propiedades, privado, reservas, solicitudes y chat) → `scripts/lib/templates.mjs` `portalPage` (la página vieja `/propietarios/` lleva al panel) → `scripts/emulador/test-reglas.mjs` y `scripts/entorno/recorrido.mjs` (paso 8) → `docs/portal-propietarios.md`.
@@ -135,7 +144,7 @@ Cada cadena va en el orden en que conviene revisarla.
   de prueba (administrador, asesor, socio y colaborador; a la dueña mixta le da acceso el recorrido); `npm run recorrido` hace la reserva por noche de punta a punta entrando al panel como administrador, socio y
   asesor, y como cliente. Los correos no se envían: quedan anotados. `levantar.sh publicar` hace lo que el botón Publicar.
 - Qué revisar antes de unir: `docs/revision-antes-de-unir.md`.
-- Sitio: `npm run build` y `npm run serve` (sirve `dist/`).
+- Sitio: `npm run build` y `npm run serve` (sirve `dist/`; `DIST_DIR=…` sirve otra carpeta). `GUARDAR=<carpeta> node scripts/test-sitio.mjs` deja el sitio de ejemplo para verlo.
 - Dentro de un lote las reglas ven el estado anterior: lo que depende de un cambio previo va en dos pasos.
 - Panel: datos inventados; nunca la base real.
 - No se puede probar en local: que un correo llegue de verdad a una bandeja, las funciones programadas y lo propio de Netlify.

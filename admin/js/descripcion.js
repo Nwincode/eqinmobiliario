@@ -1,12 +1,15 @@
-// Arma la descripción de una propiedad con la plantilla de la casa:
-// párrafo de ubicación + secciones con viñetas (Características, Amenidades, Detalles técnicos,
-// Términos) y la nota de lo que no incluye el precio. Sin precio en el texto (ya sale en la ficha).
+// «Mejorar descripción»: deja el párrafo de presentación de la propiedad (el que escribió el asesor o, si no hay,
+// uno armado con el tipo, la operación y el lugar) y la nota de lo que no incluye el precio. Nada de lo que ya
+// es un campo de la ficha (habitaciones, huéspedes, amenidades, estadía mínima…): la página lo muestra de esos
+// campos, siempre al día. Sin precio en el texto (ya sale en la ficha).
 // En la web va sin emojis; conEmojis() los agrega para Meta (Facebook, Instagram, WhatsApp).
-import { miles } from './formato.js';
+import { sinRepetir } from './seo-auto.js';
 
 const TIPO = { casa: 'Casa', apartamento: 'Apartamento', terreno: 'Terreno', oficina: 'Oficina', local: 'Local comercial', bodega: 'Bodega', finca: 'Finca' };
 const OPERACION = { venta: 'en venta', renta: 'en alquiler', vacacional: 'para vacacionar' };
-const TITULOS = ['Características de la propiedad', 'Amenidades', 'Detalles técnicos', 'Términos del alquiler', 'Para tu estadía'];
+// Títulos de las secciones que armaba la plantilla anterior (y como quedaron al traducirlas al inglés).
+const TITULOS = ['Características de la propiedad', 'Amenidades', 'Detalles técnicos', 'Términos del alquiler', 'Para tu estadía',
+	'Property features', 'Amenities', 'Technical details', 'Rental terms', 'Lease terms', 'For your stay'];
 
 // Ícono según la amenidad (si no hay uno que corresponda, ✅).
 const ICONOS = [
@@ -37,9 +40,6 @@ export function conEmojis(texto = '') {
 	}).join('\n');
 }
 
-const num = miles;
-const plural = (n, uno, varios) => `${num(n)} ${Number(n) === 1 ? uno : varios}`;
-
 // Texto propio de la propiedad que ya existía: lo que está antes de las secciones generadas,
 // o los párrafos sin viñetas ni títulos. Así no se pierde lo que escribió el asesor.
 export function textoBase(descripcion = '') {
@@ -51,55 +51,36 @@ export function textoBase(descripcion = '') {
 		.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Párrafo de presentación cuando el asesor no escribió uno: tipo, operación y lugar (los datos van en sus campos).
 function introduccion(p) {
-	const tipo = TIPO[p.tipo] || 'Propiedad';
-	const donde = [p.direccion, p.zona, p.ciudad].map((x) => String(x || '').trim()).filter(Boolean);
-	const lugar = donde.length ? ` en ${donde.join(', ')}` : '';
-	const gancho = [];
-	if (p.habitaciones) gancho.push(plural(p.habitaciones, 'habitación', 'habitaciones'));
-	if (p.m2Construccion) gancho.push(`${num(p.m2Construccion)} m² de construcción`);
-	const extra = (p.amenidades || []).slice(0, 2).map((a) => a.toLowerCase());
-	let txt = `${tipo} ${OPERACION[p.operacion] || ''}${lugar}`.replace(/\s+/g, ' ').trim();
-	if (gancho.length) txt += `, con ${gancho.join(' y ')}`;
-	txt += '.';
-	if (extra.length) txt += ` Cuenta con ${extra.join(' y ')}.`;
-	return txt;
+	const donde = sinRepetir([p.direccion, p.zona, p.ciudad]);
+	return `${`${TIPO[p.tipo] || 'Propiedad'} ${OPERACION[p.operacion] || ''}`.replace(/\s+/g, ' ').trim()}${donde.length ? ` en ${donde.join(', ')}` : ''}.`;
 }
 
-const seccion = (titulo, items) => (items.length ? `**${titulo}**\n${items.map((i) => `- ${i}`).join('\n')}` : '');
+// Formato viejo: hasta 2026 la plantilla agregaba debajo del párrafo las secciones Características, Amenidades,
+// Detalles técnicos, Términos del alquiler y Para tu estadía, con viñetas copiadas de los campos. Esas copias
+// quedaban viejas («Hasta 1 huésped» con la ficha en 7) y repetían los bloques de la página. Aquí se quita
+// exactamente cada sección generada: una línea que es solo uno de esos títulos en negrita y las viñetas que la
+// siguen. Lo demás (párrafos, la nota del precio, listas escritas a mano con otro título) queda igual.
+// También el párrafo «Key facts: … Price: …» que el traductor sin IA (admin/js/reglas.js) agregaba al inglés.
+const esTitulo = (l) => {
+	const m = /^\s*\*\*([^*]+?):?\*\*\s*:?\s*$/.exec(l);
+	return Boolean(m) && TITULOS.some((t) => t.toLowerCase() === m[1].trim().toLowerCase());
+};
+export function sinBloquesGenerados(descripcion = '') {
+	const lineas = String(descripcion || '').replace(/\r/g, '').split('\n');
+	const out = [];
+	for (let i = 0; i < lineas.length; i++) {
+		if (/^\s*Key facts: .*\.\s*$/.test(lineas[i])) continue;
+		if (!esTitulo(lineas[i])) { out.push(lineas[i]); continue; }
+		while (i + 1 < lineas.length && /^\s*([-*+]\s|$)/.test(lineas[i + 1]) && !(lineas[i + 1].trim() === '' && !/^\s*[-*+]\s/.test(lineas[i + 2] || ''))) i++;
+	}
+	return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 export function generarDescripcion(p = {}) {
 	const partes = [textoBase(p.descripcion) || introduccion(p)];
-	const v = p.vacacional || {};
-
-	const carac = [];
-	if (p.habitaciones) carac.push(`${plural(p.habitaciones, 'habitación', 'habitaciones')}`);
-	if (p.banos) carac.push(`${plural(p.banos, 'baño', 'baños')}`);
-	if (p.parqueos) carac.push(`${plural(p.parqueos, 'parqueo', 'parqueos')}`);
-	if (p.operacion === 'vacacional' && v.huespedesMax) carac.push(`Hasta ${plural(v.huespedesMax, 'huésped', 'huéspedes')}`);
-	partes.push(seccion('Características de la propiedad', carac));
-
-	partes.push(seccion('Amenidades', (p.amenidades || []).filter(Boolean)));
-
-	const tec = [];
-	if (p.m2Construccion) tec.push(`Construcción: ${num(p.m2Construccion)} m²`);
-	if (p.m2Terreno) tec.push(`Terreno: ${num(p.m2Terreno)} m²`);
-	if (p.tipo) tec.push(`Tipo: ${TIPO[p.tipo] || p.tipo}`);
-	partes.push(seccion('Detalles técnicos', tec));
-
-	if (p.operacion === 'renta') {
-		partes.push(seccion('Términos del alquiler', ['Contrato y condiciones a convenir con el asesor', 'Consultá la disponibilidad para agendar tu visita']));
-		partes.push('*El precio no incluye servicios, mantenimiento ni impuestos, salvo que se indique lo contrario.*');
-	} else if (p.operacion === 'vacacional') {
-		const est = [];
-		if (v.checkIn) est.push(`Check-in: ${v.checkIn}`);
-		if (v.checkOut) est.push(`Check-out: ${v.checkOut}`);
-		if (v.nochesMin) est.push(`Estadía mínima: ${plural(v.nochesMin, 'noche', 'noches')}`);
-		est.push('Revisá el calendario para ver las fechas disponibles');
-		partes.push(seccion('Para tu estadía', est));
-	} else {
-		partes.push('*El precio no incluye gastos de escrituración ni timbres fiscales.*');
-	}
-
+	if (p.operacion === 'renta') partes.push('*El precio no incluye servicios, mantenimiento ni impuestos, salvo que se indique lo contrario.*');
+	else if (p.operacion !== 'vacacional') partes.push('*El precio no incluye gastos de escrituración ni timbres fiscales.*');
 	return partes.filter(Boolean).join('\n\n');
 }

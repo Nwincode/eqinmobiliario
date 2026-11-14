@@ -608,7 +608,6 @@
 		var caja = tira.parentNode;
 		var contador = caja.querySelector('.foto-contador');
 		if (contador) contador.textContent = (i + 1) + ' / ' + tira.children.length;
-		caja.querySelectorAll('.prop-puntos i').forEach(function (p, j) { p.classList.toggle('on', j === i); });
 	}, { capture: true, passive: true });
 
 	// ------------------------------------------------------------ Galería de la ficha

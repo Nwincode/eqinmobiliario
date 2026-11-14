@@ -74,9 +74,45 @@ export const TIPOS_LANDING = {
 // Etiquetas públicas de cada estado (la lista y sus reglas viven en admin/js/estados.js).
 export const ESTADOS = Object.fromEntries(ESTADOS_PROPIEDAD.map((e) => [e.valor, e.es]));
 
-// «Zona 16, Guatemala»; si zona y ciudad son lo mismo (Antigua Guatemala) no se repite.
-export function lugarDe(p) {
-	return [p.zona, p.ciudad !== p.zona && p.ciudad].filter(Boolean).join(', ');
+// «Zona 16, Guatemala»: lo que una parte ya dice no se repite («Antigua Guatemala», no «Antigua Guatemala, Guatemala»).
+// Con la dirección: «Centro Vivo, zona 1, Guatemala» (sin «Zona 1» otra vez). Una sola regla: sinRepetir.
+export function lugarDe(p, conDireccion = false) {
+	return sinRepetir([conDireccion && p.direccion, p.zona, p.ciudad]).join(', ');
+}
+
+// Departamento de Guatemala de cada municipio o lugar que usa el inventario (Google: addressRegion; portales:
+// provincia). Se busca primero la zona (Monterrico es un lugar con nombre propio) y después la ciudad, y el
+// nombre tiene que ser el de la tabla completo: «Colonia Las Flores» no es Flores (Petén). Si no está en la
+// tabla, no se inventa: queda vacío y quien lo usa omite el campo.
+const DEPARTAMENTOS = {
+	Guatemala: ['guatemala', 'ciudad de guatemala', 'guatemala city', 'mixco', 'villa nueva', 'villa canales', 'santa catarina pinula',
+		'san jose pinula', 'fraijanes', 'san miguel petapa', 'amatitlan', 'chinautla', 'san juan sacatepequez', 'san pedro sacatepequez',
+		'san pedro ayampuc', 'palencia', 'chuarrancho', 'san raymundo'],
+	'Sacatepéquez': ['antigua', 'antigua guatemala', 'la antigua guatemala', 'jocotenango', 'ciudad vieja', 'san lucas sacatepequez',
+		'santiago sacatepequez', 'sumpango', 'pastores', 'santa maria de jesus', 'san antonio aguas calientes', 'alotenango', 'sacatepequez'],
+	'Santa Rosa': ['monterrico', 'taxisco', 'chiquimulilla', 'cuilapa', 'santa rosa', 'barberena'],
+	Escuintla: ['escuintla', 'puerto san jose', 'san jose', 'iztapa', 'puerto de iztapa', 'el paredon', 'sipacate', 'palin'],
+	'Sololá': ['solola', 'panajachel', 'san pedro la laguna', 'san marcos la laguna', 'santa cruz la laguna', 'san juan la laguna', 'santiago atitlan', 'lago de atitlan', 'atitlan'],
+	'Petén': ['peten', 'flores', 'san benito', 'santa elena', 'tikal'],
+	Izabal: ['izabal', 'rio dulce', 'livingston', 'puerto barrios', 'el estor'],
+	Quetzaltenango: ['quetzaltenango', 'xela'],
+	'Alta Verapaz': ['alta verapaz', 'coban', 'semuc champey', 'lanquin'],
+	Chimaltenango: ['chimaltenango', 'tecpan', 'el tejar'],
+	Retalhuleu: ['retalhuleu', 'champerico'],
+	Huehuetenango: ['huehuetenango'],
+	Zacapa: ['zacapa', 'estanzuela'],
+	Jutiapa: ['jutiapa'],
+	'El Progreso': ['el progreso', 'guastatoya', 'sanarate']
+};
+const sinTildes = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+const MUNICIPIOS = new Map(Object.entries(DEPARTAMENTOS).flatMap(([dep, lugares]) => lugares.map((l) => [l, dep])));
+export function departamentoDe(p) {
+	// «Zona 10» y «Km 25.5 Carretera a El Salvador» no son municipios: se sigue con la ciudad.
+	for (const campo of [p.zona, p.ciudad]) {
+		const dep = MUNICIPIOS.get(sinTildes(campo).replace(/^(municipio|ciudad) de /, ''));
+		if (dep) return dep;
+	}
+	return '';
 }
 
 export function plural(n, uno, varios) {
@@ -91,26 +127,28 @@ export function truncate(text, max = 160) {
 
 // El resumen y el SEO automático viven en admin/js/seo-auto.js (los usa también el panel).
 export { stripMarkdown, resumenSeo } from '../../admin/js/seo-auto.js';
+import { sinRepetir } from '../../admin/js/seo-auto.js';
 
-function inlineMarkdown(text) {
+// `enlace`: corrige un enlace interno antes de escribirlo (p. ej. una zona sin página → su listado padre).
+function inlineMarkdown(text, enlace) {
 	return esc(text)
 		.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
 		.replace(/\*(.+?)\*/g, '<em>$1</em>')
-		.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|mailto:|tel:|#)[^)\s]*)\)/g, '<a href="$2">$1</a>');
+		.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|mailto:|tel:|#)[^)\s]*)\)/g, (_, txt, href) => `<a href="${enlace ? esc(enlace(href.replace(/&amp;/g, '&'))) : href}">${txt}</a>`);
 }
 
 // Markdown mínimo para las páginas de contenido: títulos, párrafos, listas, negritas y enlaces.
-export function markdown(md) {
+export function markdown(md, enlace = null) {
 	const lines = String(md || '').replace(/\r/g, '').split('\n');
 	const html = [];
 	let para = [];
 	let list = null;
 	const flushPara = () => {
-		if (para.length) html.push(`<p>${inlineMarkdown(para.join(' '))}</p>`);
+		if (para.length) html.push(`<p>${inlineMarkdown(para.join(' '), enlace)}</p>`);
 		para = [];
 	};
 	const flushList = () => {
-		if (list) html.push(`<${list.tag}>${list.items.map((i) => `<li>${inlineMarkdown(i)}</li>`).join('')}</${list.tag}>`);
+		if (list) html.push(`<${list.tag}>${list.items.map((i) => `<li>${inlineMarkdown(i, enlace)}</li>`).join('')}</${list.tag}>`);
 		list = null;
 	};
 	for (const raw of lines) {
@@ -122,12 +160,12 @@ export function markdown(md) {
 		} else if ((m = line.match(/^>\s?(.*)$/))) {
 			flushPara();
 			flushList();
-			html.push(`<blockquote class="content-note"><p>${inlineMarkdown(m[1])}</p></blockquote>`);
+			html.push(`<blockquote class="content-note"><p>${inlineMarkdown(m[1], enlace)}</p></blockquote>`);
 		} else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) {
 			flushPara();
 			flushList();
 			const level = Math.min(m[1].length + 1, 5);
-			html.push(`<h${level}>${inlineMarkdown(m[2])}</h${level}>`);
+			html.push(`<h${level}>${inlineMarkdown(m[2], enlace)}</h${level}>`);
 		} else if ((m = line.match(/^[-*]\s+(.*)$/)) || (m = line.match(/^\d+[.)]\s+(.*)$/))) {
 			flushPara();
 			const tag = /^\d/.test(line) ? 'ol' : 'ul';
