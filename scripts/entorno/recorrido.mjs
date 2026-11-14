@@ -34,7 +34,7 @@ async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
 	await p.route('**/*', async (r) => {
 		const u = r.request().url();
-		if (reglasViejas && u.includes('/portalPropietarios/prueba-reglas')) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
+		if (reglasViejas && /\/portalPropietarios\/prueba-[^/?]+/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
 		if (sdk) return r.fulfill({ path: `${DIR}/node_modules/firebase/${sdk[1]}`, contentType: 'text/javascript' });
 		if (u.startsWith('https://firestore.googleapis.com')) return r.fulfill({ response: await r.fetch({ url: u.replace('https://firestore.googleapis.com', 'http://127.0.0.1:8085') }) });
