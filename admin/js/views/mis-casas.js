@@ -72,7 +72,9 @@ async function casa(container, id) {
 	const refSocio = doc(db, 'properties', id, 'privado', 'socio');
 	const mio = session.profile.propietarioId || '-';
 	const sCasa = await getDoc(refCasa).catch(() => null);
-	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional') return enVenta(container, id, sCasa?.exists() ? sCasa.data().titulo : '', Boolean(sCasa?.exists()));
+	const suya = Boolean(sCasa?.exists()) && sCasa.data().propietarioId === mio;
+	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional') return enVenta(container, id, sCasa?.exists() ? sCasa.data().titulo : '', suya);
+	if (!suya) return mount(container, emptyState('Esta casa no está a tu nombre.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis propiedades')));
 	const [sSocio, sLeads, sReservas] = await Promise.all([getDoc(refSocio),
 		// Solicitudes de sus casas: del chat de cada una (las solicitudes traen el contacto del cliente y el socio no las lee).
 		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio))),

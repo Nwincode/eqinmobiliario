@@ -1,6 +1,6 @@
 // Estado compartido de la sesión y ayudas comunes a todas las vistas.
 import {
-	db, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, limit, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, serverTimestamp
 } from './firebase.js';
 import { datosDelDueno, etiquetaDueno } from './duenos.js';
 
@@ -23,8 +23,10 @@ export const session = {
 export async function cargarMiResumen() {
 	const id = session.profile?.propietarioId || '-';
 	try {
-		const s = await getDocs(query(collection(db, 'portalPropietarios'), where('propietarioId', '==', id), limit(1)));
-		if (!s.empty) return { id: s.docs[0].id, ...s.docs[0].data() };
+		// Uno por persona (publicarPortal borra los demás); si alguna vez quedaran dos, vale el más nuevo.
+		const s = await getDocs(query(collection(db, 'portalPropietarios'), where('propietarioId', '==', id)));
+		const r = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(b.v) || 0) - (Number(a.v) || 0) || (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0))[0];
+		if (r) return r;
 	} catch { /* reglas de antes: sigue con la ficha */ }
 	try {
 		const s = await getDoc(doc(db, 'propietarios', id));

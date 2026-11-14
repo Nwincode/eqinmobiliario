@@ -26,13 +26,15 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const navegador = await chromium.launch();
 // Una persona = un contexto. El SDK de Firebase del panel se sirve desde npm (misma versión) y las llamadas
 // del sitio a Google van a los emuladores; todo lo demás de fuera se corta.
-async function persona(ancho = 1280) {
+// { reglasViejas: true }: la base responde como con las reglas de antes a la prueba de reglasNuevas() (404).
+async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 } });
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
 	await p.route('**/*', async (r) => {
 		const u = r.request().url();
+		if (reglasViejas && u.includes('/portalPropietarios/prueba-reglas')) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
 		if (sdk) return r.fulfill({ path: `${DIR}/node_modules/firebase/${sdk[1]}`, contentType: 'text/javascript' });
 		if (u.startsWith('https://firestore.googleapis.com')) return r.fulfill({ response: await r.fetch({ url: u.replace('https://firestore.googleapis.com', 'http://127.0.0.1:8085') }) });
@@ -41,8 +43,8 @@ async function persona(ancho = 1280) {
 	});
 	return { p, errores };
 }
-async function entrar(rol) {
-	const x = await persona();
+async function entrar(rol, opciones) {
+	const x = await persona(1280, opciones);
 	await x.p.goto(`${SITIO}/admin/`);
 	await x.p.fill('#login-email', `${rol}@example.com`);
 	await x.p.fill('#login-pass', CLAVE);
@@ -101,8 +103,13 @@ await ir(admin.p, '#/propietarios', 1500);
 		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: id } } } } }) })).json()).find((x) => x.document)?.document?.fields || null;
 	let r = null;
 	for (let i = 0; i < 40 && !/123-456789-0/.test((r = await resumenDe('socio-prueba'))?.datosPago?.stringValue || ''); i++) await espera(500);
-	paso('Al abrir Propietarios, el resumen viejo del socio (portal de antes) se rehace con sus datos de pago, en el mismo documento', /123-456789-0/.test(r?.datosPago?.stringValue || '') && !('notas' in (r || {})) && !('exclusivaFin' in (r || {}))
-		&& Number(r?.v?.integerValue) === 3, Object.keys(r || {}).join());
+	await espera(1500);
+	const viejo = await fetch(`${FSr}/portalPropietarios/PortalViejoDelSocioDePruebaLargoYAlAzar123`, { headers: { Authorization: 'Bearer owner' } });
+	const todos = (await (await fetch(`${FSr}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'socio-prueba' } } } } }) })).json()).filter((x) => x.document);
+	paso('Al abrir Propietarios, el resumen viejo del socio (portal de antes) se rehace con sus datos de pago, con un id nuevo; el enlace viejo deja de existir y queda uno solo',
+		/123-456789-0/.test(r?.datosPago?.stringValue || '') && !('notas' in (r || {})) && !('exclusivaFin' in (r || {})) && Number(r?.v?.integerValue) === 3 && viejo.status === 404 && todos.length === 1, `${viejo.status} · ${todos.length} resúmenes`);
+	paso('Con las reglas nuevas publicadas, Propietarios no muestra el aviso de las reglas', await admin.p.locator('#aviso-reglas').count() === 0);
 }
 await ir(admin.p, '#/propietarios/socio-prueba');
 paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
@@ -540,7 +547,17 @@ const duenos = [];
 	paso('El socio de antes entra como «Propietario»', (await socio.p.locator('.admin-user-role').innerText()) === 'Propietario');
 	// a) El administrador le da acceso desde su ficha: cuenta nueva, su usuario y el correo para poner la contraseña.
 	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
-	await admin.p.locator('#acceso-panel button', { hasText: 'Dar acceso' }).click();
+	const darBtn = admin.p.locator('#acceso-panel button', { hasText: 'Dar acceso' });
+	await darBtn.waitFor({ timeout: 15000 }).catch(() => {});
+	paso('Con las reglas nuevas, «Dar acceso» está habilitado', await darBtn.isEnabled().catch(() => false));
+	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-sin-1280.png` });
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await admin.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-sin-390.png` });
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	await darBtn.click();
 	await admin.p.locator('#acceso-panel', { hasText: 'Entra con mixta@example.com' }).waitFor({ timeout: 20000 }).catch(() => {});
 	const usuarios = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: dueno, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: 'mixta@example.com' } } } } }) })).json();
 	const u = usuarios.find((x) => x.document)?.document?.fields || {};
@@ -548,7 +565,35 @@ const duenos = [];
 	const oob = codigos.filter((c) => c.email === 'mixta@example.com' && c.requestType === 'PASSWORD_RESET').pop();
 	paso('«Dar acceso» desde la ficha: crea su cuenta y su usuario (rol de dueño, su ficha) y le manda el correo para poner su contraseña',
 		u.rol?.stringValue === 'socio' && u.propietarioId?.stringValue === 'dueno-mixto' && u.activo?.booleanValue === true && Boolean(oob), `${await avisos(admin.p)} · ${codigos.length} correos`);
-	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-acceso-1280.png` });
+	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-con-1280.png` });
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await admin.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-con-390.png` });
+	const ladoAcceso = await lado(admin.p);
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	paso('El bloque «Acceso al panel» sin scroll de lado a 390 px', ladoAcceso <= 0, String(ladoAcceso));
+	// Mientras las reglas de antes sigan publicadas: a quien no tiene casas por noche no se le abre la entrada,
+	// y Propietarios dice qué hacer y en qué orden.
+	const viejas = await entrar('admin', { reglasViejas: true });
+	duenos.push(['administrador con reglas de antes', viejas]);
+	await ir(viejas.p, '#/propietarios', 3000);
+	const aviso = await viejas.p.locator('#aviso-reglas').innerText().catch(() => '');
+	await viejas.p.screenshot({ path: `${PANEL}/reglas-viejas-aviso-1280.png` });
+	await ir(viejas.p, '#/propietarios/dueno-del-asesor', 3500);
+	const bloqueado = viejas.p.locator('#acceso-panel button', { hasText: 'Dar acceso' });
+	await bloqueado.waitFor({ timeout: 15000 }).catch(() => {});
+	const porque = await viejas.p.locator('#acceso-panel').innerText().catch(() => '');
+	await viejas.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-1280.png` });
+	await viejas.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await viejas.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-390.png` });
+	paso('Con las reglas de antes: aviso en Propietarios con el orden, y «Dar acceso» deshabilitado (con el porqué) para un dueño sin casas por noche',
+		/publicar las reglas nuevas/.test(aviso) && /firebase deploy/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
+	await viejas.p.close();
 	// La contraseña la pone ella, con el enlace del correo (aquí, con el código que guarda el emulador).
 	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oobCode: oob?.oobCode, newPassword: CLAVE }) });
 	// b) Entra y ve sus dos casas.

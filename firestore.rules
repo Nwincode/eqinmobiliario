@@ -34,6 +34,10 @@ service cloud.firestore {
     function esSocioPorNoche(casa) {
       return esSocioDe(casa) && casa.get('operacion', '') == 'vacacional';
     }
+    // Lo mismo, por el id de la casa (reservas, solicitudes y chats llevan el propertyId).
+    function esSocioDeCasaPorNoche(propertyId) {
+      return esSocioPorNoche(get(/databases/$(database)/documents/properties/$(propertyId)).data);
+    }
     function soloCambia(campos) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
     }
@@ -211,13 +215,13 @@ service cloud.firestore {
       // El socio crea la reserva al confirmar una solicitud de su casa y solo puede cancelarla, con motivo.
       allow create: if nuevoPropio()
         || (esSocioDe(request.resource.data) && request.resource.data.estado == 'confirmada'
-            && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data));
+            && esSocioDeCasaPorNoche(request.resource.data.propertyId));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
       allow update: if (propio() && conservaAsesor()
             && (isAdmin() || request.resource.data.get(['comision', 'pagada'], false) == resource.data.get(['comision', 'pagada'], false)))
-        || (esSocioDe(resource.data) && soloCambia(['estado', 'motivo', 'updatedAt'])
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.propertyId) && soloCambia(['estado', 'motivo', 'updatedAt'])
             && request.resource.data.estado == 'cancelada' && isNonEmptyString(request.resource.data.motivo, 100))
-        || (esSocioDe(resource.data) && soloCambia(['comision', 'updatedAt'])
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.propertyId) && soloCambia(['comision', 'updatedAt'])
             && request.resource.data.comision.diff(resource.data.comision).affectedKeys().hasOnly(['comprobante'])
             && isNonEmptyString(request.resource.data.comision.comprobante, 600));
       allow delete: if propio();
@@ -324,7 +328,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId)
-        || (esSocioDe(resource.data) && soloCambia(['solicitud', 'updatedAt']));
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.propertyId) && soloCambia(['solicitud', 'updatedAt']));
       allow delete: if isAdmin();
     }
 
@@ -359,12 +363,12 @@ service cloud.firestore {
         || (isStaff() && soloCambia(['estado']) && request.resource.data.estado in ['confirmada', 'pagada', 'no', 'cancelada'])
         // El socio solo avanza: pendiente → confirmada o no; confirmada → pagada o cancelada.
         // Con el pago recibido ya no cancela (eso anularía la comisión): lo hace el administrador.
-        || (esSocioDe(resource.data) && soloCambia(['estado'])
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.propertyId) && soloCambia(['estado'])
             && ((resource.data.get('estado', '') == '' && request.resource.data.estado in ['confirmada', 'no'])
               || (resource.data.get('estado', '') == 'confirmada' && request.resource.data.estado in ['pagada', 'cancelada'])))
         // «Visto»: cada quien marca solo el suyo, con la hora del servidor.
         || (!signedIn() && soloCambia(['vistoCliente']) && request.resource.data.vistoCliente == request.time)
-        || (esSocioDe(resource.data) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time)
+        || (esSocioDe(resource.data) && esSocioDeCasaPorNoche(resource.data.propertyId) && soloCambia(['vistoSocio']) && request.resource.data.vistoSocio == request.time)
         || (isStaff() && soloCambia(['vistoEquipo']) && request.resource.data.vistoEquipo == request.time);
       allow delete: if isAdmin();
 
@@ -373,7 +377,7 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/chats/$(token)).data;
         }
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
-        allow read: if !signedIn() || isStaff() || esSocioDe(chat());
+        allow read: if !signedIn() || isStaff() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().propertyId));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
         // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
@@ -407,7 +411,7 @@ service cloud.firestore {
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isStaff())
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
-            || (request.resource.data.de == 'socio' && esSocioDe(chat()) && !(chat().get('estado', '') in ['no', 'cancelada'])));
+            || (request.resource.data.de == 'socio' && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().propertyId) && !(chat().get('estado', '') in ['no', 'cancelada'])));
         // Nada se edita ni se borra: la conversación es el registro.
         allow update, delete: if false;
       }

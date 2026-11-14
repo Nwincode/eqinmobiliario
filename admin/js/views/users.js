@@ -5,7 +5,7 @@ import { h, toast, showError, pageHeader, badge, modal, formatDate , mount, caja
 import { session, loadAgents } from '../session.js';
 import { loadPropietarios } from '../crm.js';
 import { etiquetaDueno } from '../duenos.js';
-import { ponerAcceso } from './propietarios.js';
+import { ponerAcceso } from '../acceso.js';
 
 // Aquí se crean solo cuentas del equipo. Propietarios y colaboradores entran con «Dar acceso» en su ficha
 // (Propietarios): una sola forma de darles entrada. Sus usuarios se listan aquí con el nombre que les corresponde.

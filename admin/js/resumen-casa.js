@@ -8,6 +8,7 @@ import { ESTADOS_PROPIEDAD, OPERACIONES } from './estados.js';
 import { whatsappUrl } from './formato.js';
 import { estadoExclusiva, datosDe } from './ficha-casa.js';
 import { CANALES } from './portal-clientes.js';
+import { enlaceSeguro } from './duenos.js';
 
 const DIA = 86400000;
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
@@ -15,7 +16,6 @@ const fecha = (v, corta = false) => {
 	const d = v ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00` : v) : null;
 	return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('es-GT', corta ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 };
-const urlSegura = (u) => (/^(https:\/\/|\/(?!\/))/.test(String(u || '')) ? String(u) : '');
 
 const COLOR_VISIBILIDAD = { visible: 'success', cerrada: 'info', oculta: 'secondary' };
 const CANAL = { web: ['Página web', 'icon-globe'], whatsapp: ['WhatsApp', 'icon-whatsapp'], portal: ['Portal de anuncios', 'icon-newspaper-o'], anuncio: ['Anuncio pagado', 'icon-bullhorn'],
@@ -81,9 +81,9 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 	const a = p.anuncio || {};
 	const ag = resumen.asesor || {};
 	const kpi = (clave, label, icono) => h('div', { class: 'col-4' }, statCard(icono, label, Number(k[clave]?.total) || 0, { cls: 'stat-envuelve', nota: k[clave]?.d30 ? `+${k[clave].d30} en 30 días` : 'Nada nuevo en 30 días' }));
-	const foto = urlSegura(p.foto);
+	const foto = enlaceSeguro(p.foto);
 	// Las demás fotos del anuncio (la primera ya está arriba).
-	const fotos = (a.fotos || []).map(urlSegura).filter((u) => u && u !== foto);
+	const fotos = (a.fotos || []).map(enlaceSeguro).filter((u) => u && u !== foto);
 	const eventos = (p.eventos || []).filter((e) => e && (e.texto || e.auto));
 	const precios = (p.historialPrecio || []).filter((x) => x?.precio).slice().sort((x, y) => String(y.fecha).localeCompare(String(x.fecha)));
 	const clientes = (p.clientes || []).filter((c) => c && Number(c.n)).sort((x, y) => y.n - x.n);
@@ -103,7 +103,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 					p.exclusivaHasta ? h('li', {}, ic('icon-calendar'), `Exclusiva hasta el ${fecha(p.exclusivaHasta)}`) : null,
 					prox ? h('li', {}, ic('icon-calendar-check-o'), `${prox} ${prox === 1 ? 'visita agendada' : 'visitas agendadas'}`) : null,
 					resumen.proximoPaso ? h('li', {}, ic('icon-flag'), h('strong', {}, 'Próximo paso: '), resumen.proximoPaso) : null,
-					urlSegura(p.url) ? h('li', {}, h('a', { href: p.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null),
+					enlaceSeguro(p.url) ? h('li', {}, h('a', { href: p.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null),
 				ag.nombre || ag.whatsapp || ag.telefono ? h('div', { class: 'd-flex align-items-center gap-2 border-top pt-2' },
 					h('span', { class: 'small flex-grow-1' }, h('span', { class: 'text-muted' }, 'Tu asesor: '), h('strong', {}, ag.nombre || 'Equipo Inmobiliario')),
 					ag.whatsapp ? iconoBtn('icon-whatsapp', `WhatsApp a ${ag.nombre || 'tu asesor'}`, { href: whatsappUrl(ag.whatsapp, `Hola${ag.nombre ? ` ${ag.nombre.split(' ')[0]}` : ''}, vi en mi panel «${p.titulo}» y tengo una consulta.`), target: '_blank', rel: 'noopener' }) : null,
@@ -124,7 +124,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 				tarjeta('Historial de precio', 'icon-line-chart', precios.length ? h('ul', { class: 'list-group list-group-flush' }, precios.map((x, i) => h('li', { class: 'list-group-item d-flex justify-content-between px-0' },
 					h('span', { class: i ? 'text-muted' : 'fw-semibold' }, formatPrice(x.precio, x.moneda, p.operacion)), h('span', { class: 'small text-muted' }, fecha(x.fecha, true))))) : h('p', { class: 'small text-muted mb-0' }, 'Sin cambios de precio.')),
 				tarjeta('Dónde se anuncia', 'icon-globe', (p.portales || []).length ? h('ul', { class: 'list-unstyled mb-0 d-grid gap-1' }, p.portales.map((po) => h('li', {},
-					urlSegura(po.url) ? h('a', { href: po.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), po.nombre) : h('span', {}, ic('icon-globe'), po.nombre))))
+					enlaceSeguro(po.url) ? h('a', { href: po.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), po.nombre) : h('span', {}, ic('icon-globe'), po.nombre))))
 					: h('p', { class: 'small text-muted mb-0' }, 'Tu asesor está preparando la publicación.'))),
 			h('div', { class: 'col-lg-7' },
 				tarjeta('Lo que ha pasado', 'icon-history', eventos.length ? h('ul', { class: 'list-group list-group-flush' }, eventos.map((e) => {

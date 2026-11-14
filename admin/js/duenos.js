@@ -3,8 +3,24 @@
 // se prueba con scripts/test-duenos.mjs.
 import { acuerdoDe } from './acuerdo.js';
 
-// Socio de renta vacacional: quien tiene casas por noche («tipo: socio» = fichas de antes).
-export const esSocio = (d) => Boolean(d?.porNoche) || d?.tipo === 'socio';
+// Tiene casas por noche (fichas de antes: «tipo: socio»). No confundir con session.esSocio, que es el ROL del usuario
+// del panel (todo dueño que entra, tenga o no casas por noche).
+export const tieneCasasPorNoche = (d) => Boolean(d?.porNoche) || d?.tipo === 'socio';
+
+// Un enlace o una foto que se puede mostrar: https o del mismo sitio («/…»); nada de javascript:, data: ni «//otro».
+export const enlaceSeguro = (u) => (/^(https:\/\/|\/(?!\/))/.test(String(u || '')) ? String(u) : '');
+
+// 32 bytes aleatorios en base64url: 43 caracteres, imposible de adivinar (id del resumen y clave de un acceso nuevo,
+// que nadie ve y se descarta).
+export function nuevoToken() {
+	const b = crypto.getRandomValues(new Uint8Array(32));
+	return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ¿Ya están publicadas las reglas nuevas de la base? Se sabe por cómo responde, sin sesión, la lectura de un resumen
+// cualquiera: las de antes la dejaban (200, o 404 si no existe); las nuevas la niegan (403). Otra respuesta o sin red:
+// se toma como «de antes», el lado seguro.
+export const reglasNuevasSegun = (status) => status === 403;
 
 // Cómo se le dice a la persona en el panel (encabezado, Usuarios, su ficha). Entran con el mismo rol («socio»).
 export const etiquetaDueno = (tipo) => (tipo === 'colaborador' ? 'Colaborador' : 'Propietario');

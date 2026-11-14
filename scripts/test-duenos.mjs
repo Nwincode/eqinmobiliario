@@ -1,6 +1,6 @@
 // Pruebas de admin/js/duenos.js: casas de cada persona, exclusiva por inmueble y lo que llega a su panel.
 import assert from 'node:assert/strict';
-import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, etiquetaDueno, esSocio } from '../admin/js/duenos.js';
+import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, etiquetaDueno, tieneCasasPorNoche, enlaceSeguro, reglasNuevasSegun } from '../admin/js/duenos.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -46,6 +46,15 @@ t('Colaborador o propietario: el tipo y la etiqueta salen de la ficha', () => {
 	assert.equal(etiquetaDueno('colaborador'), 'Colaborador');
 	assert.equal(etiquetaDueno('propietario'), 'Propietario');
 	assert.equal(etiquetaDueno(undefined), 'Propietario');
-	assert.ok(esSocio({ tipo: 'socio' }) && esSocio({ porNoche: true }) && !esSocio({ tipo: 'colaborador' }));
+	assert.ok(tieneCasasPorNoche({ tipo: 'socio' }) && tieneCasasPorNoche({ porNoche: true }) && !tieneCasasPorNoche({ tipo: 'colaborador' }));
+});
+t('Reglas nuevas solo si la lectura sin sesión se niega (403); 404, 200, otro error o sin red = reglas de antes', () => {
+	assert.equal(reglasNuevasSegun(403), true);
+	for (const s of [404, 200, 500, 0, undefined]) assert.equal(reglasNuevasSegun(s), false);
+});
+t('Solo enlaces seguros: https o del mismo sitio', () => {
+	assert.equal(enlaceSeguro('https://x.gt/a.jpg'), 'https://x.gt/a.jpg');
+	assert.equal(enlaceSeguro('/images/a.webp'), '/images/a.webp');
+	for (const u of ['javascript:alert(1)', '//otro.com/a', 'http://x.gt', 'data:image/png;base64,xx', null]) assert.equal(enlaceSeguro(u), '');
 });
 console.log(`\n${ok} pruebas de dueños correctas.`);

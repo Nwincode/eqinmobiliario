@@ -3,7 +3,7 @@
 // Lleva lo que la persona necesita de su ficha (nombre, correo, teléfono, datos de pago) y, de cada casa en venta o
 // renta, cómo va. Las casas por noche no van aquí: el dueño las ve y las cambia en vivo (views/mis-casas.js).
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot, firestoreRest
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
@@ -11,7 +11,7 @@ import { telefonoWa } from './formato.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
 import { filasClientes, numerarClientes, combinarClientes, eventosAuto, fechaOferta } from './portal-clientes.js';
-import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno } from './duenos.js';
+import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, nuevoToken, enlaceSeguro, reglasNuevasSegun } from './duenos.js';
 
 const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
 const DIA = 86400000;
@@ -25,18 +25,12 @@ export const TIPOS_BITACORA = [
 	['nota', 'Nota']
 ];
 
-// 32 bytes aleatorios en base64url: 43 caracteres, imposible de adivinar (id del resumen y clave de un acceso nuevo).
-export function nuevoToken() {
-	const b = crypto.getRandomValues(new Uint8Array(32));
-	return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 const iso = (v) => { const t = ms(v); return t ? new Date(t).toISOString() : ''; };
 const recorta = (s, n) => String(s || '').trim().slice(0, n);
 const num = (v) => Number(v) || 0;
 
 // Cómo se anuncia la propiedad: solo datos públicos de la ficha (nada interno).
-const fotoSegura = (u) => (/^(https:\/\/|\/(?!\/))/.test(u || '') ? u : '');
 function anuncioDe(p) {
 	return {
 		tipo: recorta(p.tipo, 40),
@@ -48,7 +42,7 @@ function anuncioDe(p) {
 		m2Construccion: num(p.m2Construccion),
 		m2Terreno: num(p.m2Terreno),
 		descripcion: recorta(p.descripcion, 6000),
-		fotos: (p.fotos || []).map((f) => fotoSegura(f && f.url)).filter(Boolean).slice(0, 6)
+		fotos: (p.fotos || []).map((f) => enlaceSeguro(f && f.url)).filter(Boolean).slice(0, 6)
 	};
 }
 
@@ -134,7 +128,8 @@ export async function armarPortal(prop) {
 	const propiedades = props.map((p) => {
 		const est = estadoDe(p);
 		const merc = enMercado(p);
-		const bit = bitacora.filter((b) => !b.propertyId || b.propertyId === p.id || ids.length === 1);
+		// Solo lo de esta casa y lo anotado para «todas»: nunca lo de otra casa (tampoco de una por noche, que no va aquí).
+		const bit = bitacora.filter((b) => !b.propertyId || b.propertyId === p.id);
 		const vis = visitas.filter((a) => a.pid === p.id);
 		const hechas = vis.filter((a) => a.hecha || ms(a.fecha) < ahora);
 		const fechaBit = (tipo) => bit.filter((b) => b.tipo === tipo).map((b) => Date.parse(`${b.fecha}T12:00:00`) || 0);
@@ -178,7 +173,7 @@ export async function armarPortal(prop) {
 			// Solo la fecha (nunca la comisión ni los impuestos acordados), y la de esta casa.
 			exclusivaHasta: exclusiva,
 			anuncio: anuncioDe(p),
-			foto: fotoSegura((p.fotos || [])[0]?.url),
+			foto: enlaceSeguro((p.fotos || [])[0]?.url),
 			url: urlFicha,
 			operacion: p.operacion || 'venta',
 			estado: est.valor,
@@ -240,19 +235,34 @@ export async function borrarCopia(token) {
 // Versión del resumen: la ficha la guarda (portalVersion) para saber a quién le falta rehacerlo (asegurarResumenes).
 export const VERSION_RESUMEN = 3;
 
-// Publica (o actualiza) el resumen. Crea su id la primera vez. Devuelve el id.
+// ¿Ya están publicadas las reglas nuevas de la base? (ver reglasNuevasSegun). Una vez por sesión.
+let reglasCache = null;
+export function reglasNuevas() {
+	reglasCache ||= fetch(`${firestoreRest}/portalPropietarios/prueba-reglas`, { cache: 'no-store' }).then((r) => reglasNuevasSegun(r.status), () => false);
+	return reglasCache;
+}
+
+// Los resúmenes de una persona (el asesor solo puede buscar entre los suyos).
+async function resumenesDe(propietarioId) {
+	const filtros = [where('propietarioId', '==', propietarioId), ...(session.isAdmin ? [] : [where('agentId', '==', session.agentId || '-')])];
+	return (await getDocs(query(collection(db, 'portalPropietarios'), ...filtros))).docs.map((d) => d.id);
+}
+
+// Publica (o actualiza) el resumen: uno solo por persona. Devuelve su id.
 export async function publicarPortal(prop) {
-	// Antes de crear un id nuevo se vuelve a mirar la ficha: si otro guardado ya lo creó, se usa ese (uno por persona).
-	const ficha = prop.portalToken ? prop : (await getDoc(doc(db, 'propietarios', prop.id)).catch(() => null))?.data() || {};
+	// Lo guardado manda (no lo que se leyó al abrir la pantalla): otro guardado pudo crearlo o cambiarlo mientras tanto.
+	const ficha = (await getDoc(doc(db, 'propietarios', prop.id)).catch(() => null))?.data() || prop;
 	// El id de un resumen de una versión anterior fue un enlace que se mandó por WhatsApp y que abría sin contraseña.
 	// El resumen nuevo lleva teléfono y datos de pago: nace con un id nuevo y el anterior se borra, para que ese
 	// enlace nunca los muestre (tampoco mientras las reglas nuevas no estén publicadas).
-	const viejo = ficha.portalToken && (ficha.portalVersion ?? prop.portalVersion) !== VERSION_RESUMEN ? ficha.portalToken : '';
-	const token = (!viejo && ficha.portalToken) || nuevoToken();
-	const { datos, privado } = await armarPortal(prop);
+	const vigente = ficha.portalToken && ficha.portalVersion === VERSION_RESUMEN ? ficha.portalToken : '';
+	const token = vigente || nuevoToken();
+	const { datos, privado } = await armarPortal({ ...prop, portalPrivado: ficha.portalPrivado || prop.portalPrivado });
 	await setDoc(doc(db, 'portalPropietarios', token), datos);
-	if (viejo) await borrarCopia(viejo).catch(() => {});
 	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: token, portalVersion: VERSION_RESUMEN, portalPrivado: privado, portalActualizado: serverTimestamp() });
+	// Cualquier otro resumen de la misma persona (el de antes, o uno que quedó de dos guardados a la vez) se borra.
+	const otros = new Set([...(await resumenesDe(prop.id).catch(() => [])), ficha.portalToken, prop.portalToken].filter((x) => x && x !== token));
+	for (const id of otros) await borrarCopia(id).catch((err) => console.warn('Resumen viejo sin borrar', id, err));
 	Object.assign(prop, { portalPrivado: privado, portalToken: token, portalVersion: VERSION_RESUMEN, portalActualizado: new Date() });
 	return token;
 }

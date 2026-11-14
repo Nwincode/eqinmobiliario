@@ -57,5 +57,22 @@ casa suya; la lee el equipo.
 - `properties`: el dueño lista y lee las suyas; cambia precios y calendario **solo** de las por noche. `privado/socio`
   y `privado/llegada`, solo de las por noche; `privado/acuerdo`, nunca.
 
+- Reservas, respuestas a solicitudes y mensajes del chat: el dueño solo en sus casas por noche.
+
+## Después de publicar el código: en este orden
+
+1. **Se publica el código** (Netlify). Con las reglas de antes todo sigue funcionando: el socio confirma reservas
+   (sus datos de pago salen de su ficha mientras las reglas viejas lo permiten). Propietarios muestra un aviso con
+   estos pasos, y «Dar acceso» queda deshabilitado para quien no tiene casas por noche (con las reglas de antes podría
+   leer su ficha entera y cambiar el precio de su casa en venta). Los enlaces viejos del portal todavía abren.
+2. **El administrador abre Propietarios una vez** y espera unos segundos: se rehace el resumen de cada socio y de cada
+   portal de antes, **con un id nuevo**; el anterior se borra, así que los enlaces viejos de WhatsApp dejan de abrir
+   aquí (muestran la página «Tu portal ahora es tu panel»). Sin este paso, después del 3 un socio sin resumen no
+   puede confirmar reservas (el panel le dice que faltan sus datos de pago).
+3. **Se publican las reglas:** `firebase deploy --only firestore:rules --project eqinmobiliariobd`. El aviso de
+   Propietarios desaparece solo; el socio ya lee su resumen y no su ficha.
+4. **Dar acceso** a cada dueño de venta o renta y a cada colaborador, desde su ficha: el botón ya está habilitado.
+   Los socios que ya entraban no necesitan nada.
+
 Pruebas: `npm run test:reglas` (dueña con una casa en venta y otra por noche, colaborador, acceso quitado) y el
 recorrido del entorno (`npm run recorrido`, paso 8).

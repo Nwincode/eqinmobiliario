@@ -218,6 +218,36 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('colaborador lee su ficha', leer('colab1', 'propietarios/c1'), false);
 	await espera('administrador lee el resumen', leer('admin1', `portalPropietarios/${TM}`), true);
 	await espera('asesor de otra cartera lee el resumen', leer('asesor9', `portalPropietarios/${TM}`), false);
+	// Lo que alguien haría para saltarse la pantalla
+	await espera('dueña se cambia el rol a administradora', parche('mixto1', 'users/mixto1', ['rol'], { rol: sv('admin') }), false);
+	await espera('dueña se cambia de ficha (propietarioId)', parche('mixto1', 'users/mixto1', ['propietarioId'], { propietarioId: sv('o2') }), false);
+	await espera('acceso quitado se reactiva solo', parche('apagado1', 'users/apagado1', ['activo'], { activo: { booleanValue: true } }), false);
+	await espera('dueña lista todos los resúmenes (sin filtro)', consulta('mixto1', 'portalPropietarios'), false);
+	await espera('dueña cambia su resumen', parche('mixto1', `portalPropietarios/${TM}`, ['datosPago'], { datosPago: sv('Mi WhatsApp 5555 0001') }), false);
+	await espera('dueña borra su resumen', fetch(`${H}/portalPropietarios/${TM}`, { method: 'DELETE', headers: cab('mixto1') }).then((r) => r.status), false);
+	await poner('properties/mx-venta/privado/llegada', { direccion: 'Calle de la casa en venta 1', mapa: 'https://maps.google.com/?q=1,1' });
+	await espera('dueña lee la «llegada» privada de su casa en venta', leer('mixto1', 'properties/mx-venta/privado/llegada'), false);
+	await espera('dueña cambia el dueño de su casa por noche', parche('mixto1', 'properties/mx-noche', ['propietarioId'], { propietarioId: sv('o2') }), false);
+	await espera('comentario con un campo de más', comentario('mixto1', 'c7', { ...com(TM, 'm1', 'a7', 'mx-venta'), telefono: '55550001' }), false);
+	await espera('pedir cambios con más de 2000 caracteres', comentario('mixto1', 'c8', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'x'.repeat(2001) })), false);
+	await raw('properties/mx-lista', { titulo: sv('Casa enlazada solo en su lista'), operacion: sv('venta'), propietarioId: sv(''), publicado: { booleanValue: true } });
+	await espera('comentario de una casa enlazada solo en su lista (no dice ser suya)', comentario('mixto1', 'c9', com(TM, 'm1', 'a7', 'mx-lista')), false);
+	await espera('dueña pide cambios con texto (control)', comentario('mixto1', 'c10', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Cambiar la foto de la sala' })), true);
+	// Reservas, solicitudes y chat: solo de casas por noche
+	await espera('dueña crea una reserva de su casa en venta', crear('mixto1', 'reservas/r-venta', { propertyId: 'mx-venta', propietarioId: 'm1', estado: 'confirmada' }), false);
+	await espera('dueña crea una reserva de su casa por noche (control)', crear('mixto1', 'reservas/r-noche', { propertyId: 'mx-noche', propietarioId: 'm1', estado: 'confirmada' }), true);
+	await raw('reservas/r-venta2', { propertyId: sv('mx-venta'), propietarioId: sv('m1'), estado: sv('confirmada') });
+	await espera('dueña cancela una reserva de su casa en venta', parche('mixto1', 'reservas/r-venta2', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('x') }), false);
+	await raw('leads/lead-venta', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-venta'), propietarioId: sv('m1'), agentId: sv('a7') });
+	await espera('dueña responde una «solicitud» de su casa en venta', parche('mixto1', 'leads/lead-venta', ['solicitud'], { solicitud: { mapValue: { fields: { estado: sv('confirmada') } } } }), false);
+	const CV = 'ChatDeUnaCasaEnVentaLargoYAlAzar1234';
+	await raw(`chats/${CV}`, { propietarioId: sv('m1'), propertyId: sv('mx-venta'), codigo: sv('EQ-V') });
+	await espera('dueña escribe en un chat de su casa en venta', crear('mixto1', `chats/${CV}/mensajes/v1`, m('socio', 'Hola')), false);
+	await espera('dueña confirma un chat de su casa en venta', parche('mixto1', `chats/${CV}`, ['estado'], { estado: sv('confirmada') }), false);
+	await espera('dueña lee los mensajes de un chat de su casa en venta', leer('mixto1', `chats/${CV}/mensajes`), false);
+	// El equipo: el asesor no crea ni cambia usuarios
+	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
+	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
