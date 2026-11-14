@@ -1052,25 +1052,31 @@ async function renderEditor(container, id, emb = null) {
 	// (al salir del campo), sin esperar a «Guardar». Lo corregido a mano se respeta.
 	const CAMPOS_EN = ['titulo', 'descripcion', 'amenidades', 'seo.titulo', 'seo.descripcion', 'vipLanding.titular', 'vipLanding.ctaTexto',
 		'vipLanding.subtitular', 'vipLanding.puntosClave', ...TEXTOS_VAC.map((k) => `vacacional.${k}`)];
-	let enAuto = data.en || {}, turnoEn = 0;
+	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve();
 	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status' });
 	form.el.querySelector('[data-campo="en.titulo"]').before(estadoEn);
 	// Lo que se manda a traducir: lo mismo que queda público al guardar. De una casa por noche no van la dirección
 	// ni el mapa (privados) y el precio es el que ve el cliente, no el del socio.
 	const paraTraducir = () => {
 		const d = form.getData();
-		return esVacacional(d) ? { ...d, ...vacacionalPublico(mascotasUnaVez(d)), direccion: '', mapa: '' } : d;
+		// «en» es el guardado: las direcciones anteriores en inglés salen de lo publicado, no de un borrador sin guardar.
+		d.en = data.en || {};
+		if (esVacacional(d)) return { ...d, ...vacacionalPublico(mascotasUnaVez(d)), direccion: '', mapa: '' };
+		delete d.vacacional;
+		return d;
 	};
 	const traducirEnVivo = async () => {
 		const s = form.state;
 		s.en = s.en || {};
 		if (s.en.titulo && textoEn(s.en) !== textoEn(enAuto)) s.en.manual = true;
 		if (!String(s.descripcion || '').trim() || !faltaIngles(s)) return;
-		const turno = ++turnoEn;
+		const turno = ++turnoEn, antes = textoEn(s.en);
 		estadoEn.textContent = 'Traduciendo al inglés…';
 		try {
 			const en = await traducirEn(paraTraducir());
 			if (turno !== turnoEn) return;
+			// Si alguien corrigió el inglés mientras se traducía, manda su corrección.
+			if (textoEn(form.state.en) !== antes) { form.state.en.manual = true; estadoEn.textContent = ''; return; }
 			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
 			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
 			enAuto = clonar(form.state.en);
@@ -1079,7 +1085,7 @@ async function renderEditor(container, id, emb = null) {
 			if (turno === turnoEn) estadoEn.textContent = 'No se pudo traducir ahora; se intenta de nuevo al guardar.';
 		}
 	};
-	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) traducirEnVivo(); });
+	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
 
 	const recargar = async () => {
 		const view = document.getElementById('view').firstElementChild;
@@ -1089,6 +1095,10 @@ async function renderEditor(container, id, emb = null) {
 
 	const save = async (btn) => {
 		if (!form.validate()) return;
+		// Si la traducción en vivo va en camino, se espera: así no se traduce dos veces.
+		btn.disabled = true;
+		await enCurso;
+		btn.disabled = false;
 		const d = form.getData();
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
