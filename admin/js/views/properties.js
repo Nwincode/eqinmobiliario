@@ -22,6 +22,7 @@ import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno } from '../enlace-dueno.js';
+import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
@@ -203,6 +204,11 @@ export function propiedadNueva(datos) {
 // Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento, sus fotos y su
 // renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
 export async function eliminarPropiedad(p) {
+	// Una casa por noche con huéspedes por venir no se borra; sin ellos, se borra también el contacto de sus huéspedes.
+	const reservas = p.operacion === 'vacacional' ? await deLaCasa(p.id) : [];
+	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
+	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
+	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
 	for (const privado of ['socio', 'llegada', 'acuerdo']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
 	await deleteDoc(doc(db, 'properties', p.id));
 	await borrarFotos(p);
@@ -1148,6 +1154,12 @@ async function renderEditor(container, id, emb = null) {
 		btn.disabled = false;
 		const mio = form.getData();
 		const d = clonar(mio);
+		// Una casa por noche con huéspedes por venir no pasa a venta o renta: perdería las fechas que ya tienen.
+		if (!isNew && eraVacacional && !esVacacional(d)) {
+			let pendientes;
+			try { pendientes = await porVenir(ref.id); } catch (err) { return showError(err); }
+			if (pendientes.length) return toast(avisoPorVenir(pendientes, 'No puede dejar de ser renta por noche'), 'warning');
+		}
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;
@@ -1234,7 +1246,8 @@ async function renderEditor(container, id, emb = null) {
 			// La casa queda en la lista de su dueño y sale de la de cualquier otro; su `porNoche` se recalcula
 			// (una sola forma de enlazar: asignarDueno). El acuerdo ya lo decidió acuerdoPorGuardar.
 			// Una casa enlazada solo desde la lista de su dueño (sin propietarioId antes ni ahora) se deja como está.
-			if (data.propietarioId || d.propietarioId) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
+			// Con un dueño de otro asesor que no cambia no hay nada que poner al día (y su ficha no se puede leer).
+			if ((data.propietarioId || d.propietarioId) && !(ajeno && data.propietarioId === d.propietarioId)) await asignarDueno({ id: ref.id, propietarioId: data.propietarioId, operacion: d.operacion }, d.propietarioId || '', { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			if (!isNew) refrescarPortalesDe([ref.id]);
 			// Lo que la ficha compara con «data» (dueño, URL, operación) queda como se guardó: un segundo «Guardar» no
 			// vuelve a sacar la casa del dueño anterior ni le borra el acuerdo al nuevo.

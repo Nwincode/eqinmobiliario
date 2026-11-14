@@ -1,7 +1,7 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection, setDoc } from '../firebase.js';
-import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, slugify, cajaTabla, badge, formatPrice } from '../ui.js';
+import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia } from '../estados.js';
