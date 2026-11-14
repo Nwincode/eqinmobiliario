@@ -1647,7 +1647,7 @@ export function vipLandingPage(ctx, p) {
 
 	${facts.length ? `<section class="vip-facts">
 		<div class="container">
-			<ul>
+			<ul style="--n:${facts.length}">
 				${facts.map(([icon, val, label]) => `<li><span class="${icon}"></span><strong>${esc(val)}</strong><small>${esc(label)}</small></li>`).join('')}
 			</ul>
 		</div>

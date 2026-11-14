@@ -81,9 +81,22 @@
 	margin: 0;
 	padding: 28px 0;
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+	/* Sin celdas sueltas: en celular 2 columnas y la última, si queda sola, a lo ancho; desde 768 px, todos en una fila
+	   (--n = cuántos datos, scripts/lib/templates.mjs; son 6 como mucho). */
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 20px;
 	text-align: center;
+}
+.vip-facts li:last-child:nth-child(odd) {
+	grid-column: 1 / -1;
+}
+@media (min-width: 768px) {
+	.vip-facts ul {
+		grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
+	}
+	.vip-facts li:last-child:nth-child(odd) {
+		grid-column: auto;
+	}
 }
 .vip-facts li span {
 	display: block;

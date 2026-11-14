@@ -111,6 +111,7 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Enlaces y campos de 14 a 38 px en celular (migas, «Leer más», ES/EN, fechas del buscador). | Medir en 390 px que todo lo que se toca mida 44 px o más. |
 | Botones de zona con ícono y de tipo sin ícono en el mismo grupo. | En un grupo de enlaces, todos con ícono o ninguno. |
 | El separador de las migas era blanco al 30 % también sobre fondo blanco (invisible en la ficha). | Un color pensado para un fondo oscuro se limita a ese fondo (`.hero`); mirar cada pieza en fondo claro y oscuro. |
+| En la landing VIP a 390 el WhatsApp flotante repetía el de la barra fija, y los datos de la casa dejaban una celda sola. | Un control, una vez por pantalla; las rejillas de datos sin celdas sueltas con cualquier cantidad. |
 | Galería VIP con un bloque vacío bajo tres miniaturas (1280) y una celda suelta (390). | Rejillas con número variable de elementos: probar 2 a 14 fotos sin huecos (`celdaGaleriaVip`, `test-sitio.mjs`). |
 | Una etiqueta de precio se salía 11 px a 390 (`minmax(140px)` y `nowrap`); el WhatsApp flotante tapaba el enlace «VIP» del pie; el texto chico dorado no se leía sobre la foto; el selector de orden medía 42 px. | Medir a 390 y 1280: nada se sale, nada fijo tapa un enlace, texto sobre foto con velo, toques de 44 px. |
 | La estancia mínima salía dos veces en la caja de reserva; «Huéspedes» y «Huéspedes máximo» para el mismo dato. | Un dato, un texto, un lugar en la pantalla. |

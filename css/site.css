@@ -430,12 +430,10 @@
 	color: #fff;
 	transform: scale(1.08);
 }
-.vip-page .wa-float {
-	bottom: 84px;
-}
-@media (min-width: 768px) {
+/* Landing VIP en celular: el WhatsApp ya está en la barra fija de abajo; el botón flotante no se repite. */
+@media (max-width: 767.98px) {
 	.vip-page .wa-float {
-		bottom: 20px;
+		display: none;
 	}
 }
 
