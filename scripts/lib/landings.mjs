@@ -235,13 +235,13 @@ export function tipoDominante(lista) {
 // Cierres para que la descripción no termine igual en todas las páginas: uno por página, siempre el mismo.
 const CIERRES = {
 	es: {
-		venta: ['Agenda tu visita presencial o por videollamada.', 'Te acompañamos en el financiamiento y la escritura.', 'Fotos, planos y precios verificados.'],
+		venta: ['Agenda tu visita presencial o por videollamada.', 'Te acompañamos en el financiamiento y la escritura.', 'Fotos y precios verificados, con asesoría.'],
 		renta: ['Agenda tu visita y conoce las condiciones del contrato.', 'Contratos claros y un asesor que te acompaña.', 'Fotos y precios al mes, sin sorpresas.'],
 		vacacional: ['Elige tus fechas y solicita tu reserva.', 'Revisa la disponibilidad y reserva en línea.', 'Precios por noche y calendario al día.'],
 		'': ['Agenda tu visita presencial o por videollamada.', 'Te ayudamos a comparar y elegir.', 'Fotos, precios y asesoría personalizada.']
 	},
 	en: {
-		venta: ['Live video tours for buyers in the US.', 'English-speaking support from offer to closing.', 'Verified listings with USD prices.'],
+		venta: ['Live video tours for buyers in the US.', 'English-speaking support from offer to closing.', 'Verified listings with photos and prices.'],
 		renta: ['Schedule a tour and review the lease terms.', 'Clear contracts and an English-speaking contact.', 'Photos and monthly prices, no surprises.'],
 		vacacional: ['Pick your dates and request your booking.', 'Check availability and book online.', 'Nightly prices and an up-to-date calendar.'],
 		'': ['Live video tours for buyers in the US.', 'English-speaking support from offer to closing.', 'Photos, prices and personal advice.']
@@ -275,6 +275,22 @@ function sustantivo(lista, tipo, en, plural = true, dominante = tipoDominante(li
 	const n = TIPOS_LANDING[t];
 	return en ? (plural ? n.en : n.enN[0].replace(/^./, (c) => c.toUpperCase())) : plural ? n.plural : TIPOS[t];
 }
+// Para contar: «4 casas», «1 terreno»; en inglés «2 lots», no «2 land».
+function contable(lista, tipo, en, n, dominante = tipoDominante(lista)) {
+	const t = tipo || dominante;
+	if (en && t) return TIPOS_LANDING[t].enN[n === 1 ? 0 : 1];
+	return sustantivo(lista, tipo, en, n !== 1, dominante).toLowerCase();
+}
+// Descripción de 70 a 155: el dato propio de la página y uno o dos cierres si caben.
+function conCierre(desc, url, lang, o) {
+	const lista = CIERRES[lang][o] || CIERRES[lang][''];
+	let out = desc;
+	for (let i = 0, k = lista.indexOf(cierre(url, lang, o)); i < lista.length && out.length < 100; i++) {
+		const c = lista[(k + i) % lista.length];
+		if (`${out} ${c}`.length <= 155) out = `${out} ${c}`;
+	}
+	return recorte(out, 155);
+}
 const FRASE_OP = { es: { venta: 'en venta', renta: 'en renta', vacacional: 'en renta vacacional' }, en: { venta: 'for sale', renta: 'for rent', vacacional: 'vacation rentals' } };
 
 // Dato que distingue a la página en su descripción: el precio mediano (o desde) y el precio por m².
@@ -304,15 +320,14 @@ export function textosListado(e, { nombre, lang = 'es', plan = [] }) {
 	const o = e.operacion || (ops.length === 1 ? ops[0] : '');
 	const precios = (o ? [o] : OPS).map((x) => estadisticasPrecio(lista, x)).filter(Boolean);
 	const resumen = resumenInventario(lista, en);
-	const fin = cierre(e.url, lang, o);
 	const fraseOp = o ? FRASE_OP[lang][o] : '';
 	if (e.pagina === 'tipo') {
 		const heading = `${nombreTipo(e.tipo, o, en)} ${en ? 'in' : 'en'} Guatemala`;
-		const desc = `${n} ${sustantivo(lista, e.tipo, en, n !== 1).toLowerCase()} ${fraseOp} ${en ? 'in' : 'en'} Guatemala${datoPrecio(precios[0], en) || datoDesde(lista, o, en)}.${habitaciones(lista, en)}`;
+		const desc = `${n} ${contable(lista, e.tipo, en, n)} ${fraseOp} ${en ? 'in' : 'en'} Guatemala${datoPrecio(precios[0], en) || datoDesde(lista, o, en)}.${habitaciones(lista, en)}`;
 		return {
 			heading, precios,
 			title: tituloCorto(nombre, heading, nombreTipo(e.tipo, o, en)),
-			description: recorte(`${desc} ${fin}`.length <= 155 ? `${desc} ${fin}` : desc, 155),
+			description: conCierre(desc, e.url, lang, o),
 			intro: `${resumen} ${en ? "Can't find what you need? Tell us and we'll send you options that aren't listed yet." : 'Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.'}`
 		};
 	}
@@ -327,13 +342,13 @@ export function textosListado(e, { nombre, lang = 'es', plan = [] }) {
 		: [sustantivo(lista, e.tipo, en, true, dominante), fraseOp, en ? 'in' : 'en', e.zona].filter(Boolean).join(' ');
 	const cuantos = o === 'vacacional'
 		? (en ? `${n} ${n === 1 ? 'vacation rental' : 'vacation rentals'}` : `${n} ${n === 1 ? 'alojamiento' : 'alojamientos'} por noche`)
-		: `${n} ${sustantivo(lista, e.tipo, en, n !== 1, dominante).toLowerCase()}${fraseOp ? ` ${fraseOp}` : ''}`;
+		: `${n} ${contable(lista, e.tipo, en, n, dominante)}${fraseOp ? ` ${fraseOp}` : ''}`;
 	const masDe = !o && ops.length > 1 ? ` (${ops.map((x) => FRASE_OP[lang][x]).join(en ? ', ' : ', ')})` : '';
 	const desc = `${cuantos}${masDe} ${en ? 'in' : 'en'} ${lugar}${o ? datoPrecio(precios[0], en) || datoDesde(lista, o, en) : ''}.${habitaciones(lista, en)}`;
 	return {
 		heading, precios,
 		title: tituloCorto(nombre, ...(lugar === e.zona ? [] : [`${heading}, ${lugar.slice(lugar.indexOf(', ') + 2)}`]), heading),
-		description: recorte(`${desc} ${fin}`.length <= 155 ? `${desc} ${fin}` : desc, 155),
+		description: conCierre(desc, e.url, lang, o),
 		intro: `${resumen} ${o === 'vacacional' ? (en ? 'Pick your dates to see what is available.' : 'Elige tus fechas para ver cuáles están disponibles.')
 			: en ? "Can't find what you need? Tell us and we'll send you options that aren't listed yet." : 'Si no encuentras lo que buscas, déjanos tus datos y te enviamos opciones que aún no están publicadas.'}`
 	};
