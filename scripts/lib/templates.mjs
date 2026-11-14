@@ -871,13 +871,15 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 		itemListElement: list.slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(ctx, propertyUrl(p)), name: p.titulo }))
 	};
 
+	// Introducción y precios: debajo del buscador, que sube sobre la portada (sin taparlos).
+	const contexto = `${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
+			${bloquePrecios(ctx, precios, zona)}`;
 	const body = `
 	${pageHero(ctx, heading, heroImg, crumbs)}
 	<div class="section">
 		<div class="container">
 			${vac ? vacBuscador(ctx, list) : ''}
-			${intro ? `<p class="lead text-black-50 mb-4">${esc(intro)}</p>` : ''}
-			${bloquePrecios(ctx, precios, zona)}
+			${vac ? contexto : ''}
 			${vac ? '' : `<form class="listing-filters row g-2 align-items-end mb-md-4" id="listing-filters" role="search" aria-label="${t.filtrar}">
 				<div class="col-12 filtros-cabeza d-md-none">
 					<strong>${t.buscar}</strong>
@@ -919,6 +921,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 					<button type="submit" class="btn btn-primary d-md-none" id="listing-ver">${t.jsVer} ${plural(list.length, t.propiedad, t.propiedadesN)}</button>
 				</div>
 			</form>
+			${contexto}
 
 			<div class="listing-barra">
 				<p class="mb-0" id="listing-count" aria-live="polite">${plural(list.length, t.propiedad, t.propiedadesN)}</p>
@@ -1540,7 +1543,7 @@ export function vipIndexPage(ctx, entrada = null) {
 			<div class="row">
 				${vips.length ? vips.map((p) => `<div class="col-md-6 mb-5">
 					<a class="vip-card" href="${propertyUrl(p)}">
-						<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}"${fotoAttrs(firstPhoto(p), '(max-width: 767px) 100vw, 50vw')} loading="lazy" width="800" height="600">
+						<img src="${esc(firstPhoto(p))}" alt="${esc(photoAlt(p))}"${fotoAttrs(firstPhoto(p), '(max-width: 767px) 100vw, 50vw')} loading="lazy" width="800" height="500">
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
@@ -1823,12 +1826,12 @@ export function blogIndexPage(ctx) {
 			<div class="row">
 				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
 					<article class="post-card">
-						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.webp')}" alt="${esc(post.titulo)}"${fotoAttrs(post.imagen, SIZES_TARJETA, [480, 800])} loading="lazy" width="800" height="533"></a>
+						<a href="${esc(post.url)}" class="post-card-img"><img src="${esc(post.imagen || '/images/hero_bg_1.webp')}" alt="${esc(post.titulo)}"${fotoAttrs(post.imagen, SIZES_TARJETA, [480, 800])} loading="lazy" width="800" height="450"></a>
 						<div class="post-card-body">
 							<time class="small text-black-50" datetime="${esc(post.fecha || '')}">${ic('calendar')}${esc(postDate(post, ctx))}</time>
 							<h2 class="h5 mt-2"><a href="${esc(post.url)}">${esc(post.titulo)}</a></h2>
 							<p class="text-black-50 small">${esc(truncate(post.resumen || stripMarkdown(post.contenido), 150))}</p>
-							<a href="${esc(post.url)}" class="small fw-semibold">${t.leerMas}<span class="visually-hidden">: ${esc(post.titulo)}</span>${ic('arrow-right', true)}</a>
+							<a href="${esc(post.url)}" class="small fw-semibold post-card-mas">${t.leerMas}<span class="visually-hidden">: ${esc(post.titulo)}</span>${ic('arrow-right', true)}</a>
 						</div>
 					</article>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.blogPronto}</p>`}
@@ -1877,7 +1880,7 @@ export function blogPostPage(ctx, post) {
 	${others.length ? `<div class="section bg-light">
 		<div class="container">
 			<h2 class="font-weight-bold text-primary heading mb-5">${ic('newspaper-o')}${t.masArticulos}</h2>
-			<div class="row">${others.map((o) => `<div class="col-md-4 mb-4"><a class="d-block fw-semibold" href="${esc(o.url)}">${esc(o.titulo)}</a><span class="small text-black-50">${ic('calendar')}${esc(postDate(o, ctx))}</span></div>`).join('')}</div>
+			<div class="row">${others.map((o) => `<div class="col-md-4 mb-4 blog-mas"><a class="d-block fw-semibold" href="${esc(o.url)}">${esc(o.titulo)}</a><span class="small text-black-50">${ic('calendar')}${esc(postDate(o, ctx))}</span></div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
 	return layout(ctx, {

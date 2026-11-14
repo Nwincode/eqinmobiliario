@@ -264,7 +264,8 @@
 .ficha-ver-todas {
 	display: inline-flex;
 	align-items: center;
-	min-height: var(--eq-btn-height-sm);
+	/* Va sobre la foto y se toca con el dedo: 44 px, no el alto del botón chico. */
+	min-height: 44px;
 	padding: 0 1rem;
 	border: 1px solid var(--eq-white);
 	border-radius: var(--eq-radius);
