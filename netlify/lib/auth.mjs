@@ -1,26 +1,49 @@
 // Verificación del usuario del panel: token de Firebase + documento activo en users/{uid}.
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+//  - staffUser: el equipo (administrador o asesor).
+//  - socioUser: un dueño con acceso al panel (rol «socio», con su propietarioId).
+import { createRemoteJWKSet, jwtVerify, decodeJwt } from 'jose';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 
 const PROJECT_ID = siteConfig.firebase.projectId;
 const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
+const ISSUER = `https://securetoken.google.com/${PROJECT_ID}`;
 
-export async function staffUser(req) {
+// Solo en el entorno de pruebas local (scripts/entorno): el emulador de inicio de sesión da tokens sin firma. Hacen
+// falta las dos cosas, que en Netlify no existen: el emulador encendido y un proyecto de mentira («demo-…»).
+const enEmulador = () => Boolean(process.env.FIRESTORE_EMULATOR_HOST) && PROJECT_ID.startsWith('demo-');
+
+async function verificar(token) {
+	if (!enEmulador()) return (await jwtVerify(token, JWKS, { issuer: ISSUER, audience: PROJECT_ID })).payload;
+	const p = decodeJwt(token);
+	if (p.iss !== ISSUER || p.aud !== PROJECT_ID || !p.sub) throw new Error('Token de otro proyecto');
+	return p;
+}
+
+// Quien llama, con su users/{uid} (leído con su propio token: las reglas le dejan leer el suyo). null sin token o
+// sin usuario; un token inválido lanza un error.
+async function usuario(req) {
 	const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
 	if (!token) return null;
-	const { payload } = await jwtVerify(token, JWKS, {
-		issuer: `https://securetoken.google.com/${PROJECT_ID}`,
-		audience: PROJECT_ID
-	});
+	const payload = await verificar(token);
 	const res = await fetch(`https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/users/${payload.sub}`, {
 		headers: { Authorization: `Bearer ${token}` }
 	});
 	if (!res.ok) return null;
-	const doc = await res.json();
-	if (!doc.fields?.activo?.booleanValue) return null;
-	const rol = doc.fields?.rol?.stringValue;
-	if (rol !== 'admin' && rol !== 'asesor') return null;
-	return { uid: payload.sub, nombre: doc.fields?.nombre?.stringValue || '', admin: rol === 'admin' };
+	const f = (await res.json()).fields || {};
+	if (!f.activo?.booleanValue) return null;
+	return { uid: payload.sub, nombre: f.nombre?.stringValue || '', rol: f.rol?.stringValue || '', propietarioId: f.propietarioId?.stringValue || '' };
+}
+
+export async function staffUser(req) {
+	const u = await usuario(req);
+	if (!u || (u.rol !== 'admin' && u.rol !== 'asesor')) return null;
+	return { uid: u.uid, nombre: u.nombre, admin: u.rol === 'admin' };
+}
+
+export async function socioUser(req) {
+	const u = await usuario(req);
+	if (!u || u.rol !== 'socio' || !u.propietarioId) return null;
+	return { uid: u.uid, nombre: u.nombre, propietarioId: u.propietarioId };
 }
 
 export function json(status, body) {

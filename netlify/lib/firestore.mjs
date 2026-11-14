@@ -6,12 +6,14 @@
 //   Las tres internas usan la cuenta de servicio de Google
 //   (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY), que necesita el rol "Cloud Datastore Viewer"
 //   en el proyecto de Firebase.
+// Lo que escribe (solo las reservas del socio) está en firestore-escritura.mjs, con otra cuenta.
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { googleToken, googleConfigurado } from './google.mjs';
 
 const { projectId: PROJECT_ID, apiKey: API_KEY } = siteConfig.firebase;
-const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-const SCOPE_DATOS = 'https://www.googleapis.com/auth/datastore';
+export const RAIZ = `projects/${PROJECT_ID}/databases/(default)/documents`;
+export const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+export const SCOPE_DATOS = 'https://www.googleapis.com/auth/datastore';
 
 export const datosConfigurados = googleConfigurado;
 
@@ -34,7 +36,7 @@ function campos(fields = {}) {
 	return out;
 }
 
-const documento = (d) => ({ id: d.name.split('/').pop(), ...campos(d.fields) });
+export const documento = (d) => ({ id: d.name.split('/').pop(), ...campos(d.fields) });
 
 // Documento público (o null si no existe o no se puede leer).
 export async function leerPublico(ruta) {

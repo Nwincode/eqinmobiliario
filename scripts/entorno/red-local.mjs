@@ -9,9 +9,15 @@ const DESTINOS = [
 	['https://firestore.googleapis.com', `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}`],
 	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`]
 ];
-// Cuenta de servicio de mentira: el emulador acepta «Bearer owner» como administrador.
+// Cuentas de servicio de mentira: el cambio de su clave por un token de Google se salta (abajo, oauth2) y el emulador
+// acepta «Bearer owner» como administrador.
 process.env.GOOGLE_SA_EMAIL ||= 'pruebas@demo-eq.iam.gserviceaccount.com';
 process.env.GOOGLE_SA_KEY ||= generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' });
+// La cuenta que escribe las reservas del socio (netlify/functions/reservas.mjs), también de mentira.
+process.env.GOOGLE_SA_ESCRITURA_EMAIL ||= 'escritura@demo-eq.iam.gserviceaccount.com';
+process.env.GOOGLE_SA_ESCRITURA_KEY ||= process.env.GOOGLE_SA_KEY;
+// Con esto (y el proyecto «demo-eq») netlify/lib/auth.mjs acepta los tokens sin firma del emulador de inicio de sesión.
+process.env.FIRESTORE_EMULATOR_HOST ||= process.env.EMU_FIRESTORE || '127.0.0.1:8085';
 process.env.ZEPTOMAIL_TOKEN ||= 'pruebas';
 process.env.AVISO_CORREO ||= 'equipo@example.com';
 process.env.CORREO_REMITENTE ||= 'avisos@example.com';
