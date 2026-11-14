@@ -194,11 +194,16 @@ test('la ficha por noche no carga los textos del chat (solo /reserva/)', () => {
 	assert.match(de('/reserva/'), /vacChatSin/);
 });
 
-test('las pastillas de zona solo enlazan zonas que se indexan', () => {
-	for (const u of ['/propiedades/', '/propiedades/venta/']) {
-		const nav = /<nav class="section pt-0" aria-labelledby="por-zona">[\s\S]*?<\/nav>/.exec(de(u));
-		for (const [, href] of (nav ? nav[0] : '').matchAll(/href="([^"]+)"/g)) assert.ok(indexa(de(href)), `${u} enlaza ${href}, que no se indexa`);
+test('ninguna página que se indexa enlaza un listado que no se indexa (pastillas, migas, ubicación)', () => {
+	const malos = [];
+	for (const [u, h] of Object.entries(html)) {
+		if (!indexa(h)) continue;
+		for (const [, href] of h.matchAll(/href="(\/[^"#?]*)"/g)) {
+			const d = html[href];
+			if (d && /data-listing="1"/.test(d) && !indexa(d)) malos.push(`${u} → ${href}`);
+		}
 	}
+	assert.deepEqual([...new Set(malos)], []);
 });
 
 test('galería VIP: sin celdas sueltas con cualquier número de fotos', () => {

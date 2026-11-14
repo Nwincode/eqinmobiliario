@@ -519,7 +519,7 @@ function bloqueExterior(ctx) {
 					<span class="exterior-kicker">${ic('plane')}${esc(b.etiqueta || '')}</span>
 					<h2 class="font-weight-bold heading text-primary mb-3">${esc(b.titulo)}</h2>
 					<p class="text-black-50 mb-4">${esc(b.texto)}</p>
-					${b.enlace ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
+					${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
 				</div>
 				<div class="col-lg-6">
 					<ul class="exterior-list">${(b.puntos || []).map((pt) => `<li><span class="icon-check"></span>${esc(pt)}</li>`).join('')}</ul>
@@ -696,7 +696,7 @@ export function homePage(ctx) {
 		<div class="row justify-content-center footer-cta" data-aos="fade-up">
 			<div class="col-lg-7 mx-auto text-center">
 				<h2 class="mb-3">${esc(s.cta.titulo)}</h2>
-				<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>
+				${s.cta.enlace && visible(ctx, s.cta.enlace) ? `<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>` : ''}
 			</div>
 		</div>
 	</div>` : ''}
@@ -1330,9 +1330,11 @@ export function propertyPage(ctx, p) {
 	const r = rt(ctx);
 	const agent = ctx.agentsById[p.agentId];
 	const fotos = (p.fotos && p.fotos.length) ? p.fotos : [{ url: firstPhoto(p) }];
-	// Su zona y la página más específica de su zona (zona + operación, o zona + tipo + operación) si existen.
-	const zona = p.zona ? buscar(ctx.plan || [], 'zona', { zona: p.zona }) : null;
-	const fina = p.zona ? paginaDeZona(ctx.plan || [], p.zona, p.operacion, p.tipo) : null;
+	// Su zona y la página más específica de su zona (zona + operación, o zona + tipo + operación) si existen y se
+	// indexan (landings.mjs `bastante`); una zona con pocas casas no se enlaza: sus casas ya están en el listado de arriba.
+	const indexable = (x) => (x && x.indexable ? x : null);
+	const zona = p.zona ? indexable(buscar(ctx.plan || [], 'zona', { zona: p.zona })) : null;
+	const fina = p.zona ? indexable(paginaDeZona(ctx.plan || [], p.zona, p.operacion, p.tipo)) : null;
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedades, url: r.propiedades },
 		zona && { name: p.zona, url: zona.url }, fina && fina !== zona && { name: fina.opts ? fina.opts.heading : p.zona, url: fina.url },
 		{ name: p.titulo, url: propertyUrl(p) }].filter(Boolean);
