@@ -870,7 +870,7 @@ async function main() {
 			}
 		}
 		await writePage('/en/404.html', T.notFoundPage(ctxEn));
-		// Portal del propietario: página privada, fuera del sitemap.
+		// Propietarios y colaboradores: lleva al panel (antes el portal). Fuera del sitemap.
 		registrarPar('/propietarios/', '/en/owners/');
 		await writePage('/en/owners/', T.portalPage(ctxEn));
 		await writePage('/en/rental-calculator/', T.rentalCalculatorPage(ctxEn));

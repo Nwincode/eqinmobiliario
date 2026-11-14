@@ -68,7 +68,7 @@ await espera('socio dueño lee la solicitud (teléfono del cliente)', leer('soci
 await espera('socio dueño lista las solicitudes de sus casas', consulta('socio1', 'leads', 'propietarioId', 'o1'), false);
 await espera('socio dueño responde la solicitud sin leerla', fetch(`${H}/leads/lead1?updateMask.fieldPaths=solicitud`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: { solicitud: { mapValue: { fields: campos({ estado: 'confirmada' }) } } } }) }).then((r) => r.status), true);
 await espera('administrador lee la solicitud', leer('admin1', 'leads/lead1'), true);
-await espera('socio lee su propia ficha (datos de pago)', leer('socio1', 'propietarios/o1'), true);
+await espera('socio lee su propia ficha (notas y bitácora internas)', leer('socio1', 'propietarios/o1'), false);
 await espera('socio lee la ficha de otro socio', leer('socio1', 'propietarios/o2'), false);
 await espera('chat de un código que no es el de la solicitud', crear(null, 'chats/TokenOtroCodigoLargoAlAzar234', { ...chat, codigo: 'EQ-OTRO' }), false);
 // Datos de pago
@@ -158,6 +158,66 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('lote «pago recibido» (estado + llegada juntos)', lote('confirmada', [estado('pagada'), mensaje('l1', { de: 'socio', tipo: 'llegada', texto: 'llegada' })]), false);
 	await espera('lote «pago recibido» con la dirección correcta, junto al estado', lote('confirmada', [estado('pagada'), mensaje('l2', { de: 'socio', tipo: 'llegada', texto: 'llegada', direccion: 'Calle Real 12, Monterrico', mapa: 'https://maps.google.com/?q=13.8912,-90.4801' })]), false);
 	await espera('lote «confirmar» (estado + datos de pago juntos)', lote('', [estado('confirmada'), mensaje('p1', { de: 'socio', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' })]), true);
+}
+// Un solo panel por dueño: una persona con una casa en venta y otra por noche (y un colaborador). Su resumen
+// (portalPropietarios) lo lee solo esa persona con su usuario; la venta la lleva el equipo; la de por noche, ella.
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const raw = (ruta, fields) => fetch(`${H}/${ruta}`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields }) });
+	const sv = (v) => ({ stringValue: v });
+	await poner('users/mixto1', { rol: 'socio', activo: true, propietarioId: 'm1', nombre: 'Dueña mixta' });
+	await poner('users/colab1', { rol: 'socio', activo: true, propietarioId: 'c1', nombre: 'Colaborador' });
+	await poner('users/apagado1', { rol: 'socio', activo: false, propietarioId: 'm1', nombre: 'Acceso quitado' });
+	await poner('propietarios/m1', { nombre: 'Dueña mixta', agentId: 'a7', notas: 'Nota interna', datosPago: 'Banco 1' });
+	await poner('propietarios/c1', { nombre: 'Colaborador', tipo: 'colaborador', agentId: 'a7' });
+	await raw('properties/mx-venta', { titulo: sv('Casa en venta de la dueña mixta'), operacion: sv('venta'), propietarioId: sv('m1'), agentId: sv('a7'), publicado: { booleanValue: false }, precio: { doubleValue: 150000 } });
+	await raw('properties/mx-noche', { titulo: sv('Casa por noche de la dueña mixta'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: true }, precio: { doubleValue: 120 }, vacacional: { mapValue: { fields: { base: { doubleValue: 120 } } } } });
+	await raw('properties/cx-venta', { titulo: sv('Casa del colaborador'), operacion: sv('venta'), propietarioId: sv('c1'), agentId: sv('a7'), publicado: { booleanValue: true } });
+	await poner('properties/mx-venta/privado/acuerdo', { exclusiva: true, exclusivaFin: '2027-02-01', comisionPct: 5 });
+	await poner('properties/mx-venta/privado/socio', { precioBase: 1 });
+	await poner('properties/mx-noche/privado/socio', { precioBase: 100 });
+	await poner('properties/mx-noche/privado/acuerdo', { exclusiva: false });
+	const TM = 'ResumenDeLaDuenaMixtaLargoYAlAzar1234', TC = 'ResumenDelColaboradorLargoYAlAzar12345', TO = 'ResumenDeOtroDuenoLargoYAlAzar12345678';
+	await poner(`portalPropietarios/${TM}`, { propietarioId: 'm1', agentId: 'a7', email: 'mixta@example.com', datosPago: 'Banco 1', tipo: 'propietario' });
+	await poner(`portalPropietarios/${TC}`, { propietarioId: 'c1', agentId: 'a7', email: 'colab@example.com', tipo: 'colaborador' });
+	await poner(`portalPropietarios/${TO}`, { propietarioId: 'o2', agentId: 'a1', email: 'otro@example.com', datosPago: 'Banrural 9988776655' });
+	const parche = (quien, ruta, campos, fields) => fetch(`${H}/${ruta}?${campos.map((k) => `updateMask.fieldPaths=${k}`).join('&')}`, { method: 'PATCH', headers: cab(quien), body: JSON.stringify({ fields }) }).then((r) => r.status);
+	const comentario = (quien, id, f) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/comentariosPropietarios/${id}`, fields: campos(f) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'fecha', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	const com = (token, propietarioId, agentId, propiedadId, extra = {}) => ({ token, propietarioId, agentId, propiedadId, tipo: 'aprobado', texto: '', origen: 'propietario', ...extra });
+	await espera('dueña mixta lee su resumen', leer('mixto1', `portalPropietarios/${TM}`), true);
+	await espera('dueña mixta busca su resumen por su ficha', consulta('mixto1', 'portalPropietarios', 'propietarioId', 'm1'), true);
+	await espera('dueña mixta lee el resumen de otro dueño', leer('mixto1', `portalPropietarios/${TO}`), false);
+	await espera('dueña mixta busca el resumen de otro dueño', consulta('mixto1', 'portalPropietarios', 'propietarioId', 'o2'), false);
+	await espera('anónimo abre un resumen con su id (el enlace de antes)', leer(null, `portalPropietarios/${TM}`), false);
+	await espera('anónimo busca resúmenes por correo (el acceso por correo de antes)', consulta(null, 'portalPropietarios', 'email', 'mixta@example.com'), false);
+	await espera('dueña mixta lee su propia ficha (notas internas)', leer('mixto1', 'propietarios/m1'), false);
+	await espera('dueña mixta lista sus casas (venta y por noche)', consulta('mixto1', 'properties', 'propietarioId', 'm1'), true);
+	await espera('dueña mixta cambia el precio de su casa en venta', parche('mixto1', 'properties/mx-venta', ['precio'], { precio: { doubleValue: 1 } }), false);
+	await espera('dueña mixta cambia el precio de su casa por noche', parche('mixto1', 'properties/mx-noche', ['precio', 'vacacional.base'], { precio: { doubleValue: 130 }, vacacional: { mapValue: { fields: { base: { doubleValue: 130 } } } } }), true);
+	await espera('dueña mixta convierte su casa por noche en venta', parche('mixto1', 'properties/mx-noche', ['operacion'], { operacion: sv('venta') }), false);
+	await espera('dueña mixta lee el acuerdo de su casa en venta', leer('mixto1', 'properties/mx-venta/privado/acuerdo'), false);
+	await espera('dueña mixta lee el acuerdo de su casa por noche', leer('mixto1', 'properties/mx-noche/privado/acuerdo'), false);
+	await espera('dueña mixta lee el privado de socio de su casa en venta', leer('mixto1', 'properties/mx-venta/privado/socio'), false);
+	await espera('dueña mixta lee su precio de socio de la casa por noche', leer('mixto1', 'properties/mx-noche/privado/socio'), true);
+	await espera('dueña mixta lee la bitácora de su casa en venta', leer('mixto1', 'properties/mx-venta/bitacora'), false);
+	await espera('dueña mixta lista leads de sus casas', consulta('mixto1', 'leads', 'propietarioId', 'm1'), false);
+	await espera('dueña mixta lista clientes', consulta('mixto1', 'clientes'), false);
+	await espera('dueña mixta lee un lead', leer('mixto1', 'leads/lead1'), false);
+	await espera('dueña mixta aprueba el anuncio de su casa', comentario('mixto1', 'c1', com(TM, 'm1', 'a7', 'mx-venta')), true);
+	await espera('dueña mixta pide cambios sin texto', comentario('mixto1', 'c2', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios' })), false);
+	await espera('dueña mixta comenta a nombre de otro dueño', comentario('mixto1', 'c3', com(TO, 'o2', 'a1', 'prueba-casa-en-venta')), false);
+	await espera('dueña mixta comenta una casa ajena con su resumen', comentario('mixto1', 'c4', com(TM, 'm1', 'a7', 'prueba-casa-en-venta')), false);
+	await espera('anónimo comenta con el id del resumen', comentario(null, 'c5', com(TM, 'm1', 'a7', 'mx-venta')), false);
+	await espera('acceso quitado: no lee su resumen', leer('apagado1', `portalPropietarios/${TM}`), false);
+	await espera('acceso quitado: no cambia el precio por noche', parche('apagado1', 'properties/mx-noche', ['precio', 'vacacional.base'], { precio: { doubleValue: 99 }, vacacional: { mapValue: { fields: { base: { doubleValue: 99 } } } } }), false);
+	await espera('acceso quitado: no comenta', comentario('apagado1', 'c6', com(TM, 'm1', 'a7', 'mx-venta')), false);
+	await espera('colaborador lee su resumen', leer('colab1', `portalPropietarios/${TC}`), true);
+	await espera('colaborador lee el resumen de la dueña mixta', leer('colab1', `portalPropietarios/${TM}`), false);
+	await espera('colaborador lista solo sus casas', consulta('colab1', 'properties', 'propietarioId', 'c1'), true);
+	await espera('colaborador lista las casas de la dueña mixta', consulta('colab1', 'properties', 'propietarioId', 'm1'), false);
+	await espera('colaborador lee su ficha', leer('colab1', 'propietarios/c1'), false);
+	await espera('administrador lee el resumen', leer('admin1', `portalPropietarios/${TM}`), true);
+	await espera('asesor de otra cartera lee el resumen', leer('asesor9', `portalPropietarios/${TM}`), false);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);

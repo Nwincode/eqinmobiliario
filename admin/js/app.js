@@ -4,14 +4,14 @@ import {
 	sendPasswordResetEmail, createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
-import { session, getPublishState, revisarAutoPublicar } from './session.js';
+import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
 import { vigilarTablas } from './tablas.js';
 
 const ROUTES = [
-	{ path: 'mis-casas', label: 'Mis casas', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
-	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, admin: true, load: () => import('./views/solicitudes.js') },
+	{ path: 'mis-casas', label: 'Mis propiedades', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
+	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/solicitudes.js') },
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
@@ -137,9 +137,9 @@ function noAccess(reason) {
 		h('button', { class: 'btn btn-outline-secondary w-100', onclick: () => signOut(auth) }, 'Cerrar sesión')));
 }
 
-// Lo que cada quien puede abrir: el socio solo lo suyo; el equipo todo lo demás (y el admin, además, lo de admin).
-// Una ruta marcada para socio y admin la ven los dos.
-const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio : (!r.socio || r.admin) && (!r.admin || session.isAdmin)));
+// Lo que cada quien puede abrir: el dueño solo lo suyo (Solicitudes, si tiene casas por noche); el equipo todo lo
+// demás (y el admin, además, lo de admin). Una ruta marcada para dueño y admin la ven los dos.
+const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio && (!r.porNoche || session.porNoche) : (!r.socio || r.admin) && (!r.admin || session.isAdmin)));
 
 function shell() {
 	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
@@ -163,7 +163,7 @@ function shell() {
 			h('span', { class: 'admin-avatar', 'aria-hidden': 'true' }, iniciales),
 			h('div', { class: 'admin-user-info' },
 				h('div', { class: 'admin-user-name' }, nombre),
-				h('div', { class: 'admin-user-role' }, session.isAdmin ? 'Administrador' : session.esSocio ? 'Socio' : 'Asesor')),
+				h('div', { class: 'admin-user-role' }, session.rolVisible)),
 			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
 	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
@@ -233,10 +233,16 @@ if (!configured) {
 		root.replaceChildren(spinner('Verificando acceso…'));
 		try {
 			const snap = await getDoc(doc(db, 'users', user.uid));
-			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene permisos en el panel. Pide a un administrador que te dé acceso desde "Usuarios".');
+			if (!snap.exists()) return noAccess('Tu cuenta existe pero no tiene acceso al panel. Si sos propietario o colaborador, pedíselo a tu asesor.');
 			const profile = snap.data();
-			if (!profile.activo) return noAccess('Tu cuenta está desactivada. Contacta a un administrador.');
+			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si creés que es un error, escribile a tu asesor.');
 			session.profile = profile;
+			if (session.esSocio) {
+				// Su nombre de rol (propietario o colaborador) y si tiene casas por noche (Solicitudes).
+				const [dueno, casas] = await Promise.all([cargarMiResumen(), misCasas().catch(() => [])]);
+				session.dueno = dueno;
+				session.porNoche = casas.some((c) => c.operacion === 'vacacional');
+			}
 			shell();
 			route();
 			aplicarTema();

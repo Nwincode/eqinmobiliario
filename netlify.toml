@@ -36,7 +36,7 @@
     X-Robots-Tag = "noindex, nofollow"
     Cache-Control = "no-cache"
 
-# Portal del propietario: privado (el enlace lleva un token) y fuera de Google.
+# Página de propietarios y colaboradores (antes el portal con enlace privado): lleva al panel y queda fuera de Google.
 [[headers]]
   for = "/propietarios/*"
   [headers.values]

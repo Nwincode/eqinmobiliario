@@ -5,7 +5,7 @@
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp, writeBatch, arrayUnion } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia } from '../ui.js';
-import { session, markPending } from '../session.js';
+import { session, markPending, cargarMiResumen } from '../session.js';
 import { traductorLibre } from '../reglas.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -175,8 +175,9 @@ export async function render(container, [codigo] = []) {
 		const r = l.reserva;
 		const c = cuenta(l);
 		if (!c) return toast('A esta casa le falta el precio del socio.', 'warning');
-		const pago = refChat(l) ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : '';
-		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'Faltan tus datos de pago. Pedile al administrador que los guarde.', 'warning');
+		// Los datos de pago: el equipo los toma de la ficha; el dueño, de su resumen (cargarMiResumen).
+		const pago = !refChat(l) ? '' : admin ? (await getDoc(doc(db, 'propietarios', l.propietarioId || '-'))).data()?.datosPago : (await cargarMiResumen())?.datosPago;
+		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pedile al administrador que los guarde en tu ficha.', 'warning');
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la comisión de ${money(c.ganancia, r.moneda)} se paga el día de llegada.`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			const refCasa = doc(db, 'properties', l.propertyId);

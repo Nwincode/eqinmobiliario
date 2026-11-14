@@ -1,4 +1,4 @@
-// Portal del propietario: clientes interesados (anónimos) y eventos automáticos de la línea de tiempo.
+// Resumen del dueño (admin/js/portal.js): clientes interesados (anónimos) y eventos automáticos de la línea de tiempo.
 // Módulo puro, sin Firebase ni DOM, para poder probarlo con `npm run test:portal`.
 // Regla de privacidad: lo que sale de aquí va al documento público. Nada de ids, nombres,
 // teléfonos, correos ni textos escritos a mano: solo un número de orden, canal, fechas y etapa.

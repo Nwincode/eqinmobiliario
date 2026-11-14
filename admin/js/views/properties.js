@@ -17,6 +17,7 @@ import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
+import { datosDe } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
@@ -144,7 +145,7 @@ export function vacacionalPublico(d) {
 			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
 			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
 			bloqueos,
-			// Mínimos de noches por fechas: los pone el socio en «Mis casas»; aquí solo se conservan.
+			// Mínimos de noches por fechas: los pone el dueño en «Mis propiedades»; aquí solo se conservan.
 			minimos: v.minimos || [],
 			// Reservas confirmadas: las escribe Rentas vacacionales; aquí solo se conservan.
 			reservadas: V.unirRangos(v.reservadas || [])
@@ -270,20 +271,6 @@ function motivoVisibilidad(p) {
 		case 'oculta': return { texto: `Oculta: ${corto(e)}`, color: 'danger', icono: 'icon-eye-slash' };
 		default: return { texto: 'Publicada', color: 'success', icono: 'icon-eye', obvio: true };
 	}
-}
-
-// Datos que describen el inmueble en la lista, cada uno con su ícono.
-export function datosDe(p) {
-	const n = (v) => Number(v) > 0;
-	return [
-		n(p.habitaciones) && ['icon-bed', p.habitaciones, 'habitaciones'],
-		n(p.banos) && ['icon-bath', p.banos, 'baños'],
-		n(p.parqueos) && ['icon-car', p.parqueos, 'parqueos'],
-		p.operacion === 'vacacional' && n(p.vacacional?.huespedesMax) && ['icon-users', p.vacacional.huespedesMax, 'huéspedes'],
-		n(p.m2Construccion) ? ['icon-home', `${miles(p.m2Construccion)} m²`, 'de construcción']
-			: n(p.m2Terreno) && ['icon-arrows-alt', `${miles(p.m2Terreno)} m²`, 'de terreno']
-	].filter(Boolean).map(([icono, valor, que]) => h('span', { class: 'prop-dato', title: `${valor} ${que}` },
-		h('span', { class: icono, 'aria-hidden': 'true' }), ` ${valor}`, h('span', { class: 'visually-hidden' }, ` ${que}`)));
 }
 
 // Exporta el listado con las mismas columnas de la plantilla de importación (se puede volver a importar),

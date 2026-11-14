@@ -410,6 +410,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
+/* Tres indicadores en una fila angosta (resumen de una casa del dueño): el nombre baja de línea en vez de cortarse. */
+.stat-envuelve .stat-label { white-space: normal; }
 a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));
 	transform: translateY(-1px);
@@ -3674,7 +3676,15 @@ a.stat-card:hover {
 .card-header .card-header-ver { margin: -10px -8px -10px auto; }
 .pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }
 
-/* Mis casas (socio): barra de acciones de los días elegidos en el calendario. */
+/* Mis propiedades (dueño): foto principal de una casa en venta o renta (resumen-casa.js). */
+.mc-foto {
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	border-radius: var(--eq-radius);
+	font-size: 32px;
+}
+/* Mis propiedades (dueño): barra de acciones de los días elegidos en el calendario. */
 .mc-barra {
 	padding: 8px 12px;
 	border-radius: var(--eq-radius);

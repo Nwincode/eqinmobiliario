@@ -4,7 +4,8 @@ import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js
 import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
-import { TIPOS, datosDe } from './properties.js';
+import { TIPOS } from './properties.js';
+import { datosDe } from '../ficha-casa.js';
 import { estadoDe, operacionDe, enOperacion } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';

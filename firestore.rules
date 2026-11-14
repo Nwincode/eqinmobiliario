@@ -3,6 +3,7 @@ rules_version = '2';
 // Roles:
 //  - admin:  todo.
 //  - asesor: sus propiedades y sus leads (los que tienen su agentId).
+//  - socio:  un dueño (propietario o colaborador) en su panel: su resumen y sus casas; cambia solo las de por noche.
 //  - público: lee contenido publicado y puede crear leads desde los formularios.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -19,7 +20,7 @@ service cloud.firestore {
         && userDoc().data.activo == true
         && userDoc().data.rol in ['admin', 'asesor'];
     }
-    // Socio de rentas vacacionales: entra al panel solo a sus casas (las del propietario que le asignó el admin).
+    // Dueño (propietario o colaborador; rol «socio»): entra al panel solo a lo suyo, el de la ficha que le dio acceso.
     function esSocio() {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -28,6 +29,10 @@ service cloud.firestore {
     }
     function esSocioDe(casa) {
       return esSocio() && casa.get('propietarioId', '') != '' && casa.propietarioId == userDoc().data.propietarioId;
+    }
+    // Lo que el dueño cambia o lee en privado es solo de sus casas por noche; las de venta y renta las lleva el equipo.
+    function esSocioPorNoche(casa) {
+      return esSocioDe(casa) && casa.get('operacion', '') == 'vacacional';
     }
     function soloCambia(campos) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
@@ -109,8 +114,8 @@ service cloud.firestore {
         || (isStaff() && request.resource.data.agentId == myAgentId());
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId())
-        // El socio solo toca precios, personas, días bloqueados o reservados y mínimos de noches de sus casas.
-        || (esSocioDe(resource.data)
+        // El socio solo toca precios, personas, días bloqueados o reservados y mínimos de noches de sus casas por noche.
+        || (esSocioPorNoche(resource.data) && request.resource.data.get('operacion', '') == 'vacacional'
             && soloCambia(['vacacional', 'precio', 'updatedAt'])
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
                  .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax']));
@@ -118,8 +123,8 @@ service cloud.firestore {
 
       // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.
       match /bitacora/{entrada} {
-        allow read: if isStaff() || esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
-        allow create: if (isStaff() || esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data))
+        allow read: if isStaff() || esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
+        allow create: if (isStaff() || esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data))
           && request.resource.data.quien == request.auth.uid
           && request.resource.data.cuando == request.time;
       }
@@ -132,8 +137,8 @@ service cloud.firestore {
         // El socio ve y cambia sus precios netos; nunca el margen, el contacto ni el iCal.
         // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
         // con el pago recibido; solo el equipo la escribe.
-        allow get: if docId in ['socio', 'llegada'] && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data);
-        allow update: if docId == 'socio' && esSocioDe(get(/databases/$(database)/documents/properties/$(id)).data)
+        allow get: if docId in ['socio', 'llegada'] && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
+        allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
           && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy']);
       }
     }
@@ -194,8 +199,8 @@ service cloud.firestore {
       allow delete: if propio();
     }
     match /propietarios/{id} {
-      // El socio lee solo su propia ficha (sus datos de pago para las reservas).
-      allow read: if propio() || (esSocio() && id == userDoc().data.propietarioId);
+      // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
+      allow read: if propio();
       allow create: if nuevoPropio();
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
@@ -225,15 +230,9 @@ service cloud.firestore {
       allow delete: if propio();
     }
 
-    // Portal del propietario: copia resumida y sin datos de clientes, hecha por el asesor.
-    // El id del documento es un token aleatorio largo (el enlace privado): quien lo tiene lo lee.
-    // Con el enlace del correo (sin contraseña) el propietario solo puede buscar su propio correo.
-    // Los propietarios no tienen documento en users, así que isStaff() sigue siendo falso para ellos.
-    function correoVerificado() {
-      return signedIn()
-        && request.auth.token.email is string
-        && request.auth.token.email_verified == true;
-    }
+    // Resumen del dueño (propietario o colaborador): copia sin datos de clientes, hecha por el equipo, con lo que la
+    // persona necesita de su ficha (nombre, correo, teléfono, datos de pago). La lee esa persona desde su panel
+    // (con su usuario) y el equipo; nadie sin sesión.
     function portalValido(token) {
       return token.size() >= 32
         && request.resource.data.email is string
@@ -243,10 +242,11 @@ service cloud.firestore {
         && request.resource.data.propiedades is list
         && request.resource.data.propiedades.size() <= 50;
     }
+    function resumenPropio() {
+      return esSocio() && resource.data.propietarioId == userDoc().data.propietarioId;
+    }
     match /portalPropietarios/{token} {
-      allow get: if true;
-      allow list: if (correoVerificado()
-            && resource.data.email == request.auth.token.email.lower())
+      allow get, list: if resumenPropio()
         || isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
       allow create: if isStaff() && portalValido(token)
@@ -258,16 +258,17 @@ service cloud.firestore {
         || (isStaff() && resource.data.agentId == myAgentId());
     }
 
-    // Respuesta del propietario al anuncio desde su portal: «aprobado» o «cambios» (con texto). Puede crear quien puede leer el portal:
-    // hace falta el token (el id del portal; con el correo se obtiene al listar sus portales).
-    // Solo crear: nadie los cambia ni los borra desde el sitio. Los lee solo el equipo.
+    // Respuesta del dueño al anuncio desde su panel: «aprobado» o «cambios» (con texto). Solo el dueño con sesión,
+    // de su propio resumen y de una casa suya. Solo crear: nadie los cambia ni los borra. Los lee solo el equipo.
     function portalDelComentario() {
       return get(/databases/$(database)/documents/portalPropietarios/$(request.resource.data.token)).data;
     }
     match /comentariosPropietarios/{id} {
-      allow create: if request.resource.data.keys().hasOnly([
+      allow create: if esSocio()
+        && request.resource.data.keys().hasOnly([
             'token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen', 'idioma'])
         && request.resource.data.keys().hasAll(['token', 'propietarioId', 'agentId', 'propiedadId', 'tipo', 'texto', 'fecha', 'origen'])
+        && request.resource.data.propietarioId == userDoc().data.propietarioId
         && request.resource.data.token is string
         && request.resource.data.token.size() >= 32
         && request.resource.data.token.size() <= 128
@@ -275,6 +276,7 @@ service cloud.firestore {
         && portalDelComentario().propietarioId == request.resource.data.propietarioId
         && portalDelComentario().agentId == request.resource.data.agentId
         && isNonEmptyString(request.resource.data.propiedadId, 60)
+        && esSocioDe(get(/databases/$(database)/documents/properties/$(request.resource.data.propiedadId)).data)
         && request.resource.data.tipo in ['aprobado', 'cambios']
         && request.resource.data.texto is string
         && request.resource.data.texto.size() <= 2000
