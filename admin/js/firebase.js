@@ -6,7 +6,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
 	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
-	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot, runTransaction, connectFirestoreEmulator
+	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction, connectFirestoreEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
 	getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator
@@ -53,6 +53,6 @@ export {
 	onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
-	serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot, runTransaction,
+	serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction,
 	ref, uploadBytes, getDownloadURL, deleteObject
 };

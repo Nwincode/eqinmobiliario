@@ -67,6 +67,8 @@ agrega aquí en el mismo cambio que lo corrige.
 | Los teléfonos no llevaban código de país. | Cada dato con un solo formato; pensar en quien escribe desde otro país o con otro caso. |
 | Un cambio de reglas se iba a unir sin publicarlas. | Código y reglas van juntos. Las reglas las publica el usuario: Claude no puede. |
 | Entre publicar el código y las reglas, dar acceso a un dueño de venta le habría abierto su ficha y el precio de su casa con las reglas de antes. | Recorrer el estado intermedio (código nuevo, reglas viejas): lo que no es seguro ahí se bloquea hasta que las reglas estén publicadas (`reglasNuevas`). |
+| Guardar la ficha de una casa abierta desde antes la reescribía entera con lo leído al abrirla: liberaba las noches que el socio había confirmado mientras tanto (reserva doble), deshacía el precio que el dueño cambió en «Mis propiedades» y borraba la difusión; el importador hacía lo mismo con `vacacional`. | Un documento que escriben varias pantallas no se reemplaza: se guarda solo lo que cambió quien guarda, sobre lo guardado ahora, en una transacción (`guardarCambios`). Probar con la ficha abierta mientras otra pantalla escribe (`recorrido.mjs`). |
+| Un segundo «Guardar» sin recargar, después de cambiar el dueño, borraba el acuerdo recién guardado: comparaba con lo leído al abrir. | Después de guardar, lo guardado es el nuevo punto de partida (datos, dueño, acuerdo, operación). Probar dos «Guardar» seguidos sin que el primero recargue. |
 | Guardar una ficha abierta desde antes borraba el resumen que otra pantalla acababa de crear, y quedaban dos. | Al reemplazar un documento, lo que escriben otras pantallas se vuelve a leer justo antes de guardar; un dato «uno por persona» se asegura al escribirlo (se borran los demás). |
 | El dueño de una casa en venta podía, por regla, crear reservas y escribir en chats de esa casa. | Cada permiso nuevo de un rol se revisa en TODAS las colecciones donde ese rol escribe, no solo en la pantalla que se cambió. |
 
@@ -92,6 +94,15 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Carruseles con puntos y tarjetas unas con puntos y otras con «1 / 8». | Carruseles con `nav: false`; la misma pieza (`propertyCard`) para todas las tarjetas. |
 | Enlaces y campos de 14 a 38 px en celular (migas, «Leer más», ES/EN, fechas del buscador). | Medir en 390 px que todo lo que se toca mida 44 px o más. |
 | Botones de zona con ícono y de tipo sin ícono en el mismo grupo. | En un grupo de enlaces, todos con ícono o ninguno. |
+| «Armar borrador» mandaba a la IA casi toda la propiedad (historial con nombres y uid del equipo, difusión, dueño); «Seguimiento» mandaba el teléfono y el correo del lead; la traducción en lote no pasaba por la limpieza. | Una sola salida (`pedirIA`) y una sola limpieza, con lista de lo permitido (`para-ia.js`); lo nuevo que se mande a la IA se agrega ahí, no en cada pantalla. |
+| Una casa por noche salía «En venta» en la calculadora (su precio por noche como precio de compra), en las búsquedas contra un presupuesto de compra y en difusión sin «por noche» y con #HomesForSale. | Cada precio con su operación (`precioTexto`, `operacionHashtag`); donde se compara un precio, filtrar por operación. |
+
+## 5b. Programación del panel
+
+| Error que pasó | Revisión |
+|---|---|
+| «Poner marca de agua» en lote se caía sin hacer nada y «Crear usuario» quedaba deshabilitado al fallar: leían `e.currentTarget` después de un `await` (ya es null). | El botón se guarda en una variable antes del primer `await`; buscar `currentTarget` en lo que se toque. Todo botón que se deshabilita se vuelve a habilitar si falla. |
+| «Duplicar» copiaba las noches reservadas y el calendario de Airbnb de la original; eliminar una casa la dejaba en la lista de su dueño. | Al copiar o borrar un registro, recorrer todo lo que cuelga de él (privado, listas de otros documentos, calendario). |
 
 ## 6. SEO del sitio público
 

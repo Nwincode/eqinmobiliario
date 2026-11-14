@@ -1,5 +1,5 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
-import { db, doc, getDoc, getDocs, updateDoc, collection } from '../firebase.js';
+import { db, doc, getDoc, getDocs, updateDoc, collection, FieldPath } from '../firebase.js';
 import { h, statCard, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
@@ -32,10 +32,11 @@ function botonCopiar(texto, etiqueta = 'Copiar') {
 	} }, etiqueta);
 }
 
+// Solo el renglón de ese portal (FieldPath: el id puede traer puntos): lo que otra persona marcó en otro portal
+// mientras tanto no se pisa.
 async function guardarRegistro(p, portalId, registro) {
-	const difusion = { ...(p.difusion || {}), [portalId]: registro };
-	await updateDoc(doc(db, 'properties', p.id), { difusion });
-	p.difusion = difusion;
+	await updateDoc(doc(db, 'properties', p.id), new FieldPath('difusion', portalId), registro);
+	p.difusion = { ...(p.difusion || {}), [portalId]: registro };
 	refrescarPortalesDe([p.id]);
 }
 

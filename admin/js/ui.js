@@ -1,5 +1,4 @@
 // Utilidades de interfaz del panel.
-import { dinero } from './formato.js';
 import '/js/calc-vacacional.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -65,11 +64,8 @@ export function formatDate(v, withTime = true) {
 export const hoy = () => window.EQVacacional.hoy();
 export const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
 
-export function formatPrice(precio, moneda = 'USD', operacion = 'venta') {
-	if (!precio) return 'A consultar';
-	if (operacion === 'vacacional') return `Desde ${dinero(precio, moneda)} /noche`;
-	return `${dinero(precio, moneda)}${operacion === 'renta' ? ' /mes' : ''}`;
-}
+// El precio según la operación sale de formato.js (uno solo para el panel, la difusión y las reglas).
+export { precioTexto as formatPrice } from './formato.js';
 
 export function toast(message, type = 'success') {
 	let box = document.getElementById('toasts');

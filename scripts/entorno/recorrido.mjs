@@ -90,7 +90,7 @@ paso('Renta vacacional: moneda, orden, visible y destacada en una sola fila (sin
 const faltan = await admin.p.locator('.admin-main .alert').first().innerText().catch(() => '');
 paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el precio, ni se piden m² ni parqueos', !/Precio|m²|Parqueos/.test(faltan), faltan.replace(/\s+/g, ' ').slice(0, 140));
 const google = await admin.p.locator('.card-body').innerText();
-paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /Desde US\$ ?120(\.00)? \/noche/.test(google) && !/A consultar/.test(google));
+paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /Desde US\$ ?120(\.00)? por noche/.test(google) && !/A consultar/.test(google));
 const columnas = await admin.p.locator('.tabla-vacacional thead th').allInnerTexts();
 paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y lo que paga el cliente', /Socio.*Ganancia.*Precio sin impuestos.*IVA 12.*INGUAT 10.*El cliente paga/.test(columnas.join(' ')) && /146\.40/.test(await admin.p.locator('.tabla-vacacional tbody tr').first().innerText()), columnas.join(' · '));
 await guardar(admin.p);
@@ -292,12 +292,40 @@ await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 await espera(1500);
 const codigo3 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();
 const llegada3 = (await leer(`chats/${(tercero.p.url().match(/#(\w+)/) || [])[1]}`)).fields?.llegada?.stringValue || '';
+// La ficha de la casa queda abierta en el panel del administrador mientras el socio confirma esta reserva y cambia su
+// precio en «Mis propiedades»: al guardar la ficha, nada de eso se pierde (antes la ficha reescribía la casa entera).
+await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
 await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
 await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Confirmada' }).click();
 await espera(800);
 await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
 await espera(4000);
 paso('El socio confirma una tercera reserva y las fechas quedan ocupadas', Boolean(llegada3) && (await reservadas()).includes(llegada3), codigo3);
+{
+	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
+	await socio.p.fill('#mc-base', '110');
+	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await espera(2500);
+	await campo(admin.p, 'vacacional.camas').fill('4');
+	await guardar(admin.p);
+	const num = (f) => Number(f?.doubleValue ?? f?.integerValue);
+	const v = (await leer(`properties/${idCasa}`)).fields?.vacacional?.mapValue?.fields || {};
+	const neto = num((await leer(`properties/${idCasa}/privado/socio`)).fields?.precioBase);
+	paso('Guardar la ficha abierta desde antes no libera la noche que el socio confirmó ni deshace el precio que cambió en «Mis propiedades»',
+		(await reservadas()).includes(llegada3) && neto === 110 && num(v.base) === 132 && num(v.camas) === 4, `socio ${neto} · público ${num(v.base)} · camas ${num(v.camas)} · ${await avisos(admin.p)}`);
+	// Lo que sale a la IA o al traductor (pedirIA lo pasa todo por paraIA): con la casa guardada de verdad, más su
+	// dirección y su costo privados encima (lo peor que una pantalla podría mandar), no sale nada privado ni interno.
+	const salidas = await admin.p.evaluate(async (id) => {
+		const fb = await import('/admin/js/firebase.js');
+		const { paraIA } = await import('/admin/js/para-ia.js');
+		const leerDoc = async (...r) => (await fb.getDoc(fb.doc(fb.db, ...r))).data() || {};
+		const casa = { id, ...(await leerDoc('properties', id)), ...(await leerDoc('properties', id, 'privado', 'llegada')), socio: await leerDoc('properties', id, 'privado', 'socio') };
+		return JSON.stringify(paraIA({ propiedad: casa }));
+	}, idCasa);
+	paso('Lo que sale a traducir de una casa por noche no lleva la dirección, el dueño, el historial ni el costo del socio',
+		/Monterrico/.test(salidas) && !/Calle Real|13\.8912|socio-prueba|historialEstado|precioBase|porUid/.test(salidas), salidas.slice(0, 160));
+	await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
+}
 await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Cancelar' }).click();
 await espera(800);
 await socio.p.locator('.modal button', { hasText: 'Cliente canceló' }).click();
@@ -686,6 +714,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		!/Calle Real 12/.test(valor(llegadaCopia.direccion) || '') && 'sin llegada',
 		(!Number(valor(socioCopia.precioBase)) || Number(valor(socioCopia.precioBase)) !== Number(valor(socioOriginal.precioBase))) && 'sin precio del socio',
 		acuerdoCopia.status !== 404 && 'copió el acuerdo',
+		(copia.vacacional?.mapValue?.fields?.reservadas?.arrayValue?.values || []).length > 0 && 'copió las noches reservadas',
 		!lista.includes(idCopia || 'x') && 'no está en la lista del socio'
 	].filter(Boolean);
 	paso('«Duplicar» una casa por noche: borrador con URL y código propios, su privado copiado (sin el acuerdo) y en la lista del socio', fallo.length === 0, fallo.join(', '));
@@ -838,6 +867,41 @@ const duenos = [];
 		/Tu portal ahora es tu panel/.test(textoVieja) && await vieja.p.locator('a[href="/admin/"]').count() === 1 && await vieja.p.locator('a[href*="wa.me"]', { hasText: 'Pedir mi acceso' }).count() === 1
 		&& /noindex/.test(await vieja.p.content()) && await lado(vieja.p) <= 0);
 	await vieja.p.screenshot({ path: `${PANEL}/pagina-vieja-390.png`, fullPage: true });
+}
+
+// ---------------------------------------------------------------- Acciones en lote y dos «Guardar» seguidos
+{
+	// «Poner marca de agua» en lote: el botón se lee después de confirmar (antes se caía ahí y no hacía nada).
+	await ir(admin.p, '#/propiedades', 3500);
+	await admin.p.locator('tr', { hasText: 'Casa de prueba Monterrico' }).first().locator('.celda-sel input').check();
+	await admin.p.locator('.barra-masa button', { hasText: 'Más' }).click();
+	await admin.p.locator('.barra-masa button', { hasText: 'Poner marca de agua' }).click();
+	await admin.p.locator('.modal.show button', { hasText: 'Poner marca' }).click();
+	await espera(3000);
+	const tras = await avisos(admin.p);
+	paso('«Poner marca de agua» en lote termina y avisa', /marca de agua/.test(tras), tras);
+	// Dos «Guardar» seguidos sin recargar, después de cambiarle el dueño: el segundo no borra el acuerdo recién guardado.
+	const sv = (x) => ({ stringValue: x });
+	const pon = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	await pon('propietarios/dueno-a-prueba', { tipo: sv('propietario'), nombre: sv('Dueño A (prueba)'), telefono: sv('+502 5555 0101'), agentId: sv(''),
+		propiedades: { arrayValue: { values: [{ mapValue: { fields: { propertyId: sv('casa-dos-guardados') } } }] } } });
+	await pon('propietarios/dueno-b-prueba', { tipo: sv('propietario'), nombre: sv('Dueño B (prueba)'), telefono: sv('+502 5555 0102'), agentId: sv('') });
+	await pon('properties/casa-dos-guardados', { titulo: sv('Casa de dos guardados (prueba)'), slug: sv('casa-dos-guardados'), codigo: sv('DOS-1'), operacion: sv('venta'), tipo: sv('casa'),
+		estado: sv('disponible'), moneda: sv('USD'), precio: { integerValue: '150000' }, zona: sv('Zona 10'), ciudad: sv('Guatemala'), descripcion: sv('REGISTRO DE PRUEBA. Casa para dos guardados.'),
+		propietarioId: sv('dueno-a-prueba'), agentId: sv(''), publicado: { booleanValue: false } });
+	await ir(admin.p, '#/propiedades/casa-dos-guardados', 3500);
+	// La primera vez se traduce al inglés y la ficha se vuelve a abrir; después, «Guardar» ya no recarga.
+	await guardar(admin.p);
+	await espera(2500);
+	await campo(admin.p, 'propietarioId').selectOption('dueno-b-prueba');
+	await espera(300);
+	await admin.p.locator('[data-campo="acuerdo.exclusiva"] input').check();
+	await guardar(admin.p);
+	const acuerdo = async () => (await fetch(`${FS}/properties/casa-dos-guardados/privado/acuerdo`, { headers: { Authorization: 'Bearer owner' } })).status;
+	const primero = await acuerdo();
+	await guardar(admin.p);
+	const segundo = await acuerdo();
+	paso('Un segundo «Guardar» sin recargar, después de cambiar el dueño, no borra el acuerdo recién guardado', primero === 200 && segundo === 200, `${primero} → ${segundo} · ${await avisos(admin.p)}`);
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));

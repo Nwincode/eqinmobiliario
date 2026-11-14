@@ -5,7 +5,7 @@ import { crearZip, descargarBlob } from './zip.js';
 import { siteConfig } from './firebase.js';
 import { seOfrece, enOperacion, operacionHashtag } from './estados.js';
 import { conEmojis } from './descripcion.js';
-import { dinero, M2_A_FT2 } from './formato.js';
+import { precioTexto, M2_A_FT2 } from './formato.js';
 
 const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
@@ -44,8 +44,8 @@ const TIPO = {
 	en: { casa: 'House', apartamento: 'Condo', terreno: 'Land', oficina: 'Office', local: 'Retail space', bodega: 'Warehouse', finca: 'Estate' }
 };
 const L = {
-	es: { precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', mes: '/mes', consultar: 'Precio a consultar', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
-	en: { precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', mes: '/mo', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
+	es: { precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', consultar: 'Precio a consultar', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
+	en: { precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
 };
 
 // Código de la propiedad (campo «Código» del panel); las antiguas sin código usan EQ-xxxxxx.
@@ -54,9 +54,10 @@ export function codigo(p) {
 	return `EQ-${String(p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 6).toUpperCase()}`;
 }
 
-function precioTexto(p, lang) {
-	if (!p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio)) return L[lang].consultar;
-	return `${dinero(p.precio, p.moneda || 'USD')}${p.operacion === 'renta' ? L[lang].mes : ''}`;
+// El precio con su operación («/mes», «por noche»), del formato único (formato.js).
+function precioDe(p, lang) {
+	if (p.vipLanding && p.vipLanding.ocultarPrecio) return L[lang].consultar;
+	return precioTexto(p.precio, p.moneda || 'USD', p.operacion, lang);
 }
 
 function area(m2, lang) {
@@ -98,7 +99,7 @@ export function textoPara(p, portal, { agente, contacto } = {}) {
 	const desc = stripMd(portal.estilo === 'portal' ? fuente : conEmojis(fuente)).replace(/[ \t]+\n/g, '\n').trim();
 	const amen = (lang === 'en' ? en.amenidades : p.amenidades) || [];
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
-	const precio = precioTexto(p, lang);
+	const precio = precioDe(p, lang);
 	const tel = (agente && agente.telefono) || contacto || '';
 	const quien = agente && agente.nombre ? `${agente.nombre} · ${tel}` : tel;
 	const enlace = enlaceFicha(p, portal);
@@ -141,7 +142,7 @@ export function textoPara(p, portal, { agente, contacto } = {}) {
 			quien ? `📲 ${quien}` : '',
 			portal.enlaces ? `🔗 ${enlace}` : `👉 ${t.bio}`,
 			`${t.codigo}: ${codigo(p)}`,
-			lang === 'es' ? hashtags(p) : '#GuatemalaRealEstate #HomesForSale #LivingInGuatemala'
+			lang === 'es' ? hashtags(p) : `#GuatemalaRealEstate #Homes${operacionHashtag(p, 'en')} #LivingInGuatemala`
 		].filter(Boolean).join('\n');
 		partesFijas = `${cabeza}\n\n${pie}`;
 		cuerpo = (d) => [cabeza, d, pie].filter(Boolean).join('\n\n');
