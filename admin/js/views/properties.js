@@ -821,7 +821,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'acuerdo.exclusivaInicio', label: 'Exclusiva desde', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva) },
 		{ name: 'acuerdo.exclusivaFin', label: 'Exclusiva hasta', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva), help: 'Avisamos 30 días antes de que venza.' },
 		{ name: 'acuerdo.comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', help: 'Vacío = regla general (Reportes).' },
-		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses de renta)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses por cada año de contrato)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Ej.: 1 = un mes de renta por año (contrato de 2 años = 2 rentas). Vacío = regla general (Reportes).' },
 		{ name: 'acuerdo.comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES, default: 'pequeno', when: (d) => conDueno(d) && !esVacacional(d) },
 		{ name: 'acuerdo.comisionModo', label: 'Cómo se cobra la comisión', type: 'select', cols: 4, options: MODOS, when: (d) => conDueno(d) && !esVacacional(d) },
 		{ name: 'acuerdo.impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },

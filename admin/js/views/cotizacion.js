@@ -402,7 +402,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 	}
 	pintarAyudaEmisor();
 
-	const modoRadios = segmentado('cot-modo', MODOS, c.modo, (v) => { c.modo = v; pintarLineas(); cambio(); }, uid('modo-label'));
+	// Una cotización guardada, o un modo elegido a mano, no lo cambia el acuerdo del inmueble.
+	let modoTocado = Boolean(id);
+	const modoRadios = segmentado('cot-modo', MODOS, c.modo, (v) => { c.modo = v; modoTocado = true; pintarLineas(); cambio(); }, uid('modo-label'));
 	const ayudaModo = h('div', { class: 'form-text', id: uid('modo-ayuda') });
 	const pintarAyudaModo = () => {
 		ayudaModo.textContent = c.modo === 'todo'
@@ -578,7 +580,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 					const intacto = (v, campo) => v === '' || v == null || [REGLAS_POR_DEFECTO[campo], reglas?.[campo]].some((b) => b != null && Number(v) === Number(b));
 					if (l.tipo === 'compraventa' && com.tipo === 'pct' && (com.fuente === 'acuerdo' || intacto(l.pct, 'comisionVentaPct'))) l.pct = com.valor;
 					if (l.tipo === 'arrendamiento' && com.tipo === 'meses' && (com.fuente === 'acuerdo' || intacto(l.mesesPorAnio, 'comisionRentaMeses'))) l.mesesPorAnio = com.valor;
-					if (com.modo && com.modo !== c.modo) { c.modo = com.modo; const r = modoRadios.querySelector(`input[value="${com.modo}"]`); if (r) r.checked = true; pintarAyudaModo(); }
+					if (com.modo && com.modo !== c.modo && !modoTocado) { c.modo = com.modo; const r = modoRadios.querySelector(`input[value="${com.modo}"]`); if (r) r.checked = true; pintarAyudaModo(); }
 					pintarLineas(); cambio();
 				});
 			}
@@ -625,7 +627,9 @@ async function editor(container, id, { duplicar = false } = {}) {
 					MONEDAS.map(([v]) => h('option', { value: v, selected: l.moneda === v }, v === 'GTQ' ? 'Quetzales (Q)' : 'Dólares (US$)'))));
 			let campos;
 			if (l.tipo === 'compraventa') campos = [inputNum(l, 'precio', 'Precio del inmueble', { sufijo: sim }), moneda, inputNum(l, 'pct', 'Honorario', { sufijo: '%', max: '100' })];
-			else if (l.tipo === 'arrendamiento') campos = [inputNum(l, 'renta', 'Renta mensual sin IVA', { sufijo: sim }), moneda, inputNum(l, 'anios', 'Plazo del contrato', { sufijo: 'años', min: '1', max: '30', step: '0.5', ayuda: 'De 1 a 30 años.' })];
+			else if (l.tipo === 'arrendamiento') campos = [inputNum(l, 'renta', 'Renta mensual sin IVA', { sufijo: sim }), moneda, inputNum(l, 'anios', 'Plazo del contrato', { sufijo: 'años', min: '1', max: '30', step: '0.5', ayuda: 'De 1 a 30 años.' }),
+				// Lo acordado con el dueño (o la regla general): se ve y se puede ajustar; la línea muestra las rentas que resultan.
+				inputNum(l, 'mesesPorAnio', 'Comisión', { sufijo: 'meses por año de contrato', min: '0', step: '0.5', ayuda: 'Años 6 a 10 cuentan la mitad; más de 10, un tercio.' })];
 			else if (l.tipo === 'administracion') {
 				// Las cotizaciones de antes no tenían tipo: eran un porcentaje.
 				l.adminTipo = l.adminTipo === 'fijo' ? 'fijo' : 'pct';

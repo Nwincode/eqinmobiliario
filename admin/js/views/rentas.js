@@ -71,6 +71,8 @@ export async function render(container) {
 				h('span', { class: 'form-check-label' }, 'Ya se le pagó al propietario'))),
 			campo('Notas', h('textarea', { class: 'form-control', name: 'notas', rows: 2 }, d.notas || ''), 12));
 		const f = form.elements;
+		// Una reserva de la web conserva la casa y las fechas de su solicitud (para cambiarlas: cancelar y hacer otra).
+		if (web) for (const n of ['propertyId', 'llegada', 'salida']) f[n].disabled = true;
 		const leer = () => ({
 			propertyId: f.propertyId.value, llegada: f.llegada.value, salida: f.salida.value,
 			costoSocio: Number(f.costoSocio.value) || 0, alojamiento: Number(f.alojamiento.value) || 0

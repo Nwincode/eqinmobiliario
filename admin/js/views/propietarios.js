@@ -135,6 +135,13 @@ async function renderEditor(container, id) {
 	const acuerdos = await loadAcuerdos(casasDe({ id: ref.id, ...data }, propiedades));
 	// Ficha de antes con «tipo: socio»: pasa a propietario; lo de socio lo dicen sus casas.
 	if (data.tipo === 'socio') Object.assign(data, { tipo: 'propietario', porNoche: true });
+	// La lista de la ficha muestra sus casas tal como son (la casa manda: casasDe), más las de su lista que no puedo ver
+	// (las lleva otro asesor). Al guardar, solo se sueltan las que se quiten aquí a mano.
+	if (!nuevo) {
+		const visibles = new Set(propiedades.map((c) => c.id));
+		data.propiedades = [...casasDe({ id: ref.id, ...data }, propiedades).map((c) => ({ propertyId: c.id })),
+			...(data.propiedades || []).filter((x) => x.propertyId && !visibles.has(x.propertyId)).map((x) => ({ propertyId: x.propertyId }))];
+	}
 	const conComision = (d) => operacionesDe(d, propiedades).some((o) => o !== 'vacacional');
 	const conNoche = (d) => operacionesDe(d, propiedades).includes('vacacional');
 	const conCasas = (d) => operacionesDe(d, propiedades).length > 0;
@@ -200,8 +207,8 @@ async function renderEditor(container, id) {
 				else delete data[k];
 			}
 			await setDoc(ref, d);
-			// Antes: la lista guardada y las casas que dicen ser suyas (no un campo aparte que podía quedar viejo).
-			const antes = [...new Set([...(data.propiedades || []).map((x) => x.propertyId), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
+			// Antes: lo que la ficha mostró al abrirse (sus casas); se sueltan solo las que se quitaron a mano.
+			const antes = (data.propiedades || []).map((x) => x.propertyId);
 			await vincularCasas(ref.id, d.propiedades.map((x) => x.propertyId), antes, { duenos, propiedades });
 			data.propiedades = d.propiedades;
 			// Su resumen (lo que lee en su panel, con sus datos de pago): se arma o se actualiza con cada guardado.

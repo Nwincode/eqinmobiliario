@@ -235,7 +235,24 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña pide cambios con texto (control)', comentario('mixto1', 'c10', com(TM, 'm1', 'a7', 'mx-venta', { tipo: 'cambios', texto: 'Cambiar la foto de la sala' })), true);
 	// Reservas, solicitudes y chat: solo de casas por noche
 	await espera('dueña crea una reserva de su casa en venta', crear('mixto1', 'reservas/r-venta', { propertyId: 'mx-venta', propietarioId: 'm1', estado: 'confirmada' }), false);
-	await espera('dueña crea una reserva de su casa por noche (control)', crear('mixto1', 'reservas/r-noche', { propertyId: 'mx-noche', propietarioId: 'm1', estado: 'confirmada' }), true);
+	// La reserva que crea el socio al confirmar (admin/js/reservas.js confirmarSolicitud): de una solicitud real, con la comisión entera.
+	const vv = (v) => (v && typeof v === 'object' ? { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, vv(x)])) } } : val(v));
+	const crearR = (quien, ruta, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/${ruta}`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, vv(x)])) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }, { fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	await raw('leads/lead-res-noche', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN'), llegada: sv('2026-12-01'), salida: sv('2026-12-04') } } } });
+	const delSocio = (extra = {}, comision = {}) => ({ propertyId: 'mx-noche', propertyTitulo: 'Casa por noche', agentId: '', propietarioId: 'm1', moneda: 'USD', llegada: '2026-12-01', salida: '2026-12-04', noches: 3,
+		huesped: 'Ana', canal: 'web', estado: 'confirmada', leadId: 'lead-res-noche', codigo: 'EQ-RN', costoSocio: 300, alojamiento: 360, ganancia: 60, pagadoSocio: false, pagadoFecha: '',
+		...extra, comision: { monto: extra.ganancia ?? 60, vence: '2026-12-01', pagada: false, ...comision } });
+	await espera('dueña crea la reserva con la comisión ya pagada', crearR('mixto1', 'reservas/r-trampa1', delSocio({}, { pagada: true })), false);
+	await espera('dueña crea la reserva con una comisión menor que la ganancia', crearR('mixto1', 'reservas/r-trampa2', delSocio({}, { monto: 1 })), false);
+	await espera('dueña crea la reserva con una ganancia menor que el margen de la casa', crearR('mixto1', 'reservas/r-trampa3', delSocio({ alojamiento: 301, ganancia: 1 })), false);
+	await espera('dueña crea la reserva ya pagada a ella', crearR('mixto1', 'reservas/r-trampa4', delSocio({ pagadoSocio: true })), false);
+	await espera('dueña crea la reserva con un campo del equipo (notas)', crearR('mixto1', 'reservas/r-trampa5', delSocio({ notas: 'x' })), false);
+	await espera('dueña crea la reserva para el asesor que elija', crearR('mixto1', 'reservas/r-trampa6', delSocio({ agentId: 'a9' })), false);
+	await espera('dueña crea la reserva con otras fechas que las de la solicitud', crearR('mixto1', 'reservas/r-trampa7', delSocio({ salida: '2026-12-10' })), false);
+	await espera('dueña crea la reserva sin solicitud', crearR('mixto1', 'reservas/r-trampa8', delSocio({ leadId: 'no-existe' })), false);
+	await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/r-noche', delSocio()), true);
+	await espera('dueña marca pagada la comisión de su reserva', parche('mixto1', 'reservas/r-noche', ['comision.pagada'], { comision: { mapValue: { fields: { pagada: { booleanValue: true } } } } }), false);
+	await espera('dueña baja la comisión de su reserva', parche('mixto1', 'reservas/r-noche', ['comision.monto'], { comision: { mapValue: { fields: { monto: { doubleValue: 1 } } } } }), false);
 	await raw('reservas/r-venta2', { propertyId: sv('mx-venta'), propietarioId: sv('m1'), estado: sv('confirmada') });
 	await espera('dueña cancela una reserva de su casa en venta', parche('mixto1', 'reservas/r-venta2', ['estado', 'motivo'], { estado: sv('cancelada'), motivo: sv('x') }), false);
 	await raw('leads/lead-venta', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-venta'), propietarioId: sv('m1'), agentId: sv('a7') });
@@ -266,6 +283,10 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('la dueña no lee el contacto del huésped', leer('mixto1', 'properties/mx-noche/privado/reserva-r-mano'), false);
 	await espera('la dueña no lista lo privado de su casa', leer('mixto1', 'properties/mx-noche/privado'), false);
 	await espera('otro dueño no ve esa reserva', leer('socio2', 'reservas/r-mano'), false);
+	await espera('el equipo pasa una reserva por venir al dueño nuevo de la casa', parche('admin1', 'reservas/r-mano', ['propietarioId'], { propietarioId: sv('o2') }), true);
+	await espera('el dueño nuevo la ve', leer('socio2', 'reservas/r-mano'), true);
+	await espera('el dueño anterior ya no', leer('mixto1', 'reservas/r-mano'), false);
+	await parche('admin1', 'reservas/r-mano', ['propietarioId'], { propietarioId: sv('m1') });
 	await espera('la dueña crea una reserva a nombre de otro dueño', crear('mixto1', 'reservas/r-otro', { propertyId: 'mx-noche', propietarioId: 'o2', estado: 'confirmada' }), false);
 	await espera('la dueña crea una reserva pendiente (solo confirma)', crear('mixto1', 'reservas/r-pend', { propertyId: 'mx-noche', propietarioId: 'm1', estado: 'pendiente' }), false);
 	await espera('la dueña cambia los montos de su reserva', parche('mixto1', 'reservas/r-mano', ['costoSocio'], { costoSocio: { doubleValue: 999 } }), false);

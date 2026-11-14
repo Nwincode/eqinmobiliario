@@ -10,7 +10,7 @@
 //    la comisión a EQ (comisionPagada) y EQ le pagó al propietario (pagadoAlPropietario).
 import '/js/calc-vacacional.js';
 import {
-	db, doc, getDoc, getDocs, setDoc, collection, query, where, runTransaction, writeBatch, updateDoc, addDoc,
+	db, doc, getDoc, getDocs, setDoc, collection, query, where, runTransaction, updateDoc, addDoc,
 	serverTimestamp, arrayUnion, deleteField
 } from './firebase.js';
 import { session, markPending } from './session.js';
@@ -37,7 +37,7 @@ export const respuesta = (nuevo, que, extra = {}) => ({
 });
 
 // Reservas de una casa que quien está en el panel puede leer, leídas ahora (las reglas piden el filtro de su rol).
-async function deLaCasa(propertyId) {
+export async function deLaCasa(propertyId) {
 	const filtros = [where('propertyId', '==', propertyId)];
 	if (session.esSocio) filtros.push(where('propietarioId', '==', session.profile?.propietarioId || '-'));
 	else if (!session.isAdmin) filtros.push(where('agentId', '==', session.agentId || '-'));
@@ -50,8 +50,11 @@ export class ChoqueDeFechas extends Error {
 
 // El corazón: un cambio de una reserva (antes → despues; null = no existe) en una transacción que lee las casas y la
 // reserva, recalcula las fechas de cada casa tocada y escribe todo junto. `escribir(tx, ref)` pone la reserva;
-// `ademas(tx)` lo que va con ella (solicitud, chat, mensajes).
-async function cambiar({ antes = null, despues = null, escribir, ademas }) {
+// `ademas(tx)` lo que va con ella (solicitud, chat, mensajes); `revisar(tx)` lee antes de escribir lo que tiene que
+// seguir igual (p. ej. que nadie respondió la solicitud mientras tanto) y lanza un error si no.
+// Una reserva que alguien cambió desde que se leyó (estado o fecha de su último cambio) no se escribe encima.
+const marca = (r) => `${r?.estado || ''}|${r?.updatedAt?.toMillis?.() ?? ''}`;
+async function cambiar({ antes = null, despues = null, escribir, ademas, revisar }) {
 	const ref = refReserva((despues || antes).id);
 	const pids = [...new Set([antes?.propertyId, despues?.propertyId].filter(Boolean))];
 	await runTransaction(db, async (tx) => {
@@ -59,8 +62,9 @@ async function cambiar({ antes = null, despues = null, escribir, ademas }) {
 		// Si la reserva cambió de estado desde que se abrió (otra persona u otra pestaña la canceló), no se escribe encima.
 		if (antes) {
 			const ahora = await tx.get(ref);
-			if (!ahora.exists() || ahora.data().estado !== antes.estado) throw new Error('Esta reserva cambió mientras la tenías abierta (otra persona u otra pestaña). Vuelve a abrirla.');
+			if (!ahora.exists() || marca(ahora.data()) !== marca(antes)) throw new Error('Esta reserva cambió mientras la tenías abierta (otra persona u otra pestaña). Vuelve a abrirla.');
 		}
+		if (revisar) await revisar(tx);
 		const listas = await Promise.all(pids.map(deLaCasa));
 		pids.forEach((pid, i) => {
 			if (!casas[i].exists()) return;
@@ -91,12 +95,22 @@ export function nuevaReserva(casa, c) {
 // ------------------------------------------------------------ A mano (Rentas vacacionales)
 // Crea o edita una reserva sin solicitud de cliente. `antes` = la que se abrió (null si es nueva); `contacto` =
 // { telefono, notas } del huésped, que van aparte. En una reserva de la web el estado se cambia con «Cancelar».
+// La comisión de una reserva de la web: la ganancia de EQ, que se paga el día de llegada (con ella se mide la mora).
+// Una sola cuenta: la usan la confirmación y el cambio de montos en Rentas.
+export const comisionDeReserva = (r, previa = {}) => ({ ...previa, monto: r.ganancia, vence: r.llegada, pagada: Boolean(previa.pagada) });
+
 export async function guardarReserva(antes, casa, campos, contacto) {
 	const id = antes?.id || doc(collection(db, 'reservas')).id;
 	const datos = { ...nuevaReserva(casa, { ...antes, ...campos, propertyTitulo: casa.titulo, moneda: casa.moneda || antes?.moneda }), leadId: antes?.leadId || '', codigo: antes?.codigo || '' };
-	if (antes && deSolicitud(antes) && datos.estado !== antes.estado) throw new Error('El estado de una reserva de la web se cambia con «Cancelar reserva».');
-	// La comisión de una reserva de la web es la ganancia: si cambian los montos, cambia con ellos (la mora se mide con ella).
-	if (antes?.comision && !antes.comision.pagada) datos['comision'] = { ...antes.comision, monto: datos.ganancia };
+	const web = antes && deSolicitud(antes);
+	if (web && datos.estado !== antes.estado) throw new Error('El estado de una reserva de la web se cambia con «Cancelar reserva».');
+	// Las fechas y la casa de una reserva de la web son las de la solicitud y el chat del cliente: para cambiarlas se
+	// cancela y se hace otra. Aquí solo cambian montos, huésped y notas.
+	if (web && (datos.propertyId !== antes.propertyId || datos.llegada !== antes.llegada || datos.salida !== antes.salida)) throw new Error('Las fechas y la casa de una reserva de la web no se cambian aquí: cancélala y haz otra.');
+	// Si cambian los montos, cambia con ellos lo que sale de ellos: la comisión (si no está pagada) y lo que muestra la solicitud.
+	const conComision = antes?.comision && !antes.comision.pagada;
+	if (conComision) datos.comision = comisionDeReserva(datos, antes.comision);
+	const montosNuevos = web && (datos.costoSocio !== antes.costoSocio || datos.ganancia !== antes.ganancia);
 	const despues = { id, ...datos };
 	await cambiar({
 		antes, despues,
@@ -104,6 +118,9 @@ export async function guardarReserva(antes, casa, campos, contacto) {
 			tx.set(ref, { ...datos, telefono: deleteField(), notas: deleteField(), updatedAt: serverTimestamp(), ...(antes ? {} : { createdAt: serverTimestamp() }) }, { merge: true });
 			if (contacto) tx.set(refContacto(casa.id, id), { telefono: contacto.telefono || '', notas: contacto.notas || '', updatedAt: serverTimestamp() });
 			if (antes && antes.propertyId !== casa.id) tx.delete(refContacto(antes.propertyId, id));
+		},
+		ademas: (tx) => {
+			if (montosNuevos && antes.leadId) tx.update(doc(db, 'leads', antes.leadId), { 'solicitud.costoSocio': datos.costoSocio, ...(conComision ? { 'solicitud.comision': datos.comision.monto } : {}), updatedAt: serverTimestamp() });
 		}
 	});
 	await markPending(`${casa.titulo}: reserva ${dia(datos.llegada)} – ${dia(datos.salida)}`);
@@ -118,9 +135,13 @@ export async function borrarReserva(r) {
 }
 
 // Lo que el equipo sabe del huésped de una reserva (las de antes lo traían en la reserva misma).
+// Si no se puede leer, no se sigue: guardar con el formulario vacío borraría lo que hay.
 export async function contactoDe(r) {
-	const s = await getDoc(refContacto(r.propertyId, r.id)).catch(() => null);
-	return s?.exists() ? s.data() : { telefono: r.telefono || '', notas: r.notas || '' };
+	let s;
+	try { s = await getDoc(refContacto(r.propertyId, r.id)); } catch (err) {
+		throw new Error(`No se pudo leer el teléfono y las notas de esta reserva (${err.code || err.message}); no se abre para no borrarlos. Vuelve a intentarlo.`);
+	}
+	return s.exists() ? s.data() : { telefono: r.telefono || '', notas: r.notas || '' };
 }
 
 // Reservas guardadas antes de este cambio: el teléfono y las notas pasan a lo privado de la casa y, ya fuera,
@@ -173,10 +194,12 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 			// Solo el primer nombre: el socio lee sus reservas; el contacto del cliente queda en la solicitud (leadId).
 			huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: cuenta.costoSocio, alojamiento: cuenta.alojamiento
 		}),
-		comision: { monto: cuenta.ganancia, vence: r.llegada, pagada: false }
 	};
+	datos.comision = comisionDeReserva(datos);
 	await cambiar({
 		despues: { id, ...datos },
+		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
+		revisar: async (tx) => sinResponder(tx, l, chat),
 		escribir: (tx, ref) => tx.set(ref, { ...datos, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
 		ademas: (tx) => {
 			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': cuenta.costoSocio, 'solicitud.comision': cuenta.ganancia }));
@@ -191,12 +214,21 @@ export async function confirmarSolicitud(l, cuenta, { chat = null, pago = '' } =
 	await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 }
 
+// Lee, dentro de la transacción, que la solicitud siga sin responder: el chat (lo lee cualquiera con el enlace) y, para
+// el equipo, la solicitud misma (el socio no la lee).
+async function sinResponder(tx, l, chat) {
+	const [c, sol] = await Promise.all([chat ? tx.get(chat.ref) : null, session.esSocio ? null : tx.get(doc(db, 'leads', l.id))]);
+	const yaChat = c?.data()?.estado, yaSol = sol?.data()?.solicitud?.estado;
+	if (yaChat || (yaSol && yaSol !== 'pendiente')) throw new Error('Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.');
+}
+
 // La solicitud no se dio: la solicitud y el chat lo dicen, y el cliente recibe el mensaje. No hay reserva.
 export async function noSeDio(l, motivo, chat = null) {
-	const lote = writeBatch(db);
-	lote.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-	if (chat) cerrarChat(lote, chat, 'no', 'Lo sentimos: la casa no está disponible en esas fechas.');
-	await lote.commit();
+	await runTransaction(db, async (tx) => {
+		await sinResponder(tx, l, chat);
+		tx.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
+		if (chat) cerrarChat(tx, chat, 'no', 'Lo sentimos: la casa no está disponible en esas fechas.');
+	});
 	if (chat) avisarChat(chat.ref.id);
 }
 
