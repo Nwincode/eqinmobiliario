@@ -22,7 +22,7 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
 // Lo que el administrador debe atender; el texto sale en la tarjeta de Inicio.
-const ALERTAS = { tarde: 'Sin responder', mora: 'Comisión con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
+const ALERTAS = { tarde: 'Sin responder', mora: 'Ganancia de EQ con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
 const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
 function hace(desde) {
 	const min = Math.max(1, Math.round((Date.now() - desde) / 60000));
@@ -168,10 +168,10 @@ export async function render(container, [codigo] = []) {
 	}
 
 	async function pagada(l, res, nivel) {
-		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la comisión de ${money(res.comision.monto, res.moneda)}?`, { okText: 'Marcar pagada', danger: false }))) return;
+		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
 			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || l.propertyTitulo }, nivel);
-			toast('Comisión pagada.');
+			toast('Ganancia de EQ pagada.');
 		});
 	}
 
@@ -219,7 +219,7 @@ export async function render(container, [codigo] = []) {
 			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, r.moneda)}` : ''),
-			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Comisión: se paga el ${dia(com.vence)}`),
+			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			ultimo ? h('div', { class: 'small text-muted' }, `${ultimo.que} ${ultimo.nombre} · ${formatDate(ultimo.cuando)}${sol.motivo ? ` · ${sol.motivo}` : ''}`) : null,
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
@@ -230,8 +230,8 @@ export async function render(container, [codigo] = []) {
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' ? [boton('Confirmada', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				est === 'confirmada' && datosChat[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
-				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante de la comisión', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
-				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }) : null,
+				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
+				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				// Con el pago recibido, cancelar anularía la comisión: solo el administrador.
 				est === 'confirmada' && r.salida > hoy() && (session.isAdmin || datosChat[r.codigo]?.estado !== 'pagada') ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null)));
@@ -265,10 +265,10 @@ export async function render(container, [codigo] = []) {
 				numero('icon-money', Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
-				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar'], ['alerta', 'Con alerta']]))
+				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Ganancia de EQ por cobrar'], ['alerta', 'Con alerta']]))
 		] : peor >= 2 ? h('div', { class: 'alert alert-danger d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), peor === 3
-			? 'Tienes una comisión con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
-			: 'Tienes una comisión con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
+			? 'Tienes un pago a EQ con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
+			: 'Tienes un pago a EQ con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
 		lista);
 }
 

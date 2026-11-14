@@ -47,8 +47,10 @@ service cloud.firestore {
     function isAdmin() {
       return isStaff() && userDoc().data.rol == 'admin';
     }
+    // El asesor de quien está en el panel. Uno sin asesor vinculado no coincide con nada: los registros sin asesor
+    // (agentId '', p. ej. las casas por noche y sus reservas y solicitudes) son solo del administrador y del dueño.
     function myAgentId() {
-      return userDoc().data.agentId;
+      return userDoc().data.get('agentId', '') == '' ? '(sin asesor)' : userDoc().data.agentId;
     }
     function isNonEmptyString(v, max) {
       return v is string && v.size() > 0 && v.size() <= max;
@@ -164,9 +166,11 @@ service cloud.firestore {
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
                  .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'reservadas', 'huespedesMax'])
             // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
-            && preciosCuadran(request.resource.data,
+            // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
+            && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
+              || preciosCuadran(request.resource.data,
                  getAfter(/databases/$(database)/documents/properties/$(id)/privado/socio).data,
-                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()));
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys())));
       allow delete: if isAdmin();
 
       // Bitácora de la casa: quién cambió qué y cuándo. Solo se agrega; nadie la edita ni la borra.

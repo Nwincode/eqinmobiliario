@@ -214,11 +214,13 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña pone un precio por fechas solo en el suyo', juntos('mixto1', [suyo({ tarifas: [t(80)] })]), false);
 		await espera('dueña pone dos precios por fechas suyos y uno público', juntos('mixto1', [suyo({ tarifas: [t(80), { ...t(70), desde: '2027-01-02', hasta: '2027-01-05' }] }), casa({ tarifas: [t(96)] })]), false);
 		await espera('dueña pone un precio por fechas con otras fechas en el público', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [{ ...t(96), hasta: '2027-03-31' }] })]), false);
+		await espera('dueña pone un precio por fechas con su margen (control)', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [t(96)] })]), true);
 		const diez = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-01`, hasta: `2027-${String(k + 1).padStart(2, '0')}-05`, precio: 90 + k }));
 		const conMargen = (lista) => lista.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }));
 		await espera('dueña pone 10 precios por fechas, cada uno con su margen (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez) })]), true);
 		await espera('dueña pone 11 precios por fechas', juntos('mixto1', [suyo({ tarifas: [...diez, t(80)] }), casa({ tarifas: conMargen([...diez, t(80)]) })]), false);
-		await espera('dueña pone un precio por fechas con su margen (control)', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [t(96)] })]), true);
+		await raw('properties/mx-noche-sin-precio', { titulo: sv('Casa por noche sin precio del dueño'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '0' } } } } });
+		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña se cambia el margen de su casa', juntos('mixto1', [suyo({ margen: 0 })]), false);
 	}
@@ -282,7 +284,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('dueña crea la reserva sin solicitud', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ leadId: 'no-existe' })), false);
 	await espera('dueña crea la reserva con otro id que el de la solicitud', crearR('mixto1', 'reservas/r-otro-id', delSocio()), false);
 	await espera('dueña infla las noches para anular el margen', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ noches: 1e9, costoSocio: 360, ganancia: 0 }, { monto: 0 })), false);
-	// Su noche más barata ahora es la de fechas (80): 3 noches no bajan de 240.
+	// Su noche más barata ahora es la más barata de sus 10 precios por fechas (90): 3 noches no bajan de 270.
 	await espera('dueña crea la reserva con su parte menor que su noche más barata', crearR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 30, alojamiento: 36, ganancia: 6 }, { monto: 6 })), false);
 	await espera('dueña crea una reserva de su casa por noche al confirmar (control)', crearR('mixto1', 'reservas/lead-res-noche', delSocio()), true);
 	await espera('dueña crea una segunda reserva para la misma solicitud', escribirR('mixto1', 'reservas/lead-res-noche', delSocio({ costoSocio: 100, alojamiento: 120, ganancia: 20 })), false);
@@ -318,6 +320,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('la dueña no lee el contacto del huésped', leer('mixto1', 'properties/mx-noche/privado/reserva-r-mano'), false);
 	await espera('la dueña no lista lo privado de su casa', leer('mixto1', 'properties/mx-noche/privado'), false);
 	await espera('otro dueño no ve esa reserva', leer('socio2', 'reservas/r-mano'), false);
+	// Un asesor sin asesor vinculado (agentId vacío) no coincide con lo que no lleva asesor (casas por noche, sus reservas y solicitudes).
+	await poner('users/asesor-sin', { rol: 'asesor', activo: true, agentId: '', nombre: 'Asesor sin vincular' });
+	await espera('asesor sin vincular lee una reserva sin asesor', leer('asesor-sin', 'reservas/r-mano'), false);
+	await espera('asesor sin vincular lee una solicitud sin asesor', leer('asesor-sin', 'leads/lead1'), false);
+	await espera('asesor sin vincular lee el precio del dueño de una casa sin asesor', leer('asesor-sin', 'properties/mx-noche/privado/socio'), false);
 	await espera('el equipo pasa una reserva por venir al dueño nuevo de la casa', parche('admin1', 'reservas/r-mano', ['propietarioId'], { propietarioId: sv('o2') }), true);
 	await espera('el dueño nuevo la ve', leer('socio2', 'reservas/r-mano'), true);
 	await espera('el dueño anterior ya no', leer('mixto1', 'reservas/r-mano'), false);

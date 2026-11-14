@@ -954,6 +954,23 @@ const duenos = [];
 	const s5 = await f(`properties/${idCasa}/privado/socio`);
 	paso('«Mis propiedades» guarda solo lo que cambió: no borra lo que otra pestaña bloqueó, y su precio y el público van juntos',
 		JSON.stringify(v5.bloqueos || {}).includes(dia(40)) && num(s5.precioBase) === 115 && num(v5.base) === 138, `${num(s5.precioBase)} → ${num(v5.base)} · ${await avisos(socio.p)}`);
+
+	// Usuarios: una cuenta del equipo nace con la misma pieza que la de un dueño (acceso.js), sin contraseña escrita.
+	await ir(admin.p, '#/usuarios', 3000);
+	await admin.p.locator('button', { hasText: 'Nuevo usuario' }).click();
+	await espera(800);
+	const ventana = admin.p.locator('.modal.show');
+	const sinClave = await ventana.locator('input[type="password"], input[placeholder*="caracteres"]').count() === 0;
+	await ventana.locator('input.form-control').nth(0).fill('Asesora nueva (prueba)');
+	await ventana.locator('input.form-control').nth(1).fill('asesora.nueva@example.com');
+	await ventana.locator('select').nth(1).selectOption('asesor-prueba');
+	await ventana.locator('button', { hasText: 'Crear usuario' }).click();
+	await espera(3500);
+	const usuarios = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: sv('asesora.nueva@example.com') } } } }) })).json();
+	const u = usuarios.find((x) => x.document)?.document.fields || {};
+	const aviso7 = await avisos(admin.p);
+	paso('Usuarios: el administrador crea una asesora sin escribir contraseña y le llega el correo para ponerla', sinClave && txt(u.rol) === 'asesor' && txt(u.agentId) === 'asesor-prueba' && /correo/.test(aviso7), aviso7);
 }
 
 // ---------------------------------------------------------------- Acciones en lote y dos «Guardar» seguidos

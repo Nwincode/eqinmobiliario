@@ -352,7 +352,8 @@ export async function render(container) {
 	async function enlazar(antes, guardada) {
 		const nuevo = guardada.propietarioId || '';
 		if (!(antes.propietarioId || nuevo) || (antes.propietarioId === nuevo && antes.operacion === guardada.operacion)) return;
-		await asignarDueno(antes, nuevo, { duenos, casas: existentes, escribirCasa: false });
+		// Con la operación de ahora: de ella salen `porNoche` y si pasan sus reservas y solicitudes.
+		await asignarDueno({ ...antes, operacion: guardada.operacion }, nuevo, { duenos, casas: existentes, escribirCasa: false });
 	}
 
 	// Si la propiedad no se guarda, sus fotos recién subidas se borran: no quedan huérfanas.

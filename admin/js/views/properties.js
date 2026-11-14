@@ -392,7 +392,8 @@ export async function render(container, [id]) {
 	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
 	if (session.isAdmin) {
 		const conAsesor = props.filter((p) => esVacacional(p) && p.agentId);
-		try { for (const p of conAsesor) await sinAsesorPorNoche(p); } catch (err) { console.warn('Casas por noche con asesor sin poner al día', err); }
+		// (Sus páginas llevan el asesor en el formulario: hay que volver a publicar.)
+		try { for (const p of conAsesor) await sinAsesorPorNoche(p); if (conAsesor.length) await markPending('Casas por noche sin asesor'); } catch (err) { console.warn('Casas por noche con asesor sin poner al día', err); }
 	}
 	const porPrivatizar = props.filter((p) => esVacacional(p) && (p.direccion || p.mapa) && canEdit(p));
 	if (porPrivatizar.length) {
