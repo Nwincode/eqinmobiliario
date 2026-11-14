@@ -45,6 +45,9 @@ t('lead: primer nombre y lo que busca, sin teléfono ni correo (tampoco dentro d
 
 t('sinContacto deja montos y fechas', () => {
 	assert.equal(sinContacto('US$ 250,000 el 15/12/2026 a las 10:30'), 'US$ 250,000 el 15/12/2026 a las 10:30');
+	assert.equal(sinContacto('hasta 1500000 quetzales'), 'hasta 1500000 quetzales');
+	assert.equal(sinContacto('Q 2 500 000 de presupuesto'), 'Q 2 500 000 de presupuesto');
+	assert.equal(sinContacto('mi cel 55551234'), 'mi cel [teléfono]');
 });
 
 t('paraIA limpia cada parte de una tarea (propiedad, inventario, lead y requerimientos)', () => {

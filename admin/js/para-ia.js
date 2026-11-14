@@ -31,11 +31,13 @@ export function propiedadParaIA(p) {
 }
 
 // Teléfonos y correos escritos dentro de un texto (mensaje del cliente, notas): se cambian por una marca.
-// Fechas (2026-05-01, 1/5/2026), horas y montos con comas no cuentan.
+// Un teléfono tiene al menos 8 dígitos (los de Guatemala, 8). Fechas (2026-05-01, 1/5/2026), horas y montos
+// (1500000, 2 500 000, 15,000,000) no cuentan: el presupuesto es justo lo que la IA necesita saber.
+const esMonto = (x) => /^\d{1,3}([ ,.]\d{3})+$/.test(x.trim());
 export function sinContacto(texto) {
 	return String(texto ?? '')
 		.replace(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/gi, '[correo]')
-		.replace(/\+?\d[\d\s().-]{5,}\d/g, (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x) || x.replace(/\D/g, '').length < 7 ? x : '[teléfono]'));
+		.replace(/\+?\d[\d\s().-]{5,}\d/g, (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x) || esMonto(x) || x.replace(/\D/g, '').length < 8 ? x : '[teléfono]'));
 }
 const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 
