@@ -5,7 +5,7 @@ import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.j
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
 import { exclusivasPorVencer } from '../acuerdo.js';
-import { conDueno } from '../duenos.js';
+import { conDueno as tieneDueno } from '../duenos.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -29,7 +29,7 @@ export async function render(container) {
 	const conPendiente = new Set(actividades.filter((a) => !a.hecha && a.clienteId).map((a) => a.clienteId));
 	const sinSeguimiento = clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id));
 	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo); cuento las de los inmuebles con dueño que veo.
-	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && conDueno(c, propietarios));
+	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && tieneDueno(c, propietarios));
 	const exclusivas = exclusivasPorVencer(conDueno, await loadAcuerdos(conDueno), propietarios);
 	let props = todas;
 	if (!session.isAdmin) props = props.filter((p) => p.agentId === session.agentId);
