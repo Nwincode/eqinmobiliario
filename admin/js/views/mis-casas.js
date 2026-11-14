@@ -1,11 +1,14 @@
-// Pantalla del socio de rentas: sus casas, con precios, personas, días bloqueados y mínimos de noches.
-// Cada cambio queda en la bitácora de la casa con quién y cuándo.
-// El socio escribe SU precio; el del cliente (con la comisión) lo calcula el sistema.
+// «Mis propiedades»: el panel del dueño (propietario o colaborador). Todas sus casas, de las tres categorías:
+//  - por noche: las atiende él (precios, personas, días bloqueados y mínimos de noches; cada cambio queda en la
+//    bitácora de la casa). Escribe SU precio; el del cliente (con la comisión) lo calcula el sistema;
+//  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, addDoc, collection, query, where, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia } from '../ui.js';
-import { session, markPending } from '../session.js';
-import { prefijoMoneda, decimales } from '../formato.js';
+import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
+import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
+import { fichaCasa, FILA_CASA } from '../ficha-casa.js';
+import { resumenCasa } from '../resumen-casa.js';
 
 const V = window.EQVacacional;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
@@ -23,33 +26,62 @@ const flecha = (lado, titulo, onclick, disabled) => h('button', {
 	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
 });
 
+// Casas en venta o renta que están en su resumen pero no dicen ser suyas (enlazadas solo desde su ficha): se
+// muestran con lo que trae el resumen, en la misma ficha corta.
+const desdeResumen = (x) => ({ id: x.id, titulo: x.titulo, operacion: x.operacion, precio: x.precio, moneda: x.moneda, publicado: Boolean(x.url),
+	fotos: x.foto ? [{ url: x.foto }] : [], ...(x.anuncio || {}) });
+const ORDEN = { venta: 0, renta: 1, vacacional: 2 };
+const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' });
+
 async function lista(container) {
-	const snap = await getDocs(query(collection(db, 'properties'), where('propietarioId', '==', session.profile.propietarioId || '-')));
-	const casas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.titulo).localeCompare(String(b.titulo)));
+	const [vivas, resumen] = await Promise.all([misCasas(), cargarMiResumen()]);
+	const casas = [...vivas, ...(resumen?.propiedades || []).filter((x) => !vivas.some((c) => c.id === x.id)).map(desdeResumen)]
+		.sort((a, b) => (ORDEN[a.operacion] ?? 3) - (ORDEN[b.operacion] ?? 3) || String(a.titulo).localeCompare(String(b.titulo)));
+	const porNoche = casas.some((c) => c.operacion === 'vacacional');
 	const filas = h('div', { class: 'list-group' });
 	const pintar = (texto = '') => repintar(filas, casas
 		.filter((c) => `${c.titulo} ${c.codigo || ''}`.toLowerCase().includes(texto.toLowerCase()))
-		.map((c) => h('a', { class: 'list-group-item list-group-item-action d-flex align-items-center gap-2 py-3', href: `#/mis-casas/${c.id}` },
-			h('span', { class: 'icon-home2 text-muted', 'aria-hidden': 'true' }),
-			h('span', { class: 'flex-grow-1 fw-semibold' }, c.titulo, c.codigo ? h('span', { class: 'd-block small fw-normal text-muted' }, c.codigo) : null),
-			h('span', { class: 'icon-chevron-right text-muted', 'aria-hidden': 'true' }))));
+		.map((c) => h('a', { class: `list-group-item list-group-item-action ${FILA_CASA} py-3`, href: `#/mis-casas/${c.id}` }, fichaCasa(c))));
 	pintar();
+	const ag = resumen?.asesor || {};
 	mount(container,
-		pageHeader('Mis casas'),
-		!casas.length ? emptyState('Todavía no tenés casas asignadas. Escribinos y las activamos.') : [
-			casas.length > 8 ? h('input', { class: 'form-control mb-3', type: 'search', placeholder: 'Buscar casa', 'aria-label': 'Buscar casa', oninput: (e) => pintar(e.target.value) }) : null,
+		pageHeader('Mis propiedades'),
+		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
+		porNoche ? (resumen?.datosPago
+			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avisale al administrador.')
+			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no podés confirmar reservas. Pedile al administrador que los guarde en tu ficha.')) : null,
+		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
+		!casas.length ? emptyState('Todavía no tenés propiedades asignadas. Escribile a tu asesor y las activamos.') : [
+			casas.length > 8 ? h('input', { class: 'form-control mb-3', type: 'search', placeholder: 'Buscar propiedad', 'aria-label': 'Buscar propiedad', oninput: (e) => pintar(e.target.value) }) : null,
 			filas]);
+}
+
+// Una casa en venta o renta: cómo va, solo lectura, desde su resumen.
+// «propia»: la casa dice ser suya; una enlazada solo desde su ficha se ve, pero su respuesta al anuncio la regla
+// no la deja (la casa tiene que decir que es suya), así que no se ofrece.
+async function enVenta(container, id, titulo, propia) {
+	const resumen = await cargarMiResumen();
+	const p = (resumen?.propiedades || []).find((x) => x.id === id);
+	mount(container,
+		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p?.titulo || titulo || 'Propiedad')),
+		p ? resumenCasa(resumen, p, { responder: propia }) : emptyState('Tu asesor todavía está preparando el resumen de esta propiedad. Volvé a entrar en un rato.'));
 }
 
 async function casa(container, id) {
 	const refCasa = doc(db, 'properties', id);
 	const refSocio = doc(db, 'properties', id, 'privado', 'socio');
 	const mio = session.profile.propietarioId || '-';
-	const [sCasa, sSocio, sLeads] = await Promise.all([getDoc(refCasa), getDoc(refSocio),
+	const sCasa = await getDoc(refCasa).catch(() => null);
+	const suya = Boolean(sCasa?.exists()) && sCasa.data().propietarioId === mio;
+	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional') return enVenta(container, id, sCasa?.exists() ? sCasa.data().titulo : '', suya);
+	if (!suya) return mount(container, emptyState('Esta casa no está a tu nombre.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis propiedades')));
+	const [sSocio, sLeads, sReservas] = await Promise.all([getDoc(refSocio),
 		// Solicitudes de sus casas: del chat de cada una (las solicitudes traen el contacto del cliente y el socio no las lee).
-		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio)))]);
-	if (!sCasa.exists()) return mount(container, emptyState('No encontramos esa casa.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis casas')));
+		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio))),
+		getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).catch(() => null)]);
 	const p = sCasa.data();
+	// Lo que lleva esta casa: reservas confirmadas, noches y lo que le toca (la misma cuenta de Rentas vacacionales).
+	const cuenta = V.resumenReservas((sReservas?.docs || []).map((d) => d.data()).filter((r) => r.propertyId === id));
 	const s = sSocio.exists() ? sSocio.data() : {};
 	const v = p.vacacional || {};
 	const pre = prefijoMoneda(p.moneda || 'USD');
@@ -222,9 +254,10 @@ async function casa(container, id) {
 
 	pintar();
 	mount(container,
-		h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
-			iconoBtn('icon-arrow-left', 'Volver a mis casas', { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' }),
-			h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		cuenta.reservas ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-calendar-check-o me-1', 'aria-hidden': 'true' }),
+			`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
+			h('strong', { class: 'text-body' }, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))) : null,
 		h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
 			precio('base', 'Entre semana', 'Tu precio por noche.'),
 			precio('finde', 'Fin de semana', 'Vacío: igual que entre semana.'),

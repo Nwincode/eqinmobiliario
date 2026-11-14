@@ -1,14 +1,17 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice, iconoBtn } from '../ui.js';
+import { auth, db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, sendPasswordResetEmail } from '../firebase.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, formatPrice, iconoBtn } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, agentOptions, loadAgents } from '../session.js';
-import { whatsappUrl, copiar } from '../ia.js';
-import { publicarPortal, cerrarPortal, borrarCopia, enlacePortal, visitasDe, escucharComentarios, TIPOS_BITACORA } from '../portal.js';
+import { whatsappUrl } from '../ia.js';
+import { publicarPortal, borrarCopia, visitasDe, escucharComentarios, VERSION_RESUMEN, TIPOS_BITACORA } from '../portal.js';
+import { correoDe, accesosDe, accesoDe, ponerAcceso, darAcceso, reglasNuevas, motivoParaNoAbrir } from '../acceso.js';
 import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
 import { sinTildes } from '../cotizacion.js';
-import { OPERACIONES, datosDe, abrirFicha } from './properties.js';
+import { abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
+import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
+import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Cada casa guarda de quién es (propietarioId): así el socio de rentas ve solo las suyas.
@@ -23,44 +26,17 @@ function vincularCasas(id, ahora = [], antes = []) {
 	]);
 }
 
-// Ficha corta de una casa (foto, título, zona, datos y precio), con las mismas piezas del listado de Propiedades.
-// Devuelve las piezas; quien la usa pone el contenedor (el botón que la elige o el que la cambia).
-function fichaCasa(p, avisos = []) {
-	const chips = datosDe(p);
-	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
-	return [
-		p.fotos?.[0]?.url ? h('img', { class: 'thumb flex-shrink-0', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia flex-shrink-0', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
-		// En celular el precio baja a su propia línea; el título no se aprieta.
-		h('span', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
-			h('span', { class: 'd-block fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light'), avisos),
-			h('span', { class: 'd-block small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
-			chips.length ? h('span', { class: 'd-block prop-datos' }, chips) : null),
-		h('span', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))];
-}
-const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
-
 // Qué tiene un dueño con nosotros: la operación de cada una de sus casas. Una misma persona puede tener casas por
 // noche y otras en venta o renta, en una sola ficha. De eso depende lo poco que se le pide a la persona:
 //  - con casas por noche es socio de renta vacacional: datos de pago (y su correo recibe las solicitudes);
 //  - con venta o renta: el asesor que la atiende.
 // La exclusiva, la comisión y los impuestos no son de la persona: son de cada inmueble (admin/js/acuerdo.js).
-// Sin casas todavía no se le pide nada de eso: primero se agregan sus propiedades.
-export const esSocio = (d) => Boolean(d.porNoche) || d.tipo === 'socio'; // «tipo: socio» = fichas de antes
+// Sin casas todavía no se le pide nada de eso: primero se agregan sus propiedades. (tieneCasasPorNoche: admin/js/duenos.js)
 function operacionesDe(d, propiedades) {
 	const ops = (d.propiedades || []).map((x) => propiedades.find((p) => p.id === x.propertyId)?.operacion).filter(Boolean);
 	if (ops.length) return ops;
-	return [...(esSocio(d) ? ['vacacional'] : []), ...(d.comisionPct || d.exclusiva || d.impuestoVenta || d.contrato ? ['venta', 'renta'] : [])];
+	return [...(tieneCasasPorNoche(d) ? ['vacacional'] : []), ...(d.comisionPct || d.exclusiva || d.impuestoVenta || d.contrato ? ['venta', 'renta'] : [])];
 }
-
-// Estado de la exclusiva de un inmueble, a partir de su acuerdo (admin/js/acuerdo.js).
-export function estadoExclusiva(acuerdo) {
-	const d = diasExclusiva(acuerdo);
-	if (d === null) return acuerdo?.exclusiva ? badge('Exclusiva sin fecha', 'secondary') : badge('Sin exclusiva', 'light');
-	if (d < 0) return badge(`Vencida hace ${-d} días`, 'danger');
-	if (d <= 30) return badge(`Vence en ${d} días`, 'warning');
-	return badge(`Exclusiva · ${d} días`, 'success');
-}
-const casasDe = (p, propiedades) => propiedades.filter((c) => c.propietarioId === p.id || (p.propiedades || []).some((x) => x.propertyId === c.id));
 
 // El acuerdo (exclusiva, comisión, impuestos) se guardaba una sola vez en la persona; ahora es de cada inmueble.
 // Lo que quedó en la persona se copia a cada inmueble suyo que todavía no tiene acuerdo propio y que yo puedo
@@ -117,7 +93,7 @@ async function renderLista(container) {
 		].filter(Boolean).join(' · ') || '—';
 	};
 	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, esSocio(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
+		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, tieneCasasPorNoche(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
 		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 		h('td', {}, estadoExclusiva(masUrgente(p))),
 		h('td', { class: 'small' }, comisionDe(p)),
@@ -134,6 +110,7 @@ async function renderLista(container) {
 
 	mount(container,
 		pageHeader('Propietarios', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, '+ Propietario')),
+		session.isAdmin ? avisoResumenes(lista) : null,
 		h('p', { class: 'text-muted' }, 'Dueños de los inmuebles que manejan: contacto y propiedades. La exclusiva y la comisión se acuerdan en cada inmueble.'),
 		porVencer.length ? h('div', { class: 'alert alert-warning' }, h('strong', {}, `${porVencer.length === 1 ? 'Una exclusiva vencida o por vencer' : `${porVencer.length} exclusivas vencidas o por vencer`} en 30 días. `),
 			porVencer.slice(0, 5).map((x, k) => [k ? ' · ' : '', h('a', { href: `#/propiedades/${x.casa.id}`, class: 'alert-link' }, x.casa.titulo || 'Inmueble'), ` (${x.dueno?.nombre || 'sin dueño'}, ${x.dias < 0 ? `venció hace ${-x.dias} días` : `en ${x.dias} días`})`]),
@@ -210,13 +187,22 @@ async function renderEditor(container, id) {
 		d.updatedAt = serverTimestamp();
 		if (nuevo) d.createdAt = serverTimestamp();
 		if (!session.isAdmin) d.agentId = session.agentId;
-		// setDoc reemplaza el documento: se conservan la bitácora y el enlace del portal.
-		for (const k of ['bitacora', 'portalToken', 'proximoPaso', 'portalActualizado', 'portalPrivado']) if (data[k] !== undefined) d[k] = data[k];
 		try {
+			// setDoc reemplaza el documento: se conservan la bitácora, el resumen del dueño y su acceso, tal como están
+			// guardados AHORA (mientras la ficha estaba abierta, otra pantalla pudo rehacer el resumen o cambiar el acceso).
+			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso']) {
+				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
+				else delete data[k];
+			}
 			await setDoc(ref, d);
 			await vincularCasas(ref.id, d.propertyIds, data.propertyIds);
 			data.propertyIds = d.propertyIds;
-			if (d.portalToken) await publicarPortal({ ...d, id: ref.id }).catch((err) => console.warn('Portal sin actualizar', err));
+			// Su resumen (lo que lee en su panel, con sus datos de pago): se arma o se actualiza con cada guardado.
+			const conId = { ...d, id: ref.id };
+			// Si no se pudo, se dice en pantalla: lo que ve en su panel (sus datos de pago incluidos) quedaría viejo.
+			await publicarPortal(conId).catch((err) => { console.warn('Resumen del dueño sin actualizar', err); toast(`La ficha se guardó, pero no se pudo poner al día lo que ve en su panel (datos de pago incluidos): ${errorMessage(err)} Volvé a guardar.`, 'warning'); });
+			if (conId.portalToken) Object.assign(data, { portalToken: conId.portalToken, portalVersion: conId.portalVersion, portalPrivado: conId.portalPrivado });
 			avisarCambio();
 			return true;
 		} catch (err) { showError(err); return false; }
@@ -301,9 +287,12 @@ async function renderEditor(container, id) {
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${data.nombre}?`, { okText: 'Eliminar' }))) return;
 		try {
-			// Primero la copia del portal: si quedara, el enlace privado seguiría funcionando.
+			// Primero su acceso y su resumen: sin ficha no hay a quién mostrarle nada.
+			for (const u of await accesosDe(ref.id)) if (u.activo !== false) await updateDoc(doc(db, 'users', u.uid), { activo: false, updatedAt: serverTimestamp() });
 			if (data.portalToken) await borrarCopia(data.portalToken);
-			await deleteDoc(ref); await vincularCasas(ref.id, [], data.propertyIds); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
+			// Sus casas dejan de apuntarle: las de su lista y también las que dicen ser suyas sin estar en ella.
+			const suyas = [...new Set([...(data.propertyIds || []), ...casasDe({ ...data, id: ref.id }, propiedades).map((c) => c.id)])];
+			await deleteDoc(ref); await vincularCasas(ref.id, [], suyas); toast('Eliminado.'); location.hash = '#/propietarios'; } catch (err) { showError(err); }
 	};
 
 	mount(container,
@@ -314,23 +303,62 @@ async function renderEditor(container, id) {
 			null) : null,
 		vigilarFormulario(form, 'propietarios'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el)),
-		!nuevo ? seccionPortal(Object.assign(data, { id: ref.id }), propiedades) : null,
+		!nuevo ? seccionPortal(Object.assign(data, { id: ref.id }), propiedades, {
+			persistir, correo: () => form.state.email, nombre: () => form.state.nombre,
+			enfocarCorreo: () => { const c = container.querySelector('[data-campo="email"] input'); c?.scrollIntoView({ block: 'center' }); c?.focus(); }
+		}) : null,
 		h('div', { class: 'sticky-actions' },
 			h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar'),
 			h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Cancelar'),
 			!nuevo && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: eliminar }, 'Eliminar') : null));
 }
 
-// ——— Portal del propietario ———
+// Quien entra al panel (o tiene casas por noche, o tuvo el portal de antes) necesita su resumen al día: lo que lee en
+// su panel, con sus datos de pago. Al abrir Propietarios se rehace el de quien no lo tiene en la versión actual, uno
+// por uno, y el aviso de arriba cuenta cuántos faltan, dice en pantalla los que fallaron (con «Reintentar») y, si las
+// reglas nuevas no están publicadas, cuándo publicarlas (al llegar a 0).
+function avisoResumenes(lista) {
+	const caja = h('div', { id: 'aviso-reglas', class: 'alert alert-warning small', role: 'status', hidden: true });
+	const fallas = new Map();
+	let faltan = [];
+	const pintar = async () => {
+		const nuevas = await reglasNuevas();
+		const pasos = 'Publicá las reglas: firebase deploy --only firestore:rules --project eqinmobiliariobd. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		caja.hidden = nuevas && !faltan.length && !fallas.size;
+		caja.replaceChildren(
+			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Dejá esta pantalla abierta hasta que llegue a 0.' : ['Dejá esta pantalla abierta. Cuando llegue a 0: ', pasos])
+				: !nuevas ? h('div', {}, h('strong', {}, 'Lo que ve cada dueño ya está al día. Falta publicar las reglas nuevas de la base. '), pasos) : null,
+			fallas.size ? h('div', { class: 'mt-2' }, h('strong', {}, `No se pudo con ${fallas.size}: `),
+				[...fallas.entries()].map(([p, err], k) => [k ? ' · ' : '', h('a', { href: `#/propietarios/${p.id}`, class: 'alert-link' }, p.nombre || 'sin nombre'), ` (${errorMessage(err)})`]), ' ',
+				h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary ms-1', onclick: () => correr([...fallas.keys()]) }, h('span', { class: 'icon-refresh me-1', 'aria-hidden': 'true' }), 'Reintentar')) : null);
+	};
+	const correr = async (quienes) => {
+		quienes.forEach((p) => fallas.delete(p));
+		faltan = [...new Set([...faltan, ...quienes])];
+		await pintar();
+		for (const p of quienes) {
+			try { await publicarPortal(p); } catch (err) { console.warn('Resumen del dueño sin armar', p.id, err); fallas.set(p, err); }
+			faltan = faltan.filter((x) => x !== p);
+			await pintar();
+		}
+	};
+	(async () => {
+		const conAcceso = new Set((await getDocs(query(collection(db, 'users'), where('rol', '==', 'socio'))).catch(() => ({ docs: [] }))).docs.map((d) => d.data().propietarioId));
+		await correr(lista.filter((x) => x.portalVersion !== VERSION_RESUMEN && (x.portalToken || tieneCasasPorNoche(x) || conAcceso.has(x.id))));
+	})().catch((err) => console.warn('Resúmenes de dueños', err));
+	return caja;
+}
+
+// ——— Lo que ve el dueño en su panel ———
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const nombreTipo = (t) => (TIPOS_BITACORA.find(([k]) => k === t) || TIPOS_BITACORA[5])[1];
 
-function seccionPortal(prop, propiedades) {
-	const ids = (prop.propiedades || []).map((x) => x.propertyId).filter(Boolean);
+function seccionPortal(prop, propiedades, ficha) {
+	const ids = [...new Set([...casasDe(prop, propiedades).map((c) => c.id), ...(prop.propiedades || []).map((x) => x.propertyId).filter(Boolean)])];
 	const titulo = Object.fromEntries(propiedades.map((p) => [p.id, p.titulo]));
 	const misProps = ids.map((id) => [id, titulo[id] || 'Propiedad']);
-	const estadoEl = h('div', { class: 'small' });
-	const botones = h('div', { class: 'd-flex flex-wrap gap-2 portal-botones' });
+	const quien = etiquetaDueno(prop.tipo).toLowerCase();
+	const acceso = h('div', { class: 'd-grid gap-2', id: 'acceso-panel' });
 	const listaBit = h('div', { class: 'list-group list-group-flush border rounded' });
 	const listaVis = h('div', { class: 'd-grid gap-2' });
 
@@ -338,44 +366,55 @@ function seccionPortal(prop, propiedades) {
 		if (btn) btn.disabled = true;
 		try { await fn(); } catch (err) { showError(err); } finally { if (btn) btn.disabled = false; }
 	};
-	const refrescar = async (silencioso = false) => {
-		if (!prop.portalToken) return;
-		await publicarPortal(prop);
-		pintarEstado();
-		if (!silencioso) toast('Portal actualizado.');
+	const refrescar = async () => {
+		if (prop.portalToken) await publicarPortal(prop);
 	};
-	const mensajeWa = () => `Hola ${String(prop.nombre || '').split(' ')[0]}, aquí puedes ver cómo va tu propiedad (visitas, consultas y próximos pasos), sin tener que llamar:\n${enlacePortal(prop.portalToken)}\n\nEs un enlace privado: no lo compartas.`;
 
-	function pintarEstado() {
-		estadoEl.replaceChildren(prop.portalToken
-			? h('span', {}, badge('Portal activo', 'success'), ' ', h('span', { class: 'text-muted' }, `Actualizado: ${formatDate(prop.portalActualizado)} · Se actualiza solo cuando hay cambios`))
-			: h('span', {}, badge('Sin portal', 'secondary'), ' ', h('span', { class: 'text-muted' }, 'Crea el portal para enviarle el enlace al propietario.')));
-		const conToken = Boolean(prop.portalToken);
-		botones.replaceChildren();
-		mount(botones,
-			h('button', { class: 'btn btn-primary', type: 'button', onclick: (e) => ocupado(e.currentTarget, async () => { const nuevo = !prop.portalToken; await publicarPortal(prop); pintarEstado(); toast(nuevo ? 'Portal creado. Ya puedes enviar el enlace.' : 'Portal actualizado.'); }) },
-				conToken ? 'Actualizar ahora' : 'Crear portal'),
-			conToken ? h('a', { class: 'btn btn-success', target: '_blank', rel: 'noopener', href: whatsappUrl(prop.telefono, mensajeWa()) }, 'Enviar por WhatsApp') : null,
-			conToken ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: async () => toast((await copiar(enlacePortal(prop.portalToken))) ? 'Enlace copiado.' : 'No se pudo copiar. Cópialo a mano.', 'success') }, 'Copiar enlace') : null,
-			conToken ? h('a', { class: 'btn btn-outline-primary', target: '_blank', rel: 'noopener', href: enlacePortal(prop.portalToken) }, 'Ver como propietario') : null,
-			conToken ? h('button', { class: 'btn btn-outline-danger', type: 'button', onclick: async (e) => {
-				const btn = e.currentTarget;
-				if (!(await confirmDialog('Se crea un enlace nuevo y el anterior deja de funcionar. Tendrás que enviarle el nuevo al propietario.', { okText: 'Regenerar enlace' }))) return;
-				ocupado(btn, async () => { await publicarPortal(prop, { regenerar: true }); pintarEstado(); toast('Enlace nuevo creado. El anterior ya no funciona.'); });
-			} }, 'Regenerar enlace') : null,
-			conToken ? h('button', { class: 'btn btn-link text-danger', type: 'button', onclick: async (e) => {
-				const btn = e.currentTarget;
-				if (!(await confirmDialog('El propietario ya no podrá ver su portal (ni con el enlace ni con su correo).', { okText: 'Quitar acceso' }))) return;
-				ocupado(btn, async () => { await cerrarPortal(prop); pintarEstado(); toast('Acceso quitado.'); });
-			} }, 'Quitar acceso') : null);
+	// Acceso al panel: estado y botones (solo el administrador da o quita acceso).
+	// Lo que hace falta para abrirle la entrada (motivoParaNoAbrir, en admin/js/acceso.js) depende de si tiene casas por noche.
+	const porNoche = tieneCasasPorNoche(prop) || casasDe(prop, propiedades).some((c) => c.operacion === 'vacacional');
+	async function pintarAcceso() {
+		const [u, motivo] = await Promise.all([session.isAdmin ? accesoDe(prop.id).catch(() => null) : null, motivoParaNoAbrir(prop, porNoche)]);
+		const estado = session.isAdmin ? (u ? { email: u.email, activo: u.activo !== false } : null) : prop.acceso || null;
+		const activo = Boolean(u && u.activo !== false);
+		const correoFicha = correoDe(ficha.correo());
+		const otroCorreo = Boolean(estado && correoFicha && correoFicha !== correoDe(estado.email));
+		const boton = (icono, texto, fn, cls = 'btn-outline-primary', bloqueado = false) => h('button', { type: 'button', class: `btn btn-sm ${cls}`, disabled: bloqueado, onclick: (e) => ocupado(e.currentTarget, fn) },
+			h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }), texto);
+		// «Dar acceso»: sin cuenta, o con la de antes apagada y otro correo en la ficha (crea la nueva; la vieja sigue apagada).
+		const dar = boton('icon-key', 'Dar acceso', async () => {
+			// El correo de ahora (aunque se haya cambiado arriba sin guardar): la ficha se guarda con él antes.
+			const correo = correoDe(ficha.correo());
+			if (!correo) { ficha.enfocarCorreo(); return toast(`Escribí el correo de ${prop.nombre || `este ${quien}`} arriba: con ese entra al panel.`, 'warning'); }
+			if (!(await ficha.persistir())) return;
+			toast(await darAcceso(prop, correo, ficha.nombre() || prop.nombre, { porNoche }));
+			pintarAcceso();
+		}, 'btn-primary', Boolean(motivo));
+		acceso.replaceChildren(
+			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
+				estado ? badge(estado.activo ? 'Entra al panel' : 'Acceso quitado', estado.activo ? 'success' : 'secondary') : badge('Sin acceso al panel', 'light'),
+				estado ? h('span', { class: 'small' }, h('span', { class: 'icon-envelope-o me-1 text-muted', 'aria-hidden': 'true' }), `Entra con ${estado.email}`) : null,
+				...(!session.isAdmin ? [] : !u ? [dar] : activo ? [
+					boton('icon-envelope-o', 'Reenviar correo para poner contraseña', async () => { await sendPasswordResetEmail(auth, u.email); toast(`Le enviamos a ${u.email} el correo para poner su contraseña.`); }),
+					boton('icon-ban', 'Quitar acceso', async () => { if (await confirmDialog(`${prop.nombre || 'Esta persona'} ya no podrá entrar al panel.`, { okText: 'Quitar acceso' })) { await ponerAcceso(prop, u, false); toast('Acceso quitado.'); pintarAcceso(); } }, 'btn-outline-danger')
+				] : [
+					otroCorreo ? dar : null,
+					boton('icon-check', otroCorreo ? `Devolver acceso con ${u.email}` : 'Devolver acceso', async () => { await ponerAcceso(prop, u, true, { porNoche }); toast(`Ya puede entrar otra vez con ${u.email}.`); pintarAcceso(); }, 'btn-outline-primary', Boolean(motivo))
+				])),
+			session.isAdmin && motivo && !activo ? h('p', { class: 'small text-muted mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), motivo) : null,
+			otroCorreo ? h('div', { class: 'alert alert-warning small mb-0' }, `Los avisos le llegan a ${correoFicha}, pero entra al panel con ${estado.email}. El correo de entrada no se cambia desde el panel: `,
+				activo ? 'tocá «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
+					: `«Dar acceso» crea su entrada con ${correoFicha} (la de ${estado.email} queda apagada). Si ${correoFicha} ya tuviera una cuenta, el panel te dice cuál borrar en Firebase → Authentication.`) : null,
+			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pedíselo al administrador.'));
 	}
+
 
 	// Bitácora: privada en el propietario; al portal solo van las entradas visibles.
 	const guardarBitacora = async (lista) => {
 		await updateDoc(doc(db, 'propietarios', prop.id), { bitacora: lista, updatedAt: serverTimestamp() });
 		prop.bitacora = lista;
 		pintarBitacora();
-		await refrescar(true);
+		await refrescar();
 	};
 	function pintarBitacora() {
 		const lista = (prop.bitacora || []).slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
@@ -385,7 +424,7 @@ function seccionPortal(prop, propiedades) {
 				h('div', { style: 'white-space: pre-line' }, b.texto)),
 			h('div', { class: 'form-check form-switch mb-0 align-self-center' },
 				h('input', { class: 'form-check-input', type: 'checkbox', id: `vis-${b.id}`, checked: Boolean(b.visible), onchange: (e) => ocupado(null, () => guardarBitacora((prop.bitacora || []).map((x) => (x.id === b.id ? { ...x, visible: e.target.checked } : x)))) }),
-				h('label', { class: 'form-check-label small', for: `vis-${b.id}` }, 'Visible para el propietario')),
+				h('label', { class: 'form-check-label small', for: `vis-${b.id}` }, `Visible para el ${quien}`)),
 			h('button', { class: 'btn btn-sm btn-link text-danger p-0 align-self-center', type: 'button', 'aria-label': 'Borrar entrada', onclick: async () => {
 				if (!(await confirmDialog('¿Borrar esta entrada de la bitácora?', { okText: 'Borrar' }))) return;
 				ocupado(null, () => guardarBitacora((prop.bitacora || []).filter((x) => x.id !== b.id)));
@@ -403,7 +442,7 @@ function seccionPortal(prop, propiedades) {
 		const texto = fTexto.value.trim();
 		if (!texto) return toast('Escribe qué pasó.', 'warning');
 		const entrada = { id: Math.random().toString(36).slice(2, 10), fecha: fFecha.value || hoy(), tipo: fTipo.value, texto, propertyId: fProp ? fProp.value : '', visible: fVisible.checked };
-		ocupado(e.submitter, async () => { await guardarBitacora([...(prop.bitacora || []), entrada]); fTexto.value = ''; toast(prop.portalToken ? 'Agregado a la bitácora y portal actualizado.' : 'Agregado a la bitácora.'); });
+		ocupado(e.submitter, async () => { await guardarBitacora([...(prop.bitacora || []), entrada]); fTexto.value = ''; toast('Agregado a la bitácora.'); });
 	} },
 		h('div', { class: 'col-6 col-md-3' }, h('label', { class: 'form-label small', for: 'bit-fecha' }, 'Fecha'), fFecha),
 		h('div', { class: 'col-6 col-md-3' }, h('label', { class: 'form-label small', for: 'bit-tipo' }, 'Tipo'), fTipo),
@@ -411,7 +450,7 @@ function seccionPortal(prop, propiedades) {
 		h('div', { class: 'col-12' }, h('label', { class: 'form-label small', for: 'bit-texto' }, 'Qué pasó'), fTexto,
 			h('div', { class: 'form-text' }, 'No escribas nombres ni teléfonos de clientes.')),
 		h('div', { class: 'col-12 d-flex flex-wrap gap-3 align-items-center justify-content-between' },
-			h('div', { class: 'form-check mb-0' }, fVisible, h('label', { class: 'form-check-label', for: 'bit-visible' }, 'Visible para el propietario')),
+			h('div', { class: 'form-check mb-0' }, fVisible, h('label', { class: 'form-check-label', for: 'bit-visible' }, `Visible para el ${quien}`)),
 			h('button', { class: 'btn btn-primary', type: 'submit' }, 'Agregar a la bitácora')));
 
 	// Próximo paso.
@@ -421,17 +460,17 @@ function seccionPortal(prop, propiedades) {
 		ocupado(e.submitter, async () => {
 			prop.proximoPaso = fPaso.value.trim();
 			await updateDoc(doc(db, 'propietarios', prop.id), { proximoPaso: prop.proximoPaso, updatedAt: serverTimestamp() });
-			await refrescar(true);
+			await refrescar();
 			toast('Próximo paso guardado.');
 		});
-	} }, h('div', { class: 'flex-grow-1', style: 'min-width: 14rem' }, h('label', { class: 'form-label small', for: 'portal-paso' }, 'Próximo paso (lo ve el propietario)'), fPaso),
+	} }, h('div', { class: 'flex-grow-1', style: 'min-width: 14rem' }, h('label', { class: 'form-label small', for: 'portal-paso' }, `Próximo paso (lo ve el ${quien})`), fPaso),
 	h('button', { class: 'btn btn-outline-primary', type: 'submit' }, 'Guardar paso'));
 
 	// Comentarios de visitas (de la agenda): texto aparte, sin datos del cliente.
 	async function pintarVisitas() {
 		listaVis.replaceChildren(h('div', { class: 'small text-muted' }, 'Cargando visitas…'));
 		try {
-			const vis = (await visitasDe(prop)).sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0)).slice(0, 20);
+			const vis = (await visitasDe(ids)).sort((a, b) => (b.fecha?.seconds || 0) - (a.fecha?.seconds || 0)).slice(0, 20);
 			if (!vis.length) { listaVis.replaceChildren(h('div', { class: 'small text-muted' }, 'No hay visitas en la agenda para estas propiedades. Las visitas se registran desde la ficha del cliente (tipo «Visita»).')); return; }
 			listaVis.replaceChildren(...vis.map((a) => {
 				const txt = h('textarea', { class: 'form-control form-control-sm', rows: 2, maxlength: 600, id: `vc-${a.id}`, placeholder: 'Ej.: Les gustó la cocina; preguntaron por el parqueo de visitas.' }, a.comentarioPropietario || '');
@@ -440,14 +479,14 @@ function seccionPortal(prop, propiedades) {
 					e.preventDefault();
 					ocupado(e.submitter, async () => {
 						await updateDoc(doc(db, 'actividades', a.id), { comentarioPropietario: txt.value.trim(), visiblePropietario: chk.checked });
-						await refrescar(true);
+						await refrescar();
 						toast('Comentario guardado.');
 					});
 				} },
 				h('div', { class: 'small text-muted mb-1' }, `${formatDate(a.fecha)} · ${titulo[a.pid] || ''}${a.hecha ? ' · hecha' : ''}`),
-				h('label', { class: 'visually-hidden', for: `vc-${a.id}` }, 'Comentario para el propietario'), txt,
+				h('label', { class: 'visually-hidden', for: `vc-${a.id}` }, `Comentario para el ${quien}`), txt,
 				h('div', { class: 'd-flex flex-wrap gap-2 align-items-center justify-content-between mt-2' },
-					h('div', { class: 'form-check mb-0' }, chk, h('label', { class: 'form-check-label small', for: `vv-${a.id}` }, 'Visible para el propietario')),
+					h('div', { class: 'form-check mb-0' }, chk, h('label', { class: 'form-check-label small', for: `vv-${a.id}` }, `Visible para el ${quien}`)),
 					h('button', { class: 'btn btn-sm btn-outline-primary', type: 'submit' }, 'Guardar comentario')));
 			}));
 		} catch (err) { listaVis.replaceChildren(h('div', { class: 'small text-danger' }, 'No se pudieron cargar las visitas.')); console.error(err); }
@@ -468,25 +507,24 @@ function seccionPortal(prop, propiedades) {
 					c.tipo === 'aprobado' ? badge('Aprobó el anuncio', 'success') : badge('Pidió cambios', 'warning'),
 					`${formatDate(c.fecha)}${c.propiedadId && misProps.length > 1 ? ` · ${titulo[c.propiedadId] || ''}` : ''}`),
 				c.texto ? h('div', { class: 'mt-1', style: 'white-space: pre-line' }, c.texto) : null))
-				: [h('div', { class: 'list-group-item text-muted small' }, 'El propietario todavía no ha respondido sobre el anuncio.')]));
+				: [h('div', { class: 'list-group-item text-muted small' }, `El ${quien} todavía no ha respondido sobre el anuncio.`)]));
 		}, (err) => { listaCom.replaceChildren(h('div', { class: 'list-group-item small text-danger' }, `No se pudieron cargar los comentarios (${err?.code || err?.message || 'error'}).`)); console.error(err); });
 	}
 
-	pintarEstado();
+	pintarAcceso();
 	pintarBitacora();
 	pintarVisitas();
 	pintarComentarios();
 	return h('div', { class: 'card mt-4', id: 'portal-propietario' },
-		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h5 mb-0' }, 'Portal del propietario')),
+		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h5 mb-0' }, 'Su panel')),
 		h('div', { class: 'card-body d-grid gap-4' },
 			h('div', { class: 'd-grid gap-2' },
-				h('p', { class: 'text-muted small mb-0' }, 'El propietario ve el estado, los días en el mercado, cuántas consultas, visitas y ofertas hubo, cómo se anuncia (título, precio, datos, descripción y fotos), el historial de precio, los portales, lo que marques como visible y la lista de clientes interesados como «Cliente 1, 2…» (solo cómo llegaron, fechas, visitas y etapa; nunca nombres, teléfonos ni correos). El portal se actualiza solo cuando cambias la propiedad, una visita o la etapa de un cliente. Entra con el enlace privado o con su correo, sin contraseña, y puede dejarte comentarios si quiere cambios.'),
-				!prop.email ? h('div', { class: 'alert alert-info small mb-0' }, 'Agrega el correo del propietario (arriba) para que también pueda entrar con su correo.') : null,
-				estadoEl, botones),
+				h('p', { class: 'text-muted small mb-0' }, `Con su correo y su contraseña, el ${quien} entra al panel a «Mis propiedades». De cada casa en venta o renta ve el estado, los días en el mercado, las consultas, visitas y ofertas, cómo se anuncia (y lo aprueba o pide cambios), el historial de precio, lo que marques como visible y los clientes interesados como «Cliente 1, 2…» (nunca nombres, teléfonos ni correos). Sus casas por noche las atiende ahí mismo. Se actualiza solo cuando cambias la propiedad, una visita o la etapa de un cliente.`),
+				acceso),
 			formPaso,
-			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta del propietario al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su portal. Lo más nuevo arriba.'), listaCom),
+			h('div', {}, h('h3', { class: 'h6' }, 'Respuesta al anuncio'), h('p', { class: 'small text-muted' }, 'Si aprobó cómo se anuncia o los cambios que pidió desde su panel. Lo más nuevo arriba.'), listaCom),
 			h('div', {}, h('h3', { class: 'h6' }, 'Bitácora del asesor'), formBit, listaBit),
-			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribe un comentario para el propietario y márcalo como visible. No escribas el nombre del cliente.'), listaVis)));
+			h('div', {}, h('h3', { class: 'h6' }, 'Comentarios de visitas'), h('p', { class: 'small text-muted' }, 'Escribí un comentario para el dueño y marcalo como visible. No escribas el nombre del cliente.'), listaVis)));
 }
 
 export async function render(container, [id]) {

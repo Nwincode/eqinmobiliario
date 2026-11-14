@@ -410,6 +410,11 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
+/* Tres indicadores en una fila angosta (resumen de una casa del dueño): en celular el ícono va arriba del nombre,
+   para que el nombre quepa entero. */
+@media (max-width: 575.98px) {
+	.stat-envuelve .stat-label [class^="icon-"] { display: block; margin-bottom: 2px; }
+}
 a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));
 	transform: translateY(-1px);
@@ -1078,11 +1083,6 @@ a.stat-card:hover {
 .gap-5 { gap: 3rem !important; }
 /* d-grid tampoco viene en 5.0.0-alpha2 (sin ella, gap-* no separa las pilas de d-grid). */
 .d-grid { display: grid !important; }
-
-/* Portal del propietario: en celular los botones van parejos, dos por fila. */
-@media (max-width: 575.98px) {
-	.portal-botones > .btn { flex: 1 1 calc(50% - .25rem); }
-}
 
 /* El panel carga Bootstrap 5.0.0-alpha2, que aún usaba nombres anteriores (mr-/ml-, text-right…).
    Equivalencias de las utilidades de Bootstrap 5 que usan las vistas. */
@@ -3674,7 +3674,15 @@ a.stat-card:hover {
 .card-header .card-header-ver { margin: -10px -8px -10px auto; }
 .pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }
 
-/* Mis casas (socio): barra de acciones de los días elegidos en el calendario. */
+/* Mis propiedades (dueño): foto principal de una casa en venta o renta (resumen-casa.js). */
+.mc-foto {
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	border-radius: var(--eq-radius);
+	font-size: 32px;
+}
+/* Mis propiedades (dueño): barra de acciones de los días elegidos en el calendario. */
 .mc-barra {
 	padding: 8px 12px;
 	border-radius: var(--eq-radius);

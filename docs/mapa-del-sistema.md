@@ -8,7 +8,7 @@ Las rutas son desde la raíz del repositorio.
 
 | Parte | Dónde | Qué es |
 |---|---|---|
-| Panel | `admin/` | Lo que usan el equipo y los socios. Lee y escribe Firestore con el SDK (`admin/js/firebase.js`). |
+| Panel | `admin/` | Lo que usan el equipo y los dueños (propietarios y colaboradores). Lee y escribe Firestore con el SDK (`admin/js/firebase.js`). |
 | Sitio público | `scripts/` genera `dist/`; `js/` y `css/` corren en el navegador del visitante | HTML estático. Solo lo público de Firestore, por REST. |
 | Funciones | `netlify/functions/` y `netlify/lib/` | Correos, IA, disponibilidad, Search Console. Leen Firestore con la cuenta de servicio (solo lectura). |
 | Datos y permisos | `firestore.rules`, `storage.rules` | Se publican **a mano** en la consola de Firebase. Unir código y publicar reglas van juntos. |
@@ -19,14 +19,16 @@ Las rutas son desde la raíz del repositorio.
 - `admin/js/views/*.js`: una pantalla por archivo.
   - Inventario: `properties.js`, `importar.js`, `listado.js` (PDF), `difusion.js`.
   - Clientes: `leads.js`, `clientes.js`, `agenda.js`, `propietarios.js` (propietario, socio o colaborador).
-  - Renta vacacional: `solicitudes.js` (solicitudes y chat), `rentas.js` (reservas y estado de cuenta), `mis-casas.js` (pantalla del socio).
+  - Renta vacacional: `solicitudes.js` (solicitudes y chat), `rentas.js` (reservas y estado de cuenta).
+  - Panel del dueño: `mis-casas.js` («Mis propiedades»: sus casas por noche las edita; las de venta y renta, solo lectura con `resumen-casa.js`).
   - Herramientas: `calculadora.js`, `cotizacion.js`, `ia.js`, `google.js`, `reportes.js`.
   - Sitio web: `content.js` (textos, colores, zonas), `pages.js`, `blog.js`, `agents.js`, `testimonials.js`, `publish.js`, `users.js`, `dashboard.js`.
 - Piezas que usan todas las pantallas (cambiar aquí cambia todo el panel):
   - `form.js`: formularios desde un esquema (tipos de campo, `when`, `required`). Tipo `telefono` = código + número. Un bloque `custom` dentro de una lista recibe su elemento.
   - `ui.js`: `h`, `modal`, `toast`, `badge`, `iconoBtn`, `cajaTabla`, `emptyState`.
   - `tablas.js` + `admin/admin.css`: tablas que pasan a fichas bajo 1200 px.
-  - `session.js`: usuario, rol (`isAdmin`, `esSocio`, `agentId`), `markPending`.
+  - `session.js`: usuario, rol (`isAdmin`, `esSocio`, `agentId`, `rolVisible`), `markPending`; del dueño, `cargarMiResumen` y `misCasas`.
+  - `duenos.js` (puro): `esSocio`, `casasDe`, `etiquetaDueno`, `exclusivaHasta`, `datosDelDueno`. `ficha-casa.js`: ficha corta de una casa (`fichaCasa`, `datosDe`, `estadoExclusiva`). `acceso.js`: dar y quitar el acceso al panel de un dueño.
   - `crm.js`: cargas que respetan el rol (`loadPropietarios`, `loadPropiedades`, `loadReservas`).
   - `formato.js`: dinero, m², teléfonos, WhatsApp. **También lo usan el generador y las funciones.**
   - `estados.js`: estados de una propiedad y qué pasa en el sitio con cada uno.
@@ -66,14 +68,14 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 | Colección | Qué guarda | Anidado |
 |---|---|---|
 | `properties/{id}` | La propiedad (público si `publicado`). `propietarioId` = su dueño, socio o colaborador. | `privado/socio` (precio del socio, margen, iCal), `privado/llegada` (dirección y mapa de una casa por noche), `privado/acuerdo` (exclusiva, comisión e impuestos acordados con el dueño para ese inmueble), `bitacora/` |
-| `propietarios/{id}` | Una ficha por persona: contacto, `tipo` (propietario o colaborador, con `empresa`), `agentId` (el asesor que la ve) y la lista `propiedades`. Sin exclusiva ni comisión: eso es de cada inmueble. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. | — |
+| `propietarios/{id}` | Una ficha por persona: contacto, `tipo` (propietario o colaborador, con `empresa`), `agentId` (el asesor que la ve) y la lista `propiedades`. Sin exclusiva ni comisión: eso es de cada inmueble. Es socio de renta vacacional quien tiene casas por noche (`porNoche`; antes `tipo: socio`): `datosPago`, `email`. `acceso` = copia de si entra al panel. **Solo el equipo la lee.** | — |
 | `leads/{id}` | Lo que llega de los formularios. En una reserva: `reserva{}` y `solicitud{}`. **El socio no lo lee.** | — |
 | `chats/{token}` | Una reserva vista por el cliente: resumen, `estado`, vistos. El id es la llave del enlace. | `mensajes/` (`de`, `texto`, `tipo`: pago, llegada, foto; el de llegada lleva `direccion` y `mapa`) |
 | `reservas/{id}` | Reserva confirmada y su comisión. Sin teléfono del cliente. | — |
 | `clientes`, `actividades`, `requerimientos`, `cotizaciones`, `emisoresAsesor` | CRM y cotizaciones. | — |
 | `agents`, `testimonials`, `pages`, `posts` | Contenido del sitio. | — |
-| `portalPropietarios/{token}`, `comentariosPropietarios` | Portal del propietario. | — |
-| `users/{uid}` | Rol (`admin`, `asesor`, `socio`), `agentId`, `propietarioId`. | — |
+| `portalPropietarios/{id}`, `comentariosPropietarios` | Resumen del dueño (lo único suyo que lee de sí mismo: nombre, tipo, correo, teléfono, datos de pago y cómo va cada casa en venta o renta) y su respuesta al anuncio. | — |
+| `users/{uid}` | Rol (`admin`, `asesor`, `socio` = dueño: propietario o colaborador), `agentId`, `propietarioId`. | — |
 | `settings/site`, `settings/private`, `settings/crm`, `settings/cotizacion`, `meta/publish` | Configuración y aviso de cambios sin publicar. | — |
 
 Storage: fotos por dirección; `chats/{token}/…` = comprobantes del cliente.
@@ -88,7 +90,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Un campo nuevo de la propiedad** → `admin/js/views/properties.js` (`schema` y guardado) → `admin/js/pendientes-reglas.js` si es obligatorio → `scripts/lib/templates.mjs` si se muestra → `admin/js/seo-auto.js` y JSON-LD si importa a Google → `admin/js/views/importar.js` y `docs/formato-inventario-propiedades.md` si entra por CSV → `firestore.rules` solo si lo escribe alguien que no es del equipo.
 
-**Dueño del inmueble (propietario, socio, colaborador)** → `admin/js/views/propietarios.js` (`tipo`, lista de casas: `elegirCasa` es el selector con buscador y una ficha por inmueble (`fichaCasa`); crear y editar abren la ficha del inmueble en una ventana (`abrirFicha`); `vincularCasas`) ↔ `admin/js/views/properties.js` (`propietarioId`, enlace en ambos sentidos) → `admin/js/views/users.js` (usuario socio) → `firestore.rules` (`esSocioDe`) → `scripts/build.mjs` (mora: solo casas por noche).
+**Dueño del inmueble (propietario, socio, colaborador)** → `admin/js/views/propietarios.js` (`tipo`, lista de casas: `elegirCasa` es el selector con buscador y una ficha por inmueble (`fichaCasa`); crear y editar abren la ficha del inmueble en una ventana (`abrirFicha`); `vincularCasas`) ↔ `admin/js/views/properties.js` (`propietarioId`, enlace en ambos sentidos) → acceso al panel desde su ficha (ver «Panel del dueño») → `firestore.rules` (`esSocioDe`) → `scripts/build.mjs` (mora: solo casas por noche).
 
 **Precio de la renta por noche** → `js/calc-vacacional.js` (única fórmula) → `admin/js/views/properties.js` y `mis-casas.js` (precio del socio → precio público) → `js/vacacional.js` (desglose) → `netlify/functions/disponibilidad.mjs` (precio al día) → `scripts/test-vacacional.mjs`.
 
@@ -102,7 +104,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Qué se le pide a cada dueño** → `admin/js/views/propietarios.js` `operacionesDe` y `esSocio` (según sus casas, que pueden ser de las tres categorías en la misma ficha: con casas por noche, datos de pago; con venta o renta, el asesor que la atiende; sin casas todavía, nada de eso) → `admin/js/views/properties.js` (marca `porNoche` al guardar una casa por noche) → `admin/js/pendientes-reglas.js`.
 
-**Acuerdo con el dueño (exclusiva, comisión, impuestos), por inmueble** → `admin/js/acuerdo.js` (qué aplica a cada operación, herencia de lo que antes se guardaba en la persona, exclusivas por vencer; sin dependencias) → `admin/js/views/properties.js` (bloque «Acuerdo con el dueño»; `acuerdoPorGuardar` decide qué se escribe en `privado/acuerdo`; nunca va al documento público ni a `traducirEn` / `netlify/functions/ia.mjs`) → `admin/js/crm.js` `loadAcuerdos` → `admin/js/views/propietarios.js` (listado, fichas cortas, `migrarAcuerdos`) → `admin/js/views/dashboard.js` → `admin/js/portal.js` (solo la fecha va al portal) → `admin/js/views/cotizacion.js` → `netlify/lib/resumen.mjs` → `firestore.rules` (`privado`) → `scripts/test-acuerdo.mjs`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
+**Acuerdo con el dueño (exclusiva, comisión, impuestos), por inmueble** → `admin/js/acuerdo.js` (qué aplica a cada operación, herencia de lo que antes se guardaba en la persona, exclusivas por vencer; sin dependencias) → `admin/js/views/properties.js` (bloque «Acuerdo con el dueño»; `acuerdoPorGuardar` decide qué se escribe en `privado/acuerdo`; nunca va al documento público ni a `traducirEn` / `netlify/functions/ia.mjs`) → `admin/js/crm.js` `loadAcuerdos` → `admin/js/views/propietarios.js` (listado, fichas cortas, `migrarAcuerdos`) → `admin/js/views/dashboard.js` → `admin/js/portal.js` (solo la fecha de cada inmueble va al resumen del dueño, `exclusivaHasta` en `admin/js/duenos.js`) → `admin/js/views/cotizacion.js` → `netlify/lib/resumen.mjs` → `firestore.rules` (`privado`) → `scripts/test-acuerdo.mjs`. **Qué no aplica a una casa por noche** → `admin/js/views/properties.js` (`when: !esVacacional`: asesor, precio, VIP, mantenimiento) y `scripts/build.mjs` (les quita dirección, mapa y VIP).
 
 **«Hoy» de la renta por noche** → `js/calc-vacacional.js` `hoy()` (día de Guatemala; lo usan el sitio, el panel y las funciones) → `scripts/test-vacacional.mjs`.
 
@@ -120,6 +122,8 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Página nueva del sitio** → `scripts/lib/templates.mjs` → `scripts/build.mjs` (escribirla, sitemap, hreflang) → `scripts/lib/i18n.mjs` (rutas y textos) → `scripts/lib/assets.mjs` si lleva JavaScript propio.
 
+**Panel del dueño** (propietario o colaborador; un solo panel para las tres categorías) → acceso: `admin/js/acceso.js` `darAcceso` / `ponerAcceso` (única forma; la usan la ficha en `views/propietarios.js`, con las mismas condiciones en las dos (`motivoParaNoAbrir`: sin ficha, o sin casas por noche mientras `reglasNuevas()` diga que siguen las reglas de antes), y `users.js`, que solo los lista y apaga) → `admin/js/firebase.js` `createAccount` → `admin/js/app.js` (menú: Solicitudes solo con casas por noche; etiqueta con `etiquetaDueno`) → resumen: `admin/js/portal.js` `armarPortal` (casas con `casasDe`, sin las por noche; exclusiva por inmueble; `anuncioDe`; datos de la ficha con `datosDelDueno`) ← `refrescarPortalesDe` (propiedad, difusión, clientes, agenda), guardar la ficha y `avisoResumenes` al abrir Propietarios (cuenta los que faltan; `publicarPortal` reserva el id con una transacción y deja uno solo por persona) → `admin/js/session.js` `cargarMiResumen` (resumen; si las reglas viejas lo niegan, la ficha) → `admin/js/views/mis-casas.js` + `admin/js/resumen-casa.js` → `admin/js/views/solicitudes.js` (datos de pago al confirmar) → `firestore.rules` (`portalPropietarios`, `comentariosPropietarios`, `esSocioPorNoche` y `esSocioDeCasaPorNoche` en propiedades, privado, reservas, solicitudes y chat) → `scripts/lib/templates.mjs` `portalPage` (la página vieja `/propietarios/` lleva al panel) → `scripts/emulador/test-reglas.mjs` y `scripts/entorno/recorrido.mjs` (paso 8) → `docs/portal-propietarios.md`.
+
 **Sección nueva del panel** → `admin/js/views/<nombre>.js` → `admin/js/app.js` (`ROUTES`) → `firestore.rules` si usa una colección nueva.
 
 ## 7. Cómo se prueba
@@ -127,8 +131,8 @@ Cada cadena va en el orden en que conviene revisarla.
 - Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.
 - Reglas de Firestore: `npm run test:reglas` (`scripts/emulador/`: levanta el emulador limpio y corre los casos).
 - Entorno de pruebas completo (`scripts/entorno/`): `npm run entorno` levanta panel, sitio y funciones contra los emuladores
-  de Firebase (inicio de sesión, base con `firestore.rules`, fotos con `storage.rules`) con datos inventados y tres usuarios
-  de prueba; `npm run recorrido` hace la reserva por noche de punta a punta entrando al panel como administrador, socio y
+  de Firebase (inicio de sesión, base con `firestore.rules`, fotos con `storage.rules`) con datos inventados y usuarios
+  de prueba (administrador, asesor, socio y colaborador; a la dueña mixta le da acceso el recorrido); `npm run recorrido` hace la reserva por noche de punta a punta entrando al panel como administrador, socio y
   asesor, y como cliente. Los correos no se envían: quedan anotados. `levantar.sh publicar` hace lo que el botón Publicar.
 - Qué revisar antes de unir: `docs/revision-antes-de-unir.md`.
 - Sitio: `npm run build` y `npm run serve` (sirve `dist/`).

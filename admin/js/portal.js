@@ -1,17 +1,17 @@
-// Portal del propietario: arma una copia resumida (sin nombres ni teléfonos de clientes)
-// en portalPropietarios/{token}. El token es el enlace privado; regenerarlo revoca el anterior.
+// Resumen que ve el dueño (propietario o colaborador) en su panel: una copia sin nombres ni teléfonos de clientes
+// en portalPropietarios/{id}. La lee solo esa persona (con su usuario del panel) y el equipo; la arma el equipo.
+// Lleva lo que la persona necesita de su ficha (nombre, correo, teléfono, datos de pago) y, de cada casa en venta o
+// renta, cómo va. Las casas por noche no van aquí: el dueño las ve y las cambia en vivo (views/mis-casas.js).
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, collection, query, where, serverTimestamp, siteConfig, onSnapshot
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, siteConfig, onSnapshot, runTransaction
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
-import { acuerdoDe } from './acuerdo.js';
 import { telefonoWa } from './formato.js';
-import '/js/calc-vacacional.js';
 import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.js';
 import { portalesDe } from './difusion.js';
-import { slugify } from './ui.js';
 import { filasClientes, numerarClientes, combinarClientes, eventosAuto, fechaOferta } from './portal-clientes.js';
+import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, nuevoToken, enlaceSeguro } from './duenos.js';
 
 const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
 const DIA = 86400000;
@@ -25,38 +25,24 @@ export const TIPOS_BITACORA = [
 	['nota', 'Nota']
 ];
 
-// 32 bytes aleatorios en base64url: 43 caracteres, imposible de adivinar.
-export function nuevoToken() {
-	const b = crypto.getRandomValues(new Uint8Array(32));
-	return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-export const enlacePortal = (token) => `${SITE}/propietarios/#t=${token}`;
 
 const iso = (v) => { const t = ms(v); return t ? new Date(t).toISOString() : ''; };
-const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 const recorta = (s, n) => String(s || '').trim().slice(0, n);
 const num = (v) => Number(v) || 0;
 
 // Cómo se anuncia la propiedad: solo datos públicos de la ficha (nada interno).
-function anuncioDe(p, urlFicha, enActivo) {
-	const e = p.en || {};
-	const conIngles = enActivo && urlFicha && e.titulo && e.descripcion;
+function anuncioDe(p) {
 	return {
 		tipo: recorta(p.tipo, 40),
 		zona: recorta(p.zona, 100),
 		ciudad: recorta(p.ciudad, 100),
 		habitaciones: num(p.habitaciones),
 		banos: num(p.banos),
+		parqueos: num(p.parqueos),
 		m2Construccion: num(p.m2Construccion),
 		m2Terreno: num(p.m2Terreno),
 		descripcion: recorta(p.descripcion, 6000),
-		fotos: (p.fotos || []).map((f) => f && f.url).filter((u) => /^https:\/\//.test(u || '')).slice(0, 6),
-		en: conIngles ? {
-			titulo: recorta(e.titulo, 200),
-			descripcion: recorta(e.descripcion, 6000),
-			url: `${SITE}${p.vip ? '/en/luxury/' : '/en/property/'}${slugify(e.slug || e.titulo)}/`
-		} : null
+		fotos: (p.fotos || []).map((f) => enlaceSeguro(f && f.url)).filter(Boolean).slice(0, 6)
 	};
 }
 
@@ -87,9 +73,9 @@ async function consultasPorPropiedad(ids) {
 
 const contar = (fechas, ahora) => ({ total: fechas.length, d30: fechas.filter((t) => t && ahora - t <= 30 * DIA).length });
 
-// Actividades de visita de las propiedades de este propietario (con o sin comentario).
-export async function visitasDe(prop, { actividades, clientes } = {}) {
-	const ids = new Set((prop.propiedades || []).map((x) => x.propertyId).filter(Boolean));
+// Actividades de visita de estas casas (con o sin comentario).
+export async function visitasDe(casaIds, { actividades, clientes } = {}) {
+	const ids = new Set(casaIds.filter(Boolean));
 	const [acts, cls] = await Promise.all([actividades || loadActividades(), clientes || loadClientes()]);
 	const interes = Object.fromEntries(cls.map((c) => [c.id, c.interes || []]));
 	return acts.filter((a) => a.tipo === 'visita').map((a) => {
@@ -102,14 +88,25 @@ export async function visitasDe(prop, { actividades, clientes } = {}) {
 	}).filter(Boolean);
 }
 
-// Arma el documento resumido. Devuelve { datos, privado }: `datos` va al enlace público;
-// `privado` (números fijos de cada cliente y la última lista completa) se guarda solo en el
-// documento del propietario, que el público nunca lee. De los clientes solo van número de orden, canal, fechas y etapa
+// Casas de una persona que van al resumen (venta y renta): las de su lista y las que dicen ser suyas.
+export async function casasDelResumen(prop) {
+	const enLista = (prop.propiedades || []).map((x) => x.propertyId).filter(Boolean);
+	const [deLista, propias] = await Promise.all([
+		Promise.all(enLista.map(async (id) => { const s = await getDoc(doc(db, 'properties', id)).catch(() => null); return s?.exists() ? { id, ...s.data() } : null; })),
+		getDocs(query(collection(db, 'properties'), where('propietarioId', '==', prop.id))).then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })), () => [])
+	]);
+	const todas = [...deLista.filter(Boolean), ...propias.filter((c) => !enLista.includes(c.id))];
+	return casasDe(prop, todas).filter(vaAlResumen);
+}
+
+// Arma el documento resumido. Devuelve { datos, privado }: `datos` es lo que lee el dueño;
+// `privado` (números fijos de cada cliente y la última lista completa) se guarda solo en la
+// ficha de la persona, que el dueño no lee. De los clientes solo van número de orden, canal, fechas y etapa
 // (sin ids, nombres, teléfonos ni correos); de la bitácora, solo los textos marcados como visibles.
 export async function armarPortal(prop) {
-	const ids = [...new Set((prop.propiedades || []).map((x) => x.propertyId).filter(Boolean))];
-	const [props, agentes, consultas, actividades, clientes, site] = await Promise.all([
-		Promise.all(ids.map(async (id) => { const s = await getDoc(doc(db, 'properties', id)); return s.exists() ? { id, ...s.data() } : null; })),
+	const props = await casasDelResumen(prop);
+	const ids = props.map((p) => p.id);
+	const [agentes, consultas, actividades, clientes, site] = await Promise.all([
 		loadAgents(),
 		consultasPorPropiedad(ids),
 		loadActividades(),
@@ -118,10 +115,9 @@ export async function armarPortal(prop) {
 	]);
 	const ahora = Date.now();
 	// La exclusiva es de cada inmueble (privado/acuerdo); se calcula más abajo, ya con lo guardado la vez anterior.
-	const acuerdos = await loadAcuerdos(props.filter(Boolean));
+	const acuerdos = await loadAcuerdos(props);
 	const portales = portalesDe(site);
-	const enActivo = Boolean(site.en) && site.en.activo !== false;
-	const visitas = await visitasDe(prop, { actividades, clientes });
+	const visitas = await visitasDe(ids, { actividades, clientes });
 	const bitacora = (prop.bitacora || []).slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
 	const ag = agentes.find((a) => a.id === prop.agentId) || {};
 	// El asesor no lee los clientes ni las consultas de otros asesores: lo que no ve se toma de la copia privada.
@@ -129,10 +125,11 @@ export async function armarPortal(prop) {
 	const privadoAnterior = prop.portalPrivado || {};
 	const privado = {};
 
-	const propiedades = props.filter(Boolean).map((p) => {
+	const propiedades = props.map((p) => {
 		const est = estadoDe(p);
 		const merc = enMercado(p);
-		const bit = bitacora.filter((b) => !b.propertyId || b.propertyId === p.id || ids.length === 1);
+		// Solo lo de esta casa y lo anotado para «todas»: nunca lo de otra casa (tampoco de una por noche, que no va aquí).
+		const bit = bitacora.filter((b) => !b.propertyId || b.propertyId === p.id);
 		const vis = visitas.filter((a) => a.pid === p.id);
 		const hechas = vis.filter((a) => a.hecha || ms(a.fecha) < ahora);
 		const fechaBit = (tipo) => bit.filter((b) => b.tipo === tipo).map((b) => Date.parse(`${b.fecha}T12:00:00`) || 0);
@@ -162,12 +159,10 @@ export async function armarPortal(prop) {
 		const { lista: interesados, numeros } = numerarClientes(filas, ant.numeros);
 		let consultasN = contar((consultas[p.id] || []).map((l) => ms(l.createdAt)), ahora);
 		if (visibles && ant.consultas && ant.consultas.total > consultasN.total) consultasN = ant.consultas;
-		// Hasta cuándo va la exclusiva de esta casa. Si quien actualiza no puede leer su acuerdo (la lleva otro
-		// asesor), vale la fecha guardada la vez anterior: el portal no cambia según quién lo actualice.
-		const acuerdo = acuerdos[p.id] === undefined ? null : acuerdoDe(acuerdos[p.id], prop, p.operacion);
-		const exclusivaHasta = acuerdo ? (acuerdo.exclusiva && acuerdo.exclusivaFin) || '' : ant.exclusivaHasta || '';
+		// Hasta cuándo va la exclusiva de esta casa (si quien actualiza no lee su acuerdo, la de la vez anterior).
+		const exclusiva = exclusivaHasta(acuerdos[p.id], prop, p.operacion, ant.exclusivaHasta);
 		privado[p.id] = {
-			exclusivaHasta,
+			exclusivaHasta: exclusiva,
 			numeros,
 			clientes: Object.fromEntries(filas.map(({ id, ...f }) => [id, f])),
 			consultas: consultasN
@@ -175,7 +170,10 @@ export async function armarPortal(prop) {
 		return {
 			id: p.id,
 			titulo: recorta(p.titulo, 200),
-			foto: (p.fotos || [])[0]?.url || '',
+			// Solo la fecha (nunca la comisión ni los impuestos acordados), y la de esta casa.
+			exclusivaHasta: exclusiva,
+			anuncio: anuncioDe(p),
+			foto: enlaceSeguro((p.fotos || [])[0]?.url),
 			url: urlFicha,
 			operacion: p.operacion || 'venta',
 			estado: est.valor,
@@ -198,14 +196,11 @@ export async function armarPortal(prop) {
 	});
 
 	const datos = {
-		v: 2,
-		email: String(prop.email || '').trim().toLowerCase(),
+		v: VERSION_RESUMEN,
+		...datosDelDueno(prop),
 		agentId: prop.agentId || '',
 		propietarioId: prop.id,
-		nombre: primerNombre(prop.nombre),
 		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: telefonoWa(ag.whatsapp || ag.telefono), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
-		// Solo la fecha, y solo de lo que sigue en oferta y no ha vencido: la que vence primero.
-		exclusivaFin: props.filter((p) => p && seOfrece(p)).map((p) => privado[p.id]?.exclusivaHasta).filter((f) => f && f >= window.EQVacacional.hoy(ahora)).sort()[0] || '',
 		proximoPaso: recorta(prop.proximoPaso, 400),
 		propiedades,
 		updatedAt: serverTimestamp()
@@ -237,35 +232,63 @@ export async function borrarCopia(token) {
 	if ((await getDoc(ref)).exists()) await deleteDoc(ref);
 }
 
-// Publica (o actualiza) el portal. Crea el token la primera vez. Devuelve el token.
-export async function publicarPortal(prop, { regenerar = false } = {}) {
-	const anterior = prop.portalToken || '';
-	const token = regenerar || !anterior ? nuevoToken() : anterior;
-	const { datos, privado } = await armarPortal(prop);
-	await setDoc(doc(db, 'portalPropietarios', token), datos);
-	if (token !== anterior) {
-		// El enlace anterior se borra antes de guardar el nuevo: si falla, no queda abierto sin saberlo.
-		if (anterior) await borrarCopia(anterior);
-		await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: token, portalPrivado: privado, portalActualizado: serverTimestamp() });
-	} else {
-		await updateDoc(doc(db, 'propietarios', prop.id), { portalPrivado: privado, portalActualizado: serverTimestamp() });
-	}
-	prop.portalPrivado = privado;
-	prop.portalToken = token;
-	prop.portalActualizado = new Date();
-	return token;
+// Versión del resumen: la ficha la guarda (portalVersion) para saber a quién le falta rehacerlo (asegurarResumenes).
+export const VERSION_RESUMEN = 3;
+
+
+// Los resúmenes de una persona (el asesor solo puede buscar entre los suyos).
+async function resumenesDe(propietarioId) {
+	const filtros = [where('propietarioId', '==', propietarioId), ...(session.isAdmin ? [] : [where('agentId', '==', session.agentId || '-')])];
+	return (await getDocs(query(collection(db, 'portalPropietarios'), ...filtros))).docs.map((d) => d.id);
 }
 
-// Quita el acceso por completo (borra la copia y el token).
-export async function cerrarPortal(prop) {
-	// Sin .catch: si no se pudo borrar la copia, el enlace seguiría abierto y hay que avisar.
-	if (prop.portalToken) await borrarCopia(prop.portalToken);
-	await updateDoc(doc(db, 'propietarios', prop.id), { portalToken: '' });
-	prop.portalToken = '';
+// Publica (o actualiza) el resumen: uno solo por persona. Devuelve su id.
+// En esta pestaña, uno a la vez por persona (lo de fondo, un guardado y un refresco no se pisan).
+const enCurso = new Map();
+export function publicarPortal(prop) {
+	const turno = (enCurso.get(prop.id) || Promise.resolve()).catch(() => {}).then(() => publicarUno(prop));
+	enCurso.set(prop.id, turno);
+	turno.finally(() => { if (enCurso.get(prop.id) === turno) enCurso.delete(prop.id); }).catch(() => {});
+	return turno;
+}
+
+async function publicarUno(prop) {
+	const ref = doc(db, 'propietarios', prop.id);
+	// 1) El id se reserva en la ficha con una transacción, ANTES de escribir el resumen: si otra pestaña o persona
+	//    publica a la vez, la segunda ve el id ya reservado y lo usa (nunca dos ids para una persona).
+	//    El id de un resumen de una versión anterior fue un enlace que se mandó por WhatsApp y que abría sin contraseña;
+	//    el resumen nuevo lleva teléfono y datos de pago: nace con un id nuevo y el anterior se borra (paso 3).
+	const { token, anterior, privadoAnterior } = await runTransaction(db, async (tx) => {
+		const f = (await tx.get(ref)).data() || {};
+		if (f.portalToken && f.portalVersion === VERSION_RESUMEN) return { token: f.portalToken, anterior: '', privadoAnterior: f.portalPrivado };
+		const nuevo = nuevoToken();
+		tx.update(ref, { portalToken: nuevo, portalVersion: VERSION_RESUMEN });
+		return { token: nuevo, anterior: f.portalToken || '', privadoAnterior: f.portalPrivado };
+	});
+	// 2) El resumen. Si no se pudo escribir, la ficha deja de darlo por hecho (la próxima vez se rehace).
+	let privado;
+	try {
+		const armado = await armarPortal({ ...prop, portalPrivado: privadoAnterior || prop.portalPrivado });
+		privado = armado.privado;
+		await setDoc(doc(db, 'portalPropietarios', token), armado.datos);
+	} catch (err) {
+		await runTransaction(db, async (tx) => {
+			const f = (await tx.get(ref)).data() || {};
+			if (f.portalToken === token && !(await getDoc(doc(db, 'portalPropietarios', token)).catch(() => null))?.exists()) tx.update(ref, { portalVersion: deleteField() });
+		}).catch(() => {});
+		throw err;
+	}
+	await updateDoc(ref, { portalPrivado: privado, portalActualizado: serverTimestamp() });
+	// 3) Cualquier otro resumen de la misma persona se borra, menos el que la ficha tiene AHORA.
+	const ahora = (await getDoc(ref).catch(() => null))?.data()?.portalToken || token;
+	const otros = new Set([...(await resumenesDe(prop.id).catch(() => [])), anterior].filter((x) => x && x !== token && x !== ahora));
+	for (const id of otros) await borrarCopia(id).catch((err) => console.warn('Resumen viejo sin borrar', id, err));
+	Object.assign(prop, { portalPrivado: privado, portalToken: ahora, portalVersion: VERSION_RESUMEN, portalActualizado: new Date() });
+	return ahora;
 }
 
 // Actualización automática: cuando cambia una propiedad, una visita o la etapa de un cliente,
-// se vuelven a publicar los portales de los propietarios de esas propiedades.
+// se vuelven a publicar los resúmenes de los dueños de esas propiedades.
 // No bloquea la pantalla, junta varios cambios seguidos (1,5 s) y si falla solo avisa en la consola.
 // Lo pendiente se guarda en el navegador: si se cierra la pestaña antes, se publica al volver a entrar.
 const CLAVE_PENDIENTES = 'portal-pendientes';
@@ -284,7 +307,7 @@ function programar() {
 	guardarPendientes();
 	if (!pendientesRefresco.size && !clientesPendientes.size) return;
 	clearTimeout(temporizadorRefresco);
-	temporizadorRefresco = setTimeout(() => { refrescarAhora().catch((err) => console.warn('Portal del propietario: no se pudo actualizar.', err)); }, 1500);
+	temporizadorRefresco = setTimeout(() => { refrescarAhora().catch((err) => console.warn('Resumen del dueño: no se pudo actualizar.', err)); }, 1500);
 }
 
 export function refrescarPortalesDe(propertyIds) {
@@ -304,10 +327,11 @@ async function refrescarAhora() {
 			for (const a of acts) if (a.propertyId && cls.includes(a.clienteId)) ids.add(a.propertyId);
 			for (const c of await loadClientes().catch(() => [])) if (cls.includes(c.id)) (c.interes || []).forEach((x) => ids.add(x));
 		}
-		const propietarios = await loadPropietarios();
-		const tocados = propietarios.filter((p) => p.portalToken && (p.propiedades || []).some((x) => ids.has(x.propertyId)));
+		const [propietarios, casas] = await Promise.all([loadPropietarios(),
+			Promise.all([...ids].map((id) => getDoc(doc(db, 'properties', id)).then((s) => (s.exists() ? { id, ...s.data() } : { id }), () => ({ id }))))]);
+		const tocados = propietarios.filter((p) => p.portalToken && casasDe(p, casas).length);
 		for (const prop of tocados) {
-			try { await publicarPortal(prop); } catch (err) { console.warn(`Portal del propietario ${prop.id}: no se pudo actualizar.`, err); }
+			try { await publicarPortal(prop); } catch (err) { console.warn(`Resumen del dueño ${prop.id}: no se pudo actualizar.`, err); }
 		}
 	} catch (err) {
 		// No se pudo ni empezar: se deja pendiente para el próximo intento.

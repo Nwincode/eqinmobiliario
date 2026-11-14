@@ -1,16 +1,45 @@
 // Estado compartido de la sesión y ayudas comunes a todas las vistas.
 import {
-	db, doc, getDoc, getDocs, setDoc, collection, query, orderBy, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, serverTimestamp
 } from './firebase.js';
+import { datosDelDueno, etiquetaDueno } from './duenos.js';
 
 export const session = {
 	user: null,     // usuario de Firebase Auth
 	profile: null,  // documento users/{uid}: { nombre, rol, agentId, propietarioId, activo }
 	get isAdmin() { return this.profile && this.profile.rol === 'admin'; },
-	// Socio de rentas vacacionales: solo ve sus casas (precios y calendario).
+	// Dueño (propietario o colaborador; rol «socio»): solo ve lo suyo. Sus casas por noche las cambia él.
 	get esSocio() { return Boolean(this.profile && this.profile.rol === 'socio'); },
-	get agentId() { return (this.profile && this.profile.agentId) || ''; }
+	get agentId() { return (this.profile && this.profile.agentId) || ''; },
+	dueno: null,     // su resumen (cargarMiResumen), solo para el dueño
+	porNoche: false, // tiene al menos una casa por noche (Solicitudes, datos de pago)
+	get rolVisible() { return this.isAdmin ? 'Administrador' : this.esSocio ? etiquetaDueno(this.dueno?.tipo) : 'Asesor'; }
 };
+
+// ------------------------------------------------------------ Lo del dueño
+// Lo que el dueño lee de sí mismo vive en su resumen (portalPropietarios, lo arma el equipo: admin/js/portal.js).
+// Mientras las reglas nuevas no estén publicadas esa consulta se niega y vale su ficha (reglas de antes);
+// con las nuevas, la ficha se niega y vale el resumen. Así nada se rompe entre publicar el código y las reglas.
+export async function cargarMiResumen() {
+	const id = session.profile?.propietarioId || '-';
+	try {
+		// Uno por persona (publicarPortal borra los demás); si alguna vez quedaran dos, vale el más nuevo.
+		const s = await getDocs(query(collection(db, 'portalPropietarios'), where('propietarioId', '==', id)));
+		const r = s.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (Number(b.v) || 0) - (Number(a.v) || 0) || (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0))[0];
+		if (r) return r;
+	} catch { /* reglas de antes: sigue con la ficha */ }
+	try {
+		const s = await getDoc(doc(db, 'propietarios', id));
+		if (s.exists()) return { ...datosDelDueno(s.data()), propietarioId: id, propiedades: [], deFicha: true };
+	} catch { /* reglas nuevas sin resumen todavía */ }
+	return null;
+}
+
+// Sus casas, de las tres categorías: las que dicen ser suyas.
+export async function misCasas() {
+	const s = await getDocs(query(collection(db, 'properties'), where('propietarioId', '==', session.profile?.propietarioId || '-')));
+	return s.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
 
 let agentsCache = null;
 

@@ -14,7 +14,10 @@ const DIR = process.env.ENTORNO_DIR || `${process.env.TMPDIR || '/tmp'}/eq-entor
 const SITIO = `http://localhost:${process.env.PORT || 8090}`;
 const CLAVE = 'Pruebas-2026';
 const CAPTURAS = `${DIR}/capturas`;
+// Capturas del panel del dueño (lista y casa en venta, a 390 y 1280 px), para mirarlas.
+const PANEL = process.env.PANEL_DIR || `${CAPTURAS}/panel`;
 mkdirSync(CAPTURAS, { recursive: true });
+mkdirSync(PANEL, { recursive: true });
 
 let fallas = 0, n = 0;
 const paso = (nombre, bien, detalle = '') => { n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${nombre}${detalle ? ` · ${detalle}` : ''}`); };
@@ -23,13 +26,15 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 const navegador = await chromium.launch();
 // Una persona = un contexto. El SDK de Firebase del panel se sirve desde npm (misma versión) y las llamadas
 // del sitio a Google van a los emuladores; todo lo demás de fuera se corta.
-async function persona(ancho = 1280) {
+// { reglasViejas: true }: la base responde como con las reglas de antes a la prueba de reglasNuevas() (404).
+async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 } });
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
 	await p.route('**/*', async (r) => {
 		const u = r.request().url();
+		if (reglasViejas && u.includes('/portalPropietarios/prueba-reglas')) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
 		if (sdk) return r.fulfill({ path: `${DIR}/node_modules/firebase/${sdk[1]}`, contentType: 'text/javascript' });
 		if (u.startsWith('https://firestore.googleapis.com')) return r.fulfill({ response: await r.fetch({ url: u.replace('https://firestore.googleapis.com', 'http://127.0.0.1:8085') }) });
@@ -38,8 +43,8 @@ async function persona(ancho = 1280) {
 	});
 	return { p, errores };
 }
-async function entrar(rol) {
-	const x = await persona();
+async function entrar(rol, opciones) {
+	const x = await persona(1280, opciones);
 	await x.p.goto(`${SITIO}/admin/`);
 	await x.p.fill('#login-email', `${rol}@example.com`);
 	await x.p.fill('#login-pass', CLAVE);
@@ -89,6 +94,43 @@ paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y 
 await guardar(admin.p);
 const idCasa = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1];
 paso('La casa se guarda', Boolean(idCasa) && idCasa !== 'nuevo', await avisos(admin.p));
+// Al abrir Propietarios, quien ya entra al panel (o tiene casas por noche) recibe su resumen, con sus datos de pago:
+// de ahí los toma el socio al confirmar (ya no lee su ficha).
+await ir(admin.p, '#/propietarios', 1500);
+{
+	const FSr = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
+	const resumenDe = async (id) => (await (await fetch(`${FSr}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: id } } } } }) })).json()).find((x) => x.document)?.document?.fields || null;
+	let r = null;
+	for (let i = 0; i < 40 && !/123-456789-0/.test((r = await resumenDe('socio-prueba'))?.datosPago?.stringValue || ''); i++) await espera(500);
+	await espera(1500);
+	const viejo = await fetch(`${FSr}/portalPropietarios/PortalViejoDelSocioDePruebaLargoYAlAzar123`, { headers: { Authorization: 'Bearer owner' } });
+	const todos = (await (await fetch(`${FSr}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'socio-prueba' } } } } }) })).json()).filter((x) => x.document);
+	paso('Al abrir Propietarios, el resumen viejo del socio (portal de antes) se rehace con sus datos de pago, con un id nuevo; el enlace viejo deja de existir y queda uno solo',
+		/123-456789-0/.test(r?.datosPago?.stringValue || '') && !('notas' in (r || {})) && !('exclusivaFin' in (r || {})) && Number(r?.v?.integerValue) === 3 && viejo.status === 404 && todos.length === 1, `${viejo.status} · ${todos.length} resúmenes`);
+	await admin.p.locator('#aviso-reglas').waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+	paso('Con las reglas nuevas publicadas, el aviso de Propietarios se va solo al terminar de poner al día los resúmenes', await admin.p.locator('#aviso-reglas').isHidden());
+	// Dos publicaciones a la vez del mismo resumen viejo (dos pestañas: administrador y asesor) terminan en uno solo, al que apunta la ficha.
+	{
+		const deColab = async () => ((await (await fetch(`${FSr}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'portalPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'colab-prueba' } } } } }) })).json()).filter((x) => x.document).map((x) => x.document.name.split('/').pop()));
+		await fetch(`${FSr}/propietarios/colab-prueba?updateMask.fieldPaths=portalVersion`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { portalVersion: { integerValue: '2' } } }) });
+		const publicar = (p) => p.evaluate(async () => {
+			const fb = await import('/admin/js/firebase.js');
+			const m = await import('/admin/js/portal.js');
+			const s = await fb.getDoc(fb.doc(fb.db, 'propietarios', 'colab-prueba'));
+			return Promise.all([m.publicarPortal({ id: s.id, ...s.data() }), m.publicarPortal({ id: s.id, ...s.data() })]);
+		});
+		const otraPestana = await entrar('admin');
+		await Promise.all([publicar(admin.p), publicar(otraPestana.p)]);
+		await otraPestana.p.close();
+		await espera(1000);
+		const quedan = await deColab();
+		const ficha = (await (await fetch(`${FSr}/propietarios/colab-prueba`, { headers: { Authorization: 'Bearer owner' } })).json()).fields || {};
+		paso('Cuatro publicaciones a la vez (dos pestañas) del mismo resumen viejo: queda uno solo y la ficha apunta a él', quedan.length === 1 && ficha.portalToken?.stringValue === quedan[0] && Number(ficha.portalVersion?.integerValue) === 3, `${quedan.length} · ${quedan.join()} · ${ficha.portalToken?.stringValue}`);
+	}
+}
 await ir(admin.p, '#/propietarios/socio-prueba');
 paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
 
@@ -465,7 +507,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const enLista = await f('properties/leg-lista/privado/acuerdo');
 		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo', num(enLista.comisionPct) === 7, avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
-		const aviso = await admin.p.locator('.alert-warning').first().innerText().catch(() => '');
+		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
 		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
@@ -516,7 +558,156 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('«Duplicar» una casa por noche: borrador con URL y código propios, su privado copiado (sin el acuerdo) y en la lista del socio', fallo.length === 0, fallo.join(', '));
 }
 
-for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor]]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
+// ---------------------------------------------------------------- 8. Un solo panel por dueño
+const duenos = [];
+{
+	const AUTH = 'http://127.0.0.1:9099';
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const lado = (p) => p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	paso('El socio de antes entra como «Propietario»', (await socio.p.locator('.admin-user-role').innerText()) === 'Propietario');
+	// a) El administrador le da acceso desde su ficha: cuenta nueva, su usuario y el correo para poner la contraseña.
+	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
+	const darBtn = admin.p.locator('#acceso-panel button', { hasText: 'Dar acceso' });
+	await darBtn.waitFor({ timeout: 15000 }).catch(() => {});
+	paso('Con las reglas nuevas, «Dar acceso» está habilitado', await darBtn.isEnabled().catch(() => false));
+	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-sin-1280.png` });
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await admin.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-sin-390.png` });
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	await darBtn.click();
+	await admin.p.locator('#acceso-panel', { hasText: 'Entra con mixta@example.com' }).waitFor({ timeout: 20000 }).catch(() => {});
+	const usuarios = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: dueno, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: 'mixta@example.com' } } } } }) })).json();
+	const u = usuarios.find((x) => x.document)?.document?.fields || {};
+	const codigos = (await (await fetch(`${AUTH}/emulator/v1/projects/demo-eq/oobCodes`)).json()).oobCodes || [];
+	const oob = codigos.filter((c) => c.email === 'mixta@example.com' && c.requestType === 'PASSWORD_RESET').pop();
+	paso('«Dar acceso» desde la ficha: crea su cuenta y su usuario (rol de dueño, su ficha) y le manda el correo para poner su contraseña',
+		u.rol?.stringValue === 'socio' && u.propietarioId?.stringValue === 'dueno-mixto' && u.activo?.booleanValue === true && Boolean(oob), `${await avisos(admin.p)} · ${codigos.length} correos`);
+	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-con-1280.png` });
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await admin.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await admin.p.screenshot({ path: `${PANEL}/acceso-con-390.png` });
+	const ladoAcceso = await lado(admin.p);
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	paso('El bloque «Acceso al panel» sin scroll de lado a 390 px', ladoAcceso <= 0, String(ladoAcceso));
+	// Mientras las reglas de antes sigan publicadas: a quien no tiene casas por noche no se le abre la entrada,
+	// y Propietarios dice qué hacer y en qué orden.
+	const viejas = await entrar('admin', { reglasViejas: true });
+	duenos.push(['administrador con reglas de antes', viejas]);
+	await ir(viejas.p, '#/propietarios', 3000);
+	await viejas.p.locator('#aviso-reglas', { hasText: 'ya está al día' }).waitFor({ timeout: 30000 }).catch(() => {});
+	const aviso = await viejas.p.locator('#aviso-reglas').innerText().catch(() => '');
+	await viejas.p.screenshot({ path: `${PANEL}/reglas-viejas-aviso-1280.png` });
+	await ir(viejas.p, '#/propietarios/dueno-del-asesor', 3500);
+	const bloqueado = viejas.p.locator('#acceso-panel button', { hasText: 'Dar acceso' });
+	await bloqueado.waitFor({ timeout: 15000 }).catch(() => {});
+	const porque = await viejas.p.locator('#acceso-panel').innerText().catch(() => '');
+	await viejas.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
+	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-1280.png` });
+	await viejas.p.setViewportSize({ width: 390, height: 844 });
+	await espera(700); // el menú lateral termina de esconderse
+	await viejas.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
+	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-390.png` });
+	paso('Con las reglas de antes: aviso en Propietarios con el orden, y «Dar acceso» deshabilitado (con el porqué) para un dueño sin casas por noche',
+		/ya está al día/.test(aviso) && /publicar las reglas nuevas/.test(aviso) && /firebase deploy/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
+	await viejas.p.close();
+	// La contraseña la pone ella, con el enlace del correo (aquí, con el código que guarda el emulador).
+	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oobCode: oob?.oobCode, newPassword: CLAVE }) });
+	// b) Entra y ve sus dos casas.
+	const mixta = await entrar('mixta');
+	duenos.push(['dueña mixta', mixta]);
+	const menu = await mixta.p.locator('.admin-nav a').allInnerTexts();
+	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades y Solicitudes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
+		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.length === 2, menu.join(', '));
+	await ir(mixta.p, '#/mis-casas', 3000);
+	const listaMixta = await mixta.p.locator('.admin-main').innerText();
+	paso('«Mis propiedades» muestra su casa en venta y su casa por noche, sin notas internas', /Residencial San Antonio/.test(listaMixta) && /Casa por noche de la dueña mixta/.test(listaMixta) && !/NOTA INTERNA/.test(listaMixta));
+	await mixta.p.screenshot({ path: `${PANEL}/lista-1280.png`, fullPage: true });
+	// c) La casa en venta: solo lectura, con su exclusiva y la aprobación del anuncio.
+	await ir(mixta.p, '#/mis-casas/residencial-san-antonio', 3500);
+	const venta = await mixta.p.locator('.admin-main').innerText();
+	paso('La casa en venta se ve de solo lectura: consultas, visitas, ofertas, la exclusiva de esa casa y cómo se anuncia', /Consultas/.test(venta) && /Ofertas/.test(venta) && /Exclusiva hasta el 30 de junio de 2027/.test(venta)
+		&& /Cómo se anuncia/.test(venta) && await mixta.p.locator('.admin-main input[type=number]').count() === 0 && !/comisi/i.test(venta) && !/NOTA INTERNA/.test(venta), venta.replace(/\s+/g, ' ').slice(0, 160));
+	await mixta.p.screenshot({ path: `${PANEL}/venta-1280.png`, fullPage: true });
+	await mixta.p.locator('button', { hasText: 'Estoy de acuerdo' }).click();
+	await mixta.p.locator('.alert-success', { hasText: 'de acuerdo' }).waitFor({ timeout: 10000 }).catch(() => {});
+	const comentarios = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: dueno, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'comentariosPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'dueno-mixto' } } } } }) })).json();
+	paso('Aprueba el anuncio desde su panel y el asesor lo recibe', comentarios.some((x) => x.document?.fields?.tipo?.stringValue === 'aprobado' && x.document.fields.propiedadId?.stringValue === 'residencial-san-antonio'), await avisos(mixta.p));
+	// Lo que protege es la regla: ni su ficha (notas, bitácora) ni el acuerdo, aunque los pida a mano.
+	const prohibido = await mixta.p.evaluate(async () => {
+		const m = await import('/admin/js/firebase.js');
+		const intento = (ruta) => m.getDoc(m.doc(m.db, ...ruta)).then(() => 'leyó', (e) => e.code);
+		return [await intento(['propietarios', 'dueno-mixto']), await intento(['properties', 'residencial-san-antonio', 'privado', 'acuerdo'])];
+	});
+	paso('La dueña no puede leer su ficha interna ni el acuerdo de su casa', prohibido.every((x) => x === 'permission-denied'), prohibido.join(', '));
+	// d) Su casa por noche: cambia su precio, como siempre.
+	await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
+	await mixta.p.fill('#mc-base', '95');
+	await mixta.p.locator('#mc-base').dispatchEvent('change');
+	await espera(2500);
+	const neto = (await leer('properties/casa-noche-mixta/privado/socio')).fields?.precioBase || {};
+	paso('Cambia el precio de su casa por noche', Number(neto.doubleValue ?? neto.integerValue) === 95, await avisos(mixta.p));
+	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
+	await mixta.p.setViewportSize({ width: 390, height: 844 });
+	await ir(mixta.p, '#/mis-casas', 3000);
+	const lado1 = await lado(mixta.p);
+	await mixta.p.screenshot({ path: `${PANEL}/lista-390.png`, fullPage: true });
+	await ir(mixta.p, '#/mis-casas/residencial-san-antonio', 3500);
+	const lado2 = await lado(mixta.p);
+	await mixta.p.screenshot({ path: `${PANEL}/venta-390.png`, fullPage: true });
+	await mixta.p.setViewportSize({ width: 1280, height: 900 });
+	await ir(mixta.p, '#/mis-casas', 2500);
+	paso('Sin scroll de lado en «Mis propiedades» ni en la casa en venta (390 y 1280 px)', lado1 <= 0 && lado2 <= 0 && await lado(mixta.p) <= 0, `${lado1} ${lado2}`);
+	// f) Un colaborador: la misma entrada, con su nombre, y solo lo suyo.
+	const colab = await entrar('colab');
+	duenos.push(['colaborador', colab]);
+	await ir(colab.p, '#/mis-casas', 3000);
+	const deColab = await colab.p.locator('.admin-main').innerText();
+	const ajeno = await colab.p.evaluate(async () => {
+		const m = await import('/admin/js/firebase.js');
+		return m.getDocs(m.query(m.collection(m.db, 'portalPropietarios'), m.where('propietarioId', '==', 'dueno-mixto'))).then(() => 'leyó', (e) => e.code);
+	});
+	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes) y no lee el resumen de otra persona',
+		(await colab.p.locator('.admin-user-role').innerText()) === 'Colaborador' && /Jardines de Mirabel/.test(deColab) && !/San Antonio|dueña mixta/.test(deColab)
+		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
+	// g) El asesor (no lee los usuarios) ve si entra, también después de guardar la ficha; quitar el acceso cierra la entrada.
+	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
+	await guardar(admin.p);
+	await ir(asesor.p, '#/propietarios/dueno-mixto', 3000);
+	const vistaAsesor = await asesor.p.locator('#acceso-panel').innerText().catch(() => '');
+	paso('El asesor ve que la dueña entra al panel (aun después de guardar su ficha), sin botones para darlo o quitarlo', /Entra con mixta@example\.com/.test(vistaAsesor) && /pedíselo al administrador/.test(vistaAsesor)
+		&& await asesor.p.locator('#acceso-panel button').count() === 0, vistaAsesor.replace(/\s+/g, ' '));
+	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
+	await admin.p.locator('#acceso-panel button', { hasText: 'Quitar acceso' }).click();
+	await admin.p.locator('.modal.show button', { hasText: 'Quitar acceso' }).last().click();
+	await admin.p.locator('#acceso-panel button', { hasText: 'Devolver acceso' }).waitFor({ timeout: 10000 }).catch(() => {});
+	const sinAcceso = await persona();
+	await sinAcceso.p.goto(`${SITIO}/admin/`);
+	await sinAcceso.p.fill('#login-email', 'mixta@example.com');
+	await sinAcceso.p.fill('#login-pass', CLAVE);
+	await sinAcceso.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	const cerrado = await sinAcceso.p.locator('.auth-card', { hasText: 'desactivado' }).innerText({ timeout: 15000 }).catch(() => '');
+	await admin.p.locator('#acceso-panel button', { hasText: 'Devolver acceso' }).click();
+	await admin.p.locator('#acceso-panel button', { hasText: 'Quitar acceso' }).waitFor({ timeout: 10000 }).catch(() => {});
+	const activoOtraVez = (await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: dueno, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: 'mixta@example.com' } } } } }) })).json()).find((x) => x.document)?.document?.fields?.activo?.booleanValue;
+	paso('Con el acceso quitado, al entrar le dice que está desactivado; «Devolver acceso» la deja entrar otra vez', /desactivado/.test(cerrado) && activoOtraVez === true, cerrado.replace(/\s+/g, ' ').slice(0, 100));
+	// h) La página vieja de los enlaces de WhatsApp lleva al panel.
+	const vieja = await persona(390);
+	duenos.push(['visitante de la página vieja', vieja]);
+	await vieja.p.goto(`${SITIO}/propietarios/#t=EnlaceViejoDeWhatsAppLargoYAlAzar1234`);
+	await espera(800);
+	const textoVieja = await vieja.p.locator('main, body').first().innerText();
+	paso('La página vieja /propietarios/ dice que el portal ahora es el panel, con el botón y el WhatsApp para pedir acceso, sin scroll de lado',
+		/Tu portal ahora es tu panel/.test(textoVieja) && await vieja.p.locator('a[href="/admin/"]').count() === 1 && await vieja.p.locator('a[href*="wa.me"]', { hasText: 'Pedir mi acceso' }).count() === 1
+		&& /noindex/.test(await vieja.p.content()) && await lado(vieja.p) <= 0);
+	await vieja.p.screenshot({ path: `${PANEL}/pagina-vieja-390.png`, fullPage: true });
+}
+
+for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();

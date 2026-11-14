@@ -32,6 +32,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   entiende, qué problema le ve, qué alternativa propone y cuál recomienda, y lo acuerdan entre los dos. Si no
   está de acuerdo, lo dice con su razón. Si ve que varios pedidos seguidos atacan síntomas del mismo problema,
   para y lo señala. Los cambios sencillos y claros se hacen de una vez.
+- Claude propone ideas por su cuenta: cuando ve una carencia en la programación (algo que falta, que le da
+  trabajo de más al usuario o a sus clientes, o que podría fallar), la dice con una propuesta concreta y para
+  qué le sirve al usuario. La propone, no la programa sin acordarla; lo pequeño y claro sí se hace de una vez.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - La compactación del contexto es automática (autocompact); no se hace a mano. Antes de que ocurra:
   commit y push de lo hecho. Se sigue en el mismo chat.

@@ -130,6 +130,10 @@ const ES = {
 	blogTitulo: 'Blog inmobiliario', blogDesc: 'Consejos para comprar, vender y rentar propiedades en Guatemala: financiamiento, zonas, trámites y tendencias del mercado.',
 	blogLead: '¿Buscas una propiedad? Te asesoramos sin costo', masArticulos: 'Más artículos',
 	noEncontrada: 'Página no encontrada', noExiste: 'La página que buscas no existe o la propiedad ya no está disponible.', verPropiedades: 'Ver propiedades',
+	duenosTitulo: 'Propietarios y colaboradores', duenosLead: 'Tu portal ahora es tu panel',
+	duenosTexto: 'Lo que veías aquí (cómo va tu propiedad, consultas, visitas y ofertas) ahora está en tu panel, junto con todas tus propiedades. Entrás con tu correo y tu contraseña.',
+	duenosEntrar: 'Entrar a mi panel', duenosPrimeraVez: '¿Primera vez? Pedile el acceso a tu asesor: te llega un correo para poner tu contraseña.',
+	duenosPedir: 'Pedir mi acceso', duenosMsgWa: 'Hola, quiero el acceso a mi panel de propietario.',
 	otroIdioma: 'EN', otroIdiomaLabel: 'View this page in English',
 	// Mensajes que muestra el navegador (formularios, búsqueda, calculadora)
 	jsErrorDatos: 'Escribe tu nombre y un teléfono válido.',
@@ -249,6 +253,10 @@ const EN = {
 	blogTitulo: 'Guatemala real estate blog', blogDesc: 'Guides for US buyers: owning property in Guatemala as a foreigner, buying remotely, costs, areas and financing.',
 	blogLead: 'Looking for a home in Guatemala? Get free advice', masArticulos: 'More articles',
 	noEncontrada: 'Page not found', noExiste: "The page you're looking for doesn't exist or the property is no longer available.", verPropiedades: 'View properties',
+	duenosTitulo: 'Owners and partner agents', duenosLead: 'Your portal is now your dashboard',
+	duenosTexto: 'What you used to see here (how your property is doing, inquiries, showings and offers) is now in your dashboard, together with all your properties. Sign in with your email and your password.',
+	duenosEntrar: 'Go to my dashboard', duenosPrimeraVez: 'First time? Ask your agent for access: you will get an email to set your password.',
+	duenosPedir: 'Ask for access', duenosMsgWa: 'Hi, I would like access to my owner dashboard.',
 	otroIdioma: 'ES', otroIdiomaLabel: 'Ver esta página en español',
 	jsErrorDatos: 'Please enter your name and a valid phone number.',
 	jsGracias: 'Thank you! We received your request and an advisor will contact you shortly.',
@@ -277,7 +285,8 @@ export const GRUPOS_TEXTOS = [
 	['Calculadora de renta', ['rentaTitulo', 'rentaIntro', 'rentaPrecio', 'rentaMensual', 'rentaMoneda', 'rentaUso', 'rentaHabitacional', 'rentaMixto', 'rentaComercial', 'rentaSugerida', 'rentaSupuestos', 'rentaVacancia', 'rentaGastos', 'rentaPlazoContrato', 'rentaPlazoAnio', 'rentaPlazoAnios', 'rentaNetoMensual', 'rentaRendNeto', 'rentaRendBruto', 'rentaEscenarios', 'rentaEscRenta', 'rentaEscNeto', 'rentaEscRend', 'rentaMenos10', 'rentaActual', 'rentaMas10', 'rentaVacio', 'rentaDesgloseTitulo', 'rentaDBruta', 'rentaDVacancia', 'rentaDEfectivo', 'rentaDGastos', 'rentaDIusi', 'rentaDComision', 'rentaDExento', 'rentaDIsr', 'rentaDIvaPeq', 'rentaDIvaGen', 'rentaDNeto', 'rentaDNetoMes', 'rentaIva', 'rentaNota', 'rentaAviso', 'rentaCta', 'rentaListo', 'rentaResumen', 'rentaPagTitulo', 'rentaPagMeta', 'rentaPagDesc', 'rentaPagLead', 'rentaPagForm', 'rentaPagFormTexto', 'rentaLink']],
 	['Renta vacacional', ['vlBuscar', 'vlComo', 'vlPaso1', 'vlPaso2', 'vlPaso3', 'vlSinCasas', 'vacTitulo', 'vacPorNoche', 'vacImpuestos', 'vacCalendario', 'vacMesAnterior', 'vacMesSiguiente', 'vacLlegada', 'vacSalida', 'vacCheckIn', 'vacCheckOut', 'vacSinFecha', 'vacHuespedes', 'vacHuesped1', 'vacHuespedesN', 'vacMinimo', 'vacOcupado', 'vacLlegadaElegida', 'vacSalidaElegida', 'vacNoDisponible', 'vacEligeLlegada', 'vacEligeSalida', 'vacNoche1', 'vacNochesN', 'vacLimpieza', 'vacIva', 'vacInguat', 'vacTotal', 'vacDeposito', 'vacDepositoNota', 'vacVerNoches', 'vacBorrar', 'vacPausada', 'vacSolicitar', 'vacSinCobro', 'vacErrFechas', 'vacErrOcupada', 'vacErrMinimo', 'vacErrPasado', 'vacResumen', 'vacCodigo', 'vacReservar', 'fHuespedesMax', 'fNochesMin', 'fCamas', 'fMascotas', 'fLimpieza', 'vacAntes', 'vacMascotasSi', 'vacMascotasNo', 'vacComoLlegar', 'vacReglas', 'vacReglasGenerales', 'vacCancelacion', 'vacCancelacionGeneral']],
 	['Propiedades VIP', ['vipTitulo', 'vipDesc', 'vipIntro', 'vipPronto', 'contactanos', 'paraConocerlas', 'masVip', 'propiedadExclusiva', 'hablarAsesor', 'agendarPrivada', 'laPropiedad', 'unica', 'galeria', 'recorre', 'verFoto', 'galeriaFotos', 'enMovimiento', 'todoIncluye', 'visitaPrivada', 'vipContactoTexto']],
-	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']]
+	['Blog y página no encontrada', ['blog', 'blogTitulo', 'blogDesc', 'blogLead', 'blogPronto', 'leerMas', 'masArticulos', 'noEncontrada', 'noExiste', 'verPropiedades']],
+	['Página de propietarios', ['duenosTitulo', 'duenosLead', 'duenosTexto', 'duenosEntrar', 'duenosPrimeraVez', 'duenosPedir', 'duenosMsgWa']]
 ];
 
 // Valores originales, para mostrarlos en el panel como referencia.

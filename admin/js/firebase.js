@@ -6,7 +6,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
 	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
-	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot, connectFirestoreEmulator
+	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot, runTransaction, connectFirestoreEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
 	getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator
@@ -26,6 +26,8 @@ export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : n
 // Entorno de pruebas local (scripts/entorno/): si la configuración trae «emuladores», el panel habla con
 // los emuladores de Firebase en esta máquina y no con la base real. El site.config.json del repositorio no los trae.
 const emuladores = siteConfig.emuladores;
+// La base por REST, sin sesión (lo mismo que ve un visitante): la real o, en el entorno de pruebas, el emulador.
+export const firestoreRest = `${emuladores ? `http://${emuladores.firestore}` : 'https://firestore.googleapis.com'}/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
 const conAuthLocal = (a) => connectAuthEmulator(a, `http://${emuladores.auth}`, { disableWarnings: true });
 if (app && emuladores) {
 	conAuthLocal(auth);
@@ -51,6 +53,6 @@ export {
 	onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
-	serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot,
+	serverTimestamp, writeBatch, arrayUnion, deleteField, Timestamp, onSnapshot, runTransaction,
 	ref, uploadBytes, getDownloadURL, deleteObject
 };

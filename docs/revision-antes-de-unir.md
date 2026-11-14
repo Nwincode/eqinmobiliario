@@ -42,6 +42,8 @@ agrega aquí en el mismo cambio que lo corrige.
 | El socio se escribía tres veces (casa, propietario, usuario). | Lo que ya está guardado no se vuelve a pedir: se elige o se rellena solo. |
 | Se programó de nuevo algo que ya existía. | Buscar primero si ya existe (CSS sobre todo) y reutilizarlo. |
 | Para crear una casa desde la ficha de su dueño se hizo una ventana corta aparte de la ficha del inmueble: le faltaban fotos, editar y eliminar. | Una sola pieza por cada fin. Si hace falta en otro lugar, se abre ahí la que ya existe (`abrirFicha`), no una versión reducida. |
+| Un dueño con casas por noche y en venta tenía dos entradas (panel del socio y portal sin contraseña), y cada una ignoraba la mitad de sus casas. | Una sola entrada por persona; antes de agregar otra, ver si la que existe puede mostrar el caso nuevo. |
+| El resumen del dueño recorría solo la lista de la ficha (no las casas que dicen ser suyas), traía una sola exclusiva para todas y «Cómo se anuncia» quedaba vacío porque nadie llamaba a `anuncioDe`. | Un dato por inmueble se calcula por inmueble; buscar quién llama a cada función que arma una pantalla. |
 | «Hoy» se calculaba de tres formas (hora del servidor, de Guatemala y del navegador): de 6 p. m. a medianoche el calendario podía mostrar libre una noche reservada; el WhatsApp del sitio no ponía el código de país que el panel sí. | Antes de escribir un cálculo, buscar si ya existe uno para ese fin y usarlo; si hay dos, dejar uno. |
 
 ## 4. Datos y dinero
@@ -51,10 +53,15 @@ agrega aquí en el mismo cambio que lo corrige.
 | El WhatsApp del socio se podía leer sin llenar el formulario. | Para cada dato que se guarda o se devuelve: ¿quién lo puede leer? Incluye a quien no tiene sesión. |
 | Cualquiera podía listar los archivos de Storage (y con eso, las llaves de las reservas). | Leer uno y **listar** son permisos distintos: revisar los dos. |
 | El socio podía leer el teléfono del cliente aunque la pantalla no lo mostraba. | Esconder en pantalla no es proteger: lo que protege es la regla. |
+| El socio leía su ficha entera (notas, bitácora interna) para sacar sus datos de pago, y podía cambiar el precio de su casa en venta. | Lo que una persona necesita de sí misma va en un documento hecho para ella (su resumen); lo que no es suyo de cambiar, la regla lo limita al caso (solo casas por noche). |
+| El portal del propietario se abría sin sesión con el enlace, y llevaba datos de la persona. | Un dato personal no se abre «con el enlace»: se lee con sesión y regla. |
 | El socio podía cancelar después de cobrar, o mandar la dirección sin marcar el pago. | En lo que toca el ingreso: probar también lo que alguien haría para saltárselo. |
 | La dirección y el mapa de las casas por noche no salían en la página, pero estaban en el documento público de la base. | Un dato privado no vive en un documento público: va aparte, con su regla, y se revisa lo que la base entrega sin sesión y todo `dist/`. |
 | Los teléfonos no llevaban código de país. | Cada dato con un solo formato; pensar en quien escribe desde otro país o con otro caso. |
 | Un cambio de reglas se iba a unir sin publicarlas. | Código y reglas van juntos. Las reglas las publica el usuario: Claude no puede. |
+| Entre publicar el código y las reglas, dar acceso a un dueño de venta le habría abierto su ficha y el precio de su casa con las reglas de antes. | Recorrer el estado intermedio (código nuevo, reglas viejas): lo que no es seguro ahí se bloquea hasta que las reglas estén publicadas (`reglasNuevas`). |
+| Guardar una ficha abierta desde antes borraba el resumen que otra pantalla acababa de crear, y quedaban dos. | Al reemplazar un documento, lo que escriben otras pantallas se vuelve a leer justo antes de guardar; un dato «uno por persona» se asegura al escribirlo (se borran los demás). |
+| El dueño de una casa en venta podía, por regla, crear reservas y escribir en chats de esa casa. | Cada permiso nuevo de un rol se revisa en TODAS las colecciones donde ese rol escribe, no solo en la pantalla que se cambió. |
 
 Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una segunda revisión independiente antes de unir.
 

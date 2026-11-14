@@ -1,128 +1,81 @@
-# Portal de propietarios
+# Panel del dueño (propietarios y colaboradores)
 
-Página privada donde el propietario ve cómo va su propiedad sin tener que llamar.
+Cada persona de **Propietarios** (dueño del inmueble o asesor colaborador) entra al **mismo panel** que el equipo
+(`/admin/`), con su correo y su propia contraseña, y ve solo lo suyo en **Mis propiedades**. Antes había un portal
+aparte, sin contraseña (`/propietarios/#t=…` o enlace al correo): ya no existe.
 
-- Español: `https://eqinmobiliario.gt/propietarios/`
-- Inglés: `https://eqinmobiliario.gt/en/owners/` (solo si el inglés está activo)
+## Cómo entra
 
-No aparece en Google: lleva `noindex`, no está en el sitemap y Netlify manda `X-Robots-Tag: noindex, nofollow`.
+1. En su ficha (Propietarios → la persona), el administrador toca **«Dar acceso»**. Usa el correo de la ficha; si
+   está vacío, el panel lo pide ahí mismo.
+2. Se crea su cuenta con una contraseña al azar que nadie ve, su usuario (`users/{uid}`: `rol: 'socio'`,
+   `propietarioId`) y Firebase le manda un correo para **poner su contraseña**.
+3. Entra en `/admin/` con su correo y esa contraseña. «¿Olvidaste tu contraseña?» funciona igual que para el equipo.
 
-## Qué ve el propietario
+En la misma ficha: «Reenviar correo para poner contraseña», «Quitar acceso» / «Devolver acceso». Si el correo de la
+ficha ya no es el de entrada, la ficha lo avisa (para cambiarlo: quitar el acceso y darlo de nuevo). En Usuarios se
+listan como «Propietario» o «Colaborador», con enlace a su ficha; ahí no se crean.
 
-- Estado de la propiedad y días en el mercado.
-- **Cómo se anuncia:** título, precio, operación, tipo, ubicación, habitaciones, baños, m² de construcción y de terreno (en inglés, en sq ft), hasta 6 fotos, la descripción del anuncio (respeta saltos de línea, listas «- » y **negritas**; se pinta como texto, sin HTML) y el enlace «Ver anuncio en la página». En `/en/owners/` usa el título, la descripción y la URL en inglés si la propiedad está traducida.
-- Debajo, dos botones: **«Estoy de acuerdo con el anuncio»** (guarda la aprobación y muestra «Gracias, tu asesor ya sabe que estás de acuerdo») y **«Quiero cambios»** (abre la caja de comentarios, oculta hasta entonces, con `aria-expanded` y el foco en el texto). El aviso de confirmación o de error se anuncia a lectores de pantalla (`role="status"`).
-- Cuántas consultas, visitas y ofertas hubo, en total y en los últimos 30 días. No ve nombres ni teléfonos de clientes.
-- Visitas agendadas que vienen.
-- Lo que pasó: las entradas de la bitácora marcadas como visibles y los comentarios de visitas marcados como visibles.
-- Historial de precio.
-- Dónde se anuncia (el sitio y los portales marcados como «publicada» en Difusión).
-- Fecha en que vence la exclusiva.
-- Próximo paso.
-- Botones para escribirle por WhatsApp o llamar a su asesor.
+Si el correo ya tiene una cuenta sin acceso al panel (p. ej. de cuando entraba al portal con su correo), el panel no
+la puede reutilizar: hay que borrarla en Firebase → Authentication → Usuarios y volver a tocar «Dar acceso».
 
-No se muestran las vistas de la página, porque el sitio no las cuenta.
+La página `/propietarios/` (y `/en/owners/`) queda para los enlaces viejos de WhatsApp: dice que el portal ahora es
+el panel, con el botón para entrar y el WhatsApp para pedir el acceso. No se indexa.
 
-## Cómo entra (sin contraseña)
+## Qué ve
 
-1. **Enlace privado.** El asesor se lo manda por WhatsApp. Lleva un código de 32 caracteres después de `#t=`. Como va después del `#`, el código no llega a ningún servidor ni queda en registros. Quien tenga el enlace puede ver el portal, así que no se debe reenviar.
-2. **Con su correo.** Escribe el correo que tiene registrado y Firebase le manda un enlace para entrar. La página siempre dice «Si tu correo está registrado, te llegó un enlace», para no revelar qué correos existen. Si abre el enlace en otro aparato, la página le pide el correo otra vez.
+- **Mis propiedades:** todas sus casas (venta, renta y por noche), con la misma ficha corta del panel.
+- **Casa por noche:** la atiende él: precios, personas, días bloqueados, mínimos de noches, y cuántas reservas
+  confirmadas y cuánto le toca. Con casas por noche también ve **Solicitudes** y sus datos de pago.
+- **Casa en venta o renta (solo lectura):** estado, precio e historial, días en el mercado, la exclusiva de **esa**
+  casa, consultas, visitas y ofertas, lo que pasó, dónde se anuncia, los clientes como «Cliente 1, 2…» (sin nombres,
+  teléfonos ni correos) y **«Cómo se anuncia»**, con «Estoy de acuerdo» o «Quiero cambios». Su respuesta le llega al
+  asesor en la ficha de la persona.
 
-## Lo que el dueño de la cuenta debe hacer una vez
+Nunca ve: su ficha interna (notas, bitácora privada), el acuerdo (comisión, impuestos), leads ni clientes, ni nada
+de otra persona. Lo protegen las reglas, no solo la pantalla.
 
-1. **Firebase → Authentication → Sign-in method → Correo electrónico/contraseña.** Activarlo y activar también «Vínculo de correo electrónico (acceso sin contraseña)». No hace falta que nadie use contraseña.
-2. **Authentication → Settings → Dominios autorizados.** Deben estar `eqinmobiliario.gt` y `www.eqinmobiliario.gt`.
-3. **Publicar las reglas** (proyecto `eqinmobiliariobd`), desde la carpeta del repositorio:
+## De dónde salen los datos
 
-   ```
-   firebase deploy --only firestore:rules --project eqinmobiliariobd
-   ```
+`portalPropietarios/{id}`: un resumen por persona que arma el equipo (`admin/js/portal.js`). Lleva su nombre, tipo,
+correo, teléfono y datos de pago (tal cual la ficha: las reglas comparan el mensaje de pago del chat con ella) y, de
+cada casa en venta o renta, lo de arriba. Las casas por noche no van ahí: se leen en vivo. Se actualiza al guardar la
+ficha, al cambiar una propiedad, una visita o la etapa de un cliente, y al abrir Propietarios se arma el de quien
+entra al panel y todavía no lo tiene.
 
-   Mientras no se publiquen, el panel no puede crear portales y la página muestra «No pudimos abrir tu portal».
-4. Publicar el sitio como siempre (Netlify corre `node scripts/build.mjs`).
+En la ficha (`propietarios/{id}`, solo el equipo): `bitacora`, `proximoPaso`, `portalToken` (id del resumen),
+`portalPrivado` (números fijos de cada cliente), `acceso { email, activo }` (copia del estado para el asesor).
 
-Opcional: en Authentication → Templates se puede cambiar el texto del correo que llega.
+`comentariosPropietarios`: la respuesta al anuncio. Solo la crea el dueño con sesión, de su propio resumen y de una
+casa suya; la lee el equipo.
 
-## Cómo lo usa el asesor (Panel → Propietarios → abrir un propietario)
+## Reglas
 
-La sección **Portal del propietario** está debajo del formulario.
+- `portalPropietarios`: lo lee la persona (rol socio, su `propietarioId`) y el equipo (el asesor, los suyos). Nadie
+  sin sesión. Lo escribe solo el equipo.
+- `propietarios`: solo el equipo.
+- `properties`: el dueño lista y lee las suyas; cambia precios y calendario **solo** de las por noche. `privado/socio`
+  y `privado/llegada`, solo de las por noche; `privado/acuerdo`, nunca.
 
-- **Crear portal:** arma la copia y crea el enlace privado.
-- **Enviar por WhatsApp:** abre WhatsApp con un mensaje listo y el enlace.
-- **Copiar enlace** y **Ver como propietario:** para revisarlo o mandarlo por otro medio.
-- **Actualizar portal:** vuelve a armar la copia con los datos de hoy. También se actualiza solo al guardar el propietario, la bitácora, el próximo paso o un comentario de visita. Al cambiar la propiedad (precio, estado, fotos), pulsa «Actualizar portal» o guarda el propietario.
-- **Regenerar enlace:** crea un enlace nuevo y borra el anterior, que deja de funcionar. Úsalo si el enlace llegó a otra persona.
-- **Quitar acceso:** borra la copia. El propietario ya no puede entrar, ni con el enlace ni con su correo.
-- **Próximo paso:** una frase corta que el propietario ve arriba.
-- **Bitácora del asesor:** fecha, tipo (fotos nuevas, cambio de precio, oferta, visita, paso, nota) y qué pasó. Solo se publican las entradas con «Visible para el propietario». Las demás quedan como notas internas.
-- **Respuesta del propietario al anuncio:** lista lo que llegó desde el portal, lo más nuevo arriba: «Aprobó el anuncio» con su fecha, o «Pidió cambios» con la fecha y el texto.
-- **Comentarios de visitas:** salen de la agenda (actividades tipo «Visita» del cliente). Se escribe un comentario para el propietario y se marca como visible. No escribas nombres de clientes.
+- Reservas, respuestas a solicitudes y mensajes del chat: el dueño solo en sus casas por noche.
 
-Para entrar con su correo, el propietario necesita tener el campo **Correo** lleno en su ficha.
+## Después de publicar el código: en este orden
 
-## Modelo de datos
+1. **Se publica el código** (Netlify). Con las reglas de antes todo sigue funcionando: el socio confirma reservas
+   (sus datos de pago salen de su ficha mientras las reglas viejas lo permiten). Propietarios muestra un aviso con
+   estos pasos, y «Dar acceso» queda deshabilitado para quien no tiene casas por noche (con las reglas de antes podría
+   leer su ficha entera y cambiar el precio de su casa en venta). Los enlaces viejos del portal todavía abren.
+2. **El administrador abre Propietarios y la deja abierta hasta que el aviso de arriba llegue a 0.** El aviso cuenta
+   a cuántas personas (con acceso, con casas por noche o con el portal de antes) les falta el resumen nuevo; se rehace
+   **con un id nuevo** y el anterior se borra, así que los enlaces viejos de WhatsApp dejan de abrir (muestran la
+   página «Tu portal ahora es tu panel»). Si alguien falla, el aviso lo nombra con «Reintentar». Si se cierra la
+   pestaña antes, al volver a abrir Propietarios sigue con los que faltan. Al llegar a 0, el aviso dice que el
+   siguiente paso es publicar las reglas. Sin este paso, después del 3 un socio sin resumen no puede confirmar
+   reservas (el panel le dice que faltan sus datos de pago).
+3. **Se publican las reglas** (cuando el aviso esté en 0): `firebase deploy --only firestore:rules --project eqinmobiliariobd`.
+   El aviso de Propietarios desaparece solo; el socio ya lee su resumen y no su ficha.
+4. **Dar acceso** a cada dueño de venta o renta y a cada colaborador, desde su ficha: el botón ya está habilitado.
+   Los socios que ya entraban no necesitan nada.
 
-`propietarios/{id}` (privado, solo el equipo):
-
-- `email`
-- `proximoPaso`
-- `bitacora[]` con `{ id, fecha, tipo, texto, propertyId, visible }`
-- `portalToken`
-- `portalActualizado`
-
-`actividades/{id}`, solo en las de tipo visita:
-
-- `comentarioPropietario`
-- `visiblePropietario`
-
-`properties/{id}`:
-
-- `historialPrecio[]` con `{ precio, moneda, fecha }`. Se agrega una entrada cada vez que el precio cambia al guardar.
-
-`portalPropietarios/{token}` es la copia resumida que lee la página. No tiene nombres ni teléfonos de clientes:
-
-```
-v, email (en minúsculas), agentId, propietarioId, nombre (solo el primero),
-asesor { nombre, whatsapp, telefono, foto },
-exclusivaFin, proximoPaso, updatedAt,
-propiedades[] {
-  id, titulo, foto, url, operacion,
-  anuncio { tipo, zona, ciudad, habitaciones, banos, m2Construccion, m2Terreno,
-            descripcion, fotos[] (hasta 6), en { titulo, descripcion, url } | null }, estado, estadoFecha,
-  enMercadoDesde, enMercadoHasta, precio, moneda, historialPrecio[],
-  kpis { consultas{total,d30}, visitas{…}, ofertas{…}, visitasProximas },
-  eventos[] { fecha, tipo, texto },
-  portales[] { nombre, url, desde }
-}
-```
-
-`comentariosPropietarios/{id}` (respuesta del propietario; fuera del portal para que no se pierda al regenerar el enlace):
-
-```
-token, propietarioId, agentId, propiedadId,
-tipo ('aprobado' | 'cambios'), texto ('' al aprobar; 1–2000 al pedir cambios),
-fecha (hora del servidor), origen: 'propietario', idioma ('es' | 'en')
-```
-
-## Reglas (`firestore.rules`)
-
-- Cualquiera puede **leer un portal por su token** (`get`). Sin el token no se puede adivinar: es aleatorio y tiene 32 caracteres o más.
-- **Listar** solo se permite al propietario con correo verificado, y solo para sus propios portales (`email == su correo`). El equipo puede listar: el administrador todos, el asesor solo los suyos.
-- **Crear, cambiar y borrar** solo lo puede hacer el equipo: el administrador cualquiera, el asesor solo los de sus propietarios. El asesor no puede pasar un portal a otro asesor. Se rechazan tokens cortos, correos con mayúsculas y datos mal formados.
-- En el portal, el propietario no puede escribir nada.
-- **Respuestas (`comentariosPropietarios`):** solo se pueden **crear**, y solo si se tiene el token de un portal que existe (el enlace o, con el correo, el id del portal que ya puede listar). `propietarioId` y `agentId` deben coincidir con ese portal; `tipo` es `aprobado` o `cambios`; con `cambios` el texto lleva de 1 a 2000 caracteres; `origen` es `propietario` y la fecha es la del servidor. Nadie las cambia ni las borra desde el sitio. Las lee el administrador o el asesor de ese propietario.
-
-**Importante:** estos cambios de reglas no se publican solos. El dueño de la cuenta debe volver a publicarlas:
-
-```
-firebase deploy --only firestore:rules --project eqinmobiliariobd
-```
-
-Las reglas del portal se probaron sin conexión con el emulador de Firestore: 32 de 32 casos correctos. La regla de `comentariosPropietarios` todavía no se probó en el emulador.
-
-## Privacidad y límites
-
-- El portal es una copia del momento en que se guardó o se actualizó. No es en vivo.
-- Las consultas cuentan solo los leads guardados con esa propiedad. Las ofertas salen de la bitácora (tipo «Oferta») o de clientes en etapa oferta o cierre. Se usa el número que sea mayor.
-- Una visita sin propiedad en la agenda solo se cuenta si el cliente tiene una sola propiedad de interés.
-- Cualquiera puede pedir el correo con enlace para cualquier dirección. Firebase lo manda, pero sin un portal con ese correo no se ve nada. Firebase limita cuántos correos se mandan por día.
+Pruebas: `npm run test:reglas` (dueña con una casa en venta y otra por noche, colaborador, acceso quitado) y el
+recorrido del entorno (`npm run recorrido`, paso 8).
