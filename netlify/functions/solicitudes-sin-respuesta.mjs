@@ -1,7 +1,8 @@
 // Control de las solicitudes de reserva vacacional: cada hora, de 7 a 21 h de Guatemala, avisa por correo al equipo de
 // - las que el socio lleva más de 2 horas sin responder (las de la noche vencen a las 7 a. m.),
 // - los mensajes del cliente en el chat de su reserva que llevan más de 2 horas sin respuesta, y
-// - las reservas confirmadas que el socio canceló.
+// - las reservas confirmadas que se cancelaron: por la solicitud y también por la reserva misma (una cancelación escrita
+//   directo en la base, sin pasar por el panel, no manda el correo de /api/aviso-chat; aquí sí llega).
 // Cada una se avisa una sola vez: entra en el correo de la hora en que venció o se canceló.
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
@@ -31,7 +32,15 @@ export default async () => {
 			desde('leads', 'updatedAt', new Date(ahora - ventana))
 		]);
 		const sinRespuesta = nuevas.filter((l) => l.reserva?.codigo && !l.solicitud?.estado && enVentana(l.createdAt.getTime() + PLAZO));
-		const canceladas = cambiadas.filter((l) => l.solicitud?.estado === 'cancelada');
+		const deSolicitud = cambiadas.filter((l) => l.solicitud?.estado === 'cancelada');
+		// Reservas de la web canceladas en la ventana (las reglas exigen al socio la hora del servidor en updatedAt) que no
+		// salieron ya por su solicitud. Si esta lectura falla, se avisa lo de siempre.
+		const yaVan = new Set(deSolicitud.map((l) => l.reserva?.codigo));
+		const deReserva = (await desde('reservas', 'updatedAt', new Date(ahora - ventana)).catch((err) => { console.error('Reservas canceladas:', err.message); return []; }))
+			.filter((r) => r.estado === 'cancelada' && r.codigo && !yaVan.has(r.codigo))
+			.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId, solicitud: { motivo: r.motivo },
+				reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
+		const canceladas = [...deSolicitud, ...deReserva];
 		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
 		const hoy = V.hoy(ahora);
 		const mensajes = await (async () => {
@@ -50,7 +59,7 @@ export default async () => {
 		}
 		const linea = (l) => {
 			const r = l.reserva;
-			return [`${r.codigo} · ${l.nombre}`, l.propertyTitulo, `${r.llegada} → ${r.salida} · ${r.huespedes} personas · ${prefijoMoneda(r.moneda)} ${miles(r.total)}`,
+			return [`${r.codigo} · ${l.nombre}`, l.propertyTitulo, [`${r.llegada} → ${r.salida}`, r.huespedes && `${r.huespedes} personas`, r.total != null && `${prefijoMoneda(r.moneda)} ${miles(r.total)}`].filter(Boolean).join(' · '),
 				socios[l.propietarioId] && `Socio: ${socios[l.propietarioId]}`, l.solicitud?.motivo && `Motivo: ${l.solicitud.motivo}`].filter(Boolean);
 		};
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;

@@ -16,7 +16,8 @@ let reglasPublicadas = false;
 export async function reglasNuevas() {
 	if (reglasPublicadas) return true;
 	try {
-		const r = await fetch(`${firestoreRest}/portalPropietarios/prueba-reglas`, { cache: 'no-store' });
+		// Un id al azar cada vez: nadie puede crear de antemano el documento que se consulta.
+		const r = await fetch(`${firestoreRest}/portalPropietarios/prueba-${crypto.randomUUID()}`, { cache: 'no-store' });
 		reglasPublicadas = reglasNuevasSegun(r.status, await r.json().catch(() => null));
 	} catch { /* sin red: de antes */ }
 	return reglasPublicadas;

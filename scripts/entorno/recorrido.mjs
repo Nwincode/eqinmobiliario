@@ -34,7 +34,7 @@ async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
 	await p.route('**/*', async (r) => {
 		const u = r.request().url();
-		if (reglasViejas && u.includes('/portalPropietarios/prueba-reglas')) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
+		if (reglasViejas && /\/portalPropietarios\/prueba-[^/?]+/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
 		if (sdk) return r.fulfill({ path: `${DIR}/node_modules/firebase/${sdk[1]}`, contentType: 'text/javascript' });
 		if (u.startsWith('https://firestore.googleapis.com')) return r.fulfill({ response: await r.fetch({ url: u.replace('https://firestore.googleapis.com', 'http://127.0.0.1:8085') }) });
@@ -1045,6 +1045,10 @@ const duenos = [];
 		return res.map((d) => d.data().comision?.comprobante || '').find(Boolean) || '';
 	});
 	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /\/o\/comprobantes%2F.+alt=media&token=/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	// Chats de antes sin su índice (chatsPorSolicitud): el administrador se lo pone al abrir Solicitudes.
+	await ir(admin.p, '#/solicitudes', 4000);
+	const indice = await fetch(`${FS}/chatsPorSolicitud/r2-abierta`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
+	paso('Al abrir Solicitudes, el administrador le pone su índice a un chat de antes', indice.fields?.token?.stringValue === 'ChatAbiertoDeR2LargoYAlAzar12345', JSON.stringify(indice).slice(0, 120));
 	// Un asesor sin «orden» (se deja vacío al crearlo) sigue en las listas de asesores.
 	const nombres = await admin.p.evaluate(async () => (await (await import('/admin/js/session.js')).loadAgents(true)).map((a) => a.nombre));
 	paso('Un asesor sin «orden» aparece en la lista de asesores (Usuarios, Propiedades, Propietarios, Leads)', nombres.includes('Asesora sin orden (prueba)'), nombres.join(', '));

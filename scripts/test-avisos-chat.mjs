@@ -42,7 +42,7 @@ test('control de cada hora: mensaje del cliente con más de 2 h sin respuesta, u
 test('reserva que no se dio o se canceló: siempre al cliente', () => {
 	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no disponible/);
 	assert.match(avisos([m('socio', 3, 'pago'), m('equipo', 1)], { estado: 'cancelada' })[0].asunto, /cancelada/);
-	assert.deepEqual(avisos([m('socio', 1)], { estado: 'cancelada' })[0].para, ['ana@example.com']);
+	assert.deepEqual(avisos([m('socio', 1)], { estado: 'cancelada' }).at(-1).para, ['ana@example.com']);
 });
 test('mensaje viejo: sin aviso', () => assert.equal(avisos([m('cliente', 30)]).length, 0));
 test('ningún aviso lleva teléfono ni correo de la otra parte', () => {
@@ -61,5 +61,12 @@ test('el título del correo sale de la casa guardada, no del chat', () => {
 test('código o fechas con texto libre: no sale ningún correo', () => {
 	assert.equal(avisos([], { codigo: 'Visita estafa.example' }).length, 0);
 	assert.equal(avisos([], { llegada: 'gana $$$' }).length, 0);
+});
+test('el socio cancela: al cliente y también al equipo; el equipo cancela: solo al cliente', () => {
+	const socio = avisos([m('cliente', 5), m('socio', 1)], { estado: 'cancelada' });
+	assert.deepEqual(socio.map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
+	assert.match(socio[0].asunto, /socio canceló/);
+	assert.deepEqual(avisos([m('cliente', 5), m('equipo', 1)], { estado: 'cancelada' }).map((x) => x.para), [['ana@example.com']]);
+	assert.deepEqual(avisos([m('cliente', 5), m('socio', 1)], { estado: 'no' }).map((x) => x.para), [['ana@example.com']]);
 });
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

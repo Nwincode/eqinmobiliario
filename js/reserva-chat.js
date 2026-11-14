@@ -30,12 +30,10 @@
 			? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : undefined)
 			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 	}
-	// Guarda un documento nuevo con la hora del servidor.
-	function crearDoc(ruta, fields) {
-		return pedir(RAIZ + ':commit', { writes: [{
-			update: { name: RAIZ + '/' + ruta, fields: fields }, currentDocument: { exists: false },
-			updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }]
-		}] });
+	// Un documento nuevo con la hora del servidor (como escritura de un lote).
+	function nuevo(ruta, fields) {
+		return { update: { name: RAIZ + '/' + ruta, fields: fields }, currentDocument: { exists: false },
+			updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] };
 	}
 	function alAzar(n) {
 		var letras = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789', out = '';
@@ -49,17 +47,34 @@
 		try { fetch('/api/aviso-chat', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: token }) }).catch(function () {}); } catch (e) { /* sin fetch keepalive */ }
 	}
 
+	// ¿Están publicadas las reglas nuevas de la base? Leer un índice que no existe responde «no existe» (404) con las
+	// nuevas y «sin permiso» (403) con las de antes. Solo con las de antes se escribe a la manera de antes; ante cualquier
+	// otra respuesta o sin red, se escribe como piden las nuevas (si falla, se ve el error: no se esconde).
+	var reglas = null;
+	function reglasDeAntes() {
+		// Un id al azar en cada carga: nadie puede crear de antemano el documento que se consulta y engañar a todos los clientes.
+		if (!reglas) reglas = fetch(API + RAIZ + '/chatsPorSolicitud/prueba-' + alAzar(24) + (LLAVE ? '?' + LLAVE : ''))
+			.then(function (r) { return r.status === 403; }, function () { return false; });
+		return reglas;
+	}
+
 	// Abre la conversación de una solicitud recién enviada. Devuelve el token (promesa).
 	function crear(lead, r) {
 		if (!config.projectId) return Promise.reject(new Error('sin base de datos'));
 		var token = alAzar(28);
-		return crearDoc('chats/' + token, {
+		var chat = nuevo('chats/' + token, {
 			codigo: str(r.codigo), leadId: str(lead.id), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
 			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
 			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
 			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
 			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
 			foto: str(((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500)), url: str(location.pathname.slice(0, 200))
+		});
+		// Un chat por solicitud: nace junto con su índice (chatsPorSolicitud/{solicitud}, que solo se crea una vez).
+		// Con las reglas de antes (que no conocen ese índice) el chat se abre solo.
+		var indice = { update: { name: RAIZ + '/chatsPorSolicitud/' + lead.id, fields: { token: str(token) } }, currentDocument: { exists: false } };
+		return reglasDeAntes().then(function (antes) {
+			return pedir(RAIZ + ':commit', { writes: antes ? [chat] : [chat, indice] });
 		}).then(function () {
 			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
 			return token;
@@ -219,9 +234,20 @@
 				}
 			});
 		}
+		// La foto del comprobante va junto con la marca «el cliente adjuntó su comprobante» en el chat (desde ahí el
+		// anfitrión ya no cancela solo). Con las reglas de antes, que no la conocen, el mensaje va solo.
+		// La marca dice qué mensaje es la foto (comprobanteMensaje): las reglas revisan que nazca en el mismo lote.
+		function guardarMensaje(campos) {
+			var id = alAzar(20);
+			var msj = nuevo('chats/' + token + '/mensajes/' + id, campos);
+			if (!campos.tipo || campos.tipo.stringValue !== 'foto') return pedir(RAIZ + ':commit', { writes: [msj] });
+			var marca = { update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
+				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
+			return reglasDeAntes().then(function (antes) { return pedir(RAIZ + ':commit', { writes: antes ? [msj] : [msj, marca] }); });
+		}
 		function mandar(campos) {
 			boton.disabled = true; adjuntar.disabled = true;
-			return crearDoc('chats/' + token + '/mensajes/' + alAzar(20), campos)
+			return guardarMensaje(campos)
 				.then(function () { alerta(''); avisar(token); return cargar(); })
 				.catch(function () { alerta(t.vacChatFallo); })
 				.then(function () { boton.disabled = false; adjuntar.disabled = false; });

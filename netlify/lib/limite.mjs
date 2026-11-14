@@ -1,4 +1,5 @@
-// Límite de pedidos por clave (IP, chat…) dentro de una ventana, en la memoria de cada instancia de la función.
+// Límite de pedidos por clave (IP, chat…) dentro de una ventana. Es de mejor esfuerzo: vive en la memoria de cada
+// instancia de la función (Netlify puede levantar varias y reiniciarlas), así que frena ráfagas, no a un atacante decidido.
 // limitador(max, ventanaMs) devuelve una función: true = esta clave ya pasó el límite (responder 429).
 export function limitador(max, ventanaMs = 10 * 60_000) {
 	const hits = new Map();

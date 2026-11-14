@@ -7,13 +7,13 @@
 	var T = EN ? {
 		errorDatos: 'Please enter your name and a valid phone number.', errorCorreo: 'Please check your email (e.g. name@email.com).',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
-		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
+		fallo: 'We couldn\'t send the form.', sinChat: 'We received your request, but we couldn\'t open its chat: we will contact you.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorDatos: 'Escribe tu nombre y un teléfono válido.', errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
-		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
+		fallo: 'No pudimos enviar el formulario.', sinChat: 'Recibimos tu solicitud, pero no pudimos abrir su chat: te contactaremos.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
 		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
@@ -219,6 +219,8 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
+				// La solicitud quedó guardada pero su chat no se abrió: se dice, con el contacto a la mano.
+				if (!chat) return setStatus(form, reserva.gracias + ' ' + T.sinChat + (config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : ''), true);
 				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
 				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
 				if (chat) location.href = window.EQChat.enlace(chat);
