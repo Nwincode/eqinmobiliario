@@ -1,9 +1,11 @@
 // Se ejecuta sola después de cada publicación exitosa en Netlify (función de evento).
-// 1) Avisa a IndexNow (Bing, Copilot, Yandex, Seznam) de todas las URLs del sitemap.
+// 1) Avisa a IndexNow (Bing, Copilot, Yandex, Seznam, Naver) de las URLs del sitemap que cambiaron (netlify/lib/indexnow.mjs).
+//    Si falla, solo queda anotado: nunca detiene la publicación.
 // 2) Si Search Console está conectado, vuelve a enviar el sitemap a Google.
 import { createHash } from 'node:crypto';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { gsc, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
+import { urlsDelSitemap } from '../lib/indexnow.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 // Debe coincidir con indexNowKey() de scripts/build.mjs.
@@ -20,14 +22,18 @@ export async function handler(event) {
 
 	const resultado = {};
 	try {
-		const xml = await (await fetch(`${SITE_URL}/sitemap.xml`)).text();
-		const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]).filter((u) => u.startsWith(SITE_URL)).slice(0, 10000);
-		const res = await fetch('https://api.indexnow.org/indexnow', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json; charset=utf-8' },
-			body: JSON.stringify({ host: new URL(SITE_URL).hostname, key: KEY, keyLocation: `${SITE_URL}/${KEY}.txt`, urlList: urls })
-		});
-		resultado.indexnow = `${res.status} (${urls.length} URLs)`;
+		// La lista la arma el build (/feeds/indexnow.json); sin ella, todo el sitemap.
+		const cambios = await fetch(`${SITE_URL}/feeds/indexnow.json`).then((r) => (r.ok ? r.json() : { todas: true })).catch(() => ({ todas: true }));
+		const urls = Array.isArray(cambios.urls) ? cambios.urls : urlsDelSitemap(await (await fetch(`${SITE_URL}/sitemap.xml`)).text(), SITE_URL);
+		if (!urls.length) resultado.indexnow = 'sin cambios';
+		else {
+			const res = await fetch('https://api.indexnow.org/indexnow', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json; charset=utf-8' },
+				body: JSON.stringify({ host: new URL(SITE_URL).hostname, key: KEY, keyLocation: `${SITE_URL}/${KEY}.txt`, urlList: urls })
+			});
+			resultado.indexnow = `${res.status} (${urls.length} URLs)`;
+		}
 	} catch (err) {
 		resultado.indexnow = `error: ${err.message}`;
 	}

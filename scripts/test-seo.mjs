@@ -9,6 +9,8 @@ import { lugarDe, departamentoDe } from './lib/util.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { sinRepetir, autoSeoTitle } from '../admin/js/seo-auto.js';
 import { sinBloquesGenerados, generarDescripcion } from '../admin/js/descripcion.js';
+import { horarioSchema } from '../admin/js/formato.js';
+import { urlsCambiadas, urlsDelSitemap } from '../netlify/lib/indexnow.mjs';
 
 let ok = 0;
 function test(nombre, fn) {
@@ -146,6 +148,28 @@ test('título automático: cabe en 60, sin repetir la zona y con el municipio en
 	// Antes «Lot for Sale Guatemala»: ahora con el lugar (el municipio no cabe en 60 y se pone el país).
 	assert.equal(en, 'Land for Sale in Aldea Laguna Bermeja | Guatemala');
 	assert.equal(autoSeoTitle({ titulo: 'Lot for Sale in Laguna Bermeja', operacion: 'venta', ciudad: 'Santa Catarina Pinula' }, true), 'Lot for Sale in Laguna Bermeja | Santa Catarina Pinula');
+});
+
+test('horario para el JSON-LD: lo escrito en Contenido; lo que no entiende da null (no se inventa)', () => {
+	const dias = (n) => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].slice(0, n);
+	const h = (d, opens, closes) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: d, opens, closes });
+	assert.deepEqual(horarioSchema('Lunes a sábado, 8:00 a 17:00'), [h(dias(6), '08:00', '17:00')]);
+	assert.deepEqual(horarioSchema('Lunes a viernes 8 a. m. a 5 p. m.'), [h(dias(5), '08:00', '17:00')]);
+	assert.deepEqual(horarioSchema('Lunes a viernes de 8:00 a 12:30 y 14:00 a 18:00; sábados 9 a 13; domingos cerrado'),
+		[h(dias(5), '08:00', '12:30'), h(dias(5), '14:00', '18:00'), h(['Saturday'], '09:00', '13:00')]);
+	assert.deepEqual(horarioSchema('Todos los días, 7:00 a 22:00'), [h(dias(7), '07:00', '22:00')]);
+	for (const raro of ['', 'Todos los días con cita previa', 'Horario por WhatsApp', 'Lunes a viernes 18:00 a 8:00', 'Sábado a lunes 9 a 12', 'Lunes a viernes 9:00']) assert.equal(horarioSchema(raro), null, raro);
+});
+
+test('IndexNow: nuevas, con otra fecha o que ya no están (no todo el sitemap); sin comparar, todas', () => {
+	const sm = (...u) => `<urlset>${u.map(([loc, mod]) => `<url><loc>https://eq.gt${loc}</loc>${mod ? `<lastmod>${mod}</lastmod>` : ''}<priority>0.8</priority></url>`).join('')}</urlset>`;
+	const antes = sm(['/', '2026-11-01'], ['/a/', '2026-10-01'], ['/b/', '2026-10-01'], ['/calc/'], ['/vendida/', '2026-09-01']);
+	const ahora = sm(['/', '2026-11-14'], ['/a/', '2026-10-01'], ['/b/', '2026-11-14'], ['/calc/'], ['/nueva/', '2026-03-01']);
+	// /nueva/ tiene una fecha vieja (vuelve de una pausa o se publicó días después de editarla) y igual se avisa.
+	assert.deepEqual(urlsCambiadas(ahora, antes, 'https://eq.gt/'), ['https://eq.gt/', 'https://eq.gt/b/', 'https://eq.gt/nueva/', 'https://eq.gt/vendida/']);
+	assert.deepEqual(urlsCambiadas(ahora, ahora, 'https://eq.gt'), []);
+	assert.deepEqual(urlsCambiadas(sm(['/x/', '2026-01-01']).replace('eq.gt', 'otro.gt'), '', 'https://eq.gt'), []);
+	assert.deepEqual(urlsDelSitemap(ahora, 'https://eq.gt').length, 5);
 });
 
 console.log(`${ok} pruebas de SEO pasan${process.exitCode ? ' (con fallas)' : ''}.`);

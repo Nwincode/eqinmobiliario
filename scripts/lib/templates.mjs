@@ -138,6 +138,16 @@ export function imgFoto(url, { alt = '', sizes, anchos = [480, 800, 1200], aspec
 		+ `${prioridad ? ' fetchpriority="high"' : lazy ? ' loading="lazy"' : ''} width="${ancho}" height="${Math.round((ancho * aspecto[1]) / aspecto[0])}">`;
 }
 
+// Imagen al compartir (og:image, twitter:image): la foto recortada por el CDN a 1200×630 en JPG, el tamaño y formato
+// que piden Facebook, WhatsApp y X (una .webp de 1920 px a veces no sale). Si la foto no pasa por el CDN, la original
+// sin medidas (no se conocen).
+const OG = [1200, 630];
+function ogImagen(ctx, foto) {
+	return pasaPorCdn(foto)
+		? { url: absUrl(ctx, fotoCdn(foto, OG[0], `&h=${OG[1]}&fit=cover&fm=jpg`)), ancho: OG[0], alto: OG[1] }
+		: { url: absUrl(ctx, foto) };
+}
+
 // `sizes`: la imagen es un <img> con srcset y la precarga tiene que pedir la misma versión.
 function preloadTags(ctx, url, sizes) {
 	if (!url) return '';
@@ -189,7 +199,9 @@ function trackingBody(site) {
 	return out;
 }
 
-const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap';
+// Work Sans va en el CSS del sitio (fonts/work-sans/work-sans.css): se precarga la de latín, la que usa todo el texto.
+// La misma URL que en ese CSS (si no, el navegador la baja dos veces); `crossorigin` lo exige la precarga de fuentes.
+export const FUENTE_PRECARGA = '/fonts/work-sans/work-sans-v24-latin.woff2';
 
 function head(ctx, page) {
 	const site = ctx.site;
@@ -197,7 +209,7 @@ function head(ctx, page) {
 	let title = page.title || site.seo.titulo;
 	while (title.length > 60 && title.includes(' | ')) title = title.slice(0, title.lastIndexOf(' | '));
 	const description = truncate(page.description || site.seo.descripcion, 160);
-	const image = absUrl(ctx, page.image || site.seo.imagen);
+	const og = ogImagen(ctx, page.image || site.seo.imagen);
 	const url = absUrl(ctx, page.path);
 	const seo = site.seo || {};
 	const noindex = page.noindex || ctx.noindex;
@@ -223,21 +235,22 @@ function head(ctx, page) {
 	<meta property="og:title" content="${esc(title)}">
 	<meta property="og:description" content="${esc(description)}">
 	<meta property="og:url" content="${esc(url)}">
-	<meta property="og:image" content="${esc(image)}">
+	<meta property="og:image" content="${esc(og.url)}">
+	${og.ancho ? `<meta property="og:image:type" content="image/jpeg">
+	<meta property="og:image:width" content="${og.ancho}">
+	<meta property="og:image:height" content="${og.alto}">` : ''}
+	<meta property="og:image:alt" content="${esc(page.imageAlt || title)}">
 	<meta name="twitter:card" content="summary_large_image">
 	<meta name="twitter:title" content="${esc(title)}">
 	<meta name="twitter:description" content="${esc(description)}">
-	<meta name="twitter:image" content="${esc(image)}">
+	<meta name="twitter:image" content="${esc(og.url)}">
 	<meta name="theme-color" content="${colorTema(site.tema, 'dark')}">
 	${preloadTags(ctx, page.preloadImage, page.preloadSizes)}
+	<link rel="preload" as="font" type="font/woff2" href="${FUENTE_PRECARGA}" crossorigin>
 	<link rel="stylesheet" href="__CSS_BUNDLE__">
 	${page.noReferrer ? '<meta name="referrer" content="no-referrer">' : ''}
 	${(page.extraCss || []).map((h) => `<link rel="stylesheet" href="${esc(h)}">`).join('\n\t')}
 	${cssTema(site.tema) ? `<style id="eq-tema">${cssTema(site.tema)}</style>` : ''}
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link rel="preload" as="style" href="${FONTS_URL}" onload="this.onload=null;this.rel='stylesheet'">
-	<noscript><link rel="stylesheet" href="${FONTS_URL}"></noscript>
 	${page.sinRastreo ? '' : trackingHead(site)}
 	${(page.jsonLd || []).map(jsonLd).join('\n\t')}
 	<script>window.EQ_CONFIG=${JSON.stringify({ ...ctx.publicConfig, t: textosCliente(ctx.lang || 'es') }).replace(/</g, '\\u003c')};</script>
@@ -261,7 +274,7 @@ function nav(ctx, active) {
 								<ul class="dropdown">
 									${operaciones(ctx).map((a) => `<li>${a}</li>`).join('')}
 									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
-									<li><a href="${r.propiedades}">${ic('th-large')}${t.verTodas}</a></li>
+									<li><a href="${r.propiedades}" aria-label="${esc(t.verTodasPropiedades)}">${ic('th-large')}${t.verTodas}</a></li>
 								</ul>
 							</li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);
@@ -427,7 +440,7 @@ function estadoBadge(p, inline = false) {
 	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
 }
 
-export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
+export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = false } = {}) {
 	const url = propertyUrl(p);
 	const data = [
 		// Precio en US$ (formato.js `enUSD`, un solo tipo de cambio): así el orden y los filtros comparan Q con US$.
@@ -444,7 +457,7 @@ export function propertyCard(p, { lazy = true, unaFoto = false } = {}) {
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
 									<a href="${url}" class="img" tabindex="-1">
-										${imgFoto(firstPhoto(p), { alt: photoAlt(p), clase: 'img-fluid', sizes: SIZES_TARJETA, anchos: [480, 800], lazy })}
+										${imgFoto(firstPhoto(p), { alt: photoAlt(p), clase: 'img-fluid', sizes: SIZES_TARJETA, anchos: [480, 800], lazy, prioridad })}
 										${fotos.slice(1).map((f, i) => `<img data-src="${esc(fotoAncho(f.url, 800) || f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
 									</a>
 									${estadoBadge(p)}
@@ -561,8 +574,9 @@ export function homePage(ctx) {
 		address: { '@type': 'PostalAddress', streetAddress: s.contacto.direccion || undefined, addressLocality: 'Guatemala', addressCountry: 'GT' },
 		geo: geoDe(s.contacto.mapa),
 		hasMap: s.tracking && s.tracking.googleBusinessUrl ? s.tracking.googleBusinessUrl : undefined,
-		contactPoint: s.contacto.telefono ? { '@type': 'ContactPoint', telephone: s.contacto.telefono, contactType: 'sales', availableLanguage: ['Spanish', 'English'], areaServed: ['GT', 'US'] } : undefined,
-		sameAs: [...Object.values(s.redes || {}), s.tracking && s.tracking.googleBusinessUrl].filter(Boolean)
+		openingHoursSpecification: ctx.horarioLd || undefined,
+		contactPoint: s.contacto.telefono ? { '@type': 'ContactPoint', telephone: s.contacto.telefono, contactType: 'sales', availableLanguage: ['Spanish', 'English'], areaServed: ['GT', 'US'], hoursAvailable: ctx.horarioLd || undefined } : undefined,
+		sameAs: [...new Set([...Object.values(s.redes || {}), s.tracking && s.tracking.googleBusinessUrl].filter((u) => /^https?:\/\//.test(u || '')))]
 	};
 	const webLd = {
 		'@context': 'https://schema.org',
@@ -948,7 +962,7 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 			</div>`}
 
 			${list.length ? `<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
-				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 1 })}</div>`).join('\n')}
+				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 1, prioridad: !i })}</div>`).join('\n')}
 			</div>
 			<p class="text-center text-black-50 py-5" id="listing-empty" hidden>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>`
@@ -1478,6 +1492,7 @@ ${esVac ? '' : lateral}
 		title: seoTitle(p),
 		description: seoDescription(p),
 		image: firstPhoto(p),
+		imageAlt: photoAlt(p),
 		ogType: 'article',
 		jsonLd: [listingLd(ctx, p), breadcrumbLd(ctx, crumbs)],
 		bodyAttrs: cerrada ? 'class="pagina-ficha pagina-ficha-cerrada"' : `class="pagina-ficha" ${viewContentAttrs(p)}`,
@@ -1978,6 +1993,7 @@ export function reservaPage(ctx) {
 	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
 }
 
+// Además del botón, las zonas, tipos y operaciones que se indexan (`porZona`): quien llega a un enlace viejo sigue buscando.
 export function notFoundPage(ctx) {
 	const t = tr(ctx);
 	const body = `
@@ -1988,7 +2004,8 @@ export function notFoundPage(ctx) {
 				<p class="mb-4">${t.noExiste}</p>
 			<a href="${rt(ctx).propiedades}" class="btn btn-primary btn-lg">${ic('search')}${t.verPropiedades}</a>
 		</div>
-	</div>`;
+	</div>
+	${porZona(ctx)}`;
 	return layout(ctx, { path: '/404.html', title: `${t.noEncontrada} | ${ctx.site.general.nombreCorto}`, noindex: true }, body);
 }
 
