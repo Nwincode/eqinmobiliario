@@ -70,7 +70,7 @@ Las rutas son desde la raíz del repositorio.
 | `comisiones-vencidas.mjs` | Cada hora | Vuelve a publicar si cambió qué socios están en mora. |
 | `resumen-diario.mjs` | Cada mañana | Resumen por asesor. |
 | `ia.mjs`, `gsc.mjs`, `resenas-google.mjs`, `automatizaciones.mjs` | Desde el panel | IA, Search Console, reseñas, pruebas de automatización. |
-| `deploy-succeeded.mjs` | Al publicar | Avisa a IndexNow (Bing, Yandex, Seznam, Naver) solo de las URLs del sitemap con `lastmod` de los últimos 2 días (`netlify/lib/indexnow.mjs`; la clave es pública, `indexNowKey` en `scripts/build.mjs`) y reenvía el sitemap a Search Console. Si falla, solo lo anota. |
+| `deploy-succeeded.mjs` | Al publicar | Avisa a IndexNow (Bing, Yandex, Seznam, Naver) solo de lo que cambió: la lista `/feeds/indexnow.json` la arma `scripts/build.mjs` (`cambiosParaIndexNow`) comparando su sitemap con el publicado (`netlify/lib/indexnow.mjs`); sin lista, todo el sitemap. La clave es pública (`indexNowKey`). Después reenvía el sitemap a Search Console. Si falla, solo lo anota. |
 
 Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lecturas), `firestore-escritura.mjs` (transacción con la cuenta de escritura; solo `reservas.mjs`), `google.mjs` (las dos cuentas de servicio), `auth.mjs` (`staffUser`, `socioUser`; en el entorno local acepta los tokens del emulador solo con un proyecto `demo-…`), `aviso-chat-envio.mjs`, `comisiones.mjs`, `limite.mjs` (límite de pedidos por IP o por clave: `aviso-lead`, `aviso-chat`, `reservas`).
 

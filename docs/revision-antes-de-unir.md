@@ -174,8 +174,8 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Al compartir una ficha salía la .webp original, sin medidas ni texto alternativo. | `og:image` por `ogImagen`: JPG 1200×630 del CDN con width, height y alt (`test-sitio.mjs`). |
 | Las fichas, páginas y artículos en inglés iban al sitemap sin `lastmod`. | Cada URL del sitemap con la fecha real de lo que muestra (`updatedAt`, fecha del artículo); sin fecha real, sin `lastmod`. |
 | La letra se pedía a Google (una hoja de estilos y otra conexión) antes de poder pintar el texto. | Fuentes desde el propio sitio, en el CSS del sitio, y la precarga con la URL exacta del CSS (si no, se baja dos veces). |
-| IndexNow recibía todo el sitemap en cada publicación (los buscadores dejan de hacer caso). | Solo lo que cambió: `urlsCambiadas` (`netlify/lib/indexnow.mjs`), con prueba en `test-seo.mjs`. |
-| Las redes del ejemplo y del manual de marca decían «eqinmobilariogt»; el usuario es `eqinmobiliario.gt`. | Un usuario de redes se copia de la cuenta, no se escribe de memoria; `sameAs` sale solo de Contenido → Contacto y redes. |
+| IndexNow recibía todo el sitemap en cada publicación (los buscadores dejan de hacer caso). | Solo lo que cambió desde lo publicado (nuevas, otra fecha o que se fueron): el build compara con el sitemap en línea (`urlsCambiadas`, `netlify/lib/indexnow.mjs`) y deja `/feeds/indexnow.json`; «cambió» no se decide por la fecha de hoy (publicar es a mano, días después). |
+| Las redes del ejemplo decían «eqinmobilariogt» y el manual de marca «@eqinmobiliariogt»; el usuario es `eqinmobiliario.gt`. | Un usuario de redes se copia de la cuenta, no se escribe de memoria; `sameAs` sale solo de Contenido → Contacto y redes. |
 | La 404 solo ofrecía un botón. | La 404 lleva las zonas, tipos y operaciones que se indexan (`porZona`). |
 
 ## 7. Cómo se le responde al usuario

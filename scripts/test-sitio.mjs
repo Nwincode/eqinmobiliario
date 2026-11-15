@@ -367,6 +367,9 @@ test('sitemap: lastmod real en fichas (también en inglés) y fotos de cada fich
 	const llms = [...readFileSync(path.join(dist, 'llms.txt'), 'utf8').matchAll(/\]\((https:\/\/eqinmobiliario\.gt[^)]*)\)/g)].map((m) => m[1].replace(BASE, ''));
 	assert.ok(llms.length > 10);
 	for (const u of llms) assert.ok(sitemap.has(u), `llms.txt enlaza ${u}, que no está en el sitemap`);
+	const full = [...readFileSync(path.join(dist, 'llms-full.txt'), 'utf8').matchAll(/Enlace: (https:\/\/eqinmobiliario\.gt\S*)/g)].map((m) => m[1].replace(BASE, ''));
+	assert.ok(full.length > 10);
+	for (const u of full) assert.ok(sitemap.has(u), `llms-full.txt enlaza ${u}, que no está en el sitemap`);
 });
 
 test('ruta crítica: Work Sans del propio sitio y precargada con la misma URL; primera tarjeta del listado con prioridad', () => {

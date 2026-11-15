@@ -19,6 +19,7 @@ import { conEmojis, sinBloquesGenerados } from '../admin/js/descripcion.js';
 import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs';
+import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -249,6 +250,20 @@ async function copyAssets() {
 			recursive: true,
 			filter: (f) => !/(^|[\\/])index\.html$/.test(path.relative(ROOT, f)) || rel === 'admin'
 		});
+	}
+}
+
+// Lo que cambió desde la última publicación, para IndexNow (netlify/lib/indexnow.mjs, lo manda deploy-succeeded):
+// solo al publicar en Netlify, comparando con el sitemap que sigue publicado mientras corre el build. Si no se puede
+// leer (o en local), `todas`: la función manda todo el sitemap, como antes.
+async function cambiosParaIndexNow(ctx, siteUrl, sitemapXml) {
+	if (!process.env.NETLIFY || ctx.noindex) return { todas: true };
+	try {
+		const res = await fetch(`${siteUrl.replace(/\/$/, '')}/sitemap.xml`, { signal: AbortSignal.timeout(10000) });
+		if (!res.ok) return { todas: true };
+		return { urls: urlsCambiadas(sitemapXml, await res.text(), siteUrl) };
+	} catch {
+		return { todas: true };
 	}
 }
 
@@ -728,7 +743,8 @@ async function main() {
 	const aParte = new Set([...fueraDeListados, ...todasEn.filter((p) => !seOfrece(p))].map((p) => T.propertyUrl(p)));
 	const sinSitemap = [...indexables].filter(([u, si]) => si && !aParte.has(u) && !/\.html$/.test(u) && !enSitemap.some((x) => x.path === u)).map(([u]) => u);
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
-	await writeFile(path.join(DIST, 'sitemap.xml'), sitemap(ctx, enSitemap));
+	const sitemapXml = sitemap(ctx, enSitemap);
+	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
 	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
@@ -746,6 +762,7 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
+	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(await cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml)));
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${enSitemap.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	// Avisos de SEO: una propiedad sin estos datos se posiciona peor (no detiene la publicación).

@@ -274,7 +274,7 @@ function nav(ctx, active) {
 								<ul class="dropdown">
 									${operaciones(ctx).map((a) => `<li>${a}</li>`).join('')}
 									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
-									<li><a href="${r.propiedades}">${ic('th-large')}${t.verTodas}</a></li>
+									<li><a href="${r.propiedades}" aria-label="${esc(t.verTodasPropiedades)}">${ic('th-large')}${t.verTodas}</a></li>
 								</ul>
 							</li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);

@@ -5,7 +5,7 @@
 import { createHash } from 'node:crypto';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { gsc, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
-import { urlsCambiadas } from '../lib/indexnow.mjs';
+import { urlsDelSitemap } from '../lib/indexnow.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 // Debe coincidir con indexNowKey() de scripts/build.mjs.
@@ -22,8 +22,9 @@ export async function handler(event) {
 
 	const resultado = {};
 	try {
-		const xml = await (await fetch(`${SITE_URL}/sitemap.xml`)).text();
-		const urls = urlsCambiadas(xml, SITE_URL);
+		// La lista la arma el build (/feeds/indexnow.json); sin ella, todo el sitemap.
+		const cambios = await fetch(`${SITE_URL}/feeds/indexnow.json`).then((r) => (r.ok ? r.json() : { todas: true })).catch(() => ({ todas: true }));
+		const urls = Array.isArray(cambios.urls) ? cambios.urls : urlsDelSitemap(await (await fetch(`${SITE_URL}/sitemap.xml`)).text(), SITE_URL);
 		if (!urls.length) resultado.indexnow = 'sin cambios';
 		else {
 			const res = await fetch('https://api.indexnow.org/indexnow', {
