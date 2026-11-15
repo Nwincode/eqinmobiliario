@@ -8,6 +8,7 @@ import { transform, build } from 'esbuild';
 
 const CSS_FILES = [
 	'css/tema.css',
+	'fonts/work-sans/work-sans.css',
 	'fonts/icomoon/style.css',
 	'fonts/flaticon/font/flaticon.css',
 	'css/tiny-slider.css',
@@ -39,7 +40,7 @@ const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js', 'js/reserva-chat
 // Clases que solo aparecen al ejecutar JavaScript (sliders, menú móvil, animaciones…).
 const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
-		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^modal/, /^is-wide$/, /^text-(success|danger)$/,
+		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^is-wide$/, /^text-(success|danger)$/,
 		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/,
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
 		/^vac-/], // js/vacacional.js arma el calendario y el desglose
@@ -125,7 +126,8 @@ export async function buildAssets({ root, dist }) {
 		content: [...htmlFiles, ...[...JS_FILES, ...RENTA_FILES, ...VAC_FILES].filter((f) => !f.includes('bootstrap')).map((f) => path.join(root, f))],
 		css: [{ raw: css }],
 		safelist: SAFELIST,
-		keyframes: false,
+		// Las animaciones que ninguna regla que queda usa (spinners y barras de Bootstrap) se quitan.
+		keyframes: true,
 		fontFace: false
 	});
 	const minCss = (await transform(await fuenteIconos(root, purged.css), { loader: 'css', minify: true })).code;

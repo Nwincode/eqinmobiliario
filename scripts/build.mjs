@@ -9,7 +9,7 @@ import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
 import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
-import { montoPrecio, telefonoWa, horarioEn, conPiesCuadrados } from '../admin/js/formato.js';
+import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
 import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
@@ -29,7 +29,7 @@ const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'c
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
-	'fonts/icomoon/style.css', 'fonts/icomoon/fonts',
+	'fonts/icomoon/style.css', 'fonts/icomoon/fonts', 'fonts/work-sans',
 	'fonts/flaticon/font/flaticon.css', 'fonts/flaticon/font/Flaticon.eot', 'fonts/flaticon/font/Flaticon.svg',
 	'fonts/flaticon/font/Flaticon.ttf', 'fonts/flaticon/font/Flaticon.woff', 'fonts/flaticon/font/Flaticon.woff2',
 	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'docs/marca/logo/imagotipo-blanco.svg', // portada del listado en PDF
@@ -322,8 +322,10 @@ function llmsFullTxt(ctx, properties) {
 	].join('\n');
 }
 
-// Buscadores con IA a los que se les da permiso explícito (además de la regla general).
-const BOTS_IA = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'Bingbot'];
+const HORARIO_POR_DEFECTO = horarioSchema('Lunes a sábado, 9:00 a 18:00');
+
+// Buscadores y asistentes con IA a los que se les da permiso explícito (además de la regla general «*»).
+const BOTS_IA = ['Bingbot', 'DuckDuckBot', 'Applebot', 'Applebot-Extended', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended'];
 
 // ------------------------------------------------ Catálogos para portales (/feeds/)
 const xmlEsc = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
@@ -581,6 +583,9 @@ async function main() {
 		altLang: enActivo ? (ruta) => altMap.get(ruta) || '/en/' : null,
 		plan: planEs,
 		enlaces,
+		// Horario del JSON-LD de la portada, de lo escrito en Contenido (en español, también para /en/); si no se
+		// entiende, el que confirmó el dueño: lunes a sábado de 9:00 a 18:00.
+		horarioLd: horarioSchema(site.contacto.horario) || HORARIO_POR_DEFECTO,
 		mobileVariant: (url) => {
 			const m = /^\/images\/(.+)\.webp$/.exec(url || '');
 			return m && existsSync(path.join(ROOT, 'images', `${m[1]}-800.webp`)) ? `/images/${m[1]}-800.webp` : T.fotoAncho(url, 800);
@@ -601,7 +606,8 @@ async function main() {
 	await copyAssets();
 
 	// Fecha de la última modificación real del inventario: Google ignora el lastmod si cambia en cada build.
-	const ultimaFecha = (list) => list.map((p) => String(p.updatedAt || p.createdAt || '').slice(0, 10)).filter(Boolean).sort().pop();
+	const dia = (fecha) => String(fecha || '').slice(0, 10) || undefined;
+	const ultimaFecha = (list) => list.map((p) => dia(p.updatedAt || p.createdAt)).filter(Boolean).sort().pop();
 	const inventarioMod = ultimaFecha(properties) || String(site.updatedAt || '').slice(0, 10) || undefined;
 	let propsEnGlobal = [], postsEnGlobal = [];
 	const urls = [{ path: '/', priority: '1.0', lastmod: inventarioMod, images: (site.hero.imagenes || []).slice(0, 1) }];
@@ -677,18 +683,18 @@ async function main() {
 			es._alternates = p._alternates = { es: T.propertyUrl(es), en: T.propertyUrl(p) };
 			registrarPar(T.propertyUrl(es), T.propertyUrl(p));
 			await writePage(T.propertyUrl(p), fichaHtml(ctxEn, p));
-			if (seOfrece(p)) urls.push({ path: T.propertyUrl(p), priority: '0.8', images: (p.fotos || []).map((f) => f.url) });
+			if (seOfrece(p)) urls.push({ path: T.propertyUrl(p), priority: '0.8', lastmod: dia(p.updatedAt || p.createdAt), images: (p.fotos || []).map((f) => f.url) });
 		}
 		for (const page of pagesEn) {
 			await writePage(page.url, T.contentPage(ctxEn, page));
-			urls.push({ path: page.url, priority: '0.6' });
+			urls.push({ path: page.url, priority: '0.6', lastmod: dia(page.updatedAt) });
 		}
 		if (postsEn.length) {
 			await writePage('/en/blog/', T.blogIndexPage(ctxEn));
-			urls.push({ path: '/en/blog/', priority: '0.6' });
+			urls.push({ path: '/en/blog/', priority: '0.6', lastmod: postsEn.map((x) => dia(x.fecha)).filter(Boolean).sort().pop() });
 			for (const post of postsEn) {
 				await writePage(post.url, T.blogPostPage(ctxEn, post));
-				urls.push({ path: post.url, priority: '0.6' });
+				urls.push({ path: post.url, priority: '0.6', lastmod: dia(post.fecha), images: post.imagen ? [post.imagen] : [] });
 			}
 		}
 		await writePage('/en/404.html', T.notFoundPage(ctxEn));

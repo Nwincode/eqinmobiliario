@@ -297,6 +297,97 @@ test('en inglés, los m² llevan sus sq ft (descripción, meta y JSON-LD)', () =
 	assert.equal(enUSD(7700, 'GTQ'), 1000);
 });
 
+const lds = (h) => [...h.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+const ldDe = (h, tipo) => lds(h).find((x) => x['@type'] === tipo);
+
+test('JSON-LD de la empresa: horario de Contenido, redes de Contenido, logo, teléfono y dirección', () => {
+	const datos = JSON.parse(readFileSync(seed, 'utf8')).settings;
+	for (const u of ['/', '/en/']) {
+		const org = ldDe(de(u), 'RealEstateAgent');
+		assert.ok(org.name && org.url && org.logo && org.telephone && org.address && org.areaServed, u);
+		// «Lunes a sábado, 9:00 a 18:00» (data/seed.json): también en /en/, que muestra el horario en inglés.
+		assert.deepEqual(org.openingHoursSpecification, [{ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '09:00', closes: '18:00' }], u);
+		assert.deepEqual(org.sameAs, Object.values(datos.redes).filter((r) => /^https?:\/\//.test(r)), u);
+	}
+	assert.ok(!/eqinmobilariogt/.test(readFileSync(path.join(ROOT, 'data/seed.json'), 'utf8')), 'las redes del ejemplo llevan el usuario correcto (eqinmobiliario.gt)');
+});
+
+test('JSON-LD de fichas, artículos y migas: los campos que pide Google', () => {
+	for (const u of sitemap) {
+		const h = de(u);
+		if (u !== '/' && u !== '/en/') assert.ok(ldDe(h, 'BreadcrumbList'), `${u} sin BreadcrumbList`);
+		const ficha = ldDe(h, 'RealEstateListing');
+		if (ficha) {
+			const o = ficha.offers;
+			assert.ok(ficha.name && ficha.datePosted && ficha.image.length > 1 && ficha.image.every((i) => /^https:\/\//.test(i)), u);
+			assert.ok(o.priceCurrency && /^https:\/\/schema\.org\//.test(o.availability) && (o.price || ficha.offers.price === undefined), u);
+			if (ficha.about.floorSize) assert.equal(ficha.about.floorSize.unitCode, 'MTK', u);
+		}
+		const art = ldDe(h, 'BlogPosting');
+		if (art) assert.ok(art.headline && art.author && art.author.name && art.datePublished && /^https:\/\//.test(art.image) && art.publisher, u);
+	}
+	assert.ok(ldDe(de('/propiedad/casa-en-venta-en-zona-16-2/'), 'RealEstateListing').about.numberOfRooms);
+});
+
+test('títulos y descripciones únicos; un solo h1 en cada página que se indexa', () => {
+	const vistos = { titulo: new Map(), descripcion: new Map() };
+	for (const u of sitemap) {
+		const h = de(u);
+		for (const [k, re] of [['titulo', /<title>([^<]*)<\/title>/], ['descripcion', /<meta name="description" content="([^"]*)"/]]) {
+			const v = attr(h, re);
+			assert.ok(!vistos[k].has(v), `${k} repetido en ${u} y ${vistos[k].get(v)}: «${v}»`);
+			vistos[k].set(v, u);
+		}
+		assert.equal((h.match(/<h1[\s>]/g) || []).length, 1, `${u}: h1`);
+	}
+});
+
+test('al compartir: foto de la ficha en JPG 1200×630 por el CDN, con medidas, texto y tarjeta grande', () => {
+	const h = de('/propiedad/casa-en-venta-en-zona-16-2/');
+	assert.match(attr(h, /<meta property="og:image" content="([^"]*)"/), /^https:\/\/eqinmobiliario\.gt\/\.netlify\/images\?url=%2Fimages%2Fimg_3\.webp&amp;w=1200&amp;h=630&amp;fit=cover&amp;fm=jpg$/);
+	assert.match(h, /<meta property="og:image:width" content="1200">\s*<meta property="og:image:height" content="630">/);
+	assert.match(h, /<meta property="og:image:alt" content="Casa en venta en Zona 16 2 – foto 1">/);
+	assert.equal(attr(h, /<meta name="twitter:image" content="([^"]*)"/), attr(h, /<meta property="og:image" content="([^"]*)"/));
+	for (const u of sitemap) assert.match(de(u), /<meta name="twitter:card" content="summary_large_image">/, u);
+});
+
+test('sitemap: lastmod real en fichas (también en inglés) y fotos de cada ficha; robots.txt y llms.txt al día', () => {
+	const xml = readFileSync(path.join(dist, 'sitemap.xml'), 'utf8');
+	const urls = [...xml.matchAll(/<url><loc>([^<]+)<\/loc>(.*?)<\/url>/g)];
+	for (const [, loc, resto] of urls.filter(([, l]) => /\/(propiedad|property)\//.test(l))) {
+		assert.match(resto, /<lastmod>2026-\d\d-\d\d<\/lastmod>/, loc);
+		assert.match(resto, /<image:image><image:loc>https:\/\//, loc);
+	}
+	const robots = readFileSync(path.join(dist, 'robots.txt'), 'utf8');
+	for (const bot of ['Bingbot', 'DuckDuckBot', 'Applebot', 'GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended']) {
+		assert.match(robots, new RegExp(`User-agent: ${bot}\\nAllow: /\\nDisallow: /admin/`), bot);
+	}
+	assert.match(robots, /^Sitemap: https:\/\/eqinmobiliario\.gt\/sitemap\.xml$/m);
+	// llms.txt: solo páginas del sitemap (nada que no se indexa).
+	const llms = [...readFileSync(path.join(dist, 'llms.txt'), 'utf8').matchAll(/\]\((https:\/\/eqinmobiliario\.gt[^)]*)\)/g)].map((m) => m[1].replace(BASE, ''));
+	assert.ok(llms.length > 10);
+	for (const u of llms) assert.ok(sitemap.has(u), `llms.txt enlaza ${u}, que no está en el sitemap`);
+});
+
+test('ruta crítica: Work Sans del propio sitio y precargada con la misma URL; primera tarjeta del listado con prioridad', () => {
+	const h = de('/');
+	assert.doesNotMatch(h, /fonts\.(googleapis|gstatic)\.com/);
+	const pre = attr(h, /<link rel="preload" as="font" type="font\/woff2" href="([^"]+)" crossorigin>/);
+	const css = readFileSync(path.join(dist, attr(h, /<link rel="stylesheet" href="([^"]+)"/)), 'utf8');
+	assert.ok(css.includes(`url(${pre})`), `la precarga ${pre} no es la del CSS`);
+	assert.ok(existsSync(path.join(dist, pre)));
+	const tarjetas = de('/propiedades/').match(/<img src="[^"]*" [^>]*class="img-fluid"[^>]*>/g);
+	assert.match(tarjetas[0], /fetchpriority="high"/);
+	assert.doesNotMatch(tarjetas[1], /fetchpriority|loading="lazy"/);
+	assert.match(tarjetas[2], /loading="lazy"/);
+});
+
+test('404: además del botón, enlaces a las zonas y tipos que se indexan', () => {
+	const h = readFileSync(path.join(dist, '404.html'), 'utf8');
+	assert.match(h, /<meta name="robots" content="noindex/);
+	assert.match(h, /aria-labelledby="por-zona"[\s\S]*href="\/propiedades\/zona-16\/"[\s\S]*href="\/casas-en-venta\/"/);
+});
+
 // Sitio sin casas en renta: el listado vacío lo dice como tal (no como filtro) y ningún enlace del contenido lleva ahí.
 {
 	const seedSin = path.join(tmp, 'seed-sin-renta.json');

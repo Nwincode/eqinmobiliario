@@ -170,6 +170,13 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | El contenido escrito con «##» salía como h3 bajo el h1 (salto de nivel en 17 páginas); el aviso de una casa vendida iba con h2 antes del h1. | Los títulos del markdown empiezan en el nivel que les toca (`markdown(…, nivel)`); `test-sitio.mjs` revisa el orden en todas las páginas. |
 | En inglés la descripción y el JSON-LD decían solo m². | Medidas en inglés con sus sq ft (`conPiesCuadrados`, formato.js). |
 | La ficha por noche cargaba en cada página todos los textos del chat. | Lo que viaja a la página en JSON se filtra a lo que usa ese JavaScript; el chat, solo en /reserva/. |
+| El JSON-LD de la empresa no decía el horario aunque estaba escrito en Contenido. | El horario sale de `contacto.horario` con `horarioSchema` (formato.js); si no lo entiende, null y el que confirmó el dueño, nunca uno inventado del texto. |
+| Al compartir una ficha salía la .webp original, sin medidas ni texto alternativo. | `og:image` por `ogImagen`: JPG 1200×630 del CDN con width, height y alt (`test-sitio.mjs`). |
+| Las fichas, páginas y artículos en inglés iban al sitemap sin `lastmod`. | Cada URL del sitemap con la fecha real de lo que muestra (`updatedAt`, fecha del artículo); sin fecha real, sin `lastmod`. |
+| La letra se pedía a Google (una hoja de estilos y otra conexión) antes de poder pintar el texto. | Fuentes desde el propio sitio, en el CSS del sitio, y la precarga con la URL exacta del CSS (si no, se baja dos veces). |
+| IndexNow recibía todo el sitemap en cada publicación (los buscadores dejan de hacer caso). | Solo lo que cambió: `urlsCambiadas` (`netlify/lib/indexnow.mjs`), con prueba en `test-seo.mjs`. |
+| Las redes del ejemplo y del manual de marca decían «eqinmobilariogt»; el usuario es `eqinmobiliario.gt`. | Un usuario de redes se copia de la cuenta, no se escribe de memoria; `sameAs` sale solo de Contenido → Contacto y redes. |
+| La 404 solo ofrecía un botón. | La 404 lleva las zonas, tipos y operaciones que se indexan (`porZona`). |
 
 ## 7. Cómo se le responde al usuario
 

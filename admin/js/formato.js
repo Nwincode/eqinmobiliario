@@ -79,6 +79,39 @@ export function horarioEn(horario) {
 	return en.charAt(0).toUpperCase() + en.slice(1);
 }
 
+// El mismo horario como schema.org/OpeningHoursSpecification (JSON-LD de la portada): «Lunes a sábado, 8:00 a 17:00»
+// → [{ dayOfWeek: [Monday…Saturday], opens: '08:00', closes: '17:00' }]. Tramos separados por «;», varias horas con
+// «y», «domingos cerrado» se salta. Si queda una palabra que no entiende, null: mejor nada que un horario inventado.
+const DIAS_LD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DIA_N = { lunes: 0, martes: 1, miercoles: 2, jueves: 3, viernes: 4, sabado: 5, sabados: 5, domingo: 6, domingos: 6 };
+export function horarioSchema(horario) {
+	const sinTilde = String(horario || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+	if (!sinTilde) return null;
+	const DIA = '(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)';
+	const out = [];
+	for (const tramo of sinTilde.split(';').map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)) {
+		if (new RegExp(`^${DIA}( (a|al|y) ${DIA})?,? cerrados?$`).test(tramo)) continue;
+		const d = new RegExp(`^(?:todos los dias|${DIA}(?:\\s+(?:a|al)\\s+${DIA})?)[\\s,:]+(.*)$`).exec(tramo);
+		if (!d) return null;
+		const [desde, hasta] = d[1] ? [DIA_N[d[1]], DIA_N[d[2] || d[1]]] : [0, 6];
+		if (hasta < desde) return null;
+		const horas = [];
+		const resto = d[3].replace(/(\d{1,2})(?::(\d{2}))?\s*(?:([ap])\.?\s*m\b\.?|h(?:rs|oras)?\b)?/g, (_, h, m = '00', ap) => {
+			let n = Number(h);
+			if (ap === 'p' && n < 12) n += 12;
+			if (ap === 'a' && n === 12) n = 0;
+			horas.push(n <= 24 && Number(m) < 60 ? `${String(n).padStart(2, '0')}:${m}` : null);
+			return ' ';
+		});
+		if (resto.replace(/\b(de|desde|a|al|hasta|y)\b/g, '').replace(/[\s,.–-]/g, '') || !horas.length || horas.length % 2 || horas.includes(null)) return null;
+		for (let i = 0; i < horas.length; i += 2) {
+			if (horas[i] >= horas[i + 1]) return null;
+			out.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: DIAS_LD.slice(desde, hasta + 1), opens: horas[i], closes: horas[i + 1] });
+		}
+	}
+	return out.length ? out : null;
+}
+
 // Texto en inglés con los m² también en pies cuadrados: «149 m² apartment» → «149 m² (1,604 sq ft) apartment».
 // Lo que ya trae sus sq ft al lado («1,604 sq ft (149 m²)», «2,226 m² (23,966 sq ft)») no se toca.
 export function conPiesCuadrados(texto) {
