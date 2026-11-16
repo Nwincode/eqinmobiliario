@@ -938,10 +938,76 @@ const duenos = [];
 	paso('Con las reglas de antes: aviso en Propietarios con el orden, y «Dar acceso» deshabilitado (con el porqué) para un dueño sin casas por noche',
 		/ya está al día/.test(aviso) && /publicar las reglas nuevas/.test(aviso) && /consola de Firebase/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
 	await viejas.p.close();
-	// La contraseña la pone ella, con el enlace del correo (aquí, con el código que guarda el emulador).
-	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oobCode: oob?.oobCode, newPassword: CLAVE }) });
+	// La contraseña la pone ella, con el botón del correo: abre la página de la empresa en el panel (no la de Google).
+	const enlaceCorreo = (deAcceso?.htmlbody.match(/href="([^"]*mode=resetPassword[^"]*)"/) || [])[1]?.replace(/&amp;/g, '&') || '';
+	const mixta = await persona(390);
+	await mixta.p.goto(enlaceCorreo.replace(/^https?:\/\/[^/]+/, SITIO));
+	await mixta.p.locator('#clave-nueva').waitFor({ timeout: 15000 }).catch(() => {});
+	const paginaClave = await mixta.p.locator('.auth-card').innerText().catch(() => '');
+	await mixta.p.screenshot({ path: `${PANEL}/crear-contrasena-390.png`, fullPage: true });
+	// Seguridad de la página: el código no queda en la barra ni en el historial, y no se le pasa a otros sitios.
+	const urlAlAbrir = mixta.p.url();
+	const sinReferer = await mixta.p.locator('meta[name="referrer"][content="no-referrer"]').count();
+	// Una contraseña fácil de adivinar no se acepta (y el enlace sigue sirviendo).
+	await mixta.p.fill('#clave-nueva', '12345678');
+	await mixta.p.fill('#clave-repite', '12345678');
+	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
+	await espera(800);
+	const debil = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
+	await mixta.p.fill('#clave-nueva', 'mixta-clave-1');
+	await mixta.p.fill('#clave-repite', 'mixta-clave-1');
+	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
+	await espera(800);
+	const conCorreo = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
+	await mixta.p.fill('#clave-nueva', CLAVE);
+	await mixta.p.fill('#clave-repite', CLAVE + 'x');
+	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
+	await espera(500);
+	const distintas = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
+	paso('Página de contraseña: el código se borra de la barra al abrir, no se pasa a otros sitios, y rechaza contraseñas fáciles, con el correo o distintas',
+		!/oobCode/.test(urlAlAbrir) && sinReferer === 1 && /fácil de adivinar/.test(debil) && /no puede llevar tu correo/.test(conCorreo) && /no son iguales/.test(distintas),
+		`${urlAlAbrir} · ${debil} · ${conCorreo} · ${distintas}`);
+	await mixta.p.fill('#clave-repite', CLAVE);
+	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
+	await mixta.p.locator('.admin-user-role').waitFor({ timeout: 20000 }).catch(() => {});
+	paso('El botón del correo abre la página de la empresa en el panel: pone su contraseña y entra directo a su panel',
+		/^https?:\/\/[^/]+\/admin\/\?mode=resetPassword&oobCode=/.test(enlaceCorreo) && /Crea tu contraseña/.test(paginaClave) && /mixta@example\.com/.test(paginaClave)
+		&& (await mixta.p.locator('.admin-user-role').innerText().catch(() => '')) === 'Propietario' && !/oobCode/.test(mixta.p.url()), `${enlaceCorreo.slice(0, 60)} · ${mixta.p.url()}`);
+	// Usado otra vez, el mismo enlace ya no sirve y ofrece mandar otro.
+	const otra = await persona(390);
+	await otra.p.goto(enlaceCorreo.replace(/^https?:\/\/[^/]+/, SITIO));
+	await otra.p.locator('.auth-card', { hasText: 'ya no sirve' }).waitFor({ timeout: 15000 }).catch(() => {});
+	paso('El mismo enlace, usado otra vez, ya no sirve y ofrece mandar uno nuevo', /Este enlace ya no sirve/.test(await otra.p.locator('.auth-card').innerText().catch(() => '')));
+	await otra.p.context().close();
+	// Al cambiarla le llega el aviso «Tu contraseña del panel cambió» a su propio correo.
+	await espera(1500);
+	const todos = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+	const avisoClave = todos().filter((c) => JSON.stringify(c.to || '').includes('mixta@example.com') && c.subject === 'Tu contraseña del panel cambió').pop();
+	paso('Al cambiar la contraseña, le llega a su correo el aviso «Tu contraseña cambió» (con WhatsApp por si no fue ella)', Boolean(avisoClave) && /wa\.me/.test(avisoClave.htmlbody), avisoClave ? avisoClave.subject : 'no salió');
+	// Ataques al servidor (/api/contrasena): nada de esto manda correos ni dice quién tiene cuenta.
+	const api = (cuerpo, extra = {}) => fetch(`${SITIO}/api/contrasena`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo) });
+	const antes = todos().length;
+	const r1 = await api({ email: 'nadie-en-el-panel@example.com' });
+	const r2 = await api({ email: 'mixta@example.com' }, { 'Content-Type': 'text/plain' });
+	const r3 = await api({ aviso: 'cambiada' });
+	const r4 = await api({ aviso: 'cambiada' }, { Authorization: 'Bearer basura' });
+	const r5 = await api({ email: 'mixta@example.com\r\nBcc: otro@example.com' });
+	const r6 = await api({ email: ['mixta@example.com', 'otro@example.com'] });
+	const tras = todos().slice(antes);
+	paso('Ataques a /api/contrasena: correo sin cuenta (200 igual, sin correo), sin JSON (415), aviso sin sesión o con sesión falsa (401), correo con saltos o lista (400)',
+		r1.status === 200 && r2.status === 415 && r3.status === 401 && r4.status === 401 && r5.status === 400 && r6.status === 400 && !tras.some((c) => /nadie-en-el-panel|otro@example/.test(JSON.stringify(c.to || ''))),
+		[r1, r2, r3, r4, r5, r6].map((r) => r.status).join(' '));
+	// Una cuenta creada por fuera (el alta de Firebase es pública) no recibe correos con la marca de la empresa.
+	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'intruso@example.com', password: 'Intruso-2026', returnSecureToken: true }) });
+	const antes2 = todos().length;
+	const r7 = await api({ email: 'intruso@example.com' });
+	paso('Una cuenta creada por fuera del panel no recibe el correo de la empresa (y la respuesta es la misma)', r7.status === 200 && !todos().slice(antes2).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), String(r7.status));
+	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
+	const seguidos = [];
+	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
+	paso('Pedidos seguidos para el mismo correo se frenan con 429', seguidos.includes(429), seguidos.join(' '));
+	await mixta.p.setViewportSize({ width: 1280, height: 900 });
 	// b) Entra y ve sus dos casas.
-	const mixta = await entrar('mixta');
 	duenos.push(['dueña mixta', mixta]);
 	const menu = await mixta.p.locator('.admin-nav a').allInnerTexts();
 	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades y Solicitudes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'

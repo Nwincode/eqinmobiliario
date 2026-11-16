@@ -15,9 +15,9 @@
 // 429 demasiados pedidos; 503 sin configurar o falló el envío.
 import { googleToken, cuentaAccesos } from '../lib/google.mjs';
 import { leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
-import { enviarCorreo, servicioCorreo } from '../lib/correo.mjs';
+import { enviarCorreo, servicioCorreo, SITE_URL, plantilla, boton, esc } from '../lib/correo.mjs';
 import { correoContrasena } from '../lib/correo-contrasena.mjs';
-import { staffUser, json } from '../lib/auth.mjs';
+import { staffUser, sesionDe, json } from '../lib/auth.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
 import { correoValido } from '../../admin/js/formato.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
@@ -27,6 +27,20 @@ const API = `https://identitytoolkit.googleapis.com/v1/projects/${PROYECTO}`;
 const ALCANCE = 'https://www.googleapis.com/auth/cloud-platform';
 const porIp = limitador(10, 10 * 60_000);
 const porCorreo = limitador(3, 60 * 60_000);
+const avisosPorCuenta = limitador(3, 60 * 60_000);
+const WHATSAPP = 'https://wa.me/50259131276?text=Hola%2C%20no%20cambi%C3%A9%20mi%20contrase%C3%B1a%20del%20panel%20y%20me%20lleg%C3%B3%20un%20aviso.';
+
+// Aviso «Tu contraseña cambió» a la cuenta que acaba de cambiarla: si no fue la persona, se entera y avisa.
+async function avisoCambio(email) {
+	const html = await plantilla({
+		titulo: 'Tu contraseña cambió',
+		intro: `La contraseña del panel para <strong>${esc(email)}</strong> se cambió hace un momento.`,
+		preheader: 'Si fuiste tú, no tienes que hacer nada.',
+		bloques: (c) => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.ink}">Si fuiste tú, no tienes que hacer nada. <strong style="color:${c.dark}">Si no fuiste tú</strong>, escríbenos de inmediato y pide un correo nuevo para poner tu contraseña en «¿Olvidaste tu contraseña?».</p>`
+			+ boton(c, 'Escribir por WhatsApp', WHATSAPP, c.whatsapp) + boton(c, 'Abrir el panel', `${SITE_URL}/admin/`, c.primary, { borde: true })
+	});
+	await enviarCorreo({ para: email, asunto: 'Tu contraseña del panel cambió', html, texto: `La contraseña del panel para ${email} se cambió hace un momento. Si no fuiste tú, escríbenos de inmediato por WhatsApp: ${WHATSAPP}` });
+}
 
 async function google(accion, cuerpo) {
 	const token = await googleToken(ALCANCE, cuentaAccesos());
@@ -53,10 +67,11 @@ async function enlaceDe(email) {
 		throw new Error(`Google no dio el enlace: ${r.motivo}`);
 	}
 	if (String(r.body.email || '').toLowerCase() !== email || !r.body.oobLink) return null;
-	// La página de Google donde se escribe la contraseña, en español.
-	const link = new URL(r.body.oobLink);
-	link.searchParams.set('lang', 'es');
-	return link.href;
+	// El enlace lleva a la página de la empresa (admin/js/app.js, pantallaContrasena), no a la de Google: el código de
+	// un solo uso es el que dio Google y lo vuelve a validar Google al guardar.
+	const codigo = new URL(r.body.oobLink).searchParams.get('oobCode');
+	if (!codigo) return null;
+	return `${SITE_URL}/admin/?mode=resetPassword&oobCode=${encodeURIComponent(codigo)}&lang=es`;
 }
 
 export default async (req, context) => {
@@ -65,6 +80,16 @@ export default async (req, context) => {
 	if (!cuentaAccesos() || !servicioCorreo() || !datosConfigurados()) return json(503, { error: 'Sin configurar' });
 	let cuerpo;
 	try { cuerpo = await req.json(); } catch { return json(400, { error: 'Solicitud inválida' }); }
+	// { aviso: 'cambiada' }: lo pide el panel justo después de guardar la contraseña nueva, con la sesión recién abierta
+	// (de hace menos de 10 minutos). El aviso va al correo de esa sesión, nunca a uno que mande quien llama.
+	if (cuerpo?.aviso === 'cambiada') {
+		let s = null;
+		try { s = await sesionDe(req); } catch { /* token inválido */ }
+		if (!s?.email || Date.now() / 1000 - s.entro > 600) return json(401, { error: 'Sesión inválida' });
+		if (avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
+		try { await avisoCambio(s.email); return json(200, { ok: true }); }
+		catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
+	}
 	const email = String(cuerpo?.email || '').trim().toLowerCase();
 	if (!correoValido(email) || !/^[\x21-\x7e]+$/.test(email)) return json(400, { error: 'Correo inválido' });
 	let admin = false;

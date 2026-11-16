@@ -34,6 +34,14 @@ async function usuario(req) {
 	return { uid: payload.sub, nombre: f.nombre?.stringValue || '', rol: f.rol?.stringValue || '', propietarioId: f.propietarioId?.stringValue || '' };
 }
 
+// Quien llama según su token (sin mirar users/): uid, correo y cuándo entró. null sin token; un token inválido lanza.
+export async function sesionDe(req) {
+	const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+	if (!token) return null;
+	const p = await verificar(token);
+	return { uid: p.sub, email: String(p.email || '').toLowerCase(), entro: Number(p.auth_time) || 0 };
+}
+
 export async function staffUser(req) {
 	const u = await usuario(req);
 	if (!u || (u.rol !== 'admin' && u.rol !== 'asesor')) return null;

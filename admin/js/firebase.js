@@ -2,7 +2,8 @@
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
 	getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
-	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential, connectAuthEmulator
+	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential, connectAuthEmulator,
+	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
 	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
@@ -56,6 +57,7 @@ export async function createAccount(email, password) {
 export {
 	onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword, updatePassword, EmailAuthProvider, reauthenticateWithCredential,
+	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
 	serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction,
 	ref, uploadBytes, getDownloadURL, deleteObject
