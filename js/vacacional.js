@@ -177,7 +177,7 @@
 		var sinPersonas = function () { return selHuespedes && !selHuespedes.value; };
 		// Línea de pasos (Fechas — Personas — Tus datos): el que toca resaltado; los listos con ✓ y lo elegido
 		// («17 – 20 nov», «2 personas»), así sirve también de resumen. Tocar un paso lleva a su campo.
-		var pasos = card.querySelectorAll('.vac-pasos [data-paso]');
+		var pasos = card.querySelectorAll('.vac-guia [data-paso]');
 		var fDia = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var campoDatos = function () { return form && ['nombre', 'telefono', 'email'].every(function (n) { return !form[n] || form[n].value.trim(); }); };
 		function pintarPasos() {

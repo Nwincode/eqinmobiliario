@@ -189,6 +189,16 @@ await cliente.p.fill('.vac-card [name=email]', 'ana@example.com');
 paso('Con las fechas puestas, el botón pide las personas y sin ellas no envía', (await cliente.p.locator('.vac-card button[type=submit]').innerText()).includes('¿Cuántas personas vienen?')
 	&& await (async () => { await cliente.p.locator('.vac-card button[type=submit]').click(); await espera(600); return !/\/reserva\//.test(cliente.p.url()) && await cliente.p.locator('.vac-card [name=huespedes].is-invalid').count() === 1; })());
 await cliente.p.locator('.vac-card [name=huespedes]').selectOption('2');
+await espera(300);
+{
+	const guia = await cliente.p.evaluate(() => {
+		const ol = document.querySelector('.vac-card .vac-guia'), li = [...ol.querySelectorAll('li')];
+		return { unaFila: new Set(li.map((x) => Math.round(x.getBoundingClientRect().top))).size === 1, alto: Math.round(ol.getBoundingClientRect().height),
+			hechos: li.filter((x) => x.classList.contains('is-hecho')).length, ahora: (ol.querySelector('.is-ahora') || {}).dataset?.paso, url: location.search };
+	});
+	paso('La línea de pasos va en una sola fila, marca fechas y personas y lo guarda en la dirección', guia.unaFila && guia.alto < 60 && guia.hechos >= 2
+		&& /llegada=.*salida=.*huespedes=2/.test(guia.url), JSON.stringify(guia));
+}
 await cliente.p.locator('.vac-card button[type=submit]').click();
 await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];

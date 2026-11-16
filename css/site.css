@@ -3187,7 +3187,7 @@ a:hover > .eq-ic-fin,
 }
 /* Línea de pasos de la reserva (Fechas — Personas — Tus datos): una sola fila; el paso que toca resaltado, los listos
    con ✓ y lo elegido. Cada paso es un botón que lleva a su campo (área de toque de 44 px). */
-.vac-pasos {
+.vac-guia {
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -3196,22 +3196,22 @@ a:hover > .eq-ic-fin,
 	list-style: none;
 	font-size: .82rem;
 }
-.vac-pasos li {
+.vac-guia li {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	flex: 0 1 auto;
 	min-width: 0;
 }
-.vac-pasos li + li::before {
+.vac-guia li + li::before {
 	content: '';
 	flex: 0 0 14px;
 	height: 2px;
 	border-radius: 1px;
 	background: color-mix(in oklab, var(--eq-ink) 25%, var(--eq-white));
 }
-.vac-pasos li.is-hecho + li::before { background: var(--eq-primary); }
-.vac-pasos button {
+.vac-guia li.is-hecho + li::before { background: var(--eq-primary); }
+.vac-guia button {
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -3224,11 +3224,11 @@ a:hover > .eq-ic-fin,
 	font: inherit;
 	white-space: nowrap;
 }
-.vac-pasos button span:not(.eq-ic) {
+.vac-guia button span:not(.eq-ic) {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
-.vac-pasos .eq-ic {
+.vac-guia .eq-ic {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -3240,15 +3240,15 @@ a:hover > .eq-ic-fin,
 	border-radius: 50%;
 	font-size: .75rem;
 }
-.vac-pasos .is-hecho button { color: var(--eq-dark); }
-.vac-pasos .is-hecho .eq-ic {
+.vac-guia .is-hecho button { color: var(--eq-dark); }
+.vac-guia .is-hecho .eq-ic {
 	border-color: var(--eq-primary);
 	background: var(--eq-primary);
 	color: var(--eq-white);
 }
-.vac-pasos .is-hecho .eq-ic::before { content: '\2713'; font-family: inherit; font-weight: 700; }
-.vac-pasos .is-ahora button { color: var(--eq-primary); font-weight: 600; }
-.vac-pasos .is-ahora .eq-ic {
+.vac-guia .is-hecho .eq-ic::before { content: '\2713'; font-family: inherit; font-weight: 700; }
+.vac-guia .is-ahora button { color: var(--eq-primary); font-weight: 600; }
+.vac-guia .is-ahora .eq-ic {
 	border-color: var(--eq-primary);
 	color: var(--eq-primary);
 	box-shadow: 0 0 0 3px color-mix(in oklab, var(--eq-cyan) 30%, transparent);
