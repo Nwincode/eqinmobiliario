@@ -3,6 +3,7 @@ import {
 	db, doc, getDoc, getDocs, setDoc, collection, query, where, serverTimestamp
 } from './firebase.js';
 import { datosDelDueno, etiquetaDueno } from './duenos.js';
+import { toast } from './ui.js';
 
 // El asesor de quien no tiene asesor vinculado: el mismo texto que usa firestore.rules (myAgentId) y storage.rules.
 // Con él, el filtro «lo mío» de un asesor sin vincular coincide con la regla y devuelve vacío (no un error).
@@ -88,12 +89,14 @@ export async function markPending(descripcion) {
 
 // ------------------------------------------------------------ Publicación
 // Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
-export async function publicarAhora(hook) {
+// `automatica`: la lanzó la publicación automática (se dice así en «Última publicación»).
+export async function publicarAhora(hook, { automatica = false } = {}) {
 	await fetch(hook, { method: 'POST', mode: 'no-cors', body: '{}' });
 	await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
 		ultimaPublicacion: serverTimestamp(),
-		ultimaPublicacionPor: session.profile?.nombre || session.user?.email || ''
+		ultimaPublicacionPor: session.profile?.nombre || session.user?.email || '',
+		ultimaPublicacionAuto: automatica
 	}, { merge: true });
 	document.dispatchEvent(new CustomEvent('publish-state'));
 }
@@ -126,7 +129,8 @@ export async function programarAutoPublicar() {
 	autoTimer = setTimeout(async () => {
 		autoTimer = null;
 		try {
-			await publicarAhora(autoHook);
+			await publicarAhora(autoHook, { automatica: true });
+			toast('Publicado automáticamente: el sitio se pone al día en 2 a 4 minutos.');
 		} catch (err) {
 			console.warn('No se pudo publicar automáticamente', err);
 		}
