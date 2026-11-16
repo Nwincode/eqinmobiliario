@@ -29,7 +29,7 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	const personas = (lang) => (lang === 'en' ? `${chat.huespedes} ${chat.huespedes === 1 ? 'guest' : 'guests'}` : `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`);
 	const resumenEn = (lang) => [lang === 'en' ? tituloDe(chat, casa) : String(casa?.titulo || '').slice(0, 200), `${fecha(chat.llegada, lang)} → ${fecha(chat.salida, lang)}`, chat.huespedes ? personas(lang) : ''].filter(Boolean).join(' · ');
 	const resumen = resumenEn('es');
-	// La reserva la atiende el socio: el equipo solo recibe estos avisos si el socio no tiene correo guardado.
+	// La reserva la atiende el socio: el equipo recibe la solicitud nueva y las cancelaciones del socio; lo demás, solo si el socio no tiene correo guardado.
 	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
 	const deLaCasa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
 	const en = chat.idioma === 'en';
@@ -40,8 +40,12 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// Solicitud recién enviada (todavía sin mensajes): al socio y al equipo para que respondan; al cliente, su enlace.
 	if (!ultimo) {
 		if (ahora - ms(chat.createdAt) > FRESCO) return [];
+		// El equipo también se entera de cada solicitud nueva (aparte del socio, sin repetir a quien ya la recibe).
+		const equipo = (correos.equipo || []).filter((c) => c && !deLaCasa.some((d) => d.toLowerCase() === c.toLowerCase()));
 		return [
 			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, `Nueva solicitud ${chat.codigo}`, `${resumen}. Respóndela pronto: las fechas quedan apartadas 2 horas.`),
+			...(equipo.length ? [{ para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: `Nueva solicitud ${chat.codigo}`,
+				intro: `${resumen}. La atiende el socio; si en 2 horas no responde, te llega otro aviso.`, boton: 'Abrir la solicitud', url: panel }] : []),
 			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? 'We received your request' : 'Recibimos tu solicitud',
 				en ? `${resumenEn('en')}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
 		];
