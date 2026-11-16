@@ -8,7 +8,7 @@ import { incoherencia } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno } from '../enlace-dueno.js';
+import { asignarDueno, avisoCambioDeDueno } from '../enlace-dueno.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -290,6 +290,10 @@ export async function render(container) {
 			avisosLista.push(['warning', h('span', {}, 'Fotos sin fila en el CSV (no se suben): ',
 				grupos.sinFila.map((g, i) => [i ? ', ' : '', h('strong', {}, g.nombre), ` (${g.fotos})`]), '.')]);
 		}
+		// Casas que ya tienen dueño y el CSV les pone otro: se ve antes de importar.
+		const pasan = avisoCambioDeDueno(validas.filter((it) => it.existente && it.datos.propietarioId)
+			.map((it) => ({ titulo: it.existente.titulo, de: it.existente.propietarioId || '', a: it.datos.propietarioId })), duenos);
+		if (pasan) avisosLista.push(['warning', `Cambian de dueño (sus reservas y solicitudes por venir pasan al nuevo): ${pasan}.`]);
 		if (grupos.ignorados) avisosLista.push(['secondary', `${plural(grupos.ignorados, 'archivo no es imagen', 'archivos no son imágenes')}.`]);
 		avisos.replaceChildren(...avisosLista.map(([c, t]) => h('div', { class: `alert alert-${c} imp-aviso` }, t)));
 

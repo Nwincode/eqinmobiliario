@@ -12,9 +12,29 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, updateDoc, deleteDoc, runTransaction, serverTimestamp, collection, query, where } from './firebase.js';
 import { publicarPortal } from './portal.js';
 import { session } from './session.js';
-import { toast, errorMessage } from './ui.js';
+import { toast, errorMessage, confirmDialog, h } from './ui.js';
 import { tieneCasasPorNoche } from './duenos.js';
 import { deLaCasa, porVenir, avisoPorVenir } from './reservas.js';
+
+// Casas que ya son de otra persona y pasarían a un dueño nuevo: cambios = [{ titulo, de, a }] (ids de Propietarios).
+// La usan la ficha de la casa, la de la persona y el importador (este solo la lista: avisoCambioDeDueno).
+const nombreDe = (duenos, id) => duenos.find((p) => p.id === id)?.nombre || 'otra persona';
+const queCambia = (cambios) => cambios.filter((c) => c.de && c.a && c.de !== c.a);
+export function avisoCambioDeDueno(cambios, duenos) {
+	const lista = queCambia(cambios);
+	if (!lista.length) return '';
+	return lista.map((c) => `«${c.titulo || 'La casa'}» es de ${nombreDe(duenos, c.de)} y pasa a ${nombreDe(duenos, c.a)}`).join(' · ');
+}
+// Antes de escribir nada: se pregunta, con lo que pasa al dueño nuevo. true = seguir (o no había nada que preguntar).
+export function confirmarCambioDeDueno(cambios, duenos) {
+	const lista = queCambia(cambios);
+	if (!lista.length) return Promise.resolve(true);
+	return confirmDialog(h('span', {},
+		h('strong', { class: 'd-block mb-2' }, lista.length === 1 ? 'Esta casa ya tiene dueño.' : 'Estas casas ya tienen dueño.'),
+		h('ul', { class: 'mb-2 ps-3' }, lista.map((c) => h('li', {}, `«${c.titulo || 'La casa'}»: de `, h('strong', {}, nombreDe(duenos, c.de)), ' pasa a ', h('strong', {}, nombreDe(duenos, c.a))))),
+		h('span', { class: 'small text-muted' }, 'Sus reservas, solicitudes y chats por venir pasan al dueño nuevo; las pasadas se quedan con quien las tenía. El acuerdo del dueño anterior se borra.')),
+	{ okText: lista.length === 1 ? 'Pasar la casa' : 'Pasar las casas' });
+}
 
 // Casas por noche que quedarían sin dueño: si alguna tiene huéspedes por venir, no se suelta ninguna (¿quién los
 // atiende?). casas = [{ id, titulo, operacion }]. Lanza un Error con el aviso.

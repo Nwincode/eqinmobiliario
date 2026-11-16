@@ -21,7 +21,7 @@ import { datosDe, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno } from '../enlace-dueno.js';
+import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
@@ -1204,6 +1204,8 @@ async function renderEditor(container, id, emb = null) {
 		let sinLlegada = false;
 		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
 		catch (err) { return toast(errorMessage(err), 'warning'); }
+		// Si la casa ya tenía dueño y se elige otro, se pregunta antes de guardar nada.
+		if (!isNew && !(await confirmarCambioDeDueno([{ titulo: d.titulo || data.titulo, de: data.propietarioId || '', a: d.propietarioId || '' }], propietarios))) return;
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;

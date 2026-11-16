@@ -13,7 +13,7 @@ import { abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, comisionDe, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
-import { asignarDueno, revisarSinDueno } from '../enlace-dueno.js';
+import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
@@ -213,6 +213,10 @@ async function renderEditor(container, id) {
 			// noche con huéspedes por venir no queda sin dueño: se revisa antes de escribir nada.
 			const antes = (data.propiedades || []).map((x) => x.propertyId);
 			await revisarSinDueno(queSuelta(ref.id, lista, antes, propiedades));
+			// Una casa que ya es de otra persona no se le quita sin preguntar.
+			const ajenas = lista.filter((pid) => !antes.includes(pid)).map((pid) => casaDe(propiedades, pid)).filter(Boolean)
+				.map((c) => ({ titulo: c.titulo, de: c.propietarioId || '', a: ref.id }));
+			if (!(await confirmarCambioDeDueno(ajenas, [...duenos, { id: ref.id, nombre: d.nombre || 'esta persona' }]))) return false;
 			// La lista de sus casas y `porNoche` también se conservan como están: los pone al día asignarDueno (vincularCasas).
 			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
 			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche']) {
