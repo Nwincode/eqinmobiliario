@@ -3,11 +3,15 @@
 // - los mensajes del cliente en el chat de su reserva que llevan más de 2 horas sin respuesta, y
 // - las reservas confirmadas que se cancelaron: por la solicitud y también por la reserva misma (una cancelación escrita
 //   directo en la base, sin pasar por el panel, no manda el correo de /api/aviso-chat; aquí sí llega).
-// Cada una se avisa una sola vez: entra en el correo de la hora en que venció o se canceló.
+// - las que el socio respondió «No se dio» y después esas mismas fechas aparecen bloqueadas o con otra reserva en la
+//   casa (puede ser un cliente que se cerró por fuera de la plataforma).
+// Cada una se avisa una sola vez: entra en el correo de la hora en que venció o se canceló (la de «No se dio» queda
+// anotada en alertas/bloqueo-{id}, que solo escribe la cuenta de escritura: las reglas no dejan a nadie más).
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
 import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
+import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import '../../js/calc-vacacional.js';
@@ -51,10 +55,11 @@ export default async () => {
 					reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, huespedes: c.huespedes, moneda: c.moneda, total: c.total } } : null;
 			}))).filter(Boolean);
 		})().catch((err) => { console.error('Mensajes sin responder:', err.message); return []; });
-		if (!sinRespuesta.length && !canceladas.length && !mensajes.length) return;
+		const sospechosas = await noSeDioYBloqueada(ahora).catch((err) => { console.error('«No se dio» y bloqueada:', err.message); return []; });
+		if (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length) return;
 
 		const socios = {};
-		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes].map((l) => l.propietarioId).filter(Boolean))) {
+		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas].map((l) => l.propietarioId).filter(Boolean))) {
 			socios[id] = (await leerPrivado(`propietarios/${id}`).catch(() => null))?.nombre || '';
 		}
 		const linea = (l) => {
@@ -63,12 +68,13 @@ export default async () => {
 				socios[l.propietarioId] && `Socio: ${socios[l.propietarioId]}`, l.solicitud?.motivo && `Motivo: ${l.solicitud.motivo}`].filter(Boolean);
 		};
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;
-		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas]].filter(([, lista]) => lista.length);
-		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`].filter(Boolean).join(' · ');
+		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas],
+			['«No se dio» y después esas fechas se ocuparon: revisa si el cliente se cerró por fuera', sospechosas]].filter(([, lista]) => lista.length);
+		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} «No se dio» con fechas ocupadas`].filter(Boolean).join(' · ');
 
 		const html = await plantilla({
 			titulo: 'Reservas que necesitan tu atención',
-			intro: 'El socio no respondió a tiempo. Abre la solicitud y respóndele al cliente desde el chat para no perder la reserva.',
+			intro: sinRespuesta.length || mensajes.length ? 'El socio no respondió a tiempo. Abre la solicitud y respóndele al cliente desde el chat para no perder la reserva.' : 'Abre cada una en el panel para ver qué pasó.',
 			bloques: (c) => grupos.map(([titulo, lista]) => `<h2 style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;color:${c.dark}">${titulo}</h2>
 ${lista.map((l) => `<p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">${linea(l).map(esc).join('<br>')}</p>
 ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).join('') + `
@@ -80,6 +86,35 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 		console.error('Solicitudes sin respuesta:', err.message);
 	}
 };
+
+// «No se dio» (de los últimos 60 días, con fechas por venir) y ahora esas noches están bloqueadas o tienen otra reserva
+// en la misma casa: la señal de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
+// escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
+async function noSeDioYBloqueada(ahora) {
+	if (!escrituraConfigurada()) return [];
+	const hoy = V.hoy(ahora);
+	const nos = (await desde('leads', 'updatedAt', new Date(ahora - 60 * 24 * HORA)))
+		.filter((l) => l.solicitud?.estado === 'no' && l.propertyId && l.reserva?.llegada && l.reserva.salida > hoy);
+	if (!nos.length) return [];
+	const reservas = await listar('reservas');
+	const casas = new Map();
+	const avisar = [];
+	for (const l of nos) {
+		if (!casas.has(l.propertyId)) casas.set(l.propertyId, await leerPrivado(`properties/${l.propertyId}`).catch(() => null));
+		const choca = (b) => Boolean(b?.desde) && b.desde < l.reserva.salida && b.hasta > l.reserva.llegada;
+		const bloqueada = (casas.get(l.propertyId)?.vacacional?.bloqueos || []).some(choca);
+		const otra = reservas.some((r) => r.propertyId === l.propertyId && r.estado !== 'cancelada' && r.leadId !== l.id && choca({ desde: r.llegada, hasta: r.salida }));
+		if (!bloqueada && !otra) continue;
+		const ruta = `alertas/bloqueo-${l.id}`;
+		const nueva = await transaccion(async ({ leer, crear }) => {
+			if (await leer(ruta)) return false;
+			crear(ruta, { leadId: l.id, codigo: l.reserva.codigo || '' }, { ahora: ['cuando'] });
+			return true;
+		}).catch((err) => { console.error('Alerta de bloqueo:', err.message); return false; });
+		if (nueva) avisar.push(l);
+	}
+	return avisar;
+}
 
 // Comisiones que se pagan hoy: un correo a cada socio con las suyas, para que pague y suba su comprobante sin que el equipo lo persiga.
 async function recordarComisiones(ahora) {

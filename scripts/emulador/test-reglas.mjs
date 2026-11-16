@@ -639,6 +639,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('el administrador lee un límite de pedidos', leer('admin1', 'limites/abc'), false);
 	await espera('alguien de afuera borra su límite de pedidos', lote(null, [{ delete: `${RAIZ}/limites/abc` }]), false);
 	await espera('el administrador escribe un límite de pedidos', lote('admin1', [docu('limites/abc', { veces: [1] })]), false);
+	// Las alertas de «No se dio» con fechas ocupadas (alertas/bloqueo-{id}) también: solo el servidor, para que nadie
+	// las borre y el aviso salga otra vez, ni marque una como avisada para que no salga.
+	await espera('el administrador lee una alerta de bloqueo', leer('admin1', 'alertas/bloqueo-x'), false);
+	await espera('el socio marca una alerta como avisada', lote('socio1', [docu('alertas/bloqueo-x', { leadId: 'x' })]), false);
+	await espera('alguien de afuera borra una alerta', lote(null, [{ delete: `${RAIZ}/alertas/bloqueo-x` }]), false);
 	await espera('el administrador crea un usuario (control)', lote('admin1', [docu('users/nuevo1', { rol: 'asesor', activo: true, nombre: 'Nuevo', agentId: 'a1' })]), true);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);

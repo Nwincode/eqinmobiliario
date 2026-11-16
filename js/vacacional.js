@@ -399,18 +399,23 @@
 					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
 					if (res.minimos) minimos = res.minimos;
 					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
+					var antes = estado.llegada + estado.salida;
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }
 					else if (estado.salida && !V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) { estado.salida = ''; estado.campo = 'salida'; }
 					var enfocado = cuerpo.contains(document.activeElement);
 					pintar(enfocado);
 					actualizar();
+					// Las fechas que traía (del listado o elegidas antes) ya no están libres: se dice, no se borran en silencio.
+					if (antes && antes !== estado.llegada + estado.salida) avisar(t.vacFechasYaNo + ' ' + ayuda.textContent);
 				})
 				.catch(function () {});
 		}
 
 		// Fechas y huéspedes elegidos en el listado vacacional.
 		var qs = new URLSearchParams(location.search);
-		if (V.validarEstancia({ llegada: qs.get('llegada'), salida: qs.get('salida'), ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) {
+		var traia = qs.get('llegada') && qs.get('salida');
+		var sirve = traia && V.validarEstancia({ llegada: qs.get('llegada'), salida: qs.get('salida'), ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok;
+		if (sirve) {
 			estado.llegada = qs.get('llegada'); estado.salida = qs.get('salida'); estado.mes = mesDe(estado.llegada);
 		}
 		if (selHuespedes && qs.get('huespedes') && selHuespedes.querySelector('option[value="' + (+qs.get('huespedes') || 0) + '"]')) selHuespedes.value = +qs.get('huespedes');
@@ -418,6 +423,7 @@
 		if (!tituloMes.id) tituloMes.id = 'vac-mes-' + (id || 'x').replace(/[^\w-]/g, '');
 		pintar(false);
 		actualizar();
+		if (traia && !sirve) avisar(t.vacFechasYaNo + ' ' + ayuda.textContent);
 	}
 
 	// Listado vacacional: muestra solo las casas libres para las fechas y huéspedes elegidos,
@@ -430,19 +436,39 @@
 			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : hoyB;
 			if (buscar.salida.value && buscar.salida.value <= buscar.llegada.value) buscar.salida.value = '';
 		});
+		// La disponibilidad al día de cada casa (calendarios de Airbnb, Booking y VRBO, reservas y precios de hoy), una vez
+		// por casa; si no responde, quedan los datos publicados.
+		var alDia = {};
+		function disponibilidad(id) {
+			if (!id || !window.fetch) return Promise.resolve(null);
+			if (!alDia[id]) alDia[id] = fetch('/api/disponibilidad?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+				.then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+			return alDia[id];
+		}
 		buscar.addEventListener('submit', function (e) {
 			e.preventDefault();
 			var q = { llegada: buscar.llegada.value, salida: buscar.salida.value, huespedes: +buscar.huespedes.value || 1 };
+			var cols = Array.prototype.slice.call(document.querySelectorAll('#vac-grid .listing-col'));
+			var datos = cols.map(function (col) { var d = {}; try { d = JSON.parse(col.querySelector('[data-vac]').getAttribute('data-vac')); } catch (err) {} return d; });
+			var boton = buscar.querySelector('button[type=submit]');
+			if (boton) boton.disabled = true;
+			Promise.all(datos.map(function (d) { return disponibilidad(d.id); })).then(function (vivos) {
+				if (boton) boton.disabled = false;
+				filtrar(q, cols, datos, vivos);
+			});
+		});
+		function filtrar(q, cols, datos, vivos) {
 			var libres = 0;
-			Array.prototype.forEach.call(document.querySelectorAll('#vac-grid .listing-col'), function (col) {
-				var item = col.querySelector('[data-vac]'), d = {};
-				try { d = JSON.parse(item.getAttribute('data-vac')); } catch (err) {}
-				var ok = q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: V.nochesOcupadas(d.bloqueos || []), nochesMin: d.nochesMin || 1, minimos: d.minimos, hoy: hoyB }).ok;
+			cols.forEach(function (col, i) {
+				var d = datos[i], vivo = vivos[i] || {};
+				var plan = vivo.plan && vivo.plan.base > 0 ? vivo.plan : d.plan;
+				var ocupadas = V.nochesOcupadas((d.bloqueos || []).concat(vivo.ocupadas || []));
+				var ok = !vivo.pausada && q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;
 				// El precio de la tarjeta pasa a ser el total de esas fechas (con limpieza e impuestos), que es lo que se compara.
-				var c = d.plan ? V.cotizarEstancia({ plan: d.plan, llegada: q.llegada, salida: q.salida, limpieza: d.limpieza }) : null;
+				var c = plan ? V.cotizarEstancia({ plan: plan, llegada: q.llegada, salida: q.salida, limpieza: d.limpieza }) : null;
 				var precio = col.querySelector('.price span');
 				if (c && c.total > 0 && precio) {
 					precio.textContent = buscar.getAttribute(c.noches === 1 ? 'data-total1' : 'data-totaln')
@@ -454,7 +480,7 @@
 				});
 			});
 			document.getElementById('listing-empty').hidden = libres > 0;
-		});
+		}
 	}
 
 	var cards = document.querySelectorAll('[data-vacacional]');

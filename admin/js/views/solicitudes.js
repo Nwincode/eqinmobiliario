@@ -135,6 +135,12 @@ export async function render(container, [codigo] = []) {
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
 	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
+	// Una solicitud sin responder cuyas fechas ya están reservadas o bloqueadas en la casa: no se ofrece «Confirmar»
+	// (el servidor la rechazaría igual); se dice por qué y queda «No se dio».
+	const yaOcupada = (l) => {
+		const v = casas.find((p) => p.id === l.propertyId)?.vacacional || {};
+		return [...(v.reservadas || []), ...(v.bloqueos || [])].some((b) => b?.desde < l.reserva.salida && b?.hasta > l.reserva.llegada);
+	};
 	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
 	const delChat = (d) => { const c = d.data(); return {
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
@@ -254,6 +260,7 @@ export async function render(container, [codigo] = []) {
 		const tarde = aviso === 'tarde';
 		const ultimo = sol.historial?.at(-1);
 		const evasion = aviso === 'bloqueada';
+		const ocupada = est === 'pendiente' && yaOcupada(l);
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
@@ -263,6 +270,7 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
+				ocupada ? badge('Esas fechas ya están ocupadas', 'warning') : null,
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
 				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
@@ -279,7 +287,7 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
-				est === 'pendiente' && deHoy(l.propertyId) ? [boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
+				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,

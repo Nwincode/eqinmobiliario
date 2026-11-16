@@ -645,7 +645,18 @@ let otraPestana = null;
 		reserva: { mapValue: { fields: { codigo: sv('EQ-VIEJA'), llegada: sv(hoy), salida: sv(manana), noches: { integerValue: '5' }, huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 } } } } });
 	await poner('chats/TokenDelChatSinResponder1234', { codigo: sv('EQ-MUDO'), nombre: sv('Rita'), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), llegada: sv(hoy), salida: sv(manana), noches: { integerValue: '5' }, huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 }, createdAt: hace(200) });
 	await poner('chats/TokenDelChatSinResponder1234/mensajes/m1', { de: sv('cliente'), texto: sv('¿Hay alguien?'), createdAt: hace(150) });
-	execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
+	// La solicitud que el socio respondió «No se dio» (codigo2): ahora esas mismas fechas aparecen bloqueadas en la casa.
+	const no = (await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'leads' }], where: { fieldFilter: { field: { fieldPath: 'reserva.codigo' }, op: 'EQUAL', value: sv(codigo2) } } } }) }).then((x) => x.json()))[0]?.document?.fields?.reserva?.mapValue?.fields;
+	const casaAhora = await leer(`properties/${idCasa}`);
+	const antes = casaAhora.fields.vacacional.mapValue.fields.bloqueos?.arrayValue?.values || [];
+	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [...antes, { mapValue: { fields: { desde: no.llegada, hasta: no.salida, motivo: sv('Otra reserva') } } }] } } } } } } }) });
+	const control = () => execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
+	control();
+	// Otra hora: la de «No se dio» ya se avisó y no se repite.
+	control();
+	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: antes } } } } } } }) });
 }
 
 // ---------------------------------------------------------------- 5. Lo que ve el equipo y los correos
@@ -662,6 +673,8 @@ paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@exa
 paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.some((r) => /equipo@example\.com ← .*el socio canceló/.test(r)));
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
+const conBloqueo = correos.filter((c) => /No se dio» con fechas ocupadas/.test(c.subject || ''));
+paso('Control de cada hora: avisa una sola vez que una solicitud «No se dio» tiene ahora esas fechas bloqueadas', conBloqueo.length === 1 && JSON.stringify(conBloqueo[0]).includes(codigo2), conBloqueo.map((c) => c.subject).join(' | ') || 'no salió');
 paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) && !/wa\.me/.test(JSON.stringify(alerta)) && /admin\/#\/solicitudes\/EQ-VIEJA/.test(JSON.stringify(alerta)));
 paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no se concretó/.test(r)));
 paso('Correo al cliente con el pago recibido (datos de llegada)', resumen.some((r) => /ana@example\.com ← .*pago recibido/.test(r)));
