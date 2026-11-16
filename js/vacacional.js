@@ -175,6 +175,47 @@
 		// vienen?», «Solicitar reserva» (mientras falta algo, al tocarlo lleva a lo que falta).
 		var textoBoton = form && form.querySelector('button[type=submit] .btn-texto');
 		var sinPersonas = function () { return selHuespedes && !selHuespedes.value; };
+		// Línea de pasos (Fechas — Personas — Tus datos): el que toca resaltado; los listos con ✓ y lo elegido
+		// («17 – 20 nov», «2 personas»), así sirve también de resumen. Tocar un paso lleva a su campo.
+		var pasos = card.querySelectorAll('.vac-pasos [data-paso]');
+		var fDia = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+		var campoDatos = function () { return form && ['nombre', 'telefono', 'email'].every(function (n) { return !form[n] || form[n].value.trim(); }); };
+		function pintarPasos() {
+			var n = selHuespedes ? +selHuespedes.value || 0 : 1;
+			var hecho = { fechas: Boolean(estado.llegada && estado.salida), personas: !sinPersonas(), datos: Boolean(campoDatos()) };
+			var texto = { fechas: hecho.fechas ? fDia.format(fechaUTC(estado.llegada)) + ' – ' + fDia.format(fechaUTC(estado.salida)) : t.vacPasoFechas,
+				personas: hecho.personas && n ? (n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: n })) : t.vacPasoPersonas, datos: t.vacPasoDatos };
+			var ahora = ['fechas', 'personas', 'datos'].filter(function (k) { return !hecho[k]; })[0];
+			if (selHuespedes) selHuespedes.classList.toggle('is-paso', ahora === 'personas');
+			for (var i = 0; i < pasos.length; i++) {
+				var k = pasos[i].getAttribute('data-paso');
+				pasos[i].classList.toggle('is-hecho', hecho[k]);
+				pasos[i].classList.toggle('is-ahora', k === ahora);
+				if (k === ahora) pasos[i].setAttribute('aria-current', 'step'); else pasos[i].removeAttribute('aria-current');
+				pasos[i].querySelector('span:not(.eq-ic)').textContent = texto[k];
+			}
+		}
+		function irA(el, foco) {
+			if (!el) return;
+			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			if (foco) foco.focus({ preventScroll: true });
+		}
+		for (var p = 0; p < pasos.length; p++) pasos[p].querySelector('button').addEventListener('click', function (e) {
+			var k = e.currentTarget.parentNode.getAttribute('data-paso');
+			if (k === 'fechas') irA(card.querySelector('.vac-cal'), cuerpo.querySelector('[tabindex="0"]'));
+			else if (k === 'personas') irA(card.querySelector('.vac-huespedes'), selHuespedes);
+			else if (form) irA(form, form.nombre);
+		});
+		if (form) form.addEventListener('input', pintarPasos);
+		// Lo elegido queda en la dirección: al volver a la página (o al compartirla) siguen las fechas y las personas.
+		function guardarEnDireccion() {
+			if (!window.history || !history.replaceState) return;
+			var u = new URL(location.href);
+			['llegada', 'salida', 'huespedes'].forEach(function (k) { u.searchParams.delete(k); });
+			if (estado.llegada && estado.salida) { u.searchParams.set('llegada', estado.llegada); u.searchParams.set('salida', estado.salida); }
+			if (selHuespedes && selHuespedes.value && estado.llegada && estado.salida) u.searchParams.set('huespedes', selHuespedes.value);
+			if (u.href !== location.href) history.replaceState(history.state, '', u.href);
+		}
 		function actualizar() {
 			if (textoBoton) textoBoton.textContent = estado.llegada && estado.salida ? (sinPersonas() ? t.vacBotonPersonas : t.vacSolicitar) : estado.llegada ? t.vacBotonSalida : t.vacBotonLlegada;
 			outLlegada.textContent = estado.llegada ? mayus(fCorta.format(fechaUTC(estado.llegada))) : t.vacSinFecha;
@@ -201,6 +242,8 @@
 			else { ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.'; }
 			estado.nota = '';
 			pintarDesglose();
+			pintarPasos();
+			guardarEnDireccion();
 		}
 
 		function fila(etq, valor, clase) {
