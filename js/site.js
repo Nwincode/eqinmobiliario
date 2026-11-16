@@ -627,6 +627,19 @@
 		});
 	});
 
+	// ------------------------------------------------------------ Barra fija de la ficha (celular y tableta)
+	// Se esconde mientras el cuadro de reserva o de visita está a la vista (ya tiene su propio botón) y mientras se escribe
+	// (con el teclado abierto la barra subía con él y tapaba los campos y el botón de enviar).
+	var barra = document.querySelector('.ficha-barra');
+	var cuadro = document.querySelector('.vac-card[data-vacacional], #ficha-form');
+	if (barra) {
+		var aLaVista = false, escribiendo = false;
+		var pintarBarra = function () { document.body.classList.toggle('sin-barra-ficha', aLaVista || escribiendo); };
+		if (cuadro && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { aLaVista = es[0].isIntersecting; pintarBarra(); }, { threshold: 0.15 }).observe(cuadro);
+		document.addEventListener('focusin', function (e) { if (e.target.matches('input, select, textarea')) { escribiendo = true; pintarBarra(); } });
+		document.addEventListener('focusout', function () { setTimeout(function () { escribiendo = Boolean(document.activeElement && document.activeElement.matches('input, select, textarea')); pintarBarra(); }, 50); });
+	}
+
 	// ------------------------------------------------------------ Fotos de las casas: compartir en vez de guardar
 	// Las fotos llevan su marca de agua (admin/js/marca.js). Además, quien intenta guardar una foto (clic derecho, mantener
 	// el dedo encima, arrastrarla) o pulsa la tecla de captura en la computadora ve un aviso con el enlace de la casa para

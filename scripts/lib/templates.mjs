@@ -1322,8 +1322,6 @@ function reservaBox(ctx, p) {
 	return `<section class="lead-card vac-card" data-vacacional data-id="${esc(p.id)}" data-lang="${lang}" aria-labelledby="vac-titulo">
 						<script type="application/json" class="vac-datos">${json}</script>
 						<h2 id="vac-titulo" class="h5 mb-1">${ic('calendar')}${t.vacTitulo}</h2>
-						<p class="vac-desde"><strong>${esc(price(p))}</strong></p>
-						<p class="vac-impuestos">${notaFinde(p, t)}${t.vacImpuestos}</p>
 						<div class="vac-fechas">
 							<button type="button" class="vac-fecha" data-campo="llegada" aria-describedby="vac-ayuda">
 								<span class="vac-fecha-label">${t.vacLlegada}</span>

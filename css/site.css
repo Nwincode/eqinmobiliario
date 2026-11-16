@@ -1488,6 +1488,13 @@ h2.heading::after,
 body.offcanvas-menu .ficha-barra {
 	display: none;
 }
+/* Con el cuadro de reserva a la vista o el teclado abierto, la barra se va hacia abajo (js/site.js). */
+.ficha-barra {
+	transition: transform .2s ease;
+}
+body.sin-barra-ficha .ficha-barra {
+	transform: translateY(110%);
+}
 /* Solo donde hay barra fija de acciones (la página de la reserva usa el mismo marco y no la tiene). */
 @media (max-width: 991.98px) {
 	.pagina-ficha:has(.ficha-barra) {

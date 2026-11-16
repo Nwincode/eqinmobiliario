@@ -41,7 +41,7 @@ const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js', 'js/reserva-chat
 const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
 		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^is-wide$/, /^text-(success|danger)$/,
-		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/, /^is-invalid$/, /^invalid-feedback$/, /^d-block$/, /^eq-aviso-breve$/, /^eq-compartir/, /^btn-success$/,
+		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/, /^is-invalid$/, /^invalid-feedback$/, /^d-block$/, /^eq-aviso-breve$/, /^eq-compartir/, /^btn-success$/, /^sin-barra-ficha$/,
 		/^btn-(link|sm|outline-primary)$/, /^p-0$/, /^align-baseline$/, /^ms-2$/, // botones que arman js/site.js y js/reserva-chat.js
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
 		/^vac-/], // js/vacacional.js arma el calendario y el desglose

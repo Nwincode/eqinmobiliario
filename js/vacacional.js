@@ -179,10 +179,11 @@
 			franja.querySelector('[data-out="minimo"]').textContent = fmt(t.vacMinimoCorto, { n: n });
 		}
 
-		// El botón de enviar dice lo que falta: sin fechas, «Primero elige tus fechas» (y al tocarlo, lleva al calendario).
+		// El botón de enviar dice el paso que sigue: «Elige tu fecha de llegada», «Ahora elige tu salida», «Solicitar reserva»
+		// (mientras falta una fecha, al tocarlo lleva al calendario).
 		var textoBoton = form && form.querySelector('button[type=submit] .btn-texto');
 		function actualizar() {
-			if (textoBoton) textoBoton.textContent = estado.llegada && estado.salida ? t.vacSolicitar : t.vacEligeFechas;
+			if (textoBoton) textoBoton.textContent = estado.llegada && estado.salida ? t.vacSolicitar : estado.llegada ? t.vacBotonSalida : t.vacBotonLlegada;
 			outLlegada.textContent = estado.llegada ? mayus(fCorta.format(fechaUTC(estado.llegada))) : t.vacSinFecha;
 			outSalida.textContent = estado.salida ? mayus(fCorta.format(fechaUTC(estado.salida))) : t.vacSinFecha;
 			for (var i = 0; i < botonesCampo.length; i++) {
@@ -283,16 +284,19 @@
 				// Antes del mínimo: la llegada se queda y se dice cuál es la primera salida (no se cambia la llegada sin decir nada).
 				if (v.error === 'minimo') {
 					var primera = primeraSalida();
-					burbuja(f, fmt(t.vacMinimoBurbuja, { n: v.minimo }));
+					// La burbuja va sobre el día que sí se puede elegir (la primera salida), no sobre el que se tocó.
+					if (primera && mesDe(primera) === estado.mes) burbuja(primera, fmt(t.vacMinimoBurbuja, { n: V.nochesEntre(estado.llegada, primera) }));
 					return avisar(fmt(t.vacMinimo, { n: v.minimo }) + (primera ? ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : ''));
 				}
 				// Con noches ocupadas en medio: ese día pasa a ser la llegada, y se dice por qué.
 				if (!llegadaValida(f)) return avisar(t.vacEntreOcupadas);
 				aviso = fmt(t.vacNuevaLlegada, { fecha: fCorta.format(fechaUTC(f)) });
 			}
+			var conSalida = false;
 			if (eligiendoSalida() && f > estado.llegada && salidaValida(f)) {
 				estado.salida = f;
 				estado.campo = 'llegada';
+				conSalida = true;
 			} else {
 				if (!llegadaValida(f)) return;
 				var mantener = estado.campo === 'llegada' && estado.mantener && estado.salida;
@@ -306,6 +310,8 @@
 			pintar(true);
 			actualizar();
 			if (aviso) avisar(aviso, true);
+			// Con las dos fechas aparece el presupuesto: la pantalla baja lo justo para verlo completo (sin perder el calendario).
+			if (conSalida && !desglose.hidden) setTimeout(function () { desglose.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
 		}
 
 		function mover(dias, aFecha) {
@@ -325,7 +331,7 @@
 			if (b.getAttribute('aria-disabled') === 'true') {
 				if (ocupadas[b.getAttribute('data-fecha')]) { ayuda.textContent = t.vacDiaOcupado; clearTimeout(ayuda.eqTimer); ayuda.eqTimer = setTimeout(actualizar, 2500); }
 				// Una noche rayada (dentro del mínimo) que no puede ser llegada: igual se dice cuál es el mínimo.
-				else if (b.classList.contains('is-minimo') && estado.llegada) burbuja(b.getAttribute('data-fecha'), fmt(t.vacMinimoBurbuja, { n: V.nochesEntre(estado.llegada, primeraSalida() || V.sumarDias(estado.llegada, nochesMin)) }));
+				else if (b.classList.contains('is-minimo') && estado.llegada && primeraSalida() && mesDe(primeraSalida()) === estado.mes) burbuja(primeraSalida(), fmt(t.vacMinimoBurbuja, { n: V.nochesEntre(estado.llegada, primeraSalida()) }));
 				return;
 			}
 			elegir(b.getAttribute('data-fecha'));
