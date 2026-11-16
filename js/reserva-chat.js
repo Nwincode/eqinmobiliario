@@ -272,14 +272,16 @@
 		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
 		var enviando = false, fila = Promise.resolve();
 		function mandar(campos) {
-			fila = fila.then(function () {
+			var paso = function () {
 				enviando = true;
 				boton.disabled = true; adjuntar.disabled = true;
 				return guardarMensaje(campos)
 					.then(function () { alerta(''); avisar(token); return cargar().catch(function () {}); })
 					.catch(function () { alerta(t.vacChatFallo); })
 					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
-			});
+			};
+			// Pase lo que pase con un envío, el siguiente sale igual (la fila nunca se queda trabada).
+			fila = fila.then(paso, paso);
 			return fila;
 		}
 		// Enter envía; Mayús + Enter baja de línea.

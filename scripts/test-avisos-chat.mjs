@@ -62,6 +62,17 @@ test('un mensaje que no salió por correo (estaba conversando) no frena los sigu
 	const charla = [m('socio', 10), m('cliente', 9), m('socio', 8), m('socio', 0.1)];
 	assert.equal(avisos(charla, { vistoCliente: hace(9.8) }).length, 1);
 });
+test('repaso de cada hora: el mensaje callado y sin leer avisa una vez; lo ya avisado o leído, no', () => {
+	const repaso = (mensajes, extra) => avisosChat({ chat: { ...chat, ...extra }, mensajes, correos, sitio: 'https://ejemplo.gt', ahora: AHORA, repaso: true });
+	// El cliente leyó, contestó y se fue; el socio respondió 90 s después (callado) y nada más: el repaso avisa al cliente.
+	const charla = [m('socio', 30), m('cliente', 29), m('socio', 27.5)];
+	assert.deepEqual(repaso(charla, { vistoCliente: hace(29) }).map((x) => x.para), [['ana@example.com']]);
+	// Si ya lo leyó, o si salió por correo en su momento, el repaso no manda nada.
+	assert.equal(repaso(charla, { vistoCliente: hace(20) }).length, 0);
+	assert.equal(repaso([m('cliente', 60), m('socio', 30)], { vistoCliente: hace(50) }).length, 0);
+	// Comprobantes y avisos de estado tienen su propio correo: el repaso no los toca.
+	assert.equal(repaso([m('socio', 30, 'pago')], { vistoCliente: hace(31) }).length, 0);
+});
 test('después de un comprobante o un aviso de estado, el siguiente texto sí avisa', () => {
 	assert.equal(avisos([m('cliente', 5, 'foto'), m('cliente', 1)], { vistoSocio: hace(30) }).length, 1);
 });

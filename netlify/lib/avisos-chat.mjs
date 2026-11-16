@@ -23,7 +23,9 @@ export function sinResponder(mensajes, { ahora, plazo, ventana }) {
 export const tituloDe = (chat, casa) => String((chat.idioma === 'en' && casa?.en?.titulo) || casa?.titulo || '').slice(0, 200);
 
 // casa: la propiedad guardada (o null).
-export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora = Date.now() }) {
+// repaso: la revisión de cada hora (netlify/functions/solicitudes-sin-respuesta.mjs) pregunta por un mensaje de texto que
+// no salió por correo porque el otro «estaba conversando» y que sigue sin leer: ese recibe su aviso, una sola vez.
+export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora = Date.now(), repaso = false }) {
 	// Lo que viaja en el asunto y el texto con la forma que pone el sitio: si no, no sale ningún correo (texto libre de alguien).
 	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
 	const reserva = `${sitio}/reserva/#${chat.id}`;
@@ -70,7 +72,7 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 					: ['El anfitrión confirma tus fechas (te llega un correo).', 'Le pagas directo al propietario con los datos que verás en tu reserva.', 'Al recibir tu pago, ves la dirección y cómo llegar.'] })
 		];
 	}
-	if (ahora - ms(ultimo.createdAt) > FRESCO) return [];
+	if (repaso ? ultimo.tipo || ['no', 'cancelada'].includes(chat.estado) : ahora - ms(ultimo.createdAt) > FRESCO) return [];
 	if (ultimo.tipo === 'pago') return alCliente(en ? `Booking ${chat.codigo} confirmed: how to pay` : `Reserva ${chat.codigo} confirmada: cómo pagar`,
 		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments).' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos).',
 		{ pasos: en ? ['Open your booking and see the payment details.', 'Pay the owner directly (Equipo Inmobiliario does not receive payments).', 'Upload a photo of your receipt in the chat.']
@@ -97,7 +99,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// si quien recibe leyó hace menos de ACTIVO, está conversando y lo ve en el chat.
 	const visto = lado(ultimo) === 'cliente' ? ms(correos.socio ? chat.vistoSocio : chat.vistoEquipo) : ms(chat.vistoCliente);
 	const yaAvisado = mensajes.slice(0, -1).some((m) => lado(m) === lado(ultimo) && !m.tipo && ms(m.createdAt) > visto && ms(m.createdAt) - visto >= ACTIVO);
-	if (yaAvisado || (visto && ahora - visto < ACTIVO)) return [];
+	const callado = visto && ms(ultimo.createdAt) - visto < ACTIVO;
+	if (repaso ? !(ms(ultimo.createdAt) > visto && callado && !yaAvisado) : yaAvisado || (visto && ahora - visto < ACTIVO)) return [];
 	return lado(ultimo) === 'cliente'
 		? aLaCasa(`${chat.codigo}: mensaje del cliente`, `${chat.nombre || 'El cliente'} escribió en ${chat.codigo}`, `${resumen}. Respóndele desde la solicitud.`)
 		: alCliente(en ? `Booking ${chat.codigo}: you have a reply` : `Reserva ${chat.codigo}: tienes respuesta`, en ? 'You have a new message' : 'Tienes un mensaje nuevo',

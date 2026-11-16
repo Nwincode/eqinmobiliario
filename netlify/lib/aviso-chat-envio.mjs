@@ -8,7 +8,7 @@ import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, da
 import { avisosChat } from './avisos-chat.mjs';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
-export async function enviarAvisosChat(token) {
+export async function enviarAvisosChat(token, { repaso = false } = {}) {
 	// Basta el servicio de correo: el cliente y el socio reciben lo suyo aunque falten los correos del equipo (AVISO_CORREO).
 	if (!servicioCorreo() || !datosConfigurados()) return 0;
 	const chat = await leerPublico(`chats/${token}`);
@@ -20,7 +20,7 @@ export async function enviarAvisosChat(token) {
 		/^[\w-]{1,60}$/.test(chat.propertyId || '') ? leerPrivado(`properties/${chat.propertyId}`) : null
 	]);
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
-	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
 	// Cada correo por su lado: si falla el del socio, el del cliente igual sale (y al revés).
 	let fallas = 0;
 	for (const a of avisos) {
