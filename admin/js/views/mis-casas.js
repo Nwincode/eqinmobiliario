@@ -323,7 +323,7 @@ async function casa(container, id) {
 				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
 				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }),
 		// En computadora: precios y lo especial a la izquierda, el calendario a la derecha (sin un calendario de 900 px).
-		h('div', { class: 'row g-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
+		h('div', { class: 'row gx-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
 			precio('base', 'Entre semana', 'Tu precio por noche.'),
 			precio('finde', 'Fin de semana', 'Vacío: igual que entre semana.'),
 			h('div', { class: 'col-6' },
