@@ -24,7 +24,11 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
 	const reserva = `${sitio}/reserva/#${chat.id}`;
 	const panel = `${sitio}/admin/#/solicitudes/${chat.codigo}`;
-	const resumen = [tituloDe(chat, casa), `${chat.llegada} → ${chat.salida}`, `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`].filter(Boolean).join(' · ');
+	// El resumen en el idioma de quien lo lee: el socio y el equipo, en español (título en español); el cliente, en el suyo.
+	const fecha = (iso, lang) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-GT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+	const personas = (lang) => (lang === 'en' ? `${chat.huespedes} ${chat.huespedes === 1 ? 'guest' : 'guests'}` : `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`);
+	const resumenEn = (lang) => [lang === 'en' ? tituloDe(chat, casa) : String(casa?.titulo || '').slice(0, 200), `${fecha(chat.llegada, lang)} → ${fecha(chat.salida, lang)}`, chat.huespedes ? personas(lang) : ''].filter(Boolean).join(' · ');
+	const resumen = resumenEn('es');
 	// La reserva la atiende el socio: el equipo solo recibe estos avisos si el socio no tiene correo guardado.
 	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
 	const deLaCasa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
@@ -39,7 +43,7 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		return [
 			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, `Nueva solicitud ${chat.codigo}`, `${resumen}. Respóndela pronto: las fechas quedan apartadas 2 horas.`),
 			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? 'We received your request' : 'Recibimos tu solicitud',
-				en ? `${resumen}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
+				en ? `${resumenEn('en')}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
 		];
 	}
 	if (ahora - ms(ultimo.createdAt) > FRESCO) return [];
