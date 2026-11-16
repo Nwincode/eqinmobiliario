@@ -30,7 +30,7 @@ export function conOjo(input) {
 const REGLAS = [
 	{ texto: `${MIN_CLAVE} caracteres o más: una frase de 3 o 4 palabras, como «casa verde junto al lago»`, ok: (c) => c.length >= MIN_CLAVE, falla: `Usa al menos ${MIN_CLAVE} caracteres.` },
 	{ texto: 'Que no sea fácil de adivinar', falla: 'Esa contraseña es muy fácil de adivinar: usa otra.',
-		ok: (c) => { const m = c.toLowerCase(); return Boolean(m) && !COMUNES.has(m) && !/^(.)\1+$/.test(m) && !(m.length >= 4 && SECUENCIAS.includes(m)); } },
+		ok: (c) => { const m = c.toLowerCase(); return m.length >= MIN_CLAVE && !COMUNES.has(m) && !/^(.)\1+$/.test(m) && !(m.length >= 4 && SECUENCIAS.includes(m)); } },
 	{ texto: 'Que no lleve tu correo', falla: 'La contraseña no puede llevar tu correo.',
 		ok: (c, email) => { const u = String(email || '').toLowerCase().split('@')[0]; return Boolean(c) && !(u.length >= 4 && c.toLowerCase().includes(u)); } }
 ];
@@ -58,7 +58,8 @@ export function revisionEnVivo(clave, repite, email) {
 	};
 	const pintar = () => {
 		filas.forEach((f) => marcar(f, Boolean(clave.value) && f.r.ok(clave.value, email), Boolean(clave.value)));
-		marcar(igual, Boolean(repite.value) && repite.value === clave.value, Boolean(repite.value));
+		// Mientras la va escribiendo igual a la primera, sin ✗: solo cuando ya no coincide.
+		marcar(igual, Boolean(repite.value) && repite.value === clave.value, Boolean(repite.value) && !clave.value.startsWith(repite.value));
 	};
 	clave.addEventListener('input', pintar);
 	repite.addEventListener('input', pintar);
