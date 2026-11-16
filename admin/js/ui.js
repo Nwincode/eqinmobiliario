@@ -92,7 +92,7 @@ export function errorMessage(err) {
 		'auth/network-request-failed': 'Sin conexión. Revisa tu internet e inténtalo otra vez.',
 		'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
 		'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
-		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 3 o 4 palabras (15 caracteres o más).',
+		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 2 o 3 palabras (10 caracteres o más).',
 		'auth/invalid-email': 'El correo no es válido.',
 		'auth/requires-recent-login': 'Por seguridad, cierra sesión y vuelve a entrar antes de hacer esto.',
 		'storage/unauthorized': 'No tienes permiso para subir archivos.',

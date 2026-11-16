@@ -18,7 +18,7 @@ antes de unir.
 
 ## Contraseñas (`admin/js/clave.js`)
 - Ojito para verla, aviso de Bloq Mayús, se puede pegar.
-- Contraseña nueva: dos campos, lista que se marca ✓ mientras se escribe (15 caracteres o más, no fácil, sin el correo,
+- Contraseña nueva: dos campos, lista que se marca ✓ mientras se escribe (10 caracteres o más, no fácil, sin el correo,
   las dos iguales) y revisión contra filtraciones conocidas.
 - Campo oculto con el correo (`autocomplete="username"`) para que el administrador de contraseñas la guarde bien.
 - Mensajes que no delatan si una cuenta existe.
