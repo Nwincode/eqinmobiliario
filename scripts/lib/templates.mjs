@@ -1343,6 +1343,7 @@ function reservaBox(ctx, p) {
 							</div>
 							<div class="vac-cal-cuerpo"></div>
 						</div>
+						${d.nochesMin > 1 || (d.minimos || []).length ? `<p class="vac-leyenda"><span class="vac-muestra vac-muestra-min" aria-hidden="true"></span>${t.vacLeyendaMin}<span class="vac-muestra vac-muestra-salida" aria-hidden="true"></span>${t.vacLeyendaSalida}</p>` : ''}
 						<p class="vac-ayuda" id="vac-ayuda" role="status" aria-live="polite">${t.vacEligeLlegada}</p>
 						<div class="vac-huespedes">
 							<label class="form-label" for="vac-huespedes">${ic('users')}${t.vacHuespedes}</label>

@@ -189,8 +189,21 @@
 	color: var(--eq-white);
 }
 .vac-leyenda {
-	display: block;
-	margin: .35rem 0 .15rem;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	min-height: 22px;
+	margin: .4rem 0 0;
+	font-size: 12px;
+	color: var(--eq-ink);
+	visibility: hidden; /* guarda su lugar: aparecer no mueve nada */
+}
+.vac-leyenda.is-visible {
+	visibility: visible;
+}
+/* Filas de relleno: el calendario mide siempre 6 semanas. */
+.vac-fila-relleno {
+	visibility: hidden;
 }
 .vac-muestra {
 	display: inline-block;

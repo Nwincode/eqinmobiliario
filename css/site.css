@@ -3234,9 +3234,10 @@ a:hover > .eq-ic-fin,
 }
 .vac-ayuda {
 	font-size: 13px;
+	line-height: 1.4;
 	color: var(--eq-ink);
 	margin: .5rem 0 1rem;
-	min-height: 1.4em;
+	min-height: 5.6em; /* 4 líneas (texto + «Borrar fechas» en celular): el texto cambia en cada toque, el alto no */
 }
 .vac-huespedes {
 	margin-bottom: 1rem;
@@ -3562,25 +3563,35 @@ a:hover > .eq-ic-fin,
 	margin: 20px auto 0;
 }
 
-/* Aviso de idioma (solo navegadores en inglés) */
+/* Aviso de idioma (solo navegadores en inglés): flota abajo, sin empujar la página al aparecer después de cargar. */
 .aviso-idioma {
+	position: fixed;
+	left: 50%;
+	bottom: calc(16px + env(safe-area-inset-bottom));
+	transform: translateX(-50%);
+	z-index: 1000;
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	gap: .35rem;
 	min-height: 44px;
-	background: var(--eq-primary-soft);
+	padding: 0 .25rem 0 1rem;
+	border-radius: 999px;
+	background: var(--eq-white);
+	box-shadow: 0 6px 24px color-mix(in oklab, var(--eq-dark) 22%, transparent);
 	font-size: 13px;
 	font-weight: 600;
+	white-space: nowrap;
 }
 .aviso-idioma[hidden] {
 	display: none;
 }
-.site-nav:has(.aviso-idioma:not([hidden])) {
-	padding-top: 0;
-}
-@media (min-width: 992px) {
-	.aviso-idioma {
-		margin-bottom: 14px;
+/* En la ficha, encima de la barra fija de abajo. */
+@media (max-width: 991.98px) {
+	body:has(.ficha-barra) .aviso-idioma {
+		bottom: calc(80px + env(safe-area-inset-bottom));
+	}
+	body.sin-barra-ficha .aviso-idioma {
+		bottom: calc(16px + env(safe-area-inset-bottom));
 	}
 }
 .aviso-idioma a {
