@@ -87,8 +87,8 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 	}
 };
 
-// «No se dio» (de los últimos 60 días, con fechas por venir) y ahora esas noches están bloqueadas o tienen otra reserva
-// en la misma casa: la señal de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
+// «No se dio» (de los últimos 60 días, con fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva
+// anotada a mano en la misma casa: la señal de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
 // escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
 async function noSeDioYBloqueada(ahora) {
 	if (!escrituraConfigurada()) return [];
@@ -103,7 +103,9 @@ async function noSeDioYBloqueada(ahora) {
 		if (!casas.has(l.propertyId)) casas.set(l.propertyId, await leerPrivado(`properties/${l.propertyId}`).catch(() => null));
 		const choca = (b) => Boolean(b?.desde) && b.desde < l.reserva.salida && b.hasta > l.reserva.llegada;
 		const bloqueada = (casas.get(l.propertyId)?.vacacional?.bloqueos || []).some(choca);
-		const otra = reservas.some((r) => r.propertyId === l.propertyId && r.estado !== 'cancelada' && r.leadId !== l.id && choca({ desde: r.llegada, hasta: r.salida }));
+		// Solo una reserva anotada a mano (sin solicitud de la web): otra solicitud de la web confirmada en esas fechas es el
+		// camino normal (dos clientes pidieron lo mismo y se le dio a uno).
+		const otra = reservas.some((r) => r.propertyId === l.propertyId && r.estado !== 'cancelada' && !r.leadId && choca({ desde: r.llegada, hasta: r.salida }));
 		if (!bloqueada && !otra) continue;
 		const ruta = `alertas/bloqueo-${l.id}`;
 		const nueva = await transaccion(async ({ leer, crear }) => {
