@@ -968,6 +968,8 @@ const duenos = [];
 	await espera(2500);
 	const neto = (await leer('properties/casa-noche-mixta/privado/socio')).fields?.precioBase || {};
 	paso('Cambia el precio de su casa por noche', Number(neto.doubleValue ?? neto.integerValue) === 95, await avisos(mixta.p));
+	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
+	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
 	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
 	await mixta.p.setViewportSize({ width: 390, height: 844 });
 	await ir(mixta.p, '#/mis-casas', 3000);

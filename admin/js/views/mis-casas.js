@@ -301,7 +301,21 @@ async function casa(container, id) {
 					onclick: () => guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}`, (a) => ({ [campo]: a[campo].filter((x) => !mismoRango(x, r)) }))
 				})))));
 	};
+	// Cabecera (foto, estado, lo que ve el cliente, reservas): se repinta con cada cambio de precio.
+	const cabecera = h('div');
+	const pintarCabecera = () => repintar(cabecera,
+		cabeceraCasa({ foto: p.fotos?.[0]?.url, titulo: p.titulo, precio: formatPrice(V.precioDesde(V.planPublico(plan(), s.margen), hoy()) || p.precio, p.moneda, p.operacion),
+			insignias: [estadoCasa(p), p.publicado ? null : badge('Sin publicar', 'light')],
+			lineas: [
+				h('li', { class: 'text-muted' }, ic('icon-eye'), 'Lo que ve el cliente por noche, sin impuestos'),
+				h('li', {}, ic('icon-calendar-check-o'), cuenta.reservas
+					? [`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
+						h('strong', {}, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))]
+					: 'Todavía sin reservas confirmadas'),
+				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
+				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }));
 	function pintar() {
+		pintarCabecera();
 		calendario();
 		repintar(listas,
 			grupo('Precios especiales', 'tarifas', (r) => `${plata(r.precio)} por noche · el cliente ve ${publico(r.precio)}`),
@@ -312,16 +326,7 @@ async function casa(container, id) {
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.
-		cabeceraCasa({ foto: p.fotos?.[0]?.url, titulo: p.titulo, precio: formatPrice(p.precio, p.moneda, p.operacion),
-			insignias: [estadoCasa(p), p.publicado ? null : badge('Sin publicar', 'light')],
-			lineas: [
-				h('li', { class: 'text-muted' }, ic('icon-eye'), 'Lo que ve el cliente por noche, sin impuestos'),
-				h('li', {}, ic('icon-calendar-check-o'), cuenta.reservas
-					? [`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
-						h('strong', {}, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))]
-					: 'Todavía sin reservas confirmadas'),
-				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
-				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }),
+		cabecera,
 		// En computadora: precios y lo especial a la izquierda, el calendario a la derecha (sin un calendario de 900 px).
 		h('div', { class: 'row gx-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
 			precio('base', 'Entre semana', 'Tu precio por noche.'),

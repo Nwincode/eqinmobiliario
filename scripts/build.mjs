@@ -18,7 +18,7 @@ import { visibilidadDe } from '../admin/js/estados.js';
 import { conEmojis, sinBloquesGenerados } from '../admin/js/descripcion.js';
 import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
-import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs';
+import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -535,7 +535,14 @@ async function main() {
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
-	for (const p of todas) if (p.operacion === 'vacacional') Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
+	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
+	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
+	const V = globalThis.EQVacacional;
+	for (const p of todas) if (p.operacion === 'vacacional') {
+		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
+		const desde = V.precioDesde(p.vacacional, V.hoy());
+		if (desde > 0) p.precio = desde;
+	}
 	// Tampoco se ofrecen las casas de un socio con una comisión atrasada más de 72 h (vuelven solas al pagarla).
 	const mora = data.source === 'firestore' && datosConfigurados() ? await sociosEnMora() : null;
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.
