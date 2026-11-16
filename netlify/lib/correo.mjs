@@ -89,8 +89,13 @@ function remitente() {
 	return m ? { name: m[1].replace(/^"|"$/g, '').trim() || NOMBRE, address: m[2].trim() } : { name: NOMBRE, address: v };
 }
 
-async function enviarZepto({ lista, asunto, html, texto }) {
+// «Responder a»: el primer correo del equipo (AVISO_CORREO). El remitente es un noreply@ que nadie lee: si alguien
+// responde un correo, la respuesta llega a un buzón que sí se atiende.
+const responderA = () => destinatariosEquipo()[0] || '';
+
+async function enviarZepto({ lista, asunto, html, texto }, conRespuesta = true) {
 	const de = remitente();
+	const resp = conRespuesta ? responderA() : '';
 	if (!de.address) throw new Error('Con ZeptoMail falta CORREO_REMITENTE en Netlify (una dirección del dominio verificado).');
 	const token = String(process.env.ZEPTOMAIL_TOKEN).trim();
 	const host = String(process.env.ZEPTOMAIL_HOST || 'cpaas.zoho.com').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -104,6 +109,7 @@ async function enviarZepto({ lista, asunto, html, texto }) {
 		body: JSON.stringify({
 			from: de,
 			to: lista.map((address) => ({ email_address: { address } })),
+			...(resp ? { reply_to: [{ address: resp, name: NOMBRE }] } : {}),
 			subject: asunto,
 			htmlbody: html,
 			textbody: texto,
@@ -115,18 +121,22 @@ async function enviarZepto({ lista, asunto, html, texto }) {
 	const body = await res.json().catch(() => ({}));
 	if (!res.ok) {
 		const det = body.error?.details?.[0]?.message || body.error?.message || res.status;
+		// Si Zoho no acepta el «Responder a», el correo sale igual sin él: nunca se pierde por eso.
+		if (resp && res.status < 500) { console.error('ZeptoMail sin «Responder a»:', det); return enviarZepto({ lista, asunto, html, texto }, false); }
 		throw new Error(`ZeptoMail rechazó el correo: ${det}`);
 	}
 	return body.request_id;
 }
 
 async function enviarResend({ lista, asunto, html, texto }) {
+	const resp = responderA();
 	const res = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			from: process.env.CORREO_REMITENTE || `${NOMBRE} <onboarding@resend.dev>`,
 			to: lista,
+			...(resp ? { reply_to: resp } : {}),
 			subject: asunto,
 			html,
 			text: texto
