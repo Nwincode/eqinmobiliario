@@ -2,6 +2,8 @@
 // 1) Avisa a IndexNow (Bing, Copilot, Yandex, Seznam, Naver) de las URLs del sitemap que cambiaron (netlify/lib/indexnow.mjs).
 //    Si falla, solo queda anotado: nunca detiene la publicación.
 // 2) Si Search Console está conectado, vuelve a enviar el sitemap a Google.
+// Formato nuevo de Netlify (Request/Response), como las demás: el de Lambda tiene un límite de 4 KB para TODAS las
+// variables de entorno y las llaves de las cuentas de servicio no caben (la publicación fallaba).
 import { createHash } from 'node:crypto';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { gsc, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
@@ -11,14 +13,14 @@ const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 // Debe coincidir con indexNowKey() de scripts/build.mjs.
 const KEY = createHash('sha256').update(`indexnow:${siteConfig.siteUrl}`).digest('hex').slice(0, 32);
 
-export async function handler(event) {
+export default async (req) => {
 	let deploy = {};
 	try {
-		deploy = JSON.parse(event.body || '{}').payload || {};
+		deploy = (await req.json()).payload || {};
 	} catch {
 		// Sin datos del deploy: se asume producción.
 	}
-	if (deploy.context && deploy.context !== 'production') return { statusCode: 200, body: 'Vista previa: no se notifica a buscadores.' };
+	if (deploy.context && deploy.context !== 'production') return new Response('Vista previa: no se notifica a buscadores.');
 
 	const resultado = {};
 	try {
@@ -47,5 +49,5 @@ export async function handler(event) {
 		}
 	}
 	console.log('Notificación a buscadores:', resultado);
-	return { statusCode: 200, body: JSON.stringify(resultado) };
-}
+	return Response.json(resultado);
+};
