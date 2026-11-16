@@ -112,10 +112,16 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
    contraseña llega (y no cae en spam). El correo sale en español (`auth.languageCode` en `admin/js/firebase.js`). En
    Firebase → Authentication → Plantillas → Restablecimiento de contraseña se cambian el remitente («Equipo
    Inmobiliario»), «Responder a», el asunto y el dominio (Personalizar dominio: registros DNS de Firebase; un solo
-   registro SPF, juntando el de Firebase con el que ya haya), para que salga de `noreply@eqinmobiliario.gt`. **El texto
-   del mensaje no se puede cambiar ahí** (Firebase lo bloquea). El diseño aprobado con botón
-   (`docs/plantillas/correo-contrasena.html`, imágenes en `images/correo/`) queda para cuando el correo lo mande el
-   propio sistema (pendiente de decidir: pediría una llave aparte que solo genere esos enlaces).
+   registro SPF, juntando el de Firebase con el que ya haya), para que salga de `noreply@eqinmobiliario.gt`. El texto
+   del mensaje de Firebase no se puede cambiar (Firebase lo bloquea): por eso el correo con el diseño aprobado lo manda
+   el propio sistema (`netlify/functions/contrasena.mjs` con `netlify/lib/correo-contrasena.mjs`, imágenes en
+   `images/correo/`), por el servicio de correo de la empresa (Zoho CPaaS, antes ZeptoMail). Necesita: el dominio
+   verificado en Zoho (sin seguimiento de clics ni de aperturas: reescribiría el enlace de un solo uso), `ZEPTOMAIL_TOKEN`
+   y `CORREO_REMITENTE` en Netlify, y una cuenta de servicio APARTE, `accesos-panel`, con el rol «Firebase Authentication
+   Admin», en `GOOGLE_SA_ACCESOS_EMAIL` / `GOOGLE_SA_ACCESOS_KEY` (nunca la de escritura: juntas, una clave filtrada lo
+   abriría todo). Solo recibe el correo quien entra al panel (cuenta y `users/{uid}` activo). Mientras falte algo, sale
+   el correo de Firebase de siempre (`admin/js/contrasena.js`). En Firebase → Authentication → Configuración, activar
+   «Protección contra la enumeración de correos».
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

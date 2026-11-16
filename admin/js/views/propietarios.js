@@ -1,7 +1,8 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { auth, db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, sendPasswordResetEmail, arrayUnion, arrayRemove, runTransaction } from '../firebase.js';
+import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
+import { correoContrasena } from '../contrasena.js';
 import { session, agentOptions, loadAgents } from '../session.js';
 import { whatsappUrl } from '../ia.js';
 import { publicarPortal, borrarCopia, visitasDe, escucharComentarios, VERSION_RESUMEN, TIPOS_BITACORA } from '../portal.js';
@@ -425,7 +426,7 @@ function seccionPortal(prop, propiedades, ficha) {
 				estado ? badge(estado.activo ? 'Entra al panel' : 'Acceso quitado', estado.activo ? 'success' : 'secondary') : badge('Sin acceso al panel', 'light'),
 				estado ? h('span', { class: 'small' }, h('span', { class: 'icon-envelope-o me-1 text-muted', 'aria-hidden': 'true' }), `Entra con ${estado.email}`) : null,
 				...(!session.isAdmin ? [] : !u ? [dar] : activo ? [
-					boton('icon-envelope-o', 'Reenviar correo para poner contraseña', async () => { await sendPasswordResetEmail(auth, u.email); toast(`Le enviamos a ${u.email} el correo para poner su contraseña.`); }),
+					boton('icon-envelope-o', 'Reenviar correo para poner contraseña', async () => { await correoContrasena(u.email); toast(`Le enviamos a ${u.email} el correo para poner su contraseña.`); }),
 					boton('icon-ban', 'Quitar acceso', async () => { if (await confirmDialog(`${prop.nombre || 'Esta persona'} ya no podrá entrar al panel.`, { okText: 'Quitar acceso' })) { await ponerAcceso(prop, u, false); toast('Acceso quitado.'); pintarAcceso(); } }, 'btn-outline-danger')
 				] : [
 					otroCorreo ? dar : null,

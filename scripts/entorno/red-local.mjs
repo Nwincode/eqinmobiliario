@@ -7,7 +7,9 @@ import { generateKeyPairSync } from 'node:crypto';
 
 const DESTINOS = [
 	['https://firestore.googleapis.com', `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}`],
-	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`]
+	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`],
+	// Los enlaces para poner la contraseña (netlify/functions/contrasena.mjs) los da el emulador de inicio de sesión.
+	['https://identitytoolkit.googleapis.com', `http://${process.env.EMU_AUTH || '127.0.0.1:9099'}/identitytoolkit.googleapis.com`]
 ];
 // Cuentas de servicio de mentira: el cambio de su clave por un token de Google se salta (abajo, oauth2) y el emulador
 // acepta «Bearer owner» como administrador.
@@ -16,6 +18,9 @@ process.env.GOOGLE_SA_KEY ||= generateKeyPairSync('rsa', { modulusLength: 2048 }
 // La cuenta que escribe las reservas del socio (netlify/functions/reservas.mjs), también de mentira.
 process.env.GOOGLE_SA_ESCRITURA_EMAIL ||= 'escritura@demo-eq.iam.gserviceaccount.com';
 process.env.GOOGLE_SA_ESCRITURA_KEY ||= process.env.GOOGLE_SA_KEY;
+// La que pide los enlaces para poner la contraseña (netlify/functions/contrasena.mjs), también de mentira.
+process.env.GOOGLE_SA_ACCESOS_EMAIL ||= 'accesos@demo-eq.iam.gserviceaccount.com';
+process.env.GOOGLE_SA_ACCESOS_KEY ||= process.env.GOOGLE_SA_KEY;
 // Con esto (y el proyecto «demo-eq») netlify/lib/auth.mjs acepta los tokens sin firma del emulador de inicio de sesión.
 process.env.FIRESTORE_EMULATOR_HOST ||= process.env.EMU_FIRESTORE || '127.0.0.1:8085';
 process.env.ZEPTOMAIL_TOKEN ||= 'pruebas';

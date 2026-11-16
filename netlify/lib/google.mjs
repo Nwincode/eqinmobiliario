@@ -13,6 +13,9 @@ const cache = new Map(); // un token por cuenta y permiso (scope)
 const cuenta = (email, key) => (email && key ? { email, key } : null);
 export const cuentaLectura = () => cuenta(process.env.GOOGLE_SA_EMAIL, process.env.GOOGLE_SA_KEY);
 export const cuentaEscritura = () => cuenta(process.env.GOOGLE_SA_ESCRITURA_EMAIL, process.env.GOOGLE_SA_ESCRITURA_KEY);
+// La que pide a Google los enlaces para poner la contraseña (netlify/functions/contrasena.mjs), con el rol «Firebase
+// Authentication Admin». Siempre una aparte: junto con la de escritura, una sola clave filtrada lo abriría todo.
+export const cuentaAccesos = () => cuenta(process.env.GOOGLE_SA_ACCESOS_EMAIL, process.env.GOOGLE_SA_ACCESOS_KEY);
 
 export function googleConfigurado() {
 	return Boolean(cuentaLectura());
