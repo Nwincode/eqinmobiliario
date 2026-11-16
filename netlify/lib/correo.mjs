@@ -89,13 +89,19 @@ function remitente() {
 	return m ? { name: m[1].replace(/^"|"$/g, '').trim() || NOMBRE, address: m[2].trim() } : { name: NOMBRE, address: v };
 }
 
-// «Responder a»: el primer correo del equipo (AVISO_CORREO). El remitente es un noreply@ que nadie lee: si alguien
-// responde un correo, la respuesta llega a un buzón que sí se atiende.
-const responderA = () => destinatariosEquipo()[0] || '';
+// Dos remitentes: lo que no se responde (contraseñas, avisos internos) sale de CORREO_REMITENTE (noreply@); lo que
+// sí puede responderse (reservas, al cliente y al socio) sale del primer correo del equipo (AVISO_CORREO, reservas@)
+// si es del mismo dominio (el verificado en el servicio); si no, sale del noreply@ con «Responder a» ese correo.
+function remitenteDe(responder) {
+	const base = remitente();
+	const equipo = responder ? destinatariosEquipo()[0] || '' : '';
+	if (!equipo) return { de: base, resp: '' };
+	const dominio = (c) => String(c).split('@')[1]?.toLowerCase() || '';
+	return { de: dominio(equipo) && dominio(equipo) === dominio(base.address) ? { name: base.name, address: equipo } : base, resp: equipo };
+}
 
-async function enviarZepto({ lista, asunto, html, texto }, conRespuesta = true) {
-	const de = remitente();
-	const resp = conRespuesta ? responderA() : '';
+async function enviarZepto({ lista, asunto, html, texto, responder }) {
+	const { de, resp } = remitenteDe(responder);
 	if (!de.address) throw new Error('Con ZeptoMail falta CORREO_REMITENTE en Netlify (una dirección del dominio verificado).');
 	const token = String(process.env.ZEPTOMAIL_TOKEN).trim();
 	const host = String(process.env.ZEPTOMAIL_HOST || 'cpaas.zoho.com').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -121,20 +127,20 @@ async function enviarZepto({ lista, asunto, html, texto }, conRespuesta = true) 
 	const body = await res.json().catch(() => ({}));
 	if (!res.ok) {
 		const det = body.error?.details?.[0]?.message || body.error?.message || res.status;
-		// Si Zoho no acepta el «Responder a», el correo sale igual sin él: nunca se pierde por eso.
-		if (resp && res.status < 500) { console.error('ZeptoMail sin «Responder a»:', det); return enviarZepto({ lista, asunto, html, texto }, false); }
+		// Si Zoho no acepta ese remitente o el «Responder a», el correo sale igual del de siempre: nunca se pierde por eso.
+		if (resp && res.status < 500) { console.error('ZeptoMail no aceptó reservas@ como remitente o «Responder a»; sale del remitente de siempre:', det); return enviarZepto({ lista, asunto, html, texto, responder: false }); }
 		throw new Error(`ZeptoMail rechazó el correo: ${det}`);
 	}
 	return body.request_id;
 }
 
-async function enviarResend({ lista, asunto, html, texto }) {
-	const resp = responderA();
+async function enviarResend({ lista, asunto, html, texto, responder }) {
+	const { de, resp } = remitenteDe(responder);
 	const res = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({
-			from: process.env.CORREO_REMITENTE || `${NOMBRE} <onboarding@resend.dev>`,
+			from: de.address ? `${de.name} <${de.address}>` : `${NOMBRE} <onboarding@resend.dev>`,
 			to: lista,
 			...(resp ? { reply_to: resp } : {}),
 			subject: asunto,
@@ -147,11 +153,12 @@ async function enviarResend({ lista, asunto, html, texto }) {
 	return body.id;
 }
 
-export async function enviarCorreo({ para, asunto, html, texto }) {
+// responder: true en los correos que la persona puede contestar (reservas); sale de reservas@ (remitenteDe).
+export async function enviarCorreo({ para, asunto, html, texto, responder = false }) {
 	const lista = [...new Set((Array.isArray(para) ? para : [para]).filter(Boolean))];
 	const servicio = servicioCorreo();
 	if (!servicio) throw new Error('Falta la clave del servicio de correo en Netlify (ZEPTOMAIL_TOKEN o RESEND_API_KEY).');
 	if (!lista.length) throw new Error('Falta AVISO_CORREO en Netlify.');
-	const datos = { lista, asunto, html, texto };
+	const datos = { lista, asunto, html, texto, responder };
 	return servicio === 'zeptomail' ? enviarZepto(datos) : enviarResend(datos);
 }

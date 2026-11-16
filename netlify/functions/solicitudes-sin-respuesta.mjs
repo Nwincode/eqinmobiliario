@@ -135,7 +135,7 @@ async function recordarComisiones(ahora) {
 ${boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })}`
 		});
 		// Si falla el de un socio, los demás igual reciben el suyo.
-		await enviarCorreo({ para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` })
+		await enviarCorreo({ responder: true, para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` })
 			.catch((err) => console.error('Comisiones de un socio:', err.message));
 	}
 }

@@ -25,7 +25,7 @@ export async function enviarAvisosChat(token) {
 	for (const a of avisos) {
 		try {
 			const html = await plantilla({ titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, bloques: (c) => boton(c, a.boton, a.url, c.primary, { ancho: true }) });
-			await enviarCorreo({ para: a.para, asunto: a.asunto, html, texto: `${a.titulo}\n${a.intro}\n\n${a.boton}: ${a.url}` });
+			await enviarCorreo({ responder: true, para: a.para, asunto: a.asunto, html, texto: `${a.titulo}\n${a.intro}\n\n${a.boton}: ${a.url}` });
 		} catch (err) { fallas++; console.error('Aviso de chat a', a.para.length, 'correo(s):', err.message); }
 	}
 	if (fallas && fallas === avisos.length) throw new Error('No salió ningún aviso');
