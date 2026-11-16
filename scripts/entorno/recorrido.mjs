@@ -95,7 +95,7 @@ paso('Renta vacacional: moneda, orden, visible y destacada en una sola fila (sin
 const faltan = await admin.p.locator('.admin-main .alert').first().innerText().catch(() => '');
 paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el precio, ni se piden m² ni parqueos', !/Precio|m²|Parqueos/.test(faltan), faltan.replace(/\s+/g, ' ').slice(0, 140));
 const google = await admin.p.locator('.card-body').innerText();
-paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /Desde US\$ ?120(\.00)? por noche/.test(google) && !/A consultar/.test(google));
+paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /US\$ ?120(\.00)? por noche/.test(google) && !/Desde/.test(google) && !/A consultar/.test(google));
 const columnas = await admin.p.locator('.tabla-vacacional thead th').allInnerTexts();
 paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y lo que paga el cliente', /Socio.*Ganancia.*Precio sin impuestos.*IVA 12.*INGUAT 10.*El cliente paga/.test(columnas.join(' ')) && /146\.40/.test(await admin.p.locator('.tabla-vacacional tbody tr').first().innerText()), columnas.join(' · '));
 await guardar(admin.p);
@@ -327,7 +327,7 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 	const neto = num((await leer(`properties/${idCasa}/privado/socio`)).fields?.precioBase);
 	paso('Guardar la ficha abierta desde antes no libera la noche que el socio confirmó ni deshace el precio que cambió en «Mis propiedades»',
 		(await reservadas()).includes(llegada3) && neto === 110 && num(v.base) === 132 && num(v.camas) === 4, `socio ${neto} · público ${num(v.base)} · camas ${num(v.camas)} · ${await avisos(admin.p)}`);
-	// La ficha publicada dice «Desde US$ 120.00»; sin publicar de nuevo, el cliente ya ve el precio nuevo arriba y en el cuadro.
+	// La ficha publicada dice «US$ 120.00 por noche»; sin publicar de nuevo, el cliente ya ve el precio nuevo arriba y en el cuadro.
 	await cliente.p.goto(`${SITIO}${ficha}`);
 	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.vac-desde')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
 	const desdes = await cliente.p.locator('.ficha-precio, .vac-desde').allInnerTexts();
@@ -1429,6 +1429,8 @@ const duenos = [];
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
 	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
 	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
+	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
+	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
 	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));

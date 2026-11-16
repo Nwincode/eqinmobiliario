@@ -165,11 +165,48 @@
 }
 /* Eligiendo la salida: las noches de la estancia mínima (rayadas) y la primera salida posible (con borde). */
 .vac-dia.is-minimo {
-	background: repeating-linear-gradient(135deg, var(--eq-primary-soft) 0 6px, transparent 6px 10px);
+	background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--eq-primary) 18%, var(--eq-white)) 0 5px, transparent 5px 9px);
 	border-radius: 0;
 }
 .vac-dia.is-salida-min {
 	box-shadow: inset 0 0 0 2px var(--eq-primary);
+}
+/* El mínimo de noches, encima de los días: donde el cliente está mirando al elegir. Resalta mientras elige la salida. */
+.vac-cal-minimo {
+	display: flex;
+	align-items: center;
+	gap: .4rem;
+	margin: 0 0 .5rem;
+	padding: .4rem .75rem;
+	border-radius: var(--eq-radius);
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+	font-size: 14px;
+	font-weight: 600;
+}
+.vac-cal-minimo.is-activo {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.vac-leyenda {
+	display: block;
+	margin: .35rem 0 .15rem;
+}
+.vac-muestra {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	vertical-align: -3px;
+	margin: 0 .35rem 0 0;
+	border-radius: 3px;
+}
+.vac-muestra-salida {
+	margin-left: .9rem;
+	box-shadow: inset 0 0 0 2px var(--eq-primary);
+}
+.vac-muestra-min {
+	background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--eq-primary) 18%, var(--eq-white)) 0 4px, transparent 4px 7px);
+	box-shadow: inset 0 0 0 1px var(--eq-line);
 }
 .vac-ayuda-btn {
 	padding: 0;

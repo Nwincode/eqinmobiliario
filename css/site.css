@@ -1322,14 +1322,16 @@ h2.heading::after,
 	display: grid;
 	gap: 6px;
 	padding: 0 6px;
-	height: min(74vh, 760px);
-	min-height: 420px;
+	/* El alto sale del ancho (no solo de la pantalla): así cada foto queda en 4:3, como se tomó, y no se recorta en una
+	   pantalla angosta y alta (iPad), donde la marca de agua quedaba cortada. Con 2fr 1fr 1fr: 37.5 % del ancho. */
+	height: min(74vh, 760px, 37.5vw);
+	min-height: 280px;
 	grid-template-columns: 2fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
 }
-.ficha-galeria-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.ficha-galeria-2 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr; }
-.ficha-galeria-3 { grid-template-columns: 2fr 1fr; }
+.ficha-galeria-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; height: min(74vh, 760px, 75vw); }
+.ficha-galeria-2 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr; height: min(74vh, 760px, 50vw); }
+.ficha-galeria-3 { grid-template-columns: 2fr 1fr; height: min(74vh, 760px, 50vw); }
 .ficha-galeria-4 { grid-template-columns: 2fr 1fr 1fr; }
 .ficha-foto {
 	position: relative;
@@ -1443,7 +1445,7 @@ body.offcanvas-menu .ficha-barra {
 }
 .ficha-lugar {
 	color: var(--eq-ink);
-	margin-bottom: 20px;
+	margin-bottom: 12px;
 }
 .ficha-lugar a {
 	color: inherit;
@@ -1454,7 +1456,8 @@ body.offcanvas-menu .ficha-barra {
 	color: var(--eq-primary);
 }
 .ficha-precio {
-	font-size: clamp(26px, 2.6vw, 32px);
+	font-size: clamp(22px, 2.6vw, 32px);
+	line-height: 1.2;
 	font-weight: 600;
 	color: var(--eq-dark);
 	margin-bottom: 0;
@@ -1546,12 +1549,19 @@ body.offcanvas-menu .ficha-barra {
 	margin-bottom: 4px;
 	color: var(--eq-dark);
 }
+/* Íconos de amenidades, reglas y datos: a 20 px, del tamaño que se reconoce de un vistazo, en su propia columna. */
 .ficha-nota .eq-ic,
 .ficha-amenidades .eq-ic {
-	width: 1.3em;
-	margin-right: .5em;
+	flex: 0 0 auto;
+	width: 28px;
+	font-size: 20px;
+	margin-right: .6rem;
 	text-align: center;
 	color: var(--eq-primary);
+}
+.ficha-nota strong {
+	display: flex;
+	align-items: center;
 }
 .ficha-amenidades {
 	list-style: none;
@@ -1561,10 +1571,12 @@ body.offcanvas-menu .ficha-barra {
 	column-gap: 40px;
 }
 .ficha-amenidades li {
+	display: flex;
+	align-items: center;
 	padding: 8px 0 8px 22px;
 	position: relative;
 	break-inside: avoid;
-	color: #2f363d;
+	color: var(--eq-text);
 }
 .ficha-amenidades li::before {
 	content: "";
@@ -1752,6 +1764,10 @@ body.offcanvas-menu .ficha-barra {
 		grid-template-columns: 1fr;
 	}
 	.ficha-amenidades {
+		column-gap: 16px;
+	}
+	/* Las reglas de la casa son frases: en celular, una por línea. */
+	.ficha-nota .ficha-amenidades {
 		columns: 1;
 	}
 	.ficha-lightbox figure {
@@ -2087,8 +2103,15 @@ a:hover > .eq-ic-fin,
 	color: var(--eq-primary);
 }
 .prop-facts dt .eq-ic {
-	width: 1.15em;
+	flex: 0 0 auto;
+	width: 26px;
+	font-size: 18px;
+	margin-right: .5rem;
 	text-align: center;
+}
+.ficha .prop-facts dt {
+	display: flex;
+	align-items: center;
 }
 .ficha-bloque h2 .eq-ic,
 .heading .eq-ic {
@@ -3026,6 +3049,17 @@ a:hover > .eq-ic-fin,
 	color: var(--eq-ink);
 	margin: .25rem 0 0;
 }
+/* Precio por noche y sus impuestos en una sola línea (bajan solos si no caben). */
+.ficha-precio-fila {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0 .75rem;
+}
+.ficha-precio-fila .ficha-precio-nota {
+	margin: 0;
+	font-size: 13px;
+}
 .vac-card .icon,
 .vac-card svg.ic {
 	margin-right: .4rem;
@@ -3039,6 +3073,19 @@ a:hover > .eq-ic-fin,
 	font-size: 13px;
 	color: var(--eq-ink);
 	margin: .15rem 0 1rem;
+}
+.vac-impuestos .vac-finde {
+	margin: 0;
+	font-size: inherit;
+	color: var(--eq-dark);
+}
+.vac-impuestos .vac-finde:not([hidden])::after {
+	content: " · ";
+	color: var(--eq-ink);
+}
+.ficha-precio-fila .vac-finde {
+	color: var(--eq-dark);
+	font-weight: 500;
 }
 .vac-fechas {
 	display: grid;

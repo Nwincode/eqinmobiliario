@@ -26,11 +26,11 @@ export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
 // Decisión del dueño: los precios llevan siempre centavos («US$ 350,000.00», «US$ 120.00»), igual que las cuentas.
 export const montoPrecio = (n, moneda) => dinero(Number(n) || 0, moneda);
 // Precio de una propiedad según su operación, en español o inglés: «US$ 250,000.00», «Q 5,000.00 /mes»,
-// «Desde US$ 120.00 por noche»; sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión,
+// «US$ 120.00 por noche» (sin «desde»: el precio no se negocia; el de fin de semana va aparte en la ficha); sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión,
 // las reglas sin IA y el generador del sitio (scripts/lib/util.mjs `formatPrice`).
 const PRECIO = {
-	es: { consultar: 'Precio a consultar', mes: ' /mes', noche: (x) => `Desde ${x} por noche` },
-	en: { consultar: 'Price on request', mes: ' /mo', noche: (x) => `From ${x} per night` }
+	es: { consultar: 'Precio a consultar', mes: ' /mes', noche: (x) => `${x} por noche` },
+	en: { consultar: 'Price on request', mes: ' /mo', noche: (x) => `${x} per night` }
 };
 export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 'es') {
 	const t = PRECIO[lang] || PRECIO.es;

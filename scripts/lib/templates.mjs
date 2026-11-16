@@ -1120,9 +1120,22 @@ const facts = (rows) => `<dl class="prop-facts">${rows.filter(([, , v]) => v).ma
 
 // Ícono según lo que dice el texto (amenidades y reglas); si nada calza, el genérico que se pida.
 const ICONOS_TEXTO = [
+	// Primero los más específicos (una «vista al lago» no es una piscina; «ropa de cama» no es una cama aparte).
+	[/c[aá]mara|vigilancia|camera|cctv/, 'video-camera'], [/juego|billar|futbolito|ping ?pong|consola|game|pool table/, 'videogame_asset'],
+	[/vista|mirador|volc[aá]n|monta[ñn]a|view|mountain/, 'terrain'], [/muelle|embarcadero|dock|pier/, 'anchor'],
+	[/lancha|bote|barco|velero|yate|boat/, 'directions_boat'], [/kayak|canoa|remo|paddle|sup\b/, 'rowing'],
+	[/hamaca|hammock|terraza|balc[oó]n|sala\b|lounge|deck/, 'weekend'], [/rancho|palapa|p[eé]rgola|sombra|gazebo/, 'umbrella'],
+	[/ropa de cama|s[aá]bana|cama|habitaci|dormitor|bed|linen/, 'bed'], [/toalla|towel|ba[ñn]o|bath/, 'bath'],
+	[/planta el[eé]ctrica|generador|energ[ií]a|luz|power|generator|solar/, 'flash_on'],
+	[/\bbar\b|cantina|cocteler/, 'local_bar'],
+	[/spa|sauna|temazcal|masaje|massage/, 'spa'], [/golf/, 'golf_course'], [/bicicleta|bike|bicycle/, 'directions_bike'],
+	[/m[uú]sica|bocina|sonido|speaker|sound/, 'speaker'], [/ni[ñn]o|infantil|cuna|beb[eé]|kid|child|crib/, 'child_friendly'],
+	[/accesible|silla de ruedas|wheelchair|accessible/, 'accessible'], 
+	[/agua pura|purificada|filtrada|drinking water/, 'local_drink'], [/tienda|supermercado|store|shop/, 'local_convenience_store'],
+	[/cocinera|chef|servicio a la|room service|mesero|limpieza diaria|housekeep/, 'room_service'], [/lago|\br[ií]o\b|\bmar\b|lake|river|\bsea\b/, 'beach_access'],
 	[/wi-?fi|internet/, 'wifi'], [/piscina|alberca|pool/, 'pool'], [/jacuzzi|hot tub/, 'hot_tub'], [/cocina|kitchen/, 'kitchen'],
 	[/aire acond|a\/c|air con/, 'ac_unit'], [/parqueo|estacionamiento|parking|garage/, 'local_parking'], [/gimnasio|gym/, 'fitness_center'],
-	[/\btv\b|televis|netflix/, 'tv'], [/chimenea|fogata|churrasqu|parrilla|bbq|grill|fire/, 'fire'], [/jard[ií]n|garden|bosque/, 'tree'],
+	[/\btv\b|televis|netflix/, 'tv'], [/chimenea|fogata|churrasqu|parrilla|barbacoa|asador|bbq|grill|fire/, 'fire'], [/jard[ií]n|garden|bosque/, 'tree'],
 	[/seguridad|garita|security/, 'shield'], [/playa|beach/, 'beach_access'], [/lavander|lavadora|laundry|washer/, 'local_laundry_service'],
 	[/mascota|\bpets?\b/, 'pets'], [/desayuno|breakfast|caf[eé]|coffee/, 'free_breakfast'], [/agua caliente|ducha|shower/, 'shower'],
 	[/fum|smok/, 'smoke_free'], [/ruido|silencio|m[uú]sica|fiesta|noise|quiet|part(y|ies)/, 'volume-off'], [/hu[eé]sped|visita|guest/, 'users']
@@ -1266,6 +1279,14 @@ const VAC_JS = '<script src="__VAC_BUNDLE__" defer></script>';
 export function vacacionalVisible(p) {
 	return Boolean(p && p.operacion === 'vacacional' && p.vacacional && Number(p.vacacional.base) > 0);
 }
+// El precio de viernes y sábado, cuando es distinto del de entre semana: el precio no lleva «desde» (no se negocia),
+// así que lo que cambia se dice. js/vacacional.js lo pone al día con los precios de hoy.
+function notaFinde(p, t) {
+	const { base, finde } = datosVacacional(p).plan;
+	const visible = finde > 0 && finde !== base;
+	return `<span class="ficha-precio-nota vac-finde"${visible ? '' : ' hidden'}>${fmt(t.vacFinde, { precio: `<span data-out="finde">${esc(visible ? formatPrice(finde, p.moneda, 'venta', lng(p)) : '')}</span>` })}</span>`;
+}
+
 function datosVacacional(p) {
 	const v = p.vacacional || {};
 	const num = (x, d = 0) => (Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : d);
@@ -1302,7 +1323,7 @@ function reservaBox(ctx, p) {
 						<script type="application/json" class="vac-datos">${json}</script>
 						<h2 id="vac-titulo" class="h5 mb-1">${ic('calendar')}${t.vacTitulo}</h2>
 						<p class="vac-desde"><strong>${esc(price(p))}</strong></p>
-						<p class="vac-impuestos">${t.vacImpuestos}${d.nochesMin > 1 ? ` · ${fmt(t.vacMinimo, { n: d.nochesMin })}` : ''}</p>
+						<p class="vac-impuestos">${notaFinde(p, t)}${t.vacImpuestos}</p>
 						<div class="vac-fechas">
 							<button type="button" class="vac-fecha" data-campo="llegada" aria-describedby="vac-ayuda">
 								<span class="vac-fecha-label">${t.vacLlegada}</span>
@@ -1316,6 +1337,7 @@ function reservaBox(ctx, p) {
 							</button>
 						</div>
 						<div class="vac-cal" role="group" aria-label="${esc(t.vacCalendario)}">
+							<p class="vac-cal-minimo"${d.nochesMin > 1 ? '' : ' hidden'}>${ic('moon-o')}<span data-out="minimo">${fmt(t.vacMinimoCorto, { n: d.nochesMin })}</span></p>
 							<div class="vac-cal-cabecera">
 								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron(FLECHA_PREV)}</button>
 								<h3 class="vac-cal-mes" aria-live="polite"></h3>
@@ -1448,7 +1470,7 @@ export function propertyPage(ctx, p) {
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona && lugar.startsWith(p.zona) ? `<a href="${zona.url}">${esc(p.zona)}</a>${esc(lugar.slice(p.zona.length))}` : esc(lugar)}</p>` : ''}
-						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${esVac ? `<p class="ficha-precio-nota">${t.vacImpuestos}</p>` : ''}`}
+						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : esVac ? `<div class="ficha-precio-fila"><p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${notaFinde(p, t)}<span class="ficha-precio-nota">${t.vacImpuestosCorto}</span></div>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos" data-n="${datosClave.length}">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					${esVac ? `</div>
