@@ -425,6 +425,21 @@
 		pintar(false);
 		actualizar();
 		if (traia && !sirve) avisar(t.vacFechasYaNo, true);
+
+		// Volvió a la ficha después de pedir esta casa (botón «atrás», otra pestaña): el enlace a su solicitud, arriba.
+		try {
+			var miToken = localStorage.getItem('eq-reserva');
+			if (form && id && miToken && /^[A-Za-z0-9]{20,40}$/.test(miToken) && localStorage.getItem('eq-reserva-casa') === id) {
+				var ya = document.createElement('p');
+				ya.className = 'vac-ya-pediste';
+				ya.textContent = t.vacYaPediste + ' ';
+				var ir = document.createElement('a');
+				ir.href = '/reserva/#' + miToken;
+				ir.textContent = t.vacChatVer;
+				ya.appendChild(ir);
+				form.parentNode.insertBefore(ya, form);
+			}
+		} catch (e) { /* sin memoria del navegador */ }
 	}
 
 	// Listado vacacional: muestra solo las casas libres para las fechas y huéspedes elegidos,

@@ -88,7 +88,8 @@
 			var chat = nuevo('chats/' + token, campos);
 			return pedir(RAIZ + ':commit', { writes: x[0] ? [chat] : [chat, indice] });
 		}).then(function () {
-			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
+			// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
+			try { localStorage.setItem(GUARDADO, token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); } catch (e) { /* sin memoria del navegador */ }
 			return token;
 		});
 	}
