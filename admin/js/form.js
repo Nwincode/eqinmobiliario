@@ -178,9 +178,9 @@ function marcar({ control, msg }) {
 	input.setAttribute('data-error', id);
 	const caja = input.closest('.input-group') || control;
 	caja.insertAdjacentElement('afterend', h('div', { class: 'invalid-feedback d-block', id }, msg));
-	const quitar = () => quitarMarca(input);
-	input.addEventListener('input', quitar, { once: true });
-	input.addEventListener('change', quitar, { once: true });
+	// Se quita al corregirlo: al escribir (en un campo de texto, «change» llega al salir del campo y borraría la marca
+	// recién puesta) o al elegir otra opción en un selector.
+	input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => quitarMarca(input), { once: true });
 }
 
 export function renderForm(schema, data, options = {}) {
