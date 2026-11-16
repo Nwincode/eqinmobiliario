@@ -133,6 +133,12 @@ const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).pad
 // properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
 // los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
 const hoyISO = () => V.hoy();
+// Dónde saca el socio el enlace de cada calendario. Privado: la página solo muestra qué noches están ocupadas.
+const AYUDA_ICAL = {
+	Airbnb: 'Calendario → Disponibilidad → Conectar calendarios → Exportar.',
+	Booking: 'Extranet: Tarifas y disponibilidad → Sincronizar calendarios → Exportar.',
+	VRBO: 'Calendario → Importar/Exportar → Exportar.'
+};
 const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
 export function vacacionalPublico(d) {
 	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
@@ -370,7 +376,7 @@ async function exportarCsv(props, agentName, btn) {
 				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
 				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
 				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
-				ical: s.icalUrl,
+				...Object.fromEntries(V.CALENDARIOS.map((c) => [c.columna, s[c.campo]])),
 				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
 				enlace: p.slug ? `${SITIO}${publicUrl(p)}` : '',
 				publicado: p.publicado ? 'sí' : 'no'
@@ -904,8 +910,9 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
 		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
-		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
-		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de Airbnb)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
+		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
+		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
 			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
 			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
 		] },
@@ -1374,8 +1381,9 @@ async function renderEditor(container, id, emb = null) {
 			await setDoc(newRef, d);
 			// Después de crear la casa: su regla la lee.
 			if (vac) {
-				// El costo del socio sí (sin el calendario de Airbnb, que es de la original); la dirección y el mapa también.
-				const { icalUrl, ...socioCopia } = socioPriv.data() || {};
+				// El costo del socio sí (sin los calendarios, que son de la original); la dirección y el mapa también.
+				const socioCopia = { ...(socioPriv.data() || {}) };
+				for (const c of V.CALENDARIOS) delete socioCopia[c.campo];
 				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
 			}
 			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });

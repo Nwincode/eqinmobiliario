@@ -44,7 +44,7 @@ async function prepararVacacional(id, it, previo = null) {
 	const yaPorNoche = previo?.operacion === 'vacacional';
 	const privRef = doc(db, 'properties', id, 'privado', 'socio');
 	const guardado = previo ? ((await getDoc(privRef).catch(() => null))?.data() || {}) : {};
-	const socio = { ...(yaPorNoche ? {} : { margen: V.MARGEN, tarifas: [], icalUrl: '', precioFinde: 0, ...guardado }), ...(it.socio || {}) };
+	const socio = { ...(yaPorNoche ? {} : { margen: V.MARGEN, tarifas: [], ...Object.fromEntries(V.CALENDARIOS.map((c) => [c.campo, ''])), precioFinde: 0, ...guardado }), ...(it.socio || {}) };
 	if (!(Number({ ...guardado, ...socio }.precioBase) > 0)) throw new Error('Falta el precio por noche del socio (columna socio_noche).');
 	const vacacional = { ...(yaPorNoche ? {} : { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00' }), ...(it.vac || {}) };
 	const pub = previo ? { vacacional } : vacacionalPublico({ socio, vacacional });

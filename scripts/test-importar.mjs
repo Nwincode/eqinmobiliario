@@ -18,14 +18,15 @@ const PLANTILLA = readFileSync(new URL('../docs/plantilla-casas-por-noche.csv', 
 const leer = (buf) => filasComoObjetos(parseCsv(decodificarCsv(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length))));
 
 t('La plantilla del socio: cada fila sale como casa por noche, con su dueño (por teléfono), precios y calendario', () => {
-	const { filas } = leer(Buffer.from(PLANTILLA));
+	const { filas, desconocidas } = leer(Buffer.from(PLANTILLA));
 	assert.equal(filas.length, 2);
+	assert.deepEqual(desconocidas, []);
 	const r = filaAPropiedad(filas[0], { opciones, duenos });
 	assert.deepEqual(r.errores, []);
 	assert.equal(r.datos.operacion, 'vacacional');
 	assert.equal(r.datos.propietarioId, 'socio-1');
 	assert.equal(r.carpeta, 'casa-del-lago');
-	assert.deepEqual(r.socio, { precioBase: 100, precioFinde: 130, icalUrl: 'https://www.airbnb.com/calendar/ical/XXXX.ics' });
+	assert.deepEqual(r.socio, { precioBase: 100, precioFinde: 130, icalUrl: 'https://www.airbnb.com/calendar/ical/XXXX.ics', icalBooking: 'https://admin.booking.com/hotel/hoteladmin/ical.html?t=XXXX' });
 	assert.deepEqual(r.vac, { limpieza: 40, deposito: 150, nochesMin: 2, huespedesMax: 6 });
 	assert.deepEqual(r.datos.amenidades, ['Piscina', 'Muelle', 'Wifi']);
 });
@@ -50,6 +51,14 @@ t('Fotos de Google Drive (.zip con dos carpetas envoltorio): cada carpeta va a s
 	assert.deepEqual(g.porFila.get(1).map((f) => f.ruta.split('/').pop()), ['a.heic']);
 	assert.deepEqual(g.sinFila, [{ nombre: 'otra-casa', fotos: 1 }]);
 	assert.equal(g.ignorados, 1);
+});
+
+t('Un CSV de antes con una sola columna «ical» sigue siendo el de Airbnb; un enlace sin https se avisa con su plataforma', () => {
+	const { filas } = leer(Buffer.from('titulo,operacion,propietario,socio_noche,ical,ical_vrbo\nCasa,vacacional,+502 5555 0001,90,https://a.ics,http://v.ics\n'));
+	const r = filaAPropiedad(filas[0], { opciones, duenos });
+	assert.equal(r.socio.icalUrl, 'https://a.ics');
+	assert.equal(r.socio.icalVrbo, undefined);
+	assert.match(r.errores.join(' '), /VRBO \(ical_vrbo\)/);
 });
 
 console.log(`${ok} pruebas del importador pasan.`);
