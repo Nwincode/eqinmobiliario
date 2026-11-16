@@ -1,14 +1,75 @@
-<!-- Plantilla del correo «Poner tu contraseña» (Firebase → Authentication → Plantillas → Restablecimiento de contraseña).
-     Se pega completa en «Mensaje». Firebase cambia %LINK% por el enlace (de un solo uso, vence en 1 hora) y
-     %EMAIL% por el correo de la persona. Colores de css/tema.css (--eq-primary #0e5e8a, --eq-ink #5b666f). -->
-<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0e1920;font-size:15px;line-height:1.5">
-  <p style="font-size:18px;font-weight:bold;margin:0 0 16px">EQ Inmobiliario</p>
-  <p>Hola:</p>
-  <p>Para entrar a tu panel de EQ Inmobiliario con <strong>%EMAIL%</strong>, crea tu contraseña con este botón:</p>
-  <p style="text-align:center;margin:28px 0">
-    <a href="%LINK%" style="background:#0e5e8a;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:8px;display:inline-block">Crear mi contraseña</a>
-  </p>
-  <p style="color:#5b666f;font-size:13px">El botón sirve una sola vez y vence en 1 hora. Si venció, pídele a tu asesor que te lo envíe de nuevo.</p>
-  <p style="color:#5b666f;font-size:13px">Después entras siempre en eqinmobiliario.gt/admin con tu correo y tu contraseña. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.</p>
-  <p style="color:#5b666f;font-size:13px">Si no esperabas este correo, ignóralo: nadie puede entrar sin esa contraseña.</p>
-</div>
+<!-- Correo «Crear mi contraseña» (Firebase → Authentication → Plantillas → Restablecimiento de contraseña → Mensaje).
+     Se pega completo. Firebase cambia %LINK% por el enlace (un solo uso, vence en 1 hora) y %EMAIL% por el correo.
+     Colores de css/tema.css: --eq-dark #0e1920, --eq-primary #0e5e8a, --eq-cyan #00b7e7, --eq-ink #5b666f, --eq-gold #85662b.
+     Tablas y estilos en línea para que Gmail y Outlook lo muestren igual. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef2f5" style="background:#eef2f5;font-family:Arial,Helvetica,sans-serif"><tr><td align="center" style="padding:28px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
+
+<tr><td bgcolor="#0e1920" style="background:#0e1920;border-radius:14px 14px 0 0;padding:26px 28px 22px">
+  <img src="https://eqinmobiliario.gt/Icono_Equipoinmobiliario@0.75x.png" width="170" height="41" alt="Equipo Inmobiliario" style="display:block;border:0;width:170px;height:auto">
+</td></tr>
+<tr><td bgcolor="#00b7e7" style="background:#00b7e7;height:4px;line-height:4px;font-size:4px">&nbsp;</td></tr>
+
+<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:34px 28px 8px">
+  <p style="margin:0 0 6px;font-size:13px;letter-spacing:1px;color:#0e5e8a;font-weight:bold">TU PANEL DE PROPIETARIO</p>
+  <h1 style="margin:0 0 14px;font-size:26px;line-height:32px;color:#0e1920">Bienvenido a tu panel</h1>
+  <p style="margin:0 0 22px;font-size:16px;line-height:24px;color:#5b666f">Tu asesor te dio acceso para que sigas tus propiedades en línea, cuando quieras y desde tu celular. Solo falta que crees tu contraseña.</p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px"><tr>
+    <td bgcolor="#f3f7fa" style="background:#f3f7fa;border:1px solid #dbe4ea;border-radius:10px;padding:14px 16px;font-size:14px;line-height:20px;color:#5b666f">
+      Tu usuario<br><strong style="font-size:16px;color:#0e1920">%EMAIL%</strong>
+    </td>
+  </tr></table>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 12px"><tr>
+    <td align="center" bgcolor="#0e5e8a" style="background:#0e5e8a;border-radius:10px">
+      <a href="%LINK%" target="_blank" style="display:inline-block;padding:16px 38px;font-size:17px;line-height:22px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px">Crear mi contraseña</a>
+    </td>
+  </tr></table>
+  <p style="margin:0 0 30px;text-align:center;font-size:13px;line-height:18px;color:#5b666f">El botón sirve una sola vez y vence en 1 hora.</p>
+</td></tr>
+
+<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:0 28px 8px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e3e9ee">
+    <tr><td colspan="2" style="padding:24px 0 12px;font-size:16px;font-weight:bold;color:#0e1920">Lo que verás en tu panel</td></tr>
+    <tr>
+      <td width="40" valign="top" style="padding:0 0 14px"><div style="width:28px;height:28px;line-height:28px;border-radius:14px;background:#e1f5fc;color:#0e5e8a;text-align:center;font-size:15px;font-weight:bold">&#10003;</div></td>
+      <td valign="top" style="padding:3px 0 14px;font-size:15px;line-height:22px;color:#0e1920"><strong>Cómo va cada propiedad</strong><br><span style="color:#5b666f">Consultas, visitas y ofertas al día.</span></td>
+    </tr>
+    <tr>
+      <td width="40" valign="top" style="padding:0 0 14px"><div style="width:28px;height:28px;line-height:28px;border-radius:14px;background:#e1f5fc;color:#0e5e8a;text-align:center;font-size:15px;font-weight:bold">&#10003;</div></td>
+      <td valign="top" style="padding:3px 0 14px;font-size:15px;line-height:22px;color:#0e1920"><strong>Cómo se anuncia</strong><br><span style="color:#5b666f">Lo que ven los interesados, y dinos si quieres cambios.</span></td>
+    </tr>
+    <tr>
+      <td width="40" valign="top" style="padding:0 0 22px"><div style="width:28px;height:28px;line-height:28px;border-radius:14px;background:#e1f5fc;color:#0e5e8a;text-align:center;font-size:15px;font-weight:bold">&#10003;</div></td>
+      <td valign="top" style="padding:3px 0 22px;font-size:15px;line-height:22px;color:#0e1920"><strong>Tu asesor, a un toque</strong><br><span style="color:#5b666f">Escríbele por WhatsApp desde el panel.</span></td>
+    </tr>
+  </table>
+</td></tr>
+
+<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:0 28px 30px;border-radius:0 0 14px 14px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td bgcolor="#faf6ee" style="background:#faf6ee;border-left:4px solid #85662b;border-radius:8px;padding:14px 16px;font-size:13px;line-height:20px;color:#5b666f">
+      <strong style="color:#0e1920">&#128274; Tu seguridad</strong><br>
+      Entra siempre en <strong style="color:#0e1920">eqinmobiliario.gt/admin</strong>. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nadie puede entrar sin esa contraseña.
+    </td>
+  </tr></table>
+</td></tr>
+
+<tr><td align="center" style="padding:22px 12px 6px;font-size:12px;line-height:19px;color:#5b666f">
+  <strong style="color:#0e1920">Equipo Inmobiliario S.A.</strong><br>
+  <a href="https://eqinmobiliario.gt" target="_blank" style="color:#0e5e8a;text-decoration:none">eqinmobiliario.gt</a>
+  &nbsp;·&nbsp;
+  <a href="https://www.instagram.com/eqinmobiliario.gt" target="_blank" style="color:#0e5e8a;text-decoration:none">Instagram</a>
+  &nbsp;·&nbsp;
+  <a href="https://www.facebook.com/eqinmobiliario.gt" target="_blank" style="color:#0e5e8a;text-decoration:none">Facebook</a>
+</td></tr>
+<tr><td align="center" style="padding:8px 12px 4px;font-size:12px;line-height:19px;color:#5b666f">
+  Recibes este correo porque Equipo Inmobiliario S.A. maneja una propiedad tuya. No te enviaremos publicidad desde esta dirección.<br>
+  <a href="mailto:atencioncliente@eqinmobiliario.gt?subject=Eliminar%20mi%20acceso%20al%20panel&amp;body=Quiero%20que%20eliminen%20mi%20cuenta%20del%20panel%3A%20%EMAIL%" style="color:#0e5e8a;text-decoration:underline">Eliminar mi cuenta del panel</a>
+  &nbsp;·&nbsp;
+  <a href="https://eqinmobiliario.gt/privacidad/" target="_blank" style="color:#0e5e8a;text-decoration:underline">Política de privacidad</a>
+</td></tr>
+
+</table>
+</td></tr></table>
