@@ -1027,7 +1027,9 @@ const duenos = [];
 // ---------------------------------------------------------------- Dueño que cambia, casas por noche sin asesor, estado de cuenta
 {
 	const sv = (x) => ({ stringValue: x }), nv = (x) => ({ integerValue: String(x) }), bv = (x) => ({ booleanValue: x });
-	const pon = (ruta, fields, mascara) => fetch(`${FS}/${ruta}${mascara ? `?${mascara.map((k) => `updateMask.fieldPaths=${k}`).join('&')}` : ''}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	const pon = (ruta, fields, mascara) => fetch(`${FS}/${ruta}${mascara ? `?${mascara.map((k) => `updateMask.fieldPaths=${k}`).join('&')}` : ''}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) })
+		// Un dato de prueba que la base rechaza (p. ej. 292.8 como entero) no pasa callado: el recorrido se detiene ahí.
+		.then(async (r) => { if (!r.ok) throw new Error(`No se guardó ${ruta}: ${(await r.text()).slice(0, 160)}`); return r; });
 	const lista = (ids) => ({ arrayValue: { values: ids.map((id) => ({ mapValue: { fields: { propertyId: sv(id) } } })) } });
 	const mapa = (o) => ({ mapValue: { fields: o } });
 	const f = async (ruta) => (await leer(ruta)).fields || {};
@@ -1051,7 +1053,7 @@ const duenos = [];
 	const solicitud = (codigo, llegada, salida) => ({ nombre: sv('Cliente R2'), telefono: sv('+502 5555 0299'), email: sv('r2@example.com'), propertyId: sv('r2-noche'), propietarioId: sv('r2-dueno'),
 		agentId: sv('asesor-prueba'), estado: sv('nuevo'), createdAt: { timestampValue: new Date().toISOString() },
 		// Todo lo que las reglas le exigen a una solicitud de verdad (sin esto la tarjeta diría «undefined personas»).
-		reserva: mapa({ codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(2), huespedes: nv(2), subtotal: nv(240), total: nv(292.8), moneda: sv('USD') }) });
+		reserva: mapa({ codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(2), huespedes: nv(2), subtotal: nv(240), total: { doubleValue: 292.8 }, moneda: sv('USD') }) });
 	await pon('leads/r2-abierta', solicitud('EQ-R2A', dia(30), dia(32)));
 	await pon('leads/r2-vieja', solicitud('EQ-R2V', dia(-12), dia(-10)));
 	const CHAT = 'ChatAbiertoDeR2LargoYAlAzar12345';
