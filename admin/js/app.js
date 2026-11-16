@@ -4,7 +4,7 @@ import {
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
-import { correoContrasena } from './contrasena.js';
+import { correoContrasena, pedirContrasena } from './contrasena.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
@@ -79,15 +79,8 @@ function loginScreen() {
 		type: 'button', class: 'btn btn-link btn-sm w-100 mt-2',
 		onclick: async () => {
 			if (!email.value) { msg.textContent = 'Escribe tu correo primero.'; return; }
-			// El mismo mensaje exista o no la cuenta: no se puede averiguar quién entra al panel.
-			const neutro = 'Si ese correo tiene acceso al panel, en unos minutos te llegará el correo para crear tu contraseña (revisa también el spam).';
-			try {
-				await correoContrasena(email.value.trim());
-				msg.className = 'small text-success mt-2'; msg.textContent = neutro;
-			} catch (err) {
-				msg.className = 'small text-danger mt-2';
-				msg.textContent = err?.delServidor === 429 || err?.delServidor === 400 ? err.message : neutro;
-			}
+			const r = await pedirContrasena(email.value.trim());
+			msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
 		}
 	}, '¿Olvidaste tu contraseña?'));
 
@@ -250,8 +243,9 @@ async function pantallaContrasena(codigo) {
 				e.preventDefault();
 				if (!correo.value.trim()) { correo.focus(); return; }
 				e.submitter.disabled = true;
-				try { await correoContrasena(correo.value.trim()); msg.className = 'small mt-2 text-success'; msg.textContent = 'Listo: si ese correo tiene acceso al panel, te llegará en unos minutos (revisa también el spam).'; }
-				catch (err) { msg.className = 'small mt-2 text-danger'; msg.textContent = errorMessage(err); e.submitter.disabled = false; }
+				const r = await pedirContrasena(correo.value.trim());
+				msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
+				if (r.error) e.submitter.disabled = false;
 			} }, h('label', { class: 'form-label small mb-0', for: 'otro-email' }, 'Correo'), correo, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Enviarme otro correo')),
 			msg,
 			h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => { quitarEnlace(); iniciar(); } }, 'Ya tengo mi contraseña: entrar')));

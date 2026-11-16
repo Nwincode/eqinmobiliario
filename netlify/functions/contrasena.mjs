@@ -5,7 +5,7 @@
 // Seguridad (revisada aparte; ver docs/revision-antes-de-unir.md):
 //  - El enlace (de Google, un solo uso, vence en 1 hora) va SOLO al correo de esa cuenta, el que Google devuelve y que
 //    tiene que ser el pedido, y nunca vuelve en la respuesta ni en los registros.
-//  - Solo a quien entra al panel: su cuenta de Firebase y un users/{uid} activo. Una cuenta creada por fuera (el alta
+//  - Solo a quien entra al panel: su cuenta de Firebase y un users/{uid} activo con ese mismo correo. Una cuenta creada por fuera (el alta
 //    de Firebase es pública) no recibe correos con la marca de la empresa.
 //  - Sin sesión de administrador, la respuesta es la misma exista o no la persona; límite por IP y por correo (los
 //    pedidos rechazados no cuentan, así nadie deja a otro sin su correo).
@@ -49,14 +49,20 @@ async function google(accion, cuerpo) {
 	return { ok: res.ok, body, motivo: body.error?.message || String(res.status) };
 }
 
-// ¿Esa persona entra al panel? Su cuenta (sin deshabilitar) y su users/{uid} activo.
+// ¿Ese correo entra al panel? Su users/{uid} activo y con ese MISMO correo: si alguien cambia el correo de su cuenta
+// en Google por uno ajeno, ese otro no recibe correos con la marca de la empresa.
+async function delPanel(uid, email) {
+	const usuario = await leerPrivado(`users/${uid}`);
+	return Boolean(usuario?.activo) && String(usuario.email || '').toLowerCase() === email;
+}
+
+// ¿Esa persona entra al panel? Su cuenta (sin deshabilitar) y su users/{uid} (delPanel).
 async function conAcceso(email) {
 	const r = await google('accounts:lookup', { email: [email] });
 	if (!r.ok) throw new Error(`Google no encontró la cuenta: ${r.motivo}`);
 	const cuenta = (r.body.users || []).find((u) => String(u.email || '').toLowerCase() === email);
 	if (!cuenta || cuenta.disabled) return false;
-	const usuario = await leerPrivado(`users/${cuenta.localId}`);
-	return Boolean(usuario?.activo);
+	return delPanel(cuenta.localId, email);
 }
 
 // El enlace de Google para poner la contraseña de esa cuenta; null si Google no lo da para ese correo.
@@ -93,9 +99,10 @@ export default async (req, context) => {
 			const r = await google('accounts:lookup', { localId: [s.uid] });
 			const cuenta = r.ok ? r.body.users?.[0] : null;
 			if (!cuenta?.email || cuenta.disabled || Date.now() - Number(cuenta.passwordUpdatedAt || 0) > 600_000) return json(401, { error: 'Sesión inválida' });
-			if (!(await leerPrivado(`users/${s.uid}`))?.activo) return json(200, { ok: true });
+			const correo = String(cuenta.email).toLowerCase();
+			if (!(await delPanel(s.uid, correo))) return json(200, { ok: true });
 			if (avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
-			await avisoCambio(String(cuenta.email).toLowerCase());
+			await avisoCambio(correo);
 			return json(200, { ok: true });
 		} catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
 	}

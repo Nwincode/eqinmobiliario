@@ -283,11 +283,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
-    // almacenamiento de la empresa (o del de pruebas «demo-…», que no puede existir en Google): una foto alojada en otro
-    // proyecto podría llevar a una página falsa.
+    // almacenamiento de la empresa (las pruebas usan ese mismo nombre en el emulador): una foto alojada en otro proyecto
+    // podría llevar a una página falsa.
     function comprobanteValido(url, reservaId) {
       return url is string && url.size() <= 600
-        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/(eqinmobiliariobd[.]firebasestorage[.]app|demo-[a-z0-9-]+[.]appspot[.]com)/o/comprobantes%2F'
+        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/comprobantes%2F'
              + reservaId + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+');
     }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
@@ -553,7 +553,7 @@ service cloud.firestore {
                         && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/(eqinmobiliariobd[.]firebasestorage[.]app|demo-[a-z0-9-]+[.]appspot[.]com)/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
+                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
             : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())

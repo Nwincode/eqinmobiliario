@@ -585,7 +585,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 // Un dueño con acceso al panel no es del equipo: no lista el bucket (las carpetas de los chats son las llaves de las
 // reservas) ni cambia o borra las fotos del sitio.
 {
-	const B = 'http://127.0.0.1:9199/v0/b/demo-eq.appspot.com/o';
+	const B = 'http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o';
 	const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 	const auth = (quien) => (quien === 'dueño' ? { Authorization: 'Bearer owner' } : quien ? { Authorization: `Bearer ${jwt(quien)}` } : {});
 	const subir = (quien, ruta, tipo = 'image/png') => fetch(`${B}?uploadType=media&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': tipo, ...auth(quien) }, body: png }).then((r) => r.status);
