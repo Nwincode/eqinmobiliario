@@ -16,13 +16,16 @@ function test(nombre, fn) {
 
 test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', () => {
 	const a = avisos([]);
-	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['ana@example.com']]);
+	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['equipo@example.com'], ['ana@example.com']]);
 	assert.equal(a[0].url, 'https://ejemplo.gt/admin/#/solicitudes/EQ-PRUEBA');
-	assert.equal(a[1].url, 'https://ejemplo.gt/reserva/#TokenDePruebaLargoYAlAzar2345');
+	assert.equal(a[1].url, 'https://ejemplo.gt/admin/#/solicitudes/EQ-PRUEBA');
+	assert.equal(a[2].url, 'https://ejemplo.gt/reserva/#TokenDePruebaLargoYAlAzar2345');
+	// Sin socio con correo, el equipo la recibe una sola vez.
+	assert.deepEqual(avisosChat({ chat, mensajes: [], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA }).map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
 });
 test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio lo lee en español con el título en español', () => {
 	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
-	assert.match(a[1].intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
+	assert.match(a.at(-1).intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
 	assert.match(a[0].intro, /^Casa de playa · lun, 16 nov → vie, 20 nov · 2 personas\./);
 });
 test('sin correos del equipo (AVISO_CORREO): el cliente y el socio igual reciben lo suyo', () => {
@@ -69,7 +72,7 @@ test('el título del correo sale de la casa guardada, no del chat', () => {
 	const nuevo = (extra) => avisosChat({ chat: { ...chat, propertyTitulo: 'Gana dinero en estafa.example', ...extra }, casa, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	const a = nuevo({});
 	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro) && !/estafa/.test(JSON.stringify(x))));
-	assert.match(nuevo({ idioma: 'en' })[1].intro, /Beach house in Monterrico/);
+	assert.match(nuevo({ idioma: 'en' }).at(-1).intro, /Beach house in Monterrico/);
 	assert.ok(avisosChat({ chat, casa: null, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA }).every((x) => !/Casa de playa ·/.test(x.intro)));
 });
 test('código o fechas con texto libre: no sale ningún correo', () => {
