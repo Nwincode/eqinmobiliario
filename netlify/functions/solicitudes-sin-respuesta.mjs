@@ -9,7 +9,7 @@
 // anotada en alertas/bloqueo-{id}, que solo escribe la cuenta de escritura: las reglas no dejan a nadie más).
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
-import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
+import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
@@ -22,7 +22,8 @@ const HORA = 3600_000;
 const PLAZO = 2 * HORA;
 
 export default async () => {
-	if (!correoConfigurado() || !datosConfigurados()) return;
+	// Basta el servicio de correo: el recordatorio de comisiones va a cada socio; lo demás, solo si hay correos del equipo.
+	if (!servicioCorreo() || !datosConfigurados()) return;
 	try {
 		const ahora = Date.now();
 		// Guatemala va 6 horas detrás de UTC, sin horario de verano. A las 7 se recogen también las de la noche.
@@ -30,6 +31,7 @@ export default async () => {
 		const ventana = sonLas7 ? 10 * HORA : HORA;
 		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
 		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
+		if (!destinatariosEquipo().length) return;
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;
 		const [nuevas, cambiadas] = await Promise.all([
 			desde('leads', 'createdAt', new Date(ahora - ventana - PLAZO)),
@@ -132,7 +134,9 @@ async function recordarComisiones(ahora) {
 			bloques: (c) => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">${suyas.map(esc).join('<br>')}</p>
 ${boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })}`
 		});
-		await enviarCorreo({ para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` });
+		// Si falla el de un socio, los demás igual reciben el suyo.
+		await enviarCorreo({ para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` })
+			.catch((err) => console.error('Comisiones de un socio:', err.message));
 	}
 }
 

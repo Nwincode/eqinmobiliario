@@ -1,5 +1,6 @@
 // Pruebas de los avisos por correo del chat de la reserva (netlify/lib/avisos-chat.mjs). Sin dependencias.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { avisosChat, sinResponder } from '../netlify/lib/avisos-chat.mjs';
 
 const AHORA = Date.parse('2026-11-13T12:00:00Z');
@@ -23,6 +24,14 @@ test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio l
 	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	assert.match(a[1].intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
 	assert.match(a[0].intro, /^Casa de playa · lun, 16 nov → vie, 20 nov · 2 personas\./);
+});
+test('sin correos del equipo (AVISO_CORREO): el cliente y el socio igual reciben lo suyo', () => {
+	const a = avisosChat({ chat, mensajes: [], correos: { ...correos, equipo: [] }, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['ana@example.com']]);
+	// El envío (y su función) no se apagan por falta de AVISO_CORREO: solo piden el servicio de correo.
+	for (const f of ['netlify/lib/aviso-chat-envio.mjs', 'netlify/functions/aviso-chat.mjs', 'netlify/functions/solicitudes-sin-respuesta.mjs']) {
+		assert.doesNotMatch(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), /correoConfigurado\(/, f);
+	}
 });
 test('solicitud vieja sin mensajes: no se vuelve a avisar', () => assert.equal(avisos([], { createdAt: hace(30) }).length, 0));
 test('el cliente escribe: se avisa a la casa, no al cliente', () => assert.deepEqual(avisos([m('cliente', 1)]).map((x) => x.para), [['socio@example.com']]));
