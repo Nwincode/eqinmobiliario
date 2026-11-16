@@ -140,12 +140,11 @@ export async function render(container, [codigo] = []) {
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
 	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
-	// Una solicitud sin responder cuyas fechas ya están reservadas o bloqueadas en la casa: no se ofrece «Confirmar»
-	// (el servidor la rechazaría igual); se dice por qué y queda «No se dio».
-	const yaOcupada = (l) => {
-		const v = casas.find((p) => p.id === l.propertyId)?.vacacional || {};
-		return [...(v.reservadas || []), ...(v.bloqueos || [])].some((b) => b?.desde < l.reserva.salida && b?.hasta > l.reserva.llegada);
-	};
+	// Una solicitud sin responder cuyas fechas ya tienen otra reserva confirmada: no se ofrece «Confirmar» (el servidor la
+	// rechazaría igual, V.choquesReserva); se dice por qué y queda «No se dio». Un bloqueo no cuenta: el socio puede
+	// bloquear esos días para guardárselos a este cliente y confirmar después.
+	const yaOcupada = (l) => (casas.find((p) => p.id === l.propertyId)?.vacacional?.reservadas || [])
+		.some((b) => b?.desde < l.reserva.salida && b?.hasta > l.reserva.llegada);
 	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
 	const delChat = (d) => { const c = d.data(); return {
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
@@ -275,7 +274,7 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
-				ocupada ? badge('Esas fechas ya están ocupadas', 'warning') : null,
+				ocupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
 				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),

@@ -652,6 +652,16 @@ let otraPestana = null;
 	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
 		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [...antes, { mapValue: { fields: { desde: no.llegada, hasta: no.salida, motivo: sv('Otra reserva') } } }] } } } } } } }) });
 	const control = () => execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
+	// Antes del bloqueo: otra solicitud de la web confirmada en esas mismas fechas es el camino normal y no se avisa.
+	const conAlerta = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter((l) => /No se dio» con fechas ocupadas/.test(l)).length;
+	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: antes } } } } } } }) });
+	await poner('reservas/web-mismas-fechas', { propertyId: sv(idCasa), llegada: no.llegada, salida: no.salida, estado: sv('confirmada'), leadId: sv('otra-solicitud'), codigo: sv('EQ-OTRA') });
+	control();
+	paso('Control de cada hora: otra reserva de la web en las mismas fechas de un «No se dio» no se avisa (es el camino normal)', conAlerta() === 0);
+	await fetch(`${FS}/reservas/web-mismas-fechas`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [...antes, { mapValue: { fields: { desde: no.llegada, hasta: no.salida, motivo: sv('Otra reserva') } } }] } } } } } } }) });
 	control();
 	// Otra hora: la de «No se dio» ya se avisó y no se repite.
 	control();
@@ -1381,6 +1391,46 @@ const duenos = [];
 	// Un asesor sin «orden» (se deja vacío al crearlo) sigue en las listas de asesores.
 	const nombres = await admin.p.evaluate(async () => (await (await import('/admin/js/session.js')).loadAgents(true)).map((a) => a.nombre));
 	paso('Un asesor sin «orden» aparece en la lista de asesores (Usuarios, Propiedades, Propietarios, Leads)', nombres.includes('Asesora sin orden (prueba)'), nombres.join(', '));
+}
+
+// ---------------------------------------------------------------- Formularios: todo junto, correo y teléfono, mínimo de noches
+{
+	// Panel: correo mal escrito → sugerencia; al guardar, nombre que falta y teléfono malo en rojo juntos; corregido, el correo se guarda.
+	await ir(admin.p, '#/propietarios/nuevo', 3000);
+	const c = (n) => admin.p.locator(`[data-campo="${n}"]`).locator('input').last();
+	await c('email').fill('roberto@gmial.com');
+	await c('email').blur();
+	const pista = await admin.p.locator('[data-campo="email"] .text-warning').innerText().catch(() => '');
+	await admin.p.locator('[data-campo="telefono"] input').fill('1234');
+	await admin.p.locator('button', { hasText: /^Guardar$/ }).last().click();
+	await espera(800);
+	const rojos = (await admin.p.locator('.invalid-feedback').allInnerTexts()).join(' | ');
+	paso('Panel: sugiere el correo bien escrito y, al guardar, marca juntos el nombre que falta y el teléfono malo', /gmail\.com/.test(pista) && /Nombre/.test(rojos) && /teléfono/.test(rojos), `${pista} · ${rojos}`);
+	await c('nombre').fill('Socio correo (prueba)');
+	await admin.p.locator('[data-campo="telefono"] input').fill('5555 7777');
+	await c('email').fill('socio.correo@example.com');
+	await admin.p.locator('button', { hasText: /^Guardar$/ }).last().click();
+	await espera(3000);
+	const todos = (await fetch(`${FS}/propietarios?pageSize=300`, { headers: { Authorization: 'Bearer owner' } }).then((x) => x.json())).documents || [];
+	const guardado = todos.find((d) => d.fields?.nombre?.stringValue === 'Socio correo (prueba)');
+	paso('Panel: el correo escrito en la ficha se guarda de verdad', guardado?.fields?.email?.stringValue === 'socio.correo@example.com', JSON.stringify(guardado?.fields?.email || null));
+	// Sitio: con un mínimo de 3 noches, tocar una salida antes del mínimo deja la llegada y lo explica.
+	const hoyM = new Date().toISOString().slice(0, 10), finM = new Date(Date.now() + 200 * 86400_000).toISOString().slice(0, 10);
+	const minimo = (values) => fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.minimos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { minimos: { arrayValue: { values } } } } } } }) });
+	await minimo([{ mapValue: { fields: { desde: { stringValue: hoyM }, hasta: { stringValue: finM }, noches: { integerValue: '3' } } } }]);
+	const vis = await persona(390);
+	await vis.p.goto(`${SITIO}${ficha}?m=3`);
+	await espera(3000);
+	for (let i = 0; i < 2; i++) { await vis.p.locator('.vac-cal-next').first().click(); await espera(150); }
+	await vis.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])').nth(8).click();
+	const llegadaM = await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha');
+	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
+	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
+	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
+	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
+	await minimo([]);
+	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
