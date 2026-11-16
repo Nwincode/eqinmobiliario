@@ -175,6 +175,21 @@
 .vac-fila-relleno {
 	visibility: hidden;
 }
+.vac-ayuda-btn {
+	padding: 0;
+	min-height: 0;
+	vertical-align: baseline;
+	font-size: inherit;
+}
+.vac-dia.is-llegada,
+.vac-dia.is-salida {
+	background: var(--eq-primary);
+	color: var(--eq-white);
+}
+.vac-dia.is-llegada .vac-dia-precio,
+.vac-dia.is-salida .vac-dia-precio {
+	color: var(--eq-white);
+}
 /* Al tocar «Primero elige tus fechas»: el calendario se marca un momento. */
 .vac-cal.vac-alerta {
 	outline: 3px solid var(--eq-primary);
