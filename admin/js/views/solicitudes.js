@@ -133,10 +133,12 @@ export async function render(container, [codigo] = []) {
 		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
 		// Respuestas rápidas detrás del rayo: se abren al tocarlo y se cierran al elegir una.
 		const momento = datosChat[l.reserva.codigo]?.estado === 'pagada' ? 'pagada' : estado(l) === 'confirmada' ? 'confirmada' : 'pendiente';
-		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2', hidden: true }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary text-start', onclick: () => {
-			campo.value = r; rapidas.hidden = true; rayo.setAttribute('aria-expanded', 'false'); campo.focus();
+		// (d-none y no «hidden»: el d-flex de Bootstrap le gana a «hidden» y la lista quedaba siempre abierta).
+		const abrirRapidas = (si) => { rapidas.classList.toggle('d-none', !si); rayo.setAttribute('aria-expanded', String(si)); };
+		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2 d-none' }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary text-start', onclick: () => {
+			campo.value = r; abrirRapidas(false); campo.focus();
 		} }, r)));
-		const rayo = iconoBtn('icon-bolt', 'Respuestas rápidas', { 'aria-expanded': 'false', onclick: () => { rapidas.hidden = !rapidas.hidden; rayo.setAttribute('aria-expanded', String(!rapidas.hidden)); } });
+		const rayo = iconoBtn('icon-bolt', 'Respuestas rápidas', { 'aria-expanded': 'false', onclick: () => abrirRapidas(rapidas.classList.contains('d-none')) });
 		form.prepend(rayo);
 		if (ingles) form.prepend(iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }));
 		// Mensajes nuevos cada 10 s mientras la conversación está abierta.
