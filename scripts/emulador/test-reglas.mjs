@@ -540,6 +540,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('el dueño anterior pone el comprobante de su reserva pasada (la casa ya es de otro)', comprobante('mixto1', 'r-recibo', url('r-recibo')), true);
 		await espera('comprobante con un texto cualquiera', comprobante('mixto1', 'r-recibo', 'Te pagué, llámame al 5555 0001'), false);
 		await espera('comprobante de la carpeta de otra reserva', comprobante('mixto1', 'r-recibo', url('lead-res-noche')), false);
+		await espera('comprobante alojado en el almacenamiento de otro proyecto (podría llevar a una página falsa)', comprobante('mixto1', 'r-recibo', url('r-recibo').replace('eqinmobiliariobd.firebasestorage.app', 'atacante.firebasestorage.app')), false);
 		await espera('otro dueño pone el comprobante', comprobante('socio2', 'r-recibo', url('r-recibo')), false);
 		const CA = 'ChatDeUnaCasaQueYaNoEsSuyaLargo12';
 		await raw(`chats/${CA}`, { propietarioId: sv('m1'), propertyId: sv('prueba-casa-playa-monterrico'), codigo: sv('EQ-ANT'), estado: sv('confirmada') });
@@ -584,7 +585,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 // Un dueño con acceso al panel no es del equipo: no lista el bucket (las carpetas de los chats son las llaves de las
 // reservas) ni cambia o borra las fotos del sitio.
 {
-	const B = 'http://127.0.0.1:9199/v0/b/demo-eq.appspot.com/o';
+	const B = 'http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o';
 	const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 	const auth = (quien) => (quien === 'dueño' ? { Authorization: 'Bearer owner' } : quien ? { Authorization: `Bearer ${jwt(quien)}` } : {});
 	const subir = (quien, ruta, tipo = 'image/png') => fetch(`${B}?uploadType=media&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': tipo, ...auth(quien) }, body: png }).then((r) => r.status);
@@ -623,6 +624,18 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el equipo reemplaza el comprobante de la comisión', subir('admin1', 'comprobantes/lead-res-noche/pago1.png'), false);
 	await espera('storage: la dueña borra el comprobante de la comisión', borrar('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
 	await espera('storage: el dueño anterior sube el comprobante de su reserva pasada (como en la base)', subir('mixto1', 'comprobantes/r-recibo/pago1.png'), true);
+}
+// Nadie se hace administrador solo: el arranque «primer administrador» se cerró (aunque meta/bootstrap faltara, como
+// aquí, una cuenta recién creada no puede escribir su users/ con rol admin ni la marca).
+{
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const docu = (ruta, o) => ({ update: { name: `${RAIZ}/${ruta}`, fields: campos(o) }, currentDocument: { exists: false } });
+	await espera('cuenta nueva se crea como administrador junto con meta/bootstrap', lote('intruso1', [docu('users/intruso1', { rol: 'admin', activo: true, nombre: 'Intruso' }), docu('meta/bootstrap', { uid: 'intruso1' })]), false);
+	await espera('cuenta nueva se crea su users/ como administrador', lote('intruso1', [docu('users/intruso1', { rol: 'admin', activo: true, nombre: 'Intruso' })]), false);
+	await espera('cuenta nueva se crea su users/ como dueño', lote('intruso1', [docu('users/intruso1', { rol: 'socio', activo: true, propietarioId: 'o1', nombre: 'Intruso' })]), false);
+	await espera('anónimo crea un users/', lote(null, [docu('users/anon1', { rol: 'admin', activo: true })]), false);
+	await espera('ni el administrador escribe meta/bootstrap', lote('admin1', [docu('meta/bootstrap', { uid: 'admin1' })]), false);
+	await espera('el administrador crea un usuario (control)', lote('admin1', [docu('users/nuevo1', { rol: 'asesor', activo: true, nombre: 'Nuevo', agentId: 'a1' })]), true);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);

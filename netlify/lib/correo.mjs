@@ -106,7 +106,10 @@ async function enviarZepto({ lista, asunto, html, texto }) {
 			to: lista.map((address) => ({ email_address: { address } })),
 			subject: asunto,
 			htmlbody: html,
-			textbody: texto
+			textbody: texto,
+			// Sin seguimiento: Zoho no reescribe ni registra los enlaces (el de la contraseña es de un solo uso).
+			track_clicks: false,
+			track_opens: false
 		})
 	});
 	const body = await res.json().catch(() => ({}));

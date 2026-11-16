@@ -21,7 +21,7 @@ copiar() {
 	node -e "
 		const fs = require('fs'), f = '$DIR/sitio/site.config.json', c = JSON.parse(fs.readFileSync(f));
 		c.siteUrl = 'http://localhost:$PUERTO';
-		c.firebase = { apiKey: 'pruebas', projectId: 'demo-eq', appId: 'pruebas', authDomain: 'demo-eq.firebaseapp.com', storageBucket: 'demo-eq.appspot.com' };
+		c.firebase = { apiKey: 'pruebas', projectId: 'demo-eq', appId: 'pruebas', authDomain: 'demo-eq.firebaseapp.com', storageBucket: 'eqinmobiliariobd.firebasestorage.app' };
 		c.emuladores = { auth: '127.0.0.1:9099', firestore: '127.0.0.1:8085', storage: '127.0.0.1:9199' };
 		fs.writeFileSync(f, JSON.stringify(c, null, '\t'));"
 }

@@ -13,9 +13,11 @@ const ISSUER = `https://securetoken.google.com/${PROJECT_ID}`;
 const enEmulador = () => Boolean(process.env.FIRESTORE_EMULATOR_HOST) && PROJECT_ID.startsWith('demo-');
 
 async function verificar(token) {
-	if (!enEmulador()) return (await jwtVerify(token, JWKS, { issuer: ISSUER, audience: PROJECT_ID })).payload;
-	const p = decodeJwt(token);
-	if (p.iss !== ISSUER || p.aud !== PROJECT_ID || !p.sub) throw new Error('Token de otro proyecto');
+	const p = enEmulador() ? decodeJwt(token) : (await jwtVerify(token, JWKS, { issuer: ISSUER, audience: PROJECT_ID, algorithms: ['RS256'] })).payload;
+	if (p.iss !== ISSUER || p.aud !== PROJECT_ID) throw new Error('Token de otro proyecto');
+	// Un token sin dueño, sin hora de entrada o con una en el futuro no vale (como pide Firebase para verificarlos).
+	if (typeof p.sub !== 'string' || !p.sub || p.sub.length > 128) throw new Error('Token sin usuario');
+	if (!(Number(p.auth_time) <= Date.now() / 1000 + 60)) throw new Error('Token con hora inválida');
 	return p;
 }
 
@@ -32,6 +34,14 @@ async function usuario(req) {
 	const f = (await res.json()).fields || {};
 	if (!f.activo?.booleanValue) return null;
 	return { uid: payload.sub, nombre: f.nombre?.stringValue || '', rol: f.rol?.stringValue || '', propietarioId: f.propietarioId?.stringValue || '' };
+}
+
+// Quien llama según su token (sin mirar users/): uid, correo y cuándo entró. null sin token; un token inválido lanza.
+export async function sesionDe(req) {
+	const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+	if (!token) return null;
+	const p = await verificar(token);
+	return { uid: p.sub, email: String(p.email || '').toLowerCase(), entro: Number(p.auth_time) || 0 };
 }
 
 export async function staffUser(req) {

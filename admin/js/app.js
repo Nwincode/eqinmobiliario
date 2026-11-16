@@ -1,10 +1,10 @@
 // Arranque del panel: inicio de sesión, permisos y navegación entre secciones.
 import {
 	configured, firebaseConfig, auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-	createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
+	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
-import { correoContrasena } from './contrasena.js';
+import { correoContrasena, pedirContrasena } from './contrasena.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
@@ -52,12 +52,8 @@ function notConfigured() {
 		h('p', { class: 'small text-muted mb-0' }, `Proyecto actual: ${firebaseConfig.projectId || '(sin definir)'}`)));
 }
 
-async function loginScreen() {
-	let bootstrapOpen = false;
-	try {
-		bootstrapOpen = !(await getDoc(doc(db, 'meta', 'bootstrap'))).exists();
-	} catch { /* sin conexión: se muestra solo el login */ }
-
+// (El arranque «crear el primer administrador» desde aquí se quitó: ver firestore.rules, meta/bootstrap.)
+function loginScreen() {
 	const email = h('input', { class: 'form-control', type: 'email', id: 'login-email', autocomplete: 'username', required: true });
 	const pass = h('input', { class: 'form-control', type: 'password', id: 'login-pass', autocomplete: 'current-password', required: true });
 	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
@@ -83,52 +79,14 @@ async function loginScreen() {
 		type: 'button', class: 'btn btn-link btn-sm w-100 mt-2',
 		onclick: async () => {
 			if (!email.value) { msg.textContent = 'Escribe tu correo primero.'; return; }
-			try {
-				await correoContrasena(email.value.trim());
-				toast('Te enviamos un correo para restablecer la contraseña.');
-			} catch (err) { msg.textContent = errorMessage(err); }
+			const r = await pedirContrasena(email.value.trim());
+			msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
 		}
 	}, '¿Olvidaste tu contraseña?'));
 
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-4' }, 'Panel de administración'),
-		form,
-		bootstrapOpen ? h('div', { class: 'border-top mt-4 pt-3' },
-			h('p', { class: 'small text-muted' }, 'Aún no hay administradores. Crea la primera cuenta de administrador:'),
-			h('button', { class: 'btn btn-outline-primary w-100', onclick: bootstrapScreen }, 'Crear primer administrador')) : null));
-}
-
-function bootstrapScreen() {
-	const nombre = h('input', { class: 'form-control', id: 'bs-nombre', required: true });
-	const email = h('input', { class: 'form-control', type: 'email', id: 'bs-email', required: true, autocomplete: 'username' });
-	const pass = h('input', { class: 'form-control', type: 'password', id: 'bs-pass', required: true, minlength: 8, autocomplete: 'new-password' });
-	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
-	root.replaceChildren(authCard(
-		h('h1', { class: 'h5 mb-3' }, 'Primer administrador'),
-		h('p', { class: 'small text-muted' }, 'Esta cuenta tendrá acceso total. Después podrás crear las cuentas de los asesores desde "Usuarios".'),
-		h('form', {
-			onsubmit: async (e) => {
-				e.preventDefault();
-				if (pass.value.length < 8) { msg.textContent = 'Usa una contraseña de al menos 8 caracteres.'; return; }
-				try {
-					const cred = await createUserWithEmailAndPassword(auth, email.value.trim(), pass.value);
-					const batch = writeBatch(db);
-					batch.set(doc(db, 'users', cred.user.uid), {
-						nombre: nombre.value.trim(), email: email.value.trim(), rol: 'admin', agentId: '', activo: true, createdAt: serverTimestamp()
-					});
-					batch.set(doc(db, 'meta', 'bootstrap'), { uid: cred.user.uid, createdAt: serverTimestamp() });
-					await batch.commit();
-					location.reload();
-				} catch (err) {
-					msg.textContent = errorMessage(err);
-				}
-			}
-		},
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-nombre' }, 'Nombre'), nombre),
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-email' }, 'Correo'), email),
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-pass' }, 'Contraseña (mín. 8)'), pass),
-		h('button', { class: 'btn btn-primary w-100', type: 'submit' }, 'Crear cuenta'), msg,
-		h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: loginScreen }, 'Volver'))));
+		form));
 }
 
 function noAccess(reason) {
@@ -224,9 +182,115 @@ async function route() {
 }
 window.addEventListener('hashchange', route);
 
-if (!configured) {
-	notConfigured();
-} else {
+// Crear o cambiar la contraseña con el enlace del correo (/admin/?mode=resetPassword&oobCode=…): la página de la
+// empresa, no la de Google. El enlace sirve una vez y vence en 1 hora; lo valida Google. Al guardar, entra directo.
+const MIN_CLAVE = 8;
+// Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
+const CLAVES_DEBILES = new Set(['12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña', 'contrasena', 'qwertyui', 'qwerty123', '11111111', '00000000', 'iloveyou', 'abc12345', 'guatemala', 'guatemala1', 'equipoinmobiliario', 'eqinmobiliario', 'inmobiliaria']);
+function debilidad(clave, email) {
+	const c = clave.toLowerCase();
+	const usuario = String(email || '').toLowerCase().split('@')[0];
+	if (clave.length < MIN_CLAVE) return `Usa al menos ${MIN_CLAVE} caracteres.`;
+	if (CLAVES_DEBILES.has(c) || /^(.)\1+$/.test(c)) return 'Esa contraseña es muy fácil de adivinar: usa otra.';
+	if (usuario.length >= 4 && c.includes(usuario)) return 'La contraseña no puede llevar tu correo.';
+	return '';
+}
+function quitarEnlace() { history.replaceState(null, '', location.pathname); }
+// Después de cambiarla, aviso por correo a la misma cuenta (si no fue la persona, se entera). No detiene la entrada.
+async function avisarCambio() {
+	try {
+		const token = await auth.currentUser.getIdToken();
+		await fetch('/api/contrasena', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ aviso: 'cambiada' }) });
+	} catch { /* sin aviso: la contraseña ya quedó */ }
+}
+// Otras acciones que Firebase manda a esta misma página (con la URL de acción del panel): confirmar un correo y,
+// si alguien cambió el correo de la cuenta, devolverlo al de antes.
+async function pantallaAccion(modo, codigo) {
+	root.replaceChildren(spinner('Revisando el enlace…'));
+	const salir = h('button', { type: 'button', class: 'btn btn-primary w-100', onclick: () => iniciar() }, 'Ir a entrar');
+	try {
+		if (modo === 'recoverEmail') {
+			const info = await checkActionCode(auth, codigo);
+			await applyActionCode(auth, codigo);
+			const correo = info?.data?.email || '';
+			return root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, 'Tu correo volvió a ser el de antes'),
+				h('p', { class: 'text-muted small' }, 'La cuenta vuelve a entrar con ', h('strong', { class: 'text-body' }, correo), '. Si tú no pediste el cambio, por seguridad crea una contraseña nueva ahora.'),
+				h('button', { type: 'button', class: 'btn btn-primary w-100 mb-2', onclick: async (e) => { e.currentTarget.disabled = true; try { await correoContrasena(correo); toast('Te enviamos el correo para crear una contraseña nueva.'); } catch (err) { showError(err); } } }, 'Mandarme el correo para cambiar la contraseña'),
+				h('button', { type: 'button', class: 'btn btn-link btn-sm w-100', onclick: () => iniciar() }, 'Ir a entrar')));
+		}
+		if (modo === 'verifyEmail') {
+			await applyActionCode(auth, codigo);
+			return root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, 'Correo confirmado'), h('p', { class: 'text-muted small' }, 'Ya puedes entrar al panel.'), salir));
+		}
+		throw new Error('acción desconocida');
+	} catch {
+		root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, 'Este enlace ya no sirve'),
+			h('p', { class: 'text-muted small' }, 'Sirve una sola vez y vence pronto. Si necesitas ayuda, escríbele a tu asesor.'), salir));
+	}
+}
+async function pantallaContrasena(codigo) {
+	root.replaceChildren(spinner('Revisando el enlace…'));
+	let email;
+	try {
+		email = await verifyPasswordResetCode(auth, codigo);
+	} catch {
+		const correo = h('input', { class: 'form-control', type: 'email', id: 'otro-email', autocomplete: 'username', placeholder: 'Tu correo' });
+		const msg = h('div', { class: 'small mt-2', role: 'status' });
+		return root.replaceChildren(authCard(
+			h('h1', { class: 'h5 mb-2' }, 'Este enlace ya no sirve'),
+			h('p', { class: 'text-muted small' }, 'El botón del correo sirve una sola vez y vence en 1 hora. Escribe tu correo y te mandamos uno nuevo; usa siempre el último que te llegue.'),
+			h('form', { class: 'd-grid gap-2', onsubmit: async (e) => {
+				e.preventDefault();
+				if (!correo.value.trim()) { correo.focus(); return; }
+				e.submitter.disabled = true;
+				const r = await pedirContrasena(correo.value.trim());
+				msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
+				if (r.error) e.submitter.disabled = false;
+			} }, h('label', { class: 'form-label small mb-0', for: 'otro-email' }, 'Correo'), correo, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Enviarme otro correo')),
+			msg,
+			h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => { quitarEnlace(); iniciar(); } }, 'Ya tengo mi contraseña: entrar')));
+	}
+	const clave = h('input', { class: 'form-control', type: 'password', id: 'clave-nueva', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
+	const repite = h('input', { class: 'form-control', type: 'password', id: 'clave-repite', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
+	const ver = h('input', { class: 'form-check-input', type: 'checkbox', id: 'clave-ver', onchange: () => { clave.type = repite.type = ver.checked ? 'text' : 'password'; } });
+	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
+	const btn = h('button', { class: 'btn btn-primary w-100', type: 'submit' }, 'Guardar y entrar');
+	root.replaceChildren(authCard(
+		h('h1', { class: 'h5 mb-1' }, 'Crea tu contraseña'),
+		h('p', { class: 'text-muted small mb-3' }, 'Para entrar al panel de Equipo Inmobiliario con ', h('strong', { class: 'text-body' }, email), '.'),
+		h('form', { onsubmit: async (e) => {
+			e.preventDefault();
+			msg.textContent = '';
+			const problema = debilidad(clave.value, email);
+			if (problema) { msg.textContent = problema; return clave.focus(); }
+			if (clave.value !== repite.value) { msg.textContent = 'Las dos contraseñas no son iguales.'; return repite.focus(); }
+			btn.disabled = true;
+			try {
+				if (auth.currentUser) await signOut(auth);
+				await confirmPasswordReset(auth, codigo, clave.value);
+				quitarEnlace();
+				await signInWithEmailAndPassword(auth, email, clave.value);
+				avisarCambio();
+				iniciar();
+			} catch (err) {
+				msg.textContent = err?.code === 'auth/expired-action-code' || err?.code === 'auth/invalid-action-code'
+					? 'Este enlace ya no sirve: vuelve a abrir esta página desde el último correo, o pide uno nuevo.' : errorMessage(err);
+				btn.disabled = false;
+			}
+		} },
+		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), clave,
+			h('div', { class: 'form-text' }, `Al menos ${MIN_CLAVE} caracteres, que no sea fácil de adivinar ni la misma de otro sitio.`)),
+		h('div', { class: 'mb-2' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), repite),
+		h('div', { class: 'form-check mb-3' }, ver, h('label', { class: 'form-check-label small', for: 'clave-ver' }, 'Mostrar contraseña')),
+		btn, msg),
+		h('p', { class: 'small text-muted mt-3 mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), 'Entra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.')));
+	clave.focus();
+}
+
+let iniciado = false;
+function iniciar() {
+	if (iniciado) return;
+	iniciado = true;
 	onAuthStateChanged(auth, async (user) => {
 		session.user = user;
 		session.profile = null;
@@ -252,4 +316,14 @@ if (!configured) {
 			noAccess(errorMessage(err));
 		}
 	});
+}
+
+if (!configured) {
+	notConfigured();
+} else {
+	// El código del enlace ya lo leyó y lo borró de la barra /admin/js/enlace.js, antes de cargar nada más.
+	const { modo, codigo } = window.__enlace || {};
+	if (codigo && modo === 'resetPassword') pantallaContrasena(codigo);
+	else if (codigo && (modo === 'verifyEmail' || modo === 'recoverEmail')) pantallaAccion(modo, codigo);
+	else iniciar();
 }
