@@ -176,8 +176,10 @@ function marcar({ control, msg }) {
 	input.setAttribute('aria-invalid', 'true');
 	input.setAttribute('aria-describedby', id);
 	input.setAttribute('data-error', id);
-	const caja = input.closest('.input-group') || control;
-	caja.insertAdjacentElement('afterend', h('div', { class: 'invalid-feedback d-block', id }, msg));
+	// Si el campo ya dice «Falta completar este dato» (pendientes.js), basta el rojo: el mismo aviso no va dos veces.
+	const yaDice = /^Completa/.test(msg) && control.closest?.('[data-campo]')?.querySelector('.campo-falta-nota');
+	if (yaDice) input.setAttribute('aria-describedby', yaDice.id);
+	else (input.closest('.input-group') || control).insertAdjacentElement('afterend', h('div', { class: 'invalid-feedback d-block', id }, msg));
 	// Se quita al corregirlo: al escribir (en un campo de texto, «change» llega al salir del campo y borraría la marca
 	// recién puesta) o al elegir otra opción en un selector.
 	input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => quitarMarca(input), { once: true });
@@ -515,11 +517,11 @@ export function renderForm(schema, data, options = {}) {
 				if (field.type === 'email') {
 					conFormato.push({ field, target, control: input, ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
 					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
-					const pista = h('div', { class: 'form-text text-warning', hidden: true });
+					const pista = h('div', { class: 'form-text', hidden: true });
 					input.addEventListener('blur', () => {
 						const otro = sugerenciaCorreo(input.value);
 						pista.hidden = !otro;
-						pista.replaceChildren(...(otro ? [`¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
+						pista.replaceChildren(...(otro ? [h('span', { class: 'icon-exclamation-circle me-1', 'aria-hidden': 'true' }), `¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
 					});
 					input.addEventListener('input', () => { pista.hidden = true; });
 					control = h('div', {}, input, pista);
