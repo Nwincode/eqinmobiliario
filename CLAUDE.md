@@ -21,6 +21,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   (`admin/js/formato.js`: «+código número»); correos, fechas y montos se validan al entrar.
   Antes de entregar un campo nuevo, Claude revisa qué puede escribir ahí alguien de otro país u otro caso.
 - Gastar pocos tokens: respuestas cortas y sin trabajo que no se pidió.
+- Lo completo, no lo fácil: entre dos caminos, Claude recomienda el que deja el trabajo bien hecho aunque cueste más,
+  y dice qué deja fuera el fácil. Antes de entregar, recorre el flujo entero como lo vive el cliente (p. ej. recibe el
+  correo, toca el botón, crea su contraseña, entra) y revisa lo que en cualquier sistema bien hecho viene de cajón
+  (`docs/formularios.md`); no espera a que el usuario lo encuentre.
 
 ## Cómo se conversa
 - Si el usuario pregunta algo, responder primero y directo (sí/no y por qué); después lo demás.
