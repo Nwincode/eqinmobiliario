@@ -1,11 +1,12 @@
 // La contraseña del panel: una sola pieza para el campo con ojito, las reglas y la revisión mientras se escribe.
-// Buenas prácticas (NIST 800-63B rev. 4): 15 caracteres o más cuando la contraseña es lo único para entrar, nada de las más usadas ni con el correo, revisar que no esté en
+// Buenas prácticas (NIST 800-63B rev. 4; pide 15 cuando la contraseña es lo único para entrar, 8 con verificación en dos
+// pasos; aquí 10 por decisión del usuario, con lo demás como respaldo): largo mínimo, nada de las más usadas ni con el correo, revisar que no esté en
 // filtraciones conocidas, dejar verla y pegarla; sin reglas raras de «una mayúscula y un símbolo».
 import { h } from './ui.js';
 
-export const MIN_CLAVE = 15;
+export const MIN_CLAVE = 10;
 // Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
-// (Con 15 caracteres o más, las cortas de siempre ya no pasan; las filtradas las atrapa `filtrada`.)
+// (Con 10 caracteres o más, las cortas de siempre ya no pasan; las filtradas las atrapa `filtrada`.)
 const COMUNES = new Set(['equipoinmobiliario', 'equipoinmobiliario1', 'eqinmobiliario.gt', 'contraseñasegura', 'contrasenasegura', 'passwordpassword', 'contraseñacontraseña', 'guatemalaguatemala', 'iloveyouiloveyou']);
 const SECUENCIAS = '0123456789 9876543210 abcdefghijklmnopqrstuvwxyz qwertyuiopasdfghjklzxcvbnm';
 
@@ -28,7 +29,7 @@ export function conOjo(input) {
 
 // Lo que se le pide a una contraseña nueva, en el orden en que se muestra. ok(clave, email) → true si cumple.
 const REGLAS = [
-	{ texto: `${MIN_CLAVE} caracteres o más: una frase de 3 o 4 palabras, como «casa verde junto al lago»`, ok: (c) => c.length >= MIN_CLAVE, falla: `Usa al menos ${MIN_CLAVE} caracteres.` },
+	{ texto: `${MIN_CLAVE} caracteres o más: una frase de 2 o 3 palabras, como «casa del lago»`, ok: (c) => c.length >= MIN_CLAVE, falla: `Usa al menos ${MIN_CLAVE} caracteres.` },
 	{ texto: 'Que no sea fácil de adivinar', falla: 'Esa contraseña es muy fácil de adivinar: usa otra.',
 		ok: (c) => { const m = c.toLowerCase(); return m.length >= MIN_CLAVE && !COMUNES.has(m) && !/^(.)\1+$/.test(m) && !(m.length >= 4 && SECUENCIAS.includes(m)); } },
 	{ texto: 'Que no lleve tu correo', falla: 'La contraseña no puede llevar tu correo.',
