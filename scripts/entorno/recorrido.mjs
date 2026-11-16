@@ -1433,7 +1433,7 @@ const duenos = [];
 	paso('Sitio: al tocar una noche rayada sale una burbuja sobre la primera salida posible, con el mínimo', /Primera salida posible \(mínimo 3 noches\)/.test(globo), globo);
 	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
 	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
-	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
+	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /primera salida posible/.test(ayudaM), ayudaM); // el mínimo va en la burbuja y en la franja (pasos de abajo)
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
 }
