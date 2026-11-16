@@ -66,7 +66,7 @@ const ES = {
 	// Formulario
 	nombre: 'Nombre', telefono: 'Teléfono / WhatsApp', codigoPais: 'Código de país', telefonoPh: '', correo: 'Correo electrónico', mensaje: 'Mensaje',
 	fechaVisita: 'Fecha (opcional)', tipoVisita: 'Tipo de visita', presencial: 'Presencial', videollamada: 'Videollamada',
-	enviar: 'Enviar', empresa: 'Empresa', msgInteres: 'Hola, me interesa la propiedad "{titulo}". ¿Me pueden dar más información?',
+	enviar: 'Enviar', trampa: 'Deja vacío', msgInteres: 'Hola, me interesa la propiedad "{titulo}". ¿Me pueden dar más información?',
 	// Asesor
 	asesorInmobiliario: 'Asesor inmobiliario', correoBtn: 'Correo', msgAsesor: 'Hola {nombre}, me interesa la propiedad "{titulo}".',
 	// Listado
@@ -197,7 +197,7 @@ const EN = {
 	habitacion: 'bed', habitaciones: 'beds', bano: 'bath', banos: 'baths',
 	nombre: 'Full name', telefono: 'Phone / WhatsApp', codigoPais: 'Country code', telefonoPh: '555 123 4567', correo: 'Email', mensaje: 'Message',
 	fechaVisita: 'Date (optional)', tipoVisita: 'Visit type', presencial: 'In person', videollamada: 'Video tour',
-	enviar: 'Send', empresa: 'Company', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
+	enviar: 'Send', trampa: 'Leave blank', msgInteres: 'Hi, I\'m interested in "{titulo}". Could you send me more information?',
 	asesorInmobiliario: 'Real estate advisor', correoBtn: 'Email', msgAsesor: 'Hi {nombre}, I\'m interested in "{titulo}".',
 	filtrar: 'Filter properties', busquedaInteligente: 'Smart search',
 	iaPh: 'Describe what you want: 3-bedroom house in Zona 16 under $300,000', buscarIA: 'Search',

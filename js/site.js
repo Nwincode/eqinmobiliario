@@ -215,7 +215,9 @@
 	document.querySelectorAll('.lead-form').forEach(function (form) {
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
-			if (form.empresa && form.empresa.value) return; // trampa para bots
+			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
+			// del navegador conozca (empresa, sitio web, dirección…), o le llenaría el campo a un cliente real y su envío se perdería.
+			if (form.eq_vacio && form.eq_vacio.value) return;
 			var lead = {
 				nombre: form.nombre.value.trim(),
 				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
