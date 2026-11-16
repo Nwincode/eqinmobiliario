@@ -273,6 +273,8 @@ async function pantallaContrasena(codigo) {
 				btn.disabled = false;
 			}
 		} },
+		// Para que el administrador de contraseñas (Chrome, iPhone) la guarde con el correo de esta cuenta.
+		h('input', { type: 'email', class: 'visually-hidden', autocomplete: 'username', value: email, readonly: true, tabindex: '-1', 'aria-hidden': 'true' }),
 		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), conOjo(clave), vivo.reglas),
 		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), conOjo(repite), vivo.iguales),
 		btn, msg),

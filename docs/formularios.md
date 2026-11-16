@@ -1,0 +1,28 @@
+# Formularios: lo básico que todos traen
+
+Lista que se revisa en cada formulario nuevo o cambiado, en el panel y en el sitio. Si algo de aquí falta, se agrega
+antes de unir.
+
+## Todos los campos
+- Etiqueta visible (`<label for>`), nunca solo el texto gris de ejemplo.
+- Tipo correcto para que el celular abra el teclado que toca: `email`, `tel`, `number`/`inputmode="decimal"`, `date`.
+- `autocomplete` con su valor (`name`, `email`, `tel`, `username`, `current-password`, `new-password`, `off` solo
+  si de verdad no se debe llenar solo).
+- Lo que ya está guardado no se vuelve a pedir: se rellena o se sugiere.
+- Se revisa mientras se escribe o al salir del campo, no solo al guardar; el mensaje dice qué falta y cómo
+  arreglarlo, junto al campo.
+- Cada dato con su formato único (`admin/js/formato.js`): teléfono «+código número», correo, fecha, monto.
+- Se piensa en alguien de otro país o de otro caso (otro código de país, nombres con acento, montos en dólares).
+- El botón de guardar se desactiva mientras guarda y dice qué pasó al terminar (toast o mensaje).
+- Enter envía el formulario; un error no borra lo que ya se escribió.
+
+## Contraseñas (`admin/js/clave.js`)
+- Ojito para verla, aviso de Bloq Mayús, se puede pegar.
+- Contraseña nueva: dos campos, lista que se marca ✓ mientras se escribe (15 caracteres o más, no fácil, sin el correo,
+  las dos iguales) y revisión contra filtraciones conocidas.
+- Campo oculto con el correo (`autocomplete="username"`) para que el administrador de contraseñas la guarde bien.
+- Mensajes que no delatan si una cuenta existe.
+
+## Seguridad
+- Todo lo que llega del navegador se vuelve a validar en el servidor o en las reglas.
+- Nada de datos de clientes en la dirección (URL) ni en los registros.

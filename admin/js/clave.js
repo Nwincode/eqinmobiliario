@@ -8,8 +8,13 @@ export const MIN_CLAVE = 15;
 const COMUNES = new Set(['12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña', 'contrasena', 'qwertyui', 'qwerty123', 'iloveyou', 'abc12345', 'abcd1234', 'guatemala', 'guatemala1', 'equipoinmobiliario', 'eqinmobiliario', 'inmobiliaria']);
 const SECUENCIAS = '0123456789 9876543210 abcdefghijklmnopqrstuvwxyz qwertyuiopasdfghjklzxcvbnm';
 
-// Campo de contraseña con el ojito para verla o esconderla.
+// Campo de contraseña con el ojito para verla o esconderla, y aviso si las mayúsculas están fijas (Bloq Mayús).
 export function conOjo(input) {
+	const mayus = h('div', { class: 'form-text text-warning d-none', role: 'status' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), 'Tienes las mayúsculas fijas (Bloq Mayús).');
+	const revisarMayus = (e) => { if (e.getModifierState) mayus.classList.toggle('d-none', !e.getModifierState('CapsLock')); };
+	input.addEventListener('keydown', revisarMayus);
+	input.addEventListener('keyup', revisarMayus);
+	input.addEventListener('blur', () => mayus.classList.add('d-none'));
 	const icono = h('span', { class: 'icon-eye', 'aria-hidden': 'true' });
 	const ojo = h('button', { type: 'button', class: 'btn btn-outline-secondary btn-ico', 'aria-label': 'Mostrar contraseña', 'aria-pressed': 'false', onclick: () => {
 		const ver = input.type === 'password';
@@ -18,7 +23,7 @@ export function conOjo(input) {
 		ojo.setAttribute('aria-label', ver ? 'Esconder contraseña' : 'Mostrar contraseña');
 		ojo.setAttribute('aria-pressed', String(ver));
 	} }, icono);
-	return h('div', { class: 'input-group' }, input, ojo);
+	return [h('div', { class: 'input-group' }, input, ojo), mayus];
 }
 
 // Lo que se le pide a una contraseña nueva, en el orden en que se muestra. ok(clave, email) → true si cumple.

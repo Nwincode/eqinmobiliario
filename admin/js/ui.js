@@ -88,6 +88,8 @@ export function errorMessage(err) {
 		'auth/invalid-credential': 'Correo o contraseña incorrectos.',
 		'auth/wrong-password': 'Correo o contraseña incorrectos.',
 		'auth/user-not-found': 'Correo o contraseña incorrectos.',
+		'auth/user-disabled': 'No se pudo entrar con esa cuenta. Si crees que es un error, escríbele a tu asesor.',
+		'auth/network-request-failed': 'Sin conexión. Revisa tu internet e inténtalo otra vez.',
 		'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
 		'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
 		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 3 o 4 palabras (15 caracteres o más).',
