@@ -478,6 +478,26 @@
 	padding: 0;
 	transition: background .2s ease, color .2s ease;
 }
+.share-buttons a > span,
+.share-buttons button > span {
+	display: block;
+	line-height: 1; /* el dibujo del ícono queda en el centro del círculo, no arriba */
+}
+/* «Enlace copiado»: aviso breve abajo de la pantalla (js/site.js), para que copiar se note. */
+.eq-aviso-breve {
+	position: fixed;
+	left: 50%;
+	bottom: 88px;
+	transform: translateX(-50%);
+	z-index: 1080;
+	background: var(--eq-dark);
+	color: var(--eq-white);
+	border-radius: 999px;
+	padding: 10px 18px;
+	font-size: 14px;
+	box-shadow: 0 6px 20px color-mix(in oklab, var(--eq-dark) 30%, transparent);
+	pointer-events: none;
+}
 .share-buttons a:hover,
 .share-buttons button:hover,
 .share-buttons button.copied {

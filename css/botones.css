@@ -60,6 +60,12 @@
 	padding: 0;
 	font-size: 18px;
 }
+/* El dibujo del ícono en el centro exacto del botón (con la altura de línea del texto quedaba un poco arriba). */
+.btn-ico > [class^="icon-"],
+.btn-ico > [class*=" icon-"] {
+	display: block;
+	line-height: 1;
+}
 .btn.w-100 {
 	display: flex;
 }
