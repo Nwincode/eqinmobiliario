@@ -1,9 +1,17 @@
-<!-- Correo «Crea o cambia tu contraseña» (diseño aprobado). Firebase no deja cambiar el texto de su plantilla: este
-     diseño es para cuando el correo lo mande el propio sistema (ver docs/portal-propietarios.md, paso 9). Es el mismo para todos: acceso nuevo (dueños, colaboradores, equipo)
-     y «¿Olvidaste tu contraseña?». Firebase cambia %LINK% (un solo uso, vence en 1 hora) y %EMAIL%.
-     Imágenes: images/correo/ (foto de arriba e íconos), publicadas con el sitio. WhatsApp de la empresa: 50259131276.
-     Colores de css/tema.css (y tintes suyos). Tablas y estilos en línea para Gmail, Outlook y Apple Mail. -->
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#eef3f6">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+// Correo «Crea o cambia tu contraseña» (diseño aprobado por el dueño): el mismo para dar acceso (dueños, colaboradores,
+// equipo) y para «¿Olvidaste tu contraseña?». Lo manda netlify/functions/contrasena.mjs con el servicio de correo de la
+// empresa (Zoho CPaaS, antes ZeptoMail). Imágenes en images/correo/ (publicadas con el sitio). Colores de css/tema.css.
+// Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
+import { esc } from './correo.mjs';
+
+export const ASUNTO_CONTRASENA = 'Crea o cambia tu contraseña';
+
+// link: el enlace de Google (un solo uso, vence en 1 hora); email: el usuario.
+export function correoContrasena({ link, email }) {
+	const enlace = esc(link);
+	const correo = esc(email);
+	const correoUrl = encodeURIComponent(String(email || ''));
+	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#eef3f6">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef3f6" style="background:#eef3f6"><tr><td align="center" style="padding:28px 12px;font-family:Arial,Helvetica,sans-serif">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
@@ -23,16 +31,16 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border-collapse:separate"><tr>
     <td bgcolor="#edf5fa" style="background:#edf5fa;border:1px solid #d3e4ee;border-radius:8px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif">
       <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;letter-spacing:1px;font-weight:bold;color:#5b666f">TU USUARIO</p>
-      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:24px;font-weight:bold;color:#0e1920;word-break:break-all;overflow-wrap:anywhere"><a href="mailto:%EMAIL%" style="color:#0e1920;text-decoration:none">%EMAIL%</a></p>
+      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:24px;font-weight:bold;color:#0e1920;word-break:break-all;overflow-wrap:anywhere"><a href="mailto:${correo}" style="color:#0e1920;text-decoration:none">${correo}</a></p>
     </td>
   </tr></table>
 
   <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 14px;border-collapse:separate"><tr>
     <td align="center" bgcolor="#0e5e8a" style="background:#0e5e8a;border:2px solid #0e5e8a;border-radius:8px;mso-padding-alt:16px 40px">
-      <a href="%LINK%" target="_blank" style="display:block;padding:16px 40px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:22px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">Crear mi contraseña</a>
+      <a href="${enlace}" target="_blank" style="display:block;padding:16px 40px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:22px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">Crear mi contraseña</a>
     </td>
   </tr></table>
-  <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5b666f">Sirve una sola vez y vence en <strong style="color:#0e1920">1 hora</strong>.<br>¿El botón no abre? <a href="%LINK%" target="_blank" style="color:#0e5e8a;text-decoration:underline">Usa este enlace</a>.</p>
+  <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5b666f">Sirve una sola vez y vence en <strong style="color:#0e1920">1 hora</strong>.<br>¿El botón no abre? <a href="${enlace}" target="_blank" style="color:#0e5e8a;text-decoration:underline">Usa este enlace</a>.</p>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;border-top:1px solid #e3e9ee"><tr>
     <td align="center" style="padding:22px 0 0;font-family:Arial,Helvetica,sans-serif">
       <p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#5b666f">¿Necesitas ayuda? Escríbenos y te atendemos.</p>
@@ -74,9 +82,12 @@
 </td></tr>
 <tr><td align="center" style="padding:14px 16px 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#5b666f">
   Lo recibes porque tienes un usuario en el panel de Equipo&nbsp;Inmobiliario.<br>
-  <a href="mailto:atencioncliente@eqinmobiliario.gt?subject=Eliminar%20mi%20cuenta%20del%20panel&amp;body=Hola%2C%20quiero%20que%20eliminen%20mi%20cuenta%20del%20panel.%20Mi%20usuario%20es%3A%20%EMAIL%" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Eliminar mi cuenta del panel</a><span style="color:#b5bec5">&middot;</span><a href="https://eqinmobiliario.gt/privacidad/" target="_blank" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Política de privacidad</a>
+  <a href="mailto:atencioncliente@eqinmobiliario.gt?subject=Eliminar%20mi%20cuenta%20del%20panel&amp;body=Hola%2C%20quiero%20que%20eliminen%20mi%20cuenta%20del%20panel.%20Mi%20usuario%20es%3A%20${correoUrl}" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Eliminar mi cuenta del panel</a><span style="color:#b5bec5">&middot;</span><a href="https://eqinmobiliario.gt/privacidad/" target="_blank" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Política de privacidad</a>
 </td></tr>
 
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
-</td></tr></table>
+</td></tr></table>`;
+	const texto = `Crea o cambia tu contraseña del panel de Equipo Inmobiliario.\n\nTu usuario: ${email}\n\nAbre este enlace (sirve una sola vez y vence en 1 hora):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.\n\n¿Necesitas ayuda? WhatsApp +502 5913-1276\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
+	return { asunto: ASUNTO_CONTRASENA, html, texto };
+}

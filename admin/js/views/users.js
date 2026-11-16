@@ -1,11 +1,12 @@
 import {
-	auth, db, doc, getDocs, updateDoc, collection, serverTimestamp, sendPasswordResetEmail
+	db, doc, getDocs, updateDoc, collection, serverTimestamp
 } from '../firebase.js';
 import { h, toast, showError, pageHeader, badge, modal, formatDate , mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { loadPropietarios } from '../crm.js';
 import { etiquetaDueno, tieneCasasPorNoche } from '../duenos.js';
 import { ponerAcceso, motivoParaNoAbrir, crearUsuarioEquipo } from '../acceso.js';
+import { correoContrasena } from '../contrasena.js';
 
 // Aquí se crean solo cuentas del equipo, con la misma pieza que da acceso a los dueños (admin/js/acceso.js): nadie
 // escribe una contraseña; la persona recibe un correo para poner la suya. Propietarios y colaboradores entran con
@@ -118,7 +119,7 @@ export async function render(container) {
 					class: 'btn btn-outline-secondary me-auto',
 					onclick: async () => {
 						try {
-							await sendPasswordResetEmail(auth, u.email);
+							await correoContrasena(u.email);
 							toast(`Se envió un correo a ${u.email} para restablecer la contraseña.`);
 						} catch (err) { showError(err); }
 					}

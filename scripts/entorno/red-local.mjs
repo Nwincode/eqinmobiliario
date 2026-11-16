@@ -7,7 +7,9 @@ import { generateKeyPairSync } from 'node:crypto';
 
 const DESTINOS = [
 	['https://firestore.googleapis.com', `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}`],
-	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`]
+	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`],
+	// Los enlaces para poner la contraseña (netlify/functions/contrasena.mjs) los da el emulador de inicio de sesión.
+	['https://identitytoolkit.googleapis.com', `http://${process.env.EMU_AUTH || '127.0.0.1:9099'}/identitytoolkit.googleapis.com`]
 ];
 // Cuentas de servicio de mentira: el cambio de su clave por un token de Google se salta (abajo, oauth2) y el emulador
 // acepta «Bearer owner» como administrador.

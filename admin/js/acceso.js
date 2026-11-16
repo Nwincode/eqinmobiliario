@@ -4,7 +4,8 @@
 // al azar y se descarta.
 // En la ficha queda una copia del estado («acceso») para que el asesor, que no lee los usuarios, sepa si entra.
 // Lo usan la ficha de la persona (views/propietarios.js) y Usuarios (views/users.js).
-import { auth, db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, createAccount, sendPasswordResetEmail, firestoreRest } from './firebase.js';
+import { db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, createAccount, firestoreRest } from './firebase.js';
+import { correoContrasena } from './contrasena.js';
 import { session } from './session.js';
 import { nuevoToken, reglasNuevasSegun } from './duenos.js';
 
@@ -80,7 +81,7 @@ export async function crearUsuarioEquipo({ nombre, email: correo, rol, agentId, 
 	await terminarCuenta(uid, email, () => setDoc(doc(db, 'users', uid), {
 		nombre, email, rol, agentId: agentId || '', propietarioId: '', activo, createdAt: serverTimestamp(), createdBy: session.user.uid
 	}));
-	await sendPasswordResetEmail(auth, email);
+	await correoContrasena(email);
 	return `Listo: le enviamos a ${email} un correo para que ponga su contraseña y entre al panel.`;
 }
 
@@ -100,7 +101,7 @@ export async function darAcceso(prop, correo, nombre, { porNoche = false } = {})
 		const suyo = usuarios.find((u) => u.propietarioId === prop.id && u.rol === 'socio');
 		if (suyo) {
 			await ponerAcceso(prop, suyo, true, { porNoche });
-			await sendPasswordResetEmail(auth, email);
+			await correoContrasena(email);
 			return `${email} ya tenía su cuenta: se la devolvimos y le enviamos el correo para poner su contraseña.`;
 		}
 		if (usuarios.length) throw new Error(`${email} ya entra al panel como otra persona (${usuarios[0].nombre || usuarios[0].rol}). Pon otro correo en esta ficha y toca «Dar acceso» de nuevo.`);
@@ -111,6 +112,6 @@ export async function darAcceso(prop, correo, nombre, { porNoche = false } = {})
 	for (const otro of await accesosDe(prop.id)) if (otro.uid !== uid && otro.activo !== false) await updateDoc(doc(db, 'users', otro.uid), { activo: false, updatedAt: serverTimestamp() });
 	await updateDoc(doc(db, 'propietarios', prop.id), { acceso: { email, activo: true } });
 	prop.acceso = { email, activo: true };
-	await sendPasswordResetEmail(auth, email);
+	await correoContrasena(email);
 	return `Listo: le enviamos a ${email} un correo para que ponga su contraseña y entre al panel.`;
 }

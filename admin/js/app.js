@@ -1,9 +1,10 @@
 // Arranque del panel: inicio de sesión, permisos y navegación entre secciones.
 import {
 	configured, firebaseConfig, auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-	sendPasswordResetEmail, createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
+	createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
+import { correoContrasena } from './contrasena.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
@@ -83,7 +84,7 @@ async function loginScreen() {
 		onclick: async () => {
 			if (!email.value) { msg.textContent = 'Escribe tu correo primero.'; return; }
 			try {
-				await sendPasswordResetEmail(auth, email.value.trim());
+				await correoContrasena(email.value.trim());
 				toast('Te enviamos un correo para restablecer la contraseña.');
 			} catch (err) { msg.textContent = errorMessage(err); }
 		}

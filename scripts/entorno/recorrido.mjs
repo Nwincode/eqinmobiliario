@@ -902,6 +902,12 @@ const duenos = [];
 	const oob = codigos.filter((c) => c.email === 'mixta@example.com' && c.requestType === 'PASSWORD_RESET').pop();
 	paso('«Dar acceso» desde la ficha: crea su cuenta y su usuario (rol de dueño, su ficha) y le manda el correo para poner su contraseña',
 		u.rol?.stringValue === 'socio' && u.propietarioId?.stringValue === 'dueno-mixto' && u.activo?.booleanValue === true && Boolean(oob), `${await avisos(admin.p)} · ${codigos.length} correos`);
+	// El correo sale con el diseño de la empresa (netlify/functions/contrasena.mjs), con el enlace de Google de esa cuenta.
+	const deAcceso = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+		.filter((c) => JSON.stringify(c.to || '').includes('mixta@example.com') && c.subject === 'Crea o cambia tu contraseña').pop();
+	paso('El correo para poner la contraseña sale con el diseño de la empresa, a su correo, con su enlace (en español)',
+		Boolean(deAcceso) && /Crear mi contraseña/.test(deAcceso.htmlbody) && /oobCode=/.test(deAcceso.htmlbody) && /lang=es/.test(deAcceso.htmlbody) && deAcceso.htmlbody.includes(oob?.oobCode || 'x'),
+		deAcceso ? deAcceso.subject : 'no salió');
 	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${PANEL}/acceso-con-1280.png` });
 	await admin.p.setViewportSize({ width: 390, height: 844 });
