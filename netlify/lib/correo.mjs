@@ -1,8 +1,8 @@
-// Envío de correos con Zoho ZeptoMail (https://www.zoho.com/zeptomail/) o con Resend (https://resend.com).
+// Envío de correos con Zoho CPaaS (antes ZeptoMail, https://www.zoho.com/zeptomail/) o con Resend (https://resend.com).
 // Si están las dos claves, se usa ZeptoMail.
 // Variables de entorno en Netlify (las pone el dueño de la cuenta; nunca se pegan en el chat):
-//   ZEPTOMAIL_TOKEN  token de envío de ZeptoMail (Mail Agent → SMTP/API → "Send Mail Token")
-//   ZEPTOMAIL_HOST   opcional, solo si la cuenta de Zoho no es la de EE. UU. (p. ej. api.zeptomail.eu)
+//   ZEPTOMAIL_TOKEN  clave de API de Zoho CPaaS (Mail Agent → SMTP/API → «Clave de API»)
+//   ZEPTOMAIL_HOST   opcional: el «Host» de esa pantalla si no es cpaas.zoho.com (p. ej. el de la cuenta en Europa)
 //   RESEND_API_KEY   clave de Resend (alternativa a ZeptoMail)
 //   AVISO_CORREO     a quién llegan los avisos y el resumen del día (varios, separados por coma)
 //   CORREO_REMITENTE quién envía, p. ej. "Equipo Inmobiliario <avisos@eqinmobiliario.gt>"
@@ -93,7 +93,7 @@ async function enviarZepto({ lista, asunto, html, texto }) {
 	const de = remitente();
 	if (!de.address) throw new Error('Con ZeptoMail falta CORREO_REMITENTE en Netlify (una dirección del dominio verificado).');
 	const token = String(process.env.ZEPTOMAIL_TOKEN).trim();
-	const host = String(process.env.ZEPTOMAIL_HOST || 'api.zeptomail.com').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+	const host = String(process.env.ZEPTOMAIL_HOST || 'cpaas.zoho.com').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 	const res = await fetch(`https://${host}/v1.1/email`, {
 		method: 'POST',
 		headers: {
