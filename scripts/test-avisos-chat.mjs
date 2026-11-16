@@ -19,6 +19,11 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 	assert.equal(a[0].url, 'https://ejemplo.gt/admin/#/solicitudes/EQ-PRUEBA');
 	assert.equal(a[1].url, 'https://ejemplo.gt/reserva/#TokenDePruebaLargoYAlAzar2345');
 });
+test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio lo lee en español con el título en español', () => {
+	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	assert.match(a[1].intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
+	assert.match(a[0].intro, /^Casa de playa · lun, 16 nov → vie, 20 nov · 2 personas\./);
+});
 test('solicitud vieja sin mensajes: no se vuelve a avisar', () => assert.equal(avisos([], { createdAt: hace(30) }).length, 0));
 test('el cliente escribe: se avisa a la casa, no al cliente', () => assert.deepEqual(avisos([m('cliente', 1)]).map((x) => x.para), [['socio@example.com']]));
 test('el socio responde: se avisa al cliente', () => assert.deepEqual(avisos([m('cliente', 5), m('socio', 1)]).map((x) => x.para), [['ana@example.com']]));
@@ -40,7 +45,7 @@ test('control de cada hora: mensaje del cliente con más de 2 h sin respuesta, u
 	assert.equal(sinResponder([m('cliente', 150), m('socio', 10)], opciones), false);
 });
 test('reserva que no se dio o se canceló: siempre al cliente', () => {
-	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no disponible/);
+	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no se concretó/);
 	assert.match(avisos([m('socio', 3, 'pago'), m('equipo', 1)], { estado: 'cancelada' })[0].asunto, /cancelada/);
 	assert.deepEqual(avisos([m('socio', 1)], { estado: 'cancelada' }).at(-1).para, ['ana@example.com']);
 });

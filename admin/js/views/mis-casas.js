@@ -6,7 +6,7 @@
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
 import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
@@ -15,9 +15,17 @@ import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional } from '../privado-casa.js';
 
 const V = window.EQVacacional;
+// Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
+const PRECIO_MAX = 50000;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
 const fecha = (iso) => new Date(`${iso}T12:00:00`);
-const rango = (r) => (r.desde === r.hasta ? dia(r.desde) : `${r.desde.slice(0, 7) === r.hasta.slice(0, 7) ? Number(r.desde.slice(8)) : dia(r.desde)} – ${dia(r.hasta)}`);
+// «10 – 12 dic»; con el año cuando no es el de hoy (las temporadas que se repiten ya tienen varios años).
+const rango = (r) => {
+	const anio = (iso) => iso.slice(0, 4);
+	if (anio(r.desde) !== anio(r.hasta)) return `${dia(r.desde)} ${anio(r.desde)} – ${dia(r.hasta)} ${anio(r.hasta)}`;
+	const base = r.desde === r.hasta ? dia(r.desde) : `${r.desde.slice(0, 7) === r.hasta.slice(0, 7) ? Number(r.desde.slice(8)) : dia(r.desde)} – ${dia(r.hasta)}`;
+	return anio(r.hasta) === hoy().slice(0, 4) ? base : `${base} ${anio(r.hasta)}`;
+};
 const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
 const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
@@ -205,9 +213,13 @@ async function casa(container, id) {
 			h('div', { class: 'input-group' }, h('span', { class: 'input-group-text' }, pre.trim()),
 				h('input', {
 					class: 'form-control', id: `mc-${campo}`, type: 'number', inputmode: 'decimal', min: '0', value: e[campo] || '',
-					onchange: (ev) => {
+					onchange: async (ev) => {
 						const n = V.r2(Math.max(0, Number(ev.target.value) || 0));
 						if (campo === 'base' && !n) { ev.target.value = e.base || ''; return toast('Escribe el precio por noche.', 'warning'); }
+						if (n > PRECIO_MAX) { ev.target.value = e[campo] || ''; return toast(`Revisa el precio: ${plata(n)} por noche es demasiado.`, 'warning'); }
+						// Un cero de más (de 120 a 1200): se pregunta antes de que el cliente lo vea.
+						const antes = Number(e[campo]) || (campo === 'finde' ? Number(e.base) : 0);
+						if (antes > 0 && n > 5 * antes && !(await confirmDialog(`${plata(n)} por noche es ${Math.round(n / antes)} veces lo que tenías (${plata(antes)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) { ev.target.value = e[campo] || ''; return; }
 						guardar(`precio ${titulo.toLowerCase()}`, () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
 					}
 				})), ve);
@@ -262,21 +274,27 @@ async function casa(container, id) {
 				cerrar));
 		if (e.pide) {
 			const esPrecio = e.pide === 'precio';
+			// Lo que ya tenían esos días (al volver a abrirlo, se ve y se cambia; no aparece vacío).
+			const yaPuesto = (esPrecio ? e.tarifas : e.minimos).find((t) => t.desde <= e.desde && t.hasta >= e.hasta);
 			const ve = h('div', { class: 'form-text' }, esPrecio ? 'Tu precio por noche en esos días.' : 'Noches mínimas si la estancia toca esos días.');
 			const campo = h('input', {
-				class: 'form-control', type: 'number', inputmode: esPrecio ? 'decimal' : 'numeric', min: '1', 'aria-label': esPrecio ? 'Precio por noche' : 'Mínimo de noches',
+				class: 'form-control', type: 'number', inputmode: esPrecio ? 'decimal' : 'numeric', min: '1', max: esPrecio ? String(PRECIO_MAX) : '30', 'aria-label': esPrecio ? 'Precio por noche' : 'Mínimo de noches',
 				oninput: (ev) => { if (esPrecio) ve.textContent = Number(ev.target.value) > 0 ? `El cliente ve ${publico(ev.target.value)}` : 'Tu precio por noche en esos días.'; }
 			});
-			const listo = () => {
+			if (yaPuesto) { campo.value = String(esPrecio ? yaPuesto.precio : yaPuesto.noches); campo.dispatchEvent(new Event('input')); }
+			// ¿Se repite cada año? En la misma barra (sin otra ventana). En Semana Santa, que cambia de fecha, se ofrece seguirla.
+			const repite = h('select', { class: 'form-select form-select-sm mt-2', 'aria-label': '¿Se repite cada año?' },
+				[['', 'Solo estas fechas'], ['fecha', 'Cada año en estas fechas'], ...(V.tocaSemanaSanta(e) ? [['semanaSanta', 'Cada año en Semana Santa (cambia de fecha sola)']] : [])]
+					.map(([v, t]) => h('option', { value: v }, t)));
+			if (yaPuesto?.cada) repite.value = yaPuesto.cada;
+			const listo = async () => {
 				const n = esPrecio ? V.r2(Number(campo.value) || 0) : Math.floor(Number(campo.value) || 0);
 				if (n < 1) return toast(esPrecio ? 'Escribe el precio.' : 'Escribe cuántas noches.', 'warning');
-				// ¿Se repite cada año? Un toque. En Semana Santa (que cambia de fecha) se ofrece seguirla a ella.
-				const opciones = ['Solo estas fechas', 'Cada año en estas fechas', ...(V.tocaSemanaSanta(e) ? ['Cada año en Semana Santa (cambia de fecha sola)'] : [])];
-				const que = e.pide;
-				elegirOpcion('¿Se repite cada año?', opciones).then((op) => {
-					if (!op) return;
-					aplicar(que, n, op === opciones[1] ? 'fecha' : op === opciones[2] ? 'semanaSanta' : '');
-				});
+				if (!esPrecio && n > 30) return toast('El mínimo llega hasta 30 noches.', 'warning');
+				if (esPrecio && n > PRECIO_MAX) return toast(`Revisa el precio: ${plata(n)} por noche es demasiado.`, 'warning');
+				// Un cero de más pasa fácil: arriba de 5 veces el precio de siempre, se pregunta.
+				if (esPrecio && e.base > 0 && n > 5 * e.base && !(await confirmDialog(`${plata(n)} por noche es ${Math.round(n / e.base)} veces tu precio de siempre (${plata(e.base)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
+				aplicar(e.pide, n, repite.value);
 			};
 			campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') listo(); });
 			setTimeout(() => campo.focus());
@@ -286,12 +304,14 @@ async function casa(container, id) {
 					h('div', { class: 'input-group' }, esPrecio ? h('span', { class: 'input-group-text' }, pre.trim()) : null, campo, esPrecio ? null : h('span', { class: 'input-group-text' }, 'noches')),
 					iconoBtn('icon-check', 'Guardar', { class: 'cot-btn cot-btn-icono btn btn-primary', onclick: listo }),
 					cerrar),
-				ve);
+				ve, repite);
 		}
+		// «Habilitar» solo si entre esos días hay alguno bloqueado (en días libres no hace nada).
+		const hayBloqueo = e.bloqueos.some((b) => b.desde <= e.hasta && b.hasta > e.desde);
 		return h('div', { class: 'mc-barra d-flex align-items-center gap-2' },
 			h('strong', { class: 'flex-grow-1' }, rango(e)),
 			iconoBtn('icon-lock', 'Bloquear estos días', { onclick: () => { e.pide = 'motivo'; calendario(); } }),
-			iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }),
+			hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
 			iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }),
 			iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }),
 			iconoBtn('icon-close', 'Quitar la selección', { class: 'cot-btn cot-btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
@@ -300,7 +320,7 @@ async function casa(container, id) {
 	function calendario() {
 		const [a, m] = e.mes.split('-').map(Number);
 		const dias = new Date(a, m, 0).getDate();
-		const vacias = (new Date(a, m - 1, 1).getDay() + 6) % 7; // semana de lunes a domingo
+		const vacias = new Date(a, m - 1, 1).getDay(); // semana de domingo a sábado, como el calendario del sitio
 		const celdas = [...Array(vacias).fill(null), ...Array.from({ length: dias }, (_, i) => `${e.mes}-${String(i + 1).padStart(2, '0')}`)];
 		const celda = (f) => {
 			if (!f) return h('td', {});
@@ -327,7 +347,7 @@ async function casa(container, id) {
 				h('h2', { class: 'vac-cal-mes' }, nombreMes(e.mes)),
 				flecha('next', 'Mes siguiente', () => { e.mes = moverMes(e.mes, 1); calendario(); })),
 			h('table', { class: 'vac-cal-tabla' },
-				h('thead', {}, h('tr', {}, ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d) => h('th', { scope: 'col' }, d)))),
+				h('thead', {}, h('tr', {}, ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d) => h('th', { scope: 'col' }, d)))),
 				h('tbody', {}, semanas)),
 			h('p', { class: 'small text-muted my-2' },
 				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ', h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin el margen de EQ.'),

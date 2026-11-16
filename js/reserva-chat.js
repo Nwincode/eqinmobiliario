@@ -88,7 +88,8 @@
 			var chat = nuevo('chats/' + token, campos);
 			return pedir(RAIZ + ':commit', { writes: x[0] ? [chat] : [chat, indice] });
 		}).then(function () {
-			try { localStorage.setItem(GUARDADO, token); } catch (e) { /* sin memoria del navegador */ }
+			// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
+			try { localStorage.setItem(GUARDADO, token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); } catch (e) { /* sin memoria del navegador */ }
 			return token;
 		});
 	}
@@ -138,7 +139,17 @@
 			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 48 h.
 			var espera = Date.now() - new Date(c.createdAt).getTime();
 			var sigue = estado !== 'Pendiente' ? estado : espera > 48 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
-			cuerpo.querySelector('[data-out="sigue"]').textContent = t['vacChatSigue' + sigue];
+			var guia = cuerpo.querySelector('[data-out="sigue"]');
+			guia.textContent = t['vacChatSigue' + sigue];
+			// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.
+			if ((estado === 'No' || estado === 'Cancelada') && /^\/[^\/]/.test(c.url || '')) {
+				var otra = el('a', 'btn btn-outline-primary btn-sm ms-2', t.vacChatOtrasFechas);
+				otra.href = c.url + '#vac-titulo';
+				guia.appendChild(otra);
+			}
+			// La cámara (comprobante de pago) solo cuando hay a quién pagar: con la reserva confirmada.
+			var camara = cuerpo.querySelector('.vac-chat-adjuntar');
+			if (camara) camara.hidden = estado !== 'Confirmada';
 		}
 		ponerEstado(c.estado);
 		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).

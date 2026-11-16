@@ -1,11 +1,11 @@
 // Noches ocupadas de una renta vacacional. GET /api/disponibilidad?id=<id de la propiedad>
-// Une las fechas bloqueadas y las reservas confirmadas del panel con el calendario de Airbnb (iCal) del socio
+// Une las fechas bloqueadas y las reservas confirmadas del panel con los calendarios (iCal) de Airbnb, Booking y VRBO
 // y con las solicitudes de reserva sin responder de las últimas 2 horas (las fechas se apartan mientras tanto).
 // La solicitud va al chat de la reserva (la atiende el dueño desde su panel): el contacto del socio nunca sale de aquí.
 // Si el socio debe una comisión hace más de 72 h, la casa queda en pausa.
-// El enlace iCal es privado (properties/{id}/privado/socio) y se lee con la cuenta de servicio
+// Los enlaces iCal son privados (properties/{id}/privado/socio) y se leen con la cuenta de servicio
 // (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY, rol "Cloud Datastore Viewer"). La respuesta lleva solo fechas:
-// nada de nombres, descripciones ni el enlace. El CDN la recuerda 10 minutos.
+// nada de nombres, descripciones ni los enlaces. El CDN la recuerda 10 minutos.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde, datosConfigurados } from '../lib/firestore.mjs';
 import { sociosEnMora } from '../lib/comisiones.mjs';
@@ -50,7 +50,8 @@ export default async (req) => {
 	if (!p || p.publicado !== true || p.operacion !== 'vacacional') return respuesta(404, { error: 'no encontrada' }, 60);
 
 	const manuales = [...(p.vacacional?.bloqueos || []), ...(p.vacacional?.reservadas || [])].map((b) => ({ desde: b?.desde, hasta: b?.hasta }));
-	let airbnb = null;
+	let externas = [];
+	let fuentes = [];
 	let apartadas = [];
 	let atraso = 0;
 	if (datosConfigurados()) {
@@ -60,18 +61,20 @@ export default async (req) => {
 			desde('leads', 'createdAt', new Date(Date.now() - APARTADO)),
 			p.propietarioId ? sociosEnMora() : null
 		].map((x) => Promise.resolve(x).catch(() => null)));
-		if (privado?.icalUrl) airbnb = await leerIcal(privado.icalUrl);
+		// Los de cada plataforma a la vez; el que no responde no tumba a los demás.
+		const leidos = await Promise.all(V.CALENDARIOS.filter((c) => privado?.[c.campo]).map(async (c) => [c.nombre, await leerIcal(privado[c.campo])]));
+		for (const [nombre, rangos] of leidos) if (rangos) { externas.push(...rangos); fuentes.push(nombre.toLowerCase()); }
 		apartadas = (recientes || []).filter((l) => l.propertyId === id && l.reserva?.llegada && !l.solicitud?.estado)
 			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }));
 		atraso = mora?.[p.propietarioId] || 0;
 	}
 	const hoy = V.hoy();
-	const ocupadas = V.unirRangos([...manuales, ...apartadas, ...(airbnb || [])]).filter((r) => r.hasta > hoy);
+	const ocupadas = V.unirRangos([...manuales, ...apartadas, ...externas]).filter((r) => r.hasta > hoy);
 	// Precios al público y mínimos de noches al día: el socio los cambia sin esperar a que se publique el sitio.
 	const v = p.vacacional || {};
 	const plan = { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) };
 	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy);
-	return respuesta(200, { ocupadas, plan, minimos, ...(atraso === 3 ? { pausada: true } : {}), fuente: airbnb ? 'airbnb' : 'manual' }, CACHE);
+	return respuesta(200, { ocupadas, plan, minimos, ...(atraso === 3 ? { pausada: true } : {}), fuente: fuentes.length ? fuentes.join(',') : 'manual' }, CACHE);
 };
 
 export const config = { path: '/api/disponibilidad' };

@@ -48,6 +48,28 @@ export const correoValido = (correo) => {
 	const c = String(correo || '').trim();
 	return c.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.\d]{2,}$/.test(c);
 };
+// Correo con el dominio mal escrito («gmial.com», «hotmail.con»): devuelve el correo corregido para sugerirlo, o ''.
+// Solo los proveedores más usados y a 1 o 2 letras de distancia (una letra de más, de menos, cambiada o dos al revés).
+const DOMINIOS = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'live.com', 'msn.com', 'hotmail.es', 'outlook.es', 'yahoo.es', 'yahoo.com.mx', 'live.com.mx', 'me.com', 'aol.com', 'protonmail.com', 'proton.me'];
+function distancia(a, b) {
+	const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+	for (let j = 1; j <= b.length; j++) d[0][j] = j;
+	for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+		d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+		if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+	}
+	return d[a.length][b.length];
+}
+export function sugerenciaCorreo(correo) {
+	const c = String(correo || '').trim(), k = c.lastIndexOf('@');
+	if (k < 1) return '';
+	const dominio = c.slice(k + 1).toLowerCase();
+	if (!dominio || DOMINIOS.includes(dominio)) return '';
+	let mejor = '', min = 3;
+	for (const x of DOMINIOS) { const n = distancia(dominio, x); if (n < min) { min = n; mejor = x; } }
+	// Dos letras de distancia, solo en dominios largos: en uno corto casi cualquier dominio queda a dos letras de otro.
+	return mejor && (min === 1 || dominio.length >= 7) ? `${c.slice(0, k)}@${mejor}` : '';
+}
 
 // Horario de atención en inglés a partir del escrito en español (un solo dato: Contenido → Contacto → Horario).
 // Frases, días, conectores y horas de 24 h a 12 h: «Lunes a sábado, 8:00 a 17:00» → «Monday to Saturday, 8:00 a.m. to 5:00 p.m.».
@@ -153,8 +175,13 @@ export function unirTelefono(codigo, numero) {
 	if (!n) return '';
 	return n.startsWith('+') || !codigo ? n : `+${codigo} ${n}`;
 }
-// ¿Es un teléfono que se puede marcar? Entre 7 y 15 dígitos, contando el código de país.
-export const telefonoValido = (tel) => { const d = String(tel || '').replace(/\D/g, '').length; return d >= 7 && d <= 15; };
+// ¿Es un teléfono que se puede marcar? Entre 7 y 15 dígitos, contando el código de país; uno de Guatemala (+502, o
+// 8 dígitos sin código) lleva exactamente 8 después del código.
+export const telefonoValido = (tel) => {
+	const t = String(tel || '').trim(), d = t.replace(/\D/g, '');
+	if (/^\+\s*502/.test(t)) return d.length === 11;
+	return d.length >= 7 && d.length <= 15;
+};
 
 // Teléfono comparable y listo para wa.me: solo dígitos; los de 8 dígitos se asumen de Guatemala.
 export function telefonoWa(tel) {

@@ -24,7 +24,11 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
 	const reserva = `${sitio}/reserva/#${chat.id}`;
 	const panel = `${sitio}/admin/#/solicitudes/${chat.codigo}`;
-	const resumen = [tituloDe(chat, casa), `${chat.llegada} → ${chat.salida}`, `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`].filter(Boolean).join(' · ');
+	// El resumen en el idioma de quien lo lee: el socio y el equipo, en español (título en español); el cliente, en el suyo.
+	const fecha = (iso, lang) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-GT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+	const personas = (lang) => (lang === 'en' ? `${chat.huespedes} ${chat.huespedes === 1 ? 'guest' : 'guests'}` : `${chat.huespedes} ${chat.huespedes === 1 ? 'persona' : 'personas'}`);
+	const resumenEn = (lang) => [lang === 'en' ? tituloDe(chat, casa) : String(casa?.titulo || '').slice(0, 200), `${fecha(chat.llegada, lang)} → ${fecha(chat.salida, lang)}`, chat.huespedes ? personas(lang) : ''].filter(Boolean).join(' · ');
+	const resumen = resumenEn('es');
 	// La reserva la atiende el socio: el equipo solo recibe estos avisos si el socio no tiene correo guardado.
 	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
 	const deLaCasa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
@@ -39,14 +43,14 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		return [
 			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, `Nueva solicitud ${chat.codigo}`, `${resumen}. Respóndela pronto: las fechas quedan apartadas 2 horas.`),
 			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? 'We received your request' : 'Recibimos tu solicitud',
-				en ? `${resumen}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
+				en ? `${resumenEn('en')}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
 		];
 	}
 	if (ahora - ms(ultimo.createdAt) > FRESCO) return [];
 	if (ultimo.tipo === 'pago') return alCliente(en ? `Booking ${chat.codigo} confirmed: how to pay` : `Reserva ${chat.codigo} confirmada: cómo pagar`,
-		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the payment details.' : 'Entra a tu reserva para ver los datos de pago.');
+		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments).' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos).');
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
-		en ? 'Payment received' : 'Recibimos tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
+		en ? 'The owner received your payment' : 'El propietario recibió tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.
 	if (['no', 'cancelada'].includes(chat.estado) && lado(ultimo) === 'casa') {
 		const no = chat.estado === 'no';
@@ -54,8 +58,9 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		const equipo = !no && ultimo.de === 'socio' && (correos.equipo || []).filter(Boolean).length
 			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva`, titulo: `El socio canceló ${chat.codigo}`,
 				intro: `${resumen}. Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
-		return [...equipo, ...alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not available' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no disponible' : 'cancelada'}`,
-			en ? (no ? 'Those dates are not available' : 'Your booking was cancelled') : (no ? 'Esas fechas no están disponibles' : 'Tu reserva se canceló'),
+		// «No se dio» no siempre es por las fechas (el motivo va en el mensaje del chat): el correo no lo da por hecho.
+		return [...equipo, ...alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not confirmed' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no se concretó' : 'cancelada'}`,
+			en ? (no ? 'Your request was not confirmed' : 'Your booking was cancelled') : (no ? 'Tu solicitud no se concretó' : 'Tu reserva se canceló'),
 			en ? 'Open your booking to see the details.' : 'Entra a tu reserva para ver el detalle.')];
 	}
 	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,

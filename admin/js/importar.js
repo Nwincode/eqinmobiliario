@@ -1,5 +1,9 @@
 // Lógica pura de la importación masiva y del código de propiedad.
 // Sin DOM ni Firebase: se puede probar con Node (CSV, números, códigos, zip, fotos).
+import '../../js/calc-vacacional.js';
+
+// Los calendarios de una casa por noche (Airbnb, Booking, VRBO): campo, nombre y columna salen de calc-vacacional.js.
+const CALENDARIOS = globalThis.EQVacacional.CALENDARIOS;
 
 // ---------- Texto ----------
 
@@ -109,7 +113,10 @@ export const COLUMNAS = [
 	['deposito', ['deposito', 'deposito_reembolsable', 'deposit']],
 	['noches_min', ['noches_min', 'noches_minimas', 'minimo_noches', 'min_noches']],
 	['huespedes_max', ['huespedes_max', 'huespedes', 'capacidad', 'personas', 'max_huespedes']],
-	['ical', ['ical', 'ical_airbnb', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
+	// «ical» (una sola columna, la de antes) es el de Airbnb.
+	['ical_airbnb', ['ical_airbnb', 'ical', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
+	['ical_booking', ['ical_booking', 'calendario_booking', 'booking']],
+	['ical_vrbo', ['ical_vrbo', 'calendario_vrbo', 'vrbo']],
 	// Su dueño: una ficha que ya existe en Propietarios, por su teléfono, nombre, correo o id (sus datos viven ahí; no
 	// se crean dueños desde el CSV). Obligatorio en una casa por noche.
 	['propietario', ['propietario', 'propietario_telefono', 'propietario_nombre', 'dueno', 'socio', 'propietario_id']]
@@ -339,9 +346,11 @@ export function filaAPropiedad(fila, { opciones, agentes = [], duenos = [] }) {
 		if (Number.isNaN(n) || n < 0) errores.push(`Número no válido en ${c.replace('_', ' ')}: «${txt(c)}»`);
 		else (dest === 'vac' ? vac : socio)[campo] = n;
 	}
-	if (txt('ical')) {
-		if (/^https:\/\//i.test(txt('ical'))) socio.icalUrl = txt('ical');
-		else errores.push('El enlace del calendario (ical) debe empezar con https://');
+	for (const c of CALENDARIOS) {
+		const url = txt(c.columna);
+		if (!url) continue;
+		if (/^https:\/\//i.test(url)) socio[c.campo] = url;
+		else errores.push(`El enlace del calendario de ${c.nombre} (${c.columna}) debe empezar con https://`);
 	}
 	if (datos.operacion === 'vacacional' && !datos.codigo && !(socio.precioBase > 0)) errores.push('Renta vacacional: falta el precio por noche del socio (socio_noche)');
 	return { datos, errores, carpeta: txt('carpeta'), vac, socio };
@@ -563,8 +572,8 @@ export async function sha256(buffer) {
 
 // Plantilla CSV (encabezados + 2 ejemplos).
 export const PLANTILLA = [
-	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'propietario', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'niveles', 'anio_construccion', 'mantenimiento', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical'],
-	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', '2', '2018', '150', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', ''],
-	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', '', '2020', '250', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', ''],
-	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', '', '+502 5555 0001', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', '1', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics']
+	['codigo', 'carpeta', 'titulo', 'operacion', 'tipo', 'estado', 'asesor', 'propietario', 'precio', 'moneda', 'zona', 'ciudad', 'direccion', 'condominio_siglas', 'habitaciones', 'banos', 'parqueos', 'm2_construccion', 'm2_terreno', 'niveles', 'anio_construccion', 'mantenimiento', 'amenidades', 'descripcion', 'video', 'socio_noche', 'socio_finde', 'margen', 'limpieza', 'deposito', 'noches_min', 'huespedes_max', 'ical_airbnb', 'ical_booking', 'ical_vrbo'],
+	['', 'casa-vista-lomas', 'Casa con jardín en Vista de las Lomas', 'venta', 'casa', 'disponible', 'Juan Pérez', '', '350000', 'USD', 'Zona 15', 'Guatemala', 'Residencial Vista de las Lomas', 'VLM', '4', '3.5', '2', '320', '400', '2', '2018', '150', 'Piscina; Garita; Jardín', 'Casa de dos niveles con jardín y sala familiar.', '', '', '', '', '', '', '', '', '', '', ''],
+	['', 'apto-z10', 'Apartamento amueblado en zona 10', 'renta', 'apartamento', 'disponible', 'Juan Pérez', '', '1,500', 'USD', 'Zona 10', 'Guatemala', '', '', '2', '2', '1', '95', '', '', '2020', '250', 'Gimnasio | Elevador', 'Apartamento con vista y balcón.', 'https://www.youtube.com/watch?v=XXXXXXXXXXX', '', '', '', '', '', '', '', '', '', ''],
+	['', 'casa-lago-atitlan', 'Casa frente al lago en Panajachel', 'vacacional', 'casa', 'disponible', '', '+502 5555 0001', '', 'USD', '', 'Panajachel', '', '', '3', '2', '2', '', '', '1', '', '', 'Piscina; Muelle; Wifi', 'Casa con vista al lago para fines de semana.', '', '100', '130', '20', '40', '150', '2', '6', 'https://www.airbnb.com/calendar/ical/XXXX.ics', '', '']
 ];

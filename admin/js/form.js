@@ -5,7 +5,7 @@
 // Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder,
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError } from './ui.js';
-import { CODIGOS_PAIS, partirTelefono, unirTelefono } from './formato.js';
+import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
 import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase.js';
 
 export function getPath(obj, path) {
@@ -160,12 +160,37 @@ export function campoTelefono(valor, { onChange, required = false, placeholder, 
 	return grupo;
 }
 
+// Lo que se marca en rojo de un control (en el teléfono, el número; en un campo con pista, su input).
+const entrada = (control) => (control?.matches?.('input, select, textarea') ? control : control?.querySelector?.('input:not([type=file])') || control?.querySelector?.('select, textarea')) || control;
+function quitarMarca(input) {
+	input.classList.remove('is-invalid');
+	input.removeAttribute('aria-invalid');
+	const id = input.getAttribute('data-error');
+	if (id) { document.getElementById(id)?.remove(); input.removeAttribute('data-error'); input.removeAttribute('aria-describedby'); }
+}
+function marcar({ control, msg }) {
+	const input = entrada(control);
+	if (!input?.classList) return;
+	const id = `err-${Math.random().toString(36).slice(2, 9)}`;
+	input.classList.add('is-invalid');
+	input.setAttribute('aria-invalid', 'true');
+	input.setAttribute('aria-describedby', id);
+	input.setAttribute('data-error', id);
+	const caja = input.closest('.input-group') || control;
+	caja.insertAdjacentElement('afterend', h('div', { class: 'invalid-feedback d-block', id }, msg));
+	// Se quita al corregirlo: al escribir (en un campo de texto, «change» llega al salir del campo y borraría la marca
+	// recién puesta) o al elegir otra opción en un selector.
+	input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => quitarMarca(input), { once: true });
+}
+
 export function renderForm(schema, data, options = {}) {
 	const state = clonar(data || {});
 	const folder = options.folder || 'uploads';
 	const conditionals = [];
 	const required = [];
 	const conLimites = [];
+	// Correos y teléfonos: se revisa su formato al guardar (si se escribieron).
+	const conFormato = [];
 	const customs = [];
 	// Cómo repintar cada campo de texto o de etiquetas cuando su valor se pone desde fuera (ver «poner»).
 	const pintores = new Map();
@@ -185,8 +210,8 @@ export function renderForm(schema, data, options = {}) {
 	function fieldWrapper(field, control) {
 		const id = `f-${Math.random().toString(36).slice(2, 9)}`;
 		if (control.matches && control.matches('input, select, textarea')) control.id = id;
-		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre).
-		if (field.type === 'telefono') control.querySelector('input').id = id;
+		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre); correo: al campo, no a su pista.
+		if (field.type === 'telefono' || field.type === 'email') control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
 		const caja = h('div', { class: `col-12 col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
@@ -475,21 +500,37 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
+				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: de 7 a 15 dígitos con el código de país; en Guatemala, 8 después del +502.' });
 				break;
 
-			default:
-				control = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });
-				control.value = get() ?? '';
-				if (field.disabled) control.disabled = true;
-				control.addEventListener('input', () => set(control.value));
-				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
-				if (field.onInput) control.addEventListener('input', () => field.onInput(control.value, state));
+			default: {
+				// `input` (const): los manejadores leen siempre el campo, aunque `control` pase a ser la caja con la pista.
+				const input = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });
+				input.value = get() ?? '';
+				if (field.disabled) input.disabled = true;
+				input.addEventListener('input', () => set(input.value));
+				if (target === state) pintores.set(field.name, () => { input.value = get() ?? ''; });
+				if (field.onInput) input.addEventListener('input', () => field.onInput(input.value, state));
+				control = input;
+				if (field.type === 'email') {
+					conFormato.push({ field, target, control: input, ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
+					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
+					const pista = h('div', { class: 'form-text text-warning', hidden: true });
+					input.addEventListener('blur', () => {
+						const otro = sugerenciaCorreo(input.value);
+						pista.hidden = !otro;
+						pista.replaceChildren(...(otro ? [`¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
+					});
+					input.addEventListener('input', () => { pista.hidden = true; });
+					control = h('div', {}, input, pista);
+				}
+			}
 		}
 
-		if (field.required) required.push({ field, target, control });
+		if (field.required) required.push({ field, target, control: field.type === 'email' ? control.querySelector('input') : control });
 		const wrapper = fieldWrapper(field, control);
 		if (field.when) conditionals.push({ el: wrapper, when: field.when });
-		if (field.ref) field.ref(control);
+		if (field.ref) field.ref(field.type === 'email' ? control.querySelector('input') : control);
 		return wrapper;
 	}
 
@@ -508,25 +549,35 @@ export function renderForm(schema, data, options = {}) {
 			pintores.get(nombre)?.();
 			refresh();
 		},
+		// Revisa todo a la vez: cada campo con problema queda en rojo con su mensaje debajo (se quita al corregirlo), la
+		// página va al primero y un solo aviso dice cuántos son.
 		validate() {
+			el.querySelectorAll('.is-invalid').forEach(quitarMarca);
+			const errores = [];
+			const vacio = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
 			for (const { field, target, control } of required) {
-				const v = getPath(target, field.name);
-				if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) {
-					toast(`Completa el campo "${field.label}".`, 'warning');
-					if (control.focus) control.focus();
-					return false;
-				}
+				if (vacio(getPath(target, field.name))) errores.push({ control, msg: `Completa «${field.label}».` });
 			}
 			for (const { field, target, control } of conLimites) {
 				const v = getPath(target, field.name);
-				if (v === undefined || v === null || v === '') continue;
+				if (vacio(v)) continue;
 				if ((field.min != null && Number(v) < field.min) || (field.max != null && Number(v) > field.max)) {
-					toast(`"${field.label}" va de ${field.min ?? '…'} a ${field.max ?? '…'}.`, 'warning');
-					if (control.focus) control.focus();
-					return false;
+					const rango = field.min != null && field.max != null ? `va de ${field.min} a ${field.max}` : field.min != null ? `debe ser ${field.min} o más` : `llega hasta ${field.max}`;
+					errores.push({ control, msg: `«${field.label}» ${rango}.` });
 				}
 			}
-			return true;
+			for (const { field, target, control, ok, msg } of conFormato) {
+				const v = getPath(target, field.name);
+				// Un campo escondido (por `when`) no se puede corregir a la vista: su formato no frena el guardado.
+				if (!vacio(v) && !ok(v) && !control.closest?.('[hidden]') && !errores.some((e) => e.control === control)) errores.push({ control, msg });
+			}
+			if (!errores.length) return true;
+			errores.forEach(marcar);
+			const primero = entrada(errores[0].control);
+			primero?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+			primero?.focus?.({ preventScroll: true });
+			toast(errores.length === 1 ? errores[0].msg : `Revisa los ${errores.length} campos marcados en rojo.`, 'warning');
+			return false;
 		},
 		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.

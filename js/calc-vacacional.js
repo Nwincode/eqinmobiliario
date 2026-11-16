@@ -26,6 +26,13 @@
 	var INGUAT = 10;
 	var MARGEN = 20;
 	var DIA = 86400000;
+	// Los calendarios (iCal) que puede tener una casa, uno por plataforma: el campo en privado/socio, su nombre y su
+	// columna en el importador. Airbnb sigue en «icalUrl» (el de siempre).
+	var CALENDARIOS = [
+		{ campo: 'icalUrl', nombre: 'Airbnb', columna: 'ical_airbnb' },
+		{ campo: 'icalBooking', nombre: 'Booking', columna: 'ical_booking' },
+		{ campo: 'icalVrbo', nombre: 'VRBO', columna: 'ical_vrbo' }
+	];
 
 	function num(v) { var n = Number(v); return isFinite(n) && n > 0 ? n : 0; }
 	// Redondeo a centavos sin errores de coma flotante (1.005 → 1.01).
@@ -405,7 +412,7 @@
 
 	return {
 		tieneContacto: tieneContacto,
-		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN,
+		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN, CALENDARIOS: CALENDARIOS,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
 		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,

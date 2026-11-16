@@ -771,6 +771,8 @@ a.stat-card:hover {
 	margin-bottom: 10px;
 }
 
+/* Con una barra de guardar abajo, los avisos flotantes van encima de ella: ni la tapan ni quedan tapados. */
+body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .sticky-actions {
 	position: sticky;
 	bottom: 12px;

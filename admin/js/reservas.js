@@ -19,7 +19,7 @@ import {
 import { session, markPending } from './session.js';
 import { dia } from './ui.js';
 
-import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, TEXTO_NO, TEXTO_CANCELADA } from './reservas-calculo.js';
+import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, textoNo, TEXTO_CANCELADA } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -269,7 +269,7 @@ export const noSeDio = conCaminoDeAntes(async function noSeDio(l, motivo, chat =
 	await runTransaction(db, async (tx) => {
 		await sinResponder(tx, l, chat);
 		tx.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-		if (chat) cerrarChat(tx, chat, 'no', TEXTO_NO);
+		if (chat) cerrarChat(tx, chat, 'no', textoNo(motivo));
 	});
 	if (chat) avisarChat(chat.ref.id);
 });

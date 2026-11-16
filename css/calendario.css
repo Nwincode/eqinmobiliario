@@ -198,3 +198,6 @@
 	.vac-cal.vac-alerta { animation: vac-alerta 0.6s ease-in-out 2; }
 	@keyframes vac-alerta { 50% { outline-color: transparent; } }
 }
+
+/* «Ya enviaste una solicitud para esta casa» con el enlace a ella (js/vacacional.js). */
+.vac-ya-pediste { margin: 0 0 .75rem; padding: .5rem .75rem; border-radius: var(--eq-radius); background: var(--eq-primary-soft); font-size: .9rem; }

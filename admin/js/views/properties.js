@@ -133,6 +133,12 @@ const HORAS = Array.from({ length: 24 }, (_, i) => { const hh = `${String(i).pad
 // properties/{id}/privado/socio, que solo lee el equipo. En el documento público solo quedan
 // los precios por noche al público (base, fin de semana y tarifas por fechas) y las fechas ocupadas.
 const hoyISO = () => V.hoy();
+// Dónde saca el socio el enlace de cada calendario. Privado: la página solo muestra qué noches están ocupadas.
+const AYUDA_ICAL = {
+	Airbnb: 'Calendario → Disponibilidad → Conectar calendarios → Exportar.',
+	Booking: 'Extranet: Tarifas y disponibilidad → Sincronizar calendarios → Exportar.',
+	VRBO: 'Calendario → Importar/Exportar → Exportar.'
+};
 const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
 export function vacacionalPublico(d) {
 	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
@@ -370,7 +376,7 @@ async function exportarCsv(props, agentName, btn) {
 				amenidades: (p.amenidades || []).join('; '), descripcion: p.descripcion, video: p.video,
 				socio_noche: s.precioBase, socio_finde: s.precioFinde, margen: s.precioBase ? (s.margen ?? V.MARGEN) : '',
 				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
-				ical: s.icalUrl,
+				...Object.fromEntries(V.CALENDARIOS.map((c) => [c.columna, s[c.campo]])),
 				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
 				enlace: p.slug ? `${SITIO}${publicUrl(p)}` : '',
 				publicado: p.publicado ? 'sí' : 'no'
@@ -862,7 +868,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	const conPrecio = (d) => (esVacacional(d) ? { ...d, ...vacacionalPublico(d) } : d);
 	return [
 		{ type: 'section', label: 'Datos principales' },
-		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
+		{ name: 'titulo', label: 'Título', required: true, maxlength: 90, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
 		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
 		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
@@ -875,7 +881,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		// Si lo lleva otro asesor no se cambia aquí: su lista de casas (Propietarios) volvería a reclamarla.
 		{ name: 'propietarioId', label: 'Propietario, socio o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
 			help: 'El dueño, el socio de una casa por noche o un asesor colaborador. Se crea una vez en Propietarios.' },
-		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
+		{ name: 'precio', label: 'Precio', type: 'number', min: 0, max: 100000000, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: fila },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: fila, help: 'Número menor aparece primero.' },
 		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: fila, default: isNew ? false : undefined },
@@ -883,18 +889,18 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4, when: (d) => !esVacacional(d) },
 
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
-		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
-		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
+		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
+		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
 		// Hasta 10 (MAX_TARIFAS): las reglas revisan una por una que el precio público cuadre con el del dueño.
 		{ name: 'socio.tarifas', label: `Precios por fechas (temporada, feriados; hasta ${MAX_TARIFAS})`, type: 'list', itemLabel: 'Tarifa', max: MAX_TARIFAS, when: esVacacional, fields: [
 			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
 			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
-			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, step: 0.01, cols: 4 }
+			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4 }
 		] },
 		{ type: 'custom', label: 'Ganancia y precio al público', when: esVacacional, update: desgloseVacacional },
-		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
-		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
+		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, max: 10000, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
+		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
 		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, max: 30, step: 1, cols: 2, when: esVacacional, help: 'Lo normal es 1 o 2. Para feriados, mejor un mínimo por fechas en el calendario del dueño.' },
 		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
@@ -904,8 +910,9 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.comoLlegar', label: 'Cómo llegar (opcional)', type: 'textarea', rows: 2, when: esVacacional, placeholder: 'A 45 min de la capital; los últimos 2 km son de terracería.' },
 		{ name: 'vacacional.reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, when: esVacacional, help: 'Vacío = las reglas generales de Contenido → Textos → Renta vacacional.' },
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
-		{ name: 'socio.icalUrl', label: 'Enlace del calendario de Airbnb (iCal, opcional)', type: 'url', when: esVacacional, placeholder: 'https://www.airbnb.com/calendar/ical/….ics', help: 'En Airbnb: Calendario → Disponibilidad → Conectar calendarios → Exportar. Privado: la página solo muestra qué noches están ocupadas.' },
-		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de Airbnb)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
+		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
+		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
 			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
 			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
 		] },
@@ -1217,6 +1224,12 @@ async function renderEditor(container, id, emb = null) {
 		if (esVacacional(d)) {
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			if ((socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).length > MAX_TARIFAS) return toast(`Hasta ${MAX_TARIFAS} precios por fechas: quita los que ya pasaron o junta los que se pueda.`, 'warning');
+			// Un cero de más pasa fácil: un precio de fin de semana o por fechas de más de 5 veces el de siempre se pregunta.
+			// Solo los que cambian en este guardado: uno alto que ya estaba guardado no se vuelve a preguntar.
+			const base = Number(socio.precioBase);
+			const yaEstaban = new Set([Number(socioGuardado?.precioFinde), ...(socioGuardado?.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * Number(socioGuardado?.precioBase)));
+			const altos = [Number(socio.precioFinde), ...(socio.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * base && !yaEstaban.has(n));
+			if (altos.length && !(await confirmDialog(`Hay un precio de ${dinero(Math.max(...altos), d.moneda)} por noche: ${Math.round(Math.max(...altos) / base)} veces el precio de siempre (${dinero(base, d.moneda)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
 			mascotasUnaVez(d);
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };
@@ -1370,8 +1383,9 @@ async function renderEditor(container, id, emb = null) {
 			await setDoc(newRef, d);
 			// Después de crear la casa: su regla la lee.
 			if (vac) {
-				// El costo del socio sí (sin el calendario de Airbnb, que es de la original); la dirección y el mapa también.
-				const { icalUrl, ...socioCopia } = socioPriv.data() || {};
+				// El costo del socio sí (sin los calendarios, que son de la original); la dirección y el mapa también.
+				const socioCopia = { ...(socioPriv.data() || {}) };
+				for (const c of V.CALENDARIOS) delete socioCopia[c.campo];
 				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
 			}
 			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });

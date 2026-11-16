@@ -1,6 +1,6 @@
 // Pruebas del formato único de teléfonos (admin/js/formato.js). Sin dependencias.
 import assert from 'node:assert/strict';
-import { partirTelefono, unirTelefono, telefonoValido, telefonoWa } from '../admin/js/formato.js';
+import { partirTelefono, unirTelefono, telefonoValido, telefonoWa, sugerenciaCorreo } from '../admin/js/formato.js';
 
 let ok = 0;
 function test(nombre, fn) {
@@ -42,6 +42,21 @@ test('válido: de 7 a 15 dígitos contando el código', () => {
 	assert.equal(telefonoValido('+502 555'), false);
 	assert.equal(telefonoValido('+1 305 555 1234 99999'), false);
 	assert.equal(telefonoValido(''), false);
+});
+test('Guatemala: exactamente 8 dígitos después del +502', () => {
+	assert.equal(telefonoValido('+502 1234'), false);
+	assert.equal(telefonoValido('+502 5555 12345'), false);
+	assert.equal(telefonoValido('+502 5555-1234'), true);
+	assert.equal(telefonoValido('+52 55 1234 5678'), true);
+});
+test('Correo con el dominio mal escrito: se sugiere el bueno; uno bien escrito o propio no se toca', () => {
+	assert.equal(sugerenciaCorreo('roberto@gmial.com'), 'roberto@gmail.com');
+	assert.equal(sugerenciaCorreo('Ana.P@Hotmail.con'), 'Ana.P@hotmail.com');
+	assert.equal(sugerenciaCorreo('x@outlok.com'), 'x@outlook.com');
+	assert.equal(sugerenciaCorreo('x@gmail.com'), '');
+	assert.equal(sugerenciaCorreo('x@empresa.com.gt'), '');
+	assert.equal(sugerenciaCorreo('x@eqinmobiliario.gt'), '');
+	assert.equal(sugerenciaCorreo('sin-arroba'), '');
 });
 test('WhatsApp: mismo número con o sin código guardado', () => {
 	assert.equal(telefonoWa('+502 5555 1234'), '50255551234');

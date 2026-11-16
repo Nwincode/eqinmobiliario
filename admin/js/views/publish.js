@@ -78,7 +78,7 @@ function tarjetaAvisos() {
 			cuerpo.replaceChildren(
 				h('ul', { class: 'list-unstyled mb-3' },
 					filaEstado(inmediato ? 'ok' : 'falta', 'Aviso inmediato de nuevos interesados',
-						inmediato ? `Activo${c.servicio === 'zeptomail' ? ' con Zoho ZeptoMail' : c.servicio === 'resend' ? ' con Resend' : ''}: llega a ${n} ${n === 1 ? 'dirección' : 'direcciones'} del equipo.` : 'Falta en Netlify la clave del correo (ZEPTOMAIL_TOKEN de Zoho o RESEND_API_KEY) y AVISO_CORREO.'),
+						inmediato ? `Activo${c.servicio === 'zeptomail' ? ' con Zoho' : c.servicio === 'resend' ? ' con Resend' : ''}: llega a ${n} ${n === 1 ? 'dirección' : 'direcciones'} del equipo.` : 'Falta en Netlify la clave del correo (ZEPTOMAIL_TOKEN de Zoho o RESEND_API_KEY) y AVISO_CORREO.'),
 					filaEstado(c.remitente ? 'ok' : 'falta', 'Remitente con el dominio del sitio',
 						c.remitente ? 'Los correos salen desde su propio dominio.' : (c.servicio === 'zeptomail' ? 'Falta CORREO_REMITENTE en Netlify: con Zoho es obligatorio para enviar.' : 'Falta CORREO_REMITENTE en Netlify. Mientras tanto, los correos solo llegan al dueño de la cuenta de Resend.')),
 					filaEstado(resumen ? 'ok' : 'falta', 'Resumen de cada mañana',

@@ -447,7 +447,7 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(p.precio, p.moneda))],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
 		['texto', [p.titulo, p.zona, p.ciudad, porNoche(p) ? '' : p.direccion, tipoLabel(p)].filter(Boolean).join(' ').toLowerCase()],
-		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
+		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ id: p.id, bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
 	].map(([k, v]) => `data-${k}="${esc(v ?? '')}"`).join(' ');
 	const t = TEXTOS[lng(p)];
 	// Hasta 8 fotos por tarjeta; solo la primera se descarga, el resto al primer gesto (js/site.js).
