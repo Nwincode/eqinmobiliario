@@ -32,7 +32,7 @@ function textoAuto(e, p) {
 		visita: n > 1 ? `Se realizaron ${n} visitas` : 'Se realizó una visita', oferta: n > 1 ? `Se recibieron ${n} ofertas` : 'Se recibió una oferta' }[e.auto] || '';
 }
 
-// Respuesta al anuncio: «Estoy de acuerdo» o «Quiero cambios» (con texto). Una por visita a la pantalla.
+// Respuesta al anuncio: «Sí, de acuerdo» o «Quiero cambios» (con texto). Una por visita a la pantalla.
 function respuesta(resumen, p) {
 	const caja = h('div', { class: 'd-grid gap-2' });
 	const texto = h('textarea', { class: 'form-control', id: `cambios-${p.id}`, rows: 3, maxlength: 2000 });
@@ -63,7 +63,7 @@ function respuesta(resumen, p) {
 	} }, ic('icon-pencil'), 'Quiero cambios');
 	caja.append(h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 		h('span', { class: 'small fw-semibold me-auto' }, '¿Estás de acuerdo con cómo se anuncia?'),
-		h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: (e) => enviar('aprobado', '', e.currentTarget) }, ic('icon-check-circle'), 'Estoy de acuerdo'),
+		h('button', { type: 'button', class: 'btn btn-primary btn-sm', onclick: (e) => enviar('aprobado', '', e.currentTarget) }, ic('icon-check-circle'), 'Sí, de acuerdo'),
 		cambios), form);
 	return caja;
 }
@@ -99,7 +99,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 					p.exclusivaHasta ? estadoExclusiva({ exclusiva: true, exclusivaFin: p.exclusivaHasta }) : badge('Sin exclusiva', 'light')),
 				h('div', { class: 'h4 mb-0' }, formatPrice(p.precio, p.moneda, p.operacion)),
 				h('ul', { class: 'list-unstyled small mb-0 d-grid gap-1' },
-					h('li', {}, ic('icon-clock-o'), dias === null ? 'Aún no sale al mercado' : `${dias} ${dias === 1 ? 'día' : 'días'} en el mercado`),
+					h('li', {}, ic('icon-clock-o'), dias === null ? 'Aún no sale al mercado' : dias === 0 ? 'Salió al mercado hoy' : `${dias} ${dias === 1 ? 'día' : 'días'} en el mercado`),
 					p.exclusivaHasta ? h('li', {}, ic('icon-calendar'), `Exclusiva hasta el ${fecha(p.exclusivaHasta)}`) : null,
 					prox ? h('li', {}, ic('icon-calendar-check-o'), `${prox} ${prox === 1 ? 'visita agendada' : 'visitas agendadas'}`) : null,
 					resumen.proximoPaso ? h('li', {}, ic('icon-flag'), h('strong', {}, 'Próximo paso: '), resumen.proximoPaso) : null,
@@ -119,10 +119,10 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 			a.descripcion ? h('details', { class: 'mb-3' }, h('summary', { class: 'small' }, ic('icon-file-text-o'), 'Descripción del anuncio'),
 				h('div', { class: 'small mt-2', style: 'white-space: pre-line' }, String(a.descripcion).replace(/\*\*/g, '').replace(/^#+\s*/gm, ''))) : null,
 			resumen.id && responder ? respuesta(resumen, p) : null),
-		h('div', { class: 'row g-3' },
+		h('div', { class: 'row gx-3' },
 			h('div', { class: 'col-lg-5' },
-				tarjeta('Historial de precio', 'icon-line-chart', precios.length ? h('ul', { class: 'list-group list-group-flush' }, precios.map((x, i) => h('li', { class: 'list-group-item d-flex justify-content-between px-0' },
-					h('span', { class: i ? 'text-muted' : 'fw-semibold' }, formatPrice(x.precio, x.moneda, p.operacion)), h('span', { class: 'small text-muted' }, fecha(x.fecha, true))))) : h('p', { class: 'small text-muted mb-0' }, 'Sin cambios de precio.')),
+				precios.length > 1 ? tarjeta('Historial de precio', 'icon-line-chart', h('ul', { class: 'list-group list-group-flush' }, precios.map((x, i) => h('li', { class: 'list-group-item d-flex justify-content-between px-0' },
+					h('span', { class: i ? 'text-muted' : 'fw-semibold' }, formatPrice(x.precio, x.moneda, p.operacion)), h('span', { class: 'small text-muted' }, fecha(x.fecha, true)))))) : null,
 				tarjeta('Dónde se anuncia', 'icon-globe', (p.portales || []).length ? h('ul', { class: 'list-unstyled mb-0 d-grid gap-1' }, p.portales.map((po) => h('li', {},
 					enlaceSeguro(po.url) ? h('a', { href: po.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), po.nombre) : h('span', {}, ic('icon-globe'), po.nombre))))
 					: h('p', { class: 'small text-muted mb-0' }, 'Tu asesor está preparando la publicación.'))),
