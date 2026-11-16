@@ -108,12 +108,11 @@ service cloud.firestore {
       return exists(ruta) ? get(ruta).data : {};
     }
 
-    // Primer administrador: solo se puede crear mientras meta/bootstrap no exista.
+    // Marca de que ya hay administrador. El arranque «crear el primer administrador» desde el navegador se cerró: con el
+    // alta de Firebase pública, cualquiera habría podido hacerse administrador si este documento faltara. Ya nadie la
+    // escribe ni la borra; un administrador nuevo lo crea otro administrador (Usuarios).
     match /meta/bootstrap {
       allow get: if true;
-      allow create: if signedIn()
-        && !exists(/databases/$(database)/documents/meta/bootstrap)
-        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin';
     }
 
     // Estado de publicación (cambios pendientes, última publicación).
@@ -126,12 +125,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
-      allow create: if isAdmin()
-        || (request.auth.uid == uid
-            && !exists(/databases/$(database)/documents/meta/bootstrap)
-            && existsAfter(/databases/$(database)/documents/meta/bootstrap)
-            && request.resource.data.rol == 'admin'
-            && request.resource.data.activo == true);
+      allow create: if isAdmin();
       allow update: if isAdmin()
         && !(uid == request.auth.uid && (request.resource.data.rol != 'admin' || request.resource.data.activo != true));
       allow delete: if isAdmin() && uid != request.auth.uid;
@@ -288,10 +282,12 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if isAdmin();
     }
-    // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js).
+    // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
+    // almacenamiento de la empresa (o del de pruebas «demo-…», que no puede existir en Google): una foto alojada en otro
+    // proyecto podría llevar a una página falsa.
     function comprobanteValido(url, reservaId) {
       return url is string && url.size() <= 600
-        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/[a-z0-9.-]+/o/comprobantes%2F'
+        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/(eqinmobiliariobd[.]firebasestorage[.]app|demo-[a-z0-9-]+[.]appspot[.]com)/o/comprobantes%2F'
              + reservaId + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+');
     }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
@@ -557,7 +553,7 @@ service cloud.firestore {
                         && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
+                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/(eqinmobiliariobd[.]firebasestorage[.]app|demo-[a-z0-9-]+[.]appspot[.]com)/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
             : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())

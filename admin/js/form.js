@@ -35,7 +35,9 @@ export function setPath(obj, path, value) {
 }
 
 // HEIC/HEIF (fotos de iPhone): el navegador casi nunca los abre; se convierten con heic2any (se carga solo si hace falta).
-const HEIC2ANY = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+// Servido desde el propio sitio (copia exacta de heic2any@0.0.4 de npm, licencia MIT): un CDN de fuera comprometido
+// podría correr código en el panel con la sesión abierta.
+const HEIC2ANY = '/admin/vendor/heic2any-0.0.4.min.js';
 let heicCargando = null;
 function cargarHeic2any() {
 	if (window.heic2any) return Promise.resolve(window.heic2any);

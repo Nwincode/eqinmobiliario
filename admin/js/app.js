@@ -1,7 +1,7 @@
 // Arranque del panel: inicio de sesión, permisos y navegación entre secciones.
 import {
 	configured, firebaseConfig, auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut,
-	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, createUserWithEmailAndPassword, doc, getDoc, writeBatch, serverTimestamp
+	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { correoContrasena } from './contrasena.js';
@@ -52,12 +52,8 @@ function notConfigured() {
 		h('p', { class: 'small text-muted mb-0' }, `Proyecto actual: ${firebaseConfig.projectId || '(sin definir)'}`)));
 }
 
-async function loginScreen() {
-	let bootstrapOpen = false;
-	try {
-		bootstrapOpen = !(await getDoc(doc(db, 'meta', 'bootstrap'))).exists();
-	} catch { /* sin conexión: se muestra solo el login */ }
-
+// (El arranque «crear el primer administrador» desde aquí se quitó: ver firestore.rules, meta/bootstrap.)
+function loginScreen() {
 	const email = h('input', { class: 'form-control', type: 'email', id: 'login-email', autocomplete: 'username', required: true });
 	const pass = h('input', { class: 'form-control', type: 'password', id: 'login-pass', autocomplete: 'current-password', required: true });
 	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
@@ -83,52 +79,21 @@ async function loginScreen() {
 		type: 'button', class: 'btn btn-link btn-sm w-100 mt-2',
 		onclick: async () => {
 			if (!email.value) { msg.textContent = 'Escribe tu correo primero.'; return; }
+			// El mismo mensaje exista o no la cuenta: no se puede averiguar quién entra al panel.
+			const neutro = 'Si ese correo tiene acceso al panel, en unos minutos te llegará el correo para crear tu contraseña (revisa también el spam).';
 			try {
 				await correoContrasena(email.value.trim());
-				toast('Te enviamos un correo para restablecer la contraseña.');
-			} catch (err) { msg.textContent = errorMessage(err); }
+				msg.className = 'small text-success mt-2'; msg.textContent = neutro;
+			} catch (err) {
+				msg.className = 'small text-danger mt-2';
+				msg.textContent = err?.delServidor === 429 || err?.delServidor === 400 ? err.message : neutro;
+			}
 		}
 	}, '¿Olvidaste tu contraseña?'));
 
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-4' }, 'Panel de administración'),
-		form,
-		bootstrapOpen ? h('div', { class: 'border-top mt-4 pt-3' },
-			h('p', { class: 'small text-muted' }, 'Aún no hay administradores. Crea la primera cuenta de administrador:'),
-			h('button', { class: 'btn btn-outline-primary w-100', onclick: bootstrapScreen }, 'Crear primer administrador')) : null));
-}
-
-function bootstrapScreen() {
-	const nombre = h('input', { class: 'form-control', id: 'bs-nombre', required: true });
-	const email = h('input', { class: 'form-control', type: 'email', id: 'bs-email', required: true, autocomplete: 'username' });
-	const pass = h('input', { class: 'form-control', type: 'password', id: 'bs-pass', required: true, minlength: 8, autocomplete: 'new-password' });
-	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
-	root.replaceChildren(authCard(
-		h('h1', { class: 'h5 mb-3' }, 'Primer administrador'),
-		h('p', { class: 'small text-muted' }, 'Esta cuenta tendrá acceso total. Después podrás crear las cuentas de los asesores desde "Usuarios".'),
-		h('form', {
-			onsubmit: async (e) => {
-				e.preventDefault();
-				if (pass.value.length < 8) { msg.textContent = 'Usa una contraseña de al menos 8 caracteres.'; return; }
-				try {
-					const cred = await createUserWithEmailAndPassword(auth, email.value.trim(), pass.value);
-					const batch = writeBatch(db);
-					batch.set(doc(db, 'users', cred.user.uid), {
-						nombre: nombre.value.trim(), email: email.value.trim(), rol: 'admin', agentId: '', activo: true, createdAt: serverTimestamp()
-					});
-					batch.set(doc(db, 'meta', 'bootstrap'), { uid: cred.user.uid, createdAt: serverTimestamp() });
-					await batch.commit();
-					location.reload();
-				} catch (err) {
-					msg.textContent = errorMessage(err);
-				}
-			}
-		},
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-nombre' }, 'Nombre'), nombre),
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-email' }, 'Correo'), email),
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'bs-pass' }, 'Contraseña (mín. 8)'), pass),
-		h('button', { class: 'btn btn-primary w-100', type: 'submit' }, 'Crear cuenta'), msg,
-		h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: loginScreen }, 'Volver'))));
+		form));
 }
 
 function noAccess(reason) {
@@ -362,10 +327,8 @@ function iniciar() {
 if (!configured) {
 	notConfigured();
 } else {
-	// El código del enlace se lee y se borra de la barra en el acto: no queda en el historial ni en una captura.
-	const enlace = new URLSearchParams(location.search);
-	const modo = enlace.get('mode'), codigo = enlace.get('oobCode');
-	if (location.search) quitarEnlace();
+	// El código del enlace ya lo leyó y lo borró de la barra /admin/js/enlace.js, antes de cargar nada más.
+	const { modo, codigo } = window.__enlace || {};
 	if (codigo && modo === 'resetPassword') pantallaContrasena(codigo);
 	else if (codigo && (modo === 'verifyEmail' || modo === 'recoverEmail')) pantallaAccion(modo, codigo);
 	else iniciar();

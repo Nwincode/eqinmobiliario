@@ -71,7 +71,8 @@ async function enlaceDe(email) {
 	// un solo uso es el que dio Google y lo vuelve a validar Google al guardar.
 	const codigo = new URL(r.body.oobLink).searchParams.get('oobCode');
 	if (!codigo) return null;
-	return `${SITE_URL}/admin/?mode=resetPassword&oobCode=${encodeURIComponent(codigo)}&lang=es`;
+	// Después de «#»: esa parte de la dirección no llega a ningún servidor ni registro (la lee el panel y la borra).
+	return `${SITE_URL}/admin/#mode=resetPassword&oobCode=${encodeURIComponent(codigo)}`;
 }
 
 export default async (req, context) => {
@@ -80,31 +81,46 @@ export default async (req, context) => {
 	if (!cuentaAccesos() || !servicioCorreo() || !datosConfigurados()) return json(503, { error: 'Sin configurar' });
 	let cuerpo;
 	try { cuerpo = await req.json(); } catch { return json(400, { error: 'Solicitud inválida' }); }
-	// { aviso: 'cambiada' }: lo pide el panel justo después de guardar la contraseña nueva, con la sesión recién abierta
-	// (de hace menos de 10 minutos). El aviso va al correo de esa sesión, nunca a uno que mande quien llama.
+	// { aviso: 'cambiada' }: lo pide el panel justo después de guardar la contraseña nueva. Solo sale si Google confirma
+	// que la contraseña de ESA cuenta cambió hace menos de 10 minutos y la cuenta entra al panel (users/{uid} activo):
+	// una cuenta creada por fuera no puede usarlo para mandar correos con la marca. Va al correo que tiene Google.
 	if (cuerpo?.aviso === 'cambiada') {
+		if (porIp(ipDe(req, context))) return json(429, { error: 'Demasiados intentos' });
 		let s = null;
 		try { s = await sesionDe(req); } catch { /* token inválido */ }
-		if (!s?.email || Date.now() / 1000 - s.entro > 600) return json(401, { error: 'Sesión inválida' });
-		if (avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
-		try { await avisoCambio(s.email); return json(200, { ok: true }); }
-		catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
+		if (!s?.uid) return json(401, { error: 'Sesión inválida' });
+		try {
+			const r = await google('accounts:lookup', { localId: [s.uid] });
+			const cuenta = r.ok ? r.body.users?.[0] : null;
+			if (!cuenta?.email || cuenta.disabled || Date.now() - Number(cuenta.passwordUpdatedAt || 0) > 600_000) return json(401, { error: 'Sesión inválida' });
+			if (!(await leerPrivado(`users/${s.uid}`))?.activo) return json(200, { ok: true });
+			if (avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
+			await avisoCambio(String(cuenta.email).toLowerCase());
+			return json(200, { ok: true });
+		} catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
 	}
 	const email = String(cuerpo?.email || '').trim().toLowerCase();
 	if (!correoValido(email) || !/^[\x21-\x7e]+$/.test(email)) return json(400, { error: 'Correo inválido' });
 	let admin = false;
 	try { admin = Boolean((await staffUser(req))?.admin); } catch { /* sin sesión o token vencido: como cualquiera */ }
 	if (!admin && (porIp(ipDe(req, context)) || porCorreo(email))) return json(429, { error: 'Demasiados intentos: espera unos minutos.' });
-	try {
+	// true = enviado; false = esa cuenta no entra al panel (no se manda nada).
+	const trabajo = async () => {
 		const link = (await conAcceso(email)) ? await enlaceDe(email) : null;
-		if (!link) return admin ? json(404, { error: 'Ese correo no tiene acceso al panel.' }) : json(200, { ok: true });
+		if (!link) return false;
 		const { asunto, html, texto } = correoContrasena({ link, email });
 		await enviarCorreo({ para: email, asunto, html, texto });
-		return json(200, { ok: true });
-	} catch (err) {
-		console.error('Contraseña:', err.message);
-		return json(503, { error: 'No se pudo enviar' });
+		return true;
+	};
+	if (admin) {
+		try { return (await trabajo()) ? json(200, { ok: true }) : json(404, { error: 'Ese correo no tiene acceso al panel.' }); }
+		catch (err) { console.error('Contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
 	}
+	// Sin sesión de administrador: la misma respuesta y al instante, exista o no la cuenta (ni el tiempo lo delata);
+	// la búsqueda y el envío siguen en segundo plano.
+	const tarea = trabajo().catch((err) => console.error('Contraseña:', err.message));
+	if (context?.waitUntil) context.waitUntil(tarea); else await tarea;
+	return json(200, { ok: true });
 };
 
 export const config = { path: '/api/contrasena' };

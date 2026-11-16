@@ -906,7 +906,7 @@ const duenos = [];
 	const deAcceso = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
 		.filter((c) => JSON.stringify(c.to || '').includes('mixta@example.com') && c.subject === 'Crea o cambia tu contraseña').pop();
 	paso('El correo para poner la contraseña sale con el diseño de la empresa, a su correo, con su enlace (en español)',
-		Boolean(deAcceso) && /Crear mi contraseña/.test(deAcceso.htmlbody) && /oobCode=/.test(deAcceso.htmlbody) && /lang=es/.test(deAcceso.htmlbody) && deAcceso.htmlbody.includes(oob?.oobCode || 'x'),
+		Boolean(deAcceso) && /Crear mi contraseña/.test(deAcceso.htmlbody) && /#mode=resetPassword&amp;oobCode=/.test(deAcceso.htmlbody) && deAcceso.htmlbody.includes(oob?.oobCode || 'x'),
 		deAcceso ? deAcceso.subject : 'no salió');
 	await admin.p.locator('#portal-propietario').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${PANEL}/acceso-con-1280.png` });
@@ -971,7 +971,7 @@ const duenos = [];
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await mixta.p.locator('.admin-user-role').waitFor({ timeout: 20000 }).catch(() => {});
 	paso('El botón del correo abre la página de la empresa en el panel: pone su contraseña y entra directo a su panel',
-		/^https?:\/\/[^/]+\/admin\/\?mode=resetPassword&oobCode=/.test(enlaceCorreo) && /Crea tu contraseña/.test(paginaClave) && /mixta@example\.com/.test(paginaClave)
+		/^https?:\/\/[^/]+\/admin\/#mode=resetPassword&oobCode=/.test(enlaceCorreo) && /Crea tu contraseña/.test(paginaClave) && /mixta@example\.com/.test(paginaClave)
 		&& (await mixta.p.locator('.admin-user-role').innerText().catch(() => '')) === 'Propietario' && !/oobCode/.test(mixta.p.url()), `${enlaceCorreo.slice(0, 60)} · ${mixta.p.url()}`);
 	// Usado otra vez, el mismo enlace ya no sirve y ofrece mandar otro.
 	const otra = await persona(390);
@@ -998,10 +998,13 @@ const duenos = [];
 		r1.status === 200 && r2.status === 415 && r3.status === 401 && r4.status === 401 && r5.status === 400 && r6.status === 400 && !tras.some((c) => /nadie-en-el-panel|otro@example/.test(JSON.stringify(c.to || ''))),
 		[r1, r2, r3, r4, r5, r6].map((r) => r.status).join(' '));
 	// Una cuenta creada por fuera (el alta de Firebase es pública) no recibe correos con la marca de la empresa.
-	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'intruso@example.com', password: 'Intruso-2026', returnSecureToken: true }) });
+	const intruso = await (await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'intruso@example.com', password: 'Intruso-2026', returnSecureToken: true }) })).json();
 	const antes2 = todos().length;
 	const r7 = await api({ email: 'intruso@example.com' });
-	paso('Una cuenta creada por fuera del panel no recibe el correo de la empresa (y la respuesta es la misma)', r7.status === 200 && !todos().slice(antes2).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), String(r7.status));
+	// …ni puede pedir el aviso «Tu contraseña cambió» con su sesión recién creada (para mandar correos a otros).
+	const r8 = await api({ aviso: 'cambiada' }, { Authorization: `Bearer ${intruso.idToken}` });
+	paso('Una cuenta creada por fuera del panel no recibe el correo de la empresa ni puede pedir el aviso de cambio (la respuesta no lo delata)',
+		r7.status === 200 && [200, 401].includes(r8.status) && !todos().slice(antes2).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), `${r7.status} ${r8.status}`);
 	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
 	const seguidos = [];
 	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
