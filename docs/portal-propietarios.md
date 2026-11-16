@@ -29,7 +29,7 @@ el panel, con el botón para entrar y el WhatsApp para pedir el acceso. No se in
   confirmadas y cuánto le toca. Con casas por noche también ve **Solicitudes** y sus datos de pago.
 - **Casa en venta o renta (solo lectura):** estado, precio e historial, días en el mercado, la exclusiva de **esa**
   casa, consultas, visitas y ofertas, lo que pasó, dónde se anuncia, los clientes como «Cliente 1, 2…» (sin nombres,
-  teléfonos ni correos) y **«Cómo se anuncia»**, con «Estoy de acuerdo» o «Quiero cambios». Su respuesta le llega al
+  teléfonos ni correos) y **«Cómo se anuncia»**, con «Sí, de acuerdo» o «Quiero cambios». Su respuesta le llega al
   asesor en la ficha de la persona.
 
 Nunca ve: su ficha interna (notas, bitácora privada), el acuerdo (comisión, impuestos), leads ni clientes, ni nada

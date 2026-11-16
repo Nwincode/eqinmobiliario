@@ -313,7 +313,8 @@ async function casa(container, id) {
 		cuenta.reservas ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-calendar-check-o me-1', 'aria-hidden': 'true' }),
 			`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
 			h('strong', { class: 'text-body' }, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))) : null,
-		h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
+		// En computadora: precios y lo especial a la izquierda, el calendario a la derecha (sin un calendario de 900 px).
+		h('div', { class: 'row g-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
 			precio('base', 'Entre semana', 'Tu precio por noche.'),
 			precio('finde', 'Fin de semana', 'Vacío: igual que entre semana.'),
 			h('div', { class: 'col-6' },
@@ -322,8 +323,8 @@ async function casa(container, id) {
 					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '',
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
 					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(`personas máximo ${n}`, () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
-				})))),
-		cal, listas);
+				})))), listas),
+			h('div', { class: 'col-lg-7' }, cal)));
 }
 
 export async function render(container, [id] = []) {

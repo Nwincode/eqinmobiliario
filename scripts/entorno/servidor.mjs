@@ -38,6 +38,11 @@ http.createServer(async (req, res) => {
 			res.writeHead(r.status, Object.fromEntries(r.headers));
 			return res.end(Buffer.from(await r.arrayBuffer()));
 		}
+		// Como Netlify: el CDN de imágenes entrega la foto original (aquí sin recortar) y lo que no existe muestra 404.html.
+		if (url.pathname === '/.netlify/images') {
+			res.writeHead(302, { Location: url.searchParams.get('url') || '/' });
+			return res.end();
+		}
 		let archivo = path.join(DIST, decodeURIComponent(url.pathname));
 		if (url.pathname.endsWith('/')) archivo = path.join(archivo, 'index.html');
 		if (!archivo.startsWith(DIST)) throw Object.assign(new Error('fuera'), { code: 'ENOENT' });
@@ -45,7 +50,8 @@ http.createServer(async (req, res) => {
 		res.writeHead(200, { 'Content-Type': TIPOS[path.extname(archivo)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
 		res.end(datos);
 	} catch (err) {
-		res.writeHead(err.code === 'ENOENT' ? 404 : 500, { 'Content-Type': 'text/plain; charset=utf-8' });
-		res.end(err.code === 'ENOENT' ? 'No existe' : `Error: ${err.message}`);
+		const pagina404 = err.code === 'ENOENT' ? await readFile(path.join(DIST, '404.html')).catch(() => null) : null;
+		res.writeHead(err.code === 'ENOENT' ? 404 : 500, { 'Content-Type': pagina404 ? TIPOS['.html'] : 'text/plain; charset=utf-8' });
+		res.end(pagina404 || (err.code === 'ENOENT' ? 'No existe' : `Error: ${err.message}`));
 	}
 }).listen(Number(process.env.PORT) || 8090, () => console.log(`Entorno de pruebas en http://localhost:${Number(process.env.PORT) || 8090} (${funciones.size} funciones)`));

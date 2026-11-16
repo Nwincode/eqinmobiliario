@@ -610,10 +610,10 @@ let otraPestana = null;
 	const sv = (v) => ({ stringValue: v });
 	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
 	const hoy = new Date().toISOString().slice(0, 10), manana = new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10);
-	// Una solicitud sin responder hace 2 h 30 min y un chat donde el cliente escribió hace 2 h 30 min.
+	// Una solicitud sin responder (5 noches, como las de verdad) hace 2 h 30 min y un chat donde el cliente escribió hace 2 h 30 min.
 	await poner('leads/vieja', { nombre: sv('Rita Vieja'), telefono: sv('+502 5555 1111'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), createdAt: hace(150),
-		reserva: { mapValue: { fields: { codigo: sv('EQ-VIEJA'), llegada: sv(hoy), salida: sv(manana), huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 } } } } });
-	await poner('chats/TokenDelChatSinResponder1234', { codigo: sv('EQ-MUDO'), nombre: sv('Rita'), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), llegada: sv(hoy), salida: sv(manana), huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 }, createdAt: hace(200) });
+		reserva: { mapValue: { fields: { codigo: sv('EQ-VIEJA'), llegada: sv(hoy), salida: sv(manana), noches: { integerValue: '5' }, huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 } } } } });
+	await poner('chats/TokenDelChatSinResponder1234', { codigo: sv('EQ-MUDO'), nombre: sv('Rita'), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'), llegada: sv(hoy), salida: sv(manana), noches: { integerValue: '5' }, huespedes: { integerValue: '2' }, moneda: sv('USD'), total: { doubleValue: 300 }, createdAt: hace(200) });
 	await poner('chats/TokenDelChatSinResponder1234/mensajes/m1', { de: sv('cliente'), texto: sv('¿Hay alguien?'), createdAt: hace(150) });
 	execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
 }
@@ -945,7 +945,7 @@ const duenos = [];
 	paso('La casa en venta se ve de solo lectura: consultas, visitas, ofertas, la exclusiva de esa casa y cómo se anuncia', /Consultas/.test(venta) && /Ofertas/.test(venta) && /Exclusiva hasta el 30 de junio de 2027/.test(venta)
 		&& /Cómo se anuncia/.test(venta) && await mixta.p.locator('.admin-main input[type=number]').count() === 0 && !/comisi/i.test(venta) && !/NOTA INTERNA/.test(venta), venta.replace(/\s+/g, ' ').slice(0, 160));
 	await mixta.p.screenshot({ path: `${PANEL}/venta-1280.png`, fullPage: true });
-	await mixta.p.locator('button', { hasText: 'Estoy de acuerdo' }).click();
+	await mixta.p.locator('button', { hasText: 'Sí, de acuerdo' }).click();
 	await mixta.p.locator('.alert-success', { hasText: 'de acuerdo' }).waitFor({ timeout: 10000 }).catch(() => {});
 	const comentarios = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: dueno, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'comentariosPropietarios' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: { stringValue: 'dueno-mixto' } } } } }) })).json();
 	paso('Aprueba el anuncio desde su panel y el asesor lo recibe', comentarios.some((x) => x.document?.fields?.tipo?.stringValue === 'aprobado' && x.document.fields.propiedadId?.stringValue === 'residencial-san-antonio'), await avisos(mixta.p));
