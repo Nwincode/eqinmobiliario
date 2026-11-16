@@ -389,7 +389,7 @@
 			};
 		}
 
-		// «Desde US$ … por noche» de la ficha (arriba y en este cuadro) con el precio de hoy (`precioDesde`, la misma regla
+		// «US$ … por noche» de la ficha (arriba y en este cuadro) con el precio de hoy (`precioDesde`, la misma regla
 		// del panel y de la publicación): el cliente no ve un precio arriba y otro en el calendario.
 		function ponerDesde(plan) {
 			var desde = V.precioDesde(plan, hoy);
@@ -399,6 +399,13 @@
 			document.querySelectorAll('.ficha-precio, .vac-desde strong').forEach(function (el) {
 				var n = el.firstChild;
 				if (n && n.nodeType === 3 && monto.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(monto, dinero(desde));
+			});
+			// Viernes y sábado, con el precio de hoy; si ya es igual al de entre semana, no se dice.
+			var finde = Number(plan.finde) || 0, base = Number(plan.base) || 0;
+			document.querySelectorAll('.vac-finde').forEach(function (el) {
+				el.hidden = !(finde > 0 && finde !== base);
+				var out = el.querySelector('[data-out="finde"]');
+				if (out && !el.hidden) out.textContent = dinero(finde);
 			});
 		}
 		ponerDesde(D.plan);

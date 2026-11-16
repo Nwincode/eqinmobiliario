@@ -269,7 +269,7 @@ export async function render(container) {
 	const soltarVistas = () => fotos.forEach((f) => f.vista?.then((url) => url && URL.revokeObjectURL(url)));
 
 	const chip = (color, ic, texto) => badge([icono(ic), ` ${texto}`], color);
-	// Una casa por noche no trae «precio»: se muestra el «desde» que verá el cliente (costo del socio + margen).
+	// Una casa por noche no trae «precio»: se muestra el precio por noche que verá el cliente (costo del socio + margen).
 	const precioDeFila = (it, d) => (d.operacion === 'vacacional' && it.socio?.precioBase > 0
 		? vacacionalPublico({ socio: { margen: V.MARGEN, ...it.socio }, vacacional: {} }).precio : d.precio);
 

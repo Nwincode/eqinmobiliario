@@ -174,8 +174,8 @@ test('precio de una propiedad: siempre con centavos, como lo pidió el dueño (u
 	assert.equal(precioTexto(350000, 'USD'), 'US$ 350,000.00');
 	assert.equal(precioTexto(5000, 'GTQ', 'renta'), 'Q 5,000.00 /mes');
 	assert.equal(precioTexto(1250.5, 'USD'), 'US$ 1,250.50');
-	assert.equal(precioTexto(120, 'USD', 'vacacional'), 'Desde US$ 120.00 por noche');
-	assert.equal(precioTexto(1200, 'USD', 'vacacional', 'en'), 'From US$ 1,200.00 per night');
+	assert.equal(precioTexto(120, 'USD', 'vacacional'), 'US$ 120.00 por noche');
+	assert.equal(precioTexto(1200, 'USD', 'vacacional', 'en'), 'US$ 1,200.00 per night');
 	assert.equal(precioTexto(0), 'Precio a consultar');
 	// Lo que se cobra o se suma sigue con centavos.
 	assert.equal(dinero(350000, 'USD'), 'US$ 350,000.00');

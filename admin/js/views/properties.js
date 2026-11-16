@@ -183,7 +183,7 @@ function desgloseVacacional(el, d) {
 				h('td', { class: 'text-end fw-semibold' }, m(n.nocheConImpuestos)));
 		})))),
 	h('p', { class: 'small text-muted mb-0' },
-		`En la página se publica "desde ${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA ${V.IVA} % e INGUAT ${V.INGUAT} %). `,
+		`En la página se publica "${m(V.precioDesde(pub, hoyISO()))} por noche" + impuestos (IVA ${V.IVA} % e INGUAT ${V.INGUAT} %). `,
 		`Ejemplo de 7 noches desde hoy: el socio recibe ${m(ejemplo.costoSocio)} y la ganancia es ${m(ejemplo.ganancia)}. `,
 		'La limpieza se cobra aparte sin margen y el depósito no lleva impuestos. Solo el equipo ve esta tabla.'));
 }

@@ -1279,6 +1279,14 @@ const VAC_JS = '<script src="__VAC_BUNDLE__" defer></script>';
 export function vacacionalVisible(p) {
 	return Boolean(p && p.operacion === 'vacacional' && p.vacacional && Number(p.vacacional.base) > 0);
 }
+// El precio de viernes y sábado, cuando es distinto del de entre semana: el precio no lleva «desde» (no se negocia),
+// así que lo que cambia se dice. js/vacacional.js lo pone al día con los precios de hoy.
+function notaFinde(p, t) {
+	const { base, finde } = datosVacacional(p).plan;
+	const visible = finde > 0 && finde !== base;
+	return `<span class="ficha-precio-nota vac-finde"${visible ? '' : ' hidden'}>${fmt(t.vacFinde, { precio: `<span data-out="finde">${esc(visible ? formatPrice(finde, p.moneda, 'venta', lng(p)) : '')}</span>` })}</span>`;
+}
+
 function datosVacacional(p) {
 	const v = p.vacacional || {};
 	const num = (x, d = 0) => (Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : d);
@@ -1315,7 +1323,7 @@ function reservaBox(ctx, p) {
 						<script type="application/json" class="vac-datos">${json}</script>
 						<h2 id="vac-titulo" class="h5 mb-1">${ic('calendar')}${t.vacTitulo}</h2>
 						<p class="vac-desde"><strong>${esc(price(p))}</strong></p>
-						<p class="vac-impuestos">${t.vacImpuestos}</p>
+						<p class="vac-impuestos">${notaFinde(p, t)}${t.vacImpuestos}</p>
 						<div class="vac-fechas">
 							<button type="button" class="vac-fecha" data-campo="llegada" aria-describedby="vac-ayuda">
 								<span class="vac-fecha-label">${t.vacLlegada}</span>
@@ -1462,7 +1470,7 @@ export function propertyPage(ctx, p) {
 						<p class="ficha-tipo">${esc(tipoLabel(p))}${cerrada ? '' : ` · ${enOperacion(p, t)}${estadoLabel(p) && p.estado && p.estado !== 'disponible' ? ` · ${esc(estadoLabel(p))}` : ''}`}</p>
 						<h1 class="ficha-titulo">${esc(p.titulo)}</h1>
 						${lugar ? `<p class="ficha-lugar">${ic('map-marker')}${zona && lugar.startsWith(p.zona) ? `<a href="${zona.url}">${esc(p.zona)}</a>${esc(lugar.slice(p.zona.length))}` : esc(lugar)}</p>` : ''}
-						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : esVac ? `<div class="ficha-precio-fila"><p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p><span class="ficha-precio-nota">${t.vacImpuestosCorto}</span></div>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>`}
+						${cerrada ? `<p class="ficha-precio ficha-precio-cerrada">${esc(estadoLabel(p))}</p>` : esVac ? `<div class="ficha-precio-fila"><p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>${notaFinde(p, t)}<span class="ficha-precio-nota">${t.vacImpuestosCorto}</span></div>` : `<p class="ficha-precio">${esc(price(p))}${precioAntes(p)}</p>`}
 					</header>
 					${datosClave.length ? `<ul class="ficha-datos" data-n="${datosClave.length}">${datosClave.map(([v, k, i]) => `<li>${ic(i)}<strong>${esc(v)}</strong><span>${k}</span></li>`).join('')}</ul>` : ''}
 					${esVac ? `</div>
