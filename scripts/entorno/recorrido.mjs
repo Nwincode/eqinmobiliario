@@ -1038,7 +1038,9 @@ const duenos = [];
 	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
 	const seguidos = [];
 	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
-	paso('Pedidos seguidos para el mismo correo se frenan con 429', seguidos.includes(429), seguidos.join(' '));
+	// El límite queda guardado en la base (lo comparten todas las copias de la función), sin el correo a la vista.
+	const limites = ((await (await fetch(`${FS}/limites?pageSize=50`, { headers: { Authorization: 'Bearer owner' } })).json()).documents || []);
+	paso('Pedidos seguidos para el mismo correo se frenan con 429, y el límite queda en la base (sin el correo)', seguidos.includes(429) && limites.length > 0 && !JSON.stringify(limites).includes('limite@example.com'), `${seguidos.join(' ')} · ${limites.length} límites`);
 	await mixta.p.setViewportSize({ width: 1280, height: 900 });
 	// b) Entra y ve sus dos casas.
 	duenos.push(['dueña mixta', mixta]);

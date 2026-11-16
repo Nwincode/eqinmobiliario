@@ -635,6 +635,10 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('cuenta nueva se crea su users/ como dueño', lote('intruso1', [docu('users/intruso1', { rol: 'socio', activo: true, propietarioId: 'o1', nombre: 'Intruso' })]), false);
 	await espera('anónimo crea un users/', lote(null, [docu('users/anon1', { rol: 'admin', activo: true })]), false);
 	await espera('ni el administrador escribe meta/bootstrap', lote('admin1', [docu('meta/bootstrap', { uid: 'admin1' })]), false);
+	// Los límites de pedidos (limites/{huella}) los escribe solo el servidor: nadie del panel ni de afuera los lee ni los borra.
+	await espera('el administrador lee un límite de pedidos', leer('admin1', 'limites/abc'), false);
+	await espera('alguien de afuera borra su límite de pedidos', lote(null, [{ delete: `${RAIZ}/limites/abc` }]), false);
+	await espera('el administrador escribe un límite de pedidos', lote('admin1', [docu('limites/abc', { veces: [1] })]), false);
 	await espera('el administrador crea un usuario (control)', lote('admin1', [docu('users/nuevo1', { rol: 'asesor', activo: true, nombre: 'Nuevo', agentId: 'a1' })]), true);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
