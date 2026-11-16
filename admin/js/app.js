@@ -319,6 +319,9 @@ function iniciar() {
 			const profile = snap.data();
 			if (!profile.activo) return noAccess('Tu acceso al panel está desactivado. Si crees que es un error, escríbele a tu asesor.');
 			session.profile = profile;
+			// Quien es del equipo (no socio) no ve en el sitio el aviso de «compartir» al capturar fotos (js/site.js):
+			// así puede mandar capturas de la web sin que le estorbe.
+			try { if (!session.esSocio) localStorage.setItem('eq_equipo', '1'); } catch (e) { /* sin memoria del navegador */ }
 			if (session.esSocio) {
 				// Su nombre de rol (propietario o colaborador) y si tiene casas por noche (Solicitudes).
 				const [dueno, casas] = await Promise.all([cargarMiResumen(), misCasas().catch(() => [])]);

@@ -162,9 +162,6 @@
 			var resto = (7 - ((inicio + total) % 7)) % 7;
 			for (var r = 0; r < resto; r++) h += '<td role="gridcell"></td>';
 			h += '</tr>';
-			// Siempre 6 filas: un mes de 5 semanas no achica el calendario ni mueve lo de abajo al cambiar de mes.
-			var relleno = '<tr class="vac-fila-relleno" aria-hidden="true">' + new Array(8).join('<td><span class="vac-dia"><span class="vac-dia-num">0</span><span class="vac-dia-precio">0</span></span></td>') + '</tr>';
-			for (var fila = Math.ceil((inicio + total) / 7); fila < 6; fila++) h += relleno;
 			h += '</tbody></table>';
 			cuerpo.innerHTML = h;
 			if (enfocar) {

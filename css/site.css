@@ -3237,7 +3237,7 @@ a:hover > .eq-ic-fin,
 	line-height: 1.4;
 	color: var(--eq-ink);
 	margin: .5rem 0 1rem;
-	min-height: 5.6em; /* 4 líneas (texto + «Borrar fechas» en celular): el texto cambia en cada toque, el alto no */
+	min-height: 2.8em; /* 2 líneas: el texto es corto y cambia en cada toque sin mover lo de abajo */
 }
 .vac-huespedes {
 	margin-bottom: 1rem;

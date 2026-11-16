@@ -25,7 +25,9 @@ const GROUPS = [
 			{ name: 'general.favicon', label: 'Ícono de pestaña (favicon)', type: 'image', cols: 6 },
 			{ type: 'section', label: 'Botón flotante de WhatsApp' },
 			{ name: 'whatsappFlotante.visible', label: 'Mostrar el botón', type: 'checkbox', cols: 4 },
-			{ name: 'whatsappFlotante.mensaje', label: 'Mensaje inicial', cols: 8 }
+			{ name: 'whatsappFlotante.mensaje', label: 'Mensaje inicial', cols: 8 },
+			{ type: 'section', label: 'Fotos de las casas' },
+			{ name: 'fotos.avisoCompartir', label: 'Avisar «¿Te gustó esta propiedad? Compártela» al intentar guardar o capturar una foto', type: 'checkbox', default: true, help: 'Encendido: quien intenta guardar una foto ve el enlace para compartirla. En tu navegador (donde entras al panel) nunca sale.' }
 		]
 	},
 	{

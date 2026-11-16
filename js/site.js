@@ -684,16 +684,19 @@
 		if (foto) f.src = foto;
 		if (!dialogoCompartir.open) dialogoCompartir.showModal();
 	}
+	// Se apaga en Contenido → Fotos de las casas; y nunca sale a quien es del equipo (entró al panel en este navegador).
+	var conAviso = config.avisoCompartir !== false;
+	try { if (localStorage.getItem('eq_equipo')) conAviso = false; } catch (e) { /* sin memoria del navegador */ }
 	document.addEventListener('contextmenu', function (e) {
 		var img = e.target.closest && e.target.closest(FOTOS_CASA);
-		if (!img) return;
+		if (!img || !conAviso) return;
 		e.preventDefault();
 		avisoCompartir(img);
 	});
 	document.addEventListener('dragstart', function (e) { if (e.target.closest && e.target.closest(FOTOS_CASA)) e.preventDefault(); });
 	// Tecla de captura (Windows) y las combinaciones de Mac que el navegador alcanza a ver, solo donde hay fotos de casas.
 	var conFotos = document.querySelector('.ficha-galeria, .prop-fotos, .property-item img');
-	if (conFotos) {
+	if (conFotos && conAviso) {
 		document.addEventListener('keyup', function (e) { if (e.key === 'PrintScreen') avisoCompartir(document.querySelector('.ficha-foto img')); });
 		document.addEventListener('keydown', function (e) { if (e.metaKey && e.shiftKey && /^[345]$/.test(e.key)) avisoCompartir(document.querySelector('.ficha-foto img')); });
 	}

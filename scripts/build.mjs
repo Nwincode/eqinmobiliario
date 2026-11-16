@@ -618,6 +618,8 @@ async function main() {
 			storageBucket: config.firebase.storageBucket || '',
 			// Ya con código de país (telefonoWa): js/site.js arma con él sus enlaces de WhatsApp.
 			whatsapp: telefonoWa(site.contacto.whatsapp),
+			// Contenido → Fotos de las casas: el aviso de «compartir» al intentar guardar una foto (encendido si no se tocó).
+			avisoCompartir: site.fotos?.avisoCompartir !== false,
 			adsLead: site.tracking.adsId && site.tracking.adsLeadLabel ? `${site.tracking.adsId}/${site.tracking.adsLeadLabel}` : '',
 			adsContact: site.tracking.adsId && site.tracking.adsContactLabel ? `${site.tracking.adsId}/${site.tracking.adsContactLabel}` : ''
 		}
