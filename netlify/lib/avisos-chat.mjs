@@ -100,7 +100,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	const visto = lado(ultimo) === 'cliente' ? ms(correos.socio ? chat.vistoSocio : chat.vistoEquipo) : ms(chat.vistoCliente);
 	const yaAvisado = mensajes.slice(0, -1).some((m) => lado(m) === lado(ultimo) && !m.tipo && ms(m.createdAt) > visto && ms(m.createdAt) - visto >= ACTIVO);
 	const callado = visto && ms(ultimo.createdAt) - visto < ACTIVO;
-	if (repaso ? !(ms(ultimo.createdAt) > visto && callado && !yaAvisado) : yaAvisado || (visto && ahora - visto < ACTIVO)) return [];
+	// La misma medida (cuándo se escribió el mensaje) en el aviso al momento y en el repaso: nunca salen los dos.
+	if (repaso ? !(ms(ultimo.createdAt) > visto && callado && !yaAvisado) : yaAvisado || callado) return [];
 	return lado(ultimo) === 'cliente'
 		? aLaCasa(`${chat.codigo}: mensaje del cliente`, `${chat.nombre || 'El cliente'} escribió en ${chat.codigo}`, `${resumen}. Respóndele desde la solicitud.`)
 		: alCliente(en ? `Booking ${chat.codigo}: you have a reply` : `Reserva ${chat.codigo}: tienes respuesta`, en ? 'You have a new message' : 'Tienes un mensaje nuevo',
