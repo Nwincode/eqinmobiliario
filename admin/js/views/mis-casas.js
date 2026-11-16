@@ -28,15 +28,34 @@ const porFecha = (a, b) => a.desde.localeCompare(b.desde);
 // del límite de revisiones de Firestore por guardado (se probó: con 12 ya se rechaza). `cada` (si se repite) se conserva.
 const MAX_TARIFAS = 10;
 const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) && V.esFecha(t.hasta) && t.hasta >= t.desde && Number(t.precio) > 0 && t.hasta >= hoy())
-	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)), ...(t.cada ? { cada: t.cada } : {}) }));
-// Temporadas que se repiten: se guardan este año y el siguiente (fechas de verdad, como cualquier otro precio); al pasar
-// un año, se agrega el que sigue (alDia). Así cada temporada ocupa 2 de los 10 lugares.
+	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)), ...(t.cada ? { cada: t.cada, serie: t.serie } : {}) }));
+// Temporadas que se repiten: se guardan este año y el siguiente (fechas de verdad, como cualquier otro precio); cada año
+// de una misma temporada lleva la misma `serie`. Nada se escribe solo: si a una temporada le falta el año que viene, el
+// panel lo avisa y el socio la pone con un toque (faltanTemporadas). Nunca encima de un precio o mínimo puesto aparte.
 const ANIOS_ADELANTE = 1;
 const QUE_CADA = { fecha: 'cada año en estas fechas', semanaSanta: 'cada año en Semana Santa' };
-// La misma temporada en otro año: misma forma de repetirse, mismo largo y el mismo día (o los mismos días desde la Pascua).
-const mismaTemporada = (a, b) => a.cada && a.cada === b.cada && V.nochesEntre(a.desde, a.hasta) === V.nochesEntre(b.desde, b.hasta)
-	&& (a.cada === 'fecha' ? a.desde.slice(5) === b.desde.slice(5)
-		: V.nochesEntre(V.pascua(+a.desde.slice(0, 4)), a.desde) === V.nochesEntre(V.pascua(+b.desde.slice(0, 4)), b.desde));
+const nuevaSerie = () => Math.random().toString(36).slice(2, 10);
+const seCruzan = (a, b) => a.desde <= b.hasta && b.desde <= a.hasta;
+// Agrega las copias de los años siguientes donde no haya otra cosa puesta; devuelve { lista, saltadas }.
+function agregarCopias(lista, copias) {
+	const out = [...lista], saltadas = [];
+	for (const c of copias) {
+		if (out.some((x) => seCruzan(x, c))) saltadas.push(c);
+		else out.push(c);
+	}
+	return { lista: out.sort((a, b) => a.desde.localeCompare(b.desde)), saltadas };
+}
+// La última de cada temporada que se repite y no llega al año que viene: [{ campo, ultima }].
+function faltanTemporadas(e, hoyIso) {
+	const meta = Number(hoyIso.slice(0, 4)) + ANIOS_ADELANTE;
+	const out = [];
+	for (const campo of ['tarifas', 'minimos']) {
+		const ultimas = new Map();
+		for (const x of e[campo].filter((r) => r.cada && r.serie)) if (!ultimas.has(x.serie) || x.desde > ultimas.get(x.serie).desde) ultimas.set(x.serie, x);
+		for (const u of ultimas.values()) if (Number(u.desde.slice(0, 4)) < meta) out.push({ campo, ultima: u });
+	}
+	return out;
+}
 const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
@@ -115,21 +134,6 @@ async function casa(container, id) {
 			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
 	};
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
-	// Temporadas que se repiten: siempre puestas hasta el año que viene (al pasar un año, se agrega el siguiente).
-	const alDia = (lista) => {
-		const meta = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
-		let out = [...lista];
-		for (const r of lista.filter((x) => x.cada)) {
-			const serie = out.filter((x) => mismaTemporada(x, r));
-			let ultimo = serie.reduce((m, x) => (x.desde > m.desde ? x : m), r);
-			while (Number(ultimo.desde.slice(0, 4)) < meta) {
-				const [sig] = V.repetirRango(ultimo, ultimo.cada, 1);
-				out = [...V.quitarRango(out, sig.desde, sig.hasta), sig];
-				ultimo = sig;
-			}
-		}
-		return out.length === lista.length ? null : out.sort(porFecha);
-	};
 	const publico = (n) => plata(V.nochePublica(n, s.margen));
 
 	// Un cambio del dueño: `cambio(actual)` dice qué campos quedan y cómo, calculado sobre lo guardado AHORA (otra
@@ -221,16 +225,18 @@ async function casa(container, id) {
 	}
 	const soltar = () => { e.desde = ''; e.hasta = ''; e.pide = ''; };
 
-	// cada: '' (solo estas fechas), 'fecha' o 'semanaSanta' (se repite: este año y los 2 siguientes).
+	// cada: '' (solo estas fechas), 'fecha' o 'semanaSanta' (se repite: este año y el siguiente).
 	function aplicar(que, valor, cada = '') {
 		const { desde, hasta } = e;
 		const fin = V.sumarDias(hasta, 1);
-		// Precio o mínimo en estas fechas (y, si se repite, en las de los años siguientes), sobre lo que hubiera ahí.
+		const serie = cada ? nuevaSerie() : '';
+		let saltadas = [];
+		// Precio o mínimo en estas fechas, sobre lo que hubiera ahí; y, si se repite, el año siguiente donde no haya nada.
 		const poner = (lista, dato) => {
-			const base = { desde, hasta, ...dato, ...(cada ? { cada } : {}) };
-			let out = lista;
-			for (const r of [base, ...(cada ? V.repetirRango(base, cada, ANIOS_ADELANTE) : [])]) out = [...V.quitarRango(out, r.desde, r.hasta), r];
-			return out.sort(porFecha);
+			const base = { desde, hasta, ...dato, ...(cada ? { cada, serie } : {}) };
+			const r = agregarCopias([...V.quitarRango(lista, desde, hasta), base], cada ? V.repetirRango(base, cada, ANIOS_ADELANTE) : []);
+			saltadas = r.saltadas;
+			return r.lista;
 		};
 		const cambio = {
 			bloquear: (a) => ({ bloqueos: V.unirRangos([...a.bloqueos, { desde, hasta: fin }]) }),
@@ -240,7 +246,8 @@ async function casa(container, id) {
 		}[que];
 		const texto = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' }[que];
 		soltar();
-		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`, cambio);
+		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`, cambio)
+			.then((ok) => { if (ok && saltadas.length) toast(`En ${saltadas.map((x) => rango(x)).join(', ')} ya tenías algo puesto: lo dejé como estaba.`, 'warning'); });
 	}
 
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
@@ -341,7 +348,7 @@ async function casa(container, id) {
 						// Si se repite cada año: quitar solo este año o todos.
 						const todos = r.cada ? (await elegirOpcion('¿Quitar solo este año o todos?', ['Solo este año', 'Todos los años'])) : 'Solo este año';
 						if (!todos) return;
-						const quita = todos === 'Todos los años' ? (x) => mismaTemporada(x, r) || mismoRango(x, r) : (x) => mismoRango(x, r);
+						const quita = todos === 'Todos los años' ? (x) => (r.serie && x.serie === r.serie) || mismoRango(x, r) : (x) => mismoRango(x, r);
 						guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}${todos === 'Todos los años' ? ' (todos los años)' : ''}`, (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
 					}
 				})))));
@@ -359,20 +366,42 @@ async function casa(container, id) {
 					: 'Todavía sin reservas confirmadas'),
 				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
 				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }));
+	// Temporadas que se repiten y que todavía no tienen el año que viene: aviso con un botón (nada se escribe solo).
+	function avisoTemporadas() {
+		const faltan = faltanTemporadas(e, hoy());
+		if (!faltan.length) return null;
+		const anio = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
+		const poner = () => {
+			let saltadas = [];
+			guardar(`puso las temporadas de ${anio}`, (a) => {
+				const out = {};
+				saltadas = [];
+				for (const campo of ['tarifas', 'minimos']) {
+					const copias = faltanTemporadas({ tarifas: a.tarifas, minimos: a.minimos }, hoy()).filter((f) => f.campo === campo)
+						.flatMap((f) => V.repetirRango(f.ultima, f.ultima.cada, anio - Number(f.ultima.desde.slice(0, 4))).filter((c) => Number(c.desde.slice(0, 4)) <= anio));
+					if (!copias.length) continue;
+					const r = agregarCopias(a[campo], copias);
+					saltadas.push(...r.saltadas);
+					out[campo] = r.lista;
+				}
+				return out;
+			}).then((ok) => { if (ok && saltadas.length) toast(`En ${saltadas.map((x) => rango(x)).join(', ')} ya tenías algo puesto: lo dejé como estaba.`, 'warning'); });
+		};
+		return h('div', { class: 'alert alert-info d-flex align-items-center gap-2 mb-3', role: 'status' },
+			ic('icon-repeat'),
+			h('span', { class: 'flex-grow-1' }, `Faltan tus temporadas de ${anio}: `, faltan.map((f) => rango(f.ultima)).join(', '), '.'),
+			h('button', { type: 'button', class: 'btn btn-sm btn-primary', onclick: poner }, 'Ponerlas'));
+	}
 	function pintar() {
 		pintarCabecera();
 		calendario();
 		repintar(listas,
+			avisoTemporadas(),
 			grupo('Precios especiales', 'tarifas', (r) => `${plata(r.precio)} por noche · el cliente ve ${publico(r.precio)}`),
 			grupo('Mínimos de noches', 'minimos', (r) => `${r.noches} noches como mínimo`));
 	}
 
 	pintar();
-	// Las temporadas que se repiten, puestas al día (una vez al año: agrega el año que viene).
-	{
-		const t = alDia(e.tarifas), m = alDia(e.minimos);
-		if (t || m) guardar('puso al día las temporadas que se repiten cada año', (a) => ({ ...(t ? { tarifas: alDia(a.tarifas) || a.tarifas } : {}), ...(m ? { minimos: alDia(a.minimos) || a.minimos } : {}) }));
-	}
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.

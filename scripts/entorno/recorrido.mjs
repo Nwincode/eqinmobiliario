@@ -331,6 +331,29 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.vac-desde')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
 	const desdes = await cliente.p.locator('.ficha-precio, .vac-desde').allInnerTexts();
 	paso('El cliente ve el precio nuevo del socio en el «Desde» de la ficha, sin esperar a que se publique', desdes.length === 2 && desdes.every((x) => /US\$ 132\.00/.test(x)), desdes.join(' | '));
+	// Temporada que se repite cada año: el socio elige unos días, pone su precio y «Cada año en estas fechas»; quedan
+	// este año y el siguiente con la misma serie. «Quitar» → «Todos los años» quita las dos y nada más.
+	{
+		await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
+		for (let i = 0; i < 4; i++) { await socio.p.locator('button[aria-label="Mes siguiente"]').first().click(); await espera(150); }
+		const diaN = (n) => socio.p.locator('.vac-cal button, table button').filter({ has: socio.p.locator('.vac-dia-num', { hasText: new RegExp(`^${n}$`) }) }).first();
+		await diaN(10).click(); await diaN(12).click();
+		await socio.p.locator('[aria-label="Precio especial"]').click();
+		await socio.p.locator('.mc-barra input[type=number]').fill('150');
+		await socio.p.locator('.mc-barra [aria-label="Guardar"]').click();
+		await socio.p.locator('.modal.show button', { hasText: 'Cada año en estas fechas' }).click();
+		await espera(3000);
+		const tarifas = () => leer(`properties/${idCasa}/privado/socio`).then((d) => (d.fields?.tarifas?.arrayValue?.values || []).map((x) => Object.fromEntries(Object.entries(x.mapValue.fields).map(([k, v]) => [k, v.stringValue ?? Number(v.doubleValue ?? v.integerValue)]))));
+		const serie = (await tarifas()).filter((t) => t.cada === 'fecha');
+		const anios = serie.map((t) => t.desde.slice(0, 4));
+		const ok1 = serie.length === 2 && serie[0].serie && serie[0].serie === serie[1].serie && Number(anios[1]) === Number(anios[0]) + 1 && serie[0].desde.slice(5) === serie[1].desde.slice(5);
+		await socio.p.locator('[aria-label^="Quitar precios especiales"]').first().click();
+		await socio.p.locator('.modal.show button', { hasText: 'Todos los años' }).click();
+		await espera(3000);
+		const quedan = (await tarifas()).filter((t) => t.cada);
+		paso('Una temporada «cada año» guarda este año y el siguiente con la misma serie, y «Quitar → Todos los años» quita las dos',
+			ok1 && quedan.length === 0, `${serie.map((t) => `${t.desde}…${t.hasta}·${t.precio}`).join(' | ')} · quedan ${quedan.length}`);
+	}
 	// Lo que sale a la IA o al traductor (pedirIA lo pasa todo por paraIA): con la casa guardada de verdad, más su
 	// dirección y su costo privados encima (lo peor que una pantalla podría mandar), no sale nada privado ni interno.
 	const salidas = await admin.p.evaluate(async (id) => {

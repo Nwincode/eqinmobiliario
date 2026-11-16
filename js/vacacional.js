@@ -184,8 +184,9 @@
 			else if (!estado.salida) {
 				// Aquí, donde el cliente está mirando: la estancia mínima, la primera salida (y un botón a su mes si no se ve),
 				// cómo cambiar la llegada y borrar. Sin esto, los días apagados no se entienden.
-				var minimo = minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
 				var primera = primeraSalida();
+				// El mínimo que de verdad fija la primera salida (un mínimo por fechas más adelante puede ser mayor).
+				var minimo = primera ? V.nochesEntre(estado.llegada, primera) : minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
 				var texto = primera ? t.vacEligeSalida + (minimo > 1 ? ' ' + fmt(t.vacMinimo, { n: minimo }) + ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : '') : t.vacSinSalida;
 				var html = esc(texto + ' ' + t.vacCambiarLlegada);
 				if (primera && mesDe(primera) !== estado.mes) html += ' <button type="button" class="btn btn-link vac-ayuda-btn" data-ver-mes="' + mesDe(primera) + '">' + esc(fmt(t.vacVerMes, { mes: fMes.format(fechaUTC(mesDe(primera) + '-01')) })) + '</button>';
@@ -256,7 +257,10 @@
 			var b = e.target.closest('[data-fecha]');
 			if (!b) return;
 			// Un día ocupado no se elige, pero se dice por qué (no «no pasa nada»).
-			if (b.getAttribute('aria-disabled') === 'true') { if (ocupadas[b.getAttribute('data-fecha')]) ayuda.textContent = t.vacDiaOcupado; return; }
+			if (b.getAttribute('aria-disabled') === 'true') {
+				if (ocupadas[b.getAttribute('data-fecha')]) { ayuda.textContent = t.vacDiaOcupado; clearTimeout(ayuda.eqTimer); ayuda.eqTimer = setTimeout(actualizar, 2500); }
+				return;
+			}
 			elegir(b.getAttribute('data-fecha'));
 		});
 		cuerpo.addEventListener('keydown', function (e) {
@@ -305,7 +309,7 @@
 		ayuda.addEventListener('click', function (e) {
 			if (e.target.closest('.vac-borrar')) return borrarFechas();
 			var ver = e.target.closest('[data-ver-mes]');
-			if (ver) { estado.mes = ver.getAttribute('data-ver-mes'); estado.foco = ''; pintar(false); }
+			if (ver) { estado.mes = ver.getAttribute('data-ver-mes'); estado.foco = ''; pintar(false); actualizar(); }
 		});
 
 		function statusBox() { return form && form.querySelector('.lead-form-status'); }

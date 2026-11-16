@@ -162,6 +162,7 @@
 		var caja = campo.closest('.input-group') || campo;
 		campo.classList.remove('is-invalid');
 		campo.removeAttribute('aria-invalid');
+		campo.removeAttribute('aria-describedby');
 		var msg = caja.nextElementSibling;
 		if (msg && msg.classList.contains('invalid-feedback')) msg.remove();
 	}
@@ -221,6 +222,8 @@
 			if (campana) lead.campana = campana;
 			// Número sin contar el código: 7 dígitos o más (8 en Guatemala); con el código, hasta 15.
 			var digitos = form.telefono.value.replace(/\D/g, '').length, minimo = form.codigo && form.codigo.value === '502' && form.telefono.value.trim().charAt(0) !== '+' ? 8 : 7;
+			// Lo marcado en un envío anterior se revisa de nuevo desde cero.
+			form.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			var errores = [];
 			if (!lead.nombre) errores.push([form.nombre, T.faltaNombre]);
 			if (digitos < minimo || lead.telefono.replace(/\D/g, '').length > 15) errores.push([form.telefono, T.faltaTelefono]);

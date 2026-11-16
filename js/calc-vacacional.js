@@ -182,29 +182,31 @@
 	}
 	// Semana Santa de un año: del Domingo de Ramos al Domingo de Pascua.
 	function semanaSanta(anio) { var p = pascua(anio); return { desde: sumarDias(p, -7), hasta: p }; }
-	// ¿El rango (con 'hasta' incluido) toca la Semana Santa de su año?
+	// ¿El rango (con 'hasta' incluido) toca la Semana Santa del año en que empieza o en que termina?
 	function tocaSemanaSanta(r) {
-		if (!r || !esFecha(r.desde)) return false;
-		var ss = semanaSanta(+r.desde.slice(0, 4));
-		return r.desde <= ss.hasta && r.hasta >= ss.desde;
+		if (!r || !esFecha(r.desde) || !esFecha(r.hasta)) return false;
+		return [+r.desde.slice(0, 4), +r.hasta.slice(0, 4)].some(function (y) { var ss = semanaSanta(y); return r.desde <= ss.hasta && r.hasta >= ss.desde; });
 	}
-	// Las mismas fechas en los `anios` años siguientes. cada = 'fecha' (mismo día y mes; el 29 de febrero pasa al 28) o
-	// 'semanaSanta' (los mismos días contados desde la Pascua de cada año, que cambia). Conserva los demás datos y anota
-	// `cada`. Devuelve solo las copias (sin el rango original).
+	// El mismo día y mes en otro año (el 29 de febrero, en un año sin él, es el 28).
+	function mismoDia(iso, anio) {
+		var md = iso.slice(5);
+		if (md === '02-29' && !(anio % 4 === 0 && (anio % 100 !== 0 || anio % 400 === 0))) md = '02-28';
+		return anio + '-' + md;
+	}
+	// Las mismas fechas en los `anios` años siguientes. cada = 'fecha' (mismo día y mes al empezar y al terminar; el 29 de
+	// febrero pasa al 28) o 'semanaSanta' (los mismos días contados desde la Pascua de cada año, que cambia). Conserva los
+	// demás datos (también `serie`) y anota `cada`. Devuelve solo las copias (sin el rango original).
 	function repetirRango(r, cada, anios) {
 		var out = [], largo = aDia(r.hasta) - aDia(r.desde), y0 = +r.desde.slice(0, 4);
 		var desdePascua = aDia(r.desde) - aDia(pascua(y0));
-		for (var k = 1; k <= (anios || 2); k++) {
-			var y = y0 + k, desde;
-			if (cada === 'semanaSanta') desde = sumarDias(pascua(y), desdePascua);
-			else {
-				var md = r.desde.slice(5);
-				if (md === '02-29' && !(y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0))) md = '02-28';
-				desde = y + '-' + md;
-			}
+		var saltoFin = +r.hasta.slice(0, 4) - y0; // un rango de fin de año termina el año siguiente
+		for (var k = 1; k <= (anios || 1); k++) {
+			var y = y0 + k, desde, hasta;
+			if (cada === 'semanaSanta') { desde = sumarDias(pascua(y), desdePascua); hasta = sumarDias(desde, largo); }
+			else { desde = mismoDia(r.desde, y); hasta = mismoDia(r.hasta, y + saltoFin); }
 			var copia = {};
 			for (var key in r) copia[key] = r[key];
-			copia.desde = desde; copia.hasta = sumarDias(desde, largo); copia.cada = cada;
+			copia.desde = desde; copia.hasta = hasta; copia.cada = cada;
 			out.push(copia);
 		}
 		return out;
