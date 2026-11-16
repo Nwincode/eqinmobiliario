@@ -5,6 +5,9 @@
 	var hash = location.hash.charAt(1) === '/' ? '' : location.hash.slice(1);
 	var p = new URLSearchParams(hash || location.search);
 	var codigo = p.get('oobCode');
+	// El enlace abierto en una pestaña donde el panel ya estaba: el navegador solo cambia el «#», sin cargar de nuevo.
+	// Se carga de nuevo para que este script lo lea desde el principio.
+	window.addEventListener('hashchange', function () { if (/(^#|&)oobCode=/.test(location.hash)) location.reload(); });
 	if (!codigo) return;
 	window.__enlace = { modo: p.get('mode') || '', codigo: codigo };
 	history.replaceState(null, '', location.pathname);

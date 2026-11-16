@@ -12,7 +12,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = process.env.ENTORNO_DIR || `${process.env.TMPDIR || '/tmp'}/eq-entorno`;
 const SITIO = `http://localhost:${process.env.PORT || 8090}`;
-const CLAVE = 'Pruebas-2026';
+const CLAVE = 'Pruebas-del-panel-2026';
 const CAPTURAS = `${DIR}/capturas`;
 // Capturas del panel del dueño (lista y casa en venta, a 390 y 1280 px), para mirarlas.
 const PANEL = process.env.PANEL_DIR || `${CAPTURAS}/panel`;
@@ -949,13 +949,16 @@ const duenos = [];
 	const urlAlAbrir = mixta.p.url();
 	const sinReferer = await mixta.p.locator('meta[name="referrer"][content="no-referrer"]').count();
 	// Una contraseña fácil de adivinar no se acepta (y el enlace sigue sirviendo).
-	await mixta.p.fill('#clave-nueva', '12345678');
-	await mixta.p.fill('#clave-repite', '12345678');
+	const conOjos = await mixta.p.locator('.auth-card [aria-label="Mostrar contraseña"]').count();
+	await mixta.p.fill('#clave-nueva', 'corta-1');
+	const enVivoCorta = await mixta.p.locator('.clave-regla.falta').count();
+	await mixta.p.fill('#clave-nueva', 'aaaaaaaaaaaaaaaa');
+	await mixta.p.fill('#clave-repite', 'aaaaaaaaaaaaaaaa');
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(800);
 	const debil = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
-	await mixta.p.fill('#clave-nueva', 'mixta-clave-1');
-	await mixta.p.fill('#clave-repite', 'mixta-clave-1');
+	await mixta.p.fill('#clave-nueva', 'mixta-casa-del-lago');
+	await mixta.p.fill('#clave-repite', 'mixta-casa-del-lago');
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(800);
 	const conCorreo = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
@@ -964,9 +967,10 @@ const duenos = [];
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(500);
 	const distintas = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
-	paso('Página de contraseña: el código se borra de la barra al abrir, no se pasa a otros sitios, y rechaza contraseñas fáciles, con el correo o distintas',
-		!/oobCode/.test(urlAlAbrir) && sinReferer === 1 && /fácil de adivinar/.test(debil) && /no puede llevar tu correo/.test(conCorreo) && /no son iguales/.test(distintas),
-		`${urlAlAbrir} · ${debil} · ${conCorreo} · ${distintas}`);
+	const igualesNo = await mixta.p.locator('.clave-regla.falta', { hasText: 'Las dos son iguales' }).count();
+	paso('Página de contraseña: el código se borra de la barra al abrir, no se pasa a otros sitios, tiene ojito en los dos campos, avisa mientras se escribe y rechaza contraseñas cortas, fáciles, con el correo o distintas',
+		!/oobCode/.test(urlAlAbrir) && sinReferer === 1 && conOjos === 2 && enVivoCorta >= 1 && igualesNo === 1 && /fácil de adivinar/.test(debil) && /no puede llevar tu correo/.test(conCorreo) && /no son iguales/.test(distintas),
+		`${urlAlAbrir} · ojos ${conOjos} · en vivo ${enVivoCorta}/${igualesNo} · ${debil} · ${conCorreo} · ${distintas}`);
 	await mixta.p.fill('#clave-repite', CLAVE);
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await mixta.p.locator('.admin-user-role').waitFor({ timeout: 20000 }).catch(() => {});
@@ -978,7 +982,33 @@ const duenos = [];
 	await otra.p.goto(enlaceCorreo.replace(/^https?:\/\/[^/]+/, SITIO));
 	await otra.p.locator('.auth-card', { hasText: 'ya no sirve' }).waitFor({ timeout: 15000 }).catch(() => {});
 	paso('El mismo enlace, usado otra vez, ya no sirve y ofrece mandar uno nuevo', /Este enlace ya no sirve/.test(await otra.p.locator('.auth-card').innerText().catch(() => '')));
+	// La pantalla para pedir el correo (la misma de «¿Olvidaste tu contraseña?»): Enter envía y «Volver a entrar» lleva a
+	// entrar, tanto antes de haber entrado (iniciar) como desde la pantalla de entrar (loginScreen).
+	await otra.p.fill('#pedir-email', 'nadie.aqui@example.com');
+	await otra.p.press('#pedir-email', 'Enter');
+	await otra.p.locator('.auth-card [role="status"]').filter({ hasText: /\S/ }).waitFor({ timeout: 10000 }).catch(() => {});
+	const respuestaPedir = await otra.p.locator('.auth-card [role="status"]').innerText().catch(() => '');
+	await otra.p.locator('button', { hasText: 'Volver a entrar' }).click();
+	const volver1 = await otra.p.locator('#login-email').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+	await otra.p.locator('button', { hasText: '¿Olvidaste tu contraseña?' }).click();
+	const pedir = await otra.p.locator('#pedir-email').waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+	await otra.p.locator('button', { hasText: 'Volver a entrar' }).click();
+	const volver2 = await otra.p.locator('#login-email').waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+	// El enlace abierto en esa misma pestaña (el panel ya cargado): se carga de nuevo y lo atiende (aquí, ya usado).
+	await otra.p.evaluate((h) => { location.hash = h; }, new URL(enlaceCorreo).hash);
+	await otra.p.locator('.auth-card', { hasText: 'ya no sirve' }).waitFor({ timeout: 15000 }).catch(() => {});
+	const mismaPestana = /Este enlace ya no sirve/.test(await otra.p.locator('.auth-card').innerText().catch(() => '')) && !/oobCode/.test(otra.p.url());
+	paso('Pedir el correo: Enter envía, «Volver a entrar» y «¿Olvidaste tu contraseña?» van y vienen, y el enlace abierto en una pestaña con el panel ya cargado funciona',
+		/correo/i.test(respuestaPedir) && volver1 && pedir && volver2 && mismaPestana, `${respuestaPedir.slice(0, 60)} · ${volver1}/${pedir}/${volver2}/${mismaPestana}`);
 	await otra.p.context().close();
+	// Dentro del panel, «Cambiar mi contraseña» le manda a la misma persona el correo con el botón.
+	const antesLlave = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('button[aria-label="Cambiar mi contraseña"]').click();
+	await admin.p.locator('.toast', { hasText: 'botón para cambiar tu contraseña' }).waitFor({ timeout: 15000 }).catch(() => {});
+	await espera(1000);
+	const llave = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesLlave).map((l) => JSON.parse(l));
+	paso('«Cambiar mi contraseña» dentro del panel le manda a la misma persona el correo para cambiarla',
+		llave.some((c) => JSON.stringify(c.to || '').includes('admin@example.com') && /contraseña/.test(c.subject || '')), await avisos(admin.p));
 	// Al cambiarla le llega el aviso «Tu contraseña del panel cambió» a su propio correo.
 	await espera(1500);
 	const todos = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));

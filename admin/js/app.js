@@ -5,6 +5,7 @@ import {
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { correoContrasena, pedirContrasena } from './contrasena.js';
+import { MIN_CLAVE, conOjo, debilidad, filtrada, revisionEnVivo } from './clave.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
@@ -52,6 +53,15 @@ function notConfigured() {
 		h('p', { class: 'small text-muted mb-0' }, `Proyecto actual: ${firebaseConfig.projectId || '(sin definir)'}`)));
 }
 
+// «Mándame el correo para cambiar mi contraseña»: una sola pieza para el botón del panel y para «Tu correo volvió a
+// ser el de antes». Se apaga mientras envía y vuelve a servir si falla.
+async function mandarmeCorreo(boton, correo) {
+	boton.disabled = true;
+	try { await correoContrasena(correo); toast(`Te enviamos a ${correo} un botón para cambiar tu contraseña.`); }
+	catch (err) { showError(err); }
+	finally { boton.disabled = false; }
+}
+
 // (El arranque «crear el primer administrador» desde aquí se quitó: ver firestore.rules, meta/bootstrap.)
 function loginScreen() {
 	const email = h('input', { class: 'form-control', type: 'email', id: 'login-email', autocomplete: 'username', required: true });
@@ -73,16 +83,14 @@ function loginScreen() {
 		}
 	},
 	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-email' }, 'Correo'), email),
-	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-pass' }, 'Contraseña'), pass),
+	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-pass' }, 'Contraseña'), conOjo(pass)),
 	btn, msg,
-	h('button', {
-		type: 'button', class: 'btn btn-link btn-sm w-100 mt-2',
-		onclick: async () => {
-			if (!email.value) { msg.textContent = 'Escribe tu correo primero.'; return; }
-			const r = await pedirContrasena(email.value.trim());
-			msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
-		}
-	}, '¿Olvidaste tu contraseña?'));
+	h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => pantallaPedirCorreo({
+		titulo: 'Crea o cambia tu contraseña', email: email.value.trim(),
+		texto: 'Escribe el correo con el que entras al panel y te mandamos un botón para crear una contraseña nueva.'
+	}) }, '¿Olvidaste tu contraseña?'));
+	// Un aviso viejo («Correo o contraseña incorrectos») se quita en cuanto se vuelve a escribir.
+	form.addEventListener('input', () => { msg.textContent = ''; });
 
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-4' }, 'Panel de administración'),
@@ -123,6 +131,9 @@ function shell() {
 			h('div', { class: 'admin-user-info' },
 				h('div', { class: 'admin-user-name' }, nombre),
 				h('div', { class: 'admin-user-role' }, session.rolVisible)),
+			// Cambiar la contraseña estando adentro: el mismo correo con el botón (así se comprueba que es la dueña del correo).
+			h('button', { class: 'admin-logout', title: 'Cambiar mi contraseña', 'aria-label': 'Cambiar mi contraseña', onclick: (e) => mandarmeCorreo(e.currentTarget, session.user.email) },
+				h('span', { class: 'icon-lock', 'aria-hidden': 'true' })),
 			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
 	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
@@ -184,17 +195,6 @@ window.addEventListener('hashchange', route);
 
 // Crear o cambiar la contraseña con el enlace del correo (/admin/?mode=resetPassword&oobCode=…): la página de la
 // empresa, no la de Google. El enlace sirve una vez y vence en 1 hora; lo valida Google. Al guardar, entra directo.
-const MIN_CLAVE = 8;
-// Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
-const CLAVES_DEBILES = new Set(['12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña', 'contrasena', 'qwertyui', 'qwerty123', '11111111', '00000000', 'iloveyou', 'abc12345', 'guatemala', 'guatemala1', 'equipoinmobiliario', 'eqinmobiliario', 'inmobiliaria']);
-function debilidad(clave, email) {
-	const c = clave.toLowerCase();
-	const usuario = String(email || '').toLowerCase().split('@')[0];
-	if (clave.length < MIN_CLAVE) return `Usa al menos ${MIN_CLAVE} caracteres.`;
-	if (CLAVES_DEBILES.has(c) || /^(.)\1+$/.test(c)) return 'Esa contraseña es muy fácil de adivinar: usa otra.';
-	if (usuario.length >= 4 && c.includes(usuario)) return 'La contraseña no puede llevar tu correo.';
-	return '';
-}
 function quitarEnlace() { history.replaceState(null, '', location.pathname); }
 // Después de cambiarla, aviso por correo a la misma cuenta (si no fue la persona, se entera). No detiene la entrada.
 async function avisarCambio() {
@@ -215,7 +215,7 @@ async function pantallaAccion(modo, codigo) {
 			const correo = info?.data?.email || '';
 			return root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, 'Tu correo volvió a ser el de antes'),
 				h('p', { class: 'text-muted small' }, 'La cuenta vuelve a entrar con ', h('strong', { class: 'text-body' }, correo), '. Si tú no pediste el cambio, por seguridad crea una contraseña nueva ahora.'),
-				h('button', { type: 'button', class: 'btn btn-primary w-100 mb-2', onclick: async (e) => { e.currentTarget.disabled = true; try { await correoContrasena(correo); toast('Te enviamos el correo para crear una contraseña nueva.'); } catch (err) { showError(err); } } }, 'Mandarme el correo para cambiar la contraseña'),
+				h('button', { type: 'button', class: 'btn btn-primary w-100 mb-2', onclick: (e) => mandarmeCorreo(e.currentTarget, correo) }, 'Mandarme el correo para cambiar la contraseña'),
 				h('button', { type: 'button', class: 'btn btn-link btn-sm w-100', onclick: () => iniciar() }, 'Ir a entrar')));
 		}
 		if (modo === 'verifyEmail') {
@@ -228,43 +228,60 @@ async function pantallaAccion(modo, codigo) {
 			h('p', { class: 'text-muted small' }, 'Sirve una sola vez y vence pronto. Si necesitas ayuda, escríbele a tu asesor.'), salir));
 	}
 }
+// Pedir el correo para crear o cambiar la contraseña: una sola pantalla para «¿Olvidaste tu contraseña?» y para «Este
+// enlace ya no sirve». Su propio formulario (Enter envía), el botón se apaga mientras envía y la respuesta es la misma
+// exista o no la cuenta (pedirContrasena).
+function pantallaPedirCorreo({ titulo, texto, email = '', boton = 'Enviarme el correo' }) {
+	const correo = h('input', { class: 'form-control', type: 'email', id: 'pedir-email', autocomplete: 'username', inputmode: 'email', required: true, value: email });
+	const msg = h('div', { class: 'small mt-2', role: 'status' });
+	const enviar = h('button', { class: 'btn btn-primary w-100', type: 'submit' }, boton);
+	const form = h('form', { onsubmit: async (e) => {
+		e.preventDefault();
+		enviar.disabled = true; enviar.textContent = 'Enviando…'; msg.textContent = '';
+		const r = await pedirContrasena(correo.value.trim());
+		msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
+		enviar.textContent = boton; enviar.disabled = !r.error;
+	} }, h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'pedir-email' }, 'Correo'), correo), enviar, msg,
+	h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => { quitarEnlace(); if (iniciado) loginScreen(); else iniciar(); } }, 'Volver a entrar'));
+	form.addEventListener('input', () => { enviar.disabled = false; msg.textContent = ''; });
+	root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, titulo), h('p', { class: 'text-muted small' }, texto), form));
+	(email ? enviar : correo).focus();
+}
 async function pantallaContrasena(codigo) {
 	root.replaceChildren(spinner('Revisando el enlace…'));
 	let email;
 	try {
 		email = await verifyPasswordResetCode(auth, codigo);
-	} catch {
-		const correo = h('input', { class: 'form-control', type: 'email', id: 'otro-email', autocomplete: 'username', placeholder: 'Tu correo' });
-		const msg = h('div', { class: 'small mt-2', role: 'status' });
-		return root.replaceChildren(authCard(
-			h('h1', { class: 'h5 mb-2' }, 'Este enlace ya no sirve'),
-			h('p', { class: 'text-muted small' }, 'El botón del correo sirve una sola vez y vence en 1 hora. Escribe tu correo y te mandamos uno nuevo; usa siempre el último que te llegue.'),
-			h('form', { class: 'd-grid gap-2', onsubmit: async (e) => {
-				e.preventDefault();
-				if (!correo.value.trim()) { correo.focus(); return; }
-				e.submitter.disabled = true;
-				const r = await pedirContrasena(correo.value.trim());
-				msg.className = `small mt-2 ${r.error ? 'text-danger' : 'text-success'}`; msg.textContent = r.error || r.texto;
-				if (r.error) e.submitter.disabled = false;
-			} }, h('label', { class: 'form-label small mb-0', for: 'otro-email' }, 'Correo'), correo, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Enviarme otro correo')),
-			msg,
-			h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => { quitarEnlace(); iniciar(); } }, 'Ya tengo mi contraseña: entrar')));
+	} catch (err) {
+		// Sin internet no es que el enlace venció: se dice eso y se reintenta con el mismo enlace (no gasta otro correo).
+		if (err?.code === 'auth/network-request-failed') {
+			return root.replaceChildren(authCard(h('h1', { class: 'h5 mb-2' }, 'Sin conexión'),
+				h('p', { class: 'text-muted small' }, errorMessage(err)),
+				h('button', { type: 'button', class: 'btn btn-primary w-100', onclick: () => pantallaContrasena(codigo) }, 'Intentar otra vez')));
+		}
+		return pantallaPedirCorreo({ titulo: 'Este enlace ya no sirve', boton: 'Enviarme otro correo',
+			texto: 'El botón del correo sirve una sola vez y vence en 1 hora. Escribe tu correo y te mandamos uno nuevo; usa siempre el último que te llegue.' });
 	}
 	const clave = h('input', { class: 'form-control', type: 'password', id: 'clave-nueva', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
 	const repite = h('input', { class: 'form-control', type: 'password', id: 'clave-repite', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
-	const ver = h('input', { class: 'form-check-input', type: 'checkbox', id: 'clave-ver', onchange: () => { clave.type = repite.type = ver.checked ? 'text' : 'password'; } });
 	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
 	const btn = h('button', { class: 'btn btn-primary w-100', type: 'submit' }, 'Guardar y entrar');
+	const vivo = revisionEnVivo(clave, repite, email);
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-1' }, 'Crea tu contraseña'),
 		h('p', { class: 'text-muted small mb-3' }, 'Para entrar al panel de Equipo Inmobiliario con ', h('strong', { class: 'text-body' }, email), '.'),
-		h('form', { onsubmit: async (e) => {
+		h('form', { novalidate: true, onsubmit: async (e) => {
 			e.preventDefault();
 			msg.textContent = '';
 			const problema = debilidad(clave.value, email);
 			if (problema) { msg.textContent = problema; return clave.focus(); }
 			if (clave.value !== repite.value) { msg.textContent = 'Las dos contraseñas no son iguales.'; return repite.focus(); }
 			btn.disabled = true;
+			if (await filtrada(clave.value)) {
+				btn.disabled = false;
+				msg.textContent = 'Esa contraseña aparece en filtraciones de otros sitios: los ladrones la prueban primero. Usa otra.';
+				return clave.focus();
+			}
 			try {
 				if (auth.currentUser) await signOut(auth);
 				await confirmPasswordReset(auth, codigo, clave.value);
@@ -278,10 +295,10 @@ async function pantallaContrasena(codigo) {
 				btn.disabled = false;
 			}
 		} },
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), clave,
-			h('div', { class: 'form-text' }, `Al menos ${MIN_CLAVE} caracteres, que no sea fácil de adivinar ni la misma de otro sitio.`)),
-		h('div', { class: 'mb-2' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), repite),
-		h('div', { class: 'form-check mb-3' }, ver, h('label', { class: 'form-check-label small', for: 'clave-ver' }, 'Mostrar contraseña')),
+		// Para que el administrador de contraseñas (Chrome, iPhone) la guarde con el correo de esta cuenta.
+		h('input', { type: 'email', class: 'visually-hidden', autocomplete: 'username', value: email, readonly: true, tabindex: '-1', 'aria-hidden': 'true' }),
+		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), conOjo(clave), vivo.reglas),
+		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), conOjo(repite), vivo.iguales),
 		btn, msg),
 		h('p', { class: 'small text-muted mt-3 mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), 'Entra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.')));
 	clave.focus();
