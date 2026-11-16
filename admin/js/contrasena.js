@@ -1,5 +1,5 @@
-// El correo para poner o cambiar la contraseña: uno solo para «Dar acceso», «Reenviar correo», Usuarios y
-// «¿Olvidaste tu contraseña?». Sale con el diseño de la empresa desde /api/contrasena (netlify/functions/contrasena.mjs).
+// El correo para poner o cambiar la contraseña: uno solo para «Dar acceso», «Reenviar correo», Usuarios,
+// «¿Olvidaste tu contraseña?», «Este enlace ya no sirve» y «Cambiar mi contraseña» (app.js). Sale con el diseño de la empresa desde /api/contrasena (netlify/functions/contrasena.mjs).
 // El correo de Firebase de siempre se manda solo si no hay red hacia el servidor o si el servidor no está configurado
 // (503): así no se salta el límite de pedidos ni la regla de «solo a quien entra al panel». Con 400, 404 o 429 se dice
 // el porqué.

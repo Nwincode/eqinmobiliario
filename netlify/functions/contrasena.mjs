@@ -1,6 +1,7 @@
 // POST /api/contrasena { email }: el correo «Crea o cambia tu contraseña» con el diseño de la empresa
 // (netlify/lib/correo-contrasena.mjs), enviado con el servicio de correo de la empresa (Zoho CPaaS / ZeptoMail).
-// Lo usan «Dar acceso», «Reenviar correo», Usuarios y «¿Olvidaste tu contraseña?» (admin/js/contrasena.js).
+// Lo usan «Dar acceso», «Reenviar correo», Usuarios, «¿Olvidaste tu contraseña?», «Este enlace ya no sirve» y «Cambiar mi
+// contraseña» (admin/js/contrasena.js).
 //
 // Seguridad (revisada aparte; ver docs/revision-antes-de-unir.md):
 //  - El enlace (de Google, un solo uso, vence en 1 hora) va SOLO al correo de esa cuenta, el que Google devuelve y que

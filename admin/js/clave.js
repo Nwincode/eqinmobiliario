@@ -5,7 +5,8 @@ import { h } from './ui.js';
 
 export const MIN_CLAVE = 15;
 // Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
-const COMUNES = new Set(['12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña', 'contrasena', 'qwertyui', 'qwerty123', 'iloveyou', 'abc12345', 'abcd1234', 'guatemala', 'guatemala1', 'equipoinmobiliario', 'eqinmobiliario', 'inmobiliaria']);
+// (Con 15 caracteres o más, las cortas de siempre ya no pasan; las filtradas las atrapa `filtrada`.)
+const COMUNES = new Set(['equipoinmobiliario', 'equipoinmobiliario1', 'eqinmobiliario.gt', 'contraseñasegura', 'contrasenasegura', 'passwordpassword', 'contraseñacontraseña', 'guatemalaguatemala', 'iloveyouiloveyou']);
 const SECUENCIAS = '0123456789 9876543210 abcdefghijklmnopqrstuvwxyz qwertyuiopasdfghjklzxcvbnm';
 
 // Campo de contraseña con el ojito para verla o esconderla, y aviso si las mayúsculas están fijas (Bloq Mayús).
@@ -20,7 +21,6 @@ export function conOjo(input) {
 		const ver = input.type === 'password';
 		input.type = ver ? 'text' : 'password';
 		icono.className = ver ? 'icon-eye-slash' : 'icon-eye';
-		ojo.setAttribute('aria-label', ver ? 'Esconder contraseña' : 'Mostrar contraseña');
 		ojo.setAttribute('aria-pressed', String(ver));
 	} }, icono);
 	return [h('div', { class: 'input-group' }, input, ojo), mayus];
@@ -41,19 +41,27 @@ export function debilidad(clave, email) { return REGLAS.find((r) => !r.ok(clave,
 export async function filtrada(clave) {
 	try {
 		const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(clave)))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-		const res = await fetch(`https://api.pwnedpasswords.com/range/${hex.slice(0, 5)}`, { headers: { 'Add-Padding': 'true' }, signal: AbortSignal.timeout(4000), referrerPolicy: 'no-referrer' });
-		if (!res.ok) return false;
+		// GET simple, sin encabezados propios: así el navegador no pide permiso antes (CORS) y la consulta no se cae.
+		const res = await fetch(`https://api.pwnedpasswords.com/range/${hex.slice(0, 5)}`, { signal: AbortSignal.timeout(4000), referrerPolicy: 'no-referrer' });
+		if (!res.ok) { console.warn('Revisión de filtraciones sin respuesta:', res.status); return false; }
 		return (await res.text()).split('\n').some((l) => { const [resto, veces] = l.trim().split(':'); return resto === hex.slice(5) && Number(veces) > 0; });
-	} catch { return false; }
+	} catch (err) { console.warn('Revisión de filtraciones sin respuesta:', err?.name || err); return false; }
 }
 
-// Lista que se pone al día mientras se escribe: ✓ lo que ya cumple; y si las dos son iguales.
+// Lista que se pone al día mientras se escribe: ✓ lo que ya cumple; y si las dos son iguales. Cada campo apunta a su
+// lista (aria-describedby) y cada línea dice «cumple» o «falta» en texto para el lector de pantalla; sin aria-live,
+// que hablaría en cada tecla.
 export function revisionEnVivo(clave, repite, email) {
-	const item = (texto) => { const ico = h('span', { class: 'icon-circle-thin', 'aria-hidden': 'true' }); return { ico, li: h('li', { class: 'clave-regla' }, ico, h('span', {}, texto)) }; };
+	const item = (texto) => {
+		const ico = h('span', { class: 'icon-circle-thin', 'aria-hidden': 'true' });
+		const estado = h('span', { class: 'visually-hidden' }, '');
+		return { ico, estado, li: h('li', { class: 'clave-regla' }, ico, estado, h('span', {}, texto)) };
+	};
 	const filas = REGLAS.map((r) => ({ r, ...item(r.texto) }));
 	const igual = item('Las dos son iguales');
 	const marcar = (f, ok, tocado) => {
 		f.ico.className = ok ? 'icon-check' : tocado ? 'icon-times' : 'icon-circle-thin';
+		f.estado.textContent = ok ? 'Cumple: ' : 'Falta: ';
 		f.li.classList.toggle('ok', ok); f.li.classList.toggle('falta', !ok && tocado);
 	};
 	const pintar = () => {
@@ -63,5 +71,10 @@ export function revisionEnVivo(clave, repite, email) {
 	};
 	clave.addEventListener('input', pintar);
 	repite.addEventListener('input', pintar);
-	return { reglas: h('ul', { class: 'clave-reglas', 'aria-live': 'polite' }, filas.map((f) => f.li)), iguales: h('ul', { class: 'clave-reglas', 'aria-live': 'polite' }, igual.li) };
+	pintar();
+	const reglas = h('ul', { class: 'clave-reglas', id: `${clave.id}-reglas` }, filas.map((f) => f.li));
+	const iguales = h('ul', { class: 'clave-reglas', id: `${repite.id}-reglas` }, igual.li);
+	clave.setAttribute('aria-describedby', reglas.id);
+	repite.setAttribute('aria-describedby', iguales.id);
+	return { reglas, iguales };
 }

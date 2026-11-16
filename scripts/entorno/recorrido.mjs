@@ -982,7 +982,33 @@ const duenos = [];
 	await otra.p.goto(enlaceCorreo.replace(/^https?:\/\/[^/]+/, SITIO));
 	await otra.p.locator('.auth-card', { hasText: 'ya no sirve' }).waitFor({ timeout: 15000 }).catch(() => {});
 	paso('El mismo enlace, usado otra vez, ya no sirve y ofrece mandar uno nuevo', /Este enlace ya no sirve/.test(await otra.p.locator('.auth-card').innerText().catch(() => '')));
+	// La pantalla para pedir el correo (la misma de «¿Olvidaste tu contraseña?»): Enter envía y «Volver a entrar» lleva a
+	// entrar, tanto antes de haber entrado (iniciar) como desde la pantalla de entrar (loginScreen).
+	await otra.p.fill('#pedir-email', 'nadie.aqui@example.com');
+	await otra.p.press('#pedir-email', 'Enter');
+	await otra.p.locator('.auth-card [role="status"]').filter({ hasText: /\S/ }).waitFor({ timeout: 10000 }).catch(() => {});
+	const respuestaPedir = await otra.p.locator('.auth-card [role="status"]').innerText().catch(() => '');
+	await otra.p.locator('button', { hasText: 'Volver a entrar' }).click();
+	const volver1 = await otra.p.locator('#login-email').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+	await otra.p.locator('button', { hasText: '¿Olvidaste tu contraseña?' }).click();
+	const pedir = await otra.p.locator('#pedir-email').waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+	await otra.p.locator('button', { hasText: 'Volver a entrar' }).click();
+	const volver2 = await otra.p.locator('#login-email').waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+	// El enlace abierto en esa misma pestaña (el panel ya cargado): se carga de nuevo y lo atiende (aquí, ya usado).
+	await otra.p.evaluate((h) => { location.hash = h; }, new URL(enlaceCorreo).hash);
+	await otra.p.locator('.auth-card', { hasText: 'ya no sirve' }).waitFor({ timeout: 15000 }).catch(() => {});
+	const mismaPestana = /Este enlace ya no sirve/.test(await otra.p.locator('.auth-card').innerText().catch(() => '')) && !/oobCode/.test(otra.p.url());
+	paso('Pedir el correo: Enter envía, «Volver a entrar» y «¿Olvidaste tu contraseña?» van y vienen, y el enlace abierto en una pestaña con el panel ya cargado funciona',
+		/correo/i.test(respuestaPedir) && volver1 && pedir && volver2 && mismaPestana, `${respuestaPedir.slice(0, 60)} · ${volver1}/${pedir}/${volver2}/${mismaPestana}`);
 	await otra.p.context().close();
+	// Dentro del panel, «Cambiar mi contraseña» le manda a la misma persona el correo con el botón.
+	const antesLlave = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('button[aria-label="Cambiar mi contraseña"]').click();
+	await admin.p.locator('.toast', { hasText: 'botón para cambiar tu contraseña' }).waitFor({ timeout: 15000 }).catch(() => {});
+	await espera(1000);
+	const llave = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesLlave).map((l) => JSON.parse(l));
+	paso('«Cambiar mi contraseña» dentro del panel le manda a la misma persona el correo para cambiarla',
+		llave.some((c) => JSON.stringify(c.to || '').includes('admin@example.com') && /contraseña/.test(c.subject || '')), await avisos(admin.p));
 	// Al cambiarla le llega el aviso «Tu contraseña del panel cambió» a su propio correo.
 	await espera(1500);
 	const todos = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
