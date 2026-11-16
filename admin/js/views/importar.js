@@ -269,6 +269,9 @@ export async function render(container) {
 	const soltarVistas = () => fotos.forEach((f) => f.vista?.then((url) => url && URL.revokeObjectURL(url)));
 
 	const chip = (color, ic, texto) => badge([icono(ic), ` ${texto}`], color);
+	// Una casa por noche no trae «precio»: se muestra el «desde» que verá el cliente (costo del socio + margen).
+	const precioDeFila = (it, d) => (d.operacion === 'vacacional' && it.socio?.precioBase > 0
+		? vacacionalPublico({ socio: { margen: V.MARGEN, ...it.socio }, vacacional: {} }).precio : d.precio);
 
 	let grupos = { sinFila: [], ignorados: 0 };
 	function dibujar() {
@@ -316,7 +319,7 @@ export async function render(container) {
 					h('div', { class: 'fw-semibold prop-titulo' }, d.titulo || '(sin título)'),
 					lugar ? h('div', { class: 'small text-muted prop-zona' }, icono('icon-map-marker'), ` ${lugar}`) : null,
 					datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
-				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(d.precio, d.moneda, d.operacion))));
+				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(precioDeFila(it, d), d.moneda, d.operacion))));
 		}));
 		const total = n(seImporta);
 		selTodas.checked = !!validas.length && total === validas.length;

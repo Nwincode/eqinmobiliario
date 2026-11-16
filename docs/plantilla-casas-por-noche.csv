@@ -1,0 +1,3 @@
+carpeta,titulo,operacion,tipo,propietario,moneda,zona,ciudad,habitaciones,banos,parqueos,huespedes_max,noches_min,socio_noche,socio_finde,limpieza,deposito,amenidades,descripcion,ical_airbnb,ical_booking,ical_vrbo
+casa-del-lago,Casa frente al lago en Panajachel,vacacional,casa,+502 5555 0001,USD,,Panajachel,3,2,2,6,2,100,130,40,150,Piscina; Muelle; Wifi,Casa con vista al lago para fines de semana.,https://www.airbnb.com/calendar/ical/XXXX.ics,https://admin.booking.com/hotel/hoteladmin/ical.html?t=XXXX,
+villa-monterrico,Villa con piscina en Monterrico,vacacional,casa,+502 5555 0001,USD,,Monterrico,4,3,3,10,2,180,220,50,200,Piscina; Rancho; Aire acondicionado; Wifi,Villa a la orilla del mar con piscina privada.,,,

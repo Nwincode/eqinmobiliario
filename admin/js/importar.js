@@ -109,7 +109,7 @@ export const COLUMNAS = [
 	['deposito', ['deposito', 'deposito_reembolsable', 'deposit']],
 	['noches_min', ['noches_min', 'noches_minimas', 'minimo_noches', 'min_noches']],
 	['huespedes_max', ['huespedes_max', 'huespedes', 'capacidad', 'personas', 'max_huespedes']],
-	['ical', ['ical', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
+	['ical', ['ical', 'ical_airbnb', 'calendario', 'calendario_airbnb', 'ical_url', 'enlace_ical']],
 	// Su dueño: una ficha que ya existe en Propietarios, por su teléfono, nombre, correo o id (sus datos viven ahí; no
 	// se crean dueños desde el CSV). Obligatorio en una casa por noche.
 	['propietario', ['propietario', 'propietario_telefono', 'propietario_nombre', 'dueno', 'socio', 'propietario_id']]
