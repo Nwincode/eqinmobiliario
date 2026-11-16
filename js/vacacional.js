@@ -311,6 +311,20 @@
 			};
 		}
 
+		// «Desde US$ … por noche» de la ficha (arriba y en este cuadro) con el precio de hoy (`precioDesde`, la misma regla
+		// del panel y de la publicación): el cliente no ve un precio arriba y otro en el calendario.
+		function ponerDesde(plan) {
+			var desde = V.precioDesde(plan, hoy);
+			if (!(desde > 0)) return;
+			// El monto que esté escrito (el de la publicación, aunque una tarifa ya haya vencido) se cambia por el de hoy.
+			var monto = new RegExp(prefijo.replace(/[$]/g, '\\$') + ' [\\d,]+\\.\\d{2}');
+			document.querySelectorAll('.ficha-precio, .vac-desde strong').forEach(function (el) {
+				var n = el.firstChild;
+				if (n && n.nodeType === 3 && monto.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(monto, dinero(desde));
+			});
+		}
+		ponerDesde(D.plan);
+
 		// Disponibilidad al día (iCal del socio y reservas confirmadas); si falla, quedan los bloqueos publicados.
 		var id = card.getAttribute('data-id');
 		if (id && window.fetch) {
@@ -321,7 +335,7 @@
 					// Casa en pausa: no se puede reservar por ahora.
 					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return; }
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
-					if (res.plan && res.plan.base > 0) D.plan = res.plan;
+					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
 					if (res.minimos) minimos = res.minimos;
 					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }

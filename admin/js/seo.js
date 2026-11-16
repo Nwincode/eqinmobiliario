@@ -1,8 +1,7 @@
 // Vista previa del resultado en Google y lista de verificación SEO para los editores.
 import { h, slugify } from './ui.js';
-import { siteConfig } from './firebase.js';
+import { SITIO as SITE } from './firebase.js';
 
-const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
 function cut(text, max) {
 	const t = String(text || '').replace(/\s+/g, ' ').trim();

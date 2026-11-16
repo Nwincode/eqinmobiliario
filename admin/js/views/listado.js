@@ -1,16 +1,15 @@
 // Listado de propiedades en PDF para enviar a un cliente: se filtra, se eligen las propiedades
 // y se abre una versión lista para imprimir; el navegador la guarda como PDF.
-import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
+import { db, doc, getDoc, getDocs, collection, SITIO } from '../firebase.js';
 import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
-import { datosDe } from '../ficha-casa.js';
+import { datosDe, publicUrl } from '../ficha-casa.js';
 import { estadoDe, operacionDe, enOperacion } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
-const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 const TIPO_LABEL = Object.fromEntries(TIPOS);
 
 function absUrl(url) {
@@ -19,7 +18,7 @@ function absUrl(url) {
 }
 
 function publicLink(p) {
-	return `${SITE || location.origin}${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
+	return `${SITIO}${publicUrl(p)}`;
 }
 
 function cut(text, max) {

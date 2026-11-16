@@ -3,7 +3,7 @@
 // Lleva lo que la persona necesita de su ficha (nombre, correo, teléfono, datos de pago) y, de cada casa en venta o
 // renta, cómo va. Las casas por noche no van aquí: el dueño las ve y las cambia en vivo (views/mis-casas.js).
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, siteConfig, onSnapshot, runTransaction
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, SITIO, onSnapshot, runTransaction
 } from './firebase.js';
 import { session, loadAgents } from './session.js';
 import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, ms } from './crm.js';
@@ -12,8 +12,8 @@ import { estadoDe, visibilidadDe, seOfrece, ESTADOS_PROPIEDAD } from './estados.
 import { portalesDe } from './difusion.js';
 import { filasClientes, numerarClientes, combinarClientes, eventosAuto, fechaOferta } from './portal-clientes.js';
 import { casasDe, vaAlResumen, exclusivaHasta, datosDelDueno, nuevoToken, enlaceSeguro } from './duenos.js';
+import { publicUrl } from './ficha-casa.js';
 
-const SITE = (siteConfig.siteUrl || 'https://eqinmobiliario.gt').replace(/\/$/, '');
 const DIA = 86400000;
 
 export const TIPOS_BITACORA = [
@@ -146,7 +146,7 @@ export async function armarPortal(prop) {
 		const enLinea = p.publicado && seOfrece(p);
 		const difundida = portales.filter((po) => enLinea && (p.difusion || {})[po.id]?.estado === 'publicada')
 			.map((po) => { const r = p.difusion[po.id]; return { nombre: po.nombre, url: /^https?:\/\//.test(r.url || '') ? r.url : '', desde: r.fecha || '' }; });
-		const urlFicha = enLinea && p.slug ? `${SITE}${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/` : '';
+		const urlFicha = enLinea && p.slug ? `${SITIO}${publicUrl(p)}` : '';
 		// Toda la bitácora (visible o no) evita repetir lo que el asesor ya anotó a mano.
 		const auto = eventosAuto({
 			enMercadoDesde: merc.desde, enLinea, portales: difundida, historialPrecio: hp,

@@ -72,9 +72,26 @@ const tarjeta = (titulo, icono, ...cuerpo) => h('section', { class: 'card mb-3' 
 	h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h6 mb-0' }, ic(icono), titulo)),
 	h('div', { class: 'card-body' }, ...cuerpo));
 
+// Estado de la casa (Disponible, Vendida…), con el color de su visibilidad en el sitio.
+export function estadoCasa(p) {
+	const est = ESTADOS_PROPIEDAD.find((e) => e.valor === p.estado) || ESTADOS_PROPIEDAD[0];
+	return badge(est.label, COLOR_VISIBILIDAD[est.visibilidad] || 'secondary');
+}
+// Cabecera de una casa en el panel del dueño: foto y, al lado, insignias, precio, renglones con ícono y lo de abajo.
+// La misma para la casa en venta o renta (su resumen) y para la casa por noche (Mis propiedades).
+export function cabeceraCasa({ foto, titulo = '', insignias = [], precio, lineas = [], pie = [] }) {
+	return h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' }, h('div', { class: 'row g-3' },
+		// Sin foto, sin un recuadro vacío del tamaño de una foto: los datos usan todo el ancho.
+		foto ? h('div', { class: 'col-md-5' }, h('img', { class: 'mc-foto', src: foto, alt: titulo })) : null,
+		h('div', { class: `${foto ? 'col-md-7' : 'col-12'} d-grid gap-2 align-content-start` },
+			h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, insignias),
+			precio ? h('div', { class: 'h4 mb-0' }, precio) : null,
+			h('ul', { class: 'list-unstyled small mb-0 d-grid gap-1' }, lineas),
+			pie))));
+}
+
 // p: la casa tal como viene en el resumen; resumen: el documento entero (asesor, próximo paso, ids).
 export function resumenCasa(resumen, p, { responder = true } = {}) {
-	const est = ESTADOS_PROPIEDAD.find((e) => e.valor === p.estado) || ESTADOS_PROPIEDAD[0];
 	const desde = p.enMercadoDesde ? new Date(p.enMercadoDesde) : null;
 	const dias = desde ? Math.max(0, Math.floor(((p.enMercadoHasta ? new Date(p.enMercadoHasta) : new Date()) - desde) / DIA)) : null;
 	const k = p.kpis || {};
@@ -92,24 +109,21 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 
 	return h('div', {},
 		// Lo principal: foto y, al lado, estado, precio, días en el mercado, exclusiva, asesor e interés.
-		h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' }, h('div', { class: 'row g-3' },
-			h('div', { class: 'col-md-5' }, foto ? h('img', { class: 'mc-foto', src: foto, alt: p.titulo || '' }) : h('div', { class: 'mc-foto thumb-vacia' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-			h('div', { class: 'col-md-7 d-grid gap-2 align-content-start' },
-				h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, badge(est.label, COLOR_VISIBILIDAD[est.visibilidad] || 'secondary'),
-					p.exclusivaHasta ? estadoExclusiva({ exclusiva: true, exclusivaFin: p.exclusivaHasta }) : badge('Sin exclusiva', 'light')),
-				h('div', { class: 'h4 mb-0' }, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('ul', { class: 'list-unstyled small mb-0 d-grid gap-1' },
-					h('li', {}, ic('icon-clock-o'), dias === null ? 'Aún no sale al mercado' : dias === 0 ? 'Salió al mercado hoy' : `${dias} ${dias === 1 ? 'día' : 'días'} en el mercado`),
-					p.exclusivaHasta ? h('li', {}, ic('icon-calendar'), `Exclusiva hasta el ${fecha(p.exclusivaHasta)}`) : null,
-					prox ? h('li', {}, ic('icon-calendar-check-o'), `${prox} ${prox === 1 ? 'visita agendada' : 'visitas agendadas'}`) : null,
-					resumen.proximoPaso ? h('li', {}, ic('icon-flag'), h('strong', {}, 'Próximo paso: '), resumen.proximoPaso) : null,
-					enlaceSeguro(p.url) ? h('li', {}, h('a', { href: p.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null),
+		cabeceraCasa({ foto, titulo: p.titulo, precio: formatPrice(p.precio, p.moneda, p.operacion),
+			insignias: [estadoCasa(p), p.exclusivaHasta ? estadoExclusiva({ exclusiva: true, exclusivaFin: p.exclusivaHasta }) : badge('Sin exclusiva', 'light')],
+			lineas: [
+				h('li', {}, ic('icon-clock-o'), dias === null ? 'Aún no sale al mercado' : dias === 0 ? 'Salió al mercado hoy' : `${dias} ${dias === 1 ? 'día' : 'días'} en el mercado`),
+				p.exclusivaHasta ? h('li', {}, ic('icon-calendar'), `Exclusiva hasta el ${fecha(p.exclusivaHasta)}`) : null,
+				prox ? h('li', {}, ic('icon-calendar-check-o'), `${prox} ${prox === 1 ? 'visita agendada' : 'visitas agendadas'}`) : null,
+				resumen.proximoPaso ? h('li', {}, ic('icon-flag'), h('strong', {}, 'Próximo paso: '), resumen.proximoPaso) : null,
+				enlaceSeguro(p.url) ? h('li', {}, h('a', { href: p.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null],
+			pie: [
 				ag.nombre || ag.whatsapp || ag.telefono ? h('div', { class: 'd-flex align-items-center gap-2 border-top pt-2' },
 					h('span', { class: 'small flex-grow-1' }, h('span', { class: 'text-muted' }, 'Tu asesor: '), h('strong', {}, ag.nombre || 'Equipo Inmobiliario')),
 					ag.whatsapp ? iconoBtn('icon-whatsapp', `WhatsApp a ${ag.nombre || 'tu asesor'}`, { href: whatsappUrl(ag.whatsapp, `Hola${ag.nombre ? ` ${ag.nombre.split(' ')[0]}` : ''}, vi en mi panel «${p.titulo}» y tengo una consulta.`), target: '_blank', rel: 'noopener' }) : null,
 					ag.telefono ? iconoBtn('icon-phone', `Llamar a ${ag.nombre || 'tu asesor'}`, { href: `tel:${ag.telefono}` }) : null) : null,
 				// Interés: consultas, visitas y ofertas (total y últimos 30 días), junto a la foto.
-				h('div', { class: 'row g-2' }, kpi('consultas', 'Consultas', 'icon-commenting-o'), kpi('visitas', 'Visitas', 'icon-calendar-check-o'), kpi('ofertas', 'Ofertas', 'icon-handshake-o')))))),
+				h('div', { class: 'row g-2' }, kpi('consultas', 'Consultas', 'icon-commenting-o'), kpi('visitas', 'Visitas', 'icon-calendar-check-o'), kpi('ofertas', 'Ofertas', 'icon-handshake-o'))] }),
 		tarjeta('Cómo se anuncia', 'icon-bullhorn',
 			h('p', { class: 'small text-muted' }, 'Así ven tu propiedad los interesados en nuestra página.'),
 			h('div', { class: 'fw-semibold' }, p.titulo),

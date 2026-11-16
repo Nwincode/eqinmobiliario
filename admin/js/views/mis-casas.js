@@ -6,11 +6,11 @@
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
-import { fichaCasa, FILA_CASA } from '../ficha-casa.js';
-import { resumenCasa } from '../resumen-casa.js';
+import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
+import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional } from '../privado-casa.js';
 
@@ -41,6 +41,7 @@ const flecha = (lado, titulo, onclick, disabled) => h('button', {
 const desdeResumen = (x) => ({ id: x.id, titulo: x.titulo, operacion: x.operacion, precio: x.precio, moneda: x.moneda, publicado: Boolean(x.url),
 	fotos: x.foto ? [{ url: x.foto }] : [], ...(x.anuncio || {}) });
 const ORDEN = { venta: 0, renta: 1, vacacional: 2 };
+const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
 const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' });
 
 async function lista(container) {
@@ -300,7 +301,21 @@ async function casa(container, id) {
 					onclick: () => guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}`, (a) => ({ [campo]: a[campo].filter((x) => !mismoRango(x, r)) }))
 				})))));
 	};
+	// Cabecera (foto, estado, lo que ve el cliente, reservas): se repinta con cada cambio de precio.
+	const cabecera = h('div');
+	const pintarCabecera = () => repintar(cabecera,
+		cabeceraCasa({ foto: p.fotos?.[0]?.url, titulo: p.titulo, precio: formatPrice(V.precioDesde(V.planPublico(plan(), s.margen), hoy()) || p.precio, p.moneda, p.operacion),
+			insignias: [estadoCasa(p), p.publicado ? null : badge('Sin publicar', 'light')],
+			lineas: [
+				h('li', { class: 'text-muted' }, ic('icon-eye'), 'Lo que ve el cliente por noche, sin impuestos'),
+				h('li', {}, ic('icon-calendar-check-o'), cuenta.reservas
+					? [`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
+						h('strong', {}, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))]
+					: 'Todavía sin reservas confirmadas'),
+				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
+				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }));
 	function pintar() {
+		pintarCabecera();
 		calendario();
 		repintar(listas,
 			grupo('Precios especiales', 'tarifas', (r) => `${plata(r.precio)} por noche · el cliente ve ${publico(r.precio)}`),
@@ -310,11 +325,10 @@ async function casa(container, id) {
 	pintar();
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
-		cuenta.reservas ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-calendar-check-o me-1', 'aria-hidden': 'true' }),
-			`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
-			h('strong', { class: 'text-body' }, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))) : null,
+		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.
+		cabecera,
 		// En computadora: precios y lo especial a la izquierda, el calendario a la derecha (sin un calendario de 900 px).
-		h('div', { class: 'row g-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
+		h('div', { class: 'row gx-3' }, h('div', { class: 'col-lg-5' }, h('div', { class: 'card card-body mb-3' }, h('div', { class: 'row g-3' },
 			precio('base', 'Entre semana', 'Tu precio por noche.'),
 			precio('finde', 'Fin de semana', 'Vacío: igual que entre semana.'),
 			h('div', { class: 'col-6' },

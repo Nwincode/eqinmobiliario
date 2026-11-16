@@ -2,12 +2,11 @@
 import { slugify } from './ui.js';
 import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
-import { siteConfig } from './firebase.js';
+import { SITIO as SITE } from './firebase.js';
 import { seOfrece, enOperacion, operacionHashtag } from './estados.js';
 import { conEmojis } from './descripcion.js';
 import { precioTexto, M2_A_FT2 } from './formato.js';
 
-const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 
 // Plataformas por defecto. Se pueden cambiar en Contenido del sitio → Portales.
 // Los límites de caracteres son aproximados: si una plataforma corta el texto, bájalos ahí.

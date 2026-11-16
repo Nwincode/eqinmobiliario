@@ -1,10 +1,9 @@
 // Google: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
-import { db, doc, getDoc, getDocs, collection, siteConfig } from '../firebase.js';
+import { db, doc, getDoc, getDocs, collection, siteConfig, SITIO as SITE } from '../firebase.js';
 import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 
-const SITE = (siteConfig.siteUrl || '').replace(/\/$/, '');
 const num = (n) => Math.round(n || 0).toLocaleString('es-GT');
 const pct = (n) => `${((n || 0) * 100).toFixed(1)} %`;
 const pos = (n) => (n ? n.toFixed(1) : '—');
