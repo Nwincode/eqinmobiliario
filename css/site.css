@@ -1322,14 +1322,16 @@ h2.heading::after,
 	display: grid;
 	gap: 6px;
 	padding: 0 6px;
-	height: min(74vh, 760px);
-	min-height: 420px;
+	/* El alto sale del ancho (no solo de la pantalla): así cada foto queda en 4:3, como se tomó, y no se recorta en una
+	   pantalla angosta y alta (iPad), donde la marca de agua quedaba cortada. Con 2fr 1fr 1fr: 37.5 % del ancho. */
+	height: min(74vh, 760px, 37.5vw);
+	min-height: 280px;
 	grid-template-columns: 2fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr;
 }
-.ficha-galeria-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.ficha-galeria-2 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr; }
-.ficha-galeria-3 { grid-template-columns: 2fr 1fr; }
+.ficha-galeria-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; height: min(74vh, 760px, 75vw); }
+.ficha-galeria-2 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr; height: min(74vh, 760px, 50vw); }
+.ficha-galeria-3 { grid-template-columns: 2fr 1fr; height: min(74vh, 760px, 50vw); }
 .ficha-galeria-4 { grid-template-columns: 2fr 1fr 1fr; }
 .ficha-foto {
 	position: relative;
