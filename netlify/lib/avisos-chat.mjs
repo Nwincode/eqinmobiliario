@@ -2,6 +2,8 @@
 // Cada aviso lleva solo un enlace a la plataforma (la reserva del cliente o la solicitud en el panel):
 // la conversación sigue allí, y nadie recibe el teléfono ni el correo del otro.
 const FRESCO = 10 * 60_000;
+// Quien abrió el chat hace menos de esto está conversando: sus mensajes nuevos los ve ahí, sin correo.
+const ACTIVO = 3 * 60_000;
 const lado = (m) => (m.de === 'cliente' ? 'cliente' : 'casa');
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v) || 0);
 
@@ -69,9 +71,11 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	}
 	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,
 		`${resumen}. Revisa tu cuenta y marca «Pago recibido»: el cliente recibe solo la dirección y cómo llegar.`);
-	// Varios mensajes seguidos del mismo lado: solo se avisa del primero.
-	const anterior = mensajes[mensajes.length - 2];
-	if (anterior && lado(anterior) === lado(ultimo) && !anterior.tipo) return [];
+	// Un correo por tanda, no por mensaje: solo el primero que quien lo recibe todavía no ha visto (lo que sigue lo ve
+	// al entrar). Y si está en el chat ahora mismo (lo abrió hace menos de ACTIVO), no hace falta correo.
+	const visto = lado(ultimo) === 'cliente' ? Math.max(ms(chat.vistoSocio), ms(chat.vistoEquipo)) : ms(chat.vistoCliente);
+	if (mensajes.filter((m) => lado(m) === lado(ultimo) && ms(m.createdAt) > visto).length > 1) return [];
+	if (visto && ahora - visto < ACTIVO) return [];
 	return lado(ultimo) === 'cliente'
 		? aLaCasa(`${chat.codigo}: mensaje del cliente`, `${chat.nombre || 'El cliente'} escribió en ${chat.codigo}`, `${resumen}. Respóndele desde la solicitud.`)
 		: alCliente(en ? `Booking ${chat.codigo}: you have a reply` : `Reserva ${chat.codigo}: tienes respuesta`, en ? 'You have a new message' : 'Tienes un mensaje nuevo',

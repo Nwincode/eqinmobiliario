@@ -69,7 +69,17 @@ export async function render(container, [codigo] = []) {
 	const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago' };
 	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar. «Está disponible», «no está» y «recibí tu
 	// pago» no van aquí: con un mensaje la reserva no cambia; eso lo hacen los botones de la solicitud (ver la nota del chat).
-	const RAPIDAS = ['¿A qué hora piensan llegar?', '¿Cuántas personas vienen en total?', '¡Gracias! Te esperamos.'];
+	// Respuestas rápidas según el momento de la reserva (sin datos de la casa que cambian de una a otra, sin contacto
+	// y sin lo que se hace con un botón: disponibilidad, datos de pago y dirección salen solos al tocar «Confirmar» y «Pago recibido»).
+	const RAPIDAS = {
+		siempre: ['¡Hola! Gracias por escribir. Lo reviso y te respondo en unos minutos.', 'Con gusto. ¿Algo más en lo que te pueda ayudar?'],
+		pendiente: ['¿A qué hora piensan llegar?', '¿Cuántas personas vienen en total?', '¿Viajan con mascotas?', '¿Vienen niños pequeños? Así tenemos todo listo.',
+			'¿Es para una ocasión especial? Cuéntame y lo preparamos.'],
+		confirmada: ['Tus datos de pago ya están en tu reserva. Cuando pagues, sube aquí la foto del comprobante.', 'Recibí tu comprobante: lo reviso y te confirmo.',
+			'Aún no veo el pago. ¿Me compartes la foto del comprobante aquí?', '¿A qué hora piensan llegar?'],
+		pagada: ['La dirección y cómo llegar ya están en tu reserva. ¡Buen viaje!', '¿Necesitas ayuda para llegar?', '¿Cómo va todo en la casa? ¿Necesitas algo?',
+			'¡Gracias por tu visita! Esperamos verte pronto.']
+	};
 	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: todo se coordina aquí.
 	async function abrirChat(l) {
 		const ref = refChat(l);
@@ -117,8 +127,14 @@ export async function render(container, [codigo] = []) {
 				await cargar();
 			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); } finally { enviando = false; }
 		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
-		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' }, RAPIDAS.map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => { campo.value = r; campo.focus(); } }, r)),
-			ingles ? iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }) : null);
+		// Respuestas rápidas detrás del rayo: se abren al tocarlo y se cierran al elegir una.
+		const momento = datosChat[l.reserva.codigo]?.estado === 'pagada' ? 'pagada' : estado(l) === 'confirmada' ? 'confirmada' : 'pendiente';
+		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2', hidden: true }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary text-start', onclick: () => {
+			campo.value = r; rapidas.hidden = true; rayo.setAttribute('aria-expanded', 'false'); campo.focus();
+		} }, r)));
+		const rayo = iconoBtn('icon-bolt', 'Respuestas rápidas', { 'aria-expanded': 'false', onclick: () => { rapidas.hidden = !rapidas.hidden; rayo.setAttribute('aria-expanded', String(!rapidas.hidden)); } });
+		form.prepend(rayo);
+		if (ingles) form.prepend(iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }));
 		// Mensajes nuevos cada 10 s mientras la conversación está abierta.
 		const reloj = setInterval(mostrar, 10000);
 		// Lo que cambia la reserva no se dice por mensaje: se toca el botón (así se apartan las fechas y el cliente recibe lo que sigue).
