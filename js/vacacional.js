@@ -153,7 +153,8 @@
 				if (minimoHasta && f > estado.llegada && f < minimoHasta) clases.push('is-minimo');
 				if (minimoHasta && f === minimoHasta) clases.push('is-salida-min');
 				var elegido = f === estado.llegada || f === estado.salida;
-				var precio = f >= hoy && !ocupadas[f] ? '<span class="vac-dia-precio" aria-hidden="true">' + dineroCorto(V.precioNoche(f, D.plan)) + '</span>' : '';
+				// Donde va el precio: el precio, o «Ocupado» si está reservado o bloqueado (sin decir por qué).
+				var precio = f < hoy ? '' : '<span class="vac-dia-precio" aria-hidden="true">' + (ocupadas[f] ? esc(t.vacOcupadoCelda) : dineroCorto(V.precioNoche(f, D.plan))) + '</span>';
 				h += '<td role="gridcell"' + (elegido ? ' aria-selected="true"' : '') + '><button type="button" class="' + clases.join(' ') + '" data-fecha="' + f + '"' +
 					' tabindex="' + (f === foco ? '0' : '-1') + '"' + (libre || elegido ? '' : ' aria-disabled="true"') +
 					' aria-label="' + etiqueta(f).replace(/"/g, '&quot;') + '"><span class="vac-dia-num" aria-hidden="true">' + d + '</span>' + precio + '</button></td>';
@@ -252,7 +253,9 @@
 
 		cuerpo.addEventListener('click', function (e) {
 			var b = e.target.closest('[data-fecha]');
-			if (!b || b.getAttribute('aria-disabled') === 'true') return;
+			if (!b) return;
+			// Un día ocupado no se elige, pero se dice por qué (no «no pasa nada»).
+			if (b.getAttribute('aria-disabled') === 'true') { if (ocupadas[b.getAttribute('data-fecha')]) ayuda.textContent = t.vacDiaOcupado; return; }
 			elegir(b.getAttribute('data-fecha'));
 		});
 		cuerpo.addEventListener('keydown', function (e) {
