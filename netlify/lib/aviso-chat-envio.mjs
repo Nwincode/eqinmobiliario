@@ -4,11 +4,12 @@
 // El correo del cliente sale de su solicitud y el del socio de su ficha, ambos leídos con la cuenta de servicio, y el
 // título de la casa, de la casa guardada. Devuelve cuántos salieron (0 sin correo o base configurados), o null si el chat no existe.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
-import { enviarCorreo, correoConfigurado, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
+import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
 
 export async function enviarAvisosChat(token) {
-	if (!correoConfigurado() || !datosConfigurados()) return 0;
+	// Basta el servicio de correo: el cliente y el socio reciben lo suyo aunque falten los correos del equipo (AVISO_CORREO).
+	if (!servicioCorreo() || !datosConfigurados()) return 0;
 	const chat = await leerPublico(`chats/${token}`);
 	if (!chat) return null;
 	const [mensajes, lead, socio, casa] = await Promise.all([
@@ -19,9 +20,14 @@ export async function enviarAvisosChat(token) {
 	]);
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
 	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	// Cada correo por su lado: si falla el del socio, el del cliente igual sale (y al revés).
+	let fallas = 0;
 	for (const a of avisos) {
-		const html = await plantilla({ titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, bloques: (c) => boton(c, a.boton, a.url, c.primary, { ancho: true }) });
-		await enviarCorreo({ para: a.para, asunto: a.asunto, html, texto: `${a.titulo}\n${a.intro}\n\n${a.boton}: ${a.url}` });
+		try {
+			const html = await plantilla({ titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, bloques: (c) => boton(c, a.boton, a.url, c.primary, { ancho: true }) });
+			await enviarCorreo({ para: a.para, asunto: a.asunto, html, texto: `${a.titulo}\n${a.intro}\n\n${a.boton}: ${a.url}` });
+		} catch (err) { fallas++; console.error('Aviso de chat a', a.para.length, 'correo(s):', err.message); }
 	}
-	return avisos.length;
+	if (fallas && fallas === avisos.length) throw new Error('No salió ningún aviso');
+	return avisos.length - fallas;
 }
