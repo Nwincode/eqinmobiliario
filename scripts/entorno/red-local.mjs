@@ -31,7 +31,7 @@ const real = globalThis.fetch;
 globalThis.fetch = async (entrada, opciones = {}) => {
 	const url = String(entrada instanceof Request ? entrada.url : entrada);
 	if (url.startsWith('https://oauth2.googleapis.com/token')) return Response.json({ access_token: 'owner', expires_in: 3600 });
-	if (/^https:\/\/api\.(zeptomail|resend)\./.test(url) || /zeptomail\.[a-z.]+\/v1\.1\/email/.test(url)) {
+	if (/^https:\/\/api\.(zeptomail|resend)\./.test(url) || /(zeptomail\.[a-z.]+|cpaas\.zoho\.[a-z.]+)\/v1\.1\/email/.test(url)) {
 		if (process.env.CORREOS) appendFileSync(process.env.CORREOS, `${opciones.body}\n`);
 		return Response.json({ data: [{ message: 'OK' }], id: 'pruebas' });
 	}
