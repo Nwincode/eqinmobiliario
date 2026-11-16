@@ -165,6 +165,9 @@
 		campo.removeAttribute('aria-describedby');
 		var msg = caja.nextElementSibling;
 		if (msg && msg.classList.contains('invalid-feedback')) msg.remove();
+		// Sin campos en rojo, «Revisa los campos marcados en rojo» ya no aplica: se quita.
+		var form = campo.form, box = form && form.querySelector('.lead-form-status');
+		if (box && !form.querySelector('.is-invalid') && box.classList.contains('text-danger') && !box.getAttribute('data-vac')) { box.textContent = ''; box.className = 'lead-form-status'; }
 	}
 	// «quedarse»: no mover la página (p. ej. cuando el calendario ya se llevó la vista y el foco).
 	function marcarCampos(form, errores, quedarse) {
@@ -179,7 +182,10 @@
 			if (typeof x[1] === 'string') msg.textContent = x[1]; else msg.appendChild(x[1]);
 			campo.setAttribute('aria-describedby', msg.id);
 			caja.insertAdjacentElement('afterend', msg);
-			campo.addEventListener('input', function () { quitarMarca(campo); }, { once: true });
+			// Se quita al escribir y también con el autollenado del navegador (que a veces solo avisa «change»).
+			var quitar = function () { campo.removeEventListener('input', quitar); campo.removeEventListener('change', quitar); quitarMarca(campo); };
+			campo.addEventListener('input', quitar);
+			campo.addEventListener('change', quitar);
 		});
 		if (quedarse) return;
 		var primero = errores[0][0];
@@ -213,7 +219,14 @@
 			var lead = {
 				nombre: form.nombre.value.trim(),
 				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
-				telefono: (function (numero) { return !numero || numero.charAt(0) === '+' || !form.codigo ? numero : '+' + form.codigo.value + ' ' + numero; })(form.telefono.value.trim()),
+				// Un solo formato: «+código número». El autollenado del navegador suele traer el código pegado al número
+				// («50255551234», «00502…»): si ya empieza con el código elegido, no se repite.
+				telefono: (function (numero) {
+					if (!numero || numero.charAt(0) === '+' || !form.codigo) return numero;
+					var cod = form.codigo.value, d = numero.replace(/\D/g, '').replace(/^00/, '');
+					if (cod && d.indexOf(cod) === 0 && d.length - cod.length >= 7) return '+' + cod + ' ' + d.slice(cod.length);
+					return '+' + cod + ' ' + numero;
+				})(form.telefono.value.trim()),
 				email: form.email ? form.email.value.trim() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',
@@ -684,16 +697,19 @@
 		if (foto) f.src = foto;
 		if (!dialogoCompartir.open) dialogoCompartir.showModal();
 	}
+	// Se apaga en Contenido → Fotos de las casas; y nunca sale a quien es del equipo (entró al panel en este navegador).
+	var conAviso = config.avisoCompartir !== false;
+	try { if (localStorage.getItem('eq_equipo')) conAviso = false; } catch (e) { /* sin memoria del navegador */ }
 	document.addEventListener('contextmenu', function (e) {
 		var img = e.target.closest && e.target.closest(FOTOS_CASA);
-		if (!img) return;
+		if (!img || !conAviso) return;
 		e.preventDefault();
 		avisoCompartir(img);
 	});
 	document.addEventListener('dragstart', function (e) { if (e.target.closest && e.target.closest(FOTOS_CASA)) e.preventDefault(); });
 	// Tecla de captura (Windows) y las combinaciones de Mac que el navegador alcanza a ver, solo donde hay fotos de casas.
 	var conFotos = document.querySelector('.ficha-galeria, .prop-fotos, .property-item img');
-	if (conFotos) {
+	if (conFotos && conAviso) {
 		document.addEventListener('keyup', function (e) { if (e.key === 'PrintScreen') avisoCompartir(document.querySelector('.ficha-foto img')); });
 		document.addEventListener('keydown', function (e) { if (e.metaKey && e.shiftKey && /^[345]$/.test(e.key)) avisoCompartir(document.querySelector('.ficha-foto img')); });
 	}
