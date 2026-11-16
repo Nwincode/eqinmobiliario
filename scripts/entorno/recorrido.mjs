@@ -1429,6 +1429,8 @@ const duenos = [];
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
 	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
 	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
+	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
+	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
 	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));

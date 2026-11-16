@@ -169,6 +169,16 @@
 			}
 		}
 
+		// La franja del mínimo encima de los días: el que aplica a esa llegada (una temporada puede pedir más) y resaltada
+		// mientras se elige la salida. Con 1 noche no se muestra.
+		var franja = card.querySelector('.vac-cal-minimo');
+		function pintarMinimo(n, activo) {
+			if (!franja) return;
+			franja.hidden = !(n > 1);
+			franja.classList.toggle('is-activo', Boolean(activo && n > 1));
+			franja.querySelector('[data-out="minimo"]').textContent = fmt(t.vacMinimoCorto, { n: n });
+		}
+
 		// El botón de enviar dice lo que falta: sin fechas, «Primero elige tus fechas» (y al tocarlo, lleva al calendario).
 		var textoBoton = form && form.querySelector('button[type=submit] .btn-texto');
 		function actualizar() {
@@ -179,20 +189,26 @@
 				var activo = botonesCampo[i].getAttribute('data-campo') === (estado.llegada && !estado.salida ? 'salida' : estado.campo);
 				botonesCampo[i].classList.toggle('is-activo', activo && !(estado.llegada && estado.salida));
 			}
-			if (!estado.llegada) ayuda.textContent = t.vacEligeLlegada;
+			if (!estado.llegada) { ayuda.textContent = t.vacEligeLlegada; pintarMinimo(nochesMin, false); }
 			else if (!estado.salida) {
 				// Aquí, donde el cliente está mirando: la estancia mínima, la primera salida (y un botón a su mes si no se ve),
 				// cómo cambiar la llegada y borrar. Sin esto, los días apagados no se entienden.
 				var primera = primeraSalida();
 				// El mínimo que de verdad fija la primera salida (un mínimo por fechas más adelante puede ser mayor).
 				var minimo = primera ? V.nochesEntre(estado.llegada, primera) : minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
-				var texto = primera ? t.vacEligeSalida + (minimo > 1 ? ' ' + fmt(t.vacMinimo, { n: minimo }) + ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : '') : t.vacSinSalida;
-				var html = esc(texto + ' ' + t.vacCambiarLlegada);
+				var html;
+				if (primera && minimo > 1) {
+					// El mínimo va encima de los días (la franja); aquí, la primera salida y qué significan las rayas y el borde.
+					html = esc(t.vacEligeSalida + ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) })) +
+						' <span class="vac-leyenda"><span class="vac-muestra vac-muestra-min" aria-hidden="true"></span>' + esc(t.vacLeyendaMin) +
+						'<span class="vac-muestra vac-muestra-salida" aria-hidden="true"></span>' + esc(t.vacLeyendaSalida) + '</span> ' + esc(t.vacCambiarLlegada);
+				} else html = esc((primera ? t.vacEligeSalida : t.vacSinSalida) + ' ' + t.vacCambiarLlegada);
+				pintarMinimo(minimo, true);
 				if (primera && mesDe(primera) !== estado.mes) html += ' <button type="button" class="btn btn-link vac-ayuda-btn" data-ver-mes="' + mesDe(primera) + '">' + esc(fmt(t.vacVerMes, { mes: fMes.format(fechaUTC(mesDe(primera) + '-01')) })) + '</button>';
 				html += ' <button type="button" class="btn btn-link vac-ayuda-btn vac-borrar">' + esc(t.vacBorrar) + '</button>';
 				ayuda.innerHTML = html;
 			}
-			else ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.';
+			else { ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.'; pintarMinimo(minimoDe(estado.llegada, estado.salida), false); }
 			pintarDesglose();
 		}
 
