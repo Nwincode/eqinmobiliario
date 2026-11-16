@@ -478,11 +478,6 @@
 	padding: 0;
 	transition: background .2s ease, color .2s ease;
 }
-.share-buttons a > span,
-.share-buttons button > span {
-	display: block;
-	line-height: 1; /* el dibujo del ícono queda en el centro del círculo, no arriba */
-}
 /* «Enlace copiado»: aviso breve abajo de la pantalla (js/site.js), para que copiar se note. */
 .eq-aviso-breve {
 	position: fixed;
@@ -1063,6 +1058,7 @@ a {
 	width: 1em;
 	height: 1em;
 	vertical-align: -.1em;
+	transform: none; /* dibujo propio ya centrado: sin el ajuste de la fuente de íconos */
 	background: currentColor;
 	-webkit-mask: var(--ico) center / contain no-repeat;
 	mask: var(--ico) center / contain no-repeat;
@@ -1474,16 +1470,23 @@ body.offcanvas-menu .ficha-barra {
 	border-bottom: 1px solid var(--eq-line);
 }
 .ficha-datos li {
-	display: flex;
-	flex-direction: column;
+	/* Ícono a la izquierda, número y nombre a su derecha: ocupa menos alto que el ícono arriba. */
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 10px;
+	align-items: center;
 }
 .ficha-datos strong {
+	grid-column: 2;
 	font-size: 22px;
 	font-weight: 500;
+	line-height: 1.15;
 	color: var(--eq-dark);
 }
-.ficha-datos span {
+.ficha-datos li > span:not(.eq-ic) {
+	grid-column: 2;
 	font-size: 13px;
+	line-height: 1.2;
 	color: var(--eq-ink);
 }
 .ficha-bloque {
@@ -2093,9 +2096,10 @@ a:hover > .eq-ic-fin,
 	margin-right: .5em;
 }
 .ficha-datos .eq-ic {
-	font-size: 20px;
+	grid-row: 1 / span 2;
+	font-size: 24px;
 	color: var(--eq-primary);
-	margin: 0 0 8px;
+	margin: 0;
 }
 .ficha-amenidades li {
 	padding-left: 0;
