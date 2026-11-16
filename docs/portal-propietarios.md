@@ -116,9 +116,12 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
    del mensaje de Firebase no se puede cambiar (Firebase lo bloquea): por eso el correo con el diseño aprobado lo manda
    el propio sistema (`netlify/functions/contrasena.mjs` con `netlify/lib/correo-contrasena.mjs`, imágenes en
    `images/correo/`), por el servicio de correo de la empresa (Zoho CPaaS, antes ZeptoMail). Necesita: el dominio
-   verificado en Zoho, `ZEPTOMAIL_TOKEN` y `CORREO_REMITENTE` en Netlify, y que la cuenta de servicio de escritura tenga
-   también el rol «Firebase Authentication Admin» (o una aparte: `GOOGLE_SA_ACCESOS_EMAIL` / `GOOGLE_SA_ACCESOS_KEY`).
-   Mientras falte algo, sale el correo de Firebase de siempre (`admin/js/contrasena.js`).
+   verificado en Zoho (sin seguimiento de clics ni de aperturas: reescribiría el enlace de un solo uso), `ZEPTOMAIL_TOKEN`
+   y `CORREO_REMITENTE` en Netlify, y una cuenta de servicio APARTE, `accesos-panel`, con el rol «Firebase Authentication
+   Admin», en `GOOGLE_SA_ACCESOS_EMAIL` / `GOOGLE_SA_ACCESOS_KEY` (nunca la de escritura: juntas, una clave filtrada lo
+   abriría todo). Solo recibe el correo quien entra al panel (cuenta y `users/{uid}` activo). Mientras falte algo, sale
+   el correo de Firebase de siempre (`admin/js/contrasena.js`). En Firebase → Authentication → Configuración, activar
+   «Protección contra la enumeración de correos».
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

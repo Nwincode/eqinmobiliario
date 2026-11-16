@@ -6,9 +6,12 @@ export function limitador(max, ventanaMs = 10 * 60_000) {
 	return (clave) => {
 		const ahora = Date.now();
 		const lista = (hits.get(clave) || []).filter((t) => ahora - t < ventanaMs);
+		// Un pedido rechazado no cuenta: así nadie deja bloqueada una clave ajena (p. ej. el correo de otra persona).
+		if (lista.length >= max) { hits.set(clave, lista); return true; }
 		lista.push(ahora);
 		hits.set(clave, lista);
-		return lista.length > max;
+		if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => ahora - t < ventanaMs)) hits.delete(k);
+		return false;
 	};
 }
 

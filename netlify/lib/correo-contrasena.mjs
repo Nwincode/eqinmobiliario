@@ -31,7 +31,7 @@ export function correoContrasena({ link, email }) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border-collapse:separate"><tr>
     <td bgcolor="#edf5fa" style="background:#edf5fa;border:1px solid #d3e4ee;border-radius:8px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif">
       <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;letter-spacing:1px;font-weight:bold;color:#5b666f">TU USUARIO</p>
-      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:24px;font-weight:bold;color:#0e1920;word-break:break-all;overflow-wrap:anywhere"><a href="mailto:${correo}" style="color:#0e1920;text-decoration:none">${correo}</a></p>
+      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:24px;font-weight:bold;color:#0e1920;word-break:break-all;overflow-wrap:anywhere"><span style="color:#0e1920;text-decoration:none">${correo}</span></p>
     </td>
   </tr></table>
 
