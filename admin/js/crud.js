@@ -2,7 +2,7 @@
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp } from './firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount, cajaTabla } from './ui.js';
 import { renderForm } from './form.js';
-import { markPending, porOrden } from './session.js';
+import { markPending, porOrden, trasGuardar } from './session.js';
 import { revisar, vigilarFormulario } from './pendientes.js';
 
 // cfg.pendientes: tipo de pendientes.js para marcar datos por completar.
@@ -53,7 +53,7 @@ export function crudView(cfg) {
 				await form.flushDeletes();
 				await markPending(`${cfg.singular}: ${d.nombre || d.titulo || ''}`);
 				if (cfg.afterSave) cfg.afterSave();
-				toast('Guardado. Recuerda publicar para ver los cambios en el sitio.');
+				toast(`Guardado. ${trasGuardar()}`);
 				location.hash = `#/${cfg.route}`;
 			} catch (err) {
 				showError(err);

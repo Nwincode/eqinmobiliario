@@ -5,7 +5,7 @@ import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
-import { session, agentOptions, loadAgents, markPending } from '../session.js';
+import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
@@ -474,7 +474,7 @@ export async function render(container, [id]) {
 				const label = estadoDe({ estado }).label;
 				e.target.disabled = true;
 				guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`,
-					`Estado cambiado a «${label}». Recuerda publicar para verlo en el sitio.`);
+					`Estado cambiado a «${label}». ${trasGuardar()}`);
 			}
 		}, ESTADOS.map(([v, l]) => h('option', { value: v, selected: estadoDe(p).valor === v }, l)));
 		const chk = h('input', {
@@ -486,7 +486,7 @@ export async function render(container, [id]) {
 				const publicado = e.target.checked;
 				e.target.disabled = true;
 				guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
-					publicado ? 'Visible en la página. Recuerda publicar para verlo en el sitio.' : 'Oculta de la página. Recuerda publicar para que salga del sitio.');
+					`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
 			}
 		});
 		const detener = (e) => e.stopPropagation();
@@ -614,7 +614,7 @@ export async function render(container, [id]) {
 		const lista = elegidasAhora.filter((p) => !fuera.includes(p));
 		if (!lista.length) { selMasaEstado.value = ''; return; }
 		enMasa(guardarMasa(cambioDeEstado(estado), { estado }), `Estado cambiado a ${label}`,
-			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». Recuerda publicar para verlo en el sitio.`, lista);
+			(n) => `${n} cambiada${n === 1 ? '' : 's'} a «${label}». ${trasGuardar()}`, lista);
 		seleccion.clear();
 	});
 	const selMasaAsesor = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar asesor a las seleccionadas' },
@@ -636,11 +636,11 @@ export async function render(container, [id]) {
 	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
 		onclick: () => enMasa(guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
-			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. Recuerda publicar.`) },
+			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) },
 		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
 	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
 		onclick: () => enMasa(guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
-			(n) => `${n} oculta${n === 1 ? '' : 's'}. Recuerda publicar.`) },
+			(n) => `${n} oculta${n === 1 ? '' : 's'}. ${trasGuardar()}`) },
 		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
 	const mejorar = async (lista) => {
 		const l = lista || elegidas();
@@ -662,7 +662,7 @@ export async function render(container, [id]) {
 				if (!p.descripcionAnterior) return;
 				const descripcion = p.descripcionAnterior;
 				await guardarMasa({ descripcion, descripcionAnterior: p.descripcion || '' }, { descripcion, descripcionAnterior: p.descripcion || '' })(p);
-			}, 'Descripción anterior', (k) => `${k} descripción${k === 1 ? '' : 'es'} restaurada${k === 1 ? '' : 's'}. Recuerda publicar.`);
+			}, 'Descripción anterior', (k) => `${k} descripción${k === 1 ? '' : 'es'} restaurada${k === 1 ? '' : 's'}. ${trasGuardar()}`);
 		} },
 		h('span', { class: 'icon-undo', 'aria-hidden': 'true' }), ' Volver a la anterior');
 	const traducir = async (lista) => {
@@ -672,7 +672,7 @@ export async function render(container, [id]) {
 			if (!p.titulo || (p.en?.manual && String(p.en?.titulo || '').trim())) return;
 			const en = await traducirEn(p);
 			await guardarMasa({ en }, { en })(p);
-		}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. Recuerda publicar.`, lista);
+		}, 'Traducción al inglés', (k) => `${k} propiedad${k === 1 ? '' : 'es'} traducida${k === 1 ? '' : 's'} al inglés. ${trasGuardar()}`, lista);
 	};
 	const btnTraducir = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => traducir() },
 		h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Traducir al inglés');
@@ -695,7 +695,7 @@ export async function render(container, [id]) {
 			const en = d.en || {};
 			if (faltaIngles(d)) cambios.en = await traducirEn(d);
 			if (Object.keys(cambios).length) await guardarMasa(cambios, cambios)(p);
-		}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. Recuerda publicar.`, lista);
+		}, 'SEO completado', (k) => `SEO de ${k} propiedad${k === 1 ? '' : 'es'} revisado y completado. ${trasGuardar()}`, lista);
 	};
 	const btnCompletar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary', onclick: () => completarSeo() },
 		h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Completar SEO');
@@ -739,7 +739,7 @@ export async function render(container, [id]) {
 				const fotos = await marcarFotos(p, (i, t) => { boton.lastChild.textContent = ` Propiedad ${hecha + 1} de ${n}: foto ${i} de ${t}…`; });
 				hecha++;
 				if (fotos) await guardarMasa({ fotos }, { fotos })(p);
-			}, 'Marca de agua en fotos', (k) => `Fotos de ${k} propiedad${k === 1 ? '' : 'es'} con marca de agua. Recuerda publicar.`);
+			}, 'Marca de agua en fotos', (k) => `Fotos de ${k} propiedad${k === 1 ? '' : 'es'} con marca de agua. ${trasGuardar()}`);
 			boton.lastChild.textContent = txt;
 		} },
 		h('span', { class: 'icon-image', 'aria-hidden': 'true' }), ' Poner marca de agua');
@@ -815,7 +815,7 @@ export async function render(container, [id]) {
 	const faltaVac = (p) => TEXTOS_VAC.some((k) => p.vacacional?.[k] && !p.en?.vacacional?.[k]);
 	const sinIngles = props.filter((p) => canEdit(p) && p.titulo && (!(p.en?.titulo && p.en?.descripcion) || faltaVac(p)) && !p.en?.manual && p.en?.fuente !== fuenteEs(p));
 	const traducidas = enMasa(async (p) => { const en = await traducirEn(p); await guardarMasa({ en }, { en })(p); }, 'Traducción al inglés',
-		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. Recuerda publicar.`, sinIngles);
+		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. ${trasGuardar()}`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
 	const tituloMalo = props.filter((p) => canEdit(p) && p.en?.titulo && p.en?.descripcion && !p.en.manual && !sinIngles.includes(p)
 		&& p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p));
@@ -826,7 +826,7 @@ export async function render(container, [id]) {
 			...(vip?.titular === p.en.titulo ? { vipLanding: { ...vip, titular: titulo } } : {}) };
 		await guardarMasa({ en }, { en })(p);
 	}, 'Títulos en inglés corregidos',
-		(k) => `${k === 1 ? '1 título en inglés se corrigió solo' : `${k} títulos en inglés se corrigieron solos`}. Recuerda publicar.`, tituloMalo));
+		(k) => `${k === 1 ? '1 título en inglés se corrigió solo' : `${k} títulos en inglés se corrigieron solos`}. ${trasGuardar()}`, tituloMalo));
 	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
 	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
@@ -1313,7 +1313,7 @@ async function renderEditor(container, id, emb = null) {
 			await markPending(`Propiedad: ${d.titulo}`);
 			const casa = { id: ref.id, ...guardada };
 			if (!traducirAhora) {
-				toast('Propiedad guardada. Recuerda publicar para ver los cambios en el sitio.');
+				toast(`Propiedad guardada. ${trasGuardar()}`);
 				if (emb) emb.alGuardar(casa);
 				else if (isNew) location.hash = `#/propiedades/${ref.id}`;
 				return;
@@ -1321,7 +1321,7 @@ async function renderEditor(container, id, emb = null) {
 			btn.textContent = 'Traduciendo al inglés…';
 			try {
 				await updateDoc(ref, { en: await traducirEn(guardada), updatedAt: serverTimestamp() });
-				toast('Propiedad guardada y traducida al inglés. Recuerda publicar para ver los cambios en el sitio.');
+				toast(`Propiedad guardada y traducida al inglés. ${trasGuardar()}`);
 			} catch (err) {
 				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés".', 'warning');
 			}

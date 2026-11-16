@@ -81,7 +81,7 @@ export async function markPending(descripcion) {
 		}, { merge: true });
 		document.dispatchEvent(new CustomEvent('publish-state'));
 		document.dispatchEvent(new CustomEvent('pendientes'));
-		programarAutoPublicar();
+		await programarAutoPublicar();
 	} catch (err) {
 		console.warn('No se pudo marcar el cambio pendiente', err);
 	}
@@ -121,9 +121,14 @@ async function configPublicacion() {
 	return autoConfig;
 }
 
+// ¿Se publica solo? Lo dice el aviso de «Guardado» (trasGuardar): no se pide publicar si el sitio se publica solo.
+let autoActiva = false;
+export const trasGuardar = () => (autoActiva ? 'Se publica solo en unos minutos.' : 'Recuerda publicar para verlo en el sitio.');
+
 export async function programarAutoPublicar() {
 	const priv = await configPublicacion();
-	if (!priv.autoPublicar || !priv.netlifyBuildHook) return;
+	autoActiva = Boolean(priv.autoPublicar && priv.netlifyBuildHook);
+	if (!autoActiva) return;
 	autoHook = priv.netlifyBuildHook;
 	clearTimeout(autoTimer);
 	autoTimer = setTimeout(async () => {
