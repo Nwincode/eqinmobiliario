@@ -246,7 +246,8 @@
 			if (form.email && (lead.email || form.email.required) && !EQFormato.correoValido(lead.email)) errores.push([form.email, lead.email ? T.errorCorreo : T.faltaCorreo]);
 			else if (form.email && lead.email && EQFormato.sugerenciaCorreo(lead.email) && form.getAttribute('data-correo-visto') !== lead.email) {
 				// Dominio mal escrito («gmial.com»): se sugiere una vez; si la persona deja el suyo, el siguiente envío pasa.
-				form.setAttribute('data-correo-visto', lead.email);
+				// Sin fechas la vista se va al calendario: ahí no cuenta como visto.
+				if (!sinFechas) form.setAttribute('data-correo-visto', lead.email);
 				errores.push([form.email, sugerencia(form, EQFormato.sugerenciaCorreo(lead.email))]);
 			}
 			if (errores.length) {

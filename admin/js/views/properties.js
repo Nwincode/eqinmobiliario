@@ -1225,9 +1225,11 @@ async function renderEditor(container, id, emb = null) {
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			if ((socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).length > MAX_TARIFAS) return toast(`Hasta ${MAX_TARIFAS} precios por fechas: quita los que ya pasaron o junta los que se pueda.`, 'warning');
 			// Un cero de más pasa fácil: un precio de fin de semana o por fechas de más de 5 veces el de siempre se pregunta.
+			// Solo los que cambian en este guardado: uno alto que ya estaba guardado no se vuelve a preguntar.
 			const base = Number(socio.precioBase);
-			const altos = [Number(socio.precioFinde), ...(socio.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * base);
-			if (altos.length && !(await confirmDialog(`Hay un precio de ${Math.max(...altos)} por noche: ${Math.round(Math.max(...altos) / base)} veces el precio de siempre (${base}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
+			const yaEstaban = new Set([Number(socioGuardado?.precioFinde), ...(socioGuardado?.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * Number(socioGuardado?.precioBase)));
+			const altos = [Number(socio.precioFinde), ...(socio.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * base && !yaEstaban.has(n));
+			if (altos.length && !(await confirmDialog(`Hay un precio de ${dinero(Math.max(...altos), d.moneda)} por noche: ${Math.round(Math.max(...altos) / base)} veces el precio de siempre (${dinero(base, d.moneda)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
 			mascotasUnaVez(d);
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };

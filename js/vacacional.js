@@ -56,7 +56,6 @@
 		var selHuespedes = card.querySelector('[name=huespedes]');
 		var form = card.querySelector('.lead-form[data-origen="reserva"]') || card.querySelector('.lead-form');
 
-		var fDia = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 		var fCorta = new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var fDia = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var fMes = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -224,8 +223,10 @@
 		}
 
 		// Un aviso donde el cliente está mirando, unos segundos; después vuelve la ayuda de siempre.
-		function avisar(texto) {
-			ayuda.textContent = texto;
+		// «antes»: el aviso va delante de la ayuda, sin quitar sus botones («Ver mes», «Borrar fechas»).
+		function avisar(texto, antes) {
+			if (antes) { var s = document.createElement('strong'); s.textContent = texto + ' '; ayuda.insertBefore(s, ayuda.firstChild); }
+			else ayuda.textContent = texto;
 			clearTimeout(ayuda.eqTimer);
 			ayuda.eqTimer = setTimeout(actualizar, 4000);
 		}
@@ -259,7 +260,7 @@
 			limpiarError();
 			pintar(true);
 			actualizar();
-			if (aviso) avisar(aviso + ' ' + ayuda.textContent);
+			if (aviso) avisar(aviso, true);
 		}
 
 		function mover(dias, aFecha) {
@@ -406,7 +407,7 @@
 					pintar(enfocado);
 					actualizar();
 					// Las fechas que traía (del listado o elegidas antes) ya no están libres: se dice, no se borran en silencio.
-					if (antes && antes !== estado.llegada + estado.salida) avisar(t.vacFechasYaNo + ' ' + ayuda.textContent);
+					if (antes && antes !== estado.llegada + estado.salida) avisar(t.vacFechasYaNo, true);
 				})
 				.catch(function () {});
 		}
@@ -423,7 +424,7 @@
 		if (!tituloMes.id) tituloMes.id = 'vac-mes-' + (id || 'x').replace(/[^\w-]/g, '');
 		pintar(false);
 		actualizar();
-		if (traia && !sirve) avisar(t.vacFechasYaNo + ' ' + ayuda.textContent);
+		if (traia && !sirve) avisar(t.vacFechasYaNo, true);
 	}
 
 	// Listado vacacional: muestra solo las casas libres para las fechas y huéspedes elegidos,

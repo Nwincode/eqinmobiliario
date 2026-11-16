@@ -161,7 +161,7 @@ export function campoTelefono(valor, { onChange, required = false, placeholder, 
 }
 
 // Lo que se marca en rojo de un control (en el teléfono, el número; en un campo con pista, su input).
-const entrada = (control) => (control?.matches?.('input, select, textarea') ? control : control?.querySelector?.('input, select, textarea')) || control;
+const entrada = (control) => (control?.matches?.('input, select, textarea') ? control : control?.querySelector?.('input:not([type=file])') || control?.querySelector?.('select, textarea')) || control;
 function quitarMarca(input) {
 	input.classList.remove('is-invalid');
 	input.removeAttribute('aria-invalid');
@@ -500,34 +500,37 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
-				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: en Guatemala son 8 dígitos (+502 5555 1234).' });
+				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: de 7 a 15 dígitos con el código de país; en Guatemala, 8 después del +502.' });
 				break;
 
-			default:
-				control = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });
-				control.value = get() ?? '';
-				if (field.disabled) control.disabled = true;
-				control.addEventListener('input', () => set(control.value));
-				if (target === state) pintores.set(field.name, () => { control.value = get() ?? ''; });
-				if (field.onInput) control.addEventListener('input', () => field.onInput(control.value, state));
+			default: {
+				// `input` (const): los manejadores leen siempre el campo, aunque `control` pase a ser la caja con la pista.
+				const input = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });
+				input.value = get() ?? '';
+				if (field.disabled) input.disabled = true;
+				input.addEventListener('input', () => set(input.value));
+				if (target === state) pintores.set(field.name, () => { input.value = get() ?? ''; });
+				if (field.onInput) input.addEventListener('input', () => field.onInput(input.value, state));
+				control = input;
 				if (field.type === 'email') {
-					conFormato.push({ field, target, control, ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
+					conFormato.push({ field, target, control: input, ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
 					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
 					const pista = h('div', { class: 'form-text text-warning', hidden: true });
-					control.addEventListener('blur', () => {
-						const otro = sugerenciaCorreo(control.value);
+					input.addEventListener('blur', () => {
+						const otro = sugerenciaCorreo(input.value);
 						pista.hidden = !otro;
-						pista.replaceChildren(...(otro ? [`¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { control.value = otro; set(otro); pista.hidden = true; } }, 'Usar ese')] : []));
+						pista.replaceChildren(...(otro ? [`¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
 					});
-					control.addEventListener('input', () => { pista.hidden = true; });
-					control = h('div', {}, control, pista);
+					input.addEventListener('input', () => { pista.hidden = true; });
+					control = h('div', {}, input, pista);
 				}
+			}
 		}
 
-		if (field.required) required.push({ field, target, control });
+		if (field.required) required.push({ field, target, control: field.type === 'email' ? control.querySelector('input') : control });
 		const wrapper = fieldWrapper(field, control);
 		if (field.when) conditionals.push({ el: wrapper, when: field.when });
-		if (field.ref) field.ref(control);
+		if (field.ref) field.ref(field.type === 'email' ? control.querySelector('input') : control);
 		return wrapper;
 	}
 
@@ -565,7 +568,8 @@ export function renderForm(schema, data, options = {}) {
 			}
 			for (const { field, target, control, ok, msg } of conFormato) {
 				const v = getPath(target, field.name);
-				if (!vacio(v) && !ok(v) && !errores.some((e) => e.control === control)) errores.push({ control, msg });
+				// Un campo escondido (por `when`) no se puede corregir a la vista: su formato no frena el guardado.
+				if (!vacio(v) && !ok(v) && !control.closest?.('[hidden]') && !errores.some((e) => e.control === control)) errores.push({ control, msg });
 			}
 			if (!errores.length) return true;
 			errores.forEach(marcar);
