@@ -479,6 +479,97 @@
 	transition: background .2s ease, color .2s ease;
 }
 /* «Enlace copiado»: aviso breve abajo de la pantalla (js/site.js), para que copiar se note. */
+/* Fotos de las casas: sin menú de «guardar imagen» al mantener el dedo, sin arrastrar ni seleccionar (js/site.js). */
+.ficha-foto img, .ficha-lightbox img, .prop-fotos img, .property-item img {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+/* Aviso «¿Te gustó esta casa?» con el enlace para compartir (js/site.js). */
+.eq-compartir {
+	width: min(380px, calc(100vw - 32px));
+	padding: 0;
+	border: 0;
+	border-radius: 16px;
+	overflow: hidden;
+	box-shadow: 0 20px 50px color-mix(in oklab, var(--eq-dark) 35%, transparent);
+	color: var(--eq-text);
+}
+.eq-compartir::backdrop {
+	background: color-mix(in oklab, var(--eq-dark) 55%, transparent);
+}
+.eq-compartir-foto {
+	display: block;
+	width: 100%;
+	height: 150px;
+	object-fit: cover;
+}
+.eq-compartir-cuerpo {
+	padding: 18px 20px 20px;
+}
+.eq-compartir h2 {
+	font-size: 20px;
+	margin: 0 0 6px;
+	padding-right: 36px; /* sin foto, el título no choca con la ✕ */
+}
+.eq-compartir p {
+	font-size: 14px;
+	color: var(--eq-ink);
+	margin: 0 0 14px;
+}
+.eq-compartir .eq-compartir-enlace {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius);
+	background: var(--eq-mist);
+	color: var(--eq-primary);
+	font-size: 13px;
+	margin-bottom: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+.eq-compartir-enlace [data-url] {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.eq-compartir-botones {
+	display: flex;
+	gap: 8px;
+}
+.eq-compartir-botones .btn {
+	flex: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 44px;
+	padding-inline: .5rem;
+	white-space: nowrap;
+	font-weight: 600;
+}
+.eq-compartir .eq-compartir-pie {
+	font-size: 12px;
+	text-align: center;
+	margin: 10px 0 0;
+}
+.eq-compartir-cerrar {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	width: 36px;
+	height: 36px;
+	border: 0;
+	border-radius: 50%;
+	background: color-mix(in oklab, var(--eq-white) 92%, transparent);
+	color: var(--eq-dark);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
 .eq-aviso-breve {
 	position: fixed;
 	left: 50%;
@@ -1396,6 +1487,13 @@ h2.heading::after,
 }
 body.offcanvas-menu .ficha-barra {
 	display: none;
+}
+/* Con el cuadro de reserva a la vista o el teclado abierto, la barra se va hacia abajo (js/site.js). */
+.ficha-barra {
+	transition: transform .2s ease;
+}
+body.sin-barra-ficha .ficha-barra {
+	transform: translateY(110%);
 }
 /* Solo donde hay barra fija de acciones (la página de la reserva usa el mismo marco y no la tiene). */
 @media (max-width: 991.98px) {
@@ -3136,9 +3234,10 @@ a:hover > .eq-ic-fin,
 }
 .vac-ayuda {
 	font-size: 13px;
+	line-height: 1.4;
 	color: var(--eq-ink);
 	margin: .5rem 0 1rem;
-	min-height: 1.4em;
+	min-height: 5.6em; /* 4 líneas (texto + «Borrar fechas» en celular): el texto cambia en cada toque, el alto no */
 }
 .vac-huespedes {
 	margin-bottom: 1rem;
@@ -3464,25 +3563,35 @@ a:hover > .eq-ic-fin,
 	margin: 20px auto 0;
 }
 
-/* Aviso de idioma (solo navegadores en inglés) */
+/* Aviso de idioma (solo navegadores en inglés): flota abajo, sin empujar la página al aparecer después de cargar. */
 .aviso-idioma {
+	position: fixed;
+	left: 50%;
+	bottom: calc(16px + env(safe-area-inset-bottom));
+	transform: translateX(-50%);
+	z-index: 1000;
 	display: flex;
 	align-items: center;
-	justify-content: center;
+	gap: .35rem;
 	min-height: 44px;
-	background: var(--eq-primary-soft);
+	padding: 0 .25rem 0 1rem;
+	border-radius: 999px;
+	background: var(--eq-white);
+	box-shadow: 0 6px 24px color-mix(in oklab, var(--eq-dark) 22%, transparent);
 	font-size: 13px;
 	font-weight: 600;
+	white-space: nowrap;
 }
 .aviso-idioma[hidden] {
 	display: none;
 }
-.site-nav:has(.aviso-idioma:not([hidden])) {
-	padding-top: 0;
-}
-@media (min-width: 992px) {
-	.aviso-idioma {
-		margin-bottom: 14px;
+/* En la ficha, encima de la barra fija de abajo. */
+@media (max-width: 991.98px) {
+	body:has(.ficha-barra) .aviso-idioma {
+		bottom: calc(80px + env(safe-area-inset-bottom));
+	}
+	body.sin-barra-ficha .aviso-idioma {
+		bottom: calc(16px + env(safe-area-inset-bottom));
 	}
 }
 .aviso-idioma a {

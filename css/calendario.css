@@ -171,42 +171,9 @@
 .vac-dia.is-salida-min {
 	box-shadow: inset 0 0 0 2px var(--eq-primary);
 }
-/* El mínimo de noches, encima de los días: donde el cliente está mirando al elegir. Resalta mientras elige la salida. */
-.vac-cal-minimo {
-	display: flex;
-	align-items: center;
-	gap: .4rem;
-	margin: 0 0 .5rem;
-	padding: .4rem .75rem;
-	border-radius: var(--eq-radius);
-	background: var(--eq-primary-soft);
-	color: var(--eq-primary);
-	font-size: 14px;
-	font-weight: 600;
-}
-.vac-cal-minimo.is-activo {
-	background: var(--eq-primary);
-	color: var(--eq-white);
-}
-.vac-leyenda {
-	display: block;
-	margin: .35rem 0 .15rem;
-}
-.vac-muestra {
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	vertical-align: -3px;
-	margin: 0 .35rem 0 0;
-	border-radius: 3px;
-}
-.vac-muestra-salida {
-	margin-left: .9rem;
-	box-shadow: inset 0 0 0 2px var(--eq-primary);
-}
-.vac-muestra-min {
-	background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--eq-primary) 18%, var(--eq-white)) 0 4px, transparent 4px 7px);
-	box-shadow: inset 0 0 0 1px var(--eq-line);
+/* Filas de relleno: el calendario mide siempre 6 semanas. */
+.vac-fila-relleno {
+	visibility: hidden;
 }
 .vac-ayuda-btn {
 	padding: 0;
@@ -223,7 +190,6 @@
 .vac-dia.is-salida .vac-dia-precio {
 	color: var(--eq-white);
 }
-
 /* Al tocar «Primero elige tus fechas»: el calendario se marca un momento. */
 .vac-cal.vac-alerta {
 	outline: 3px solid var(--eq-primary);
@@ -238,3 +204,51 @@
 
 /* «Ya enviaste una solicitud para esta casa» con el enlace a ella (js/vacacional.js). */
 .vac-ya-pediste { margin: 0 0 .75rem; padding: .5rem .75rem; border-radius: var(--eq-radius); background: var(--eq-primary-soft); font-size: .9rem; }
+
+/* Burbuja del calendario (js/vacacional.js): flota sobre los días y apunta a uno, sin ocupar espacio ni mover nada.
+   Fija sobre la primera salida posible («Mínimo 3 noches») mientras se elige la salida. */
+.vac-cal {
+	position: relative;
+}
+.vac-burbuja {
+	position: absolute;
+	z-index: 3;
+	transform: translate(-50%, calc(-100% - 6px));
+	width: max-content;
+	max-width: min(220px, 90%);
+	padding: .3rem .6rem;
+	border-radius: var(--eq-radius);
+	background: var(--eq-dark);
+	color: var(--eq-white);
+	font-size: 12.5px;
+	font-weight: 600;
+	line-height: 1.3;
+	text-align: center;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity .2s;
+}
+.vac-burbuja::after {
+	content: "";
+	position: absolute;
+	left: calc(50% + var(--flecha, 0px));
+	top: 100%;
+	margin-left: -5px;
+	border: 5px solid transparent;
+	border-top-color: var(--eq-dark);
+}
+.vac-burbuja.is-visible {
+	opacity: 1;
+}
+/* Tocó una noche dentro del mínimo: la burbuja late una vez. */
+.vac-burbuja.is-pulso {
+	animation: vac-latido .5s ease-out 1;
+}
+@keyframes vac-latido {
+	0%, 100% { transform: translate(-50%, calc(-100% - 6px)) scale(1); }
+	40% { transform: translate(-50%, calc(-100% - 6px)) scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.vac-burbuja { transition: none; }
+	.vac-burbuja.is-pulso { animation: none; }
+}

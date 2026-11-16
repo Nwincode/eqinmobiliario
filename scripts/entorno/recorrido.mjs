@@ -329,9 +329,9 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 		(await reservadas()).includes(llegada3) && neto === 110 && num(v.base) === 132 && num(v.camas) === 4, `socio ${neto} · público ${num(v.base)} · camas ${num(v.camas)} · ${await avisos(admin.p)}`);
 	// La ficha publicada dice «US$ 120.00 por noche»; sin publicar de nuevo, el cliente ya ve el precio nuevo arriba y en el cuadro.
 	await cliente.p.goto(`${SITIO}${ficha}`);
-	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.vac-desde')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
-	const desdes = await cliente.p.locator('.ficha-precio, .vac-desde').allInnerTexts();
-	paso('El cliente ve el precio nuevo del socio en el «Desde» de la ficha, sin esperar a que se publique', desdes.length === 2 && desdes.every((x) => /US\$ 132\.00/.test(x)), desdes.join(' | '));
+	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.ficha-precio')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
+	const desdes = await cliente.p.locator('.ficha-precio').allInnerTexts();
+	paso('El cliente ve el precio nuevo del socio en la ficha, sin esperar a que se publique', desdes.length === 1 && /US\$ 132\.00 por noche/.test(desdes[0]) && !/Desde/.test(desdes[0]), desdes.join(' | '));
 	// Temporada que se repite cada año: el socio elige unos días, pone su precio y «Cada año en estas fechas»; quedan
 	// este año y el siguiente con la misma serie. «Quitar» → «Todos los años» quita las dos y nada más.
 	{
@@ -1429,9 +1429,17 @@ const duenos = [];
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
 	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
 	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
-	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
-	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
-	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
+	// Una sola burbuja chica, fija sobre la primera salida posible: «Mínimo 3 noches» (flota: no mueve nada).
+	const globo = await vis.p.evaluate(() => {
+		const g = document.querySelector('.vac-burbuja.is-visible'), d = document.querySelector('.vac-dia.is-salida-min');
+		if (!g || !d) return null;
+		const a = g.getBoundingClientRect(), b = d.getBoundingClientRect();
+		return { texto: g.textContent, sobreElDia: a.bottom <= b.top + 2 && Math.abs((a.left + a.width / 2) - (b.left + b.width / 2)) < b.width + 40 };
+	});
+	paso('Sitio: al elegir la llegada, una burbuja chica sobre la primera salida posible dice el mínimo («Mínimo 3 noches»)', globo?.texto === 'Mínimo 3 noches' && globo.sobreElDia, JSON.stringify(globo));
+	paso('Sitio: tocar una noche dentro del mínimo deja la llegada (no la cambia ni la borra)', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /salida/.test(ayudaM), ayudaM);
+	await espera(3500);
+	paso('Sitio: la burbuja del mínimo no se va sola mientras se elige la salida', await vis.p.locator('.vac-burbuja.is-visible').count() === 1);
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
 }

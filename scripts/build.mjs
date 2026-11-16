@@ -33,7 +33,7 @@ const STATIC_ASSETS = [
 	'fonts/icomoon/style.css', 'fonts/icomoon/fonts', 'fonts/work-sans',
 	'fonts/flaticon/font/flaticon.css', 'fonts/flaticon/font/Flaticon.eot', 'fonts/flaticon/font/Flaticon.svg',
 	'fonts/flaticon/font/Flaticon.ttf', 'fonts/flaticon/font/Flaticon.woff', 'fonts/flaticon/font/Flaticon.woff2',
-	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'docs/marca/logo/imagotipo-blanco.svg', // portada del listado en PDF
+	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'docs/marca/logo/imagotipo-blanco.svg', 'docs/marca/logo/icono-blanco.svg', // portada del listado en PDF; ícono vectorial de la marca de agua (admin/js/marca.js)
 	 'Icono_Equipoinmobiliario@0.75x.png', 'site.config.json',
 	'data/seed.json' // el panel lo usa para "Importar datos iniciales"
 ];

@@ -627,6 +627,77 @@
 		});
 	});
 
+	// ------------------------------------------------------------ Barra fija de la ficha (celular y tableta)
+	// Se esconde mientras el cuadro de reserva o de visita está a la vista (ya tiene su propio botón) y mientras se escribe
+	// (con el teclado abierto la barra subía con él y tapaba los campos y el botón de enviar).
+	var barra = document.querySelector('.ficha-barra');
+	var cuadro = document.querySelector('.vac-card[data-vacacional], #ficha-form');
+	if (barra) {
+		var aLaVista = false, escribiendo = false;
+		var pintarBarra = function () { document.body.classList.toggle('sin-barra-ficha', aLaVista || escribiendo); };
+		if (cuadro && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { aLaVista = es[0].isIntersecting; pintarBarra(); }, { threshold: 0.15 }).observe(cuadro);
+		document.addEventListener('focusin', function (e) { if (e.target.matches('input, select, textarea')) { escribiendo = true; pintarBarra(); } });
+		document.addEventListener('focusout', function () { setTimeout(function () { escribiendo = Boolean(document.activeElement && document.activeElement.matches('input, select, textarea')); pintarBarra(); }, 50); });
+	}
+
+	// ------------------------------------------------------------ Fotos de las casas: compartir en vez de guardar
+	// Las fotos llevan su marca de agua (admin/js/marca.js). Además, quien intenta guardar una foto (clic derecho, mantener
+	// el dedo encima, arrastrarla) o pulsa la tecla de captura en la computadora ve un aviso con el enlace de la casa para
+	// compartirla. Una página web no puede impedir ni detectar una captura en el celular: esto solo la desanima.
+	var FOTOS_CASA = '.ficha-foto img, .ficha-lightbox img, .prop-fotos img, .property-item img';
+	// En una casa por noche se habla de las fechas libres; en venta y renta, de los detalles.
+	var porNoche = Boolean(document.querySelector('[data-vacacional]'));
+	var TC = EN ? { titulo: 'Did you like this property?', texto: 'Share it with this link: whoever opens it sees all the photos, the price and ' + (porNoche ? 'the free dates.' : 'every detail.'), copiar: 'Copy link', copiado: 'Link copied', pie: 'Photos by Equipo Inmobiliario.', cerrar: 'Close' }
+		: { titulo: '¿Te gustó esta propiedad?', texto: 'Compártela con este enlace: quien lo abra ve todas las fotos, el precio y ' + (porNoche ? 'las fechas libres al día.' : 'todos los detalles.'), copiar: 'Copiar enlace', copiado: 'Enlace copiado', pie: 'Las fotos son de Equipo Inmobiliario.', cerrar: 'Cerrar' };
+	var dialogoCompartir = null;
+	function avisoCompartir(img) {
+		var tarjeta = img && img.closest('a[href]');
+		var canonica = document.querySelector('link[rel="canonical"]');
+		var url = tarjeta && !img.closest('.ficha-galeria, .ficha-lightbox') ? tarjeta.href : (canonica ? canonica.href : location.href.split('#')[0]);
+		var foto = img ? (img.currentSrc || img.src) : ((document.querySelector('meta[property="og:image"]') || {}).content || '');
+		if (!dialogoCompartir) {
+			dialogoCompartir = document.createElement('dialog');
+			dialogoCompartir.className = 'eq-compartir';
+			dialogoCompartir.setAttribute('aria-labelledby', 'eq-compartir-titulo');
+			dialogoCompartir.innerHTML = '<button type="button" class="eq-compartir-cerrar" aria-label="' + TC.cerrar + '"><span class="icon-close" aria-hidden="true"></span></button>' +
+				'<img class="eq-compartir-foto" alt="" draggable="false"><div class="eq-compartir-cuerpo"><h2 id="eq-compartir-titulo">' + TC.titulo + '</h2><p>' + TC.texto + '</p>' +
+				'<p class="eq-compartir-enlace"><span class="icon-link" aria-hidden="true"></span><span data-url></span></p>' +
+				'<div class="eq-compartir-botones"><a class="btn btn-success" target="_blank" rel="noopener" data-wa><span class="icon-whatsapp" aria-hidden="true"></span>WhatsApp</a>' +
+				'<button type="button" class="btn btn-primary" data-copiar><span class="icon-link" aria-hidden="true"></span>' + TC.copiar + '</button></div>' +
+				'<p class="eq-compartir-pie">' + TC.pie + '</p></div>';
+			document.body.appendChild(dialogoCompartir);
+			// Si la foto no carga, no queda un hueco: el aviso sigue sin ella.
+			dialogoCompartir.querySelector('.eq-compartir-foto').addEventListener('error', function () { this.hidden = true; });
+			dialogoCompartir.querySelector('.eq-compartir-cerrar').addEventListener('click', function () { dialogoCompartir.close(); });
+			dialogoCompartir.addEventListener('click', function (e) { if (e.target === dialogoCompartir) dialogoCompartir.close(); });
+			dialogoCompartir.querySelector('[data-copiar]').addEventListener('click', function () {
+				var u = dialogoCompartir.getAttribute('data-url');
+				if (navigator.clipboard) navigator.clipboard.writeText(u).then(function () { avisoBreve(TC.copiado); }, function () { window.prompt(TC.copiar, u); });
+				else window.prompt(TC.copiar, u);
+			});
+		}
+		dialogoCompartir.setAttribute('data-url', url);
+		dialogoCompartir.querySelector('[data-url]').textContent = url.replace(/^https?:\/\//, '');
+		dialogoCompartir.querySelector('[data-wa]').href = 'https://wa.me/?text=' + encodeURIComponent(url);
+		var f = dialogoCompartir.querySelector('.eq-compartir-foto');
+		f.hidden = !foto;
+		if (foto) f.src = foto;
+		if (!dialogoCompartir.open) dialogoCompartir.showModal();
+	}
+	document.addEventListener('contextmenu', function (e) {
+		var img = e.target.closest && e.target.closest(FOTOS_CASA);
+		if (!img) return;
+		e.preventDefault();
+		avisoCompartir(img);
+	});
+	document.addEventListener('dragstart', function (e) { if (e.target.closest && e.target.closest(FOTOS_CASA)) e.preventDefault(); });
+	// Tecla de captura (Windows) y las combinaciones de Mac que el navegador alcanza a ver, solo donde hay fotos de casas.
+	var conFotos = document.querySelector('.ficha-galeria, .prop-fotos, .property-item img');
+	if (conFotos) {
+		document.addEventListener('keyup', function (e) { if (e.key === 'PrintScreen') avisoCompartir(document.querySelector('.ficha-foto img')); });
+		document.addEventListener('keydown', function (e) { if (e.metaKey && e.shiftKey && /^[345]$/.test(e.key)) avisoCompartir(document.querySelector('.ficha-foto img')); });
+	}
+
 	// ------------------------------------------------------------ Galería de la landing VIP
 
 	var lightbox = document.getElementById('vip-lightbox');
