@@ -5,6 +5,8 @@
 import { h } from './ui.js';
 
 export const MIN_CLAVE = 10;
+// Los caracteres especiales que cuenta Firebase: ^ $ * . [ ] { } ( ) ? " ! @ # % & / \ , > < ' : ; | _ ~
+const SIMBOLO = /[\^$*.[\]{}()?"!@#%&/\\,><':;|_~]/;
 // Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
 // (Con 10 caracteres o más, las cortas de siempre ya no pasan; las filtradas las atrapa `filtrada`.)
 const COMUNES = new Set(['equipoinmobiliario', 'equipoinmobiliario1', 'eqinmobiliario.gt', 'contraseñasegura', 'contrasenasegura', 'passwordpassword', 'contraseñacontraseña', 'guatemalaguatemala', 'iloveyouiloveyou']);
@@ -29,11 +31,15 @@ export function conOjo(input) {
 
 // Lo que se le pide a una contraseña nueva, en el orden en que se muestra. ok(clave, email) → true si cumple.
 const REGLAS = [
-	{ texto: `${MIN_CLAVE} caracteres o más: una frase de 2 o 3 palabras, como «casa del lago»`, ok: (c) => c.length >= MIN_CLAVE, falla: `Usa al menos ${MIN_CLAVE} caracteres.` },
+	{ texto: `${MIN_CLAVE} caracteres o más: una frase de 2 o 3 palabras, como «casa.del.lago!»`, ok: (c) => c.length >= MIN_CLAVE, falla: `Usa al menos ${MIN_CLAVE} caracteres.` },
 	{ texto: 'Que no sea fácil de adivinar', falla: 'Esa contraseña es muy fácil de adivinar: usa otra.',
 		ok: (c) => { const m = c.toLowerCase(); return m.length >= MIN_CLAVE && !COMUNES.has(m) && !/^(.)\1+$/.test(m) && !(m.length >= 4 && SECUENCIAS.includes(m)); } },
 	{ texto: 'Que no lleve tu correo', falla: 'La contraseña no puede llevar tu correo.',
-		ok: (c, email) => { const u = String(email || '').toLowerCase().split('@')[0]; return Boolean(c) && !(u.length >= 4 && c.toLowerCase().includes(u)); } }
+		ok: (c, email) => { const u = String(email || '').toLowerCase().split('@')[0]; return Boolean(c) && !(u.length >= 4 && c.toLowerCase().includes(u)); } },
+	// Lo pide también la política de contraseñas de Firebase («Exigir caracteres especiales»): los mismos símbolos que
+	// ella cuenta (el guion y el espacio no cuentan).
+	{ texto: 'Al menos un símbolo, como . ! # ? o @', falla: 'Agrega al menos un símbolo, como . ! # ? o @ (el guion no cuenta).',
+		ok: (c) => SIMBOLO.test(c) }
 ];
 export function debilidad(clave, email) { return REGLAS.find((r) => !r.ok(clave, email))?.falla || ''; }
 

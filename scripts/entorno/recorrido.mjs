@@ -12,7 +12,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = process.env.ENTORNO_DIR || `${process.env.TMPDIR || '/tmp'}/eq-entorno`;
 const SITIO = `http://localhost:${process.env.PORT || 8090}`;
-const CLAVE = 'Pruebas-del-panel-2026';
+const CLAVE = 'Pruebas.del.panel-2026';
 const CAPTURAS = `${DIR}/capturas`;
 // Capturas del panel del dueño (lista y casa en venta, a 390 y 1280 px), para mirarlas.
 const PANEL = process.env.PANEL_DIR || `${CAPTURAS}/panel`;
