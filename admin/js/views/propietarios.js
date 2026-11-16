@@ -351,7 +351,7 @@ function avisoResumenes(lista) {
 	let faltan = [];
 	const pintar = async () => {
 		const nuevas = await reglasNuevas();
-		const pasos = 'Publica las reglas de la base y de archivos (las dos juntas; orden completo en docs/portal-propietarios.md): firebase deploy --only firestore:rules,storage --project eqinmobiliariobd. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		const pasos = 'Publica las dos reglas juntas en la consola de Firebase (Firestore → Reglas y Storage → Reglas; orden completo en docs/portal-propietarios.md) y enseguida abre Solicitudes. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
 		caja.hidden = nuevas && !faltan.length && !fallas.size;
 		caja.replaceChildren(
 			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Deja esta pantalla abierta hasta que llegue a 0.' : ['Deja esta pantalla abierta. Cuando llegue a 0: ', pasos])
@@ -370,6 +370,9 @@ function avisoResumenes(lista) {
 			await pintar();
 		}
 	};
+	// Al volver a esta pestaña (p. ej. después de publicar las reglas en Firebase), el aviso se revisa solo.
+	const alVolver = () => { if (!caja.isConnected) return window.removeEventListener('focus', alVolver); if (!caja.hidden) pintar(); };
+	window.addEventListener('focus', alVolver);
 	(async () => {
 		const conAcceso = new Set((await getDocs(query(collection(db, 'users'), where('rol', '==', 'socio'))).catch(() => ({ docs: [] }))).docs.map((d) => d.data().propietarioId));
 		await correr(lista.filter((x) => x.portalVersion !== VERSION_RESUMEN && (x.portalToken || tieneCasasPorNoche(x) || conAcceso.has(x.id))));

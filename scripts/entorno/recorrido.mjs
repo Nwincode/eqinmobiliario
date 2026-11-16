@@ -930,7 +930,7 @@ const duenos = [];
 	await viejas.p.locator('#acceso-panel').scrollIntoViewIfNeeded();
 	await viejas.p.screenshot({ path: `${PANEL}/acceso-reglas-viejas-390.png` });
 	paso('Con las reglas de antes: aviso en Propietarios con el orden, y «Dar acceso» deshabilitado (con el porqué) para un dueño sin casas por noche',
-		/ya está al día/.test(aviso) && /publicar las reglas nuevas/.test(aviso) && /firebase deploy/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
+		/ya está al día/.test(aviso) && /publicar las reglas nuevas/.test(aviso) && /consola de Firebase/.test(aviso) && await bloqueado.isDisabled().catch(() => false) && /Primero hay que publicar las reglas nuevas/.test(porque), porque.replace(/\s+/g, ' ').slice(0, 120));
 	await viejas.p.close();
 	// La contraseña la pone ella, con el enlace del correo (aquí, con el código que guarda el emulador).
 	await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=pruebas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oobCode: oob?.oobCode, newPassword: CLAVE }) });
