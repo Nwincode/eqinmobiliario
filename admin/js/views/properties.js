@@ -862,7 +862,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 	const conPrecio = (d) => (esVacacional(d) ? { ...d, ...vacacionalPublico(d) } : d);
 	return [
 		{ type: 'section', label: 'Datos principales' },
-		{ name: 'titulo', label: 'Título', required: true, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
+		{ name: 'titulo', label: 'Título', required: true, maxlength: 90, cols: 8, placeholder: 'Ej. Casa con jardín en Residencial San Antonio' },
 		{ name: 'slug', label: 'URL (slug)', cols: 4, help: 'Se genera solo a partir del título. Si la cambias, la URL anterior redirige a la nueva.', ref: (el) => { schema.slugInput = el; } },
 		{ name: 'codigo', label: 'Código', cols: 6, placeholder: 'VLM-Z15-JA-001', help: 'Condominio, zona, asesor y número. Si lo dejas vacío, se crea solo al guardar.', ref: (el) => { schema.codigoInput = el; } },
 		{ name: 'condominioSiglas', label: 'Siglas del condominio', cols: 6, maxlength: 6, placeholder: 'VLM', help: 'Ej. VLM para Vista de las Lomas. Si lo dejas vacío, se toman del residencial; si no está en condominio, se usa IND.' },
@@ -875,7 +875,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		// Si lo lleva otro asesor no se cambia aquí: su lista de casas (Propietarios) volvería a reclamarla.
 		{ name: 'propietarioId', label: 'Propietario, socio o colaborador', type: 'select', options: socioOpts, cols: 3, disabled: ajeno,
 			help: 'El dueño, el socio de una casa por noche o un asesor colaborador. Se crea una vez en Propietarios.' },
-		{ name: 'precio', label: 'Precio', type: 'number', min: 0, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
+		{ name: 'precio', label: 'Precio', type: 'number', min: 0, max: 100000000, step: 1, cols: 4, help: 'Déjalo vacío para mostrar "Precio a consultar".', when: (d) => !esVacacional(d) },
 		{ name: 'moneda', label: 'Moneda', type: 'select', options: MONEDAS, cols: fila },
 		{ name: 'orden', label: 'Orden', type: 'number', cols: fila, help: 'Número menor aparece primero.' },
 		{ name: 'publicado', label: 'Visible en la página', type: 'checkbox', cols: fila, default: isNew ? false : undefined },
@@ -883,18 +883,18 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4, when: (d) => !esVacacional(d) },
 
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
-		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
-		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
+		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
+		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
 		// Hasta 10 (MAX_TARIFAS): las reglas revisan una por una que el precio público cuadre con el del dueño.
 		{ name: 'socio.tarifas', label: `Precios por fechas (temporada, feriados; hasta ${MAX_TARIFAS})`, type: 'list', itemLabel: 'Tarifa', max: MAX_TARIFAS, when: esVacacional, fields: [
 			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
 			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
-			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, step: 0.01, cols: 4 }
+			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4 }
 		] },
 		{ type: 'custom', label: 'Ganancia y precio al público', when: esVacacional, update: desgloseVacacional },
-		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
-		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
+		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, max: 10000, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
+		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
 		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, max: 30, step: 1, cols: 2, when: esVacacional, help: 'Lo normal es 1 o 2. Para feriados, mejor un mínimo por fechas en el calendario del dueño.' },
 		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
@@ -1217,6 +1217,10 @@ async function renderEditor(container, id, emb = null) {
 		if (esVacacional(d)) {
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
 			if ((socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).length > MAX_TARIFAS) return toast(`Hasta ${MAX_TARIFAS} precios por fechas: quita los que ya pasaron o junta los que se pueda.`, 'warning');
+			// Un cero de más pasa fácil: un precio de fin de semana o por fechas de más de 5 veces el de siempre se pregunta.
+			const base = Number(socio.precioBase);
+			const altos = [Number(socio.precioFinde), ...(socio.tarifas || []).map((t) => Number(t.precio))].filter((n) => n > 5 * base);
+			if (altos.length && !(await confirmDialog(`Hay un precio de ${Math.max(...altos)} por noche: ${Math.round(Math.max(...altos) / base)} veces el precio de siempre (${base}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
 			mascotasUnaVez(d);
 			// La dirección y el mapa salen del documento público antes de armar código, SEO y traducción.
 			llegada = { direccion: String(d.direccion || '').trim(), mapa: String(d.mapa || '').trim() };

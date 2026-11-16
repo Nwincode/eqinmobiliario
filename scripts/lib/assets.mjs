@@ -42,6 +42,7 @@ const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
 		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^is-wide$/, /^text-(success|danger)$/,
 		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/, /^is-invalid$/, /^invalid-feedback$/, /^d-block$/, /^eq-aviso-breve$/,
+		/^btn-(link|sm|outline-primary)$/, /^p-0$/, /^align-baseline$/, /^ms-2$/, // botones que arman js/site.js y js/reserva-chat.js
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
 		/^vac-/], // js/vacacional.js arma el calendario y el desglose
 	deep: [/^tns-/, /^site-mobile-menu/, /^site-nav-wrap/, /^vip-lightbox/],
@@ -51,7 +52,7 @@ const SAFELIST = {
 
 // Los formatos de admin/js/formato.js que usa js/site.js, como window.EQFormato: la misma regla que el panel y
 // el generador (correo válido, precio de una propiedad, US$ para comparar precios), sin una segunda copia.
-export const FORMATO_NAVEGADOR = ['correoValido', 'montoPrecio', 'enUSD'];
+export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'montoPrecio', 'enUSD'];
 async function formatoParaElNavegador(root) {
 	const r = await build({
 		stdin: { contents: `export { ${FORMATO_NAVEGADOR.join(', ')} } from './admin/js/formato.js';`, resolveDir: root, loader: 'js' },

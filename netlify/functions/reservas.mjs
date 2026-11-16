@@ -17,7 +17,7 @@ import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura, idNuevo } from '../lib/firestore-escritura.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
-import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, TEXTO_NO, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
+import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const porUsuario = limitador(30);
@@ -84,7 +84,7 @@ const ACCIONES = {
 		const { lead, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado)) falla(409, YA);
 		responder(tx, socio, leadId, 'no', 'No se dio', { 'solicitud.motivo': motivo });
-		mensaje(tx, token, { texto: TEXTO_NO });
+		mensaje(tx, token, { texto: textoNo(motivo) });
 		tx.cambiar(`chats/${token}`, { estado: 'no' });
 		return { token };
 	},

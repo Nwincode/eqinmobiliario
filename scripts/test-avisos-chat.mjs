@@ -40,7 +40,7 @@ test('control de cada hora: mensaje del cliente con más de 2 h sin respuesta, u
 	assert.equal(sinResponder([m('cliente', 150), m('socio', 10)], opciones), false);
 });
 test('reserva que no se dio o se canceló: siempre al cliente', () => {
-	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no disponible/);
+	assert.match(avisos([m('socio', 3), m('socio', 1)], { estado: 'no' })[0].asunto, /no se concretó/);
 	assert.match(avisos([m('socio', 3, 'pago'), m('equipo', 1)], { estado: 'cancelada' })[0].asunto, /cancelada/);
 	assert.deepEqual(avisos([m('socio', 1)], { estado: 'cancelada' }).at(-1).para, ['ana@example.com']);
 });

@@ -281,7 +281,8 @@ await espera(3000);
 paso('El socio responde «No se dio», por el servidor', porServidor(r3, 'no') && /No se dio/.test(await socio.p.locator('.card', { hasText: codigo2 }).first().locator('.badge').first().innerText()), `${resp(r3)} · ${await avisos(socio.p)}`);
 await otro.p.reload();
 await espera(2500);
-paso('Ese cliente ve «No disponible» y el mensaje', /No disponible/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText()));
+paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón para elegir otras fechas (sin la cámara del comprobante)', /No se concretó/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText())
+	&& await otro.p.locator('[data-out="sigue"] a', { hasText: 'Elegir otras fechas' }).isVisible() && await otro.p.locator('.vac-chat-adjuntar').isHidden());
 
 // ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
 const FS = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
@@ -340,8 +341,9 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 		await diaN(10).click(); await diaN(12).click();
 		await socio.p.locator('[aria-label="Precio especial"]').click();
 		await socio.p.locator('.mc-barra input[type=number]').fill('150');
+		// «¿Se repite cada año?» va en la misma barra, sin otra ventana.
+		await socio.p.locator('.mc-barra select[aria-label="¿Se repite cada año?"]').selectOption('fecha');
 		await socio.p.locator('.mc-barra [aria-label="Guardar"]').click();
-		await socio.p.locator('.modal.show button', { hasText: 'Cada año en estas fechas' }).click();
 		await espera(3000);
 		const tarifas = () => leer(`properties/${idCasa}/privado/socio`).then((d) => (d.fields?.tarifas?.arrayValue?.values || []).map((x) => Object.fromEntries(Object.entries(x.mapValue.fields).map(([k, v]) => [k, v.stringValue ?? Number(v.doubleValue ?? v.integerValue)]))));
 		const serie = (await tarifas()).filter((t) => t.cada === 'fecha');
@@ -661,7 +663,7 @@ paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.som
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
 paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) && !/wa\.me/.test(JSON.stringify(alerta)) && /admin\/#\/solicitudes\/EQ-VIEJA/.test(JSON.stringify(alerta)));
-paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no disponible/.test(r)));
+paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no se concretó/.test(r)));
 paso('Correo al cliente con el pago recibido (datos de llegada)', resumen.some((r) => /ana@example\.com ← .*pago recibido/.test(r)));
 paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos.some((c) => /305 555 1234|5555 0001/.test(JSON.stringify(c)) || (para(c).includes('socio@') && /ana@example/.test(JSON.stringify({ ...c, to: '' })))));
 

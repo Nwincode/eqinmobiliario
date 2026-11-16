@@ -223,9 +223,27 @@
 			desglose.hidden = false;
 		}
 
+		// Un aviso donde el cliente está mirando, unos segundos; después vuelve la ayuda de siempre.
+		function avisar(texto) {
+			ayuda.textContent = texto;
+			clearTimeout(ayuda.eqTimer);
+			ayuda.eqTimer = setTimeout(actualizar, 4000);
+		}
 		function elegir(f) {
 			// Tocar otra vez la llegada (sin salida) la quita.
 			if (estado.llegada && !estado.salida && f === estado.llegada) return borrarFechas();
+			var aviso = '';
+			if (eligiendoSalida() && f > estado.llegada && !salidaValida(f)) {
+				var v = V.validarEstancia({ llegada: estado.llegada, salida: f, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
+				// Antes del mínimo: la llegada se queda y se dice cuál es la primera salida (no se cambia la llegada sin decir nada).
+				if (v.error === 'minimo') {
+					var primera = primeraSalida();
+					return avisar(fmt(t.vacMinimo, { n: v.minimo }) + (primera ? ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : ''));
+				}
+				// Con noches ocupadas en medio: ese día pasa a ser la llegada, y se dice por qué.
+				if (!llegadaValida(f)) return avisar(t.vacEntreOcupadas);
+				aviso = fmt(t.vacNuevaLlegada, { fecha: fCorta.format(fechaUTC(f)) });
+			}
 			if (eligiendoSalida() && f > estado.llegada && salidaValida(f)) {
 				estado.salida = f;
 				estado.campo = 'llegada';
@@ -241,6 +259,7 @@
 			limpiarError();
 			pintar(true);
 			actualizar();
+			if (aviso) avisar(aviso + ' ' + ayuda.textContent);
 		}
 
 		function mover(dias, aFecha) {

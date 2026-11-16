@@ -5,14 +5,14 @@
 	var config = window.EQ_CONFIG || {};
 	var EN = document.documentElement.lang === 'en';
 	var T = EN ? {
-		errorCorreo: 'Please check your email (e.g. name@email.com).',
+		errorCorreo: 'Please check your email (e.g. name@email.com).', quisiste: 'Did you mean {correo}?', usar: 'Use it', estaBien: 'If yours is right, tap send again.',
 		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', sinChat: 'We received your request, but we couldn\'t open its chat: we will contact you.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
-		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).',
+		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).', quisiste: '¿Quisiste decir {correo}?', usar: 'Usar ese', estaBien: 'Si el tuyo está bien, toca enviar otra vez.',
 		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', sinChat: 'Recibimos tu solicitud, pero no pudimos abrir su chat: te contactaremos.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
@@ -166,7 +166,8 @@
 		var msg = caja.nextElementSibling;
 		if (msg && msg.classList.contains('invalid-feedback')) msg.remove();
 	}
-	function marcarCampos(form, errores) {
+	// «quedarse»: no mover la página (p. ej. cuando el calendario ya se llevó la vista y el foco).
+	function marcarCampos(form, errores, quedarse) {
 		form.querySelectorAll('.is-invalid').forEach(quitarMarca);
 		errores.forEach(function (x) {
 			var campo = x[0], caja = campo.closest('.input-group') || campo;
@@ -175,14 +176,28 @@
 			var msg = document.createElement('div');
 			msg.className = 'invalid-feedback d-block';
 			msg.id = (campo.id || campo.name) + '-error';
-			msg.textContent = x[1];
+			if (typeof x[1] === 'string') msg.textContent = x[1]; else msg.appendChild(x[1]);
 			campo.setAttribute('aria-describedby', msg.id);
 			caja.insertAdjacentElement('afterend', msg);
 			campo.addEventListener('input', function () { quitarMarca(campo); }, { once: true });
 		});
+		if (quedarse) return;
 		var primero = errores[0][0];
 		primero.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		primero.focus({ preventScroll: true });
+	}
+	// «¿Quisiste decir ana@gmail.com?» con un botón que lo pone; si la persona deja el suyo, el segundo envío pasa.
+	function sugerencia(form, correo) {
+		var caja = document.createElement('span');
+		caja.appendChild(document.createTextNode(T.quisiste.replace('{correo}', correo) + ' '));
+		var b = document.createElement('button');
+		b.type = 'button';
+		b.className = 'btn btn-link p-0 align-baseline';
+		b.textContent = T.usar;
+		b.addEventListener('click', function () { form.email.value = correo; quitarMarca(form.email); form.email.focus(); });
+		caja.appendChild(b);
+		caja.appendChild(document.createTextNode(' ' + T.estaBien));
+		return caja;
 	}
 
 	function setStatus(form, html, ok) {
@@ -211,8 +226,9 @@
 			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
 			// Cuadro de reserva (js/vacacional.js): sin fechas válidas no se envía.
 			var reserva = typeof form.eqReserva === 'function' ? form.eqReserva() : null;
-			if (typeof form.eqReserva === 'function') {
-				if (!reserva) return;
+			// Sin fechas, el calendario se marca y se lleva la vista; los demás campos igual se revisan y se marcan.
+			var sinFechas = typeof form.eqReserva === 'function' && !reserva;
+			if (reserva) {
 				lead.reserva = reserva.datos;
 				// Casa de un socio: la solicitud le aparece en su panel.
 				if (form.getAttribute('data-propietario-id')) lead.propietarioId = form.getAttribute('data-propietario-id');
@@ -220,20 +236,25 @@
 			}
 			lead.idioma = EN ? 'en' : 'es';
 			if (campana) lead.campana = campana;
-			// Número sin contar el código: 7 dígitos o más (8 en Guatemala); con el código, hasta 15.
-			var digitos = form.telefono.value.replace(/\D/g, '').length, minimo = form.codigo && form.codigo.value === '502' && form.telefono.value.trim().charAt(0) !== '+' ? 8 : 7;
 			// Lo marcado en un envío anterior se revisa de nuevo desde cero.
 			form.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			var errores = [];
 			if (!lead.nombre) errores.push([form.nombre, T.faltaNombre]);
-			if (digitos < minimo || lead.telefono.replace(/\D/g, '').length > 15) errores.push([form.telefono, T.faltaTelefono]);
-			// El correo (obligatorio solo en la reserva; si se escribe, siempre) con la misma regla del panel y las funciones (admin/js/formato.js).
+			// Con la misma regla del panel (admin/js/formato.js): 7 a 15 dígitos con el código; en Guatemala, 8 después del +502.
+			if (!EQFormato.telefonoValido(lead.telefono)) errores.push([form.telefono, T.faltaTelefono]);
+			// El correo (obligatorio solo en la reserva; si se escribe, siempre) con la misma regla del panel y las funciones.
 			if (form.email && (lead.email || form.email.required) && !EQFormato.correoValido(lead.email)) errores.push([form.email, lead.email ? T.errorCorreo : T.faltaCorreo]);
+			else if (form.email && lead.email && EQFormato.sugerenciaCorreo(lead.email) && form.getAttribute('data-correo-visto') !== lead.email) {
+				// Dominio mal escrito («gmial.com»): se sugiere una vez; si la persona deja el suyo, el siguiente envío pasa.
+				form.setAttribute('data-correo-visto', lead.email);
+				errores.push([form.email, sugerencia(form, EQFormato.sugerenciaCorreo(lead.email))]);
+			}
 			if (errores.length) {
-				marcarCampos(form, errores);
-				setStatus(form, T.revisa, false);
+				marcarCampos(form, errores, sinFechas);
+				if (!sinFechas) setStatus(form, T.revisa, false);
 				return;
 			}
+			if (sinFechas) return;
 			var button = form.querySelector('button[type=submit]');
 			button.disabled = true;
 

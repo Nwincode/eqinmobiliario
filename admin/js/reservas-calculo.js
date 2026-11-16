@@ -9,6 +9,13 @@ export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles',
 export const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
 // Lo que lee el cliente en su chat al cerrarse la solicitud.
 export const TEXTO_NO = 'Lo sentimos: la casa no está disponible en esas fechas.';
+// Lo que lee el cliente en su chat cuando «no se dio», según el motivo (no siempre fue por las fechas).
+const TEXTOS_NO = {
+	'Cliente no respondió': 'Cerramos esta solicitud porque no tuvimos respuesta. Si todavía quieres la casa, elige tus fechas otra vez.',
+	'Precio': 'Esta solicitud no se pudo concretar. Si quieres, elige otras fechas o mira otras casas.',
+	'Otro': 'Esta solicitud no se pudo concretar. Si quieres, elige otras fechas o mira otras casas.'
+};
+export const textoNo = (motivo) => TEXTOS_NO[motivo] || TEXTO_NO;
 export const TEXTO_CANCELADA = 'La reserva se canceló.';
 
 // Viene de una solicitud de la web (tiene chat con el cliente y su solicitud en leads).
