@@ -414,5 +414,18 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	});
 }
 
+test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
+	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.
+	const autollenado = /compan|empresa|organi|business|web|url|site|address|direcc|email|correo|phone|tel|name|nombre|city|ciudad|zip|postal/i;
+	let n = 0;
+	for (const [u, h] of Object.entries(html)) {
+		for (const m of h.matchAll(/<div class="hp-field"[^>]*><label>([^<]*)<input name="([^"]+)"/g)) {
+			n++;
+			assert.doesNotMatch(m[1] + ' ' + m[2], autollenado, `${u}: «${m[1]}» / ${m[2]}`);
+		}
+	}
+	assert.ok(n > 0, 'no hay formularios con trampa');
+});
+
 if (!process.env.GUARDAR) rmSync(tmp, { recursive: true, force: true });
 console.log(`${ok} pruebas del sitio generado pasan${process.exitCode ? ' (con fallas)' : ''}.`);
