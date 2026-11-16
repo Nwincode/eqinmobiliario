@@ -4,7 +4,7 @@
 // El correo del cliente sale de su solicitud y el del socio de su ficha, ambos leídos con la cuenta de servicio, y el
 // título de la casa, de la casa guardada. Devuelve cuántos salieron (0 sin correo o base configurados), o null si el chat no existe.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
-import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
+import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
 
 export async function enviarAvisosChat(token) {
@@ -24,8 +24,20 @@ export async function enviarAvisosChat(token) {
 	let fallas = 0;
 	for (const a of avisos) {
 		try {
-			const html = await plantilla({ titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, bloques: (c) => boton(c, a.boton, a.url, c.primary, { ancho: true }) });
-			await enviarCorreo({ responder: true, para: a.para, asunto: a.asunto, html, texto: `${a.titulo}\n${a.intro}\n\n${a.boton}: ${a.url}` });
+			const en = a.lang === 'en';
+			const filas = (a.datos || []).filter((f) => f[1]);
+			const html = await plantilla({
+				titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, lang: a.lang, ayuda: a.rol === 'cliente',
+				// La foto de la casa (la de su ficha, guardada en el chat al reservar); si no hay, la de la cabecera.
+				foto: chat.foto, etiqueta: `${en ? 'Booking' : 'Solicitud'} ${chat.codigo}`,
+				pie: a.rol === 'cliente' ? (en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.')
+					: a.rol === 'casa' ? 'Lo recibes porque tu casa está publicada en eqinmobiliario.gt.' : '',
+				bloques: (c) => datos(c, filas) + boton(c, a.boton, a.url, c.primary, { ancho: true })
+					+ (a.nota ? `<p style="margin:4px 0 0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:19px;color:${c.ink}">${esc(a.nota)}</p>` : '')
+					+ (a.pasos?.length ? pasos(c, en ? 'What\'s next' : 'Qué sigue', a.pasos) : '')
+			});
+			const texto = [a.titulo, a.intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', `${a.boton}: ${a.url}`, a.nota || '', ...(a.pasos || []).map((t, i) => `${i + 1}. ${t}`)].join('\n');
+			await enviarCorreo({ responder: true, para: a.para, asunto: a.asunto, html, texto });
 		} catch (err) { fallas++; console.error('Aviso de chat a', a.para.length, 'correo(s):', err.message); }
 	}
 	if (fallas && fallas === avisos.length) throw new Error('No salió ningún aviso');

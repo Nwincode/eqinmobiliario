@@ -100,15 +100,19 @@ export async function render(container, [codigo] = []) {
 			if (traducir) await Promise.all(todos.filter((m) => m.de === 'cliente' && !m.tipo && !traducidos.has(m.texto)).map(async (m) => traducidos.set(m.texto, await traducirTexto(m.texto, 'en|es'))));
 			const ultimoMio = todos.filter((m) => m.de === yo).at(-1);
 			const visto = ultimoMio && ms(c.data()?.vistoCliente) >= ms(ultimoMio.createdAt) && ms(ultimoMio.createdAt) > 0;
-			lista.replaceChildren(...(todos.length ? todos.flatMap((m) => [h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}` },
-				h('div', { class: 'small opacity-75' }, `${TIPOS[m.tipo] ? `${TIPOS[m.tipo]} · ` : ''}${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), cuerpo(m)),
+			// Mensajes seguidos de la misma persona van juntos y con su nombre una sola vez (como en WhatsApp).
+			lista.replaceChildren(...(todos.length ? todos.flatMap((m, i) => [h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}${todos[i - 1]?.de === m.de && !m.tipo ? ' is-seguida' : ''}` },
+				todos[i - 1]?.de === m.de && !m.tipo ? null : h('div', { class: 'small opacity-75' }, `${TIPOS[m.tipo] ? `${TIPOS[m.tipo]} · ` : ''}${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), cuerpo(m)),
 				visto && m === ultimoMio ? h('div', { class: 'small text-muted text-end' }, 'Visto') : null])
 				: [h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay mensajes.')]));
 			// Lo que escribió el cliente queda visto por mí.
 			if (todos.at(-1) && todos.at(-1).de !== yo) await updateDoc(ref, { [admin ? 'vistoEquipo' : 'vistoSocio']: serverTimestamp() });
 		};
 		const mostrar = async () => { try { await cargar(); } catch (err) { showError(err); } };
-		const campo = h('textarea', { class: 'form-control', rows: 2, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
+		// Una línea que crece al escribir (hasta 5); Enter envía y Mayús + Enter baja de línea, como en la página del cliente.
+		const campo = h('textarea', { class: 'form-control chat-campo', rows: 1, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje',
+			oninput: (e) => { e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 132)}px`; },
+			onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } } });
 		// Uno a la vez: doble clic o Enter y clic no mandan el mismo mensaje dos veces.
 		let enviando = false;
 		const form = h('form', { class: 'd-flex align-items-end gap-2', onsubmit: async (e) => {
@@ -118,7 +122,7 @@ export async function render(container, [codigo] = []) {
 			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
 			enviando = true;
 			const escrito = campo.value;
-			campo.value = '';
+			campo.value = ''; campo.style.height = '';
 			try {
 				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
 				if (traducir) texto = `${await traducirTexto(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
@@ -139,8 +143,8 @@ export async function render(container, [codigo] = []) {
 		const reloj = setInterval(mostrar, 10000);
 		// Lo que cambia la reserva no se dice por mensaje: se toca el botón (así se apartan las fechas y el cliente recibe lo que sigue).
 		const est = estado(l);
-		const nota = est === 'pendiente' ? 'Para decir si está disponible usa «Confirmar» o «No se dio» en la solicitud: así se apartan las fechas y el cliente recibe los datos de pago.'
-			: est === 'confirmada' ? 'Cuando te llegue el pago, toca «Pago recibido» en la solicitud: el cliente recibe la dirección y cómo llegar.' : '';
+		const nota = est === 'pendiente' ? 'Disponibilidad: usa «Confirmar» o «No se dio» en la solicitud.'
+			: est === 'confirmada' ? 'Al recibir el pago, toca «Pago recibido» en la solicitud.' : '';
 		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, nota ? h('p', { class: 'small text-muted mb-2' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), nota) : null, rapidas, form), onClose: () => { clearInterval(reloj); recargar(); } });
 		await mostrar();
 	}

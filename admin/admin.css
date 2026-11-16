@@ -973,9 +973,19 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 .ia-burbuja {
 	max-width: 85%;
-	padding: 10px 14px;
+	padding: 7px 12px;
 	border-radius: 12px;
-	line-height: 1.5;
+	line-height: 1.45;
+}
+/* Mensaje seguido de la misma persona: pegado al anterior y sin repetir quién lo escribe. */
+.ia-burbuja.is-seguida {
+	margin-top: -6px;
+}
+/* Campo del chat: una línea que crece sola (sin la esquina para estirarlo); mismo alto que los botones de al lado. */
+.chat-campo {
+	min-height: 44px;
+	resize: none;
+	overflow-y: auto;
 }
 .ia-user {
 	align-self: flex-end;

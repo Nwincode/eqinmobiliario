@@ -220,6 +220,18 @@ await socio.p.locator('.modal [aria-label=Enviar]').click();
 await espera(800);
 paso('El panel bloquea el teléfono del socio', /no se comparten/.test(await avisos(socio.p)));
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat.png` });
+// Respuestas rápidas detrás del rayo: cerradas al abrir; al tocar una, va al campo y se cierran.
+const rapidasOcultas = await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden();
+await socio.p.locator('.modal [aria-label="Respuestas rápidas"]').click();
+await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).click();
+paso('Respuestas rápidas tras el rayo: se abren, llenan el campo y se cierran', rapidasOcultas && await socio.p.locator('.modal textarea').inputValue() === '¿Viajan con mascotas?'
+	&& await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden());
+await socio.p.fill('.modal textarea', '');
+const tamano = socio.p.viewportSize();
+await socio.p.setViewportSize({ width: 390, height: 844 });
+await espera(400);
+await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat-390.png` });
+await socio.p.setViewportSize(tamano);
 await socio.p.locator('.modal .btn-close').click();
 await espera(2500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmar' }).click();

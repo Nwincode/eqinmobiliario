@@ -25,8 +25,10 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 });
 test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio lo lee en español con el título en español', () => {
 	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
-	assert.match(a.at(-1).intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
-	assert.match(a[0].intro, /^Casa de playa · lun, 16 nov → vie, 20 nov · 2 personas\./);
+	assert.match(a.at(-1).intro, /^The host of Beach house reviews it/);
+	assert.deepEqual(a.at(-1).datos.slice(0, 3).map((f) => f[1]), ['Mon, Nov 16', 'Fri, Nov 20', '2 guests']);
+	assert.match(a[0].intro, /^Respóndela pronto/);
+	assert.deepEqual(a[0].datos.slice(0, 4).map((f) => f[1]), ['Casa de playa', 'lun, 16 nov', 'vie, 20 nov', '2 personas']);
 });
 test('sin correos del equipo (AVISO_CORREO): el cliente y el socio igual reciben lo suyo', () => {
 	const a = avisosChat({ chat, mensajes: [], correos: { ...correos, equipo: [] }, sitio: 'https://ejemplo.gt', ahora: AHORA });
@@ -82,7 +84,7 @@ test('el título del correo sale de la casa guardada, no del chat', () => {
 	const casa = { titulo: 'Casa de playa en Monterrico', en: { titulo: 'Beach house in Monterrico' } };
 	const nuevo = (extra) => avisosChat({ chat: { ...chat, propertyTitulo: 'Gana dinero en estafa.example', ...extra }, casa, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	const a = nuevo({});
-	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro) && !/estafa/.test(JSON.stringify(x))));
+	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro + JSON.stringify(x.datos)) && !/estafa/.test(JSON.stringify(x))));
 	assert.match(nuevo({ idioma: 'en' }).at(-1).intro, /Beach house in Monterrico/);
 	assert.ok(avisosChat({ chat, casa: null, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA }).every((x) => !/Casa de playa ·/.test(x.intro)));
 });

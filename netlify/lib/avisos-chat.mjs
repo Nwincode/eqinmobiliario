@@ -1,4 +1,6 @@
 // Qué correos tocan por el chat de una reserva vacacional. Sin red: recibe lo guardado y devuelve los avisos.
+// Cada aviso trae lo que el correo muestra (netlify/lib/aviso-chat-envio.mjs): título, texto, tabla de datos, pasos y un botón.
+import { dinero } from '../../admin/js/formato.js';
 // Cada aviso lleva solo un enlace a la plataforma (la reserva del cliente o la solicitud en el panel):
 // la conversación sigue allí, y nadie recibe el teléfono ni el correo del otro.
 const FRESCO = 10 * 60_000;
@@ -35,8 +37,21 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// (Lo que el socio deja sin responder le llega al equipo por netlify/functions/solicitudes-sin-respuesta.mjs.)
 	const deLaCasa = correos.socio ? [correos.socio] : (correos.equipo || []).filter(Boolean);
 	const en = chat.idioma === 'en';
-	const alCliente = (asunto, titulo, intro) => (correos.cliente ? [{ para: [correos.cliente], asunto, titulo, intro, boton: en ? 'See my booking' : 'Ver mi reserva', url: reserva }] : []);
-	const aLaCasa = (asunto, titulo, intro) => (deLaCasa.length ? [{ para: deLaCasa, asunto, titulo, intro, boton: 'Abrir la solicitud', url: panel }] : []);
+	// La tabla de la reserva: fechas con la hora de entrada y salida de la casa, personas y noches, y el total.
+	const tabla = (lang) => {
+		const e = lang === 'en';
+		const hora = (h) => (/^\d{1,2}:\d{2}$/.test(h || '') ? ` · ${h}` : '');
+		const noches = chat.noches ? (e ? ` · ${chat.noches} ${chat.noches === 1 ? 'night' : 'nights'}` : ` · ${chat.noches} ${chat.noches === 1 ? 'noche' : 'noches'}`) : '';
+		return [[e ? 'Check-in' : 'Llegada', fecha(chat.llegada, lang) + hora(casa?.vacacional?.checkIn)], [e ? 'Check-out' : 'Salida', fecha(chat.salida, lang) + hora(casa?.vacacional?.checkOut)],
+			[e ? 'Guests' : 'Huéspedes', chat.huespedes ? personas(lang) + noches : ''], [e ? 'Total' : 'Total', Number(chat.total) > 0 && /^[A-Z]{3}$/.test(chat.moneda || '') ? dinero(chat.total, chat.moneda) : '']];
+	};
+	const casaEs = String(casa?.titulo || '').slice(0, 200);
+	// Al cliente: botón a su reserva y la nota de que se conversa en el chat (si responde el correo, no le llega al anfitrión).
+	const alCliente = (asunto, titulo, intro, extra = {}) => (correos.cliente ? [{ rol: 'cliente', lang: en ? 'en' : 'es', para: [correos.cliente], asunto, titulo, intro,
+		boton: en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url: reserva, datos: tabla(en ? 'en' : 'es'),
+		nota: en ? 'To talk to the host, use the chat in your booking. Replies to this email don\'t reach them.' : 'Para hablar con el anfitrión, usa el chat de tu reserva. Las respuestas a este correo no le llegan a él.', ...extra }] : []);
+	const aLaCasa = (asunto, titulo, intro, extra = {}) => (deLaCasa.length ? [{ rol: 'casa', lang: 'es', para: deLaCasa, asunto, titulo, intro, boton: 'Abrir la solicitud', url: panel,
+		datos: [['Casa', casaEs], ...tabla('es'), ['Cliente', String(chat.nombre || '').slice(0, 40)]], nota: 'Responde desde la solicitud en el panel: el cliente la ve en su reserva.', ...extra }] : []);
 
 	const ultimo = mensajes[mensajes.length - 1];
 	// Solicitud recién enviada (todavía sin mensajes): al socio y al equipo para que respondan; al cliente, su enlace.
@@ -45,16 +60,21 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		// El equipo también se entera de cada solicitud nueva (aparte del socio, sin repetir a quien ya la recibe).
 		const equipo = (correos.equipo || []).filter((c) => c && !deLaCasa.some((d) => d.toLowerCase() === c.toLowerCase()));
 		return [
-			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, `Nueva solicitud ${chat.codigo}`, `${resumen}. Respóndela pronto: las fechas quedan apartadas 2 horas.`),
-			...(equipo.length ? [{ para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: `Nueva solicitud ${chat.codigo}`,
-				intro: `${resumen}. La atiende el socio; si en 2 horas no responde, te llega otro aviso.`, boton: 'Abrir la solicitud', url: panel }] : []),
-			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? 'We received your request' : 'Recibimos tu solicitud',
-				en ? `${resumenEn('en')}. Keep this email: the button takes you back to your booking and its chat.` : `${resumen}. Guarda este correo: el botón te lleva de vuelta a tu reserva y a su chat.`)
+			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, 'Nueva solicitud de reserva', 'Respóndela pronto: las fechas quedan apartadas 2 horas.'),
+			...(equipo.length ? [{ rol: 'equipo', lang: 'es', para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: 'Nueva solicitud de reserva',
+				intro: 'La atiende el socio; si en 2 horas no responde, te llega otro aviso.', boton: 'Abrir la solicitud', url: panel, datos: [['Casa', casaEs], ...tabla('es'), ['Cliente', String(chat.nombre || '').slice(0, 40)]] }] : []),
+			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? `We received your request${chat.nombre ? `, ${chat.nombre}` : ''}` : `Recibimos tu solicitud${chat.nombre ? `, ${chat.nombre}` : ''}`,
+				en ? `The host of ${tituloDe(chat, casa) || 'the house'} reviews it and replies in your booking chat; your dates are held for 2 hours. Keep this email: the button takes you back to your booking.`
+					: `El anfitrión de ${casaEs || 'la casa'} la revisa y te responde en el chat de tu reserva; tus fechas quedan apartadas 2 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`,
+				{ pasos: en ? ['The host confirms your dates (you get an email).', 'You pay the owner directly with the details shown in your booking.', 'Once they receive your payment, you see the address and directions.']
+					: ['El anfitrión confirma tus fechas (te llega un correo).', 'Le pagas directo al propietario con los datos que verás en tu reserva.', 'Al recibir tu pago, ves la dirección y cómo llegar.'] })
 		];
 	}
 	if (ahora - ms(ultimo.createdAt) > FRESCO) return [];
 	if (ultimo.tipo === 'pago') return alCliente(en ? `Booking ${chat.codigo} confirmed: how to pay` : `Reserva ${chat.codigo} confirmada: cómo pagar`,
-		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments).' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos).');
+		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments).' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos).',
+		{ pasos: en ? ['Open your booking and see the payment details.', 'Pay the owner directly (Equipo Inmobiliario does not receive payments).', 'Upload a photo of your receipt in the chat.']
+			: ['Abre tu reserva y mira los datos de pago.', 'Págale directo al propietario (Equipo Inmobiliario no recibe pagos).', 'Sube en el chat la foto de tu comprobante.'] });
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'The owner received your payment' : 'El propietario recibió tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.
@@ -79,5 +99,5 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	return lado(ultimo) === 'cliente'
 		? aLaCasa(`${chat.codigo}: mensaje del cliente`, `${chat.nombre || 'El cliente'} escribió en ${chat.codigo}`, `${resumen}. Respóndele desde la solicitud.`)
 		: alCliente(en ? `Booking ${chat.codigo}: you have a reply` : `Reserva ${chat.codigo}: tienes respuesta`, en ? 'You have a new message' : 'Tienes un mensaje nuevo',
-			en ? 'Open your booking to read it and reply.' : 'Entra a tu reserva para leerlo y responder.');
+			en ? 'The host replied. Open the chat to read it and answer.' : 'El anfitrión te respondió. Abre el chat para leerlo y contestar.', { boton: en ? 'Reply in the chat' : 'Responder en el chat', datos: [] });
 }

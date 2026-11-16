@@ -84,6 +84,7 @@ ${ayuda ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${c.l
 // Tabla corta de datos (etiqueta a la izquierda, valor en negrita a la derecha): fechas, personas, total.
 export function datos(c, filas) {
 	const celda = 'font-family:Arial,Helvetica,sans-serif;padding:8px 0;border-bottom:1px solid ' + c.linea;
+	if (!filas.some((f) => f && f[1])) return '';
 	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter((f) => f && f[1]).map(([k, v]) =>
 		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v)}</td></tr>`).join('')}</table>`;
 }
