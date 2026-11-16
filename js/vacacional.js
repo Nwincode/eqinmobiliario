@@ -70,8 +70,9 @@
 			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
 		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
+		// En la casilla del calendario, sin centavos (se lee de un vistazo); el desglose y el total llevan los exactos.
 		function dineroCorto(n) {
-			return corto + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			return corto + Math.round(Number(n) || 0).toLocaleString('en-US');
 		}
 		function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 		function noches(n) { return n === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: n }); }
