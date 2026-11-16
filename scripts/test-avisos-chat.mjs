@@ -25,8 +25,10 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 });
 test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio lo lee en español con el título en español', () => {
 	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
-	assert.match(a.at(-1).intro, /^Beach house · Mon, Nov 16 → Fri, Nov 20 · 2 guests\./);
-	assert.match(a[0].intro, /^Casa de playa · lun, 16 nov → vie, 20 nov · 2 personas\./);
+	assert.match(a.at(-1).intro, /^The host of Beach house reviews it/);
+	assert.deepEqual(a.at(-1).datos.slice(0, 3).map((f) => f[1]), ['Mon, Nov 16', 'Fri, Nov 20', '2 guests']);
+	assert.match(a[0].intro, /^Respóndela pronto/);
+	assert.deepEqual(a[0].datos.slice(0, 4).map((f) => f[1]), ['Casa de playa', 'lun, 16 nov', 'vie, 20 nov', '2 personas']);
 });
 test('sin correos del equipo (AVISO_CORREO): el cliente y el socio igual reciben lo suyo', () => {
 	const a = avisosChat({ chat, mensajes: [], correos: { ...correos, equipo: [] }, sitio: 'https://ejemplo.gt', ahora: AHORA });
@@ -42,6 +44,40 @@ test('el socio responde: se avisa al cliente', () => assert.deepEqual(avisos([m(
 test('segundo mensaje seguido del mismo lado: sin aviso', () => {
 	assert.equal(avisos([m('cliente', 3), m('cliente', 1)]).length, 0);
 	assert.equal(avisos([m('socio', 3), m('equipo', 1)]).length, 0);
+});
+test('conversación en vivo: ida y vuelta sin un correo por mensaje', () => {
+	// El cliente ya vio la respuesta anterior (vistoCliente después de ella) y vuelve a escribir: al socio le llega uno.
+	const charla = [m('cliente', 9), m('socio', 8), m('cliente', 1)];
+	assert.equal(avisos(charla, { vistoCliente: hace(7.5), vistoSocio: hace(8.5) }).length, 1);
+	// El socio está en el chat (lo abrió hace 1 minuto): sin correo.
+	assert.equal(avisos(charla, { vistoSocio: hace(1) }).length, 0);
+	// El cliente no ha visto el mensaje anterior del socio: el segundo del socio no manda otro correo.
+	assert.equal(avisos([m('cliente', 30), m('socio', 6), m('socio', 1)], { vistoCliente: hace(20) }).length, 0);
+	// Pero si ya lo vio y no está en el chat, el nuevo sí avisa (una vez).
+	assert.equal(avisos([m('cliente', 30), m('socio', 20), m('socio', 1)], { vistoCliente: hace(10) }).length, 1);
+});
+test('un mensaje que no salió por correo (estaba conversando) no frena los siguientes', () => {
+	// El socio respondió, el cliente lo leyó al momento y se fue; el socio vuelve a escribir 2 min después (sin correo:
+	// el cliente acababa de leer) y otra vez ahora: este sí avisa.
+	const charla = [m('socio', 10), m('cliente', 9), m('socio', 8), m('socio', 0.1)];
+	assert.equal(avisos(charla, { vistoCliente: hace(9.8) }).length, 1);
+});
+test('repaso de cada hora: el mensaje callado y sin leer avisa una vez; lo ya avisado o leído, no', () => {
+	const repaso = (mensajes, extra) => avisosChat({ chat: { ...chat, ...extra }, mensajes, correos, sitio: 'https://ejemplo.gt', ahora: AHORA, repaso: true });
+	// El cliente leyó, contestó y se fue; el socio respondió 90 s después (callado) y nada más: el repaso avisa al cliente.
+	const charla = [m('socio', 30), m('cliente', 29), m('socio', 27.5)];
+	assert.deepEqual(repaso(charla, { vistoCliente: hace(29) }).map((x) => x.para), [['ana@example.com']]);
+	// Si ya lo leyó, o si salió por correo en su momento, el repaso no manda nada.
+	assert.equal(repaso(charla, { vistoCliente: hace(20) }).length, 0);
+	assert.equal(repaso([m('cliente', 60), m('socio', 30)], { vistoCliente: hace(50) }).length, 0);
+	// Comprobantes y avisos de estado tienen su propio correo: el repaso no los toca.
+	assert.equal(repaso([m('socio', 30, 'pago')], { vistoCliente: hace(31) }).length, 0);
+});
+test('después de un comprobante o un aviso de estado, el siguiente texto sí avisa', () => {
+	assert.equal(avisos([m('cliente', 5, 'foto'), m('cliente', 1)], { vistoSocio: hace(30) }).length, 1);
+});
+test('que el equipo lea el chat no le quita el correo al socio', () => {
+	assert.equal(avisos([m('socio', 30), m('cliente', 1)], { vistoEquipo: hace(1), vistoSocio: hace(25) }).length, 1);
 });
 test('datos de pago y de llegada: siempre al cliente', () => {
 	assert.match(avisos([m('socio', 2), m('socio', 1, 'pago')])[0].asunto, /confirmada/);
@@ -71,7 +107,7 @@ test('el título del correo sale de la casa guardada, no del chat', () => {
 	const casa = { titulo: 'Casa de playa en Monterrico', en: { titulo: 'Beach house in Monterrico' } };
 	const nuevo = (extra) => avisosChat({ chat: { ...chat, propertyTitulo: 'Gana dinero en estafa.example', ...extra }, casa, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	const a = nuevo({});
-	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro) && !/estafa/.test(JSON.stringify(x))));
+	assert.ok(a.every((x) => /Casa de playa en Monterrico/.test(x.intro + JSON.stringify(x.datos)) && !/estafa/.test(JSON.stringify(x))));
 	assert.match(nuevo({ idioma: 'en' }).at(-1).intro, /Beach house in Monterrico/);
 	assert.ok(avisosChat({ chat, casa: null, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA }).every((x) => !/Casa de playa ·/.test(x.intro)));
 });

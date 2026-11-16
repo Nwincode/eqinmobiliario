@@ -192,7 +192,12 @@ paso('Al solicitar, el cliente queda en «Tu reserva» (sin WhatsApp)', Boolean(
 await espera(1500);
 const codigo = (await cliente.p.locator('[data-out="codigo"]').innerText()).trim();
 const escribir = async (texto) => { await cliente.p.fill('.vac-chat-form textarea', texto); await cliente.p.keyboard.press('Enter'); await espera(1500); return cliente.p.locator('.vac-chat-aviso').innerText(); };
-paso('El cliente escribe en el chat', (await escribir('Hola, ¿aceptan 2 perros pequeños?')) === '');
+// Enter dos veces seguidas (como quien responde rápido): el mensaje sale una sola vez.
+await cliente.p.fill('.vac-chat-form textarea', 'Hola, ¿aceptan 2 perros pequeños?');
+await cliente.p.keyboard.press('Enter'); await cliente.p.keyboard.press('Enter');
+await espera(1500);
+paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (await cliente.p.locator('.vac-chat-aviso').innerText()) === ''
+	&& await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
 paso('El chat bloquea un teléfono', /no se comparten/.test(await escribir('Mejor llamame al 5555-1234')));
 await cliente.p.fill('.vac-chat-form textarea', '');
 
@@ -207,13 +212,26 @@ paso('La solicitud marca «Mensaje sin responder»', /Mensaje sin responder/.tes
 await tarjeta.locator('[aria-label="Chat con el cliente"]').click();
 await espera(1500);
 await socio.p.fill('.modal textarea', 'Hola Ana, sí aceptamos mascotas pequeñas.');
-await socio.p.locator('.modal [aria-label=Enviar]').click();
+await socio.p.locator('.modal [aria-label=Enviar]').dblclick();
 await espera(1500);
+paso('El socio responde con doble clic: sale una sola vez', await socio.p.locator('.modal', { hasText: 'aceptamos mascotas' }).locator('text=Hola Ana, sí aceptamos mascotas pequeñas.').count() === 1);
 await socio.p.fill('.modal textarea', 'Mi número es 5555 0001');
 await socio.p.locator('.modal [aria-label=Enviar]').click();
 await espera(800);
 paso('El panel bloquea el teléfono del socio', /no se comparten/.test(await avisos(socio.p)));
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat.png` });
+// Respuestas rápidas detrás del rayo: cerradas al abrir; al tocar una, va al campo y se cierran.
+const rapidasOcultas = await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden();
+await socio.p.locator('.modal [aria-label="Respuestas rápidas"]').click();
+await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).click();
+paso('Respuestas rápidas tras el rayo: se abren, llenan el campo y se cierran', rapidasOcultas && await socio.p.locator('.modal textarea').inputValue() === '¿Viajan con mascotas?'
+	&& await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden());
+await socio.p.fill('.modal textarea', '');
+const tamano = socio.p.viewportSize();
+await socio.p.setViewportSize({ width: 390, height: 844 });
+await espera(400);
+await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat-390.png` });
+await socio.p.setViewportSize(tamano);
 await socio.p.locator('.modal .btn-close').click();
 await espera(2500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmar' }).click();

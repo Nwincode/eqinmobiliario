@@ -35,37 +35,65 @@ let temaCache = null;
 async function colores() {
 	if (!temaCache) temaCache = (await leerPublico('settings/site'))?.tema || {};
 	const c = (k) => colorTema(temaCache, k);
-	return { dark: c('dark'), primary: c('primary'), white: c('white'), ink: c('ink'), whatsapp: c('whatsapp') };
+	return { dark: c('dark'), primary: c('primary'), cyan: c('cyan'), white: c('white'), ink: c('ink'), whatsapp: c('whatsapp') };
 }
 
-// Diseño común de los correos: encabezado, contenido y pie.
-// bloques(c) recibe los colores (los del tema, más c.linea y c.suave, que salen de mezclarlos) y devuelve el HTML.
-// preheader: la línea que el programa de correo muestra junto al asunto (si falta, se usa la intro sin etiquetas).
-// Todo va en tablas con estilos en línea para que Gmail y Outlook lo muestren igual.
-export async function plantilla({ titulo, intro = '', bloques, preheader = '' }) {
+// Diseño común de todos los correos (el mismo del correo de la contraseña, que aprobó el dueño): logo, foto (la de la
+// casa en los de una reserva; si no, la de la cabecera), línea de acento, contenido y pie con la empresa.
+// bloques(c) recibe los colores (los del tema, más c.linea y c.suave) y devuelve el HTML del contenido.
+// etiqueta: línea corta sobre el título (p. ej. el código de la reserva). pie: por qué le llega (si falta, el aviso del panel).
+// ayuda: el botón de WhatsApp para quien no es del panel (cliente). Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
+export async function plantilla({ titulo, intro = '', bloques, preheader = '', foto = '', etiqueta = '', pie = '', ayuda = false, lang = 'es' }) {
 	const base = await colores();
 	// Tonos suaves del gris del tema sobre el fondo (Outlook no entiende colores con transparencia).
 	const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
-	const c = { ...base, linea: mezcla(base.ink, base.white, 0.22), suave: mezcla(base.ink, base.white, 0.06) };
+	const c = { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07) };
 	const fuente = 'font-family:Arial,Helvetica,sans-serif';
 	const previa = esc(preheader || String(intro).replace(/<[^>]+>/g, '')).slice(0, 180);
-	return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+	const imagen = /^https:\/\//.test(foto) ? foto : `${SITE_URL}/images/correo/cabecera.jpg`;
+	const en = lang === 'en';
+	const whatsapp = `https://wa.me/50259131276?text=${encodeURIComponent(en ? 'Hi, I need help with my booking.' : 'Hola, necesito ayuda.')}`;
+	return `<!doctype html><html lang="${en ? 'en' : 'es'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(titulo)}</title></head>
 <body style="margin:0;padding:0;background:${c.suave};${fuente};color:${c.dark}">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.suave}">${previa}${'&#8199;&#847;'.repeat(40)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${c.suave}" style="background:${c.suave}"><tr><td align="center" style="padding:24px 12px;${fuente}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${c.suave}" style="background:${c.suave}"><tr><td align="center" style="padding:28px 12px;${fuente}">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
-<tr><td bgcolor="${c.dark}" style="background:${c.dark};color:${c.white};padding:16px 24px;border-radius:12px 12px 0 0;${fuente};font-size:15px;line-height:20px;font-weight:bold;letter-spacing:.2px">${NOMBRE}</td></tr>
-<tr><td bgcolor="${c.white}" style="background:${c.white};border:1px solid ${c.linea};border-top:0;border-radius:0 0 12px 12px;padding:28px 24px;${fuente};color:${c.dark}">
-<h1 style="margin:0 0 8px;${fuente};font-size:22px;line-height:28px;font-weight:bold;color:${c.dark}">${esc(titulo)}</h1>
-${intro ? `<p style="margin:0 0 20px;${fuente};font-size:15px;line-height:22px;color:${c.ink}">${intro}</p>` : ''}
-${bloques(c)}
+<tr><td align="center" bgcolor="${c.dark}" style="background:${c.dark};border-radius:12px 12px 0 0;padding:22px 24px 20px">
+  <img src="${SITE_URL}/Icono_Equipoinmobiliario@0.75x.png" width="180" height="43" alt="${NOMBRE}" style="display:block;margin:0 auto;border:0;outline:none;width:180px;height:auto;color:${c.white};${fuente};font-size:18px;font-weight:bold">
 </td></tr>
-<tr><td style="padding:16px 12px 4px;${fuente};color:${c.ink};font-size:12px;line-height:18px;text-align:center">Aviso automático del panel de ${NOMBRE}.<br><a href="${SITE_URL}/admin/" target="_blank" style="display:inline-block;padding:12px 8px;color:${c.primary};text-decoration:underline">Abrir el panel</a></td></tr>
+<tr><td bgcolor="${c.dark}" style="background:${c.dark};line-height:0;font-size:0"><img src="${esc(imagen)}" width="600" alt="" style="display:block;border:0;width:100%;max-width:600px;height:auto"></td></tr>
+<tr><td bgcolor="${c.cyan}" style="background:${c.cyan};height:4px;line-height:4px;font-size:4px">&nbsp;</td></tr>
+<tr><td bgcolor="${c.white}" style="background:${c.white};padding:30px 28px 26px;border-radius:0 0 12px 12px;${fuente};color:${c.dark}">
+${etiqueta ? `<p style="margin:0 0 6px;${fuente};font-size:13px;line-height:18px;font-weight:bold;color:${c.primary}">${esc(etiqueta)}</p>` : ''}
+<h1 style="margin:0 0 10px;${fuente};font-size:24px;line-height:30px;font-weight:bold;color:${c.dark}">${esc(titulo)}</h1>
+${intro ? `<p style="margin:0 0 20px;${fuente};font-size:16px;line-height:24px;color:${c.ink}">${intro}</p>` : ''}
+${bloques(c)}
+${ayuda ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${c.linea};text-align:center;${fuente};font-size:14px;line-height:20px;color:${c.ink}">${en ? 'Something not working?' : '¿Algo no funciona?'} <a href="${whatsapp}" target="_blank" style="color:${c.whatsapp};font-weight:bold;text-decoration:underline">${en ? 'Message us on WhatsApp' : 'Escríbenos por WhatsApp'}</a>.</p>` : ''}
+</td></tr>
+<tr><td align="center" style="padding:20px 12px 4px;${fuente};font-size:13px;line-height:20px;color:${c.ink}">
+  <strong style="color:${c.dark}">Equipo Inmobiliario S.A.</strong> · <a href="${SITE_URL}" target="_blank" style="color:${c.primary};text-decoration:none;font-weight:bold">eqinmobiliario.gt</a><br>
+  ${pie ? esc(pie) : `Aviso automático del panel. <a href="${SITE_URL}/admin/" target="_blank" style="display:inline-block;padding:8px 4px;color:${c.primary};text-decoration:underline">Abrir el panel</a>`}
+</td></tr>
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>`;
+}
+
+// Tabla corta de datos (etiqueta a la izquierda, valor en negrita a la derecha): fechas, personas, total.
+export function datos(c, filas) {
+	const celda = 'font-family:Arial,Helvetica,sans-serif;padding:8px 0;border-bottom:1px solid ' + c.linea;
+	if (!filas.some((f) => f && f[1])) return '';
+	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter((f) => f && f[1]).map(([k, v]) =>
+		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v)}</td></tr>`).join('')}</table>`;
+}
+
+// Pasos numerados (lo que sigue, en orden).
+export function pasos(c, titulo, lista) {
+	const fuente = 'font-family:Arial,Helvetica,sans-serif';
+	return `<p style="margin:22px 0 10px;${fuente};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(titulo)}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${lista.map((t, i) => `<tr><td width="32" valign="top" style="padding:0 0 10px"><span style="display:inline-block;width:22px;height:22px;border-radius:11px;background:${c.primary};color:${c.white};${fuente};font-size:12px;line-height:22px;text-align:center;font-weight:bold">${i + 1}</span></td><td valign="top" style="padding:1px 0 10px;${fuente};font-size:14px;line-height:20px;color:${c.ink}">${esc(t)}</td></tr>`).join('')}</table>`;
 }
 
 // Botón que funciona en Gmail y Outlook (tabla con fondo + enlace con relleno).

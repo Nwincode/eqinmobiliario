@@ -13,6 +13,7 @@ import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, es
 import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
+import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import '../../js/calc-vacacional.js';
 
@@ -20,6 +21,7 @@ const V = globalThis.EQVacacional;
 
 const HORA = 3600_000;
 const PLAZO = 2 * HORA;
+const REPASO = 10 * 60_000;
 
 export default async () => {
 	// Basta el servicio de correo: el recordatorio de comisiones va a cada socio; lo demás, solo si hay correos del equipo.
@@ -31,7 +33,6 @@ export default async () => {
 		const ventana = sonLas7 ? 10 * HORA : HORA;
 		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
 		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
-		if (!destinatariosEquipo().length) return;
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;
 		const [nuevas, cambiadas] = await Promise.all([
 			desde('leads', 'createdAt', new Date(ahora - ventana - PLAZO)),
@@ -53,12 +54,17 @@ export default async () => {
 			const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
 			return (await Promise.all(vigentes.map(async (c) => {
 				const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
+				// Un mensaje que no avisó por correo (el otro estaba conversando y se fue sin leerlo): su aviso sale 10 min
+				// después, una sola vez (cuando esa marca cae en la ventana de esta revisión). Si falla, sigue lo demás.
+				const ultimo = lista.at(-1);
+				if (ultimo && enVentana(new Date(ultimo.createdAt).getTime() + REPASO)) await enviarAvisosChat(c.id, { repaso: true }).catch((err) => console.error('Repaso de aviso:', err.message));
 				return sinResponder(lista, { ahora, plazo: PLAZO, ventana }) ? { nombre: c.nombre, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId,
 					reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, huespedes: c.huespedes, moneda: c.moneda, total: c.total } } : null;
 			}))).filter(Boolean);
 		})().catch((err) => { console.error('Mensajes sin responder:', err.message); return []; });
-		const sospechosas = await noSeDioYBloqueada(ahora).catch((err) => { console.error('«No se dio» y bloqueada:', err.message); return []; });
-		if (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length) return;
+		// Se anota una sola vez al avisar: sin correos del equipo no se anota (se avisa cuando los haya).
+		const sospechosas = !destinatariosEquipo().length ? [] : await noSeDioYBloqueada(ahora).catch((err) => { console.error('«No se dio» y bloqueada:', err.message); return []; });
+		if (!destinatariosEquipo().length || (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length)) return;
 
 		const socios = {};
 		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas].map((l) => l.propietarioId).filter(Boolean))) {

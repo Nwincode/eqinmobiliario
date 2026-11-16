@@ -268,12 +268,21 @@
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
 			return reglasDeAntes().then(function (antes) { return pedir(RAIZ + ':commit', { writes: antes ? [msj] : [msj, marca] }); });
 		}
+		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
+		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
+		var enviando = false, fila = Promise.resolve();
 		function mandar(campos) {
-			boton.disabled = true; adjuntar.disabled = true;
-			return guardarMensaje(campos)
-				.then(function () { alerta(''); avisar(token); return cargar(); })
-				.catch(function () { alerta(t.vacChatFallo); })
-				.then(function () { boton.disabled = false; adjuntar.disabled = false; });
+			var paso = function () {
+				enviando = true;
+				boton.disabled = true; adjuntar.disabled = true;
+				return guardarMensaje(campos)
+					.then(function () { alerta(''); avisar(token); return cargar().catch(function () {}); })
+					.catch(function () { alerta(t.vacChatFallo); })
+					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
+			};
+			// Pase lo que pase con un envío, el siguiente sale igual (la fila nunca se queda trabada).
+			fila = fila.then(paso, paso);
+			return fila;
 		}
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {
@@ -285,7 +294,10 @@
 			if (!texto) return;
 			// Teléfonos, correos y enlaces no pasan: los datos de contacto se entregan al confirmar la reserva.
 			if (V.tieneContacto(texto)) return alerta(t.vacChatBloqueo);
-			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (!aviso.textContent) campo.value = ''; });
+			if (enviando) return;
+			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
+			campo.value = '';
+			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
 		});
 		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
 		adjuntar.addEventListener('click', function () { archivo.click(); });
