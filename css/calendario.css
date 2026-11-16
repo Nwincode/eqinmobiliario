@@ -118,11 +118,17 @@
 	font-weight: 500;
 }
 .vac-dia-precio {
-	font-size: 9px;
-	letter-spacing: -0.2px;
-	color: var(--eq-ink);
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: -0.3px;
+	color: var(--eq-primary); /* el precio se lee de un vistazo */
 	margin-top: 2px;
 	white-space: nowrap;
+}
+/* «Ocupado»: gris y sin negrita, para que no se confunda con un precio. */
+.vac-dia.is-ocupado .vac-dia-precio {
+	font-weight: 500;
+	color: color-mix(in oklab, var(--eq-ink) 70%, var(--eq-white));
 }
 @media (hover: hover) {
 	.vac-dia:not([aria-disabled], .is-llegada, .is-salida):hover {
