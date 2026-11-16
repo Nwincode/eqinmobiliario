@@ -5,7 +5,7 @@
 //    bitácora van juntos (las reglas exigen que el público cuadre con el suyo);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp, reglasVersion } from '../firebase.js';
+import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
@@ -24,13 +24,14 @@ const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMon
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
 // Precios especiales que cuentan: con fechas y precio válidos y que no han terminado (los que ya pasaron se quitan
-// al guardar). Hasta 30 a la vez con las reglas nuevas (r6), 10 con las de antes: las reglas revisan uno por uno que el
-// público cuadre con el suyo. `cada` (si se repite cada año) se conserva.
-let MAX_TARIFAS = 10;
+// al guardar). Hasta 10 a la vez: las reglas revisan uno por uno que el público cuadre con el suyo, y más que eso pasa
+// del límite de revisiones de Firestore por guardado (se probó: con 12 ya se rechaza). `cada` (si se repite) se conserva.
+const MAX_TARIFAS = 10;
 const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) && V.esFecha(t.hasta) && t.hasta >= t.desde && Number(t.precio) > 0 && t.hasta >= hoy())
 	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)), ...(t.cada ? { cada: t.cada } : {}) }));
-// Temporadas que se repiten: se guardan este año y los 2 siguientes (fechas de verdad, como cualquier otro precio).
-const ANIOS_ADELANTE = 2;
+// Temporadas que se repiten: se guardan este año y el siguiente (fechas de verdad, como cualquier otro precio); al pasar
+// un año, se agrega el que sigue (alDia). Así cada temporada ocupa 2 de los 10 lugares.
+const ANIOS_ADELANTE = 1;
 const QUE_CADA = { fecha: 'cada año en estas fechas', semanaSanta: 'cada año en Semana Santa' };
 // La misma temporada en otro año: misma forma de repetirse, mismo largo y el mismo día (o los mismos días desde la Pascua).
 const mismaTemporada = (a, b) => a.cada && a.cada === b.cada && V.nochesEntre(a.desde, a.hasta) === V.nochesEntre(b.desde, b.hasta)
@@ -114,7 +115,7 @@ async function casa(container, id) {
 			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
 	};
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
-	// Temporadas que se repiten: siempre puestas hasta dentro de 2 años (al pasar un año, se agrega el siguiente).
+	// Temporadas que se repiten: siempre puestas hasta el año que viene (al pasar un año, se agrega el siguiente).
 	const alDia = (lista) => {
 		const meta = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
 		let out = [...lista];
@@ -367,11 +368,11 @@ async function casa(container, id) {
 	}
 
 	pintar();
-	// Con las reglas r6, hasta 30 precios por fechas; y las temporadas que se repiten, puestas al día (una vez al año).
-	reglasVersion('r6').then((si) => { MAX_TARIFAS = si ? 30 : 10; }).then(() => {
+	// Las temporadas que se repiten, puestas al día (una vez al año: agrega el año que viene).
+	{
 		const t = alDia(e.tarifas), m = alDia(e.minimos);
 		if (t || m) guardar('puso al día las temporadas que se repiten cada año', (a) => ({ ...(t ? { tarifas: alDia(a.tarifas) || a.tarifas } : {}), ...(m ? { minimos: alDia(a.minimos) || a.minimos } : {}) }));
-	});
+	}
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.

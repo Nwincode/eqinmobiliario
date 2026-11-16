@@ -32,14 +32,6 @@ export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : n
 // los emuladores de Firebase en esta máquina y no con la base real. El site.config.json del repositorio no los trae.
 const emuladores = siteConfig.emuladores;
 // La base por REST, sin sesión (lo mismo que ve un visitante): la real o, en el entorno de pruebas, el emulador.
-// ¿Ya están publicadas las reglas de la versión v (o una posterior)? Leer reglas/{v} da «no existe» (404) con ellas y
-// «sin permiso» (403) antes (firestore.rules, `match /reglas/{version}`). Solo el «sí» se recuerda.
-const versionesReglas = new Set();
-export async function reglasVersion(v) {
-	if (versionesReglas.has(v)) return true;
-	try { if ((await fetch(`${firestoreRest}/reglas/${v}`, { cache: 'no-store' })).status === 404) versionesReglas.add(v); } catch { /* sin red: de antes */ }
-	return versionesReglas.has(v);
-}
 export const firestoreRest = `${emuladores ? `http://${emuladores.firestore}` : 'https://firestore.googleapis.com'}/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents`;
 const conAuthLocal = (a) => connectAuthEmulator(a, `http://${emuladores.auth}`, { disableWarnings: true });
 if (app && emuladores) {
