@@ -109,7 +109,12 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
    solicitudes (el administrador sí).
 9. **Dar acceso** desde su ficha a cada dueño de venta o renta y a cada colaborador (el botón se habilita solo). Los
    socios que ya entraban no necesitan nada. Probar primero con un correo propio que el correo para poner la
-   contraseña llega (y no cae en spam).
+   contraseña llega (y no cae en spam). El correo sale en español (`auth.languageCode` en `admin/js/firebase.js`); su texto
+   y el nombre de quien lo manda se cambian en Firebase → Authentication → Plantillas → Restablecimiento de contraseña
+   (la plantilla con botón, lista para pegar: `docs/plantillas/correo-contrasena.html`). Para que no caiga en spam, sale
+   de `noreply@eqinmobiliario.gt` con el dominio verificado en esa misma pantalla (Personalizar dominio: registros DNS de
+   Firebase; un solo registro SPF, juntando el de Firebase con el que ya haya). No se genera el enlace en el servidor:
+   eso pediría una llave capaz de cambiar la contraseña de cualquier usuario.
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

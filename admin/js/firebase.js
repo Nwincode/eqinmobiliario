@@ -21,6 +21,8 @@ export const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projec
 
 export const app = configured ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
+// Los correos de Firebase (poner o cambiar la contraseña) en español, como el panel: sin esto llegan en inglés.
+if (auth) auth.languageCode = 'es';
 // ignoreUndefinedProperties: un campo sin valor no hace fallar el guardado.
 export const db = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null;
 export const storage = app && firebaseConfig.storageBucket ? getStorage(app) : null;
