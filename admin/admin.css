@@ -1455,11 +1455,12 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 			"foto zona zona zona"
 			"foto datos datos datos"
 			"foto precio precio precio"
-			"chips chips fecha fecha"
+			"foto fecha fecha fecha"
+			"chips chips chips chips"
 			"estado estado visible visible"
 			"motivo motivo motivo motivo"
 			"asesor asesor asesor asesor";
-		grid-template-rows: auto auto auto 1fr;
+		grid-template-rows: auto auto auto 1fr auto;
 		column-gap: .75rem;
 		padding: .75rem;
 		border-bottom: 1px solid var(--adm-border);
@@ -1477,8 +1478,9 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.table-admin.tabla-propiedades .celda-titulo,
 	.table-admin.tabla-propiedades .celda-visible { display: contents; }
 
-	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; }
-	.tabla-propiedades .thumb { width: 100%; height: 100%; min-height: 93px; border-radius: 8px; font-size: 24px; }
+	/* La foto con la misma proporción en todas (una vertical no estira la tarjeta ni deja hueco junto al precio). */
+	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; align-self: start; }
+	.tabla-propiedades .thumb { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; font-size: 24px; }
 	/* El número y el código van como etiquetas sobre la foto. */
 	.table-admin.tabla-propiedades .celda-num,
 	.tabla-propiedades .prop-codigo {
@@ -1512,7 +1514,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
 	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
 	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-fecha { grid-area: fecha; align-self: center; margin-top: .5rem; text-align: right; }
+	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .125rem; }
 	.table-admin.tabla-propiedades .sin-fecha,
 	.table-admin.tabla-propiedades .sin-asesor { display: none; }
 }

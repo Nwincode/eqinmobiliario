@@ -3212,6 +3212,7 @@ a:hover > .eq-ic-fin,
 }
 .vac-guia li.is-hecho + li::before { background: var(--eq-primary); }
 .vac-guia button {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 5px;
@@ -3227,6 +3228,16 @@ a:hover > .eq-ic-fin,
 .vac-guia button span:not(.eq-ic) {
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+/* El paso que toca se lee entero; lo que falta va solo con su ícono (el nombre queda para el lector de pantalla). */
+.vac-guia li.is-ahora { flex: none; }
+.vac-guia li:not(.is-ahora):not(.is-hecho) button span:not(.eq-ic) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
 }
 .vac-guia .eq-ic {
 	display: inline-flex;

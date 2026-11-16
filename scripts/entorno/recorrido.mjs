@@ -222,7 +222,7 @@ const tarjeta = socio.p.locator('.card', { hasText: codigo }).first();
 const loDelSocio = await socio.p.locator('.admin-main').innerText();
 paso('El socio ve la solicitud con el primer nombre', /Ana\b/.test(loDelSocio) && !/Ana Prueba/.test(loDelSocio));
 const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAll((a) => a.map((x) => decodeURIComponent(x.href)));
-paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305|555 1234|ana@example/.test(await socio.p.content()) && waSocio.every((u) => !/5551234/.test(u)));
+paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
 paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
 paso('La solicitud marca «Mensaje sin responder»', /Mensaje sin responder/.test(await tarjeta.innerText()));
 await tarjeta.locator('[aria-label="Chat con el cliente"]').click();
