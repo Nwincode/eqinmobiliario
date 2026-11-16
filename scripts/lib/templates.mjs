@@ -1317,8 +1317,9 @@ function reservaBox(ctx, p) {
 	// Textos de la ficha por noche; los del chat viajan solo a /reserva/ (de ellos aquí solo hace falta «Ver tu reserva»).
 	const textos = Object.fromEntries(Object.entries(t).filter(([k]) => k.startsWith('vac') && (!k.startsWith('vacChat') || k === 'vacChatVer')));
 	const json = JSON.stringify({ ...d, moneda: p.moneda || 'USD', t: textos }).replace(/</g, '\\u003c');
-	const huespedes = Array.from({ length: d.huespedesMax }, (_, i) => i + 1)
-		.map((n) => `<option value="${n}"${n === Math.min(2, d.huespedesMax) ? ' selected' : ''}>${n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n })}</option>`).join('');
+	// Personas: sin número puesto (el cliente lo elige; si no, se lo salta sin verlo), salvo en una casa para 1 sola.
+	const huespedes = (d.huespedesMax > 1 ? `<option value="" selected disabled>${t.vacCuantas}</option>` : '') + Array.from({ length: d.huespedesMax }, (_, i) => i + 1)
+		.map((n) => `<option value="${n}"${d.huespedesMax === 1 ? ' selected' : ''}>${n === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n })}</option>`).join('');
 	return `<section class="lead-card vac-card" data-vacacional data-id="${esc(p.id)}" data-lang="${lang}" aria-labelledby="vac-titulo">
 						<script type="application/json" class="vac-datos">${json}</script>
 						<h2 id="vac-titulo" class="h5 mb-1">${ic('calendar')}${t.vacTitulo}</h2>
