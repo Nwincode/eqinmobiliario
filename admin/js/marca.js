@@ -1,40 +1,28 @@
 // Marca de agua para las fotos de propiedades.
 // Uso: await ponerMarca(canvas)  — el canvas ya debe tener la foto dibujada.
 //
-// Composición: sello centrado (ícono de la casa + "EQINMOBILIARIO.GT" con líneas finas
-// a los lados), blanco a opacidad baja y sombra difusa para que se lea en fotos claras
-// y oscuras. Está en el centro óptico para que no se pueda recortar sin perder la foto.
-// Además, un pequeño crédito de la web en la esquina inferior derecha.
+// Composición (decisión del dueño, opción «B»):
+//  - En la esquina inferior derecha, una cápsula oscura translúcida con el ícono de la casa y «eqinmobiliario.gt»:
+//    se lee siempre y no tapa la foto.
+//  - En el centro óptico, el sello (ícono + "EQINMOBILIARIO.GT" con líneas finas) casi invisible (12 % con una sombra
+//    suave): no estorba al ver la casa, pero no se puede recortar sin perder la foto y prueba de dónde salió.
 
-const LOGO_URL = '/Icono_Equipoinmobiliario@0.75x.png';
-// Región del ícono (círculo con la casa) dentro del PNG de 340x82.
-const ICONO = { x: 0, y: 12, w: 58, h: 58 };
+// El ícono (círculo con la casa) en vector y en blanco: se dibuja nítido a cualquier tamaño, sin estirarse ni pixelarse.
+// docs/marca/logo/icono-blanco.svg es el favicon de la marca sin el fondo (cuadrado, así nunca se deforma).
+const ICONO_URL = '/docs/marca/logo/icono-blanco.svg';
 const TEXTO = 'EQINMOBILIARIO.GT';
 const FUENTE = '"Work Sans", "Helvetica Neue", Arial, sans-serif';
 
-let iconoBlanco = null; // Promise<HTMLCanvasElement|null>, cacheada
+let iconoBlanco = null; // Promise<HTMLImageElement|null>, cacheada
 
 function cargarIcono() {
 	if (iconoBlanco) return iconoBlanco;
 	iconoBlanco = new Promise((resolve) => {
 		const img = new Image();
 		img.decoding = 'async';
-		img.onload = () => {
-			try {
-				const escala = img.naturalWidth / 340 || 1;
-				const c = document.createElement('canvas');
-				c.width = Math.round(ICONO.w * escala);
-				c.height = Math.round(ICONO.h * escala);
-				const x = c.getContext('2d');
-				x.drawImage(img, ICONO.x * escala, ICONO.y * escala, ICONO.w * escala, ICONO.h * escala, 0, 0, c.width, c.height);
-				x.globalCompositeOperation = 'source-in';
-				x.fillStyle = '#fff';
-				x.fillRect(0, 0, c.width, c.height);
-				resolve(c);
-			} catch { resolve(null); }
-		};
+		img.onload = () => resolve(img.naturalWidth ? img : null);
 		img.onerror = () => { iconoBlanco = null; resolve(null); };
-		img.src = LOGO_URL;
+		img.src = ICONO_URL;
 	});
 	return iconoBlanco;
 }
@@ -155,32 +143,33 @@ export async function ponerMarca(canvas) {
 	const anchoPor100 = anchoTracking(m, TEXTO, 16) + 510; // ancho del sello con fs = 100
 	fs = Math.max(10, Math.round(Math.min((W * 0.58) / anchoPor100 * 100, H * 0.055)));
 
-	// 1) Sello central (un poco abajo del centro geométrico = centro óptico de la foto).
+	// 1) Sello central casi invisible (un poco abajo del centro geométrico = centro óptico de la foto).
 	const sello = dibujarSello(icono, fs);
 	const sx = (W - sello.width) / 2, sy = H * 0.53 - sello.height / 2;
-	// En zonas claras sube el halo y la opacidad para que el blanco siga leyéndose.
 	const luz = luminancia(ctx, sx, sy, sello.width, sello.height);
-	componer(ctx, sello, sx, sy, 0.55 + 0.25 * luz, fs * 0.9, 0.15 + 0.45 * luz);
+	componer(ctx, sello, sx, sy, 0.12, fs * 0.9, 0.05 + 0.1 * luz);
 
-	// 2) Crédito pequeño en la esquina inferior derecha.
-	const fc = Math.max(12, Math.round(base * 0.019));
-	const track = fc * 0.16;
-	const c = document.createElement('canvas');
-	const mc = c.getContext('2d');
-	mc.font = `600 ${fc}px ${FUENTE}`;
-	const tw = anchoTracking(mc, TEXTO, track);
-	const pad = Math.ceil(fc);
-	c.width = Math.ceil(tw) + pad * 2;
-	c.height = Math.ceil(fc * 1.4) + pad * 2;
-	const x = c.getContext('2d');
-	x.font = `600 ${fc}px ${FUENTE}`;
-	x.fillStyle = '#fff';
-	x.textBaseline = 'middle';
-	textoTracking(x, TEXTO, pad, c.height / 2, track);
-	const margen = Math.max(12, base * 0.032);
-	const cxp = W - margen - tw - pad, cyp = H - margen - c.height / 2 - fc * 0.2;
-	const luzC = luminancia(ctx, cxp, cyp, c.width, c.height);
-	componer(ctx, c, cxp, cyp, 0.8, fc * 0.6, 0.35 + 0.4 * luzC);
+	// 2) Cápsula en la esquina inferior derecha: ícono blanco + «eqinmobiliario.gt» sobre fondo oscuro translúcido.
+	const fc = Math.max(12, Math.round(base * 0.024));
+	const web = 'eqinmobiliario.gt';
+	ctx.save();
+	ctx.font = `600 ${fc}px ${FUENTE}`;
+	const tw = ctx.measureText(web).width;
+	const ic = icono ? Math.round(fc * 1.55) : 0;
+	const pad = Math.round(fc * 0.7);
+	const alto = Math.round(Math.max(ic, fc * 1.2) + pad * 1.1);
+	const ancho = Math.round(pad * 2 + (ic ? ic + fc * 0.45 : 0) + tw);
+	const margen = Math.max(10, Math.round(base * 0.028));
+	const px = W - margen - ancho, py = H - margen - alto;
+	ctx.fillStyle = 'rgba(14, 25, 32, 0.5)';
+	ctx.beginPath();
+	if (ctx.roundRect) ctx.roundRect(px, py, ancho, alto, alto / 2); else ctx.rect(px, py, ancho, alto);
+	ctx.fill();
+	if (icono) ctx.drawImage(icono, px + pad, Math.round(py + (alto - ic) / 2), ic, ic);
+	ctx.fillStyle = '#fff';
+	ctx.textBaseline = 'middle';
+	ctx.fillText(web, px + pad + (ic ? ic + fc * 0.45 : 0), py + alto / 2 + fc * 0.05);
+	ctx.restore();
 
 	return canvas;
 }

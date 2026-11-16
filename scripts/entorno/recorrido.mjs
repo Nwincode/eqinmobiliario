@@ -1429,6 +1429,8 @@ const duenos = [];
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
 	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
 	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
+	const globo = await vis.p.locator('.vac-burbuja').innerText().catch(() => '');
+	paso('Sitio: al tocar una noche rayada sale una burbuja encima del día con el mínimo de la casa', /estancia mínima en esta casa es de 3 noches/.test(globo), globo);
 	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
 	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
 	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /Estancia mínima: 3/.test(ayudaM) && /primera salida/.test(ayudaM), ayudaM);
