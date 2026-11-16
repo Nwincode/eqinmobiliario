@@ -1189,8 +1189,17 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades/r2-noche', 4000);
 	await campo(admin.p, 'propietarioId').selectOption('r2-nuevo');
 	await espera(300);
+	// La casa ya tiene dueña: antes de guardar pregunta, con los dos nombres. «Cancelar» la deja como estaba.
 	await guardar(admin.p);
-	await espera(3000);
+	const pregunta = await admin.p.locator('.modal.show').innerText().catch(() => '');
+	await admin.p.locator('.modal.show button', { hasText: 'Cancelar' }).click().catch(() => {});
+	await espera(1500);
+	const sinCambio = txt((await f('properties/r2-noche')).propietarioId);
+	paso('Pasar una casa que ya tiene dueña a otra persona pregunta antes (con los dos nombres); «Cancelar» la deja con su dueña',
+		/ya tiene dueño/.test(pregunta) && /pasa a/.test(pregunta) && sinCambio === 'r2-dueno', `${pregunta.replace(/\s+/g, ' ').slice(0, 120)} · ${sinCambio}`);
+	await guardar(admin.p);
+	await admin.p.locator('.modal.show button', { hasText: 'Pasar la casa' }).click();
+	await espera(4000);
 	const [c2, viene, pasada, abierta, vieja, chat2, nuevo, anterior] = await Promise.all(['properties/r2-noche', 'reservas/r2-viene', 'reservas/r2-pasada', 'leads/r2-abierta', 'leads/r2-vieja', `chats/${CHAT}`, 'propietarios/r2-nuevo', 'propietarios/r2-dueno'].map(f));
 	paso('Cambiar el dueño de una casa por noche pasa al nuevo sus reservas, solicitudes y chats por venir (y lo pasado queda con quien lo ganó)',
 		txt(c2.propietarioId) === 'r2-nuevo' && txt(viene.propietarioId) === 'r2-nuevo' && txt(pasada.propietarioId) === 'r2-antes' && txt(abierta.propietarioId) === 'r2-nuevo'
@@ -1269,6 +1278,8 @@ const duenos = [];
 	await espera(300);
 	await admin.p.locator('[data-campo="acuerdo.exclusiva"] input').check();
 	await guardar(admin.p);
+	await admin.p.locator('.modal.show button', { hasText: 'Pasar la casa' }).click();
+	await espera(3500);
 	const acuerdo = async () => (await fetch(`${FS}/properties/casa-dos-guardados/privado/acuerdo`, { headers: { Authorization: 'Bearer owner' } })).status;
 	const primero = await acuerdo();
 	await guardar(admin.p);

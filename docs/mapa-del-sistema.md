@@ -73,7 +73,7 @@ Las rutas son desde la raíz del repositorio.
 | `ia.mjs`, `gsc.mjs`, `resenas-google.mjs`, `automatizaciones.mjs` | Desde el panel | IA, Search Console, reseñas, pruebas de automatización. |
 | `deploy-succeeded.mjs` | Al publicar | Avisa a IndexNow (Bing, Yandex, Seznam, Naver) solo de lo que cambió: la lista `/feeds/indexnow.json` la arma `scripts/build.mjs` (`cambiosParaIndexNow`) comparando su sitemap con el publicado (`netlify/lib/indexnow.mjs`); sin lista, todo el sitemap. La clave es pública (`indexNowKey`). Después reenvía el sitemap a Search Console. Si falla, solo lo anota. |
 
-Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lecturas), `firestore-escritura.mjs` (transacción con la cuenta de escritura; solo `reservas.mjs`), `google.mjs` (las dos cuentas de servicio), `auth.mjs` (`staffUser`, `socioUser`; en el entorno local acepta los tokens del emulador solo con un proyecto `demo-…`), `aviso-chat-envio.mjs`, `comisiones.mjs`, `limite.mjs` (límite de pedidos por IP o por clave: `aviso-lead`, `aviso-chat`, `reservas`).
+Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lecturas), `firestore-escritura.mjs` (transacción con la cuenta de escritura; `reservas.mjs` y `limitadorDurable`), `google.mjs` (las dos cuentas de servicio), `auth.mjs` (`staffUser`, `socioUser`; en el entorno local acepta los tokens del emulador solo con un proyecto `demo-…`), `aviso-chat-envio.mjs`, `comisiones.mjs`, `limite.mjs` (límite de pedidos por IP o por clave: `limitador` en memoria para `aviso-lead`, `aviso-chat`, `reservas`; `limitadorDurable`, guardado en `limites/{huella SHA-256}` con la cuenta de escritura, para `contrasena`).
 
 ## 5. Datos (Firestore)
 
@@ -87,6 +87,7 @@ Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lect
 | `clientes`, `actividades`, `requerimientos`, `cotizaciones`, `emisoresAsesor` | CRM y cotizaciones. | — |
 | `agents`, `testimonials`, `pages`, `posts` | Contenido del sitio. | — |
 | `portalPropietarios/{id}`, `comentariosPropietarios` | Resumen del dueño (lo único suyo que lee de sí mismo: nombre, tipo, correo, teléfono, datos de pago y cómo va cada casa en venta o renta) y su respuesta al anuncio. | — |
+| `limites/{huella}` | Pedidos recientes de una clave (correo o IP, solo su huella) para `limitadorDurable`; `vence` sirve para una política de vida (TTL) si se activa. Solo el servidor (sin `match` en las reglas). | — |
 | `users/{uid}` | Rol (`admin`, `asesor`, `socio` = dueño: propietario o colaborador), `agentId`, `propietarioId`. | — |
 | `settings/site`, `settings/private`, `settings/crm`, `settings/cotizacion`, `meta/publish` | Configuración y aviso de cambios sin publicar. | — |
 
