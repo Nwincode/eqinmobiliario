@@ -1,5 +1,6 @@
 // Escritura en Firestore desde una función de Netlify (REST, sin SDK), en una transacción: se lee lo que hace falta y
-// se escribe todo junto, o nada. La usa solo netlify/functions/reservas.mjs (lo que el socio confirma, cancela o cobra).
+// se escribe todo junto, o nada. La usan netlify/functions/reservas.mjs (lo que el socio confirma, cancela o cobra) y
+// netlify/lib/limite.mjs (`limitadorDurable`).
 // Cuenta de servicio aparte, con el rol «Cloud Datastore User»: GOOGLE_SA_ESCRITURA_EMAIL y GOOGLE_SA_ESCRITURA_KEY
 // (la de solo lectura, GOOGLE_SA_EMAIL, no cambia). Esta cuenta no pasa por las reglas: lo que se revisa, se revisa aquí.
 import { randomBytes } from 'node:crypto';

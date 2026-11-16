@@ -1205,7 +1205,7 @@ async function renderEditor(container, id, emb = null) {
 		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
 		catch (err) { return toast(errorMessage(err), 'warning'); }
 		// Si la casa ya tenía dueño y se elige otro, se pregunta antes de guardar nada.
-		if (!isNew && !(await confirmarCambioDeDueno([{ titulo: d.titulo || data.titulo, de: data.propietarioId || '', a: d.propietarioId || '' }], propietarios))) return;
+		if (!isNew && !(await confirmarCambioDeDueno([{ casa: { ...data, id: ref.id }, a: d.propietarioId || '' }], propietarios))) return;
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;

@@ -13,21 +13,24 @@ import { db, doc, getDoc, getDocs, updateDoc, deleteDoc, runTransaction, serverT
 import { publicarPortal } from './portal.js';
 import { session } from './session.js';
 import { toast, errorMessage, confirmDialog, h } from './ui.js';
-import { tieneCasasPorNoche } from './duenos.js';
+import { tieneCasasPorNoche, duenoDe } from './duenos.js';
 import { deLaCasa, porVenir, avisoPorVenir } from './reservas.js';
 
-// Casas que ya son de otra persona y pasarían a un dueño nuevo: cambios = [{ titulo, de, a }] (ids de Propietarios).
-// La usan la ficha de la casa, la de la persona y el importador (este solo la lista: avisoCambioDeDueno).
+// Casas que ya son de otra persona y pasarían a un dueño nuevo: cambios = [{ casa, a }] (a: id en Propietarios).
+// Su dueño de ahora es el que dice la casa o, si no lo dice, el que la tiene en su lista (duenoDe).
+// La usan la ficha de la casa, la de la persona y el importador.
 const nombreDe = (duenos, id) => duenos.find((p) => p.id === id)?.nombre || 'otra persona';
-const queCambia = (cambios) => cambios.filter((c) => c.de && c.a && c.de !== c.a);
+const queCambia = (cambios, duenos) => cambios.filter((c) => c.casa && c.a)
+	.map((c) => ({ titulo: c.casa.titulo, de: c.casa.propietarioId || duenoDe(c.casa, duenos)?.id || '', a: c.a }))
+	.filter((c) => c.de && c.de !== c.a);
 export function avisoCambioDeDueno(cambios, duenos) {
-	const lista = queCambia(cambios);
+	const lista = queCambia(cambios, duenos);
 	if (!lista.length) return '';
 	return lista.map((c) => `«${c.titulo || 'La casa'}» es de ${nombreDe(duenos, c.de)} y pasa a ${nombreDe(duenos, c.a)}`).join(' · ');
 }
 // Antes de escribir nada: se pregunta, con lo que pasa al dueño nuevo. true = seguir (o no había nada que preguntar).
 export function confirmarCambioDeDueno(cambios, duenos) {
-	const lista = queCambia(cambios);
+	const lista = queCambia(cambios, duenos);
 	if (!lista.length) return Promise.resolve(true);
 	return confirmDialog(h('span', {},
 		h('strong', { class: 'd-block mb-2' }, lista.length === 1 ? 'Esta casa ya tiene dueño.' : 'Estas casas ya tienen dueño.'),

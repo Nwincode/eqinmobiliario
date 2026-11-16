@@ -8,7 +8,7 @@ import { incoherencia } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno, avisoCambioDeDueno } from '../enlace-dueno.js';
+import { asignarDueno, avisoCambioDeDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import {
 	decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, generarCodigo, normalizarCodigo, buscarParecida,
 	leerZip, agruparFotos, dimensionesDeCabecera, PLANTILLA
@@ -291,8 +291,7 @@ export async function render(container) {
 				grupos.sinFila.map((g, i) => [i ? ', ' : '', h('strong', {}, g.nombre), ` (${g.fotos})`]), '.')]);
 		}
 		// Casas que ya tienen dueño y el CSV les pone otro: se ve antes de importar.
-		const pasan = avisoCambioDeDueno(validas.filter((it) => it.existente && it.datos.propietarioId)
-			.map((it) => ({ titulo: it.existente.titulo, de: it.existente.propietarioId || '', a: it.datos.propietarioId })), duenos);
+		const pasan = avisoCambioDeDueno(cambiosDeDueno(), duenos);
 		if (pasan) avisosLista.push(['warning', `Cambian de dueño (sus reservas y solicitudes por venir pasan al nuevo): ${pasan}.`]);
 		if (grupos.ignorados) avisosLista.push(['secondary', `${plural(grupos.ignorados, 'archivo no es imagen', 'archivos no son imágenes')}.`]);
 		avisos.replaceChildren(...avisosLista.map(([c, t]) => h('div', { class: `alert alert-${c} imp-aviso` }, t)));
@@ -371,9 +370,14 @@ export async function render(container) {
 	}
 
 
+	// Casas que se van a importar y que el CSV le da a otro dueño.
+	function cambiosDeDueno() {
+		return plan.filter((it) => seImporta(it) && it.existente && it.datos.propietarioId).map((it) => ({ casa: it.existente, a: it.datos.propietarioId }));
+	}
 	async function importar() {
 		const lista = plan.filter(seImporta);
 		if (!lista.length || importando) return;
+		if (!(await confirmarCambioDeDueno(cambiosDeDueno(), duenos))) return;
 		importando = true;
 		window.addEventListener('beforeunload', avisoSalir);
 		[inCsv, inCarpeta, inZip, btnTodas].forEach((el) => { el.disabled = true; });

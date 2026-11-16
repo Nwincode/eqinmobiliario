@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { transaccion, escrituraConfigurada } from './firestore-escritura.mjs';
 
 // Límite de pedidos por clave (IP, chat…) dentro de una ventana. `limitador` vive en la memoria de cada instancia de la
@@ -24,14 +24,16 @@ export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-clien
 
 // El mismo límite, pero guardado en la base (limites/{huella}): lo comparten todas las instancias de la función y no se
 // pierde cuando Netlify las reinicia. Para lo que se puede abusar desde afuera (p. ej. mandar correos de contraseña).
-// La clave se guarda como huella SHA-256 (ni correos ni IPs en la base) y las reglas no dejan a nadie del panel leer ni
-// escribir `limites` (no tiene `match`). Sin la cuenta de escritura, o si la base falla, queda el de memoria.
+// La clave se guarda como huella HMAC-SHA256 con un secreto del servidor (la clave de la cuenta de escritura): ni correos
+// ni IPs en la base, y no se pueden adivinar probando. Las reglas no dejan a nadie del panel leer ni escribir `limites`
+// (no tiene `match`). Sin la cuenta de escritura, queda el de memoria. Si la base falla o hay choque (muchos pedidos a la
+// vez para la misma clave), se frena (429): justo en un ataque, no se deja pasar.
 // limitadorDurable(nombre, max, ventanaMs) → async (clave) => true si ya pasó el límite.
 export function limitadorDurable(nombre, max, ventanaMs) {
 	const enMemoria = limitador(max, ventanaMs);
 	return async (clave) => {
 		if (!escrituraConfigurada()) return enMemoria(clave);
-		const ruta = `limites/${createHash('sha256').update(`${nombre}:${clave}`).digest('hex')}`;
+		const ruta = `limites/${createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(`${nombre}:${clave}`).digest('hex')}`;
 		try {
 			return await transaccion(async ({ leer, crear, cambiar }) => {
 				const ahora = Date.now();
@@ -46,7 +48,7 @@ export function limitadorDurable(nombre, max, ventanaMs) {
 			});
 		} catch (err) {
 			console.error('Límite en la base:', err.message);
-			return enMemoria(clave);
+			return true;
 		}
 	};
 }
