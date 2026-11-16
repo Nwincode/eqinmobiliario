@@ -11,6 +11,7 @@ import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { fotoCdn, pasaPorCdn } from './foto-cdn.mjs';
 
 // Motor de la calculadora de renta (script clásico js/calc-renta.js): el mismo que usa el navegador.
 const EQRenta = (() => {
@@ -115,8 +116,7 @@ function bgStyle(ctx, url) {
 // CDN de imágenes de Netlify (netlify.toml → [images]): sirve una foto a otro ancho o formato (`/.netlify/images?url=…&w=…`).
 // Pasan por él las fotos de Firebase Storage (permitidas en `remote_images`) y las del propio sitio (/images/…).
 // Fuera de Netlify no existe: `npm run serve` redirige cada pedido a la foto original (scripts/serve.mjs).
-export const fotoCdn = (u, w, extra = '') => `/.netlify/images?url=${encodeURIComponent(u)}&w=${w}${extra}`;
-const pasaPorCdn = (url) => /^https:\/\/firebasestorage\.googleapis\.com\//.test(url || '') || /^\/images\/[^?#]+\.(webp|jpe?g|png)$/i.test(url || '');
+export { fotoCdn } from './foto-cdn.mjs';
 
 // Foto a un ancho menor; null si la foto no pasa por el CDN (se usa la original).
 export function fotoAncho(url, w) {

@@ -56,6 +56,18 @@ test('conversación en vivo: ida y vuelta sin un correo por mensaje', () => {
 	// Pero si ya lo vio y no está en el chat, el nuevo sí avisa (una vez).
 	assert.equal(avisos([m('cliente', 30), m('socio', 20), m('socio', 1)], { vistoCliente: hace(10) }).length, 1);
 });
+test('un mensaje que no salió por correo (estaba conversando) no frena los siguientes', () => {
+	// El socio respondió, el cliente lo leyó al momento y se fue; el socio vuelve a escribir 2 min después (sin correo:
+	// el cliente acababa de leer) y otra vez ahora: este sí avisa.
+	const charla = [m('socio', 10), m('cliente', 9), m('socio', 8), m('socio', 0.1)];
+	assert.equal(avisos(charla, { vistoCliente: hace(9.8) }).length, 1);
+});
+test('después de un comprobante o un aviso de estado, el siguiente texto sí avisa', () => {
+	assert.equal(avisos([m('cliente', 5, 'foto'), m('cliente', 1)], { vistoSocio: hace(30) }).length, 1);
+});
+test('que el equipo lea el chat no le quita el correo al socio', () => {
+	assert.equal(avisos([m('socio', 30), m('cliente', 1)], { vistoEquipo: hace(1), vistoSocio: hace(25) }).length, 1);
+});
 test('datos de pago y de llegada: siempre al cliente', () => {
 	assert.match(avisos([m('socio', 2), m('socio', 1, 'pago')])[0].asunto, /confirmada/);
 	assert.match(avisos([m('socio', 2, 'pago'), m('socio', 1, 'llegada')])[0].asunto, /pago recibido/);

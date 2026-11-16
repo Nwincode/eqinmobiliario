@@ -127,9 +127,10 @@ export async function render(container, [codigo] = []) {
 				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
 				if (traducir) texto = `${await traducirTexto(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
 				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
-				avisarChat(ref.id);
-				await cargar();
-			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); } finally { enviando = false; }
+			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); return; } finally { enviando = false; }
+			// Ya quedó guardado: si volver a leer falla, no se devuelve el texto (se mandaría dos veces).
+			avisarChat(ref.id);
+			await mostrar();
 		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
 		// Respuestas rápidas detrás del rayo: se abren al tocarlo y se cierran al elegir una.
 		const momento = datosChat[l.reserva.codigo]?.estado === 'pagada' ? 'pagada' : estado(l) === 'confirmada' ? 'confirmada' : 'pendiente';

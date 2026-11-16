@@ -268,16 +268,19 @@
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
 			return reglasDeAntes().then(function (antes) { return pedir(RAIZ + ':commit', { writes: antes ? [msj] : [msj, marca] }); });
 		}
-		// Uno a la vez: Enter dos veces seguidas (o Enter y clic) no manda el mismo mensaje dos veces.
-		var enviando = false;
+		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
+		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
+		var enviando = false, fila = Promise.resolve();
 		function mandar(campos) {
-			if (enviando) return Promise.resolve(false);
-			enviando = true;
-			boton.disabled = true; adjuntar.disabled = true;
-			return guardarMensaje(campos)
-				.then(function () { alerta(''); avisar(token); return cargar(); })
-				.catch(function () { alerta(t.vacChatFallo); })
-				.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
+			fila = fila.then(function () {
+				enviando = true;
+				boton.disabled = true; adjuntar.disabled = true;
+				return guardarMensaje(campos)
+					.then(function () { alerta(''); avisar(token); return cargar().catch(function () {}); })
+					.catch(function () { alerta(t.vacChatFallo); })
+					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
+			});
+			return fila;
 		}
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {

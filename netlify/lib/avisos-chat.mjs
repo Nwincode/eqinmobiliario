@@ -91,11 +91,13 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	}
 	if (ultimo.tipo === 'foto') return aLaCasa(`${chat.codigo}: el cliente adjuntó su comprobante`, `Comprobante de pago de ${chat.codigo}`,
 		`${resumen}. Revisa tu cuenta y marca «Pago recibido»: el cliente recibe solo la dirección y cómo llegar.`);
-	// Un correo por tanda, no por mensaje: solo el primero que quien lo recibe todavía no ha visto (lo que sigue lo ve
-	// al entrar). Y si está en el chat ahora mismo (lo abrió hace menos de ACTIVO), no hace falta correo.
-	const visto = lado(ultimo) === 'cliente' ? Math.max(ms(chat.vistoSocio), ms(chat.vistoEquipo)) : ms(chat.vistoCliente);
-	if (mensajes.filter((m) => lado(m) === lado(ultimo) && ms(m.createdAt) > visto).length > 1) return [];
-	if (visto && ahora - visto < ACTIVO) return [];
+	// Un correo por tanda, no por mensaje. «visto»: la última vez que quien recibe leyó lo del otro lado (el socio, o el
+	// equipo si la casa no tiene socio con correo). Lo nuevo desde entonces (sin contar pagos, fotos ni avisos de estado,
+	// que tienen su propio correo): si uno anterior ya salió por correo (llegó ACTIVO o más después de «visto»), este no;
+	// si quien recibe leyó hace menos de ACTIVO, está conversando y lo ve en el chat.
+	const visto = lado(ultimo) === 'cliente' ? ms(correos.socio ? chat.vistoSocio : chat.vistoEquipo) : ms(chat.vistoCliente);
+	const yaAvisado = mensajes.slice(0, -1).some((m) => lado(m) === lado(ultimo) && !m.tipo && ms(m.createdAt) > visto && ms(m.createdAt) - visto >= ACTIVO);
+	if (yaAvisado || (visto && ahora - visto < ACTIVO)) return [];
 	return lado(ultimo) === 'cliente'
 		? aLaCasa(`${chat.codigo}: mensaje del cliente`, `${chat.nombre || 'El cliente'} escribió en ${chat.codigo}`, `${resumen}. Respóndele desde la solicitud.`)
 		: alCliente(en ? `Booking ${chat.codigo}: you have a reply` : `Reserva ${chat.codigo}: tienes respuesta`, en ? 'You have a new message' : 'Tienes un mensaje nuevo',
