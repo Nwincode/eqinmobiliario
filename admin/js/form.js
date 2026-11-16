@@ -165,6 +165,7 @@ export function renderForm(schema, data, options = {}) {
 	const folder = options.folder || 'uploads';
 	const conditionals = [];
 	const required = [];
+	const conLimites = [];
 	const customs = [];
 	// Cómo repintar cada campo de texto o de etiquetas cuando su valor se pone desde fuera (ver «poner»).
 	const pintores = new Map();
@@ -266,7 +267,9 @@ export function renderForm(schema, data, options = {}) {
 			}
 
 			case 'number':
-				control = h('input', { class: 'form-control', type: 'number', step: field.step || 'any', min: field.min, placeholder: field.placeholder });
+				control = h('input', { class: 'form-control', type: 'number', step: field.step || 'any', min: field.min, max: field.max, placeholder: field.placeholder });
+				// Con mínimo o máximo, se revisa al guardar (validate): un número fuera de lo normal no pasa sin aviso.
+				if (field.min != null || field.max != null) conLimites.push({ field, target, control });
 				control.value = get() ?? '';
 				control.addEventListener('input', () => set(control.value === '' ? null : Number(control.value)));
 				break;
@@ -510,6 +513,15 @@ export function renderForm(schema, data, options = {}) {
 				const v = getPath(target, field.name);
 				if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) {
 					toast(`Completa el campo "${field.label}".`, 'warning');
+					if (control.focus) control.focus();
+					return false;
+				}
+			}
+			for (const { field, target, control } of conLimites) {
+				const v = getPath(target, field.name);
+				if (v === undefined || v === null || v === '') continue;
+				if ((field.min != null && Number(v) < field.min) || (field.max != null && Number(v) > field.max)) {
+					toast(`"${field.label}" va de ${field.min ?? '…'} a ${field.max ?? '…'}.`, 'warning');
 					if (control.focus) control.focus();
 					return false;
 				}

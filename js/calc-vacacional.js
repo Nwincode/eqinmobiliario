@@ -83,7 +83,8 @@
 	}
 
 	// ---------------------------------------------------------------- Fechas
-	function esFecha(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s + 'T00:00:00Z')); }
+	// (Ida y vuelta: el navegador acepta «2029-02-30» y lo pasa al 2 de marzo; aquí no es una fecha.)
+	function esFecha(s) { if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; var t = Date.parse(s + 'T00:00:00Z'); return !isNaN(t) && new Date(t).toISOString().slice(0, 10) === s; }
 	function aDia(s) { return Math.round(Date.parse(s + 'T00:00:00Z') / DIA); }
 	function deDia(n) { return new Date(n * DIA).toISOString().slice(0, 10); }
 	function sumarDias(s, n) { return deDia(aDia(s) + n); }
@@ -168,6 +169,47 @@
 	function salidaMaxima(llegada, ocupadas) {
 		var claves = Object.keys(ocupadas || {}).filter(function (k) { return k > llegada; }).sort();
 		return claves.length ? claves[0] : null;
+	}
+
+	// ---------------------------------------------------------------- Temporadas que se repiten cada año
+	// Domingo de Pascua de un año (calendario gregoriano, método de Meeus/Jones/Butcher).
+	function pascua(anio) {
+		var a = anio % 19, b = Math.floor(anio / 100), c = anio % 100, d = Math.floor(b / 4), e = b % 4;
+		var f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+		var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+		var mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+		return anio + '-' + (mes < 10 ? '0' : '') + mes + '-' + (dia < 10 ? '0' : '') + dia;
+	}
+	// Semana Santa de un año: del Domingo de Ramos al Domingo de Pascua.
+	function semanaSanta(anio) { var p = pascua(anio); return { desde: sumarDias(p, -7), hasta: p }; }
+	// ¿El rango (con 'hasta' incluido) toca la Semana Santa del año en que empieza o en que termina?
+	function tocaSemanaSanta(r) {
+		if (!r || !esFecha(r.desde) || !esFecha(r.hasta)) return false;
+		return [+r.desde.slice(0, 4), +r.hasta.slice(0, 4)].some(function (y) { var ss = semanaSanta(y); return r.desde <= ss.hasta && r.hasta >= ss.desde; });
+	}
+	// El mismo día y mes en otro año (el 29 de febrero, en un año sin él, es el 28).
+	function mismoDia(iso, anio) {
+		var md = iso.slice(5);
+		if (md === '02-29' && !(anio % 4 === 0 && (anio % 100 !== 0 || anio % 400 === 0))) md = '02-28';
+		return anio + '-' + md;
+	}
+	// Las mismas fechas en los `anios` años siguientes. cada = 'fecha' (mismo día y mes al empezar y al terminar; el 29 de
+	// febrero pasa al 28) o 'semanaSanta' (los mismos días contados desde la Pascua de cada año, que cambia). Conserva los
+	// demás datos (también `serie`) y anota `cada`. Devuelve solo las copias (sin el rango original).
+	function repetirRango(r, cada, anios) {
+		var out = [], largo = aDia(r.hasta) - aDia(r.desde), y0 = +r.desde.slice(0, 4);
+		var desdePascua = aDia(r.desde) - aDia(pascua(y0));
+		var saltoFin = +r.hasta.slice(0, 4) - y0; // un rango de fin de año termina el año siguiente
+		for (var k = 1; k <= (anios || 1); k++) {
+			var y = y0 + k, desde, hasta;
+			if (cada === 'semanaSanta') { desde = sumarDias(pascua(y), desdePascua); hasta = sumarDias(desde, largo); }
+			else { desde = mismoDia(r.desde, y); hasta = mismoDia(r.hasta, y + saltoFin); }
+			var copia = {};
+			for (var key in r) copia[key] = r[key];
+			copia.desde = desde; copia.hasta = hasta; copia.cada = cada;
+			out.push(copia);
+		}
+		return out;
 	}
 
 	// ---------------------------------------------------------------- Precio de cada noche
@@ -368,6 +410,7 @@
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
 		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
 		parseICal: parseICal,
+		pascua: pascua, semanaSanta: semanaSanta, tocaSemanaSanta: tocaSemanaSanta, repetirRango: repetirRango,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
 		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,

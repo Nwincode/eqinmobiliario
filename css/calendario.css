@@ -118,11 +118,17 @@
 	font-weight: 500;
 }
 .vac-dia-precio {
-	font-size: 9px;
-	letter-spacing: -0.2px;
-	color: var(--eq-ink);
+	font-size: 10.5px;
+	font-weight: 700;
+	letter-spacing: -0.3px;
+	color: var(--eq-primary); /* el precio se lee de un vistazo */
 	margin-top: 2px;
 	white-space: nowrap;
+}
+/* «Ocupado»: gris y sin negrita, para que no se confunda con un precio. */
+.vac-dia.is-ocupado .vac-dia-precio {
+	font-weight: 500;
+	color: color-mix(in oklab, var(--eq-ink) 70%, var(--eq-white));
 }
 @media (hover: hover) {
 	.vac-dia:not([aria-disabled], .is-llegada, .is-salida):hover {
@@ -157,6 +163,20 @@
 	background: var(--eq-primary-soft);
 	border-radius: 0;
 }
+/* Eligiendo la salida: las noches de la estancia mínima (rayadas) y la primera salida posible (con borde). */
+.vac-dia.is-minimo {
+	background: repeating-linear-gradient(135deg, var(--eq-primary-soft) 0 6px, transparent 6px 10px);
+	border-radius: 0;
+}
+.vac-dia.is-salida-min {
+	box-shadow: inset 0 0 0 2px var(--eq-primary);
+}
+.vac-ayuda-btn {
+	padding: 0;
+	min-height: 0;
+	vertical-align: baseline;
+	font-size: inherit;
+}
 .vac-dia.is-llegada,
 .vac-dia.is-salida {
 	background: var(--eq-primary);
@@ -165,4 +185,16 @@
 .vac-dia.is-llegada .vac-dia-precio,
 .vac-dia.is-salida .vac-dia-precio {
 	color: var(--eq-white);
+}
+
+/* Al tocar «Primero elige tus fechas»: el calendario se marca un momento. */
+.vac-cal.vac-alerta {
+	outline: 3px solid var(--eq-primary);
+	outline-offset: 4px;
+	border-radius: var(--eq-radius);
+	transition: outline-color .3s;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.vac-cal.vac-alerta { animation: vac-alerta 0.6s ease-in-out 2; }
+	@keyframes vac-alerta { 50% { outline-color: transparent; } }
 }

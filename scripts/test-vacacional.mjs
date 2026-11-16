@@ -14,6 +14,27 @@ function test(nombre, fn) {
 }
 const igual = (a, b) => assert.deepEqual(JSON.parse(JSON.stringify(a)), b);
 
+test('Pascua y Semana Santa de cada año', () => {
+	assert.equal(V.pascua(2026), '2026-04-05');
+	assert.equal(V.pascua(2027), '2027-03-28');
+	assert.equal(V.pascua(2028), '2028-04-16');
+	assert.equal(V.pascua(2029), '2029-04-01');
+	igual(V.semanaSanta(2027), { desde: '2027-03-21', hasta: '2027-03-28' });
+	assert.equal(V.tocaSemanaSanta({ desde: '2027-03-25', hasta: '2027-03-27' }), true);
+	assert.equal(V.tocaSemanaSanta({ desde: '2027-05-01', hasta: '2027-05-03' }), false);
+});
+test('repetir un rango los años siguientes: misma fecha (con fin de año y 29 de febrero) o Semana Santa', () => {
+	igual(V.repetirRango({ desde: '2026-12-24', hasta: '2027-01-01', precio: 300 }, 'fecha', 2), [
+		{ desde: '2027-12-24', hasta: '2028-01-01', precio: 300, cada: 'fecha' }, { desde: '2028-12-24', hasta: '2029-01-01', precio: 300, cada: 'fecha' }]);
+	igual(V.repetirRango({ desde: '2028-02-29', hasta: '2028-03-01', noches: 2 }, 'fecha', 1), [{ desde: '2029-02-28', hasta: '2029-03-01', noches: 2, cada: 'fecha' }]);
+	// El fin va por fecha, no por largo: en un año bisiesto no se corre un día.
+	igual(V.repetirRango({ desde: '2027-02-20', hasta: '2027-03-05', precio: 90, serie: 's1' }, 'fecha', 1), [{ desde: '2028-02-20', hasta: '2028-03-05', precio: 90, serie: 's1', cada: 'fecha' }]);
+	// Diciembre a abril: también ofrece Semana Santa.
+	assert.equal(V.tocaSemanaSanta({ desde: '2026-12-20', hasta: '2027-04-10' }), true);
+	// Jueves a Domingo de Pascua de 2027 (25–28 mar) → de 2028 (13–16 abr) y de 2029 (29 mar–1 abr).
+	igual(V.repetirRango({ desde: '2027-03-25', hasta: '2027-03-28', noches: 3 }, 'semanaSanta', 2), [
+		{ desde: '2028-04-13', hasta: '2028-04-16', noches: 3, cada: 'semanaSanta' }, { desde: '2029-03-29', hasta: '2029-04-01', noches: 3, cada: 'semanaSanta' }]);
+});
 test('noche al público = socio × (1 + 20 %)', () => {
 	assert.equal(V.nochePublica(100), 120);
 	assert.equal(V.nochePublica(100, 20), 120);

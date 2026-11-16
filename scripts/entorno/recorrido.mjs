@@ -331,6 +331,29 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.vac-desde')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
 	const desdes = await cliente.p.locator('.ficha-precio, .vac-desde').allInnerTexts();
 	paso('El cliente ve el precio nuevo del socio en el «Desde» de la ficha, sin esperar a que se publique', desdes.length === 2 && desdes.every((x) => /US\$ 132\.00/.test(x)), desdes.join(' | '));
+	// Temporada que se repite cada año: el socio elige unos días, pone su precio y «Cada año en estas fechas»; quedan
+	// este año y el siguiente con la misma serie. «Quitar» → «Todos los años» quita las dos y nada más.
+	{
+		await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
+		for (let i = 0; i < 4; i++) { await socio.p.locator('button[aria-label="Mes siguiente"]').first().click(); await espera(150); }
+		const diaN = (n) => socio.p.locator('.vac-cal button, table button').filter({ has: socio.p.locator('.vac-dia-num', { hasText: new RegExp(`^${n}$`) }) }).first();
+		await diaN(10).click(); await diaN(12).click();
+		await socio.p.locator('[aria-label="Precio especial"]').click();
+		await socio.p.locator('.mc-barra input[type=number]').fill('150');
+		await socio.p.locator('.mc-barra [aria-label="Guardar"]').click();
+		await socio.p.locator('.modal.show button', { hasText: 'Cada año en estas fechas' }).click();
+		await espera(3000);
+		const tarifas = () => leer(`properties/${idCasa}/privado/socio`).then((d) => (d.fields?.tarifas?.arrayValue?.values || []).map((x) => Object.fromEntries(Object.entries(x.mapValue.fields).map(([k, v]) => [k, v.stringValue ?? Number(v.doubleValue ?? v.integerValue)]))));
+		const serie = (await tarifas()).filter((t) => t.cada === 'fecha');
+		const anios = serie.map((t) => t.desde.slice(0, 4));
+		const ok1 = serie.length === 2 && serie[0].serie && serie[0].serie === serie[1].serie && Number(anios[1]) === Number(anios[0]) + 1 && serie[0].desde.slice(5) === serie[1].desde.slice(5);
+		await socio.p.locator('[aria-label^="Quitar precios especiales"]').first().click();
+		await socio.p.locator('.modal.show button', { hasText: 'Todos los años' }).click();
+		await espera(3000);
+		const quedan = (await tarifas()).filter((t) => t.cada);
+		paso('Una temporada «cada año» guarda este año y el siguiente con la misma serie, y «Quitar → Todos los años» quita las dos',
+			ok1 && quedan.length === 0, `${serie.map((t) => `${t.desde}…${t.hasta}·${t.precio}`).join(' | ')} · quedan ${quedan.length}`);
+	}
 	// Lo que sale a la IA o al traductor (pedirIA lo pasa todo por paraIA): con la casa guardada de verdad, más su
 	// dirección y su costo privados encima (lo peor que una pantalla podría mandar), no sale nada privado ni interno.
 	const salidas = await admin.p.evaluate(async (id) => {
@@ -1038,7 +1061,9 @@ const duenos = [];
 	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
 	const seguidos = [];
 	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
-	paso('Pedidos seguidos para el mismo correo se frenan con 429', seguidos.includes(429), seguidos.join(' '));
+	// El límite queda guardado en la base (lo comparten todas las copias de la función), sin el correo a la vista.
+	const limites = ((await (await fetch(`${FS}/limites?pageSize=50`, { headers: { Authorization: 'Bearer owner' } })).json()).documents || []);
+	paso('Pedidos seguidos para el mismo correo se frenan con 429, y el límite queda en la base (sin el correo)', seguidos.includes(429) && limites.length > 0 && !JSON.stringify(limites).includes('limite@example.com'), `${seguidos.join(' ')} · ${limites.length} límites`);
 	await mixta.p.setViewportSize({ width: 1280, height: 900 });
 	// b) Entra y ve sus dos casas.
 	duenos.push(['dueña mixta', mixta]);
@@ -1187,8 +1212,17 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades/r2-noche', 4000);
 	await campo(admin.p, 'propietarioId').selectOption('r2-nuevo');
 	await espera(300);
+	// La casa ya tiene dueña: antes de guardar pregunta, con los dos nombres. «Cancelar» la deja como estaba.
 	await guardar(admin.p);
-	await espera(3000);
+	const pregunta = await admin.p.locator('.modal.show').innerText().catch(() => '');
+	await admin.p.locator('.modal.show button', { hasText: 'Cancelar' }).click().catch(() => {});
+	await espera(1500);
+	const sinCambio = txt((await f('properties/r2-noche')).propietarioId);
+	paso('Pasar una casa que ya tiene dueña a otra persona pregunta antes (con los dos nombres); «Cancelar» la deja con su dueña',
+		/ya tiene dueño/.test(pregunta) && /pasa a/.test(pregunta) && sinCambio === 'r2-dueno', `${pregunta.replace(/\s+/g, ' ').slice(0, 120)} · ${sinCambio}`);
+	await guardar(admin.p);
+	await admin.p.locator('.modal.show button', { hasText: 'Pasar la casa' }).click();
+	await espera(4000);
 	const [c2, viene, pasada, abierta, vieja, chat2, nuevo, anterior] = await Promise.all(['properties/r2-noche', 'reservas/r2-viene', 'reservas/r2-pasada', 'leads/r2-abierta', 'leads/r2-vieja', `chats/${CHAT}`, 'propietarios/r2-nuevo', 'propietarios/r2-dueno'].map(f));
 	paso('Cambiar el dueño de una casa por noche pasa al nuevo sus reservas, solicitudes y chats por venir (y lo pasado queda con quien lo ganó)',
 		txt(c2.propietarioId) === 'r2-nuevo' && txt(viene.propietarioId) === 'r2-nuevo' && txt(pasada.propietarioId) === 'r2-antes' && txt(abierta.propietarioId) === 'r2-nuevo'
@@ -1267,6 +1301,8 @@ const duenos = [];
 	await espera(300);
 	await admin.p.locator('[data-campo="acuerdo.exclusiva"] input').check();
 	await guardar(admin.p);
+	await admin.p.locator('.modal.show button', { hasText: 'Pasar la casa' }).click();
+	await espera(3500);
 	const acuerdo = async () => (await fetch(`${FS}/properties/casa-dos-guardados/privado/acuerdo`, { headers: { Authorization: 'Bearer owner' } })).status;
 	const primero = await acuerdo();
 	await guardar(admin.p);

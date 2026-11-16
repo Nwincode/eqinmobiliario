@@ -21,7 +21,7 @@ import { datosDe, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno } from '../enlace-dueno.js';
+import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
@@ -895,7 +895,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ type: 'custom', label: 'Ganancia y precio al público', when: esVacacional, update: desgloseVacacional },
 		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
 		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
-		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, max: 30, step: 1, cols: 2, when: esVacacional, help: 'Lo normal es 1 o 2. Para feriados, mejor un mínimo por fechas en el calendario del dueño.' },
 		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
@@ -1204,6 +1204,8 @@ async function renderEditor(container, id, emb = null) {
 		let sinLlegada = false;
 		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
 		catch (err) { return toast(errorMessage(err), 'warning'); }
+		// Si la casa ya tenía dueño y se elige otro, se pregunta antes de guardar nada.
+		if (!isNew && !(await confirmarCambioDeDueno([{ casa: { ...data, id: ref.id }, a: d.propietarioId || '' }], propietarios))) return;
 		// Lo del socio nunca va al documento público (ni a la traducción).
 		const socio = d.socio || {};
 		delete d.socio;

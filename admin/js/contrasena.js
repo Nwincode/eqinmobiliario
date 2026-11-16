@@ -23,9 +23,9 @@ export async function correoContrasena(email) {
 // Para quien lo pide sin haber entrado («¿Olvidaste tu contraseña?», «Este enlace ya no sirve»): el mismo mensaje y el
 // mismo color exista o no la cuenta, también si responde el correo de Firebase de respaldo. Solo se dice un correo mal
 // escrito (400) o demasiados pedidos (429), que no delatan a nadie.
-export const ENVIADO = 'Si ese correo tiene acceso al panel, en unos minutos te llegará el correo para crear tu contraseña (revisa también el spam).';
+// El mensaje repite el correo tal como se escribió: así se nota un error de escritura sin decir si la cuenta existe.
 export async function pedirContrasena(email) {
 	try { await correoContrasena(email); }
 	catch (err) { if (err?.delServidor === 429 || err?.delServidor === 400) return { error: err.message }; }
-	return { texto: ENVIADO };
+	return { texto: `Si ${email} tiene acceso al panel, en unos minutos te llegará ahí el correo para crear tu contraseña (revisa también el spam).` };
 }

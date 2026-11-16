@@ -478,6 +478,21 @@
 	padding: 0;
 	transition: background .2s ease, color .2s ease;
 }
+/* «Enlace copiado»: aviso breve abajo de la pantalla (js/site.js), para que copiar se note. */
+.eq-aviso-breve {
+	position: fixed;
+	left: 50%;
+	bottom: 88px;
+	transform: translateX(-50%);
+	z-index: 1080;
+	background: var(--eq-dark);
+	color: var(--eq-white);
+	border-radius: 999px;
+	padding: 10px 18px;
+	font-size: 14px;
+	box-shadow: 0 6px 20px color-mix(in oklab, var(--eq-dark) 30%, transparent);
+	pointer-events: none;
+}
 .share-buttons a:hover,
 .share-buttons button:hover,
 .share-buttons button.copied {
@@ -1043,6 +1058,7 @@ a {
 	width: 1em;
 	height: 1em;
 	vertical-align: -.1em;
+	transform: none; /* dibujo propio ya centrado: sin el ajuste de la fuente de íconos */
 	background: currentColor;
 	-webkit-mask: var(--ico) center / contain no-repeat;
 	mask: var(--ico) center / contain no-repeat;
@@ -1454,16 +1470,23 @@ body.offcanvas-menu .ficha-barra {
 	border-bottom: 1px solid var(--eq-line);
 }
 .ficha-datos li {
-	display: flex;
-	flex-direction: column;
+	/* Ícono a la izquierda, número y nombre a su derecha: ocupa menos alto que el ícono arriba. */
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 10px;
+	align-items: center;
 }
 .ficha-datos strong {
+	grid-column: 2;
 	font-size: 22px;
 	font-weight: 500;
+	line-height: 1.15;
 	color: var(--eq-dark);
 }
-.ficha-datos span {
+.ficha-datos li > span:not(.eq-ic) {
+	grid-column: 2;
 	font-size: 13px;
+	line-height: 1.2;
 	color: var(--eq-ink);
 }
 .ficha-bloque {
@@ -2073,9 +2096,10 @@ a:hover > .eq-ic-fin,
 	margin-right: .5em;
 }
 .ficha-datos .eq-ic {
-	font-size: 20px;
+	grid-row: 1 / span 2;
+	font-size: 24px;
 	color: var(--eq-primary);
-	margin: 0 0 8px;
+	margin: 0;
 }
 .ficha-amenidades li {
 	padding-left: 0;

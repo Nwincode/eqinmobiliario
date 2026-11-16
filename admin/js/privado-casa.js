@@ -13,7 +13,7 @@ const LIMPIAR = {
 	precioBase: (v) => Number(v) || 0,
 	precioFinde: (v) => Number(v) || 0,
 	margen: (v) => (v === null || v === undefined || v === '' ? V.MARGEN : Number(v)),
-	tarifas: (v) => (v || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio) })),
+	tarifas: (v) => (v || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio), ...(t.cada ? { cada: t.cada, serie: t.serie || '' } : {}) })),
 	icalUrl: (v) => String(v || '').trim()
 };
 export const socioLimpio = (s = {}) => Object.fromEntries(Object.keys(LIMPIAR).filter((k) => k in s).map((k) => [k, LIMPIAR[k](s[k])]));

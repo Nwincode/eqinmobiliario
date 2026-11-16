@@ -7,6 +7,7 @@
 	if (!V) return;
 
 	function pad(n) { return (n < 10 ? '0' : '') + n; }
+	function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 	function fmt(s, datos) { return String(s || '').replace(/\{(\w+)\}/g, function (m, k) { return datos[k] != null ? datos[k] : m; }); }
 	function fechaUTC(f) { return new Date(f + 'T12:00:00Z'); }
 	function diaSemana(f) { return fechaUTC(f).getUTCDay(); }
@@ -69,8 +70,9 @@
 			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		}
 		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
+		// En la casilla del calendario, sin centavos (se lee de un vistazo); el desglose y el total llevan los exactos.
 		function dineroCorto(n) {
-			return corto + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			return corto + Math.round(Number(n) || 0).toLocaleString('en-US');
 		}
 		function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 		function noches(n) { return n === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: n }); }
@@ -91,22 +93,32 @@
 		}
 		function disponible(f) {
 			if (f < hoy) return false;
-			if (eligiendoSalida()) return salidaValida(f) || (f < estado.llegada && llegadaValida(f));
+			// Eligiendo la salida, cualquier llegada posible también se puede tocar: así se cambia la llegada sin trabarse.
+			if (eligiendoSalida()) return salidaValida(f) || (f !== estado.llegada && llegadaValida(f));
 			return llegadaValida(f);
 		}
 
+		// La primera salida posible desde la llegada elegida (null si no hay ninguna en el calendario).
+		function primeraSalida() {
+			if (!estado.llegada) return null;
+			for (var i = 1; i <= 400; i++) { var f = V.sumarDias(estado.llegada, i); if (f > mesMax + '-31') return null; if (salidaValida(f)) return f; }
+			return null;
+		}
 		function etiqueta(f) {
 			var partes = [fDia.format(fechaUTC(f))];
 			if (f === estado.llegada) partes.push(t.vacLlegadaElegida);
 			else if (f === estado.salida) partes.push(t.vacSalidaElegida);
 			if (f >= hoy && !ocupadas[f]) partes.push(dinero(V.precioNoche(f, D.plan)) + ' ' + t.vacPorNoche);
 			if (ocupadas[f] && f >= hoy) partes.push(t.vacOcupado);
+			if (minimoHasta && f > estado.llegada && f < minimoHasta) partes.push(t.vacEnMinimo);
 			if (!disponible(f) && f !== estado.llegada && f !== estado.salida) partes.push(t.vacNoDisponible);
 			return partes.join(', ');
 		}
 
+		var minimoHasta = null; // eligiendo la salida: la primera posible (los días antes son la estancia mínima)
 		function pintar(enfocar) {
 			var ym = estado.mes;
+			minimoHasta = eligiendoSalida() ? primeraSalida() : null;
 			tituloMes.textContent = mayus(fMes.format(fechaUTC(ym + '-01')));
 			prev.disabled = ym <= mesMin;
 			next.disabled = ym >= mesMax;
@@ -139,8 +151,11 @@
 				if (f === estado.llegada) clases.push('is-llegada');
 				if (f === estado.salida) clases.push('is-salida');
 				if (estado.llegada && estado.salida && f > estado.llegada && f < estado.salida) clases.push('is-rango');
+				if (minimoHasta && f > estado.llegada && f < minimoHasta) clases.push('is-minimo');
+				if (minimoHasta && f === minimoHasta) clases.push('is-salida-min');
 				var elegido = f === estado.llegada || f === estado.salida;
-				var precio = f >= hoy && !ocupadas[f] ? '<span class="vac-dia-precio" aria-hidden="true">' + dineroCorto(V.precioNoche(f, D.plan)) + '</span>' : '';
+				// Donde va el precio: el precio, o «Ocupado» si está reservado o bloqueado (sin decir por qué).
+				var precio = f < hoy ? '' : '<span class="vac-dia-precio" aria-hidden="true">' + (ocupadas[f] ? esc(t.vacOcupadoCelda) : dineroCorto(V.precioNoche(f, D.plan))) + '</span>';
 				h += '<td role="gridcell"' + (elegido ? ' aria-selected="true"' : '') + '><button type="button" class="' + clases.join(' ') + '" data-fecha="' + f + '"' +
 					' tabindex="' + (f === foco ? '0' : '-1') + '"' + (libre || elegido ? '' : ' aria-disabled="true"') +
 					' aria-label="' + etiqueta(f).replace(/"/g, '&quot;') + '"><span class="vac-dia-num" aria-hidden="true">' + d + '</span>' + precio + '</button></td>';
@@ -155,7 +170,10 @@
 			}
 		}
 
+		// El botón de enviar dice lo que falta: sin fechas, «Primero elige tus fechas» (y al tocarlo, lleva al calendario).
+		var textoBoton = form && form.querySelector('button[type=submit] .btn-texto');
 		function actualizar() {
+			if (textoBoton) textoBoton.textContent = estado.llegada && estado.salida ? t.vacSolicitar : t.vacEligeFechas;
 			outLlegada.textContent = estado.llegada ? mayus(fCorta.format(fechaUTC(estado.llegada))) : t.vacSinFecha;
 			outSalida.textContent = estado.salida ? mayus(fCorta.format(fechaUTC(estado.salida))) : t.vacSinFecha;
 			for (var i = 0; i < botonesCampo.length; i++) {
@@ -164,9 +182,16 @@
 			}
 			if (!estado.llegada) ayuda.textContent = t.vacEligeLlegada;
 			else if (!estado.salida) {
-				// La estancia mínima de siempre ya está escrita bajo el precio; aquí solo la de esas fechas si es otra.
-				var minimo = minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
-				ayuda.textContent = t.vacEligeSalida + (minimo > 1 && minimo !== nochesMin ? ' ' + fmt(t.vacMinimo, { n: minimo }) : '');
+				// Aquí, donde el cliente está mirando: la estancia mínima, la primera salida (y un botón a su mes si no se ve),
+				// cómo cambiar la llegada y borrar. Sin esto, los días apagados no se entienden.
+				var primera = primeraSalida();
+				// El mínimo que de verdad fija la primera salida (un mínimo por fechas más adelante puede ser mayor).
+				var minimo = primera ? V.nochesEntre(estado.llegada, primera) : minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
+				var texto = primera ? t.vacEligeSalida + (minimo > 1 ? ' ' + fmt(t.vacMinimo, { n: minimo }) + ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : '') : t.vacSinSalida;
+				var html = esc(texto + ' ' + t.vacCambiarLlegada);
+				if (primera && mesDe(primera) !== estado.mes) html += ' <button type="button" class="btn btn-link vac-ayuda-btn" data-ver-mes="' + mesDe(primera) + '">' + esc(fmt(t.vacVerMes, { mes: fMes.format(fechaUTC(mesDe(primera) + '-01')) })) + '</button>';
+				html += ' <button type="button" class="btn btn-link vac-ayuda-btn vac-borrar">' + esc(t.vacBorrar) + '</button>';
+				ayuda.innerHTML = html;
 			}
 			else ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.';
 			pintarDesglose();
@@ -199,8 +224,9 @@
 		}
 
 		function elegir(f) {
-			if (eligiendoSalida() && f > estado.llegada) {
-				if (!salidaValida(f)) return;
+			// Tocar otra vez la llegada (sin salida) la quita.
+			if (estado.llegada && !estado.salida && f === estado.llegada) return borrarFechas();
+			if (eligiendoSalida() && f > estado.llegada && salidaValida(f)) {
 				estado.salida = f;
 				estado.campo = 'llegada';
 			} else {
@@ -229,7 +255,12 @@
 
 		cuerpo.addEventListener('click', function (e) {
 			var b = e.target.closest('[data-fecha]');
-			if (!b || b.getAttribute('aria-disabled') === 'true') return;
+			if (!b) return;
+			// Un día ocupado no se elige, pero se dice por qué (no «no pasa nada»).
+			if (b.getAttribute('aria-disabled') === 'true') {
+				if (ocupadas[b.getAttribute('data-fecha')]) { ayuda.textContent = t.vacDiaOcupado; clearTimeout(ayuda.eqTimer); ayuda.eqTimer = setTimeout(actualizar, 2500); }
+				return;
+			}
 			elegir(b.getAttribute('data-fecha'));
 		});
 		cuerpo.addEventListener('keydown', function (e) {
@@ -267,13 +298,18 @@
 				actualizar();
 			});
 		});
-		desglose.addEventListener('click', function (e) {
-			if (!e.target.closest('.vac-borrar')) return;
+		function borrarFechas() {
 			estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada';
 			pintar(false);
 			actualizar();
 			var b = cuerpo.querySelector('[tabindex="0"]');
 			if (b) b.focus();
+		}
+		desglose.addEventListener('click', function (e) { if (e.target.closest('.vac-borrar')) borrarFechas(); });
+		ayuda.addEventListener('click', function (e) {
+			if (e.target.closest('.vac-borrar')) return borrarFechas();
+			var ver = e.target.closest('[data-ver-mes]');
+			if (ver) { estado.mes = ver.getAttribute('data-ver-mes'); estado.foco = ''; pintar(false); actualizar(); }
 		});
 
 		function statusBox() { return form && form.querySelector('.lead-form-status'); }
@@ -289,7 +325,13 @@
 					var box = statusBox();
 					if (box) { box.className = 'lead-form-status mt-3 text-danger'; box.setAttribute('data-vac', '1'); box.textContent = msg; }
 					ayuda.textContent = msg;
-					card.querySelector('.vac-cal').scrollIntoView({ behavior: 'smooth', block: 'center' });
+					// Se nota: el calendario se marca un momento y queda con el foco en un día para elegir.
+					var cal = card.querySelector('.vac-cal');
+					cal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					cal.classList.add('vac-alerta');
+					setTimeout(function () { cal.classList.remove('vac-alerta'); }, 1800);
+					var dia = cuerpo.querySelector('[tabindex="0"]');
+					if (dia) dia.focus({ preventScroll: true });
 					return null;
 				}
 				var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito });

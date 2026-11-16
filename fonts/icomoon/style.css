@@ -23,6 +23,13 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+/* El dibujo de esta fuente queda 1/8 de su tamaño más arriba del centro de su caja (medido pixel a pixel en el
+   navegador: −0.10 a −0.14 em según el ícono). Se baja aquí, una sola vez, para todo el sitio y el panel: así queda
+   centrado en sus botones y alineado con el texto. */
+[class^="icon-"]::before, [class*=" icon-"]::before {
+  display: inline-block;
+  transform: translateY(0.125em);
+}
 
 .icon-asterisk:before {
   content: "\f069";

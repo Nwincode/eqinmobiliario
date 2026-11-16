@@ -504,7 +504,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 			<div class="col-sm-6"><label class="form-label" for="lf-fecha-${esc(origen)}">${t.fechaVisita}</label><input id="lf-fecha-${esc(origen)}" class="form-control" name="fechaVisita" type="date"></div>
 		</div>` : ''}
 		<div class="hp-field" aria-hidden="true"><label>${t.empresa}<input name="empresa" tabindex="-1" autocomplete="off"></label></div>
-		<div class="text-end"><button type="submit" class="btn btn-primary">${ic(icono)}${esc(boton || t.enviar)}</button></div>
+		<div class="text-end"><button type="submit" class="btn btn-primary">${ic(icono)}<span class="btn-texto">${esc(boton || t.enviar)}</span></button></div>
 		<div class="lead-form-status mt-3" role="status" aria-live="polite"></div>
 	</form>`;
 }

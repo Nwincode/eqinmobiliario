@@ -19,16 +19,17 @@ import { leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
 import { enviarCorreo, servicioCorreo, SITE_URL, plantilla, boton, esc } from '../lib/correo.mjs';
 import { correoContrasena } from '../lib/correo-contrasena.mjs';
 import { staffUser, sesionDe, json } from '../lib/auth.mjs';
-import { limitador, ipDe } from '../lib/limite.mjs';
+import { limitadorDurable, ipDe } from '../lib/limite.mjs';
 import { correoValido } from '../../admin/js/formato.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 
 const PROYECTO = siteConfig.firebase.projectId;
 const API = `https://identitytoolkit.googleapis.com/v1/projects/${PROYECTO}`;
 const ALCANCE = 'https://www.googleapis.com/auth/cloud-platform';
-const porIp = limitador(10, 10 * 60_000);
-const porCorreo = limitador(3, 60 * 60_000);
-const avisosPorCuenta = limitador(3, 60 * 60_000);
+// Guardados en la base (limitadorDurable): se cumplen aunque Netlify tenga varias copias de la función o la reinicie.
+const porIp = limitadorDurable('contrasena-ip', 10, 10 * 60_000);
+const porCorreo = limitadorDurable('contrasena-correo', 3, 60 * 60_000);
+const avisosPorCuenta = limitadorDurable('contrasena-aviso', 3, 60 * 60_000);
 const WHATSAPP = 'https://wa.me/50259131276?text=Hola%2C%20no%20cambi%C3%A9%20mi%20contrase%C3%B1a%20del%20panel%20y%20me%20lleg%C3%B3%20un%20aviso.';
 
 // Aviso «Tu contraseña cambió» a la cuenta que acaba de cambiarla: si no fue la persona, se entera y avisa.
@@ -92,7 +93,7 @@ export default async (req, context) => {
 	// que la contraseña de ESA cuenta cambió hace menos de 10 minutos y la cuenta entra al panel (users/{uid} activo):
 	// una cuenta creada por fuera no puede usarlo para mandar correos con la marca. Va al correo que tiene Google.
 	if (cuerpo?.aviso === 'cambiada') {
-		if (porIp(ipDe(req, context))) return json(429, { error: 'Demasiados intentos' });
+		if (await porIp(ipDe(req, context))) return json(429, { error: 'Demasiados intentos' });
 		let s = null;
 		try { s = await sesionDe(req); } catch { /* token inválido */ }
 		if (!s?.uid) return json(401, { error: 'Sesión inválida' });
@@ -102,7 +103,7 @@ export default async (req, context) => {
 			if (!cuenta?.email || cuenta.disabled || Date.now() - Number(cuenta.passwordUpdatedAt || 0) > 600_000) return json(401, { error: 'Sesión inválida' });
 			const correo = String(cuenta.email).toLowerCase();
 			if (!(await delPanel(s.uid, correo))) return json(200, { ok: true });
-			if (avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
+			if (await avisosPorCuenta(s.uid)) return json(429, { error: 'Demasiados intentos' });
 			await avisoCambio(correo);
 			return json(200, { ok: true });
 		} catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
@@ -111,7 +112,7 @@ export default async (req, context) => {
 	if (!correoValido(email) || !/^[\x21-\x7e]+$/.test(email)) return json(400, { error: 'Correo inválido' });
 	let admin = false;
 	try { admin = Boolean((await staffUser(req))?.admin); } catch { /* sin sesión o token vencido: como cualquiera */ }
-	if (!admin && (porIp(ipDe(req, context)) || porCorreo(email))) return json(429, { error: 'Demasiados intentos: espera unos minutos.' });
+	if (!admin && ((await porIp(ipDe(req, context))) || (await porCorreo(email)))) return json(429, { error: 'Demasiados intentos: espera unos minutos.' });
 	// true = enviado; false = esa cuenta no entra al panel (no se manda nada).
 	const trabajo = async () => {
 		const link = (await conAcceso(email)) ? await enlaceDe(email) : null;
