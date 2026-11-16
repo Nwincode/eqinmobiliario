@@ -35,6 +35,11 @@ export function fichaCasa(p, avisos = []) {
 }
 export const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
 
+// Dirección de la casa en el sitio (la ficha VIP vive en /vip/). Una sola, para el panel y el panel del dueño.
+export function publicUrl(p) {
+	return `${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
+}
+
 // Estado de la exclusiva de un inmueble, a partir de su acuerdo (admin/js/acuerdo.js).
 export function estadoExclusiva(acuerdo) {
 	const d = diasExclusiva(acuerdo);

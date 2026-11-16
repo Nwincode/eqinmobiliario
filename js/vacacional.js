@@ -311,6 +311,18 @@
 			};
 		}
 
+		// «Desde US$ … por noche» de la ficha (arriba y en este cuadro) con el precio al día (el mismo `precioDesde` que
+		// guarda el panel en `precio`): el cliente no ve un
+		// precio arriba y otro en el calendario mientras el sitio no se publica de nuevo.
+		function ponerDesde(antes, ahora) {
+			if (!antes || antes === ahora) return;
+			var viejo = dinero(antes), nuevo = dinero(ahora);
+			document.querySelectorAll('.ficha-precio, .vac-desde strong').forEach(function (el) {
+				var n = el.firstChild;
+				if (n && n.nodeType === 3 && n.nodeValue.indexOf(viejo) > -1) n.nodeValue = n.nodeValue.replace(viejo, nuevo);
+			});
+		}
+
 		// Disponibilidad al día (iCal del socio y reservas confirmadas); si falla, quedan los bloqueos publicados.
 		var id = card.getAttribute('data-id');
 		if (id && window.fetch) {
@@ -321,7 +333,7 @@
 					// Casa en pausa: no se puede reservar por ahora.
 					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return; }
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
-					if (res.plan && res.plan.base > 0) D.plan = res.plan;
+					if (res.plan && res.plan.base > 0) { ponerDesde(V.precioDesde(D.plan, hoy), V.precioDesde(res.plan, hoy)); D.plan = res.plan; }
 					if (res.minimos) minimos = res.minimos;
 					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }

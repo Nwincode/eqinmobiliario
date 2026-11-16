@@ -17,7 +17,7 @@ import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
-import { datosDe } from '../ficha-casa.js';
+import { datosDe, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
@@ -299,9 +299,7 @@ export async function guardarCambios(id, cambios, { socio = null, llegada = null
 	});
 }
 
-export function publicUrl(p) {
-	return `${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
-}
+export { publicUrl };
 
 export async function loadAll() {
 	const snap = await getDocs(collection(db, 'properties'));

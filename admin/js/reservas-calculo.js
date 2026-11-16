@@ -49,7 +49,7 @@ export const subtotalCotizado = (r) => (typeof r?.subtotal === 'number' ? r.subt
 // Lo que se registra al confirmar una solicitud: su parte (precios de hoy del dueño), lo cobrado y la ganancia de EQ.
 // Al cliente se le cobra lo que se le cotizó (sin la limpieza, que no lleva margen): si después bajó un precio, el margen
 // o la limpieza, la ganancia sale de lo cotizado, no de los precios de hoy.
-// Una sola cuenta: la usan el diálogo de «Confirmada» (lo que se muestra), confirmarSolicitud y el servidor (lo que se guarda).
+// Una sola cuenta: la usan el diálogo de «Confirmar» (lo que se muestra), confirmarSolicitud y el servidor (lo que se guarda).
 // `l` = la solicitud ({ reserva: { subtotal } }); `cuenta` = cuentaDe(...) de esas fechas; `casa` = la propiedad.
 // `modo`: 'mayor' (el socio: el mayor entre lo cotizado y los precios de hoy), 'cotizado' o 'hoy' (el administrador
 // elige cuando difieren: una cotización inflada no se registra sin que lo decida).

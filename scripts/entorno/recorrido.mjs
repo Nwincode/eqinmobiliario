@@ -216,7 +216,7 @@ paso('El panel bloquea el teléfono del socio', /no se comparten/.test(await avi
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat.png` });
 await socio.p.locator('.modal .btn-close').click();
 await espera(2500);
-await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmada' }).click();
+await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmar' }).click();
 await espera(800);
 const confirmo = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
@@ -307,7 +307,7 @@ const llegada3 = (await leer(`chats/${(tercero.p.url().match(/#(\w+)/) || [])[1]
 // precio en «Mis propiedades»: al guardar la ficha, nada de eso se pierde (antes la ficha reescribía la casa entera).
 await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
 await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
-await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Confirmada' }).click();
+await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Confirmar' }).click();
 await espera(800);
 const confirmo3 = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
@@ -326,6 +326,11 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 	const neto = num((await leer(`properties/${idCasa}/privado/socio`)).fields?.precioBase);
 	paso('Guardar la ficha abierta desde antes no libera la noche que el socio confirmó ni deshace el precio que cambió en «Mis propiedades»',
 		(await reservadas()).includes(llegada3) && neto === 110 && num(v.base) === 132 && num(v.camas) === 4, `socio ${neto} · público ${num(v.base)} · camas ${num(v.camas)} · ${await avisos(admin.p)}`);
+	// La ficha publicada dice «Desde US$ 120.00»; sin publicar de nuevo, el cliente ya ve el precio nuevo arriba y en el cuadro.
+	await cliente.p.goto(`${SITIO}${ficha}`);
+	await cliente.p.waitForFunction(() => /132\.00/.test(document.querySelector('.vac-desde')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
+	const desdes = await cliente.p.locator('.ficha-precio, .vac-desde').allInnerTexts();
+	paso('El cliente ve el precio nuevo del socio en el «Desde» de la ficha, sin esperar a que se publique', desdes.length === 2 && desdes.every((x) => /US\$ 132\.00/.test(x)), desdes.join(' | '));
 	// Lo que sale a la IA o al traductor (pedirIA lo pasa todo por paraIA): con la casa guardada de verdad, más su
 	// dirección y su costo privados encima (lo peor que una pantalla podría mandar), no sale nada privado ni interno.
 	const salidas = await admin.p.evaluate(async (id) => {
@@ -457,7 +462,7 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	paso('Solicitudes le dice al administrador si las reservas van por el servidor', /activo/.test(activo) && /sin configurar/.test(apagado), `${activo} → ${apagado}`);
 	try {
 		await ir(socio.p, `#/solicitudes/${d.codigo}`, 3500);
-		await socio.p.locator('.card', { hasText: d.codigo }).first().locator('button', { hasText: 'Confirmada' }).click();
+		await socio.p.locator('.card', { hasText: d.codigo }).first().locator('button', { hasText: 'Confirmar' }).click();
 		await espera(800);
 		const sinCuenta = delServidor(socio.p);
 		await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
@@ -581,7 +586,7 @@ let otraPestana = null;
 	const token4 = (tercero.p.url().match(/#(\w+)/) || [])[1] || '';
 	const llegada4 = (await leer(`chats/${token4}`)).fields?.llegada?.stringValue || '';
 	await ir(socio.p, `#/solicitudes/${codigo4}`, 3500);
-	await socio.p.locator('.card', { hasText: codigo4 }).first().locator('button', { hasText: 'Confirmada' }).click();
+	await socio.p.locator('.card', { hasText: codigo4 }).first().locator('button', { hasText: 'Confirmar' }).click();
 	await espera(800);
 	const confirmo4 = delServidor(socio.p);
 	await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();

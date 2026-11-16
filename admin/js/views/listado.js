@@ -5,7 +5,7 @@ import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } 
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
-import { datosDe } from '../ficha-casa.js';
+import { datosDe, publicUrl } from '../ficha-casa.js';
 import { estadoDe, operacionDe, enOperacion } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
@@ -19,7 +19,7 @@ function absUrl(url) {
 }
 
 function publicLink(p) {
-	return `${SITE || location.origin}${p.vip ? '/vip/' : '/propiedad/'}${p.slug}/`;
+	return `${SITE || location.origin}${publicUrl(p)}`;
 }
 
 function cut(text, max) {
