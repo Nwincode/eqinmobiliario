@@ -1429,11 +1429,17 @@ const duenos = [];
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
 	if (dentro) await vis.p.locator(`[data-fecha="${dentro}"]`).click();
 	const ayudaM = await vis.p.locator('.vac-ayuda').first().innerText();
-	const globo = await vis.p.locator('.vac-toast').innerText().catch(() => '');
-	paso('Sitio: al tocar una noche rayada sale el aviso flotante con el mínimo de la casa y la fecha de la primera salida', /Mínimo 3 noches en esta casa/.test(globo) && /primera salida posible es el \w+, \d+ \w+/.test(globo), globo);
-	const franja = await vis.p.locator('.vac-cal-minimo').innerText();
-	paso('Sitio: el mínimo de noches se ve encima de los días del calendario, con el de esas fechas', /Estancia mínima: 3 noches/.test(franja), franja);
-	paso('Sitio: tocar una salida antes del mínimo deja la llegada y explica cuál es la primera salida', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /primera salida posible/.test(ayudaM), ayudaM); // el mínimo va en la burbuja y en la franja (pasos de abajo)
+	// Una sola burbuja chica, fija sobre la primera salida posible: «Mínimo 3 noches» (flota: no mueve nada).
+	const globo = await vis.p.evaluate(() => {
+		const g = document.querySelector('.vac-burbuja.is-visible'), d = document.querySelector('.vac-dia.is-salida-min');
+		if (!g || !d) return null;
+		const a = g.getBoundingClientRect(), b = d.getBoundingClientRect();
+		return { texto: g.textContent, sobreElDia: a.bottom <= b.top + 2 && Math.abs((a.left + a.width / 2) - (b.left + b.width / 2)) < b.width + 40 };
+	});
+	paso('Sitio: al elegir la llegada, una burbuja chica sobre la primera salida posible dice el mínimo («Mínimo 3 noches»)', globo?.texto === 'Mínimo 3 noches' && globo.sobreElDia, JSON.stringify(globo));
+	paso('Sitio: tocar una noche dentro del mínimo deja la llegada (no la cambia ni la borra)', Boolean(dentro) && (await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha')) === llegadaM && /salida/.test(ayudaM), ayudaM);
+	await espera(3500);
+	paso('Sitio: la burbuja del mínimo no se va sola mientras se elige la salida', await vis.p.locator('.vac-burbuja.is-visible').count() === 1);
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
 }

@@ -171,16 +171,7 @@
 				var b = cuerpo.querySelector('[data-fecha="' + foco + '"]');
 				if (b) b.focus();
 			}
-		}
-
-		// La franja del mínimo encima de los días: el que aplica a esa llegada (una temporada puede pedir más) y resaltada
-		// mientras se elige la salida. Con 1 noche no se muestra.
-		var franja = card.querySelector('.vac-cal-minimo');
-		function pintarMinimo(n, activo) {
-			if (!franja) return;
-			franja.hidden = !(n > 1);
-			franja.classList.toggle('is-activo', Boolean(activo && n > 1));
-			franja.querySelector('[data-out="minimo"]').textContent = fmt(t.vacMinimoCorto, { n: n });
+			fijarBurbuja();
 		}
 
 		// El botón de enviar dice el paso que sigue: «Elige tu fecha de llegada», «Ahora elige tu salida», «Solicitar reserva»
@@ -195,24 +186,21 @@
 				botonesCampo[i].classList.toggle('is-activo', activo && !(estado.llegada && estado.salida));
 			}
 			// La ayuda es corta (2 líneas como máximo) y su caja tiene alto fijo: lo de abajo (huéspedes, formulario, botón)
-			// no se mueve en cada toque. Los avisos de un momento van en el aviso flotante, que no empuja nada.
-			if (!estado.llegada) { ayuda.textContent = estado.nota || t.vacEligeLlegada; pintarMinimo(nochesMin, false); leyenda(false); }
+			// no se mueve en cada toque. Los avisos van en la burbuja, que flota y no empuja nada.
+			if (!estado.llegada) ayuda.textContent = estado.nota || t.vacEligeLlegada;
 			else if (!estado.salida) {
 				// Aquí, donde el cliente está mirando: la estancia mínima, la primera salida (y un botón a su mes si no se ve),
 				// cómo cambiar la llegada y borrar. Sin esto, los días apagados no se entienden.
 				var primera = primeraSalida();
 				// El mínimo que de verdad fija la primera salida (un mínimo por fechas más adelante puede ser mayor).
 				var minimo = primera ? V.nochesEntre(estado.llegada, primera) : minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
-				// El mínimo va encima de los días (la franja) y la leyenda de rayas y borde en su fila fija; aquí, el paso y la
-				// primera salida.
-				var html = esc(primera ? t.vacEligeSalida + (minimo > 1 ? ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : '') : t.vacSinSalida);
-				pintarMinimo(minimo, true);
-				leyenda(Boolean(primera && minimo > 1));
+				// El mínimo lo dice la burbuja sobre la primera salida; aquí solo el paso (y la fecha si queda en otro mes).
+				var html = esc(primera ? t.vacEligeSalida + (minimo > 1 && mesDe(primera) !== estado.mes ? ' ' + fmt(t.vacSalidaDesde, { fecha: fCorta.format(fechaUTC(primera)) }) : '') : t.vacSinSalida);
 				if (primera && mesDe(primera) !== estado.mes) html += ' <button type="button" class="btn btn-link vac-ayuda-btn" data-ver-mes="' + mesDe(primera) + '">' + esc(fmt(t.vacVerMes, { mes: fMes.format(fechaUTC(mesDe(primera) + '-01')) })) + '</button>';
 				html += ' <button type="button" class="btn btn-link vac-ayuda-btn vac-borrar">' + esc(t.vacBorrar) + '</button>';
 				ayuda.innerHTML = html;
 			}
-			else { ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.'; pintarMinimo(minimoDe(estado.llegada, estado.salida), false); leyenda(false); }
+			else { ayuda.textContent = noches(V.nochesEntre(estado.llegada, estado.salida)) + ': ' + outLlegada.textContent + ' → ' + outSalida.textContent + '.'; }
 			estado.nota = '';
 			pintarDesglose();
 		}
@@ -243,38 +231,45 @@
 			desglose.hidden = false;
 		}
 
-		// Aviso flotante abajo de la pantalla (no tapa los días ni mueve nada): un título, una línea, se va solo a los 4 s o
-		// con la ✕. Para lo que se dice un momento: el mínimo de noches con la primera salida, un día ocupado…
-		var toast = null;
-		function aviso(icono, titulo, texto) {
-			if (!toast) {
-				toast = document.createElement('div');
-				toast.className = 'vac-toast';
-				toast.setAttribute('role', 'status');
-				toast.innerHTML = '<span class="vac-toast-ic" aria-hidden="true"><span></span></span><div><strong></strong><span class="vac-toast-texto"></span></div>' +
-					'<button type="button" class="vac-toast-cerrar" aria-label="' + esc(t.vacCerrar || 'Cerrar') + '"><span class="icon-close" aria-hidden="true"></span></button>';
-				toast.querySelector('button').addEventListener('click', function () { toast.classList.remove('is-visible'); });
-				document.body.appendChild(toast);
+		// Una burbuja chica que flota sobre el calendario (no ocupa espacio ni mueve nada) y apunta a un día.
+		// Fija: «Mínimo N noches» sobre la primera salida posible mientras se elige la salida. De un momento: «día ocupado»…
+		// sobre el día que se tocó; a los 3 s vuelve la fija.
+		var globo = null;
+		function burbuja(f, texto, fija) {
+			var dia = cuerpo.querySelector('[data-fecha="' + f + '"]');
+			var cal = card.querySelector('.vac-cal');
+			if (!dia || !cal) return ocultarBurbuja();
+			if (!globo) {
+				globo = document.createElement('div');
+				globo.className = 'vac-burbuja';
+				globo.setAttribute('role', 'status');
+				cal.appendChild(globo);
 			}
-			toast.querySelector('.vac-toast-ic span').className = 'icon-' + icono;
-			toast.querySelector('strong').textContent = titulo;
-			toast.querySelector('.vac-toast-texto').textContent = texto || '';
-			toast.classList.remove('is-visible'); void toast.offsetWidth; toast.classList.add('is-visible');
-			var fr = card.querySelector('.vac-cal-minimo');
-			if (fr && icono === 'moon-o') { fr.classList.remove('is-pulso'); void fr.offsetWidth; fr.classList.add('is-pulso'); }
-			clearTimeout(toast.eqTimer);
-			toast.eqTimer = setTimeout(function () { toast.classList.remove('is-visible'); }, 4000);
+			globo.textContent = texto;
+			var c = cal.getBoundingClientRect(), d = dia.getBoundingClientRect();
+			var izq = d.left - c.left + d.width / 2;
+			globo.style.top = (d.top - c.top) + 'px';
+			globo.classList.add('is-visible');
+			// Sin salirse del calendario en los días de las orillas (la flecha sigue apuntando al día).
+			var medio = globo.offsetWidth / 2, centro = Math.max(medio + 4, Math.min(c.width - medio - 4, izq));
+			globo.style.left = centro + 'px';
+			globo.style.setProperty('--flecha', (izq - centro) + 'px');
+			clearTimeout(globo.eqTimer);
+			if (!fija) globo.eqTimer = setTimeout(fijarBurbuja, 3000);
 		}
-		// El mínimo registrado para esa llegada y la fecha de la primera salida posible.
-		function avisoMinimo() {
-			var primera = primeraSalida();
-			var n = primera ? V.nochesEntre(estado.llegada, primera) : minimoDe(estado.llegada, V.sumarDias(estado.llegada, 1));
-			aviso('moon-o', fmt(t.vacMinimoToast, { n: n }), primera ? fmt(t.vacPrimeraSalida, { fecha: fCorta.format(fechaUTC(primera)) }) : t.vacSinSalida);
+		function ocultarBurbuja() { if (globo) { clearTimeout(globo.eqTimer); globo.classList.remove('is-visible'); } }
+		// La fija: solo eligiendo la salida, con un mínimo de más de una noche y la primera salida en el mes que se ve.
+		function fijarBurbuja() {
+			var primera = estado.llegada && !estado.salida ? primeraSalida() : '';
+			var n = primera ? V.nochesEntre(estado.llegada, primera) : 0;
+			if (primera && n > 1 && mesDe(primera) === estado.mes) burbuja(primera, fmt(t.vacMinimoGlobo, { n: n }), true);
+			else ocultarBurbuja();
 		}
-		// La leyenda (rayas = estancia mínima, borde = primera salida): fila de alto fijo debajo de los días; solo se ve
-		// mientras se elige la salida con un mínimo de más de una noche.
-		var filaLeyenda = card.querySelector('.vac-leyenda');
-		function leyenda(ver) { if (filaLeyenda) filaLeyenda.classList.toggle('is-visible', ver); }
+		// Tocó una noche dentro del mínimo: la burbuja de la primera salida late una vez (no sale otro mensaje).
+		function latirBurbuja() {
+			fijarBurbuja();
+			if (globo) { globo.classList.remove('is-pulso'); void globo.offsetWidth; globo.classList.add('is-pulso'); }
+		}
 		function elegir(f) {
 			// Tocar otra vez la llegada (sin salida) la quita.
 			if (estado.llegada && !estado.salida && f === estado.llegada) return borrarFechas();
@@ -284,10 +279,10 @@
 				// Antes del mínimo: la llegada se queda y se dice cuál es la primera salida (no se cambia la llegada sin decir nada).
 				if (v.error === 'minimo') {
 					var primera = primeraSalida();
-					return avisoMinimo();
+					return latirBurbuja();
 				}
 				// Con noches ocupadas en medio: ese día pasa a ser la llegada, y se dice por qué.
-				if (!llegadaValida(f)) return aviso('calendar', t.vacEntreOcupadas);
+				if (!llegadaValida(f)) return burbuja(f, t.vacEntreOcupadas);
 				cambio = fmt(t.vacNuevaLlegada, { fecha: fCorta.format(fechaUTC(f)) });
 			}
 			var conSalida = false;
@@ -307,7 +302,7 @@
 			limpiarError();
 			pintar(true);
 			actualizar();
-			if (cambio) aviso('calendar', cambio);
+			if (cambio) burbuja(f, cambio);
 			// Con las dos fechas el paso que sigue es el formulario: la pantalla baja suave hasta el presupuesto, con los
 			// campos y el botón debajo (en celular y tableta; en computadora el cuadro va al lado y ya se ve).
 			if (conSalida && !desglose.hidden && window.innerWidth < 992) setTimeout(function () {
@@ -330,9 +325,9 @@
 			if (!b) return;
 			// Un día ocupado no se elige, pero se dice por qué (no «no pasa nada»).
 			if (b.getAttribute('aria-disabled') === 'true') {
-				if (ocupadas[b.getAttribute('data-fecha')]) aviso('calendar', t.vacDiaOcupado);
+				if (ocupadas[b.getAttribute('data-fecha')]) burbuja(b.getAttribute('data-fecha'), t.vacDiaOcupado);
 				// Una noche rayada (dentro del mínimo) que no puede ser llegada: igual se dice cuál es el mínimo.
-				else if (b.classList.contains('is-minimo') && estado.llegada) avisoMinimo();
+				else if (b.classList.contains('is-minimo') && estado.llegada) latirBurbuja();
 				return;
 			}
 			elegir(b.getAttribute('data-fecha'));

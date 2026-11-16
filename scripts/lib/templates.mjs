@@ -1335,7 +1335,6 @@ function reservaBox(ctx, p) {
 							</button>
 						</div>
 						<div class="vac-cal" role="group" aria-label="${esc(t.vacCalendario)}">
-							<p class="vac-cal-minimo"${d.nochesMin > 1 ? '' : ' hidden'}>${ic('moon-o')}<span data-out="minimo">${fmt(t.vacMinimoCorto, { n: d.nochesMin })}</span></p>
 							<div class="vac-cal-cabecera">
 								<button type="button" class="eq-flecha vac-cal-prev" aria-label="${esc(t.vacMesAnterior)}">${chevron(FLECHA_PREV)}</button>
 								<h3 class="vac-cal-mes" aria-live="polite"></h3>
@@ -1343,7 +1342,6 @@ function reservaBox(ctx, p) {
 							</div>
 							<div class="vac-cal-cuerpo"></div>
 						</div>
-						${d.nochesMin > 1 || (d.minimos || []).length ? `<p class="vac-leyenda"><span class="vac-muestra vac-muestra-min" aria-hidden="true"></span>${t.vacLeyendaMin}<span class="vac-muestra vac-muestra-salida" aria-hidden="true"></span>${t.vacLeyendaSalida}</p>` : ''}
 						<p class="vac-ayuda" id="vac-ayuda" role="status" aria-live="polite">${t.vacEligeLlegada}</p>
 						<div class="vac-huespedes">
 							<label class="form-label" for="vac-huespedes">${ic('users')}${t.vacHuespedes}</label>
