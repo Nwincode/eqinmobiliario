@@ -168,7 +168,10 @@
 			}
 		}
 
+		// El botón de enviar dice lo que falta: sin fechas, «Primero elige tus fechas» (y al tocarlo, lleva al calendario).
+		var textoBoton = form && form.querySelector('button[type=submit] .btn-texto');
 		function actualizar() {
+			if (textoBoton) textoBoton.textContent = estado.llegada && estado.salida ? t.vacSolicitar : t.vacEligeFechas;
 			outLlegada.textContent = estado.llegada ? mayus(fCorta.format(fechaUTC(estado.llegada))) : t.vacSinFecha;
 			outSalida.textContent = estado.salida ? mayus(fCorta.format(fechaUTC(estado.salida))) : t.vacSinFecha;
 			for (var i = 0; i < botonesCampo.length; i++) {
@@ -314,7 +317,13 @@
 					var box = statusBox();
 					if (box) { box.className = 'lead-form-status mt-3 text-danger'; box.setAttribute('data-vac', '1'); box.textContent = msg; }
 					ayuda.textContent = msg;
-					card.querySelector('.vac-cal').scrollIntoView({ behavior: 'smooth', block: 'center' });
+					// Se nota: el calendario se marca un momento y queda con el foco en un día para elegir.
+					var cal = card.querySelector('.vac-cal');
+					cal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					cal.classList.add('vac-alerta');
+					setTimeout(function () { cal.classList.remove('vac-alerta'); }, 1800);
+					var dia = cuerpo.querySelector('[tabindex="0"]');
+					if (dia) dia.focus({ preventScroll: true });
 					return null;
 				}
 				var c = V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito });

@@ -180,3 +180,15 @@
 .vac-dia.is-salida .vac-dia-precio {
 	color: var(--eq-white);
 }
+
+/* Al tocar «Primero elige tus fechas»: el calendario se marca un momento. */
+.vac-cal.vac-alerta {
+	outline: 3px solid var(--eq-primary);
+	outline-offset: 4px;
+	border-radius: var(--eq-radius);
+	transition: outline-color .3s;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.vac-cal.vac-alerta { animation: vac-alerta 0.6s ease-in-out 2; }
+	@keyframes vac-alerta { 50% { outline-color: transparent; } }
+}

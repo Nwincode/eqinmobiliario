@@ -71,24 +71,34 @@ service cloud.firestore {
       return socio == 0 ? publico == 0 : enBanda(publico, socio, margen);
     }
     // Precios por fechas: la misma lista en el mismo orden, mismas fechas y cada precio en banda.
-    // Las reglas no recorren listas (y cuentan cada operación): se revisan una a una, hasta 10 (el panel del dueño
-    // guarda solo las que no han pasado).
+    // Las reglas no recorren listas (y cuentan cada operación): se revisan una a una, hasta 30 (el panel del dueño
+    // guarda solo las que no han pasado; con temporadas que se repiten, cada año ocupa uno).
     function tarifaEnBanda(p, s, margen) {
       return p.desde == s.desde && p.hasta == s.hasta && enBanda(p.precio, s.precio, margen);
     }
     function tarifasEnBanda(pub, soc, m) {
       let n = pub.size();
-      return n == soc.size() && n <= 10
+      return n == soc.size() && n <= 30
         && (n < 1 || tarifaEnBanda(pub[0], soc[0], m)) && (n < 2 || tarifaEnBanda(pub[1], soc[1], m))
         && (n < 3 || tarifaEnBanda(pub[2], soc[2], m)) && (n < 4 || tarifaEnBanda(pub[3], soc[3], m))
         && (n < 5 || tarifaEnBanda(pub[4], soc[4], m)) && (n < 6 || tarifaEnBanda(pub[5], soc[5], m))
         && (n < 7 || tarifaEnBanda(pub[6], soc[6], m)) && (n < 8 || tarifaEnBanda(pub[7], soc[7], m))
-        && (n < 9 || tarifaEnBanda(pub[8], soc[8], m)) && (n < 10 || tarifaEnBanda(pub[9], soc[9], m));
+        && (n < 9 || tarifaEnBanda(pub[8], soc[8], m)) && (n < 10 || tarifaEnBanda(pub[9], soc[9], m))
+        && (n < 11 || tarifaEnBanda(pub[10], soc[10], m)) && (n < 12 || tarifaEnBanda(pub[11], soc[11], m))
+        && (n < 13 || tarifaEnBanda(pub[12], soc[12], m)) && (n < 14 || tarifaEnBanda(pub[13], soc[13], m))
+        && (n < 15 || tarifaEnBanda(pub[14], soc[14], m)) && (n < 16 || tarifaEnBanda(pub[15], soc[15], m))
+        && (n < 17 || tarifaEnBanda(pub[16], soc[16], m)) && (n < 18 || tarifaEnBanda(pub[17], soc[17], m))
+        && (n < 19 || tarifaEnBanda(pub[18], soc[18], m)) && (n < 20 || tarifaEnBanda(pub[19], soc[19], m))
+        && (n < 21 || tarifaEnBanda(pub[20], soc[20], m)) && (n < 22 || tarifaEnBanda(pub[21], soc[21], m))
+        && (n < 23 || tarifaEnBanda(pub[22], soc[22], m)) && (n < 24 || tarifaEnBanda(pub[23], soc[23], m))
+        && (n < 25 || tarifaEnBanda(pub[24], soc[24], m)) && (n < 26 || tarifaEnBanda(pub[25], soc[25], m))
+        && (n < 27 || tarifaEnBanda(pub[26], soc[26], m)) && (n < 28 || tarifaEnBanda(pub[27], soc[27], m))
+        && (n < 29 || tarifaEnBanda(pub[28], soc[28], m)) && (n < 30 || tarifaEnBanda(pub[29], soc[29], m));
     }
     // Lo que el dueño cambia de sus precios (en la casa o en privado/socio) cuadra con el otro documento tal como
     // queda (getAfter): solo se revisa lo que cambió, para que una casa con un precio viejo no le impida bloquear días.
     // casa / socio: los dos documentos después del cambio; cambia: los campos de precio que tocó.
-    // casaAntes / socioAntes: los dos como estaban. Con más de 10 precios por fechas (de antes), el dueño solo puede
+    // casaAntes / socioAntes: los dos como estaban. Con más de 30 precios por fechas (de antes), el dueño solo puede
     // quitar: las dos listas quedan más cortas y con lo que ya tenían (nada nuevo ni cambiado).
     function preciosCuadran(casa, socio, cambia, casaAntes, socioAntes) {
       let v = casa.get('vacacional', {});
@@ -451,10 +461,11 @@ service cloud.firestore {
     // le pone índice a un chat inventado para una solicitud de antes. El administrador se lo pone a un chat que ya existe
     // (Solicitudes, al abrirla: los chats de antes de este cambio).
     // Leer uno que no existe responde «no existe» a cualquiera (así el sitio sabe que las reglas nuevas están publicadas).
-    // Versión de las reglas: leer reglas/r5 da «no existe» (404) desde esta versión y «sin permiso» (403) antes; así el
-    // sitio sabe si ya puede mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal). Nadie escribe aquí.
+    // Versión de las reglas: leer reglas/rN da «no existe» (404) desde esa versión y «sin permiso» (403) antes; así el
+    // sitio sabe qué puede hacer: r5 = mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal); r6 = hasta 30
+    // precios por fechas (admin/js/views/mis-casas.js). Nadie escribe aquí.
     match /reglas/{version} {
-      allow get: if version == 'r5';
+      allow get: if version in ['r5', 'r6'];
     }
     match /chatsPorSolicitud/{leadId} {
       allow create: if request.resource.data.keys().hasOnly(['token'])

@@ -5,8 +5,8 @@
 //    bitácora van juntos (las reglas exigen que el público cuadre con el suyo);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice } from '../ui.js';
+import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp, reglasVersion } from '../firebase.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
 import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
@@ -24,10 +24,18 @@ const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMon
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
 // Precios especiales que cuentan: con fechas y precio válidos y que no han terminado (los que ya pasaron se quitan
-// al guardar). Hasta 10 a la vez: las reglas revisan uno por uno que el público cuadre con el suyo.
-const MAX_TARIFAS = 10;
+// al guardar). Hasta 30 a la vez con las reglas nuevas (r6), 10 con las de antes: las reglas revisan uno por uno que el
+// público cuadre con el suyo. `cada` (si se repite cada año) se conserva.
+let MAX_TARIFAS = 10;
 const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) && V.esFecha(t.hasta) && t.hasta >= t.desde && Number(t.precio) > 0 && t.hasta >= hoy())
-	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)) }));
+	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)), ...(t.cada ? { cada: t.cada } : {}) }));
+// Temporadas que se repiten: se guardan este año y los 2 siguientes (fechas de verdad, como cualquier otro precio).
+const ANIOS_ADELANTE = 2;
+const QUE_CADA = { fecha: 'cada año en estas fechas', semanaSanta: 'cada año en Semana Santa' };
+// La misma temporada en otro año: misma forma de repetirse, mismo largo y el mismo día (o los mismos días desde la Pascua).
+const mismaTemporada = (a, b) => a.cada && a.cada === b.cada && V.nochesEntre(a.desde, a.hasta) === V.nochesEntre(b.desde, b.hasta)
+	&& (a.cada === 'fecha' ? a.desde.slice(5) === b.desde.slice(5)
+		: V.nochesEntre(V.pascua(+a.desde.slice(0, 4)), a.desde) === V.nochesEntre(V.pascua(+b.desde.slice(0, 4)), b.desde));
 const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
@@ -106,6 +114,21 @@ async function casa(container, id) {
 			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
 	};
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
+	// Temporadas que se repiten: siempre puestas hasta dentro de 2 años (al pasar un año, se agrega el siguiente).
+	const alDia = (lista) => {
+		const meta = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
+		let out = [...lista];
+		for (const r of lista.filter((x) => x.cada)) {
+			const serie = out.filter((x) => mismaTemporada(x, r));
+			let ultimo = serie.reduce((m, x) => (x.desde > m.desde ? x : m), r);
+			while (Number(ultimo.desde.slice(0, 4)) < meta) {
+				const [sig] = V.repetirRango(ultimo, ultimo.cada, 1);
+				out = [...V.quitarRango(out, sig.desde, sig.hasta), sig];
+				ultimo = sig;
+			}
+		}
+		return out.length === lista.length ? null : out.sort(porFecha);
+	};
 	const publico = (n) => plata(V.nochePublica(n, s.margen));
 
 	// Un cambio del dueño: `cambio(actual)` dice qué campos quedan y cómo, calculado sobre lo guardado AHORA (otra
@@ -197,18 +220,26 @@ async function casa(container, id) {
 	}
 	const soltar = () => { e.desde = ''; e.hasta = ''; e.pide = ''; };
 
-	function aplicar(que, valor) {
+	// cada: '' (solo estas fechas), 'fecha' o 'semanaSanta' (se repite: este año y los 2 siguientes).
+	function aplicar(que, valor, cada = '') {
 		const { desde, hasta } = e;
 		const fin = V.sumarDias(hasta, 1);
+		// Precio o mínimo en estas fechas (y, si se repite, en las de los años siguientes), sobre lo que hubiera ahí.
+		const poner = (lista, dato) => {
+			const base = { desde, hasta, ...dato, ...(cada ? { cada } : {}) };
+			let out = lista;
+			for (const r of [base, ...(cada ? V.repetirRango(base, cada, ANIOS_ADELANTE) : [])]) out = [...V.quitarRango(out, r.desde, r.hasta), r];
+			return out.sort(porFecha);
+		};
 		const cambio = {
 			bloquear: (a) => ({ bloqueos: V.unirRangos([...a.bloqueos, { desde, hasta: fin }]) }),
 			habilitar: (a) => ({ bloqueos: V.liberarNoches(a.bloqueos, desde, fin) }),
-			precio: (a) => ({ tarifas: [...V.quitarRango(a.tarifas, desde, hasta), { desde, hasta, precio: valor }].sort(porFecha) }),
-			minimo: (a) => ({ minimos: [...V.quitarRango(a.minimos, desde, hasta), { desde, hasta, noches: valor }].sort(porFecha) })
+			precio: (a) => ({ tarifas: poner(a.tarifas, { precio: valor }) }),
+			minimo: (a) => ({ minimos: poner(a.minimos, { noches: valor }) })
 		}[que];
 		const texto = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' }[que];
 		soltar();
-		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}`, cambio);
+		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`, cambio);
 	}
 
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
@@ -231,7 +262,13 @@ async function casa(container, id) {
 			const listo = () => {
 				const n = esPrecio ? V.r2(Number(campo.value) || 0) : Math.floor(Number(campo.value) || 0);
 				if (n < 1) return toast(esPrecio ? 'Escribe el precio.' : 'Escribe cuántas noches.', 'warning');
-				aplicar(e.pide, n);
+				// ¿Se repite cada año? Un toque. En Semana Santa (que cambia de fecha) se ofrece seguirla a ella.
+				const opciones = ['Solo estas fechas', 'Cada año en estas fechas', ...(V.tocaSemanaSanta(e) ? ['Cada año en Semana Santa (cambia de fecha sola)'] : [])];
+				const que = e.pide;
+				elegirOpcion('¿Se repite cada año?', opciones).then((op) => {
+					if (!op) return;
+					aplicar(que, n, op === opciones[1] ? 'fecha' : op === opciones[2] ? 'semanaSanta' : '');
+				});
 			};
 			campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') listo(); });
 			setTimeout(() => campo.focus());
@@ -296,9 +333,16 @@ async function casa(container, id) {
 		return h('div', { class: 'mb-3' },
 			h('h2', { class: 'h6' }, titulo),
 			h('ul', { class: 'list-group' }, vigentes.map((r) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-				h('span', { class: 'flex-grow-1' }, h('strong', {}, rango(r)), h('span', { class: 'd-block small text-muted' }, texto(r))),
+				h('span', { class: 'flex-grow-1' }, h('strong', {}, rango(r)), h('span', { class: 'd-block small text-muted' }, texto(r),
+					r.cada ? [' · ', ic('icon-repeat'), QUE_CADA[r.cada]] : null)),
 				iconoBtn('icon-trash', `Quitar ${titulo.toLowerCase()} ${rango(r)}`, {
-					onclick: () => guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}`, (a) => ({ [campo]: a[campo].filter((x) => !mismoRango(x, r)) }))
+					onclick: async () => {
+						// Si se repite cada año: quitar solo este año o todos.
+						const todos = r.cada ? (await elegirOpcion('¿Quitar solo este año o todos?', ['Solo este año', 'Todos los años'])) : 'Solo este año';
+						if (!todos) return;
+						const quita = todos === 'Todos los años' ? (x) => mismaTemporada(x, r) || mismoRango(x, r) : (x) => mismoRango(x, r);
+						guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}${todos === 'Todos los años' ? ' (todos los años)' : ''}`, (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
+					}
 				})))));
 	};
 	// Cabecera (foto, estado, lo que ve el cliente, reservas): se repinta con cada cambio de precio.
@@ -323,6 +367,11 @@ async function casa(container, id) {
 	}
 
 	pintar();
+	// Con las reglas r6, hasta 30 precios por fechas; y las temporadas que se repiten, puestas al día (una vez al año).
+	reglasVersion('r6').then((si) => { MAX_TARIFAS = si ? 30 : 10; }).then(() => {
+		const t = alDia(e.tarifas), m = alDia(e.minimos);
+		if (t || m) guardar('puso al día las temporadas que se repiten cada año', (a) => ({ ...(t ? { tarifas: alDia(a.tarifas) || a.tarifas } : {}), ...(m ? { minimos: alDia(a.minimos) || a.minimos } : {}) }));
+	});
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.

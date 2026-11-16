@@ -299,10 +299,12 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña pone dos precios por fechas suyos y uno público', juntos('mixto1', [suyo({ tarifas: [t(80), { ...t(70), desde: '2027-01-02', hasta: '2027-01-05' }] }), casa({ tarifas: [t(96)] })]), false);
 		await espera('dueña pone un precio por fechas con otras fechas en el público', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [{ ...t(96), hasta: '2027-03-31' }] })]), false);
 		await espera('dueña pone un precio por fechas con su margen (control)', juntos('mixto1', [suyo({ tarifas: [t(80)] }), casa({ tarifas: [t(96)] })]), true);
-		const diez = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-01`, hasta: `2027-${String(k + 1).padStart(2, '0')}-05`, precio: 90 + k }));
+		// Hasta 30 (temporadas que se repiten cada año: cada año ocupa uno).
+		const fechaK = (k, d) => `${2027 + Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}-${d}`;
+		const diez = Array.from({ length: 30 }, (_, k) => ({ desde: fechaK(k, '01'), hasta: fechaK(k, '05'), precio: 90 + k }));
 		const conMargen = (lista) => lista.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }));
-		await espera('dueña pone 10 precios por fechas, cada uno con su margen (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez) })]), true);
-		await espera('dueña pone 11 precios por fechas', juntos('mixto1', [suyo({ tarifas: [...diez, t(80)] }), casa({ tarifas: conMargen([...diez, t(80)]) })]), false);
+		await espera('dueña pone 30 precios por fechas, cada uno con su margen (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez) })]), true);
+		await espera('dueña pone 31 precios por fechas', juntos('mixto1', [suyo({ tarifas: [...diez, { desde: '2030-01-01', hasta: '2030-01-05', precio: 80 }] }), casa({ tarifas: conMargen([...diez, { desde: '2030-01-01', hasta: '2030-01-05', precio: 80 }]) })]), false);
 		await raw('properties/mx-noche-sin-precio', { titulo: sv('Casa por noche sin precio del dueño'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '0' } } } } });
 		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
@@ -473,20 +475,20 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 			await espera('el lote de «Confirmada» del socio, directo (lo hace el servidor)', Promise.resolve(lote), false);
 		}
 	}
-	// Más de 10 precios por fechas (de antes): la dueña solo puede quitar, no cambiar ni agregar.
+	// Más de 30 precios por fechas (de antes): la dueña solo puede quitar, no cambiar ni agregar.
 	{
 		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? { integerValue: String(x) } : sv(x)])) } });
 		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
-		const doce = Array.from({ length: 12 }, (_, k) => ({ desde: `2028-${String(k + 1).padStart(2, '0')}-01`, hasta: `2028-${String(k + 1).padStart(2, '0')}-05`, precio: 100 }));
+		const doce = Array.from({ length: 32 }, (_, k) => ({ desde: `${2028 + Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}-01`, hasta: `${2028 + Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}-05`, precio: 100 }));
 		const pub = (xs) => xs.map((x) => ({ ...x, precio: 120 }));
-		await raw('properties/mx-noche-12', { titulo: sv('Casa con 12 precios por fechas'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '120' }, tarifas: lista(pub(doce)) } } } });
+		await raw('properties/mx-noche-12', { titulo: sv('Casa con 32 precios por fechas'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '120' }, tarifas: lista(pub(doce)) } } } });
 		await raw('properties/mx-noche-12/privado/socio', { precioBase: { integerValue: '100' }, tarifas: lista(doce) });
 		const escribir = (soc, publico) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
 			{ update: { name: `${R}/properties/mx-noche-12/privado/socio`, fields: { tarifas: lista(soc) } }, updateMask: { fieldPaths: ['tarifas'] } },
 			{ update: { name: `${R}/properties/mx-noche-12`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(publico) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
-		const otro = [...doce.slice(1, 11), { ...doce[0], precio: 1 }];
-		await espera('dueña con 12 precios por fechas cambia uno (11 que no estaban así)', escribir(otro, pub(otro)), false);
-		await espera('dueña con 12 precios por fechas quita uno (control)', escribir(doce.slice(1), pub(doce.slice(1))), true);
+		const otro = [...doce.slice(1, 31), { ...doce[0], precio: 1 }];
+		await espera('dueña con 32 precios por fechas cambia uno (31 que no estaban así)', escribir(otro, pub(otro)), false);
+		await espera('dueña con 32 precios por fechas quita uno (control)', escribir(doce.slice(1), pub(doce.slice(1))), true);
 	}
 	// Un formulario lleva el asesor de su casa: una página vieja no le manda la solicitud de una casa por noche al asesor.
 	{
