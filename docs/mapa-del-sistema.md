@@ -137,6 +137,8 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Correo de un formulario** → `admin/js/formato.js` `correoValido` → `js/site.js` (por `EQFormato`) y `netlify/lib/correo.mjs`.
 
+**Enlace a una casa en el sitio (panel)** → `admin/js/firebase.js` `SITIO` (la dirección del sitio, de `site.config.json`) + `admin/js/ficha-casa.js` `publicUrl` (`/propiedad/…` o `/vip/…`): los usan Propiedades, el listado en PDF, Google, difusión, sitemap y los resúmenes del dueño. Nunca una dirección escrita a mano.
+
 **Enlace de WhatsApp** → `admin/js/formato.js` `telefonoWa` / `whatsappUrl` → `scripts/lib/util.mjs` `whatsappLink` → `scripts/build.mjs` (config del sitio) → `admin/js/portal.js`.
 
 **Etiqueta de la operación** («Venta», «en renta vacacional», hashtag) → `admin/js/estados.js` (`OPERACIONES`, `operacionDe`, `enOperacion`, `operacionHashtag`, en español o inglés; `properties.js` reexporta `OPERACIONES`) → `listado.js`, `difusion.js`, `reglas.js`, `seo-auto.js`, `cotizacion.js`. El precio con su operación («/mes», «por noche») → `admin/js/formato.js` `precioTexto` (el generador aún tiene su copia en `scripts/lib/util.mjs` `formatPrice`). Una casa por noche no entra donde se compara un precio de compra o de renta al mes: `calculadora.js` y `reglas.js` `evaluar`.

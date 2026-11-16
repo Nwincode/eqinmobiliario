@@ -10,7 +10,7 @@ import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
-import { updateDoc } from '../firebase.js';
+import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
@@ -372,7 +372,7 @@ async function exportarCsv(props, agentName, btn) {
 				limpieza: v.limpieza, deposito: v.deposito, noches_min: v.nochesMin, huespedes_max: v.huespedesMax,
 				ical: s.icalUrl,
 				enlaces_fotos: (p.fotos || []).map((f) => f.url).filter(Boolean).join(' '),
-				enlace: p.slug ? `https://eqinmobiliario.gt/${p.vip ? 'vip' : 'propiedad'}/${p.slug}/` : '',
+				enlace: p.slug ? `${SITIO}${publicUrl(p)}` : '',
 				publicado: p.publicado ? 'sí' : 'no'
 			};
 			filas.push(cab.map((c) => String(val[c] ?? '')));
@@ -496,7 +496,7 @@ export async function render(container, [id]) {
 		const menu = menuMas(`Acciones de ${nombre}`, [
 			editable && { icono: 'icon-pencil', texto: 'Editar', href: `#/propiedades/${p.id}` },
 			enSitio && { icono: 'icon-whatsapp', texto: 'Compartir por WhatsApp', target: '_blank',
-				href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\nhttps://eqinmobiliario.gt${publicUrl(p)}`) },
+				href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`) },
 			enSitio && { icono: 'icon-external-link', texto: 'Ver en la página', target: '_blank', href: publicUrl(p) },
 			editable && { icono: 'icon-list-ul', texto: 'Mejorar descripción', onclick: () => mejorar([p]) },
 			editable && { icono: 'icon-search', texto: 'Completar SEO', onclick: () => completarSeo([p]) },

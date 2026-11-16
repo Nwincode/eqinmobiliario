@@ -1049,7 +1049,9 @@ const duenos = [];
 	await pon('reservas/r2-pasada', reserva(antes1, antes3, 'r2-antes'));
 	await pon('reservas/r2-viene', reserva(dia(20), dia(22), 'r2-dueno'));
 	const solicitud = (codigo, llegada, salida) => ({ nombre: sv('Cliente R2'), telefono: sv('+502 5555 0299'), email: sv('r2@example.com'), propertyId: sv('r2-noche'), propietarioId: sv('r2-dueno'),
-		agentId: sv('asesor-prueba'), estado: sv('nuevo'), reserva: mapa({ codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(2) }) });
+		agentId: sv('asesor-prueba'), estado: sv('nuevo'), createdAt: { timestampValue: new Date().toISOString() },
+		// Todo lo que las reglas le exigen a una solicitud de verdad (sin esto la tarjeta diría «undefined personas»).
+		reserva: mapa({ codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(2), huespedes: nv(2), subtotal: nv(240), total: nv(292.8), moneda: sv('USD') }) });
 	await pon('leads/r2-abierta', solicitud('EQ-R2A', dia(30), dia(32)));
 	await pon('leads/r2-vieja', solicitud('EQ-R2V', dia(-12), dia(-10)));
 	const CHAT = 'ChatAbiertoDeR2LargoYAlAzar12345';

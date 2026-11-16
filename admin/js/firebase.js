@@ -14,6 +14,8 @@ import {
 
 const res = await fetch('/site.config.json', { cache: 'no-store' });
 export const siteConfig = await res.json();
+// Dirección del sitio, sin «/» al final: una sola para enlaces, sitemap, difusión y resúmenes.
+export const SITIO = (siteConfig.siteUrl || location.origin).replace(/\/$/, '');
 export const firebaseConfig = siteConfig.firebase || {};
 export const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 

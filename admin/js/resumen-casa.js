@@ -81,8 +81,9 @@ export function estadoCasa(p) {
 // La misma para la casa en venta o renta (su resumen) y para la casa por noche (Mis propiedades).
 export function cabeceraCasa({ foto, titulo = '', insignias = [], precio, lineas = [], pie = [] }) {
 	return h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' }, h('div', { class: 'row g-3' },
-		h('div', { class: 'col-md-5' }, foto ? h('img', { class: 'mc-foto', src: foto, alt: titulo }) : h('div', { class: 'mc-foto thumb-vacia' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-		h('div', { class: 'col-md-7 d-grid gap-2 align-content-start' },
+		// Sin foto, sin un recuadro vacío del tamaño de una foto: los datos usan todo el ancho.
+		foto ? h('div', { class: 'col-md-5' }, h('img', { class: 'mc-foto', src: foto, alt: titulo })) : null,
+		h('div', { class: `${foto ? 'col-md-7' : 'col-12'} d-grid gap-2 align-content-start` },
 			h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, insignias),
 			precio ? h('div', { class: 'h4 mb-0' }, precio) : null,
 			h('ul', { class: 'list-unstyled small mb-0 d-grid gap-1' }, lineas),
