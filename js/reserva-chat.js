@@ -268,12 +268,16 @@
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
 			return reglasDeAntes().then(function (antes) { return pedir(RAIZ + ':commit', { writes: antes ? [msj] : [msj, marca] }); });
 		}
+		// Uno a la vez: Enter dos veces seguidas (o Enter y clic) no manda el mismo mensaje dos veces.
+		var enviando = false;
 		function mandar(campos) {
+			if (enviando) return Promise.resolve(false);
+			enviando = true;
 			boton.disabled = true; adjuntar.disabled = true;
 			return guardarMensaje(campos)
 				.then(function () { alerta(''); avisar(token); return cargar(); })
 				.catch(function () { alerta(t.vacChatFallo); })
-				.then(function () { boton.disabled = false; adjuntar.disabled = false; });
+				.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
 		}
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {
@@ -285,7 +289,10 @@
 			if (!texto) return;
 			// Teléfonos, correos y enlaces no pasan: los datos de contacto se entregan al confirmar la reserva.
 			if (V.tieneContacto(texto)) return alerta(t.vacChatBloqueo);
-			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (!aviso.textContent) campo.value = ''; });
+			if (enviando) return;
+			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
+			campo.value = '';
+			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
 		});
 		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
 		adjuntar.addEventListener('click', function () { archivo.click(); });

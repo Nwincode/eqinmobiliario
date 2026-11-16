@@ -99,19 +99,23 @@ export async function render(container, [codigo] = []) {
 		};
 		const mostrar = async () => { try { await cargar(); } catch (err) { showError(err); } };
 		const campo = h('textarea', { class: 'form-control', rows: 2, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje' });
+		// Uno a la vez: doble clic o Enter y clic no mandan el mismo mensaje dos veces.
+		let enviando = false;
 		const form = h('form', { class: 'd-flex align-items-end gap-2', onsubmit: async (e) => {
 			e.preventDefault();
 			let texto = campo.value.trim();
-			if (!texto) return;
+			if (!texto || enviando) return;
 			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
+			enviando = true;
+			const escrito = campo.value;
+			campo.value = '';
 			try {
 				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
 				if (traducir) texto = `${await traducirTexto(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
 				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
-				campo.value = '';
 				avisarChat(ref.id);
 				await cargar();
-			} catch (err) { showError(err); }
+			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); } finally { enviando = false; }
 		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
 		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' }, RAPIDAS.map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => { campo.value = r; campo.focus(); } }, r)),
 			ingles ? iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }) : null);
