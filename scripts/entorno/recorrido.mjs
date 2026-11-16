@@ -12,7 +12,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIR = process.env.ENTORNO_DIR || `${process.env.TMPDIR || '/tmp'}/eq-entorno`;
 const SITIO = `http://localhost:${process.env.PORT || 8090}`;
-const CLAVE = 'Pruebas-2026';
+const CLAVE = 'Pruebas-del-panel-2026';
 const CAPTURAS = `${DIR}/capturas`;
 // Capturas del panel del dueño (lista y casa en venta, a 390 y 1280 px), para mirarlas.
 const PANEL = process.env.PANEL_DIR || `${CAPTURAS}/panel`;
@@ -949,13 +949,16 @@ const duenos = [];
 	const urlAlAbrir = mixta.p.url();
 	const sinReferer = await mixta.p.locator('meta[name="referrer"][content="no-referrer"]').count();
 	// Una contraseña fácil de adivinar no se acepta (y el enlace sigue sirviendo).
-	await mixta.p.fill('#clave-nueva', '12345678');
-	await mixta.p.fill('#clave-repite', '12345678');
+	const conOjos = await mixta.p.locator('.auth-card [aria-label="Mostrar contraseña"]').count();
+	await mixta.p.fill('#clave-nueva', 'corta-1');
+	const enVivoCorta = await mixta.p.locator('.clave-regla.falta').count();
+	await mixta.p.fill('#clave-nueva', 'aaaaaaaaaaaaaaaa');
+	await mixta.p.fill('#clave-repite', 'aaaaaaaaaaaaaaaa');
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(800);
 	const debil = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
-	await mixta.p.fill('#clave-nueva', 'mixta-clave-1');
-	await mixta.p.fill('#clave-repite', 'mixta-clave-1');
+	await mixta.p.fill('#clave-nueva', 'mixta-casa-del-lago');
+	await mixta.p.fill('#clave-repite', 'mixta-casa-del-lago');
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(800);
 	const conCorreo = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
@@ -964,9 +967,10 @@ const duenos = [];
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await espera(500);
 	const distintas = await mixta.p.locator('.auth-card [role="alert"]').innerText().catch(() => '');
-	paso('Página de contraseña: el código se borra de la barra al abrir, no se pasa a otros sitios, y rechaza contraseñas fáciles, con el correo o distintas',
-		!/oobCode/.test(urlAlAbrir) && sinReferer === 1 && /fácil de adivinar/.test(debil) && /no puede llevar tu correo/.test(conCorreo) && /no son iguales/.test(distintas),
-		`${urlAlAbrir} · ${debil} · ${conCorreo} · ${distintas}`);
+	const igualesNo = await mixta.p.locator('.clave-regla.falta', { hasText: 'Las dos son iguales' }).count();
+	paso('Página de contraseña: el código se borra de la barra al abrir, no se pasa a otros sitios, tiene ojito en los dos campos, avisa mientras se escribe y rechaza contraseñas cortas, fáciles, con el correo o distintas',
+		!/oobCode/.test(urlAlAbrir) && sinReferer === 1 && conOjos === 2 && enVivoCorta >= 1 && igualesNo === 1 && /fácil de adivinar/.test(debil) && /no puede llevar tu correo/.test(conCorreo) && /no son iguales/.test(distintas),
+		`${urlAlAbrir} · ojos ${conOjos} · en vivo ${enVivoCorta}/${igualesNo} · ${debil} · ${conCorreo} · ${distintas}`);
 	await mixta.p.fill('#clave-repite', CLAVE);
 	await mixta.p.locator('button', { hasText: 'Guardar y entrar' }).click();
 	await mixta.p.locator('.admin-user-role').waitFor({ timeout: 20000 }).catch(() => {});

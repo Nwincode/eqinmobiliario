@@ -5,6 +5,7 @@ import {
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
 import { correoContrasena, pedirContrasena } from './contrasena.js';
+import { MIN_CLAVE, conOjo, debilidad, filtrada, revisionEnVivo } from './clave.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
@@ -73,7 +74,7 @@ function loginScreen() {
 		}
 	},
 	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-email' }, 'Correo'), email),
-	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-pass' }, 'Contraseña'), pass),
+	h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'login-pass' }, 'Contraseña'), conOjo(pass)),
 	btn, msg,
 	h('button', {
 		type: 'button', class: 'btn btn-link btn-sm w-100 mt-2',
@@ -184,17 +185,6 @@ window.addEventListener('hashchange', route);
 
 // Crear o cambiar la contraseña con el enlace del correo (/admin/?mode=resetPassword&oobCode=…): la página de la
 // empresa, no la de Google. El enlace sirve una vez y vence en 1 hora; lo valida Google. Al guardar, entra directo.
-const MIN_CLAVE = 8;
-// Las más usadas en el mundo y las obvias de la empresa: no se aceptan.
-const CLAVES_DEBILES = new Set(['12345678', '123456789', '1234567890', 'password', 'password1', 'contraseña', 'contrasena', 'qwertyui', 'qwerty123', '11111111', '00000000', 'iloveyou', 'abc12345', 'guatemala', 'guatemala1', 'equipoinmobiliario', 'eqinmobiliario', 'inmobiliaria']);
-function debilidad(clave, email) {
-	const c = clave.toLowerCase();
-	const usuario = String(email || '').toLowerCase().split('@')[0];
-	if (clave.length < MIN_CLAVE) return `Usa al menos ${MIN_CLAVE} caracteres.`;
-	if (CLAVES_DEBILES.has(c) || /^(.)\1+$/.test(c)) return 'Esa contraseña es muy fácil de adivinar: usa otra.';
-	if (usuario.length >= 4 && c.includes(usuario)) return 'La contraseña no puede llevar tu correo.';
-	return '';
-}
 function quitarEnlace() { history.replaceState(null, '', location.pathname); }
 // Después de cambiarla, aviso por correo a la misma cuenta (si no fue la persona, se entera). No detiene la entrada.
 async function avisarCambio() {
@@ -252,9 +242,9 @@ async function pantallaContrasena(codigo) {
 	}
 	const clave = h('input', { class: 'form-control', type: 'password', id: 'clave-nueva', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
 	const repite = h('input', { class: 'form-control', type: 'password', id: 'clave-repite', autocomplete: 'new-password', minlength: MIN_CLAVE, required: true });
-	const ver = h('input', { class: 'form-check-input', type: 'checkbox', id: 'clave-ver', onchange: () => { clave.type = repite.type = ver.checked ? 'text' : 'password'; } });
 	const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
 	const btn = h('button', { class: 'btn btn-primary w-100', type: 'submit' }, 'Guardar y entrar');
+	const vivo = revisionEnVivo(clave, repite, email);
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-1' }, 'Crea tu contraseña'),
 		h('p', { class: 'text-muted small mb-3' }, 'Para entrar al panel de Equipo Inmobiliario con ', h('strong', { class: 'text-body' }, email), '.'),
@@ -265,6 +255,11 @@ async function pantallaContrasena(codigo) {
 			if (problema) { msg.textContent = problema; return clave.focus(); }
 			if (clave.value !== repite.value) { msg.textContent = 'Las dos contraseñas no son iguales.'; return repite.focus(); }
 			btn.disabled = true;
+			if (await filtrada(clave.value)) {
+				btn.disabled = false;
+				msg.textContent = 'Esa contraseña aparece en filtraciones de otros sitios: los ladrones la prueban primero. Usa otra.';
+				return clave.focus();
+			}
 			try {
 				if (auth.currentUser) await signOut(auth);
 				await confirmPasswordReset(auth, codigo, clave.value);
@@ -278,10 +273,8 @@ async function pantallaContrasena(codigo) {
 				btn.disabled = false;
 			}
 		} },
-		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), clave,
-			h('div', { class: 'form-text' }, `Al menos ${MIN_CLAVE} caracteres, que no sea fácil de adivinar ni la misma de otro sitio.`)),
-		h('div', { class: 'mb-2' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), repite),
-		h('div', { class: 'form-check mb-3' }, ver, h('label', { class: 'form-check-label small', for: 'clave-ver' }, 'Mostrar contraseña')),
+		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-nueva' }, 'Contraseña nueva'), conOjo(clave), vivo.reglas),
+		h('div', { class: 'mb-3' }, h('label', { class: 'form-label', for: 'clave-repite' }, 'Escríbela otra vez'), conOjo(repite), vivo.iguales),
 		btn, msg),
 		h('p', { class: 'small text-muted mt-3 mb-0' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), 'Entra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.')));
 	clave.focus();

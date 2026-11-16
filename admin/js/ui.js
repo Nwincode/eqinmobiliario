@@ -90,7 +90,7 @@ export function errorMessage(err) {
 		'auth/user-not-found': 'Correo o contraseña incorrectos.',
 		'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos.',
 		'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
-		'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 3 o 4 palabras (15 caracteres o más).',
 		'auth/invalid-email': 'El correo no es válido.',
 		'auth/requires-recent-login': 'Por seguridad, cierra sesión y vuelve a entrar antes de hacer esto.',
 		'storage/unauthorized': 'No tienes permiso para subir archivos.',

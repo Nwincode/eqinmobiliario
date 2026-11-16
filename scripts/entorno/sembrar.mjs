@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 const PROYECTO = 'demo-eq';
 const FS = `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}/v1/projects/${PROYECTO}/databases/(default)/documents`;
 const AUTH = `http://${process.env.EMU_AUTH || '127.0.0.1:9099'}/identitytoolkit.googleapis.com/v1`;
-export const CLAVE = 'Pruebas-2026';
+export const CLAVE = 'Pruebas-del-panel-2026';
 export const USUARIOS = {
 	admin: { email: 'admin@example.com', perfil: { nombre: 'Admin de prueba', rol: 'admin', activo: true } },
 	asesor: { email: 'asesor@example.com', perfil: { nombre: 'Asesor de prueba', rol: 'asesor', activo: true, agentId: 'asesor-prueba' } },
