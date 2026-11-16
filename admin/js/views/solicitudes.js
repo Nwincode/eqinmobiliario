@@ -67,8 +67,9 @@ export async function render(container, [codigo] = []) {
 	}));
 	const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
 	const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago' };
-	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar.
-	const RAPIDAS = ['Sí, está disponible en esas fechas.', 'Lo siento, esas fechas ya no están disponibles.', '¿A qué hora piensan llegar?', 'Ya recibí tu pago, ¡gracias!'];
+	// Respuestas de un toque: llenan el campo y se pueden ajustar antes de enviar. «Está disponible», «no está» y «recibí tu
+	// pago» no van aquí: con un mensaje la reserva no cambia; eso lo hacen los botones de la solicitud (ver la nota del chat).
+	const RAPIDAS = ['¿A qué hora piensan llegar?', '¿Cuántas personas vienen en total?', '¡Gracias! Te esperamos.'];
 	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: todo se coordina aquí.
 	async function abrirChat(l) {
 		const ref = refChat(l);
@@ -116,7 +117,11 @@ export async function render(container, [codigo] = []) {
 			ingles ? iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }) : null);
 		// Mensajes nuevos cada 10 s mientras la conversación está abierta.
 		const reloj = setInterval(mostrar, 10000);
-		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, rapidas, form), onClose: () => { clearInterval(reloj); recargar(); } });
+		// Lo que cambia la reserva no se dice por mensaje: se toca el botón (así se apartan las fechas y el cliente recibe lo que sigue).
+		const est = estado(l);
+		const nota = est === 'pendiente' ? 'Para decir si está disponible usa «Confirmar» o «No se dio» en la solicitud: así se apartan las fechas y el cliente recibe los datos de pago.'
+			: est === 'confirmada' ? 'Cuando te llegue el pago, toca «Pago recibido» en la solicitud: el cliente recibe la dirección y cómo llegar.' : '';
+		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, nota ? h('p', { class: 'small text-muted mb-2' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), nota) : null, rapidas, form), onClose: () => { clearInterval(reloj); recargar(); } });
 		await mostrar();
 	}
 	// Dinero recibido: el cliente ve «Pago recibido» y los datos de llegada guardados en la casa.
