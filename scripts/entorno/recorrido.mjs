@@ -55,6 +55,8 @@ async function entrar(rol, opciones) {
 const ir = async (p, ruta, ms = 2500) => { await p.evaluate((r) => { location.hash = '#/inicio'; setTimeout(() => { location.hash = r; }, 80); }, ruta); await espera(ms); };
 const campo = (p, nombre, que = 'input, select, textarea') => p.locator(`[data-campo="${nombre}"]`).locator(que).last();
 const guardar = async (p) => { await p.locator('button', { hasText: /^Guardar$/ }).last().click(); await espera(3500); };
+// Acciones de la ficha que van en el menú ⋮ del encabezado (Duplicar, Eliminar, Traducir…).
+const delMenu = async (p, texto) => { await p.locator('.admin-main .menu-mas-btn').first().click(); await p.locator('.menu-mas-lista .dropdown-item', { hasText: texto }).first().click(); };
 const avisos = async (p) => (await p.locator('.toast').allInnerTexts()).join(' | ').replace(/\s+/g, ' ').slice(0, 160);
 // Lo que responde /api/reservas al tocar un botón del socio (así se sabe que lo hizo el servidor): se pide antes del clic.
 const delServidor = (p) => p.waitForResponse((x) => x.url().endsWith('/api/reservas') && x.request().method() === 'POST', { timeout: 20000 })
@@ -97,7 +99,7 @@ paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el 
 const google = await admin.p.locator('.card-body').innerText();
 paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /US\$ ?120(\.00)? por noche/.test(google) && !/Desde/.test(google) && !/A consultar/.test(google));
 const columnas = await admin.p.locator('.tabla-vacacional thead th').allInnerTexts();
-paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y lo que paga el cliente', /Socio.*Ganancia.*Precio sin impuestos.*IVA 12.*INGUAT 10.*El cliente paga/.test(columnas.join(' ')) && /146\.40/.test(await admin.p.locator('.tabla-vacacional tbody tr').first().innerText()), columnas.join(' · '));
+paso('La tabla de precios va en orden: socio, ganancia, precio, cada impuesto y lo que paga el cliente', /Socio.*Ganancia.*Precio sin impuestos.*IVA 12.*INGUAT 10.*El cliente paga/i.test(columnas.join(' ')) && /146\.40/.test(await admin.p.locator('.tabla-vacacional tbody tr').first().innerText()), columnas.join(' · '));
 await guardar(admin.p);
 const idCasa = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1];
 paso('La casa se guarda', Boolean(idCasa) && idCasa !== 'nuevo', await avisos(admin.p));
@@ -932,7 +934,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 // ---------------------------------------------------------------- «Duplicar» una casa por noche
 {
 	await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
-	await admin.p.locator('button', { hasText: /^Duplicar$/ }).click();
+	await delMenu(admin.p, 'Duplicar');
 	await admin.p.waitForFunction((id) => /#\/propiedades\/[^/]+$/.test(location.hash) && !location.hash.endsWith(id), idCasa, { timeout: 15000 }).catch(() => {});
 	const idCopia = (admin.p.url().match(/propiedades\/([^/?#]+)/) || [])[1] || '';
 	const hay = idCopia && idCopia !== idCasa;
@@ -1262,7 +1264,7 @@ const duenos = [];
 
 	// No queda sin dueño una casa por noche con huéspedes por venir: eliminar a su dueña se detiene antes de tocar nada.
 	await ir(admin.p, '#/propietarios/r2-dueno', 3500);
-	await admin.p.locator('.sticky-actions button', { hasText: 'Eliminar' }).click();
+	await delMenu(admin.p, 'Eliminar');
 	await admin.p.locator('.modal.show button', { hasText: /^Eliminar$/ }).click();
 	await espera(3500);
 	const aviso3 = await avisos(admin.p);
