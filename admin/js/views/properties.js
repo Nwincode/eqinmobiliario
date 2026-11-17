@@ -518,7 +518,8 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
-				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'prop-chips' },
+				p.vip || p.destacada || p.socio?.codigoSocio || faltanDe(p).length ? h('div', { class: 'prop-chips' },
+					p.socio?.codigoSocio ? h('span', { class: 'badge text-bg-light', title: 'Código del socio' }, h('span', { class: 'icon-key me-1', 'aria-hidden': 'true' }), p.socio.codigoSocio) : null,
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
 					chipFaltan(faltanDe(p))) : null,
@@ -542,7 +543,7 @@ export async function render(container, [id]) {
 	const draw = () => {
 		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
-			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
+			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.socio?.codigoSocio || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
 			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
@@ -890,7 +891,29 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'destacada', label: 'Destacada en la portada', type: 'checkbox', cols: fila },
 		{ name: 'vip', label: 'Propiedad VIP (landing page)', type: 'checkbox', cols: 4, when: (d) => !esVacacional(d) },
 
+		{ type: 'section', label: 'Fotos', help: 'La primera foto es la portada. Se reducen y optimizan automáticamente al subirlas.' },
+		{ name: 'fotos', label: 'Galería', type: 'images', marca: true },
+
+		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
+		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
+		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
+		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
+		{ name: 'direccion', label: 'Residencial / dirección', cols: 4, colsCelular: 12 },
+		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
+
+		{ type: 'section', label: 'Características' },
+		{ name: 'habitaciones', label: 'Habitaciones', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'banos', label: 'Baños', type: 'number', min: 0, step: 0.5, cols: 2, when: construido },
+		{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3, when: construido },
+		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
+		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2, when: construido },
+		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3, when: construido },
+		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d) && construido(d), help: 'En la misma moneda del precio.' },
+		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
+
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
+		{ name: 'socio.codigoSocio', label: 'Código del socio (opcional)', cols: 6, maxlength: 30, when: esVacacional, placeholder: 'Ej. CH-07', help: 'El código que el socio usa para esta casa. Se ve en el panel y en sus correos junto al nuestro; nunca en la página.' },
 		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
 		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
@@ -914,44 +937,12 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
-		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, fields: [
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, help: 'Ejemplo: primera 24 y última 26 = ocupadas las noches del 24, 25 y 26. El 24 en la mañana todavía puede salir el huésped anterior (en la página dice «Solo salida») y el 27 ya se puede llegar.', fields: [
 			{ name: 'desde', label: 'Primera noche ocupada', type: 'date', cols: 6 },
 			{ name: 'ultima', label: 'Última noche ocupada (incluida)', type: 'date', cols: 6 }
 		] },
 
-		// Acuerdo con el dueño de ESTE inmueble (exclusiva, comisión, impuestos): privado, en privado/acuerdo.
-		// Cada operación con lo suyo (admin/js/acuerdo.js): la exclusiva, siempre; comisión en venta (%) y renta
-		// (meses); impuestos del traspaso solo en venta. En la renta por noche la empresa gana el margen.
-		{ type: 'section', label: 'Acuerdo con el dueño', when: conDueno, help: 'Privado: no sale en la página. Es de este inmueble; otro inmueble del mismo dueño puede tener otro acuerdo.' },
-		{ name: 'acuerdo.exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4, when: conDueno },
-		{ name: 'acuerdo.exclusivaInicio', label: 'Exclusiva desde', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva) },
-		{ name: 'acuerdo.exclusivaFin', label: 'Exclusiva hasta', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva), help: 'Avisamos 30 días antes de que venza.' },
-		{ name: 'acuerdo.comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', help: 'Vacío = regla general (Reportes).' },
-		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses por cada año de contrato)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Ej.: 1 = un mes de renta por año (contrato de 2 años = 2 rentas). Vacío = regla general (Reportes).' },
-		{ name: 'acuerdo.comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES, default: 'pequeno', when: (d) => conDueno(d) && !esVacacional(d) },
-		{ name: 'acuerdo.comisionModo', label: 'Cómo se cobra la comisión', type: 'select', cols: 4, options: MODOS, when: (d) => conDueno(d) && !esVacacional(d) },
-		{ name: 'acuerdo.impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
-		{ name: 'acuerdo.impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
-		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
-		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
-
-		{ type: 'section', label: 'Ubicación', when: (d) => !esVacacional(d) },
-		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
-		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
-		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
-		{ name: 'direccion', label: 'Residencial / dirección', cols: 4 },
-		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
-
-		{ type: 'section', label: 'Características' },
-		{ name: 'habitaciones', label: 'Habitaciones', type: 'number', min: 0, cols: 2, when: construido },
-		{ name: 'banos', label: 'Baños', type: 'number', min: 0, step: 0.5, cols: 2, when: construido },
-		{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, cols: 2, when: construido },
-		{ name: 'm2Construccion', label: 'm² construcción', type: 'number', min: 0, cols: 3, when: construido },
-		{ name: 'm2Terreno', label: 'm² terreno', type: 'number', min: 0, cols: 3 },
-		{ name: 'niveles', label: 'Niveles', type: 'number', min: 0, cols: 2, when: construido },
-		{ name: 'anioConstruccion', label: 'Año de construcción', type: 'number', min: 0, cols: 3, when: construido },
-		{ name: 'mantenimiento', label: 'Mantenimiento al mes', type: 'number', min: 0, cols: 3, when: (d) => !esVacacional(d) && construido(d), help: 'En la misma moneda del precio.' },
-		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
+		{ type: 'section', label: 'Descripción' },
 		{ name: 'descripcion', label: 'Descripción', type: 'markdown', rows: 8, required: true, ref: (el) => { schema.descInput = el; } },
 		{ type: 'custom', update: (el, d) => {
 			if (el.firstChild) return;
@@ -972,8 +963,21 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		} },
 		{ name: 'video', label: 'Video (YouTube o Vimeo)', type: 'url', placeholder: 'https://www.youtube.com/watch?v=…' },
 
-		{ type: 'section', label: 'Fotos', help: 'La primera foto es la portada. Se reducen y optimizan automáticamente al subirlas.' },
-		{ name: 'fotos', label: 'Galería', type: 'images', marca: true },
+		// Acuerdo con el dueño de ESTE inmueble (exclusiva, comisión, impuestos): privado, en privado/acuerdo.
+		// Cada operación con lo suyo (admin/js/acuerdo.js): la exclusiva, siempre; comisión en venta (%) y renta
+		// (meses); impuestos del traspaso solo en venta. En la renta por noche la empresa gana el margen.
+		{ type: 'section', label: 'Acuerdo con el dueño', when: conDueno, help: 'Privado: no sale en la página. Es de este inmueble; otro inmueble del mismo dueño puede tener otro acuerdo.' },
+		{ name: 'acuerdo.exclusiva', label: 'Tenemos exclusiva', type: 'checkbox', cols: 4, when: conDueno },
+		{ name: 'acuerdo.exclusivaInicio', label: 'Exclusiva desde', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva) },
+		{ name: 'acuerdo.exclusivaFin', label: 'Exclusiva hasta', type: 'date', cols: 4, when: (d) => conDueno(d) && Boolean(d.acuerdo?.exclusiva), help: 'Avisamos 30 días antes de que venza.' },
+		{ name: 'acuerdo.comisionPct', label: 'Comisión de venta %', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', help: 'Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRentaMeses', label: 'Comisión de renta (meses por cada año de contrato)', type: 'number', min: 0, step: 0.5, cols: 4, when: (d) => conDueno(d) && d.operacion === 'renta', help: 'Ej.: 1 = un mes de renta por año (contrato de 2 años = 2 rentas). Vacío = regla general (Reportes).' },
+		{ name: 'acuerdo.comisionRegimen', label: 'Impuesto de la comisión', type: 'select', cols: 4, options: REGIMENES, default: 'pequeno', when: (d) => conDueno(d) && !esVacacional(d) },
+		{ name: 'acuerdo.comisionModo', label: 'Cómo se cobra la comisión', type: 'select', cols: 4, options: MODOS, when: (d) => conDueno(d) && !esVacacional(d) },
+		{ name: 'acuerdo.impuestoVenta', label: 'Impuesto del traspaso', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['iva', 'IVA 12 % (primera venta de inmueble nuevo)'], ['timbres', 'Timbres fiscales 3 % (reventa)']] },
+		{ name: 'acuerdo.impuestoPaga', label: 'Quién paga el impuesto', type: 'select', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', options: [['', 'Por definir'], ['comprador', 'Comprador'], ['vendedor', 'Vendedor'], ['mitad', 'Mitad y mitad']] },
+		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
+		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
 
 		{ type: 'section', label: 'Landing page VIP', help: 'Solo para propiedades marcadas como VIP. Se publica en /vip/…', when: vip },
 		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },

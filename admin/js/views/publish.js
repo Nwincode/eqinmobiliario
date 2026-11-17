@@ -169,7 +169,7 @@ export async function render(container) {
 		h('div', { class: 'form-check form-switch switch-fila mb-0' }, autoSwitch,
 			h('label', { class: 'form-check-label fw-semibold', for: 'pub-auto' }, 'Publicar automáticamente')),
 		h('p', { class: 'small text-muted mb-0', id: 'pub-auto-ayuda' }, hook
-			? `Si está encendido, el sitio se publica solo unos ${AUTO_SEGUNDOS} segundos después de que dejes de hacer cambios. Si cierras el panel antes, se publica al salir.`
+			? `Si está encendido, el sitio se publica solo ${Math.round(AUTO_SEGUNDOS / 60)} minutos después de tu último cambio: así varios cambios salen juntos y se gasta menos. Si cierras el panel antes, se publica al salir.`
 			: 'Para usarlo, primero guarda abajo el enlace de publicación de Netlify.'))
 		: (autoActivo ? h('p', { class: 'small text-muted mt-3 mb-0' },
 			h('span', { class: 'icon-refresh me-1', 'aria-hidden': 'true' }),

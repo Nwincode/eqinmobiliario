@@ -13,6 +13,8 @@ const LIMPIAR = {
 	precioBase: (v) => Number(v) || 0,
 	precioFinde: (v) => Number(v) || 0,
 	margen: (v) => (v === null || v === undefined || v === '' ? V.MARGEN : Number(v)),
+	// El código que el socio usa para esta casa: solo en el panel y en sus correos, nunca en la página.
+	codigoSocio: (v) => String(v || '').trim().slice(0, 30),
 	tarifas: (v) => (v || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).map((t) => ({ desde: t.desde, hasta: t.hasta, precio: Number(t.precio), ...(t.cada ? { cada: t.cada, serie: t.serie || '' } : {}) })),
 	...Object.fromEntries(V.CALENDARIOS.map((c) => [c.campo, (v) => String(v || '').trim()]))
 };

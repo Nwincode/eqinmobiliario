@@ -62,6 +62,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Un solo scroll por pantalla: nada de una caja con scroll propio dentro de una página que ya baja.
 - Proporción: la foto pesa más que los controles (selectores, botones).
 - Si Claude ve algo mal maquetado, lo arregla de una vez, sin esperar a que el usuario lo señale.
+- Lo que el sistema hace y no es obvio (un día que se puede tocar aunque parezca ocupado, un plazo, un botón
+  apagado, una regla) se explica en la misma pantalla, donde pasa y con palabras de quien lo usa: qué pasa y por qué.
+  Quien no programa no tiene cómo saberlo; si no se explica, parece un error.
 - Colores: solo de `css/tema.css` y de Contenido → Colores del panel; nunca escritos a mano.
 - Íconos: siempre referidos a lo que se habla.
 - Botones compactos, sobre todo en celular: pequeños, de ícono cuando se pueda, sin ocupar una fila

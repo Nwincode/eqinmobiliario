@@ -112,8 +112,10 @@ export async function publicarAhora(hook, { automatica = false } = {}) {
 }
 
 // Publicación automática (Publicar → "Publicar automáticamente"): espera a que dejes de hacer
-// cambios unos segundos y publica sola. Si cierras el panel antes, publica al salir.
-export const AUTO_SEGUNDOS = 90;
+// cambios y publica sola. Si cierras el panel antes, publica al salir.
+// 10 minutos: lo que se guarda en ese rato sale en una sola publicación (cada una gasta créditos de Netlify). Precios,
+// fechas ocupadas y mínimos de las casas por noche se leen al momento y no esperan a publicar.
+export const AUTO_SEGUNDOS = 600;
 let autoConfig = null;
 let autoTimer = null;
 let autoHook = '';
@@ -133,7 +135,7 @@ async function configPublicacion() {
 
 // ¿Se publica solo? Lo dice el aviso de «Guardado» (trasGuardar): no se pide publicar si el sitio se publica solo.
 let autoActiva = false;
-export const trasGuardar = () => (autoActiva ? 'Se publica solo en unos minutos.' : 'Recuerda publicar para verlo en el sitio.');
+export const trasGuardar = () => (autoActiva ? `Se publica solo en ${Math.round(AUTO_SEGUNDOS / 60)} minutos (o al cerrar el panel).` : 'Recuerda publicar para verlo en el sitio.');
 
 export async function programarAutoPublicar() {
 	const priv = await configPublicacion();
