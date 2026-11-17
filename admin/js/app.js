@@ -177,7 +177,20 @@ async function route() {
 	const token = ++renderToken;
 	view.replaceChildren(spinner());
 	try {
-		const mod = await def.load();
+		const mod = await def.load().catch((err) => {
+			// Panel abierto mientras se publicó una versión nueva: lo ya cargado es de antes y la pantalla nueva no encaja
+			// («does not provide an export…», «Failed to fetch dynamically imported module»). Se recarga sola, una vez.
+			if (/does not provide an export|dynamically imported module|Importing a module script failed|error loading dynamically/i.test(String(err?.message || err))) {
+				let ultima = 0;
+				try { ultima = Number(sessionStorage.getItem('eq_recarga')) || 0; } catch { /* sin memoria del navegador */ }
+				if (Date.now() - ultima > 60_000) {
+					try { sessionStorage.setItem('eq_recarga', String(Date.now())); } catch { /* sin memoria del navegador */ }
+					location.reload();
+					return new Promise(() => {});
+				}
+			}
+			throw err;
+		});
 		if (token !== renderToken) return;
 		const container = h('div');
 		await mod.render(container, rest.map(decodeURIComponent));

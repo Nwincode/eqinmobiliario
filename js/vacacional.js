@@ -90,6 +90,9 @@
 			for (var i = 0; i < nochesMin; i++) if (ocupadas[V.sumarDias(f, i)]) return false;
 			return true;
 		}
+		// Eligiendo la salida, la primera noche ocupada después de la llegada sí se puede tocar: ese día se sale a la hora
+		// de salida y el siguiente huésped entra después. Se marca «Solo salida» (no «Ocupado» tachado).
+		function soloSalida(f) { return !!ocupadas[f] && f >= hoy && (f === estado.salida || (eligiendoSalida() && salidaValida(f))); }
 		function disponible(f) {
 			if (f < hoy) return false;
 			// Eligiendo la salida, cualquier llegada posible también se puede tocar: así se cambia la llegada sin trabarse.
@@ -108,7 +111,8 @@
 			if (f === estado.llegada) partes.push(t.vacLlegadaElegida);
 			else if (f === estado.salida) partes.push(t.vacSalidaElegida);
 			if (f >= hoy && !ocupadas[f]) partes.push(dinero(V.precioNoche(f, D.plan)) + ' ' + t.vacPorNoche);
-			if (ocupadas[f] && f >= hoy) partes.push(t.vacOcupado);
+			if (soloSalida(f)) partes.push(t.vacSoloSalida);
+			else if (ocupadas[f] && f >= hoy) partes.push(t.vacOcupado);
 			if (minimoHasta && f > estado.llegada && f < minimoHasta) partes.push(t.vacEnMinimo);
 			if (!disponible(f) && f !== estado.llegada && f !== estado.salida) partes.push(t.vacNoDisponible);
 			return partes.join(', ');
@@ -145,6 +149,7 @@
 				var clases = ['vac-dia'];
 				var libre = disponible(f);
 				if (f < hoy) clases.push('is-pasado');
+				else if (soloSalida(f)) clases.push('is-solo-salida');
 				else if (ocupadas[f]) clases.push('is-ocupado');
 				if (f === hoy) clases.push('is-hoy');
 				if (f === estado.llegada) clases.push('is-llegada');
@@ -154,7 +159,7 @@
 				if (minimoHasta && f === minimoHasta) clases.push('is-salida-min');
 				var elegido = f === estado.llegada || f === estado.salida;
 				// Donde va el precio: el precio, o «Ocupado» si está reservado o bloqueado (sin decir por qué).
-				var precio = f < hoy ? '' : '<span class="vac-dia-precio" aria-hidden="true">' + (ocupadas[f] ? esc(t.vacOcupadoCelda) : dineroCorto(V.precioNoche(f, D.plan))) + '</span>';
+				var precio = f < hoy ? '' : '<span class="vac-dia-precio" aria-hidden="true">' + (soloSalida(f) ? esc(t.vacSoloSalidaCelda) : ocupadas[f] ? esc(t.vacOcupadoCelda) : dineroCorto(V.precioNoche(f, D.plan))) + '</span>';
 				h += '<td role="gridcell"' + (elegido ? ' aria-selected="true"' : '') + '><button type="button" class="' + clases.join(' ') + '" data-fecha="' + f + '"' +
 					' tabindex="' + (f === foco ? '0' : '-1') + '"' + (libre || elegido ? '' : ' aria-disabled="true"') +
 					' aria-label="' + etiqueta(f).replace(/"/g, '&quot;') + '"><span class="vac-dia-num" aria-hidden="true">' + d + '</span>' + precio + '</button></td>';

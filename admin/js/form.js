@@ -2,7 +2,7 @@
 //
 // Tipos de campo: text, email, url, tel, number, textarea, markdown, select, checkbox,
 // tags (lista de textos), image (una imagen), images (galería), list (lista de objetos), section (título).
-// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder,
+// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓),
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
@@ -215,7 +215,9 @@ export function renderForm(schema, data, options = {}) {
 		// Teléfono: la etiqueta apunta al número (el código lleva su propio nombre); correo: al campo, no a su pista.
 		if (field.type === 'telefono' || field.type === 'email') control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
-		const caja = h('div', { class: `col-12 col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
+		// En el celular, un campo corto sin ayuda va de dos en dos (números, horas, listas cortas); lo demás, a lo ancho.
+		const corto = !field.help && anchoDe(field) <= 4 && !['textarea', 'markdown', 'list', 'tags', 'checkbox', 'telefono', 'image', 'images', 'color'].includes(field.type);
+		const caja = h('div', { class: `${corto ? 'col-6' : 'col-12'} col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
 			field.help ? h('div', { class: 'form-text' }, field.help) : null);
 		// Ancho que depende de otro campo (p. ej. una fila que pierde un campo en cierta operación): se recalcula.
@@ -480,8 +482,9 @@ export function renderForm(schema, data, options = {}) {
 						...arr.map((item, i) => h('div', { class: 'list-field-item' },
 							h('div', { class: 'd-flex align-items-center mb-2 gap-1' },
 								h('strong', { class: 'small text-muted me-auto' }, `${field.itemLabel || 'Elemento'} ${i + 1}`),
-								h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === 0, title: 'Subir', onclick: () => { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; set(arr); draw(); } }, '↑'),
-								h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === arr.length - 1, title: 'Bajar', onclick: () => { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; set(arr); draw(); } }, '↓'),
+								// Una lista de fechas no se ordena a mano (ordenar: false): el orden lo dan las fechas.
+								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === 0, title: 'Subir', onclick: () => { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; set(arr); draw(); } }, '↑'),
+								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === arr.length - 1, title: 'Bajar', onclick: () => { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; set(arr); draw(); } }, '↓'),
 								h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }, 'Quitar')),
 							h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))),
 						field.max && arr.length >= field.max ? null : h('button', {

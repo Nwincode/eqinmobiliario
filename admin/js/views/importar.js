@@ -1,7 +1,7 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection, setDoc } from '../firebase.js';
-import { h, mount, toast, errorMessage, iconoBtn, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
+import { h, mount, pageHeader, toast, errorMessage, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia } from '../estados.js';
@@ -58,9 +58,7 @@ async function prepararVacacional(id, it, previo = null) {
 
 export async function render(container) {
 	container.replaceChildren();
-	const encabezado = h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
-		iconoBtn('icon-arrow-left', 'Volver a propiedades', { href: '#/propiedades', class: 'cot-btn cot-btn-icono btn btn-link text-body' }),
-		h('h1', { class: 'h3 mb-0' }, 'Importar propiedades'));
+	const encabezado = pageHeader({ texto: 'Importar propiedades', volver: '#/propiedades', volverTexto: 'Volver a propiedades' });
 	if (!session.isAdmin) {
 		mount(container, encabezado,
 			h('div', { class: 'alert alert-info' }, 'Solo un administrador puede importar propiedades.'));
