@@ -163,10 +163,14 @@ export function spinner(text = 'Cargando…') {
 		h('div', { class: 'spinner-border spinner-border-sm', role: 'status' }), text);
 }
 
+// Encabezado de una pantalla. title: el texto, o { texto, volver: '#/ruta', volverTexto } para poner la flecha ← a su lado.
 export function pageHeader(title, ...actions) {
+	const t = title && typeof title === 'object' && 'texto' in title ? title : { texto: title };
 	return h('div', { class: 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-4' },
-		h('h1', { class: 'h3 mb-0' }, title),
-		h('div', { class: 'd-flex flex-wrap gap-2' }, actions));
+		h('div', { class: 'd-flex align-items-center gap-1', style: 'flex: 1 1 12rem; min-width: 0' },
+			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'cot-btn cot-btn-icono btn btn-link text-body' }) : null,
+			h('h1', { class: 'h3 mb-0' }, t.texto)),
+		h('div', { class: 'd-flex flex-wrap align-items-center gap-2' }, actions));
 }
 
 export function badge(text, color = 'secondary') {

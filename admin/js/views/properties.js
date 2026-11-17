@@ -173,7 +173,7 @@ function desgloseVacacional(el, d) {
 	}
 	const pub = V.planPublico(planSocioDe(s), s.margen);
 	const ejemplo = V.gananciaEstancia({ planSocio: planSocioDe(s), margen: s.margen, llegada: hoyISO(), salida: V.sumarDias(hoyISO(), 7) });
-	el.replaceChildren(cajaTabla(h('table', { class: 'table table-sm align-middle mb-2 tabla-vacacional' },
+	el.replaceChildren(cajaTabla(h('table', { class: 'table table-admin table-sm align-middle mb-2 tabla-vacacional' },
 		// En el orden en que se arma el precio: lo del socio, la ganancia, el precio, cada impuesto y lo que paga el cliente.
 		h('thead', {}, h('tr', {}, ['Noche', 'Socio', `Ganancia ${V.r2(s.margen ?? V.MARGEN)} %`, 'Precio sin impuestos', `IVA ${V.IVA} %`, `INGUAT ${V.INGUAT} %`, 'El cliente paga']
 			.map((t, i) => h('th', { scope: 'col', class: i ? 'text-end' : null }, t)))),
@@ -893,7 +893,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },
 		// Hasta 10 (MAX_TARIFAS): las reglas revisan una por una que el precio público cuadre con el del dueño.
-		{ name: 'socio.tarifas', label: `Precios por fechas (temporada, feriados; hasta ${MAX_TARIFAS})`, type: 'list', itemLabel: 'Tarifa', max: MAX_TARIFAS, when: esVacacional, fields: [
+		{ name: 'socio.tarifas', label: `Precios por fechas (temporada, feriados; hasta ${MAX_TARIFAS})`, type: 'list', itemLabel: 'Tarifa', ordenar: false, max: MAX_TARIFAS, when: esVacacional, fields: [
 			{ name: 'desde', label: 'Primera noche', type: 'date', cols: 4 },
 			{ name: 'hasta', label: 'Última noche (incluida)', type: 'date', cols: 4 },
 			{ name: 'precio', label: 'Precio del socio por noche', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4 }
@@ -912,7 +912,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
-		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', when: esVacacional, fields: [
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, fields: [
 			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
 			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
 		] },
@@ -1323,7 +1323,7 @@ async function renderEditor(container, id, emb = null) {
 				await updateDoc(ref, { en: await traducirEn(guardada), updatedAt: serverTimestamp() });
 				toast(`Propiedad guardada y traducida al inglés. ${trasGuardar()}`);
 			} catch (err) {
-				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa "EN · Traducir al inglés".', 'warning');
+				toast('Propiedad guardada, pero no se pudo traducir al inglés. Vuelve a guardar o usa «Traducir al inglés» en el menú ⋮.', 'warning');
 			}
 			if (emb) emb.alGuardar(casa);
 			else if (isNew) location.hash = `#/propiedades/${ref.id}`;
@@ -1400,7 +1400,7 @@ async function renderEditor(container, id, emb = null) {
 	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano).
 	const traducir = async (btn) => {
 		btn.disabled = true;
-		btn.textContent = 'Traduciendo…';
+		toast('Traduciendo al inglés…');
 		try {
 			const datos = paraTraducir();
 			await updateDoc(ref, { en: await traducirEn(datos), updatedAt: serverTimestamp() });
@@ -1410,7 +1410,6 @@ async function renderEditor(container, id, emb = null) {
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;
-			btn.textContent = 'EN · Traducir al inglés';
 		}
 	};
 
@@ -1427,19 +1426,21 @@ async function renderEditor(container, id, emb = null) {
 		emb.pie.replaceChildren(saveBtn, h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), ...(eliminarBtn ? [eliminarBtn] : []));
 		return;
 	}
-	mount(container, 
-		pageHeader(isNew ? 'Nueva propiedad' : data.titulo,
-			!isNew ? h('a', { href: `#/difusion/${id}`, class: 'btn btn-outline-primary' }, '📣 Difundir en portales') : null,
-			!isNew ? h('a', { href: `#/ia/redactar/${id}`, class: 'btn btn-outline-primary' }, 'Armar borrador de ficha') : null,
-			!isNew ? h('button', { class: 'btn btn-outline-primary', type: 'button', onclick: (e) => traducir(e.currentTarget) }, 'EN · Traducir al inglés') : null,
-			!isNew && data.publicado ? h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio') : null,
-			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Volver')),
+	// Arriba: ← para volver y las demás acciones en el menú ⋮; abajo, solo Guardar y Cancelar (lo que no se toca por error).
+	const acciones = isNew ? null : menuMas(`Acciones de ${data.titulo || 'la propiedad'}`, [
+		data.publicado && { icono: 'icon-external-link', texto: 'Ver en el sitio', href: publicUrl(data), target: '_blank' },
+		{ icono: 'icon-bullhorn', texto: 'Difundir en portales', href: `#/difusion/${id}` },
+		{ icono: 'icon-file-text-o', texto: 'Armar borrador de ficha', href: `#/ia/redactar/${id}` },
+		{ icono: 'icon-globe', texto: 'Traducir al inglés', onclick: (e) => traducir(e.currentTarget) },
+		{ icono: 'icon-copy', texto: 'Duplicar', onclick: (e) => duplicate(e.currentTarget) },
+		session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: remove }
+	]);
+	mount(container,
+		pageHeader({ texto: isNew ? 'Nueva propiedad' : data.titulo, volver: '#/propiedades', volverTexto: 'Volver a Propiedades' }, acciones),
 		...cuerpo,
 		h('div', { class: 'sticky-actions' },
 			saveBtn,
-			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Cancelar'),
-			!isNew ? h('button', { class: 'btn btn-outline-secondary', onclick: (e) => duplicate(e.currentTarget) }, 'Duplicar') : null,
-			eliminarBtn));
+			h('a', { href: '#/propiedades', class: 'btn btn-light' }, 'Cancelar')));
 }
 
 // Abre la ficha del inmueble en una ventana, desde otra pantalla (p. ej. la ficha de su dueño), para crear una
