@@ -178,7 +178,7 @@ async function renderEditor(container, id) {
 		// a quien todavía no tiene casas no se le pide asesor, comisión, datos de pago ni impuestos.
 		{ type: 'section', label: 'Propiedades', when: conCasas },
 		{ type: 'section', label: 'Propiedades', when: (d) => !conCasas(d), help: 'Agrega sus propiedades: según lo que tenga (por noche, renta o venta), abajo se pide solo lo que le corresponde.' },
-		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', onAdd: (item, quitar) => elegirCasa(item, quitar), fields: [
+		{ name: 'propiedades', label: 'Propiedades de este propietario', type: 'list', itemLabel: 'Propiedad', encabezado: false, onAdd: (item, quitar) => elegirCasa(item, quitar), fields: [
 			{ type: 'custom', update: (el, _, item) => pintarCasa(el, item) }
 		] },
 		// Venta, renta y renta por noche no son lo mismo: cada una con su bloque y lo que se le pide.
@@ -252,11 +252,10 @@ async function renderEditor(container, id) {
 	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
 	function pintarCasa(el, item) {
 		const p = propiedades.find((x) => x.id === item.propertyId);
-		el.replaceChildren(h('div', { class: 'd-flex align-items-stretch gap-2' },
-			h('button', { type: 'button', class: `btn btn-light border flex-grow-1 ${FILA_CASA}`, style: 'min-width: 0', title: p ? 'Cambiar por otra propiedad' : '', onclick: () => elegirCasa(item) },
-				p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']),
-			// Fotos, datos, acuerdo o eliminarla: todo en su ficha, que se abre aquí mismo.
-			p ? iconoBtn('icon-pencil', 'Editar la propiedad (datos, fotos, acuerdo)', { class: 'cot-btn cot-btn-icono btn btn-outline-primary', onclick: () => editarPropiedad(item) }) : null));
+		// Tocar la ficha la abre para editarla (fotos, datos, acuerdo); sin casa todavía, elige una. Quitarla: la ✕ de la esquina.
+		el.replaceChildren(h('button', { type: 'button', class: `btn btn-light border w-100 ficha-casa-boton ${FILA_CASA}`, style: 'min-width: 0',
+			title: p ? 'Editar la propiedad (datos, fotos, acuerdo)' : '', onclick: () => (p ? editarPropiedad(item) : elegirCasa(item)) },
+			p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
 	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.

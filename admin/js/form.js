@@ -2,9 +2,9 @@
 //
 // Tipos de campo: text, email, url, tel, number, textarea, markdown, select, checkbox,
 // tags (lista de textos), image (una imagen), images (galería), list (lista de objetos), section (título).
-// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓), colsCelular (12: a lo ancho en el celular),
+// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓), encabezado (list: false, sin su fila; ✕ en la esquina), colsCelular (12: a lo ancho en el celular),
 // when(data) para mostrar el campo solo en ciertos casos.
-import { h, toast, showError } from './ui.js';
+import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
 import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase.js';
 
@@ -480,7 +480,12 @@ export function renderForm(schema, data, options = {}) {
 				const draw = () => {
 					const arr = get() || [];
 					box.replaceChildren(
-						...arr.map((item, i) => h('div', { class: 'list-field-item' },
+						...arr.map((item, i) => field.encabezado === false
+							// Sin la fila «Elemento N ↑ ↓ Quitar»: la ficha usa todo el ancho y «Quitar» es una ✕ en su esquina.
+							? h('div', { class: 'list-field-item list-sin-encabezado' },
+								iconoBtn('icon-close', `Quitar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, { class: 'cot-btn cot-btn-icono btn btn-sm btn-light list-quitar', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }),
+								h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))
+							: h('div', { class: 'list-field-item' },
 							h('div', { class: 'd-flex align-items-center mb-2 gap-1' },
 								h('strong', { class: 'small text-muted me-auto' }, `${field.itemLabel || 'Elemento'} ${i + 1}`),
 								// Una lista de fechas no se ordena a mano (ordenar: false): el orden lo dan las fechas.
