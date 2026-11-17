@@ -914,7 +914,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
-		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, fields: [
+		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, help: 'Ejemplo: primera 24 y última 26 = ocupadas las noches del 24, 25 y 26. El 24 en la mañana todavía puede salir el huésped anterior (en la página dice «Solo salida») y el 27 ya se puede llegar.', fields: [
 			{ name: 'desde', label: 'Primera noche ocupada', type: 'date', cols: 6 },
 			{ name: 'ultima', label: 'Última noche ocupada (incluida)', type: 'date', cols: 6 }
 		] },

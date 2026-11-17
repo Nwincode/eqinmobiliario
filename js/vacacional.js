@@ -308,7 +308,10 @@
 		function fijarBurbuja() {
 			var primera = estado.llegada && !estado.salida ? primeraSalida() : '';
 			var n = primera ? V.nochesEntre(estado.llegada, primera) : 0;
+			// Si no hay mínimo que decir: el día «Solo salida» que se ve, con su porqué (si no, parece un error).
+			var solo = estado.llegada && !estado.salida ? V.salidaMaxima(estado.llegada, ocupadas) : '';
 			if (primera && n > 1 && mesDe(primera) === estado.mes) burbuja(primera, fmt(t.vacMinimoGlobo, { n: n }), true);
+			else if (solo && soloSalida(solo) && mesDe(solo) === estado.mes) burbuja(solo, fmt(t.vacSoloSalidaGlobo, { hora: D.checkOut || '11:00' }), true);
 			else ocultarBurbuja();
 		}
 		// Tocó una noche dentro del mínimo: la burbuja de la primera salida late una vez (no sale otro mensaje).
@@ -349,6 +352,8 @@
 			pintar(true);
 			actualizar();
 			if (cambio) burbuja(f, cambio);
+			// La salida en un día ocupado: se dice que esa mañana se sale y por qué.
+			else if (conSalida && ocupadas[f]) burbuja(f, fmt(t.vacSoloSalidaGlobo, { hora: D.checkOut || '11:00' }));
 			// Con las dos fechas el paso que sigue es «Personas»: la pantalla baja suave hasta ahí, con el presupuesto, los
 			// campos y el botón debajo (en celular y tableta; en computadora el cuadro va al lado y ya se ve).
 			var personas = card.querySelector('.vac-huespedes');
