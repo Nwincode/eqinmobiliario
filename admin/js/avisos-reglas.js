@@ -8,6 +8,7 @@ export const DIAS_COMENTARIO = 30;
 // Exclusivas: desde 30 días antes de vencer hasta 30 días después.
 export const DIAS_EXCLUSIVA = 30;
 const DIA = 86400000;
+const enVentana = (dias) => typeof dias === 'number' && dias <= DIAS_EXCLUSIVA && dias >= -DIAS_EXCLUSIVA;
 
 // «hace 5 min», «hace 3 h», «hace 2 d».
 export function hace(desde, ahora = Date.now()) {
@@ -89,7 +90,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 		});
 	}
 	for (const e of exclusivas) {
-		if (e.dias === null || e.dias === undefined || e.dias > DIAS_EXCLUSIVA || e.dias < -DIAS_EXCLUSIVA || !e.fin) continue;
+		if (!e.fin || !enVentana(e.dias)) continue;
 		const listo = { tipo: 'exclusiva', objeto: e.casaId, fin: e.fin, agentId: e.agentId || '' };
 		const clave = claveListo(listo);
 		if (atendidos.has(clave)) continue;
@@ -102,10 +103,11 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 }
 
 // Los «Listo» que hay que buscar en la base para saber qué avisos ya se atendieron (antes de armarlos).
-export function clavesPorRevisar({ solicitudes = [], comentarios = [], exclusivas = [] } = {}) {
+// Solo los que pueden salir (las mismas ventanas que armarAvisos): una lectura por clave.
+export function clavesPorRevisar({ solicitudes = [], comentarios = [], exclusivas = [], ahora = Date.now() } = {}) {
 	return [
 		...solicitudes.filter((s) => s.alerta === 'bloqueada' && s.leadId).map((s) => claveListo({ tipo: 'robo', objeto: s.leadId })),
-		...comentarios.map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
-		...exclusivas.filter((e) => e.fin).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
+		...comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
+		...exclusivas.filter((e) => e.fin && enVentana(e.dias)).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
 	];
 }

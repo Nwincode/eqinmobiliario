@@ -56,7 +56,7 @@ async function leerFuentes() {
 				alerta: V.alertaSolicitud('pendiente', ms(c.createdAt), c, null, null, ahora)
 			})),
 			mensajes: await sinResponder(deHoy),
-			comisiones: reservas.filter((r) => !r.comision?.comprobante).map((r) => ({ codigo: r.codigo || r.huesped, casa: r.propertyTitulo, vence: r.comision?.vence, nivel: V.nivelComision(r, ahora) })).filter((r) => r.nivel >= 1 && r.codigo)
+			comisiones: reservas.filter((r) => r.codigo && !r.comision?.comprobante).map((r) => ({ codigo: r.codigo, casa: r.propertyTitulo, vence: r.comision?.vence, nivel: V.nivelComision(r, ahora) })).filter((r) => r.nivel >= 1)
 		};
 	}
 	const { loadPropietarios, loadPropiedades, loadReservas, loadAcuerdos } = await import('./crm.js');
@@ -69,7 +69,8 @@ async function leerFuentes() {
 		admin ? seguro(todos(query(collection(db, 'leads'), where('reserva.codigo', '>', '')))) : [],
 		admin ? seguro(todos(collection(db, 'chats'))) : [],
 		admin ? seguro(loadReservas()) : [],
-		seguro(todos(query(collection(db, 'comentariosPropietarios'), where('tipo', '==', 'cambios'), ...filtroAsesor)))]);
+		// Todas las respuestas del dueño: un pedido de cambios con una aprobación más nueva de la misma casa ya no avisa.
+		seguro(todos(filtroAsesor.length ? query(collection(db, 'comentariosPropietarios'), ...filtroAsesor) : collection(db, 'comentariosPropietarios')))]);
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
 	const reserva = Object.fromEntries(reservas.map((r) => [r.id, r]));
@@ -82,13 +83,14 @@ async function leerFuentes() {
 				leadId: l.id, codigo: l.reserva.codigo, nombre: l.nombre, casa: l.propertyTitulo || casa[l.propertyId]?.titulo, creado: ms(l.createdAt),
 				// Una solicitud sin responder cuya llegada ya pasó ya no se puede atender: no avisa.
 				estado: est === 'pendiente' && String(l.reserva.llegada || '') < hoy ? 'vieja' : est,
-				alerta: V.alertaSolicitud(est, ms(l.createdAt), l.reserva, reserva[l.solicitud?.reservaId], casa[l.propertyId]?.vacacional?.bloqueos, ahora)
+				alerta: ((a) => (a === 'mora' && reserva[l.solicitud?.reservaId]?.comision?.comprobante ? '' : a))(
+					V.alertaSolicitud(est, ms(l.createdAt), l.reserva, reserva[l.solicitud?.reservaId], casa[l.propertyId]?.vacacional?.bloqueos, ahora))
 			};
 		}),
 		mensajes: await sinResponder(chats),
-		comprobantes: reservas.filter((r) => r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
-			codigo: r.codigo || r.huesped, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
-		comentarios: comentarios.map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
+		comprobantes: reservas.filter((r) => r.codigo && r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
+			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
+		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
 		exclusivas: exclusivasPorVencer(conCasa, acuerdos, propietarios, { dias: 30 }).map((x) => ({
 			casaId: x.casa.id, casa: x.casa.titulo, dueno: x.dueno?.nombre, fin: x.acuerdo?.exclusivaFin, dias: x.dias, agentId: x.casa.agentId || '' }))
 	};
@@ -111,13 +113,14 @@ export function cargarAvisos(forzar = false) {
 export const avisarAvisos = () => document.dispatchEvent(new CustomEvent('avisos'));
 
 // «Listo» con «Deshacer» en la misma fila (sin preguntar antes).
-async function marcarListo(aviso, fila) {
+async function marcarListo(aviso, fila, btn) {
+	if (btn) btn.disabled = true;
 	const { session } = await import('./session.js');
 	const { tipo, objeto, fin, agentId } = aviso.listo;
 	const ref = doc(db, 'avisosAtendidos', claveListo(aviso.listo));
 	try {
 		await setDoc(ref, { tipo, objeto, ...(fin ? { fin } : {}), agentId, por: session.user.uid, fecha: serverTimestamp() });
-	} catch (err) { return showError(err); }
+	} catch (err) { if (btn) btn.disabled = false; return showError(err); }
 	const original = [...fila.childNodes];
 	fila.classList.add('aviso-hecho');
 	fila.replaceChildren(h('span', { class: 'aviso-icono icon-check', 'aria-hidden': 'true' }),
@@ -139,12 +142,18 @@ function fila(a, puedeListo, alIr) {
 			h('span', { class: 'aviso-texto' },
 				h('span', { class: 'aviso-titulo' }, a.titulo),
 				h('span', { class: 'aviso-detalle' }, [a.detalle, a.tipo === 'exclusiva' ? '' : hace(a.fecha)].filter(Boolean).join(' · ')))),
-		a.listo && puedeListo ? h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary aviso-listo', title: 'Ya lo atendí: dejar de avisar', onclick: () => marcarListo(a, li) },
+		a.listo && puedeListo ? h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary aviso-listo', title: 'Ya lo atendí: dejar de avisar', onclick: (e) => marcarListo(a, li, e.currentTarget) },
 			h('span', { class: 'icon-check', 'aria-hidden': 'true' }), 'Listo') : null);
 	return li;
 }
 
 const contar = (n) => (n === 1 ? '1 aviso' : `${n} avisos`);
+
+// La campana en pantalla (una por sesión del panel; al volver a entrar se pinta otra y esta queda sin uso).
+let actual = null;
+window.addEventListener('hashchange', () => { actual?.menu.hide(); actual?.actualizar(false); });
+document.addEventListener('avisos', () => actual?.actualizar(true));
+document.addEventListener('pendientes', () => actual?.actualizar(true));
 
 // Campana de la barra de arriba. Se pinta una vez; se vuelve a contar al cambiar de pantalla (cada 2 min como mucho)
 // y al instante cuando algo se resuelve.
@@ -156,20 +165,24 @@ export function campana() {
 	const lista = h('div', { class: 'dropdown-menu dropdown-menu-end avisos-lista' });
 	const caja = h('div', { class: 'dropdown avisos' }, btn, lista);
 	const menu = new window.bootstrap.Dropdown(btn, { popperConfig: { strategy: 'fixed' } });
-	const pintar = ({ avisos, puedeListo }) => {
-		numero.hidden = !avisos.length;
-		numero.textContent = String(avisos.length > 99 ? '99+' : avisos.length);
-		btn.setAttribute('aria-label', avisos.length ? `Avisos: ${contar(avisos.length)}` : 'Avisos: nada por atender');
-		lista.replaceChildren(
-			h('div', { class: 'avisos-cab' }, h('strong', {}, 'Avisos'), h('span', { class: 'avisos-ayuda' }, 'Cada uno se quita solo al resolverlo.')),
-			avisos.length ? h('ul', { class: 'avisos-filas' }, avisos.map((a) => fila(a, puedeListo, () => menu.hide())))
-				: h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.'));
+	// Con la lista abierta solo cambia el número: la fila recién marcada «Listo» (con su «Deshacer») sigue ahí
+	// hasta cerrarla.
+	let pendiente = null;
+	const pintarLista = ({ avisos, puedeListo }) => lista.replaceChildren(
+		h('div', { class: 'avisos-cab' }, h('strong', {}, 'Avisos'), h('span', { class: 'avisos-ayuda' }, 'Cada uno se quita solo al resolverlo.')),
+		avisos.length ? h('ul', { class: 'avisos-filas' }, avisos.map((a) => fila(a, puedeListo, () => menu.hide())))
+			: h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.'));
+	const pintar = (datos) => {
+		const n = datos.avisos.length;
+		numero.hidden = !n;
+		numero.textContent = String(n > 99 ? '99+' : n);
+		btn.setAttribute('aria-label', n ? `Avisos: ${contar(n)}` : 'Avisos: nada por atender');
+		if (lista.classList.contains('show')) pendiente = datos;
+		else pintarLista(datos);
 	};
-	const actualizar = (forzar) => cargarAvisos(forzar).then(pintar, (err) => console.warn('Avisos', err));
-	actualizar(true);
-	window.addEventListener('hashchange', () => { menu.hide(); actualizar(false); });
-	document.addEventListener('avisos', () => actualizar(true));
-	document.addEventListener('pendientes', () => actualizar(true));
+	btn.addEventListener('hidden.bs.dropdown', () => { if (pendiente) pintarLista(pendiente); pendiente = null; });
+	actual = { actualizar: (forzar) => cargarAvisos(forzar).then(pintar, (err) => console.warn('Avisos', err)), menu };
+	actual.actualizar(true);
 	return caja;
 }
 

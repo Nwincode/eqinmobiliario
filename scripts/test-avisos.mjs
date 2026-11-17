@@ -82,6 +82,13 @@ prueba('socio: su pago a EQ vencido', () => {
 	assert.equal(a[1].titulo, 'Tu pago a EQ ya venció');
 });
 
+prueba('solo se buscan los «Listo» que pueden salir', () => {
+	const k = clavesPorRevisar({ ahora: AHORA,
+		comentarios: [{ id: 'nuevo', fecha: AHORA - D }, { id: 'viejo', fecha: AHORA - 90 * D }],
+		exclusivas: [{ casaId: 'c1', fin: '2026-12-01', dias: 14 }, { casaId: 'c2', fin: '2025-01-01', dias: -400 }] });
+	assert.deepEqual(k, ['cambios_nuevo', 'exclusiva_c1_2026-12-01']);
+});
+
 prueba('«hace…» en minutos, horas y días', () => {
 	assert.equal(hace(AHORA - 5 * 60000, AHORA), 'hace 5 min');
 	assert.equal(hace(AHORA - 3 * H, AHORA), 'hace 3 h');
