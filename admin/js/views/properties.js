@@ -533,7 +533,7 @@ export async function render(container, [id]) {
 				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.obvio ? ' motivo-obvio' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
 			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
-			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha' }, formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
+			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha', title: 'Última actualización' }, h('span', { class: 'icon-clock-o d-md-none', 'aria-hidden': 'true' }), ' ', formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
 			h('td', { class: 'celda-menu' }, menu));
 	};
 

@@ -1,6 +1,8 @@
 [build]
   command = "node scripts/build.mjs"
   publish = "dist"
+  # No genera el sitio si el cambio es solo de documentos o pruebas (ver el archivo).
+  ignore = "sh scripts/netlify-ignorar.sh"
 
 [build.environment]
   NODE_VERSION = "22"

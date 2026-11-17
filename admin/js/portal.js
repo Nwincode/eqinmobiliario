@@ -200,7 +200,9 @@ export async function armarPortal(prop) {
 		...datosDelDueno(prop),
 		agentId: prop.agentId || '',
 		propietarioId: prop.id,
-		asesor: { nombre: recorta(ag.nombre, 100), whatsapp: telefonoWa(ag.whatsapp || ag.telefono), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' },
+		// Sin asesor (casi siempre las casas por noche), el dueño le escribe a la empresa.
+		asesor: ag.id ? { nombre: recorta(ag.nombre, 100), whatsapp: telefonoWa(ag.whatsapp || ag.telefono), telefono: String(ag.telefono || ag.whatsapp || '').replace(/[^\d+]/g, ''), foto: ag.foto || '' }
+			: { nombre: 'Equipo Inmobiliario', whatsapp: telefonoWa(site.contacto?.whatsapp), telefono: String(site.contacto?.telefono || '').replace(/[^\d+]/g, ''), foto: '' },
 		proximoPaso: recorta(prop.proximoPaso, 400),
 		propiedades,
 		updatedAt: serverTimestamp()

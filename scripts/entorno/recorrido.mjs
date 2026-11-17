@@ -185,6 +185,20 @@ await cliente.p.fill('.vac-card [name=nombre]', 'Ana Prueba');
 await cliente.p.locator('.vac-card [name=codigo]').selectOption('1');
 await cliente.p.fill('.vac-card [name=telefono]', '305 555 1234');
 await cliente.p.fill('.vac-card [name=email]', 'ana@example.com');
+// Personas viene vacío: el botón lo pide y sin elegirlo no se envía.
+paso('Con las fechas puestas, el botón pide las personas y sin ellas no envía', (await cliente.p.locator('.vac-card button[type=submit]').innerText()).includes('¿Cuántas personas vienen?')
+	&& await (async () => { await cliente.p.locator('.vac-card button[type=submit]').click(); await espera(600); return !/\/reserva\//.test(cliente.p.url()) && await cliente.p.locator('.vac-card [name=huespedes].is-invalid').count() === 1; })());
+await cliente.p.locator('.vac-card [name=huespedes]').selectOption('2');
+await espera(300);
+{
+	const guia = await cliente.p.evaluate(() => {
+		const ol = document.querySelector('.vac-card .vac-guia'), li = [...ol.querySelectorAll('li')];
+		return { unaFila: new Set(li.map((x) => Math.round(x.getBoundingClientRect().top))).size === 1, alto: Math.round(ol.getBoundingClientRect().height),
+			hechos: li.filter((x) => x.classList.contains('is-hecho')).length, ahora: (ol.querySelector('.is-ahora') || {}).dataset?.paso, url: location.search };
+	});
+	paso('La línea de pasos va en una sola fila, marca fechas y personas y lo guarda en la dirección', guia.unaFila && guia.alto < 60 && guia.hechos >= 2
+		&& /llegada=.*salida=.*huespedes=2/.test(guia.url), JSON.stringify(guia));
+}
 await cliente.p.locator('.vac-card button[type=submit]').click();
 await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
@@ -207,7 +221,9 @@ await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 const tarjeta = socio.p.locator('.card', { hasText: codigo }).first();
 const loDelSocio = await socio.p.locator('.admin-main').innerText();
 paso('El socio ve la solicitud con el primer nombre', /Ana\b/.test(loDelSocio) && !/Ana Prueba/.test(loDelSocio));
-paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305|555 1234|ana@example/.test(await socio.p.content()) && await socio.p.locator('.admin-main a[href*="wa.me"]').count() === 0);
+const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAll((a) => a.map((x) => decodeURIComponent(x.href)));
+paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
+paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
 paso('La solicitud marca «Mensaje sin responder»', /Mensaje sin responder/.test(await tarjeta.innerText()));
 await tarjeta.locator('[aria-label="Chat con el cliente"]').click();
 await espera(1500);
@@ -284,6 +300,7 @@ await libres().nth(5).click();
 await otro.p.fill('.vac-card [name=nombre]', 'Luis Otro');
 await otro.p.fill('.vac-card [name=telefono]', '5555 9876');
 await otro.p.fill('.vac-card [name=email]', 'luis@example.com');
+await otro.p.locator('.vac-card [name=huespedes]').selectOption('2');
 await otro.p.locator('.vac-card button[type=submit]').click();
 await otro.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 await espera(1500);
@@ -317,6 +334,7 @@ await libres3().nth(14).click();
 await tercero.p.fill('.vac-card [name=nombre]', 'Marta Tercera');
 await tercero.p.fill('.vac-card [name=telefono]', '5555 4321');
 await tercero.p.fill('.vac-card [name=email]', 'marta@example.com');
+await tercero.p.locator('.vac-card [name=huespedes]').selectOption('2');
 await tercero.p.locator('.vac-card button[type=submit]').click();
 await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 await espera(1500);
@@ -622,7 +640,8 @@ let otraPestana = null;
 	await tercero.p.fill('.vac-card [name=nombre]', 'Marta Cuarta');
 	await tercero.p.fill('.vac-card [name=telefono]', '5555 4321');
 	await tercero.p.fill('.vac-card [name=email]', 'marta@example.com');
-	await tercero.p.locator('.vac-card button[type=submit]').click();
+	await tercero.p.locator('.vac-card [name=huespedes]').selectOption('2');
+await tercero.p.locator('.vac-card button[type=submit]').click();
 	await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 	await espera(1500);
 	const codigo4 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();

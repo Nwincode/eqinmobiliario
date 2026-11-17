@@ -119,7 +119,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 				enlaceSeguro(p.url) ? h('li', {}, h('a', { href: p.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null],
 			pie: [
 				ag.nombre || ag.whatsapp || ag.telefono ? h('div', { class: 'd-flex align-items-center gap-2 border-top pt-2' },
-					h('span', { class: 'small flex-grow-1' }, h('span', { class: 'text-muted' }, 'Tu asesor: '), h('strong', {}, ag.nombre || 'Equipo Inmobiliario')),
+					h('span', { class: 'small flex-grow-1' }, h('span', { class: 'text-muted' }, resumen.agentId ? 'Tu asesor: ' : 'Escríbele a: '), h('strong', {}, ag.nombre || 'Equipo Inmobiliario')),
 					ag.whatsapp ? iconoBtn('icon-whatsapp', `WhatsApp a ${ag.nombre || 'tu asesor'}`, { href: whatsappUrl(ag.whatsapp, `Hola${ag.nombre ? ` ${ag.nombre.split(' ')[0]}` : ''}, vi en mi panel «${p.titulo}» y tengo una consulta.`), target: '_blank', rel: 'noopener' }) : null,
 					ag.telefono ? iconoBtn('icon-phone', `Llamar a ${ag.nombre || 'tu asesor'}`, { href: `tel:${ag.telefono}` }) : null) : null,
 				// Interés: consultas, visitas y ofertas (total y últimos 30 días), junto a la foto.
