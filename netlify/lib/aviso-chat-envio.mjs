@@ -13,12 +13,16 @@ export async function enviarAvisosChat(token, { repaso = false } = {}) {
 	if (!servicioCorreo() || !datosConfigurados()) return 0;
 	const chat = await leerPublico(`chats/${token}`);
 	if (!chat) return null;
-	const [mensajes, lead, socio, casa] = await Promise.all([
+	const conCasa = /^[\w-]{1,60}$/.test(chat.propertyId || '');
+	const [mensajes, lead, socio, publica, privada] = await Promise.all([
 		listar(`chats/${token}/mensajes`),
 		chat.leadId ? leerPrivado(`leads/${chat.leadId}`) : null,
 		chat.propietarioId ? leerPrivado(`propietarios/${chat.propietarioId}`) : null,
-		/^[\w-]{1,60}$/.test(chat.propertyId || '') ? leerPrivado(`properties/${chat.propertyId}`) : null
+		conCasa ? leerPrivado(`properties/${chat.propertyId}`) : null,
+		// El código que el socio usa para la casa (privado): va en sus correos, nunca en el del cliente.
+		conCasa ? leerPrivado(`properties/${chat.propertyId}/privado/socio`).catch(() => null) : null
 	]);
+	const casa = publica && { ...publica, codigoSocio: String(privada?.codigoSocio || '').slice(0, 30) };
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
 	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
 	// Cada correo por su lado: si falla el del socio, el del cliente igual sale (y al revés).

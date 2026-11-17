@@ -518,7 +518,8 @@ export async function render(container, [id]) {
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
-				p.vip || p.destacada || faltanDe(p).length ? h('div', { class: 'prop-chips' },
+				p.vip || p.destacada || p.socio?.codigoSocio || faltanDe(p).length ? h('div', { class: 'prop-chips' },
+					p.socio?.codigoSocio ? h('span', { class: 'badge text-bg-light', title: 'Código del socio' }, h('span', { class: 'icon-key me-1', 'aria-hidden': 'true' }), p.socio.codigoSocio) : null,
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
 					chipFaltan(faltanDe(p))) : null,
@@ -542,7 +543,7 @@ export async function render(container, [id]) {
 	const draw = () => {
 		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
-			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
+			(!q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.socio?.codigoSocio || ''} ${p.zona} ${p.direccion} ${p.ciudad}`).includes(q))
 			&& (!fOperacion.value || p.operacion === fOperacion.value)
 			&& pasaEstado(p)
 			&& (fExtra.value !== 'publicado' || p.publicado)
@@ -912,6 +913,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: (d) => amenidadesPara(d.operacion) },
 
 		{ type: 'section', label: 'Renta vacacional por noches', when: esVacacional, help: 'El socio pone su precio por noche; la página suma el margen y lo muestra con impuestos aparte.' },
+		{ name: 'socio.codigoSocio', label: 'Código del socio (opcional)', cols: 6, maxlength: 30, when: esVacacional, placeholder: 'Ej. CH-07', help: 'El código que el socio usa para esta casa. Se ve en el panel y en sus correos junto al nuestro; nunca en la página.' },
 		{ name: 'socio.precioBase', label: 'Precio por noche del socio', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Lo que recibe el socio por noche. Privado.' },
 		{ name: 'socio.precioFinde', label: 'Precio del socio en fin de semana', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Noches de viernes y sábado. Vacío = precio base.' },
 		{ name: 'socio.margen', label: 'Margen de la empresa (%)', type: 'number', min: 0, step: 0.5, cols: 4, when: esVacacional, help: 'Por defecto 20 %, sobre todas las noches.' },

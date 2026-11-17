@@ -30,6 +30,12 @@ test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio l
 	assert.match(a[0].intro, /^Respóndela pronto/);
 	assert.deepEqual(a[0].datos.slice(0, 4).map((f) => f[1]), ['Casa de playa', 'lun, 16 nov', 'vie, 20 nov', '2 personas']);
 });
+test('código del socio: va en el correo del socio y del equipo, nunca en el del cliente', () => {
+	const a = avisosChat({ chat, casa: { titulo: 'Casa de playa', codigoSocio: 'CH-07' }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	assert.equal(a[0].datos[0][1], 'Casa de playa (CH-07)');
+	assert.equal(a[1].datos[0][1], 'Casa de playa (CH-07)');
+	assert.ok(!JSON.stringify(a.at(-1)).includes('CH-07'));
+});
 test('sin correos del equipo (AVISO_CORREO): el cliente y el socio igual reciben lo suyo', () => {
 	const a = avisosChat({ chat, mensajes: [], correos: { ...correos, equipo: [] }, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['ana@example.com']]);
