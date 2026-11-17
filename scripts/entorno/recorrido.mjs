@@ -1264,7 +1264,7 @@ const duenos = [];
 
 	// No queda sin dueño una casa por noche con huéspedes por venir: eliminar a su dueña se detiene antes de tocar nada.
 	await ir(admin.p, '#/propietarios/r2-dueno', 3500);
-	await delMenu(admin.p, 'Eliminar');
+	await admin.p.locator('.sticky-actions button', { hasText: 'Eliminar' }).click();
 	await admin.p.locator('.modal.show button', { hasText: /^Eliminar$/ }).click();
 	await espera(3500);
 	const aviso3 = await avisos(admin.p);
