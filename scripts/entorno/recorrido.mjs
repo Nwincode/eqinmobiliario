@@ -77,6 +77,7 @@ paso('Renta vacacional: las mascotas se dicen solo en su selector, no también c
 paso('Renta vacacional: no se pide nombre ni teléfono del socio', await admin.p.locator('[data-campo="socio.nombre"], [data-campo="socio.telefono"]').count() === 0);
 await campo(admin.p, 'propietarioId').selectOption('socio-prueba');
 await campo(admin.p, 'socio.precioBase').fill('100');
+await campo(admin.p, 'socio.codigoSocio').fill('CH-07');
 await campo(admin.p, 'zona').fill('Monterrico');
 await campo(admin.p, 'ciudad').fill('Santa Rosa');
 await campo(admin.p, 'direccion').fill('Calle Real 12, Monterrico');
@@ -223,6 +224,7 @@ await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 const tarjeta = socio.p.locator('.card', { hasText: codigo }).first();
 const loDelSocio = await socio.p.locator('.admin-main').innerText();
 paso('El socio ve la solicitud con el primer nombre', /Ana\b/.test(loDelSocio) && !/Ana Prueba/.test(loDelSocio));
+paso('El socio ve el código que él usa para su casa en la solicitud', /Código del socio: CH-07/.test(loDelSocio));
 const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAll((a) => a.map((x) => decodeURIComponent(x.href)));
 paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
 paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
@@ -955,6 +957,8 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		/Calle Real 12|13\.8912/.test(JSON.stringify(copia)) && 'dirección en lo público',
 		!/Calle Real 12/.test(valor(llegadaCopia.direccion) || '') && 'sin llegada',
 		(!Number(valor(socioCopia.precioBase)) || Number(valor(socioCopia.precioBase)) !== Number(valor(socioOriginal.precioBase))) && 'sin precio del socio',
+		valor(socioOriginal.codigoSocio) !== 'CH-07' && 'la original sin su código del socio',
+		valor(socioCopia.codigoSocio) && 'copió el código del socio',
 		acuerdoCopia.status !== 404 && 'copió el acuerdo',
 		(copia.vacacional?.mapValue?.fields?.reservadas?.arrayValue?.values || []).length > 0 && 'copió las noches reservadas',
 		!lista.includes(idCopia || 'x') && 'no está en la lista del socio'
