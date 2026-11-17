@@ -767,6 +767,8 @@ a.stat-card:hover {
 .list-field-item.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
 .list-sin-encabezado .list-quitar { position: absolute; top: 6px; right: 6px; z-index: 1; }
 .list-sin-encabezado .ficha-casa-boton { padding-right: 48px; }
+/* El título al lado de la foto (no debajo): la ficha ocupa menos alto. */
+.list-sin-encabezado .ficha-casa-boton > .flex-grow-1 { flex-basis: 8rem !important; }
 .list-field-item {
 	background: #f8fafb;
 	border: 1px solid var(--adm-border);
