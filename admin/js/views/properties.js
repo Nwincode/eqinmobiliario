@@ -143,7 +143,9 @@ const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tar
 export function vacacionalPublico(d) {
 	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
 	const v = d.vacacional || {};
-	const bloqueos = V.unirRangos(v.bloqueos || []);
+	// En la ficha un bloqueo se escribe por noches (primera y última, incluida); se guarda como rango { desde, hasta }
+	// con «hasta» = el día que queda libre, igual que las reservas y los calendarios.
+	const bloqueos = V.unirRangos((v.bloqueos || []).map((b) => ({ desde: b?.desde, hasta: b?.ultima ? V.sumarDias(b.ultima, 1) : b?.hasta })));
 	return {
 		precio: V.precioDesde(pub, hoyISO()) || null,
 		vacacional: {
@@ -913,8 +915,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
 		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, fields: [
-			{ name: 'desde', label: 'Llegada (primera noche ocupada)', type: 'date', cols: 6 },
-			{ name: 'hasta', label: 'Salida (ese día queda libre)', type: 'date', cols: 6 }
+			{ name: 'desde', label: 'Primera noche ocupada', type: 'date', cols: 6 },
+			{ name: 'ultima', label: 'Última noche ocupada (incluida)', type: 'date', cols: 6 }
 		] },
 
 		// Acuerdo con el dueño de ESTE inmueble (exclusiva, comisión, impuestos): privado, en privado/acuerdo.
@@ -1045,6 +1047,8 @@ async function renderEditor(container, id, emb = null) {
 		return;
 	}
 
+	// Los bloqueos se muestran por noches: la última ocupada es el día antes del que queda libre.
+	if (data.vacacional?.bloqueos) data.vacacional.bloqueos = data.vacacional.bloqueos.map((b) => ({ desde: b.desde, ultima: b.hasta ? V.sumarDias(b.hasta, -1) : '' }));
 	// Sin «catch»: si no se pudiera leer, es mejor el error que un formulario vacío que al guardar borre la dirección.
 	if (!isNew && data.operacion === 'vacacional') {
 		const ll = (await getDoc(llegadaRef)).data();
@@ -1223,6 +1227,7 @@ async function renderEditor(container, id, emb = null) {
 		// El dueño de la casa ya está en Propietarios: su nombre y teléfono salen de ahí, no se vuelven a escribir.
 		if (esVacacional(d)) {
 			if (!(Number(socio.precioBase) > 0)) return toast('Escribe el precio por noche del socio.', 'warning');
+			if ((d.vacacional?.bloqueos || []).some((b) => b.desde && b.ultima && b.ultima < b.desde)) return toast('En las fechas ocupadas, la última noche va el mismo día o después de la primera.', 'warning');
 			if ((socio.tarifas || []).filter((t) => t.desde && t.hasta && Number(t.precio) > 0).length > MAX_TARIFAS) return toast(`Hasta ${MAX_TARIFAS} precios por fechas: quita los que ya pasaron o junta los que se pueda.`, 'warning');
 			// Un cero de más pasa fácil: un precio de fin de semana o por fechas de más de 5 veces el de siempre se pregunta.
 			// Solo los que cambian en este guardado: uno alto que ya estaba guardado no se vuelve a preguntar.

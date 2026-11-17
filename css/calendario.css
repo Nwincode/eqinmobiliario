@@ -159,6 +159,11 @@
 .vac-dia.is-ocupado:not(.is-salida) {
 	background: var(--eq-mist);
 }
+/* «Solo salida»: el primer día ocupado, eligiendo la salida (se sale esa mañana). Sin tachar; el texto, como «Ocupado». */
+.vac-dia.is-solo-salida:not(.is-salida) .vac-dia-precio {
+	font-weight: 500;
+	color: color-mix(in oklab, var(--eq-ink) 70%, var(--eq-white));
+}
 .vac-dia.is-rango {
 	background: var(--eq-primary-soft);
 	border-radius: 0;
