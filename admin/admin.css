@@ -764,7 +764,7 @@ a.stat-card:hover {
 
 
 /* Lista sin fila de encabezado (p. ej. las casas de un propietario): la ✕ para quitar va en la esquina de la ficha. */
-.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
+.list-field-item.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
 .list-sin-encabezado .list-quitar { position: absolute; top: 6px; right: 6px; z-index: 1; }
 .list-sin-encabezado .ficha-casa-boton { padding-right: 48px; }
 .list-field-item {
