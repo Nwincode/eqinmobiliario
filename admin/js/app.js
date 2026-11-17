@@ -9,6 +9,7 @@ import { MIN_CLAVE, conOjo, debilidad, filtrada, revisionEnVivo } from './clave.
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
+import { campana } from './avisos.js';
 import { vigilarTablas } from './tablas.js';
 
 const ROUTES = [
@@ -141,6 +142,7 @@ function shell() {
 		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
 		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
 			session.esSocio ? null : publishBadge,
+			campana(),
 			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light' }, h('span', { class: 'icon-external-link me-1', 'aria-hidden': 'true' }), 'Ver sitio')));
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));

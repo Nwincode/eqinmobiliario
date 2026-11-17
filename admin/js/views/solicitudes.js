@@ -15,6 +15,8 @@ import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
+import { hace } from '../avisos-reglas.js';
+import { avisarAvisos } from '../avisos.js';
 
 const V = window.EQVacacional;
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
@@ -23,13 +25,7 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 
 const estado = (l) => l.solicitud?.estado || 'pendiente';
 const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
-// Lo que el administrador debe atender; el texto sale en la tarjeta de Inicio.
-const ALERTAS = { tarde: 'Sin responder', mora: 'Ganancia de EQ con más de 72 h de atraso', bloqueada: 'No se dio, pero el socio bloqueó esas fechas' };
 const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
-function hace(desde) {
-	const min = Math.max(1, Math.round((Date.now() - desde) / 60000));
-	return min < 60 ? `hace ${min} min` : min < 1440 ? `hace ${Math.round(min / 60)} h` : `hace ${Math.round(min / 1440)} d`;
-}
 
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
@@ -132,6 +128,7 @@ export async function render(container, [codigo] = []) {
 			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); return; } finally { enviando = false; }
 			// Ya quedó guardado: si volver a leer falla, no se devuelve el texto (se mandaría dos veces).
 			avisarChat(ref.id);
+			avisarAvisos();
 			await mostrar();
 		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
 		// Respuestas rápidas detrás del rayo: se abren al tocarlo y se cierran al elegir una.
@@ -191,7 +188,7 @@ export async function render(container, [codigo] = []) {
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
 	const hacer = async (tarea) => {
-		try { await tarea(); await recargar(); } catch (err) {
+		try { await tarea(); avisarAvisos(); await recargar(); } catch (err) {
 			if (err?.yaRespondida) return recargar();
 			if (err?.servidor) return toast(err.message, 'warning');
 			showError(err);
@@ -407,25 +404,4 @@ async function ponerIndices(leads, chats) {
 		await setDoc(doc(db, 'chatsPorSolicitud', l.id), { token: lista[0].id });
 	}
 	return varios;
-}
-
-// Tarjeta de Inicio (solo el administrador): solicitudes con alerta, cada una con enlace directo.
-export async function tarjetaAlertas(leads, casas) {
-	const reservas = await loadReservas();
-	const lista = leads.filter((l) => l.reserva?.llegada).map((l) => [l, alertaDe(l, reservas.find((x) => x.id === l.solicitud?.reservaId), casas.find((p) => p.id === l.propertyId))]).filter(([, a]) => a);
-	if (!lista.length) return null;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes', 'aria-labelledby': 'alertas-titulo' },
-		h('div', { class: 'card-header tarjeta-pendientes-cab' },
-			h('span', { class: 'tarjeta-pendientes-icono icon-bell', 'aria-hidden': 'true' }),
-			h('div', { class: 'me-auto' },
-				h('h2', { class: 'tarjeta-pendientes-titulo', id: 'alertas-titulo' }, 'Alertas de reservas'),
-				h('div', { class: 'tarjeta-pendientes-ayuda' }, 'Solicitudes que necesitan que las revises.')),
-			h('span', { class: 'nav-aviso' }, String(lista.length))),
-		h('ul', { class: 'pendientes-filas' }, lista.slice(0, 5).map(([l, a]) => h('li', {},
-			h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}`, class: 'pendientes-fila' },
-				h('span', { class: 'pendientes-fila-texto' },
-					h('span', { class: 'pendientes-fila-nombre' }, `${l.reserva.codigo} · ${l.propertyTitulo || l.nombre}`),
-					h('span', { class: 'pendientes-fila-falta' }, a === 'tarde' ? `${ALERTAS[a]} · ${hace(ms(l.createdAt))}` : ALERTAS[a])),
-				h('span', { class: 'pendientes-fila-flecha icon-angle-right', 'aria-hidden': 'true' }))))),
-		lista.length > 5 ? h('a', { href: '#/solicitudes', class: 'pendientes-mas' }, `Ver ${lista.length - 5} más`, h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' })) : null);
 }

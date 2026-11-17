@@ -225,6 +225,15 @@ const tarjeta = socio.p.locator('.card', { hasText: codigo }).first();
 const loDelSocio = await socio.p.locator('.admin-main').innerText();
 paso('El socio ve la solicitud con el primer nombre', /Ana\b/.test(loDelSocio) && !/Ana Prueba/.test(loDelSocio));
 paso('El socio ve el código que él usa para su casa en la solicitud', /Código del socio: CH-07/.test(loDelSocio));
+// Campana: la solicitud nueva (con su mensaje) es un solo aviso, con enlace a la solicitud.
+const campanaSocio = async () => {
+	await socio.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos')));
+	await espera(2500);
+	return { etiqueta: await socio.p.locator('.avisos-btn').getAttribute('aria-label'), enlaces: await socio.p.locator('.avisos-lista .aviso-enlace').evaluateAll((a) => a.map((x) => x.getAttribute('href'))) };
+};
+const antesDeConfirmar = await campanaSocio();
+paso('La campana del socio avisa la solicitud con un enlace a ella', antesDeConfirmar.enlaces.includes(`#/solicitudes/${encodeURIComponent(codigo)}`)
+	&& antesDeConfirmar.enlaces.filter((h) => h.includes(codigo)).length === 1, `${antesDeConfirmar.etiqueta} · ${antesDeConfirmar.enlaces.join(' ')}`);
 const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAll((a) => a.map((x) => decodeURIComponent(x.href)));
 paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
 paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
@@ -261,6 +270,8 @@ await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
 const r1 = await confirmo;
 await espera(3000);
 paso('El socio confirma la reserva, por el servidor', porServidor(r1, 'confirmar') && /Confirmada/.test(await socio.p.locator('.card', { hasText: codigo }).first().innerText()), `${resp(r1)} · ${await avisos(socio.p)}`);
+const trasConfirmar = await campanaSocio();
+paso('Al confirmar, la solicitud sale de la campana', !trasConfirmar.enlaces.some((h) => h.includes(codigo)), `${trasConfirmar.etiqueta} · ${trasConfirmar.enlaces.join(' ')}`);
 
 await cliente.p.reload();
 await espera(2500);

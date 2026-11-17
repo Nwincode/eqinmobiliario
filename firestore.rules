@@ -379,6 +379,39 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // «Listo» de la campana de avisos (admin/js/avisos.js): alguien del equipo ya atendió un aviso que no se resuelve
+    // solo. La clave dice cuál (avisos-reglas.js claveListo); el documento, quién y cuándo. Sin datos de clientes.
+    //  - robo_{solicitud}: «No se dio» con fechas ocupadas (solo el administrador);
+    //  - cambios_{comentario}: un dueño pidió cambios (el administrador o el asesor de ese dueño);
+    //  - exclusiva_{casa}_{fin}: la exclusiva de una casa por vencer (el administrador o el asesor de la casa).
+    // Solo crear y deshacer (borrar el suyo); nadie lo cambia después.
+    function listoValido(clave) {
+      let d = request.resource.data;
+      return (d.tipo == 'robo' && isAdmin() && clave == 'robo_' + d.objeto && d.agentId == ''
+            && !('fin' in d) && exists(/databases/$(database)/documents/leads/$(d.objeto)))
+        || (d.tipo == 'cambios' && clave == 'cambios_' + d.objeto && !('fin' in d)
+            && exists(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto))
+            && d.agentId == get(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto)).data.agentId)
+        || (d.tipo == 'exclusiva' && d.get('fin', '') is string && d.get('fin', '').matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            && clave == 'exclusiva_' + d.objeto + '_' + d.fin
+            && exists(/databases/$(database)/documents/properties/$(d.objeto))
+            && d.agentId == get(/databases/$(database)/documents/properties/$(d.objeto)).data.get('agentId', ''));
+    }
+    match /avisosAtendidos/{clave} {
+      allow read: if isStaff();
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly(['tipo', 'objeto', 'fin', 'agentId', 'por', 'fecha'])
+        && request.resource.data.keys().hasAll(['tipo', 'objeto', 'agentId', 'por', 'fecha'])
+        && isNonEmptyString(request.resource.data.objeto, 150)
+        && request.resource.data.agentId is string
+        && (isAdmin() || request.resource.data.agentId == myAgentId())
+        && request.resource.data.por == request.auth.uid
+        && request.resource.data.fecha == request.time
+        && listoValido(clave);
+      allow update: if false;
+      allow delete: if isAdmin() || (isStaff() && resource.data.por == request.auth.uid);
+    }
+
     // Lo que cotizó el sitio en una solicitud de reserva (js/vacacional.js con V.cotizar): números, impuestos = 22 % del
     // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
     // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.

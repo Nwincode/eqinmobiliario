@@ -3,9 +3,8 @@ import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
-import { loadActividades, loadClientes, loadPropietarios, loadAcuerdos, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
-import { exclusivasPorVencer } from '../acuerdo.js';
-import { conDueno as tieneDueno } from '../duenos.js';
+import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
+import { tarjetaAvisos } from '../avisos.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -21,16 +20,14 @@ export async function render(container) {
 		cargarPendientes().catch(() => null)
 	]);
 	const todas = propSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-	const alertas = session.isAdmin ? await import('./solicitudes.js').then((m) => m.tarjetaAlertas(leads, todas)).catch(() => null) : null;
+	// Lo que espera respuesta (solicitudes, mensajes, cambios que piden los dueños, exclusivas): lo mismo que la campana.
+	const avisos = await tarjetaAvisos().catch(() => null);
 	// Lo que hay que atender hoy (el administrador con ficha de asesor ve lo suyo y lo no asignado).
 	const mias = actividades.filter((a) => !a.hecha && (!session.isAdmin || !session.agentId || a.agentId === session.agentId || !a.agentId));
 	const vencidas = mias.filter((a) => vencimiento(a) === 'vencida');
 	const deHoy = mias.filter((a) => vencimiento(a) === 'hoy').sort((a, b) => ms(a.fecha) - ms(b.fecha));
 	const conPendiente = new Set(actividades.filter((a) => !a.hecha && a.clienteId).map((a) => a.clienteId));
 	const sinSeguimiento = clientes.filter((c) => !['cierre', 'perdido'].includes(c.etapa) && !conPendiente.has(c.id));
-	// La exclusiva es de cada inmueble (properties/{id}/privado/acuerdo); cuento las de los inmuebles con dueño que veo.
-	const conDueno = todas.filter((c) => (session.isAdmin || c.agentId === session.agentId) && tieneDueno(c, propietarios));
-	const exclusivas = exclusivasPorVencer(conDueno, await loadAcuerdos(conDueno), propietarios);
 	let props = todas;
 	if (!session.isAdmin) props = props.filter((p) => p.agentId === session.agentId);
 
@@ -49,15 +46,14 @@ export async function render(container) {
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
 			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
-		alertas,
+		avisos,
 		pend ? tarjetaPendientes(pend) : null,
 		canSeeLeads ? h('div', { class: 'card mb-4' },
 			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
 			h('div', { class: 'card-body' },
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 					vencidas.length ? h('a', { href: '#/agenda', class: 'badge text-bg-danger text-decoration-none' }, `${vencidas.length} seguimientos vencidos`) : h('span', { class: 'badge text-bg-success' }, 'Sin seguimientos vencidos'),
-					sinSeguimiento.length ? h('a', { href: '#/clientes', class: 'badge text-bg-warning text-decoration-none' }, `${sinSeguimiento.length} clientes sin seguimiento agendado`) : null,
-					exclusivas.length ? h('a', { href: '#/propietarios', class: 'badge text-bg-warning text-decoration-none' }, `${exclusivas.length} exclusivas por vencer`) : null),
+					sinSeguimiento.length ? h('a', { href: '#/clientes', class: 'badge text-bg-warning text-decoration-none' }, `${sinSeguimiento.length} clientes sin seguimiento agendado`) : null),
 				deHoy.length ? h('ul', { class: 'list-unstyled mb-0' }, deHoy.slice(0, 8).map((a) => h('li', { class: 'small mb-1' },
 					iconoActividad(a.tipo), ` ${fechaCorta(a.fecha)} · ${a.titulo || tipoActividad(a.tipo)[1]}`,
 					a.clienteId ? [' · ', h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente')] : null)))
