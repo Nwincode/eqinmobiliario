@@ -898,7 +898,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ type: 'section', label: 'Ubicación', when: esVacacional, help: 'En la página solo salen la zona y la ciudad. La dirección y el mapa son privados: el cliente los recibe cuando se marca el pago.' },
 		{ name: 'zona', label: 'Zona', cols: 4, placeholder: 'Zona 16' },
 		{ name: 'ciudad', label: 'Ciudad / municipio', cols: 4, placeholder: 'Guatemala' },
-		{ name: 'direccion', label: 'Residencial / dirección', cols: 4 },
+		{ name: 'direccion', label: 'Residencial / dirección', cols: 4, colsCelular: 12 },
 		{ name: 'mapa', label: 'Mapa (opcional)', type: 'textarea', rows: 2, help: 'Pega el código "Insertar mapa" de Google Maps, o escribe la dirección o coordenadas.' },
 
 		{ type: 'section', label: 'Características' },

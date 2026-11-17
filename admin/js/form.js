@@ -2,7 +2,7 @@
 //
 // Tipos de campo: text, email, url, tel, number, textarea, markdown, select, checkbox,
 // tags (lista de textos), image (una imagen), images (galería), list (lista de objetos), section (título).
-// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓),
+// Opciones comunes: name ('a.b' para anidar), label, help, required, cols (1-12), placeholder, ordenar (list: false sin ↑↓), colsCelular (12: a lo ancho en el celular),
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
@@ -216,7 +216,8 @@ export function renderForm(schema, data, options = {}) {
 		if (field.type === 'telefono' || field.type === 'email') control.querySelector('input').id = id;
 		const label = field.type === 'checkbox' ? null : h('label', { class: 'form-label', for: id }, field.label, field.required ? ' *' : '');
 		// En el celular, un campo corto sin ayuda va de dos en dos (números, horas, listas cortas); lo demás, a lo ancho.
-		const corto = !field.help && anchoDe(field) <= 4 && !['textarea', 'markdown', 'list', 'tags', 'checkbox', 'telefono', 'image', 'images', 'color'].includes(field.type);
+		// (colsCelular: 12 lo deja a lo ancho, p. ej. una dirección).
+		const corto = !field.help && field.colsCelular !== 12 && anchoDe(field) <= 4 && !['textarea', 'markdown', 'list', 'tags', 'checkbox', 'telefono', 'email', 'url', 'image', 'images', 'color'].includes(field.type);
 		const caja = h('div', { class: `${corto ? 'col-6' : 'col-12'} col-md-${anchoDe(field)}`, dataset: field.name ? { campo: field.name } : null },
 			label, control,
 			field.help ? h('div', { class: 'form-text' }, field.help) : null);
