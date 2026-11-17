@@ -1392,9 +1392,10 @@ async function renderEditor(container, id, emb = null) {
 			await setDoc(newRef, d);
 			// Después de crear la casa: su regla la lee.
 			if (vac) {
-				// El costo del socio sí (sin los calendarios, que son de la original); la dirección y el mapa también.
+				// El costo del socio sí (sin los calendarios ni el código del socio, que son de la original); la dirección y el mapa también.
 				const socioCopia = { ...(socioPriv.data() || {}) };
 				for (const c of V.CALENDARIOS) delete socioCopia[c.campo];
+				delete socioCopia.codigoSocio;
 				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
 			}
 			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
