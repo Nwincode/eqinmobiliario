@@ -359,8 +359,22 @@ export async function render(container, [codigo] = []) {
 		indicador.replaceChildren(h('span', { class: servidor === 'activo' ? 'icon-check text-success' : 'icon-exclamation-triangle text-warning', 'aria-hidden': 'true' }),
 			`Reservas por servidor: ${servidor === 'activo' ? 'activo' : servidor === 'sin configurar' ? 'sin configurar' : 'con error (revisa la cuenta de escritura en Netlify)'}`);
 	});
+	// Sin datos de pago no se puede confirmar (el cliente no sabría a dónde pagar): se avisa aquí, antes de que llegue
+	// el momento de confirmar. Al equipo, por cada socio con solicitudes abiertas; al socio, de sí mismo.
+	const sinDatosPago = (x) => !String(x?.datosPago || '').trim();
+	const abiertas = (id) => leads.some((l) => l.propietarioId === id && ['pendiente', 'confirmada'].includes(estado(l)));
+	const faltaPago = admin ? propietarios.filter((p) => sinDatosPago(p) && abiertas(p.id)) : [];
+	const avisoPago = admin
+		? (faltaPago.length ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
+			h('span', { class: 'flex-grow-1' }, `Faltan los datos de pago de ${faltaPago.map((p) => p.nombre || 'un socio').join(', ')}: sin ellos no se puede confirmar su reserva.`),
+			faltaPago.map((p) => h('a', { class: 'btn btn-sm btn-outline-primary', href: `#/propietarios/${p.id}` }, faltaPago.length > 1 ? `Completar (${String(p.nombre || '').split(' ')[0]})` : 'Completar'))) : null)
+		: (session.dueno && sinDatosPago(session.dueno) ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
+			h('span', { class: 'flex-grow-1' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar una reserva, porque el cliente no sabría a dónde pagar.'),
+			equipo ? h('a', { class: 'btn btn-sm btn-outline-primary', target: '_blank', rel: 'noopener', href: whatsappUrl(equipo.whatsapp, 'Hola, te envío mis datos de pago para las reservas (banco, tipo y número de cuenta, a nombre de quién): ') },
+				h('span', { class: 'icon-whatsapp me-1', 'aria-hidden': 'true' }), 'Enviar mis datos') : null) : null);
 	mount(container,
 		pageHeader('Solicitudes'),
+		avisoPago,
 		indicador,
 		variosChats.length ? h('div', { class: 'alert alert-warning d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
 			`${variosChats.join(', ')}: ${variosChats.length === 1 ? 'esta solicitud tiene' : 'estas solicitudes tienen'} más de un chat. Revisa cuál es el del cliente; hasta entonces el socio no puede confirmarla ni cancelarla.`) : null,
