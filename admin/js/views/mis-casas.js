@@ -3,6 +3,9 @@
 //    bitácora de la casa). Escribe SU precio; el del cliente (con el margen de EQ) lo calcula el sistema. Cada cambio
 //    se guarda en una sola transacción sobre lo guardado AHORA (solo lo que cambió): su precio, el público y la
 //    bitácora van juntos (las reglas exigen que el público cuadre con el suyo);
+//    En «La casa» (#/mis-casas/{id}/casa) cambia lo que ve el huésped (fotos, textos, la casa, la estancia, su llegada,
+//    sus calendarios y pausarla): lo guarda el servidor (netlify/functions/mi-casa.mjs), se publica solo y el
+//    administrador recibe el aviso y lo puede deshacer (admin/js/mi-casa.js);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
@@ -13,6 +16,9 @@ import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional } from '../privado-casa.js';
+import { renderForm } from '../form.js';
+import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
+import { amenidadesPara } from '../estados.js';
 
 const V = window.EQVacacional;
 // Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
@@ -424,6 +430,7 @@ async function casa(container, id) {
 	pintar();
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		pestanas(id, 'calendario'),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.
 		cabecera,
 		// En computadora: precios y lo especial a la izquierda, el calendario a la derecha (sin un calendario de 900 px).
@@ -440,6 +447,81 @@ async function casa(container, id) {
 			h('div', { class: 'col-lg-7' }, cal)));
 }
 
-export async function render(container, [id] = []) {
-	return id ? casa(container, id) : lista(container);
+// Las dos partes de una casa por noche: su calendario (precios, bloqueos, mínimos) y lo que ve el huésped.
+const pestanas = (id, activa) => h('ul', { class: 'nav nav-tabs mb-3' },
+	[['calendario', 'Calendario y precios', 'icon-calendar', `#/mis-casas/${id}`], ['casa', 'La casa', 'icon-home2', `#/mis-casas/${id}/casa`]].map(([k, t, icono, href]) =>
+		h('li', { class: 'nav-item' }, h('a', { class: `nav-link${k === activa ? ' active' : ''}`, href, 'aria-current': k === activa ? 'page' : null }, ic(icono), t))));
+
+// Lo que el dueño cambia él solo (admin/js/mi-casa.js); el formulario es el mismo de la ficha (renderForm).
+const SI_NO = [['', 'Sin indicar'], ['si', 'Se aceptan'], ['no', 'No se aceptan']];
+const esquemaCasa = () => [
+	{ type: 'section', label: 'Fotos', help: 'La primera es la portada. Arrastra para ordenar.' },
+	{ name: 'fotos', label: 'Fotos', type: 'images', marca: true, marcaFija: true },
+	{ type: 'section', label: 'Lo que lee el huésped', help: 'Sin enlaces, correos ni teléfonos: el huésped recibe tu contacto al confirmar.' },
+	{ name: 'titulo', label: 'Título', maxlength: 90, required: true },
+	{ name: 'descripcion', label: 'Descripción', type: 'textarea', rows: 6, required: true },
+	{ name: 'amenidades', label: 'Amenidades', type: 'tags', placeholder: 'Escribe otra y presiona Enter', sugerencias: () => amenidadesPara('vacacional') },
+	{ type: 'section', label: 'La casa' },
+	{ name: 'habitaciones', label: 'Habitaciones', type: 'number', min: 0, max: 50, cols: 3 },
+	{ name: 'camas', label: 'Camas', type: 'number', min: 0, max: 100, cols: 3 },
+	{ name: 'banos', label: 'Baños', type: 'number', min: 0, max: 50, step: 0.5, cols: 3 },
+	{ name: 'parqueos', label: 'Parqueos', type: 'number', min: 0, max: 50, cols: 3 },
+	{ type: 'section', label: 'La estancia' },
+	{ name: 'checkIn', label: 'Hora de entrada', type: 'select', options: HORAS.map((x) => [x, x]), cols: 3 },
+	{ name: 'checkOut', label: 'Hora de salida', type: 'select', options: HORAS.map((x) => [x, x]), cols: 3 },
+	{ name: 'deposito', label: 'Depósito (se devuelve)', type: 'number', min: 0, max: 50000, step: 0.01, cols: 3 },
+	{ name: 'mascotas', label: 'Mascotas', type: 'select', options: SI_NO, cols: 3 },
+	{ name: 'cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, cols: 6, help: 'Vacío: la política general del sitio.' },
+	{ name: 'reglas', label: 'Reglas de la casa (una por línea)', type: 'textarea', rows: 3, cols: 6, help: 'Vacío: las reglas generales del sitio.' },
+	{ name: 'comoLlegar', label: 'Cómo llegar', type: 'textarea', rows: 3, cols: 6 },
+	{ type: 'section', label: 'Llegada (privada)', help: 'El huésped la recibe por el chat cuando marcas su pago; nunca sale en la página.' },
+	{ name: 'direccion', label: 'Dirección', cols: 6 },
+	{ name: 'mapa', label: 'Mapa', cols: 6, placeholder: 'Enlace de Google Maps', help: 'En Google Maps: Compartir → Copiar vínculo.' },
+	{ type: 'section', label: 'Tus calendarios', help: 'Pega el enlace iCal de cada plataforma: las fechas ocupadas allá se bloquean solas aquí.' },
+	...V.CALENDARIOS.map((x) => ({ name: x.campo, label: x.nombre, type: 'url', cols: 4, placeholder: 'https://….ics' })),
+	{ type: 'section', label: 'En la página' },
+	{ name: 'estado', label: 'Mostrar la casa', type: 'select', options: [['disponible', 'Sí, se puede reservar'], ['pausada', 'No, pausada (no sale en la página)']], cols: 6,
+		help: 'Con huéspedes por venir no se puede pausar: bloquea los días en el calendario.' }
+];
+
+async function laCasa(container, id) {
+	const mio = session.profile.propietarioId || '-';
+	const ref = doc(db, 'properties', id);
+	const sCasa = await getDoc(ref).catch(() => null);
+	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional' || sCasa.data().propietarioId !== mio) return casa(container, id);
+	const leerPriv = (k) => getDoc(doc(db, 'properties', id, 'privado', k)).then((d) => (d.exists() ? d.data() : {})).catch(() => ({}));
+	const [socio, llegada] = await Promise.all([leerPriv('socio'), leerPriv('llegada')]);
+	let p = sCasa.data();
+	let base = valoresDueno({ casa: p, socio, llegada });
+	const form = renderForm(esquemaCasa(), base, { folder: `properties/${id}` });
+	const boton = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Guardar');
+	const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+	const guardar = async (ev) => {
+		ev.preventDefault();
+		if (!form.validate()) return;
+		const d = form.getData();
+		const cambios = Object.fromEntries(CAMPOS_DUENO.map((c) => c.campo).filter((k) => !igual(d[k], base[k])).map((k) => [k, d[k]]));
+		if (!Object.keys(cambios).length) return toast('No hay cambios que guardar.');
+		boton.disabled = true;
+		try {
+			const res = await fetch('/api/mi-casa', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ casa: id, cambios }) });
+			const cuerpo = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(cuerpo.error || (res.status === 503 ? 'El servidor todavía no está listo: avísale al administrador.' : `El servidor respondió ${res.status}.`));
+			base = d;
+			toast('Guardado. Sale en la página en unos minutos.');
+		} catch (err) { showError(err); }
+		finally { boton.disabled = false; }
+	};
+	mount(container,
+		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		pestanas(id, 'casa'),
+		h('form', { class: 'card card-body mb-3', onsubmit: guardar, novalidate: true }, form.el,
+			h('div', { class: 'd-flex align-items-center gap-2 mt-3 pt-3 border-top' },
+				h('span', { class: 'small text-muted flex-grow-1' }, ic('icon-info-circle'), 'Al guardar sale en la página en unos minutos. El administrador ve cada cambio.'),
+				boton)));
+}
+
+export async function render(container, [id, parte] = []) {
+	if (!id) return lista(container);
+	return parte === 'casa' ? laCasa(container, id) : casa(container, id);
 }

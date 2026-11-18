@@ -449,13 +449,14 @@ export function renderForm(schema, data, options = {}) {
 							alt);
 					}));
 				};
-				const marcaChk = field.marca ? h('input', { type: 'checkbox', class: 'form-check-input', id: `marca-${field.name}`, checked: true }) : null;
+				// marcaFija: siempre con marca de agua, sin la casilla (las fotos que sube el dueño).
+				const marcaChk = field.marca && !field.marcaFija ? h('input', { type: 'checkbox', class: 'form-check-input', id: `marca-${field.name}`, checked: true }) : null;
 				const fi = fileInput(true, async (files) => {
 					const arr = get() || [];
 					for (let n = 0; n < files.length; n++) {
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: !!marcaChk?.checked })), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {

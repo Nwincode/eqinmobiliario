@@ -40,7 +40,7 @@ function textoExclusiva(dias) {
 //  leads:       [{ id, nombre, casa, creado }]                              de la web, sin atender (estado «nuevo»)
 //  atendidos:   Set de claves con «Listo».
 // Devuelve [{ clave, tipo, icono, titulo, detalle, fecha, href, urgente, listo }], lo urgente primero y después lo más nuevo.
-export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], leads = [], atendidos = new Set(), ahora = Date.now() } = {}) {
+export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], leads = [], cambiosDueno = [], atendidos = new Set(), ahora = Date.now() } = {}) {
 	const out = [];
 	const conMensaje = new Set(mensajes.map((m) => m.codigo));
 	const conSolicitud = new Set();
@@ -100,6 +100,11 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 			urgente: e.dias <= 7, listo, titulo: textoExclusiva(e.dias), detalle: [e.casa, e.dueno].filter(Boolean).join(' · ')
 		});
 	}
+	// Lo que un dueño cambió él solo de su casa por noche (ya publicado): se va al marcarlo «Listo» o deshacerlo.
+	for (const c of cambiosDueno) out.push({
+		clave: `cambioDueno_${c.id}`, tipo: 'cambioDueno', icono: 'icon-pencil', href: `#/cambios-dueno/${encodeURIComponent(c.id)}`, fecha: c.fecha, urgente: false,
+		titulo: `${c.nombre || 'Un dueño'} cambió su casa`, detalle: [c.casa, c.cuantos ? `${c.cuantos} ${c.cuantos === 1 ? 'cambio' : 'cambios'} · ya publicado` : ''].filter(Boolean).join(' · ')
+	});
 	// Lead nuevo de la web (formulario de contacto o de una casa): se va solo al cambiarle el estado en Leads.
 	// Después de 24 h sin atender va en rojo.
 	for (const l of leads) out.push({
