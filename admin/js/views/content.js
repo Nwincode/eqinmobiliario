@@ -1,6 +1,7 @@
 import { db, doc, getDoc, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader , mount } from '../ui.js';
 import { renderForm, getPath, setPath, clonar } from '../form.js';
+import { puntosConIcono } from '../puntos.js';
 import { markPending } from '../session.js';
 import { aplicarTema } from '../tema.js';
 import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, PALETAS, colorTema, contraste, variablesTema } from '../tema-def.js';
@@ -60,7 +61,9 @@ const GROUPS = [
 			{ name: 'bloqueExterior.etiqueta', label: 'Etiqueta', cols: 6 },
 			{ name: 'bloqueExterior.titulo', label: 'Título', cols: 6 },
 			{ name: 'bloqueExterior.texto', label: 'Texto', type: 'textarea', rows: 3 },
-			{ name: 'bloqueExterior.puntos', label: 'Puntos', type: 'tags' },
+			{ name: 'bloqueExterior.puntos', label: 'Puntos', type: 'list', itemLabel: 'Punto', fields: [
+				{ name: 'icono', label: 'Ícono', type: 'select', options: ICONS, cols: 4 },
+				{ name: 'texto', label: 'Texto', cols: 8 }] },
 			{ name: 'bloqueExterior.boton', label: 'Texto del botón', cols: 6 },
 			{ name: 'bloqueExterior.enlace', label: 'Enlace', cols: 6 }
 		]
@@ -85,7 +88,9 @@ const GROUPS = [
 			{ name: 'en.bloqueExterior.etiqueta', label: 'Label', cols: 6 },
 			{ name: 'en.bloqueExterior.titulo', label: 'Title', cols: 6 },
 			{ name: 'en.bloqueExterior.texto', label: 'Text', type: 'textarea', rows: 3 },
-			{ name: 'en.bloqueExterior.puntos', label: 'Bullet points', type: 'tags' },
+			{ name: 'en.bloqueExterior.puntos', label: 'Bullet points', type: 'list', itemLabel: 'Point', fields: [
+				{ name: 'icono', label: 'Icon', type: 'select', options: ICONS, cols: 4 },
+				{ name: 'texto', label: 'Text', cols: 8 }] },
 			{ name: 'en.bloqueExterior.boton', label: 'Button', cols: 6 },
 			{ name: 'en.bloqueExterior.enlace', label: 'Link', cols: 6 },
 			{ type: 'section', label: 'Services' },
@@ -346,6 +351,9 @@ export async function render(container) {
 	// El carrusel guarda URLs simples; el editor de listas trabaja con objetos.
 	const heroImgs = (data.hero?.imagenes || []).map((url) => ({ url }));
 	data = { ...data, hero: { ...data.hero, imagenes: heroImgs } };
+	// Los puntos de «Compradores en EE. UU.» van con su ícono (los guardados como texto reciben el que les corresponde).
+	if (data.bloqueExterior) data.bloqueExterior = { ...data.bloqueExterior, puntos: puntosConIcono(data.bloqueExterior.puntos) };
+	if (data.en?.bloqueExterior) data.en = { ...data.en, bloqueExterior: { ...data.en.bloqueExterior, puntos: puntosConIcono(data.en.bloqueExterior.puntos) } };
 
 	const grupos = [...GROUPS, GRUPO_COLORES];
 	const textos = await textosGrupo();
