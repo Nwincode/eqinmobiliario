@@ -1,4 +1,4 @@
-// Google: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
+// Visibilidad: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, siteConfig, SITIO as SITE } from '../firebase.js';
 import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
@@ -178,19 +178,19 @@ function renderDatos(cont, d, props) {
 					h('td', { class: 'text-end fw-semibold' }, `+${num(o.clicsPotenciales)}`),
 					h('td', { class: 'text-end small' }, badge(nombre, color), h('div', { class: 'text-muted text-start mt-1' }, consejo)));
 			}), 'Todavía no hay oportunidades claras. Vuelve cuando el sitio tenga algunas semanas en Google.')),
-		h('div', { class: 'row g-4' },
-			h('div', { class: 'col-xl-6' }, card('Lo que buscan en Google',
+		h('div', { class: 'row g-0' },
+			h('div', { class: 'col-12' }, card('Lo que buscan en Google',
 				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultas || []).slice(0, 25).map((r) => h('tr', {}, h('td', {}, r.claves[0]), ...filaMetricas(r)))))),
-			h('div', { class: 'col-xl-6' }, card('Páginas que más tráfico traen',
+			h('div', { class: 'col-12' }, card('Páginas que más tráfico traen',
 				tabla(['Página', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paginas || []).slice(0, 25).map((r) => {
 					const prop = porRuta.get(ruta(r.claves[0]));
 					return h('tr', {}, h('td', { class: 'text-break' }, prop ? h('a', { href: `#/propiedades/${prop.id}` }, prop.titulo) : ruta(r.claves[0])), ...filaMetricas(r));
 				}))))),
-		h('div', { class: 'row g-4' },
-			h('div', { class: 'col-xl-6' }, card(`Estados Unidos${usa ? ` · ${num(usa.clics)} clics, ${num(usa.impresiones)} impresiones` : ''}`,
+		h('div', { class: 'row g-0' },
+			h('div', { class: 'col-12' }, card(`Estados Unidos${usa ? ` · ${num(usa.clics)} clics, ${num(usa.impresiones)} impresiones` : ''}`,
 				h('p', { class: 'small text-muted' }, 'Búsquedas desde EE. UU.: el mercado de tus anuncios. Úsalas como palabras clave en Google Ads y en el sitio en inglés.'),
 				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultasUsa || []).map((r) => h('tr', {}, h('td', {}, r.claves[0]), ...filaMetricas(r))), 'Aún no hay búsquedas desde EE. UU.'))),
-			h('div', { class: 'col-xl-6' }, card('Países y dispositivos',
+			h('div', { class: 'col-12' }, card('Países y dispositivos',
 				tabla(['País', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paises || []).map((r) => h('tr', {}, h('td', {}, r.claves[0].toUpperCase()), ...filaMetricas(r)))),
 				h('hr'),
 				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => h('tr', {}, h('td', {}, { MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0]), ...filaMetricas(r))))))),
@@ -245,9 +245,9 @@ export async function render(container) {
 	selector.addEventListener('change', () => { dias = Number(selector.value); cargar(); });
 
 	mount(container,
-		pageHeader('Google', h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, selector, exportar, enviar)),
+		pageHeader('Visibilidad', h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, selector, exportar, enviar)),
 		h('p', { class: 'text-muted' }, 'Cómo te encuentran en la Búsqueda de Google y qué mejorar para conseguir más visitas. Los datos vienen de Google Search Console y tienen unos 2 días de retraso.'),
 		datos,
-		h('div', { class: 'row g-4' }, h('div', { class: 'col-xl-5' }, inspector()), h('div', { class: 'col-xl-7' }, revisionInventario(props))));
+		h('div', { class: 'row g-0' }, h('div', { class: 'col-12' }, inspector()), h('div', { class: 'col-12' }, revisionInventario(props))));
 	cargar();
 }

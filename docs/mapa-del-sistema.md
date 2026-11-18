@@ -21,7 +21,7 @@ Las rutas son desde la raíz del repositorio.
   - Clientes: `leads.js`, `clientes.js`, `agenda.js`, `propietarios.js` (propietario, socio o colaborador).
   - Renta vacacional: `solicitudes.js` (solicitudes y chat), `rentas.js` (reservas y estado de cuenta).
   - Panel del dueño: `mis-casas.js` («Mis propiedades»: sus casas por noche las edita, en dos pestañas: «Calendario y precios» y «La casa»; las de venta y renta, solo lectura con `resumen-casa.js`). `cambios-dueno.js` (administrador, desde la campana): lo que un dueño cambió en «La casa», con «Deshacer» y «Listo».
-  - Herramientas: `calculadora.js`, `cotizacion.js`, `ia.js`, `google.js`, `reportes.js`.
+  - Herramientas: `calculadora.js`, `cotizacion.js`, `ia.js`, `google.js` («Visibilidad»: Search Console, revisión SEO; una sola columna), `reportes.js`.
   - Sitio web: `content.js` (textos, colores, zonas), `pages.js`, `blog.js`, `agents.js`, `testimonials.js`, `publish.js`, `users.js`, `dashboard.js`.
 - Piezas que usan todas las pantallas (cambiar aquí cambia todo el panel):
   - `form.js`: formularios desde un esquema (tipos de campo, `when`, `required`). Tipo `telefono` = código + número. Un bloque `custom` dentro de una lista recibe su elemento.
