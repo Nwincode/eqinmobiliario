@@ -42,9 +42,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   Antes de que ocurra: commit y push de lo hecho. Se sigue en el mismo chat.
 
 ## 4. Código
-- Quién hace qué: la sesión corre en Fable. La programación la hace Opus (como agente, con un encargo
-  completo); Fable revisa su trabajo antes de entregarlo: lee el cambio, lo corre, lo mide y mira las
-  capturas. Nada llega al usuario sin esa revisión.
+- Quién hace qué: el usuario elige el modelo de la sesión. Con Opus en la sesión, Opus programa y consulta
+  a Fable (consultor) antes de un cambio grande y antes de entregarlo. Con Fable en la sesión, lo grande lo
+  programa Opus como agente y Fable lo revisa. En los dos casos, nada llega al usuario sin que alguien lo
+  haya corrido, medido y mirado en capturas.
 - Respaldo: antes de un cambio grande (un rediseño, una pantalla entera), Claude anota el commit anterior de
   `main` y guarda capturas de cómo estaba, para poder regresar en un paso. Se lo dice al usuario al entregar.
 - Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa y qué archivos se tocan juntos
