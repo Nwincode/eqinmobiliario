@@ -76,9 +76,15 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	}
 	if (repaso ? ultimo.tipo || ['no', 'cancelada'].includes(chat.estado) : ahora - ms(ultimo.createdAt) > FRESCO) return [];
 	if (ultimo.tipo === 'pago') return alCliente(en ? `Booking ${chat.codigo} confirmed: how to pay` : `Reserva ${chat.codigo} confirmada: cómo pagar`,
-		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments).' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos).',
+		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments). You have 48 hours; otherwise the booking is cancelled automatically.' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos). Tienes 48 horas: si no, la reserva se cancela sola.',
 		{ pasos: en ? ['Open your booking and see the payment details.', 'Pay the owner directly (Equipo Inmobiliario does not receive payments).', 'Upload a photo of your receipt in the chat.']
 			: ['Abre tu reserva y mira los datos de pago.', 'Págale directo al propietario (Equipo Inmobiliario no recibe pagos).', 'Sube en el chat la foto de tu comprobante.'] });
+	// Recordatorio de pago (24 h antes de que la reserva se cancele sola): al cliente y a la casa, por si ya le pagaron.
+	if (ultimo.tipo === 'recordatorio') return [
+		...alCliente(en ? `Booking ${chat.codigo}: remember to pay` : `Reserva ${chat.codigo}: recuerda tu pago`, en ? 'Your payment is still pending' : 'Tu pago sigue pendiente',
+			en ? 'If your payment does not arrive in time, the booking is cancelled automatically. Already paid? Attach your receipt in the chat.' : 'Si tu pago no llega a tiempo, la reserva se cancela sola. ¿Ya pagaste? Adjunta tu comprobante en el chat.'),
+		...aLaCasa(`${chat.codigo}: el pago vence en 24 h`, `El pago de ${chat.codigo} vence en 24 h`,
+			`${resumen}. Si ya te pagó, marca «Pago recibido»; si no llega, la reserva se cancela sola y las fechas quedan libres.`)];
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'The owner received your payment' : 'El propietario recibió tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.

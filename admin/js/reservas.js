@@ -312,6 +312,9 @@ export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, p
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
 	const ll = (await getDoc(doc(db, 'properties', propertyId, 'privado', 'llegada'))).data();
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
+	// En el historial de la solicitud (quién marcó el pago y cuándo); si no se puede (reglas de antes), el pago ya quedó.
+	if (session.isAdmin && leadId) await updateDoc(doc(db, 'leads', leadId), { updatedAt: serverTimestamp(),
+		'solicitud.historial': arrayUnion({ que: 'Pago recibido', quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() }) }).catch((err) => console.warn('Historial', err));
 	avisarChat(chat.ref.id);
 });
 

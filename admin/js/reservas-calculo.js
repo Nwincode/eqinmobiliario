@@ -18,6 +18,37 @@ const TEXTOS_NO = {
 export const textoNo = (motivo) => TEXTOS_NO[motivo] || TEXTO_NO;
 export const TEXTO_CANCELADA = 'La reserva se canceló.';
 
+// Plazos de una reserva por noche (netlify/functions/plazos-reservas.mjs los cumple; el panel y el chat los muestran):
+//  - el anfitrión responde la solicitud en 24 h; si no, se cierra sola («no se dio»);
+//  - el cliente paga en 48 h desde que se confirmó, y a más tardar a las 23:00 de la víspera de su llegada; si no hay
+//    pago ni comprobante, se cancela sola y las fechas quedan libres. 24 h antes de vencer se le recuerda en el chat.
+// Solo para lo que nace desde que existen los plazos: lo de antes (una reserva que el cliente quizá pagó sin que el
+// anfitrión marcara «Pago recibido») no se cancela solo.
+export const PLAZOS_DESDE = Date.parse('2026-11-19T00:00:00-06:00');
+export const conPlazo = (creada) => creada >= PLAZOS_DESDE;
+export const HORAS_RESPUESTA = 24;
+export const HORAS_PAGO = 48;
+const HORA = 3600000;
+export const MOTIVO_SIN_RESPUESTA = 'Sin respuesta del anfitrión';
+export const MOTIVO_SIN_PAGO = 'Sin pago a tiempo';
+export const TEXTO_SIN_RESPUESTA = 'El anfitrión no respondió a tiempo, así que cerramos esta solicitud. Puedes elegir otras fechas u otra casa.';
+export const TEXTO_SIN_PAGO = 'No recibimos tu pago a tiempo, así que la reserva se canceló y las fechas quedaron libres. Si todavía la quieres, elige tus fechas otra vez.';
+TEXTOS_NO[MOTIVO_SIN_RESPUESTA] = TEXTO_SIN_RESPUESTA;
+export const venceRespuesta = (creada) => creada + HORAS_RESPUESTA * HORA;
+// creada / confirmada: milisegundos. llegada: 'AAAA-MM-DD' (Guatemala, UTC−6).
+export function vencePago(confirmada, llegada) {
+	const vispera = Date.parse(`${llegada}T00:00:00-06:00`) - HORA;
+	if (!Number.isFinite(vispera)) return Infinity;
+	// Confirmada a última hora (menos de 2 h antes de la víspera): no vence sola; la atienden el anfitrión y el equipo.
+	if (vispera < confirmada + 2 * HORA) return Infinity;
+	return Math.min(confirmada + HORAS_PAGO * HORA, vispera);
+}
+// Se recuerda cuando faltan 24 h (si el plazo es más corto, no hay recordatorio: ya se le dijo al confirmar).
+export const recordarPagoDesde = (confirmada, llegada) => {
+	const vence = vencePago(confirmada, llegada);
+	return vence - confirmada > 25 * HORA ? vence - 24 * HORA : Infinity;
+};
+
 // Viene de una solicitud de la web (tiene chat con el cliente y su solicitud en leads).
 export const deSolicitud = (r) => Boolean(r?.leadId || r?.codigo);
 
