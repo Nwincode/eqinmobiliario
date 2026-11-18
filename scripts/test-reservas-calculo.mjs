@@ -3,6 +3,7 @@
 // Los números de las reservas de prueba son los de scripts/emulador/test-reglas.mjs (lead-res-noche, lead-res-cara):
 // con este módulo dan lo mismo que daba el panel antes de moverlo.
 import assert from 'node:assert/strict';
+import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
@@ -114,6 +115,22 @@ test('el socio cancela hasta las 23:59 del día antes de llegar, hora de Guatema
 
 test('motivos: listas fijas (el servidor no acepta otro texto)', () => {
 	assert.ok(MOTIVOS_NO.includes('Fechas no disponibles') && MOTIVOS_CANCELAR.includes('Cliente canceló'));
+});
+
+test('plazos: 24 h para responder; 48 h para pagar, a más tardar las 23:00 de la víspera; lo de antes no vence solo', () => {
+	const c = Date.parse('2026-11-20T12:00:00Z');
+	assert.equal(venceRespuesta(c), Date.parse('2026-11-21T12:00:00Z'));
+	assert.equal(vencePago(c, '2026-12-10'), Date.parse('2026-11-22T12:00:00Z'));
+	assert.equal(recordarPagoDesde(c, '2026-12-10'), Date.parse('2026-11-21T12:00:00Z'));
+	// Llega pasado mañana: vence a las 23:00 de la víspera (Guatemala); el recordatorio, 24 h antes.
+	assert.equal(vencePago(c, '2026-11-22'), Date.parse('2026-11-22T05:00:00Z'));
+	assert.equal(recordarPagoDesde(c, '2026-11-22'), Date.parse('2026-11-21T05:00:00Z'));
+	// Llega mañana: plazo corto, sin recordatorio (ya se le dijo al confirmar).
+	assert.equal(recordarPagoDesde(c, '2026-11-21'), Infinity);
+	// Confirmada a última hora: no vence sola.
+	assert.equal(vencePago(Date.parse('2026-11-21T04:00:00Z'), '2026-11-21'), Infinity);
+	assert.equal(conPlazo(PLAZOS_DESDE - 1), false);
+	assert.equal(conPlazo(PLAZOS_DESDE), true);
 });
 
 console.log(`Reservas (cuentas): ${ok} pruebas bien.`);

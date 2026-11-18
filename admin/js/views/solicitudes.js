@@ -10,7 +10,7 @@ import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query,
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
-import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, MOTIVOS_CANCELAR, MOTIVOS_NO } from '../reservas-calculo.js';
+import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, vencePago } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -181,6 +181,24 @@ export async function render(container, [codigo] = []) {
 	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada)
 		.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 
+	// Posible repetida: el mismo cliente (correo o teléfono; el socio, que no los ve, por el nombre completo) con otra
+	// solicitud abierta de la misma casa en una semana. Se marca para no atenderla dos veces.
+	const nombreCompleto = (l) => String(l.nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+	const clienteDe = (l) => String(l.email || '').trim().toLowerCase() || String(l.telefono || '').replace(/\D/g, '').slice(-8)
+		|| (nombreCompleto(l).includes(' ') ? `n:${nombreCompleto(l)}` : '');
+	// Fechas que se cruzan o están a 3 días o menos (dos fines de semana distintos no son la misma).
+	const cerca = (a, b) => V.sumarDias(a.llegada, -3) <= b.salida && V.sumarDias(b.llegada, -3) <= a.salida;
+	const abierta = (l) => ['pendiente', 'confirmada'].includes(estado(l));
+	const repetidaDe = (l) => {
+		if (estado(l) !== 'pendiente') return null;
+		const k = clienteDe(l);
+		if (k.length < 4) return null;
+		// La anterior (la más nueva es la repetida; con la misma hora, por código).
+		const antes = (o) => ms(o.createdAt) < ms(l.createdAt) || (ms(o.createdAt) === ms(l.createdAt) && o.reserva.codigo < l.reserva.codigo);
+		return leads.find((o) => o !== l && o.propertyId === l.propertyId && abierta(o) && clienteDe(o) === k && antes(o)
+			&& ms(l.createdAt) - ms(o.createdAt) < 7 * 86400000 && cerca(o.reserva, l.reserva))?.reserva?.codigo || null;
+	};
+
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
 	const netos = Object.fromEntries(await Promise.all([...new Set(leads.map((l) => l.propertyId).filter(Boolean))].map(async (id) =>
 		[id, (await getDoc(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || null])));
@@ -278,6 +296,28 @@ export async function render(container, [codigo] = []) {
 		});
 	}
 
+	// Lo que vence solo (netlify/functions/plazos-reservas.mjs): se dice en la tarjeta para que nadie se sorprenda.
+	function plazo(l, est, res) {
+		const ch = datosChat[l.reserva.codigo];
+		let vence = 0, texto = '';
+		if (est === 'pendiente' && conPlazo(ms(l.createdAt)) && ch && !ch.estado) { vence = venceRespuesta(ms(l.createdAt)); texto = 'si no se responde, se cierra sola'; }
+		else if (est === 'confirmada' && res && conPlazo(ms(res.createdAt)) && ch?.estado === 'confirmada' && !ch.comprobanteCliente) { vence = vencePago(ms(res.createdAt), res.llegada); texto = 'si el cliente no paga, se cancela sola y las fechas quedan libres'; }
+		if (!vence || !Number.isFinite(vence)) return null;
+		return h('div', { class: `small ${vence - Date.now() < 6 * 3600000 ? 'text-danger' : 'text-muted'}` }, h('span', { class: 'icon-clock-o me-1', 'aria-hidden': 'true' }),
+			`Vence ${formatDate(new Date(vence))}: ${texto}.`);
+	}
+	// Quién hizo qué y cuándo con esta solicitud: lo último a la vista; todo, al abrirlo.
+	function historial(sol) {
+		const renglones = (sol.historial || []).filter((x) => x?.que);
+		if (!renglones.length) return null;
+		const linea = (x) => `${x.que} · ${x.nombre || ''}${x.nombre ? ' · ' : ''}${formatDate(x.cuando)}`;
+		const ultimo = renglones.at(-1);
+		const motivo = sol.motivo ? ` · ${sol.motivo}` : '';
+		if (renglones.length === 1) return h('div', { class: 'small text-muted' }, linea(ultimo) + motivo);
+		return h('details', { class: 'small text-muted' }, h('summary', {}, linea(ultimo) + motivo),
+			h('ol', { class: 'mb-0 ps-3' }, renglones.map((x) => h('li', {}, linea(x)))));
+	}
+
 	function tarjeta(l) {
 		const r = l.reserva;
 		const sol = l.solicitud || {};
@@ -288,7 +328,6 @@ export async function render(container, [codigo] = []) {
 			: sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : cuenta(l);
 		const aviso = alerta(l);
 		const tarde = aviso === 'tarde';
-		const ultimo = sol.historial?.at(-1);
 		const evasion = aviso === 'bloqueada';
 		const ocupada = est === 'pendiente' && yaOcupada(l);
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
@@ -301,6 +340,7 @@ export async function render(container, [codigo] = []) {
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				ocupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
+				((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
 				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
 				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
@@ -310,7 +350,8 @@ export async function render(container, [codigo] = []) {
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, r.moneda)}` : ''),
 			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
-			ultimo ? h('div', { class: 'small text-muted' }, `${ultimo.que} ${ultimo.nombre} · ${formatDate(ultimo.cuando)}${sol.motivo ? ` · ${sol.motivo}` : ''}`) : null,
+			plazo(l, est, res),
+			historial(sol),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
 				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.
 				!admin ? (equipo ? iconoBtn('icon-whatsapp', `WhatsApp a ${equipo.nombre}`, { href: whatsappUrl(equipo.whatsapp,

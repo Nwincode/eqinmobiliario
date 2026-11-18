@@ -23,6 +23,18 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 	// Sin socio con correo, el equipo la recibe una sola vez.
 	assert.deepEqual(avisosChat({ chat, mensajes: [], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA }).map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
 });
+test('recordatorio de pago (lo que vence solo): al cliente y al socio, por si ya le pagaron', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'equipo', tipo: 'recordatorio', texto: 'Recuerda…', createdAt: hace(0) }], { estado: 'confirmada' });
+	assert.deepEqual(a.map((x) => x.para), [['ana@example.com'], ['socio@example.com']]);
+	assert.match(a[1].intro, /marca «Pago recibido»/);
+});
+test('se canceló o cerró sola por un plazo (mensaje del equipo): el anfitrión y el cliente se enteran; el equipo no recibe «el socio canceló»', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'equipo', texto: 'No recibimos tu pago…', plazo: true, createdAt: hace(0) }], { estado: 'cancelada' });
+	assert.deepEqual(a.map((x) => x.para), [['socio@example.com'], ['ana@example.com']]);
+	assert.match(a[0].titulo, /se canceló sola/);
+	const b = avisos([{ de: 'equipo', texto: 'El anfitrión no respondió…', plazo: true, createdAt: hace(0) }], { estado: 'no' });
+	assert.match(b[0].titulo, /se cerró sola/);
+});
 test('cliente en inglés: su correo en inglés (fechas y «guests»); el socio lo lee en español con el título en español', () => {
 	const a = avisosChat({ chat: { ...chat, idioma: 'en' }, casa: { titulo: 'Casa de playa', en: { titulo: 'Beach house' } }, mensajes: [], correos, sitio: 'https://ejemplo.gt', ahora: AHORA });
 	assert.match(a.at(-1).intro, /^The host of Beach house reviews it/);

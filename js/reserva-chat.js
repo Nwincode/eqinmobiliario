@@ -136,9 +136,10 @@
 			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
 			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
 			// Qué sigue: guía al cliente en cada paso sin que nadie tenga que escribirle.
-			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 48 h.
+			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 24 h (se cierra sola:
+			// netlify/functions/plazos-reservas.mjs).
 			var espera = Date.now() - new Date(c.createdAt).getTime();
-			var sigue = estado !== 'Pendiente' ? estado : espera > 48 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
+			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
 			var guia = cuerpo.querySelector('[data-out="sigue"]');
 			guia.textContent = t['vacChatSigue' + sigue];
 			// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.

@@ -14,18 +14,16 @@
 // Las reservas del administrador (Rentas y Solicitudes) siguen en el panel (admin/js/reservas.js).
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
-import { transaccion, escrituraConfigurada, probarEscritura, idNuevo } from '../lib/firestore-escritura.mjs';
+import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
+import { Respuesta, falla, fechasDeLaCasa, responder, mensaje, anotar } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
-const V = globalThis.EQVacacional;
 const porUsuario = limitador(30);
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 
-class Respuesta extends Error { constructor(status, error) { super(error); this.status = status; } }
-const falla = (status, error) => { throw new Respuesta(status, error); };
 const YA = 'Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.';
 
 // La solicitud, su casa (por noche y de este socio: la casa manda, no lo que diga la solicitud) y EL chat de la
@@ -42,21 +40,6 @@ async function cargar({ leer }, socio, leadId) {
 	if (!chat || chat.leadId !== leadId) throw Object.assign(new Respuesta(409, 'Esta solicitud todavía no tiene su chat registrado: avísale al administrador (lo registra al abrir Solicitudes).'), { caminoDeAntes: true });
 	return { lead, casa, token, chat };
 }
-
-// Fechas ocupadas de la casa recalculadas con TODAS sus reservas leídas ahora (el servidor las ve todas).
-async function fechasDeLaCasa(tx, casa, antes, despues) {
-	const guardadas = casa.vacacional?.reservadas || [];
-	const reservas = await tx.consultar('reservas', 'propertyId', casa.id);
-	const c = V.cambioDeReserva({ guardadas, reservas, antes, despues, propertyId: casa.id, completas: true });
-	if (c.choque) falla(422, `Esas fechas chocan con otra reserva confirmada: ${c.choque.llegada} – ${c.choque.salida}.`);
-	if (JSON.stringify(c.reservadas) !== JSON.stringify(V.unirRangos(guardadas))) tx.cambiar(`properties/${casa.id}`, { 'vacacional.reservadas': c.reservadas }, { ahora: ['updatedAt'] });
-}
-
-// Lo que cambia en la solicitud al responderla, con su renglón de historial (lo mismo que `respuesta` en reservas.js).
-const responder = (tx, socio, leadId, estado, que, extra = {}) => tx.cambiar(`leads/${leadId}`, { 'solicitud.estado': estado, ...extra },
-	{ ahora: ['updatedAt'], agregar: { 'solicitud.historial': [{ que, quien: socio.uid, nombre: socio.nombre, cuando: new Date().toISOString() }] } });
-// Mensaje del socio al cliente (en el chat de la solicitud).
-const mensaje = (tx, token, datos) => tx.crear(`chats/${token}/mensajes/${idNuevo()}`, { de: 'socio', ...datos }, { ahora: ['createdAt'] });
 
 const ACCIONES = {
 	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada), la solicitud y el chat dicen «confirmada»
@@ -115,6 +98,7 @@ const ACCIONES = {
 		else falla(409, 'Esta reserva no está confirmada.');
 		const ll = await tx.leer(`properties/${casa.id}/privado/llegada`);
 		mensaje(tx, token, { tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}) });
+		anotar(tx, socio, leadId, 'Pago recibido');
 		return { token };
 	}
 };

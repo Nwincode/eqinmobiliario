@@ -307,11 +307,22 @@ export const cancelarReserva = conCaminoDeAntes(async function cancelarReserva(r
 // si ya dice «pagada», no se vuelve a escribir.
 export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, propertyId, leadId) {
 	if (session.esSocio && await porServidor('pago', leadId)) { chat.estado = 'pagada'; return; }
-	if ((await getDoc(chat.ref)).data()?.estado !== 'pagada') await updateDoc(chat.ref, { estado: 'pagada' });
+	// Solo una reserva confirmada pasa a pagada (una que se canceló sola mientras la pantalla estaba abierta, no: se
+	// mandaría la dirección de una reserva cancelada, con las fechas ya libres).
+	const ahora = (await getDoc(chat.ref)).data()?.estado;
+	if (!['confirmada', 'pagada'].includes(ahora)) throw new Error('Esta reserva ya no está confirmada (se canceló o no se dio). Recarga la página.');
+	if (ahora !== 'pagada') await runTransaction(db, async (tx) => {
+		const s = await tx.get(chat.ref);
+		if (s.data()?.estado !== 'confirmada') throw new Error('Esta reserva cambió mientras tanto. Recarga la página.');
+		tx.update(chat.ref, { estado: 'pagada' });
+	});
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
 	const ll = (await getDoc(doc(db, 'properties', propertyId, 'privado', 'llegada'))).data();
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
+	// En el historial de la solicitud (quién marcó el pago y cuándo); si no se puede (reglas de antes), el pago ya quedó.
+	if (session.isAdmin && leadId) await updateDoc(doc(db, 'leads', leadId), { updatedAt: serverTimestamp(),
+		'solicitud.historial': arrayUnion({ que: 'Pago recibido', quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() }) }).catch((err) => console.warn('Historial', err));
 	avisarChat(chat.ref.id);
 });
 
