@@ -834,13 +834,13 @@ export async function render(container, [id]) {
 	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
 	mount(container, 
+		// Una acción principal a la vista; importar y exportar (de vez en cuando) van en el ⋮.
 		pageHeader('Propiedades',
-			session.isAdmin ? h('a', { href: '#/propiedades/importar', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Importar desde CSV', title: 'Importar desde CSV' },
-				h('span', { class: 'icon-upload', 'aria-hidden': 'true' }), ' Importar', h('span', { class: 'd-none d-md-inline' }, ' desde CSV')) : null,
-			props.length ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-encabezado', 'aria-label': 'Exportar (CSV)', title: 'Exportar (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) },
-				h('span', { class: 'icon-download', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline' }, ' Exportar (CSV)')) : null,
 			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
-				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva', h('span', { class: 'd-none d-md-inline' }, ' propiedad'))),
+				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
+			menuMas('Más acciones', [
+				session.isAdmin ? { icono: 'icon-upload', texto: 'Importar desde CSV', href: '#/propiedades/importar' } : null,
+				props.length ? { icono: 'icon-download', texto: 'Exportar todas (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) } : null])),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
 				h('div', { class: 'col-md-4 d-flex gap-2' }, search, btnFiltros),
