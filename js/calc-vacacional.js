@@ -373,11 +373,15 @@
 
 	// Comisión de una reserva confirmada: el socio la paga a EQ el día de llegada (hora de Guatemala, UTC−6).
 	// 0 al día (o nada que cobrar) · 1 vencida · 2 más de 24 h (sus clientes escriben a EQ) · 3 más de 72 h (sus casas salen del sitio).
-	function nivelComision(r, ahora) {
+	// Horas que lleva vencida la comisión de una reserva (desde el fin del día de llegada); null si no hay nada que cobrar.
+	function horasAtrasoComision(r, ahora) {
 		var c = r && r.comision;
-		if (!c || c.pagada || r.estado !== 'confirmada' || !num(c.monto) || !esFecha(c.vence)) return 0;
-		var horas = (ahora - (Date.parse(c.vence + 'T00:00:00-06:00') + DIA)) / 3600000;
-		return horas < 0 ? 0 : horas < 24 ? 1 : horas < 72 ? 2 : 3;
+		if (!c || c.pagada || r.estado !== 'confirmada' || !num(c.monto) || !esFecha(c.vence)) return null;
+		return (ahora - (Date.parse(c.vence + 'T00:00:00-06:00') + DIA)) / 3600000;
+	}
+	function nivelComision(r, ahora) {
+		var horas = horasAtrasoComision(r, ahora);
+		return horas === null || horas < 0 ? 0 : horas < 24 ? 1 : horas < 72 ? 2 : 3;
 	}
 	// El peor atraso de cada socio: { propietarioId: 2 | 3 }.
 	function sociosEnMora(reservas, ahora) {
@@ -421,6 +425,6 @@
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
 		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,
-		nivelComision: nivelComision, sociosEnMora: sociosEnMora, alertaSolicitud: alertaSolicitud
+		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, alertaSolicitud: alertaSolicitud
 	};
 });
