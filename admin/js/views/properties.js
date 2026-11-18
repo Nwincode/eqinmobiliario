@@ -553,8 +553,8 @@ export async function render(container, [id]) {
 					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
 				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.obvio ? ' motivo-obvio' : ''}`, id: `motivo-${p.id}` },
 					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
-			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-md-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
-			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha', title: 'Última actualización' }, h('span', { class: 'icon-clock-o d-md-none', 'aria-hidden': 'true' }), ' ', formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
+			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-xl-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
+			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha', title: 'Última actualización' }, h('span', { class: 'icon-clock-o d-xl-none', 'aria-hidden': 'true' }), ' ', formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
 			h('td', { class: 'celda-menu' }, menu));
 	};
 
@@ -861,8 +861,9 @@ export async function render(container, [id]) {
 				props.length ? { icono: 'icon-download', texto: 'Exportar todas (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) } : null])),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
-				h('div', { class: 'col-md-4 d-flex gap-2' }, search, btnFiltros),
-				h('div', { class: 'col-md-8' }, cajaFiltros)),
+				// En tableta, la búsqueda arriba y los filtros a todo el ancho (en 1/3 + 2/3 el último se cortaba).
+				h('div', { class: 'col-lg-4 d-flex gap-2' }, search, btnFiltros),
+				h('div', { class: 'col-lg-8' }, cajaFiltros)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
 				count, limpiar,
 				btnTodas),
