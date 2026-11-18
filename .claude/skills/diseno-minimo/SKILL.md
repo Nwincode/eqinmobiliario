@@ -126,7 +126,89 @@ de más y con toda la información que sirve para decidir**. Esta skill existe p
 - No irse al otro extremo: quitar ruido no es quitar información.
 - No mostrar algo sin haberlo mirado como usuario.
 
-## 3. Antes de mostrar un diseño (siempre)
+## 3. Los libros, y cómo se usan aquí
+
+> Nota honesta: Claude no tiene el texto completo de estos libros. Lo de abajo sale de lo que se conoce y
+> publica de cada uno (índice, editoriales, catálogos y reseñas) y de su obra. Si una regla viene de una
+> fuente secundaria, se dice.
+
+### Müller-Brockmann, *Grid Systems in Graphic Design* (Niggli; original en alemán, 1981; 176 páginas)
+El punto de partida para maquetar mucha información en poco espacio.
+- **El orden parte de la letra.** Primero se fija el tamaño del texto y su interlineado. Después, el ancho de
+  la columna: unas 7 palabras por línea para leer cómodo. Al final, las columnas y los campos. Todo es
+  múltiplo de la línea de texto.
+- **Tipos de retícula:** de una columna, de varias columnas, modular (columnas y filas: campos), jerárquica,
+  de líneas base y compuesta. Se elige según el contenido, no al revés.
+- **Campos y separaciones:** el alto de un campo es un número entero de líneas de texto. Entre campos hay un
+  espacio fijo (una línea vacía), para que las líneas base coincidan de una columna a la otra.
+- **Pocas variantes:** dos o tres tamaños de letra y dos pesos. La jerarquía la dan el tamaño, el peso y la
+  posición, no las cajas ni los adornos. Texto alineado a la izquierda, sin justificar en columnas angostas.
+- **Imágenes a la retícula:** una foto ocupa uno o varios campos completos; su borde coincide con una línea de
+  texto. No hay medias líneas vacías.
+- **Constancia:** el mismo interlineado en toda la pieza; la misma retícula en todas las páginas.
+
+**En el panel y el sitio:**
+- Línea base de 4 px. El interlineado es múltiplo de 4 (texto de 14 px con 20 px de línea; texto chico de
+  12–13 px con 16 px).
+- Entre líneas de un bloque, 2 px; entre bloques, 8 px (dos pasos de la línea base).
+- Una tarjeta es un campo: la foto mide un número entero de líneas del texto que tiene al lado (5 líneas de
+  20 px ≈ 104 px con sus separaciones).
+- Máximo 3 tamaños de letra en una pantalla (dato, nombre y precio) y 2 pesos (normal y negrita).
+
+### Rams, *Less and More: The Design Ethos of Dieter Rams* (Gestalten, 2009; edición de Klaus Klemp y Keiko Ueki-Polet)
+Es el catálogo de la exposición que empezó en el Museo Suntory de Osaka y pasó por Tokio, el Design Museum de
+Londres, Fráncfort y el SFMOMA. Trae los ensayos de los editores, los 10 principios del propio Rams, el
+diseño gráfico de Braun, la relación de Rams con Yanagi Sōetsu y cientos de productos fotografiados (Braun y
+Vitsœ).
+- **Lo que enseñan sus productos:**
+  - Colores neutros (blanco, gris, negro). El color se usa solo para decir algo: en la calculadora ET66 el
+    color marca las teclas de operación; en los aparatos, un verde o rojo dice encendido.
+  - Los controles se agrupan por función, todos del mismo tamaño y alineados a una retícula. Lo que se usa
+    más está más a mano.
+  - Etiquetas pocas, cortas y del mismo tamaño en todo el producto.
+  - Sin adornos: ni bordes de más, ni sombras pesadas, ni etiquetas que repiten lo que ya se ve.
+  - Honesto y duradero: nada que pase de moda, nada que aparente lo que no es.
+- **En el panel y el sitio:**
+  - Un color, un significado: verde se ve, gris oculta, ámbar reservada o falta algo, rojo vendida o
+    borrar. El azul es para la acción principal. Ningún color de adorno.
+  - Bordes de 1 px y sombras muy suaves (las de `css/tema.css`); nunca un recuadro dentro de otro recuadro.
+  - Una sola señal por idea.
+  - Controles agrupados en un solo lugar: el ⋮ abajo a la derecha.
+
+### Nielsen, *Designing Web Usability: The Practice of Simplicity* (New Riders, 1999)
+Las reglas de cómo se usa una pantalla.
+- **El contenido manda:** la mayor parte de la pantalla debe ser contenido, no navegación ni adornos. Se
+  mide qué parte de los píxeles es información.
+- **Velocidad:** 0.1 s se siente inmediato; 1 s mantiene el hilo; a los 10 s se pierde la atención. Fotos
+  livianas y nada que haga esperar.
+- **Escribir para escanear:** la gente no lee, escanea. Textos de la mitad de largo que en papel, con lo
+  importante primero (pirámide invertida). Títulos que se entienden solos, listas y palabras clave
+  destacadas.
+- **Navegación:** siempre se sabe dónde estoy, de dónde vengo y a dónde puedo ir.
+- **Simplicidad:** cada elemento que no ayuda a la tarea le quita atención a lo que sí ayuda.
+- Lo que Nielsen publicó después: el patrón en F (estudio de seguimiento de la mirada de 2006, no está en
+  el libro). La gente lee la primera línea, luego un poco de la segunda y después baja por el borde
+  izquierdo. Por eso lo importante va arriba y empezando por la izquierda (en una casa, primero el precio).
+
+### Krug, *Don't Make Me Think* (2000; *Revisited*, 2014): la versión práctica
+- **Primera ley de Krug: no me hagas pensar.** Cada pantalla se entiende sola, sin explicaciones.
+- La gente escanea, toma la primera opción razonable y se las arregla sin entender cómo funciona.
+- **Pantallas como vallas publicitarias:**
+  - usar convenciones;
+  - jerarquía clara: lo importante, más visible; lo relacionado, junto; lo que está dentro de algo, adentro;
+  - áreas bien separadas;
+  - que lo que se toca parezca tocable;
+  - quitar el ruido.
+- **Quitar palabras:** quita la mitad de las palabras de cada página y después la mitad de lo que quede. Las
+  instrucciones y el texto de relleno sobran.
+- **Celular:** que lo tocable se note, no esconder lo importante y áreas de toque generosas. La paciencia del
+  usuario es una reserva que cada estorbo gasta.
+- **Probar poco y seguido:** tres usuarios una mañana al mes encuentran los problemas grandes.
+
+**En el panel y el sitio:** Claude hace la prueba de Krug antes de entregar. En 5 segundos se debe
+entender qué es la pantalla, qué es lo principal y dónde se toca. Si no, falta jerarquía o sobra ruido.
+
+## 4. Antes de mostrar un diseño (siempre)
 
 1. **Como usuario:** Claude recorre la pantalla como quien la usa («quiero saber cuánto cuesta, dónde está y
    cuántos cuartos tiene; quiero cambiar su estado con una mano») y escribe qué no pudo hacer o ver.
@@ -143,6 +225,10 @@ de más y con toda la información que sirve para decidir**. Esta skill existe p
    del usuario; después se programa.
 
 ## Fuentes
+- Libros: Müller-Brockmann, *Grid Systems in Graphic Design* (Niggli; índice de la edición en línea y
+  ficha de la editorial); Klemp y Ueki-Polet (ed.), *Less and More: The Design Ethos of Dieter Rams*
+  (Gestalten, 2009; ficha de biblioteca del CCA y British Council); Nielsen, *Designing Web Usability* (New
+  Riders, 1999); Krug, *Don't Make Me Think* (New Riders, 2000; 3.ª ed. 2014).
 - Nielsen: Wikipedia, «Jakob Nielsen (usability consultant)»; su Substack: «43 Years in UX: A Career
   Retrospective» y «How I Developed the 10 Usability Heuristics» (jakobnielsenphd.substack.com).
 - Rams: Wikipedia, «Dieter Rams»; Vitsœ, «Dieter Rams and Vitsœ» (vitsoe.com/dieter-rams); Design Museum.
