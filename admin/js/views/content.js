@@ -93,8 +93,7 @@ const GROUPS = [
 			{ name: 'en.servicios.subtitulo', label: 'Subtitle', cols: 6 },
 			{ name: 'en.servicios.items', label: 'Services', type: 'list', itemLabel: 'Service', fields: [
 				{ name: 'icono', label: 'Icon', type: 'select', options: ICONS, cols: 4 },
-				{ name: 'titulo', label: 'Title', cols: 8 },
-				{ name: 'texto', label: 'Text', type: 'textarea', rows: 2 }] },
+				{ name: 'titulo', label: 'Title', cols: 8 }] },
 			{ name: 'en.contadores.items', label: 'Counters', type: 'list', itemLabel: 'Counter', max: 4, fields: [
 				{ name: 'valor', label: 'Number', type: 'number', cols: 4 },
 				{ name: 'etiqueta', label: 'Label', cols: 8 }] },
@@ -102,7 +101,6 @@ const GROUPS = [
 			{ name: 'en.testimonios.titulo', label: 'Reviews title', cols: 6 },
 			{ name: 'en.asesores.titulo', label: 'Team title', cols: 6 },
 			{ name: 'en.contacto.titulo', label: 'Contact title', cols: 6 },
-			{ name: 'en.contacto.subtitulo', label: 'Contact text', type: 'textarea', rows: 2 },
 			{ name: 'en.whatsappFlotante.mensaje', label: 'WhatsApp button message' },
 			{ type: 'section', label: 'Menu and footer' },
 			{ name: 'en.navegacion', label: 'Menu', type: 'list', itemLabel: 'Link', fields: link },
@@ -186,8 +184,7 @@ const GROUPS = [
 			{ name: 'servicios.subtitulo', label: 'Subtítulo' },
 			{ name: 'servicios.items', label: 'Servicios', type: 'list', itemLabel: 'Servicio', fields: [
 				{ name: 'icono', label: 'Ícono', type: 'select', options: ICONS, cols: 4 },
-				{ name: 'titulo', label: 'Título', cols: 8 },
-				{ name: 'texto', label: 'Texto', type: 'textarea', rows: 2 }] },
+				{ name: 'titulo', label: 'Título', cols: 8 }] },
 			{ type: 'section', label: 'Contadores' },
 			{ name: 'contadores.visible', label: 'Mostrar', type: 'checkbox' },
 			{ name: 'contadores.items', label: 'Contadores', type: 'list', itemLabel: 'Contador', max: 4, fields: [
@@ -201,7 +198,6 @@ const GROUPS = [
 	{
 		id: 'contacto', label: 'Contacto y redes', keys: ['contacto', 'redes'], fields: [
 			{ name: 'contacto.titulo', label: 'Título de la sección', cols: 6 },
-			{ name: 'contacto.subtitulo', label: 'Texto', cols: 6 },
 			{ name: 'contacto.telefono', label: 'Teléfono', type: 'tel', cols: 4 },
 			{ name: 'contacto.whatsapp', label: 'WhatsApp (con código de país)', type: 'tel', cols: 4, placeholder: '50259131276' },
 			{ name: 'contacto.email', label: 'Correo', type: 'email', cols: 4 },

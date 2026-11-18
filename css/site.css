@@ -3702,7 +3702,7 @@ a:hover > .eq-ic-fin,
 	line-height: 16px;
 }
 
-/* «Te ayudaremos…»: ícono, título y texto. */
+/* «Te ayudaremos…»: ícono y título (sin párrafo: la página no debe parecer un libro). */
 .ini-ayuda {
 	display: grid;
 	gap: 12px;
@@ -3720,22 +3720,9 @@ a:hover > .eq-ic-fin,
 	line-height: 20px;
 	color: var(--eq-primary);
 }
-.ini-ayuda p {
-	grid-column: 2;
-	font-size: 12px;
-	line-height: 16px;
-}
 
-/* Asesores: foto, nombre y descripción; WhatsApp a la derecha. En el celular la descripción
-   muestra dos líneas y se abre completa al tocarla (js/site.js). */
-.ini-sec h2:has(+ .ini-cargo) {
-	margin-bottom: 4px;
-}
-.ini-cargo {
-	margin-bottom: 8px !important;
-	font-weight: 600;
-	color: var(--eq-dark);
-}
+/* Asesores: foto, nombre y descripción; WhatsApp a la derecha. La descripción muestra una línea
+   y se abre completa al tocarla (js/site.js). */
 .ini-asesores {
 	display: grid;
 	margin: 0;
@@ -3789,7 +3776,7 @@ a:hover > .eq-ic-fin,
 }
 .ini-bio[aria-expanded="false"] span {
 	display: -webkit-box;
-	-webkit-line-clamp: 2;
+	-webkit-line-clamp: 1;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
 }
@@ -3811,6 +3798,15 @@ a:hover > .eq-ic-fin,
 }
 .ini-exterior p {
 	margin: 0;
+}
+/* El párrafo del bloque solo en pantallas anchas: en el celular bastan el título y los puntos. */
+.ini-texto-ancho {
+	display: none;
+}
+@media (min-width: 992px) {
+	.ini-texto-ancho {
+		display: block;
+	}
 }
 .ini-exterior .ini-ceja {
 	font-size: 12px;
@@ -3946,13 +3942,6 @@ a:hover > .eq-ic-fin,
 	/* En columnas, cada asesor arranca arriba: las bios de distinto largo no desalinean las filas. */
 	.ini-asesores li {
 		align-items: flex-start;
-	}
-	.ini-bio {
-		cursor: default;
-	}
-	.ini-bio[aria-expanded] span {
-		display: inline;
-		overflow: visible;
 	}
 	.ini-exterior {
 		margin-top: 40px;

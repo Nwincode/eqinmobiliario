@@ -49,18 +49,15 @@
       "items": [
         {
           "icono": "icon-home2",
-          "titulo": "Cartera de inmuebles",
-          "texto": "Contamos con cartera de inmuebles tanto propios como de alianzas con otras empresas y corredores."
+          "titulo": "Cartera de inmuebles"
         },
         {
           "icono": "icon-person",
-          "titulo": "Agentes Capacitados",
-          "texto": "Contamos con agentes con experiencia en ventas, atención al cliente y sector bancario."
+          "titulo": "Agentes Capacitados"
         },
         {
           "icono": "icon-security",
-          "titulo": "Inmuebles Verificados",
-          "texto": "Cada inmueble, al ingresar, pasa por una investigación para verificar que todo esté en orden."
+          "titulo": "Inmuebles Verificados"
         }
       ]
     },
@@ -91,7 +88,6 @@
     },
     "contacto": {
       "titulo": "Contáctanos",
-      "subtitulo": "Déjanos tus datos y un asesor te escribirá a la brevedad.",
       "telefono": "+502 5913-1276",
       "whatsapp": "50259131276",
       "email": "atencioncliente@eqinmobiliario.gt",
@@ -241,18 +237,15 @@
         "items": [
           {
             "icono": "icon-home2",
-            "titulo": "Curated portfolio",
-            "texto": "Our own listings plus properties from trusted partner brokers and developers."
+            "titulo": "Curated portfolio"
           },
           {
             "icono": "icon-person",
-            "titulo": "Experienced advisors",
-            "texto": "A dedicated advisor with experience in sales, client service and bank financing."
+            "titulo": "Experienced advisors"
           },
           {
             "icono": "icon-security",
-            "titulo": "Due diligence",
-            "texto": "We verify ownership and liens at the Property Registry before you commit."
+            "titulo": "Due diligence"
           }
         ]
       },
@@ -282,8 +275,7 @@
         "titulo": "Meet your advisors"
       },
       "contacto": {
-        "titulo": "Talk to an advisor",
-        "subtitulo": "Tell us what you are looking for. We reply by WhatsApp or email, and can schedule a video call in your time zone."
+        "titulo": "Talk to an advisor"
       },
       "navegacion": [
         {

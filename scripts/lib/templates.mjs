@@ -539,7 +539,7 @@ function bloqueExterior(ctx) {
 			<div>
 				${b.etiqueta ? `<p class="ini-ceja">${esc(b.etiqueta)}</p>` : ''}
 				<h2>${esc(b.titulo)}</h2>
-				<p>${esc(b.texto)}</p>
+				<p class="ini-texto-ancho">${esc(b.texto)}</p>
 			</div>
 			<ul>${(b.puntos || []).map((pt) => `<li>${ic('check')}${esc(pt)}</li>`).join('')}</ul>
 			${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary">${esc(b.boton)}</a>` : ''}
@@ -553,9 +553,8 @@ const tituloServicios = (sv) => {
 	const tit = String(sv.titulo || '').trim();
 	return sub && /(\.\.\.|…)$/.test(tit) ? `${tit.replace(/\s*(\.\.\.|…)$/, '')} ${sub[0].toLowerCase()}${sub.slice(1)}` : tit;
 };
-// El cargo de un asesor se escribe en su fila solo si no es el mismo de todos; si lo es, se dice una vez bajo el título.
+// El cargo de un asesor se escribe en su fila solo si no es el mismo de todos (si lo es, el título de la sección ya lo dice).
 const cargoPropio = (agents, a) => a.cargo && agents.some((x) => x.cargo !== a.cargo);
-const cargoComun = (agents) => (agents.length && agents.every((x) => x.cargo === agents[0].cargo) ? agents[0].cargo || '' : '');
 
 // ---------------------------------------------------------------- Inicio
 
@@ -654,13 +653,12 @@ export function homePage(ctx) {
 	${s.servicios.visible ? `<section id="servicios" class="ini-sec container">
 		<h2>${esc(tituloServicios(s.servicios))}</h2>
 		<ul class="ini-ayuda">
-			${(s.servicios.items || []).map((it) => `<li><span class="${esc(it.icono || 'icon-home2')}" aria-hidden="true"></span><h3>${esc(it.titulo)}</h3><p>${esc(it.texto)}</p></li>`).join('\n')}
+			${(s.servicios.items || []).map((it) => `<li><span class="${esc(it.icono || 'icon-home2')}" aria-hidden="true"></span><h3>${esc(it.titulo)}</h3></li>`).join('\n')}
 		</ul>
 	</section>` : ''}
 
 	${s.asesores.visible && ctx.agents.length ? `<section id="asesores" class="ini-sec container">
 		<h2>${esc(s.asesores.titulo)}</h2>
-		${cargoComun(ctx.agents) ? `<p class="ini-cargo">${esc(cargoComun(ctx.agents))}</p>` : ''}
 		<ul class="ini-asesores">
 			${ctx.agents.map((a) => {
 				const wa = whatsappLink(a.whatsapp);
@@ -683,7 +681,6 @@ export function homePage(ctx) {
 	<section id="${ctx.lang === 'en' ? 'contact' : 'contacto'}" class="ini-sec container ini-contacto">
 		<div>
 			<h2>${esc(s.contacto.titulo)}</h2>
-			${s.contacto.subtitulo ? `<p>${esc(s.contacto.subtitulo)}</p>` : ''}
 			<ul class="ini-vias">
 				${s.contacto.telefono ? `<li><a href="tel:${esc(s.contacto.telefono.replace(/[^\d+]/g, ''))}" data-track="Contact" aria-label="${esc(`${t.llamar}: ${s.contacto.telefono}`)}">${ic('phone')}<span>${esc(s.contacto.telefono)}</span></a></li>` : ''}
 				${s.contacto.whatsapp ? `<li><a class="ini-wa" href="${esc(whatsappLink(s.contacto.whatsapp))}" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}<span>WhatsApp</span></a></li>` : ''}
