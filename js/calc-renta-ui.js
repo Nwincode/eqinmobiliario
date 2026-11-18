@@ -21,6 +21,8 @@
 		return isFinite(v) && v > 0 ? v : 0;
 	}
 
+	var REGIMENES = { pequeno: ['ninguno', 'pequeno'], general: ['simplificado', 'general'], ninguno: ['ninguno', 'ninguno'] };
+
 	function iniciar(card) {
 		var t = {};
 		try { t = JSON.parse(card.querySelector('.renta-t').textContent); } catch (e) { /* sin textos */ }
@@ -36,9 +38,15 @@
 		function pct(v) { return R.porcentaje(v, lang, 1); }
 		function entradas() {
 			var uso = campo('uso').value;
+			// Régimen que elige quien calcula: pequeño contribuyente (solo el 5 %, sin ISR), general (IVA 12 % aparte + ISR 5 %) o sin impuestos.
+			var sel = campo('regimen');
+			// Hasta que la persona lo cambie, el régimen sigue el límite de pequeño contribuyente (Q al año).
+			if (sel && !sel.hasAttribute('data-tocado')) sel.value = R.ivaPorDefecto({ rentaMensual: num(campo('renta')), moneda: moneda(), vacancia: Math.min(100, num(campo('vacancia'))) });
+			var reg = sel ? sel.value : 'pequeno';
+			var regimen = REGIMENES[reg] || REGIMENES.pequeno;
 			return {
 				tipo: tipo, precio: num(campo('precio')), moneda: moneda(), rentaMensual: num(campo('renta')), uso: uso,
-				regimenISR: 'capital', regimenIVA: 'auto',
+				regimenISR: regimen[0], regimenIVA: regimen[1],
 				vacancia: Math.min(100, num(campo('vacancia'))), gastosOperativos: Math.min(100, num(campo('gastos'))), reservaCapex: 0,
 				// Comisión de arrendamiento: plazo elegido (por defecto el del motor); el resto, valores del motor.
 				plazoContrato: num(campo('plazoContrato')) || R.PARAMS.plazoContrato.valor
@@ -57,7 +65,7 @@
 			];
 			// Comisión de arrendamiento repartida en los años del contrato (en caja se paga al firmar).
 			if (a.comisionDevengada > 0) filas.push(['resta', t.rentaDComision || '', a.comisionDevengada]);
-			filas.push(['resta', t.rentaDIsr, a.isr]);
+			if (a.isr > 0) filas.push(['resta', t.rentaDIsr, a.isr]);
 			// IVA según el monto cobrado al año: pequeño contribuyente lo pagas tú; general lo cobras aparte.
 			if (regimen === 'pequeno') filas.push(['resta', t.rentaDIvaPeq || '', a.ivaPropietario]);
 			filas.push(['total', t.rentaDNeto, a.neto], ['mes', t.rentaDNetoMes || '', a.neto / 12]);
@@ -131,6 +139,9 @@
 			if (r.entradas.regimenIVA === 'general') {
 				out('iva').textContent = fmt(t.rentaIva, { monto: dinero(r.anio1.ivaInquilino / 12) });
 				out('iva').hidden = false;
+			} else if (r.entradas.regimenIVA === 'pequeno' && r.avisos.indexOf('pequenoLimite') > -1 && t.rentaLimitePeq) {
+				out('iva').textContent = fmt(t.rentaLimitePeq, { limite: R.dinero(R.PARAMS.limitePequenoGTQ.valor, 'GTQ', lang) });
+				out('iva').hidden = false;
 			}
 			escenarios(e);
 		}
@@ -139,6 +150,8 @@
 			var e = ultimo.entradas, a = ultimo.anio1;
 			var usoSel = campo('uso');
 			var plantilla = String(t.rentaResumen || '');
+			// Sin ISR (pequeño contribuyente o sin impuestos), el mensaje no lo menciona.
+			if (!(a.isr > 0)) plantilla = plantilla.replace(/\s*−\s*(ISR|income tax)\s*\{isr\}/i, '');
 			// Un texto guardado en el panel antes de la comisión no trae {comisionResta}: se agrega al final
 			// para que el mensaje cuadre con el neto (que ya la resta).
 			if (a.comisionDevengada > 0 && plantilla.indexOf('{comisionResta}') < 0) plantilla += '\n' + (t.rentaDComision || 'Comisión de arrendamiento') + ': −{comisionMonto}';
@@ -157,6 +170,8 @@
 			}).slice(0, 1900);
 		}
 
+		var selRegimen = campo('regimen');
+		if (selRegimen) selRegimen.addEventListener('change', function () { selRegimen.setAttribute('data-tocado', ''); });
 		card.addEventListener('input', calcular);
 		card.addEventListener('change', calcular);
 

@@ -147,8 +147,9 @@
 		var tc = n(i.tipoCambio, P.tipoCambio) || P.tipoCambio;
 		var fx = moneda === 'USD' ? tc : 1; // de la moneda de la propiedad a quetzales
 		var cap = capReferencia(tipo, params);
+		// «ninguno»: quien usa la calculadora elige no calcular impuestos (su contabilidad es suya).
 		var regimenISR = i.regimenISR || 'capital';
-		var ivaAuto = i.regimenIVA !== 'pequeno' && i.regimenIVA !== 'general';
+		var ivaAuto = i.regimenIVA !== 'pequeno' && i.regimenIVA !== 'general' && i.regimenIVA !== 'ninguno';
 		return {
 			tipo: tipo,
 			precio: precio,
@@ -159,7 +160,7 @@
 			regimenIVA: ivaAuto ? ivaPorDefecto(i, params) : i.regimenIVA,
 			ivaAutomatico: ivaAuto,
 			// Exento de ISR en la venta: persona individual sin actividad inmobiliaria inscrita en el RTU (Decreto 18-2026).
-			vendedorExento: b(i.vendedorExento, regimenISR === 'capital'),
+			vendedorExento: b(i.vendedorExento, regimenISR === 'capital' || regimenISR === 'ninguno'),
 			vacancia: n(i.vacancia, 5),
 			gastosOperativos: n(i.gastosOperativos, 10),
 			reservaCapex: n(i.reservaCapex, 0),
@@ -188,6 +189,8 @@
 	}
 
 	function isrDelAnio(e, cobrado, deducibles, P, fx) {
+		// Pequeño contribuyente: el 5 % sustituye al ISR (Ley del IVA, art. 49). Sin impuestos: nada.
+		if (e.regimenISR === 'ninguno' || e.regimenIVA === 'pequeno') return 0;
 		if (e.regimenISR === 'simplificado') {
 			var mesQ = cobrado / 12 * fx;
 			var isrMesQ = P.isrSimplificadoTasa1 / 100 * Math.min(mesQ, P.isrSimplificadoTope) +

@@ -977,6 +977,7 @@ function rentaWidget(ctx, p = null) {
 							<div class="${p ? 'col-sm-6' : 'col-sm-5'}">${num('rc-renta', 'renta', `${t.rentaMensual} <span class="renta-moneda">(${pre})</span>`, renta, `min="0" step="10"${p ? ' aria-describedby="rc-renta-ayuda"' : ''}`)}</div>
 							${p ? `<p id="rc-renta-ayuda" class="renta-ayuda col-12 mt-1">${t.rentaSugerida}</p>` : ''}
 							<div class="col-sm-6"><label class="form-label" for="rc-uso">${t.rentaUso}</label><select id="rc-uso" class="form-select" name="uso">${opt('habitacional', t.rentaHabitacional, uso === 'habitacional')}${opt('mixto', t.rentaMixto, uso === 'mixto')}${opt('comercial', t.rentaComercial, uso === 'comercial')}</select></div>
+							<div class="col-sm-6"><label class="form-label" for="rc-regimen">${t.rentaRegimen}</label><select id="rc-regimen" class="form-select" name="regimen">${opt('pequeno', t.rentaRegPequeno, true)}${opt('general', t.rentaRegGeneral, false)}${opt('ninguno', t.rentaRegNinguno, false)}</select></div>
 						</div>
 						<details class="renta-supuestos">
 							<summary>${ic('sliders')}${t.rentaSupuestos}</summary>
