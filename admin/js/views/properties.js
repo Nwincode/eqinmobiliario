@@ -3,7 +3,7 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion } from '../ui.js';
 import { renderForm, deleteImage, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -501,28 +501,46 @@ export async function render(container, [id]) {
 		});
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
+		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
+		// Estado y visibilidad también desde el ⋮: en la tarjeta (celular y tableta) no van el selector ni el interruptor.
+		const cambiarEstado = async () => {
+			const label = await elegirOpcion(`Estado de ${nombre}`, ESTADOS.map(([, l]) => l));
+			const estado = ESTADOS.find(([, l]) => l === label)?.[0];
+			if (!estado || estado === estadoDe(p).valor) return;
+			guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`, `Estado cambiado a «${label}». ${trasGuardar()}`);
+		};
+		const alternarVisible = () => {
+			const publicado = !p.publicado;
+			guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
+				`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
+		};
+		// Lo que más se usa, arriba; borrar, al final. Tocar la tarjeta ya abre la ficha (sin «Editar»).
 		const menu = menuMas(`Acciones de ${nombre}`, [
-			editable && { icono: 'icon-pencil', texto: 'Editar', href: `#/propiedades/${p.id}` },
-			enSitio && { icono: 'icon-whatsapp', texto: 'Compartir por WhatsApp', target: '_blank',
-				href: whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`) },
+			enSitio && { icono: 'icon-whatsapp', texto: 'Compartir por WhatsApp', target: '_blank', href: enlaceWa },
 			enSitio && { icono: 'icon-external-link', texto: 'Ver en la página', target: '_blank', href: publicUrl(p) },
+			editable && { icono: 'icon-exchange', texto: `Cambiar estado (${estadoDe(p).label})`, onclick: cambiarEstado },
+			editable && { icono: p.publicado ? 'icon-eye-slash' : 'icon-eye', texto: p.publicado ? 'Ocultar de la página' : 'Mostrar en la página', onclick: alternarVisible },
 			editable && { icono: 'icon-list-ul', texto: 'Mejorar descripción', onclick: () => mejorar([p]) },
 			editable && { icono: 'icon-search', texto: 'Completar SEO', onclick: () => completarSeo([p]) },
 			editable && { icono: 'icon-globe', texto: 'Traducir al inglés', onclick: () => traducir([p]) },
 			session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => eliminar([p]) }
 		]);
+		const chipsEscritorio = p.vip || p.destacada || p.socio?.codigoSocio || faltanDe(p).length;
 		// Tocar la fila abre la ficha, salvo en el menú ⋮ (que abre sus acciones).
-		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: (e) => { if (!e.target.closest('.menu-mas')) location.hash = `#/propiedades/${p.id}`; } },
+		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: (e) => { if (!e.target.closest('.celda-menu')) location.hash = `#/propiedades/${p.id}`; } },
 			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
 			h('td', { class: 'celda-num' }, i + 1),
 			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
 			h('td', { class: 'celda-titulo' },
 				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
-				p.vip || p.destacada || p.socio?.codigoSocio || faltanDe(p).length ? h('div', { class: 'prop-chips' },
+				// En la tarjeta también el estado y, si no se ve en la página, por qué (en la tabla tienen su columna).
+				h('div', { class: `prop-chips${chipsEscritorio ? '' : ' solo-tarjeta'}` },
+					h('span', { class: 'badge chip-estado solo-tarjeta-chip' }, estadoDe(p).label),
+					motivo.color === 'success' ? null : h('span', { class: `badge text-bg-${motivo.color} solo-tarjeta-chip` }, h('span', { class: `${motivo.icono} me-1`, 'aria-hidden': 'true' }), motivo.texto),
 					p.socio?.codigoSocio ? h('span', { class: 'badge text-bg-light', title: 'Código del socio' }, h('span', { class: 'icon-key me-1', 'aria-hidden': 'true' }), p.socio.codigoSocio) : null,
 					p.vip ? badge('VIP', 'warning') : null,
 					p.destacada ? badge('Destacada', 'info') : null,
-					chipFaltan(faltanDe(p))) : null,
+					chipFaltan(faltanDe(p))),
 				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
 				datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
