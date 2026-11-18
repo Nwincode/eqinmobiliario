@@ -54,6 +54,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 
 ## Diseño
 - Lo hace Claude directo, sin agentes de diseño ni agentes revisores.
+- Antes de diseñar o mostrar un diseño, Claude usa la skill `diseno-minimo` (`.claude/skills/diseno-minimo/SKILL.md`):
+  retícula, menos pero mejor, usabilidad, y las medidas que se revisan antes de entregar.
 - Cambio sencillo (texto, color, un botón, un espacio): se hace de una vez.
 - Diseño grande o nuevo (página, sección, tarjeta, panel, correo): primero un boceto corto para que
   el usuario lo apruebe; después se programa.
