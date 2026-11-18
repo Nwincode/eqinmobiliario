@@ -3773,7 +3773,8 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 /* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
    Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
    y el ⋮ abajo. Nombre y ⚠ al ras del borde de arriba de la foto; precio y ⋮ al ras del de abajo.
-   Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más de datos). */
+   Alto fijo: 120 en el celular y 136 en tableta y computadora (con una línea más: código, asesor y fecha).
+   El estado se ve solo si el nombre cabe en una línea; así ninguna fila deja huecos. */
 .lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
 .casa-fila {
 	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
@@ -3793,6 +3794,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .casa-txt .casa-datos { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 8px; font-size: 13px; line-height: 16px; margin: 0; }
 .casa-precio { font-weight: 700; font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .casa-extra { display: none; gap: 12px; }
+.nombre-largo .casa-estado { display: none; }
 .casa-extra > span { display: inline-flex; align-items: center; gap: 4px; }
 .casa-extra code { font-size: 12px; color: var(--adm-muted); }
 .casa-der { width: 44px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: space-between; margin: 0 -8px 0 -4px; }
@@ -3812,9 +3814,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.lista-casas .casa-fila:nth-last-child(2):nth-child(odd) { border-bottom: 0; padding-bottom: 8px; }
 	.casa-fila { height: 136px; gap: 12px; }
 	.casa-foto { width: 120px; height: 120px; }
-}
-@media (min-width: 1200px) {
-	.casa-fila { height: 152px; }
-	.casa-foto { width: 136px; height: 136px; }
 	.casa-extra { display: flex; }
+	/* Con un número impar de casas, el lugar vacío del final no parece una casa en blanco. */
+	.lista-casas:has(> .casa-fila:last-child:nth-child(odd))::after { content: ''; background: var(--adm-bg); border-bottom-right-radius: var(--adm-radius); margin: 0 -1px -1px 0; }
 }

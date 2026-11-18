@@ -527,6 +527,8 @@ export async function render(container, [id]) {
 				lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
 				h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
 				extra.length ? h('div', { class: 'casa-dato casa-extra' }, extra) : null,
+				// Solo cuando el nombre cabe en una línea (ver `marcarNombresLargos`): así la fila no deja hueco.
+				h('div', { class: 'casa-dato casa-estado' }, h('span', { class: motivo.color === 'success' ? 'icon-eye' : 'icon-eye-slash', 'aria-hidden': 'true' }), h('span', {}, `${estadoDe(p).label} · ${motivo.color === 'success' ? 'se ve en la página' : motivo.texto.toLowerCase()}`)),
 				h('div', { class: 'casa-precio' }, formatPrice(p.precio, p.moneda, p.operacion))),
 			h('div', { class: 'casa-der' },
 				avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })
@@ -534,6 +536,11 @@ export async function render(container, [id]) {
 				menu));
 	};
 
+	// Con el nombre en dos líneas no cabe la línea del estado: se quita entera (nunca a medias).
+	const marcarNombresLargos = () => requestAnimationFrame(() => lista.querySelectorAll('.casa-fila').forEach((f) => {
+		f.classList.toggle('nombre-largo', f.querySelector('.casa-titulo').offsetHeight > 24);
+	}));
+	addEventListener('resize', marcarNombresLargos);
 	const draw = () => {
 		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
@@ -553,6 +560,7 @@ export async function render(container, [id]) {
 		const ids = new Set(rows.map((p) => p.id));
 		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		lista.replaceChildren(...rows.map(fila));
+		marcarNombresLargos();
 		vacio.hidden = rows.length > 0;
 		pintarBarra();
 	};
