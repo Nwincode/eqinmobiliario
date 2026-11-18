@@ -189,7 +189,8 @@
 	}
 
 	function isrDelAnio(e, cobrado, deducibles, P, fx) {
-		if (e.regimenISR === 'ninguno') return 0;
+		// Pequeño contribuyente: el 5 % sustituye al ISR (Ley del IVA, art. 49). Sin impuestos: nada.
+		if (e.regimenISR === 'ninguno' || e.regimenIVA === 'pequeno') return 0;
 		if (e.regimenISR === 'simplificado') {
 			var mesQ = cobrado / 12 * fx;
 			var isrMesQ = P.isrSimplificadoTasa1 / 100 * Math.min(mesQ, P.isrSimplificadoTope) +

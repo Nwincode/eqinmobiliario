@@ -39,7 +39,10 @@
 		function entradas() {
 			var uso = campo('uso').value;
 			// Régimen que elige quien calcula: pequeño contribuyente (solo el 5 %, sin ISR), general (IVA 12 % aparte + ISR 5 %) o sin impuestos.
-			var reg = campo('regimen') ? campo('regimen').value : 'pequeno';
+			var sel = campo('regimen');
+			// Hasta que la persona lo cambie, el régimen sigue el límite de pequeño contribuyente (Q al año).
+			if (sel && !sel.hasAttribute('data-tocado')) sel.value = R.ivaPorDefecto({ rentaMensual: num(campo('renta')), moneda: moneda(), vacancia: Math.min(100, num(campo('vacancia'))) });
+			var reg = sel ? sel.value : 'pequeno';
 			var regimen = REGIMENES[reg] || REGIMENES.pequeno;
 			return {
 				tipo: tipo, precio: num(campo('precio')), moneda: moneda(), rentaMensual: num(campo('renta')), uso: uso,
@@ -136,6 +139,9 @@
 			if (r.entradas.regimenIVA === 'general') {
 				out('iva').textContent = fmt(t.rentaIva, { monto: dinero(r.anio1.ivaInquilino / 12) });
 				out('iva').hidden = false;
+			} else if (r.entradas.regimenIVA === 'pequeno' && r.avisos.indexOf('pequenoLimite') > -1 && t.rentaLimitePeq) {
+				out('iva').textContent = fmt(t.rentaLimitePeq, { limite: R.dinero(R.PARAMS.limitePequenoGTQ.valor, 'GTQ', lang) });
+				out('iva').hidden = false;
 			}
 			escenarios(e);
 		}
@@ -164,6 +170,8 @@
 			}).slice(0, 1900);
 		}
 
+		var selRegimen = campo('regimen');
+		if (selRegimen) selRegimen.addEventListener('change', function () { selRegimen.setAttribute('data-tocado', ''); });
 		card.addEventListener('input', calcular);
 		card.addEventListener('change', calcular);
 

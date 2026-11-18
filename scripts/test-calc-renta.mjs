@@ -25,7 +25,7 @@ const noExento = { vendedorExento: false };
 
 test('caso base habitacional: IVA pequeño contribuyente por defecto (cálculo a mano)', () => {
 	// Cobrado 1,200 × 12 × 0.95 = 13,680 → × 7.7 = Q 105,336 ≤ Q 500,285 → pequeño contribuyente 5 % = 684.
-	// Neto = 13,680 − 1,368 (gastos) − 0 (IUSI) − 957.60 (ISR 10 % × 70 %) − 684 = 10,670.40.
+	// Neto = 13,680 − 1,368 (gastos) − 0 (IUSI) − 684 = 11,628. Sin ISR: el 5 % lo sustituye (Ley del IVA, art. 49).
 	const r = R.calcular(base);
 	cerca(r.anio1.cobrado, 13680, 1e-9, 'cobrado');
 	cerca(r.cobradoAnualQ, 105336, 1e-6, 'cobrado en quetzales');
@@ -33,11 +33,11 @@ test('caso base habitacional: IVA pequeño contribuyente por defecto (cálculo a
 	assert.equal(r.entradas.ivaAutomatico, true);
 	cerca(r.anio1.opex, 1368, 1e-9, 'opex');
 	cerca(r.anio1.iusi, 0, 1e-12, 'iusi');
-	cerca(r.anio1.isr, 957.6, 1e-9, 'isr');
+	cerca(r.anio1.isr, 0, 1e-9, 'pequeño contribuyente: sin ISR');
 	cerca(r.anio1.ivaPropietario, 684, 1e-9, 'IVA 5 %');
-	cerca(r.anio1.neto, 10670.4, 1e-9, 'neto');
-	cerca(r.netoMensual, 889.2, 1e-9, 'neto mensual');
-	cerca(r.rendimientoNeto * 100, 5.3352, 1e-9, 'rendimiento neto');
+	cerca(r.anio1.neto, 11628, 1e-9, 'neto');
+	cerca(r.netoMensual, 969, 1e-9, 'neto mensual');
+	cerca(r.rendimientoNeto * 100, 5.814, 1e-9, 'rendimiento neto');
 	cerca(r.rendimientoBruto * 100, 7.2, 1e-9, 'rendimiento bruto');
 	assert.equal(r.anios.length, 30);
 	assert.ok(r.tir > 0.05 && r.tir < 0.12, `TIR razonable: ${r.tir}`);
@@ -234,17 +234,18 @@ test('ISR simplificado arriba de Q 30,000 al mes', () => {
 });
 
 test('ISR sobre utilidades', () => {
-	const r = R.calcular({ ...base, regimenISR: 'utilidades', depreciacion: 2 });
+	const r = R.calcular({ ...gen, regimenISR: 'utilidades', depreciacion: 2 });
 	// 25 % × (13,680 − 1,368 − 0 − 4,000)
 	cerca(r.anio1.isr, 0.25 * (13680 - 1368 - 4000), 1e-9);
-	const cero = R.calcular({ ...base, regimenISR: 'utilidades', depreciacion: 10 });
+	const cero = R.calcular({ ...gen, regimenISR: 'utilidades', depreciacion: 10 });
 	assert.equal(cero.anio1.isr, 0, 'sin utilidad no hay ISR');
 });
 
 test('IVA pequeño contribuyente: costo del dueño y avisos del límite', () => {
 	const r = R.calcular({ ...base, regimenIVA: 'pequeno', crecimientoRenta: 0 });
 	cerca(r.anio1.ivaPropietario, 13680 * 0.05, 1e-9);
-	cerca(r.anio1.neto, 11354.4 - 684, 1e-9);
+	cerca(r.anio1.neto, 13680 - 1368 - 684, 1e-9, 'el 5 % sustituye al ISR');
+	assert.equal(r.anio1.isr, 0);
 	// Q 105,336 al año: no pasa de Q 500,285, y sin crecimiento nunca pasa.
 	assert.ok(!r.avisos.includes('pequenoLimite') && !r.avisos.includes('pequenoLimiteFuturo'));
 	assert.equal(r.ivaLimiteAnio, null);
@@ -262,6 +263,21 @@ test('IVA pequeño contribuyente: costo del dueño y avisos del límite', () => 
 	assert.ok(!R.calcular({ ...base, uso: 'mixto' }).avisos.includes('mixtoIva'), 'ya no hay aviso de mixto');
 });
 
+test('régimen que elige el usuario: pequeño (solo 5 %), general (ISR 5 % y 7 % sobre Q 30,000 al mes) o sin impuestos', () => {
+	const q = (renta, isr, iva) => R.calcular({ precio: 1000000, moneda: 'GTQ', rentaMensual: renta, uso: 'habitacional', regimenISR: isr, regimenIVA: iva, vacancia: 0, gastosOperativos: 0, comisionActiva: false }).anio1;
+	const peq = q(40000, 'ninguno', 'pequeno');
+	cerca(peq.isr, 0); cerca(peq.ivaPropietario / 12, 2000);
+	const g1 = q(5000, 'simplificado', 'general');
+	cerca(g1.isr / 12, 250); cerca(g1.ivaInquilino / 12, 600); cerca(g1.ivaPropietario, 0);
+	const g2 = q(40000, 'simplificado', 'general');
+	cerca(g2.isr / 12, 30000 * 0.05 + 10000 * 0.07, 1e-6, '5 % hasta Q 30,000 y 7 % sobre el resto');
+	const nada = q(40000, 'ninguno', 'ninguno');
+	cerca(nada.isr, 0); cerca(nada.ivaPropietario, 0); cerca(nada.ivaInquilino, 0);
+	cerca(nada.neto, 480000);
+	// Pequeño contribuyente nunca suma ISR, aunque el ISR pedido sea otro (el panel puede mandar «capital»).
+	cerca(q(5000, 'capital', 'pequeno').isr, 0);
+});
+
 test('TIR de un flujo conocido = 10 %', () => {
 	const flujos = [-100, 10, 10, 10, 10, 10, 10, 10, 10, 10, 110];
 	cerca(R.tir(flujos), 0.10, 1e-9);
@@ -272,7 +288,7 @@ test('TIR de un flujo conocido = 10 %', () => {
 });
 
 test('renta para un rendimiento objetivo (ida y vuelta)', () => {
-	cerca(R.rentaParaRendimiento(200000, 5.3352, base), 1200, 1e-4, 'vuelve a la renta original (pequeño)');
+	cerca(R.rentaParaRendimiento(200000, 5.814, base), 1200, 1e-4, 'vuelve a la renta original (pequeño)');
 	cerca(R.rentaParaRendimiento(200000, 5.6772, gen), 1200, 1e-4, 'vuelve a la renta original (general)');
 	const otra = R.rentaParaRendimiento(350000, 6.5, { ...gen, uso: 'comercial', regimenISR: 'simplificado' });
 	cerca(R.calcular({ ...gen, precio: 350000, uso: 'comercial', regimenISR: 'simplificado', rentaMensual: otra }).rendimientoNeto, 0.065, 1e-9);
@@ -282,7 +298,7 @@ test('renta para un rendimiento objetivo (ida y vuelta)', () => {
 test('escenarios y payback', () => {
 	const e = R.escenarios(base, [-10, 0, 10]);
 	assert.equal(e.length, 3);
-	cerca(e[1].neto, 10670.4, 1e-9);
+	cerca(e[1].neto, 11628, 1e-9);
 	cerca(R.escenarios(gen, [0])[0].neto, 11354.4, 1e-9);
 	cerca(e[0].rentaMensual, 1080, 1e-9);
 	assert.ok(e[0].netoMensual < e[1].netoMensual && e[1].netoMensual < e[2].netoMensual);
@@ -299,7 +315,7 @@ test('valores por defecto por tipo y parámetros editables', () => {
 	cerca(R.normalizar({ tipo: 'terreno' }).capSalida, 7, 1e-12);
 	cerca(R.rentaSugerida(200000, 'casa', base), 200000 * 0.05 / 12 / (0.95 * 0.9), 1e-9);
 	assert.ok(R.calcular({ ...base, tipo: 'terreno' }).avisos.includes('terreno'));
-	const r = R.calcular(base, { isrCapitalTasa: 5 });
+	const r = R.calcular(gen, { isrCapitalTasa: 5 });
 	cerca(r.anio1.isr, 478.8, 1e-9, 'parámetro cambiado');
 	for (const [k, p] of Object.entries(R.PARAMS)) {
 		assert.ok(typeof p.fuente === 'string' && p.fuente.length > 0, `${k} tiene fuente`);
@@ -344,10 +360,10 @@ test('comisión año 1: US$200k, renta 1,200, pequeño contribuyente (cálculo a
 	cerca(a.comisionDevengada, 1344);
 	cerca(a.noi, 12312, 1e-6, 'el NOI no cambia');
 	cerca(a.antesImpuestos, 12312 - 1344);
-	cerca(a.isr, 957.6, 1e-6, 'rentas de capital: la comisión no baja el ISR');
-	cerca(a.neto, 9326.4);
-	cerca(r.netoMensual, 777.2);
-	cerca(a.netoCaja, 12312 - 4032 - 957.6 - 684);
+	cerca(a.isr, 0, 1e-6, 'pequeño contribuyente: sin ISR');
+	cerca(a.neto, 12312 - 1344 - 684);
+	cerca(r.netoMensual, (12312 - 1344 - 684) / 12);
+	cerca(a.netoCaja, 12312 - 4032 - 684);
 	const c = R.cascadaAnio(r, 1);
 	const filas = c.filas || c;
 	const com = filas.find((f) => f.clave === 'comision');
@@ -358,10 +374,10 @@ test('comisión año 1: US$200k, renta 1,200, pequeño contribuyente (cálculo a
 	const g = R.calcular({ ...conComision, regimenIVA: 'general' }).anio1;
 	cerca(g.comision, 3600);
 	cerca(g.comisionDevengada, 1200);
-	// Sobre utilidades sí se deduce: 25 % × 1,344 menos ISR.
-	const u0 = R.calcular({ ...base, regimenISR: 'utilidades' }).anio1;
-	const u1 = R.calcular({ ...conComision, regimenISR: 'utilidades' }).anio1;
-	cerca(u0.isr - u1.isr, 0.25 * 1344, 1e-6, 'ISR utilidades');
+	// Sobre utilidades (régimen general) sí se deduce: 25 % × 1,200 (sin IVA, que es crédito fiscal) menos ISR.
+	const u0 = R.calcular({ ...gen, regimenISR: 'utilidades' }).anio1;
+	const u1 = R.calcular({ ...conComision, regimenIVA: 'general', regimenISR: 'utilidades' }).anio1;
+	cerca(u0.isr - u1.isr, 0.25 * 1200, 1e-6, 'ISR utilidades');
 });
 
 test('comisión: caja con y sin renovaciones (plazo 10 años, contratos de 3)', () => {
@@ -428,15 +444,16 @@ test('comisión: la TIR del panel y la del motor coinciden; el tipo cambia el ca
 	const r = R.calcular(panel, P);
 	assert.equal(r.entradas.capSalida, 5.5, 'casa: 5 % + 0.5');
 	// Venta con comisión 5 % + IVA y gastos 2 % (pequeño contribuyente: 7.6 % del precio).
-	cerca(r.tir * 100, 7.69, 0.005, 'TIR casa');
-	cerca(R.calcular({ ...panel, comisionActiva: false }, P).tir * 100, 8.39, 0.005, 'TIR casa sin comisión');
+	// Pequeño contribuyente sin ISR (el 5 % lo sustituye).
+	cerca(r.tir * 100, 8.16, 0.005, 'TIR casa');
+	cerca(R.calcular({ ...panel, comisionActiva: false }, P).tir * 100, 8.86, 0.005, 'TIR casa sin comisión');
 	cerca(r.totales.comision, 62060.91, 0.01, 'comisiones en 30 años');
 	// Los flujos de la TIR son la caja: comisión completa el año que se firma, no la repartida.
 	r.anios.slice(0, -1).forEach((a, i) => cerca(r.flujos[i + 1], a.netoCaja));
-	// Sin tipo no hay referencia: cap rate de salida 7 % (precio de venta menor), por eso la TIR baja a 7.30 %.
+	// Sin tipo no hay referencia: cap rate de salida 7 % (precio de venta menor), por eso la TIR baja a 7.80 %.
 	const sinTipo = R.calcular({ ...panel, tipo: '' }, P);
 	assert.equal(sinTipo.entradas.capSalida, 7);
-	cerca(sinTipo.tir * 100, 7.30, 0.005, 'TIR sin tipo');
+	cerca(sinTipo.tir * 100, 7.80, 0.005, 'TIR sin tipo');
 	r.anios.forEach((a, i) => cerca(a.netoCaja, sinTipo.anios[i].netoCaja, 1e-9, `misma caja año ${i + 1}`));
 	// Lo confirmado por el propietario: el plazo se elige en cada negocio y cada renovación paga (escala reinicia).
 	for (const k of ['plazoContrato', 'comisionEnRenovacion', 'escalaContinua']) assert.equal(R.PARAMS[k].confirmar, false, k);
