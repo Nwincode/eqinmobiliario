@@ -37,9 +37,10 @@ function textoExclusiva(dias) {
 //  comisiones:  [{ codigo, casa, nivel, vence }]                            del socio: su pago a EQ vencido, sin comprobante
 //  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId }] tipo «cambios»
 //  exclusivas:  [{ casaId, casa, dueno, fin, dias, agentId }]
+//  leads:       [{ id, nombre, casa, creado }]                              de la web, sin atender (estado «nuevo»)
 //  atendidos:   Set de claves con «Listo».
 // Devuelve [{ clave, tipo, icono, titulo, detalle, fecha, href, urgente, listo }], lo urgente primero y después lo más nuevo.
-export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], atendidos = new Set(), ahora = Date.now() } = {}) {
+export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], leads = [], atendidos = new Set(), ahora = Date.now() } = {}) {
 	const out = [];
 	const conMensaje = new Set(mensajes.map((m) => m.codigo));
 	const conSolicitud = new Set();
@@ -99,6 +100,12 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 			urgente: e.dias <= 7, listo, titulo: textoExclusiva(e.dias), detalle: [e.casa, e.dueno].filter(Boolean).join(' · ')
 		});
 	}
+	// Lead nuevo de la web (formulario de contacto o de una casa): se va solo al cambiarle el estado en Leads.
+	// Después de 24 h sin atender va en rojo.
+	for (const l of leads) out.push({
+		clave: `lead_${l.id}`, tipo: 'lead', icono: 'icon-user-plus', href: '#/leads', fecha: l.creado, urgente: ahora - (l.creado || ahora) > DIA,
+		titulo: `${l.nombre || 'Alguien'} dejó sus datos`, detalle: [l.casa || 'formulario de contacto', hace(l.creado, ahora)].filter(Boolean).join(' · ')
+	});
 	return out.sort((a, b) => (b.urgente - a.urgente) || ((b.fecha || 0) - (a.fecha || 0)));
 }
 
