@@ -416,8 +416,6 @@ export async function render(container, [id]) {
 		} catch (err) { console.warn(err); }
 	}
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
-	// Nombre del dueño de cada casa (una sola lectura; si este usuario no puede leerlos, la línea no lo muestra).
-	const duenoNombre = Object.fromEntries((await loadPropietarios().catch(() => [])).map((d) => [d.id, d.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
 	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar título, código o zona…' });
@@ -509,12 +507,10 @@ export async function render(container, [id]) {
 			'aria-label': `Elegir ${nombre}`,
 			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
 		});
-		const dueno = duenoNombre[p.propietarioId];
-		const extra1 = [p.codigo ? h('code', {}, p.codigo) : null,
-			h('span', { title: 'Fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }), (p.fotos || []).length),
+		// Computadora: una sola línea de más (código, asesor y fecha), para no saturar la fila.
+		const extra = [p.codigo ? h('code', {}, p.codigo) : null,
+			agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, agentName[p.agentId])) : null,
 			p.updatedAt ? h('span', { title: 'Última actualización' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), formatDate(p.updatedAt, false)) : null].filter(Boolean);
-		const extra2 = [agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, agentName[p.agentId])) : null,
-			dueno ? h('span', { title: 'Dueño' }, h('span', { class: 'icon-key', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, dueno)) : null].filter(Boolean);
 		return h('article', {
 			class: `casa-fila${motivo.color === 'success' ? '' : ' casa-oculta'}`, tabindex: '0', 'aria-label': nombre,
 			onclick: (e) => {
@@ -531,8 +527,7 @@ export async function render(container, [id]) {
 				h('div', { class: 'casa-titulo prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
 				h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
-				h('div', { class: 'casa-dato casa-extra' }, extra1),
-				extra2.length ? h('div', { class: 'casa-dato casa-extra' }, extra2) : null,
+				extra.length ? h('div', { class: 'casa-dato casa-extra' }, extra) : null,
 				h('div', { class: 'casa-precio' }, formatPrice(p.precio, p.moneda, p.operacion))),
 			h('div', { class: 'casa-der' },
 				avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })

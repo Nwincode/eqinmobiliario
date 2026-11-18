@@ -3773,8 +3773,8 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 /* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
    Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
    y el ⋮ abajo. El texto va junto (sin huecos entre líneas) y centrado al lado de la foto.
-   Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con dos líneas más: código, fotos y
-   fecha; asesor y dueño). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo. */
+   Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más: código, asesor y
+   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo. */
 .lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
 .casa-fila {
 	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
@@ -3819,4 +3819,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.casa-fila { height: 152px; }
 	.casa-foto { width: 136px; height: 136px; }
 	.casa-extra { display: flex; }
+	/* Una línea de más y renglones de 20 px: la fila respira sin huecos ni saturarse. */
+	.casa-txt .casa-dato, .casa-txt .casa-datos { line-height: 20px; }
 }
