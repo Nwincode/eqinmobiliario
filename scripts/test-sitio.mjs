@@ -279,7 +279,7 @@ test('horario: el inglés sale del español (días y 12 h); el guardado en ingl�
 	assert.equal(horarioEn('Todos los días con cita previa'), 'Every day by appointment');
 	assert.equal(horarioEn('Horario por WhatsApp'), 'Horario por WhatsApp', 'lo que no reconoce queda igual');
 	assert.equal(horarioEn(''), '');
-	const es = attr(de('/'), /icon-clock-o[^>]*><\/span>([^<]+)/), en = attr(de('/en/'), /icon-clock-o[^>]*><\/span>([^<]+)/);
+	const es = attr(de('/'), /ini-dato"><span class="icon-clock-o[^>]*><\/span>([^<]+)/), en = attr(de('/en/'), /ini-dato"><span class="icon-clock-o[^>]*><\/span>([^<]+)/);
 	assert.equal(en, horarioEn(es));
 });
 

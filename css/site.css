@@ -3549,14 +3549,19 @@ a:hover > .eq-ic-fin,
 	display: none;
 }
 
-/* Cifras: fila de 4 bajo la portada, número arriba y etiqueta tenue debajo. */
+/* Cifras: fila de 4 al final de «Te ayudaremos a…», número arriba y etiqueta tenue debajo. */
 .ini-cifras {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 0 12px;
-	margin: 0;
-	padding: 12px 0;
-	border-bottom: 1px solid var(--eq-line);
+	margin: 16px 0 0;
+	padding: 12px 0 0;
+	border-top: 1px solid var(--eq-line);
+}
+.ini-sec > .ini-cifras:first-child {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: 0;
 }
 .ini-cifras > div {
 	display: flex;

@@ -7,6 +7,7 @@ import { buscar, paginaDeZona, zonasHermanas, padres, nombreTipo } from './landi
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe } from '../../admin/js/estados.js';
+import { puntosConIcono } from '../../admin/js/puntos.js';
 import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
@@ -541,7 +542,7 @@ function bloqueExterior(ctx) {
 				<h2>${esc(b.titulo)}</h2>
 				<p class="ini-texto-ancho">${esc(b.texto)}</p>
 			</div>
-			<ul>${(b.puntos || []).map((pt) => `<li>${ic('check')}${esc(pt)}</li>`).join('')}</ul>
+			<ul>${puntosConIcono(b.puntos).map((pt) => `<li><span class="${esc(pt.icono)} eq-ic" aria-hidden="true"></span>${esc(pt.texto)}</li>`).join('')}</ul>
 			${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary">${esc(b.boton)}</a>` : ''}
 		</div>
 	</section>`;
@@ -598,6 +599,11 @@ export function homePage(ctx) {
 		}
 	};
 
+	// Las cifras (vendidas, alquiladas…) respaldan «Te ayudaremos a…»: van al final de esa sección, o solas si está oculta.
+	const cifras = s.contadores.visible && (s.contadores.items || []).length ? `<dl class="ini-cifras">
+			${s.contadores.items.map((c) => `<div><dt>${esc(c.etiqueta)}</dt><dd>${esc(c.valor)}</dd></div>`).join('')}
+		</dl>` : '';
+
 	const body = `
 	<div class="hero ini-hero">
 		<div class="hero-slide">
@@ -612,12 +618,6 @@ export function homePage(ctx) {
 			</form>
 		</div>
 	</div>
-
-	${s.contadores.visible && (s.contadores.items || []).length ? `<div class="container">
-		<dl class="ini-cifras">
-			${s.contadores.items.map((c) => `<div><dt>${esc(c.etiqueta)}</dt><dd>${esc(c.valor)}</dd></div>`).join('')}
-		</dl>
-	</div>` : ''}
 
 	${slider.length ? `<section class="ini-sec container ini-populares">
 		<h2>${esc(s.destacadas.titulo)}</h2>
@@ -655,7 +655,8 @@ export function homePage(ctx) {
 		<ul class="ini-ayuda">
 			${(s.servicios.items || []).map((it) => `<li><span class="${esc(it.icono || 'icon-home2')}" aria-hidden="true"></span><h3>${esc(it.titulo)}</h3></li>`).join('\n')}
 		</ul>
-	</section>` : ''}
+		${cifras}
+	</section>` : cifras ? `<div class="ini-sec container">${cifras}</div>` : ''}
 
 	${s.asesores.visible && ctx.agents.length ? `<section id="asesores" class="ini-sec container">
 		<h2>${esc(s.asesores.titulo)}</h2>
