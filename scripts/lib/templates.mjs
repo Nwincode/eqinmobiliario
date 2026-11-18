@@ -345,16 +345,18 @@ function footer(ctx) {
 		[r.youtube, 'youtube-play', 'YouTube'],
 		[r.tiktok, 'play', 'TikTok']
 	].map(boton).join('');
+	const datos = [c.direccion, c.horario].filter(Boolean).map(esc);
 	return `<footer class="pie">
 		<div class="container">
-			<p class="pie-nombre">${EMPRESA}</p>
-			${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
+			<div class="pie-marca">
+				<p class="pie-nombre">${EMPRESA}</p>
+				${site.footer.texto ? `<p>${esc(site.footer.texto)}</p>` : ''}
+			</div>
 			<nav class="pie-enlaces" aria-label="${t.enlaces}">
 				${links.map(([url, texto]) => `<a href="${esc(url)}">${esc(texto)}</a>`).join('')}
 			</nav>
 			<div class="pie-botones">${botones}</div>
-			${c.direccion || c.horario ? `<p class="pie-datos">${[c.direccion, c.horario].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
-			<p class="pie-legal">&copy; ${new Date().getFullYear()} ${EMPRESA}${site.footer.mostrarCredito === false ? '' : ` · ${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a>`}</p>
+			<p class="pie-legal">${datos.length ? `${datos.join(' · ')} · ` : ''}&copy; ${new Date().getFullYear()} ${EMPRESA}${site.footer.mostrarCredito === false ? '' : ` · ${t.plantilla} <a href="https://untree.co" rel="noopener">Untree.co</a>`}</p>
 		</div>
 	</footer>`;
 }
@@ -430,14 +432,14 @@ const CLASE_ESTADO = {
 	rentada: 'prop-badge-estado-cerrada'
 };
 
-function estadoBadge(p, inline = false) {
+function estadoBadge(p) {
 	const parts = [];
 	if (p.vip) parts.push('<span class="prop-badge prop-badge-vip">VIP</span>');
 	const t = TEXTOS[lng(p)];
 	if (precioAnterior(p)) parts.push(`<span class="prop-badge prop-badge-rebaja">${t.precioRebajado}</span>`);
 	parts.push(`<span class="prop-badge">${enOperacion(p, t)}</span>`);
 	if (p.estado && p.estado !== 'disponible') parts.push(`<span class="prop-badge prop-badge-estado ${CLASE_ESTADO[p.estado] || ''}">${esc(estadoLabel(p))}</span>`);
-	return `<div class="prop-badges${inline ? ' prop-badges-inline' : ''}">${parts.join('')}</div>`;
+	return `<div class="prop-badges">${parts.join('')}</div>`;
 }
 
 export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = false } = {}) {
@@ -466,10 +468,10 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 									<span class="foto-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
 								</div>
 								<div class="property-content">
-									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
+									<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
 									<div class="prop-pie">
-										<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
+										<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
 										<span class="prop-datos">${specs(p)}</span>
 									</div>
 								</div>
@@ -532,22 +534,27 @@ function agentBox(ctx, agent, property) {
 function bloqueExterior(ctx) {
 	const b = ctx.site.bloqueExterior;
 	if (!b || !b.visible) return '';
-	return `<div class="section exterior-block">
+	return `<section class="ini-exterior">
 		<div class="container">
-			<div class="row align-items-center g-4">
-				<div class="col-lg-6">
-					<span class="exterior-kicker">${ic('plane')}${esc(b.etiqueta || '')}</span>
-					<h2 class="font-weight-bold heading text-primary mb-3">${esc(b.titulo)}</h2>
-					<p class="text-black-50 mb-4">${esc(b.texto)}</p>
-					${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary btn-lg">${ic('globe')}${esc(b.boton)}</a>` : ''}
-				</div>
-				<div class="col-lg-6">
-					<ul class="exterior-list">${(b.puntos || []).map((pt) => `<li><span class="icon-check"></span>${esc(pt)}</li>`).join('')}</ul>
-				</div>
+			<div>
+				${b.etiqueta ? `<p class="ini-ceja">${esc(b.etiqueta)}</p>` : ''}
+				<h2>${esc(b.titulo)}</h2>
+				<p class="ini-texto-ancho">${esc(b.texto)}</p>
 			</div>
+			<ul>${(b.puntos || []).map((pt) => `<li>${ic('check')}${esc(pt)}</li>`).join('')}</ul>
+			${b.enlace && visible(ctx, b.enlace) ? `<a href="${esc(b.enlace)}" class="btn btn-primary">${esc(b.boton)}</a>` : ''}
 		</div>
-	</div>`;
+	</section>`;
 }
+
+// El título de «Te ayudaremos a…» y su subtítulo forman una sola frase: van en un solo título.
+const tituloServicios = (sv) => {
+	const sub = String(sv.subtitulo || '').trim();
+	const tit = String(sv.titulo || '').trim();
+	return sub && /(\.\.\.|…)$/.test(tit) ? `${tit.replace(/\s*(\.\.\.|…)$/, '')} ${sub[0].toLowerCase()}${sub.slice(1)}` : tit;
+};
+// El cargo de un asesor se escribe en su fila solo si no es el mismo de todos (si lo es, el título de la sección ya lo dice).
+const cargoPropio = (agents, a) => a.cargo && agents.some((x) => x.cargo !== a.cargo);
 
 // ---------------------------------------------------------------- Inicio
 
@@ -592,187 +599,98 @@ export function homePage(ctx) {
 	};
 
 	const body = `
-	<div class="hero">
+	<div class="hero ini-hero">
 		<div class="hero-slide">
 			${heroImgs.map((img, i) => `<div class="img overlay" ${i ? 'data-bg' : 'style'}="${bgStyle(ctx, img)}"></div>`).join('\n\t\t\t')}
 		</div>
 		<div class="container">
-			<div class="row justify-content-center align-items-center">
-				<div class="col-lg-9 text-center">
-					<h1 class="heading">${esc(s.hero.titulo)}</h1>
-					<form action="${r.propiedades}" method="get" class="narrow-w form-search d-flex align-items-stretch mb-3" role="search">
-						<label class="visually-hidden" for="hero-q">${t.buscarPropiedades}</label>
-						<input id="hero-q" type="search" name="q" autocomplete="off" class="form-control px-4" placeholder="${esc(s.hero.placeholderBusqueda)}">
-						<button type="submit" class="btn btn-primary">${ic('search')}${t.buscar}</button>
-					</form>
-				</div>
-			</div>
+			<h1>${esc(s.hero.titulo)}</h1>
+			<form action="${r.propiedades}" method="get" class="ini-buscar" role="search">
+				<label class="visually-hidden" for="hero-q">${t.buscarPropiedades}</label>
+				<input id="hero-q" type="search" name="q" autocomplete="off" class="form-control" placeholder="${esc(s.hero.placeholderBusqueda)}">
+				<button type="submit" class="btn btn-primary" aria-label="${t.buscar}">${ic('search')}<span>${t.buscar}</span></button>
+			</form>
 		</div>
 	</div>
 
-	${slider.length ? `<div class="section">
-		<div class="container">
-			<div class="row mb-4 align-items-center">
-				<div class="col">
-					<h2 class="font-weight-bold text-primary heading mb-0">${esc(s.destacadas.titulo)}</h2>
-				</div>
-			</div>
-			<div class="row">
-				<div class="col-12">
-					${slider.length <= 3 ? `<div class="row justify-content-center g-4 propiedades-pocas">
-						${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { unaFoto: true })}</div>`).join('\n')}
-					</div>` : `<div class="property-slider-wrap">
-						<div class="property-slider">
-							${slider.map((p) => propertyCard(p, { unaFoto: true })).join('\n')}
-						</div>
-						${flechasCarrusel('property-nav', t)}
-					</div>`}
-				</div>
-			</div>
-			<p class="text-center mt-4 mb-0"><a href="${r.propiedades}" class="btn btn-primary">${esc(s.destacadas.boton)}${ic('arrow-right', true)}</a></p>
-		</div>
+	${s.contadores.visible && (s.contadores.items || []).length ? `<div class="container">
+		<dl class="ini-cifras">
+			${s.contadores.items.map((c) => `<div><dt>${esc(c.etiqueta)}</dt><dd>${esc(c.valor)}</dd></div>`).join('')}
+		</dl>
 	</div>` : ''}
 
-	${s.features.visible ? `<section class="features-1">
-		<div class="container">
-			<div class="row g-3 g-lg-4">
-				${(s.features.items || []).map((f, i) => `<div class="col-6 col-lg-3" data-aos="fade-up" data-aos-delay="${300 + i * 100}">
-					<div class="box-feature">
-						<span class="${esc(f.icono || 'flaticon-house')}"></span>
-						<h3 class="mb-3">${esc(f.titulo)}</h3>
-						<p>${esc(f.texto)}</p>
-						${f.enlace && visible(ctx, f.enlace) ? `<p><a href="${esc(f.enlace)}" class="learn-more">${t.masInfo}<span class="visually-hidden"> ${t.sobre} ${esc(f.titulo)}</span>${ic('arrow-right', true)}</a></p>` : ''}
+	${slider.length ? `<section class="ini-sec container ini-populares">
+		<h2>${esc(s.destacadas.titulo)}</h2>
+		${slider.length <= 3 ? `<div class="row g-3 propiedades-pocas">
+			${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { unaFoto: true })}</div>`).join('\n')}
+		</div>` : `${flechasCarrusel('property-nav', t)}
+		<div class="property-slider-wrap">
+			<div class="property-slider">
+				${slider.map((p) => propertyCard(p, { unaFoto: true })).join('\n')}
+			</div>
+		</div>`}
+		<a href="${r.propiedades}" class="ini-ver">${esc(s.destacadas.boton)}${chevron(FLECHA_NEXT)}</a>
+	</section>` : ''}
+
+	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<section class="ini-sec container sec-testimonials">
+		<div class="ini-cab">
+			<h2>${esc(s.testimonios.titulo)}</h2>
+			${flechasCarrusel('testimonial-nav', t, ctx.testimonials.length ? '' : ' hidden')}
+		</div>
+		${s.testimonios.google ? `<div id="resenas-google" class="resenas-google" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}" data-anonimo="${esc(t.anonimo)}"></div>` : ''}
+		<div class="testimonial-slider-wrap">
+			<div class="testimonial-slider">
+				${ctx.testimonials.map((tm) => `<div class="item">
+					<div class="testimonial">
+						<blockquote><p>&ldquo;${esc(tm.texto)}&rdquo;</p></blockquote>
+						<p class="ini-firma"><b>${esc(tm.nombre)}</b>${tm.rol ? `<span>${esc(tm.rol)}</span>` : ''}</p>
 					</div>
 				</div>`).join('\n')}
 			</div>
 		</div>
 	</section>` : ''}
 
-	${s.testimonios.visible && (ctx.testimonials.length || s.testimonios.google) ? `<div class="section sec-testimonials">
-		<div class="container">
-			<div class="row mb-4 align-items-center">
-				<div class="col">
-					<h2 class="font-weight-bold heading text-primary mb-0">${esc(s.testimonios.titulo)}</h2>
-				</div>
-				<div class="col-auto">
-					${flechasCarrusel('testimonial-nav', t, ctx.testimonials.length ? '' : ' hidden')}
-				</div>
-			</div>
-			${s.testimonios.google ? `<div id="resenas-google" class="resenas-google" hidden data-lang="${ctx.lang || 'es'}" data-titulo="${esc(t.resenasGoogle)}" data-ver="${esc(t.verEnGoogle)}" data-dejar="${esc(t.dejarResena)}" data-total="${esc(t.resenasTotal)}" data-estrellas="${esc(t.deEstrellas)}" data-basado="${esc(t.basadoEn)}" data-mas="${esc(t.leerMas)}" data-menos="${esc(t.leerMenos)}" data-ver-resena="${esc(t.verResena)}" data-publicada="${esc(t.publicadaEn)}" data-anonimo="${esc(t.anonimo)}"></div>` : ''}
-			${ctx.testimonials.length || s.testimonios.google ? `<div class="testimonial-slider-wrap">
-				<div class="testimonial-slider">
-					${ctx.testimonials.map((tm) => `<div class="item">
-						<div class="testimonial">
-							${tm.foto ? `<img src="${esc(tm.foto)}" alt="${esc(tm.nombre)}" class="img-fluid rounded-circle w-25 mb-4" loading="lazy" width="120" height="120">` : ''}
-							<div class="rate" role="img" aria-label="${esc(tm.estrellas || 5)} ${t.deEstrellas}">
-								${'<span class="icon-star text-warning"></span>'.repeat(Math.max(1, Math.min(5, Number(tm.estrellas) || 5)))}
-							</div>
-							<h3 class="h5 text-primary mb-4">${esc(tm.nombre)}</h3>
-							<blockquote><p>&ldquo;${esc(tm.texto)}&rdquo;</p></blockquote>
-							<p class="text-black-50">${esc(tm.rol)}</p>
-						</div>
-					</div>`).join('\n')}
-				</div>
-			</div>` : ''}
-		</div>
-	</div>` : ''}
+	${s.servicios.visible ? `<section id="servicios" class="ini-sec container">
+		<h2>${esc(tituloServicios(s.servicios))}</h2>
+		<ul class="ini-ayuda">
+			${(s.servicios.items || []).map((it) => `<li><span class="${esc(it.icono || 'icon-home2')}" aria-hidden="true"></span><h3>${esc(it.titulo)}</h3></li>`).join('\n')}
+		</ul>
+	</section>` : ''}
 
-	${s.servicios.visible ? `<div id="servicios" class="section section-4 bg-light">
-		<div class="container">
-			<div class="row justify-content-center text-center mb-4">
-				<div class="col-lg-5">
-					<h2 class="font-weight-bold heading text-primary mb-3">${esc(s.servicios.titulo)}</h2>
-					<p class="text-black-50 mb-0">${esc(s.servicios.subtitulo)}</p>
+	${s.asesores.visible && ctx.agents.length ? `<section id="asesores" class="ini-sec container">
+		<h2>${esc(s.asesores.titulo)}</h2>
+		<ul class="ini-asesores">
+			${ctx.agents.map((a) => {
+				const wa = whatsappLink(a.whatsapp);
+				return `<li>
+				<img src="${esc(a.foto || '/images/person_1-min.webp')}" alt="" loading="lazy" width="48" height="48">
+				<div>
+					<h3>${esc(a.nombre)}${cargoPropio(ctx.agents, a) ? `<span>${esc(a.cargo)}</span>` : ''}</h3>
+					${a.bio ? `<button type="button" class="ini-bio" aria-expanded="false"><span>${esc(a.bio)}</span></button>` : ''}
 				</div>
-			</div>
-			<div class="row justify-content-between">
-				<div class="col-lg-7 mb-4 mb-lg-0 order-lg-2">
-					<div class="img-about dots">
-						${imgFoto(s.servicios.imagen, { alt: s.servicios.titulo, clase: 'img-fluid', aspecto: [3, 2] })}
-					</div>
-				</div>
-				<div class="col-lg-4">
-					${(s.servicios.items || []).map((it) => `<div class="d-flex feature-h">
-						<span class="wrap-icon me-3"><span class="${esc(it.icono || 'icon-home2')}"></span></span>
-						<div class="feature-text">
-							<h3 class="heading">${esc(it.titulo)}</h3>
-							<p class="text-black-50">${esc(it.texto)}</p>
-						</div>
-					</div>`).join('\n')}
-				</div>
-			</div>
-			${s.contadores.visible ? `<div class="row section-counter mt-4">
-				${(s.contadores.items || []).map((c, i) => `<div class="col-6 col-lg-3" data-aos="fade-up" data-aos-delay="${300 + i * 100}">
-					<div class="counter-wrap">
-						${c.icono ? `<span class="${esc(c.icono)} counter-icono" aria-hidden="true"></span>` : ''}
-						<span class="number"><span class="countup text-primary">${esc(c.valor)}</span></span>
-						<span class="caption text-black-50">${esc(c.etiqueta)}</span>
-					</div>
-				</div>`).join('\n')}
-			</div>` : ''}
-		</div>
-	</div>` : ''}
-
-	${s.cta.visible ? `<div class="section">
-		<div class="row justify-content-center footer-cta" data-aos="fade-up">
-			<div class="col-lg-7 mx-auto text-center">
-				<h2 class="mb-3">${esc(s.cta.titulo)}</h2>
-				${s.cta.enlace && visible(ctx, s.cta.enlace) ? `<p class="mb-0"><a href="${esc(s.cta.enlace)}" class="btn btn-primary">${ic('briefcase')}${esc(s.cta.boton)}</a></p>` : ''}
-			</div>
-		</div>
-	</div>` : ''}
-
-	${s.asesores.visible && ctx.agents.length ? `<div id="asesores" class="section section-5 bg-light">
-		<div class="container">
-			<div class="row justify-content-center text-center mb-2">
-				<div class="col-lg-6">
-					<h2 class="font-weight-bold heading text-primary mb-3">${esc(s.asesores.titulo)}</h2>
-					<p class="text-black-50 mb-0">${esc(s.asesores.subtitulo)}</p>
-				</div>
-			</div>
-			<div class="row g-4">
-				${ctx.agents.map((a) => {
-					const wa = whatsappLink(a.whatsapp);
-					return `<div class="col-sm-6 col-lg-4">
-					<div class="person">
-						<img src="${esc(a.foto || '/images/person_1-min.webp')}" alt="${esc(a.nombre)}" class="img-fluid" loading="lazy" width="90" height="90">
-						<div class="person-contents">
-							<h3 class="h2 mb-0">${esc(a.nombre)}</h3>
-							<span class="meta d-block mb-3">${esc(a.cargo)}</span>
-							<p>${esc(a.bio)}</p>
-							${wa ? `<a href="${esc(wa)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" data-track="Contact"><span class="icon-whatsapp me-1"></span> ${t.escribir}</a>` : ''}
-						</div>
-					</div>
-				</div>`;
-				}).join('\n')}
-			</div>
-		</div>
-	</div>` : ''}
+				${wa ? `<a href="${esc(wa)}" target="_blank" rel="noopener" class="ini-ico ini-wa" data-track="Contact" aria-label="${esc(`${t.escribir}: ${a.nombre}`)}" title="${esc(`${t.escribir}: ${a.nombre}`)}">${ic('whatsapp')}</a>` : ''}
+			</li>`;
+			}).join('\n')}
+		</ul>
+	</section>` : ''}
 
 	${bloqueExterior(ctx)}
 
 	${porZona(ctx)}
 
-	<div id="${ctx.lang === 'en' ? 'contact' : 'contacto'}" class="section">
-		<div class="container">
-			<div class="row justify-content-between align-items-start">
-				<div class="col-lg-5 mb-4 mb-lg-0">
-					<h2 class="font-weight-bold heading text-primary mb-4">${esc(s.contacto.titulo)}</h2>
-					<p class="text-black-50 mb-4">${esc(s.contacto.subtitulo)}</p>
-					<ul class="list-unstyled contact-list">
-						${s.contacto.telefono ? `<li><span class="icon-phone"></span><a href="tel:${esc(s.contacto.telefono.replace(/[^\d+]/g, ''))}" data-track="Contact">${esc(s.contacto.telefono)}</a></li>` : ''}
-						${s.contacto.whatsapp ? `<li><span class="icon-whatsapp"></span><a href="${esc(whatsappLink(s.contacto.whatsapp))}" target="_blank" rel="noopener" data-track="Contact">WhatsApp</a></li>` : ''}
-						${s.contacto.email ? `<li><span class="icon-envelope-o"></span><a href="mailto:${esc(s.contacto.email)}" data-track="Contact">${esc(s.contacto.email)}</a></li>` : ''}
-						${s.contacto.direccion ? `<li><span class="icon-map-marker"></span>${esc(s.contacto.direccion)}</li>` : ''}
-						${s.contacto.horario ? `<li><span class="icon-clock-o"></span>${esc(s.contacto.horario)}</li>` : ''}
-					</ul>
-				</div>
-				<div class="col-lg-6">
-					<div class="lead-card">${leadForm({ origen: ctx.lang === 'en' ? 'contacto-en' : 'contacto', lang: ctx.lang })}</div>
-				</div>
-			</div>
+	<section id="${ctx.lang === 'en' ? 'contact' : 'contacto'}" class="ini-sec container ini-contacto">
+		<div>
+			<h2>${esc(s.contacto.titulo)}</h2>
+			<ul class="ini-vias">
+				${s.contacto.telefono ? `<li><a href="tel:${esc(s.contacto.telefono.replace(/[^\d+]/g, ''))}" data-track="Contact" aria-label="${esc(`${t.llamar}: ${s.contacto.telefono}`)}">${ic('phone')}<span>${esc(s.contacto.telefono)}</span></a></li>` : ''}
+				${s.contacto.whatsapp ? `<li><a class="ini-wa" href="${esc(whatsappLink(s.contacto.whatsapp))}" target="_blank" rel="noopener" data-track="Contact" aria-label="WhatsApp">${ic('whatsapp')}<span>WhatsApp</span></a></li>` : ''}
+				${s.contacto.email ? `<li><a href="mailto:${esc(s.contacto.email)}" data-track="Contact" aria-label="${esc(`${t.correoBtn}: ${s.contacto.email}`)}">${ic('envelope-o')}<span>${esc(s.contacto.email)}</span></a></li>` : ''}
+				${s.contacto.horario ? `<li class="ini-dato">${ic('clock-o')}${esc(s.contacto.horario)}</li>` : ''}
+				${s.contacto.direccion ? `<li class="ini-dato">${ic('map-marker')}${esc(s.contacto.direccion)}</li>` : ''}
+			</ul>
 		</div>
-	</div>`;
+		<div>${leadForm({ origen: ctx.lang === 'en' ? 'contacto-en' : 'contacto', lang: ctx.lang })}</div>
+	</section>`;
 
 	return layout(ctx, {
 		path: r.inicio,

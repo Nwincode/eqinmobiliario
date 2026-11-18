@@ -235,19 +235,6 @@
 	text-align: left;
 }
 
-/* Sobre el bloque azul del pie, el botón principal pasa a blanco */
-.footer-cta .btn-primary {
-	background-color: var(--eq-white);
-	border-color: var(--eq-white);
-	color: var(--eq-primary);
-}
-.footer-cta .btn-primary:hover,
-.footer-cta .btn-primary:focus {
-	background-color: var(--eq-dark);
-	border-color: var(--eq-dark);
-	color: var(--eq-white);
-}
-
 /* Botones que no usan .btn pero deben verse igual */
 .site-nav .site-navigation .site-menu > li.nav-cta > a {
 	display: inline-flex;
@@ -277,11 +264,4 @@
 	outline: 2px solid var(--eq-focus);
 	outline-offset: 2px;
 }
-.hero .form-search .btn {
-	min-height: 54px;
-}
 
-/* Buscador de la portada: campo y botón con las mismas esquinas */
-.hero .form-search .form-control {
-	border-radius: var(--eq-radius);
-}

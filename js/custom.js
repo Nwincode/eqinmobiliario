@@ -93,21 +93,21 @@
 				container: '.property-slider',
 				mode: 'carousel',
 				speed: 700,
-				gutter: 30,
-				items: 3,
 				// Sin puntos: solo las flechas finas (regla de carruseles).
 				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#property-nav',
+				// Celular: tarjetas de 272 px y la siguiente asoma, para que se note que hay más.
+				fixedWidth: 272,
+				gutter: 12,
 				responsive: {
-					0: {
-						items: 1
-					},
 					700: {
-						items: 2
+						fixedWidth: false,
+						items: 3,
+						gutter: 16
 					},
-					900: {
-						items: 3
+					1100: {
+						items: 4
 					}
 				}
 			});
@@ -128,10 +128,12 @@
 				mode: 'carousel',
 				speed: 700,
 				items: 3,
-				gutter: 50,
+				gutter: 24,
 				nav: false,
 				autoplayButtonOutput: false,
 				controlsContainer: '#testimonial-nav',
+				// En el celular se ve una reseña: el alto sigue a la que se ve, sin hueco abajo por la más larga.
+				autoHeight: true,
 				responsive: {
 					0: {
 						items: 1
@@ -153,7 +155,7 @@
 	tinySdlier();
 
 	// Los carruseles cambian la altura de la página después de AOS.init; sin recalcular,
-	// los bloques del final (como «Sé parte de nuestro equipo») se quedaban invisibles.
+	// los bloques del final con animación se quedaban invisibles.
 	AOS.refresh();
 	window.addEventListener('load', function () { AOS.refresh(); });
 

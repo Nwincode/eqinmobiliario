@@ -10,7 +10,6 @@ const CSS_FILES = [
 	'css/tema.css',
 	'fonts/work-sans/work-sans.css',
 	'fonts/icomoon/style.css',
-	'fonts/flaticon/font/flaticon.css',
 	'css/tiny-slider.css',
 	'css/aos.css',
 	'css/style.css',
@@ -26,7 +25,6 @@ const JS_FILES = [
 	'js/tiny-slider.js',
 	'js/aos.js',
 	'js/navbar.js',
-	'js/counter.js',
 	'js/custom.js',
 	'js/site.js'
 ];
@@ -40,7 +38,7 @@ const VAC_FILES = ['js/calc-vacacional.js', 'js/vacacional.js', 'js/reserva-chat
 // Clases que solo aparecen al ejecutar JavaScript (sliders, menú móvil, animaciones…).
 const SAFELIST = {
 	standard: [/^tns-/, /^aos-/, /^offcanvas-menu$/, /^active$/, /^show$/, /^collapse/, /^collapsing$/, /^collapsed$/,
-		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^viewed$/, /^fade$/, /^is-wide$/, /^text-(success|danger)$/,
+		/^arrow-collapse$/, /^site-nav-wrap$/, /^copied$/, /^fade$/, /^is-wide$/, /^text-(success|danger)$/,
 		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/, /^is-invalid$/, /^invalid-feedback$/, /^d-block$/, /^eq-aviso-breve$/, /^eq-compartir/, /^btn-success$/, /^sin-barra-ficha$/,
 		/^btn-(link|sm|outline-primary)$/, /^p-0$/, /^align-baseline$/, /^ms-2$/, // botones que arman js/site.js y js/reserva-chat.js
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila

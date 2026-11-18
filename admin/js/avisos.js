@@ -64,13 +64,15 @@ async function leerFuentes() {
 	const { conDueno } = await import('./duenos.js');
 	const admin = session.isAdmin;
 	const filtroAsesor = admin ? [] : [where('agentId', '==', session.agentFiltro)];
-	const [casas, propietarios, leads, chats, reservas, comentarios] = await Promise.all([
+	const [casas, propietarios, leads, chats, reservas, comentarios, nuevos] = await Promise.all([
 		seguro(loadPropiedades()), seguro(loadPropietarios()),
 		admin ? seguro(todos(query(collection(db, 'leads'), where('reserva.codigo', '>', '')))) : [],
 		admin ? seguro(todos(collection(db, 'chats'))) : [],
 		admin ? seguro(loadReservas()) : [],
 		// Todas las respuestas del dueño: un pedido de cambios con una aprobación más nueva de la misma casa ya no avisa.
-		seguro(todos(filtroAsesor.length ? query(collection(db, 'comentariosPropietarios'), ...filtroAsesor) : collection(db, 'comentariosPropietarios')))]);
+		seguro(todos(filtroAsesor.length ? query(collection(db, 'comentariosPropietarios'), ...filtroAsesor) : collection(db, 'comentariosPropietarios'))),
+		// Leads de la web sin atender: el administrador, todos; el asesor, los suyos (las reglas no le dejan leer otros).
+		seguro(todos(query(collection(db, 'leads'), ...filtroAsesor, where('estado', '==', 'nuevo'))))]);
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
 	const reserva = Object.fromEntries(reservas.map((r) => [r.id, r]));
@@ -91,6 +93,8 @@ async function leerFuentes() {
 		comprobantes: reservas.filter((r) => r.codigo && r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
 			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
 		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
+		// Las solicitudes de reserva por noche no son leads del CRM: ya avisan como solicitud.
+		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: String(l.nombre || '').trim().split(/\s+/)[0], casa: l.propertyTitulo, creado: ms(l.createdAt) })),
 		exclusivas: exclusivasPorVencer(conCasa, acuerdos, propietarios, { dias: 30 }).map((x) => ({
 			casaId: x.casa.id, casa: x.casa.titulo, dueno: x.dueno?.nombre, fin: x.acuerdo?.exclusivaFin, dias: x.dias, agentId: x.casa.agentId || '' }))
 	};

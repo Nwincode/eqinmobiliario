@@ -5,7 +5,6 @@ import { markPending } from '../session.js';
 import { aplicarTema } from '../tema.js';
 import { COLORES_TEMA, RADIO_TEMA, PARES_CONTRASTE, PALETAS, colorTema, contraste, variablesTema } from '../tema-def.js';
 
-const FLATICONS = [['flaticon-house', 'Casa'], ['flaticon-building', 'Edificio'], ['flaticon-house-1', 'Casa 2'], ['flaticon-house-2', 'Casa 3'], ['flaticon-house-3', 'Casa 4'], ['flaticon-house-4', 'Casa 5']];
 const ICONS = [['icon-home2', 'Casa'], ['icon-building', 'Edificio'], ['icon-key', 'Llave (renta)'], ['icon-trophy', 'Trofeo (logros)'], ['icon-handshake-o', 'Apretón de manos (negocio)'],
 	['icon-person', 'Persona'], ['icon-users', 'Equipo'], ['icon-briefcase', 'Maletín (asesoría)'], ['icon-security', 'Seguridad'], ['icon-shield', 'Escudo (garantía)'],
 	['icon-check', 'Check'], ['icon-check-circle', 'Verificado'], ['icon-star', 'Estrella'], ['icon-map-marker', 'Ubicación'], ['icon-map', 'Mapa'], ['icon-compass', 'Brújula'],
@@ -71,11 +70,9 @@ const GROUPS = [
 			{ type: 'section', label: 'English site (/en/)', help: 'Versión del sitio para compradores de Estados Unidos. Las propiedades aparecen cuando tienen su versión en inglés (se traduce sola al guardar cada propiedad).' },
 			{ name: 'en.activo', label: 'Publicar el sitio en inglés', type: 'checkbox', default: true },
 			{ type: 'section', label: 'Secciones visibles en inglés', help: 'Por defecto se muestran las mismas que en español. Apágalas aquí para ocultarlas solo en /en/.' },
-			{ name: 'en.features.visible', label: 'Tarjetas destacadas', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.servicios.visible', label: 'Servicios', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.contadores.visible', label: 'Contadores', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.testimonios.visible', label: 'Reseñas', type: 'checkbox', default: true, cols: 4 },
-			{ name: 'en.cta.visible', label: 'Llamado a la acción', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.asesores.visible', label: 'Asesores', type: 'checkbox', default: true, cols: 4 },
 			{ name: 'en.seo.titulo', label: 'Google title (home)', maxlength: 70, cols: 6 },
 			{ name: 'en.seo.descripcion', label: 'Google description (home)', maxlength: 160, cols: 6 },
@@ -91,28 +88,19 @@ const GROUPS = [
 			{ name: 'en.bloqueExterior.puntos', label: 'Bullet points', type: 'tags' },
 			{ name: 'en.bloqueExterior.boton', label: 'Button', cols: 6 },
 			{ name: 'en.bloqueExterior.enlace', label: 'Link', cols: 6 },
-			{ type: 'section', label: 'Feature cards' },
-			{ name: 'en.features.items', label: 'Cards', type: 'list', itemLabel: 'Card', max: 4, fields: [
-				{ name: 'icono', label: 'Icon', type: 'select', options: FLATICONS, cols: 4 },
-				{ name: 'titulo', label: 'Title', cols: 8 },
-				{ name: 'texto', label: 'Text', type: 'textarea', rows: 2 },
-				{ name: 'enlace', label: 'Link' }] },
 			{ type: 'section', label: 'Services' },
 			{ name: 'en.servicios.titulo', label: 'Title', cols: 6 },
 			{ name: 'en.servicios.subtitulo', label: 'Subtitle', cols: 6 },
 			{ name: 'en.servicios.items', label: 'Services', type: 'list', itemLabel: 'Service', fields: [
 				{ name: 'icono', label: 'Icon', type: 'select', options: ICONS, cols: 4 },
-				{ name: 'titulo', label: 'Title', cols: 8 },
-				{ name: 'texto', label: 'Text', type: 'textarea', rows: 2 }] },
+				{ name: 'titulo', label: 'Title', cols: 8 }] },
 			{ name: 'en.contadores.items', label: 'Counters', type: 'list', itemLabel: 'Counter', max: 4, fields: [
 				{ name: 'valor', label: 'Number', type: 'number', cols: 4 },
 				{ name: 'etiqueta', label: 'Label', cols: 8 }] },
 			{ type: 'section', label: 'Reviews, team and contact', help: 'El horario en inglés no se escribe: sale solo del horario en español (Contacto), con los días y las horas en a.m./p.m.' },
 			{ name: 'en.testimonios.titulo', label: 'Reviews title', cols: 6 },
 			{ name: 'en.asesores.titulo', label: 'Team title', cols: 6 },
-			{ name: 'en.asesores.subtitulo', label: 'Team text', type: 'textarea', rows: 2 },
 			{ name: 'en.contacto.titulo', label: 'Contact title', cols: 6 },
-			{ name: 'en.contacto.subtitulo', label: 'Contact text', type: 'textarea', rows: 2 },
 			{ name: 'en.whatsappFlotante.mensaje', label: 'WhatsApp button message' },
 			{ type: 'section', label: 'Menu and footer' },
 			{ name: 'en.navegacion', label: 'Menu', type: 'list', itemLabel: 'Link', fields: link },
@@ -185,14 +173,7 @@ const GROUPS = [
 		]
 	},
 	{
-		id: 'secciones', label: 'Secciones', keys: ['features', 'testimonios', 'servicios', 'contadores', 'cta', 'asesores'], fields: [
-			{ type: 'section', label: 'Tarjetas bajo las destacadas' },
-			{ name: 'features.visible', label: 'Mostrar', type: 'checkbox' },
-			{ name: 'features.items', label: 'Tarjetas', type: 'list', itemLabel: 'Tarjeta', max: 4, fields: [
-				{ name: 'icono', label: 'Ícono', type: 'select', options: FLATICONS, cols: 4 },
-				{ name: 'titulo', label: 'Título', cols: 8 },
-				{ name: 'texto', label: 'Texto', type: 'textarea', rows: 2 },
-				{ name: 'enlace', label: 'Enlace', placeholder: '/propiedades/venta/' }] },
+		id: 'secciones', label: 'Secciones', keys: ['testimonios', 'servicios', 'contadores', 'asesores'], fields: [
 			{ type: 'section', label: 'Reseñas' },
 			{ name: 'testimonios.visible', label: 'Mostrar', type: 'checkbox', cols: 4 },
 			{ name: 'testimonios.titulo', label: 'Título', cols: 8 },
@@ -201,32 +182,22 @@ const GROUPS = [
 			{ name: 'servicios.visible', label: 'Mostrar', type: 'checkbox', cols: 4 },
 			{ name: 'servicios.titulo', label: 'Título', cols: 8 },
 			{ name: 'servicios.subtitulo', label: 'Subtítulo' },
-			{ name: 'servicios.imagen', label: 'Imagen', type: 'image' },
 			{ name: 'servicios.items', label: 'Servicios', type: 'list', itemLabel: 'Servicio', fields: [
 				{ name: 'icono', label: 'Ícono', type: 'select', options: ICONS, cols: 4 },
-				{ name: 'titulo', label: 'Título', cols: 8 },
-				{ name: 'texto', label: 'Texto', type: 'textarea', rows: 2 }] },
+				{ name: 'titulo', label: 'Título', cols: 8 }] },
 			{ type: 'section', label: 'Contadores' },
 			{ name: 'contadores.visible', label: 'Mostrar', type: 'checkbox' },
 			{ name: 'contadores.items', label: 'Contadores', type: 'list', itemLabel: 'Contador', max: 4, fields: [
-				{ name: 'icono', label: 'Ícono', type: 'select', options: [['', 'Sin ícono'], ...ICONS], cols: 4 },
-				{ name: 'valor', label: 'Número', type: 'number', cols: 3 },
-				{ name: 'etiqueta', label: 'Etiqueta', cols: 5 }] },
-			{ type: 'section', label: 'Llamado a la acción (reclutamiento)' },
-			{ name: 'cta.visible', label: 'Mostrar', type: 'checkbox' },
-			{ name: 'cta.titulo', label: 'Título', cols: 6 },
-			{ name: 'cta.boton', label: 'Texto del botón', cols: 3 },
-			{ name: 'cta.enlace', label: 'Enlace', cols: 3 },
+				{ name: 'valor', label: 'Número', type: 'number', cols: 4 },
+				{ name: 'etiqueta', label: 'Etiqueta', cols: 8 }] },
 			{ type: 'section', label: 'Equipo de asesores' },
 			{ name: 'asesores.visible', label: 'Mostrar', type: 'checkbox', cols: 4 },
-			{ name: 'asesores.titulo', label: 'Título', cols: 8 },
-			{ name: 'asesores.subtitulo', label: 'Texto', type: 'textarea', rows: 2 }
+			{ name: 'asesores.titulo', label: 'Título', cols: 8 }
 		]
 	},
 	{
 		id: 'contacto', label: 'Contacto y redes', keys: ['contacto', 'redes'], fields: [
 			{ name: 'contacto.titulo', label: 'Título de la sección', cols: 6 },
-			{ name: 'contacto.subtitulo', label: 'Texto', cols: 6 },
 			{ name: 'contacto.telefono', label: 'Teléfono', type: 'tel', cols: 4 },
 			{ name: 'contacto.whatsapp', label: 'WhatsApp (con código de país)', type: 'tel', cols: 4, placeholder: '50259131276' },
 			{ name: 'contacto.email', label: 'Correo', type: 'email', cols: 4 },

@@ -1361,7 +1361,8 @@ const duenos = [];
 {
 	// «Poner marca de agua» en lote: el botón se lee después de confirmar (antes se caía ahí y no hacía nada).
 	await ir(admin.p, '#/propiedades', 3500);
-	await admin.p.locator('tr', { hasText: 'Casa de prueba Monterrico' }).first().locator('.celda-sel input').check();
+	await admin.p.locator('.lista-casas ~ * button, .admin-main button', { hasText: 'Elegir varias' }).first().click();
+	await admin.p.locator('.casa-fila', { hasText: 'Casa de prueba Monterrico' }).first().locator('.casa-sel input').check();
 	await admin.p.locator('.barra-masa button', { hasText: 'Más' }).click();
 	await admin.p.locator('.barra-masa button', { hasText: 'Poner marca de agua' }).click();
 	await admin.p.locator('.modal.show button', { hasText: 'Poner marca' }).click();

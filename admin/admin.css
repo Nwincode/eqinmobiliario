@@ -313,13 +313,17 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-overflow: ellipsis;
 }
 .admin-menu-btn {
-	width: 38px;
-	height: 38px;
-	border: 1px solid var(--adm-border);
+	width: 44px;
+	height: 44px;
+	flex: none;
+	border: 1px solid color-mix(in oklab, var(--eq-primary) 35%, #fff);
 	border-radius: 8px;
-	background: #fff;
-	color: var(--adm-dark);
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+	font-size: 18px;
 }
+.admin-topbar-logo { width: 32px; height: 32px; flex: none; }
+.btn-ver-sitio { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .publish-pill {
 	display: inline-flex;
 	align-items: center;
@@ -3765,3 +3769,56 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .aviso-hecho { padding: 8px; color: var(--adm-muted); font-size: .85rem; }
 .aviso-deshacer { min-height: 44px; font-weight: 600; }
 .tarjeta-avisos .avisos-filas { padding: 4px 8px 8px; }
+
+/* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
+   Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
+   y el ⋮ abajo. El texto va junto (sin huecos entre líneas) y centrado al lado de la foto.
+   Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más: código, asesor y
+   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo. */
+.lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+.casa-fila {
+	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
+	border-bottom: 1px solid var(--adm-border); cursor: pointer;
+}
+.casa-fila:last-child { border-bottom: 0; padding-bottom: 8px; }
+.casa-fila:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+.casa-foto { position: relative; flex: none; width: 104px; height: 104px; }
+.casa-foto img, .casa-sin-foto { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: grid; place-items: center; background: var(--adm-bg); color: var(--adm-muted); font-size: 24px; }
+.casa-oculta .casa-foto img { opacity: .55; }
+/* Las líneas van juntas, sin huecos entre ellas, y el bloque centrado al lado de la foto. */
+.casa-txt { flex: 1; min-width: 0; align-self: center; display: flex; flex-direction: column; }
+.casa-txt > * { flex: none; }
+.casa-titulo { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.casa-dato { display: flex; align-items: center; gap: 4px; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
+.casa-dato > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.casa-txt .casa-datos { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 8px; font-size: 13px; line-height: 16px; margin: 0; }
+.casa-precio { font-weight: 700; font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.casa-extra { display: none; gap: 12px; }
+.casa-extra > span { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.casa-nombre { overflow: hidden; text-overflow: ellipsis; }
+.casa-extra code { font-size: 12px; color: var(--adm-muted); }
+.casa-der { width: 44px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: space-between; margin: 0 -8px 0 -4px; }
+.casa-der .menu-mas-btn, .casa-ok { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; font-size: 18px; }
+.casa-der .casa-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+.ico-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.casa-ok { color: var(--eq-whatsapp); }
+/* «Elegir varias»: la casilla aparece sobre la foto y la fila entera la marca. */
+.casa-sel { display: none; position: absolute; top: 0; left: 0; width: 44px; height: 44px; place-items: center; margin: 0; }
+.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; background-color: #fff; }
+.lista-casas.eligiendo .casa-sel { display: grid; }
+.solo-eligiendo { display: none; }
+.lista-casas.eligiendo ~ * .solo-eligiendo, body:has(.lista-casas.eligiendo) .solo-eligiendo { display: inline-block; }
+@media (min-width: 768px) {
+	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.lista-casas .casa-fila:nth-child(odd) { border-right: 1px solid var(--adm-border); }
+	.lista-casas .casa-fila:nth-last-child(2):nth-child(odd) { border-bottom: 0; padding-bottom: 8px; }
+	.casa-fila { height: 136px; gap: 12px; }
+	.casa-foto { width: 120px; height: 120px; }
+}
+@media (min-width: 1200px) {
+	.casa-fila { height: 152px; }
+	.casa-foto { width: 136px; height: 136px; }
+	.casa-extra { display: flex; }
+	/* Una línea de más y renglones de 20 px: la fila respira sin huecos ni saturarse. */
+	.casa-txt .casa-dato, .casa-txt .casa-datos { line-height: 20px; }
+}
