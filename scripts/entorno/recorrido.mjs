@@ -929,7 +929,12 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
 		paso('Quien no tiene sesión no ve el acuerdo de una casa publicada', /Casa heredada/.test(sinSesion) && !/exclusiva|comisionPct/.test(sinSesion) && privadoSinSesion.status === 403, String(privadoSinSesion.status));
 		await ir(admin.p, '#/inicio', 5000);
-		paso('El tablero avisa de las exclusivas por vencer', /exclusivas? por vencer/.test(await admin.p.locator('.admin-main').innerText().catch(() => '')));
+		// La campana (y su tarjeta en Inicio) avisa de las exclusivas: se mira la lista entera (la tarjeta muestra 5).
+		await admin.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos')));
+		await espera(3000);
+		const listaAvisos = await admin.p.locator('.avisos-lista').evaluate((el) => el.textContent).catch(() => '');
+		paso('Inicio tiene la tarjeta «Avisos» y la campana avisa de las exclusivas por vencer, con la casa', await admin.p.locator('.tarjeta-avisos').count() === 1
+			&& /La exclusiva (vence|venció)/.test(listaAvisos) && /heredad/.test(listaAvisos), listaAvisos.slice(0, 200));
 		await ir(admin.p, '#/propietarios/legado-solo');
 		paso('La ficha de quien aún no tiene casas dice qué acuerdo quedó anotado', /exclusiva hasta \d\d\/\d\d\/\d{4}/.test(await admin.p.locator('.alert-info', { hasText: 'Acuerdo anotado' }).innerText().catch(() => '')));
 		for (const r of ['properties/leg-ajena/privado/acuerdo', 'properties/leg-lista/privado/acuerdo', 'properties/leg-ajena', 'properties/leg-lista', 'propietarios/legado-ajeno', 'properties/leg-venta/privado/acuerdo', 'properties/leg-renta/privado/acuerdo', 'properties/leg-propia/privado/acuerdo', 'properties/leg-venta', 'properties/leg-renta', 'properties/leg-propia', 'propietarios/legado-lista', 'propietarios/legado-dos', 'propietarios/legado-solo']) await fetch(`${FS}/${r}`, { method: 'DELETE', headers: dueno });
