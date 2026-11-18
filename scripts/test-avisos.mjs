@@ -99,7 +99,7 @@ prueba('un lead nuevo de la web avisa; después de 24 h va en rojo', () => {
 	const a = armarAvisos({ ahora: AHORA, leads: [{ id: 'x1', nombre: 'Marta', casa: 'Casa en San Antonio', creado: AHORA - 2 * H }, { id: 'x2', nombre: 'Jorge', creado: AHORA - 30 * H }] });
 	assert.deepEqual(a.map((x) => x.tipo), ['lead', 'lead']);
 	assert.equal(a[0].urgente, true);
-	assert.match(a[0].detalle, /formulario de contacto/);
+	assert.equal(a[0].detalle, 'formulario de contacto', 'sin «hace…»: la fila ya lo pone con la fecha');
 	assert.match(a[1].titulo, /Marta dejó sus datos/);
 	assert.equal(a[1].href, '#/leads');
 });

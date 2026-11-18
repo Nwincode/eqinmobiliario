@@ -104,7 +104,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 	// Después de 24 h sin atender va en rojo.
 	for (const l of leads) out.push({
 		clave: `lead_${l.id}`, tipo: 'lead', icono: 'icon-user-plus', href: '#/leads', fecha: l.creado, urgente: ahora - (l.creado || ahora) > DIA,
-		titulo: `${l.nombre || 'Alguien'} dejó sus datos`, detalle: [l.casa || 'formulario de contacto', hace(l.creado, ahora)].filter(Boolean).join(' · ')
+		titulo: `${l.nombre || 'Alguien'} dejó sus datos`, detalle: l.casa || 'formulario de contacto'
 	});
 	return out.sort((a, b) => (b.urgente - a.urgente) || ((b.fecha || 0) - (a.fecha || 0)));
 }

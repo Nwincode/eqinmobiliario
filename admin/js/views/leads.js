@@ -5,6 +5,7 @@ import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
 , mount, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
+import { avisarAvisos } from '../avisos.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
 export const ESTADOS = [
@@ -63,6 +64,7 @@ function openLead(lead, agents, onChange) {
 		}
 		try {
 			await updateDoc(doc(db, 'leads', lead.id), patch);
+			avisarAvisos(); // la campana baja en seguida (el lead deja de estar «nuevo»)
 			toast('Lead actualizado.');
 			m.close();
 			onChange();
@@ -72,6 +74,7 @@ function openLead(lead, agents, onChange) {
 		if (!(await confirmDialog(`¿Eliminar el lead de ${lead.nombre}?`, { okText: 'Eliminar' }))) return;
 		try {
 			await deleteDoc(doc(db, 'leads', lead.id));
+			avisarAvisos(); // la campana baja en seguida (el lead deja de estar «nuevo»)
 			toast('Lead eliminado.');
 			m.close();
 			onChange();
