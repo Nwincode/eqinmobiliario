@@ -646,6 +646,40 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('alguien de afuera borra una alerta', lote(null, [{ delete: `${RAIZ}/alertas/bloqueo-x` }]), false);
 	await espera('el administrador crea un usuario (control)', lote('admin1', [docu('users/nuevo1', { rol: 'asesor', activo: true, nombre: 'Nuevo', agentId: 'a1' })]), true);
 }
+// «Listo» de la campana de avisos (avisosAtendidos/{clave}): cada quien marca solo lo suyo, con la clave del registro.
+{
+	await poner('users/asesor7', { rol: 'asesor', activo: true, agentId: 'a7', nombre: 'Asesor de la casa en venta' });
+	await poner('users/asesor9', { rol: 'asesor', activo: true, agentId: 'a9', nombre: 'Asesor' });
+	await poner('comentariosPropietarios/comA7', { propietarioId: 'm1', agentId: 'a7', propiedadId: 'mx-venta', tipo: 'cambios', texto: 'Cambiar la foto', origen: 'propietario' });
+	await poner('properties/casa-a7', { titulo: 'Casa del asesor 7', operacion: 'venta', agentId: 'a7', propietarioId: 'm1' });
+	const listo = (quien, clave, o) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/avisosAtendidos/${clave}`, fields: campos(o) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'fecha', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	const quitar = (quien, clave) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ delete: `${RAIZ}/avisosAtendidos/${clave}` }] }) }).then((r) => r.status);
+	const cambios = (por, agentId = 'a7') => ({ tipo: 'cambios', objeto: 'comA7', agentId, por });
+	await espera('asesor marca «Listo» un pedido de cambios de otro asesor', listo('asesor9', 'cambios_comA7', cambios('asesor9', 'a9')), false);
+	await espera('asesor marca «Listo» un pedido de otro asesor con el asesor de ese pedido', listo('asesor9', 'cambios_comA7', cambios('asesor9')), false);
+	await espera('asesor marca «Listo» a nombre de otra persona', listo('asesor7', 'cambios_comA7', cambios('admin1')), false);
+	await espera('asesor marca «Listo» con una clave que no es la del pedido', listo('asesor7', 'cambios_otro', cambios('asesor7')), false);
+	await espera('asesor marca «Listo» un pedido que no existe', listo('asesor7', 'cambios_noExiste', { ...cambios('asesor7'), objeto: 'noExiste' }), false);
+	await espera('asesor marca «Listo» con un campo de más', listo('asesor7', 'cambios_comA7', { ...cambios('asesor7'), nota: 'x' }), false);
+	await espera('socio marca «Listo»', listo('socio1', 'cambios_comA7', cambios('socio1')), false);
+	await espera('anónimo marca «Listo»', listo(null, 'cambios_comA7', cambios('x')), false);
+	await espera('asesor marca «Listo» un pedido de su dueño (control)', listo('asesor7', 'cambios_comA7', cambios('asesor7')), true);
+	await espera('nadie cambia un «Listo»', fetch(`${H}/avisosAtendidos/cambios_comA7?updateMask.fieldPaths=por`, { method: 'PATCH', headers: cab('admin1'), body: JSON.stringify({ fields: campos({ por: 'admin1' }) }) }).then((r) => r.status), false);
+	await espera('otro asesor lee un «Listo» (sin datos de clientes)', leer('asesor9', 'avisosAtendidos/cambios_comA7'), true);
+	await espera('socio lee un «Listo»', leer('socio1', 'avisosAtendidos/cambios_comA7'), false);
+	await espera('otro asesor deshace un «Listo» ajeno', quitar('asesor9', 'cambios_comA7'), false);
+	await espera('el asesor deshace su «Listo» (control)', quitar('asesor7', 'cambios_comA7'), true);
+	const robo = { tipo: 'robo', objeto: 'lead1', agentId: '' };
+	await espera('asesor marca «Listo» un «No se dio» con fechas ocupadas', listo('asesor7', 'robo_lead1', { ...robo, agentId: 'a7', por: 'asesor7' }), false);
+	await espera('administrador marca «Listo» un «No se dio» de una solicitud que no existe', listo('admin1', 'robo_noExiste', { ...robo, objeto: 'noExiste', por: 'admin1' }), false);
+	await espera('administrador marca «Listo» un «No se dio» con fechas ocupadas (control)', listo('admin1', 'robo_lead1', { ...robo, por: 'admin1' }), true);
+	const exc = (por, agentId = 'a7', fin = '2026-12-01') => ({ tipo: 'exclusiva', objeto: 'casa-a7', fin, agentId, por });
+	await espera('asesor marca «Listo» la exclusiva de una casa de otro asesor', listo('asesor9', 'exclusiva_casa-a7_2026-12-01', exc('asesor9', 'a9')), false);
+	await espera('asesor marca «Listo» una exclusiva con otra fecha en la clave', listo('asesor7', 'exclusiva_casa-a7_2027-01-01', exc('asesor7')), false);
+	await espera('asesor marca «Listo» una exclusiva con una fecha mal escrita', listo('asesor7', 'exclusiva_casa-a7_mañana', exc('asesor7', 'a7', 'mañana')), false);
+	await espera('asesor marca «Listo» la exclusiva de su casa (control)', listo('asesor7', 'exclusiva_casa-a7_2026-12-01', exc('asesor7')), true);
+	await espera('el administrador deshace un «Listo» de otro (control)', quitar('admin1', 'exclusiva_casa-a7_2026-12-01'), true);
+}
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
 
