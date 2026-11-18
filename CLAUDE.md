@@ -44,9 +44,12 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 ## 4. Código
 - Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa y qué archivos se tocan juntos
   (las «cadenas»). Se lee antes de un cambio que cruza partes del sistema y se actualiza en el mismo commit.
-- Lo encadenado: antes de dar algo por resuelto, Claude se pregunta «si se elige esta opción (p. ej. renta
-  vacacional, o socio), ¿qué más cambia?». Recorre en el mapa cada pantalla, campo y página que dependa de
-  esa opción y quita, cambia o agrega lo que corresponda; no espera a que el usuario lo encuentre.
+- Lo encadenado, en cada cambio: antes de tocar un código, Claude revisa si está anidado, unido o si depende
+  de otro (quién lo llama, qué usa, qué pantallas, correos, reglas y pruebas lo comparten) y cambia todo lo
+  que va junto en el mismo cambio. Lo busca en el mapa y en el código, no de memoria.
+- Antes de dar algo por resuelto, Claude se pregunta «si se elige esta opción (p. ej. renta vacacional, o
+  socio), ¿qué más cambia?». Recorre cada pantalla, campo y página que dependa de esa opción y quita, cambia
+  o agrega lo que corresponda; no espera a que el usuario lo encuentre.
 - Una sola pieza por cada fin: no existen dos formularios, dos ventanas ni dos funciones distintas para lo
   mismo (crear una casa, elegir una propiedad, borrar, calcular un precio). Se usa la que ya existe, adaptada
   al caso. Si Claude encuentra algo hecho dos veces, lo unifica o lo avisa.
