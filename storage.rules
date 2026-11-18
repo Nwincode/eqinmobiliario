@@ -63,5 +63,13 @@ service firebase.storage {
           || firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('agentId', '')
              == (usuario().get('agentId', '') == '' ? '(sin asesor)' : usuario().agentId));
     }
+    // El dueño de una casa por noche sube fotos nuevas de SU casa (admin/js/views/mis-casas.js → «La casa»). Solo
+    // agrega: no reemplaza ni borra (el administrador puede deshacer su cambio y volver a las de antes).
+    match /properties/{casa}/{archivo} {
+      allow create: if resource == null && foto(10)
+        && conSesion() && usuario().rol == 'socio'
+        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('operacion', '') == 'vacacional'
+        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
+    }
   }
 }

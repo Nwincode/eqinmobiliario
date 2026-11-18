@@ -23,6 +23,7 @@ const ROUTES = [
 	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
 	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
 	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
+	{ path: 'cambios-dueno', label: 'Cambios de los dueños', icon: 'icon-pencil', group: 'Clientes', admin: true, oculta: true, load: () => import('./views/cambios-dueno.js') },
 	{ path: 'rentas', label: 'Rentas vacacionales', icon: 'icon-calendar-check-o', group: 'Clientes', admin: true, load: () => import('./views/rentas.js') },
 	{ path: 'calculadora', label: 'Calculadora de renta', icon: 'icon-calculator', group: 'Herramientas', load: () => import('./views/calculadora.js') },
 	{ path: 'cotizaciones', label: 'Cotización de servicios', icon: 'icon-receipt', group: 'Herramientas', load: () => import('./views/cotizacion.js') },
@@ -111,7 +112,8 @@ const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio && (!r.porNo
 
 function shell() {
 	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
-	const visibles = rutas();
+	// Las rutas «ocultas» se abren desde un aviso, no desde el menú.
+	const visibles = rutas().filter((r) => !r.oculta);
 	const grupos = [...new Set(visibles.map((r) => r.group))];
 	const nav = h('nav', { class: 'admin-nav', 'aria-label': 'Secciones' },
 		grupos.map((g) => h('div', { class: 'admin-nav-group' },

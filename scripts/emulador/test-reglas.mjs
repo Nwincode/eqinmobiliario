@@ -610,7 +610,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el dueño reemplaza una foto del sitio', subir('mixto1', 'properties/casa1/foto1.png'), false);
 	await espera('storage: el dueño sube una foto al sitio', subir('mixto1', 'site/portada.png'), false);
 	await espera('storage: el dueño borra una foto del sitio', borrar('mixto1', 'properties/casa1/foto1.png'), false);
-	await espera('storage: un acceso quitado sube una foto', subir('apagado1', 'properties/casa1/foto3.png'), false);
+	await espera('storage: el dueño sube una foto nueva de su casa por noche', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), true);
+	await espera('storage: el dueño reemplaza esa foto', subir('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), false);
+	await espera('storage: el dueño borra una foto de su casa', borrar('socio1', 'properties/prueba-casa-playa-monterrico/nueva1.png'), false);
+	await espera('storage: otro dueño sube una foto a esa casa', subir('socio2', 'properties/prueba-casa-playa-monterrico/nueva2.png'), false);
+	await espera('storage: el dueño sube una foto a una casa en venta', subir('socio1', 'properties/prueba-casa-en-venta/nueva3.png'), false);
+	await espera('storage: el dueño sube algo que no es foto a su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/nota.txt', 'text/plain'), false);
+	await espera('storage: el dueño sube a una subcarpeta de su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/x/y.png'), false);
+	await espera('storage: un acceso quitado sube una foto',subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
 	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
 	await espera('storage: el cliente sube el comprobante de su reserva', subir(null, `chats/${T}/comprobante1.png`), true);
