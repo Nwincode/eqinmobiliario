@@ -108,6 +108,17 @@ de más y con toda la información que sirve para decidir**. Esta skill existe p
 - Áreas de toque de 44 px como mínimo.
 - Patrones conocidos antes que inventos.
 
+### Celular: íconos, no textos
+- En el celular, lo que se entiende con un ícono va en ícono, con su `title` y su `aria-label` (sirve también a
+  quien no ve la pantalla):
+  - acciones: «+» nueva, ✓ elegir varias, X cerrar, ↗ ver el sitio, ⋮ más;
+  - estados: un ojo si sale en la página, el ojo tachado si no;
+  - avisos: ⚠ con el número de datos que faltan;
+  - datos: cama, baño, carro, personas, m².
+- No se repite un título grande que la barra de arriba ya dice.
+- El texto queda solo para lo que ningún ícono dice bien: precio, nombre, zona y el estado en una palabra.
+- En un grupo de datos, todos con ícono o todos con texto, no revueltos (`CLAUDE.md`).
+
 ### Lo que el usuario ya corrigió (no repetir)
 - Hacer solo lo pedido. Nada «de paso» (un botón de WhatsApp, un número, una etiqueta más). Lo nuevo va
   como propuesta aparte y espera su sí (`CLAUDE.md`).
