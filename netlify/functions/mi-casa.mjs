@@ -63,7 +63,7 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 	if (casa.operacion !== 'vacacional' || !casa.propietarioId || casa.propietarioId !== socio.propietarioId) falla(403, 'Esta casa no es una casa por noche tuya.');
 	const actual = valoresDueno({ casa, socio: docs.socio || {}, llegada: docs.llegada || {} });
 	let r;
-	try { r = revisarCambiosDueno({ casaId: id, bucket: BUCKET, actual, pedido, origenes: ORIGENES }); } catch (err) { falla(422, err.message); }
+	try { r = revisarCambiosDueno({ casaId: id, bucket: BUCKET, actual, pedido, origenes: ORIGENES, pausaPropia: (casa.historialEstado || []).at(-1)?.porUid === socio.uid }); } catch (err) { falla(422, err.message); }
 	if (!r.cambios.length) return { cambios: [] };
 	// Pausar con huéspedes por venir no: la reserva ya está hecha (el administrador decide).
 	const extra = {};

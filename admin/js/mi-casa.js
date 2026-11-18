@@ -3,7 +3,9 @@
 // (netlify/functions/mi-casa.mjs, que lo vuelve a revisar todo antes de escribir con la cuenta de escritura).
 // Se publica sin esperar al administrador; el administrador ve cada cambio (antes y ahora) y lo puede deshacer
 // (admin/js/views/cambios-dueno.js). Lo que no está aquí no lo toca el dueño: dueño, asesor, margen, código, visible,
-// Google, inglés (se traduce al marcar «Listo»), precios por noche (su calendario) ni borrar la casa.
+// Google, inglés (se traduce al marcar «Listo»), precios por noche (su calendario), la limpieza (la ganancia de EQ de una
+// solicitud se calcula quitando la limpieza de hoy a lo cotizado: si el dueño la subiera antes de confirmar, la bajaría)
+// ni borrar la casa.
 // Pruebas: scripts/test-mi-casa.mjs.
 import { estadoDe } from './estados.js';
 
@@ -11,10 +13,14 @@ export const HORAS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(
 export const MAX_FOTOS = 40;
 export const ESTADOS_DUENO = ['disponible', 'pausada'];
 
+// Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin enlaces, correos ni páginas (para que el
+// huésped no salga de la plataforma; los datos de contacto se entregan al confirmar).
+const CON_ENLACE = /https?:|www\.|wa\.me|\]\(|@|\b[a-z0-9-]+\.(com|net|org|gt|me|io|co|info|biz)\b/i;
 const texto = (max, { min = 0 } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
+	if (CON_ENLACE.test(s)) return { error: 'sin enlaces, correos ni páginas web' };
 	return { valor: s };
 };
 const numero = (max, paso = 1) => (v) => {
@@ -40,8 +46,11 @@ const HOSTS_MAPA = ['google.com', 'maps.google.com', 'maps.app.goo.gl', 'goo.gl'
 const mapa = (v) => {
 	const s = String(v ?? '').trim();
 	if (!s) return { valor: '' };
-	if (s.length > 600 || /[<>]/.test(s)) return { error: 'pega el enlace de Google Maps o escribe la dirección' };
-	if (/^[a-z]+:/i.test(s) || /\bwww\./i.test(s)) {
+	if (s.length > 600 || /[<>"'`]/.test(s)) return { error: 'pega el enlace de Google Maps o escribe la dirección' };
+	// Con algo que parezca un enlace en cualquier parte, tiene que ser solo el enlace de Google Maps (el chat del
+	// huésped convierte en botón cualquier enlace que encuentre aquí).
+	if (/:\/\/|^[a-z]+:|www\.|src=|\.[a-z]{2,}\//i.test(s)) {
+		if (/\s/.test(s)) return { error: 'pega solo el enlace de Google Maps' };
 		let u;
 		try { u = new URL(s); } catch { return { error: 'pega el enlace completo de Google Maps' }; }
 		const host = u.hostname.toLowerCase().replace(/^www\./, '');
@@ -70,7 +79,6 @@ export const CAMPOS_DUENO = [
 	{ campo: 'parqueos', donde: 'casa', ruta: 'parqueos', etiqueta: 'Parqueos', revisar: numero(50) },
 	{ campo: 'checkIn', donde: 'casa', ruta: 'vacacional.checkIn', etiqueta: 'Hora de entrada', revisar: deLista(HORAS) },
 	{ campo: 'checkOut', donde: 'casa', ruta: 'vacacional.checkOut', etiqueta: 'Hora de salida', revisar: deLista(HORAS) },
-	{ campo: 'limpieza', donde: 'casa', ruta: 'vacacional.limpieza', etiqueta: 'Limpieza (por estancia)', revisar: numero(10000, 0.01) },
 	{ campo: 'deposito', donde: 'casa', ruta: 'vacacional.deposito', etiqueta: 'Depósito', revisar: numero(50000, 0.01) },
 	{ campo: 'mascotas', donde: 'casa', ruta: 'vacacional.mascotas', etiqueta: 'Mascotas', revisar: deLista(['', 'si', 'no']) },
 	{ campo: 'cancelacion', donde: 'casa', ruta: 'vacacional.cancelacion', etiqueta: 'Cancelación', revisar: texto(1500) },
@@ -89,7 +97,7 @@ export const campoDueno = (campo) => POR_CAMPO[campo];
 // Textos que salen también en inglés: si cambian, el inglés se rehace (al marcar «Listo» en el aviso).
 export const CAMPOS_CON_INGLES = ['titulo', 'descripcion', 'amenidades', 'reglas', 'cancelacion', 'comoLlegar'];
 
-const NUMEROS = ['habitaciones', 'camas', 'banos', 'parqueos', 'limpieza', 'deposito'];
+const NUMEROS = ['habitaciones', 'camas', 'banos', 'parqueos', 'deposito'];
 const leerRuta =(o, ruta) => ruta.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 // Lo que tiene guardado la casa ahora, con los nombres de campo de esta lista.
 export function valoresDueno({ casa = {}, socio = {}, llegada = {} } = {}) {
@@ -112,7 +120,8 @@ function fotoLimpia(f = {}) {
 	const o = { url: String(f.url || ''), path: String(f.path || '') };
 	for (const k of ['ancho', 'alto']) if (Number.isFinite(Number(f[k])) && Number(f[k]) > 0) o[k] = Math.round(Number(f[k]));
 	if (f.marca) o.marca = true;
-	if (f.sinMarca) o.sinMarca = String(f.sinMarca);
+	// «sinMarca» (la original sin marca de agua) no se acepta de quien llama: el panel la borra junto con la foto, y
+	// podría apuntar a otra. Una foto que ya estaba conserva la suya (ver revisarCambiosDueno).
 	if (f.alt) o.alt = String(f.alt).slice(0, 200);
 	return o;
 }
@@ -134,7 +143,8 @@ const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // cambios (antes y ahora, para el aviso del administrador). Lanza Error con un texto para el dueño si algo no va.
 // `pedido`: { campo: valor } solo con lo que cambió en su pantalla. `fotosDe`: las fotos que esa casa ya tuvo (las
 // de ahora y las que se quitaron antes), que pueden volver; una nueva tiene que ser de la carpeta de la casa.
-export function revisarCambiosDueno({ casaId, bucket, actual, pedido = {}, fotosConocidas = [], origenes }) {
+// `pausaPropia`: la casa está pausada porque la pausó el dueño (si la pausó el administrador, el dueño no la reactiva).
+export function revisarCambiosDueno({ casaId, bucket, actual, pedido = {}, fotosConocidas = [], origenes, pausaPropia = false }) {
 	const escribir = { casa: {}, socio: {}, llegada: {} };
 	const cambios = [];
 	const conocidas = new Set([...(actual.fotos || []), ...fotosConocidas].map((f) => f.path).filter(Boolean));
@@ -157,7 +167,7 @@ export function revisarCambiosDueno({ casaId, bucket, actual, pedido = {}, fotos
 			if (r.error) throw new Error(`${def.etiqueta}: ${r.error}.`);
 			valor = r.valor;
 		}
-		if (campo === 'estado' && !ESTADOS_DUENO.includes(actual.estado)) throw new Error('El administrador cambió el estado de esta casa: pídele que la vuelva a poner disponible.');
+		if (campo === 'estado' && (!ESTADOS_DUENO.includes(actual.estado) || (actual.estado === 'pausada' && valor !== 'pausada' && !pausaPropia))) throw new Error('El administrador cambió el estado de esta casa: pídele que la vuelva a poner disponible.');
 		if (igual(valor, actual[campo])) continue;
 		escribir[def.donde][def.ruta] = valor;
 		cambios.push({ campo, etiqueta: def.etiqueta, antes: actual[campo] ?? '', ahora: valor });
