@@ -1067,6 +1067,13 @@
 			.catch(siVacia);
 	}
 
+	// Asesores (portada): en el celular la descripción se ve en dos líneas; al tocarla se abre completa.
+	document.querySelectorAll('.ini-bio').forEach(function (b) {
+		b.addEventListener('click', function () {
+			b.setAttribute('aria-expanded', String(b.getAttribute('aria-expanded') !== 'true'));
+		});
+	});
+
 	// Barra de navegación: fondo sólido al bajar de la portada.
 	var siteNav = document.querySelector('.site-nav');
 	if (siteNav) {

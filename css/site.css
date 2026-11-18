@@ -2,12 +2,71 @@
 
 /* Los colores y medidas se definen en css/tema.css. */
 
-/* Tarjetas de propiedad: fotos con proporción uniforme. El enlace `.img` es la tira de fotos:
-   se desliza con el dedo o con las flechas (js/site.js, «Fotos de las tarjetas»). */
+/* Tarjetas de propiedad (inicio, listados, similares). Sin caja ni sombra: foto, precio, título y una línea
+   con «Tipo · Zona» a la izquierda y los datos a la derecha, pegada al título (sin caja, no hace falta igualar el alto).
+   El enlace `.img` es la tira de fotos: se desliza con el dedo o con las flechas (js/site.js, «Fotos de las tarjetas»). */
+.property-item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	height: 100%;
+}
+.property-item .property-content {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.property-item .price {
+	font-size: 16px;
+	line-height: 20px;
+	font-weight: 700;
+	color: var(--eq-dark);
+	font-variant-numeric: tabular-nums;
+}
+.prop-titulo {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 600;
+	color: var(--eq-dark);
+	text-decoration: none;
+}
+.prop-pie {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0 12px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--eq-ink);
+}
+.prop-etiqueta {
+	min-width: 0;
+}
+.prop-datos {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 12px;
+	font-variant-numeric: tabular-nums;
+}
+.prop-dato {
+	white-space: nowrap;
+}
+.prop-dato .eq-ic {
+	margin-right: 4px;
+}
 .prop-fotos {
 	position: relative;
 	z-index: 2; /* encima del enlace que cubre toda la tarjeta */
 	overflow: hidden;
+	border-radius: var(--eq-radius);
 }
 .property-item .img {
 	display: flex;
@@ -21,7 +80,9 @@
 }
 .property-item .img img {
 	flex: 0 0 100%;
-	aspect-ratio: 4 / 3;
+	width: 100%;
+	max-width: none;
+	aspect-ratio: 3 / 2;
 	object-fit: cover;
 	scroll-snap-align: start;
 	transition: transform .4s ease;
@@ -76,31 +137,26 @@
 
 .prop-badges {
 	position: absolute;
-	top: 14px;
-	left: 14px;
+	top: 8px;
+	left: 8px;
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 	flex-wrap: wrap;
 	z-index: 3;
 	pointer-events: none;
 }
-.prop-badges-inline {
-	position: static;
-	margin-bottom: 1rem;
-}
 .prop-badge {
-	background: rgba(255, 255, 255, .92);
-	color: var(--eq-primary);
-	font-size: 11px;
-	font-weight: 700;
-	letter-spacing: .05em;
-	text-transform: uppercase;
-	padding: 4px 10px;
-	border-radius: 20px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--eq-dark) 72%, transparent);
+	color: var(--eq-white);
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 600;
 }
 .prop-badge-vip {
-	background: var(--eq-gold);
-	color: #fff;
+	background: var(--vip-gold);
+	color: var(--eq-dark);
 }
 .prop-badge-estado {
 	background: var(--eq-danger);
@@ -199,20 +255,6 @@
 }
 .lead-form-status:empty {
 	display: none;
-}
-
-.contact-list li {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 14px;
-	font-size: 16px;
-}
-.contact-list [class^="icon-"] {
-	color: var(--eq-primary);
-	font-size: 20px;
-	width: 24px;
-	text-align: center;
 }
 
 /* Listado con filtros */
@@ -358,10 +400,6 @@
 	}
 	.filtros-pie .btn-primary {
 		flex-grow: 1;
-	}
-	.listing-col .property-item .img img {
-		height: 200px;
-		object-fit: cover;
 	}
 }
 .custom-pagination a {
@@ -651,13 +689,6 @@ body {
 	height: auto;
 }
 
-/* Contraste de los textos de la plantilla */
-.box-feature p,
-.testimonial p,
-.person p {
-	color: var(--eq-ink);
-}
-
 /* Calculadora de cuota */
 .calc-card {
 	background: var(--eq-primary-soft);
@@ -690,41 +721,6 @@ body {
 }
 .content-note p {
 	margin: 0;
-}
-
-/* Bloque para compradores en el extranjero */
-.exterior-block {
-	background: linear-gradient(135deg, var(--eq-primary-soft) 0%, #ffffff 100%);
-}
-.exterior-kicker {
-	display: inline-block;
-	font-size: 12px;
-	font-weight: 700;
-	letter-spacing: .08em;
-	text-transform: uppercase;
-	color: var(--eq-primary);
-	margin-bottom: .5rem;
-}
-.exterior-list {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-	display: grid;
-	gap: 12px;
-}
-.exterior-list li {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	background: #fff;
-	border-radius: 8px;
-	padding: 14px 18px;
-	box-shadow: 0 8px 24px -18px color-mix(in srgb, var(--eq-dark) 40%, transparent);
-	font-weight: 500;
-	color: var(--eq-dark);
-}
-.exterior-list li span {
-	color: var(--eq-primary);
 }
 
 /* Paleta derivada del celeste del logo en OKLCH (tono 225°–240°): tinta var(--eq-dark), azul profundo var(--eq-primary) (acciones), celeste var(--eq-cyan) (acento), piedra var(--eq-ink), línea var(--eq-line), niebla var(--eq-mist).
@@ -1060,87 +1056,6 @@ a {
 	background: linear-gradient(180deg, color-mix(in srgb, var(--eq-dark) 55%, transparent) 0%, color-mix(in srgb, var(--eq-dark) 35%, transparent) 45%, color-mix(in srgb, var(--eq-dark) 70%, transparent) 100%) !important;
 }
 
-
-/* Tarjetas de propiedad */
-.property-item {
-	background: #fff;
-	border-radius: 14px;
-	overflow: hidden;
-	box-shadow: 0 1px 2px color-mix(in srgb, var(--eq-dark) 6%, transparent), 0 10px 30px -18px color-mix(in srgb, var(--eq-dark) 35%, transparent);
-	border: 1px solid color-mix(in srgb, var(--eq-dark) 6%, transparent);
-}
-.property-item .img img {
-	border-radius: 0;
-}
-/* Todas las tarjetas de una fila miden lo mismo: la tarjeta llena su columna y el pie (precio y datos)
-   va pegado abajo, tenga el título una línea o dos. */
-.property-item {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-}
-.property-item .property-content {
-	position: static;
-	margin: 0;
-	padding: 12px 14px 14px;
-	display: flex;
-	flex-direction: column;
-	flex: 1 1 auto;
-}
-.property-item .prop-pie {
-	margin-top: auto;
-}
-/* En el carrusel de la portada también: las tarjetas se estiran a la más alta. */
-.property-slider.tns-slider {
-	display: flex;
-}
-.property-slider.tns-slider > .tns-item {
-	display: block;
-	flex: none;
-	height: auto;
-}
-.prop-etiqueta {
-	display: block;
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: .06em;
-	text-transform: uppercase;
-	color: var(--eq-primary);
-}
-.prop-titulo {
-	display: block;
-	margin: 2px 0 8px;
-	font-size: 16px;
-	font-weight: 600;
-	line-height: 1.3;
-	color: var(--eq-dark);
-	text-decoration: none;
-}
-.prop-pie {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 4px 12px;
-}
-.property-item .property-content .price {
-	font-size: 17px;
-}
-.prop-datos {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 2px 10px;
-	font-size: 13px;
-	color: var(--eq-ink);
-}
-.prop-dato {
-	white-space: nowrap;
-}
-.prop-dato .eq-ic {
-	margin-right: .3em;
-	color: var(--eq-primary);
-}
 /* Íconos propios (no están en la fuente): pared = construcción, pasto = terreno; ambos con cotas de plano. */
 .icon-construccion::before,
 .icon-terreno::before {
@@ -1160,59 +1075,6 @@ a {
 .icon-terreno {
 	--ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 19.9h16v1.2H6zM5.4 18.5h1.2v4H5.4zM21.4 18.5h1.2v4h-1.2zM2.4 2h1.2v15H2.4zM1 1.4h4v1.2H1zM1 16.4h4v1.2H1z'/%3E%3Cpath transform='translate(4.4 .4) scale(.8)' fill-rule='evenodd' d='M5 2h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zm7.2 17.5c-.2-5.6-1.7-9.8-4.6-12.7 3.9 2.3 6 6.5 6.4 12.7zm2.8 0c.1-3.9 1.4-6.9 4-9-1.3 2.8-1.9 5.8-1.8 9zm-5 0c-.3-2.9-1.6-5.1-3.8-6.5 3 .8 4.9 3 5.6 6.5z'/%3E%3C/svg%3E");
 }
-.property-item .property-content .price {
-	color: var(--eq-primary);
-}
-.property-item .property-content .price span::after {
-	background: var(--eq-cyan) !important;
-}
-.property-item .property-content .city {
-	color: var(--eq-dark);
-}
-.prop-badge {
-	background: var(--eq-dark);
-	color: #fff;
-}
-.prop-badge-vip {
-	background: var(--vip-gold);
-	color: var(--eq-dark);
-}
-
-/* Reseñas y asesores */
-.testimonial .name,
-.person .btn {
-	display: inline-flex;
-	align-items: center;
-	min-height: 44px;
-}
-.person h2,
-.person .h5 {
-	color: var(--eq-dark);
-}
-.property-item .img,
-.property-item .img img {
-	width: 100% !important;
-	max-width: none;
-}
-/* En el carrusel, tiny-slider usa padding como separación: la tarjeta se dibuja en el contenido. */
-.property-slider .property-item {
-	background: none;
-	box-shadow: none;
-	border: 0;
-	border-radius: 0;
-	overflow: visible;
-}
-.property-slider .prop-fotos {
-	border-radius: 10px 10px 0 0;
-	overflow: hidden;
-}
-.property-slider .property-item > .property-content {
-	background: var(--eq-white);
-	border: 1px solid var(--eq-line);
-	border-top: 0;
-	border-radius: 0 0 10px 10px;
-}
-
 /* ================================================================
    Minimalista: cuatro colores con funciones fijas.
    Negro = estructura (menú, pie). Blanco = fondo. Azul = acciones.
@@ -1220,8 +1082,7 @@ a {
    pesadas, sin degradados, sin decoración que no informe.
    ================================================================ */
 /* Un solo aire vertical para todas las secciones de la portada. */
-.section,
-.features-1 {
+.section {
 	padding-top: clamp(1.5rem, 3vw, 2.25rem);
 	padding-bottom: clamp(1.5rem, 3vw, 2.25rem);
 }
@@ -1249,142 +1110,11 @@ h2.heading::after,
 }
 
 
-/* Fondos: blanco casi siempre; el celeste claro solo en secciones de apoyo */
-.bg-light,
-.features-1,
-.exterior-block {
-	background: var(--eq-mist) !important;
-}
-.sec-testimonials,
-.section-4 {
-	background: var(--eq-white) !important;
-}
-
-/* Sin decoración de la plantilla */
-.dots::before,
-.dots::after,
-.img-about.dots::before,
-.img-about.dots::after {
-	display: none !important;
-}
-
-/* Tarjetas: borde fino, sin sombra */
-.property-item,
+/* Formularios y calculadoras: borde fino, sin sombra */
 .lead-card,
 .calc-card {
 	box-shadow: none !important;
 }
-.property-item {
-	border: 1px solid var(--eq-line);
-	border-radius: 10px;
-}
-.property-slider .property-item {
-	border: 0;
-}
-.property-item .property-content .price span::after {
-	height: 2px !important;
-}
-.prop-badge {
-	background: var(--eq-white);
-	color: var(--eq-dark);
-	border-radius: 6px;
-}
-.features-1 .box-feature,
-.person,
-.section-5 .person {
-	border: 1px solid var(--eq-line);
-	border-radius: 10px;
-	background: var(--eq-white);
-}
-.features-1 .box-feature {
-	height: 100%;
-	padding: 20px 14px;
-}
-/* La foto del asesor sobresale 45 px por arriba: la tarjeta deja ese espacio. */
-.person {
-	margin-top: 45px;
-	height: calc(100% - 45px);
-}
-.person .person-contents {
-	padding: 20px 24px 24px;
-}
-.person .person-contents p:last-child {
-	margin-bottom: 0;
-}
-@media (min-width: 992px) {
-	.features-1 .box-feature {
-		padding: 28px 22px;
-	}
-}
-.features-1 .box-feature span[class^="flaticon"],
-.features-1 .box-feature [class*=" flaticon"],
-.features-1 .box-feature h3 {
-	color: var(--eq-dark);
-}
-.features-1 .box-feature p:last-child {
-	margin-bottom: 0;
-}
-.features-1 .learn-more {
-	white-space: nowrap;
-}
-
-/* Servicios: icono de línea, sin círculo de color */
-.feature-h .wrap-icon {
-	background: transparent !important;
-	color: var(--eq-primary) !important;
-	border: 1px solid var(--eq-line);
-}
-/* El ícono ocupa un tercio del círculo: antes se veía diminuto. */
-.feature-h .wrap-icon [class^="icon-"],
-.feature-h .wrap-icon [class*=" icon-"] {
-	font-size: 26px;
-}
-
-/* Cifras: limpias sobre blanco, número negro y línea celeste */
-.section-counter {
-	margin-left: 0;
-	margin-right: 0;
-	border-top: 1px solid var(--eq-line);
-	border-bottom: 1px solid var(--eq-line);
-	padding: 32px 0;
-	row-gap: 28px;
-}
-.section-counter .counter-wrap .number,
-.section-counter .countup {
-	color: var(--eq-dark) !important;
-	font-weight: 600;
-}
-.section-counter .counter-wrap .number::after {
-	content: "";
-	display: block;
-	width: 24px;
-	height: 2px;
-	margin: 10px 0 8px;
-	background: var(--eq-cyan);
-}
-.section-counter .caption {
-	color: var(--eq-ink) !important;
-}
-
-/* Bloque destacado: azul plano, texto blanco, botón blanco */
-.footer-cta {
-	max-width: 1110px;
-	margin: 0 auto;
-	padding: 40px 24px;
-	background: var(--eq-primary);
-	border-radius: 12px;
-}
-.footer-cta h2 {
-	color: var(--eq-white);
-}
-
-/* Bloque para compradores en EE. UU.: sin degradado ni sombras */
-.exterior-block .exterior-list li {
-	box-shadow: none !important;
-	border: 1px solid var(--eq-line);
-	background: #fff;
-}
-
 
 /* Menú: negro sólido y sin línea celeste inferior */
 .site-nav .menu-bg-wrap {
@@ -2241,15 +1971,7 @@ a:hover > .eq-ic-fin,
 	margin-right: .35em;
 }
 
-/* Portada: reseñas, contadores */
-.counter-icono {
-	display: block;
-	font-size: 26px;
-	line-height: 1;
-	height: 26px; /* misma altura en todos para que las cifras queden alineadas */
-	color: var(--eq-primary);
-	margin-bottom: 14px;
-}
+/* Página 404 */
 .pagina-404-icono {
 	display: block;
 	font-size: 56px;
@@ -2266,36 +1988,6 @@ a:hover > .eq-ic-fin,
 .vip-lightbox button .eq-ic {
 	margin: 0;
 	font-size: 18px;
-}
-/* Reseñas: las flechas van en la fila del título, a la altura de su texto y no del título
-   más su raya (la raya de h2.heading::after mide 16 px de margen + 2 px). */
-#testimonial-nav {
-	margin-bottom: 18px;
-}
-/* Propiedades: una flecha a cada costado del carrusel, a media altura de la foto (4:3).
-   Al tacto no hay flechas: las tarjetas se deslizan con el dedo. */
-.property-slider-wrap {
-	position: relative;
-}
-#property-nav {
-	display: contents;
-}
-#property-nav .eq-flecha {
-	position: absolute;
-	top: calc((100% - 80px) * .32);
-	z-index: 2;
-}
-#property-nav .eq-flecha-prev { left: -6px; }
-#property-nav .eq-flecha-next { right: -6px; }
-@media (hover: hover) {
-	.property-slider-wrap {
-		padding-inline: 38px;
-	}
-}
-@media (hover: none) {
-	#property-nav .eq-flecha {
-		display: none;
-	}
 }
 .lead-form-status .eq-ic {
 	margin-right: .4em;
@@ -2317,9 +2009,7 @@ a:hover > .eq-ic-fin,
 	justify-content: space-between;
 	gap: 8px 24px;
 	padding: 10px 12px 10px 20px;
-	/* El título deja 3rem (mb-5, como sin Google); la barra sube 1.5rem para quedar más cerca. */
-	margin-top: -1.5rem;
-	margin-bottom: 40px;
+	margin-bottom: 16px;
 	background: var(--eq-mist);
 	border: 1px solid var(--eq-line);
 	border-radius: var(--eq-radius-card);
@@ -2438,53 +2128,6 @@ a:hover > .eq-ic-fin,
 .gr-mixto .testimonial > * {
 	margin: 0 !important;
 	align-self: stretch;
-}
-/* Con foto: foto a la izquierda del nombre y las estrellas, como en las de Google. */
-.gr-mixto .testimonial:has(> img) {
-	display: grid;
-	grid-template-columns: 44px minmax(0, 1fr);
-	grid-template-rows: auto auto auto auto 1fr;
-	column-gap: 12px;
-	row-gap: 0;
-}
-.gr-mixto .testimonial:has(> img) > img {
-	grid-column: 1;
-	grid-row: 1 / span 2;
-	align-self: center;
-	width: 44px !important;
-	height: 44px;
-	object-fit: cover;
-}
-.gr-mixto .testimonial:has(> img) > .h5 {
-	grid-column: 2;
-	grid-row: 1;
-	align-self: end;
-	margin-bottom: 4px !important;
-	font-size: 1rem;
-	font-weight: 700;
-	line-height: 1.3;
-}
-.gr-mixto .testimonial:has(> img) > .rate {
-	grid-column: 2;
-	grid-row: 2;
-	align-self: start;
-	line-height: 1;
-}
-.gr-mixto .testimonial:has(> img) > blockquote {
-	grid-column: 1 / -1;
-	grid-row: 3;
-	margin-top: 12px !important;
-}
-.gr-mixto .testimonial:has(> img) > .gr-leer-mas {
-	grid-column: 1 / -1;
-	grid-row: 4;
-	margin-top: 4px !important;
-}
-.gr-mixto .testimonial:has(> img) > p:last-child {
-	grid-column: 1 / -1;
-	grid-row: 5;
-	align-self: end;
-	margin-top: 12px !important;
 }
 .gr-mixto .testimonial .gr-leer-mas {
 	align-self: flex-start;
@@ -3578,21 +3221,27 @@ a:hover > .eq-ic-fin,
 	opacity: .75;
 }
 
-/* Pie de página */
+/* Pie de página: nombre y texto; enlaces en rejilla con líneas finas (3 columnas en celular, 4 en computadora);
+   botones de contacto y redes; y una línea con dirección, horario y derechos. */
 .pie {
 	background: var(--eq-dark);
-	color: color-mix(in srgb, var(--eq-white) 75%, transparent);
-	font-size: 14px;
-	padding: 28px 0 20px;
+	color: color-mix(in srgb, var(--eq-white) 72%, transparent);
+	font-size: 12px;
+	line-height: 16px;
+	padding: 24px 0 16px;
+}
+.pie .container {
+	display: grid;
+	gap: 12px;
 }
 .pie p {
-	margin: 0 0 12px;
+	margin: 0;
 	color: inherit;
 }
 .pie .pie-nombre {
-	margin-bottom: 4px;
-	font-size: 18px;
-	font-weight: 700;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 600;
 	color: var(--eq-white);
 }
 .pie a:not(.btn) {
@@ -3604,26 +3253,37 @@ a:hover > .eq-ic-fin,
 }
 .pie-enlaces {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-	column-gap: 16px;
-	margin-bottom: 12px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	column-gap: 12px;
 }
 .pie-enlaces a {
 	display: flex;
 	align-items: center;
 	min-height: 44px;
+	border-top: 1px solid color-mix(in srgb, var(--eq-white) 12%, transparent);
 }
 .pie-botones {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	margin-bottom: 16px;
 }
-.pie .pie-legal {
-	margin: 0;
-	padding-top: 12px;
-	border-top: 1px solid color-mix(in srgb, var(--eq-white) 15%, transparent);
-	font-size: 12px;
+@media (min-width: 992px) {
+	.pie {
+		padding-top: 32px;
+	}
+	.pie .container {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+		grid-template-areas: "marca enlaces" "botones enlaces" "legal legal";
+		align-items: start;
+		gap: 12px 48px;
+	}
+	.pie-marca { grid-area: marca; }
+	.pie-enlaces {
+		grid-area: enlaces;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+	.pie-botones { grid-area: botones; }
+	.pie .pie-legal { grid-area: legal; }
 }
 
 /* Ancho del contenido: menos espacio vacío a los lados */
@@ -3772,11 +3432,9 @@ a:hover > .eq-ic-fin,
    ================================================================ */
 .breadcrumb a,
 .ficha-lugar a,
-.contact-list a,
 .aviso-idioma a,
 .post-card-mas,
 .blog-mas a,
-.features-1 .learn-more,
 .vip-footer a {
 	display: inline-block;
 	min-width: 44px;
@@ -3822,5 +3480,538 @@ a:hover > .eq-ic-fin,
 	.zona-precios .prop-facts > div:first-child,
 	.zona-precios .prop-facts > div:last-child:nth-child(even) {
 		grid-column: auto;
+	}
+}
+
+/* ================================================================
+   Inicio (scripts/lib/templates.mjs `homePage`). Escala de 4 px; letra de 12, 14 y 16 (20 en los títulos de
+   sección); líneas finas de 1 px en lugar de cajas; áreas de toque de 44 px. Celular primero; desde 992 px,
+   computadora.
+   ================================================================ */
+/* Portada: foto, título y buscador. Las fotos del carrusel llenan la portada, mida lo que mida. */
+.ini-hero {
+	display: flex;
+	align-items: flex-end;
+	min-height: 292px;
+	padding: 152px 0 16px;
+	color: var(--eq-white);
+}
+.ini-hero > .tns-outer,
+.ini-hero > .hero-slide {
+	position: absolute;
+	inset: 0;
+}
+.ini-hero .tns-ovh,
+.ini-hero .tns-inner,
+.ini-hero .hero-slide,
+.ini-hero .hero-slide .img {
+	height: 100%;
+}
+.ini-hero .container {
+	display: grid;
+	gap: 12px;
+}
+.ini-hero h1 {
+	margin: 0;
+	font-size: 28px;
+	line-height: 32px;
+	font-weight: 700;
+	color: var(--eq-white);
+	text-wrap: balance;
+}
+.ini-buscar {
+	display: flex;
+	height: 48px;
+	border-radius: var(--eq-radius);
+	overflow: hidden;
+	background: var(--eq-white);
+}
+.ini-buscar .form-control {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 48px;
+	padding: 0 16px;
+	border: 0;
+	border-radius: 0;
+	font-size: 14px;
+}
+.ini-buscar .btn {
+	flex: none;
+	width: 48px;
+	min-height: 48px;
+	padding: 0;
+	border-radius: 0;
+}
+.ini-buscar .btn .eq-ic {
+	font-size: 20px;
+}
+.ini-buscar .btn span:not(.eq-ic) {
+	display: none;
+}
+
+/* Cifras: fila de 4 bajo la portada, número arriba y etiqueta tenue debajo. */
+.ini-cifras {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0 12px;
+	margin: 0;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--eq-line);
+}
+.ini-cifras > div {
+	display: flex;
+	flex-direction: column-reverse;
+	justify-content: flex-end;
+	min-width: 0;
+}
+.ini-cifras dt {
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+.ini-cifras dd {
+	margin: 0;
+	font-size: 20px;
+	line-height: 24px;
+	font-weight: 700;
+	color: var(--eq-dark);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Secciones: el mismo aire arriba, letra de 14/20 y un título de 20 px. */
+.ini-sec,
+.ini-exterior {
+	font-size: 14px;
+	line-height: 20px;
+}
+.ini-sec {
+	padding-top: 24px;
+}
+.ini-sec h2 {
+	margin: 0 0 8px;
+	font-size: 20px;
+	line-height: 24px;
+	font-weight: 700;
+}
+.ini-sec h3 {
+	margin: 0;
+	font-size: 14px;
+	line-height: 20px;
+	font-weight: 600;
+	color: var(--eq-dark);
+}
+.ini-sec p {
+	margin: 0;
+}
+/* Título y flechas en una fila (las flechas dan el alto: 44 px). */
+.ini-cab {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 8px;
+}
+.ini-cab h2 {
+	margin: 0 auto 0 0;
+}
+.ini-sec .eq-flechas {
+	gap: 0;
+}
+/* Ícono que se toca: 44 px de área aunque se vea de 20. */
+.ini-ico {
+	display: inline-grid;
+	place-items: center;
+	flex: none;
+	width: 44px;
+	height: 44px;
+	border-radius: var(--eq-radius);
+	color: var(--eq-dark);
+	font-size: 20px;
+}
+.ini-sec .ini-wa {
+	color: var(--eq-whatsapp);
+}
+
+/* Propiedades populares: título y flechas; carrusel; «Ver todas» debajo (en computadora, junto al título). */
+.ini-populares {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas: "titulo flechas" "lista lista" "ver ver";
+	align-items: center;
+	row-gap: 8px;
+}
+.ini-populares h2 {
+	grid-area: titulo;
+	margin: 0;
+}
+.ini-populares #property-nav {
+	grid-area: flechas;
+}
+.ini-populares .property-slider-wrap,
+.ini-populares .propiedades-pocas {
+	grid-area: lista;
+	min-width: 0;
+}
+.ini-ver {
+	grid-area: ver;
+	justify-self: start;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-height: 44px;
+	font-weight: 600;
+	text-decoration: none;
+}
+.ini-ver .eq-flecha-ic {
+	width: 16px;
+	height: 16px;
+}
+/* En el carrusel, todas las tarjetas miden lo que la más alta. */
+.property-slider.tns-slider {
+	display: flex;
+}
+.property-slider.tns-slider > .tns-item {
+	flex: none;
+	height: auto;
+}
+
+/* Reseñas: cita con línea a la izquierda; debajo, nombre y tipo de cliente en una fila. Con reseñas de Google
+   en el carrusel, todas toman el marco de las de Google (`.gr-mixto`). */
+.testimonial-slider-wrap:not(.gr-mixto) .testimonial {
+	display: grid;
+	gap: 8px;
+	padding-left: 12px;
+	border-left: 2px solid var(--eq-cyan);
+}
+.testimonial blockquote {
+	margin: 0;
+	color: var(--eq-dark);
+}
+.ini-firma {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0 8px;
+}
+.ini-firma b {
+	font-weight: 600;
+	color: var(--eq-dark);
+}
+.ini-firma span {
+	font-size: 12px;
+	line-height: 16px;
+}
+
+/* «Te ayudaremos…»: ícono, título y texto. */
+.ini-ayuda {
+	display: grid;
+	gap: 12px;
+	margin: 12px 0 0;
+	padding: 0;
+	list-style: none;
+}
+.ini-ayuda li {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 0 8px;
+}
+.ini-ayuda li > span {
+	font-size: 16px;
+	line-height: 20px;
+	color: var(--eq-primary);
+}
+.ini-ayuda p {
+	grid-column: 2;
+	font-size: 12px;
+	line-height: 16px;
+}
+
+/* Asesores: foto, nombre y descripción; WhatsApp a la derecha. En el celular la descripción
+   muestra dos líneas y se abre completa al tocarla (js/site.js). */
+.ini-sec h2:has(+ .ini-cargo) {
+	margin-bottom: 4px;
+}
+.ini-cargo {
+	margin-bottom: 8px !important;
+	font-weight: 600;
+	color: var(--eq-dark);
+}
+.ini-asesores {
+	display: grid;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ini-asesores li {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 0;
+	border-top: 1px solid var(--eq-line);
+}
+.ini-asesores img {
+	flex: none;
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+.ini-asesores li > div {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+/* El cargo va junto al nombre; si no cabe, baja entero a la línea siguiente (sin partirse ni sangría). */
+.ini-asesores h3 {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	column-gap: 8px;
+}
+.ini-asesores h3 span {
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--eq-ink);
+}
+/* El área de toque llega a 44 px sin agrandar la fila: relleno y margen negativo del mismo tamaño
+   (como en «Área de toque de al menos 44 px»). */
+.ini-bio {
+	display: block;
+	width: 100%;
+	padding: 6px 0;
+	margin: -6px 0;
+	border: 0;
+	background: none;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--eq-ink);
+	text-align: left;
+	cursor: pointer;
+}
+.ini-bio[aria-expanded="false"] span {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* Compradores en EE. UU.: banda oscura de lado a lado; lista con ✓, sin cajas. */
+.ini-exterior {
+	margin-top: 24px;
+	padding: 24px 0;
+	background: var(--eq-dark);
+	color: color-mix(in srgb, var(--eq-white) 78%, transparent);
+}
+.ini-exterior .container {
+	display: grid;
+	gap: 12px;
+}
+.ini-exterior .container > div {
+	display: grid;
+	gap: 12px;
+}
+.ini-exterior p {
+	margin: 0;
+}
+.ini-exterior .ini-ceja {
+	font-size: 12px;
+	line-height: 16px;
+	font-weight: 600;
+	color: var(--eq-cyan);
+}
+.ini-exterior h2 {
+	margin: 0;
+	font-size: 20px;
+	line-height: 24px;
+	font-weight: 700;
+	color: var(--eq-white);
+}
+.ini-exterior ul {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ini-exterior li {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr);
+	gap: 8px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--eq-white);
+}
+.ini-exterior li .eq-ic {
+	color: var(--eq-cyan);
+}
+
+/* «Buscar por zona y tipo» (`porZona`, compartido con los listados, donde va pegado al listado con `pt-0`):
+   en el inicio sigue a la banda oscura y lleva el mismo aire que las demás secciones. */
+.ini-exterior + .section {
+	padding: 24px 0 0 !important;
+}
+
+/* Contacto: en el celular teléfono, WhatsApp y correo son íconos de 44 px en una fila, con el horario al lado;
+   en computadora, lista con ícono y texto. */
+.ini-contacto {
+	display: grid;
+	gap: 12px;
+}
+.ini-contacto h2 {
+	margin-bottom: 4px;
+}
+.ini-vias {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+.ini-vias a {
+	display: inline-grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	border: 1px solid var(--eq-line);
+	border-radius: var(--eq-radius);
+	color: var(--eq-dark);
+	font-size: 20px;
+	text-decoration: none;
+}
+.ini-vias a.ini-wa {
+	color: var(--eq-whatsapp);
+}
+.ini-vias a span:not(.eq-ic) {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+.ini-dato {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--eq-ink);
+}
+
+@media (min-width: 992px) {
+	.ini-hero {
+		min-height: 436px;
+		padding: 224px 0 48px;
+		text-align: center;
+	}
+	.ini-hero .container {
+		justify-items: center;
+	}
+	.ini-hero h1 {
+		max-width: 720px;
+		font-size: 44px;
+		line-height: 52px;
+	}
+	.ini-buscar {
+		width: 560px;
+	}
+	.ini-buscar .btn {
+		width: auto;
+		padding: 0 16px;
+	}
+	.ini-buscar .btn .eq-ic {
+		display: none;
+	}
+	.ini-buscar .btn span:not(.eq-ic) {
+		display: inline;
+	}
+	.ini-sec {
+		padding-top: 40px;
+	}
+	.ini-populares {
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		grid-template-areas: "titulo ver flechas" "lista lista lista";
+		column-gap: 4px;
+	}
+	.ini-ayuda {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 24px;
+	}
+	.ini-asesores {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		column-gap: 24px;
+	}
+	/* En columnas, cada asesor arranca arriba: las bios de distinto largo no desalinean las filas. */
+	.ini-asesores li {
+		align-items: flex-start;
+	}
+	.ini-bio {
+		cursor: default;
+	}
+	.ini-bio[aria-expanded] span {
+		display: inline;
+		overflow: visible;
+	}
+	.ini-exterior {
+		margin-top: 40px;
+		padding: 40px 0;
+	}
+	.ini-exterior + .section {
+		padding-top: 40px !important;
+	}
+	.ini-exterior .container {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		grid-template-areas: "texto lista" "boton lista";
+		align-items: center;
+		gap: 16px 48px;
+	}
+	.ini-exterior .container > div { grid-area: texto; }
+	.ini-exterior ul {
+		grid-area: lista;
+		grid-template-columns: 1fr;
+	}
+	.ini-exterior li {
+		font-size: 14px;
+		line-height: 20px;
+		align-items: center;
+	}
+	.ini-exterior .btn {
+		grid-area: boton;
+		justify-self: start;
+		align-self: start;
+	}
+	.ini-contacto {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 48px;
+	}
+	.ini-vias {
+		display: grid;
+		gap: 0;
+	}
+	.ini-vias a {
+		display: inline-flex;
+		gap: 8px;
+		width: auto;
+		border: 0;
+		font-size: 14px;
+		font-weight: 500;
+	}
+	.ini-vias a .eq-ic {
+		font-size: 16px;
+	}
+	.ini-vias a span:not(.eq-ic) {
+		position: static;
+		width: auto;
+		height: auto;
+		overflow: visible;
+		clip: auto;
+	}
+	.ini-dato {
+		min-height: 44px;
+		gap: 8px;
+		font-size: 14px;
+		line-height: 20px;
 	}
 }

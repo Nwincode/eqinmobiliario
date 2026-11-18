@@ -58,7 +58,7 @@ const ES = {
 	vendeBoton: 'Vende tu propiedad', vendeQue: '¿Qué quieres vender o rentar?', vendeQuePh: 'Casa en zona 15, 3 habitaciones…', cerrarAviso: 'Cerrar aviso de idioma',
 	plantilla: 'Diseño basado en una plantilla de', escribenos: 'Escríbenos por WhatsApp',
 	buscarPropiedades: 'Buscar propiedades', buscar: 'Buscar', anterior: 'Anterior', siguiente: 'Siguiente', navCarrusel: 'Navegación del carrusel',
-	masInfo: 'Más información', sobre: 'sobre', deEstrellas: 'de 5 estrellas', escribir: 'Escribir',
+	deEstrellas: 'de 5 estrellas', escribir: 'Escribir',
 	resenasGoogle: 'Reseñas en Google', verEnGoogle: 'Ver todas en Google', dejarResena: 'Dejar una reseña', resenasTotal: 'reseñas',
 	basadoEn: 'Basado en', leerMas: 'Leer más', leerMenos: 'Leer menos', verResena: 'Ver reseña', publicadaEn: 'Publicada en', anonimo: 'Usuario de Google',
 	enVenta: 'En venta', enRenta: 'En renta', enVacacional: 'Renta vacacional', verDetalles: 'Ver detalles', precioRebajado: 'Precio rebajado', antes: 'Antes', precioConsultar: 'Precio a consultar', mes: '/mes',
@@ -190,7 +190,7 @@ const EN = {
 	vendeBoton: 'List your property', vendeQue: 'What do you want to sell or rent out?', vendeQuePh: 'House in zone 15, 3 bedrooms…', cerrarAviso: 'Close language notice',
 	plantilla: 'Design based on a template by', escribenos: 'Message us on WhatsApp',
 	buscarPropiedades: 'Search properties', buscar: 'Search', anterior: 'Previous', siguiente: 'Next', navCarrusel: 'Carousel navigation',
-	masInfo: 'Learn more', sobre: 'about', deEstrellas: 'out of 5 stars', escribir: 'Message',
+	deEstrellas: 'out of 5 stars', escribir: 'Message',
 	resenasGoogle: 'Google reviews', verEnGoogle: 'See all on Google', dejarResena: 'Write a review', resenasTotal: 'reviews',
 	basadoEn: 'Based on', leerMas: 'Read more', leerMenos: 'Read less', verResena: 'View review', publicadaEn: 'Posted on', anonimo: 'Google user',
 	enVenta: 'For sale', enRenta: 'For rent', enVacacional: 'Vacation rental', verDetalles: 'View details', precioRebajado: 'Price reduced', antes: 'Was', precioConsultar: 'Price on request', mes: '/mo',
@@ -278,7 +278,7 @@ const TECNICOS = new Set(['htmlLang', 'ogLocale', 'dateLocale', 'otroIdioma']);
 // Grupos del editor "Textos del sitio" del panel. Lo que no esté aquí aparece en "Otros".
 export const GRUPOS_TEXTOS = [
 	['Menú y pie de página', ['inicio', 'propiedades', 'comprar', 'rentar', 'propiedadesVip', 'verTodas', 'enlaces', 'zonas', 'vendeBoton', 'vendeQue', 'vendeQuePh', 'cerrarAviso', 'plantilla', 'escribenos']],
-	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'masInfo', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
+	['Tarjetas y botones', ['buscarPropiedades', 'buscar', 'escribir', 'enVenta', 'enRenta', 'enVacacional', 'verDetalles', 'precioRebajado', 'antes', 'precioConsultar', 'mes', 'habitacion', 'habitaciones', 'bano', 'banos', 'asesorInmobiliario', 'correoBtn', 'anterior', 'siguiente']],
 	['Formularios', ['nombre', 'telefono', 'telefonoPh', 'correo', 'mensaje', 'fechaVisita', 'tipoVisita', 'presencial', 'videollamada', 'enviar', 'jsErrorDatos', 'jsErrorCorreo', 'jsGracias', 'jsFallo', 'jsSinChat']],
 	['Mensajes de WhatsApp', ['msgInteres', 'msgAsesor', 'msgWaFicha', 'msgWaCerrada', 'msgWaVip', 'jsSoy', 'jsVisita', 'jsTel']],
 	['Listados y búsqueda', ['filtrar', 'busquedaInteligente', 'iaPh', 'buscarIA', 'buscarPh', 'operacion', 'todas', 'todos', 'venta', 'renta', 'vacacional', 'tipo', 'zona', 'ordenar', 'recientes', 'precioAsc', 'precioDesc', 'precioMin', 'precioMax', 'limpiar', 'propiedad', 'propiedadesN', 'sinResultados', 'listadoVacio', 'verTodasPropiedades', 'cuentanos', 'teAyudamos', 'noEncuentras', 'buscarFiltrar', 'cerrarFiltros', 'jsVer', 'jsUna', 'jsVarias', 'jsEscribe', 'jsBuscando', 'jsSinConexion']],

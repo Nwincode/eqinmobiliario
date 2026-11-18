@@ -279,7 +279,7 @@ test('horario: el inglés sale del español (días y 12 h); el guardado en ingl�
 	assert.equal(horarioEn('Todos los días con cita previa'), 'Every day by appointment');
 	assert.equal(horarioEn('Horario por WhatsApp'), 'Horario por WhatsApp', 'lo que no reconoce queda igual');
 	assert.equal(horarioEn(''), '');
-	const es = attr(de('/'), /icon-clock-o"><\/span>([^<]+)/), en = attr(de('/en/'), /icon-clock-o"><\/span>([^<]+)/);
+	const es = attr(de('/'), /icon-clock-o[^>]*><\/span>([^<]+)/), en = attr(de('/en/'), /icon-clock-o[^>]*><\/span>([^<]+)/);
 	assert.equal(en, horarioEn(es));
 });
 
@@ -396,14 +396,15 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	const seedSin = path.join(tmp, 'seed-sin-renta.json');
 	const datos = seedEjemplo(path.join(ROOT, 'data/seed.json'));
 	datos.properties = datos.properties.filter((p) => p.operacion !== 'renta');
+	// Un enlace de Contenido (el botón del bloque para EE. UU.) que apunta al listado vacío.
+	datos.settings.bloqueExterior.enlace = '/propiedades/renta/';
 	writeFileSync(seedSin, JSON.stringify(datos));
 	const distSin = path.join(tmp, 'dist-sin-renta');
 	execFileSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...env, SEED_FILE: seedSin, DIST_DIR: distSin }, stdio: ['ignore', 'pipe', 'pipe'] });
 	const leer = (u) => readFileSync(path.join(distSin, u, 'index.html'), 'utf8');
 	test('enlaces de Contenido (portada) a un listado sin casas se esconden', () => {
-		assert.ok(datos.settings.features.items.some((f) => f.enlace === '/propiedades/renta/'));
 		assert.doesNotMatch(leer(''), /href="\/propiedades\/renta\/"/);
-		assert.match(leer(''), /href="\/propiedades\/venta\/" class="learn-more"/);
+		assert.match(leer(''), /href="\/propiedades\/venta\/"/);
 	});
 	test('listado vacío: mensaje propio con enlace a todas, sin filtros', () => {
 		const h = leer('propiedades/renta');

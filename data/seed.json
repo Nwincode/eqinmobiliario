@@ -38,35 +38,6 @@
       "titulo": "Propiedades populares",
       "boton": "Ver todas las propiedades"
     },
-    "features": {
-      "visible": true,
-      "items": [
-        {
-          "icono": "flaticon-house",
-          "titulo": "Nuestras Propiedades",
-          "texto": "Casas, apartamentos y terrenos verificados en las mejores zonas de Guatemala.",
-          "enlace": "/propiedades/"
-        },
-        {
-          "icono": "flaticon-building",
-          "titulo": "Apartamentos en Venta",
-          "texto": "Opciones para vivir o invertir, con acompañamiento en todo el proceso.",
-          "enlace": "/propiedades/venta/"
-        },
-        {
-          "icono": "flaticon-house-3",
-          "titulo": "Agentes Inmobiliarios",
-          "texto": "Un equipo con experiencia en ventas, negociación y financiamiento bancario.",
-          "enlace": "/#asesores"
-        },
-        {
-          "icono": "flaticon-house-1",
-          "titulo": "Propiedades en Renta",
-          "texto": "Encuentra tu próximo hogar u oficina con contratos claros y seguros.",
-          "enlace": "/propiedades/renta/"
-        }
-      ]
-    },
     "testimonios": {
       "visible": true,
       "titulo": "Reseñas"
@@ -75,7 +46,6 @@
       "visible": true,
       "titulo": "Te ayudaremos a...",
       "subtitulo": "Encontrar la propiedad perfecta para tus gustos y necesidades",
-      "imagen": "/images/hero_bg_3.webp",
       "items": [
         {
           "icono": "icon-home2",
@@ -99,36 +69,25 @@
       "items": [
         {
           "valor": 106,
-          "etiqueta": "Propiedades vendidas",
-          "icono": "icon-trophy"
+          "etiqueta": "Propiedades vendidas"
         },
         {
           "valor": 80,
-          "etiqueta": "Propiedades alquiladas",
-          "icono": "icon-key"
+          "etiqueta": "Propiedades alquiladas"
         },
         {
           "valor": 186,
-          "etiqueta": "Inmuebles atendidos",
-          "icono": "icon-handshake-o"
+          "etiqueta": "Inmuebles atendidos"
         },
         {
           "valor": 3,
-          "etiqueta": "Agentes inmobiliarios",
-          "icono": "icon-users"
+          "etiqueta": "Agentes inmobiliarios"
         }
       ]
     },
-    "cta": {
-      "visible": true,
-      "titulo": "Sé parte de nuestro equipo de asesores",
-      "boton": "Aplica para ser asesor",
-      "enlace": "/trabaja-con-nosotros/"
-    },
     "asesores": {
       "visible": true,
-      "titulo": "Nuestros Asesores Inmobiliarios",
-      "subtitulo": "Un equipo de agentes inmobiliarios con experiencia, pasión y compromiso, que trabaja de forma coordinada para satisfacer las necesidades de los clientes."
+      "titulo": "Nuestros Asesores Inmobiliarios"
     },
     "contacto": {
       "titulo": "Contáctanos",
@@ -271,35 +230,6 @@
         "titulo": "Featured properties",
         "boton": "View all properties"
       },
-      "features": {
-        "visible": true,
-        "items": [
-          {
-            "icono": "flaticon-house",
-            "titulo": "Verified listings",
-            "texto": "We review the title and liens of every property before offering it.",
-            "enlace": "/en/properties/"
-          },
-          {
-            "icono": "flaticon-building",
-            "titulo": "Condos & houses",
-            "texto": "Options to live, retire or invest in Guatemala's most sought-after areas.",
-            "enlace": "/en/properties/for-sale/"
-          },
-          {
-            "icono": "flaticon-house-3",
-            "titulo": "Live video tours",
-            "texto": "Walk through any home with an advisor on a video call, on your schedule.",
-            "enlace": "/en/buying-property-in-guatemala/"
-          },
-          {
-            "icono": "flaticon-house-1",
-            "titulo": "Remote closing",
-            "texto": "Sign through a power of attorney with a Guatemalan notary, without traveling.",
-            "enlace": "/en/buying-property-in-guatemala/"
-          }
-        ]
-      },
       "testimonios": {
         "visible": true,
         "titulo": "What our clients say"
@@ -347,13 +277,9 @@
           }
         ]
       },
-      "cta": {
-        "visible": false
-      },
       "asesores": {
         "visible": true,
-        "titulo": "Meet your advisors",
-        "subtitulo": "A coordinated team that answers fast and guides you through every step of buying in Guatemala."
+        "titulo": "Meet your advisors"
       },
       "contacto": {
         "titulo": "Talk to an advisor",
@@ -549,8 +475,6 @@
       "nombre": "Fam. Rodas",
       "rol": "Compradores",
       "texto": "Los agentes de la empresa son muy amables y atentos. Siempre estuvieron disponibles para responder a mis dudas y ayudarme en todo lo que necesité.",
-      "foto": "/images/person_1-min.webp",
-      "estrellas": 5,
       "orden": 1,
       "activo": true,
       "en": {
@@ -563,8 +487,6 @@
       "nombre": "Mario Calvet",
       "rol": "Comprador",
       "texto": "Es una empresa inmobiliaria de confianza. Ofrece un servicio de calidad y personalizado, que se adaptó a mis necesidades.",
-      "foto": "/images/person_2-min.webp",
-      "estrellas": 5,
       "orden": 2,
       "activo": true,
       "en": {
@@ -577,8 +499,6 @@
       "nombre": "Josselin L.",
       "rol": "Propietaria",
       "texto": "Los agentes son muy profesionales y están muy bien informados sobre el mercado inmobiliario. Son justos y conscientes a la hora de la negociación.",
-      "foto": "/images/person_4-min.webp",
-      "estrellas": 5,
       "orden": 3,
       "activo": true,
       "en": {
@@ -591,8 +511,6 @@
       "nombre": "Alejandro Herrera",
       "rol": "Comprador",
       "texto": "El proceso de compra fue un poco complicado, ya que hubo algunos problemas con la documentación de la propiedad. Sin embargo, los agentes fueron muy profesionales y estuvieron dispuestos a trabajar conmigo para solucionar todos los problemas. Gracias a su ayuda, pude terminar la compra de mi casa sin problemas.",
-      "foto": "/images/person_3-min.webp",
-      "estrellas": 5,
       "orden": 4,
       "activo": true,
       "en": {
