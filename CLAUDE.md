@@ -40,6 +40,14 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - Compactación del contexto: es automática o la pide el usuario con `/compact`; Claude no puede hacerla.
   Antes de que ocurra: commit y push de lo hecho. Se sigue en el mismo chat.
+  - Cuándo proponerla: al cerrar un tema (algo unido, una propuesta aprobada o descartada), Claude le
+    recuerda al usuario en una línea que puede usar `/compact`. El chat largo es lo que más tokens gasta: en
+    cada mensaje se vuelve a leer todo.
+  - Qué debe conservar el resumen: lo que el usuario pidió y sus correcciones con sus palabras; lo que
+    espera su respuesta; el estado de cada PR y de la rama; los enlaces de las propuestas; lo que quedó sin
+    guardar y quién lo está haciendo. Lo ya unido y cerrado va en una línea.
+- Gastar menos tokens: juntar en una respuesta lo que se pueda; pocas rondas de capturas (se aprueba el
+  diseño en la maqueta antes de programar); lo chico se hace directo, sin agentes.
 
 ## 4. Código
 - Quién hace qué: el usuario elige el modelo de la sesión. Con Opus en la sesión, Opus programa y consulta
