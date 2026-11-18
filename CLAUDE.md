@@ -15,6 +15,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   mientras lo usa. Claude cambia solo lo que él pide, cuando lo pide.
 - Antes de mostrar un diseño, Claude mide los espacios entre textos: interlineado, separación entre líneas y
   filas, un dato corto que ocupa una línea propia, un botón que agranda su fila. Lo que sobra se quita antes.
+- Un diseño aprobado se programa tal cual: mismas líneas, mismos datos, mismas medidas. Si al programarlo algo no
+  cuadra (un dato que no existe, un hueco), Claude lo dice y pregunta; no agrega ni quita líneas por su cuenta.
 - En celular, íconos en vez de textos: lo que un ícono explica bien no se escribe.
 - Quitar ruido no es quitar información: lo que sirve para decidir se queda.
 - Nada se dice dos veces y el texto es poco: una página no puede parecer un libro. Si una sección ya muestra

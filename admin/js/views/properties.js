@@ -416,6 +416,8 @@ export async function render(container, [id]) {
 		} catch (err) { console.warn(err); }
 	}
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
+	// Nombre del dueño de cada casa (una sola lectura; si este usuario no puede leerlos, la línea no lo muestra).
+	const duenoNombre = Object.fromEntries((await loadPropietarios().catch(() => [])).map((d) => [d.id, d.nombre]));
 	props.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
 
 	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedades', placeholder: 'Buscar título, código o zona…' });
@@ -507,9 +509,12 @@ export async function render(container, [id]) {
 			'aria-label': `Elegir ${nombre}`,
 			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
 		});
-		const extra = [p.codigo ? h('code', {}, p.codigo) : null,
-			agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), agentName[p.agentId]) : null,
+		const dueno = duenoNombre[p.propietarioId];
+		const extra1 = [p.codigo ? h('code', {}, p.codigo) : null,
+			h('span', { title: 'Fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }), (p.fotos || []).length),
 			p.updatedAt ? h('span', { title: 'Última actualización' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), formatDate(p.updatedAt, false)) : null].filter(Boolean);
+		const extra2 = [agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, agentName[p.agentId])) : null,
+			dueno ? h('span', { title: 'Dueño' }, h('span', { class: 'icon-key', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, dueno)) : null].filter(Boolean);
 		return h('article', {
 			class: `casa-fila${motivo.color === 'success' ? '' : ' casa-oculta'}`, tabindex: '0', 'aria-label': nombre,
 			onclick: (e) => {
@@ -526,9 +531,8 @@ export async function render(container, [id]) {
 				h('div', { class: 'casa-titulo prop-titulo' }, p.titulo || '(sin título)'),
 				lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
 				h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
-				extra.length ? h('div', { class: 'casa-dato casa-extra' }, extra) : null,
-				// Solo cuando el nombre cabe en una línea (ver `marcarNombresLargos`): así la fila no deja hueco.
-				h('div', { class: 'casa-dato casa-estado' }, h('span', { class: motivo.color === 'success' ? 'icon-eye' : 'icon-eye-slash', 'aria-hidden': 'true' }), h('span', {}, `${estadoDe(p).label} · ${motivo.color === 'success' ? 'se ve en la página' : motivo.texto.toLowerCase()}`)),
+				h('div', { class: 'casa-dato casa-extra' }, extra1),
+				extra2.length ? h('div', { class: 'casa-dato casa-extra' }, extra2) : null,
 				h('div', { class: 'casa-precio' }, formatPrice(p.precio, p.moneda, p.operacion))),
 			h('div', { class: 'casa-der' },
 				avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })
@@ -536,11 +540,6 @@ export async function render(container, [id]) {
 				menu));
 	};
 
-	// Con el nombre en dos líneas no cabe la línea del estado: se quita entera (nunca a medias).
-	const marcarNombresLargos = () => requestAnimationFrame(() => lista.querySelectorAll('.casa-fila').forEach((f) => {
-		f.classList.toggle('nombre-largo', f.querySelector('.casa-titulo').offsetHeight > 24);
-	}));
-	addEventListener('resize', marcarNombresLargos);
 	const draw = () => {
 		const q = sinTildes(search.value.trim());
 		const rows = props.filter((p) =>
@@ -560,7 +559,6 @@ export async function render(container, [id]) {
 		const ids = new Set(rows.map((p) => p.id));
 		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
 		lista.replaceChildren(...rows.map(fila));
-		marcarNombresLargos();
 		vacio.hidden = rows.length > 0;
 		pintarBarra();
 	};
