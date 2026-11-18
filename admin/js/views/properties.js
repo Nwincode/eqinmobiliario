@@ -13,7 +13,7 @@ import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
-import { revisar, chipFaltan, vigilarFormulario } from '../pendientes.js';
+import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
@@ -443,7 +443,7 @@ export async function render(container, [id]) {
 		session.isAdmin ? null : h('option', { value: 'mias' }, 'Solo las mías'),
 		h('option', { value: 'incompletas' }, 'Con datos por completar'));
 	if (id === 'incompletos') fExtra.value = 'incompletas';
-	const tbody = h('tbody');
+	const lista = h('div', { class: 'lista-casas' });
 	const count = h('span', { class: 'text-muted small' });
 	const vacio = h('p', { class: 'text-center text-muted py-4 mb-0 prop-vacio', hidden: true }, 'Ninguna propiedad coincide con la búsqueda o los filtros.');
 
@@ -462,47 +462,23 @@ export async function render(container, [id]) {
 		draw();
 	};
 
-	const fila = (p, i) => {
+	// Una casa por fila, en todos los tamaños (docs: lista de propiedades). Foto, datos y, a la derecha,
+	// el ⚠ con lo que falta (o ✓) arriba y el ⋮ abajo. Tocar la fila abre la ficha; en «Elegir varias», la marca.
+	const avisosDe = (p, editable) => {
+		const motivo = motivoVisibilidad(p);
+		return [
+			motivo.color === 'success' ? null : { icono: motivo.icono, texto: `No sale en la página: ${motivo.texto}`, href: `#/propiedades/${p.id}` },
+			...faltanDe(p).map((f) => ({ icono: 'icon-pencil', texto: `Falta: ${f.etiqueta}`, href: `#/propiedades/${p.id}` })),
+			editable && p.titulo && faltaIngles(p) ? { icono: 'icon-globe', texto: 'Falta la versión en inglés', onclick: () => traducir([p]) } : null
+		].filter(Boolean);
+	};
+	const fila = (p) => {
 		const editable = canEdit(p);
 		const motivo = motivoVisibilidad(p);
-		const idSwitch = `visible-${p.id}`;
-		const selEstado = h('select', {
-			class: 'form-select form-select-sm estado-rapido',
-			'aria-label': `Estado de ${p.titulo || 'la propiedad'}`,
-			disabled: !editable,
-			title: editable ? estadoDe(p).ayuda : 'Solo el asesor responsable o un administrador puede cambiarla.',
-			onchange: (e) => {
-				const estado = e.target.value;
-				const label = estadoDe({ estado }).label;
-				e.target.disabled = true;
-				guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`,
-					`Estado cambiado a «${label}». ${trasGuardar()}`);
-			}
-		}, ESTADOS.map(([v, l]) => h('option', { value: v, selected: estadoDe(p).valor === v }, l)));
-		const chk = h('input', {
-			class: 'form-check-input', type: 'checkbox', role: 'switch', id: idSwitch,
-			checked: Boolean(p.publicado), disabled: !editable,
-			'aria-label': `Visible en la página: ${p.titulo || 'la propiedad'}`, 'aria-describedby': `motivo-${p.id}`,
-			title: editable ? '' : 'Solo el asesor responsable o un administrador puede cambiarla.',
-			onchange: (e) => {
-				const publicado = e.target.checked;
-				e.target.disabled = true;
-				guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
-					`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
-			}
-		});
-		const detener = (e) => e.stopPropagation();
 		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
-		const datos = datosDe(p);
-		const sel = h('input', {
-			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
-			'aria-label': `Seleccionar ${p.titulo || 'la propiedad'}`,
-			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
-		});
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
 		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
-		// Estado y visibilidad también desde el ⋮: en la tarjeta (celular y tableta) no van el selector ni el interruptor.
 		const cambiarEstado = async () => {
 			const label = await elegirOpcion(`Estado de ${nombre}`, ESTADOS.map(([, l]) => l));
 			const estado = ESTADOS.find(([, l]) => l === label)?.[0];
@@ -514,7 +490,7 @@ export async function render(container, [id]) {
 			guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
 				`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
 		};
-		// Lo que más se usa, arriba; borrar, al final. Tocar la tarjeta ya abre la ficha (sin «Editar»).
+		// Lo que más se usa, arriba; borrar, al final. Tocar la fila ya abre la ficha (sin «Editar»).
 		const menu = menuMas(`Acciones de ${nombre}`, [
 			enSitio && { icono: 'icon-whatsapp', texto: 'Compartir por WhatsApp', target: '_blank', href: enlaceWa },
 			enSitio && { icono: 'icon-external-link', texto: 'Ver en la página', target: '_blank', href: publicUrl(p) },
@@ -525,37 +501,37 @@ export async function render(container, [id]) {
 			editable && { icono: 'icon-globe', texto: 'Traducir al inglés', onclick: () => traducir([p]) },
 			session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => eliminar([p]) }
 		]);
-		const chipsEscritorio = p.vip || p.destacada || p.socio?.codigoSocio || faltanDe(p).length;
-		// Tocar la fila abre la ficha, salvo en el menú ⋮ (que abre sus acciones).
-		return h('tr', { class: `clickable${motivo.color === 'success' ? '' : ' fila-oculta'}`, onclick: (e) => { if (!e.target.closest('.celda-menu')) location.hash = `#/propiedades/${p.id}`; } },
-			h('td', { class: 'celda-sel', onclick: detener }, h('label', { class: 'sel-toque' }, sel)),
-			h('td', { class: 'celda-num' }, i + 1),
-			h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-			h('td', { class: 'celda-titulo' },
-				p.codigo ? h('div', { class: 'prop-codigo' }, p.codigo) : null,
-				// En la tarjeta también el estado y, si no se ve en la página, por qué (en la tabla tienen su columna).
-				h('div', { class: `prop-chips${chipsEscritorio ? '' : ' solo-tarjeta'}` },
-					h('span', { class: 'badge chip-estado solo-tarjeta-chip' }, estadoDe(p).label),
-					motivo.color === 'success' ? null : h('span', { class: `badge text-bg-${motivo.color} solo-tarjeta-chip` }, h('span', { class: `${motivo.icono} me-1`, 'aria-hidden': 'true' }), motivo.texto),
-					p.socio?.codigoSocio ? h('span', { class: 'badge text-bg-light', title: 'Código del socio' }, h('span', { class: 'icon-key me-1', 'aria-hidden': 'true' }), p.socio.codigoSocio) : null,
-					p.vip ? badge('VIP', 'warning') : null,
-					p.destacada ? badge('Destacada', 'info') : null,
-					chipFaltan(faltanDe(p))),
-				h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
-				lugar ? h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`) : null,
-				datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
-			h('td', { class: 'text-nowrap celda-precio' },
-				h('div', {}, formatPrice(p.precio, p.moneda, p.operacion)),
-				h('div', { class: 'small text-muted celda-operacion' }, operacionDe(p))),
-			h('td', { class: 'celda-estado', onclick: detener }, selEstado),
-			h('td', { class: 'celda-visible', onclick: detener },
-				h('div', { class: 'form-check form-switch mb-1' }, chk,
-					h('label', { class: 'form-check-label', for: idSwitch }, 'Visible')),
-				h('span', { class: `badge text-bg-${motivo.color} motivo-visibilidad${motivo.obvio ? ' motivo-obvio' : ''}`, id: `motivo-${p.id}` },
-					h('span', { class: motivo.icono, 'aria-hidden': 'true' }), ' ', motivo.texto)),
-			h('td', { class: `small celda-asesor${agentName[p.agentId] ? '' : ' sin-asesor'}` }, h('span', { class: 'icon-user d-xl-none', 'aria-hidden': 'true' }), ' ', agentName[p.agentId] || '—'),
-			p.updatedAt ? h('td', { class: 'small text-muted text-nowrap celda-fecha', title: 'Última actualización' }, h('span', { class: 'icon-clock-o d-xl-none', 'aria-hidden': 'true' }), ' ', formatDate(p.updatedAt, false)) : h('td', { class: 'small text-muted celda-fecha sin-fecha' }, '—'),
-			h('td', { class: 'celda-menu' }, menu));
+		const avisos = avisosDe(p, editable);
+		const sel = h('input', {
+			class: 'form-check-input', type: 'checkbox', checked: seleccion.has(p.id), disabled: !editable,
+			'aria-label': `Elegir ${nombre}`,
+			onchange: (e) => { e.target.checked ? seleccion.add(p.id) : seleccion.delete(p.id); pintarBarra(); }
+		});
+		const extra = [p.codigo ? h('code', {}, p.codigo) : null,
+			agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), agentName[p.agentId]) : null,
+			p.updatedAt ? h('span', { title: 'Última actualización' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), formatDate(p.updatedAt, false)) : null].filter(Boolean);
+		return h('article', {
+			class: `casa-fila${motivo.color === 'success' ? '' : ' casa-oculta'}`, tabindex: '0', 'aria-label': nombre,
+			onclick: (e) => {
+				if (e.target.closest('.casa-der, .casa-sel')) return;
+				if (lista.classList.contains('eligiendo')) { if (!sel.disabled) { sel.checked = !sel.checked; sel.dispatchEvent(new Event('change')); } return; }
+				location.hash = `#/propiedades/${p.id}`;
+			},
+			onkeydown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) e.currentTarget.click(); }
+		},
+			h('div', { class: 'casa-foto' },
+				p.fotos?.[0]?.url ? h('img', { src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
+				h('label', { class: 'casa-sel' }, sel)),
+			h('div', { class: 'casa-txt' },
+				h('div', { class: 'casa-titulo prop-titulo' }, p.titulo || '(sin título)'),
+				lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
+				h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
+				extra.length ? h('div', { class: 'casa-dato casa-extra' }, extra) : null,
+				h('div', { class: 'casa-precio' }, formatPrice(p.precio, p.moneda, p.operacion))),
+			h('div', { class: 'casa-der' },
+				avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })
+					: h('span', { class: 'casa-ok', role: 'img', title: 'Todo en orden', 'aria-label': 'Todo en orden' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' })),
+				menu));
 	};
 
 	const draw = () => {
@@ -576,7 +552,7 @@ export async function render(container, [id]) {
 		// Solo quedan seleccionadas las que se ven con el filtro actual.
 		const ids = new Set(rows.map((p) => p.id));
 		[...seleccion].forEach((pid) => { if (!ids.has(pid)) seleccion.delete(pid); });
-		tbody.replaceChildren(...rows.map(fila));
+		lista.replaceChildren(...rows.map(fila));
 		vacio.hidden = rows.length > 0;
 		pintarBarra();
 	};
@@ -585,7 +561,7 @@ export async function render(container, [id]) {
 	const seleccion = new Set();
 	let visibles = [];
 	const elegidas = () => props.filter((p) => seleccion.has(p.id));
-	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0',
+	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0 solo-eligiendo',
 		onclick: () => { selTodas.checked = !selTodas.checked; selTodas.dispatchEvent(new Event('change')); } }, 'Seleccionar todas');
 	const selTodas = h('input', {
 		class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas las que se ven',
@@ -792,6 +768,9 @@ export async function render(container, [id]) {
 		session.isAdmin ? btnEliminar : null,
 		iconoBtn('icon-download', 'Exportar seleccionadas (CSV)', { onclick: (e) => exportarCsv(elegidas(), agentName, e.currentTarget) }),
 		btnMas, masAcciones);
+	// «Elegir varias»: cada fila muestra su casilla y tocarla la marca; al terminar se suelta la selección.
+	const btnElegir = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0',
+		onclick: () => { if (!lista.classList.toggle('eligiendo')) seleccion.clear(); draw(); } }, 'Elegir varias');
 	const pintarBarra = () => {
 		const editables = visibles.filter(canEdit);
 		nSel.textContent = String(seleccion.size);
@@ -799,6 +778,7 @@ export async function render(container, [id]) {
 		selTodas.checked = editables.length > 0 && editables.every((p) => seleccion.has(p.id));
 		selTodas.indeterminate = seleccion.size > 0 && !selTodas.checked;
 		selTodas.disabled = btnTodas.hidden = editables.length === 0;
+		btnElegir.textContent = lista.classList.contains('eligiendo') ? 'Terminar' : 'Elegir varias';
 	};
 	// Los filtros se recuerdan mientras la pestaña siga abierta: al volver de una ficha siguen igual.
 	const filtros = [search, fOperacion, fEstado, fExtra];
@@ -851,30 +831,27 @@ export async function render(container, [id]) {
 	// Si se vuelve con filtros puestos, en celular se muestran abiertos.
 	if (btnFiltros.classList.contains('con-filtros')) btnFiltros.click();
 
-	mount(container, 
-		// Una acción principal a la vista; importar y exportar (de vez en cuando) van en el ⋮.
-		pageHeader('Propiedades',
-			h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado' },
-				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
-			menuMas('Más acciones', [
-				session.isAdmin ? { icono: 'icon-upload', texto: 'Importar desde CSV', href: '#/propiedades/importar' } : null,
-				props.length ? { icono: 'icon-download', texto: 'Exportar todas (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) } : null])),
+	// La misma acción principal y el mismo ⋮ en los dos tamaños: arriba con el título en pantallas anchas;
+	// en el celular, en la fila del buscador (sin repetir el título que ya dice la barra de arriba).
+	const nueva = () => h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado', title: 'Nueva propiedad', 'aria-label': 'Nueva propiedad',
+		html: '<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 11.5 10 5l8 6.5"/><path d="M4 10v10h7"/><path d="M16 10v2"/><path d="M18 13.5v9M13.5 18h9"/></svg><span class="d-none d-md-inline">Nueva propiedad</span>' });
+	const masLista = () => menuMas('Más acciones', [
+		session.isAdmin ? { icono: 'icon-upload', texto: 'Importar desde CSV', href: '#/propiedades/importar' } : null,
+		props.length ? { icono: 'icon-download', texto: 'Exportar todas (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) } : null]);
+	const encabezado = pageHeader('Propiedades', nueva(), masLista());
+	encabezado.classList.add('d-none', 'd-md-flex');
+	mount(container,
+		props.length ? encabezado : pageHeader('Propiedades', nueva(), masLista()),
 		props.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
 				// En tableta, la búsqueda arriba y los filtros a todo el ancho (en 1/3 + 2/3 el último se cortaba).
-				h('div', { class: 'col-lg-4 d-flex gap-2' }, search, btnFiltros),
+				h('div', { class: 'col-lg-4 d-flex gap-2' }, search, btnFiltros, h('span', { class: 'd-flex gap-2 d-md-none' }, nueva(), masLista())),
 				h('div', { class: 'col-lg-8' }, cajaFiltros)),
 			h('div', { class: 'mb-2 d-flex align-items-center gap-3' },
 				count, limpiar,
-				btnTodas),
+				h('span', { class: 'ms-auto d-flex gap-3' }, btnTodas, btnElegir)),
 			barra, vacio,
-			cajaTabla(
-				h('table', { class: 'table table-hover table-admin tabla-propiedades' },
-					h('thead', {}, h('tr', {},
-						h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-						[['#', 'celda-num'], ['', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio'], ['Estado', 'celda-estado'],
-							['En la página', 'celda-visible'], ['Asesor', 'celda-asesor'], ['Actualizada', 'celda-fecha'], ['', 'celda-menu']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
-					tbody), { tarjeta: true }))
+			lista)
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 

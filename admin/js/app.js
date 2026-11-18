@@ -138,12 +138,15 @@ function shell() {
 			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
 	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
-		h('button', { class: 'admin-menu-btn d-lg-none', 'aria-label': 'Menú', onclick: () => sidebar.classList.toggle('open') }, h('span', { class: 'icon-bars', 'aria-hidden': 'true' })),
+		// Celular y tableta: menú (el botón más importante, con color), logo y dónde estoy.
+		h('button', { class: 'admin-menu-btn d-lg-none', 'aria-label': 'Menú', title: 'Menú', onclick: () => sidebar.classList.toggle('open') }, h('span', { class: 'icon-bars', 'aria-hidden': 'true' })),
+		h('img', { class: 'admin-topbar-logo d-lg-none', src: '/docs/marca/logo/imagotipo-azul.svg', alt: '', width: 32, height: 32 }),
 		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
 		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
 			session.esSocio ? null : publishBadge,
 			campana(),
-			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light' }, h('span', { class: 'icon-external-link me-1', 'aria-hidden': 'true' }), 'Ver sitio')));
+			// En el celular solo el ícono (con su leyenda); en pantallas anchas, también el texto.
+			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light btn-ver-sitio', title: 'Ver sitio', 'aria-label': 'Ver sitio' }, h('span', { class: 'icon-external-link', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline ms-1' }, 'Ver sitio'))));
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
 	nav.addEventListener('click', () => sidebar.classList.remove('open'));
 	vigilarTablas(main);

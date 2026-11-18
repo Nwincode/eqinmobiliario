@@ -31,7 +31,7 @@ const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'c
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
 	'fonts/icomoon/style.css', 'fonts/icomoon/fonts', 'fonts/work-sans',
-	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'docs/marca/logo/imagotipo-blanco.svg', 'docs/marca/logo/icono-blanco.svg', // portada del listado en PDF; ícono vectorial de la marca de agua (admin/js/marca.js)
+	'favicon.png', 'apple-touch-icon.png', 'logo-equipo-inmobiliario.png', 'docs/marca/logo/imagotipo-blanco.svg', 'docs/marca/logo/icono-blanco.svg', 'docs/marca/logo/imagotipo-azul.svg', // portada del listado en PDF; ícono de la marca de agua (admin/js/marca.js); logo de la barra del panel en el celular
 	 'Icono_Equipoinmobiliario@0.75x.png', 'site.config.json',
 	'data/seed.json' // el panel lo usa para "Importar datos iniciales"
 ];

@@ -313,13 +313,17 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-overflow: ellipsis;
 }
 .admin-menu-btn {
-	width: 38px;
-	height: 38px;
-	border: 1px solid var(--adm-border);
+	width: 44px;
+	height: 44px;
+	flex: none;
+	border: 1px solid color-mix(in oklab, var(--eq-primary) 35%, #fff);
 	border-radius: 8px;
-	background: #fff;
-	color: var(--adm-dark);
+	background: var(--eq-primary-soft);
+	color: var(--eq-primary);
+	font-size: 18px;
 }
+.admin-topbar-logo { width: 32px; height: 32px; flex: none; }
+.btn-ver-sitio { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .publish-pill {
 	display: inline-flex;
 	align-items: center;
@@ -1364,8 +1368,8 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; max-width: 9rem; }
 	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
 	.tabla-propiedades .celda-fecha { width: 1%; }
-	/* ⋮ a la derecha de la fila, centrado como las demás celdas. */
-	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: middle; padding: 0 .5rem 0 .25rem; }
+	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
+	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: top; padding: .5rem .5rem 0 .25rem; }
 }
 @media (min-width: 1200px) and (max-width: 1699.98px) {
 	.tabla-propiedades .celda-asesor,
@@ -1404,10 +1408,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 /* Etiquetas de la propiedad: en computadora van en la línea del código, que quedaba vacía. */
 .prop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-.chip-estado { background: var(--eq-primary-soft); color: var(--eq-primary); }
 @media (min-width: 1200px) {
-	/* El estado y la visibilidad tienen su columna en la tabla: sus etiquetas son solo de la tarjeta. */
-	.tabla-propiedades .solo-tarjeta-chip, .tabla-propiedades .prop-chips.solo-tarjeta { display: none !important; }
 	.tabla-propiedades .prop-codigo, .tabla-propiedades .prop-chips { display: inline-flex; vertical-align: middle; }
 	.tabla-propiedades .prop-codigo { margin-right: .5rem; }
 }
@@ -1456,23 +1457,22 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 		.tabla-propiedades tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 		.tabla-propiedades tbody tr:nth-child(odd) { border-right: 1px solid var(--adm-border); }
 	}
-	/* Tarjeta: foto cuadrada a la izquierda con los datos al lado; abajo, las etiquetas y el ⋮ (al alcance del pulgar).
-	   El estado y la visibilidad van como etiquetas y se cambian desde el ⋮ (en la tabla tienen su columna). */
 	.tabla-propiedades tbody tr {
 		display: grid;
-		grid-template-columns: 104px auto minmax(0, 1fr) 44px;
+		grid-template-columns: 124px minmax(0, 1fr) auto 44px;
 		grid-template-areas:
-			"foto titulo titulo titulo"
+			"foto titulo titulo menu"
 			"foto zona zona zona"
 			"foto datos datos datos"
 			"foto precio precio precio"
-			"foto codigo fecha fecha"
-			"foto asesor asesor asesor"
-			"chips chips chips menu";
-		grid-template-rows: auto auto auto auto auto 1fr auto;
-		column-gap: 0;
-		padding: .625rem;
-		line-height: 1.25;
+			"foto fecha fecha fecha"
+			"chips chips chips chips"
+			"estado estado visible visible"
+			"motivo motivo motivo motivo"
+			"asesor asesor asesor asesor";
+		grid-template-rows: auto auto auto 1fr auto;
+		column-gap: .75rem;
+		padding: .75rem;
 		border-bottom: 1px solid var(--adm-border);
 	}
 	.tabla-propiedades tbody tr:last-child {
@@ -1485,36 +1485,46 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 		min-width: 0;
 	}
 	/* Estas celdas reparten su contenido directo en la tarjeta. */
-	.table-admin.tabla-propiedades .celda-titulo { display: contents; }
-	.table-admin.tabla-propiedades .celda-estado,
-	.table-admin.tabla-propiedades .celda-visible { display: none; }
+	.table-admin.tabla-propiedades .celda-titulo,
+	.table-admin.tabla-propiedades .celda-visible { display: contents; }
 
-	/* La foto cuadrada, del mismo tamaño en todas. */
-	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; align-self: start; margin-right: .625rem; }
-	.tabla-propiedades .thumb { width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; font-size: 24px; }
-	/* El número va como etiqueta sobre la foto; la casilla, en su otra esquina. */
-	.table-admin.tabla-propiedades .celda-num {
-		grid-area: foto; justify-self: start; align-self: start; z-index: 1;
+	/* La foto con la misma proporción en todas (una vertical no estira la tarjeta ni deja hueco junto al precio). */
+	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; align-self: start; }
+	.tabla-propiedades .thumb { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; font-size: 24px; }
+	/* El número y el código van como etiquetas sobre la foto. */
+	.table-admin.tabla-propiedades .celda-num,
+	.tabla-propiedades .prop-codigo {
+		grid-area: foto; justify-self: start; z-index: 1;
 		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
 		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
 		font-variant-numeric: tabular-nums;
 	}
-	.tabla-propiedades .celda-sel { grid-area: foto; justify-self: end; align-self: start; z-index: 1; margin-right: .625rem; }
+	.table-admin.tabla-propiedades .celda-num { align-self: start; }
+	.tabla-propiedades .prop-codigo { align-self: end; max-width: calc(100% - .5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	/* La casilla va en la esquina de la foto; el ⋮ arriba a la derecha. */
+	.tabla-propiedades .celda-sel { grid-area: foto; justify-self: end; align-self: start; z-index: 1; }
 	.tabla-propiedades .sel-toque { margin: 0; }
 	.tabla-propiedades .sel-toque .form-check-input { box-shadow: 0 0 0 3px var(--adm-surface); }
-	.tabla-propiedades .prop-titulo { grid-area: titulo; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+	.tabla-propiedades .celda-menu { grid-area: menu; justify-self: end; margin: -.625rem -.625rem 0 0; }
+	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+	.tabla-propiedades tr:not(:has(.celda-menu)) .prop-titulo { grid-column-end: -1; } /* sin ⋮, el título usa todo el ancho */
 	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
-	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .125rem; }
-	.tabla-propiedades .celda-precio { grid-area: precio; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .375rem; margin-top: .125rem; white-space: normal !important; }
+	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
+	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
 	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
-	.tabla-propiedades .celda-operacion { white-space: nowrap; }
-	/* El código, en la línea de la fecha (no ocupa una línea propia). */
-	.tabla-propiedades .prop-codigo { grid-area: codigo; align-self: center; margin: .125rem .5rem 0 0; font-family: var(--bs-font-monospace); font-size: .72rem; color: var(--adm-muted); white-space: nowrap; }
+	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem; }
+	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
+	.tabla-propiedades .estado-rapido { min-height: 44px; }
+	.tabla-propiedades .celda-visible .form-check {
+		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
+		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
+	}
+	/* Toda la caja de 44 px responde al toque, no solo la franja del texto. */
+	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
+	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
+	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
+	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
 	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .125rem; }
-	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .125rem; color: var(--adm-muted); }
-	.tabla-propiedades .prop-chips { grid-area: chips; align-self: center; margin-top: .5rem; }
-	/* El ⋮ con 44 px de toque, sin agrandar la fila de las etiquetas. */
-	.tabla-propiedades .celda-menu { grid-area: menu; justify-self: end; align-self: center; margin: -.125rem -.625rem -.625rem 0; }
 	.table-admin.tabla-propiedades .sin-fecha,
 	.table-admin.tabla-propiedades .sin-asesor { display: none; }
 }
@@ -3759,3 +3769,52 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .aviso-hecho { padding: 8px; color: var(--adm-muted); font-size: .85rem; }
 .aviso-deshacer { min-height: 44px; font-weight: 600; }
 .tarjeta-avisos .avisos-filas { padding: 4px 8px 8px; }
+
+/* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
+   Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
+   y el ⋮ abajo. Nombre y ⚠ al ras del borde de arriba de la foto; precio y ⋮ al ras del de abajo.
+   Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más de datos). */
+.lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+.casa-fila {
+	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
+	border-bottom: 1px solid var(--adm-border); cursor: pointer;
+}
+.casa-fila:last-child { border-bottom: 0; padding-bottom: 8px; }
+.casa-fila:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+.casa-foto { position: relative; flex: none; width: 104px; height: 104px; }
+.casa-foto img, .casa-sin-foto { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: grid; place-items: center; background: var(--adm-bg); color: var(--adm-muted); font-size: 24px; }
+.casa-oculta .casa-foto img { opacity: .55; }
+/* Si el nombre cabe en una línea, el espacio que sobra se reparte parejo entre las líneas (sin un hueco en un solo lugar). */
+.casa-txt { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: space-between; }
+.casa-txt > * { flex: none; }
+.casa-titulo { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.casa-dato { display: flex; align-items: center; gap: 4px; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
+.casa-dato > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.casa-txt .casa-datos { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 8px; font-size: 13px; line-height: 16px; margin: 0; }
+.casa-precio { font-weight: 700; font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.casa-extra { display: none; gap: 12px; }
+.casa-extra > span { display: inline-flex; align-items: center; gap: 4px; }
+.casa-extra code { font-size: 12px; color: var(--adm-muted); }
+.casa-der { width: 44px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: space-between; margin: 0 -8px 0 -4px; }
+.casa-der .menu-mas-btn, .casa-ok { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; font-size: 18px; }
+.casa-der .casa-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+.ico-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.casa-ok { color: var(--eq-whatsapp); }
+/* «Elegir varias»: la casilla aparece sobre la foto y la fila entera la marca. */
+.casa-sel { display: none; position: absolute; top: 0; left: 0; width: 44px; height: 44px; place-items: center; margin: 0; }
+.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; background-color: #fff; }
+.lista-casas.eligiendo .casa-sel { display: grid; }
+.solo-eligiendo { display: none; }
+.lista-casas.eligiendo ~ * .solo-eligiendo, body:has(.lista-casas.eligiendo) .solo-eligiendo { display: inline-block; }
+@media (min-width: 768px) {
+	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.lista-casas .casa-fila:nth-child(odd) { border-right: 1px solid var(--adm-border); }
+	.lista-casas .casa-fila:nth-last-child(2):nth-child(odd) { border-bottom: 0; padding-bottom: 8px; }
+	.casa-fila { height: 136px; gap: 12px; }
+	.casa-foto { width: 120px; height: 120px; }
+}
+@media (min-width: 1200px) {
+	.casa-fila { height: 152px; }
+	.casa-foto { width: 136px; height: 136px; }
+	.casa-extra { display: flex; }
+}
