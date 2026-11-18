@@ -41,6 +41,13 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Claude propone ideas por su cuenta: cuando ve una carencia en la programación (algo que falta, que le da
   trabajo de más al usuario o a sus clientes, o que podría fallar), la dice con una propuesta concreta y para
   qué le sirve al usuario. La propone, no la programa sin acordarla; lo pequeño y claro sí se hace de una vez.
+- Errores que el usuario ya corrigió y no se repiten:
+  - Se hace exactamente lo que pidió, nada más. Nada que no pidió (un botón, un dato, otro canal como WhatsApp)
+    entra «de paso», ni aunque Claude lo haya propuesto antes: lo nuevo va como propuesta aparte y espera su sí.
+  - Lo que el usuario está usando (un armador, un borrador, su diseño) no se guarda, mueve ni vuelve a publicar
+    mientras lo usa. Claude cambia solo lo que él pide, cuando lo pide.
+  - Antes de mostrar un diseño, Claude mide los espacios entre textos: interlineado, separación entre líneas y
+    filas, un dato corto que ocupa una línea propia, un botón que agranda su fila. Lo que sobra se quita antes.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - La compactación del contexto es automática (autocompact); no se hace a mano. Antes de que ocurra:
   commit y push de lo hecho. Se sigue en el mismo chat.
