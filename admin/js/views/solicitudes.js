@@ -183,15 +183,20 @@ export async function render(container, [codigo] = []) {
 
 	// Posible repetida: el mismo cliente (correo o teléfono; el socio, que no los ve, por el nombre completo) con otra
 	// solicitud abierta de la misma casa en una semana. Se marca para no atenderla dos veces.
+	const nombreCompleto = (l) => String(l.nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 	const clienteDe = (l) => String(l.email || '').trim().toLowerCase() || String(l.telefono || '').replace(/\D/g, '').slice(-8)
-		|| `n:${String(l.nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()}`;
+		|| (nombreCompleto(l).includes(' ') ? `n:${nombreCompleto(l)}` : '');
+	// Fechas que se cruzan o están a 3 días o menos (dos fines de semana distintos no son la misma).
+	const cerca = (a, b) => V.sumarDias(a.llegada, -3) <= b.salida && V.sumarDias(b.llegada, -3) <= a.salida;
 	const abierta = (l) => ['pendiente', 'confirmada'].includes(estado(l));
 	const repetidaDe = (l) => {
 		if (estado(l) !== 'pendiente') return null;
 		const k = clienteDe(l);
-		if (k === 'n:' || k.length < 4) return null;
-		return leads.find((o) => o !== l && o.propertyId === l.propertyId && abierta(o) && clienteDe(o) === k
-			&& Math.abs(ms(o.createdAt) - ms(l.createdAt)) < 7 * 86400000 && ms(o.createdAt) <= ms(l.createdAt))?.reserva?.codigo || null;
+		if (k.length < 4) return null;
+		// La anterior (la más nueva es la repetida; con la misma hora, por código).
+		const antes = (o) => ms(o.createdAt) < ms(l.createdAt) || (ms(o.createdAt) === ms(l.createdAt) && o.reserva.codigo < l.reserva.codigo);
+		return leads.find((o) => o !== l && o.propertyId === l.propertyId && abierta(o) && clienteDe(o) === k && antes(o)
+			&& ms(l.createdAt) - ms(o.createdAt) < 7 * 86400000 && cerca(o.reserva, l.reserva))?.reserva?.codigo || null;
 	};
 
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.

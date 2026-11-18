@@ -1,7 +1,8 @@
 // Cada 15 minutos: los plazos de las reservas por noche (admin/js/reservas-calculo.js), cumplidos por el servidor con
 // la cuenta de escritura, cada uno en su transacción (si alguien respondió, pagó o subió su comprobante mientras tanto,
 // no se toca):
-//  - la solicitud que el anfitrión no respondió en 24 h se cierra sola («no se dio», motivo «Sin respuesta del anfitrión»);
+//  - la solicitud que el anfitrión no respondió en 24 h se cierra sola («no se dio», motivo «Sin respuesta del anfitrión»),
+//    salvo que esté conversando con el cliente (escribió en el chat en las últimas 12 h);
 //  - la reserva confirmada sin pago ni comprobante: 24 h antes de vencer, un recordatorio en el chat; al vencer (48 h, o
 //    las 23:00 de la víspera de la llegada) se cancela sola y las fechas quedan libres.
 // El cliente recibe el mensaje en su chat y su correo (aviso-chat-envio.mjs); el equipo ve las canceladas en el correo
@@ -33,8 +34,11 @@ async function cerrarSinRespuesta(leadId, ahora) {
 		if (!lead?.reserva?.codigo || !conPlazo(ms(lead.createdAt)) || ahora < venceRespuesta(ms(lead.createdAt))) return null;
 		const c = await chatDe(tx.leer, leadId);
 		if (!c || yaRespondida(c.chat.estado, lead.solicitud?.estado)) return null;
+		// Si el anfitrión está conversando con el cliente (escribió en las últimas 12 h), todavía no se cierra.
+		const suyos = await tx.consultar('mensajes', 'de', 'socio', `chats/${c.token}`);
+		if (suyos.some((m) => ahora - ms(m.createdAt) < 12 * 3600000)) return null;
 		responder(tx, SISTEMA, leadId, 'no', `No respondida en ${HORAS_RESPUESTA} h: se cerró sola`, { 'solicitud.motivo': MOTIVO_SIN_RESPUESTA });
-		mensaje(tx, c.token, { texto: TEXTO_SIN_RESPUESTA }, 'equipo');
+		mensaje(tx, c.token, { texto: TEXTO_SIN_RESPUESTA, plazo: true }, 'equipo');
 		tx.cambiar(`chats/${c.token}`, { estado: 'no' });
 		return c.token;
 	});
@@ -58,7 +62,7 @@ async function cobrarOCancelar(reservaId, ahora) {
 			await fechasDeLaCasa(tx, { ...casa, id: reserva.propertyId }, reserva, { ...reserva, estado: 'cancelada' });
 			tx.cambiar(`reservas/${reservaId}`, { estado: 'cancelada', motivo: MOTIVO_SIN_PAGO }, { ahora: ['updatedAt'] });
 			responder(tx, SISTEMA, reserva.leadId, 'cancelada', 'Sin pago a tiempo: se canceló sola', { 'solicitud.motivo': MOTIVO_SIN_PAGO });
-			mensaje(tx, reserva.chat, { texto: TEXTO_SIN_PAGO }, 'equipo');
+			mensaje(tx, reserva.chat, { texto: TEXTO_SIN_PAGO, plazo: true }, 'equipo');
 			tx.cambiar(`chats/${reserva.chat}`, { estado: 'cancelada' });
 			return reserva.chat;
 		}
