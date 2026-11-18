@@ -19,6 +19,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Quitar ruido no es quitar información: lo que sirve para decidir se queda.
 - Nada se dice dos veces y el texto es poco: una página no puede parecer un libro. Si una sección ya muestra
   algo, no hay otra que lo anuncie ni un párrafo que lo explique.
+- Un estilo para todo: una pantalla o maqueta nueva usa las mismas piezas que ya existen (la fila de casa, los botones,
+  los íconos, las medidas, los colores); solo cambian los datos. Si hace falta algo nuevo, se agrega a la pieza común y
+  vale para todas, no se dibuja aparte. Así el sitio y el panel se ven homogéneos.
 - Claude mira lo que entrega, como usuario, antes de mostrarlo. Usa el logo y los datos reales del sitio,
   no inventados.
 

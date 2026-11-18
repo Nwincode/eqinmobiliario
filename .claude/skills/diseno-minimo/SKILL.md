@@ -23,6 +23,8 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
 - **Una señal por idea:** si un punto de color ya dice el estado, no se repite en una etiqueta.
 - **No irse al otro extremo:** quitar ruido no es quitar información. En una propiedad siempre se ven precio,
   operación, nombre, zona, cuartos, baños, parqueos o personas, m² y estado.
+- **Una pieza, un estilo:** antes de dibujar, se busca la pieza que ya existe (fila de casa, botón, ícono, menú) y se
+  reutiliza con sus medidas. Una pantalla nueva se arma con piezas existentes; lo nuevo entra a la pieza común.
 - **Patrones conocidos antes que inventos:** un portal de casas muestra el precio primero.
 
 ## 2. Medidas
