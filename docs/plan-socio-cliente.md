@@ -9,7 +9,7 @@ Maqueta: «Casas y mensajes del socio» (artifact). Nada de esto se programa sin
 | Quién | Qué necesita | Cómo se le da |
 |---|---|---|
 | Cliente | Reservar, saber qué sigue, pagar sin errores, llegar | «Mis reservas» sin contraseña, una línea de pasos, el siguiente paso arriba |
-| Socio (propietario o colaborador) | Saber qué hacer hoy, responder rápido, publicar sus inmuebles, cobrar | Inicio «Para hoy», Mensajes con los botones de la reserva, ingresar inmuebles sin esperar |
+| Socio (propietario o colaborador) | Saber qué hacer hoy, responder rápido, publicar sus casas por noche, cobrar | Inicio «Para hoy», Mensajes con los botones de la reserva, ingresar casas sin esperar |
 | Equipo | Controlar sin revisar todo a mano, cobrar su comisión | Avisos automáticos, control de cada anuncio, contratos firmados |
 
 ## 2. Portal del socio
@@ -23,13 +23,14 @@ ese trabajo.
   - **Próximas llegadas**, en orden, con el estado del pago.
   - **El mes:** cuánto le queda, noches y ocupación.
 - **Mis inmuebles:**
-  - Cualquier tipo: por noche, renta o venta. Se publica **al momento, sin aprobación**.
+  - Solo casas por noche (renta vacacional). La venta y la renta normal las maneja el equipo al 100 %: el socio no las
+    ingresa ni las ve. Se publica **al momento, sin aprobación**.
   - Antes de publicar se revisa solo:
     - campos obligatorios y mínimo 5 fotos;
     - textos sin teléfonos, correos, enlaces, redes ni «búscame como»;
     - texto y códigos QR dentro de las fotos (una foto marcada no sale hasta que el equipo la vea).
-  - «Copiar datos de» otro inmueble suyo. Moneda Q o US$. m² de construcción y de terreno. Dirección exacta privada.
-  - Códigos: el del equipo se crea solo. El del socio es opcional, para todos los tipos, y avisa si lo repite.
+  - «Copiar datos de» otra casa suya. Moneda Q o US$. Dirección exacta privada.
+  - Códigos: el del equipo se crea solo. El del socio es opcional y avisa si lo repite.
   - Estados que ve: En la página · Corregir (con el motivo; sigue en la página) · Bloqueado (con el motivo y
     «Escribir al equipo»).
 - **Montos:** en cada reserva, una línea: «el cliente paga X = tu parte + comisión + impuestos». En Mis inmuebles, el
@@ -37,7 +38,6 @@ ese trabajo.
 - **Mensajes:** una sola bandeja, que también son las solicitudes.
   - Grupos:
     - **Por hacer:** responder y revisar pagos.
-    - **Interesados en venta y renta**, con la visita.
     - **Próximas.**
     - **Anteriores**, plegadas.
   - Cada fila: nombre, casa, fechas, personas, el último mensaje, el plazo y un punto si no lo ha leído.
@@ -46,7 +46,7 @@ ese trabajo.
     - Una línea dice qué pasa al tocar el botón.
 - **Comisión:** cuánto debe, por qué reservas, la cuenta del equipo con botón de copiar, «Subir comprobante». Desde el
   día 1 de atraso avisa la fecha del corte (7 días).
-- **Permisos:** 4 interruptores, para todos o por socio: Precios · Fechas · La casa · **Ingresar inmuebles**. Están
+- **Permisos:** 4 interruptores, para todos o por socio: Precios · Fechas · La casa · **Ingresar casas**. Están
   encendidos por defecto y se apagan solos con 7 días de atraso.
 - **Divisa del socio** **(decide el usuario)**. Propuesta:
   - el socio elige Q o US$;
@@ -129,10 +129,9 @@ ese trabajo.
 5. **Bloqueos de fechas con motivo de un toque:** uso propio, mantenimiento u otra plataforma. Avisa si bloquea justo
    después de una solicitud que se perdió, o los fines de semana de un cliente que regresa.
 6. **Cuenta de cobro:** no se cambia con pagos pendientes. Cada cambio avisa al equipo.
-7. **Interesados de venta y renta en Mensajes:** queda constancia de que el cliente lo trajo el equipo.
-8. **Cliente que regresa:** aviso al equipo y un beneficio solo si reserva por aquí **(decide el usuario)**.
-9. **Puntaje de riesgo por socio:** suma las señales y, si es alto, el socio pasa a revisión.
-10. **Cuota de reserva en línea** **(decide el usuario)**. El cliente le paga a Equipo Inmobiliario una cuota (la
+7. **Cliente que regresa:** aviso al equipo y un beneficio solo si reserva por aquí **(decide el usuario)**.
+8. **Puntaje de riesgo por socio:** suma las señales y, si es alto, el socio pasa a revisión.
+9. **Cuota de reserva en línea** **(decide el usuario)**. El cliente le paga a Equipo Inmobiliario una cuota (la
     comisión) y el resto al socio. Es la única forma de cerrar la fuga de raíz.
 
 **No se puede evitar del todo:** la segunda reserva de un cliente que ya conoce al socio, y encontrar la casa en otras
@@ -165,6 +164,7 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 7. Contrato con el huésped: por ahora **se usa el del socio**. El modelo del equipo se deja programado y apagado
    hasta que exista el texto.
 8. Errores encontrados: arreglarlos ya, por tandas (graves de dinero y reglas primero).
+9. Venta y renta normal: las maneja el equipo al 100 %. Solo la renta vacacional va con el socio.
 
 ## 9. Pendiente del usuario
 
