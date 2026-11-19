@@ -5,7 +5,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
 import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
-import { nNoches } from '../formato.js';
+import { whatsappUrl, nNoches } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
@@ -148,6 +148,12 @@ export async function render(container) {
 		await volver();
 	};
 
+	// Estado de cuenta listo para mandarlo por WhatsApp al propietario.
+	const mensajeCuenta = (nombre, lista, res) => [
+		`Hola ${nombre.split(' ')[0]}, este es el estado de cuenta de ${nombreMes(estado.mes)}:`, '',
+		...lista.map((r) => `• ${r.propertyTitulo}: ${dia(r.llegada)} – ${dia(r.salida)} (${nNoches(r.noches)}) · ${money(r.costoSocio, r.moneda)}${r.pagadoSocio ? ' ✓ pagado' : ''}`), '',
+		`Por pagar: ${dinero(res.porMoneda, 'porPagar')}`, `Pagado: ${dinero(res.porMoneda, 'pagado')}`
+	].join('\n');
 
 	// ------------------------------------------------------------ Pantalla del mes
 	function pintar() {
@@ -198,6 +204,7 @@ export async function render(container) {
 						h('td', { class: 'text-end fw-semibold' }, dinero(res.porMoneda, 'porPagar')),
 						h('td', { class: 'text-end text-muted' }, dinero(res.porMoneda, 'pagado')),
 						h('td', { class: 'text-end text-nowrap', onclick: (e) => e.stopPropagation() },
+							g.telefono && g.reservas.length ? iconoBtn('icon-whatsapp', `Mandar estado de cuenta a ${g.nombre}`, { href: whatsappUrl(g.telefono, mensajeCuenta(g.nombre, g.reservas, res)), target: '_blank', rel: 'noopener' }) : null,
 							porPagar.length ? iconoBtn('icon-check', `Marcar todo como pagado a ${g.nombre}`, {
 								class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-success ms-1',
 								onclick: async () => {
