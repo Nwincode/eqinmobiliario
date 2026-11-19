@@ -45,7 +45,7 @@ Las rutas son desde la raíz del repositorio.
 
 ## 3. Sitio público
 
-- `scripts/build.mjs`: lee los datos (`DATOS=seed` usa el archivo de ejemplo; `DIST_DIR` cambia la carpeta de salida), escribe las páginas, sitemap, feeds, `llms.txt` y `_redirects`, y al final revisa los enlaces internos.
+- `scripts/build.mjs`: lee los datos (`DATOS=seed` usa el archivo de ejemplo; si Firestore no responde o no tiene `settings/site`, falla y queda el sitio anterior; `DIST_DIR` cambia la carpeta de salida), escribe las páginas, sitemap, feeds, `llms.txt` y `_redirects`, y al final revisa los enlaces internos.
 - `scripts/lib/landings.mjs`: **qué listados existen y cuáles se indexan** (general, operación, tipo, VIP, zona, zona + operación, zona + tipo + operación, en los dos idiomas), sus textos automáticos, el bloque de precios y los enlaces (`crearEnlaces`: esconder vacíos, llevar al padre).
 - `scripts/lib/enlaces.mjs`: revisa que cada enlace interno de `dist/` lleve a algo.
 - `scripts/lib/templates.mjs`: el HTML de cada página (`layout`, `listingPage`, `propertyPage`, `leadForm`, `reservaBox`, `reservaPage`…).

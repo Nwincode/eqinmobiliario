@@ -6,7 +6,7 @@
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
-import { storage, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase.js';
+import { storage, db, ref, uploadBytes, getDownloadURL, deleteObject, collection, getDocs } from './firebase.js';
 
 export function getPath(obj, path) {
 	return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -123,6 +123,25 @@ export async function uploadImage(file, folder, procesada, opciones) {
 const ORDEN = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 export function ordenarArchivos(files) {
 	return [...files].sort((a, b) => ORDEN.compare(a.name, b.name));
+}
+
+// Borra fotos solo si ninguna otra casa las usa («Duplicar» comparte los archivos de la original: borrarlas dejaría
+// la copia con fotos rotas). Si no se puede revisar, no se borra nada: un archivo de más no daña; uno de menos, sí.
+export async function borrarFotosSinUso(paths, excluirId = '') {
+	const lista = [...new Set(paths.filter(Boolean))];
+	if (!lista.length || !db) return;
+	let snap;
+	try { snap = await getDocs(collection(db, 'properties')); } catch (err) { console.warn('Fotos sin borrar: no se pudo revisar si otra casa las usa', err); return; }
+	const usadas = new Set();
+	const ruta = (url) => { const m = String(url || '').match(/\/o\/([^?]+)/); return m ? decodeURIComponent(m[1]) : ''; };
+	for (const d of snap.docs) {
+		if (d.id === excluirId) continue;
+		const x = d.data();
+		for (const f of x.fotos || []) for (const r of [f.path, f.sinMarca, ruta(f.url)]) if (r) usadas.add(r);
+		const vip = ruta(x.vipLanding?.portada);
+		if (vip) usadas.add(vip);
+	}
+	await Promise.all(lista.filter((r) => !usadas.has(r)).map(deleteImage));
 }
 
 export async function deleteImage(path) {
@@ -594,7 +613,7 @@ export function renderForm(schema, data, options = {}) {
 		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.
 		async flushDeletes() {
-			await Promise.all(pendingDeletes.splice(0).map(deleteImage));
+			await borrarFotosSinUso(pendingDeletes.splice(0));
 		}
 	};
 }

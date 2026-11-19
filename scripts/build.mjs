@@ -60,19 +60,11 @@ async function loadData(config) {
 	}
 
 	const db = createClient({ projectId: fb.projectId, apiKey: fb.apiKey });
-	let settings;
-	try {
-		settings = await db.getDoc('settings/site');
-	} catch (err) {
-		// Base de datos sin crear o reglas aún sin publicar: se publica el contenido actual.
-		if (!/respondió (403|400)/.test(err.message)) throw err;
-		console.log(`· Firestore todavía no está listo (${err.message.slice(0, 120)}…): se usa data/seed.json`);
-		return { ...fromSeed(), defaults: seed.settings };
-	}
-	if (!settings) {
-		console.log('· Firestore aún no tiene settings/site (importa los datos iniciales desde el panel): se usa data/seed.json');
-		return { ...fromSeed(), defaults: seed.settings };
-	}
+	// Sin «plan B»: si la nube no responde o no tiene settings/site, el build falla y Netlify deja publicado
+	// el sitio anterior. Publicar el archivo de ejemplo borraría las casas reales del sitio y de Google.
+	// (Para generar con el ejemplo: DATOS=seed.)
+	const settings = await db.getDoc('settings/site');
+	if (!settings) throw new Error('Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). Si la base está vacía de verdad, importa los datos iniciales desde el panel o usa DATOS=seed.');
 	const [properties, agents, testimonials, pages, posts] = await Promise.all([
 		db.queryTrue('properties', 'publicado'),
 		db.queryTrue('agents', 'activo'),

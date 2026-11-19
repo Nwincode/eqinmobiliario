@@ -1,8 +1,8 @@
 // Propiedades de prueba: sirven para probar el panel, la subida de fotos y el sitio.
 // Todas llevan demo: true para poder borrarlas juntas. Nacen como toda propiedad (propiedadNueva: historial, quién la
 // creó y el asesor de quien la crea), con operaciones y valores que acepta el panel.
-import { db, doc, getDocs, setDoc, deleteDoc, collection, query, where } from './firebase.js';
-import { uploadImage, deleteImage } from './form.js';
+import { db, doc, getDoc, getDocs, setDoc, collection, query, where } from './firebase.js';
+import { uploadImage } from './form.js';
 import { markPending } from './session.js';
 
 const DEMOS = [
@@ -44,6 +44,8 @@ export async function cargarDemos({ publicar = false, onProgress = () => {} } = 
 	const { propiedadNueva } = await import('./views/properties.js');
 	let n = 0;
 	for (const { id, fotos, ...datos } of DEMOS) {
+		// Si ya existe (quizá se editó y ahora es una casa real), no se pisa.
+		if ((await getDoc(doc(db, 'properties', id))).exists()) continue;
 		onProgress(`Subiendo fotos de "${datos.titulo}"…`);
 		const subidas = [];
 		for (const nombre of fotos) subidas.push(await uploadImage(await fotoDesdeSitio(nombre), `properties/${id}`));
@@ -70,13 +72,17 @@ export async function cargarDemos({ publicar = false, onProgress = () => {} } = 
 	return n;
 }
 
-// Borra las propiedades de prueba y sus fotos.
+// Borra las propiedades de prueba que nadie tocó: las de los ids de arriba, todavía marcadas y sin editar desde que
+// se crearon. Una editada (pudo volverse una casa real) se queda. Se borran como cualquier casa (eliminarPropiedad).
 export async function borrarDemos() {
+	const { eliminarPropiedad } = await import('./views/properties.js');
+	const ids = new Set(DEMOS.map((d) => d.id));
 	const snap = await getDocs(query(collection(db, 'properties'), where('demo', '==', true)));
-	for (const d of snap.docs) {
-		for (const f of d.data().fotos || []) await deleteImage(f.path);
-		await deleteDoc(d.ref);
-	}
-	if (snap.size) await markPending('Propiedades de prueba borradas');
-	return snap.size;
+	const intactas = snap.docs.filter((d) => {
+		const x = d.data();
+		return ids.has(d.id) && x.createdAt?.toMillis?.() === x.updatedAt?.toMillis?.();
+	});
+	for (const d of intactas) await eliminarPropiedad({ id: d.id, ...d.data() });
+	if (intactas.length) await markPending('Propiedades de prueba borradas');
+	return intactas.length;
 }
