@@ -11,7 +11,8 @@ export default async () => {
 	if (!datosConfigurados() || !escrituraConfigurada()) return;
 	try {
 		const [estado, priv] = await Promise.all([leerPrivado('meta/publish'), leerPrivado('settings/private')]);
-		if (!estado?.pendiente || !priv?.autoPublicar || !priv?.netlifyBuildHook) return;
+		// Si la última falló (deploy-failed.mjs), no se reintenta sola cada 10 minutos: espera a «Publicar» en el panel.
+		if (!estado?.pendiente || estado.fallo || !priv?.autoPublicar || !priv?.netlifyBuildHook) return;
 		const ms = (d) => (d instanceof Date ? d.getTime() : 0);
 		const ultimo = ms(estado.ultimoCambio);
 		if (Date.now() - ultimo < QUIETO_MS) return;

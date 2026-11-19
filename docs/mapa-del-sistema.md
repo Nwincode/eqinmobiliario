@@ -45,7 +45,7 @@ Las rutas son desde la raíz del repositorio.
 
 ## 3. Sitio público
 
-- `scripts/build.mjs`: lee los datos (`DATOS=seed` usa el archivo de ejemplo; `DIST_DIR` cambia la carpeta de salida), escribe las páginas, sitemap, feeds, `llms.txt` y `_redirects`, y al final revisa los enlaces internos.
+- `scripts/build.mjs`: lee los datos (`DATOS=seed` usa el archivo de ejemplo; si Firestore no responde o no tiene `settings/site`, falla y queda el sitio anterior; `DIST_DIR` cambia la carpeta de salida), escribe las páginas, sitemap, feeds, `llms.txt` y `_redirects`, y al final revisa los enlaces internos.
 - `scripts/lib/landings.mjs`: **qué listados existen y cuáles se indexan** (general, operación, tipo, VIP, zona, zona + operación, zona + tipo + operación, en los dos idiomas), sus textos automáticos, el bloque de precios y los enlaces (`crearEnlaces`: esconder vacíos, llevar al padre).
 - `scripts/lib/enlaces.mjs`: revisa que cada enlace interno de `dist/` lleve a algo.
 - `scripts/lib/templates.mjs`: el HTML de cada página (`layout`, `listingPage`, `propertyPage`, `leadForm`, `reservaBox`, `reservaPage`…).
@@ -75,6 +75,7 @@ Las rutas son desde la raíz del repositorio.
 | `resumen-diario.mjs` | Cada mañana | Resumen por asesor. |
 | `ia.mjs`, `gsc.mjs`, `resenas-google.mjs`, `automatizaciones.mjs` | Desde el panel | IA, Search Console, reseñas, pruebas de automatización. |
 | `deploy-succeeded.mjs` | Al publicar | Avisa a IndexNow (Bing, Yandex, Seznam, Naver) solo de lo que cambió: la lista `/feeds/indexnow.json` la arma `scripts/build.mjs` (`cambiosParaIndexNow`) comparando su sitemap con el publicado (`netlify/lib/indexnow.mjs`); sin lista, todo el sitemap. La clave es pública (`indexNowKey`). Después reenvía el sitemap a Search Console. Si falla, solo lo anota. |
+| `deploy-failed.mjs` | Al fallar una publicación | Vuelve a poner «cambios sin publicar» en `meta/publish` con `fallo: true` y el motivo (el panel y `publicar-pendiente.mjs` marcan «publicado» al pedirla, no al terminar). Mientras `fallo` esté puesto, la publicación automática no reintenta; «Publicar» en el panel (`session.js` `publicarAhora`) lo quita. |
 
 Compartido: `netlify/lib/correo.mjs` (envío y plantilla), `firestore.mjs` (lecturas), `firestore-escritura.mjs` (transacción con la cuenta de escritura; `reservas.mjs` y `limitadorDurable`), `google.mjs` (las dos cuentas de servicio), `auth.mjs` (`staffUser`, `socioUser`; en el entorno local acepta los tokens del emulador solo con un proyecto `demo-…`), `aviso-chat-envio.mjs`, `comisiones.mjs`, `limite.mjs` (límite de pedidos por IP o por clave: `limitador` en memoria para `aviso-lead`, `aviso-chat`, `reservas`; `limitadorDurable`, guardado en `limites/{huella HMAC}` con la cuenta de escritura, para `contrasena`).
 

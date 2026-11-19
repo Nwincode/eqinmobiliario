@@ -4,7 +4,7 @@ import {
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion } from '../ui.js';
-import { renderForm, deleteImage, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
+import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
@@ -67,7 +67,7 @@ async function borrarFotos(p) {
 	const vip = p.vipLanding?.portada || '';
 	const m = vip.match(/\/o\/([^?]+)/);
 	if (m && decodeURIComponent(m[1]).startsWith(`properties/${p.id}/`)) paths.push(decodeURIComponent(m[1]));
-	await Promise.all(paths.filter(Boolean).map((x) => deleteImage(x).catch(() => {})));
+	await borrarFotosSinUso(paths, p.id);
 }
 
 // Pone la marca de agua a las fotos ya subidas que no la tienen. Sube una copia nueva con marca
@@ -1367,7 +1367,7 @@ async function renderEditor(container, id, emb = null) {
 			const vac = esVacacional(data);
 			// Sin «catch»: «no se pudo leer» no es «no existe» (la copia quedaría sin precio del socio ni dirección).
 			const [socioPriv, llegadaPriv] = vac ? await Promise.all([getDoc(privRef), getDoc(llegadaRef)]) : [];
-			const { historialPrecio, historialEstado, slugsAnteriores, difusion, en, codigo, ...base } = data;
+			const { historialPrecio, historialEstado, slugsAnteriores, difusion, en, codigo, demo, ...base } = data;
 			const titulo = `${data.titulo} (copia)`;
 			// La copia es otra casa: empieza sin noches reservadas, días bloqueados ni mínimos por fechas de la original.
 			const { reservadas, bloqueos, minimos, ...vacacional } = data.vacacional || {};
