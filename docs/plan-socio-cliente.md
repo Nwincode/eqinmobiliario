@@ -9,7 +9,7 @@ Maqueta: «Casas y mensajes del socio» (artifact). Nada de esto se programa sin
 | Quién | Qué necesita | Cómo se le da |
 |---|---|---|
 | Cliente | Reservar, saber qué sigue, pagar sin errores, llegar | «Mis reservas» sin contraseña, una línea de pasos, el siguiente paso arriba |
-| Socio (propietario o colaborador) | Saber qué hacer hoy, responder rápido, publicar sus casas por noche, cobrar | Inicio «Para hoy», Mensajes con los botones de la reserva, ingresar casas sin esperar |
+| Socio (propietario o colaborador) | Saber qué hacer hoy, responder rápido, publicar sus inmuebles, cobrar | Inicio «Para hoy», Mensajes con los botones de la reserva, ingresar inmuebles sin esperar |
 | Equipo | Controlar sin revisar todo a mano, cobrar su comisión | Avisos automáticos, control de cada anuncio, contratos firmados |
 
 ## 2. Portal del socio
@@ -23,14 +23,15 @@ ese trabajo.
   - **Próximas llegadas**, en orden, con el estado del pago.
   - **El mes:** cuánto le queda, noches y ocupación.
 - **Mis inmuebles:**
-  - Solo casas por noche (renta vacacional). La venta y la renta normal las maneja el equipo al 100 %: el socio no las
-    ingresa ni las ve. Se publica **al momento, sin aprobación**.
+  - Cualquier tipo: por noche, renta o venta. Se publica **al momento, sin aprobación**.
+  - Venta y renta: el socio no habla con los interesados; los atiende solo el equipo, que le avisa. El chat con
+    clientes es solo para casas por noche.
   - Antes de publicar se revisa solo:
     - campos obligatorios y mínimo 5 fotos;
     - textos sin teléfonos, correos, enlaces, redes ni «búscame como»;
     - texto y códigos QR dentro de las fotos (una foto marcada no sale hasta que el equipo la vea).
-  - «Copiar datos de» otra casa suya. Moneda Q o US$. Dirección exacta privada.
-  - Códigos: el del equipo se crea solo. El del socio es opcional y avisa si lo repite.
+  - «Copiar datos de» otro inmueble suyo. Moneda Q o US$. m² de construcción y de terreno. Dirección exacta privada.
+  - Códigos: el del equipo se crea solo. El del socio es opcional, para todos los tipos, y avisa si lo repite.
   - Estados que ve: En la página · Corregir (con el motivo; sigue en la página) · Bloqueado (con el motivo y
     «Escribir al equipo»).
 - **Montos:** en cada reserva, una línea: «el cliente paga X = tu parte + comisión + impuestos». En Mis inmuebles, el
@@ -46,7 +47,7 @@ ese trabajo.
     - Una línea dice qué pasa al tocar el botón.
 - **Comisión:** cuánto debe, por qué reservas, la cuenta del equipo con botón de copiar, «Subir comprobante». Desde el
   día 1 de atraso avisa la fecha del corte (7 días).
-- **Permisos:** 4 interruptores, para todos o por socio: Precios · Fechas · La casa · **Ingresar casas**. Están
+- **Permisos:** 4 interruptores, para todos o por socio: Precios · Fechas · La casa · **Ingresar inmuebles**. Están
   encendidos por defecto y se apagan solos con 7 días de atraso.
 - **Divisa del socio** **(decide el usuario)**. Propuesta:
   - el socio elige Q o US$;
@@ -164,7 +165,8 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 7. Contrato con el huésped: por ahora **se usa el del socio**. El modelo del equipo se deja programado y apagado
    hasta que exista el texto.
 8. Errores encontrados: arreglarlos ya, por tandas (graves de dinero y reglas primero).
-9. Venta y renta normal: las maneja el equipo al 100 %. Solo la renta vacacional va con el socio.
+9. El socio ingresa inmuebles de los 3 tipos. En venta y renta normal, el cliente habla solo con el equipo; el chat
+   socio-cliente es solo para renta vacacional.
 
 ## 9. Pendiente del usuario
 
