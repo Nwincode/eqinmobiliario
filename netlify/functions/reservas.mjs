@@ -18,7 +18,7 @@ import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/fires
 import { Respuesta, falla, fechasDeLaCasa, responder, mensaje, anotar } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
-import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
+import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, llegadaPasada, TEXTO_LLEGADA_PASADA, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
@@ -47,6 +47,8 @@ const ACCIONES = {
 	async confirmar(tx, socio, leadId) {
 		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado) || await tx.leer(`reservas/${leadId}`)) falla(409, YA);
+		// La comisión nacería vencida y la casa quedaría con fechas que ya pasaron: se cierra con «No se dio».
+		if (llegadaPasada(lead.reserva.llegada)) falla(409, TEXTO_LLEGADA_PASADA);
 		const cuenta = cuentaDe(lead.reserva, await tx.leer(`properties/${casa.id}/privado/socio`));
 		if (!cuenta) falla(422, 'A esta casa le falta el precio del socio: avísale al administrador.');
 		const pago = (await tx.leer(`propietarios/${casa.propietarioId}`))?.datosPago;

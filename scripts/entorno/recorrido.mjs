@@ -475,6 +475,19 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const b = await sembrar('srv-b', llegada1, 1);
 	const choca = await api('socio', { accion: 'confirmar', leadId: b.id });
 	paso('Servidor: fechas que chocan con otra reserva confirmada no se confirman y no se escribe nada (422)', choca.status === 422 && !(await existe(`reservas/${b.id}`)) && !(await leer(`chats/${b.token}`)).fields?.estado, resp(choca));
+	// Llegada ya pasada (la solicitud quedó abierta): no se confirma (la comisión nacería vencida); «No se dio» sí.
+	const pasada = await sembrar('srv-pasada', iso(-3));
+	const tarde = await api('socio', { accion: 'confirmar', leadId: pasada.id });
+	paso('Servidor: una solicitud con la llegada ya pasada no se confirma ni se escribe nada (409, sin «ya respondida»)', tarde.status === 409 && !tarde.yaRespondida && !(await existe(`reservas/${pasada.id}`)) && !(await leer(`chats/${pasada.token}`)).fields?.estado, resp(tarde));
+	// En Solicitudes no se ofrece «Confirmar» y se dice por qué (queda «No se dio»).
+	await ir(socio.p, `#/solicitudes/${pasada.codigo}`, 3500);
+	const tarjetaPasada = socio.p.locator('.card', { hasText: pasada.codigo }).first();
+	await tarjetaPasada.screenshot({ path: `${CAPTURAS}/solicitud-llegada-pasada.png` }).catch(() => {});
+	const textoPasada = await tarjetaPasada.innerText().catch(() => '');
+	paso('Solicitudes: con la llegada ya pasada no hay «Confirmar», dice por qué y queda «No se dio»', /La fecha de llegada ya pasó/.test(textoPasada) && /No se dio/.test(textoPasada)
+		&& !(await tarjetaPasada.locator('button', { hasText: /^Confirmar$/ }).count()), textoPasada.replace(/\s+/g, ' ').slice(0, 160));
+	const cerrada = await api('socio', { accion: 'no', leadId: pasada.id, motivo: 'Cliente no respondió' });
+	paso('Servidor: esa solicitud se cierra con «No se dio» (200)', cerrada.status === 200 && (await leer(`chats/${pasada.token}`)).fields?.estado?.stringValue === 'no', resp(cerrada));
 	const motivo = await api('socio', { accion: 'no', leadId: b.id, motivo: 'Llamame al 5555 0001' });
 	paso('Servidor: un motivo que no es de la lista no se acepta (400)', motivo.status === 400, resp(motivo));
 	// Montos en el pedido: no cuentan (salen de la casa y de la solicitud guardadas).

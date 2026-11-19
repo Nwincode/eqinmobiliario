@@ -54,6 +54,7 @@ export const deSolicitud = (r) => Boolean(r?.leadId || r?.codigo);
 
 // Lo que lleva toda reserva al nacer, venga de donde venga. `casa` = { id, titulo, agentId, propietarioId, moneda }.
 // Los montos: costoSocio (lo del propietario), alojamiento (lo cobrado sin impuestos) y la ganancia de EQ.
+// La moneda es la de la casa (sin moneda, US$, como el sitio): los montos salen de sus precios; nadie más la elige.
 export function nuevaReserva(casa, c) {
 	const { r2, nochesEntre, hoy } = V();
 	const costoSocio = r2(Number(c.costoSocio) || 0), alojamiento = r2(Number(c.alojamiento) || 0);
@@ -61,7 +62,7 @@ export function nuevaReserva(casa, c) {
 		propertyId: casa.id, propertyTitulo: c.propertyTitulo || casa.titulo || '',
 		// El asesor de la casa (una casa por noche no lleva: ''), el mismo que exigen las reglas a quien no es administrador.
 		agentId: casa.agentId || '', propietarioId: casa.propietarioId || '',
-		moneda: c.moneda || casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: nochesEntre(c.llegada, c.salida),
+		moneda: casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: nochesEntre(c.llegada, c.salida),
 		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado || 'confirmada',
 		leadId: c.leadId || '', codigo: c.codigo || '', ...(c.chat ? { chat: c.chat } : {}), costoSocio, alojamiento, ganancia: r2(alojamiento - costoSocio),
 		pagadoSocio: Boolean(c.pagadoSocio), pagadoFecha: c.pagadoSocio ? (c.pagadoFecha || hoy()) : ''
@@ -105,13 +106,13 @@ export function montosDeConfirmacion(l, cuenta, casa, modo = 'mayor') {
 export const difierenMontos = (m) => m.cotizado > 0 && Math.abs(m.cotizado - m.deHoy) > 0.01 * Math.max(m.cotizado, m.deHoy);
 
 // La reserva que nace al confirmar la solicitud `l` (l.id, l.propertyId, l.propertyTitulo, l.nombre y
-// l.reserva { codigo, llegada, salida, moneda, subtotal }) de la casa `casa` (con su id). Lleva su comisión y, si hay,
+// l.reserva { codigo, llegada, salida, subtotal }) de la casa `casa` (con su id; de ella sale la moneda). Lleva su comisión y, si hay,
 // el token de su chat (con él se sabe después si el cliente ya pagó). Devuelve { datos, montos }.
 export function reservaDeSolicitud(l, cuenta, casa, { modo = 'mayor', chat = '' } = {}) {
 	const r = l.reserva;
 	const montos = montosDeConfirmacion(l, cuenta, casa, modo);
 	const datos = nuevaReserva(casa, {
-		propertyTitulo: l.propertyTitulo, moneda: r.moneda || 'USD', llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
+		propertyTitulo: l.propertyTitulo, llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
 		// Solo el primer nombre: el socio lee sus reservas; el contacto del cliente queda en la solicitud (leadId).
 		huesped: String(l.nombre || '').trim().split(/\s+/)[0], leadId: l.id, codigo: r.codigo, costoSocio: montos.costoSocio,
 		alojamiento: montos.alojamiento, chat
@@ -125,6 +126,10 @@ export const yaRespondida = (estadoChat, estadoSolicitud) => Boolean(estadoChat)
 
 // ¿Todavía no empieza el día de llegada? (día de Guatemala: hasta las 23:59 del día anterior).
 export const antesDeLlegar = (llegada, ahora = Date.now()) => V().esFecha(llegada) && llegada > V().hoy(ahora);
+// ¿Ya pasó el día de llegada? (día de Guatemala). Una solicitud así no se confirma: la comisión nacería vencida y la
+// casa quedaría con fechas que ya pasaron. El mismo día sí (el sitio deja pedir para hoy).
+export const llegadaPasada = (llegada, ahora = Date.now()) => !V().esFecha(llegada) || llegada < V().hoy(ahora);
+export const TEXTO_LLEGADA_PASADA = 'La fecha de llegada de esta solicitud ya pasó: no se puede confirmar. Ciérrala con «No se dio».';
 
 // Por qué el socio NO puede cancelar esta reserva ('' = sí puede): solo mientras el cliente no ha pagado ni llegado.
 // `reserva` y `chat` guardados; `token` = el del índice chatsPorSolicitud de la solicitud.

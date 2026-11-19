@@ -10,7 +10,7 @@ import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query,
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
-import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, vencePago } from '../reservas-calculo.js';
+import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, llegadaPasada, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, vencePago } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -225,21 +225,23 @@ export async function render(container, [codigo] = []) {
 		if (refChat(l) && !pago) return toast(admin ? 'Falta escribir los datos de pago del socio (Propietarios → su ficha).' : 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.', 'warning');
 		// Lo que se va a guardar (montosDeConfirmacion, lo mismo que usa confirmarSolicitud), no la cuenta con los precios de hoy.
 		const casa = (await getDoc(doc(db, 'properties', l.propertyId))).data();
+		// Los montos salen de los precios de la casa y se guardan en su moneda (reservaDeSolicitud): se muestran en ella.
+		const mon = casa?.moneda || 'USD';
 		let modo = 'mayor';
 		const base = montosDeConfirmacion(l, c, casa);
 		if (admin && difierenMontos(base)) {
 			// El administrador decide con qué se registra; primero lo que conviene: los precios de hoy si lo cotizado es mayor
 			// (pudo inflarse) y lo cotizado si es menor (es lo que se le prometió al cliente).
-			const cot = `Registrar lo cotizado (ganancia de EQ ${money(base.gananciaCotizada, r.moneda)})`;
-			const deHoy = `Registrar con los precios de hoy (ganancia de EQ ${money(base.hoy, r.moneda)})`;
+			const cot = `Registrar lo cotizado (ganancia de EQ ${money(base.gananciaCotizada, mon)})`;
+			const deHoy = `Registrar con los precios de hoy (ganancia de EQ ${money(base.hoy, mon)})`;
 			const opciones = base.cotizado > base.deHoy ? [deHoy, cot] : [cot, deHoy];
-			const elegida = await elegirOpcion(`${r.codigo}: se cotizaron ${money(base.cotizado, r.moneda)} de alojamiento; con los precios de hoy serían ${money(base.deHoy, r.moneda)}. ¿Con cuál se registra?`, opciones);
+			const elegida = await elegirOpcion(`${r.codigo}: se cotizaron ${money(base.cotizado, mon)} de alojamiento; con los precios de hoy serían ${money(base.deHoy, mon)}. ¿Con cuál se registra?`, opciones);
 			if (!elegida) return;
 			modo = elegida === cot ? 'cotizado' : 'hoy';
 		}
 		const m = montosDeConfirmacion(l, c, casa, admin ? modo : 'mayor');
-		const distinto = !admin && m.ganancia !== m.hoy ? ` Se cotizó ${money(m.ganancia, r.moneda)}; con los precios de hoy serían ${money(m.hoy, r.moneda)}: se registra lo cotizado.` : '';
-		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(m.ganancia, r.moneda)}) se paga el día de llegada.${distinto}`, { okText: 'Confirmar reserva', danger: false }))) return;
+		const distinto = !admin && m.ganancia !== m.hoy ? ` Se cotizó ${money(m.ganancia, mon)}; con los precios de hoy serían ${money(m.hoy, mon)}: se registra lo cotizado.` : '';
+		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web y la ganancia de EQ (${money(m.ganancia, mon)}) se paga el día de llegada.${distinto}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
 				await confirmarSolicitud(l, c, { chat: chatDe(l), pago, modo });
@@ -330,6 +332,11 @@ export async function render(container, [codigo] = []) {
 		const tarde = aviso === 'tarde';
 		const evasion = aviso === 'bloqueada';
 		const ocupada = est === 'pendiente' && yaOcupada(l);
+		// Con la llegada ya pasada no se confirma (el servidor la rechazaría igual): queda «No se dio».
+		const pasada = est === 'pendiente' && llegadaPasada(r.llegada);
+		// Lo del socio y la ganancia, en la moneda en que se guardan (la de la casa).
+		const suCasa = casas.find((p) => p.id === l.propertyId);
+		const mon = res?.moneda || (suCasa ? suCasa.moneda || 'USD' : r.moneda);
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
@@ -340,6 +347,7 @@ export async function render(container, [codigo] = []) {
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				ocupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
+				pasada ? badge('La fecha de llegada ya pasó', 'warning') : null,
 				((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
 				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
@@ -347,7 +355,7 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'small text-muted' }, [l.propertyTitulo, netos[l.propertyId]?.codigoSocio && `Código del socio: ${netos[l.propertyId].codigoSocio}`, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
 			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
-				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, r.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, r.moneda)}` : ''),
+				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			plazo(l, est, res),
@@ -360,7 +368,7 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
-				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
+				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
