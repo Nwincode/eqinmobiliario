@@ -144,6 +144,8 @@ async function casa(container, id) {
 	const v = p.vacacional || {};
 	const pre = prefijoMoneda(p.moneda || 'USD');
 	const plata = (n) => `${pre}${decimales(n)}`;
+	// En la casilla del día, el precio corto, como en el calendario del sitio (js/vacacional.js dineroCorto): el completo no cabe.
+	const enCelda = (n) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
@@ -350,7 +352,7 @@ async function casa(container, id) {
 			},
 			h('span', { class: 'vac-dia-num' }, Number(f.slice(8))),
 			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
-				: h('span', { class: 'vac-dia-precio' }, plata(V.precioNoche(f, plan())))));
+				: h('span', { class: 'vac-dia-precio' }, enCelda(V.precioNoche(f, plan())))));
 		};
 		const semanas = [];
 		for (let i = 0; i < celdas.length; i += 7) semanas.push(h('tr', {}, celdas.slice(i, i + 7).map(celda)));
