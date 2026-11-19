@@ -68,7 +68,7 @@ export async function cargarDemos({ publicar = false, onProgress = () => {} } = 
 		}));
 		n++;
 	}
-	await markPending('Propiedades de prueba agregadas');
+	if (n) await markPending('Propiedades de prueba agregadas');
 	return n;
 }
 

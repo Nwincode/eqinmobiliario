@@ -104,6 +104,7 @@ export async function publicarAhora(hook, { automatica = false } = {}) {
 	await fetch(hook, { method: 'POST', mode: 'no-cors', body: '{}' });
 	await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
+		fallo: false,
 		ultimaPublicacion: serverTimestamp(),
 		ultimaPublicacionPor: session.profile?.nombre || session.user?.email || '',
 		ultimaPublicacionAuto: automatica
