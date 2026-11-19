@@ -1517,6 +1517,30 @@ const duenos = [];
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
 }
 
+// La casa cambió de asesor y el sitio no se ha vuelto a publicar: el formulario manda el asesor de antes, las reglas lo
+// rechazan y el sitio reintenta sin asesor: la solicitud se guarda y le llega al administrador (no se pierde).
+{
+	const CASA = 'jardines-de-mirabel';
+	const asesorDe = (agentId) => fetch(`${FS}/properties/${CASA}?updateMask.fieldPaths=agentId`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { agentId: { stringValue: agentId } } }) });
+	await asesorDe('otro-asesor');
+	const vis = await persona(390);
+	await vis.p.goto(`${SITIO}/propiedad/casa-jardines-de-mirabel-zona-16/`);
+	const form = vis.p.locator(`.lead-form[data-property-id="${CASA}"]`).first();
+	const viejo = await form.getAttribute('data-agent-id');
+	await form.locator('[name=nombre]').fill('Luis Asesor Viejo');
+	await form.locator('[name=telefono]').fill('5555 4321');
+	await form.locator('button[type=submit]').click();
+	await espera(4000);
+	const leads = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'leads' }], where: { fieldFilter: { field: { fieldPath: 'nombre' }, op: 'EQUAL', value: { stringValue: 'Luis Asesor Viejo' } } } } }) })).json();
+	const guardado = leads.find((x) => x.document)?.document?.fields || {};
+	paso('Sitio: con el asesor de antes en la página, la solicitud se guarda sin asesor (la recibe el administrador)',
+		viejo === 'asesor-prueba' && guardado.agentId?.stringValue === '' && guardado.propertyId?.stringValue === CASA,
+		`página ${viejo} · guardado ${JSON.stringify({ agentId: guardado.agentId?.stringValue, propertyId: guardado.propertyId?.stringValue })} · ${(await form.locator('.form-status, [role=status]').first().innerText().catch(() => '')).slice(0, 80)}`);
+	await asesorDe('asesor-prueba');
+	await vis.p.context().close();
+}
+
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
