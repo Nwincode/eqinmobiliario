@@ -310,8 +310,14 @@
 				button.disabled = false;
 				return;
 			}
-			// Si las reglas de la base todavía no aceptan «propietarioId», se guarda sin él: la solicitud no se pierde.
+			// Lo que una página publicada antes puede mandar distinto no hace perder la solicitud:
+			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador);
+			//  - las reglas de la base todavía no aceptan «propietarioId»: va sin él.
 			saveLead(lead).catch(function (err) {
+				if (!lead.propertyId || !lead.agentId) throw err;
+				lead.agentId = '';
+				return saveLead(lead);
+			}).catch(function (err) {
 				if (!lead.propietarioId) throw err;
 				delete lead.propietarioId;
 				return saveLead(lead);
