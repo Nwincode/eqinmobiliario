@@ -8,11 +8,11 @@
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
-import { session, cargarMiResumen, misCasas } from '../session.js';
+import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, antesDeLlegar, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, vencePago } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
-import { nNoches } from '../formato.js';
+import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
@@ -29,6 +29,8 @@ const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.created
 
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
+	// El socio habla con el equipo por WhatsApp: su asesor o, si no tiene, la empresa.
+	const equipo = admin ? null : await contactoDelEquipo();
 	const mio = session.profile?.propietarioId || '-';
 	const [snap, chatsSnap, propietarios, casas, reservas, mias] = await Promise.all([
 		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
@@ -328,6 +330,7 @@ export async function render(container, [codigo] = []) {
 		const tarde = aviso === 'tarde';
 		const evasion = aviso === 'bloqueada';
 		const ocupada = est === 'pendiente' && yaOcupada(l);
+		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
@@ -350,7 +353,12 @@ export async function render(container, [codigo] = []) {
 			plazo(l, est, res),
 			historial(sol),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
-				// Las solicitudes se hablan solo por su chat (cliente, socio y equipo); sin WhatsApp.
+				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.
+				!admin ? (equipo ? iconoBtn('icon-whatsapp', `WhatsApp a ${equipo.nombre}`, { href: whatsappUrl(equipo.whatsapp,
+					`Hola, soy ${session.dueno?.nombre || session.profile?.nombre || 'el socio'}. Te escribo por la solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`), target: '_blank', rel: 'noopener' }) : null)
+					: est === 'no'
+					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
+					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
@@ -399,7 +407,9 @@ export async function render(container, [codigo] = []) {
 			h('span', { class: 'flex-grow-1' }, `Faltan los datos de pago de ${faltaPago.map((p) => p.nombre || 'un socio').join(', ')}: sin ellos no se puede confirmar su reserva.`),
 			faltaPago.map((p) => h('a', { class: 'btn btn-sm btn-outline-primary', href: `#/propietarios/${p.id}` }, faltaPago.length > 1 ? `Completar (${String(p.nombre || '').split(' ')[0]})` : 'Completar'))) : null)
 		: (session.dueno && sinDatosPago(session.dueno) ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
-			h('span', { class: 'flex-grow-1' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar una reserva, porque el cliente no sabría a dónde pagar. Los registra Equipo Inmobiliario en tu ficha.')) : null);
+			h('span', { class: 'flex-grow-1' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar una reserva, porque el cliente no sabría a dónde pagar.'),
+			equipo ? h('a', { class: 'btn btn-sm btn-outline-primary', target: '_blank', rel: 'noopener', href: whatsappUrl(equipo.whatsapp, 'Hola, te envío mis datos de pago para las reservas (banco, tipo y número de cuenta, a nombre de quién): ') },
+				h('span', { class: 'icon-whatsapp me-1', 'aria-hidden': 'true' }), 'Enviar mis datos') : null) : null);
 	mount(container,
 		pageHeader('Solicitudes'),
 		avisoPago,
