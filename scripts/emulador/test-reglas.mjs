@@ -307,6 +307,27 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña se cambia el margen de su casa', juntos('mixto1', [suyo({ margen: 0 })]), false);
+		// Permisos del socio (permisosSocios/{propietarioId}): lo apagado no se cambia; lo demás sí.
+		// Cada vez otro día (si el valor no cambia, no cuenta como cambio).
+		let dia = 1;
+		const bloquear = () => juntos('mixto1', [casa({ bloqueos: [{ desde: `2027-05-${String(dia).padStart(2, '0')}`, hasta: `2027-05-${String(++dia).padStart(2, '0')}` }] })]);
+		const subir = () => juntos('mixto1', [suyo({ precioBase: 110 }), casa({ base: 132 }, { precio: num(132) })]);
+		await poner('permisosSocios/m1', { precios: false, fechas: true, casa: true, motivo: 'propio' });
+		await espera('precios apagados: la dueña no cambia su precio', subir(), false);
+		await espera('precios apagados: no cambia las personas máximo', parche('mixto1', 'properties/mx-noche', ['vacacional.huespedesMax'], { vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '9' } } } } }), false);
+		await espera('precios apagados: no cambia solo el precio de los listados', parche('mixto1', 'properties/mx-noche', ['precio'], { precio: { doubleValue: 77 } }), false);
+		await espera('precios apagados: sí bloquea días (control)', bloquear(), true);
+		await poner('permisosSocios/m1', { precios: true, fechas: false, casa: true, motivo: 'atraso' });
+		await espera('fechas apagadas: la dueña no bloquea días', bloquear(), false);
+		await espera('fechas apagadas: sí cambia su precio (control)', subir(), true);
+		await espera('la dueña lee sus permisos', leer('mixto1', 'permisosSocios/m1'), true);
+		await espera('la dueña se devuelve los permisos', parche('mixto1', 'permisosSocios/m1', ['fechas'], { fechas: { booleanValue: true } }), false);
+		await espera('otro socio lee los permisos de la dueña', leer('socio2', 'permisosSocios/m1'), false);
+		await espera('la dueña lee los permisos para todos', leer('mixto1', 'settings/permisosSocios'), false);
+		await espera('el administrador apaga un permiso para todos', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), true);
+		await fetch(`${H}/permisosSocios/m1`, { method: 'DELETE', headers: cab('dueño') });
+		await fetch(`${H}/settings/permisosSocios`, { method: 'DELETE', headers: cab('dueño') });
+		await espera('sin documento de permisos: bloquea días (control)', bloquear(), true);
 	}
 	await espera('dueña mixta convierte su casa por noche en venta', parche('mixto1', 'properties/mx-noche', ['operacion'], { operacion: sv('venta') }), false);
 	await espera('dueña mixta lee el acuerdo de su casa en venta', leer('mixto1', 'properties/mx-venta/privado/acuerdo'), false);
@@ -552,6 +573,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor crea un usuario', crear('asesor9', 'users/nuevo1', { rol: 'socio', activo: true, propietarioId: 'm1' }), false);
 	await espera('asesor desactiva a un dueño', parche('asesor9', 'users/mixto1', ['activo'], { activo: { booleanValue: false } }), false);
 	// Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche.
+	await espera('un asesor se devuelve los permisos del socio en la ficha del dueño', parche('asesor7', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: true } } } } }), false);
+	await espera('un asesor lee los permisos de un socio', leer('asesor7', 'permisosSocios/m1'), false);
+	await espera('el administrador devuelve los permisos en la ficha del dueño (control)', parche('admin1', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } } }), true);
 	await espera('un asesor crea una casa por noche a su nombre', crear('asesor7', 'properties/noche-del-asesor', { titulo: 'x', operacion: 'vacacional', agentId: 'a7', publicado: false }), false);
 	await espera('un asesor pasa su casa en venta a por noche', parche('asesor7', 'properties/prueba-casa-en-venta', ['operacion'], { operacion: sv('vacacional') }), false);
 	await espera('un asesor cambia el título de su casa en venta (control)', parche('asesor7', 'properties/prueba-casa-en-venta', ['titulo'], { titulo: sv('Casa en venta (prueba)') }), true);

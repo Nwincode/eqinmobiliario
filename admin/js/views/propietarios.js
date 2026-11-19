@@ -15,6 +15,7 @@ import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
 import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
+import { tarjetaGlobal, bloqueSocio } from '../permisos-ui.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
 // forma de enlazar (asignarDueno: la casa manda; la lista `propiedades` de cada persona y su `porNoche` los pone al día
@@ -129,6 +130,7 @@ async function renderLista(container) {
 		porVencer.length ? h('div', { class: 'alert alert-warning' }, h('strong', {}, `${porVencer.length === 1 ? 'Una exclusiva vencida o por vencer' : `${porVencer.length} exclusivas vencidas o por vencer`} en 30 días. `),
 			porVencer.slice(0, 5).map((x, k) => [k ? ' · ' : '', h('a', { href: `#/propiedades/${x.casa.id}`, class: 'alert-link' }, x.casa.titulo || 'Inmueble'), ` (${x.dueno?.nombre || 'sin dueño'}, ${x.dias < 0 ? `venció hace ${-x.dias} días` : `en ${x.dias} días`})`]),
 			porVencer.length > 5 ? ` y ${porVencer.length - 5} más.` : '') : null,
+		session.isAdmin && lista.some((p) => tieneCasasPorNoche(p, propiedades)) ? tarjetaGlobal() : null,
 		lista.length ? [h('div', { class: 'form-check mb-3' }, solo, h('label', { class: 'form-check-label', for: 'solo-incompletos' }, 'Solo con datos por completar')), tabla]
 			: emptyState('Aún no hay propietarios registrados.', h('a', { href: '#/propietarios/nuevo', class: 'btn btn-primary' }, 'Registrar propietario')));
 }
@@ -219,7 +221,7 @@ async function renderEditor(container, id) {
 			if (!(await confirmarCambioDeDueno(ajenas, [...duenos, { id: ref.id, nombre: d.nombre || 'esta persona' }]))) return false;
 			// La lista de sus casas y `porNoche` también se conservan como están: los pone al día asignarDueno (vincularCasas).
 			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
-			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche']) {
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
 				else if (k === 'propiedades') d[k] = [];
 				else { delete d[k]; delete data[k]; }
@@ -444,7 +446,9 @@ function seccionPortal(prop, propiedades, ficha) {
 			otroCorreo ? h('div', { class: 'alert alert-warning small mb-0' }, `Los avisos le llegan a ${correoFicha}, pero entra al panel con ${estado.email}. El correo de entrada no se cambia desde el panel: `,
 				activo ? 'toca «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
 					: `«Dar acceso» crea su entrada con ${correoFicha} (la de ${estado.email} queda apagada). Si ${correoFicha} ya tuviera una cuenta, el panel te dice cuál borrar en Firebase → Authentication.`) : null,
-			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pídeselo al administrador.'));
+			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pídeselo al administrador.'),
+			// Qué puede cambiar él solo en su panel (solo el administrador; solo un socio: dueño de casas por noche).
+			session.isAdmin && porNoche ? bloqueSocio(prop) : null);
 	}
 
 
