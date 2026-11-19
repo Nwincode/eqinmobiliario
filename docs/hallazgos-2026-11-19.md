@@ -185,3 +185,41 @@ Agregaría «Continuar con Apple» solo si los datos muestran muchos iPhone de E
    comisión vale.
 3. **Solicitud sin plazo:** EQ-PPZCMR es anterior a `PLAZOS_DESDE` y nunca se cierra sola. Arreglo: cerrar o marcar
    toda solicitud cuya llegada ya pasó; recalcular `V.hoy()` al enviar el formulario.
+
+## E. Simulaciones a fondo (19 nov, tarde)
+
+40,000 estadías al azar (funciones puras), 64 choques a la vez y 11 caminos en el emulador, 15 historias
+socio–cliente con reloj adelantado. Resumen para el usuario: artifact «Simulaciones de reservas».
+
+Crítico:
+1. Confirmada sin pago queda trabada: confirmar la víspera o el día de llegada deja `vencePago` = Infinity
+   (`reservas-calculo.js:43`); comprobante subido sin «Pago recibido» lo salta el cron (`plazos-reservas.mjs:54`);
+   un cron perdido entre las 23:00 de la víspera y medianoche nunca cancela (`:59`). El socio no puede cancelar y a
+   los 7 días se le corta. Propuesta: «No me llegó» en el servidor + barrido diario + cron que se pone al día.
+2. Precio cambiado entre cotizar y confirmar (F1, F2, F3): `reservas-calculo.js:96-101`, `solicitudes.js:237,243,330`.
+   Comisión inflada, negativa (−120 con «cotizado») o sobre la limpieza de hoy. Propuesta: guardar en el lead la
+   parte del socio, la limpieza y el margen al cotizar.
+
+Alto:
+3. `/api/disponibilidad` con `s-maxage=600` + `stale-while-revalidate=300`: la página tarda 10–15 min en cualquier
+   cambio. Propuesta: purgar por etiqueta de casa al escribir, o 30 s.
+4. Cancelada por el cron después de una publicación: queda bloqueada en el sitio (`js/vacacional.js:517` suma lo
+   horneado; `plazos-reservas.mjs` no marca publicar). Propuesta: con respuesta de la API, usar solo `ocupadas`.
+5. Apartado de 2 h contra 24 h para responder (D1); dos pendientes cruzadas sin aviso; textos «2 horas»
+   (`scripts/lib/i18n.mjs:28,31,44`, `netlify/lib/avisos-chat.mjs:72`).
+6. Confirmar ignora iCal (`reservas-servidor.mjs:17`, `solicitudes.js:172`); el socio no ve esas noches
+   (`mis-casas.js:149-156`).
+7. «Pendiente» de Rentas no bloquea ni vence (`rentas.js:16,69`, `calc-vacacional.js:283`).
+8. Cambio de moneda con solicitud abierta: comisión ×8 (`reservas-calculo.js:98-101`).
+9. `noSeDioYBloqueada` solo mira «No se dio» (`solicitudes-sin-respuesta.mjs:105`), no las canceladas.
+
+Medio: socio ve «Confirmar» en fechas que él confirmó (`solicitudes.js:40` casas = []); confirmar casa
+despublicada (`reservas.mjs:47-64`); correos fallidos sin reintento (`reservas.mjs:150`, `avisos-chat.mjs:77`);
+solicitud duplicada con correos contradictorios; «Pago recibido» sin dirección (`reservas.mjs:102`); sin iCal de
+salida.
+
+Bajo: plazo exacto de pago no se muestra; «Paga pronto» tras el comprobante; socio bloquea sobre una pendiente sin
+aviso; dígitos de ancho completo pasan el filtro; huéspedes sin tope de capacidad; estancia > 365 noches.
+
+Sin fallas: dos confirmadas cruzadas (64/64 un solo ganador); transiciones del servidor; total = suma por noche;
+impuestos; «Solo salida»; medianoche de Guatemala, fin de año y 29 feb; cron doble.
