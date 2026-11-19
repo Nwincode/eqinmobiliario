@@ -171,6 +171,7 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 
 ## 9. Pendiente del usuario
 
-1. Acceso del cliente: quiere ver las opciones en la maqueta antes de decidir.
+1. Acceso del cliente: se inclina por entrar con el correo de la reserva y una clave que se le genera; pide la
+   recomendación de Claude. Página: «Cómo entra el cliente» (artifact). Aún no es decisión final.
 2. Calendario: qué reserva no bloqueó las fechas correctas.
 3. Aprobar la maqueta para programarla.
