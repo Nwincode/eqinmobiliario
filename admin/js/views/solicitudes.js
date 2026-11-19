@@ -29,7 +29,7 @@ const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.created
 
 export async function render(container, [codigo] = []) {
 	const admin = !session.esSocio;
-	// El socio habla con el equipo por WhatsApp: su asesor o, si no tiene, la empresa.
+	// Contacto del equipo para el socio (sus datos de pago). Las solicitudes se hablan solo por su chat.
 	const equipo = admin ? null : await contactoDelEquipo();
 	const mio = session.profile?.propietarioId || '-';
 	const [snap, chatsSnap, propietarios, casas, reservas, mias] = await Promise.all([
@@ -353,9 +353,8 @@ export async function render(container, [codigo] = []) {
 			plazo(l, est, res),
 			historial(sol),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
-				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.
-				!admin ? (equipo ? iconoBtn('icon-whatsapp', `WhatsApp a ${equipo.nombre}`, { href: whatsappUrl(equipo.whatsapp,
-					`Hola, soy ${session.dueno?.nombre || session.profile?.nombre || 'el socio'}. Te escribo por la solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`), target: '_blank', rel: 'noopener' }) : null)
+				// El socio habla solo por el chat de la solicitud (ahí están el cliente y el equipo); sin WhatsApp.
+				!admin ? null
 					: est === 'no'
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),

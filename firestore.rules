@@ -41,6 +41,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/properties/$(propertyId))
         && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(propertyId)).data);
     }
+    // Permisos del socio (admin/js/permisos-socio.js): permisosSocios/{su propietarioId} lo escriben el administrador y el
+    // servidor (cada hora y al marcar una comisión pagada). Sin documento, puede (así funciona antes de calcularse).
+    function socioPuede(clave) {
+      let ruta = /databases/$(database)/documents/permisosSocios/$(userDoc().data.get('propietarioId', '-'));
+      return !exists(ruta) || get(ruta).data.get(clave, true) != false;
+    }
     function soloCambia(campos) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
     }
@@ -137,6 +143,17 @@ service cloud.firestore {
     }
 
     // Datos internos (p. ej. el build hook de Netlify): solo el equipo.
+    // Permisos de los socios para todos { precios, fechas, casa }: los cambia el administrador (Propietarios).
+    match /settings/permisosSocios {
+      allow get: if isAdmin();
+      allow write: if isAdmin();
+    }
+    // Lo que puede cada socio (el resultado): lo escriben el administrador y el servidor; el socio lee el suyo.
+    match /permisosSocios/{propietarioId} {
+      allow read: if isAdmin() || (esSocio() && userDoc().data.get('propietarioId', '') == propietarioId);
+      allow write: if isAdmin();
+    }
+
     match /settings/private {
       allow get: if isStaff();
       allow write: if isAdmin();
@@ -174,6 +191,10 @@ service cloud.firestore {
             && soloCambia(['vacacional', 'precio', 'updatedAt'])
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
                  .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'huespedesMax'])
+            // Lo que el administrador le apagó (o se apagó por atraso en la comisión) no lo cambia.
+            && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas', 'minimos', 'huespedesMax'])
+              || socioPuede('precios'))
+            && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['bloqueos']) || socioPuede('fechas'))
             // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
             // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
@@ -209,12 +230,14 @@ service cloud.firestore {
         allow get: if docId in ['socio', 'llegada'] && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
         allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
           && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && socioPuede('precios')
           && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
                request.resource.data.diff(resource.data).affectedKeys(), get(/databases/$(database)/documents/properties/$(id)).data, resource.data);
         // Una casa por noche que todavía no tiene privado/socio: el dueño lo crea con sus precios, con las mismas
         // condiciones (el margen, que no puede poner, queda el de siempre: 20 %).
         allow create: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
           && request.resource.data.keys().hasOnly(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && socioPuede('precios')
           && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
                request.resource.data.keys(), get(/databases/$(database)/documents/properties/$(id)).data, {});
       }
@@ -278,8 +301,9 @@ service cloud.firestore {
     match /propietarios/{id} {
       // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
       allow read: if propio();
-      allow create: if nuevoPropio();
-      allow update: if propio() && conservaAsesor();
+      // Los permisos del socio (permisos) los cambia solo el administrador.
+      allow create: if nuevoPropio() && (isAdmin() || !request.resource.data.keys().hasAny(['permisos']));
+      allow update: if propio() && conservaAsesor() && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos']));
       allow delete: if isAdmin();
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del

@@ -333,6 +333,10 @@ export const ponerComprobante = (res, url) => updateDoc(refReserva(res.id), { 'c
 export async function comisionPagada(res, nivel) {
 	await updateDoc(refReserva(res.id), { 'comision.pagada': true, 'comision.pagadaEl': new Date().toISOString(), updatedAt: serverTimestamp() });
 	if (nivel === 3) await markPending(`${res.propertyTitulo}: comisión pagada, las casas del socio vuelven al sitio`);
+	// Si se le apagaron los permisos por el atraso, vuelven ahora (sin esperar la revisión de cada hora).
+	if (session.isAdmin && res.propietarioId) {
+		try { const { recalcularPermisosDe } = await import('./permisos-panel.js'); await recalcularPermisosDe(res.propietarioId); } catch (err) { console.warn('Permisos del socio sin recalcular (se recalculan en la próxima hora)', err); }
+	}
 }
 
 // EQ le pagó al propietario lo suyo de estas reservas.

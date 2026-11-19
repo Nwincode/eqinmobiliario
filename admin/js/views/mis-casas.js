@@ -18,6 +18,8 @@ import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional } from '../privado-casa.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
+import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
+import { puede } from '../permisos-socio.js';
 import { amenidadesPara } from '../estados.js';
 
 const V = window.EQVacacional;
@@ -128,10 +130,13 @@ async function casa(container, id) {
 	const suya = Boolean(sCasa?.exists()) && sCasa.data().propietarioId === mio;
 	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional') return enVenta(container, id, sCasa?.exists() ? sCasa.data().titulo : '', suya);
 	if (!suya) return mount(container, emptyState('Esta casa no está a tu nombre.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis propiedades')));
-	const [sSocio, sLeads, sReservas] = await Promise.all([getDoc(refSocio),
+	const [sSocio, sLeads, sReservas, perm] = await Promise.all([getDoc(refSocio),
 		// Solicitudes de sus casas: del chat de cada una (las solicitudes traen el contacto del cliente y el socio no las lee).
 		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio))),
-		getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).catch(() => null)]);
+		getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).catch(() => null),
+		// Lo que el administrador le apagó (o se apagó por atraso en la comisión): admin/js/permisos-socio.js.
+		permisosDelSocio(mio)]);
+	const puedePrecios = puede(perm, 'precios'), puedeFechas = puede(perm, 'fechas');
 	const p = sCasa.data();
 	// Lo que lleva esta casa: reservas confirmadas, noches y lo que le toca (la misma cuenta de Rentas vacacionales).
 	const cuenta = V.resumenReservas((sReservas?.docs || []).map((d) => d.data()).filter((r) => r.propertyId === id));
@@ -218,7 +223,7 @@ async function casa(container, id) {
 			h('label', { class: 'form-label', for: `mc-${campo}` }, titulo),
 			h('div', { class: 'input-group' }, h('span', { class: 'input-group-text' }, pre.trim()),
 				h('input', {
-					class: 'form-control', id: `mc-${campo}`, type: 'number', inputmode: 'decimal', min: '0', value: e[campo] || '',
+					class: 'form-control', id: `mc-${campo}`, type: 'number', inputmode: 'decimal', min: '0', value: e[campo] || '', disabled: !puedePrecios,
 					onchange: async (ev) => {
 						const n = V.r2(Math.max(0, Number(ev.target.value) || 0));
 						if (campo === 'base' && !n) { ev.target.value = e.base || ''; return toast('Escribe el precio por noche.', 'warning'); }
@@ -233,7 +238,8 @@ async function casa(container, id) {
 
 	// ------------------------------------------------------------ Calendario
 	const cal = h('div', { class: 'card card-body mb-3' });
-	const listas = h('div', {});
+	// Sin permiso de precios, los precios especiales y mínimos se ven pero no se tocan.
+	const listas = h('div', { class: puedePrecios ? '' : 'perm-off' });
 
 	function tocar(f) {
 		if (e.desde && e.desde === e.hasta && f > e.desde) e.hasta = f;
@@ -270,7 +276,8 @@ async function casa(container, id) {
 
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
 	function barra() {
-		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, 'Toca un día (y otro para marcar varios) para bloquear, habilitar o cambiar el precio.');
+		if (!puedePrecios && !puedeFechas) return h('p', { class: 'vac-ayuda mb-0' }, ic('icon-lock'), 'Las fechas y los precios están en pausa.');
+		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, `Toca un día (y otro para marcar varios) para ${[puedeFechas ? 'bloquear, habilitar' : '', puedePrecios ? 'cambiar el precio' : ''].filter(Boolean).join(' o ')}.`);
 		const cerrar = iconoBtn('icon-close', 'Cancelar', { onclick: () => { e.pide = ''; calendario(); } });
 		// Bloquear pide el motivo: un toque.
 		if (e.pide === 'motivo') return h('div', { class: 'mc-barra' },
@@ -316,10 +323,10 @@ async function casa(container, id) {
 		const hayBloqueo = e.bloqueos.some((b) => b.desde <= e.hasta && b.hasta > e.desde);
 		return h('div', { class: 'mc-barra d-flex align-items-center gap-2' },
 			h('strong', { class: 'flex-grow-1' }, rango(e)),
-			iconoBtn('icon-lock', 'Bloquear estos días', { onclick: () => { e.pide = 'motivo'; calendario(); } }),
-			hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
-			iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }),
-			iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }),
+			puedeFechas ? iconoBtn('icon-lock', 'Bloquear estos días', { onclick: () => { e.pide = 'motivo'; calendario(); } }) : null,
+			puedeFechas && hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
+			puedePrecios ? iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }) : null,
+			puedePrecios ? iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }) : null,
 			iconoBtn('icon-close', 'Quitar la selección', { class: 'cot-btn cot-btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
 	}
 
@@ -395,7 +402,7 @@ async function casa(container, id) {
 	// Temporadas que se repiten y que todavía no tienen el año que viene: aviso con un botón (nada se escribe solo).
 	function avisoTemporadas() {
 		const faltan = faltanTemporadas(e, hoy());
-		if (!faltan.length) return null;
+		if (!faltan.length || !puedePrecios) return null;
 		const anio = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
 		const poner = () => {
 			let saltadas = [];
@@ -430,6 +437,7 @@ async function casa(container, id) {
 	pintar();
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		avisoSocio(perm),
 		pestanas(id, 'calendario'),
 		// La misma cabecera que la casa en venta: foto, estado, lo que ve el cliente, sus reservas y su anuncio.
 		cabecera,
@@ -440,7 +448,7 @@ async function casa(container, id) {
 			h('div', { class: 'col-6' },
 				h('label', { class: 'form-label', for: 'mc-huespedes' }, 'Personas máximo'),
 				h('input', {
-					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '',
+					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '', disabled: !puedePrecios,
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
 					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(`personas máximo ${n}`, () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
 				})))), listas),
@@ -490,11 +498,12 @@ async function laCasa(container, id) {
 	const sCasa = await getDoc(ref).catch(() => null);
 	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional' || sCasa.data().propietarioId !== mio) return casa(container, id);
 	const leerPriv = (k) => getDoc(doc(db, 'properties', id, 'privado', k)).then((d) => (d.exists() ? d.data() : {})).catch(() => ({}));
-	const [socio, llegada] = await Promise.all([leerPriv('socio'), leerPriv('llegada')]);
+	const [socio, llegada, perm] = await Promise.all([leerPriv('socio'), leerPriv('llegada'), permisosDelSocio(mio)]);
+	const puedeCasa = puede(perm, 'casa');
 	let p = sCasa.data();
 	let base = valoresDueno({ casa: p, socio, llegada });
 	const form = renderForm(esquemaCasa(), base, { folder: `properties/${id}` });
-	const boton = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Guardar');
+	const boton = h('button', { type: 'submit', class: 'btn btn-primary', disabled: !puedeCasa }, 'Guardar');
 	const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 	const guardar = async (ev) => {
 		ev.preventDefault();
@@ -514,8 +523,9 @@ async function laCasa(container, id) {
 	};
 	mount(container,
 		h('div', { class: 'd-flex align-items-center gap-2 mb-3' }, volver('Volver a mis propiedades'), h('h1', { class: 'h4 mb-0' }, p.titulo)),
+		avisoSocio(perm),
 		pestanas(id, 'casa'),
-		h('form', { class: 'card card-body mb-3', onsubmit: guardar, novalidate: true }, form.el,
+		h('form', { class: 'card card-body mb-3', onsubmit: guardar, novalidate: true }, h('div', { class: puedeCasa ? '' : 'perm-off' }, form.el),
 			h('div', { class: 'd-flex align-items-center gap-2 mt-3 pt-3 border-top' },
 				h('span', { class: 'small text-muted flex-grow-1' }, ic('icon-info-circle'), 'Al guardar sale en la página en unos minutos. El administrador ve cada cambio.'),
 				boton)));
