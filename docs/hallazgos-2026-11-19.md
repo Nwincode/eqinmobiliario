@@ -169,3 +169,19 @@ Descarté por ser algo ya decidido o sin una falla concreta:
 **Acceso del cliente.** Recomiendo dejar las tres vías: que el celular recuerde las reservas, el enlace por correo con vencimiento como camino principal y Google como atajo. Cubren a guatemaltecos y estadounidenses en celular sin contraseña y sin costo por envío.
 El enlace solo se pierde. La contraseña es la vía más difícil de usar y la menos segura para alguien que reserva pocas veces. El código por WhatsApp es cómodo en Guatemala, pero cuesta por cada envío, exige la API de WhatsApp Business y lo usan menos los viajeros de EE. UU.
 Agregaría «Continuar con Apple» solo si los datos muestran muchos iPhone de EE. UU. Lo que no se puede dejar fuera es el estado vacío de Google y el vencimiento de los enlaces.
+
+## D. Captura del usuario (19 nov): Casa de PRUEBA Monterrico
+
+1. **Fechas sin bloquear:** una solicitud pendiente aparta las fechas en el sitio solo 2 horas
+   (`netlify/functions/disponibilidad.mjs`), pero el calendario del socio la muestra «Solicitado» sin límite
+   (`admin/js/views/mis-casas.js:154`). EQ-PPZCMR (18–30 nov) se pidió encima de EQ-FN7X5W (19–22 nov) cuando venció
+   su apartado. Nada avisa que dos pendientes se cruzan (`solicitudes.js` `yaOcupada` mira solo confirmadas).
+   Arreglo propuesto: apartar hasta que se responda o venza el plazo de 24 h, en los dos calendarios; aviso «se cruza
+   con otra solicitud» en Solicitudes; cambiar el texto «2 horas» en `netlify/lib/avisos-chat.mjs`.
+2. **Montos:** «Cliente paga» es lo cotizado; «Socio» y «Ganancia» se recalculan con el precio de hoy
+   (`solicitudes.js:329-330`). El socio subió el fin de semana de 150 a 250, y EQ-FN7X5W muestra cliente 585.60 <
+   socio 600.00. Al confirmar en modo «mayor» se registraría comisión sobre 720 con un pago de 480. Arreglo: mostrar
+   los montos de lo cotizado y marcar «el precio cambió desde la cotización»; decidir con segunda revisión qué
+   comisión vale.
+3. **Solicitud sin plazo:** EQ-PPZCMR es anterior a `PLAZOS_DESDE` y nunca se cierra sola. Arreglo: cerrar o marcar
+   toda solicitud cuya llegada ya pasó; recalcular `V.hoy()` al enviar el formulario.
