@@ -19,7 +19,7 @@ import {
 import { session, markPending } from './session.js';
 import { dia } from './ui.js';
 
-import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, textoNo, TEXTO_CANCELADA } from './reservas-calculo.js';
+import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, llegadaPasada, textoNo, TEXTO_CANCELADA, TEXTO_LLEGADA_PASADA } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -93,7 +93,7 @@ async function cambiar({ antes = null, despues = null, escribir, ademas, revisar
 // haya cambiado de dueño después (asignarDueno solo pasa al nuevo las que no han terminado).
 export async function guardarReserva(antes, casa, campos, contacto) {
 	const id = antes?.id || doc(collection(db, 'reservas')).id;
-	const datos = { ...nuevaReserva(casa, { ...antes, ...campos, propertyTitulo: casa.titulo, moneda: casa.moneda || antes?.moneda }), leadId: antes?.leadId || '', codigo: antes?.codigo || '' };
+	const datos = { ...nuevaReserva(casa, { ...antes, ...campos, propertyTitulo: casa.titulo }), leadId: antes?.leadId || '', codigo: antes?.codigo || '' };
 	if (antes?.propietarioId && antes.propertyId === casa.id && datos.salida < V.hoy()) datos.propietarioId = antes.propietarioId;
 	const web = antes && deSolicitud(antes);
 	if (web && datos.estado !== antes.estado) throw new Error('El estado de una reserva de la web se cambia con «Cancelar reserva».');
@@ -220,6 +220,8 @@ const cerrarChat = (tx, chat, estado, texto) => {
 // `modo`: con qué se registra lo cobrado (montosDeConfirmacion; el socio, siempre 'mayor').
 // Devuelve lo que quedó registrado: { ganancia, moneda }.
 export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolicitud(l, cuenta, { chat = null, pago = '', modo = 'mayor' } = {}) {
+	// Con la llegada ya pasada no se confirma (lo mismo revisa el servidor por el socio).
+	if (llegadaPasada(l.reserva?.llegada)) throw Object.assign(new Error(TEXTO_LLEGADA_PASADA), { servidor: 409 });
 	if (session.esSocio) {
 		const hecho = await porServidor('confirmar', l.id);
 		if (hecho) { await markPending(`${l.propertyTitulo}: reserva ${l.reserva.codigo} confirmada`); return hecho; }

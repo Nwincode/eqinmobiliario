@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
-import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar,
+import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
@@ -67,6 +67,26 @@ test('subtotal cotizado: el de la solicitud, o sacado del total que vio el clien
 	assert.equal(subtotalCotizado({ subtotal: 920, total: 1 }), 920);
 	assert.equal(subtotalCotizado({ total: 439.2 }), 360);
 	assert.equal(subtotalCotizado({ total: 1122.4 }), 920);
+});
+
+test('la moneda de la reserva y de la comisión es la de la casa, no la que mande el cliente (sin moneda, US$)', () => {
+	const l = solicitud(360, { moneda: 'GTQ' });
+	const c = cuentaDe(l.reserva, privado);
+	assert.equal(reservaDeSolicitud(l, c, casa).datos.moneda, 'USD');
+	assert.equal(reservaDeSolicitud(solicitud(360), c, { ...casa, moneda: 'GTQ' }).datos.moneda, 'GTQ');
+	assert.equal(reservaDeSolicitud(l, c, { ...casa, moneda: '' }).datos.moneda, 'USD');
+	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', moneda: 'GTQ' }).moneda, 'USD');
+});
+
+test('llegada pasada: no se confirma; el mismo día sí (día de Guatemala, UTC−6)', () => {
+	const ahora = Date.parse('2026-11-26T12:00:00Z');
+	assert.equal(llegadaPasada('2026-11-21', ahora), true);
+	assert.equal(llegadaPasada('2026-11-25', ahora), true);
+	assert.equal(llegadaPasada('2026-11-26', ahora), false);
+	assert.equal(llegadaPasada('2026-12-01', ahora), false);
+	// 23:30 del 25 en Guatemala (05:30 UTC del 26): para Guatemala todavía es el 25.
+	assert.equal(llegadaPasada('2026-11-25', Date.parse('2026-11-26T05:30:00Z')), false);
+	assert.equal(llegadaPasada('mañana', ahora), true);
 });
 
 test('reserva a mano y comisión: lo de siempre', () => {

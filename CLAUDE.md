@@ -40,8 +40,12 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   maquetado) se hace de una vez. Lo nuevo o lo que cambia un flujo se propone y espera el sí.
 - Antes de presentar una propuesta, Claude se pregunta «¿se puede mejorar?» (menos pasos, que se haga solo,
   más claro para el cliente, más control para el usuario) y la mejora hasta que no encuentra cómo.
-- Antes de entregar, Claude recorre el flujo entero como lo vive el cliente (recibe el correo, toca el botón,
-  crea su contraseña, entra) y revisa lo que en un sistema bien hecho viene de cajón (`docs/formularios.md`).
+- Simulaciones: el diseño y la programación salen de simular cómo usan la plataforma el cliente, el socio
+  (propietario o colaborador) y el equipo, paso a paso y con sus casos difíciles (recibe el correo, toca el
+  botón, crea su contraseña, entra, reserva, paga, escribe, intenta saltarse una regla). Con lo que encuentra,
+  Claude diseña, programa, corrige, propone e innova, y vuelve a simular, hasta que no encuentra qué mejorar:
+  amigable, intuitiva, ordenada, útil, eficiente y sencilla para todos. Revisa también lo que en un sistema bien
+  hecho viene de cajón (`docs/formularios.md`). Usa las skills y los agentes que tiene para esto.
 - Un solo chat para eqinmobiliario.gt; no mezclar con el proyecto "ptg". Firebase: solo `eqinmobiliariobd`.
 - Compactación del contexto: es automática o la pide el usuario con `/compact`; Claude no puede hacerla.
   Antes de que ocurra: commit y push de lo hecho. Se sigue en el mismo chat.

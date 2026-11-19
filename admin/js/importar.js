@@ -1,6 +1,7 @@
 // Lógica pura de la importación masiva y del código de propiedad.
 // Sin DOM ni Firebase: se puede probar con Node (CSV, números, códigos, zip, fotos).
 import '../../js/calc-vacacional.js';
+import { sinMarcaCsv } from './formato.js';
 
 // Los calendarios de una casa por noche (Airbnb, Booking, VRBO): campo, nombre y columna salen de calc-vacacional.js.
 const CALENDARIOS = globalThis.EQVacacional.CALENDARIOS;
@@ -142,16 +143,19 @@ export function filasComoObjetos(matriz) {
 	const { indices, desconocidas } = mapearEncabezados(matriz[0]);
 	const filas = matriz.slice(1).map((f, n) => {
 		const o = { _fila: n + 1 };
-		for (const [col, i] of Object.entries(indices)) o[col] = String(f[i] ?? '').trim();
+		// Sin el apóstrofo con que el panel exporta lo que empieza como fórmula (formato.js textoCsv).
+		for (const [col, i] of Object.entries(indices)) o[col] = sinMarcaCsv(String(f[i] ?? '').trim()).trim();
 		return o;
 	});
 	return { filas, desconocidas, indices };
 }
 
-// Número tolerante: "Q 1,250,000", "1.250.000", "$350,000.50", "1.250,5", "2½" no. Vacío → null; inválido → NaN.
+// Número tolerante: "Q 1,250,000", "Q.350,000", "1.250.000", "$350,000.50", "1.250,5", "2½" no. Vacío → null; inválido → NaN.
 export function parseNumero(v) {
 	let s = String(v ?? '').trim();
 	if (!s) return null;
+	// El punto o la coma pegados a la moneda («Q.5,000», «Q. 2500», «US$.300») son de la moneda, no un decimal.
+	s = s.replace(/^(-?)\s*[^\d\s.,-]+\s*[.,]+/, '$1');
 	s = s.replace(/[^\d.,-]/g, '');
 	if (!/\d/.test(s)) return NaN;
 	const neg = s.startsWith('-');

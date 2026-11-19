@@ -15,6 +15,17 @@ export const enUSD = (n, moneda) => (moneda === 'GTQ' ? (Number(n) || 0) / TIPO_
 const PREFIJO_MONEDA = { USD: 'US$', GTQ: 'Q' };
 export const prefijoMoneda = (moneda) => PREFIJO_MONEDA[moneda] || moneda;
 
+// CSV para abrir en Excel o Google Sheets. Un texto que empieza con = + - @, tabulador o retorno de carro se abriría
+// como fórmula (un nombre del formulario del sitio puede sacar datos de otras celdas): va con un apóstrofo delante, que
+// la hoja muestra como texto. Los números van tal cual. El importador lo quita al leer (sinMarcaCsv).
+const FORMULA_CSV = /^[=+\-@\t\r]/;
+export const celdaCsv = (c) => {
+	const t = typeof c === 'number' ? String(c) : FORMULA_CSV.test(String(c ?? '')) ? `'${c}` : String(c ?? '');
+	return `"${t.replace(/"/g, '""')}"`;
+};
+export const textoCsv = (filas) => filas.map((f) => f.map(celdaCsv).join(',')).join('\r\n');
+export const sinMarcaCsv = (t) => (/^'[=+\-@\t\r]/.test(t) ? t.slice(1) : t);
+
 // Número con coma en miles y punto en decimales (2,226.47), como se usa en Guatemala.
 export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.

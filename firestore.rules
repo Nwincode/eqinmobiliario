@@ -448,6 +448,11 @@ service cloud.firestore {
         // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
         && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
     }
+    // La moneda de una casa; sin moneda guardada (o vacía), US$.
+    function monedaDe(propertyId) {
+      let m = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('moneda', '');
+      return m == '' ? 'USD' : m;
+    }
     // Noches entre dos fechas 'AAAA-MM-DD' (salida − llegada en días).
     function nochesEntre(llegada, salida) {
       let a = llegada.split('-');
@@ -478,13 +483,19 @@ service cloud.firestore {
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
         && (!('reserva' in request.resource.data)
             || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
-                && reservaCotizada(request.resource.data.reserva)))
+                && reservaCotizada(request.resource.data.reserva)
+                // La moneda es la de la casa (sin moneda guardada, US$, como el sitio y admin/js/reservas-calculo.js):
+                // de ella salen la reserva y la comisión; el cliente no la elige.
+                && exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
+                && request.resource.data.reserva.get('moneda', '') == monedaDe(request.resource.data.propertyId)))
         // El socio de la solicitud tiene que ser el dueño real de la casa.
         && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
             == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
         // El asesor del formulario es el de la casa (una casa por noche no lleva: ''); así una página publicada antes
-        // no le manda al asesor la solicitud ni el contacto de un huésped.
+        // no le manda al asesor la solicitud ni el contacto de un huésped. Sin asesor ('') también vale: si la casa cambió
+        // de asesor y la página no se ha vuelto a publicar, el sitio reintenta así (js/site.js) y la recibe el administrador.
         && (request.resource.data.propertyId == ''
+            || request.resource.data.agentId == ''
             || !exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
             || request.resource.data.agentId
               == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('agentId', ''))
@@ -526,6 +537,12 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow update, delete: if false;
     }
+    function chatComoSuSolicitud(c, r) {
+      return c.get('subtotal', -1) is number && c.subtotal == r.get('subtotal', -2)
+        && c.llegada == r.get('llegada', '') && c.salida == r.get('salida', '') && c.noches == r.get('noches', -1)
+        && c.total == r.get('total', -1) && c.moneda == r.get('moneda', '')
+        && c.get('huespedes', -1) == r.get('huespedes', -2);
+    }
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
@@ -533,9 +550,10 @@ service cloud.firestore {
       allow create: if token.size() >= 20
         && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
             'llegada', 'salida', 'noches', 'huespedes', 'total', 'subtotal', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
-        // El subtotal cotizado (opcional; los chats de antes no lo traen) es el de su solicitud.
-        && (!('subtotal' in request.resource.data)
-            || request.resource.data.subtotal == get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.get('subtotal', -1))
+        // Lo que ve el socio en Solicitudes (que se arma desde el chat) es lo que pidió el cliente: fechas, noches, total,
+        // moneda y subtotal cotizado iguales a los de su solicitud (el servidor confirma con los de la solicitud).
+        && chatComoSuSolicitud(request.resource.data,
+            get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva)
         // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
         && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId
@@ -566,7 +584,9 @@ service cloud.firestore {
         // El cliente adjuntó su comprobante de pago (con la foto, en el mismo lote): desde ahí el socio ya no cancela.
         // Solo el cliente sin sesión lo marca, con la hora del servidor (nadie lo quita: solo se puede poner la hora de ahora).
         // Va con su foto: el mensaje (tipo foto, del cliente) que nace en el mismo lote, con el id que guarda comprobanteMensaje.
-        || (!signedIn() && soloCambia(['comprobanteCliente', 'comprobanteMensaje']) && request.resource.data.comprobanteCliente == request.time
+        // Solo con la reserva confirmada (hay a quién pagar): antes, la marca apagaría la cancelación sola y la del socio.
+        || (!signedIn() && soloCambia(['comprobanteCliente', 'comprobanteMensaje']) && resource.data.get('estado', '') == 'confirmada'
+            && request.resource.data.comprobanteCliente == request.time
             && request.resource.data.comprobanteMensaje is string && request.resource.data.comprobanteMensaje.size() > 0
             && getAfter(/databases/$(database)/documents/chats/$(token)/mensajes/$(request.resource.data.comprobanteMensaje)).data.tipo == 'foto'
             && getAfter(/databases/$(database)/documents/chats/$(token)/mensajes/$(request.resource.data.comprobanteMensaje)).data.de == 'cliente'

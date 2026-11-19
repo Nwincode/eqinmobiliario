@@ -1,5 +1,6 @@
 // Utilidades de interfaz del panel.
 import '/js/calc-vacacional.js';
+import { textoCsv } from './formato.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -226,8 +227,7 @@ export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
 }
 
 export function downloadCsv(filename, rows) {
-	const csv = rows.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-	const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+	const blob = new Blob(['﻿' + textoCsv(rows)], { type: 'text/csv;charset=utf-8' });
 	const a = h('a', { href: URL.createObjectURL(blob), download: filename });
 	document.body.append(a);
 	a.click();

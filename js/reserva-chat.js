@@ -59,11 +59,12 @@
 	}
 
 	// ¿Ya aceptan las reglas el subtotal en el chat (versión r5)? Leer reglas/r5 da «no existe» (404) con ellas y «sin
-	// permiso» (403) antes. Sin red o con otra respuesta, el chat va sin subtotal (el panel lo saca del total).
+	// permiso» (403) antes. Solo con las de antes va sin subtotal; las nuevas lo exigen, así que ante cualquier otra
+	// respuesta o sin red va con él (como reglasDeAntes).
 	var conSubtotal = null;
 	function aceptaSubtotal() {
 		if (!conSubtotal) conSubtotal = fetch(API + RAIZ + '/reglas/r5' + (LLAVE ? '?' + LLAVE : ''))
-			.then(function (r) { return r.status === 404; }, function () { return false; });
+			.then(function (r) { return r.status !== 403; }, function () { return true; });
 		return conSubtotal;
 	}
 

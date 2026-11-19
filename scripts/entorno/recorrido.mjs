@@ -475,6 +475,19 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const b = await sembrar('srv-b', llegada1, 1);
 	const choca = await api('socio', { accion: 'confirmar', leadId: b.id });
 	paso('Servidor: fechas que chocan con otra reserva confirmada no se confirman y no se escribe nada (422)', choca.status === 422 && !(await existe(`reservas/${b.id}`)) && !(await leer(`chats/${b.token}`)).fields?.estado, resp(choca));
+	// Llegada ya pasada (la solicitud quedó abierta): no se confirma (la comisión nacería vencida); «No se dio» sí.
+	const pasada = await sembrar('srv-pasada', iso(-3));
+	const tarde = await api('socio', { accion: 'confirmar', leadId: pasada.id });
+	paso('Servidor: una solicitud con la llegada ya pasada no se confirma ni se escribe nada (409, sin «ya respondida»)', tarde.status === 409 && !tarde.yaRespondida && !(await existe(`reservas/${pasada.id}`)) && !(await leer(`chats/${pasada.token}`)).fields?.estado, resp(tarde));
+	// En Solicitudes no se ofrece «Confirmar» y se dice por qué (queda «No se dio»).
+	await ir(socio.p, `#/solicitudes/${pasada.codigo}`, 3500);
+	const tarjetaPasada = socio.p.locator('.card', { hasText: pasada.codigo }).first();
+	await tarjetaPasada.screenshot({ path: `${CAPTURAS}/solicitud-llegada-pasada.png` }).catch(() => {});
+	const textoPasada = await tarjetaPasada.innerText().catch(() => '');
+	paso('Solicitudes: con la llegada ya pasada no hay «Confirmar», dice por qué y queda «No se dio»', /La fecha de llegada ya pasó/.test(textoPasada) && /No se dio/.test(textoPasada)
+		&& !(await tarjetaPasada.locator('button', { hasText: /^Confirmar$/ }).count()), textoPasada.replace(/\s+/g, ' ').slice(0, 160));
+	const cerrada = await api('socio', { accion: 'no', leadId: pasada.id, motivo: 'Cliente no respondió' });
+	paso('Servidor: esa solicitud se cierra con «No se dio» (200)', cerrada.status === 200 && (await leer(`chats/${pasada.token}`)).fields?.estado?.stringValue === 'no', resp(cerrada));
 	const motivo = await api('socio', { accion: 'no', leadId: b.id, motivo: 'Llamame al 5555 0001' });
 	paso('Servidor: un motivo que no es de la lista no se acepta (400)', motivo.status === 400, resp(motivo));
 	// Montos en el pedido: no cuentan (salen de la casa y de la solicitud guardadas).
@@ -1502,6 +1515,30 @@ const duenos = [];
 	paso('Sitio: la burbuja del mínimo no se va sola mientras se elige la salida', await vis.p.locator('.vac-burbuja.is-visible').count() === 1);
 	await minimo([]);
 	paso('Sin errores de programa en la ficha con mínimo de noches', vis.errores.length === 0, vis.errores.join(' ; '));
+}
+
+// La casa cambió de asesor y el sitio no se ha vuelto a publicar: el formulario manda el asesor de antes, las reglas lo
+// rechazan y el sitio reintenta sin asesor: la solicitud se guarda y le llega al administrador (no se pierde).
+{
+	const CASA = 'jardines-de-mirabel';
+	const asesorDe = (agentId) => fetch(`${FS}/properties/${CASA}?updateMask.fieldPaths=agentId`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { agentId: { stringValue: agentId } } }) });
+	await asesorDe('otro-asesor');
+	const vis = await persona(390);
+	await vis.p.goto(`${SITIO}/propiedad/casa-jardines-de-mirabel-zona-16/`);
+	const form = vis.p.locator(`.lead-form[data-property-id="${CASA}"]`).first();
+	const viejo = await form.getAttribute('data-agent-id');
+	await form.locator('[name=nombre]').fill('Luis Asesor Viejo');
+	await form.locator('[name=telefono]').fill('5555 4321');
+	await form.locator('button[type=submit]').click();
+	await espera(4000);
+	const leads = await (await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'leads' }], where: { fieldFilter: { field: { fieldPath: 'nombre' }, op: 'EQUAL', value: { stringValue: 'Luis Asesor Viejo' } } } } }) })).json();
+	const guardado = leads.find((x) => x.document)?.document?.fields || {};
+	paso('Sitio: con el asesor de antes en la página, la solicitud se guarda sin asesor (la recibe el administrador)',
+		viejo === 'asesor-prueba' && guardado.agentId?.stringValue === '' && guardado.propertyId?.stringValue === CASA,
+		`página ${viejo} · guardado ${JSON.stringify({ agentId: guardado.agentId?.stringValue, propertyId: guardado.propertyId?.stringValue })} · ${(await form.locator('.form-status, [role=status]').first().innerText().catch(() => '')).slice(0, 80)}`);
+	await asesorDe('asesor-prueba');
+	await vis.p.context().close();
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));

