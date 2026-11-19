@@ -138,11 +138,29 @@ ese trabajo.
 **No se puede evitar del todo:** la segunda reserva de un cliente que ya conoce al socio, y encontrar la casa en otras
 páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de reservar aquí.
 
-## 7. Pendiente del usuario
+## 7. Contrato del socio con el huésped
+
+- El socio **ya tiene sus contratos**: los sube en PDF en cada casa (o uno para todas). No se redactan aquí.
+- Al subirlo se revisa solo que no lleve teléfonos, correos ni cuentas; el equipo lo aprueba antes de usarlo. Cada
+  versión guarda su huella (hash); un cambio vale solo para solicitudes nuevas.
+- El huésped lo lee y lo firma dentro del paso «Pago», antes de ver la cuenta. El título dice «Firma y paga antes
+  del…».
+- Una sola pieza de firma para todos (socio y huésped): nombre como en su documento, tipo de documento (DPI o
+  pasaporte con país), «Leí y acepto». Se guardan fecha, IP, dispositivo y hash, y se agrega al PDF una hoja de firma.
+- El socio ve el PDF firmado después del pago, con el número de documento oculto (···0101). El equipo lo ve completo
+  en la reserva.
+- Huésped de otro idioma: la hoja de firma y el resumen van en su idioma; el contrato del socio queda como lo subió.
+- Si no tiene contrato, puede usar el modelo de Equipo Inmobiliario (decide el usuario).
+
+## 8. Pendiente del usuario (no se olvida: se pregunta con menú)
 
 1. Respaldo para el cliente (sección 4).
 2. Cuota de reserva en línea (sección 6, punto 10).
 3. Beneficio para el cliente que regresa (sección 6, punto 8).
-4. Divisa y tipo de cambio del socio (sección 2).
-5. Plazo para firmar el contrato y qué se pausa (sección 5).
-6. Calendario: qué reserva no bloqueó las fechas correctas.
+4. Plazo para que el socio firme su contrato con el equipo.
+5. Divisa y tipo de cambio del socio (sección 2).
+6. Acceso del cliente: celular que recuerda + enlace por correo que vence + Google.
+7. Modelo de contrato del equipo para socios sin contrato propio.
+8. Calendario: qué reserva no bloqueó las fechas correctas.
+9. Aprobar la maqueta para programarla.
+10. Errores encontrados (`docs/hallazgos-2026-11-19.md`): arreglarlos ya, por tandas.
