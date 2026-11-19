@@ -4,7 +4,6 @@ import {
 } from './firebase.js';
 import { datosDelDueno, etiquetaDueno } from './duenos.js';
 import { toast } from './ui.js';
-import { telefonoWa } from './formato.js';
 
 // El asesor de quien no tiene asesor vinculado: el mismo texto que usa firestore.rules (myAgentId) y storage.rules.
 // Con él, el filtro «lo mío» de un asesor sin vincular coincide con la regla y devuelve vacío (no un error).
@@ -44,15 +43,6 @@ export async function cargarMiResumen() {
 }
 
 // Sus casas, de las tres categorías: las que dicen ser suyas.
-// A quién le escribe el dueño por WhatsApp: su asesor (del resumen) o, si no tiene, el WhatsApp de la empresa.
-export async function contactoDelEquipo() {
-	const a = session.dueno?.asesor;
-	if (a?.whatsapp) return { nombre: a.nombre || 'Equipo Inmobiliario', whatsapp: a.whatsapp };
-	const site = await getDoc(doc(db, 'settings', 'site')).then((s) => s.data() || {}).catch(() => ({}));
-	const wa = telefonoWa(site.contacto?.whatsapp);
-	return wa ? { nombre: 'Equipo Inmobiliario', whatsapp: wa } : null;
-}
-
 export async function misCasas() {
 	const s = await getDocs(query(collection(db, 'properties'), where('propietarioId', '==', session.profile?.propietarioId || '-')));
 	return s.docs.map((d) => ({ id: d.id, ...d.data() }));

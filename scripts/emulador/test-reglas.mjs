@@ -315,6 +315,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await poner('permisosSocios/m1', { precios: false, fechas: true, casa: true, motivo: 'propio' });
 		await espera('precios apagados: la dueña no cambia su precio', subir(), false);
 		await espera('precios apagados: no cambia las personas máximo', parche('mixto1', 'properties/mx-noche', ['vacacional.huespedesMax'], { vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '9' } } } } }), false);
+		await espera('precios apagados: no cambia solo el precio de los listados', parche('mixto1', 'properties/mx-noche', ['precio'], { precio: { doubleValue: 77 } }), false);
 		await espera('precios apagados: sí bloquea días (control)', bloquear(), true);
 		await poner('permisosSocios/m1', { precios: true, fechas: false, casa: true, motivo: 'atraso' });
 		await espera('fechas apagadas: la dueña no bloquea días', bloquear(), false);

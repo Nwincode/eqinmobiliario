@@ -31,8 +31,12 @@ export function tarjetaGlobal() {
 			onchange: async (e) => {
 				const input = e.currentTarget;
 				input.disabled = true;
-				try { await guardarGlobal({ [k]: input.checked }); toast(input.checked ? `Todos los socios pueden cambiar: ${texto.toLowerCase()}.` : `Apagado para todos los socios: ${texto.toLowerCase()}.`); }
-				catch (err) { input.checked = !input.checked; showError(err); }
+				try {
+					// Solo falla si no se guardó; el recálculo de cada socio que falle se hace en la próxima hora.
+					const pendientes = await guardarGlobal({ [k]: input.checked });
+					toast(input.checked ? `Todos los socios pueden cambiar: ${texto.toLowerCase()}.` : `Apagado para todos los socios: ${texto.toLowerCase()}.`);
+					if (pendientes) toast('Algunos socios se ponen al día en la próxima hora.', 'warning');
+				} catch (err) { input.checked = !input.checked; showError(err); }
 				finally { input.disabled = false; }
 			}
 		})));
@@ -45,7 +49,8 @@ export function bloqueSocio(prop) {
 	const caja = h('div', { class: 'perm-bloque' });
 	const pintar = (r) => {
 		if (!r) return caja.replaceChildren();
-		const { permisos, deuda, propio } = r;
+		const { permisos, deuda, propio, global } = r;
+		const paraTodos = (k) => global?.[k] === false;
 		const cortado = permisos.motivo === 'atraso';
 		const cambiar = (k) => async (e) => {
 			const input = e.currentTarget;
@@ -63,7 +68,8 @@ export function bloqueSocio(prop) {
 			: `Si debe a ${EMPRESA} más de ${DIAS_CORTE} días, se apagan solos y se encienden al pagar. Solicitudes y chat siempre siguen activos.`;
 		caja.replaceChildren(
 			h('div', { class: 'perm-tit' }, h('strong', {}, 'Qué puede cambiar'), etiqueta),
-			h('div', { class: 'perm-fila' }, PERMISOS.map(([k, texto, icono]) => interruptor(icono, texto, cortado ? false : propio[k] !== false, { disabled: cortado, onchange: cambiar(k) }))),
+			h('div', { class: 'perm-fila' }, PERMISOS.map(([k, texto, icono]) => interruptor(icono, paraTodos(k) ? `${texto} (apagado para todos)` : texto,
+				cortado || paraTodos(k) ? false : propio[k] !== false, { disabled: cortado || paraTodos(k), onchange: cambiar(k) }))),
 			h('p', { class: 'perm-nota' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ` ${nota}`),
 			cortado ? h('div', {}, h('button', {
 				type: 'button', class: 'btn btn-outline-primary btn-sm perm-btn',

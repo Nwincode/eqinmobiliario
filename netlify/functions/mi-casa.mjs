@@ -63,7 +63,10 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 	if (!casa) falla(404, 'No encontramos esa casa.');
 	if (casa.operacion !== 'vacacional' || !casa.propietarioId || casa.propietarioId !== socio.propietarioId) falla(403, 'Esta casa no es una casa por noche tuya.');
 	// «La casa» apagada por el administrador o por atraso en la comisión (permisosSocios, admin/js/permisos-socio.js).
-	if (!puede(await tx.leer(`permisosSocios/${socio.propietarioId}`), 'casa')) falla(403, 'Por ahora no puedes cambiar «La casa»: está en pausa. Las solicitudes y el chat siguen igual.');
+	const permisos = await tx.leer(`permisosSocios/${socio.propietarioId}`);
+	if (!puede(permisos, 'casa')) falla(403, 'Por ahora no puedes cambiar «La casa»: está en pausa. Las solicitudes y el chat siguen igual.');
+	// Los calendarios de otras plataformas bloquean días: van con «Bloquear fechas».
+	if (!puede(permisos, 'fechas') && ['icalUrl', 'icalBooking', 'icalVrbo'].some((k) => k in pedido)) falla(403, 'Por ahora no puedes cambiar tus calendarios: bloquear fechas está en pausa.');
 	const actual = valoresDueno({ casa, socio: docs.socio || {}, llegada: docs.llegada || {} });
 	let r;
 	try { r = revisarCambiosDueno({ casaId: id, bucket: BUCKET, actual, pedido, origenes: ORIGENES, pausaPropia: (casa.historialEstado || []).at(-1)?.porUid === socio.uid }); } catch (err) { falla(422, err.message); }

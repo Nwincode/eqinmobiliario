@@ -195,6 +195,7 @@ service cloud.firestore {
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas', 'minimos', 'huespedesMax'])
               || socioPuede('precios'))
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['bloqueos']) || socioPuede('fechas'))
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['precio']) || socioPuede('precios'))
             // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
             // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])

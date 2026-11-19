@@ -221,7 +221,7 @@ async function renderEditor(container, id) {
 			if (!(await confirmarCambioDeDueno(ajenas, [...duenos, { id: ref.id, nombre: d.nombre || 'esta persona' }]))) return false;
 			// La lista de sus casas y `porNoche` también se conservan como están: los pone al día asignarDueno (vincularCasas).
 			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
-			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche']) {
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
 				else if (k === 'propiedades') d[k] = [];
 				else { delete d[k]; delete data[k]; }

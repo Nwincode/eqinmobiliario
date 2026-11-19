@@ -1,34 +1,40 @@
 // Permisos de los socios, recalculados en el servidor (cada hora, desde comisiones-vencidas.mjs): con el atraso de la
-// comisión se apagan solos a los 7 días y se encienden al pagar. La cuenta vive en admin/js/permisos-socio.js; aquí solo
-// se lee todo con la cuenta de servicio y se escribe lo que cambió (permisosSocios/{propietarioId}).
+// comisión se apagan solos a los 7 días y se encienden al pagar. La cuenta vive en admin/js/permisos-socio.js; aquí se
+// lee con la cuenta de escritura y se escribe lo que cambió (permisosSocios/{propietarioId}).
 // El panel hace lo mismo para un socio al cambiar sus interruptores o marcar su comisión pagada (admin/js/permisos-panel.js).
+// Cada socio va en su transacción, leyendo ahí su ficha, lo de todos y sus reservas: si el administrador cambia algo
+// mientras tanto (marca pagada, «Devolver»), la transacción se repite con lo nuevo y no escribe un corte viejo.
 import { deudaDe, permisosDe, documentoPermisos, mismosPermisos, limpiarDevolver, CLAVES } from '../../admin/js/permisos-socio.js';
-import { listar, leerPrivado } from './firestore.mjs';
+import { listar } from './firestore.mjs';
 import { transaccion } from './firestore-escritura.mjs';
 
 // Sin documento guardado, todo está permitido: no hace falta crear uno que diga lo mismo.
 const todoPermitido = (d) => CLAVES.every((k) => d[k]) && !d.deuda && !d.motivo;
+// A quién se le revisa: dueños de casas por noche, o quien ya tiene un documento de permisos.
+const esSocio = (p) => Boolean(p.porNoche) || p.tipo === 'socio';
 
 export async function recalcularPermisos(ahora = Date.now()) {
 	// Una lectura que falla no es «nadie debe»: si falla, se lanza y no se escribe nada.
-	const [reservas, propietarios, guardados, global] = await Promise.all([
-		listar('reservas'), listar('propietarios'), listar('permisosSocios'), leerPrivado('settings/permisosSocios')
-	]);
-	const porId = new Map(guardados.map((g) => [g.id, g]));
+	const [propietarios, guardados] = await Promise.all([listar('propietarios'), listar('permisosSocios')]);
+	const conDoc = new Set(guardados.map((g) => g.id));
 	let cambiados = 0;
-	for (const p of propietarios) {
-		const deuda = deudaDe(reservas, p.id, ahora);
-		const nuevo = documentoPermisos(permisosDe({ global, propio: p.permisos, deuda }), deuda);
-		const guardado = porId.get(p.id) || null;
-		const limpiar = limpiarDevolver(p.permisos, deuda);
-		if (!limpiar && (mismosPermisos(guardado, nuevo) || (!guardado && todoPermitido(nuevo)))) continue;
-		await transaccion(async ({ leer, crear, cambiar }) => {
-			if (limpiar) cambiar(`propietarios/${p.id}`, { 'permisos.devolver': false });
-			const ruta = `permisosSocios/${p.id}`;
-			if (await leer(ruta)) cambiar(ruta, nuevo, { ahora: ['actualizado'] });
+	for (const { id } of propietarios.filter((p) => esSocio(p) || conDoc.has(p.id))) {
+		const cambio = await transaccion(async ({ leer, consultar, crear, cambiar }) => {
+			const ruta = `permisosSocios/${id}`;
+			const [prop, global, guardado, reservas] = await Promise.all([
+				leer(`propietarios/${id}`), leer('settings/permisosSocios'), leer(ruta), consultar('reservas', 'propietarioId', id)
+			]);
+			if (!prop) return false;
+			const deuda = deudaDe(reservas, id, ahora);
+			const nuevo = documentoPermisos(permisosDe({ global, propio: prop.permisos, deuda }), deuda);
+			const limpiar = limpiarDevolver(prop.permisos, deuda);
+			if (!limpiar && (mismosPermisos(guardado, nuevo) || (!guardado && todoPermitido(nuevo)))) return false;
+			if (limpiar) cambiar(`propietarios/${id}`, { 'permisos.devolver': false });
+			if (guardado) cambiar(ruta, nuevo, { ahora: ['actualizado'] });
 			else crear(ruta, nuevo, { ahora: ['actualizado'] });
+			return true;
 		});
-		cambiados++;
+		if (cambio) cambiados++;
 	}
 	return cambiados;
 }

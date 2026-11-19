@@ -27,15 +27,20 @@ export async function recalcularPermisosDe(propietarioId, global = null) {
 	const nuevo = documentoPermisos(permisos, deuda);
 	if (limpiarDevolver(propio, deuda)) await updateDoc(prop.ref, { 'permisos.devolver': false });
 	if (!mismosPermisos(guardado.exists() ? guardado.data() : null, nuevo)) await setDoc(refPermisos(propietarioId), { ...nuevo, actualizado: serverTimestamp() });
-	return { permisos, deuda, propio };
+	return { permisos, deuda, propio, global: g };
 }
 
-// Interruptores para todos: se guardan y se recalcula a cada socio.
+// Interruptores para todos: se guardan y se recalcula a cada socio (dueños de casas por noche o con permisos guardados).
+// Lo de todos ya quedó guardado aunque falle el recálculo de alguno: devuelve cuántos quedaron para la revisión de cada hora.
 export async function guardarGlobal(cambios) {
 	await setDoc(refGlobal(), { ...cambios, updatedAt: serverTimestamp() }, { merge: true });
-	const global = await leerGlobal();
-	const socios = await getDocs(collection(db, 'propietarios'));
-	for (const s of socios.docs) await recalcularPermisosDe(s.id, global);
+	let global, socios, guardados;
+	try { [global, socios, guardados] = await Promise.all([leerGlobal(), getDocs(collection(db, 'propietarios')), getDocs(collection(db, 'permisosSocios'))]); }
+	catch (err) { console.warn('Permisos sin recalcular (se recalculan en la próxima hora)', err); return 1; }
+	const conDoc = new Set(guardados.docs.map((d) => d.id));
+	const ids = socios.docs.filter((d) => d.data().porNoche || d.data().tipo === 'socio' || conDoc.has(d.id)).map((d) => d.id);
+	const r = await Promise.allSettled(ids.map((id) => recalcularPermisosDe(id, global)));
+	return r.filter((x) => x.status === 'rejected').length;
 }
 
 // Interruptores de un socio (y «Devolver hasta que pague»).
