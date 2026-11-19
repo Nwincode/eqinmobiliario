@@ -152,15 +152,22 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 - Huésped de otro idioma: la hoja de firma y el resumen van en su idioma; el contrato del socio queda como lo subió.
 - Si no tiene contrato, puede usar el modelo de Equipo Inmobiliario (decide el usuario).
 
-## 8. Pendiente del usuario (no se olvida: se pregunta con menú)
+## 8. Decidido por el usuario (19 nov 2026)
 
-1. Respaldo para el cliente (sección 4).
-2. Cuota de reserva en línea (sección 6, punto 10).
-3. Beneficio para el cliente que regresa (sección 6, punto 8).
-4. Plazo para que el socio firme su contrato con el equipo.
-5. Divisa y tipo de cambio del socio (sección 2).
-6. Acceso del cliente: celular que recuerda + enlace por correo que vence + Google.
-7. Modelo de contrato del equipo para socios sin contrato propio.
-8. Calendario: qué reserva no bloqueó las fechas correctas.
-9. Aprobar la maqueta para programarla.
-10. Errores encontrados (`docs/hallazgos-2026-11-19.md`): arreglarlos ya, por tandas.
+1. Respaldo al cliente: los 3 puntos (casa verificada, ayuda si el socio cancela después del pago, mediación).
+2. Cuota de reserva en línea: **programar la pasarela y dejarla lista** (sin proveedor todavía); se enciende cuando
+   haya proveedor.
+3. Cliente que regresa: analizar otras opciones (pendiente de propuesta).
+4. Contrato del socio con el equipo: 7 días; después se pausan sus fechas hasta que firme.
+5. Divisa: cada socio elige Q o US$; el equipo fija el tipo de cambio y cada reserva guarda el del día.
+6. Acceso del cliente: pidió explicar mejor las opciones y si se mezclan (pendiente).
+7. Contrato con el huésped: por ahora **se usa el del socio**. El modelo del equipo se deja programado y apagado
+   hasta que exista el texto.
+8. Errores encontrados: arreglarlos ya, por tandas (graves de dinero y reglas primero).
+
+## 9. Pendiente del usuario
+
+1. Cliente que regresa: elegir entre las opciones nuevas.
+2. Acceso del cliente: elegir la mezcla.
+3. Calendario: qué reserva no bloqueó las fechas correctas.
+4. Aprobar la maqueta para programarla.
