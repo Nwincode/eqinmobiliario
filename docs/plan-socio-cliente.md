@@ -32,6 +32,8 @@ ese trabajo.
   - Códigos: el del equipo se crea solo. El del socio es opcional, para todos los tipos, y avisa si lo repite.
   - Estados que ve: En la página · Corregir (con el motivo; sigue en la página) · Bloqueado (con el motivo y
     «Escribir al equipo»).
+- **Montos:** en cada reserva, una línea: «el cliente paga X = tu parte + comisión + impuestos». En Mis inmuebles, el
+  precio por noche es «tu parte».
 - **Mensajes:** una sola bandeja, que también son las solicitudes.
   - Grupos:
     - **Por hacer:** responder y revisar pagos.
@@ -97,7 +99,8 @@ ese trabajo.
     2. «Leí y acepto».
     3. Se guardan la fecha, la hora, la IP, el dispositivo y la huella (hash) del PDF.
   - El PDF firmado se guarda en Storage. Si prefiere, descarga el PDF, lo firma a mano y lo sube.
-  - Hasta que firme, «Para hoy» se lo recuerda.
+  - Hasta que firme, «Para hoy» se lo recuerda con un plazo: si no firma en 7 días, se pausan sus fechas **(decide el
+    usuario)**. La firma a mano queda «Por revisar» hasta que el equipo la aprueba.
 - **Cliente:** «Condiciones de tu reserva». Las acepta al pedir; se guarda la aceptación y él las descarga en PDF.
 - Vigencia legal en Guatemala (Ley para el Reconocimiento de las Comunicaciones y Firmas Electrónicas, Decreto
   47-2008): conviene que un abogado revise el texto del contrato.
@@ -141,4 +144,5 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 2. Cuota de reserva en línea (sección 6, punto 10).
 3. Beneficio para el cliente que regresa (sección 6, punto 8).
 4. Divisa y tipo de cambio del socio (sección 2).
-5. Calendario: qué reserva no bloqueó las fechas correctas.
+5. Plazo para firmar el contrato y qué se pausa (sección 5).
+6. Calendario: qué reserva no bloqueó las fechas correctas.
