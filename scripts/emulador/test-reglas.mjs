@@ -78,6 +78,7 @@ await espera('chat cuyo índice apunta a otro chat', fetch(`${H}:commit`, { meth
 {
 	await fetch(`${H}/leads/lead-s`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Sara'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
 	await espera('chat con un subtotal distinto del de su solicitud', crearChat('TokenSubtotalMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 9200 }), false);
+	await espera('chat con otro número de huéspedes que su solicitud', crearChat('TokenHuespedMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', huespedes: 10 }), false);
 	await espera('chat con el subtotal de su solicitud (control)', crearChat('TokenSubtotalBienLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 920 }), true);
 	const r5 = await leer(null, 'reglas/r5');
 	n++; if (r5 !== 404) fallas++; console.log(`${r5 === 404 ? 'ok   ' : 'FALLA'} 404    · leer reglas/r5 responde «no existe» (así el sitio sabe que puede mandar el subtotal) (${r5})`);

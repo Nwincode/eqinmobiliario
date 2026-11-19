@@ -540,7 +540,8 @@ service cloud.firestore {
     function chatComoSuSolicitud(c, r) {
       return c.get('subtotal', -1) is number && c.subtotal == r.get('subtotal', -2)
         && c.llegada == r.get('llegada', '') && c.salida == r.get('salida', '') && c.noches == r.get('noches', -1)
-        && c.total == r.get('total', -1) && c.moneda == r.get('moneda', '');
+        && c.total == r.get('total', -1) && c.moneda == r.get('moneda', '')
+        && c.get('huespedes', -1) == r.get('huespedes', -2);
     }
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
