@@ -157,7 +157,8 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 1. Respaldo al cliente: los 3 puntos (casa verificada, ayuda si el socio cancela después del pago, mediación).
 2. Cuota de reserva en línea: **programar la pasarela y dejarla lista** (sin proveedor todavía); se enciende cuando
    haya proveedor.
-3. Cliente que regresa: analizar otras opciones (pendiente de propuesta).
+3. Cliente que regresa: **acceso anticipado** a temporadas altas. Sin reserva al instante: el socio siempre confirma
+   la disponibilidad.
 4. Contrato del socio con el equipo: 7 días; después se pausan sus fechas hasta que firme.
 5. Divisa: cada socio elige Q o US$; el equipo fija el tipo de cambio y cada reserva guarda el del día.
 6. Acceso del cliente: pidió explicar mejor las opciones y si se mezclan (pendiente).
@@ -167,7 +168,6 @@ páginas. Se reduce con el contrato de 12 meses, las alertas y los beneficios de
 
 ## 9. Pendiente del usuario
 
-1. Cliente que regresa: elegir entre las opciones nuevas.
-2. Acceso del cliente: elegir la mezcla.
-3. Calendario: qué reserva no bloqueó las fechas correctas.
-4. Aprobar la maqueta para programarla.
+1. Acceso del cliente: quiere ver las opciones en la maqueta antes de decidir.
+2. Calendario: qué reserva no bloqueó las fechas correctas.
+3. Aprobar la maqueta para programarla.
