@@ -27,11 +27,12 @@ ese trabajo.
   - Venta y renta: el socio no habla con los interesados; los atiende solo el equipo, que le avisa. El chat con
     clientes es solo para casas por noche.
   - Antes de publicar se revisa solo:
-    - campos obligatorios y mínimo 5 fotos;
+    - campos obligatorios y mínimo 5 fotos (puede subir hasta 40);
     - textos sin teléfonos, correos, enlaces, redes ni «búscame como»;
     - texto y códigos QR dentro de las fotos (una foto marcada no sale hasta que el equipo la vea).
   - «Copiar datos de» otro inmueble suyo. Moneda Q o US$. m² de construcción y de terreno. Dirección exacta privada.
   - Códigos: el del equipo se crea solo. El del socio es opcional, para todos los tipos, y avisa si lo repite.
+  - La lista usa la misma fila de casa del panel, con la foto grande.
   - Estados que ve: En la página · Corregir (con el motivo; sigue en la página) · Bloqueado (con el motivo y
     «Escribir al equipo»).
 - **Montos:** en cada reserva, una línea: «el cliente paga X = tu parte + comisión + impuestos». En Mis inmuebles, el
