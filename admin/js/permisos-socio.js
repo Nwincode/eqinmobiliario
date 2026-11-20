@@ -42,7 +42,8 @@ export function deudaDe(reservas, propietarioId, ahora) {
 		const moneda = r.moneda || r.comision.moneda || 'USD';
 		porMoneda[moneda] = Math.round(((porMoneda[moneda] || 0) + Number(r.comision.monto)) * 100) / 100;
 		if (!vence || r.comision.vence < vence) vence = r.comision.vence;
-		if (horas >= DIAS_CORTE * 24 && cuentaParaCorte(r, ahora)) corta = true;
+		// El corte cuenta las horas que castigan (V.horasMora): sin prueba de pago, desde que ya no puede decir «No me llegó».
+		if ((V().horasMora(r, ahora) ?? -1) >= DIAS_CORTE * 24) corta = true;
 	}
 	if (!vence) return null;
 	const dias = Math.floor((ahora - (Date.parse(`${vence}T00:00:00-06:00`) + 86400000)) / 86400000);

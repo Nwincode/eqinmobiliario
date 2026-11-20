@@ -391,4 +391,19 @@ test('pausa de 72 h: solo con el pago marcado o «Cobrar comisión» (una de la 
 	assert.deepEqual({ ...V.sociosEnMora([{ ...r, llegada: '2026-11-01' }], ahora) }, { s1: 3 });
 });
 
+test('cobrable solo por el tiempo: el atraso cuenta desde que ya no hay «No me llegó» (no salta a 72 h de golpe)', () => {
+	const r = { propietarioId: 's1', estado: 'confirmada', chat: 'TokenDelChat', llegada: '2026-11-01', comision: { monto: 50, vence: '2026-11-01', pagada: false } };
+	const gt = (x) => Date.parse(`${x}-06:00`);
+	assert.equal(V.ultimoDiaNoLlego(r), '2026-11-04');
+	assert.equal(V.nivelMora(r, gt('2026-11-04T23:00:00')), 1, 'todavía puede decir «No me llegó»: a lo más «vencida»');
+	assert.equal(V.nivelMora(r, gt('2026-11-05T00:30:00')), 1, 'recién cobrable: vencida, no 3');
+	assert.equal(V.nivelMora(r, gt('2026-11-06T01:00:00')), 2);
+	assert.equal(V.nivelMora(r, gt('2026-11-08T01:00:00')), 3);
+	assert.deepEqual({ ...V.sociosEnMora([r], gt('2026-11-05T00:30:00')) }, {});
+	// Con una prueba de pago, desde que vence (como siempre).
+	assert.equal(V.nivelMora({ ...r, pagoRecibido: true }, gt('2026-11-05T00:30:00')), 3);
+	assert.equal(Math.round(V.horasMora(r, gt('2026-11-05T02:00:00'))), 2);
+	assert.equal(V.horasMora({ ...r, chat: 'TokenDelChat', llegada: '2026-11-03' }, gt('2026-11-05T02:00:00')), null);
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

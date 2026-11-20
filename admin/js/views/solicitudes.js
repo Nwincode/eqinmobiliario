@@ -435,6 +435,9 @@ export async function render(container, [codigo] = []) {
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			sinConfirmar ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), sinConfirmar) : null,
 			plazo(l, est, res),
+			// Hasta cuándo vale «No me llegó»: después, sin pago marcado, la ganancia de EQ cuenta como cobrada (V.cobrable).
+			!admin && est === 'confirmada' && res && puedeNoMeLlego(l) ? h('div', { class: 'small text-muted' }, icono('clock-o'),
+				`Si no te pagó, toca «No me llegó» antes del ${dia(V.sumarDias(V.ultimoDiaNoLlego(res), 1))}; después la ganancia de EQ cuenta como cobrada.`) : null,
 			historial(sol),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
 				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.

@@ -273,7 +273,7 @@ export function motivoParaNoMeLlego(reserva, chat, token, ahora = Date.now()) {
 		return '';
 	}
 	// Desde la llegada, hasta 3 días después; más tarde, el administrador (el huésped ya pudo haber llegado y pagado).
-	if (V().hoy(ahora) > V().sumarDias(reserva.llegada, DIAS_NO_LLEGO)) return `Pasaron más de ${DIAS_NO_LLEGO} días desde la llegada: avísale al administrador.`;
+	if (V().hoy(ahora) > V().ultimoDiaNoLlego(reserva)) return `Pasaron más de ${DIAS_NO_LLEGO} días desde la llegada: avísale al administrador.`;
 	return '';
 }
 export const DIAS_NO_LLEGO = globalThis.EQVacacional.DIAS_NO_LLEGO;

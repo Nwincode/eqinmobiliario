@@ -26,6 +26,12 @@ test('vencida 6 días y 23 h: debe, pero todavía no se corta', () => {
 	assert.equal(d.dias, 6);
 	assert.deepEqual(solo(permisosDe({ deuda: d })), todo);
 });
+test('con chat y sin prueba de pago: el corte cuenta desde que ya no hay «No me llegó» (llegada + 3)', () => {
+	const r = res('a', { chat: 'TokenDelChat', llegada: '2026-11-09' });
+	// Llegada + 3 + 6 días 23 h: todavía no; llegada + 3 + 7 días: sí.
+	assert.equal(deudaDe([r], 's1', finDe('2026-11-12') + (DIAS_CORTE * 24 - 1) * H).corta, false);
+	assert.equal(deudaDe([r], 's1', finDe('2026-11-12') + DIAS_CORTE * 24 * H).corta, true);
+});
 test('a los 7 días exactos se cortan los tres', () => {
 	const d = deudaDe([res('a')], 's1', finDe('2026-11-09') + DIAS_CORTE * 24 * H);
 	assert.equal(d.corta, true);
