@@ -8,25 +8,31 @@
 // ni borrar la casa.
 // Pruebas: scripts/test-mi-casa.mjs.
 import { estadoDe } from './estados.js';
+// El mismo filtro de contacto del chat (js/calc-vacacional.js `tieneContacto`). Ruta relativa: también corre en Node.
+import '../../js/calc-vacacional.js';
+
+const V = globalThis.EQVacacional;
 
 export const HORAS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 export const MAX_FOTOS = 40;
 export const ESTADOS_DUENO = ['disponible', 'pausada'];
 
-// Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin enlaces, correos ni páginas (para que el
-// huésped no salga de la plataforma; los datos de contacto se entregan al confirmar).
-const CON_ENLACE = /https?:|www\.|wa\.me|\]\(|@|\b[a-z0-9-]+\.(com|net|org|gt|me|io|co|info|biz)\b/i;
+// Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin teléfonos, correos, enlaces ni páginas
+// (para que el huésped no salga de la plataforma; los datos de contacto se entregan al confirmar). Un solo filtro: el del
+// chat (`V.tieneContacto`), para cada texto y cada amenidad.
+const SIN_CONTACTO = 'sin teléfonos, correos, enlaces ni páginas web';
 const texto = (max, { min = 0 } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
-	if (CON_ENLACE.test(s)) return { error: 'sin enlaces, correos ni páginas web' };
+	if (V.tieneContacto(s)) return { error: SIN_CONTACTO };
 	return { valor: s };
 };
 const numero = (max, paso = 1) => (v) => {
 	const n = v === '' || v === null || v === undefined ? 0 : Number(v);
 	if (!Number.isFinite(n) || n < 0 || n > max) return { error: `de 0 a ${max}` };
-	return { valor: Math.round(n / paso) * paso };
+	// Con centavos, redondeo a centavos (100.10, no 100.10000000000001).
+	return { valor: paso === 0.01 ? V.r2(n) : Math.round(n / paso) * paso };
 };
 const deLista = (opciones) => (v) => (opciones.includes(v ?? '') ? { valor: v ?? '' } : { error: 'elige una opción de la lista' });
 
@@ -63,6 +69,7 @@ const amenidades = (v) => {
 	if (!Array.isArray(v)) return { error: 'lista inválida' };
 	const lista = [...new Set(v.map((a) => String(a ?? '').trim()).filter(Boolean))];
 	if (lista.length > 40 || lista.some((a) => a.length > 60)) return { error: 'hasta 40, de 60 letras cada una' };
+	if (lista.some((a) => V.tieneContacto(a))) return { error: SIN_CONTACTO };
 	return { valor: lista };
 };
 

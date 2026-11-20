@@ -182,6 +182,16 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Avisos (campana)** → fuentes en `admin/js/avisos.js` `leerFuentes` (cada rol lee solo lo que sus reglas dejan) → `admin/js/avisos-reglas.js` `armarAvisos` (qué avisa, orden, `claveListo`) → `admin/js/app.js` (campana en la barra) y `views/dashboard.js` (tarjeta «Avisos») → `firestore.rules` `avisosAtendidos` (con las reglas de antes, la campana sale sin «Listo») → `scripts/test-avisos.mjs`, `scripts/emulador/test-reglas.mjs` y `scripts/entorno/recorrido.mjs`. Un aviso nuevo: su fuente, su caso en `armarAvisos` y, si no se resuelve solo, su tipo en `claveListo` y en la regla.
 
+**Precio que se muestra (VIP «Ocultar precio»)** → `admin/js/estados.js` `precioVisible` (0 = «Precio a consultar»; solo cuenta con `vip`) → `scripts/lib/templates.mjs` (`price`, tarjeta, `data-precio`, compartir, `data-view-content`, JSON-LD, precio por m², calculadora) → `scripts/lib/landings.mjs` (precios por zona) → `scripts/build.mjs` (llms, catálogos; quita la descripción para Google automática que traía el precio) → `admin/js/difusion.js` y `views/listado.js` → `scripts/test-sitio.mjs` (el precio no sale en ningún archivo).
+
+**Casa de prueba** → `admin/js/estados.js` `esDePrueba` (`demo` o «prueba» en el título en español; `scripts/build.mjs` la marca `_prueba` antes de traducirla) → `scripts/lib/templates.mjs` (ficha y VIP con `noindex`: fuera del sitemap solas) → `scripts/build.mjs` (fuera de llms.txt, llms-full.txt y catálogos) → `scripts/test-sitio.mjs`.
+
+**Zona** → `admin/js/views/properties.js` al guardar (recortada y con la forma que ya tienen otras casas) → `scripts/lib/landings.mjs` `unificarZonas` (en `scripts/build.mjs`, antes de planear listados y de copiar al inglés: una forma por `slugZona`) → `planListados`, filtros y migas comparan esa forma → `scripts/test-seo.mjs`.
+
+**Amenidades en inglés** → `admin/js/estados.js` (`AMENIDADES_COMUNES`, `DICCIONARIO_EN`, `amenidadEn`: la que no está queda como se escribió; `amenidadesEnDe`: la lista guardada vale si tiene las mismas que la de español) → `admin/js/reglas.js` (traductor sin IA) → `admin/js/views/properties.js` (`traducirEn`, «Poner textos preparados»; `fuenteEs` incluye amenidades y textos VIP, así el inglés se rehace si cambian) → `scripts/build.mjs` `propiedadEn`.
+
+**Filtro de contacto (teléfonos, correos, enlaces)** → `js/calc-vacacional.js` `tieneContacto` (uno solo) → chat del cliente (`js/reserva-chat.js`), chat del panel (`views/solicitudes.js`) y lo que el dueño publica de su casa (`admin/js/mi-casa.js`: cada texto y cada amenidad; lo revisa también `netlify/functions/mi-casa.mjs`) → `firestore.rules` tiene su copia para el chat → `scripts/test-vacacional.mjs` y `scripts/test-mi-casa.mjs`.
+
 ## 7. Cómo se prueba
 
 - Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.

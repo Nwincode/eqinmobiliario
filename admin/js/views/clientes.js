@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -172,7 +172,7 @@ async function renderLista(container) {
 		renderLista(container);
 	} }, label);
 
-	const exportar = () => downloadCsv(`clientes-${new Date().toISOString().slice(0, 10)}.csv`, [
+	const exportar = () => downloadCsv(`clientes-${hoy()}.csv`, [
 		['Nombre', 'Teléfono', 'Correo', 'Tipo', 'Etapa', 'Presupuesto', 'Zonas', 'Monto', 'Asesor', 'Fuente'],
 		...filtrados().map((c) => [c.nombre, c.telefono, c.email, c.tipo, etapaLabel(c.etapa), c.presupuesto || '', c.zonas || '', c.montoEstimado || '', nombreAsesor[c.agentId] || '', c.fuente || ''])
 	]);

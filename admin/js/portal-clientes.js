@@ -3,18 +3,23 @@
 // Regla de privacidad: lo que sale de aquí va al documento público. Nada de ids, nombres,
 // teléfonos, correos ni textos escritos a mano: solo un número de orden, canal, fechas y etapa.
 
+// «Hoy» y los días son los de Guatemala (una sola cuenta: js/calc-vacacional.js `hoy`). Ruta relativa: corre en Node.
+import '../../js/calc-vacacional.js';
+
 const DIA = 86400000;
 export const MAX_CLIENTES = 30;
 
-// Fecha en milisegundos (Timestamp de Firestore, Date, texto o número).
+// Fecha en milisegundos (Timestamp de Firestore, Date, texto o número). Un día solo («2026-11-20») es ese día en
+// Guatemala (a mediodía), no la medianoche UTC, que en Guatemala todavía es el día anterior.
 export function msDe(v) {
 	if (!v) return 0;
+	if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return Date.parse(`${v}T12:00:00-06:00`) || 0;
 	if (typeof v.toDate === 'function') return v.toDate().getTime() || 0;
 	if (typeof v.seconds === 'number') return v.seconds * 1000;
 	const t = new Date(v).getTime();
 	return Number.isNaN(t) ? 0 : t;
 }
-const dia = (t) => (t ? new Date(t).toISOString().slice(0, 10) : '');
+const dia = (t) => (t ? globalThis.EQVacacional.hoy(t) : '');
 
 // Canales que entiende el portal (los textos están en TEXTOS_PORTAL).
 export const CANALES = ['web', 'whatsapp', 'portal', 'anuncio', 'redes', 'referido', 'llamada', 'otro'];

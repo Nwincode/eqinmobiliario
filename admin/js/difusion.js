@@ -3,7 +3,7 @@ import { slugify } from './ui.js';
 import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
 import { SITIO as SITE } from './firebase.js';
-import { seOfrece, enOperacion, operacionHashtag } from './estados.js';
+import { seOfrece, enOperacion, operacionHashtag, precioVisible } from './estados.js';
 import { conEmojis } from './descripcion.js';
 import { precioTexto, M2_A_FT2 } from './formato.js';
 
@@ -43,8 +43,8 @@ const TIPO = {
 	en: { casa: 'House', apartamento: 'Condo', terreno: 'Land', oficina: 'Office', local: 'Retail space', bodega: 'Warehouse', finca: 'Estate' }
 };
 const L = {
-	es: { precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', consultar: 'Precio a consultar', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
-	en: { precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', consultar: 'Price on request', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
+	es: { precio: 'Precio', hab: 'Habitaciones', banos: 'Baños', parqueos: 'Parqueos', constr: 'Construcción', terreno: 'Terreno', ubic: 'Ubicación', amen: 'Amenidades', codigo: 'Código', contacto: 'Información y visitas', fotos: 'Fotos, video y ubicación', caract: 'Características', bio: 'Más fotos: link en nuestra bio', habC: 'hab.', banC: 'baños', parC: 'parqueos', verFotos: 'Ver fotos' },
+	en: { precio: 'Price', hab: 'Bedrooms', banos: 'Bathrooms', parqueos: 'Parking', constr: 'Interior', terreno: 'Lot', ubic: 'Location', amen: 'Amenities', codigo: 'Listing ID', contacto: 'Info and video tours', fotos: 'Photos, video and map', caract: 'Details', bio: 'More photos: link in bio', habC: 'bd', banC: 'ba', parC: 'parking', verFotos: 'See photos' }
 };
 
 // Código de la propiedad (campo «Código» del panel); las antiguas sin código usan EQ-xxxxxx.
@@ -55,8 +55,7 @@ export function codigo(p) {
 
 // El precio con su operación («/mes», «por noche»), del formato único (formato.js).
 function precioDe(p, lang) {
-	if (p.vipLanding && p.vipLanding.ocultarPrecio) return L[lang].consultar;
-	return precioTexto(p.precio, p.moneda || 'USD', p.operacion, lang);
+	return precioTexto(precioVisible(p), p.moneda || 'USD', p.operacion, lang);
 }
 
 function area(m2, lang) {

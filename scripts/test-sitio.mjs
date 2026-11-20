@@ -415,6 +415,58 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	});
 }
 
+// Casos de la tanda 3: precio oculto VIP, casa de prueba, amenidades que el diccionario no tiene, zona escrita distinto,
+// dos casas con el mismo título en inglés y su dirección anterior.
+{
+	const seedT = path.join(tmp, 'seed-tanda3.json');
+	const datos = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+	const vip = datos.properties.find((p) => p.vip);
+	vip.vipLanding = { ...vip.vipLanding, ocultarPrecio: true };
+	vip.precio = 987654;
+	const z10 = datos.properties.filter((p) => p.zona === 'Zona 10');
+	z10[0].zona = 'zona 10 ';
+	z10[1].amenidades = ['Piscina', 'Agua municipal', 'Lobby de recepción'];
+	const [a, b] = datos.properties.filter((p) => p.zona === 'Zona 15' && p.operacion === 'venta');
+	b.en = { ...b.en, titulo: a.en.titulo, slugsAnteriores: ['Old title of the second'] };
+	datos.properties.push({ ...datos.properties[0], id: 'prueba-1', titulo: 'Casa de PRUEBA Monterrico', slug: 'casa-de-prueba-monterrico', destacada: false, vip: false,
+		en: { ...datos.properties[0].en, titulo: 'Test house in Monterrico' } });
+	writeFileSync(seedT, JSON.stringify(datos));
+	const distT = path.join(tmp, 'dist-tanda3');
+	execFileSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...env, SEED_FILE: seedT, DIST_DIR: distT }, stdio: ['ignore', 'pipe', 'pipe'] });
+	const todo = [];
+	(function leer(dir) {
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			const f = path.join(dir, e.name);
+			if (e.isDirectory()) { if (e.name !== 'admin') leer(f); } else if (/\.(html|txt|xml|json|csv)$|^_redirects$/.test(e.name)) todo.push(f);
+		}
+	})(distT);
+	const leerT = (u) => readFileSync(path.join(distT, u), 'utf8');
+	test('VIP con «ocultar precio»: el precio no sale en ninguna página, catálogo ni archivo', () => {
+		assert.deepEqual(todo.filter((f) => /987,?654/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(distT, f)), []);
+	});
+	test('casa de prueba: su ficha abre pero no se indexa ni va al sitemap, llms.txt ni los catálogos', () => {
+		assert.match(leerT('propiedad/casa-de-prueba-monterrico/index.html'), /<meta name="robots" content="noindex/);
+		for (const f of ['sitemap.xml', 'llms.txt', 'llms-full.txt']) assert.doesNotMatch(leerT(f), /casa-de-prueba-monterrico|test-house-in-monterrico/, f);
+		assert.ok(!todo.filter((f) => path.relative(distT, f).startsWith('feeds')).some((f) => /casa-de-prueba-monterrico/.test(readFileSync(f, 'utf8'))));
+	});
+	test('inglés: no se pierde la amenidad que el diccionario no tiene', () => {
+		const ficha = todo.find((f) => path.relative(distT, f).startsWith(path.join('en', 'property')) && /Lobby de recepción/.test(readFileSync(f, 'utf8')));
+		assert.ok(ficha, 'la ficha en inglés muestra «Lobby de recepción»');
+		assert.match(readFileSync(ficha, 'utf8'), /Pool[\s\S]*Agua municipal/);
+	});
+	test('zona escrita distinto: una sola página de zona con todas sus casas', () => {
+		const h = leerT('propiedades/zona-10/index.html');
+		assert.doesNotMatch(h, /<meta name="robots" content="noindex/);
+		assert.equal((h.match(/class="property-item"/g) || []).length, 6);
+		assert.doesNotMatch(leerT('propiedades/index.html'), />zona 10/);
+	});
+	test('dos casas con el mismo título en inglés: la dirección anterior de la segunda lleva a la segunda', () => {
+		const r = leerT('_redirects').split('\n').find((l) => l.startsWith('/en/property/old-title-of-the-second/ '));
+		assert.ok(r, 'falta la redirección');
+		assert.match(r, new RegExp(`-${b.id.slice(0, 8)}/ 301$`));
+	});
+}
+
 test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
 	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.
 	const autollenado = /compan|empresa|organi|business|web|url|site|address|direcc|email|correo|phone|tel|name|nombre|city|ciudad|zip|postal/i;

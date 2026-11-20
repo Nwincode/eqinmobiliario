@@ -2,7 +2,7 @@ import {
 	db, doc, getDocs, updateDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
-	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
+	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate, hoy
 , mount, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { avisarAvisos } from '../avisos.js';
@@ -149,7 +149,7 @@ export async function render(container) {
 	[search, fEstado, fAgent].forEach((el) => el.addEventListener('input', draw));
 	draw();
 
-	const exportCsv = () => downloadCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`, [
+	const exportCsv = () => downloadCsv(`leads-${hoy()}.csv`, [
 		['Fecha', 'Nombre', 'Teléfono', 'Correo', 'Mensaje', 'Propiedad', 'Origen', 'Fuente', 'Campaña', 'Idioma', 'Asesor', 'Estado'],
 		...filtered().map((l) => [formatDate(l.createdAt), l.nombre, l.telefono, l.email, l.mensaje, l.propertyTitulo, ORIGENES[l.origen] || l.origen, fuenteLead(l), l.campana?.utm_campaign || '', l.idioma || 'es', agentName[l.agentId] || '', ESTADOS.find(([v]) => v === l.estado)?.[1] || l.estado])
 	]);

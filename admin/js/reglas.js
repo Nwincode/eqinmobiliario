@@ -1,7 +1,7 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
 import { M2_A_FT2, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD } from './formato.js';
-import { enOperacion, operacionHashtag } from './estados.js';
+import { enOperacion, operacionHashtag, amenidadesEn } from './estados.js';
 import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -303,23 +303,7 @@ function amenidadesDe(texto) {
 
 // ------------------------------------------------------------ Versión en inglés
 
-// Diccionario de amenidades y frases comunes en anuncios.
-const DICCIONARIO = {
-	piscina: 'Swimming pool', jardin: 'Garden', 'garita de seguridad': '24/7 gated security', garita: 'Gated security', seguridad: 'Security',
-	'seguridad 24 horas': '24/7 security', gimnasio: 'Gym', terraza: 'Terrace', balcon: 'Balcony', estudio: 'Study', bodega: 'Storage room',
-	'area de lavanderia': 'Laundry area', lavanderia: 'Laundry room', 'cuarto de servicio': "Maid's quarters", 'dormitorio de servicio': "Maid's quarters",
-	chimenea: 'Fireplace', elevador: 'Elevator', ascensor: 'Elevator', 'area social': 'Clubhouse', 'salon social': 'Event room', 'casa club': 'Clubhouse',
-	'area de juegos infantiles': "Children's play area", 'juegos infantiles': 'Playground', 'planta electrica': 'Backup generator', generador: 'Backup generator',
-	cisterna: 'Water cistern', 'paneles solares': 'Solar panels', amueblado: 'Furnished', 'semi amueblado': 'Semi-furnished', 'cocina equipada': 'Equipped kitchen',
-	'cocina integral': 'Fitted kitchen', 'walk in closet': 'Walk-in closet', 'vestidor': 'Walk-in closet', 'sala familiar': 'Family room', 'sala de estar': 'Living room',
-	comedor: 'Dining room', parqueo: 'Parking', 'parqueo de visitas': 'Guest parking', 'area de bbq': 'BBQ area', bbq: 'BBQ area', rancho: 'Gazebo',
-	'cancha de tenis': 'Tennis court', 'cancha deportiva': 'Sports court', 'sendero': 'Walking trail', 'vista': 'View', 'vista panoramica': 'Panoramic view',
-	'acepta mascotas': 'Pet friendly', 'pet friendly': 'Pet friendly', 'calentador solar': 'Solar water heater', 'agua caliente': 'Hot water',
-	'aire acondicionado': 'Air conditioning', 'pozo': 'Private well', 'area verde': 'Green area', 'areas verdes': 'Green areas', 'jacuzzi': 'Jacuzzi',
-	'sauna': 'Sauna', 'business center': 'Business center', 'cowork': 'Coworking space', 'roof top': 'Rooftop', 'rooftop': 'Rooftop', 'azotea': 'Rooftop'
-};
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const traducirAmenidad = (a) => DICCIONARIO[sinAcentos(a).replace(/\s+/g, ' ').trim()] || a;
 const sqft = (m2) => Math.round(n(m2) * M2_A_FT2).toLocaleString('en-US');
 
 function datosEn(p) {
@@ -422,7 +406,7 @@ export function seoEnViejo(p) {
 async function traducir({ propiedad: p }) {
 	const tipo = TIPO_EN[p.tipo] || 'Property';
 	const op = opEn(p);
-	const amenidades = (p.amenidades || []).map(traducirAmenidad).map(capital);
+	const amenidades = amenidadesEn(p.amenidades).map(capital);
 	const titulo = tituloEn(p);
 	let descripcion = '';
 	try {

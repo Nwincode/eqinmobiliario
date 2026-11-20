@@ -6,7 +6,7 @@ import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
 import { datosDe, publicUrl } from '../ficha-casa.js';
-import { estadoDe, operacionDe, enOperacion } from '../estados.js';
+import { estadoDe, operacionDe, enOperacion, precioVisible } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
@@ -27,8 +27,7 @@ function cut(text, max) {
 }
 
 function precioPdf(p, mostrarPrecio) {
-	if (!mostrarPrecio || (p.vip && p.vipLanding?.ocultarPrecio)) return 'Precio a consultar';
-	return formatPrice(p.precio, p.moneda, p.operacion);
+	return formatPrice(mostrarPrecio ? precioVisible(p) : 0, p.moneda, p.operacion);
 }
 
 // Ficha técnica: [etiqueta, valor] solo con los datos que tiene la propiedad.

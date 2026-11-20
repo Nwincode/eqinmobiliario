@@ -38,7 +38,7 @@ export function crudView(cfg) {
 			mount(container, emptyState('No existe.', h('a', { href: `#/${cfg.route}`, class: 'btn btn-primary' }, 'Volver')));
 			return;
 		}
-		const data = isNew ? structuredClone(cfg.defaults || {}) : snap.data();
+		const data = isNew ? structuredClone((typeof cfg.defaults === 'function' ? cfg.defaults() : cfg.defaults) || {}) : snap.data();
 		const form = renderForm(cfg.schema(isNew), data, { folder: `${cfg.collection}/${ref.id}` });
 
 		const save = async (btn) => {

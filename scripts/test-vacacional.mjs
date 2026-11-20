@@ -309,10 +309,10 @@ test('«1 noche», «3 noches»', () => {
 });
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',
-		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234'])
+		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'linktr.ee o micasa.co', 'ana arroba gmail punto com'])
 		assert.equal(V.tieneContacto(t), true, t);
 	for (const t of ['Llegamos el 16/11/2026 a las 15:00', '¿Aceptan 2 perros?', 'Somos 8 adultos y 2 niños', 'El total es US$ 1,122.40, ¿correcto?',
-		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', ''])
+		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', 'En el Km 98.5, coordenadas 14.5586, -90.7295', ''])
 		assert.equal(V.tieneContacto(t), false, t);
 });
 

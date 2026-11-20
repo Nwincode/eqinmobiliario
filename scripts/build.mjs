@@ -7,10 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
-import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
+import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
-import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
+import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -131,7 +131,7 @@ function propiedadEn(p) {
 		titulo: e.titulo,
 		// En inglés, cada m² con sus pies cuadrados (descripción, meta y JSON-LD).
 		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
-		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
+		amenidades: amenidadesEnDe(p),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
 		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
@@ -279,8 +279,8 @@ function llmsTxt(ctx, properties, pages, { planEn = [], pagesEn = [], postsEn = 
 		'',
 		// Los mismos listados que el sitemap: solo los que se indexan.
 		...ctx.plan.filter((e) => e.pagina !== 'vip' && indexable(e.url)).map((e) => `- [${e.opts.heading}](${base}${e.url})`),
-		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
+		...properties.filter((p) => p.estado === 'disponible' && !esDePrueba(p)).slice(0, 100).map((p) =>
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${precioVisible(p) ? `, ${montoPrecio(p.precio, p.moneda || 'USD')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
@@ -306,7 +306,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
 		dato('Ubicación', lugarDe(p)),
-		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
+		dato('Precio', precioVisible(p) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
 		dato('Parqueos', p.parqueos),
@@ -322,7 +322,7 @@ function llmsFullTxt(ctx, properties) {
 		'',
 		`> ${ctx.site.seo.descripcion}`,
 		'',
-		...properties.filter((p) => (p.estado || 'disponible') === 'disponible').flatMap(ficha),
+		...properties.filter((p) => (p.estado || 'disponible') === 'disponible' && !esDePrueba(p)).flatMap(ficha),
 		...ctx.posts.flatMap((p) => [`## ${p.titulo}`, '', `- Enlace: ${base}${p.url}`, '', textoPlano(p.contenido || p.resumen), ''])
 	].join('\n');
 }
@@ -343,14 +343,14 @@ const coordenadas = (mapa) => {
 function feeds(ctx, properties, propsEn) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
 	// Los portales de Meta y Kyero no tienen precio por noche: la renta vacacional no va en los feeds.
-	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional');
+	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional' && !esDePrueba(p));
 	const enPorId = Object.fromEntries((propsEn || []).map((p) => [p.id, p]));
 	const abs = (u) => (/^https?:/.test(u) ? u : `${base}${u}`);
 	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
 	// Los catálogos piden JPG: el CDN de imágenes de Netlify convierte las fotos WebP al vuelo.
 	const fotos = (p) => (p.fotos || []).map((f) => f.url).filter(Boolean)
 		.map((u) => `${base}${T.fotoCdn(u, 1600, '&fm=jpg&q=85')}`);
-	const sinPrecio = (p) => !p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio);
+	const sinPrecio = (p) => !precioVisible(p);
 
 	// Meta (Facebook/Instagram): catálogo de inmuebles ("home listings").
 	const tipoMeta = { casa: 'house', apartamento: 'apartment', terreno: 'land', oficina: 'other', local: 'other', bodega: 'other', finca: 'other' };
@@ -465,7 +465,8 @@ function fichaHtml(c, p) {
 	return T.vipLandingPage(c, p);
 }
 
-function redirects(ctx, todas = ctx.properties) {
+// `enPorId`: la versión en inglés ya resuelta en main() (con el sufijo que la separa de otra del mismo título).
+function redirects(ctx, todas = ctx.properties, enPorId = new Map()) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
@@ -481,7 +482,7 @@ function redirects(ctx, todas = ctx.properties) {
 			}
 		}
 		// Títulos anteriores en inglés (la dirección en inglés sale del título).
-		const en = ctx.enActivo && propiedadEn(p);
+		const en = ctx.enActivo && enPorId.get(p.id);
 		for (const old of (en && p.en.slugsAnteriores) || []) {
 			const s = slugify(old);
 			if (s && s !== en.slug) {
@@ -521,13 +522,18 @@ async function main() {
 	const agents = data.agents.slice().sort(byOrder);
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
-	const todas = normalizeProperties(data.properties);
+	// Cada zona con una sola forma de escribirla (antes de planear listados y de copiar al inglés).
+	const todas = unificarZonas(normalizeProperties(data.properties));
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
 	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
 	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
 	const V = globalThis.EQVacacional;
+	// Casas de prueba: se marcan aquí, con su título en español (la copia en inglés lo hereda).
+	for (const p of todas) if (esDePrueba(p)) p._prueba = true;
+	// Precio oculto (VIP): la descripción para Google que armó el panel antes (automática, con el precio) no se usa.
+	for (const p of todas) if (p.precio && !precioVisible(p) && p.seo?.descripcion && p.seo.descripcion === p.seo.auto?.descripcion) p.seo = { ...p.seo, descripcion: '' };
 	for (const p of todas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());
@@ -740,7 +746,7 @@ async function main() {
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
 	const sitemapXml = sitemap(ctx, enSitemap);
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, new Map(todasEn.map((p) => [p.id, p]))));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);

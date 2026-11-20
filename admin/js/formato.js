@@ -122,7 +122,10 @@ export function horarioSchema(horario) {
 	if (!sinTilde) return null;
 	const DIA = '(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)';
 	const out = [];
-	for (const tramo of sinTilde.split(';').map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)) {
+	// Otro tramo también empieza con «,» o «y» después de una hora cuando sigue un día («…17:00 y sábados 8:00 a 12:00»),
+	// y cada tramo puede empezar con «de» o «desde» («De lunes a viernes, 9:00 a 18:00»).
+	const tramos = sinTilde.replace(new RegExp(`(\\d(?:\\s*[ap]\\.?\\s*m\\b\\.?|\\s*h(?:rs|oras)?\\b)?)\\s*(?:,|\\by\\b)\\s+(?=(?:de |desde )?(?:todos los dias|${DIA})\\b)`, 'g'), '$1;');
+	for (const tramo of tramos.split(';').map((x) => x.trim().replace(/\.$/, '').replace(/^(de|desde)\s+/, '')).filter(Boolean)) {
 		if (new RegExp(`^${DIA}( (a|al|y) ${DIA})?,? cerrados?$`).test(tramo)) continue;
 		const d = new RegExp(`^(?:todos los dias|${DIA}(?:\\s+(?:a|al)\\s+${DIA})?)[\\s,:]+(.*)$`).exec(tramo);
 		if (!d) return null;

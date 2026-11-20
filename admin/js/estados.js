@@ -89,5 +89,37 @@ export function mascotasUnaVez(p) {
 	p.vacacional = { ...(p.vacacional || {}), mascotas: p.vacacional?.mascotas || 'si' };
 	return p;
 }
-const AMENIDAD_EN = new Map(AMENIDADES_COMUNES.map(([es, en]) => [es.toLowerCase(), en]));
-export const amenidadesEn = (lista) => (lista || []).map((a) => AMENIDAD_EN.get(String(a).trim().toLowerCase())).filter(Boolean);
+// Casa de prueba: las del botón «Casas de prueba» (demo: true) o una con «prueba» en su título en español («Casa de
+// PRUEBA Monterrico»; «a prueba de ruido» no cuenta). Su ficha se publica para probar, pero nunca se indexa ni va al
+// sitemap, a llms.txt ni a los catálogos (scripts/build.mjs la marca `_prueba` antes de traducirla).
+export const esDePrueba = (p) => Boolean(p && (p._prueba || p.demo === true || (/\bprueba\b/i.test(String(p.titulo || '')) && !/\ba prueba de\b/i.test(String(p.titulo || '')))));
+// El precio que se muestra de una casa: 0 («Precio a consultar») cuando es VIP y su ficha lo oculta. Uno solo para el
+// sitio (tarjetas, ficha, metadescripción, compartir, datos para ordenar, JSON-LD, catálogos, llms.txt), la difusión y
+// el PDF del listado: el precio oculto no sale en ningún lado. Sin VIP la casilla no se ve, así que no cuenta.
+export const precioVisible = (p) => (p && p.vip && p.vipLanding && p.vipLanding.ocultarPrecio ? 0 : Number(p?.precio) || 0);
+// Amenidades en inglés: un solo diccionario para el sitio (ficha en inglés), el traductor sin IA (reglas.js) y lo que se
+// guarda al traducir. La que no está en ninguno queda como se escribió: nunca se pierde una (el inglés también la muestra).
+// Más amenidades y frases comunes en anuncios (sin tildes ni mayúsculas), para las que no están en la lista de arriba.
+const DICCIONARIO_EN = {
+	piscina: 'Swimming pool', jardin: 'Garden', 'garita de seguridad': '24/7 gated security', garita: 'Gated security', seguridad: 'Security',
+	'seguridad 24 horas': '24/7 security', gimnasio: 'Gym', terraza: 'Terrace', balcon: 'Balcony', estudio: 'Study', bodega: 'Storage room',
+	'area de lavanderia': 'Laundry area', lavanderia: 'Laundry room', 'cuarto de servicio': "Maid's quarters", 'dormitorio de servicio': "Maid's quarters",
+	chimenea: 'Fireplace', elevador: 'Elevator', ascensor: 'Elevator', 'area social': 'Clubhouse', 'salon social': 'Event room', 'casa club': 'Clubhouse',
+	'area de juegos infantiles': "Children's play area", 'juegos infantiles': 'Playground', 'planta electrica': 'Backup generator', generador: 'Backup generator',
+	cisterna: 'Water cistern', 'paneles solares': 'Solar panels', amueblado: 'Furnished', 'semi amueblado': 'Semi-furnished', 'cocina equipada': 'Equipped kitchen',
+	'cocina integral': 'Fitted kitchen', 'walk in closet': 'Walk-in closet', 'vestidor': 'Walk-in closet', 'sala familiar': 'Family room', 'sala de estar': 'Living room',
+	comedor: 'Dining room', parqueo: 'Parking', 'parqueo de visitas': 'Guest parking', 'area de bbq': 'BBQ area', bbq: 'BBQ area', rancho: 'Gazebo',
+	'cancha de tenis': 'Tennis court', 'cancha deportiva': 'Sports court', 'sendero': 'Walking trail', 'vista': 'View', 'vista panoramica': 'Panoramic view',
+	'acepta mascotas': 'Pet friendly', 'pet friendly': 'Pet friendly', 'calentador solar': 'Solar water heater', 'agua caliente': 'Hot water',
+	'aire acondicionado': 'Air conditioning', 'pozo': 'Private well', 'area verde': 'Green area', 'areas verdes': 'Green areas', 'jacuzzi': 'Jacuzzi',
+	'sauna': 'Sauna', 'business center': 'Business center', 'cowork': 'Coworking space', 'roof top': 'Rooftop', 'rooftop': 'Rooftop', 'azotea': 'Rooftop'
+};
+const llaveAmenidad = (a) => String(a ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+const AMENIDAD_EN = new Map(AMENIDADES_COMUNES.map(([es, en]) => [llaveAmenidad(es), en]));
+export const amenidadEn = (a) => AMENIDAD_EN.get(llaveAmenidad(a)) || DICCIONARIO_EN[llaveAmenidad(a)] || String(a ?? '').trim();
+export const amenidadesEn = (lista) => (lista || []).map(amenidadEn).filter(Boolean);
+// La lista en inglés guardada vale mientras corresponda a la de español (misma cantidad); si no, sale del diccionario.
+export const amenidadesEnDe = (p) => {
+	const es = (p && p.amenidades) || [], en = (p && p.en && p.en.amenidades) || [];
+	return en.length && en.length === es.length ? en : amenidadesEn(es);
+};

@@ -6,7 +6,7 @@ import {
 import { buscar, paginaDeZona, zonasHermanas, padres, nombreTipo } from './landings.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
-import { estadoDe } from '../../admin/js/estados.js';
+import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
 import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
@@ -42,14 +42,14 @@ const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const visible = (ctx, href) => !ctx.enlaces || ctx.enlaces.visible(href);
 const md = (ctx, texto, nivel = 2) => markdown(texto, ctx.enlaces ? ctx.enlaces.resolver : null, nivel);
 const lng = (p) => p._lang || 'es';
-const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
+const price = (p) => formatPrice(precioVisible(p), p.moneda, p.operacion, lng(p));
 
 // Precio rebajado: el último cambio de precio (misma moneda) fue una baja hace 60 días o menos.
 // Sale del historial de precio que guarda el panel. Devuelve el precio anterior o 0.
 const DIAS_REBAJA = 60;
 export function precioAnterior(p, hoy = Date.now()) {
 	if (!p || !Number(p.precio) || p.operacion === 'vacacional' || (p.estado && p.estado !== 'disponible')) return 0;
-	if (p.vipLanding && p.vipLanding.ocultarPrecio) return 0;
+	if (!precioVisible(p)) return 0;
 	const h = (p.historialPrecio || []).filter((x) => x && Number(x.precio));
 	if (h.length < 2) return 0;
 	const ultimo = h[h.length - 1];
@@ -447,7 +447,7 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 	const url = propertyUrl(p);
 	const data = [
 		// Precio en US$ (formato.js `enUSD`, un solo tipo de cambio): así el orden y los filtros comparan Q con US$.
-		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(p.precio, p.moneda))],
+		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(precioVisible(p), p.moneda))],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
 		['texto', [p.titulo, p.zona, p.ciudad, porNoche(p) ? '' : p.direccion, tipoLabel(p)].filter(Boolean).join(' ').toLowerCase()],
 		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ id: p.id, bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
@@ -940,7 +940,7 @@ export function propertyCode(p) {
 function mortgageCalculator(ctx, p) {
 	const c = ctx.site.calculadora || {};
 	const t = tr(ctx);
-	if (c.visible === false || p.operacion === 'renta' || p.operacion === 'vacacional' || !p.precio) return '';
+	if (c.visible === false || p.operacion === 'renta' || p.operacion === 'vacacional' || !precioVisible(p)) return '';
 	return `<div class="calc-card mt-4" data-calc data-precio="${esc(p.precio)}" data-moneda="${esc(p.moneda || 'USD')}" data-lang="${ctx.lang || 'es'}">
 						<h3 class="h5 mb-3">${ic('calculator')}${t.calcTitulo}</h3>
 						<div class="row g-2">
@@ -1030,7 +1030,7 @@ function factsList(p) {
 		['calendar', t.fAnio, p.anioConstruccion],
 		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
 		['map-marker', t.fUbicacion, lugarDe(p, !porNoche(p))],
-		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
+		['usd', t.fPrecioM2, p.operacion === 'venta' && precioVisible(p) && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
 	];
@@ -1108,10 +1108,10 @@ function listingLd(ctx, p) {
 	const offer = {
 		'@type': 'Offer',
 		url: absUrl(ctx, propertyUrl(p)),
-		price: p.vipLanding && p.vipLanding.ocultarPrecio ? undefined : (p.precio || undefined),
+		price: precioVisible(p) || undefined,
 		priceCurrency: p.moneda || 'USD',
 		// Renta vacacional: el precio es por noche, antes de impuestos.
-		priceSpecification: p.operacion === 'vacacional' && p.precio
+		priceSpecification: p.operacion === 'vacacional' && precioVisible(p)
 			? { '@type': 'UnitPriceSpecification', price: p.precio, priceCurrency: p.moneda || 'USD', unitText: lng(p) === 'en' ? 'night' : 'noche', valueAddedTaxIncluded: false }
 			: undefined,
 		offeredBy: agent
@@ -1176,7 +1176,7 @@ function seoDescription(p) {
 }
 
 function viewContentAttrs(p) {
-	return `data-view-content='${esc(JSON.stringify({ content_ids: [p.id], content_name: p.titulo, content_type: 'home_listing', value: p.precio || 0, currency: p.moneda || 'USD' }))}'`;
+	return `data-view-content='${esc(JSON.stringify({ content_ids: [p.id], content_name: p.titulo, content_type: 'home_listing', value: precioVisible(p), currency: p.moneda || 'USD' }))}'`;
 }
 
 function shareButtons(ctx, p) {
@@ -1436,6 +1436,7 @@ ${esVac ? '' : lateral}
 		preloadSizes: sizesGaleria((p.fotos || []).length, 0),
 		title: seoTitle(p),
 		description: seoDescription(p),
+		noindex: esDePrueba(p),
 		image: firstPhoto(p),
 		imageAlt: photoAlt(p),
 		ogType: 'article',
@@ -1523,7 +1524,7 @@ export function vipIndexPage(ctx, entrada = null) {
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
-							<span class="vip-card-meta">${ic('map-marker')}${esc(lugarDe(p))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
+							<span class="vip-card-meta">${ic('map-marker')}${esc(lugarDe(p))}${precioVisible(p) ? ` · ${esc(price(p))}` : ''}</span>
 						</span>
 					</a>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.vipPronto} <a href="${r.contacto}">${t.contactanos}</a> ${t.paraConocerlas}</p>`}
@@ -1572,7 +1573,7 @@ export function vipLandingPage(ctx, p) {
 	const portada = v.portada || firstPhoto(p);
 	const video = videoEmbedUrl(v.video || p.video);
 	const mapa = !porNoche(p) && (v.mapa || p.mapa) ? mapEmbedUrl(v.mapa || p.mapa) : '';
-	const precio = v.ocultarPrecio ? t.precioConsultar : price(p);
+	const precio = price(p);
 	const waNumber = (agent && agent.whatsapp) || s.contacto.whatsapp;
 	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));
 	const cta = v.ctaTexto || t.agendarPrivada;
@@ -1715,6 +1716,7 @@ export function vipLandingPage(ctx, p) {
 		preloadImage: portada,
 		title: (p.seo && p.seo.titulo) || `${v.titular || p.titulo} | ${t.propiedadExclusiva}`,
 		description: (p.seo && p.seo.descripcion) || v.subtitular || seoDescription(p),
+		noindex: esDePrueba(p),
 		image: portada,
 		ogType: 'article',
 		bare: true,
@@ -1809,7 +1811,7 @@ function faqLd(page) {
 
 function postDate(post, ctx) {
 	const d = new Date(post.fecha ? `${post.fecha}T12:00:00` : post.createdAt || Date.now());
-	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(tr(ctx).dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
+	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(tr(ctx).dateLocale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Guatemala' });
 }
 
 export function blogIndexPage(ctx) {
