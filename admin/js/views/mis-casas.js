@@ -134,12 +134,15 @@ async function casa(container, id) {
 	const suya = Boolean(sCasa?.exists()) && sCasa.data().propietarioId === mio;
 	if (!sCasa?.exists() || sCasa.data().operacion !== 'vacacional') return enVenta(container, id, sCasa?.exists() ? sCasa.data().titulo : '', suya);
 	if (!suya) return mount(container, emptyState('Esta casa no está a tu nombre.', h('a', { class: 'btn btn-primary', href: '#/mis-casas' }, 'Ver mis propiedades')));
-	const [sSocio, sLeads, sReservas, perm] = await Promise.all([getDoc(refSocio),
+	const [sSocio, sLeads, sReservas, perm, sMontos] = await Promise.all([getDoc(refSocio),
 		// Solicitudes de sus casas: del chat de cada una (las solicitudes traen el contacto del cliente y el socio no las lee).
 		getDocs(query(collection(db, 'chats'), where('propietarioId', '==', mio))),
 		getDocs(query(collection(db, 'reservas'), where('propietarioId', '==', mio))).catch(() => null),
 		// Lo que el administrador le apagó (o se apagó por atraso en la comisión): admin/js/permisos-socio.js.
-		permisosDelSocio(mio)]);
+		permisosDelSocio(mio),
+		// Los montos que el servidor congeló (solo una solicitud cotizada a un precio válido aparta sus fechas: apartaFechas).
+		getDocs(query(collection(db, 'montosSolicitud'), where('propietarioId', '==', mio))).catch(() => null)]);
+	const montos = Object.fromEntries((sMontos?.docs || []).map((d) => [d.id, d.data()]));
 	const puedePrecios = puede(perm, 'precios'), puedeFechas = puede(perm, 'fechas');
 	const p = sCasa.data();
 	// Lo que lleva esta casa: reservas confirmadas, noches y lo que le toca (la misma cuenta de Rentas vacacionales).
@@ -157,7 +160,7 @@ async function casa(container, id) {
 		// Solicitudes de la web sin responder (todas: el aviso al bloquear y la cuenta de arriba) y, de ellas, las que
 		// apartan sus fechas (dentro de sus 24 h: la misma regla de la página), las del ícono del calendario.
 		abiertas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && !c.estado)
-			.map((c) => ({ desde: c.llegada, hasta: c.salida, codigo: c.codigo, aparta: apartaFechas(c.estado, '', ms(c.createdAt)) })),
+			.map((c) => ({ desde: c.llegada, hasta: c.salida, codigo: c.codigo, aparta: apartaFechas(c.estado, '', ms(c.createdAt), montos[c.leadId]) })),
 		// Noches tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos por /api/disponibilidad): llegan después.
 		externas: []
 	};

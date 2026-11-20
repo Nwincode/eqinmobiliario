@@ -21,7 +21,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
-import { yaRespondida, seCruzan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
+import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
 	MOTIVO_CASA_NO_DISPONIBLE, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
 
@@ -96,15 +96,18 @@ export default async () => {
 	const ahora = Date.now();
 	const inicio = Date.now();
 	// Cada cambio, con su correo en seguida (si la vuelta se corta, el aviso queda pendiente en el chat).
-	// Lo que liberó o apartó fechas borra la copia de /api/disponibilidad de su casa en el CDN.
+	// Lo que liberó o apartó fechas borra la copia de /api/disponibilidad de su casa en el CDN: al final de la vuelta,
+	// todas juntas (cada purga a lo más 3 s), así no gastan el tiempo de la vuelta.
+	const tocadas = new Map();
 	const uno = async (p, que) => {
 		try {
 			const hecho = await p;
 			const t = typeof hecho === 'string' ? hecho : hecho?.token;
-			if (hecho?.casa) await (hecho.reserva ? fechasCambiaron(hecho.casa, 'Reserva sin pago a tiempo: se canceló sola') : purgarCasa(hecho.casa));
+			if (hecho?.casa) tocadas.set(hecho.casa, tocadas.get(hecho.casa) || Boolean(hecho.reserva));
 			if (t) await enviarAvisosChat(t).catch((err) => console.error('Plazos (correo):', err.message));
 		} catch (err) { console.error(`Plazos (${que}):`, err.message); }
 	};
+	const alDia = () => Promise.allSettled([...tocadas].map(([casa, reserva]) => (reserva ? fechasCambiaron(casa, 'Reserva sin pago a tiempo: se canceló sola') : purgarCasa(casa))));
 	const queda = () => Date.now() - inicio < PRESUPUESTO;
 	try {
 		// Primero lo que cancela o recuerda un pago (lo que más pesa si la vuelta se corta a los 20 s).
@@ -129,14 +132,11 @@ export default async () => {
 		for (const l of abiertas.filter((x) => !congeladas.has(x.id))) {
 			if (!queda()) return;
 			const montos = await transaccion((tx) => congelarMontos(tx, l.id)).catch((err) => { console.error('Plazos (montos):', err.message); return null; });
-			await avisarQueTocaConfirmar(l.id, montos).catch((err) => console.error('Plazos (te toca confirmar):', err.message));
-		}
-		// Las que llegaron encima de otra que aparta esas fechas y no se cerraron al llegar (su /api/aviso-chat no llegó).
-		const cruzadas = abiertas.filter((l) => abiertas.some((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)));
-		for (const l of cruzadas) {
-			if (!queda()) return;
-			const candidatas = abiertas.filter((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)).map((o) => o.id);
-			await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id, ahora, candidatas); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
+			if (bajoElPlan(montos)) {
+				const t = (await leerPrivado(`chatsPorSolicitud/${l.id}`).catch(() => null))?.token;
+				if (t) await avisarQueTocaConfirmar(t).catch((err) => console.error('Plazos (te toca confirmar):', err.message));
+			}
+			if (montos) tocadas.set(l.propertyId, tocadas.get(l.propertyId) || false);
 		}
 		// Abiertas de una casa que salió del sitio.
 		const casas = new Map();
@@ -146,10 +146,15 @@ export default async () => {
 			const casa = casas.get(l.propertyId);
 			if (casa === undefined) continue;
 			if (!casa || visibilidadDe(casa) !== 'visible') await uno(cerrarSinRespuesta(l.id, ahora, { casaFuera: true }), 'casa fuera');
+			// Sus fechas ya tienen una reserva confirmada (su /api/aviso-chat no llegó o llegó antes de la confirmación).
+			else if ((casa.vacacional?.reservadas || []).some((r) => seCruzan(l.reserva, { llegada: r.desde, salida: r.hasta })))
+				await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
 			else if (conPlazo(ms(l.createdAt)) && ahora >= venceRespuesta(ms(l.createdAt))) await uno(cerrarSinRespuesta(l.id, ahora), 'solicitud');
 		}
 	} catch (err) {
 		console.error('Plazos:', err.message);
+	} finally {
+		await alDia();
 	}
 };
 

@@ -194,7 +194,7 @@ export async function porServidor(accion, leadId, extra = {}) {
 	sinServidor = res.status === 503;
 	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
 	// `yaRespondida`: otra pestaña (o un intento cuya respuesta se perdió) ya lo hizo: la pantalla se recarga.
-	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida) });
+	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida), ...(cuerpo.faltaRevisar ? { faltaRevisar: cuerpo.faltaRevisar } : {}) });
 	return cuerpo;
 }
 // Lo del socio que siguió por el camino de antes porque el servidor respondió 503: si las reglas ya son las nuevas, lo
@@ -245,9 +245,9 @@ const avisoPendienteDe = (msj) => (session.esSocio ? {} : { avisoPendiente: msj.
 // El socio, por el servidor (los montos los pone él, no el panel). Las repetidas de esta solicitud las cierra el cron de
 // plazos (las del socio, el servidor al confirmar).
 // Devuelve lo que quedó registrado: { ganancia, moneda }.
-export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolicitud(l, montos, { chat = null, pago = '' } = {}) {
+export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolicitud(l, montos, { chat = null, pago = '', revisado = false } = {}) {
 	if (session.esSocio) {
-		const hecho = await porServidor('confirmar', l.id);
+		const hecho = await porServidor('confirmar', l.id, revisado ? { revisado: true } : {});
 		if (hecho) { await markPending(`${l.propertyTitulo}: reserva ${l.reserva.codigo} confirmada`); return hecho; }
 	}
 	const r = l.reserva;
@@ -257,9 +257,13 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	if (no) throw Object.assign(new Error(no), { servidor: 409 });
 	// Sin la dirección exacta no se confirma (lo mismo que revisa el servidor por el socio).
 	if (faltaDireccion((await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada')).catch(() => null))?.data())) throw Object.assign(new Error(TEXTO_SIN_DIRECCION), { servidor: 409 });
-	// Noches ya tomadas en Airbnb, Booking o VRBO (lo mismo que revisa el servidor por el socio).
-	const enOtra = choqueExterno(r, (await ocupacionDe(l.propertyId))?.externas?.map((x) => ({ ...x, fuente: 'Airbnb, Booking o VRBO' })));
+	// Noches ya tomadas en Airbnb, Booking o VRBO (lo mismo que revisa el servidor por el socio). Si la consulta no
+	// responde o un calendario no se pudo leer, se confirma solo diciendo que se revisó a mano (`revisado`).
+	const ocup = await ocupacionDe(l.propertyId);
+	const enOtra = choqueExterno(r, ocup?.externas?.map((x) => ({ ...x, fuente: 'Airbnb, Booking o VRBO' })));
 	if (enOtra) throw Object.assign(new Error(enOtra), { servidor: 409 });
+	const sinLeer = !ocup ? ['Airbnb, Booking o VRBO'] : ocup.sinLeer || [];
+	if (sinLeer.length && !revisado) throw Object.assign(new Error(`No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres.`), { servidor: 409, faltaRevisar: sinLeer });
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
 	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '' });

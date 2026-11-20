@@ -34,14 +34,18 @@ async function elEnlace(req, id) {
 	if (!casa || casa.operacion !== 'vacacional') return json(404, { error: 'No es una casa por noche.' });
 	const suya = u.rol === 'socio' && u.propietarioId && casa.propietarioId === u.propietarioId;
 	if (u.rol !== 'admin' && !suya) return json(403, { error: 'Solo el administrador o el dueño de la casa.' });
-	const ya = (await leerPrivado(RUTA(id)).catch(() => null))?.llave;
-	if (LLAVE.test(ya || '')) return json(200, { url: enlace(id, ya) });
+	// La llave es del dueño de hoy: si la casa cambió de dueño, la del anterior deja de servir y se crea otra.
+	const dueno = casa.propietarioId || '';
+	const vigente = (s) => LLAVE.test(s?.llave || '') && (s.propietarioId || '') === dueno;
+	const ya = await leerPrivado(RUTA(id)).catch(() => null);
+	if (vigente(ya)) return json(200, { url: enlace(id, ya.llave) });
 	if (!escrituraConfigurada()) return json(503, { error: 'El servidor no está configurado.' });
 	const llave = await transaccion(async (tx) => {
 		const s = await tx.leer(RUTA(id));
-		if (LLAVE.test(s?.llave || '')) return s.llave;
+		if (vigente(s)) return s.llave;
 		const nueva = randomBytes(24).toString('hex');
-		tx.crear(RUTA(id), { llave: nueva }, { ahora: ['creada'] });
+		if (s) tx.cambiar(RUTA(id), { llave: nueva, propietarioId: dueno }, { ahora: ['creada'] });
+		else tx.crear(RUTA(id), { llave: nueva, propietarioId: dueno }, { ahora: ['creada'] });
 		return nueva;
 	});
 	return json(200, { url: enlace(id, llave) });
@@ -55,9 +59,11 @@ export default async (req) => {
 	if (!ID.test(id)) return json(400, { error: 'casa' });
 	if (!datosConfigurados()) return json(503, { error: 'El servidor no está configurado.' });
 	if (!llave) return elEnlace(req, id);
-	const guardada = LLAVE.test(llave) ? (await leerPrivado(RUTA(id)).catch(() => null))?.llave : '';
+	const doc = LLAVE.test(llave) ? await leerPrivado(RUTA(id)).catch(() => null) : null;
+	const guardada = doc?.llave || '';
 	const casa = guardada ? await leerPrivado(`properties/${id}`).catch(() => null) : null;
-	if (!igual(llave, guardada) || casa?.operacion !== 'vacacional') return new Response('No existe', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+	// Una llave de otro dueño (la casa cambió de dueño) ya no sirve.
+	if (!igual(llave, guardada) || casa?.operacion !== 'vacacional' || (doc.propietarioId || '') !== (casa.propietarioId || '')) return new Response('No existe', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 	const desde = V.sumarDias(V.hoy(), -30);
 	const estancias = (await donde('reservas', 'propertyId', id)).filter((r) => r.estado === 'confirmada' && V.esFecha(r.llegada) && r.salida > desde)
 		.map((r) => ({ id: r.id, desde: r.llegada, hasta: r.salida }));

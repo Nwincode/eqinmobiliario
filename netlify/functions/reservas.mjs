@@ -15,7 +15,7 @@
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
-import { Respuesta, falla, fechasCambiaron, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
+import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
@@ -28,17 +28,19 @@ const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 
 // Las noches de Airbnb, Booking y VRBO de la casa de la solicitud, leídas con la cuenta de lectura fuera de la
-// transacción (los calendarios tardan). Un calendario que no responde no frena la confirmación (igual que la página).
+// transacción (los calendarios tardan). Uno que no responde y no tiene lo último leído del día (`sinLeer`) no frena la
+// confirmación, pero el socio tiene que decir que lo revisó a mano en la plataforma (`revisado`).
 async function nochesExternas(leadId) {
 	try {
 		const lead = await leerPrivado(`leads/${leadId}`);
-		if (!ID.test(lead?.propertyId || '')) return [];
-		return (await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`))).rangos;
+		if (!ID.test(lead?.propertyId || '')) return { rangos: [], sinLeer: [] };
+		return await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`), lead.propertyId);
 	} catch (err) {
 		console.error('Reservas: calendarios de las plataformas', err.message);
-		return [];
+		return { rangos: [], sinLeer: ['las plataformas'] };
 	}
 }
+export const textoSinLeer = (sinLeer) => `No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres y confirma otra vez marcando «Revisé ${sinLeer.join(' y ')}».`;
 
 const YA = 'Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.';
 
@@ -61,12 +63,13 @@ const ACCIONES = {
 	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat
 	// dicen «confirmada» y el cliente recibe los datos de pago de la ficha del socio. Los montos son los congelados al
 	// llegar la solicitud (montosSolicitud): lo que se le cotizó al cliente, nunca los precios de hoy ni lo que mande el panel.
-	async confirmar(tx, socio, leadId, _motivo, externas = []) {
+	async confirmar(tx, socio, leadId, _motivo, { rangos: externas = [], sinLeer = [] } = {}, revisado = false) {
 		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado) || await tx.leer(`reservas/${leadId}`)) falla(409, YA);
 		// Noches ya tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos antes de la transacción): no se confirma encima.
 		const enOtra = choqueExterno(lead.reserva, externas);
 		if (enOtra) falla(409, enOtra);
+		if (sinLeer.length && !revisado) throw Object.assign(new Respuesta(409, textoSinLeer(sinLeer)), { faltaRevisar: sinLeer });
 		const montos = await congelarMontos(tx, leadId, { lead, casa });
 		// La llegada ya pasó, la casa salió del sitio o cambió de moneda: no se confirma (se cierra con «No se dio»).
 		const no = motivoParaNoConfirmar(lead, casa, montos);
@@ -195,10 +198,10 @@ export default async (req, context) => {
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
 	let hecho;
 	try {
-		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : [];
-		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas));
+		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : undefined;
+		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true));
 	} catch (err) {
-		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
+		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.faltaRevisar ? { faltaRevisar: err.faltaRevisar } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
 		if (err?.codigo === 'ALREADY_EXISTS' || err?.codigo === 'FAILED_PRECONDITION') return json(409, { error: YA, yaRespondida: true });
 		if (sinCuenta(err)) { console.error('Reservas: cuenta de escritura', err.message); return json(503, { error: 'La cuenta de escritura no funciona' }); }
@@ -209,6 +212,11 @@ export default async (req, context) => {
 	// queda. Lo guardado se responde sin esperarlos cuando Netlify deja terminar trabajo después de responder
 	// (context.waitUntil); si no, se esperan antes de responder (la función sigue aunque el panel se desconecte).
 	const { token, casa, ...resto } = hecho;
+	// Confirmada: las otras solicitudes abiertas de la casa que se cruzan con esas fechas se cierran (con su correo).
+	if (accion === 'confirmar' && casa) {
+		const r = await leerPrivado(`reservas/${leadId}`).catch(() => null);
+		for (const t of await cerrarLasQueSeCruzan(casa, r?.llegada, r?.salida).catch((err) => { console.error('Reservas: cruzadas', err.message); return []; })) await enviarAvisosChat(t).catch(() => {});
+	}
 	// Las fechas de la casa cambiaron (también al responder una solicitud que las apartaba).
 	if (casa) await (accion === 'no' ? purgarCasa(casa) : fechasCambiaron(casa, `Reserva por noche: ${accion}`));
 	const avisos = enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });

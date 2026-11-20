@@ -16,9 +16,9 @@ import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, es
 import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
-import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
+import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
-import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
+import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -57,6 +57,8 @@ export default async () => {
 		const todosLosChats = await listar('chats').catch((err) => { console.error('Chats:', err.message); return []; });
 		// Los correos del chat que no salieron: un reintento cada uno (aviso-chat-envio.mjs lo quita salga o no).
 		for (const c of todosLosChats.filter((x) => x.avisoPendiente)) await enviarAvisosChat(c.id, { reintento: true }).catch((err) => console.error('Reintento de aviso:', err.message));
+		// «Te toca confirmar» que no salió (cotizada por debajo del precio de la casa, sin responder): otro intento.
+		for (const c of todosLosChats.filter((x) => x.teTocaPendiente && !x.estado)) await avisarQueTocaConfirmar(c.id).catch((err) => console.error('Reintento de «Te toca confirmar»:', err.message));
 		// Confirmadas sin pago marcado con la llegada ya pasada: cada mañana, hasta que se resuelvan.
 		const sinPago = !sonLas7 ? [] : await (async () => {
 			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
@@ -122,7 +124,8 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 // fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva anotada a mano en la misma casa: la señal
 // de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
 // escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
-const cerradaSinReserva = (s) => (s?.estado === 'no' && s.motivo !== 'Duplicada') || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, 'Cliente canceló'].includes(s.motivo));
+// Las que cerró el sistema porque otra se confirmó en esas fechas (Duplicada, «Fechas ya reservadas») no cuentan.
+const cerradaSinReserva = (s) => (s?.estado === 'no' && ![MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS].includes(s.motivo)) || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, 'Cliente canceló'].includes(s.motivo));
 async function noSeDioYBloqueada(ahora) {
 	if (!escrituraConfigurada()) return [];
 	const hoy = V.hoy(ahora);

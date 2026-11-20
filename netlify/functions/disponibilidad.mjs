@@ -14,17 +14,18 @@
 // el calendario del dueño) y se purga su copia del CDN.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde, datosConfigurados } from '../lib/firestore.mjs';
-import { sociosEnMora } from '../lib/comisiones.mjs';
+import { moraDe } from '../lib/comisiones.mjs';
 import { externasDe, purgarCasa, etiquetaCasa } from '../lib/ocupacion.mjs';
 import { json, usuario } from '../lib/auth.mjs';
-import { limitador, ipDe } from '../lib/limite.mjs';
-import { apartaFechas, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
+import { limitador, limitadorDurable, ipDe } from '../lib/limite.mjs';
+import { apartaFechas, yaRespondida, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const CACHE = 30;
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const porUsuario = limitador(120);
-const porIp = limitador(120);
+// La consulta al día (sin CDN): límite por IP guardado en la base, compartido por todas las instancias.
+const porIp = limitadorDurable('al-dia', 60, 10 * 60_000);
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 
 function respuesta(status, body, id = '', fresco = false) {
@@ -48,7 +49,11 @@ async function purgar(req) {
 	let ids = [];
 	try { const b = await req.json(); ids = [].concat(b?.id || []).map(String).filter((x) => ID.test(x)).slice(0, 10); } catch { /* sin cuerpo */ }
 	if (!ids.length) return json(400, { error: 'id' });
-	return json(200, { purgado: await purgarCasa(...ids) });
+	// El equipo, cualquier casa; el socio, solo las suyas (la casa decide de quién es).
+	const equipo = u.rol === 'admin' || u.rol === 'asesor';
+	const suyas = equipo ? ids : (await Promise.all(ids.map(async (id) => ((await leerPrivado(`properties/${id}`).catch(() => null))?.propietarioId === u.propietarioId && u.propietarioId ? id : '')))).filter(Boolean);
+	if (!suyas.length) return json(403, { error: 'Sin permiso' });
+	return json(200, { purgado: await purgarCasa(...suyas) });
 }
 
 export default async (req, context) => {
@@ -57,7 +62,7 @@ export default async (req, context) => {
 	const id = url.searchParams.get('id') || '';
 	const fresco = url.pathname.endsWith('/al-dia');
 	if (!ID.test(id)) return respuesta(400, { error: 'id' });
-	if (fresco && porIp(ipDe(req, context))) return respuesta(429, { error: 'Demasiados pedidos seguidos' });
+	if (fresco && await porIp(ipDe(req, context))) return respuesta(429, { error: 'Demasiados pedidos seguidos' });
 
 	const p = await leerPublico(`properties/${id}`);
 	if (!p || p.publicado !== true || p.operacion !== 'vacacional') return respuesta(404, { error: 'no encontrada' }, id, fresco);
@@ -67,20 +72,25 @@ export default async (req, context) => {
 	let fuentes = [];
 	let apartadas = [];
 	let atraso = 0;
+	let sinLeer = [];
 	const ahora = Date.now();
 	if (datosConfigurados()) {
 		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde.
 		const [privado, recientes, mora] = await Promise.all([
 			leerPrivado(`properties/${id}/privado/socio`),
 			desde('leads', 'createdAt', new Date(ahora - HORAS_RESPUESTA * 3600_000)),
-			p.propietarioId ? sociosEnMora() : null
+			moraDe(p.propietarioId, ahora)
 		].map((x) => Promise.resolve(x).catch(() => null)));
-		const ext = await externasDe(privado);
+		const ext = await externasDe(privado, id);
 		externas = ext.rangos.map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		fuentes = ext.fuentes;
-		apartadas = (recientes || []).filter((l) => l.propertyId === id && l.reserva?.llegada && apartaFechas('', l.solicitud?.estado, ms(l.createdAt), ahora))
+		sinLeer = ext.sinLeer;
+		// Solo las que el servidor cotizó a un precio válido (montosSolicitud): una escrita a mano contra la base no aparta.
+		const abiertas = (recientes || []).filter((l) => l.propertyId === id && l.reserva?.llegada && !yaRespondida('', l.solicitud?.estado));
+		const montos = await Promise.all(abiertas.map((l) => leerPrivado(`montosSolicitud/${l.id}`).catch(() => null)));
+		apartadas = abiertas.filter((l, i) => apartaFechas('', l.solicitud?.estado, ms(l.createdAt), montos[i], ahora))
 			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }));
-		atraso = mora?.[p.propietarioId] || 0;
+		atraso = mora || 0;
 	}
 	const hoy = V.hoy();
 	const vigentes = (lista) => V.unirRangos(lista).filter((r) => r.hasta > hoy);
@@ -94,7 +104,7 @@ export default async (req, context) => {
 	// Solo un número de 1 o más (la regla `caben` igual: lo demás, sin tope).
 	const huespedesMax = typeof v.huespedesMax === 'number' && v.huespedesMax >= 1 ? Math.floor(v.huespedesMax) : undefined;
 	return respuesta(200, { ocupadas, externas: vigentes(externas), apartadas: vigentes(apartadas), plan, minimos, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}),
-		fuente: fuentes.length ? fuentes.join(',') : 'manual' }, id, fresco);
+		fuente: fuentes.length ? fuentes.join(',') : 'manual', ...(sinLeer.length ? { sinLeer } : {}) }, id, fresco);
 };
 
 export const config = { path: ['/api/disponibilidad', '/api/disponibilidad/al-dia'] };

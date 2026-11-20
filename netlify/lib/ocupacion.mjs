@@ -4,8 +4,11 @@
 // - purgarCasa(id): borra del CDN lo que responde /api/disponibilidad (y el calendario de salida) de esa casa, con su
 //   etiqueta `casa-{id}` (Netlify-Cache-Tag). La llaman quienes cambian sus fechas: aviso-chat (solicitud nueva),
 //   reservas (el socio), plazos-reservas (lo que vence solo), mi-casa y el panel (POST /api/disponibilidad).
-//   Usa NETLIFY_PURGE_API_TOKEN, que Netlify pone en las funciones; sin él no hace nada y el CDN igual olvida en 30 s.
+//   Usa NETLIFY_PURGE_API_TOKEN, que Netlify pone en las funciones (y SITE_ID si está); sin él no hace nada y el CDN
+//   igual olvida en 30 s. Cada falla queda en el registro («CDN: no se pudo purgar»).
 import '../../js/calc-vacacional.js';
+import { leerPrivado } from './firestore.mjs';
+import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 
 const V = globalThis.EQVacacional;
 
@@ -27,39 +30,70 @@ async function leerIcal(url) {
 	}
 }
 
-// Cada calendario leído se recuerda 10 min en la función (las plataformas no reciben un pedido por cada visita) y, si
-// después no responde, vale lo último que respondió durante un día (un calendario caído no deja libres sus noches).
+// Cada calendario leído se recuerda 10 min en la función (las plataformas no reciben un pedido por cada visita) y lo
+// último que respondió queda en la base (properties/{id}/privado/icalLeido, con la cuenta de escritura) para todas las
+// funciones: si después no responde, vale eso durante un día (un calendario caído no deja libres sus noches). Uno que no
+// responde y no tiene nada guardado de ese día va en `sinLeer` (al confirmar, el socio revisa la plataforma a mano).
 const LEIDOS = new Map();
 const FRESCO = 10 * 60_000, ULTIMO = 24 * 3600_000;
-async function leerIcalRecordado(url) {
-	const ya = LEIDOS.get(url), ahora = Date.now();
-	if (ya && ahora - ya.cuando < FRESCO) return ya.rangos;
-	const rangos = await leerIcal(url);
-	if (rangos) { LEIDOS.set(url, { rangos, cuando: ahora }); if (LEIDOS.size > 500) LEIDOS.delete(LEIDOS.keys().next().value); return rangos; }
-	return ya && ahora - ya.cuando < ULTIMO ? ya.rangos : null;
-}
+const RUTA = (id) => `properties/${id}/privado/icalLeido`;
 
-// { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …] } (solo las que respondieron o se recuerdan).
-export async function externasDe(privado) {
-	const leidos = await Promise.all(V.CALENDARIOS.filter((c) => privado?.[c.campo]).map(async (c) => [c.nombre, await leerIcalRecordado(privado[c.campo])]));
-	const rangos = [], fuentes = [];
-	for (const [nombre, r] of leidos) if (r) { rangos.push(...r.map((x) => ({ ...x, fuente: nombre }))); fuentes.push(nombre.toLowerCase()); }
-	return { rangos, fuentes };
+// { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …], sinLeer: ['Airbnb', …] }.
+export async function externasDe(privado, casaId = '') {
+	const ahora = Date.now();
+	const cals = V.CALENDARIOS.filter((c) => privado?.[c.campo]);
+	let guardado;
+	const deLaBase = async () => {
+		if (guardado === undefined) guardado = casaId ? await leerPrivado(RUTA(casaId)).catch(() => null) : null;
+		return guardado;
+	};
+	const nuevos = {};
+	const leidos = await Promise.all(cals.map(async (c) => {
+		const url = privado[c.campo];
+		const mem = LEIDOS.get(url);
+		if (mem && ahora - mem.cuando < FRESCO) return [c, mem.rangos];
+		const rangos = await leerIcal(url);
+		if (rangos) {
+			LEIDOS.set(url, { rangos, cuando: ahora });
+			if (LEIDOS.size > 500) LEIDOS.delete(LEIDOS.keys().next().value);
+			const g = (await deLaBase())?.[c.campo];
+			if (!g || g.url !== url || ahora - (Number(g.cuando) || 0) > FRESCO || JSON.stringify(g.rangos) !== JSON.stringify(rangos)) nuevos[c.campo] = { url, rangos, cuando: ahora };
+			return [c, rangos];
+		}
+		const g = (await deLaBase())?.[c.campo];
+		if (g && g.url === url && ahora - (Number(g.cuando) || 0) < ULTIMO) return [c, g.rangos || []];
+		return [c, null];
+	}));
+	if (casaId && Object.keys(nuevos).length && escrituraConfigurada()) {
+		await transaccion(async (tx) => { if (await tx.leer(RUTA(casaId))) tx.cambiar(RUTA(casaId), nuevos); else tx.crear(RUTA(casaId), nuevos); })
+			.catch((err) => console.error('Calendarios (guardar lo leído):', err.message));
+	}
+	const rangos = [], fuentes = [], sinLeer = [];
+	for (const [c, r] of leidos) {
+		if (r) { rangos.push(...r.map((x) => ({ desde: x.desde, hasta: x.hasta, fuente: c.nombre }))); fuentes.push(c.nombre.toLowerCase()); }
+		else sinLeer.push(c.nombre);
+	}
+	return { rangos, fuentes, sinLeer };
 }
 
 export async function purgarCasa(...ids) {
 	const token = process.env.NETLIFY_PURGE_API_TOKEN;
 	const tags = [...new Set(ids.filter((x) => /^[A-Za-z0-9_-]{1,60}$/.test(x || '')))].map(etiquetaCasa);
 	if (!token || !tags.length) return false;
+	// A lo más 3 s: quien la llama (una respuesta, el cron) no se queda esperando; el CDN igual olvida en 30 s.
+	const ctrl = new AbortController();
+	const t = setTimeout(() => ctrl.abort(), 3000);
 	try {
 		const res = await fetch('https://api.netlify.com/api/v1/purge', {
-			method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
+			method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
 			body: JSON.stringify({ cache_tags: tags, ...(process.env.SITE_ID ? { site_id: process.env.SITE_ID } : {}) })
 		});
-		if (!res.ok) console.error('CDN: no se pudo purgar', res.status);
+		if (!res.ok) console.error('CDN: no se pudo purgar', res.status, tags.join(','));
 		return res.ok;
 	} catch (err) {
-		console.error('CDN: no se pudo purgar', err.message);
+		console.error('CDN: no se pudo purgar', err.message, tags.join(','));
 		return false;
+	} finally {
+		clearTimeout(t);
 	}
 }

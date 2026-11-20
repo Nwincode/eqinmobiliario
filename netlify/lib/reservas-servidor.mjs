@@ -5,7 +5,7 @@ import '../../js/calc-vacacional.js';
 import { idNuevo, marcarPorPublicar, transaccion } from './firestore-escritura.mjs';
 import { purgarCasa } from './ocupacion.mjs';
 import { desde } from './firestore.mjs';
-import { HORAS_RESPUESTA, montosCotizados, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
+import { montosCotizados, bajoElPlan, seCruzan, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
@@ -32,32 +32,38 @@ export async function fechasCambiaron(casa, desc) {
 	await transaccion((tx) => marcarPorPublicar(tx, desc, 'Reservas')).catch((err) => console.error('Por publicar:', err.message));
 }
 
-// Una solicitud que llegó encima de otra que aparta esas fechas (o de una reserva confirmada) se cierra sola con
-// «Fechas ya apartadas» y el cliente lo lee en su chat (apartadaPor en admin/js/reservas-calculo.js: la anterior
-// manda). Las reglas no pueden mirar otras solicitudes; esto lo cumple el servidor al llegar la solicitud
-// (/api/aviso-chat, la primera vez que la ve) y, si ese aviso no llegó, el cron de plazos. Devuelve el token del chat si
-// la cerró. Dentro de la transacción no se consulta la casa entera: `candidatas` son los ids de las solicitudes de la
-// misma casa que pueden apartar (de las últimas 24 h: solicitudesQueApartan), leídas aquí una por una; las reservas
-// confirmadas salen de las fechas de la casa (vacacional.reservadas, que las sigue en cada cambio).
-export async function cerrarSiSeCruza(tx, leadId, ahora = Date.now(), candidatas = []) {
+// Una solicitud abierta cuyas fechas ya tiene una reserva confirmada de la casa se cierra sola con «Fechas ya
+// reservadas» y el cliente lo lee en su chat (apartadaPor en admin/js/reservas-calculo.js). Dos solicitudes abiertas
+// que se cruzan no se cierran entre sí (una pudo ser falsa): al confirmar una, se cierran las otras. La llaman
+// /api/aviso-chat (cada vez que llega el aviso de una abierta: también uno atrasado), cerrarLasQueSeCruzan (al
+// confirmar) y el cron de plazos. Lee solo la solicitud, la casa (sus fechas reservadas siguen a cada reserva) y el chat.
+// Devuelve el token del chat si la cerró.
+export async function cerrarSiSeCruza(tx, leadId) {
 	const lead = await tx.leer(`leads/${leadId}`);
 	if (!lead?.reserva?.codigo || !lead.propertyId || yaRespondida('', lead.solicitud?.estado)) return null;
-	const conMs = (l) => ({ ...l, createdAt: ms(l.createdAt) });
-	const ids = [...new Set(candidatas)].filter((id) => id !== leadId).slice(0, 30);
-	const [casa, ...otras] = await Promise.all([tx.leer(`properties/${lead.propertyId}`), ...ids.map(async (id) => ({ id, ...(await tx.leer(`leads/${id}`)) }))]);
+	const casa = await tx.leer(`properties/${lead.propertyId}`);
 	const reservas = (casa?.vacacional?.reservadas || []).map((r, i) => ({ id: `fechas-${i}`, propertyId: lead.propertyId, estado: 'confirmada', llegada: r.desde, salida: r.hasta, codigo: 'otra reserva confirmada' }));
-	const por = apartadaPor(conMs({ ...lead, id: leadId }), otras.filter((o) => o.reserva?.llegada).map(conMs), reservas, ahora);
-	if (!por) return null;
+	// La reserva de esta misma solicitud (si ya se confirmó por otro camino) no cuenta: entonces ya no está abierta.
+	if (!apartadaPor({ ...lead, id: leadId }, reservas)) return null;
 	const c = await chatDe(tx.leer, leadId);
 	if (!c || yaRespondida(c.chat.estado, '')) return null;
-	responder(tx, SISTEMA_APARTADAS, leadId, 'no', `Esas fechas ya estaban apartadas por ${por}: se cerró sola`, { 'solicitud.motivo': MOTIVO_FECHAS_APARTADAS });
+	responder(tx, SISTEMA_APARTADAS, leadId, 'no', 'Esas fechas ya tienen otra reserva confirmada: se cerró sola', { 'solicitud.motivo': MOTIVO_FECHAS_APARTADAS });
 	const id = mensaje(tx, c.token, { texto: TEXTO_FECHAS_APARTADAS }, 'equipo');
 	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
 	return c.token;
 }
-// Las solicitudes de una casa que pueden apartar fechas ahora (las de las últimas 24 h, leídas fuera de la transacción).
-export async function solicitudesQueApartan(propertyId, ahora = Date.now()) {
-	return (await desde('leads', 'createdAt', new Date(ahora - HORAS_RESPUESTA * 3600_000))).filter((l) => l.propertyId === propertyId && l.reserva?.llegada).map((l) => l.id);
+// Al confirmar una reserva en una casa: las otras solicitudes abiertas que se cruzan con sus fechas se cierran (cada una
+// en su transacción, con su correo). Las candidatas se buscan fuera de la transacción (las de los últimos 30 días).
+// Devuelve los tokens de los chats cerrados (quien llama manda sus correos).
+export async function cerrarLasQueSeCruzan(propertyId, llegada, salida, ahora = Date.now()) {
+	const abiertas = (await desde('leads', 'createdAt', new Date(ahora - 30 * 86400_000))).filter((l) => l.propertyId === propertyId && l.reserva?.llegada
+		&& !yaRespondida('', l.solicitud?.estado) && (!llegada || seCruzan(l.reserva, { llegada, salida })));
+	const tokens = [];
+	for (const l of abiertas) {
+		const t = await transaccion((tx) => cerrarSiSeCruza(tx, l.id)).catch((err) => { console.error('Cerrar cruzada:', err.message); return null; });
+		if (t) tokens.push(t);
+	}
+	return tokens;
 }
 
 // Lo que cambia en la solicitud al responderla, con su renglón de historial (lo mismo que `respuesta` en reservas.js).
@@ -99,10 +105,16 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 	if (!lead?.reserva?.codigo || !lead.propertyId || (lead.solicitud?.estado && lead.solicitud.estado !== 'pendiente')) return null;
 	casa ||= await tx.leer(`properties/${lead.propertyId}`);
 	if (!casa) return null;
+	// Solo una solicitud con su chat (la del sitio): una escrita a mano contra la base no se cotiza ni aparta fechas.
+	const c = await chatDe(tx.leer, leadId);
+	if (!c) return null;
 	const m = montosCotizados(lead.reserva, casa, await tx.leer(`properties/${lead.propertyId}/privado/socio`));
 	if (!m) return null;
 	const datos = { ...m, leadId, propertyId: lead.propertyId, propietarioId: casa.propietarioId || '', codigo: lead.reserva.codigo };
 	tx.crear(ruta, datos, { ahora: ['cuando'] });
+	// Cotizada por debajo del precio de la casa: le toca al equipo. El aviso queda pendiente en el chat en este mismo
+	// cambio (solo quien la congela lo pone) y lo manda avisarQueTocaConfirmar; el control de cada hora lo reintenta.
+	if (bajoElPlan(m)) tx.cambiar(`chats/${c.token}`, { teTocaPendiente: true });
 	return datos;
 }
 

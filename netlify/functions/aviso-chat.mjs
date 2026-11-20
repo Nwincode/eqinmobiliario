@@ -9,7 +9,7 @@ import { json } from '../lib/auth.mjs';
 import { servicioCorreo } from '../lib/correo.mjs';
 import { datosConfigurados, leerPublico, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { congelarMontos, cerrarSiSeCruza, solicitudesQueApartan } from '../lib/reservas-servidor.mjs';
+import { congelarMontos, cerrarSiSeCruza, cerrarLasQueSeCruzan } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
@@ -32,14 +32,19 @@ export default async (req, context) => {
 	// Si llegó encima de otra que aparta esas fechas, se cierra sola (cerrarSiSeCruza). Las fechas de la casa cambiaron
 	// (aparta las suyas, o no): su copia del CDN se borra.
 	const chat = await leerPublico(`chats/${token}`).catch(() => null);
-	// Solo la primera vez (todavía sin montos congelados): los mensajes del chat después no lo repiten.
-	const primera = escrituraConfigurada() && chat?.leadId && !chat.estado && !(await leerPrivado(`montosSolicitud/${chat.leadId}`).catch(() => null));
-	if (primera) {
-		const montos = await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => { console.error('Montos de la solicitud:', err.message); return null; });
-		await avisarQueTocaConfirmar(chat.leadId, montos).catch((err) => console.error('Te toca confirmar:', err.message));
-		const candidatas = await solicitudesQueApartan(chat.propertyId).catch(() => []);
-		await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId, Date.now(), candidatas)).catch((err) => console.error('Solicitud cruzada:', err.message));
-		await purgarCasa(chat.propertyId);
+	if (escrituraConfigurada() && chat?.leadId && !chat.estado) {
+		// Abierta: si sus fechas ya tienen una reserva confirmada, se cierra (también con un aviso que llega tarde); si
+		// sigue abierta y todavía no tiene montos, se congelan (la primera vez: aparta sus fechas) y, si le toca al
+		// equipo, se le avisa.
+		const cerrada = await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId)).catch((err) => { console.error('Solicitud cruzada:', err.message); return null; });
+		if (!cerrada && !(await leerPrivado(`montosSolicitud/${chat.leadId}`).catch(() => null))) {
+			await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => console.error('Montos de la solicitud:', err.message));
+			await avisarQueTocaConfirmar(token).catch((err) => console.error('Te toca confirmar:', err.message));
+			await purgarCasa(chat.propertyId);
+		} else if (cerrada) await purgarCasa(chat.propertyId);
+	} else if (escrituraConfigurada() && chat?.estado === 'confirmada' && chat.avisoPendiente && chat.propertyId) {
+		// Recién confirmada en el panel (su aviso todavía pendiente): las otras abiertas que se cruzan se cierran.
+		for (const t of await cerrarLasQueSeCruzan(chat.propertyId, chat.llegada, chat.salida).catch(() => [])) await enviarAvisosChat(t).catch(() => {});
 	}
 	if (!servicioCorreo()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	try {

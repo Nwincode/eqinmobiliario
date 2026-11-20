@@ -573,15 +573,20 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		const correoEquipo = readFileSync(path.join(DIR, 'correos.jsonl'), 'utf8').includes(`Te toca confirmar esta solicitud: ${barata.codigo}`);
 		paso('Cotizada por debajo del precio: el equipo recibe «Te toca confirmar esta solicitud» y la ve arriba en Solicitudes con su plazo', correoEquipo && porHacer.includes(barata.codigo) && /vence/.test(porHacer), porHacer.slice(0, 160));
 		paso('Servidor: una solicitud cotizada por debajo del precio de la casa no la confirma el socio (409, «La confirma el equipo»)', rBarata.status === 409 && /La confirma el equipo/.test(rBarata.error || '') && await sinEscribir(barata), resp(rBarata));
-		// Dos solicitudes que se cruzan: al llegar la segunda (/api/aviso-chat), el servidor la cierra; la primera sigue.
+		// Dos solicitudes que se cruzan: las dos siguen abiertas (una pudo ser falsa: Solicitudes avisa «Se cruza»); al
+		// confirmar una, el servidor cierra la otra («Fechas ya reservadas»).
 		const c1 = await sembrar('srv-cruce1', iso(310), 3);
 		await espera(50);
 		const c2 = await sembrar('srv-cruce2', iso(311), 3);
 		const avisar = (t) => fetch(`${SITIO}/api/aviso-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: t }) });
 		await avisar(c1.token); await avisar(c2.token);
-		const l1 = (await leer(`leads/${c1.id}`)).fields?.solicitud?.mapValue?.fields || {}, l2 = (await leer(`leads/${c2.id}`)).fields?.solicitud?.mapValue?.fields || {};
-		paso('Servidor: la solicitud que llega encima de otra que aparta esas fechas se cierra sola («Fechas ya apartadas»); la primera sigue',
-			!l1.estado && l2.estado?.stringValue === 'no' && l2.motivo?.stringValue === 'Fechas ya apartadas' && (await leer(`chats/${c2.token}`)).fields?.estado?.stringValue === 'no', JSON.stringify({ l1: l1.estado, l2: l2.estado, motivo: l2.motivo }));
+		const sol = async (x) => (await leer(`leads/${x.id}`)).fields?.solicitud?.mapValue?.fields || {};
+		const antesDe = [await sol(c1), await sol(c2)];
+		const conf1 = await api('socio', { accion: 'confirmar', leadId: c1.id });
+		const l2 = await sol(c2);
+		paso('Servidor: dos solicitudes que se cruzan siguen abiertas; al confirmar una, la otra se cierra sola («Fechas ya reservadas»)',
+			!antesDe[0].estado && !antesDe[1].estado && conf1.status === 200 && l2.estado?.stringValue === 'no' && l2.motivo?.stringValue === 'Fechas ya reservadas' && (await leer(`chats/${c2.token}`)).fields?.estado?.stringValue === 'no',
+			JSON.stringify({ conf1: conf1.status, l2: l2.estado, motivo: l2.motivo }));
 		// El calendario de EQ para las plataformas: solo el administrador y el dueño de la casa piden el enlace.
 		const enlace = async (rol) => { const x = await fetch(`${SITIO}/api/calendario?casa=${idCasa}`, { headers: { Authorization: `Bearer ${await tokenDe(rol)}` } }); return { status: x.status, ...(await x.json().catch(() => ({}))) }; };
 		const [deColab, deSocio] = [await enlace('colab'), await enlace('socio')];
