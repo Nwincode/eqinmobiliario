@@ -1157,7 +1157,9 @@ async function renderEditor(container, id, emb = null) {
 	// (al salir del campo), sin esperar a «Guardar». Lo corregido a mano se respeta.
 	const CAMPOS_EN = ['titulo', 'descripcion', 'amenidades', 'seo.titulo', 'seo.descripcion', 'vipLanding.titular', 'vipLanding.ctaTexto',
 		'vipLanding.subtitular', 'vipLanding.puntosClave', ...TEXTOS_VAC.map((k) => `vacacional.${k}`)];
-	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve();
+	// intentadoCon: el español con que ya se tradujo aquí sin quedar completa (un texto volvió vacío); con ese mismo
+	// español no se vuelve a pedir en cada cambio de otro campo: se intenta otra vez al guardar.
+	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve(), intentadoCon = null;
 	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status' });
 	form.el.querySelector('[data-campo="en.titulo"]').before(estadoEn);
 	// Lo que se manda a traducir: lo mismo que queda público al guardar. De una casa por noche no van la dirección
@@ -1174,7 +1176,7 @@ async function renderEditor(container, id, emb = null) {
 		const s = form.state;
 		s.en = s.en || {};
 		if (s.en.titulo && textoEn(s.en) !== textoEn(enAuto)) s.en.manual = true;
-		if (!String(s.descripcion || '').trim() || !faltaIngles(s)) return;
+		if (!String(s.descripcion || '').trim() || !faltaIngles(s) || fuenteEs(s) === intentadoCon) return;
 		const turno = ++turnoEn, antes = textoEn(s.en);
 		estadoEn.textContent = 'Traduciendo al inglés…';
 		try {
@@ -1185,7 +1187,8 @@ async function renderEditor(container, id, emb = null) {
 			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
 			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
 			enAuto = clonar(form.state.en);
-			estadoEn.textContent = 'Traducción automática lista: revísala.';
+			intentadoCon = en.fuente ? null : fuenteEs(s);
+			estadoEn.textContent = en.fuente ? 'Traducción automática lista: revísala.' : 'Faltó traducir un texto; se intenta de nuevo al guardar.';
 		} catch {
 			if (turno === turnoEn) estadoEn.textContent = 'No se pudo traducir ahora; se intenta de nuevo al guardar.';
 		}

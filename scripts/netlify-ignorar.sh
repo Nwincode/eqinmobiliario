@@ -12,6 +12,6 @@ git cat-file -e "$CACHED_COMMIT_REF^{commit}" 2>/dev/null || exit 1
 # docs/marca/logo/ sí sale en el sitio (marca de agua, logo del panel, portada del PDF: STATIC_ASSETS de scripts/build.mjs).
 # Va aparte: en git, el «exclude» de docs de abajo le gana a cualquier ruta de adentro.
 git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- docs/marca/logo || exit 1
-git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- . ':(exclude)docs' ':(exclude)scripts/entorno' ':(exclude)scripts/test-*' \
+git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- . ':(exclude)docs' ':(exclude)scripts/entorno' ':(exclude)scripts/simulado' ':(exclude)scripts/test-*' \
 	':(exclude)CLAUDE.md' ':(exclude)README.md' ':(exclude)research_notes' ':(exclude)reports' && exit 0
 exit 1
