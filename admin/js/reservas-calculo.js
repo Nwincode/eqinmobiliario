@@ -110,11 +110,15 @@ export const subtotalCotizado = (r) => (typeof r?.subtotal === 'number' ? r.subt
 // de ahí salen la tarjeta de Solicitudes, el diálogo de «Confirmar», la reserva con su comisión, Rentas y los correos.
 // Del cliente solo se toma el subtotal que se le cotizó (lo que va a pagar); la limpieza, la parte del socio y el margen
 // salen de la casa. Lo cobrado (alojamiento) = lo cotizado sin la limpieza (que no lleva margen).
-//  - Si lo cotizado cuadra con los precios de la casa (±1 %), la parte del socio es la de sus precios.
-//  - Si no cuadra (una página vieja en el navegador del cliente), el socio y EQ se reparten lo que se le prometió al
-//    cliente con la misma proporción de hoy: la ganancia nunca es negativa ni sale de un precio que el cliente no vio.
-// `reserva` = { llegada, salida, subtotal | total }; `casa` = la propiedad; `privadoSocio` = privado/socio.
-// null si la casa no tiene precio del socio.
+//  - Si lo cotizado cuadra con los precios de la casa (unos centavos por noche: TOLERANCIA_NOCHE), la parte del socio
+//    es la de sus precios.
+//  - Si quedó por debajo (el subtotal lo escribe el navegador del cliente: una página vieja o uno cambiado a mano), EQ
+//    conserva su margen completo del plan (gananciaDelPlan) y el socio recibe el resto; esa solicitud la confirma solo el
+//    administrador (motivoSocioNoConfirma: 409 en el servidor).
+//  - Si quedó por encima (el precio bajó después), el socio y EQ se reparten lo cotizado con la proporción de hoy.
+// La ganancia nunca es negativa. `reserva` = { llegada, salida, subtotal | total }; `casa` = la propiedad;
+// `privadoSocio` = privado/socio. null si la casa no tiene precio del socio.
+export const TOLERANCIA_NOCHE = 0.05;
 export function montosCotizados(reserva, casa, privadoSocio) {
 	const { r2 } = V();
 	const cuenta = cuentaDe(reserva, privadoSocio);
@@ -122,11 +126,24 @@ export function montosCotizados(reserva, casa, privadoSocio) {
 	const limpieza = r2(Math.max(0, Number(casa?.vacacional?.limpieza) || 0));
 	const alojamiento = r2(Math.max(0, subtotalCotizado(reserva) - limpieza));
 	const delPlan = r2(Number(cuenta.alojamiento) || 0);
-	const coincide = delPlan > 0 && Math.abs(alojamiento - delPlan) <= 0.01 * delPlan;
+	const gananciaDelPlan = r2(Math.max(0, delPlan - cuenta.costoSocio));
+	const coincide = delPlan > 0 && Math.abs(alojamiento - delPlan) <= TOLERANCIA_NOCHE * Math.max(1, cuenta.noches || 1) + 1e-9;
 	const proporcional = delPlan > 0 ? r2(alojamiento * cuenta.costoSocio / delPlan) : alojamiento;
-	const costoSocio = r2(Math.min(alojamiento, coincide ? cuenta.costoSocio : proporcional));
+	const costoSocio = r2(Math.max(0, Math.min(alojamiento, coincide ? cuenta.costoSocio : alojamiento < delPlan ? alojamiento - gananciaDelPlan : proporcional)));
 	return { moneda: casa?.moneda || 'USD', costoSocio, alojamiento, limpieza, margen: r2(V().nochePublica(100, privadoSocio.margen) - 100),
-		ganancia: r2(alojamiento - costoSocio), delPlan, coincide };
+		ganancia: r2(alojamiento - costoSocio), delPlan, gananciaDelPlan, coincide };
+}
+// Cotizado por debajo del plan (o en cero): lo confirma el administrador (el socio, ni en el panel ni en el servidor).
+export const bajoElPlan = (m) => Boolean(m) && (!(m.alojamiento > 0) || (!m.coincide && m.delPlan > 0 && m.alojamiento < m.delPlan));
+export const motivoSocioNoConfirma = (m) => (bajoElPlan(m) ? 'Lo que se le cotizó al cliente quedó por debajo del precio de la casa: esta solicitud la confirma el administrador.' : '');
+// Los montos congelados con el piso de EQ: con lo cotizado por debajo del plan, EQ conserva su margen completo del plan
+// (los congelados antes de este piso se repartían con la proporción de hoy; sin gananciaDelPlan, sale del margen).
+export function conPisoDeEq(m) {
+	if (!bajoElPlan(m) || !(m.alojamiento > 0)) return m;
+	const { r2, nochePublica } = V();
+	const delPlan = typeof m.gananciaDelPlan === 'number' ? m.gananciaDelPlan : r2(m.delPlan - m.delPlan * 100 / nochePublica(100, m.margen));
+	const ganancia = r2(Math.min(m.alojamiento, Math.max(m.ganancia, delPlan)));
+	return { ...m, ganancia, costoSocio: r2(m.alojamiento - ganancia) };
 }
 // ¿El precio de hoy (cuentaDe con los precios guardados ahora) es otro que el que se le cotizó? (más de 1 %).
 export const cambioElPrecio = (montos, hoy) => Boolean(montos && hoy) && Math.abs(montos.alojamiento - hoy.alojamiento) > 0.01 * Math.max(montos.alojamiento, hoy.alojamiento);
@@ -139,7 +156,8 @@ export const TEXTO_PRECIO_CAMBIO = 'El precio cambió desde que lo pidió';
 export function montosDeConfirmacion(montos, hoy, modo = 'cotizado') {
 	const { r2 } = V();
 	const deHoy = hoy ? { costoSocio: r2(hoy.costoSocio), alojamiento: r2(hoy.alojamiento), ganancia: r2(hoy.alojamiento - hoy.costoSocio) } : null;
-	const cot = { costoSocio: montos.costoSocio, alojamiento: montos.alojamiento, ganancia: montos.ganancia };
+	const piso = conPisoDeEq(montos);
+	const cot = { costoSocio: piso.costoSocio, alojamiento: piso.alojamiento, ganancia: piso.ganancia };
 	const elegido = modo === 'hoy' && deHoy ? deHoy : cot;
 	return { ...elegido, cotizado: cot.alojamiento, deHoy: deHoy ? deHoy.alojamiento : cot.alojamiento, gananciaCotizada: cot.ganancia, hoy: deHoy ? deHoy.ganancia : cot.ganancia };
 }

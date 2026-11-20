@@ -20,7 +20,7 @@ import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
-import { choqueExterno, reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
+import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, TEXTO_NO_LLEGO, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
@@ -72,6 +72,9 @@ const ACCIONES = {
 		const no = motivoParaNoConfirmar(lead, casa, montos);
 		if (no) falla(409, no);
 		if (!montos) falla(422, 'A esta casa le falta el precio del socio: avísale al administrador.');
+		// Lo cotizado quedó por debajo del precio de la casa (el subtotal lo escribe el navegador): solo el administrador.
+		const soloAdmin = motivoSocioNoConfirma(montos);
+		if (soloAdmin) falla(409, soloAdmin);
 		const pago = (await tx.leer(`propietarios/${casa.propietarioId}`))?.datosPago;
 		if (!pago) falla(422, 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.');
 		const l = { id: leadId, propertyId: casa.id, propertyTitulo: lead.propertyTitulo, nombre: lead.nombre, reserva: lead.reserva };

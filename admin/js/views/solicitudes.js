@@ -11,7 +11,7 @@ import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, co
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
+	motivoParaNoConfirmar, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -219,7 +219,8 @@ export async function render(container, [codigo] = []) {
 		[id, (await getDoc(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || null])));
 	// Con los precios de hoy (para decir si el precio cambió) y los de la solicitud (congelados al llegar).
 	const cuenta = (l) => cuentaDe(l.reserva, netos[l.propertyId]);
-	const montosDe = (l) => congelados[l.id] || montosCotizados(l.reserva, casaDe(l.propertyId), netos[l.propertyId]);
+	// Con el piso de EQ (conPisoDeEq): lo que muestra la tarjeta es lo que se registra al confirmar.
+	const montosDe = (l) => { const m = congelados[l.id] || montosCotizados(l.reserva, casaDe(l.propertyId), netos[l.propertyId]); return m && conPisoDeEq(m); };
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
 	const hacer = async (tarea) => {
@@ -263,6 +264,8 @@ export async function render(container, [codigo] = []) {
 		}
 		const m = montosDeConfirmacion(montos, hoyC, modo);
 		const distinto = !admin && cambioElPrecio(montos, hoyC) ? ` ${TEXTO_PRECIO_CAMBIO}: se registra lo que se le cotizó.` : '';
+		// Cotizado por debajo del precio de la casa: EQ conserva su margen completo y el socio recibe el resto (se dice).
+		if (admin && modo === 'cotizado' && bajoElPlan(montos)) nota += ' Se le cotizó menos que el precio de la casa: EQ conserva su margen completo y el socio recibe el resto.';
 		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web. ${admin ? 'Socio' : 'Tu parte'} ${money(m.costoSocio, mon)} · ganancia de EQ ${money(m.ganancia, mon)}, que se paga el día de llegada.${distinto}${nota}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
@@ -383,7 +386,9 @@ export async function render(container, [codigo] = []) {
 		// Con la llegada ya pasada no se confirma (el servidor la rechazaría igual): queda «No se dio».
 		const pasada = est === 'pendiente' && llegadaPasada(r.llegada);
 		// La casa salió del sitio o cambió de moneda: el servidor no la confirmaría (motivoParaNoConfirmar); se dice por qué.
-		const sinConfirmar = est === 'pendiente' && !pasada && casaDe(l.propertyId) ? motivoParaNoConfirmar(l, casaDe(l.propertyId), congelados[l.id] || null) : '';
+		// Lo cotizado quedó por debajo del precio de la casa: el socio no la confirma (motivoSocioNoConfirma; el servidor igual).
+		const sinConfirmar = est === 'pendiente' && !pasada && casaDe(l.propertyId) ? motivoParaNoConfirmar(l, casaDe(l.propertyId), congelados[l.id] || null)
+			|| (!admin && motivoSocioNoConfirma(montosDe(l))) : '';
 		const mon = res?.moneda || r.moneda || 'USD';
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;

@@ -4,7 +4,7 @@
 // con este módulo dan lo mismo que daba el panel antes de moverlo.
 import assert from 'node:assert/strict';
 import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, plazoDePago, guardarVence, cancelaSola, montosCotizados, cambioElPrecio, motivoParaNoConfirmar,
-	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
+	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada, bajoElPlan, motivoSocioNoConfirma, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
@@ -34,7 +34,7 @@ test('la cuenta de la estancia sale de los precios guardados del dueño (sin pre
 test('reserva de prueba lead-res-noche: su parte 300, lo cobrado 360, ganancia y comisión 60, con su plazo de pago', () => {
 	const l = solicitud(360);
 	const montos = montosCotizados(l.reserva, casa, privado);
-	assert.deepEqual(montos, { moneda: 'USD', costoSocio: 300, alojamiento: 360, limpieza: 0, margen: 20, ganancia: 60, delPlan: 360, coincide: true });
+	assert.deepEqual(montos, { moneda: 'USD', costoSocio: 300, alojamiento: 360, limpieza: 0, margen: 20, ganancia: 60, delPlan: 360, gananciaDelPlan: 60, coincide: true });
 	const ahora = Date.parse('2026-11-20T12:00:00Z');
 	const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, cuentaDe(l.reserva, privado)), { chat: 'ChatDeLaReservaRNLargoYAlAzar1', ahora });
 	assert.deepEqual(datos, { propertyId: 'mx-noche', propertyTitulo: 'Casa por noche', agentId: '', propietarioId: 'm1', moneda: 'USD', llegada: '2026-12-01', salida: '2026-12-04', noches: 3,
@@ -47,9 +47,22 @@ test('montos congelados: la limpieza, la parte del socio y el margen de la casa 
 	// Con limpieza: lo cobrado es lo cotizado sin ella.
 	const m = montosCotizados(solicitud(460).reserva, { ...casa, vacacional: { limpieza: 100 } }, privado);
 	assert.deepEqual([m.alojamiento, m.limpieza, m.costoSocio, m.ganancia, m.coincide], [360, 100, 300, 60, true]);
-	// Una página vieja cotizó de menos (480 contra 600 de hoy): se reparten lo cotizado con la proporción de hoy.
+	// Cotizado de menos (300 contra 360 del plan; el subtotal lo escribe el navegador): EQ conserva su margen completo
+	// del plan (60) y esa solicitud la confirma el administrador.
 	const barata = montosCotizados(solicitud(300).reserva, casa, privado);
-	assert.deepEqual([barata.alojamiento, barata.costoSocio, barata.ganancia, barata.coincide], [300, 250, 50, false]);
+	assert.deepEqual([barata.alojamiento, barata.costoSocio, barata.ganancia, barata.coincide], [300, 240, 60, false]);
+	assert.equal(bajoElPlan(barata), true);
+	assert.match(motivoSocioNoConfirma(barata), /la confirma el administrador/);
+	assert.equal(motivoSocioNoConfirma(montosCotizados(solicitud(360).reserva, casa, privado)), '');
+	assert.match(motivoSocioNoConfirma(montosCotizados(solicitud(0).reserva, casa, privado)), /administrador/);
+	// Uno congelado antes del piso (repartido con la proporción: 250/50): al confirmar, EQ igual recibe su margen.
+	const deAntes = { moneda: 'USD', costoSocio: 250, alojamiento: 300, limpieza: 0, margen: 20, ganancia: 50, delPlan: 360, coincide: false };
+	const conf = montosDeConfirmacion(deAntes, null);
+	assert.deepEqual([conf.costoSocio, conf.ganancia], [240, 60]);
+	// Tolerancia en centavos por noche, no 1 %: 3 noches, 15 centavos.
+	const plan3 = { precioBase: 12000, margen: 20 };
+	assert.equal(montosCotizados(solicitud(43199.85).reserva, casa, plan3).coincide, true);
+	assert.equal(montosCotizados(solicitud(43199).reserva, casa, plan3).coincide, false);
 	// Cotizado de más (inflado): el socio y EQ en la misma proporción; lo cobrado es lo que el cliente paga.
 	const cara = montosCotizados(solicitud(500).reserva, casa, privado);
 	assert.deepEqual([cara.alojamiento, cara.costoSocio, cara.ganancia], [416.67 + 83.33, 416.67, 83.33]);
