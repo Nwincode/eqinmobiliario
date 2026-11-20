@@ -112,6 +112,7 @@ await espera('socio dueño firma como cliente', crear('socio1', msj(), m('client
 await espera('socio manda su teléfono con espacios', crear('socio1', msj(), m('socio', 'llamame al 55 55 12 34')), false);
 await espera('cliente manda su teléfono en dígitos de ancho completo', crear(null, msj(), m('cliente', 'mi cel ５５５５１２３４')), false);
 await espera('cliente manda su teléfono en dígitos arábigos', crear(null, msj(), m('cliente', 'mi cel ٥٥٥٥١٢٣٤')), false);
+await espera('cliente manda su teléfono en números encerrados (①②③…)', crear(null, msj(), m('cliente', 'mi cel ⑤⑤⑤⑤①②③④')), false);
 await espera('cliente manda su correo con la arroba de ancho completo', crear(null, msj(), m('cliente', 'ana＠gmail')), false);
 await espera('cliente escribe una fecha y una hora (control)', crear(null, msj(), m('cliente', 'Llegamos el 16 a las 3')), true);
 await espera('socio manda un enlace', crear('socio1', msj(), m('socio', 'mira https://micasa.gt')), false);
@@ -595,6 +596,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('solicitud de 9 personas en una casa sin tope guardado (control)', conReserva('lead-hue-4', { ...bien, huespedes: 9 }), true);
 		await raw('properties/mx-noche-texto', { titulo: sv('Casa con el tope como texto'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: sv('4') } } } });
 		await espera('casa de antes con el tope guardado como texto: no rechaza todas sus solicitudes (control)', enCasa('lead-hue-5', 'mx-noche-texto', { ...bien, huespedes: 3 }), true);
+		await raw('properties/mx-noche-cero', { titulo: sv('Casa con el tope en 0'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '0' } } } } });
+		await espera('casa con el tope en 0 (dato malo): sin tope, como la ficha (control)', enCasa('lead-hue-6', 'mx-noche-cero', { ...bien, huespedes: 3 }), true);
 	}
 	// La casa cambió de asesor y la página no se ha vuelto a publicar: el sitio reintenta sin asesor y la recibe el
 	// administrador (js/site.js); con el asesor de antes, no (no le llega el contacto a quien ya no la lleva).

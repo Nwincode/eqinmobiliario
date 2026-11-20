@@ -88,7 +88,8 @@ export default async (req) => {
 	// Un mínimo con la fecha final antes de la inicial (dato malo) no vale.
 	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy && x.desde <= x.hasta);
 	// Las personas que caben, al día (el socio las cambia en su panel): la regla de la solicitud compara con esto.
-	const huespedesMax = Number.isInteger(v.huespedesMax) && v.huespedesMax > 0 ? v.huespedesMax : undefined;
+	// Solo un número de 1 o más (la regla `caben` igual: lo demás, sin tope).
+	const huespedesMax = typeof v.huespedesMax === 'number' && v.huespedesMax >= 1 ? Math.floor(v.huespedesMax) : undefined;
 	return respuesta(200, { ocupadas, externas: vigentes(externas), apartadas: vigentes(apartadas), plan, minimos, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}),
 		fuente: fuentes.length ? fuentes.join(',') : 'manual' }, id, fresco);
 };

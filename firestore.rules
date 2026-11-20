@@ -455,10 +455,11 @@ service cloud.firestore {
         // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
         && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
     }
-    // ¿Caben esas personas en la casa? (huespedesMax de la casa; sin él o si no es un número, sin tope.)
+    // ¿Caben esas personas en la casa? (huespedesMax de la casa cuando es un número de 1 o más; si no, sin tope: lo mismo
+    // que manda /api/disponibilidad a la ficha.)
     function caben(huespedes, propertyId) {
       let max = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('vacacional', {}).get('huespedesMax', 1000);
-      return !(max is number) || huespedes <= max;
+      return !(max is number) || max < 1 || huespedes <= max;
     }
     // La moneda de una casa; sin moneda guardada (o vacía), US$.
     function monedaDe(propertyId) {
@@ -648,7 +649,7 @@ service cloud.firestore {
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
             // (Cualquier dígito: también los de ancho completo «５» u otras escrituras, que el filtro del navegador pasa a 0-9 con NFKC.)
-            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|＠|https?:|www[.]|([0-9\\p{Nd}][ .+()-]{0,2}){8,}).*')))
+            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|＠|https?:|www[.]|([0-9\\p{N}][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isAdmin())
