@@ -2,7 +2,7 @@
 // panel y el generador, en los dos idiomas) y dónde sale una página con nombre reservado.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RUTAS, RESERVADAS, reservada, urlPagina } from '../admin/js/rutas.js';
+import { RUTAS, RESERVADAS, reservada, urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
 import { RUTAS as RUTAS_SITIO } from './lib/i18n.mjs';
 import { slugify as slugSitio } from './lib/util.mjs';
 import { slugify } from '../admin/js/formato.js';
@@ -48,6 +48,13 @@ t('el panel no tiene otra lista (pages.js usa rutas.js)', () => {
 	assert.match(pages, /from '\.\.\/rutas\.js'/);
 	assert.doesNotMatch(pages, /RESERVED/);
 	assert.equal(RESERVADAS.es.size > 10, true);
+});
+
+t('una página que pasó a /pagina/ redirige su dirección de antes, nunca encima de una página del sitio', () => {
+	const pag = (slug, idioma) => ({ slug, idioma, url: urlPagina(slug, idioma) });
+	const escritas = new Set(['/', '/en/', '/en/properties/', '/propietarios/', '/reserva/']);
+	const r = redireccionesPaginas([pag('docs'), pag('feeds'), pag('en'), pag('propietarios'), pag('privacidad'), pag('properties', 'en'), pag('luxury', 'en')], escritas);
+	assert.deepEqual(r, [['/docs/', '/pagina/docs/'], ['/feeds/', '/pagina/feeds/'], ['/en/luxury/', '/en/pagina/luxury/']]);
 });
 
 console.log(`\n${ok} pruebas de rutas pasan.`);

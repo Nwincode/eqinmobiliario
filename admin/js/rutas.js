@@ -29,3 +29,14 @@ export const reservada = (slug, idioma = 'es') => RESERVADAS[idioma === 'en' ? '
 // Dirección de una página de contenido. Una de antes con nombre reservado sale en /pagina/{slug}/ (nunca encima de una
 // página del sitio); el panel ya no deja guardar una nueva así.
 export const urlPagina = (slug, idioma = 'es') => `${idioma === 'en' ? '/en' : ''}${reservada(slug, idioma) ? `/pagina/${slug}` : `/${slug}`}/`;
+
+// Dirección que tenía una página antes de ser reservada su nombre (la que mostraba el panel).
+export const urlAnterior = (slug, idioma = 'es') => `${idioma === 'en' ? '/en' : ''}/${slug}/`;
+
+// Redirecciones 301 de las páginas que pasaron a /pagina/: de su dirección anterior a la nueva, solo si esa dirección
+// no es una página que el sitio escribe (`escritas`: rutas como '/en/properties/'). En Netlify, una regla sin «!» no
+// tapa un archivo que existe: nunca le gana a una página ni a un archivo del sitio.
+// paginas: [{ slug, idioma, url }] (url ya con urlPagina). Devuelve [[desde, hacia]].
+export function redireccionesPaginas(paginas, escritas) {
+	return paginas.map((p) => [urlAnterior(p.slug, p.idioma), p.url]).filter(([desde, hacia]) => desde !== hacia && !escritas.has(desde));
+}

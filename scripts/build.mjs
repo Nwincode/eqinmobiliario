@@ -20,7 +20,7 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
-import { urlPagina } from '../admin/js/rutas.js';
+import { urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -464,7 +464,7 @@ function fichaHtml(c, p) {
 	return T.vipLandingPage(c, p);
 }
 
-function redirects(ctx, todas = ctx.properties) {
+function redirects(ctx, todas = ctx.properties, paginasMovidas = []) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
@@ -489,6 +489,7 @@ function redirects(ctx, todas = ctx.properties) {
 			}
 		}
 	}
+	for (const [de, a] of paginasMovidas) add(de, a);
 	for (const r of ctx.site.seo.redirecciones || []) {
 		const from = String(r.desde || '').trim();
 		const to = String(r.hacia || '').trim();
@@ -739,7 +740,8 @@ async function main() {
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
 	const sitemapXml = sitemap(ctx, enSitemap);
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
+	// Una página que pasó a /pagina/ (su nombre ahora es reservado): su dirección de antes lleva a la nueva.
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, redireccionesPaginas([...pages, ...pagesEn], new Set(indexables.keys()))));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);

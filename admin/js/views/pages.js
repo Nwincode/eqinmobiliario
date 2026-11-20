@@ -12,7 +12,9 @@ export const render = crudView({
 	defaults: { publicado: false, enFooter: true },
 	columns: [
 		['Título', (p) => h('span', { class: 'fw-semibold' }, p.titulo)],
-		['URL', (p) => h('code', {}, urlPagina(p.slug, p.idioma))],
+		// Una de antes con un nombre que ahora es del sitio se publica en /pagina/…: se le dice al dueño dónde quedó.
+		['URL', (p) => h('div', {}, h('code', {}, urlPagina(p.slug, p.idioma)),
+			reservada(p.slug, p.idioma) ? h('div', { class: 'small text-muted' }, `Se movió aquí: «${p.slug}» es una dirección del sitio.`) : null)],
 		['Pie de página', (p) => (p.enFooter ? 'Sí' : 'No')],
 		['Estado', (p) => (p.publicado ? badge('Publicada', 'success') : badge('Borrador', 'secondary'))]
 	],
