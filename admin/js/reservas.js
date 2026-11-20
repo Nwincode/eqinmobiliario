@@ -251,6 +251,8 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// Lo mismo que revisa el servidor por el socio: llegada pasada, casa fuera del sitio o con otra moneda.
 	const no = motivoParaNoConfirmar(l, p, montos?.moneda ? montos : null);
 	if (no) throw Object.assign(new Error(no), { servidor: 409 });
+	// Sin la dirección exacta no se confirma (lo mismo que revisa el servidor por el socio).
+	if (faltaDireccion((await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada')).catch(() => null))?.data())) throw Object.assign(new Error(TEXTO_SIN_DIRECCION), { servidor: 409 });
 	// Noches ya tomadas en Airbnb, Booking o VRBO (lo mismo que revisa el servidor por el socio).
 	const enOtra = choqueExterno(r, (await ocupacionDe(l.propertyId))?.externas?.map((x) => ({ ...x, fuente: 'Airbnb, Booking o VRBO' })));
 	if (enOtra) throw Object.assign(new Error(enOtra), { servidor: 409 });

@@ -75,6 +75,8 @@ const ACCIONES = {
 		// Lo cotizado quedó por debajo del precio de la casa (el subtotal lo escribe el navegador): solo el administrador.
 		const soloAdmin = motivoSocioNoConfirma(montos);
 		if (soloAdmin) falla(409, soloAdmin);
+		// Sin la dirección exacta no se confirma: el cliente pagaría sin saber a dónde llegar (lo mismo pide «Pago recibido»).
+		if (faltaDireccion(await tx.leer(`properties/${casa.id}/privado/llegada`))) falla(409, TEXTO_SIN_DIRECCION);
 		const pago = (await tx.leer(`propietarios/${casa.propietarioId}`))?.datosPago;
 		if (!pago) falla(422, 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.');
 		const l = { id: leadId, propertyId: casa.id, propertyTitulo: lead.propertyTitulo, nombre: lead.nombre, reserva: lead.reserva };
