@@ -1253,10 +1253,8 @@ async function renderEditor(container, id, emb = null) {
 		}
 		d.slug = slugify(d.slug || d.titulo);
 		if (!d.slug) return toast('Escribe un título.', 'warning');
-		// La zona, como ya está escrita en otras casas («zona 10 » → «Zona 10»): dos formas se pisarían su página.
+		// La zona sin espacios de más; la forma de escribirla la unifica el sitio (landings.mjs `unificarZonas`).
 		d.zona = String(d.zona || '').trim().replace(/\s+/g, ' ');
-		const mismaZona = d.zona && all.find((p) => p.id !== ref.id && p.zona && slugify(p.zona) === slugify(d.zona));
-		if (mismaZona) d.zona = String(mismaZona.zona).trim().replace(/\s+/g, ' ');
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;

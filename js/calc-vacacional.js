@@ -410,8 +410,8 @@
 	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
 	function tieneContacto(texto) {
 		var t = String(texto || '').toLowerCase();
-		if (/@|\barroba\b|https?:|www\.|wa\.me|\]\(|\.(com|net|org|gt|me|io|co|info|biz)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
-		t = t.replace(/-?\b\d{1,2}\.\d{3,},\s*-?\d{1,3}\.\d{3,}\b/g, ' x ')
+		if (/@|\barroba\b|https?:|www\.|wa\.me|\]\(|\.(com|net|org|gt)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
+		t = t.replace(/-?\b\d{1,2}\.\d{3,},?\s*-?\d{1,3}\.\d{3,}\b/g, ' x ')
 			.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
 		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t);
 	}

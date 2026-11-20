@@ -24,14 +24,14 @@ export async function correoContrasena({ link, email }) {
 <p style="margin:0 0 4px;${fuente};font-size:12px;line-height:16px;letter-spacing:1px;font-weight:bold;color:${c.ink}">TU USUARIO</p>
 <p style="margin:0;${fuente};font-size:17px;line-height:24px;font-weight:bold;color:${c.dark};word-break:break-all;overflow-wrap:anywhere">${esc(email)}</p>
 </td></tr></table>
-${boton(c, 'Crear mi contraseña', link, c.primary, { ancho: true })}
+<div style="text-align:center">${boton(c, 'Crear mi contraseña', link, c.primary)}</div>
 <p style="margin:0 0 22px;text-align:center;${fuente};font-size:13px;line-height:20px;color:${c.ink}">Sirve una sola vez y vence en <strong style="color:${c.dark}">1 hora</strong>.<br>¿El botón no abre? <a href="${esc(link)}" target="_blank" style="color:${c.primary};text-decoration:underline">Usa este enlace</a>.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;border-collapse:separate"><tr>
-<td style="border:1px solid ${c.linea};border-radius:8px;padding:16px 18px 6px;${fuente}">
+${ayuda ? `<div style="margin:0 0 22px;padding:20px 0 0;border-top:1px solid ${c.linea};text-align:center"><p style="margin:0 0 12px;${fuente};font-size:14px;line-height:20px;color:${c.ink}">¿Necesitas ayuda? Escríbenos y te atendemos.</p>${boton(c, 'Escribir por WhatsApp', ayuda, c.whatsapp, { borde: true })}</div>` : ''}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;border-collapse:separate"><tr>
+<td bgcolor="${c.suave}" style="background:${c.suave};border:1px solid ${c.linea};border-radius:8px;padding:16px 18px 6px;${fuente}">
 <p style="margin:0 0 10px;${fuente};font-size:12px;line-height:16px;letter-spacing:1.5px;font-weight:bold;color:${c.dark}">CUIDA TU CUENTA</p>
 ${cuidar.map((t) => `<p style="margin:0 0 10px;${fuente};font-size:14px;line-height:20px;color:${c.ink}">&#10003;&nbsp; ${esc(t)}</p>`).join('')}
-</td></tr></table>
-${ayuda ? `<p style="margin:0 0 10px;text-align:center;${fuente};font-size:14px;line-height:20px;color:${c.ink}">¿Necesitas ayuda? Escríbenos y te atendemos.</p>${boton(c, 'Escribir por WhatsApp', ayuda, c.whatsapp, { borde: true, ancho: true })}` : ''}`
+</td></tr></table>`
 	});
 	const texto = `Crea o cambia tu contraseña del panel de Equipo Inmobiliario.\n\nTu usuario: ${email}\n\nAbre este enlace (sirve una sola vez y vence en 1 hora):\n${link}\n\n${cuidar.join(' ')}${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
 	return { asunto: ASUNTO_CONTRASENA, html, texto };

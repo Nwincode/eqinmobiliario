@@ -398,8 +398,8 @@ export async function render(container) {
 		if (!lista.length) { toast('Selecciona al menos una propiedad.', 'warning'); return; }
 		const a = agents.find((x) => x.id === asesor.value);
 		const contacto = a
-			? { etiqueta: 'Tu asesor', nombre: a.nombre, telefono: a.whatsapp ? `WhatsApp +${String(a.whatsapp).replace(/\D/g, '')}` : '', email: a.email }
-			: { etiqueta: 'Contacto', nombre: empresa, telefono: site.contacto?.telefono || (site.contacto?.whatsapp ? `WhatsApp +${site.contacto.whatsapp}` : ''), email: site.contacto?.email };
+			? { etiqueta: 'Tu asesor', nombre: a.nombre, telefono: a.whatsapp ? `WhatsApp +${telefonoWa(a.whatsapp)}` : '', email: a.email }
+			: { etiqueta: 'Contacto', nombre: empresa, telefono: site.contacto?.telefono || (site.contacto?.whatsapp ? `WhatsApp +${telefonoWa(site.contacto.whatsapp)}` : ''), email: site.contacto?.email };
 		guardarPref();
 		const win = window.open('', '_blank');
 		if (!win) { toast('El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio.', 'danger'); return; }

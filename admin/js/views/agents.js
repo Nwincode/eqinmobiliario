@@ -62,6 +62,11 @@ export const render = crudView({
 	],
 	// Ocultarlo (deja de salir en el sitio) o eliminarlo: antes, sus casas y leads pasan a otro asesor.
 	beforeSave: (d, ref, all, antes) => (antes && antes.activo !== false && d.activo === false ? reasignarSiTiene(d, ref.id, 'ocultar') : true),
-	antesDeEliminar: (d, id) => reasignarSiTiene(d, id, 'eliminar'),
+	antesDeEliminar: async (d, id) => {
+		if (!(await reasignarSiTiene(d, id, 'eliminar'))) return false;
+		// Su usuario del panel quedaría vinculado a un asesor que ya no existe (no vería nada): se dice antes.
+		const usuarios = (await getDocs(query(collection(db, 'users'), where('agentId', '==', id)))).docs.map((u) => u.data().email || u.id);
+		return !usuarios.length || confirmDialog(`${usuarios.join(', ')} entra al panel como este asesor y quedará sin casas ni leads. Después, en Usuarios, vincúlalo a otro asesor o quítale el acceso. ¿Eliminar?`, { okText: 'Eliminar' });
+	},
 	afterSave: invalidateAgents
 });

@@ -423,6 +423,9 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	const vip = datos.properties.find((p) => p.vip);
 	vip.vipLanding = { ...vip.vipLanding, ocultarPrecio: true };
 	vip.precio = 987654;
+	// Descripciones guardadas con el precio: la del panel antes de ser VIP y la del traductor en inglés.
+	vip.seo = { descripcion: 'Casa en venta en Zona 16, Guatemala: 4 habitaciones. US$ 987,654.00.', auto: {} };
+	vip.en = { ...vip.en, seo: { descripcion: 'House for sale in Zona 16, Guatemala. US$ 987,654.' } };
 	const z10 = datos.properties.filter((p) => p.zona === 'Zona 10');
 	z10[0].zona = 'zona 10 ';
 	z10[1].amenidades = ['Piscina', 'Agua municipal', 'Lobby de recepción'];

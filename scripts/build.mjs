@@ -532,8 +532,16 @@ async function main() {
 	const V = globalThis.EQVacacional;
 	// Casas de prueba: se marcan aquí, con su título en español (la copia en inglés lo hereda).
 	for (const p of todas) if (esDePrueba(p)) p._prueba = true;
-	// Precio oculto (VIP): la descripción para Google que armó el panel antes (automática, con el precio) no se usa.
-	for (const p of todas) if (p.precio && !precioVisible(p) && p.seo?.descripcion && p.seo.descripcion === p.seo.auto?.descripcion) p.seo = { ...p.seo, descripcion: '' };
+	// Precio oculto (VIP): un título o descripción para Google guardado con el precio (el automático de antes, el del
+	// traductor en inglés o uno escrito a mano) no se usa; sale el automático, sin precio.
+	for (const p of todas) {
+		if (!p.precio || precioVisible(p)) continue;
+		const n = Math.round(Number(p.precio));
+		const conPrecio = (t) => [String(n), n.toLocaleString('en-US'), n.toLocaleString('de-DE')].some((x) => String(t || '').includes(x));
+		const limpiar = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
+		p.seo = limpiar(p.seo);
+		if (p.en) p.en = { ...p.en, seo: limpiar(p.en.seo) };
+	}
 	for (const p of todas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());

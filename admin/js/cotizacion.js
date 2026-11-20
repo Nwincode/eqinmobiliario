@@ -7,7 +7,7 @@
 //  - pequeño contribuyente (5 %): no se cobra IVA aparte; el emisor paga el 5 % del total a la SAT.
 //      · «Todo incluido»: total = honorario ÷ 0.95, así el emisor sigue recibiendo el honorario.
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
-import { miles, dinero as dineroFormato, precioTexto } from './formato.js';
+import { miles, dinero as dineroFormato } from './formato.js';
 import { OPERACIONES, enOperacion } from './estados.js';
 import { REGLAS_POR_DEFECTO, montoComision, comisionDe } from './acuerdo.js';
 
@@ -394,8 +394,8 @@ export function datosPropiedad(s) {
 		p.parqueos ? `${mil(p.parqueos)} ${p.parqueos === 1 ? 'parqueo' : 'parqueos'}` : '',
 		m2, p.m2Terreno ? `${mil(p.m2Terreno)} m² de terreno` : ''
 	].filter(Boolean);
-	// El precio con su operación, del formato único (formato.js `precioTexto`).
-	const precio = p.precio ? precioTexto(p.precio, p.moneda, p.operacion) : '';
+	// Con centavos (formato.js, por `dinero`) y «al mes» como el resto de la cotización.
+	const precio = p.precio ? `${dinero(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : p.operacion === 'vacacional' ? ' por noche' : ''}` : '';
 	return { titulo: p.titulo || p.codigo, codigo: p.titulo ? p.codigo : '', lugar: [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', '), rasgos, precio };
 }
 
