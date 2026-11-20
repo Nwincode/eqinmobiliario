@@ -8,21 +8,23 @@
 // (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY, rol "Cloud Datastore Viewer"). La respuesta lleva solo fechas:
 // nada de nombres, descripciones ni los enlaces (`externas`: las de las plataformas, para el calendario del socio).
 // Caché: el CDN la guarda 30 s con la etiqueta de la casa (netlify/lib/ocupacion.mjs la purga en cada cambio) y el
-// navegador no la guarda. Con `&fresco=1` (el sitio, justo antes de enviar una solicitud) no pasa por el CDN.
+// navegador no la guarda. GET /api/disponibilidad/al-dia?id= (el sitio justo antes de enviar una solicitud, y el panel)
+// no pasa por el CDN; con límite por IP (los calendarios de las plataformas salen de lo recordado: ocupacion.mjs).
 // POST /api/disponibilidad { id } con el token del panel: el panel cambió fechas de la casa (Rentas, Solicitudes,
-// el calendario del dueño, la ficha) y se purga su copia del CDN.
+// el calendario del dueño) y se purga su copia del CDN.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde, datosConfigurados } from '../lib/firestore.mjs';
 import { sociosEnMora } from '../lib/comisiones.mjs';
 import { externasDe, purgarCasa, etiquetaCasa } from '../lib/ocupacion.mjs';
 import { json, usuario } from '../lib/auth.mjs';
-import { limitador } from '../lib/limite.mjs';
+import { limitador, ipDe } from '../lib/limite.mjs';
 import { apartaFechas, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const CACHE = 30;
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const porUsuario = limitador(120);
+const porIp = limitador(120);
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 
 function respuesta(status, body, id = '', fresco = false) {
@@ -31,7 +33,7 @@ function respuesta(status, body, id = '', fresco = false) {
 		headers['Cache-Control'] = 'public, max-age=0, must-revalidate';
 		headers['Netlify-CDN-Cache-Control'] = `public, s-maxage=${CACHE}`;
 		headers['Netlify-Cache-Tag'] = etiquetaCasa(id);
-		headers['Netlify-Vary'] = 'query=id|fresco';
+		headers['Netlify-Vary'] = 'query=id';
 	} else {
 		headers['Cache-Control'] = 'no-store';
 	}
@@ -49,12 +51,13 @@ async function purgar(req) {
 	return json(200, { purgado: await purgarCasa(...ids) });
 }
 
-export default async (req) => {
+export default async (req, context) => {
 	if (req.method === 'POST') return purgar(req);
 	const url = new URL(req.url);
 	const id = url.searchParams.get('id') || '';
-	const fresco = url.searchParams.get('fresco') === '1';
+	const fresco = url.pathname.endsWith('/al-dia');
 	if (!ID.test(id)) return respuesta(400, { error: 'id' });
+	if (fresco && porIp(ipDe(req, context))) return respuesta(429, { error: 'Demasiados pedidos seguidos' });
 
 	const p = await leerPublico(`properties/${id}`);
 	if (!p || p.publicado !== true || p.operacion !== 'vacacional') return respuesta(404, { error: 'no encontrada' }, id, fresco);
@@ -94,4 +97,4 @@ export default async (req) => {
 		fuente: fuentes.length ? fuentes.join(',') : 'manual' }, id, fresco);
 };
 
-export const config = { path: '/api/disponibilidad' };
+export const config = { path: ['/api/disponibilidad', '/api/disponibilidad/al-dia'] };

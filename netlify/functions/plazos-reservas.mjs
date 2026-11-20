@@ -134,7 +134,8 @@ export default async () => {
 		const cruzadas = abiertas.filter((l) => abiertas.some((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)));
 		for (const l of cruzadas) {
 			if (!queda()) return;
-			await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id, ahora); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
+			const candidatas = abiertas.filter((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)).map((o) => o.id);
+			await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id, ahora, candidatas); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
 		}
 		// Abiertas de una casa que salió del sitio.
 		const casas = new Map();

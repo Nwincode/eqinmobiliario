@@ -14,7 +14,7 @@ const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 const funciones = new Map();
 for (const archivo of await readdir(path.join(RAIZ, 'netlify/functions'))) {
 	const m = await import(pathToFileURL(path.join(RAIZ, 'netlify/functions', archivo)));
-	if (m.config?.path) funciones.set(m.config.path, m.default);
+	for (const ruta of [].concat(m.config?.path || [])) funciones.set(ruta, m.default);
 }
 
 // Solo aquí (este servidor no se publica): apagar y prender la cuenta de escritura de las reservas, para probar que el

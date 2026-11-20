@@ -154,9 +154,10 @@ async function casa(container, id) {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
 		huespedes: huespedesMaxDe(v.huespedesMax), mes: hoy().slice(0, 7), desde: '', hasta: '', pide: '',
-		// Solicitudes de la web que apartan sus fechas (sin responder y dentro de sus 24 h: la misma regla de la página).
-		pedidas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && apartaFechas(c.estado, '', ms(c.createdAt)))
-			.map((c) => ({ desde: c.llegada, hasta: c.salida, codigo: c.codigo })),
+		// Solicitudes de la web sin responder (todas: el aviso al bloquear y la cuenta de arriba) y, de ellas, las que
+		// apartan sus fechas (dentro de sus 24 h: la misma regla de la página), las del ícono del calendario.
+		abiertas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && !c.estado)
+			.map((c) => ({ desde: c.llegada, hasta: c.salida, codigo: c.codigo, aparta: apartaFechas(c.estado, '', ms(c.createdAt)) })),
 		// Noches tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos por /api/disponibilidad): llegan después.
 		externas: []
 	};
@@ -290,7 +291,7 @@ async function casa(container, id) {
 		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, `Toca un día (y otro para marcar varios) para ${[puedeFechas ? 'bloquear, habilitar' : '', puedePrecios ? 'cambiar el precio' : ''].filter(Boolean).join(' o ')}.`);
 		const cerrar = iconoBtn('icon-close', 'Cancelar', { onclick: () => { e.pide = ''; calendario(); } });
 		// Bloquear pide el motivo: un toque. Si una solicitud sin responder pidió esos días, se dice (sigue esperando respuesta).
-		const pedida = e.pide === 'motivo' && e.pedidas.find((x) => x.desde <= e.hasta && x.hasta > e.desde);
+		const pedida = e.pide === 'motivo' && e.abiertas.find((x) => x.desde <= e.hasta && x.hasta > e.desde);
 		if (e.pide === 'motivo') return h('div', { class: 'mc-barra' },
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
 			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
@@ -354,7 +355,7 @@ async function casa(container, id) {
 			const bloqueado = enRango(f, e.bloqueos);
 			const externa = !reservada && !bloqueado && enRango(f, e.externas);
 			const estado = reservada ? 'reservado' : bloqueado ? 'bloqueado' : externa ? 'reservado en otra plataforma' : '';
-			const pedida = !estado && enRango(f, e.pedidas);
+			const pedida = !estado && enRango(f, e.abiertas.filter((x) => x.aparta));
 			const clases = ['vac-dia', f === hoy() && 'is-hoy', estado && 'is-ocupado',
 				e.desde && f === e.desde && 'is-llegada', e.desde && f === e.hasta && 'is-salida', f > e.desde && f < e.hasta && 'is-rango'].filter(Boolean).join(' ');
 			return h('td', {}, h('button', {
@@ -412,7 +413,7 @@ async function casa(container, id) {
 					? [`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
 						h('strong', {}, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))]
 					: 'Todavía sin reservas confirmadas'),
-				e.pedidas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.pedidas.length} ${e.pedidas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
+				e.abiertas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.abiertas.length} ${e.abiertas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
 				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }));
 	// Temporadas que se repiten y que todavía no tienen el año que viene: aviso con un botón (nada se escribe solo).
 	function avisoTemporadas() {

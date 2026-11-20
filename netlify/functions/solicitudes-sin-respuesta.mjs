@@ -18,7 +18,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
-import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, conPlazo } from '../../admin/js/reservas-calculo.js';
+import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -67,6 +67,10 @@ export default async () => {
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
 					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		})().catch((err) => { console.error('Confirmadas sin pago:', err.message); return []; });
+		// «No me llegó» reabrió el pago, venció el plazo nuevo y el cliente no mandó otro comprobante: no se cancela sola
+		// (mandó uno antes), lo revisa el equipo con los dos. Cada mañana, hasta que se resuelva.
+		const reabiertas = !sonLas7 ? [] : todosLosChats.filter((c) => c.estado === 'confirmada' && c.pagoReabierto && Number(c.vencePago) > 0 && Number(c.vencePago) < ahora && !comprobanteVigente(c))
+			.map((c) => ({ nombre: c.nombre, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, moneda: c.moneda, total: c.total } }));
 		const mensajes = await (async () => {
 			const vigentes = todosLosChats.filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
 			return (await Promise.all(vigentes.map(async (c) => {
@@ -81,10 +85,10 @@ export default async () => {
 		})().catch((err) => { console.error('Mensajes sin responder:', err.message); return []; });
 		// Se anota una sola vez al avisar: sin correos del equipo no se anota (se avisa cuando los haya).
 		const sospechosas = !destinatariosEquipo().length ? [] : await noSeDioYBloqueada(ahora).catch((err) => { console.error('«No se dio» y bloqueada:', err.message); return []; });
-		if (!destinatariosEquipo().length || (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length && !sinPago.length)) return;
+		if (!destinatariosEquipo().length || (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length && !sinPago.length && !reabiertas.length)) return;
 
 		const socios = {};
-		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas, ...sinPago].map((l) => l.propietarioId).filter(Boolean))) {
+		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas, ...sinPago, ...reabiertas].map((l) => l.propietarioId).filter(Boolean))) {
 			socios[id] = (await leerPrivado(`propietarios/${id}`).catch(() => null))?.nombre || '';
 		}
 		const linea = (l) => {
@@ -95,8 +99,9 @@ export default async () => {
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;
 		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas],
 			['«No se dio» o cancelada y después esas fechas se ocuparon: revisa si el cliente se cerró por fuera', sospechosas],
-			['Confirmadas sin «Pago recibido» y con la llegada ya pasada: pregúntale al socio si el cliente pagó; si pagó, toca «Cobrar comisión» en la solicitud (desde ahí su atraso le apaga los permisos)', sinPago]].filter(([, lista]) => lista.length);
-		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} cerrada(s) con fechas ocupadas`, sinPago.length && `${sinPago.length} sin pago marcado`].filter(Boolean).join(' · ');
+			['Confirmadas sin «Pago recibido» y con la llegada ya pasada: pregúntale al socio si el cliente pagó; si pagó, toca «Cobrar comisión» en la solicitud (desde ahí su atraso le apaga los permisos)', sinPago],
+			['El socio dijo «No me llegó», venció el plazo nuevo y el cliente no mandó otro comprobante: revisa con los dos (no se cancela sola)', reabiertas]].filter(([, lista]) => lista.length);
+		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} cerrada(s) con fechas ocupadas`, sinPago.length && `${sinPago.length} sin pago marcado`, reabiertas.length && `${reabiertas.length} pago reabierto vencido`].filter(Boolean).join(' · ');
 
 		const html = await plantilla({
 			titulo: 'Reservas que necesitan tu atención',

@@ -23,7 +23,7 @@ import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
-import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
+import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
 import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
@@ -222,7 +222,7 @@ export async function eliminarPropiedad(p) {
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
 	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	for (const privado of ['socio', 'llegada', 'acuerdo']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
 	await deleteDoc(doc(db, 'properties', p.id));
 	await borrarFotos(p);
 	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya
@@ -1347,6 +1347,8 @@ async function renderEditor(container, id, emb = null) {
 			Object.assign(data, guardada, llegada || {});
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
+			// Casa por noche: sus fechas, precios y estado salen en la página sin esperar al CDN (/api/disponibilidad).
+			if (guardada.operacion === 'vacacional' || eraVacacional) alDiaEnLaWeb(ref.id);
 			const casa = { id: ref.id, ...guardada };
 			if (!traducirAhora) {
 				toast(`Propiedad guardada. ${trasGuardar()}`);

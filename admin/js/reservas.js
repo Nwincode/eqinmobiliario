@@ -44,7 +44,7 @@ export async function alDiaEnLaWeb(...ids) {
 // apartadas (solicitudes que apartan sus fechas) }. null si no responde (la casa sin publicar da 404).
 export async function ocupacionDe(propertyId) {
 	try {
-		const r = await fetch(`/api/disponibilidad?fresco=1&id=${encodeURIComponent(propertyId)}`, { headers: { Accept: 'application/json' } });
+		const r = await fetch(`/api/disponibilidad/al-dia?id=${encodeURIComponent(propertyId)}`, { headers: { Accept: 'application/json' } });
 		return r.ok ? await r.json() : null;
 	} catch { return null; }
 }

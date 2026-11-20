@@ -229,7 +229,8 @@
 					if (cod && d.indexOf(cod) === 0 && d.length - cod.length >= 7) return '+' + cod + ' ' + d.slice(cod.length);
 					return '+' + cod + ' ' + numero;
 				})(form.telefono.value.trim()),
-				email: form.email ? form.email.value.trim() : '',
+				// En minúsculas: el mismo correo se reconoce igual siempre (las repetidas se buscan por él).
+				email: form.email ? form.email.value.trim().toLowerCase() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',
 				pagina: location.pathname,

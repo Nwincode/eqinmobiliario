@@ -27,9 +27,21 @@ async function leerIcal(url) {
 	}
 }
 
-// { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …] } (solo las que respondieron).
+// Cada calendario leído se recuerda 10 min en la función (las plataformas no reciben un pedido por cada visita) y, si
+// después no responde, vale lo último que respondió durante un día (un calendario caído no deja libres sus noches).
+const LEIDOS = new Map();
+const FRESCO = 10 * 60_000, ULTIMO = 24 * 3600_000;
+async function leerIcalRecordado(url) {
+	const ya = LEIDOS.get(url), ahora = Date.now();
+	if (ya && ahora - ya.cuando < FRESCO) return ya.rangos;
+	const rangos = await leerIcal(url);
+	if (rangos) { LEIDOS.set(url, { rangos, cuando: ahora }); if (LEIDOS.size > 500) LEIDOS.delete(LEIDOS.keys().next().value); return rangos; }
+	return ya && ahora - ya.cuando < ULTIMO ? ya.rangos : null;
+}
+
+// { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …] } (solo las que respondieron o se recuerdan).
 export async function externasDe(privado) {
-	const leidos = await Promise.all(V.CALENDARIOS.filter((c) => privado?.[c.campo]).map(async (c) => [c.nombre, await leerIcal(privado[c.campo])]));
+	const leidos = await Promise.all(V.CALENDARIOS.filter((c) => privado?.[c.campo]).map(async (c) => [c.nombre, await leerIcalRecordado(privado[c.campo])]));
 	const rangos = [], fuentes = [];
 	for (const [nombre, r] of leidos) if (r) { rangos.push(...r.map((x) => ({ ...x, fuente: nombre }))); fuentes.push(nombre.toLowerCase()); }
 	return { rangos, fuentes };

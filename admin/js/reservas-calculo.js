@@ -282,8 +282,10 @@ const enMs = (v) => (typeof v === 'number' ? v : v?.toMillis?.() ?? (v instanceo
 export const comprobanteVigente = (chat) => Boolean(chat?.comprobanteCliente) && !(Number(chat.pagoReabierto) >= enMs(chat.comprobanteCliente));
 // ¿«No me llegó» reabre el pago (antes de la llegada) o cierra la reserva (desde el día de llegada)?
 export const noLlegoReabre = (reserva, ahora = Date.now()) => antesDeLlegar(reserva.llegada, ahora);
+// El comprobante de antes queda (no se cancela sola: el cron no toca una reserva con comprobante); si el plazo pasa sin
+// otro, el equipo lo ve en la alerta de cada mañana (solicitudes-sin-respuesta.mjs) y lo revisa con los dos.
 export const textoPagoReabierto = (vence, en = false) => (en
-	? `The host has not received your payment yet. Check your transfer and attach your receipt again${Number.isFinite(vence) ? ` before ${fechaHora(vence, true)}` : ''}; otherwise the booking is cancelled automatically.`
-	: `El anfitrión todavía no ve tu pago. Revisa tu transferencia y adjunta otra vez el comprobante${Number.isFinite(vence) ? ` antes del ${fechaHora(vence, false)}` : ''}; si no, la reserva se cancela sola.`);
+	? `The host has not received your payment yet. Check your transfer and attach your receipt again${Number.isFinite(vence) ? ` before ${fechaHora(vence, true)}` : ''}; our team reviews the booking with you.`
+	: `El anfitrión todavía no ve tu pago. Revisa tu transferencia y adjunta otra vez el comprobante${Number.isFinite(vence) ? ` antes del ${fechaHora(vence, false)}` : ''}; nuestro equipo revisa la reserva contigo.`);
 // Fecha y hora de Guatemala para los textos al cliente (chat, página y correos): «vie, 20 nov, 14:00».
 export const fechaHora = (t, en = false) => new Date(t).toLocaleString(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });

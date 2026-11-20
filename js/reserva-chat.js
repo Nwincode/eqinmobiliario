@@ -151,7 +151,10 @@
 			// (lo mismo que comprobanteVigente en admin/js/reservas-calculo.js).
 			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !(Number(ch.pagoReabierto) >= new Date(ch.comprobanteCliente).getTime());
 			var vence = Number(ch.vencePago) || 0;
+			// «No me llegó» del anfitrión: se le pide otro comprobante (no se cancela solo: el equipo lo revisa).
+			var reabierto = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !conComprobante;
 			guia.textContent = conComprobante ? t.vacChatSigueComprobante
+				: reabierto ? fmt(t.vacChatSigueReabierto, { fecha: vence > 0 ? plazo.format(new Date(vence)) : '' })
 				: estado === 'Confirmada' ? (vence > 0 ? fmt(t.vacChatSigueConfirmada, { fecha: plazo.format(new Date(vence)) }) : t.vacChatSigueSinPlazo)
 				: t['vacChatSigue' + sigue];
 			// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.

@@ -4,7 +4,8 @@
 import '../../js/calc-vacacional.js';
 import { idNuevo, marcarPorPublicar, transaccion } from './firestore-escritura.mjs';
 import { purgarCasa } from './ocupacion.mjs';
-import { montosCotizados, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
+import { desde } from './firestore.mjs';
+import { HORAS_RESPUESTA, montosCotizados, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
@@ -34,12 +35,17 @@ export async function fechasCambiaron(casa, desc) {
 // Una solicitud que llegó encima de otra que aparta esas fechas (o de una reserva confirmada) se cierra sola con
 // «Fechas ya apartadas» y el cliente lo lee en su chat (apartadaPor en admin/js/reservas-calculo.js: la anterior
 // manda). Las reglas no pueden mirar otras solicitudes; esto lo cumple el servidor al llegar la solicitud
-// (/api/aviso-chat) y, si ese aviso no llegó, el cron de plazos. Devuelve el token del chat si la cerró.
-export async function cerrarSiSeCruza(tx, leadId, ahora = Date.now()) {
+// (/api/aviso-chat, la primera vez que la ve) y, si ese aviso no llegó, el cron de plazos. Devuelve el token del chat si
+// la cerró. Dentro de la transacción no se consulta la casa entera: `candidatas` son los ids de las solicitudes de la
+// misma casa que pueden apartar (de las últimas 24 h: solicitudesQueApartan), leídas aquí una por una; las reservas
+// confirmadas salen de las fechas de la casa (vacacional.reservadas, que las sigue en cada cambio).
+export async function cerrarSiSeCruza(tx, leadId, ahora = Date.now(), candidatas = []) {
 	const lead = await tx.leer(`leads/${leadId}`);
 	if (!lead?.reserva?.codigo || !lead.propertyId || yaRespondida('', lead.solicitud?.estado)) return null;
 	const conMs = (l) => ({ ...l, createdAt: ms(l.createdAt) });
-	const [otras, reservas] = await Promise.all([tx.consultar('leads', 'propertyId', lead.propertyId), tx.consultar('reservas', 'propertyId', lead.propertyId)]);
+	const ids = [...new Set(candidatas)].filter((id) => id !== leadId).slice(0, 30);
+	const [casa, ...otras] = await Promise.all([tx.leer(`properties/${lead.propertyId}`), ...ids.map(async (id) => ({ id, ...(await tx.leer(`leads/${id}`)) }))]);
+	const reservas = (casa?.vacacional?.reservadas || []).map((r, i) => ({ id: `fechas-${i}`, propertyId: lead.propertyId, estado: 'confirmada', llegada: r.desde, salida: r.hasta, codigo: 'otra reserva confirmada' }));
 	const por = apartadaPor(conMs({ ...lead, id: leadId }), otras.filter((o) => o.reserva?.llegada).map(conMs), reservas, ahora);
 	if (!por) return null;
 	const c = await chatDe(tx.leer, leadId);
@@ -48,6 +54,10 @@ export async function cerrarSiSeCruza(tx, leadId, ahora = Date.now()) {
 	const id = mensaje(tx, c.token, { texto: TEXTO_FECHAS_APARTADAS }, 'equipo');
 	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
 	return c.token;
+}
+// Las solicitudes de una casa que pueden apartar fechas ahora (las de las últimas 24 h, leídas fuera de la transacción).
+export async function solicitudesQueApartan(propertyId, ahora = Date.now()) {
+	return (await desde('leads', 'createdAt', new Date(ahora - HORAS_RESPUESTA * 3600_000))).filter((l) => l.propertyId === propertyId && l.reserva?.llegada).map((l) => l.id);
 }
 
 // Lo que cambia en la solicitud al responderla, con su renglón de historial (lo mismo que `respuesta` en reservas.js).
@@ -100,9 +110,12 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 // «Duplicada», con un mensaje que no manda correo (avisos-chat.mjs: `silencioso`). Devuelve cuántas.
 export async function cerrarDuplicadas(tx, lead, leadId) {
 	// Solo las del mismo correo (esDuplicada lo pide): no se leen todas las solicitudes de la casa dentro de la transacción.
+	// El sitio lo guarda en minúsculas; una de antes pudo quedar como se escribió: se busca de las dos formas.
 	const correo = String(lead.email || '').trim();
 	if (!correo) return 0;
-	const otras = (await tx.consultar('leads', 'email', correo)).filter((o) => o.id !== leadId && esDuplicada({ ...lead, id: leadId }, o) && !yaRespondida('', o.solicitud?.estado));
+	const formas = [...new Set([correo, correo.toLowerCase()])];
+	const halladas = (await Promise.all(formas.map((c) => tx.consultar('leads', 'email', c)))).flat();
+	const otras = halladas.filter((o, i) => halladas.findIndex((x) => x.id === o.id) === i).filter((o) => o.id !== leadId && esDuplicada({ ...lead, id: leadId }, o) && !yaRespondida('', o.solicitud?.estado));
 	let n = 0;
 	for (const o of otras) {
 		const c = await chatDe(tx.leer, o.id);

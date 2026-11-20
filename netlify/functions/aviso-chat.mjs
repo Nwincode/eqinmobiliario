@@ -7,9 +7,9 @@
 // encima de otra que aparta esas fechas (las reglas no ven las demás solicitudes).
 import { json } from '../lib/auth.mjs';
 import { servicioCorreo } from '../lib/correo.mjs';
-import { datosConfigurados, leerPublico } from '../lib/firestore.mjs';
+import { datosConfigurados, leerPublico, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { congelarMontos, cerrarSiSeCruza } from '../lib/reservas-servidor.mjs';
+import { congelarMontos, cerrarSiSeCruza, solicitudesQueApartan } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
@@ -32,11 +32,14 @@ export default async (req, context) => {
 	// Si llegó encima de otra que aparta esas fechas, se cierra sola (cerrarSiSeCruza). Las fechas de la casa cambiaron
 	// (aparta las suyas, o no): su copia del CDN se borra.
 	const chat = await leerPublico(`chats/${token}`).catch(() => null);
-	if (escrituraConfigurada() && chat?.leadId && !chat.estado) {
+	// Solo la primera vez (todavía sin montos congelados): los mensajes del chat después no lo repiten.
+	const primera = escrituraConfigurada() && chat?.leadId && !chat.estado && !(await leerPrivado(`montosSolicitud/${chat.leadId}`).catch(() => null));
+	if (primera) {
 		await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => console.error('Montos de la solicitud:', err.message));
-		await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId)).catch((err) => console.error('Solicitud cruzada:', err.message));
+		const candidatas = await solicitudesQueApartan(chat.propertyId).catch(() => []);
+		await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId, Date.now(), candidatas)).catch((err) => console.error('Solicitud cruzada:', err.message));
+		await purgarCasa(chat.propertyId);
 	}
-	if (chat?.propertyId && !chat.estado) await purgarCasa(chat.propertyId);
 	if (!servicioCorreo()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	try {
 		const enviados = await enviarAvisosChat(token);

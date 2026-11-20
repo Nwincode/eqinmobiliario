@@ -512,7 +512,10 @@
 		// Si ya no están libres, no se envía y se dice; si no responde, se envía (el servidor cierra la que llega encima).
 		if (form) form.eqRevisar = function () {
 			if (!id || !window.fetch) return Promise.resolve(true);
-			return fetch('/api/disponibilidad?fresco=1&id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+			// A lo más 5 s: si no responde, se envía (el servidor cierra la que llega encima).
+			var ctrl = window.AbortController ? new AbortController() : null;
+			if (ctrl) setTimeout(function () { ctrl.abort(); }, 5000);
+			return fetch('/api/disponibilidad/al-dia?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' }, signal: ctrl ? ctrl.signal : undefined })
 				.then(function (r) { return r.ok ? r.json() : null; })
 				.then(function (res) {
 					if (!res || !res.ocupadas) return true;
