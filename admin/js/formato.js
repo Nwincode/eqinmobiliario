@@ -31,6 +31,25 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
+// Montos en monedas distintas no se suman: un total por moneda. sumarPorMoneda(lista, monto) → { USD: n, GTQ: m }
+// (sin moneda, US$); dineroPorMoneda({ USD, GTQ }) → «US$ 250,000.00 · Q 1,500,000.00» ('' si todo es cero).
+export function sumarPorMoneda(lista, monto, moneda = (x) => x.moneda) {
+	const total = {};
+	for (const x of lista) {
+		const n = Number(monto(x)) || 0;
+		if (n) total[moneda(x) || 'USD'] = (total[moneda(x) || 'USD'] || 0) + n;
+	}
+	return total;
+}
+export const dineroPorMoneda = (total, separador = ' · ') => Object.entries(total || {}).filter(([, n]) => n).map(([m, n]) => dinero(n, m)).join(separador);
+// Un porcentaje que se escribe a mano (comisión, ISR, parte del asesor): número de 0 a 100.
+export const esPorcentaje = (v) => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100;
+// Dirección (slug) para una URL: sin tildes, minúsculas y guiones; hasta 80 letras. La misma en el panel y el sitio.
+export function slugify(text) {
+	return String(text || '')
+		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
 // Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
 // («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
 // Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.

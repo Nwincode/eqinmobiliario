@@ -9,15 +9,8 @@ export function esc(value) {
 	return String(value).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-export function slugify(text) {
-	return String(text || '')
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 80);
-}
+// Una sola: admin/js/formato.js (también la usa el panel).
+export { slugify } from '../../admin/js/formato.js';
 
 export function isPlainObject(v) {
 	return v !== null && typeof v === 'object' && !Array.isArray(v);

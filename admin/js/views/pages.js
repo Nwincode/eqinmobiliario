@@ -1,8 +1,7 @@
 import { h, badge, slugify, toast } from '../ui.js';
 import { crudView } from '../crud.js';
 import { seoPreviewField, stripMd } from '../seo.js';
-
-const RESERVED = ['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404'];
+import { reservada, urlPagina } from '../rutas.js';
 
 export const render = crudView({
 	collection: 'pages',
@@ -13,7 +12,7 @@ export const render = crudView({
 	defaults: { publicado: false, enFooter: true },
 	columns: [
 		['Título', (p) => h('span', { class: 'fw-semibold' }, p.titulo)],
-		['URL', (p) => h('code', {}, `${p.idioma === 'en' ? '/en' : ''}/${p.slug}/`)],
+		['URL', (p) => h('code', {}, urlPagina(p.slug, p.idioma))],
 		['Pie de página', (p) => (p.enFooter ? 'Sí' : 'No')],
 		['Estado', (p) => (p.publicado ? badge('Publicada', 'success') : badge('Borrador', 'secondary'))]
 	],
@@ -33,12 +32,12 @@ export const render = crudView({
 		seoPreviewField({
 			title: (d) => d.seo?.titulo || `${d.titulo || ''} | Equipo Inmobiliario`,
 			description: (d) => d.seo?.descripcion || stripMd(d.contenido),
-			path: (d) => `${d.idioma === 'en' ? '/en' : ''}/${slugify(d.slug || d.titulo || '')}/`
+			path: (d) => urlPagina(slugify(d.slug || d.titulo || ''), d.idioma)
 		})
 	],
 	beforeSave: (d, ref, all) => {
 		d.slug = slugify(d.slug || d.titulo);
-		if (RESERVED.includes(d.slug)) {
+		if (reservada(d.slug, d.idioma)) {
 			toast(`"${d.slug}" es una dirección reservada del sitio; elige otra.`, 'warning');
 			return false;
 		}

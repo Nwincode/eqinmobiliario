@@ -952,13 +952,11 @@
 			cabeza.appendChild(quien);
 			tarjeta.appendChild(cabeza);
 
-			// Reseñas de solo estrellas (sin texto): no se dibujan comillas vacías.
-			if (String(r.texto || '').trim()) {
-				var cita = el('blockquote', 'gr-resena-texto');
-				cita.appendChild(el('p', '', String(r.texto)));
-				tarjeta.appendChild(cita);
-				tarjeta.appendChild(botonMas());
-			}
+			// Llegan solo las que tienen texto (las de solo estrellas las quita netlify/functions/resenas-google.mjs).
+			var cita = el('blockquote', 'gr-resena-texto');
+			cita.appendChild(el('p', '', String(r.texto)));
+			tarjeta.appendChild(cita);
+			tarjeta.appendChild(botonMas());
 
 			var pie = el('footer', 'gr-resena-pie');
 			var fuente = el('span', 'gr-fuente');

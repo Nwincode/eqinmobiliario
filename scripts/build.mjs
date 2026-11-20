@@ -20,13 +20,11 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
+import { urlPagina } from '../admin/js/rutas.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
 const DIST = process.env.DIST_DIR ? path.resolve(process.env.DIST_DIR) : path.join(ROOT, 'dist');
-
-// Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios', 'calculadora-de-renta']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -115,7 +113,8 @@ function normalizePages(list, base = '') {
 	return list
 		.map((p) => {
 			const slug = slugify(p.slug || p.titulo) || p.id;
-			return { ...p, slug, url: `${base}${RESERVED.has(slug) ? `/pagina/${slug}` : `/${slug}`}/` };
+			// Con un nombre reservado del sitio (admin/js/rutas.js), en /pagina/: nunca encima de un listado.
+			return { ...p, slug, url: urlPagina(slug, base ? 'en' : 'es') };
 		})
 		.sort(byOrder);
 }

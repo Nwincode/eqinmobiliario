@@ -13,6 +13,8 @@ import { precioTexto, dinero, TIPO_CAMBIO, enUSD, correoValido, horarioEn, conPi
 import { formatPrice } from './lib/util.mjs';
 import { celdaGaleriaVip, imgFoto } from './lib/templates.mjs';
 import { codigosEnCss } from './lib/assets.mjs';
+import { reservada } from '../admin/js/rutas.js';
+import { slugify } from '../admin/js/formato.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-sitio-'));
@@ -50,6 +52,19 @@ test('el generador no avisa enlaces rotos ni páginas fuera del sitemap', () => 
 test('todo JSON-LD se puede leer', () => {
 	for (const [u, h] of Object.entries(html)) {
 		for (const m of h.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => JSON.parse(m[1]), u);
+	}
+});
+
+test('cada carpeta que escribe el generador es una página de contenido o está reservada (admin/js/rutas.js)', () => {
+	const datos = JSON.parse(readFileSync(seed, 'utf8'));
+	const paginasDe = (en) => new Set(datos.pages.filter((p) => p.publicado && (p.idioma === 'en') === en).map((p) => slugify(p.slug || p.titulo)));
+	for (const [dir, lang] of [[dist, 'es'], [path.join(dist, 'en'), 'en']]) {
+		const propias = paginasDe(lang === 'en');
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			// Los listados por tipo o zona (/apartamentos-en-venta/) le ceden su dirección a una página (planListados, `ocupadas`).
+			const listado = existsSync(path.join(dir, e.name, 'index.html')) && /<body data-listing="1"/.test(readFileSync(path.join(dir, e.name, 'index.html'), 'utf8'));
+			if (e.isDirectory() && !propias.has(e.name) && !listado) assert.ok(reservada(e.name, lang), `${lang}: /${e.name}/ la escribe el sitio y no está en RESERVADAS`);
+		}
 	}
 });
 
