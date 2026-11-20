@@ -3,6 +3,7 @@ import { S, leer, hijos, escribir } from './base.mjs';
 export const escrituraConfigurada = () => true;
 export const idNuevo = () => `id${String(++S.ids).padStart(6, '0')}`;
 export async function transaccion(trabajo) {
+	if (S.escrituraFalla) throw new Error('Error 503 al escribir');
 	const ops = [];
 	const r = await trabajo({
 		leer: async (ruta) => leer(ruta),

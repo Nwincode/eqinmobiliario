@@ -25,7 +25,8 @@ const CACHE = 30;
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const porUsuario = limitador(120);
 // La consulta al día (sin CDN): límite por IP guardado en la base, compartido por todas las instancias.
-const porIp = limitadorDurable('al-dia', 60, 10 * 60_000);
+// Si la base no responde, el de memoria: un cliente que va a reservar no se queda con un 429 por una falla nuestra.
+const porIp = limitadorDurable('al-dia', 60, 10 * 60_000, { siFalla: 'memoria' });
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 
 function respuesta(status, body, id = '', fresco = false) {

@@ -27,9 +27,10 @@ export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-clien
 // La clave se guarda como huella HMAC-SHA256 con un secreto del servidor (la clave de la cuenta de escritura): ni correos
 // ni IPs en la base, y no se pueden adivinar probando. Las reglas no dejan a nadie del panel leer ni escribir `limites`
 // (no tiene `match`). Sin la cuenta de escritura, queda el de memoria. Si la base falla o hay choque (muchos pedidos a la
-// vez para la misma clave), se frena (429): justo en un ataque, no se deja pasar.
-// limitadorDurable(nombre, max, ventanaMs) → async (clave) => true si ya pasó el límite.
-export function limitadorDurable(nombre, max, ventanaMs) {
+// vez para la misma clave), se frena (429): justo en un ataque, no se deja pasar. Con `{ siFalla: 'memoria' }` (lo que
+// un cliente de verdad necesita para seguir, como revisar fechas antes de reservar), en ese caso cuenta el de memoria.
+// limitadorDurable(nombre, max, ventanaMs, opciones) → async (clave) => true si ya pasó el límite.
+export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar' } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
 	return async (clave) => {
 		if (!escrituraConfigurada()) return enMemoria(clave);
@@ -48,7 +49,7 @@ export function limitadorDurable(nombre, max, ventanaMs) {
 			});
 		} catch (err) {
 			console.error('Límite en la base:', err.message);
-			return true;
+			return siFalla === 'memoria' ? enMemoria(clave) : true;
 		}
 	};
 }
