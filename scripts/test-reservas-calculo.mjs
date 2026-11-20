@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, plazoDePago, guardarVence, cancelaSola, montosCotizados, cambioElPrecio, motivoParaNoConfirmar,
 	motivoParaNoMeLlego, comprobanteVigente, noLlegoReabre, faltaDireccion, esDuplicada, bajoElPlan, motivoSocioNoConfirma, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
-import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
+import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, queConfirmo, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
@@ -153,6 +153,15 @@ test('subtotal cotizado: el de la solicitud, o sacado del total que vio el clien
 	assert.equal(subtotalCotizado({ subtotal: 920, total: 1 }), 920);
 	assert.equal(subtotalCotizado({ total: 439.2 }), 360);
 	assert.equal(subtotalCotizado({ total: 1122.4 }), 920);
+});
+
+test('«Revisé Airbnb»: la reserva guarda qué calendario se revisó a mano y el historial lo dice', () => {
+	const l = solicitud(360);
+	const m = montosDeConfirmacion(montosCotizados(l.reserva, casa, privado), null);
+	assert.deepEqual(reservaDeSolicitud(l, casa, m, { revisadoAMano: ['Airbnb', 'VRBO'] }).revisadoAMano, ['Airbnb', 'VRBO']);
+	assert.equal('revisadoAMano' in reservaDeSolicitud(l, casa, m), false, 'con todo leído, nada');
+	assert.equal(queConfirmo(['Airbnb']), 'Confirmó (revisó a mano Airbnb)');
+	assert.equal(queConfirmo(), 'Confirmó');
 });
 
 test('la moneda de la reserva y de la comisión es la de la casa, no la que mande el cliente (sin moneda, US$)', () => {

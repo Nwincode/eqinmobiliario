@@ -174,7 +174,8 @@ export const SIN_GANANCIA_NEGATIVA = 'No se ofrece registrar con una ganancia de
 // l.reserva { codigo, llegada, salida }) de la casa `casa` (con su id; de ella sale la moneda) con los montos `m`
 // (montosDeConfirmacion). Lleva su comisión, el plazo de pago (vencePago, desde `ahora`) y, si hay, el token de su chat
 // (con él se sabe después si el cliente ya pagó).
-export function reservaDeSolicitud(l, casa, m, { chat = '', ahora = Date.now() } = {}) {
+// `revisadoAMano`: los calendarios (Airbnb, Booking, VRBO) que no se pudieron leer y quien confirmó dijo «Revisé …».
+export function reservaDeSolicitud(l, casa, m, { chat = '', ahora = Date.now(), revisadoAMano = [] } = {}) {
 	const r = l.reserva;
 	const datos = nuevaReserva(casa, {
 		propertyTitulo: l.propertyTitulo, llegada: r.llegada, salida: r.salida, estado: 'confirmada', canal: 'web',
@@ -185,8 +186,11 @@ export function reservaDeSolicitud(l, casa, m, { chat = '', ahora = Date.now() }
 	datos.comision = comisionDeReserva(datos);
 	datos.pagoDesde = ahora;
 	datos.vencePago = guardarVence(vencePago(ahora, r.llegada));
+	if (revisadoAMano.length) datos.revisadoAMano = revisadoAMano.map(String);
 	return datos;
 }
+// El renglón del historial al confirmar (el mismo en el servidor y en el panel).
+export const queConfirmo = (revisadoAMano = []) => (revisadoAMano.length ? `Confirmó (revisó a mano ${revisadoAMano.join(' y ')})` : 'Confirmó');
 
 // Por qué una solicitud NO se confirma ('' = sí): lo mismo en el panel (el administrador) y en el servidor (el socio).
 // `lead` = la solicitud ({ reserva }); `casa` = la propiedad guardada; `montos` = los congelados (o null).

@@ -50,7 +50,7 @@ export default async () => {
 		const deReserva = (await desde('reservas', 'updatedAt', new Date(ahora - ventana)).catch((err) => { console.error('Reservas canceladas:', err.message); return []; }))
 			.filter((r) => r.estado === 'cancelada' && r.codigo && !yaVan.has(r.codigo))
 			.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId, solicitud: { motivo: r.motivo },
-				reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
+				revisadoAMano: r.revisadoAMano, reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		const canceladas = [...deSolicitud, ...deReserva];
 		const hoy = V.hoy(ahora);
 		// Los chats, sin listarlos todos: cada grupo con su consulta (un rango sobre un campo, con el índice que Firestore
@@ -76,7 +76,7 @@ export default async () => {
 			const chats = await Promise.all(candidatas.map((r) => leerPrivado(`chats/${r.chat}`).catch(() => null)));
 			return candidatas.filter((r, i) => chats[i]?.estado === 'confirmada')
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
-					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
+					revisadoAMano: r.revisadoAMano, reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		})().catch((err) => { console.error('Confirmadas sin pago:', err.message); return []; });
 		// «No me llegó» reabrió el pago, venció el plazo nuevo y el cliente no mandó otro comprobante: no se cancela sola
 		// (mandó uno antes), lo revisa el equipo con los dos. Cada mañana, hasta que se resuelva.
@@ -107,7 +107,9 @@ export default async () => {
 		const linea = (l) => {
 			const r = l.reserva;
 			return [`${r.codigo} · ${l.nombre}`, l.propertyTitulo, [`${r.llegada} → ${r.salida}`, r.huespedes && `${r.huespedes} personas`, r.total != null && `${prefijoMoneda(r.moneda)} ${miles(r.total)}`].filter(Boolean).join(' · '),
-				socios[l.propietarioId] && `Socio: ${socios[l.propietarioId]}`, l.solicitud?.motivo && `Motivo: ${l.solicitud.motivo}`].filter(Boolean);
+				socios[l.propietarioId] && `Socio: ${socios[l.propietarioId]}`, l.solicitud?.motivo && `Motivo: ${l.solicitud.motivo}`,
+				// Se confirmó sin poder leer un calendario: quien confirmó dijo que lo revisó a mano.
+				l.revisadoAMano?.length && `Se confirmó sin leer ${l.revisadoAMano.join(' y ')} (revisado a mano)`].filter(Boolean);
 		};
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;
 		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas],

@@ -7,4 +7,4 @@ export const correoConfigurado = () => true;
 export const esc = (v) => String(v ?? '');
 export const plantilla = async ({ titulo }) => `<h1>${titulo}</h1>`;
 export const boton = () => ''; export const datos = () => ''; export const pasos = () => '';
-export async function enviarCorreo({ para, asunto }) { S.salida.push({ para: [].concat(para).join(','), asunto }); }
+export async function enviarCorreo({ para, asunto, texto = '' }) { S.salida.push({ para: [].concat(para).join(','), asunto, texto }); }

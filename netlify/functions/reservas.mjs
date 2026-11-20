@@ -20,7 +20,7 @@ import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
-import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
+import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, TEXTO_NO_LLEGO, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
@@ -83,10 +83,11 @@ const ACCIONES = {
 		const pago = (await tx.leer(`propietarios/${casa.propietarioId}`))?.datosPago;
 		if (!pago) falla(422, 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.');
 		const l = { id: leadId, propertyId: casa.id, propertyTitulo: lead.propertyTitulo, nombre: lead.nombre, reserva: lead.reserva };
-		const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, null), { chat: token });
+		const revisadoAMano = sinLeer.length && revisado ? sinLeer : [];
+		const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, null), { chat: token, revisadoAMano });
 		await fechasDeLaCasa(tx, casa, null, { id: leadId, ...datos });
 		tx.crear(`reservas/${leadId}`, datos, { ahora: ['createdAt', 'updatedAt'] });
-		responder(tx, socio, leadId, 'confirmada', 'Confirmó', { 'solicitud.reservaId': leadId, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia });
+		responder(tx, socio, leadId, 'confirmada', queConfirmo(revisadoAMano), { 'solicitud.reservaId': leadId, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia });
 		const id = mensaje(tx, token, { tipo: 'pago', texto: pago });
 		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) });
 		await cerrarDuplicadas(tx, lead, leadId);

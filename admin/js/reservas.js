@@ -19,7 +19,7 @@ import {
 import { session, markPending } from './session.js';
 import { dia } from './ui.js';
 
-import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
+import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -266,18 +266,19 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	if (sinLeer.length && !revisado) throw Object.assign(new Error(`No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres.`), { servidor: 409, faltaRevisar: sinLeer });
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
-	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '' });
+	const revisadoAMano = sinLeer.length && revisado ? sinLeer : [];
+	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '', revisadoAMano });
 	// El socio llega aquí solo sin el servidor (503), con las reglas de antes: no aceptan el plazo guardado ni el aviso
 	// pendiente (el plazo sale de createdAt, como antes: plazoDePago).
 	const deAntes = session.esSocio;
-	if (deAntes) { delete datos.pagoDesde; delete datos.vencePago; }
+	if (deAntes) { delete datos.pagoDesde; delete datos.vencePago; delete datos.revisadoAMano; }
 	const escribirTodo = () => cambiar({
 		despues: { id, ...datos },
 		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
 		revisar: async (tx) => sinResponder(tx, l, chat),
 		escribir: (tx, ref) => tx.set(ref, { ...datos, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
 		ademas: (tx) => {
-			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', 'Confirmó', { 'solicitud.reservaId': id, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia }));
+			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', queConfirmo(revisadoAMano), { 'solicitud.reservaId': id, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia }));
 			if (chat) {
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.
 				const msj = doc(collection(chat.ref, 'mensajes'));
