@@ -283,10 +283,13 @@ export function rentas(m) {
 	return `${numero(m, 2)} renta${Math.abs(m - 1) < 1e-9 ? '' : 's'}`;
 }
 
-// Número de cotización por fecha y hora: COT-AAAAMMDD-HHMM (único por asesor sin contador compartido).
-export function numeroCotizacion(fecha = new Date()) {
+// Número de cotización: fecha y hora más 4 letras del id del documento (COT-AAAAMMDD-HHMM-K7QX). Dos cotizaciones del
+// mismo minuto (dos asesores, o «Duplicar») ya no se llaman igual. No es un contador seguido: un contador compartido
+// pediría un documento que todos los asesores escriben (las reglas no lo permiten).
+export function numeroCotizacion(fecha = new Date(), id = '') {
 	const p = (n) => String(n).padStart(2, '0');
-	return `COT-${fecha.getFullYear()}${p(fecha.getMonth() + 1)}${p(fecha.getDate())}-${p(fecha.getHours())}${p(fecha.getMinutes())}`;
+	const sufijo = String(id).replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase();
+	return `COT-${fecha.getFullYear()}${p(fecha.getMonth() + 1)}${p(fecha.getDate())}-${p(fecha.getHours())}${p(fecha.getMinutes())}${sufijo ? `-${sufijo}` : ''}`;
 }
 
 export function fechaISO(fecha = new Date()) {

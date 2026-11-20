@@ -13,6 +13,7 @@ import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
+import { esPorcentaje } from '../formato.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
 	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
@@ -263,7 +264,7 @@ async function vistaEmpresa(container) {
 	const btn = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: async () => {
 		const n = (x) => (x === '' || x === null || x === undefined ? NaN : Number(x));
 		const isr = n(v.isrPct), isrAlto = n(v.isrPctAlto), lim = n(v.isrLimite), tc = n(v.tipoCambio), pa = n(v.pctAsesor), vig = n(v.vigenciaDias);
-		if (!(isr >= 0 && isr <= 100) || !(isrAlto >= 0 && isrAlto <= 100) || !(pa >= 0 && pa <= 100)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
+		if (![isr, isrAlto, pa].every(esPorcentaje)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
 		if (!(lim >= 0) || !(tc > 0)) { toast('Revisa el límite y el tipo de cambio.', 'danger'); return; }
 		if (!(vig >= 1)) { toast('La vigencia debe ser de al menos 1 día.', 'danger'); return; }
 		const empresa = Object.fromEntries(['razonSocial', 'nombreComercial', 'nit', 'direccion', 'telefono', 'email'].map((k) => [k, String(emp[k] ?? '').trim()]));
@@ -295,16 +296,18 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const empresaActual = emisorDesde('empresa', { empresa: def.empresa });
 	let c;
 	let docId = duplicar ? null : id;
+	// Una nueva (o duplicada) ya sabe su id: su número lleva parte de él y así no se repite.
+	const idNuevo = docId ? null : doc(collection(db, COL)).id;
 	if (id) {
 		try {
 			const s = await getDoc(doc(db, COL, id));
 			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
 			c = structuredClone(s.data());
 		} catch (err) { showError(err); container.replaceChildren(emptyState('No se pudo abrir la cotización.')); return; }
-		if (duplicar) { c.numero = numeroCotizacion(); c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
+		if (duplicar) { c.numero = numeroCotizacion(new Date(), idNuevo); c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
 	} else {
 		c = {
-			numero: numeroCotizacion(), fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
+			numero: numeroCotizacion(new Date(), idNuevo), fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
 			asesor: session.profile?.nombre || '', emisorTipo: 'empresa', emisor: { ...empresaActual }, regimen: empresaActual.regimen, modo: 'todo',
 			cliente: snapshotCliente(null), propiedad: snapshotPropiedad(null),
 			condiciones: def.condiciones, notas: '', lineas: [lineaVacia('compraventa')]
@@ -933,7 +936,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		try {
 			btnGuardar.disabled = true;
 			if (!docId) {
-				const ref = doc(collection(db, COL));
+				const ref = doc(db, COL, idNuevo);
 				datos.createdAt = serverTimestamp();
 				await setDoc(ref, datos);
 				docId = ref.id; c.agentId = datos.agentId;

@@ -5,7 +5,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
 import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
-import { whatsappUrl, nNoches } from '../formato.js';
+import { whatsappUrl, nNoches, dineroPorMoneda } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
@@ -27,8 +27,8 @@ const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const moverMes = (mes, n) => { const d = new Date(`${mes}-15T12:00:00`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5)), 0).getDate();
 
-// Suma de dinero por moneda en un solo texto: "$ 1,200 · Q 3,000".
-const dinero = (porMoneda, campo) => Object.entries(porMoneda).filter(([, m]) => m[campo]).map(([mon, m]) => money(m[campo], mon)).join(' · ') || '—';
+// Suma de dinero por moneda en un solo texto: "US$ 1,200.00 · Q 3,000.00" (formato.js `dineroPorMoneda`).
+const dinero = (porMoneda, campo) => dineroPorMoneda(Object.fromEntries(Object.entries(porMoneda).map(([mon, m]) => [mon, m[campo]]))) || '—';
 
 export async function render(container) {
 	let [reservas, todas, propietarios] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios()]);

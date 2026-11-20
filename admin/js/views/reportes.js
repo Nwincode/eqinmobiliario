@@ -3,7 +3,12 @@ import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
 import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
-import { loadClientes, loadActividades, vencimiento, money, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
+import { loadClientes, loadActividades, vencimiento, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
+import { sumarPorMoneda, dineroPorMoneda, esPorcentaje } from '../formato.js';
+
+// Q y US$ no se suman: un total por moneda («US$ 250,000.00 · Q 1,500,000.00»).
+const MONEDAS_CSV = [['USD', 'US$'], ['GTQ', 'Q']];
+const redondo = (t) => Object.fromEntries(Object.entries(t).map(([m, n]) => [m, Math.round(n)]));
 
 function horas(msx) {
 	if (!Number.isFinite(msx)) return '—';
@@ -34,9 +39,11 @@ export async function render(container) {
 					.map((x) => ms(x.hechaEn || x.createdAt)).sort((p, q) => p - q)[0];
 				return primera ? primera - ms(l.createdAt) : null;
 			}).filter((t) => t !== null);
-			const cierres = misClientes.filter((c) => c.etapa === 'cierre' && ms(c.updatedAt) >= desde);
-			const montoCerrado = cierres.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
-			const comision = cierres.reduce((s, c) => s + comisionDeNegocio(c, reglas), 0);
+			// Un cierre cuenta en el periodo en que pasó a «Cierre» (etapaFecha), no en el de su última edición. Los de
+			// antes de guardar esa fecha usan la última edición (no hay otra).
+			const cierres = misClientes.filter((c) => c.etapa === 'cierre' && ms(c.etapaFecha || c.updatedAt) >= desde);
+			const montoCerrado = sumarPorMoneda(cierres, (c) => c.montoEstimado);
+			const comision = sumarPorMoneda(cierres, (c) => comisionDeNegocio(c, reglas));
 			const enProceso = misClientes.filter((c) => ['visita', 'oferta'].includes(c.etapa));
 			return {
 				...a,
@@ -47,11 +54,11 @@ export async function render(container) {
 				visitas: hechas.filter((x) => x.tipo === 'visita').length,
 				vencidas: misActs.filter((x) => vencimiento(x) === 'vencida').length,
 				enProceso: enProceso.length,
-				pipeline: enProceso.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0),
+				pipeline: sumarPorMoneda(enProceso, (c) => c.montoEstimado),
 				cierres: cierres.length,
 				montoCerrado,
 				comision,
-				parteAsesor: comision * reglas.parteAsesorPct / 100
+				parteAsesor: Object.fromEntries(Object.entries(comision).map(([m, n]) => [m, n * reglas.parteAsesorPct / 100]))
 			};
 		}).filter((f) => f.id || f.leads || f.actividades);
 
@@ -73,10 +80,10 @@ export async function render(container) {
 						h('td', { class: 'text-end' }, horas(f.respuesta)),
 						h('td', { class: 'text-end' }, f.actividades, alerta(f.vencidas, f.vencidas === 1 ? 'vencida' : 'vencidas')),
 						h('td', { class: 'text-end' }, f.visitas),
-						h('td', { class: 'text-end' }, `${f.enProceso}${f.pipeline ? ` · ${money(f.pipeline)}` : ''}`),
-						h('td', { class: 'text-end' }, `${f.cierres}${f.montoCerrado ? ` · ${money(f.montoCerrado)}` : ''}`),
-						h('td', { class: 'text-end' }, money(Math.round(f.comision)),
-							f.parteAsesor ? h('span', { class: 'text-muted' }, ` · asesor ${money(Math.round(f.parteAsesor))}`) : null))))))),
+						h('td', { class: 'text-end' }, [f.enProceso, dineroPorMoneda(f.pipeline)].filter((x) => x !== '').join(' · ')),
+						h('td', { class: 'text-end' }, [f.cierres, dineroPorMoneda(f.montoCerrado)].filter((x) => x !== '').join(' · ')),
+						h('td', { class: 'text-end' }, dineroPorMoneda(redondo(f.comision)) || '—',
+							dineroPorMoneda(f.parteAsesor) ? h('span', { class: 'text-muted' }, ` · asesor ${dineroPorMoneda(redondo(f.parteAsesor))}`) : null))))))),
 			h('div', { class: 'card' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
 				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },
@@ -89,20 +96,24 @@ export async function render(container) {
 	calcular();
 
 	const exportar = iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: () => downloadCsv(`reporte-equipo-${dias}d.csv`, [
-		['Asesor', 'Leads', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres', 'Monto cerrado', 'Comisión', 'Parte asesor'],
-		...cuerpo._filas.map((f) => [f.nombre, f.leads, f.sinRespuesta, Number.isFinite(f.respuesta) ? (f.respuesta / 3600000).toFixed(1) : '', f.actividades, f.visitas, f.vencidas, f.enProceso, f.cierres, f.montoCerrado, Math.round(f.comision), Math.round(f.parteAsesor)])
+		['Asesor', 'Leads', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres',
+			...['Monto cerrado', 'Comisión', 'Parte asesor'].flatMap((t) => MONEDAS_CSV.map(([, p]) => `${t} ${p}`))],
+		...cuerpo._filas.map((f) => [f.nombre, f.leads, f.sinRespuesta, Number.isFinite(f.respuesta) ? (f.respuesta / 3600000).toFixed(1) : '', f.actividades, f.visitas, f.vencidas, f.enProceso, f.cierres,
+			...[f.montoCerrado, redondo(f.comision), redondo(f.parteAsesor)].flatMap((t) => MONEDAS_CSV.map(([m]) => t[m] || 0))])
 	]) });
 
 	// Regla general de comisión: aplica a todo cliente o propietario sin comisión propia.
 	const campos = [['comisionVentaPct', 'Venta', '%'], ['comisionRentaMeses', 'Renta', 'meses de renta'], ['parteAsesorPct', 'Parte del asesor', '% de la comisión']]
 		.map(([k, label, sufijo]) => {
-			const input = h('input', { class: 'form-control', type: 'number', min: 0, step: 'any', value: reglas[k], id: `regla-${k}` });
+			const input = h('input', { class: 'form-control', type: 'number', min: 0, ...(sufijo.includes('%') ? { max: 100 } : {}), step: 'any', value: reglas[k], id: `regla-${k}` });
 			return { k, input, col: h('div', { class: 'col-sm-4' }, h('label', { class: 'form-label small', for: input.id }, label),
 				h('div', { class: 'input-group' }, input, h('span', { class: 'input-group-text' }, sufijo))) };
 		});
 	const guardarReglas = async (btn) => {
 		const nuevas = Object.fromEntries(campos.map(({ k, input }) => [k, input.value === '' ? NaN : Number(input.value)]));
 		if (Object.values(nuevas).some((v) => !Number.isFinite(v) || v < 0)) { toast('Revisa los valores.', 'danger'); return; }
+		// Los porcentajes van de 0 a 100, la misma regla que Cotizaciones.
+		if (!esPorcentaje(nuevas.comisionVentaPct) || !esPorcentaje(nuevas.parteAsesorPct)) { toast('La comisión de venta y la parte del asesor van de 0 a 100 %.', 'danger'); return; }
 		btn.disabled = true;
 		try {
 			await setDoc(doc(db, 'settings', 'crm'), { ...nuevas, updatedAt: serverTimestamp() }, { merge: true });

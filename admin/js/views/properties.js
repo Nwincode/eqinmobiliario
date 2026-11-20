@@ -27,6 +27,7 @@ import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { propiedadParaIA } from '../para-ia.js';
+import { TEXTOS_VAC, fuenteEs, faltaIngles, fuenteTraducida } from '../ingles.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -73,15 +74,8 @@ async function borrarFotos(p) {
 // Pone la marca de agua a las fotos ya subidas que no la tienen. Sube una copia nueva con marca
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
 // Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
-// "fuente" guarda el texto en español traducido, para saber si cambió después.
-// Las casas vacacionales suman cómo llegar, reglas y cancelación (solo si los tienen).
-const TEXTOS_VAC = ['comoLlegar', 'reglas', 'cancelacion'];
-export const fuenteEs = (d) => [d.titulo || '', d.descripcion || '', ...TEXTOS_VAC.map((k) => d.vacacional?.[k]).filter(Boolean)].join('\n');
-// ¿Hay que traducir? Falta el inglés, o el español cambió y el inglés no se corrigió a mano.
-export const faltaIngles = (d) => {
-	const en = d.en || {};
-	return Boolean(d.titulo) && (!String(en.titulo || '').trim() || (!en.manual && (!String(en.descripcion || '').trim() || en.fuente !== fuenteEs(d))));
-};
+// Qué se traduce y cuándo falta: admin/js/ingles.js.
+export { fuenteEs, faltaIngles };
 // La dirección en inglés sale del título: al cambiarlo se guarda el anterior para redirigir.
 const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
 // Al traductor va solo lo público: pedirIA lo limpia con admin/js/para-ia.js.
@@ -96,7 +90,7 @@ export async function traducirEn(d) {
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		vacacional: Object.fromEntries(TEXTOS_VAC.map((k) => [k, r[k] || ''])),
 		slugsAnteriores: titulosEnAnteriores(d.en, r.titulo),
-		fuente: fuenteEs(d),
+		fuente: fuenteTraducida(d, r),
 		manual: false
 	};
 }
@@ -719,7 +713,7 @@ export async function render(container, [id]) {
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
 					vacacional: p.en?.vacacional || {},
 					slugsAnteriores: titulosEnAnteriores(p.en, t.en.titulo),
-					fuente: fuenteEs(d), manual: false
+					fuente: fuenteTraducida(d, { titulo: t.en.titulo, descripcion: t.en.descripcion, ...(p.en?.vacacional || {}) }), manual: false
 				};
 				await guardarMasa(cambios, cambios)(p);
 			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revísalos y publica.`);

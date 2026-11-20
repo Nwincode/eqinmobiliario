@@ -3,24 +3,18 @@
 // Requiere la variable de entorno ANTHROPIC_API_KEY en Netlify.
 import Anthropic from '@anthropic-ai/sdk';
 import siteConfig from '../../site.config.json' with { type: 'json' };
-import { TAREAS, SISTEMA } from '../lib/tareas.mjs';
+import { TAREAS, SISTEMA, acotado } from '../lib/tareas.mjs';
 import { staffUser, json } from '../lib/auth.mjs';
 import { leerPublico } from '../lib/firestore.mjs';
+import { limitador, ipDe } from '../lib/limite.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const MODEL = 'claude-opus-5-5';
 
 const client = new Anthropic({ timeout: 25_000, maxRetries: 0 });
 
-// Límite simple por IP para la búsqueda pública (por instancia; evita abusos obvios).
-const publicHits = new Map();
-function publicRateLimited(ip) {
-	const now = Date.now();
-	const hits = (publicHits.get(ip) || []).filter((t) => now - t < 60_000);
-	hits.push(now);
-	publicHits.set(ip, hits);
-	return hits.length > 8;
-}
+// Límite por IP para la búsqueda pública (por instancia; evita abusos obvios): 8 por minuto. Un pedido rechazado no cuenta.
+const publicRateLimited = limitador(8, 60_000);
 
 const cut = (v, n) => String(v ?? '').slice(0, n);
 
@@ -79,7 +73,7 @@ function construirPrompt(tarea, datos) {
 			break;
 		case 'traducir':
 		case 'descripcion':
-			bloques.push(`<propiedad>\n${JSON.stringify(datos.propiedad || {}).slice(0, 6000)}\n</propiedad>`);
+			bloques.push(`<propiedad>\n${JSON.stringify(acotado(datos.propiedad || {}))}\n</propiedad>`);
 			bloques.push(`<notas_del_asesor>\n${cut(datos.notas, 3000)}\n</notas_del_asesor>`);
 			break;
 		case 'coincidencias':
@@ -126,7 +120,7 @@ export default async (req, context) => {
 		if (!usuario) return json(401, { error: 'Inicia sesión en el panel para usar la IA.' });
 	} else if (!(await busquedaPublicaActiva())) {
 		return json(403, { error: 'La búsqueda por frase no está activa.' });
-	} else if (publicRateLimited(context?.ip || req.headers.get('x-nf-client-connection-ip') || 'anon')) {
+	} else if (publicRateLimited(ipDe(req, context))) {
 		return json(429, { error: 'Demasiadas búsquedas seguidas. Intenta en un minuto.' });
 	}
 
