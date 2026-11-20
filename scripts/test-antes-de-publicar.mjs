@@ -23,14 +23,17 @@ const MALAS = {
 	'reservadas-mapa': { operacion: 'vacacional', vacacional: { reservadas: { a: 1 } } },
 	'bloqueos-texto': { operacion: 'vacacional', vacacional: { bloqueos: 'x' } },
 	'tarifa-nula': { operacion: 'vacacional', vacacional: { tarifas: [null] } },
-	'seo-texto': { seo: 'x' },
+	'minimos-numero': { operacion: 'vacacional', vacacional: { minimos: 5 } },
+	'puntos-texto': { vip: true, vipLanding: { puntosClave: 'x' } },
 	'en-amenidades': { en: { titulo: 'House', descripcion: 'x', amenidades: 'pool' } },
-	'titulo-objeto': { titulo: { es: 'x' } }
+	'zona-numero': { zona: 5 },
+	'video-objeto': { video: { a: 1 } }
 };
 
-t('una casa bien formada pasa (también con título numérico o precio en texto)', () => {
+t('una casa bien formada pasa (y lo que antes se publicaba: título numérico, precio en texto, seo o en de otra forma)', () => {
 	assert.equal(problemaDeCasa(casa()), '');
-	assert.equal(problemaDeCasa(casa({ titulo: 12345, precio: 'Q.5,000' })), '');
+	assert.equal(problemaDeCasa(casa({ titulo: 12345, precio: 'Q.5,000', seo: 'x', en: 'x', vipLanding: 'x', slugsAnteriores: 'x', fotos: [{}], amenidades: [5] })), '');
+	assert.equal(problemaDeCasa(casa({ operacion: 'venta', vacacional: 'x' })), '', 'vacacional solo cuenta en una casa por noche');
 	assert.equal(problemaDeCasa(casa({ operacion: 'vacacional', vacacional: { reservadas: [{ desde: '2026-12-01', hasta: '2026-12-03' }], tarifas: [] } })), '');
 });
 
@@ -83,8 +86,9 @@ const seedBase = JSON.parse(readFileSync(path.join(ROOT, 'data/seed.json'), 'utf
 const construir = (seed, extraEnv = {}) => {
 	const file = path.join(tmp, `seed-${Math.random().toString(36).slice(2)}.json`), dist = path.join(tmp, path.basename(file, '.json'));
 	writeFileSync(file, JSON.stringify(seed));
-	const env = { ...process.env, DATOS: 'seed', SEED_FILE: file, DIST_DIR: dist, ...extraEnv };
+	const env = { ...process.env, DATOS: 'seed', SEED_FILE: file, DIST_DIR: dist };
 	delete env.NETLIFY; delete env.CONTEXT;
+	Object.assign(env, extraEnv);
 	const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env, encoding: 'utf8' });
 	return { ok: r.status === 0, out: r.stdout + r.stderr, dist };
 };
@@ -114,6 +118,26 @@ const construir = (seed, extraEnv = {}) => {
 		assert.ok(!existsSync(r.dist), 'no se borró ni escribió nada en la carpeta de salida');
 	});
 	t('build sin casas con la variable puesta: publica', () => assert.ok(construir(seed, { [FORZAR]: '1' }).ok));
+}
+{
+	// Publicación en Netlify: el sitemap en línea se simula (fetch de mentira, sin red) con 10 fichas y con 3.
+	const enLinea = (n) => {
+		const f = path.join(tmp, `en-linea-${n}.mjs`);
+		const xml = `<urlset>${Array.from({ length: n }, (_, i) => `<url><loc>https://eqinmobiliario.gt/propiedad/casa-${i}/</loc></url>`).join('')}<url><loc>https://eqinmobiliario.gt/vip/</loc></url></urlset>`;
+		writeFileSync(f, `globalThis.fetch = async () => new Response(${JSON.stringify(xml)});\n`);
+		return f;
+	};
+	const publicadas = seedBase.properties.filter((p) => p.publicado).length;
+	const r = construir(seedBase, { NETLIFY: 'true', NODE_OPTIONS: `--import=${enLinea(10)}` });
+	t('Netlify: con menos de la mitad de las fichas del sitio en línea, no publica', () => {
+		assert.equal(r.ok, false, r.out.slice(-300));
+		assert.match(r.out, new RegExp(`Se publicarían ${publicadas} propiedades y el sitio tiene 10`));
+	});
+	t('Netlify: con una caída menor a la mitad, publica (y IndexNow compara con ese sitemap)', () => {
+		const b = construir(seedBase, { NETLIFY: 'true', NODE_OPTIONS: `--import=${enLinea(publicadas + 1)}` });
+		assert.ok(b.ok, b.out.slice(-300));
+		assert.ok(JSON.parse(readFileSync(path.join(b.dist, 'feeds', 'indexnow.json'), 'utf8')).urls.includes('https://eqinmobiliario.gt/propiedad/casa-0/'));
+	});
 }
 rmSync(tmp, { recursive: true, force: true });
 console.log(`${ok} pruebas de lo que se revisa antes de publicar pasan${process.exitCode ? ' (con fallas)' : ''}.`);

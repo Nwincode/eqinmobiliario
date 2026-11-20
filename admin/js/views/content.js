@@ -430,7 +430,7 @@ export async function render(container) {
 
 	mount(container, 
 		pageHeader('Contenido del sitio'),
-		snap.exists() ? null : h('div', { class: 'alert alert-info' }, 'Todavía no has guardado el contenido. Se muestran los textos actuales del sitio; al guardar quedarán en la base de datos. También puedes importar todo desde "Publicar".'),
+		snap.exists() ? null : h('div', { class: 'alert alert-info' }, 'Todavía no has guardado el contenido. Se muestran los textos actuales del sitio; al guardar quedarán en la base de datos.'),
 		h('div', { class: 'subnav-layout' }, tabs, panes),
 		h('div', { class: 'sticky-actions' }, h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar cambios')));
 }

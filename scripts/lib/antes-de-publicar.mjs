@@ -16,29 +16,28 @@ export const FORZAR = 'PUBLICAR_CATALOGO_REDUCIDO';
 export const CAIDA_MAXIMA = 0.5;
 
 const esTexto = (v) => typeof v === 'string';
-const esTitulo = (v) => v == null || esTexto(v) || typeof v === 'number';
-const listaDe = (v, item) => v == null || (Array.isArray(v) && v.every(item));
-const objeto = (v) => v == null || isPlainObject(v);
-const foto = (f) => isPlainObject(f) && esTexto(f.url);
-const rango = (x) => isPlainObject(x);
+const texto = (v) => v == null || esTexto(v);
+const lista = (v, item = () => true) => v == null || (Array.isArray(v) && v.every(item));
+const grupo = (v) => isPlainObject(v);
+// Una foto puede venir sin url (no se muestra), pero no vacía ni con una url que no es texto.
+const foto = (f) => grupo(f) && texto(f.url);
 
-// Qué tiene mal una casa (texto para el aviso) o '' si se puede publicar.
+// Qué tiene mal una casa (texto para el aviso) o '' si se puede publicar. Solo lo que rompe la publicación o
+// mostraría mal la casa: lo demás (un título numérico, un precio en texto) se publica como antes.
 export function problemaDeCasa(p) {
-	if (!isPlainObject(p)) return 'no es un documento';
+	if (!grupo(p)) return 'no es un documento';
 	if (!esTexto(p.id) || !p.id) return 'sin id';
 	const v = p.vacacional, en = p.en;
 	const revisiones = [
-		[esTitulo(p.titulo), 'titulo'],
-		[esTitulo(p.slug), 'slug'],
-		[listaDe(p.fotos, foto), 'fotos (una lista de fotos, cada una con su url)'],
-		[listaDe(p.amenidades, esTexto), 'amenidades (una lista de textos)'],
-		[listaDe(p.slugsAnteriores, esTexto), 'slugsAnteriores'],
-		[objeto(p.seo), 'seo'],
-		[objeto(p.vipLanding) && listaDe(p.vipLanding?.puntosClave, esTexto), 'vipLanding'],
-		[objeto(en), 'en'],
-		[!isPlainObject(en) || (listaDe(en.amenidades, esTexto) && listaDe(en.slugsAnteriores, esTexto) && objeto(en.seo) && objeto(en.vacacional) && objeto(en.vipLanding)), 'en (traducción)'],
-		[objeto(v), 'vacacional'],
-		...['tarifas', 'minimos', 'bloqueos', 'reservadas'].map((k) => [!isPlainObject(v) || listaDe(v[k], rango), `vacacional.${k} (una lista de fechas)`])
+		[lista(p.fotos, foto), 'fotos (una lista de fotos, cada una con su url)'],
+		[lista(p.amenidades), 'amenidades (una lista)'],
+		[texto(p.zona), 'zona'],
+		[texto(p.video), 'video'],
+		[!grupo(p.vipLanding) || lista(p.vipLanding.puntosClave), 'vipLanding.puntosClave (una lista)'],
+		[!grupo(en) || !en.amenidades || lista(en.amenidades), 'en.amenidades (una lista)'],
+		// Una casa por noche sin su calendario se vería libre todos los días: no se publica.
+		[p.operacion !== 'vacacional' || v == null || grupo(v), 'vacacional'],
+		...['tarifas', 'minimos', 'bloqueos', 'reservadas'].map((k) => [p.operacion !== 'vacacional' || !grupo(v) || lista(v[k], grupo), `vacacional.${k} (una lista de fechas)`])
 	];
 	return revisiones.filter(([ok]) => !ok).map(([, campo]) => campo).join(', ');
 }

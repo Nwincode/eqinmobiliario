@@ -551,9 +551,10 @@ async function main() {
 	const properties = todas.filter(seOfrece);
 	// Antes de borrar nada de dist/: un catálogo vacío, o con menos de la mitad de las casas que tiene el sitio
 	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
+	// Se cuentan las que se ofrecen sin contar la pausa por mora: un socio atrasado no frena la publicación.
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
-	const freno = revisarCatalogo({ ahora: properties.length, antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl), forzar: process.env[FORZAR] === '1' });
+	const freno = revisarCatalogo({ ahora: todas.filter((p) => visibilidadDe(p) === 'visible').length, antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl), forzar: process.env[FORZAR] === '1' });
 	if (freno) throw new Error(freno);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
