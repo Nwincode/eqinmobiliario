@@ -21,7 +21,7 @@ export const render = crudView({
 	schema: () => [
 		{ name: 'nombre', label: 'Nombre', required: true, cols: 6 },
 		{ name: 'cargo', label: 'Cargo', cols: 6 },
-		{ name: 'whatsapp', label: 'WhatsApp', type: 'tel', cols: 6, help: 'Con código de país, sin espacios. Ej. 50259131276' },
+		{ name: 'whatsapp', label: 'WhatsApp', type: 'telefono', cols: 6 },
 		{ name: 'email', label: 'Correo', type: 'email', cols: 6 },
 		{ name: 'bio', label: 'Descripción breve', type: 'textarea', rows: 3 },
 		{ name: 'foto', label: 'Foto', type: 'image' },

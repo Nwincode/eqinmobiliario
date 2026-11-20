@@ -220,15 +220,9 @@
 			if (form.eq_vacio && form.eq_vacio.value) return;
 			var lead = {
 				nombre: form.nombre.value.trim(),
-				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
-				// Un solo formato: «+código número». El autollenado del navegador suele traer el código pegado al número
-				// («50255551234», «00502…»): si ya empieza con el código elegido, no se repite.
-				telefono: (function (numero) {
-					if (!numero || numero.charAt(0) === '+' || !form.codigo) return numero;
-					var cod = form.codigo.value, d = numero.replace(/\D/g, '').replace(/^00/, '');
-					if (cod && d.indexOf(cod) === 0 && d.length - cod.length >= 7) return '+' + cod + ' ' + d.slice(cod.length);
-					return '+' + cod + ' ' + numero;
-				})(form.telefono.value.trim()),
+				// Un solo formato: «+código número», el mismo del panel (formato.js `unirTelefono`): el «+» escrito manda, y
+				// el código que el autollenado pega al número («50255551234», «00502…») no se repite.
+				telefono: form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim(),
 				email: form.email ? form.email.value.trim() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',

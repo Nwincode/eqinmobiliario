@@ -253,8 +253,8 @@ await test('inmueble y cliente: se guarda una copia del registro, y la hoja la l
 	const d = datosPropiedad(s);
 	assert.deepEqual(d.rasgos, ['Casa en venta', '3 habitaciones', '1 baño', '250 m² de construcción', '400 m² de terreno']);
 	assert.equal(d.lugar, 'Zona 16, Guatemala');
-	assert.equal(d.precio, 'US$ 200,000');
-	assert.equal(datosPropiedad(snapshotPropiedad({ titulo: 'Apto', operacion: 'renta', precio: 1500, moneda: 'GTQ' })).precio, 'Q 1,500 al mes');
+	assert.equal(d.precio, 'US$ 200,000.00');
+	assert.equal(datosPropiedad(snapshotPropiedad({ titulo: 'Apto', operacion: 'renta', precio: 1500, moneda: 'GTQ' })).precio, 'Q 1,500.00 /mes');
 	assert.equal(snapshotPropiedad({ titulo: 'Sin fotos', fotos: [] }).foto, null);
 	assert.equal(snapshotPropiedad({ titulo: 'Fotos viejas', fotos: ['/x.jpg'] }).foto.url, '/x.jpg');
 	// Cotizaciones de antes: solo el texto.

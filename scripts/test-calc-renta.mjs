@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { dinero as dineroFormato } from '../admin/js/formato.js';
 
 // El motor es un script clásico: se ejecuta con un `module` propio para leer module.exports.
 const code = await readFile(new URL('../js/calc-renta.js', import.meta.url), 'utf8');
@@ -328,7 +329,9 @@ test('valores por defecto por tipo y parámetros editables', () => {
 	assert.match(R.PARAMS.ivaPequeno.fuente, /^Ley del IVA, Dto\. 27-92, art\. 3 num\. 4; art\. 10; arts\. 45-47 \(Dto\. 4-2012\)/);
 	assert.equal(R.PARAMS.limitePequenoGTQ.fuente, 'Dto. 31-2024, arts. 15-17 (Ley del IVA arts. 45, 46 y 50): 125 salarios mínimos mensuales no agrícolas, sin bonificación incentivo. Monto 2026 según el salario mínimo vigente');
 	for (const k of ['limitePequenoGTQ', 'isrGananciaCapital', 'isrGananciaUtilidades', 'tipoCambio', 'capCasa']) assert.equal(R.PARAMS[k].confirmar, true, `${k} por confirmar`);
-	assert.equal(R.dinero(1234.5, 'USD', 'en'), 'US$ 1,235');
+	// Siempre con centavos, igual que admin/js/formato.js `dinero` (el sitio y el panel), en los dos idiomas.
+	for (const v of [1234.5, 0, 350000, 99.999]) for (const [m, l] of [['USD', 'en'], ['GTQ', 'es']]) assert.equal(R.dinero(v, m, l).replace(/\u00a0/g, ' '), dineroFormato(v, m));
+	assert.equal(R.dinero(-1234.5, 'USD', 'es').replace(/\u00a0/g, ' '), '−US$ 1,234.50');
 	assert.equal(R.porcentaje(0.05677, 'en', 2), '5.68 %');
 });
 

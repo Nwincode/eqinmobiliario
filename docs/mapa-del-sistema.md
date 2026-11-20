@@ -102,7 +102,9 @@ Storage (`storage.rules`): fotos por dirección (las sube, cambia, borra y lista
 
 Cada cadena va en el orden en que conviene revisarla.
 
-**Teléfono** → `admin/js/formato.js` (formato y validación) → `admin/js/form.js` (campo `telefono`) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma y valida) → `scripts/test-telefono.mjs`.
+**Teléfono** → `admin/js/formato.js` (`CODIGOS_PAIS` con el largo de cada país, `telefonoValido`, `unirTelefono`, `partirTelefono`, `telefonoWa`: con «+» nunca cambia de país) → `admin/js/form.js` (campo `telefono`; también el WhatsApp de Contenido y de cada asesor) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma con `EQFormato.unirTelefono` y valida; `scripts/lib/assets.mjs` `FORMATO_NAVEGADOR`) → `scripts/test-telefono.mjs`.
+
+**Dinero** → `admin/js/formato.js` (`dinero`, `montoPrecio`, `precioTexto`: siempre con centavos) → panel (`cotizacion.js`, `views/calculadora.js`), sitio (`js/vacacional.js` y `js/reserva-chat.js` por `EQFormato`) → `js/calc-renta.js` es script clásico y tiene su copia, igual (`scripts/test-calc-renta.mjs` las compara). Solo la casilla del calendario va sin centavos (`dineroCorto`, decisión del dueño).
 
 **Un texto del sitio** → `scripts/lib/i18n.mjs` (español **e** inglés). Si lo usa JavaScript de la ficha por noche o del chat, la clave debe empezar con `vac` (así viaja a la página).
 

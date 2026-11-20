@@ -53,11 +53,12 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
 
 // ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
-// («ana@» o «ana@correo» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
+// («ana@», «ana@correo», «.ana@gmail.com», «ana..x@gmail.com» o «ana@-gmail.com» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
 // y las funciones.
 export const correoValido = (correo) => {
 	const c = String(correo || '').trim();
-	return c.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.\d]{2,}$/.test(c);
+	// Antes de la @, sin punto al inicio, al final ni dos seguidos; cada parte del dominio sin guion al inicio ni al final.
+	return c.length <= 254 && /^[^\s@.]+(\.[^\s@.]+)*@([^\s@.-]([^\s@.]*[^\s@.-])?\.)+[^\s@.\d-]{2,}$/.test(c);
 };
 // Correo con el dominio mal escrito («gmial.com», «hotmail.con»): devuelve el correo corregido para sugerirlo, o ''.
 // Solo los proveedores más usados y a 1 o 2 letras de distancia (una letra de más, de menos, cambiada o dos al revés).
@@ -159,23 +160,30 @@ export function conPiesCuadrados(texto) {
 }
 
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
-// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben; cualquier otro
-// se escribe completo, empezando con «+».
-export const CODIGOS_PAIS = [['502', 'GT'], ['1', 'US/CA'], ['52', 'MX'], ['503', 'SV'], ['504', 'HN'], ['505', 'NI'], ['506', 'CR'], ['507', 'PA'], ['501', 'BZ'],
-	['57', 'CO'], ['34', 'ES'], ['44', 'GB'], ['49', 'DE'], ['33', 'FR'], ['39', 'IT'], ['31', 'NL'], ['54', 'AR'], ['56', 'CL'], ['55', 'BR'], ['972', 'IL'], ['61', 'AU']];
+// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben, con el largo del número sin el
+// código (mínimo y máximo: hay países con números de largo distinto). Cualquier otro se escribe completo, con «+».
+export const CODIGOS_PAIS = [['502', 'GT', [8, 8]], ['1', 'US/CA', [10, 10]], ['52', 'MX', [10, 11]], ['503', 'SV', [8, 8]], ['504', 'HN', [8, 8]],
+	['505', 'NI', [8, 8]], ['506', 'CR', [8, 8]], ['507', 'PA', [7, 8]], ['501', 'BZ', [7, 7]], ['57', 'CO', [10, 10]], ['34', 'ES', [9, 9]],
+	['44', 'GB', [9, 10]], ['49', 'DE', [6, 11]], ['33', 'FR', [9, 9]], ['39', 'IT', [6, 11]], ['31', 'NL', [9, 9]], ['54', 'AR', [10, 11]],
+	['56', 'CL', [9, 9]], ['55', 'BR', [10, 11]], ['972', 'IL', [8, 9]], ['61', 'AU', [9, 9]]];
+const LARGO = Object.fromEntries(CODIGOS_PAIS.map(([c, , l]) => [c, l]));
+const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
+const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
+const largoBien = (codigo, n) => Boolean(LARGO[codigo]) && n >= LARGO[codigo][0] && n <= LARGO[codigo][1];
+// El número sin el código, cortado por dígitos («+(502) 5555-1234» → «5555-1234»).
+const sinCodigo = (t, codigo) => t.replace(new RegExp(`^\\+\\D*${codigo.split('').join('\\D*')}`), '').replace(/^[\s).\-/]+/, '').trim();
 // Código y número de un teléfono guardado, para mostrarlo en un campo con su código de país.
 //  «+502 5555 1234» → { codigo: '502', numero: '5555 1234' }
 //  «5555 1234» (sin código, como se guardaba antes) → el código por defecto
-//  «50255551234» o «13055551234» (11 dígitos con el código pegado) → se separa
+//  «50255551234» o «13055551234» (con el código pegado y el largo justo de ese país) → se separa
 //  «+995 555 123» (código que no está en la lista) → { codigo: '', numero: '+995 555 123' }: se conserva tal cual
 export function partirTelefono(tel, porDefecto = '502') {
 	const t = String(tel || '').trim();
 	if (!t) return { codigo: porDefecto, numero: '' };
 	const digitos = t.replace(/\D/g, '');
-	const conocido = (d) => CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length).find((c) => d.startsWith(c)) || '';
 	if (t.startsWith('+')) {
-		const codigo = conocido(digitos);
-		return codigo ? { codigo, numero: t.slice(1).trim().slice(codigo.length).trim() } : { codigo: '', numero: t };
+		const codigo = codigoDe(digitos);
+		return codigo ? { codigo, numero: sinCodigo(t, codigo) } : { codigo: '', numero: t };
 	}
 	if (digitos.length === 11 && (digitos.startsWith('502') || digitos.startsWith('1')) && !/\D/.test(t)) {
 		const codigo = digitos.startsWith('502') ? '502' : '1';
@@ -183,24 +191,40 @@ export function partirTelefono(tel, porDefecto = '502') {
 	}
 	return { codigo: porDefecto, numero: t };
 }
-// Código + número → como se guarda. Si el número ya viene con «+», manda el número.
+// Código elegido + número → como se guarda. Si el número ya viene con «+» (o «00»), manda el número. El autollenado
+// del navegador suele traer el código pegado («50255551234»): se quita solo si así el número queda con el largo de ese
+// país y con el código no; un número que empieza igual que su código («+39» y «392 123 4567») no se corta.
+// La usan el panel (admin/js/form.js) y el sitio (js/site.js, por EQFormato).
 export function unirTelefono(codigo, numero) {
 	const n = String(numero || '').trim();
 	if (!n) return '';
-	return n.startsWith('+') || !codigo ? n : `+${codigo} ${n}`;
+	if (n.startsWith('+') || !codigo) return n;
+	const d = n.replace(/\D/g, '');
+	if (/^00/.test(n.replace(/[\s.\-()]/g, ''))) {
+		const c = codigoDe(d.slice(2));
+		return c ? `+${c} ${d.slice(2 + c.length)}` : `+${d.slice(2)}`;
+	}
+	if (d.startsWith(codigo) && !largoBien(codigo, d.length) && largoBien(codigo, d.length - codigo.length)) return `+${codigo} ${d.slice(codigo.length)}`;
+	return `+${codigo} ${n}`;
 }
-// ¿Es un teléfono que se puede marcar? Entre 7 y 15 dígitos, contando el código de país; uno de Guatemala (+502, o
-// 8 dígitos sin código) lleva exactamente 8 después del código.
+// ¿Es un teléfono que se puede marcar? Con un código de la lista, el número lleva el largo de ese país («+502» 8
+// dígitos, «+1» 10, …); con otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o
+// de 7 a 15 con el código pegado.
 export const telefonoValido = (tel) => {
 	const t = String(tel || '').trim(), d = t.replace(/\D/g, '');
-	if (/^\+\s*502/.test(t)) return d.length === 11;
+	if (t.startsWith('+')) {
+		const codigo = codigoDe(d);
+		if (codigo) return largoBien(codigo, d.length - codigo.length);
+	}
 	return d.length >= 7 && d.length <= 15;
 };
 
-// Teléfono comparable y listo para wa.me: solo dígitos; los de 8 dígitos se asumen de Guatemala.
+// Teléfono comparable y listo para wa.me: solo dígitos. Solo uno escrito sin «+» y de 8 dígitos se toma de Guatemala;
+// uno con «+» nunca cambia de país.
 export function telefonoWa(tel) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
+	const t = String(tel || '').trim();
+	let n = t.replace(/\D/g, '');
+	if (n.length === 8 && !t.startsWith('+')) n = `502${n}`;
 	return n;
 }
 

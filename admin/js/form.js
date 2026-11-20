@@ -531,7 +531,7 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
-				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: de 7 a 15 dígitos con el código de país; en Guatemala, 8 después del +502.' });
+				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).' });
 				break;
 
 			default: {
