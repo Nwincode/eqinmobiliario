@@ -497,9 +497,9 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
 	const existe = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).status === 200;
 	// Una solicitud como la deja el sitio (solicitud, chat con su subtotal e índice), en fechas lejanas y libres.
-	const sembrar = async (id, llegada, noches = 2, { indice = true } = {}) => {
+	const sembrar = async (id, llegada, noches = 2, { indice = true, subtotal: cotizado } = {}) => {
 		const salida = new Date(Date.parse(`${llegada}T00:00:00Z`) + noches * 86400000).toISOString().slice(0, 10);
-		const subtotal = 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
+		const subtotal = cotizado ?? 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
 		const codigo = `EQ-${id.toUpperCase()}`, token = `Sembrado${id.replace(/[^A-Za-z0-9]/g, '')}LargoYAlAzar123456`;
 		const reserva = { codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(noches), huespedes: nv(2), subtotal: nv(subtotal), impuestos: nv(impuestos), total: nv(total), moneda: sv('USD') };
 		await poner(`leads/${id}`, { nombre: sv('Sol Sembrada'), telefono: sv('+502 5555 2222'), email: sv('sol@example.com'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'),
@@ -545,6 +545,47 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const pasada = await sembrar('srv-pasada', iso(-3));
 	const tarde = await api('socio', { accion: 'confirmar', leadId: pasada.id });
 	paso('Servidor: una solicitud con la llegada ya pasada no se confirma ni se escribe nada (409, sin «ya respondida»)', tarde.status === 409 && !tarde.yaRespondida && !(await existe(`reservas/${pasada.id}`)) && !(await leer(`chats/${pasada.token}`)).fields?.estado, resp(tarde));
+	// Lo que el servidor rechaza al confirmar (tanda 2b y su revisión), cada uno sin escribir nada.
+	{
+		const parche = (ruta, fields) => fetch(`${FS}/${ruta}?${Object.keys(fields).map((k) => `updateMask.fieldPaths=${k}`).join('&')}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+		const sinEscribir = async (x) => !(await existe(`reservas/${x.id}`)) && !(await leer(`chats/${x.token}`)).fields?.estado;
+		// Noches tomadas en Airbnb (su calendario: scripts/entorno/red-local.mjs sirve uno de prueba con esas fechas).
+		await parche(`properties/${idCasa}/privado/socio`, { icalUrl: sv(`https://ical.entorno.prueba/${iso(270).replace(/-/g, '')}-${iso(273).replace(/-/g, '')}.ics`) });
+		const enAirbnb = await sembrar('srv-ical', iso(271), 1);
+		const rIcal = await api('socio', { accion: 'confirmar', leadId: enAirbnb.id });
+		const dispo = await (await fetch(`${SITIO}/api/disponibilidad/al-dia?id=${idCasa}`)).json();
+		await parche(`properties/${idCasa}/privado/socio`, { icalUrl: sv('') });
+		paso('Servidor: no se confirma encima de noches de Airbnb (409 con el porqué) y la página las muestra ocupadas', rIcal.status === 409 && /Airbnb/.test(rIcal.error || '') && await sinEscribir(enAirbnb)
+			&& (dispo.externas || []).some((r) => r.desde <= iso(271) && r.hasta > iso(271)), resp(rIcal));
+		// Sin la dirección exacta de la casa.
+		const dir = (await leer(`properties/${idCasa}/privado/llegada`)).fields?.direccion?.stringValue || '';
+		await parche(`properties/${idCasa}/privado/llegada`, { direccion: sv('') });
+		const sinDir = await sembrar('srv-sindir', iso(280), 1);
+		const rDir = await api('socio', { accion: 'confirmar', leadId: sinDir.id });
+		await parche(`properties/${idCasa}/privado/llegada`, { direccion: sv(dir) });
+		paso('Servidor: sin la dirección exacta de la casa no se confirma (409)', rDir.status === 409 && /dirección/.test(rDir.error || '') && await sinEscribir(sinDir) && dir !== '', resp(rDir));
+		// Cotizado por debajo del precio de la casa (el subtotal lo escribe el navegador): lo confirma el administrador.
+		const barata = await sembrar('srv-barata', iso(290), 2, { subtotal: 50 });
+		const rBarata = await api('socio', { accion: 'confirmar', leadId: barata.id });
+		paso('Servidor: una solicitud cotizada por debajo del precio de la casa no la confirma el socio (409, «la confirma el administrador»)', rBarata.status === 409 && /administrador/.test(rBarata.error || '') && await sinEscribir(barata), resp(rBarata));
+		// Dos solicitudes que se cruzan: al llegar la segunda (/api/aviso-chat), el servidor la cierra; la primera sigue.
+		const c1 = await sembrar('srv-cruce1', iso(310), 3);
+		await espera(50);
+		const c2 = await sembrar('srv-cruce2', iso(311), 3);
+		const avisar = (t) => fetch(`${SITIO}/api/aviso-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: t }) });
+		await avisar(c1.token); await avisar(c2.token);
+		const l1 = (await leer(`leads/${c1.id}`)).fields?.solicitud?.mapValue?.fields || {}, l2 = (await leer(`leads/${c2.id}`)).fields?.solicitud?.mapValue?.fields || {};
+		paso('Servidor: la solicitud que llega encima de otra que aparta esas fechas se cierra sola («Fechas ya apartadas»); la primera sigue',
+			!l1.estado && l2.estado?.stringValue === 'no' && l2.motivo?.stringValue === 'Fechas ya apartadas' && (await leer(`chats/${c2.token}`)).fields?.estado?.stringValue === 'no', JSON.stringify({ l1: l1.estado, l2: l2.estado, motivo: l2.motivo }));
+		// El calendario de EQ para las plataformas: solo el administrador y el dueño de la casa piden el enlace.
+		const enlace = async (rol) => { const x = await fetch(`${SITIO}/api/calendario?casa=${idCasa}`, { headers: { Authorization: `Bearer ${await tokenDe(rol)}` } }); return { status: x.status, ...(await x.json().catch(() => ({}))) }; };
+		const [deColab, deSocio] = [await enlace('colab'), await enlace('socio')];
+		const ics = deSocio.url ? await (await fetch(deSocio.url)).text() : '';
+		const ajenoIcs = await fetch(`${SITIO}/api/calendario?casa=${idCasa}&t=${'0'.repeat(48)}`);
+		paso('Calendario de EQ: el dueño recibe su enlace privado y trae la reserva confirmada sin datos del huésped; otro dueño no (403) y una llave equivocada no (404)',
+			deColab.status === 403 && /^http.*\/api\/calendario\?casa=.*&t=[a-f0-9]{48}$/.test(deSocio.url || '') && ics.includes(`DTSTART;VALUE=DATE:${llegada1.replace(/-/g, '')}`) && !/Ana|Sol/.test(ics) && ajenoIcs.status === 404,
+			`${deColab.status} · ${(deSocio.url || deSocio.error || '').replace(/t=\w+/, 't=…')} · ${ajenoIcs.status}`);
+	}
 	// En Solicitudes no se ofrece «Confirmar» y se dice por qué (queda «No se dio»).
 	await ir(socio.p, `#/solicitudes/${pasada.codigo}`, 3500);
 	const tarjetaPasada = socio.p.locator('.card', { hasText: pasada.codigo }).first();
