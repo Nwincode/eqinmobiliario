@@ -956,7 +956,7 @@ function mortgageCalculator(ctx, p) {
 // Calculadora de renta (versión pública). Las cuentas las hace js/calc-renta.js en el navegador.
 // Se muestra en fichas en venta (no terrenos) con precio, y vacía en /calculadora-de-renta/.
 export function rentaVisible(p) {
-	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && Number(p.precio) > 0);
+	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && precioVisible(p) > 0);
 }
 function rentaWidget(ctx, p = null) {
 	const t = tr(ctx);

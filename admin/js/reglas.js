@@ -1,7 +1,7 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
 import { M2_A_FT2, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD } from './formato.js';
-import { enOperacion, operacionHashtag, amenidadesEn } from './estados.js';
+import { enOperacion, operacionHashtag, amenidadesEn, precioVisible } from './estados.js';
 import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
@@ -23,7 +23,7 @@ const sinAcentos = (s) => String(s || '').toLowerCase().normalize('NFD').replace
 const n = (v) => Number(v) || 0;
 const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 // El precio con su operación («/mes», «por noche»): el formato único de formato.js.
-const precioDe = (p) => precioTexto(p.precio, p.moneda, p.operacion);
+const precioDe = (p) => precioTexto(precioVisible(p), p.moneda, p.operacion);
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
 const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
 const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');
@@ -318,7 +318,8 @@ function datosEn(p) {
 const unirEn = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);
 const OP_EN = { renta: 'for Rent', vacacional: 'for Vacation Rental' };
 const opEn = (p) => OP_EN[p.operacion] || 'for Sale';
-const precioEn = (p) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(n(p.precio))}${{ renta: '/month', vacacional: '/night' }[p.operacion] || ''}`;
+// Sin precio a la vista (precio oculto o sin precio): «Price on request».
+const precioEn = (p) => (precioVisible(p) ? `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(precioVisible(p))}${{ renta: '/month', vacacional: '/night' }[p.operacion] || ''}` : 'Price on request');
 
 // Título en inglés: tipo + operación + lugar, sin repetir la zona ni cortar palabras.
 export function tituloEn(p) {

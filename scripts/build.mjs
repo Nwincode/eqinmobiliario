@@ -10,7 +10,7 @@ import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './l
 import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
-import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible } from '../admin/js/estados.js';
+import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -532,15 +532,24 @@ async function main() {
 	const V = globalThis.EQVacacional;
 	// Casas de prueba: se marcan aquí, con su título en español (la copia en inglés lo hereda).
 	for (const p of todas) if (esDePrueba(p)) p._prueba = true;
-	// Precio oculto (VIP): un título o descripción para Google guardado con el precio (el automático de antes, el del
-	// traductor en inglés o uno escrito a mano) no se usa; sale el automático, sin precio.
+	// Una que no salió del botón «Casas de prueba» pero dice «prueba» en el título: se avisa (si es real, hay que
+	// cambiarle el título para que Google la vea).
+	const pruebaPorTitulo = todas.filter((p) => p._prueba && p.demo !== true && visibilidadDe(p) === 'visible');
+	if (pruebaPorTitulo.length) console.warn(`  ⚠ Se tratan como casas de prueba (dicen «prueba» en el título; no se indexan): ${pruebaPorTitulo.map((p) => `«${p.titulo}»`).join(', ')}. Si alguna es real, cambia su título.`);
+	// Precio oculto: ningún texto guardado con el precio lo deja salir (ficha, VIP, /en/, llms, catálogos). Un título o
+	// descripción para Google con el precio no se usa (sale el automático, sin precio); en la descripción y los textos VIP,
+	// en español e inglés, el monto pasa a «precio a consultar».
 	for (const p of todas) {
 		if (!p.precio || precioVisible(p)) continue;
 		const n = Math.round(Number(p.precio));
 		const conPrecio = (t) => [String(n), n.toLocaleString('en-US'), n.toLocaleString('de-DE')].some((x) => String(t || '').includes(x));
-		const limpiar = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
-		p.seo = limpiar(p.seo);
-		if (p.en) p.en = { ...p.en, seo: limpiar(p.en.seo) };
+		const limpiarSeo = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
+		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar)])),
+			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar)) } : v);
+		p.seo = limpiarSeo(p.seo);
+		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar');
+		p.vipLanding = limpiarVip(p.vipLanding, 'precio a consultar');
+		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request'), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
 	}
 	for (const p of todas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });

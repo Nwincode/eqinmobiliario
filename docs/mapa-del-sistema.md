@@ -184,7 +184,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Avisos (campana)** → fuentes en `admin/js/avisos.js` `leerFuentes` (cada rol lee solo lo que sus reglas dejan) → `admin/js/avisos-reglas.js` `armarAvisos` (qué avisa, orden, `claveListo`) → `admin/js/app.js` (campana en la barra) y `views/dashboard.js` (tarjeta «Avisos») → `firestore.rules` `avisosAtendidos` (con las reglas de antes, la campana sale sin «Listo») → `scripts/test-avisos.mjs`, `scripts/emulador/test-reglas.mjs` y `scripts/entorno/recorrido.mjs`. Un aviso nuevo: su fuente, su caso en `armarAvisos` y, si no se resuelve solo, su tipo en `claveListo` y en la regla.
 
-**Precio que se muestra (VIP «Ocultar precio»)** → `admin/js/estados.js` `precioVisible` (0 = «Precio a consultar»; solo cuenta con `vip`) → `scripts/lib/templates.mjs` (`price`, tarjeta, `data-precio`, compartir, `data-view-content`, JSON-LD, precio por m², calculadora) → `scripts/lib/landings.mjs` (precios por zona) → `scripts/build.mjs` (llms, catálogos; no usa un título o descripción para Google guardados con el precio, tampoco en inglés) → `admin/js/difusion.js` y `views/listado.js` → `scripts/test-sitio.mjs` (el precio no sale en ningún archivo).
+**Precio que se muestra («Ocultar precio»)** → `admin/js/estados.js` `precioOculto` / `precioVisible` (0 = «Precio a consultar»; VIP o no, salvo por noche) y `sinPrecioOculto` (el monto escrito en un texto) → `admin/js/para-ia.js` y `admin/js/reglas.js` (textos sin IA, posts, WhatsApp) → `views/properties.js` (SEO automático y compartir) → `scripts/lib/templates.mjs` (`price`, tarjeta, `data-precio`, compartir, `data-view-content`, JSON-LD, precio por m², calculadora) → `scripts/lib/landings.mjs` (precios por zona) → `scripts/build.mjs` (llms, catálogos; un título o descripción para Google con el precio no se usa, y en la descripción y los textos VIP, en español e inglés, el monto pasa a «precio a consultar») → `admin/js/difusion.js` y `views/listado.js` → `scripts/test-sitio.mjs` (el precio no sale en ningún archivo).
 
 **Casa de prueba** → `admin/js/estados.js` `esDePrueba` (`demo` o «prueba» en el título en español; `scripts/build.mjs` la marca `_prueba` antes de traducirla) → `scripts/lib/templates.mjs` (ficha y VIP con `noindex`: fuera del sitemap solas) → `scripts/build.mjs` (fuera de llms.txt, llms-full.txt y catálogos) → `scripts/test-sitio.mjs`.
 
@@ -198,7 +198,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Respuesta a un lead** → `admin/js/formato.js` `saludoLead` (en `lead.idioma`) → `netlify/functions/aviso-lead.mjs` (botones de WhatsApp y correo) y `admin/js/views/leads.js` (botón de WhatsApp).
 
-**Quitar u ocultar un asesor** → `admin/js/views/agents.js` (`reasignarSiTiene`: casas, leads, clientes, requerimientos, actividades y propietarios con su `agentId` pasan a otro asesor antes) → `admin/js/crud.js` (`antesDeEliminar`, `beforeSave` con lo guardado).
+**Quitar u ocultar un asesor** → `admin/js/views/agents.js` (eliminar: `reasignarAntesDeEliminar` pasa a otro asesor, elegido por id, casas, leads, clientes, requerimientos, actividades, propietarios, cotizaciones y reservas; ocultar no mueve nada y avisa si tiene usuario del panel) → `admin/js/crud.js` (`antesDeEliminar`, `beforeSave` con lo guardado).
 
 ## 7. Cómo se prueba
 

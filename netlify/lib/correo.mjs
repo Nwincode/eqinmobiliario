@@ -44,10 +44,14 @@ async function colores() {
 
 // Un tono entre dos colores del tema (t: cuánto del primero). Outlook no entiende colores con transparencia.
 export const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
-// Los colores de un correo: los del tema más la línea (c.linea) y el fondo suave (c.suave).
+// Tonos claros con nombre del diseño aprobado del correo de la contraseña (netlify/lib/correo-contrasena.mjs), tal como
+// los aprobó el dueño (no se sacan mezclando: así quedan exactos).
+export const TONOS_CORREO = { fondo: '#eef3f6', usuario: '#edf5fa', usuarioBorde: '#d3e4ee', divisor: '#e3e9ee', beige: '#f7f3eb', beigeBorde: '#e6dbc6', punto: '#b5bec5' };
+// Los colores de un correo: los del tema, la línea (c.linea) y el fondo suave (c.suave) de la plantilla común, y los
+// tonos con nombre del diseño aprobado (TONOS_CORREO).
 export async function coloresCorreo() {
 	const base = await colores();
-	return { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07) };
+	return { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07), tonos: TONOS_CORREO };
 }
 // Redes de la empresa (Contenido → Redes; si no están, las del sitio por defecto).
 export async function redesEmpresa() {

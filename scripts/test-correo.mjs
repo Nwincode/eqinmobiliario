@@ -54,7 +54,8 @@ await test('contraseña: el diseño aprobado, con los colores del tema y el What
 	assert.match(html, /href="https:\/\/x\.test\/a\?b=1&amp;c=2"/);
 	assert.match(html, /Eliminar mi cuenta del panel/);
 	// Con el tema original da los colores del diseño aprobado; el cuadro «Cuida tu cuenta» y las redes siguen.
-	for (const x of ['#0e1920', '#0e5e8a', '#85662b', '#1e7e4a']) assert.match(html, new RegExp(x), x);
+	// Exactos los colores del diseño aprobado (con el tema original), también los tonos claros.
+	for (const x of ['#0e1920', '#0e5e8a', '#85662b', '#1e7e4a', '#00b7e7', '#5b666f', '#eef3f6', '#edf5fa', '#d3e4ee', '#e3e9ee', '#f7f3eb', '#e6dbc6', '#b5bec5']) assert.match(html, new RegExp(x), x);
 	assert.match(html, /CUIDA TU CUENTA/);
 	// Ningún correo lleva texto invisible de relleno en la vista previa (Hotmail lo manda a «No deseado»).
 	const { readdirSync, readFileSync } = await import('node:fs');

@@ -309,10 +309,12 @@ test('«1 noche», «3 noches»', () => {
 });
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',
-		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'ana arroba gmail punto com'])
+		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'ana arroba gmail punto com', 't.me/villa', 'casalago.co', 'fotos en villa-lago.me/fotos',
+		'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'Llámame al 2024 5678'])
 		assert.equal(V.tieneContacto(t), true, t);
 	for (const t of ['Llegamos el 16/11/2026 a las 15:00', '¿Aceptan 2 perros?', 'Somos 8 adultos y 2 niños', 'El total es US$ 1,122.40, ¿correcto?',
-		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', 'En el Km 98.5, coordenadas 14.5586, -90.7295', 'o 14.5586 -90.7295', 'Perfecto.Me avisas', 'Gracias.Info del parqueo', ''])
+		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', 'En el Km 98.5', 'Perfecto.Me avisas', 'Gracias.Info del parqueo', 'Llegamos a las 3.me dices',
+		'Remodelada 2019/2020', 'Temporada 2024-2025', 'Terreno de 1200 / 1500 m²', 'Casa de 350 m² y 2 niveles', 'construida en 2019, 3 habitaciones', 'Del 2026-11-20 al 2026-11-25', ''])
 		assert.equal(V.tieneContacto(t), false, t);
 });
 

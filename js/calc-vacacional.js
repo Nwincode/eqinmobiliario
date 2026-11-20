@@ -405,13 +405,22 @@
 
 	// ¿El texto trae un teléfono, un correo o un enlace? Un solo filtro para el chat de la reserva y para lo que el dueño
 	// escribe de su casa y sale publicado (admin/js/mi-casa.js): los datos de contacto se entregan al confirmar la reserva;
-	// antes, nadie los pasa. Fechas, horas, montos y coordenadas no cuentan como teléfono; los números escritos con letras sí.
-	// (firestore.rules tiene su propia copia para el chat.)
+	// antes, nadie los pasa. Fechas, años («2019/2020»), horas, montos y medidas («1200 / 1500 m²») no cuentan como
+	// teléfono; los números escritos con letras sí, y también unas coordenadas (llevan a la casa, que es privada hasta el
+	// pago). Una página corta (t.me/villa, casalago.co) cuenta si va escrita en minúscula y con «/» o al final: «Perfecto.Me
+	// avisas» no. (firestore.rules tiene su propia copia para el chat: se pone al día en otra tanda.)
 	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
 	function tieneContacto(texto) {
-		var t = String(texto || '').toLowerCase();
+		var original = String(texto || '');
+		var t = original.toLowerCase();
 		if (/@|\barroba\b|https?:|www\.|wa\.me|\]\(|\.(com|net|org|gt)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
-		t = t.replace(/-?\b\d{1,2}\.\d{3,},?\s*-?\d{1,3}\.\d{3,}\b/g, ' x ')
+		if (/(^|[^\w.@-])[a-z0-9-]+\.(me|co|io|ly|ee|info|biz)(\/|$)/.test(original)) return true;
+		// Años: un rango («2019/2020», «2024-2025») o uno suelto sin otros números pegados (un fijo de Guatemala
+		// «2024 5678» empieza como un año y sigue siendo teléfono).
+		t = t.replace(/\b(19|20)\d{2}-[01]\d-[0-3]\d\b/g, ' x ')
+			.replace(/\b((?:19|20)\d{2})\s*[-\/]\s*((?:19|20)\d{2})\b/g, function (m, a, b) { return b - a > 0 && b - a <= 10 ? ' x ' : m; })
+			.replace(/\b(19|20)\d{2}\b/g, function (m, a, i, s) { return /\d/.test(s.slice(Math.max(0, i - 3), i)) || /^[^\da-záéíóúñ]{0,3}\d/.test(s.slice(i + 4, i + 8)) ? m : ' x '; })
+			.replace(/\b\d+([.,]\d+)?\s*m(²|2\b)/g, ' x ')
 			.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
 		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t);
 	}

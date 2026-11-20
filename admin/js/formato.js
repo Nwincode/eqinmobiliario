@@ -161,19 +161,36 @@ export function conPiesCuadrados(texto) {
 
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
 // Códigos de país que ofrece cada campo de teléfono, primero los que más escriben. Cualquier otro se escribe completo,
-// con «+». Cada uno con los largos posibles del número sin el código y el largo de un celular, sacados del plan de
-// numeración de cada país en libphonenumber (metadata «max», v1.11.12; scripts/test-telefono.mjs tiene un número válido
-// de cada uno). +1: los 10 dígitos del plan norteamericano (los 7 de los servicios «310-xxxx» de Canadá no se marcan
-// desde fuera del país).
-export const CODIGOS_PAIS = [['502', 'GT', [8, 11], 8], ['1', 'US/CA', [10], 10], ['52', 'MX', [10], 10], ['503', 'SV', [7, 8, 11], 8],
-	['504', 'HN', [8, 11], 8], ['505', 'NI', [8], 8], ['506', 'CR', [8, 10], 8], ['507', 'PA', [7, 8, 10, 11], 8], ['501', 'BZ', [7, 11], 7],
-	['57', 'CO', [10, 11], 10], ['34', 'ES', [9], 9], ['44', 'GB', [7, 9, 10], 10], ['49', 'DE', [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 11],
-	['33', 'FR', [9], 9], ['39', 'IT', [6, 7, 8, 9, 10, 11, 12], 10], ['31', 'NL', [5, 6, 7, 8, 9, 10, 11], 9], ['54', 'AR', [10, 11], 11],
-	['56', 'CL', [9, 10, 11], 9], ['55', 'BR', [8, 9, 10, 11], 11], ['972', 'IL', [7, 8, 9, 10, 11, 12], 9], ['61', 'AU', [5, 6, 7, 8, 9, 10, 12], 9]];
-const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular]) => [c, { largos, celular }]));
+// con «+». Cada uno con el plan de numeración de su país en libphonenumber (metadata «max», v1.11.12):
+//  [código, país, largos de fijos y celulares, largo de un celular, otros números (gratuitos, de pago…) con su patrón]
+// Un largo «raro» solo vale con el patrón de su país: «+502 1801 2345678» (1-800) sí, «+502 1 305 555 1234» no.
+// scripts/test-telefono.mjs tiene un número válido de cada país. +1: los 10 dígitos del plan norteamericano (los
+// «310-xxxx» de Canadá no se marcan desde fuera del país).
+export const CODIGOS_PAIS = [
+	['502', 'GT', [8], 8, '18[01]\\d{8}|19\\d{9}'], ['1', 'US/CA', [10], 10], ['52', 'MX', [10], 10],
+	['503', 'SV', [8], 8, '[89]00\\d{4}(?:\\d{4})?'], ['504', 'HN', [8], 8, '8002\\d{7}'], ['505', 'NI', [8], 8],
+	['506', 'CR', [8], 8, '800\\d{7}|90[059]\\d{7}'], ['507', 'PA', [7, 8], 8, '800\\d{4,5}|(?:00800|800\\d)\\d{6}'],
+	['501', 'BZ', [7], 7, '0800\\d{7}'], ['57', 'CO', [10], 10, '1800\\d{7}|19(?:0[01]|4[78])\\d{7}'], ['34', 'ES', [9], 9],
+	['44', 'GB', [9, 10], 10, '800\\d{4}'], ['49', 'DE', [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 11], ['33', 'FR', [9], 9],
+	['39', 'IT', [6, 7, 8, 9, 10, 11, 12], 10], ['31', 'NL', [9], 9, '140\\d{2,3}|800\\d{4,7}|90[069]\\d{4,7}|970\\d{8}'],
+	['54', 'AR', [10, 11], 11], ['56', 'CL', [9], 9, '(?:123|800)\\d{8}|600\\d{7,8}'],
+	['55', 'BR', [10, 11], 11, '300\\d{5}|4(?:00\\d|020|370)\\d{4}|[3589]00\\d{6,7}'], ['972', 'IL', [8, 9], 9, '1\\d{6,11}'],
+	['61', 'AU', [9], 9, '1\\d{3,9}']];
+const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular, especial]) => [c, { largos, celular, especial: especial ? new RegExp(`^(?:${especial})$`) : null }]));
 const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
 const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
-const largoBien = (codigo, n) => Boolean(PLAN[codigo]) && PLAN[codigo].largos.includes(n);
+const nacionalBien = (codigo, n) => Boolean(PLAN[codigo]) && (PLAN[codigo].largos.includes(n.length) || Boolean(PLAN[codigo].especial?.test(n)));
+// Lo que se escribe de más y no es parte del número: una extensión al final («ext. 12», «x12», «extensión 3»).
+const sinExtension = (t) => String(t || '').trim().replace(/\s*[,;]?\s*(?:ext\.?|extensi[oó]n|x)\s*\d{1,6}\s*$/i, '').trim();
+// El número nacional como se marca desde fuera: sin el 0 de larga distancia que se escribe dentro del país
+// («+44 07911 123456»), el «1» de larga distancia de EE. UU. y Canadá («+1 1 305 555 1234») ni el «1» que antes
+// llevaban los celulares de México («+52 1 55 1234 5678»), cuando sin él queda un número de ese país (en Italia el 0 es
+// parte del número y se queda).
+function nacionalDe(codigo, n) {
+	if (nacionalBien(codigo, n)) return n;
+	const prefijo = codigo === '1' || codigo === '52' ? '1' : '0';
+	return n.startsWith(prefijo) && nacionalBien(codigo, n.slice(1)) ? n.slice(1) : n;
+}
 // El número sin el código, cortado por dígitos («+(502) 5555-1234» → «5555-1234»).
 const sinCodigo = (t, codigo) => t.replace(new RegExp(`^\\+\\D*${codigo.split('').join('\\D*')}`), '').replace(/^[\s).\-/]+/, '').trim();
 // Código y número de un teléfono guardado, para mostrarlo en un campo con su código de país.
@@ -212,23 +229,26 @@ export function unirTelefono(codigo, numero) {
 	if (cel && d.startsWith(codigo) && d.length !== cel && d.length - codigo.length === cel) return `+${codigo} ${d.slice(codigo.length)}`;
 	return `+${codigo} ${n}`;
 }
-// ¿Es un teléfono que se puede marcar? Con un código de la lista, el número lleva el largo de ese país («+502» 8
-// dígitos, «+1» 10, …); con otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o
-// de 7 a 15 con el código pegado.
+// ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
+// dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con
+// otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o de 7 a 15 con el código pegado.
 export const telefonoValido = (tel) => {
-	const t = String(tel || '').trim(), d = t.replace(/\D/g, '');
+	const t = sinExtension(tel), d = t.replace(/\D/g, '');
 	if (t.startsWith('+')) {
 		const codigo = codigoDe(d);
-		if (codigo) return largoBien(codigo, d.length - codigo.length);
+		if (codigo) return nacionalBien(codigo, nacionalDe(codigo, d.slice(codigo.length)));
 	}
 	return d.length >= 7 && d.length <= 15;
 };
 
-// Teléfono comparable y listo para wa.me: solo dígitos. Solo uno escrito sin «+» y de 8 dígitos se toma de Guatemala;
-// uno con «+» nunca cambia de país.
+// Teléfono comparable y listo para wa.me: solo dígitos, sin extensión, y con el número como se marca desde fuera
+// (sin el 0 de larga distancia ni el «1» viejo de México). Solo uno escrito sin «+» y de 8 dígitos se toma de
+// Guatemala; uno con «+» nunca cambia de país.
 export function telefonoWa(tel) {
-	const t = String(tel || '').trim();
+	const t = sinExtension(tel);
 	let n = t.replace(/\D/g, '');
+	const codigo = t.startsWith('+') ? codigoDe(n) : '';
+	if (codigo) return codigo + nacionalDe(codigo, n.slice(codigo.length));
 	if (n.length === 8 && !t.startsWith('+')) n = `502${n}`;
 	return n;
 }

@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -35,7 +35,7 @@ const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
 const autoTitle = (d) => autoSeoTitle(d);
-const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
+const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(precioVisible(d), d.moneda, d.operacion), [
 	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
 	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
 	huespedesDe(d) ? `${huespedesDe(d)} ${huespedesDe(d) === 1 ? 'huésped' : 'huéspedes'}` : d.m2Construccion && `${miles(d.m2Construccion)} m²`
@@ -483,7 +483,7 @@ export async function render(container, [id]) {
 		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
-		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
+		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(precioVisible(p), p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
 		const cambiarEstado = async () => {
 			// Solo los estados que aplican a su operación (incoherencia): una casa por noche no queda «Vendida».
 			const opciones = estadosPara(p.operacion || 'venta');
@@ -989,7 +989,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
-		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
+		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
+		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 
 		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'No hay que escribirla: se traduce sola en cuanto terminas el título y la descripción en español, y se vuelve a traducir si los cambias. Revísala; si corriges algo aquí a mano, se respeta y ya no se reemplaza.' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },

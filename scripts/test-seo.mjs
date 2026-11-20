@@ -10,6 +10,7 @@ import { revisarEnlaces } from './lib/enlaces.mjs';
 import { sinRepetir, autoSeoTitle } from '../admin/js/seo-auto.js';
 import { sinBloquesGenerados, generarDescripcion } from '../admin/js/descripcion.js';
 import { horarioSchema } from '../admin/js/formato.js';
+import { precioVisible, sinPrecioOculto, amenidadesEnDe } from '../admin/js/estados.js';
 import { urlsCambiadas, urlsDelSitemap } from '../netlify/lib/indexnow.mjs';
 
 let ok = 0;
@@ -32,6 +33,16 @@ test('poco contenido: la zona se indexa desde 3; con 1 o 2 existe sin indexar', 
 	// Zona + operación con menos de 3 no se genera; igual a la zona, tampoco.
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 1' }), null);
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 16' }), null);
+});
+
+test('precio oculto (VIP o no) y textos con el precio; amenidades en inglés corregidas a mano', () => {
+	assert.equal(precioVisible({ precio: 5, vip: false, vipLanding: { ocultarPrecio: true } }), 0);
+	assert.equal(precioVisible({ precio: 5, operacion: 'vacacional', vipLanding: { ocultarPrecio: true } }), 5);
+	assert.equal(sinPrecioOculto('Casa de US$ 987,654.00 en zona 16', 987654, 'precio a consultar'), 'Casa de precio a consultar en zona 16');
+	assert.equal(sinPrecioOculto('Lote 9876543', 987654, 'x'), 'Lote 9876543');
+	// La lista corregida a mano se respeta; solo se agregan las que faltan (del diccionario o tal cual).
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Piscina', 'Agua municipal', 'Lobby de recepción'], en: { amenidades: ['Swimming pool'] } }), ['Swimming pool', 'Agua municipal', 'Lobby de recepción']);
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Piscina'], en: { amenidades: ['Infinity pool', 'Lush garden'] } }), ['Infinity pool', 'Lush garden']);
 });
 
 test('zona escrita distinto («zona 10», «Zona 10 »): una sola página con todas sus casas', () => {

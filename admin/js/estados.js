@@ -95,8 +95,20 @@ export function mascotasUnaVez(p) {
 export const esDePrueba = (p) => Boolean(p && (p._prueba || p.demo === true || (/\bprueba\b/i.test(String(p.titulo || '')) && !/\ba prueba de\b/i.test(String(p.titulo || '')))));
 // El precio que se muestra de una casa: 0 («Precio a consultar») cuando es VIP y su ficha lo oculta. Uno solo para el
 // sitio (tarjetas, ficha, metadescripción, compartir, datos para ordenar, JSON-LD, catálogos, llms.txt), la difusión y
-// el PDF del listado: el precio oculto no sale en ningún lado. Sin VIP la casilla no se ve, así que no cuenta.
-export const precioVisible = (p) => (p && p.vip && p.vipLanding && p.vipLanding.ocultarPrecio ? 0 : Number(p?.precio) || 0);
+// el PDF del listado: el precio oculto no sale en ningún lado. Vale aunque la casa ya no sea VIP (la ficha sigue
+// mostrando la casilla mientras esté marcada). Una casa por noche no lo oculta: su calendario muestra el precio de cada noche.
+export const precioOculto = (p) => Boolean(p && p.operacion !== 'vacacional' && p.vipLanding && p.vipLanding.ocultarPrecio);
+export const precioVisible = (p) => (precioOculto(p) ? 0 : Number(p?.precio) || 0);
+// Un texto escrito con el precio que ahora va oculto («Casa de US$ 987,654.00»): el monto (con su moneda y sus
+// centavos, escrito 987,654 · 987.654 · 987654) pasa a `consultar` («precio a consultar»). Lo usa scripts/build.mjs
+// en la descripción y los textos VIP, en español e inglés.
+export function sinPrecioOculto(texto, precio, consultar) {
+	const n = Math.round(Number(precio));
+	if (!n || !texto) return texto;
+	const formas = [...new Set([n.toLocaleString('en-US'), n.toLocaleString('de-DE'), String(n)])].sort((a, b) => b.length - a.length).map((f) => f.replace(/[.]/g, '\\.'));
+	const re = new RegExp(`(^|[^\\d.,])(?:(?:US\\$|USD|GTQ|Q\\.?|\\$)\\s?)?(?:${formas.join('|')})(?:[.,]\\d{2})?(?!\\d)`, 'g');
+	return String(texto).replace(re, (m, antes) => `${antes}${consultar}`);
+}
 // Amenidades en inglés: un solo diccionario para el sitio (ficha en inglés), el traductor sin IA (reglas.js) y lo que se
 // guarda al traducir. La que no está en ninguno queda como se escribió: nunca se pierde una (el inglés también la muestra).
 // Más amenidades y frases comunes en anuncios (sin tildes ni mayúsculas), para las que no están en la lista de arriba.
@@ -118,8 +130,16 @@ const llaveAmenidad = (a) => String(a ?? '').toLowerCase().normalize('NFD').repl
 const AMENIDAD_EN = new Map(AMENIDADES_COMUNES.map(([es, en]) => [llaveAmenidad(es), en]));
 export const amenidadEn = (a) => AMENIDAD_EN.get(llaveAmenidad(a)) || DICCIONARIO_EN[llaveAmenidad(a)] || String(a ?? '').trim();
 export const amenidadesEn = (lista) => (lista || []).map(amenidadEn).filter(Boolean);
-// La lista en inglés guardada vale mientras corresponda a la de español (misma cantidad); si no, sale del diccionario.
+// La lista en inglés: la guardada se respeta (también una corregida a mano) y solo se agregan, del diccionario, las
+// amenidades en español que le faltan. Faltan tantas como diferencia haya entre las dos listas; son las que no aparecen
+// en inglés ni traducidas ni tal cual (las últimas, si hay más candidatas: lo nuevo se agrega al final). Sin lista en
+// inglés, todas del diccionario.
 export const amenidadesEnDe = (p) => {
 	const es = (p && p.amenidades) || [], en = (p && p.en && p.en.amenidades) || [];
-	return en.length && en.length === es.length ? en : amenidadesEn(es);
+	if (!en.length) return amenidadesEn(es);
+	const faltan = es.length - en.length;
+	if (faltan <= 0) return en;
+	const tiene = new Set(en.map(llaveAmenidad));
+	const sueltas = es.filter((a) => !tiene.has(llaveAmenidad(amenidadEn(a))) && !tiene.has(llaveAmenidad(a)));
+	return [...en, ...amenidadesEn(sueltas.slice(-faltan))];
 };

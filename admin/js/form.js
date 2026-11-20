@@ -531,7 +531,9 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
-				conFormato.push({ field, target, control, ok: telefonoValido, msg: 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).' });
+				conFormato.push({ field, target, control, inicial: get(), ok: telefonoValido, msg: 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).' });
+				// Uno guardado antes que no cumple el formato no frena el guardado (no lo cambió quien edita): se avisa aquí.
+				if (get() && !telefonoValido(get())) control = h('div', {}, control, h('div', { class: 'form-text text-warning' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), 'Este teléfono guardado no parece completo para ese país: revísalo cuando puedas.'));
 				break;
 
 			default: {
@@ -544,7 +546,7 @@ export function renderForm(schema, data, options = {}) {
 				if (field.onInput) input.addEventListener('input', () => field.onInput(input.value, state));
 				control = input;
 				if (field.type === 'email') {
-					conFormato.push({ field, target, control: input, ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
+					conFormato.push({ field, target, control: input, inicial: get(), ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
 					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
 					const pista = h('div', { class: 'form-text', hidden: true });
 					input.addEventListener('blur', () => {
@@ -597,9 +599,11 @@ export function renderForm(schema, data, options = {}) {
 					errores.push({ control, msg: `«${field.label}» ${rango}.` });
 				}
 			}
-			for (const { field, target, control, ok, msg } of conFormato) {
+			for (const { field, target, control, ok, msg, inicial } of conFormato) {
 				const v = getPath(target, field.name);
-				// Un campo escondido (por `when`) no se puede corregir a la vista: su formato no frena el guardado.
+				// Un campo escondido (por `when`) no se puede corregir a la vista, y uno guardado que nadie tocó (un dato de
+				// antes, con otra regla) tampoco frena el guardado: solo se revisa lo que se escribe ahora.
+				if (v === inicial) continue;
 				if (!vacio(v) && !ok(v) && !control.closest?.('[hidden]') && !errores.some((e) => e.control === control)) errores.push({ control, msg });
 			}
 			if (!errores.length) return true;

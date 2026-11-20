@@ -2,19 +2,18 @@
 // contraseña?». Lo manda netlify/functions/contrasena.mjs. Es el diseño que aprobó el dueño, tal cual (cuadro beige
 // «Cuida tu cuenta», redes en el pie, ícono en el botón de WhatsApp, sin relleno invisible en la vista previa: docs/revision-antes-de-unir.md). No va en la plantilla
 // común porque ella cambiaría el aspecto de los demás correos; pero sus colores salen del mismo tema (`coloresCorreo`:
-// Contenido → Colores) y el WhatsApp y las redes, de Contenido (`whatsappEmpresa`, `redesEmpresa`), nunca escritos a mano.
+// Contenido → Colores; los tonos claros, de `TONOS_CORREO`) y el WhatsApp y las redes, de Contenido (`whatsappEmpresa`, `redesEmpresa`), nunca escritos a mano.
 // Imágenes en images/correo/. Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
-import { esc, coloresCorreo, mezcla, whatsappEmpresa, redesEmpresa, SITE_URL } from './correo.mjs';
+import { esc, coloresCorreo, whatsappEmpresa, redesEmpresa, SITE_URL } from './correo.mjs';
 
 export const ASUNTO_CONTRASENA = 'Crea o cambia tu contraseña';
 
 // link: el enlace de Google (un solo uso, vence en 1 hora); email: el usuario.
 export async function correoContrasena({ link, email }) {
 	const base = await coloresCorreo();
-	// Los tonos claros del diseño aprobado, sacados de los colores del tema (con el tema original dan los mismos tonos).
-	const azul = mezcla(base.cyan, base.primary, 0.5);
-	const c = { ...base, usuario: mezcla(azul, base.white, 0.09), usuarioBorde: mezcla(azul, base.white, 0.18),
-		beige: mezcla(base.gold, base.white, 0.09), beigeBorde: mezcla(base.gold, base.white, 0.24), punto: mezcla(base.ink, base.white, 0.45) };
+	// Los tonos claros, con su nombre y su valor exacto del diseño aprobado (correo.mjs `TONOS_CORREO`).
+	const t = base.tonos;
+	const c = { ...base, suave: t.fondo, usuario: t.usuario, usuarioBorde: t.usuarioBorde, linea: t.divisor, beige: t.beige, beigeBorde: t.beigeBorde, punto: t.punto };
 	const [ayuda, whatsapp, redes] = await Promise.all([
 		whatsappEmpresa('Hola, necesito ayuda para entrar al panel de Equipo Inmobiliario.'), whatsappEmpresa(''), redesEmpresa()]);
 	const enlace = esc(link);

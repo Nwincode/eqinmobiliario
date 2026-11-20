@@ -35,6 +35,11 @@ t('venta: la dirección sí (es pública); VIP con precio oculto no manda el pre
 	assert.deepEqual(v.vipLanding, { titular: 'Vive', ocultarPrecio: true });
 });
 
+t('precio oculto aunque ya no sea VIP: no sale, y los textos sin IA dicen «Precio a consultar»', async () => {
+	const v = propiedadParaIA({ ...sucia, operacion: 'venta', vip: false, vipLanding: { ocultarPrecio: true }, precio: 900000 });
+	assert.ok(!('precio' in v));
+});
+
 t('lead: primer nombre y lo que busca, sin teléfono ni correo (tampoco dentro del mensaje)', () => {
 	const l = leadParaIA({ nombre: 'María José Pérez', telefono: '+502 5555 1234', email: 'maria@example.com', mensaje: 'Busco casa en zona 15, llámeme al 5555-1234 o maria@example.com. Llego el 2026-05-01.', notas: ['Su esposo: +1 (305) 555-0199'], estado: 'nuevo' });
 	assert.equal(l.nombre, 'María');

@@ -21,11 +21,14 @@ export const ESTADOS_DUENO = ['disponible', 'pausada'];
 // (para que el huésped no salga de la plataforma; los datos de contacto se entregan al confirmar). Un solo filtro: el del
 // chat (`V.tieneContacto`), para cada texto y cada amenidad.
 const SIN_CONTACTO = 'sin teléfonos, correos, enlaces ni páginas web';
-const texto = (max, { min = 0 } = {}) => (v) => {
+// `privado`: lo que el huésped recibe al confirmar (la dirección), junto con el contacto: ahí no se filtra.
+const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
-	if (V.tieneContacto(s)) return { error: SIN_CONTACTO };
+	if (!privado && V.tieneContacto(s)) return { error: SIN_CONTACTO };
+	// La dirección sí puede llevar coordenadas, pero no enlaces (el mapa va en su campo).
+	if (privado && /https?:|www\./i.test(s)) return { error: 'sin enlaces (el mapa va en su campo)' };
 	return { valor: s };
 };
 const numero = (max, paso = 1) => (v) => {
@@ -92,7 +95,7 @@ export const CAMPOS_DUENO = [
 	{ campo: 'reglas', donde: 'casa', ruta: 'vacacional.reglas', etiqueta: 'Reglas de la casa', revisar: texto(2000) },
 	{ campo: 'comoLlegar', donde: 'casa', ruta: 'vacacional.comoLlegar', etiqueta: 'Cómo llegar', revisar: texto(1500) },
 	{ campo: 'estado', donde: 'casa', ruta: 'estado', etiqueta: 'En la página', revisar: deLista(ESTADOS_DUENO) },
-	{ campo: 'direccion', donde: 'llegada', ruta: 'direccion', etiqueta: 'Dirección', revisar: texto(300) },
+	{ campo: 'direccion', donde: 'llegada', ruta: 'direccion', etiqueta: 'Dirección', revisar: texto(300, { privado: true }) },
 	{ campo: 'mapa', donde: 'llegada', ruta: 'mapa', etiqueta: 'Mapa', revisar: mapa },
 	{ campo: 'icalUrl', donde: 'socio', ruta: 'icalUrl', etiqueta: 'Calendario de Airbnb', revisar: ical('icalUrl') },
 	{ campo: 'icalBooking', donde: 'socio', ruta: 'icalBooking', etiqueta: 'Calendario de Booking', revisar: ical('icalBooking') },
