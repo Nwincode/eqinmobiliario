@@ -1,7 +1,7 @@
 // Pruebas de robustez sin red ni base: la consulta de chats abiertos del control de cada hora, «Importar datos
 // iniciales» solo con la base vacía y sin pisar nada, y el «hoy» del cuadro de reserva al enviar.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { generateKeyPairSync } from 'node:crypto';
 
 let ok = 0;
@@ -87,6 +87,16 @@ await t('cuadro de reserva: «hoy» se calcula al enviar, no al abrir la página
 	const enviar = f.slice(f.indexOf('form.eqReserva = function'), f.indexOf('var v = V.validarEstancia', f.indexOf('form.eqReserva = function')));
 	assert.match(enviar, /var ahora = V\.hoy\(\);\s*if \(ahora !== hoy\) \{ hoy = ahora;/);
 	assert.doesNotMatch(f, /var hoyB = V\.hoy\(\);\n\t\tbuscar/);
+});
+
+await t('eliminar una casa borra todo su privado, también lo que escribe el servidor (calendario de EQ, lo último leído de los iCal)', () => {
+	const f = leer('admin/js/views/properties.js');
+	const borra = f.slice(f.indexOf('export async function eliminarPropiedad'), f.indexOf('export function slugLibre'));
+	for (const d of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) assert.match(borra, new RegExp(`'${d}'`));
+	// Todo lo que el servidor guarda en privado/… lo nombra este borrado.
+	const delServidor = new Set([...readdirSync(new URL('../netlify', import.meta.url), { recursive: true }).filter((x) => /\.mjs$/.test(x))
+		.flatMap((x) => [...leer(`netlify/${x}`).matchAll(/privado\/([a-zA-Z]+)/g)].map((m) => m[1]))]);
+	for (const d of delServidor) assert.match(borra, new RegExp(`'${d}'`), `privado/${d} queda huérfano`);
 });
 
 console.log(`${ok} pruebas de robustez pasan${process.exitCode ? ' (con fallas)' : ''}.`);

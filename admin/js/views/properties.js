@@ -211,7 +211,8 @@ export function propiedadNueva(datos) {
 	d.createdBy = d.updatedBy = session.user.uid;
 	return d;
 }
-// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento, sus fotos y su
+// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo, la llave del calendario de EQ y lo último
+// leído de Airbnb/Booking/VRBO), el documento, sus fotos y su
 // renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
 export async function eliminarPropiedad(p) {
 	// Una casa por noche con huéspedes por venir no se borra; sin ellos, se borra también el contacto de sus huéspedes.
@@ -219,7 +220,7 @@ export async function eliminarPropiedad(p) {
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
 	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
 	await deleteDoc(doc(db, 'properties', p.id));
 	await borrarFotos(p);
 	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya

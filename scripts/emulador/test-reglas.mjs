@@ -223,6 +223,14 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await espera('socio dueño de la casa lee el acuerdo', leer('socio2', ACUERDO), false);
 	await espera('socio dueño de la casa cambia el acuerdo', escribir('socio2', ACUERDO, { ...acuerdo, comisionPct: 0 }), false);
 	await espera('socio lee el acuerdo de su casa por noche', leer('socio1', 'properties/prueba-casa-playa-monterrico/privado/acuerdo'), false);
+	// Al eliminar la casa (eliminarPropiedad), lo que escribe el servidor también se borra: la llave del calendario de EQ y
+	// lo último leído de Airbnb/Booking/VRBO. El socio no.
+	const borrar = (quien, ruta) => fetch(`${H}/${ruta}`, { method: 'DELETE', headers: cab(quien) }).then((r) => r.status);
+	for (const d of ['calendario', 'icalLeido']) {
+		await poner(`properties/prueba-casa-playa-monterrico/privado/${d}`, { x: 1 });
+		await espera(`socio borra privado/${d} de su casa por noche`, borrar('socio1', `properties/prueba-casa-playa-monterrico/privado/${d}`), false);
+		await espera(`administrador borra privado/${d} al eliminar la casa`, borrar('admin1', `properties/prueba-casa-playa-monterrico/privado/${d}`), true);
+	}
 }
 await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T) }), true);
 // Con la foto, el cliente marca en el chat «adjuntó su comprobante» (hora del servidor): desde ahí el socio no cancela solo.
