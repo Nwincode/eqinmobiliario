@@ -7,6 +7,8 @@
 //  - la solicitud repetida (mismo correo, casa y fechas) de una que ya se confirmó se cierra como «Duplicada», sin correo;
 //  - la solicitud que llegó encima de otra que aparta esas fechas se cierra («Fechas ya apartadas»; cerrarSiSeCruza);
 //  - la solicitud que todavía no tiene sus montos congelados (no llegó su /api/aviso-chat) los recibe;
+//  - la solicitud sin chat (escrita a mano contra la base, o el chat nunca se creó) se cierra a los 10 minutos («Sin
+//    chat», sin correo): no se queda en cada vuelta gastando el tiempo de las de verdad, que van primero;
 //  - la reserva confirmada sin pago ni comprobante: 24 h antes de vencer, un recordatorio en el chat; al vencer (48 h, o
 //    las 23:00 de la víspera de la llegada) se cancela sola y las fechas quedan libres. Si una vuelta no corrió a
 //    tiempo, la siguiente se pone al día (cancelaSola: hasta un día después de la llegada).
@@ -22,7 +24,7 @@ import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe,
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
-	MOTIVO_CASA_NO_DISPONIBLE, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
+	MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_SIN_CHAT, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
 
 const DIA = 86400000;
@@ -30,6 +32,18 @@ const PRESUPUESTO = 20000;
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 const abierta = (l) => l.reserva?.codigo && (!l.solicitud?.estado || l.solicitud.estado === 'pendiente');
+// El chat nace unos segundos después de su solicitud (js/reserva-chat.js): antes de esto no se da por perdido.
+const GRACIA_CHAT = 10 * 60000;
+
+// Solicitud sin chat (revisado dentro de la transacción): se cierra sin mensaje ni correo (no hay a quién).
+async function cerrarSinChat(leadId, ahora) {
+	return transaccion(async (tx) => {
+		const lead = await tx.leer(`leads/${leadId}`);
+		if (!lead || !abierta(lead) || ahora - ms(lead.createdAt) < GRACIA_CHAT || await chatDe(tx.leer, leadId)) return null;
+		responder(tx, SISTEMA, leadId, 'no', 'Sin chat: se cerró sola', { 'solicitud.motivo': MOTIVO_SIN_CHAT });
+		return null;
+	});
+}
 
 // Solicitud sin respuesta en 24 h, o de una casa que ya no está en el sitio: se cierra.
 async function cerrarSinRespuesta(leadId, ahora, { casaFuera = false } = {}) {
@@ -120,7 +134,12 @@ export default async () => {
 		}
 		// Solicitudes de los últimos 7 días que siguen sin respuesta.
 		const recientes = await desde('leads', 'createdAt', new Date(ahora - 7 * DIA));
-		const abiertas = recientes.filter(abierta);
+		// Las que no tienen chat pasada la gracia (lecturas en paralelo, no una transacción por cada una) van aparte, al
+		// final: así las de verdad nunca esperan detrás de ellas. Si la lectura falla, se trata como de verdad.
+		const conChat = await Promise.all(recientes.filter(abierta).map(async (l) => [l, ahora - ms(l.createdAt) < GRACIA_CHAT
+			|| (await leerPrivado(`chatsPorSolicitud/${l.id}`).then((x) => Boolean(x?.token), () => true))]));
+		const abiertas = conChat.filter(([, si]) => si).map(([l]) => l);
+		const sinChat = conChat.filter(([, si]) => !si).map(([l]) => l);
 		// Las repetidas de una que ya se confirmó (el administrador confirma en el panel: aquí se cierran las suyas).
 		for (const l of recientes.filter((x) => x.solicitud?.estado === 'confirmada' && abiertas.some((o) => esDuplicada(x, o)))) {
 			if (!queda()) return;
@@ -150,6 +169,11 @@ export default async () => {
 			else if ((casa.vacacional?.reservadas || []).some((r) => seCruzan(l.reserva, { llegada: r.desde, salida: r.hasta })))
 				await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
 			else if (conPlazo(ms(l.createdAt)) && ahora >= venceRespuesta(ms(l.createdAt))) await uno(cerrarSinRespuesta(l.id, ahora), 'solicitud');
+		}
+		// Al final, las que no tienen chat: una vez cerradas, ya no entran en la vuelta siguiente.
+		for (const l of sinChat) {
+			if (!queda()) return;
+			await cerrarSinChat(l.id, ahora).catch((err) => console.error('Plazos (sin chat):', err.message));
 		}
 	} catch (err) {
 		console.error('Plazos:', err.message);

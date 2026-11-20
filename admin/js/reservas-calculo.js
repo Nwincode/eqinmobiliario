@@ -40,6 +40,9 @@ export const MOTIVO_SIN_PAGO = 'Sin pago a tiempo';
 export const MOTIVO_NO_LLEGO = 'No llegó el pago';
 export const MOTIVO_CASA_NO_DISPONIBLE = 'La casa ya no está disponible';
 export const MOTIVO_DUPLICADA = 'Duplicada';
+// Una solicitud sin su chat (escrita a mano contra la base, o el chat nunca se creó): nadie puede atenderla ni la
+// cotiza el servidor. El cron de plazos la cierra pasados unos minutos, sin correo, para que no gaste sus vueltas.
+export const MOTIVO_SIN_CHAT = 'Sin chat';
 export const TEXTO_SIN_RESPUESTA = 'El anfitrión no respondió a tiempo, así que cerramos esta solicitud. Puedes elegir otras fechas u otra casa.';
 export const TEXTO_SIN_PAGO = 'No recibimos tu pago a tiempo, así que la reserva se canceló y las fechas quedaron libres. Si todavía la quieres, elige tus fechas otra vez.';
 export const TEXTO_NO_LLEGO = 'El anfitrión no recibió tu pago, así que la reserva se canceló. Si sí pagaste, escríbenos aquí con tu comprobante.';

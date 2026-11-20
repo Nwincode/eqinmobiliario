@@ -18,7 +18,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
-import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
+import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, MOTIVO_SIN_CHAT, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -135,8 +135,9 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 // fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva anotada a mano en la misma casa: la señal
 // de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
 // escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
-// Las que cerró el sistema porque otra se confirmó en esas fechas (Duplicada, «Fechas ya reservadas») no cuentan.
-const cerradaSinReserva = (s) => (s?.estado === 'no' && ![MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS].includes(s.motivo)) || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, 'Cliente canceló'].includes(s.motivo));
+// Las que cerró el sistema porque otra se confirmó en esas fechas (Duplicada, «Fechas ya reservadas») o porque no tenían
+// chat («Sin chat») no cuentan.
+const cerradaSinReserva = (s) => (s?.estado === 'no' && ![MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, MOTIVO_SIN_CHAT].includes(s.motivo)) || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, 'Cliente canceló'].includes(s.motivo));
 async function noSeDioYBloqueada(ahora) {
 	if (!escrituraConfigurada()) return [];
 	const hoy = V.hoy(ahora);
