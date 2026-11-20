@@ -34,7 +34,7 @@ export function mensaje(tx, token, datos, de = 'socio') {
 	tx.crear(`chats/${token}/mensajes/${id}`, { de, ...datos }, { ahora: ['createdAt'] });
 	return id;
 }
-export const pendiente = (id) => ({ avisoPendiente: id, avisoIntentos: 0 });
+export const pendiente = (id) => ({ avisoPendiente: id });
 export const SISTEMA = { uid: 'sistema', nombre: 'Plazo vencido' };
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 

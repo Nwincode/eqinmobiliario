@@ -78,6 +78,6 @@ const apartar = (token, clave, reintento) => transaccion(async ({ leer, cambiar 
 const marcar = (token, clave, { listo }) => transaccion(async ({ leer, cambiar }) => {
 	const c = await leer(`chats/${token}`);
 	if (!c) return;
-	if (listo) { if (c.avisoPendiente === clave) cambiar(`chats/${token}`, { avisoPendiente: '', avisoIntentos: 0 }); }
-	else cambiar(`chats/${token}`, { avisoPendiente: clave, avisoIntentos: (Number(c.avisoIntentos) || 0) + 1, avisoEnviado: '' });
+	if (listo) { if (c.avisoPendiente === clave) cambiar(`chats/${token}`, { avisoPendiente: '' }); }
+	else cambiar(`chats/${token}`, { avisoPendiente: clave, avisoEnviado: '' });
 });

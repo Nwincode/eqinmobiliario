@@ -515,6 +515,11 @@
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
 					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
 					if (res.minimos) minimos = res.minimos;
+					// Las personas que caben, al día: si el socio bajó el máximo, no se ofrece más (la base lo rechazaría).
+					if (res.huespedesMax && selHuespedes) {
+						Array.prototype.slice.call(selHuespedes.options).forEach(function (o) { if (+o.value > res.huespedesMax) o.remove(); });
+						if (+selHuespedes.value > res.huespedesMax) selHuespedes.value = '';
+					}
 					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
 					var antes = estado.llegada + estado.salida;
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }
@@ -597,7 +602,7 @@
 				var d = datos[i], vivo = vivos[i] || {};
 				var plan = vivo.plan && vivo.plan.base > 0 ? vivo.plan : d.plan;
 				var ocupadas = V.nochesOcupadas((d.bloqueos || []).concat(vivo.ocupadas || []));
-				var ok = !vivo.pausada && q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
+				var ok = !vivo.pausada && q.huespedes <= (vivo.huespedesMax || d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;

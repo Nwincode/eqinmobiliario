@@ -593,6 +593,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('solicitud de 0 personas', enCasa('lead-hue-2', 'mx-noche-4p', { ...bien, huespedes: 0 }), false);
 		await espera('solicitud de 4 personas en una casa para 4 (control)', enCasa('lead-hue-3', 'mx-noche-4p', { ...bien, huespedes: 4 }), true);
 		await espera('solicitud de 9 personas en una casa sin tope guardado (control)', conReserva('lead-hue-4', { ...bien, huespedes: 9 }), true);
+		await raw('properties/mx-noche-texto', { titulo: sv('Casa con el tope como texto'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: sv('4') } } } });
+		await espera('casa de antes con el tope guardado como texto: no rechaza todas sus solicitudes (control)', enCasa('lead-hue-5', 'mx-noche-texto', { ...bien, huespedes: 3 }), true);
 	}
 	// La casa cambió de asesor y la página no se ha vuelto a publicar: el sitio reintenta sin asesor y la recibe el
 	// administrador (js/site.js); con el asesor de antes, no (no le llega el contacto a quien ya no la lleva).

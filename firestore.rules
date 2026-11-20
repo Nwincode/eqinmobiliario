@@ -455,6 +455,11 @@ service cloud.firestore {
         // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
         && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
     }
+    // ¿Caben esas personas en la casa? (huespedesMax de la casa; sin él o si no es un número, sin tope.)
+    function caben(huespedes, propertyId) {
+      let max = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('vacacional', {}).get('huespedesMax', 1000);
+      return !(max is number) || huespedes <= max;
+    }
     // La moneda de una casa; sin moneda guardada (o vacía), US$.
     function monedaDe(propertyId) {
       let m = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('moneda', '');
@@ -493,7 +498,7 @@ service cloud.firestore {
                 && reservaCotizada(request.resource.data.reserva)
                 // Las personas caben en la casa (huespedesMax; sin él, sin tope): lo mismo que deja elegir la ficha.
                 && request.resource.data.reserva.get('huespedes', 1) is number && request.resource.data.reserva.get('huespedes', 1) >= 1
-                && request.resource.data.reserva.get('huespedes', 1) <= get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('vacacional', {}).get('huespedesMax', 1000)
+                && caben(request.resource.data.reserva.get('huespedes', 1), request.resource.data.propertyId)
                 // La moneda es la de la casa (sin moneda guardada, US$, como el sitio y admin/js/reservas-calculo.js):
                 // de ella salen la reserva y la comisión; el cliente no la elige.
                 && exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))

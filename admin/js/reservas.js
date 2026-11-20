@@ -234,6 +234,10 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
 	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '' });
+	// El socio llega aquí solo sin el servidor (503), con las reglas de antes: no aceptan el plazo guardado ni el aviso
+	// pendiente (el plazo sale de createdAt, como antes: plazoDePago).
+	const deAntes = session.esSocio;
+	if (deAntes) { delete datos.pagoDesde; delete datos.vencePago; }
 	const escribirTodo = () => cambiar({
 		despues: { id, ...datos },
 		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
@@ -245,11 +249,18 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.
 				const msj = doc(collection(chat.ref, 'mensajes'));
 				tx.set(msj, { de: quienEscribe(), tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
-				tx.update(chat.ref, { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id, avisoIntentos: 0 });
+				tx.update(chat.ref, deAntes ? { estado: 'confirmada' } : { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id });
 			}
 		}
 	});
-	await escribirTodo();
+	try {
+		await escribirTodo();
+	} catch (err) {
+		// Reglas de antes (todavía sin «chat» en la reserva del socio): se guarda sin él; esa reserva la cancela el administrador.
+		if (!(deAntes && datos.chat && err?.code === 'permission-denied')) throw err;
+		delete datos.chat;
+		await escribirTodo();
+	}
 	if (chat) avisarChat(chat.ref.id);
 	await markPending(`${p.titulo}: reserva ${r.codigo} confirmada`);
 	return { ganancia: datos.ganancia, moneda: datos.moneda };

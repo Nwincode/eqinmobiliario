@@ -18,7 +18,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
-import { MOTIVO_SIN_PAGO } from '../../admin/js/reservas-calculo.js';
+import { MOTIVO_SIN_PAGO, conPlazo } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -60,7 +60,10 @@ export default async () => {
 		// Confirmadas sin pago marcado con la llegada ya pasada: cada mañana, hasta que se resuelvan.
 		const sinPago = !sonLas7 ? [] : await (async () => {
 			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
-			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && porId.get(r.chat)?.estado === 'confirmada')
+			// Las de los últimos 30 días con plazos (lo de antes no), sin la comisión ya pagada.
+			const desde30 = V.sumarDias(hoy, -30);
+			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && r.llegada >= desde30 && !r.comision?.pagada
+				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0) && porId.get(r.chat)?.estado === 'confirmada')
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
 					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		})().catch((err) => { console.error('Confirmadas sin pago:', err.message); return []; });

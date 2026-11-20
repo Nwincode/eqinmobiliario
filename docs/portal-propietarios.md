@@ -122,6 +122,11 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
    abriría todo). Solo recibe el correo quien entra al panel (cuenta y `users/{uid}` activo). Mientras falte algo, sale
    el correo de Firebase de siempre (`admin/js/contrasena.js`). En Firebase → Authentication → Configuración, activar
    «Protección contra la enumeración de correos».
+    **Tanda 2a (montos congelados y plazos):** las reglas nuevas agregan `montosSolicitud` (solo lo escribe el servidor;
+    lo leen el administrador y el socio de la casa), el tope de huéspedes de la casa en la solicitud y el filtro del
+    chat con dígitos de cualquier escritura. Se publican **después** del sitio y las funciones (el panel lee
+    `montosSolicitud` y, mientras las reglas no estén, calcula los montos con la casa de hoy). Antes de publicar,
+    revisar que cada casa por noche visible tenga su dirección exacta: sin ella ya no se marca «Pago recibido».
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

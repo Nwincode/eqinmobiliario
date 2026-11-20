@@ -74,7 +74,9 @@ export default async (req) => {
 	const v = p.vacacional || {};
 	const plan = { base: Number(v.base) || 0, finde: Number(v.finde) || 0, tarifas: (v.tarifas || []).filter((x) => x?.hasta >= hoy) };
 	const minimos = (v.minimos || []).filter((x) => x?.hasta >= hoy);
-	return respuesta(200, { ocupadas, plan, minimos, ...(atraso === 3 ? { pausada: true } : {}), fuente: fuentes.length ? fuentes.join(',') : 'manual' }, CACHE);
+	// Las personas que caben, al día (el socio las cambia en su panel): la regla de la solicitud compara con esto.
+	const huespedesMax = Number.isInteger(v.huespedesMax) && v.huespedesMax > 0 ? v.huespedesMax : undefined;
+	return respuesta(200, { ocupadas, plan, minimos, ...(huespedesMax ? { huespedesMax } : {}), ...(atraso === 3 ? { pausada: true } : {}), fuente: fuentes.length ? fuentes.join(',') : 'manual' }, CACHE);
 };
 
 export const config = { path: '/api/disponibilidad' };

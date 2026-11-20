@@ -3,6 +3,7 @@
 // (netlify/functions/reservas.mjs), así lo que se muestra, lo que guarda el administrador y lo que guarda el servidor
 // por el socio salen de lo mismo. Las fórmulas de precios y fechas son las de js/calc-vacacional.js.
 import '../../js/calc-vacacional.js';
+import { visibilidadDe } from './estados.js';
 
 const V = () => globalThis.EQVacacional;
 export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
@@ -170,7 +171,7 @@ export function reservaDeSolicitud(l, casa, m, { chat = '', ahora = Date.now() }
 export function motivoParaNoConfirmar(lead, casa, montos, ahora = Date.now()) {
 	if (llegadaPasada(lead?.reserva?.llegada, ahora)) return TEXTO_LLEGADA_PASADA;
 	// La casa salió del sitio (oculta, pausada o retirada): no se toma una reserva que el equipo quitó.
-	if (!casa?.publicado || ['pausada', 'retirada', 'vendida', 'rentada'].includes(casa.estado)) return 'Esta casa ya no está publicada en el sitio: no se puede confirmar. Ciérrala con «No se dio».';
+	if (visibilidadDe(casa) !== 'visible') return 'Esta casa ya no está publicada en el sitio: no se puede confirmar. Ciérrala con «No se dio».';
 	// La casa cambió de moneda después de la solicitud: los montos no se comparan entre monedas.
 	const moneda = casa.moneda || 'USD';
 	if ((lead?.reserva?.moneda || 'USD') !== moneda || (montos && montos.moneda !== moneda)) return 'La casa cambió de moneda después de esta solicitud: no se puede confirmar así. Ciérrala con «No se dio» y que el cliente la pida otra vez.';
@@ -203,7 +204,7 @@ export function motivoParaNoCancelar(reserva, chat, token, ahora = Date.now()) {
 	if (!reserva || reserva.estado !== 'confirmada') return 'Esta reserva ya no está confirmada.';
 	if (!reserva.chat || reserva.chat !== token || !chat) return 'Esta reserva es de antes (sin su chat guardado): la cancela el administrador.';
 	if (chat.estado !== 'confirmada') return 'El cliente ya pagó: la cancela el administrador.';
-	if (chat.comprobanteCliente) return 'El cliente ya mandó su comprobante de pago: la cancela el administrador.';
+	if (chat.comprobanteCliente) return 'El cliente ya mandó su comprobante de pago: si no te llegó el pago, usa «No me llegó».';
 	if (!antesDeLlegar(reserva.llegada, ahora)) return 'El día de llegada ya empezó: si no te pagó, usa «No me llegó».';
 	return '';
 }
