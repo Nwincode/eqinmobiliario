@@ -14,12 +14,12 @@ import { DESC_FALLO, DESC_FRENO } from '../lib/publicar.mjs';
 async function avisarEquipo(motivo, frenada) {
 	if (!correoConfigurado()) return;
 	const texto = frenada
-		? 'La publicación del sitio se frenó: se iban a publicar muchas menos casas que antes. El sitio anterior sigue en línea. Abre Publicar en el panel: ahí está el motivo y, si está bien así, «Publicar aunque baje».'
+		? 'La publicación del sitio se frenó para no quitar casas del sitio por error. El sitio anterior sigue en línea. Abre Publicar en el panel: si está bien así, toca «Publicar aunque baje».'
 		: 'La última publicación del sitio falló en Netlify. El sitio anterior sigue en línea; lo que se cambió desde entonces todavía no sale. Abre el panel y pulsa «Publicar».';
 	const html = await plantilla({
 		titulo: frenada ? 'La publicación del sitio se frenó' : 'La publicación del sitio falló',
 		intro: esc(texto),
-		bloques: (c) => `${motivo ? `<p style="font-size:14px;margin:0 0 18px;color:${c.ink}">Motivo que dio Netlify: ${esc(motivo)}</p>` : ''}${boton(c, 'Abrir Publicar', `${SITE_URL}/admin/#/publicar`)}`
+		bloques: (c) => `${motivo ? `<p style="font-size:14px;margin:0 0 18px;color:${c.ink}">${frenada ? 'Motivo' : 'Motivo que dio Netlify'}: ${esc(motivo)}</p>` : ''}${boton(c, 'Abrir Publicar', `${SITE_URL}/admin/#/publicar`)}`
 	});
 	await enviarCorreo({ para: destinatariosEquipo(), asunto: `${frenada ? 'La publicación del sitio se frenó' : 'La publicación del sitio falló'} · Equipo Inmobiliario`, html, texto });
 }
@@ -29,7 +29,7 @@ export default async (req) => {
 	try { deploy = (await req.json()).payload || {}; } catch { /* sin datos: se asume producción */ }
 	if (deploy.context && deploy.context !== 'production') return new Response('Vista previa: nada que marcar.');
 	if (!escrituraConfigurada()) return new Response('Sin cuenta de escritura.');
-	let primera = false, frenada = false;
+	let primera = false, frenada = false, freno = '';
 	try {
 		primera = await transaccion(async ({ leer, cambiar }) => {
 			const estado = await leer('meta/publish');
@@ -37,6 +37,7 @@ export default async (req) => {
 			// El build la frenó a propósito (catálogo vacío o que bajó de golpe): dejó el motivo en `freno` hace un momento;
 			// Publicar lo muestra con «Publicar aunque baje». Un freno de otra publicación no cuenta.
 			frenada = Boolean(estado.freno) && Date.now() - new Date(estado.frenoCuando || 0).getTime() < 2 * 3600_000;
+			freno = String(estado.freno || '');
 			cambiar('meta/publish', { pendiente: true, fallo: true, ultimoCambioDesc: frenada ? DESC_FRENO : DESC_FALLO }, { ahora: ['ultimoCambio'] });
 			return !estado.fallo;
 		});
@@ -45,7 +46,7 @@ export default async (req) => {
 	}
 	// El correo va por su lado: si falla, la marca ya quedó.
 	if (primera) {
-		try { await avisarEquipo(frenada ? '' : String(deploy.error_message || '').slice(0, 300), frenada); } catch (e) { console.error('deploy-failed (correo):', e.message); }
+		try { await avisarEquipo((frenada ? freno : String(deploy.error_message || '')).slice(0, 300), frenada); } catch (e) { console.error('deploy-failed (correo):', e.message); }
 	}
 	return new Response('ok');
 };

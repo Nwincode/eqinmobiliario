@@ -24,7 +24,7 @@ const { default: publicarPendiente } = await import('../netlify/functions/public
 const { default: comisionesVencidas } = await import('../netlify/functions/comisiones-vencidas.mjs');
 const { default: resenas } = await import('../netlify/functions/resenas-google.mjs');
 const { default: automatizaciones } = await import('../netlify/functions/automatizaciones.mjs');
-const { DESC_FALLO } = await import('../netlify/lib/publicar.mjs');
+const { DESC_FALLO, DESC_FRENO } = await import('../netlify/lib/publicar.mjs');
 
 const casa = () => poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', propietarioId: 'p1', descripcion: 'Casa frente al lago con muelle propio.', amenidades: [], fotos: [] });
 const guardarDueno = (descripcion) => miCasa(pedido('POST', { casa: 'c1', cambios: { descripcion } }));
@@ -106,6 +106,24 @@ await t('una publicación fallida marca el fallo y avisa al equipo una sola vez;
 	// Una vista previa no toca nada.
 	await deployFailed(evento({ context: 'deploy-preview' }));
 	assert.equal(leer('meta/publish').fallo, false);
+});
+
+await t('un build frenado por el catálogo dice «se frenó» (no «falló»), con el motivo del build, y la siguiente que sale bien lo quita', async () => {
+	const motivo = 'No hay ninguna propiedad publicada: se frenó para no dejar el sitio sin casas.';
+	poner('meta/publish', { pendiente: false, freno: motivo, frenoCuando: new Date(S.reloj - 60000) });
+	await deployFailed(evento({ context: 'production', error_message: 'Build script returned non-zero exit code: 1' }));
+	assert.equal(leer('meta/publish').fallo, true);
+	assert.equal(leer('meta/publish').ultimoCambioDesc, DESC_FRENO);
+	assert.equal(S.salida.length, 1);
+	assert.match(S.salida[0].asunto, /se frenó/);
+	assert.match(S.salida[0].texto, /Publicar aunque baje/);
+	await deploySucceeded(evento());
+	assert.equal(leer('meta/publish').fallo, false);
+	assert.equal(leer('meta/publish').pendiente, false, 'nada cambió desde el freno');
+	// Un freno de hace horas (de otra publicación) no cuenta: es un fallo.
+	poner('meta/publish', { pendiente: false, freno: motivo, frenoCuando: new Date(S.reloj - 3 * 3600000) });
+	await deployFailed(evento());
+	assert.equal(leer('meta/publish').ultimoCambioDesc, DESC_FALLO);
 });
 
 await t('la publicación automática espera mientras hay fallo y vuelve sola al quitarse', async () => {
