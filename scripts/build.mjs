@@ -619,11 +619,12 @@ async function main() {
 	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
 	// Se cuentan las que se ofrecen sin contar la pausa por mora: un socio atrasado no frena la publicación.
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
-	// Las casas de prueba (Publicar → Propiedades de prueba) no cuentan.
+	// Las casas de prueba no cuentan: las mismas que no se indexan (`_prueba`, `esDePrueba`: el botón «Casas de prueba» o
+	// «prueba» en el título).
 	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
 	const deCatalogo = {
-		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p.demo).length,
-		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p.demo).map((p) => p.slug)))
+		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p._prueba).length,
+		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p._prueba).map((p) => p.slug)))
 	};
 	const freno = await frenoDelCatalogo(data.source, deCatalogo);
 	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);

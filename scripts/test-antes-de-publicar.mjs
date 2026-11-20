@@ -157,6 +157,11 @@ const construir = (seed, extraEnv = {}) => {
 		solo.properties.forEach((p) => { p.demo = true; });
 		assert.match(construir(solo).out, /No hay ninguna propiedad publicada/);
 	});
+	t('tampoco las que dicen «prueba» en el título (las mismas que no se indexan: esDePrueba)', () => {
+		const solo = structuredClone(seedBase);
+		solo.properties.forEach((p) => { p.titulo = `Casa de prueba ${p.id}`; });
+		assert.match(construir(solo).out, /No hay ninguna propiedad publicada/);
+	});
 }
 {
 	// Publicación en Netlify: el sitemap en línea se simula (fetch de mentira, sin red) con 10 fichas y con 3.
