@@ -3,7 +3,7 @@ import { slugify } from './ui.js';
 import { stripMd } from './seo.js';
 import { crearZip, descargarBlob } from './zip.js';
 import { SITIO as SITE } from './firebase.js';
-import { seOfrece, enOperacion, operacionHashtag, precioVisible } from './estados.js';
+import { seOfrece, enOperacion, operacionHashtag, precioVisible, textoSinPrecio } from './estados.js';
 import { conEmojis } from './descripcion.js';
 import { precioTexto, M2_A_FT2 } from './formato.js';
 
@@ -91,8 +91,9 @@ export function textoPara(p, portal, { agente, contacto } = {}) {
 	const lang = portal.idioma;
 	const t = L[lang];
 	const en = lang === 'en' ? (p.en || {}) : {};
-	const titulo = en.titulo || p.titulo || '';
-	const fuente = en.descripcion || p.descripcion || '';
+	// Con el precio oculto, ni el título ni la descripción lo dicen (estados.js `textoSinPrecio`).
+	const titulo = textoSinPrecio(p, en.titulo || p.titulo || '', lang);
+	const fuente = textoSinPrecio(p, en.descripcion || p.descripcion || '', lang);
 	// Facebook, Instagram y WhatsApp (estilo social o mensaje) llevan emojis; los portales no.
 	const desc = stripMd(portal.estilo === 'portal' ? fuente : conEmojis(fuente)).replace(/[ \t]+\n/g, '\n').trim();
 	const amen = (lang === 'en' ? en.amenidades : p.amenidades) || [];

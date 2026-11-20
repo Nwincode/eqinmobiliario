@@ -10,7 +10,7 @@ import { revisarEnlaces } from './lib/enlaces.mjs';
 import { sinRepetir, autoSeoTitle } from '../admin/js/seo-auto.js';
 import { sinBloquesGenerados, generarDescripcion } from '../admin/js/descripcion.js';
 import { horarioSchema } from '../admin/js/formato.js';
-import { precioVisible, sinPrecioOculto, amenidadesEnDe } from '../admin/js/estados.js';
+import { precioVisible, sinPrecioOculto, amenidadesEnDe, mencionaPrecio, textosConPrecioOculto, textoSinPrecio } from '../admin/js/estados.js';
 import { urlsCambiadas, urlsDelSitemap } from '../netlify/lib/indexnow.mjs';
 
 let ok = 0;
@@ -40,9 +40,20 @@ test('precio oculto (VIP o no) y textos con el precio; amenidades en inglés cor
 	assert.equal(precioVisible({ precio: 5, operacion: 'vacacional', vipLanding: { ocultarPrecio: true } }), 5);
 	assert.equal(sinPrecioOculto('Casa de US$ 987,654.00 en zona 16', 987654, 'precio a consultar'), 'Casa de precio a consultar en zona 16');
 	assert.equal(sinPrecioOculto('Lote 9876543', 987654, 'x'), 'Lote 9876543');
+	// En cualquier forma: cifras, miles, millones, con o sin moneda; un número cualquiera o unos m² no cuentan.
+	for (const t of ['US$ 987,654.00', '$987654', '987.654 USD', 'USD987654', '987k', '988 mil', 'Q 1.2 millones', 'casa de 987654']) assert.equal(mencionaPrecio(t, 987654), true, t);
+	for (const t of ['Lote 9876543', '350 m²', 'Q 1,500 de mantenimiento', '4 habitaciones']) assert.equal(mencionaPrecio(t, 987654), false, t);
+	// La ficha y el importador no dejan guardar: dicen dónde está (también la URL).
+	const casa = { precio: 987654, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de US$ 987,654', slug: 'casa-de-987654', descripcion: 'Linda casa', en: { descripcion: 'only 987k' } };
+	assert.deepEqual(textosConPrecioOculto(casa).map(([k]) => k), ['Título', 'Descripción en inglés', 'URL']);
+	assert.deepEqual(textosConPrecioOculto({ ...casa, vipLanding: {} }), []);
+	// Lo que se copia (difusión, PDF del listado) sale sin el monto.
+	assert.equal(textoSinPrecio(casa, 'Por solo 987 mil'), 'Por solo precio a consultar');
 	// La lista corregida a mano se respeta; solo se agregan las que faltan (del diccionario o tal cual).
 	assert.deepEqual(amenidadesEnDe({ amenidades: ['Piscina', 'Agua municipal', 'Lobby de recepción'], en: { amenidades: ['Swimming pool'] } }), ['Swimming pool', 'Agua municipal', 'Lobby de recepción']);
-	assert.deepEqual(amenidadesEnDe({ amenidades: ['Piscina'], en: { amenidades: ['Infinity pool', 'Lush garden'] } }), ['Infinity pool', 'Lush garden']);
+	// Si la lista en español se achica, nunca queda una inglesa vieja: con pares guardados, cada una con la suya.
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Jardín'], en: { amenidades: ['Pool', 'Garden', 'Lobby'] } }), ['Garden']);
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Jardín', 'Lobby de recepción'], en: { amenidades: ['Infinity pool', 'Lush garden', 'Front desk lobby'], amenidadesDe: ['Piscina', 'Jardín', 'Lobby de recepción'] } }), ['Lush garden', 'Front desk lobby']);
 });
 
 test('zona escrita distinto («zona 10», «Zona 10 »): una sola página con todas sus casas', () => {

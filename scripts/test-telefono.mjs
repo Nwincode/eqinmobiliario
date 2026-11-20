@@ -72,6 +72,8 @@ test('un número válido de cada país de la lista pasa (celulares de ejemplo de
 test('largos raros solo con el patrón de su país; no se rechaza lo que antes pasaba (0 de larga distancia, «1» de México, extensión)', () => {
 	assert.equal(telefonoValido('+502 1 305 555 1234'), false);
 	assert.equal(telefonoValido('+502 1801 2345678'), true);
+	// En Guatemala no hay 0 de larga distancia: «+502 05555 1234» no es un número.
+	assert.equal(telefonoValido('+502 05555 1234'), false);
 	for (const [t, wa] of [['+44 07911 123456', '447911123456'], ['+52 1 55 1234 5678', '525512345678'], ['+1 1 305 555 1234', '13055551234'],
 		['+502 5555 1234 ext. 12', '50255551234'], ['+502 5555-1234 x3', '50255551234'], ['+39 06 1234 5678', '390612345678']]) {
 		assert.equal(telefonoValido(t), true, t);

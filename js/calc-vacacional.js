@@ -407,22 +407,34 @@
 	// escribe de su casa y sale publicado (admin/js/mi-casa.js): los datos de contacto se entregan al confirmar la reserva;
 	// antes, nadie los pasa. Fechas, años («2019/2020»), horas, montos y medidas («1200 / 1500 m²») no cuentan como
 	// teléfono; los números escritos con letras sí, y también unas coordenadas (llevan a la casa, que es privada hasta el
-	// pago). Una página corta (t.me/villa, casalago.co) cuenta si va escrita en minúscula y con «/» o al final: «Perfecto.Me
-	// avisas» no. (firestore.rules tiene su propia copia para el chat: se pone al día en otra tanda.)
+	// pago). Una página corta (t.me/villa, Bit.Ly/x, casa.lago.me) cuenta con «/» después o al final: «Perfecto.Me avisas»
+	// no. También correos y usuarios disfrazados («juan at gmail dot com», «ig casalago_gt») y un número partido en dos. (firestore.rules tiene su propia copia para el chat: se pone al día en otra tanda.)
 	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
 	function tieneContacto(texto) {
-		var original = String(texto || '');
+		// Puntos «raros» (。．) como punto; una «O» entre números como cero («5O55»).
+		var original = String(texto || '').replace(/[。．｡]/g, '.').replace(/(\d)[oO](?=\d)/g, '$10').replace(/(\d)[oO](?=\d)/g, '$10');
 		var t = original.toLowerCase();
-		if (/@|\barroba\b|https?:|www\.|wa\.me|\]\(|\.(com|net|org|gt)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
-		if (/(^|[^\w.@-])[a-z0-9-]+\.(me|co|io|ly|ee|info|biz)(\/|$)/.test(original)) return true;
+		if (/@|\barroba\b|https?:|https?\/\/|www\.|\bw\s*w\s*w\b|wa\.me|\]\(|\.(com|net|org|gt)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
+		// Correos y páginas disfrazados: «juan at gmail dot com», «juan[at]gmail», «casa(dot)com», «casa[.]com», «casa,com».
+		if (/\b(at|arroba)\b.{1,30}\b(dot|punto)\b|[\[(](at|dot|\.)[\])]|[a-z0-9-]{3,},(com|net|org)\b/.test(t) || /[a-z]AT[a-z]+DOT[a-z]/.test(original)) return true;
+		// Un usuario en otra plataforma («ig casalago_gt», «gmail: juanperez», «skype juan.perez», «al wa»).
+		if (/\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\b\s*:?\s*@?(?!(para|como|por|del|los|las|con|que|una|unas|unos|tambi)\b)[a-z0-9._]{4,}/.test(t)
+			|| /\b(al|por|mi) (wa|whats|wsp|wasap)\b/.test(t) || /\b(airbnb|booking|vrbo)\b.{0,20}\bcomo\b/.test(t)) return true;
+		// Páginas cortas (t.me/x, Bit.Ly/x, casa.lago.me): con «/» después o al final del texto, en mayúscula o minúscula.
+		if (/(^|[^\w.@-])[a-z0-9-]+(\.[a-z0-9-]+)*\.(me|co|io|ly|ee|info|biz|gl|page|link|app)(\/|$)/i.test(original.trim())) return true;
+		// Coordenadas: dos números con decimales (con «lat/lon», N/S/E/O o grados, o «14.63,-90.50»), o en grados y minutos.
+		if (/(^|[^\d.,])-?\d{1,2}\.\d{3,}\s*°?\s*[ns]?\s*[,;]?\s*(lon(g(itud)?)?|lng)?\s*[:=]?\s*[eowv]?\s*-?\d{1,3}\.\d{3,}(?!\d)/.test(t)
+			|| /(^|[^\d.,])-?\d{1,2}\.\d{2,},\s*-\d{1,3}\.\d{2,}(?!\d)/.test(t) || /\d{1,2}\s*°\s*\d{1,2}\s*['′]/.test(t)) return true;
 		// Años: un rango («2019/2020», «2024-2025») o uno suelto sin otros números pegados (un fijo de Guatemala
 		// «2024 5678» empieza como un año y sigue siendo teléfono).
 		t = t.replace(/\b(19|20)\d{2}-[01]\d-[0-3]\d\b/g, ' x ')
 			.replace(/\b((?:19|20)\d{2})\s*[-\/]\s*((?:19|20)\d{2})\b/g, function (m, a, b) { return b - a > 0 && b - a <= 10 ? ' x ' : m; })
 			.replace(/\b(19|20)\d{2}\b/g, function (m, a, i, s) { return /\d/.test(s.slice(Math.max(0, i - 3), i)) || /^[^\da-záéíóúñ]{0,3}\d/.test(s.slice(i + 4, i + 8)) ? m : ' x '; })
 			.replace(/\b\d+([.,]\d+)?\s*m(²|2\b)/g, ' x ')
+			.replace(/(\bq\.?|\bus\$|\$|\busd)\s?\d+([.,]\d+)*/g, ' x ')
 			.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
-		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t);
+		// Siete dígitos seguidos, o un número partido en dos grupos de 4 («5555 y luego 1234»).
+		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t) || /(^|\D)\d{4}(?!\d)[^\d]{1,30}(^|\D)\d{4}(?!\d)/.test(t);
 	}
 
 	return {

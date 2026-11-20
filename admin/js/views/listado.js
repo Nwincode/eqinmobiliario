@@ -6,7 +6,7 @@ import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
 import { datosDe, publicUrl } from '../ficha-casa.js';
-import { estadoDe, operacionDe, enOperacion, precioVisible } from '../estados.js';
+import { estadoDe, operacionDe, enOperacion, precioVisible, textoSinPrecio } from '../estados.js';
 import { colorTema } from '../tema-def.js';
 import { telefonoWa, whatsappUrl } from '../formato.js';
 
@@ -84,7 +84,7 @@ function fichaCompleta(p, opts, n, total, empresa, contacto) {
 		<div class="titular">
 			<div>
 				<div class="etiqueta">${esc(etiquetaTipo(p))}</div>
-				<h2>${esc(p.titulo)}</h2>
+				<h2>${esc(textoSinPrecio(p, p.titulo))}</h2>
 				<div class="ubicacion">${ic('map-marker')}${esc(ubicacion(p))}</div>
 			</div>
 			<div class="precio">${esc(precioPdf(p, opts.mostrarPrecio))}</div>
@@ -92,7 +92,7 @@ function fichaCompleta(p, opts, n, total, empresa, contacto) {
 		<div class="cuerpo">
 			<div>
 				<h3>${ic('align-left')}Descripción</h3>
-				<p class="descripcion">${esc(cut(p.descripcion, 750))}</p>
+				<p class="descripcion">${esc(cut(textoSinPrecio(p, p.descripcion), 750))}</p>
 				${amen.length ? `<h3>${ic('check-square-o')}Amenidades</h3><ul class="amenidades">${amen.map((a) => `<li>${ic('check')}${esc(a)}</li>`).join('')}</ul>` : ''}
 			</div>
 			<aside>
@@ -120,13 +120,13 @@ function filaCompacta(p, opts, n) {
 			<div class="fila-top">
 				<div>
 					<div class="etiqueta">${esc(etiquetaTipo(p))}</div>
-					<h2>${esc(p.titulo)}</h2>
+					<h2>${esc(textoSinPrecio(p, p.titulo))}</h2>
 					<div class="ubicacion">${ic('map-marker')}${esc(ubicacion(p))}</div>
 				</div>
 				<div class="precio">${esc(precioPdf(p, opts.mostrarPrecio))}</div>
 			</div>
 			${claves.length ? `<dl class="claves">${claves.map(([k, v]) => `<div><dt>${ic(ICONO_DATO[k])}${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
-			<p class="descripcion">${esc(cut(p.descripcion, 220))}</p>
+			<p class="descripcion">${esc(cut(textoSinPrecio(p, p.descripcion), 220))}</p>
 			${opts.enlaces && p.slug ? `<a class="enlace-corto" href="${esc(publicLink(p))}">${ic('link')}${esc(publicLink(p).replace(/^https?:\/\//, ''))}</a>` : ''}
 		</div>
 	</section>`;
@@ -271,7 +271,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 		${opts.nota ? `<p class="nota">${esc(opts.nota)}</p>` : ''}
 		<div class="indice">
 			<h3>${ic('list-ol')}En este documento</h3>
-			<ol>${props.slice(0, 16).map((p, i) => `<li><b>${i + 1}</b><span>${esc(p.titulo)}</span><em>${esc(precioPdf(p, opts.mostrarPrecio))}</em></li>`).join('')}</ol>
+			<ol>${props.slice(0, 16).map((p, i) => `<li><b>${i + 1}</b><span>${esc(textoSinPrecio(p, p.titulo))}</span><em>${esc(precioPdf(p, opts.mostrarPrecio))}</em></li>`).join('')}</ol>
 			${total > 16 ? `<p class="indice-mas">… y ${total - 16} propiedades más en las páginas siguientes.</p>` : ''}
 		</div>
 		${tarjetaContacto}

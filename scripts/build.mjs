@@ -10,7 +10,7 @@ import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './l
 import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
-import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto } from '../admin/js/estados.js';
+import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto, mencionaPrecio, textosConPrecioOculto } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -539,18 +539,26 @@ async function main() {
 	// Precio oculto: ningún texto guardado con el precio lo deja salir (ficha, VIP, /en/, llms, catálogos). Un título o
 	// descripción para Google con el precio no se usa (sale el automático, sin precio); en la descripción y los textos VIP,
 	// en español e inglés, el monto pasa a «precio a consultar».
+	// El panel ya no deja guardarlo así (textosConPrecioOculto); si llega uno (de antes, o escrito por otra vía), se avisa.
+	const conPrecioOculto = [];
 	for (const p of todas) {
 		if (!p.precio || precioVisible(p)) continue;
+		const donde = textosConPrecioOculto(p);
+		if (donde.length) conPrecioOculto.push(`${p.id} (${donde.map(([k]) => k).join(', ')})`);
 		const n = Math.round(Number(p.precio));
-		const conPrecio = (t) => [String(n), n.toLocaleString('en-US'), n.toLocaleString('de-DE')].some((x) => String(t || '').includes(x));
+		const conPrecio = (t) => mencionaPrecio(t, n);
 		const limpiarSeo = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
 		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar)])),
 			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar)) } : v);
 		p.seo = limpiarSeo(p.seo);
 		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar');
+		p.titulo = sinPrecioOculto(p.titulo, n, 'precio a consultar');
+		// La URL nunca lleva el precio: se le quita (la dirección con el precio no se redirige, para no publicarla).
+		if (conPrecio(String(p.slug || '').replace(/-/g, ' '))) p.slug = slugify(sinPrecioOculto(String(p.slug).replace(/-/g, ' '), n, '')) || p.id;
 		p.vipLanding = limpiarVip(p.vipLanding, 'precio a consultar');
-		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request'), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
+		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), titulo: sinPrecioOculto(p.en.titulo, n, 'price on request'), slug: p.en.slug && conPrecio(String(p.en.slug).replace(/-/g, ' ')) ? '' : p.en.slug, descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request'), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
 	}
+	if (conPrecioOculto.length) console.warn(`  ⚠ Precio oculto escrito en sus textos (se quitó al publicar; corrígelo en la ficha): ${conPrecioOculto.join('; ')}`);
 	for (const p of todas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());

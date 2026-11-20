@@ -428,11 +428,11 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	vip.en = { ...vip.en, seo: { descripcion: 'House for sale in Zona 16, Guatemala. US$ 987,654.' }, descripcion: 'Asking US$ 987,654.00, view of the forest.',
 		vipLanding: { titular: 'Forest house', subtitular: 'Only $987,654', puntosClave: ['4 bedrooms', 'US$ 987.654'] } };
 	// Y en los textos escritos a mano: descripción y página VIP.
-	vip.descripcion = 'Casa con vista al bosque. Precio: US$ 987,654.00, negociable.';
+	vip.descripcion = 'Casa con vista al bosque. Precio: US$ 987,654.00, negociable (unos 988 mil, 987k o Q 7.6 millones).';
 	vip.vipLanding = { ...vip.vipLanding, subtitular: 'Por solo Q 987.654', puntosClave: ['4 habitaciones', 'US$ 987,654'] };
 	// Una casa que no es VIP con «Ocultar precio» marcado (dejó de ser VIP): tampoco sale.
 	const oculta = datos.properties.find((p) => p.zona === 'Zona 15' && p.operacion === 'venta' && !p.vip);
-	Object.assign(oculta, { precio: 876543, vipLanding: { ocultarPrecio: true }, descripcion: 'Casa en zona 15 de Q 876,543.00.' });
+	Object.assign(oculta, { precio: 876543, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de Q 876,543 en zona 15', slug: 'casa-de-q-876543-en-zona-15', descripcion: 'Casa en zona 15 de Q 876,543.00.' });
 	const z10 = datos.properties.filter((p) => p.zona === 'Zona 10');
 	z10[0].zona = 'zona 10 ';
 	z10[1].amenidades = ['Piscina', 'Agua municipal', 'Lobby de recepción'];
@@ -453,7 +453,9 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	})(distT);
 	const leerT = (u) => readFileSync(path.join(distT, u), 'utf8');
 	test('VIP con «ocultar precio»: el precio no sale en ninguna página, catálogo ni archivo', () => {
-		assert.deepEqual(todo.filter((f) => /987[,.]?654|876[,.]?543/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(distT, f)), []);
+		assert.deepEqual(todo.filter((f) => /987[,.]?654|876[,.]?543|988 mil|987k|7\.6 millones/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(distT, f)), []);
+		assert.ok(!readdirSync(path.join(distT, 'propiedad')).some((d) => /876543/.test(d)), 'la URL no lleva el precio');
+		assert.match(corrida.stderr, new RegExp(`Precio oculto escrito en sus textos[^\\n]*${oculta.id}`));
 		assert.ok(todo.some((f) => path.relative(distT, f).startsWith('vip' + path.sep) && /Por solo precio a consultar/.test(readFileSync(f, 'utf8'))), 'la página VIP cambia el monto por «precio a consultar»');
 	});
 	test('casa de prueba: su ficha abre pero no se indexa ni va al sitemap, llms.txt ni los catálogos', () => {

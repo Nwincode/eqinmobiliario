@@ -177,6 +177,7 @@ export const CODIGOS_PAIS = [
 	['55', 'BR', [10, 11], 11, '300\\d{5}|4(?:00\\d|020|370)\\d{4}|[3589]00\\d{6,7}'], ['972', 'IL', [8, 9], 9, '1\\d{6,11}'],
 	['61', 'AU', [9], 9, '1\\d{3,9}']];
 const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular, especial]) => [c, { largos, celular, especial: especial ? new RegExp(`^(?:${especial})$`) : null }]));
+const TRONCAL_0 = ['44', '49', '33', '31', '61', '972', '54', '55', '57', '56'];
 const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
 const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
 const nacionalBien = (codigo, n) => Boolean(PLAN[codigo]) && (PLAN[codigo].largos.includes(n.length) || Boolean(PLAN[codigo].especial?.test(n)));
@@ -188,8 +189,9 @@ const sinExtension = (t) => String(t || '').trim().replace(/\s*[,;]?\s*(?:ext\.?
 // parte del número y se queda).
 function nacionalDe(codigo, n) {
 	if (nacionalBien(codigo, n)) return n;
-	const prefijo = codigo === '1' || codigo === '52' ? '1' : '0';
-	return n.startsWith(prefijo) && nacionalBien(codigo, n.slice(1)) ? n.slice(1) : n;
+	// El 0 solo en los países donde se marca dentro del país (Reino Unido, Alemania, Francia…); en Centroamérica no.
+	const prefijo = codigo === '1' || codigo === '52' ? '1' : TRONCAL_0.includes(codigo) ? '0' : '';
+	return prefijo && n.startsWith(prefijo) && nacionalBien(codigo, n.slice(1)) ? n.slice(1) : n;
 }
 // El número sin el código, cortado por dígitos («+(502) 5555-1234» → «5555-1234»).
 const sinCodigo = (t, codigo) => t.replace(new RegExp(`^\\+\\D*${codigo.split('').join('\\D*')}`), '').replace(/^[\s).\-/]+/, '').trim();

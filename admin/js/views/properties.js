@@ -11,7 +11,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -94,6 +94,8 @@ export async function traducirEn(d) {
 	return {
 		// Una amenidad por cada una en español: si la traducción trae menos, sale del diccionario (no se pierde ninguna).
 		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: { amenidades: r.amenidades } }),
+		// A qué lista en español corresponde cada una (estados.js `amenidadesEnDe`).
+		amenidadesDe: [...(d.amenidades || [])],
 		seo: {
 			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
 			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
@@ -721,7 +723,7 @@ export async function render(container, [id]) {
 				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
 				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
-					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }),
+					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
 					vacacional: p.en?.vacacional || {},
@@ -1197,7 +1199,7 @@ async function renderEditor(container, id, emb = null) {
 			// Si alguien corrigió el inglés mientras se traducía, manda su corrección.
 			if (textoEn(form.state.en) !== antes) { form.state.en.manual = true; estadoEn.textContent = ''; return; }
 			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
-			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
+			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, amenidadesDe: en.amenidadesDe, fuente: en.fuente, manual: false });
 			enAuto = clonar(form.state.en);
 			estadoEn.textContent = 'Traducción automática lista: revísala.';
 		} catch {
@@ -1275,10 +1277,24 @@ async function renderEditor(container, id, emb = null) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
 		d.estado = estadoDe(d).valor;
+		// «Ocultar precio»: ningún texto (título, URL, descripción, VIP, inglés, Google) puede decir el precio, en ninguna
+		// forma (cifras, «987k», «1.2 millones»). Se dice junto a la casilla, en una línea.
+		const conPrecio = textosConPrecioOculto(d);
+		const avisoPrecio = form.el.querySelector('[data-campo="vipLanding.ocultarPrecio"]');
+		avisoPrecio?.querySelector('.aviso-precio-oculto')?.remove();
+		if (conPrecio.length) {
+			const linea = `Con el precio oculto, quítalo de: ${conPrecio.map(([k]) => k).join(', ')}.`;
+			avisoPrecio?.append(h('div', { class: 'form-text text-danger aviso-precio-oculto', role: 'alert' }, linea));
+			avisoPrecio?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+			return toast(linea, 'warning');
+		}
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
 		// La dirección en inglés sale de su título: si se corrigió a mano, la anterior redirige a la nueva (como en español).
 		if (!isNew && data.en?.titulo && d.en.titulo && slugify(data.en.titulo) !== slugify(d.en.titulo)) d.en.slugsAnteriores = titulosEnAnteriores(data.en, d.en.titulo);
+		// Lista en inglés corregida a mano con una por cada amenidad en español: queda emparejada (amenidadesEnDe).
+		const enAmenCambio = JSON.stringify(d.en.amenidades || []) !== JSON.stringify(data.en?.amenidades || []);
+		if (enAmenCambio && (d.en.amenidades || []).length && d.en.amenidades.length === (d.amenidades || []).length) d.en.amenidadesDe = [...d.amenidades];
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
 		const traducirAhora = forzarIngles || faltaIngles(d);
 		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
