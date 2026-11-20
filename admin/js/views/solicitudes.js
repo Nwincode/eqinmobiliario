@@ -11,7 +11,7 @@ import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, co
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
+	motivoParaNoConfirmar, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
@@ -174,12 +174,13 @@ export async function render(container, [codigo] = []) {
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
-	const alerta = (l) => alertaDe(l, reservaDe(l), casas.find((p) => p.id === l.propertyId));
+	const alerta = (l) => alertaDe(l, reservaDe(l), casaDe(l.propertyId));
 	// Una solicitud sin responder cuyas fechas ya tienen otra reserva confirmada: no se ofrece «Confirmar» (el servidor la
-	// rechazaría igual, V.choquesReserva); se dice por qué y queda «No se dio». Un bloqueo no cuenta: el socio puede
-	// bloquear esos días para guardárselos a este cliente y confirmar después.
-	const yaOcupada = (l) => (casas.find((p) => p.id === l.propertyId)?.vacacional?.reservadas || [])
-		.some((b) => b?.desde < l.reserva.salida && b?.hasta > l.reserva.llegada);
+	// rechazaría igual, V.choquesReserva); se dice por qué y queda «No se dio» de un toque. Un bloqueo no cuenta: el socio
+	// puede bloquear esos días para guardárselos a este cliente y confirmar después. Con las casas y reservas de quien
+	// mira (el socio, las suyas: misCasas y sus reservas).
+	const yaOcupada = (l) => (casaDe(l.propertyId)?.vacacional?.reservadas || []).some((b) => seCruzan(l.reserva, { llegada: b?.desde, salida: b?.hasta }))
+		|| reservas.some((x) => x.propertyId === l.propertyId && x.estado === 'confirmada' && x.id !== l.id && x.codigo !== l.reserva.codigo && seCruzan(l.reserva, x));
 	// Solicitud del socio armada desde su chat: mismo formato que la del administrador, sin datos de contacto.
 	const delChat = (d) => { const c = d.data(); return {
 		id: c.leadId, nombre: c.nombre, propertyId: c.propertyId, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, createdAt: c.createdAt,
@@ -207,6 +208,11 @@ export async function render(container, [codigo] = []) {
 		return leads.find((o) => o !== l && o.propertyId === l.propertyId && abierta(o) && clienteDe(o) === k && antes(o)
 			&& ms(l.createdAt) - ms(o.createdAt) < 7 * 86400000 && cerca(o.reserva, l.reserva))?.reserva?.codigo || null;
 	};
+
+	// Otra solicitud sin responder de la misma casa con alguna de estas noches (no la repetida del mismo cliente: esa
+	// tiene su aviso). Devuelve su código.
+	const seCruzaCon = (l) => leads.find((o) => o !== l && o.propertyId === l.propertyId && estado(o) === 'pendiente' && seCruzan(o.reserva, l.reserva)
+		&& repetidaDe(l) !== o.reserva.codigo && repetidaDe(o) !== l.reserva.codigo)?.reserva?.codigo || '';
 
 	// Precio neto del socio de cada casa: con eso se saca su parte y la comisión.
 	const netos = Object.fromEntries(await Promise.all([...new Set(leads.map((l) => l.propertyId).filter(Boolean))].map(async (id) =>
@@ -302,8 +308,9 @@ export async function render(container, [codigo] = []) {
 		});
 	}
 
-	async function noSeDio(l) {
-		const motivo = await elegirOpcion(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
+	// Con las fechas ya ocupadas el motivo se sabe: un toque.
+	async function noSeDio(l, motivoYa = '') {
+		const motivo = motivoYa || await elegirOpcion(`¿Por qué no se dio ${l.reserva.codigo}?`, MOTIVOS_NO);
 		if (motivo) await hacer(() => noSeDioReserva(l, motivo, chatDe(l)));
 	}
 
@@ -359,8 +366,11 @@ export async function render(container, [codigo] = []) {
 		const est = estado(l);
 		// Una reserva ya confirmada muestra lo que quedó guardado (su comisión), no la cuenta con los precios de hoy.
 		const res = est === 'confirmada' ? reservaDe(l) : null;
+		// Todo en la moneda de la solicitud (la que vio el cliente): si la casa cambió de moneda después, la cuenta con la
+		// casa de hoy saldría en otra y no se muestra (esa solicitud no se confirma: sinConfirmar lo dice).
+		const cHoy = res || sol.comision != null ? null : montosDe(l);
 		const c = res ? { costoSocio: res.costoSocio, ganancia: res.comision?.monto ?? res.ganancia }
-			: sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : montosDe(l);
+			: sol.comision != null ? { costoSocio: sol.costoSocio, ganancia: sol.comision } : cHoy && (cHoy.moneda || 'USD') === (r.moneda || 'USD') ? cHoy : null;
 		// El precio de hoy ya no es el que se le cotizó (solo mientras se puede confirmar).
 		const cambio = est === 'pendiente' && cambioElPrecio(montosDe(l), cuenta(l));
 		const ch = datosChat[r.codigo];
@@ -368,13 +378,13 @@ export async function render(container, [codigo] = []) {
 		const tarde = aviso === 'tarde';
 		const evasion = aviso === 'bloqueada';
 		const ocupada = est === 'pendiente' && yaOcupada(l);
+		// Otra solicitud sin responder con alguna de estas noches (llegó mientras la otra ya no las apartaba, o a la vez).
+		const cruce = est === 'pendiente' && !ocupada && seCruzaCon(l);
 		// Con la llegada ya pasada no se confirma (el servidor la rechazaría igual): queda «No se dio».
 		const pasada = est === 'pendiente' && llegadaPasada(r.llegada);
 		// La casa salió del sitio o cambió de moneda: el servidor no la confirmaría (motivoParaNoConfirmar); se dice por qué.
 		const sinConfirmar = est === 'pendiente' && !pasada && casaDe(l.propertyId) ? motivoParaNoConfirmar(l, casaDe(l.propertyId), congelados[l.id] || null) : '';
-		// Lo del socio y la ganancia, en la moneda en que se guardan (la de la casa).
-		const suCasa = casas.find((p) => p.id === l.propertyId);
-		const mon = res?.moneda || (suCasa ? suCasa.moneda || 'USD' : r.moneda);
+		const mon = res?.moneda || r.moneda || 'USD';
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
@@ -385,6 +395,7 @@ export async function render(container, [codigo] = []) {
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				ocupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
+				cruce ? badge(`Se cruza con otra solicitud: ${cruce}`, 'warning') : null,
 				pasada ? badge('La fecha de llegada ya pasó', 'warning') : null,
 				((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
@@ -409,7 +420,7 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
-				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l), 'close')] : null,
+				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,

@@ -73,12 +73,12 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		// El equipo también se entera de cada solicitud nueva (aparte del socio, sin repetir a quien ya la recibe).
 		const equipo = (correos.equipo || []).filter((c) => c && !deLaCasa.some((d) => d.toLowerCase() === c.toLowerCase()));
 		return [
-			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, 'Nueva solicitud de reserva', 'Respóndela pronto: las fechas quedan apartadas 2 horas.'),
+			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, 'Nueva solicitud de reserva', 'Respóndela pronto: las fechas quedan apartadas hasta que respondas, a lo más 24 horas (después se cierra sola).'),
 			...(equipo.length ? [{ rol: 'equipo', lang: 'es', para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: 'Nueva solicitud de reserva',
 				intro: 'La atiende el socio; si en 2 horas no responde, te llega otro aviso.', boton: 'Abrir la solicitud', url: panel, datos: [['Casa', casaPanel], ...tabla('es'), ['Cliente', String(chat.nombre || '').slice(0, 40)]] }] : []),
 			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? `We received your request${chat.nombre ? `, ${chat.nombre}` : ''}` : `Recibimos tu solicitud${chat.nombre ? `, ${chat.nombre}` : ''}`,
-				en ? `The host of ${tituloDe(chat, casa) || 'the house'} reviews it and replies in your booking chat; your dates are held for 2 hours. Keep this email: the button takes you back to your booking.`
-					: `El anfitrión de ${casaEs || 'la casa'} la revisa y te responde en el chat de tu reserva; tus fechas quedan apartadas 2 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`,
+				en ? `The host of ${tituloDe(chat, casa) || 'the house'} reviews it and replies in your booking chat; your dates are held until the host replies, within 24 hours at most. Keep this email: the button takes you back to your booking.`
+					: `El anfitrión de ${casaEs || 'la casa'} la revisa y te responde en el chat de tu reserva; tus fechas quedan apartadas hasta que te responda, a más tardar en 24 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`,
 				{ pasos: en ? ['The host confirms your dates (you get an email).', 'You pay the owner directly with the details shown in your booking.', 'Once they receive your payment, you see the address and directions.']
 					: ['El anfitrión confirma tus fechas (te llega un correo).', 'Le pagas directo al propietario con los datos que verás en tu reserva.', 'Al recibir tu pago, ves la dirección y cómo llegar.'] })
 		];

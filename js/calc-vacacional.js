@@ -134,7 +134,8 @@
 		var min = Math.max(1, Math.floor(Number(nochesMin) || 1));
 		var ultima = sumarDias(salida, -1);
 		(minimos || []).forEach(function (m) {
-			if (m && m.desde <= ultima && m.hasta >= llegada) min = Math.max(min, Math.floor(Number(m.noches) || 1));
+			// Uno con la fecha final antes de la inicial (dato malo) no vale.
+			if (m && m.desde <= m.hasta && m.desde <= ultima && m.hasta >= llegada) min = Math.max(min, Math.floor(Number(m.noches) || 1));
 		});
 		return min;
 	}
@@ -375,6 +376,20 @@
 		return unirRangos(out);
 	}
 
+	// El calendario de EQ para Airbnb, Booking y VRBO (netlify/functions/calendario.mjs): un evento de día completo por
+	// estancia [desde, hasta), sin nombres ni datos del huésped. `id`: lo que distingue a cada evento (la reserva).
+	// `sello`: AAAAMMDDTHHMMSSZ de ahora. Lo lee parseICal (prueba de ida y vuelta en scripts/test-vacacional.mjs).
+	function aICal(estancias, sello) {
+		var sin = function (f) { return String(f).replace(/-/g, ''); };
+		var lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Equipo Inmobiliario//Reservas//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+		(estancias || []).filter(function (e) { return e && esFecha(e.desde) && esFecha(e.hasta) && e.hasta > e.desde; }).forEach(function (e, i) {
+			lineas.push('BEGIN:VEVENT', 'UID:' + String(e.id || i).replace(/[^A-Za-z0-9_-]/g, '') + '@eqinmobiliario.gt', 'DTSTAMP:' + sello,
+				'DTSTART;VALUE=DATE:' + sin(e.desde), 'DTEND;VALUE=DATE:' + sin(e.hasta), 'SUMMARY:Reservado (EQ)', 'TRANSP:OPAQUE', 'END:VEVENT');
+		});
+		lineas.push('END:VCALENDAR');
+		return lineas.join('\r\n') + '\r\n';
+	}
+
 	// Comisión de una reserva confirmada: el socio la paga a EQ el día de llegada (hora de Guatemala, UTC−6).
 	// 0 al día (o nada que cobrar) · 1 vencida · 2 más de 24 h (sus clientes escriben a EQ) · 3 más de 72 h (sus casas salen del sitio).
 	// Horas que lleva vencida la comisión de una reserva (desde el fin del día de llegada); null si no hay nada que cobrar.
@@ -427,7 +442,7 @@
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,
 		nochesOcupadas: nochesOcupadas, minimoNoches: minimoNoches, quitarRango: quitarRango, liberarNoches: liberarNoches, validarEstancia: validarEstancia, salidaMaxima: salidaMaxima,
-		parseICal: parseICal,
+		parseICal: parseICal, aICal: aICal,
 		pascua: pascua, semanaSanta: semanaSanta, tocaSemanaSanta: tocaSemanaSanta, repetirRango: repetirRango,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,

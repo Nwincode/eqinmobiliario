@@ -21,6 +21,10 @@ import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
 import { puede } from '../permisos-socio.js';
 import { amenidadesPara } from '../estados.js';
+import { apartaFechas } from '../reservas-calculo.js';
+import { alDiaEnLaWeb, ocupacionDe } from '../reservas.js';
+import { ms } from '../crm.js';
+import { campoCalendarioEq } from '../calendario-eq.js';
 
 const V = window.EQVacacional;
 // Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
@@ -150,10 +154,13 @@ async function casa(container, id) {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
 		huespedes: huespedesMaxDe(v.huespedesMax), mes: hoy().slice(0, 7), desde: '', hasta: '', pide: '',
-		// Solicitudes de la web que todavía no respondió.
-		pedidas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && !c.estado)
-			.map((c) => ({ desde: c.llegada, hasta: c.salida }))
+		// Solicitudes de la web que apartan sus fechas (sin responder y dentro de sus 24 h: la misma regla de la página).
+		pedidas: sLeads.docs.map((d) => d.data()).filter((c) => c.propertyId === id && c.llegada && apartaFechas(c.estado, '', ms(c.createdAt)))
+			.map((c) => ({ desde: c.llegada, hasta: c.salida, codigo: c.codigo })),
+		// Noches tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos por /api/disponibilidad): llegan después.
+		externas: []
 	};
+	ocupacionDe(id).then((o) => { if (o?.externas?.length) { e.externas = o.externas; calendario(); } });
 	const plan = () => ({ base: e.base, finde: e.finde, tarifas: e.tarifas });
 	const publico = (n) => plata(V.nochePublica(n, s.margen));
 
@@ -205,6 +212,7 @@ async function casa(container, id) {
 			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
 			s.margen = r.margen;
 			markPending(`${p.titulo}: ${descripcion}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
+			alDiaEnLaWeb(id);
 			toast('Guardado.');
 			return true;
 		} catch (err) {
@@ -281,9 +289,11 @@ async function casa(container, id) {
 		if (!puedePrecios && !puedeFechas) return h('p', { class: 'vac-ayuda mb-0' }, ic('icon-lock'), 'Las fechas y los precios están en pausa.');
 		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, `Toca un día (y otro para marcar varios) para ${[puedeFechas ? 'bloquear, habilitar' : '', puedePrecios ? 'cambiar el precio' : ''].filter(Boolean).join(' o ')}.`);
 		const cerrar = iconoBtn('icon-close', 'Cancelar', { onclick: () => { e.pide = ''; calendario(); } });
-		// Bloquear pide el motivo: un toque.
+		// Bloquear pide el motivo: un toque. Si una solicitud sin responder pidió esos días, se dice (sigue esperando respuesta).
+		const pedida = e.pide === 'motivo' && e.pedidas.find((x) => x.desde <= e.hasta && x.hasta > e.desde);
 		if (e.pide === 'motivo') return h('div', { class: 'mc-barra' },
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
+			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
 			h('div', { class: 'd-flex flex-wrap gap-2' },
 				['Otra reserva', 'Mantenimiento', 'Uso propio'].map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
 				cerrar));
@@ -342,7 +352,8 @@ async function casa(container, id) {
 			const pasado = f < hoy();
 			const reservada = enRango(f, e.reservadas);
 			const bloqueado = enRango(f, e.bloqueos);
-			const estado = reservada ? 'reservado' : bloqueado ? 'bloqueado' : '';
+			const externa = !reservada && !bloqueado && enRango(f, e.externas);
+			const estado = reservada ? 'reservado' : bloqueado ? 'bloqueado' : externa ? 'reservado en otra plataforma' : '';
 			const pedida = !estado && enRango(f, e.pedidas);
 			const clases = ['vac-dia', f === hoy() && 'is-hoy', estado && 'is-ocupado',
 				e.desde && f === e.desde && 'is-llegada', e.desde && f === e.hasta && 'is-salida', f > e.desde && f < e.hasta && 'is-rango'].filter(Boolean).join(' ');
@@ -351,7 +362,7 @@ async function casa(container, id) {
 				'aria-label': `${dia(f)}${estado ? `, ${estado}` : pedida ? ', solicitado' : ''}`, onclick: pasado ? null : () => tocar(f)
 			},
 			h('span', { class: 'vac-dia-num' }, Number(f.slice(8))),
-			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
+			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : externa ? 'icon-globe' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
 				: h('span', { class: 'vac-dia-precio' }, enCelda(V.precioNoche(f, plan())))));
 		};
 		const semanas = [];
@@ -365,7 +376,9 @@ async function casa(container, id) {
 				h('thead', {}, h('tr', {}, ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d) => h('th', { scope: 'col' }, d)))),
 				h('tbody', {}, semanas)),
 			h('p', { class: 'small text-muted my-2' },
-				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ', h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin el margen de EQ.'),
+				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ',
+				e.externas.length ? [h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Airbnb, Booking o VRBO  ·  '] : null,
+				h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin el margen de EQ.'),
 			barra());
 	}
 
@@ -464,7 +477,7 @@ const pestanas = (id, activa) => h('ul', { class: 'nav nav-tabs mb-3' },
 
 // Lo que el dueño cambia él solo (admin/js/mi-casa.js); el formulario es el mismo de la ficha (renderForm).
 const SI_NO = [['', 'Sin indicar'], ['si', 'Se aceptan'], ['no', 'No se aceptan']];
-const esquemaCasa = () => [
+const esquemaCasa = (id) => [
 	{ type: 'section', label: 'Fotos', help: 'La primera es la portada. Arrastra para ordenar.' },
 	{ name: 'fotos', label: 'Fotos', type: 'images', marca: true, marcaFija: true },
 	{ type: 'section', label: 'Lo que lee el huésped', help: 'Sin enlaces, correos ni teléfonos: el huésped recibe tu contacto al confirmar.' },
@@ -489,6 +502,7 @@ const esquemaCasa = () => [
 	{ name: 'mapa', label: 'Mapa', cols: 6, placeholder: 'Enlace de Google Maps', help: 'En Google Maps: Compartir → Copiar vínculo.' },
 	{ type: 'section', label: 'Tus calendarios', help: 'Pega el enlace iCal de cada plataforma: las fechas ocupadas allá se bloquean solas aquí.' },
 	...V.CALENDARIOS.map((x) => ({ name: x.campo, label: x.nombre, type: 'url', cols: 4, placeholder: 'https://….ics' })),
+	campoCalendarioEq(id),
 	{ type: 'section', label: 'En la página' },
 	{ name: 'estado', label: 'Mostrar la casa', type: 'select', options: [['disponible', 'Sí, se puede reservar'], ['pausada', 'No, pausada (no sale en la página)']], cols: 6,
 		help: 'Con huéspedes por venir no se puede pausar: bloquea los días en el calendario.' }
@@ -504,7 +518,7 @@ async function laCasa(container, id) {
 	const puedeCasa = puede(perm, 'casa');
 	let p = sCasa.data();
 	let base = valoresDueno({ casa: p, socio, llegada });
-	const form = renderForm(esquemaCasa(), base, { folder: `properties/${id}` });
+	const form = renderForm(esquemaCasa(id), base, { folder: `properties/${id}` });
 	const boton = h('button', { type: 'submit', class: 'btn btn-primary', disabled: !puedeCasa }, 'Guardar');
 	const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 	const guardar = async (ev) => {

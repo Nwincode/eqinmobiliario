@@ -314,6 +314,14 @@
 			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador);
 			//  - las reglas de la base todavía no aceptan «propietarioId»: va sin él.
 			// Solo si las reglas lo rechazan (403): un corte de red no la manda a otro asesor ni la guarda dos veces.
+			// Reserva: las fechas se revisan otra vez al día justo antes de guardar (otra persona pudo pedirlas con esta
+			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
+			var libres = reserva && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true);
+			libres.then(function (ok) {
+				if (!ok) { button.disabled = false; return; }
+				guardar();
+			});
+			function guardar() {
 			saveLead(lead).catch(function (err) {
 				if (!lead.propertyId || !lead.agentId || err.message !== 'HTTP 403') throw err;
 				lead.agentId = '';
@@ -331,6 +339,7 @@
 					done(token);
 				});
 			}, fail).then(function () { button.disabled = false; });
+			}
 		});
 	});
 

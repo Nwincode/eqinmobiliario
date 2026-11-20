@@ -6,6 +6,7 @@ import {
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion } from '../ui.js';
 import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
+import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
@@ -883,7 +884,7 @@ export async function render(container, [id]) {
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 
-function schema(agentOpts, isNew, socioOpts, ajeno = false) {
+function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
@@ -961,6 +962,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
+		// Y al revés: lo que reservan los clientes de EQ, para que esas plataformas lo bloqueen.
+		campoCalendarioEq(casaId, { when: esVacacional }),
 		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, help: 'Ejemplo: primera 24 y última 26 = ocupadas las noches del 24, 25 y 26. El 24 en la mañana todavía puede salir el huésped anterior (en la página dice «Solo salida») y el 27 ya se puede llegar.', fields: [
 			{ name: 'desde', label: 'Primera noche ocupada', type: 'date', cols: 6 },
 			{ name: 'ultima', label: 'Última noche ocupada (incluida)', type: 'date', cols: 6 }
@@ -1118,7 +1121,7 @@ async function renderEditor(container, id, emb = null) {
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
-	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {

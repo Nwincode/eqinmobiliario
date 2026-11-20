@@ -1220,7 +1220,7 @@ function datosVacacional(p) {
 		},
 		nochesMin: Math.max(1, Math.round(num(v.nochesMin, 1)) || 1),
 		// Mínimos de noches por fechas (Navidad, Semana Santa…): los pone el socio o el equipo.
-		minimos: (v.minimos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), noches: Math.round(num(x.noches)) })).filter((x) => x.desde && x.hasta && x.noches > 1),
+		minimos: (v.minimos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), noches: Math.round(num(x.noches)) })).filter((x) => x.desde && x.hasta && x.desde <= x.hasta && x.noches > 1),
 		huespedesMax: Math.max(1, Math.round(num(v.huespedesMax, 2)) || 1),
 		limpieza: num(v.limpieza),
 		deposito: num(v.deposito),

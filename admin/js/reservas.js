@@ -19,7 +19,7 @@ import {
 import { session, markPending } from './session.js';
 import { dia } from './ui.js';
 
-import { deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
+import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -29,6 +29,25 @@ export const refContacto = (propertyId, id) => doc(db, 'properties', propertyId,
 
 // Aviso por correo a quien le toca leer el chat (lo decide el servidor con lo guardado). Si falla, lo escrito ya quedó.
 export const avisarChat = (id) => { fetch('/api/aviso-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: id }) }).catch(() => {}); };
+
+// Lo que el panel cambió en las fechas de una casa (reserva, bloqueo, solicitud respondida, la ficha): la página lo
+// muestra en seguida (/api/disponibilidad borra su copia del CDN; sin esto, en 30 s). Si falla, lo escrito ya quedó.
+export async function alDiaEnLaWeb(...ids) {
+	const casas = [...new Set(ids.filter(Boolean))];
+	if (!casas.length || !session.user) return;
+	try {
+		const token = await session.user.getIdToken();
+		await fetch('/api/disponibilidad', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: casas }) });
+	} catch { /* sin red: el CDN la olvida solo */ }
+}
+// Lo que ocupa una casa ahora, como lo ve la página (sin la copia del CDN): { ocupadas, externas (Airbnb, Booking, VRBO),
+// apartadas (solicitudes que apartan sus fechas) }. null si no responde (la casa sin publicar da 404).
+export async function ocupacionDe(propertyId) {
+	try {
+		const r = await fetch(`/api/disponibilidad?fresco=1&id=${encodeURIComponent(propertyId)}`, { headers: { Accept: 'application/json' } });
+		return r.ok ? await r.json() : null;
+	} catch { return null; }
+}
 
 // Lo que cambia en la solicitud al responderla, con su renglón de historial (el socio solo toca `solicitud`).
 export const respuesta = (nuevo, que, extra = {}) => ({
@@ -84,6 +103,7 @@ async function cambiar({ antes = null, despues = null, escribir, ademas, revisar
 		escribir(tx, ref);
 		if (ademas) ademas(tx);
 	});
+	await alDiaEnLaWeb(...pids);
 }
 
 // ------------------------------------------------------------ A mano (Rentas vacacionales)
@@ -231,6 +251,9 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// Lo mismo que revisa el servidor por el socio: llegada pasada, casa fuera del sitio o con otra moneda.
 	const no = motivoParaNoConfirmar(l, p, montos?.moneda ? montos : null);
 	if (no) throw Object.assign(new Error(no), { servidor: 409 });
+	// Noches ya tomadas en Airbnb, Booking o VRBO (lo mismo que revisa el servidor por el socio).
+	const enOtra = choqueExterno(r, (await ocupacionDe(l.propertyId))?.externas?.map((x) => ({ ...x, fuente: 'Airbnb, Booking o VRBO' })));
+	if (enOtra) throw Object.assign(new Error(enOtra), { servidor: 409 });
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
 	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '' });
@@ -282,6 +305,7 @@ export const noSeDio = conCaminoDeAntes(async function noSeDio(l, motivo, chat =
 		if (chat) cerrarChat(tx, chat, 'no', textoNo(motivo));
 	});
 	if (chat) avisarChat(chat.ref.id);
+	await alDiaEnLaWeb(l.propertyId);
 });
 
 // Cancela una reserva, venga de Rentas o de Solicitudes: sus fechas quedan libres y, si vino de la web, la

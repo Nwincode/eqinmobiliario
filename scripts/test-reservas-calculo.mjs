@@ -4,7 +4,7 @@
 // con este módulo dan lo mismo que daba el panel antes de moverlo.
 import assert from 'node:assert/strict';
 import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, plazoDePago, guardarVence, cancelaSola, montosCotizados, cambioElPrecio, motivoParaNoConfirmar,
-	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada } from '../admin/js/reservas-calculo.js';
+	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
@@ -231,6 +231,49 @@ test('plazo de pago guardado: el nuevo de «No me llegó» manda; 0 = sin plazo 
 	assert.equal(cancelaSola(vence, '2026-11-23', Date.parse('2026-11-25T12:00:00Z')), false);
 	assert.equal(cancelaSola(vence, '2026-11-23', vence - 1), false);
 	assert.equal(cancelaSola(Infinity, '2026-11-23', Date.parse('2026-11-23T12:00:00Z')), false);
+});
+
+test('una solicitud aparta sus fechas mientras nadie la responde, hasta sus 24 h (la de antes de los plazos, no)', () => {
+	const creada = PLAZOS_DESDE + 86400000;
+	assert.equal(apartaFechas('', undefined, creada, creada + 1), true);
+	assert.equal(apartaFechas('', 'pendiente', creada, venceRespuesta(creada) - 1), true);
+	assert.equal(apartaFechas('', '', creada, venceRespuesta(creada)), false);
+	assert.equal(apartaFechas('confirmada', '', creada, creada + 1), false);
+	assert.equal(apartaFechas('', 'no', creada, creada + 1), false);
+	assert.equal(apartaFechas('', '', PLAZOS_DESDE - 1, PLAZOS_DESDE), false);
+});
+
+test('la que llega encima de otra que aparta esas fechas se cierra; la anterior manda, la repetida no cuenta', () => {
+	const t = PLAZOS_DESDE + 86400000;
+	const a = { id: 'a', propertyId: 'c', createdAt: t, email: 'x@example.com', reserva: { codigo: 'EQ-A', llegada: '2027-01-10', salida: '2027-01-13' } };
+	const b = { id: 'b', propertyId: 'c', createdAt: t + 1000, email: 'y@example.com', reserva: { codigo: 'EQ-B', llegada: '2027-01-12', salida: '2027-01-14' } };
+	assert.equal(apartadaPor(b, [a, b], [], t + 2000), 'EQ-A');
+	assert.equal(apartadaPor(a, [a, b], [], t + 2000), '');
+	// Misma hora: manda la de id menor (a la vez, solo una queda).
+	assert.equal(apartadaPor({ ...b, createdAt: t }, [a, { ...b, createdAt: t }], [], t + 1), 'EQ-A');
+	// La anterior ya no aparta (respondida o vencida): la nueva sigue.
+	assert.equal(apartadaPor(b, [{ ...a, solicitud: { estado: 'no' } }], [], t + 2000), '');
+	assert.equal(apartadaPor(b, [a], [], venceRespuesta(t) + 1), '');
+	// Salida el día de la llegada: no se cruzan.
+	assert.equal(apartadaPor({ ...b, reserva: { ...b.reserva, llegada: '2027-01-13', salida: '2027-01-15' } }, [a], [], t + 2000), '');
+	// El mismo cliente y las mismas fechas: es repetida, no se cierra por esto.
+	assert.equal(apartadaPor({ ...a, id: 'z', createdAt: t + 5 }, [a], [], t + 10), '');
+	// Encima de una reserva confirmada.
+	assert.equal(apartadaPor(b, [], [{ id: 'r', propertyId: 'c', estado: 'confirmada', llegada: '2027-01-13', salida: '2027-01-15', codigo: 'EQ-R' }], t), 'EQ-R');
+	assert.equal(apartadaPor(b, [], [{ id: 'r', propertyId: 'c', estado: 'cancelada', llegada: '2027-01-13', salida: '2027-01-15' }], t), '');
+});
+
+test('confirmar encima de noches de Airbnb, Booking o VRBO: el motivo en una línea', () => {
+	const r = { llegada: '2027-02-01', salida: '2027-02-04' };
+	assert.match(choqueExterno(r, [{ desde: '2027-02-03', hasta: '2027-02-05', fuente: 'Airbnb' }]), /ocupadas en Airbnb/);
+	assert.equal(choqueExterno(r, [{ desde: '2027-02-04', hasta: '2027-02-06', fuente: 'Airbnb' }]), '');
+	assert.equal(choqueExterno(r, []), '');
+	assert.equal(seCruzan(r, { llegada: '2027-01-30', salida: '2027-02-01' }), false);
+});
+
+test('una reserva a mano es confirmada o cancelada: «pendiente» (de antes) se guarda confirmada solo si se elige', () => {
+	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', estado: 'pendiente' }).estado, 'confirmada');
+	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', estado: 'cancelada' }).estado, 'cancelada');
 });
 
 console.log(`Reservas (cuentas): ${ok} pruebas bien.`);

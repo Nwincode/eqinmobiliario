@@ -2,10 +2,12 @@
 // netlify/lib/firestore-escritura.mjs). Las usan netlify/functions/reservas.mjs (lo que hace el socio) y
 // netlify/functions/plazos-reservas.mjs (lo que vence solo: la solicitud sin respuesta y la reserva sin pago).
 import '../../js/calc-vacacional.js';
-import { idNuevo } from './firestore-escritura.mjs';
-import { montosCotizados, yaRespondida, esDuplicada, textoDuplicada, MOTIVO_DUPLICADA } from '../../admin/js/reservas-calculo.js';
+import { idNuevo, marcarPorPublicar, transaccion } from './firestore-escritura.mjs';
+import { purgarCasa } from './ocupacion.mjs';
+import { montosCotizados, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
+const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 
 // Una respuesta con su código HTTP (la función la devuelve tal cual).
 export class Respuesta extends Error { constructor(status, error) { super(error); this.status = status; } }
@@ -18,6 +20,34 @@ export async function fechasDeLaCasa(tx, casa, antes, despues) {
 	const c = V.cambioDeReserva({ guardadas, reservas, antes, despues, propertyId: casa.id, completas: true });
 	if (c.choque) falla(422, `Esas fechas chocan con otra reserva confirmada: ${c.choque.llegada} – ${c.choque.salida}.`);
 	if (JSON.stringify(c.reservadas) !== JSON.stringify(V.unirRangos(guardadas))) tx.cambiar(`properties/${casa.id}`, { 'vacacional.reservadas': c.reservadas }, { ahora: ['updatedAt'] });
+}
+
+// Después de un cambio de fechas que escribió el servidor (reservas.mjs, el cron de plazos): su copia del CDN se borra
+// y la página publicada (que lleva las fechas por si /api/disponibilidad no responde) queda «por publicar». Fuera de la
+// transacción del cambio: meta/publish es uno para todo el sitio y meterlo ahí haría chocar confirmaciones de casas
+// distintas. Si falla, el cambio ya quedó.
+export async function fechasCambiaron(casa, desc) {
+	await purgarCasa(casa);
+	await transaccion((tx) => marcarPorPublicar(tx, desc, 'Reservas')).catch((err) => console.error('Por publicar:', err.message));
+}
+
+// Una solicitud que llegó encima de otra que aparta esas fechas (o de una reserva confirmada) se cierra sola con
+// «Fechas ya apartadas» y el cliente lo lee en su chat (apartadaPor en admin/js/reservas-calculo.js: la anterior
+// manda). Las reglas no pueden mirar otras solicitudes; esto lo cumple el servidor al llegar la solicitud
+// (/api/aviso-chat) y, si ese aviso no llegó, el cron de plazos. Devuelve el token del chat si la cerró.
+export async function cerrarSiSeCruza(tx, leadId, ahora = Date.now()) {
+	const lead = await tx.leer(`leads/${leadId}`);
+	if (!lead?.reserva?.codigo || !lead.propertyId || yaRespondida('', lead.solicitud?.estado)) return null;
+	const conMs = (l) => ({ ...l, createdAt: ms(l.createdAt) });
+	const [otras, reservas] = await Promise.all([tx.consultar('leads', 'propertyId', lead.propertyId), tx.consultar('reservas', 'propertyId', lead.propertyId)]);
+	const por = apartadaPor(conMs({ ...lead, id: leadId }), otras.filter((o) => o.reserva?.llegada).map(conMs), reservas, ahora);
+	if (!por) return null;
+	const c = await chatDe(tx.leer, leadId);
+	if (!c || yaRespondida(c.chat.estado, '')) return null;
+	responder(tx, SISTEMA_APARTADAS, leadId, 'no', `Esas fechas ya estaban apartadas por ${por}: se cerró sola`, { 'solicitud.motivo': MOTIVO_FECHAS_APARTADAS });
+	const id = mensaje(tx, c.token, { texto: TEXTO_FECHAS_APARTADAS }, 'equipo');
+	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
+	return c.token;
 }
 
 // Lo que cambia en la solicitud al responderla, con su renglón de historial (lo mismo que `respuesta` en reservas.js).
@@ -36,6 +66,7 @@ export function mensaje(tx, token, datos, de = 'socio') {
 }
 export const pendiente = (id) => ({ avisoPendiente: id });
 export const SISTEMA = { uid: 'sistema', nombre: 'Plazo vencido' };
+const SISTEMA_APARTADAS = { uid: 'sistema', nombre: 'Fechas apartadas' };
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 
 // El chat de una solicitud por su índice (el servidor no adivina cuál es).

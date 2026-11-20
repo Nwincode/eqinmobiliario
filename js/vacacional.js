@@ -503,8 +503,32 @@
 		}
 		ponerDesde(D.plan);
 
-		// Disponibilidad al día (iCal del socio y reservas confirmadas); si falla, quedan los bloqueos publicados.
+		// Disponibilidad al día (iCal del socio, reservas confirmadas y solicitudes que apartan sus fechas); si falla,
+		// quedan los bloqueos publicados. Con la respuesta, solo ella: una reserva cancelada después de publicar ya no
+		// ocupa (la API trae también los bloqueos y las reservas de la casa).
 		var id = card.getAttribute('data-id');
+		function alDia(res) { ocupadas = V.nochesOcupadas(res.ocupadas); }
+		// Justo antes de enviar, otra vez y sin la copia del CDN: alguien pudo pedir esas fechas con esta página abierta.
+		// Si ya no están libres, no se envía y se dice; si no responde, se envía (el servidor cierra la que llega encima).
+		if (form) form.eqRevisar = function () {
+			if (!id || !window.fetch) return Promise.resolve(true);
+			return fetch('/api/disponibilidad?fresco=1&id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (res) {
+					if (!res || !res.ocupadas) return true;
+					alDia(res);
+					if (V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) return true;
+					estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; estado.nota = t.vacFechasYaNo;
+					pintar(false);
+					actualizar();
+					// Se marca como cualquier fecha que falta (el calendario a la vista), con el porqué.
+					form.eqReserva();
+					var box = statusBox();
+					if (box) box.textContent = t.vacFechasYaNo;
+					ayuda.textContent = t.vacFechasYaNo;
+					return false;
+				}, function () { return true; });
+		};
 		if (id && window.fetch) {
 			fetch('/api/disponibilidad?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
 				.then(function (r) { return r.ok ? r.json() : null; })
@@ -520,7 +544,7 @@
 						Array.prototype.slice.call(selHuespedes.options).forEach(function (o) { if (+o.value > res.huespedesMax) o.remove(); });
 						if (+selHuespedes.value > res.huespedesMax) selHuespedes.value = '';
 					}
-					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
+					alDia(res);
 					var antes = estado.llegada + estado.salida;
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }
 					else if (estado.salida && !V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) { estado.salida = ''; estado.campo = 'salida'; }
@@ -601,7 +625,9 @@
 			cols.forEach(function (col, i) {
 				var d = datos[i], vivo = vivos[i] || {};
 				var plan = vivo.plan && vivo.plan.base > 0 ? vivo.plan : d.plan;
-				var ocupadas = V.nochesOcupadas((d.bloqueos || []).concat(vivo.ocupadas || []));
+				// Con la respuesta al día, solo ella (ya trae bloqueos y reservas; una cancelada después de publicar queda libre);
+				// sin ella, lo publicado.
+				var ocupadas = V.nochesOcupadas(vivo.ocupadas || d.bloqueos || []);
 				var ok = !vivo.pausada && q.huespedes <= (vivo.huespedesMax || d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;

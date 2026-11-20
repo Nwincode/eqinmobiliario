@@ -13,8 +13,9 @@
 import '../../js/calc-vacacional.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
-import { transaccion, escrituraConfigurada, idNuevo } from '../lib/firestore-escritura.mjs';
+import { transaccion, escrituraConfigurada, idNuevo, marcarPorPublicar } from '../lib/firestore-escritura.mjs';
 import { desde } from '../lib/firestore.mjs';
+import { purgarCasa } from '../lib/ocupacion.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { revisarCambiosDueno, valoresDueno, paraDeshacer, CAMPOS_CON_INGLES } from '../../admin/js/mi-casa.js';
 import { historialCon } from '../../admin/js/cambios-casa.js';
@@ -49,12 +50,6 @@ function escribirEn(tx, id, docs, escribir, extraCasa = {}) {
 		if (docs[donde]) tx.cambiar(`properties/${id}/${ruta}`, campos, { ahora: ['updatedAt'] });
 		else tx.crear(`properties/${id}/${ruta}`, campos, { ahora: ['updatedAt'] });
 	}
-}
-
-async function marcarPorPublicar(tx, desc, por) {
-	const datos = { pendiente: true, ultimoCambioDesc: desc.slice(0, 200), ultimoCambioPor: por };
-	if (await tx.leer('meta/publish')) tx.cambiar('meta/publish', datos, { ahora: ['ultimoCambio'] });
-	else tx.crear('meta/publish', datos, { ahora: ['ultimoCambio'] });
 }
 
 async function guardarDelDueno(tx, socio, id, pedido) {
@@ -142,7 +137,10 @@ export default async (req) => {
 			const id = String(cuerpo?.casa || '');
 			const pedido = cuerpo?.cambios;
 			if (!ID.test(id) || !pedido || typeof pedido !== 'object' || Array.isArray(pedido)) return json(400, { error: 'Solicitud inválida' });
-			return json(200, { ok: true, ...(await transaccion((tx) => guardarDelDueno(tx, socio, id, pedido))) });
+			const hecho = await transaccion((tx) => guardarDelDueno(tx, socio, id, pedido));
+			// Pausar o cambiar un calendario cambia lo que responde /api/disponibilidad: su copia del CDN se borra.
+			await purgarCasa(id);
+			return json(200, { ok: true, ...hecho });
 		}
 		const avisoId = String(cuerpo?.id || '');
 		if (!ID.test(avisoId)) return json(400, { error: 'Solicitud inválida' });

@@ -5,6 +5,7 @@
 //    salvo que esté conversando con el cliente (escribió en el chat en las últimas 12 h);
 //  - la solicitud abierta de una casa que salió del sitio se cierra («La casa ya no está disponible»);
 //  - la solicitud repetida (mismo correo, casa y fechas) de una que ya se confirmó se cierra como «Duplicada», sin correo;
+//  - la solicitud que llegó encima de otra que aparta esas fechas se cierra («Fechas ya apartadas»; cerrarSiSeCruza);
 //  - la solicitud que todavía no tiene sus montos congelados (no llegó su /api/aviso-chat) los recibe;
 //  - la reserva confirmada sin pago ni comprobante: 24 h antes de vencer, un recordatorio en el chat; al vencer (48 h, o
 //    las 23:00 de la víspera de la llegada) se cancela sola y las fechas quedan libres. Si una vuelta no corrió a
@@ -17,9 +18,10 @@
 import '../../js/calc-vacacional.js';
 import { datosConfigurados, desde, listar, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { fechasDeLaCasa, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, SISTEMA } from '../lib/reservas-servidor.mjs';
+import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, SISTEMA } from '../lib/reservas-servidor.mjs';
+import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
-import { yaRespondida, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
+import { yaRespondida, seCruzan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
 	MOTIVO_CASA_NO_DISPONIBLE, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
 
@@ -50,7 +52,7 @@ async function cerrarSinRespuesta(leadId, ahora, { casaFuera = false } = {}) {
 		responder(tx, SISTEMA, leadId, 'no', que, { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, c.token, { texto, plazo: true }, 'equipo');
 		tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
-		return c.token;
+		return { token: c.token, casa: lead.propertyId };
 	});
 }
 
@@ -74,7 +76,7 @@ async function cobrarOCancelar(reservaId, ahora) {
 			responder(tx, SISTEMA, reserva.leadId, 'cancelada', 'Sin pago a tiempo: se canceló sola', { 'solicitud.motivo': MOTIVO_SIN_PAGO });
 			const id = mensaje(tx, reserva.chat, { texto: TEXTO_SIN_PAGO, plazo: true }, 'equipo');
 			tx.cambiar(`chats/${reserva.chat}`, { estado: 'cancelada', ...pendiente(id) });
-			return reserva.chat;
+			return { token: reserva.chat, casa: reserva.propertyId, reserva: true };
 		}
 		if (ahora >= recordarPagoDesde(base, vence) && !chat.recordatorioPago) {
 			const en = chat.idioma === 'en';
@@ -83,7 +85,7 @@ async function cobrarOCancelar(reservaId, ahora) {
 				: `Recuerda: si tu pago no llega antes del ${fechaHora(vence, false)}, la reserva se cancela sola y las fechas quedan libres. ¿Ya pagaste? Adjunta tu comprobante con el botón de la cámara.`;
 			const id = mensaje(tx, reserva.chat, { tipo: 'recordatorio', texto }, 'equipo');
 			tx.cambiar(`chats/${reserva.chat}`, { recordatorioPago: true, ...pendiente(id) });
-			return reserva.chat;
+			return { token: reserva.chat };
 		}
 		return null;
 	});
@@ -94,9 +96,12 @@ export default async () => {
 	const ahora = Date.now();
 	const inicio = Date.now();
 	// Cada cambio, con su correo en seguida (si la vuelta se corta, el aviso queda pendiente en el chat).
+	// Lo que liberó o apartó fechas borra la copia de /api/disponibilidad de su casa en el CDN.
 	const uno = async (p, que) => {
 		try {
-			const t = await p;
+			const hecho = await p;
+			const t = typeof hecho === 'string' ? hecho : hecho?.token;
+			if (hecho?.casa) await (hecho.reserva ? fechasCambiaron(hecho.casa, 'Reserva sin pago a tiempo: se canceló sola') : purgarCasa(hecho.casa));
 			if (t) await enviarAvisosChat(t).catch((err) => console.error('Plazos (correo):', err.message));
 		} catch (err) { console.error(`Plazos (${que}):`, err.message); }
 	};
@@ -116,6 +121,12 @@ export default async () => {
 		for (const l of abiertas.filter((x) => !congeladas.has(x.id))) {
 			if (!queda()) return;
 			await transaccion((tx) => congelarMontos(tx, l.id)).catch((err) => console.error('Plazos (montos):', err.message));
+		}
+		// Las que llegaron encima de otra que aparta esas fechas y no se cerraron al llegar (su /api/aviso-chat no llegó).
+		const cruzadas = abiertas.filter((l) => abiertas.some((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)));
+		for (const l of cruzadas) {
+			if (!queda()) return;
+			await uno(transaccion(async (tx) => { const t = await cerrarSiSeCruza(tx, l.id, ahora); return t && { token: t, casa: l.propertyId }; }), 'cruzada');
 		}
 		// Abiertas de una casa que salió del sitio.
 		const casas = new Map();

@@ -94,3 +94,19 @@ export async function desde(coleccion, campo, fecha) {
 	if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
 	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
 }
+
+// Documentos de una colección interna con `campo` == `valor` (hasta 1,000).
+export async function donde(coleccion, campo, valor) {
+	const token = await googleToken(SCOPE_DATOS);
+	const res = await fetch(`${BASE}:runQuery`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ structuredQuery: {
+			from: [{ collectionId: coleccion }],
+			where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: { stringValue: String(valor) } } },
+			limit: 1000
+		} })
+	});
+	if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
+	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
+}

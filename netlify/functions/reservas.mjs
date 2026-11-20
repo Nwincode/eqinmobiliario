@@ -15,15 +15,30 @@
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
-import { Respuesta, falla, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
+import { Respuesta, falla, fechasCambiaron, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
-import { reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
+import { leerPrivado } from '../lib/firestore.mjs';
+import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
+import { choqueExterno, reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, TEXTO_NO_LLEGO, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
+
+// Las noches de Airbnb, Booking y VRBO de la casa de la solicitud, leídas con la cuenta de lectura fuera de la
+// transacción (los calendarios tardan). Un calendario que no responde no frena la confirmación (igual que la página).
+async function nochesExternas(leadId) {
+	try {
+		const lead = await leerPrivado(`leads/${leadId}`);
+		if (!ID.test(lead?.propertyId || '')) return [];
+		return (await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`))).rangos;
+	} catch (err) {
+		console.error('Reservas: calendarios de las plataformas', err.message);
+		return [];
+	}
+}
 
 const YA = 'Esta solicitud ya se respondió (otra persona u otra pestaña). Recarga la página.';
 
@@ -46,9 +61,12 @@ const ACCIONES = {
 	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat
 	// dicen «confirmada» y el cliente recibe los datos de pago de la ficha del socio. Los montos son los congelados al
 	// llegar la solicitud (montosSolicitud): lo que se le cotizó al cliente, nunca los precios de hoy ni lo que mande el panel.
-	async confirmar(tx, socio, leadId) {
+	async confirmar(tx, socio, leadId, _motivo, externas = []) {
 		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado) || await tx.leer(`reservas/${leadId}`)) falla(409, YA);
+		// Noches ya tomadas en Airbnb, Booking o VRBO (sus calendarios, leídos antes de la transacción): no se confirma encima.
+		const enOtra = choqueExterno(lead.reserva, externas);
+		if (enOtra) falla(409, enOtra);
 		const montos = await congelarMontos(tx, leadId, { lead, casa });
 		// La llegada ya pasó, la casa salió del sitio o cambió de moneda: no se confirma (se cierra con «No se dio»).
 		const no = motivoParaNoConfirmar(lead, casa, montos);
@@ -64,7 +82,7 @@ const ACCIONES = {
 		const id = mensaje(tx, token, { tipo: 'pago', texto: pago });
 		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) });
 		await cerrarDuplicadas(tx, lead, leadId);
-		return { token, costoSocio: datos.costoSocio, ganancia: datos.ganancia, moneda: datos.moneda };
+		return { token, casa: casa.id, costoSocio: datos.costoSocio, ganancia: datos.ganancia, moneda: datos.moneda };
 	},
 	// No se dio: la solicitud y el chat lo dicen y el cliente recibe el mensaje. No hay reserva.
 	async no(tx, socio, leadId, motivo) {
@@ -74,7 +92,7 @@ const ACCIONES = {
 		responder(tx, socio, leadId, 'no', 'No se dio', { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, token, { texto: textoNo(motivo) });
 		tx.cambiar(`chats/${token}`, { estado: 'no', ...pendiente(id) });
-		return { token };
+		return { token, casa: lead.propertyId };
 	},
 	// Cancela mientras el cliente no ha pagado ni llegado: las fechas quedan libres, la solicitud y el chat dicen
 	// «cancelada» y el cliente recibe el mensaje; el equipo recibe el correo (con ella sale una comisión de la mora).
@@ -88,7 +106,7 @@ const ACCIONES = {
 		responder(tx, socio, leadId, 'cancelada', 'Canceló', { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, token, { texto: TEXTO_CANCELADA });
 		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
-		return { token };
+		return { token, casa: casa.id };
 	},
 	// «No me llegó»: el socio no recibió el pago. Antes del día de llegada (con el comprobante del cliente) se reabre el
 	// pago con un plazo nuevo: el comprobante se quita, el cliente lo lee en su chat y el cron vuelve a cuidar el plazo.
@@ -111,7 +129,7 @@ const ACCIONES = {
 		responder(tx, socio, leadId, 'cancelada', 'No me llegó el pago: se canceló sin comisión', { 'solicitud.motivo': MOTIVO_NO_LLEGO });
 		const id = mensaje(tx, token, { texto: TEXTO_NO_LLEGO });
 		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
-		return { token, reabierta: false };
+		return { token, casa: casa.id, reabierta: false };
 	},
 	// El cliente le pagó al socio: el chat dice «Pago recibido» y lleva la dirección y el mapa guardados en la casa
 	// (privado/llegada), todo junto. Sin dirección guardada no se marca (el cliente no sabría a dónde llegar). Si quedó
@@ -168,7 +186,8 @@ export default async (req, context) => {
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
 	let hecho;
 	try {
-		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || '')));
+		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : [];
+		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas));
 	} catch (err) {
 		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
@@ -180,7 +199,9 @@ export default async (req, context) => {
 	// Los correos (al cliente y, si el socio canceló, al equipo) salen de aquí, con lo ya guardado; si fallan, lo escrito
 	// queda. Lo guardado se responde sin esperarlos cuando Netlify deja terminar trabajo después de responder
 	// (context.waitUntil); si no, se esperan antes de responder (la función sigue aunque el panel se desconecte).
-	const { token, ...resto } = hecho;
+	const { token, casa, ...resto } = hecho;
+	// Las fechas de la casa cambiaron (también al responder una solicitud que las apartaba).
+	if (casa) await (accion === 'no' ? purgarCasa(casa) : fechasCambiaron(casa, `Reserva por noche: ${accion}`));
 	const avisos = enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });
 	if (typeof context?.waitUntil === 'function') { context.waitUntil(avisos); return json(200, { ok: true, accion, ...resto }); }
 	return json(200, { ok: true, accion, ...resto, avisos: await avisos });

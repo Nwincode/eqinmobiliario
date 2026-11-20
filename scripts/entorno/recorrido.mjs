@@ -202,9 +202,30 @@ await espera(300);
 	paso('La línea de pasos va en una sola fila, marca fechas y personas y lo guarda en la dirección', guia.unaFila && guia.alto < 60 && guia.hechos >= 2
 		&& /llegada=.*salida=.*huespedes=2/.test(guia.url), JSON.stringify(guia));
 }
+// Otra persona abre la misma ficha con esas fechas ANTES de que Ana envíe (una pestaña abierta): cuando quiera enviar,
+// la página revisa otra vez y no la deja (las fechas ya están apartadas por Ana).
+const fechasAna = new URL(cliente.p.url()).search;
+const beto = await persona(390);
+await beto.p.goto(`${SITIO}${ficha}${fechasAna}`);
+await espera(1200);
 await cliente.p.locator('.vac-card button[type=submit]').click();
 await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
+{
+	const idCasaPub = await beto.p.locator('.vac-card').getAttribute('data-id');
+	const api = await (await fetch(`${SITIO}/api/disponibilidad?id=${idCasaPub}`)).json();
+	const q = new URLSearchParams(fechasAna);
+	paso('La solicitud de Ana aparta sus fechas en la página mientras nadie responde', (api.apartadas || []).some((r) => r.desde <= q.get('llegada') && r.hasta >= q.get('salida')), JSON.stringify(api.apartadas));
+	await beto.p.fill('.vac-card [name=nombre]', 'Beto Segundo');
+	await beto.p.locator('.vac-card [name=codigo]').selectOption('502');
+	await beto.p.fill('.vac-card [name=telefono]', '5555 9876');
+	await beto.p.fill('.vac-card [name=email]', 'beto@example.com');
+	await beto.p.locator('.vac-card button[type=submit]').click();
+	await espera(2000);
+	const aviso = await beto.p.locator('.vac-card .lead-form-status').innerText().catch(() => '');
+	paso('Con la página abierta desde antes, otro cliente no puede pedir las fechas que Ana apartó: se le dice al enviar', !/\/reserva\//.test(beto.p.url()) && /ya no están libres/.test(aviso), aviso);
+	await beto.p.close();
+}
 paso('Al solicitar, el cliente queda en «Tu reserva» (sin WhatsApp)', Boolean(token), cliente.p.url().replace(/#.*/, '#…'));
 await espera(1500);
 const codigo = (await cliente.p.locator('[data-out="codigo"]').innerText()).trim();

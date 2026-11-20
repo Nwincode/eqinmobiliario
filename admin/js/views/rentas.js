@@ -13,9 +13,13 @@ import { deSolicitud, MOTIVOS_CANCELAR } from '../reservas-calculo.js';
 
 const V = window.EQVacacional;
 const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Airbnb'], ['booking', 'Booking'], ['otro', 'Otro']];
-const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['pendiente', 'Pendiente', 'warning'], ['cancelada', 'Cancelada', 'light']];
+// Una reserva a mano está confirmada o cancelada: «Pendiente» no apartaba fechas ni vencía. Las de antes que quedaron
+// así se ven «Pendiente · no aparta fechas» y, al abrirlas, se elige Confirmada o Cancelada (nada se cambia solo:
+// algunas se cruzan con una confirmada).
+const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['cancelada', 'Cancelada', 'light']];
+const DE_ANTES = ['pendiente', 'Pendiente · no aparta fechas', 'warning'];
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || lista[0])[1];
-const estadoBadge = (r) => { const e = ESTADOS.find(([k]) => k === r.estado) || ESTADOS[1]; return badge(e[1], e[2]); };
+const estadoBadge = (r) => { const e = [...ESTADOS, DE_ANTES].find(([k]) => k === r.estado) || DE_ANTES; return badge(e[1], e[2]); };
 // Un dato con su ícono delante; `titulo` lo nombra cuando el ícono solo no basta.
 const dato = (icono, texto, cls = '', titulo) => h('span', { class: cls || null, title: titulo || null },
 	h('span', { class: `${icono} text-muted me-1`, 'aria-hidden': 'true' }), titulo ? h('span', { class: 'visually-hidden' }, `${titulo}: `) : null, String(texto));
@@ -56,6 +60,8 @@ export async function render(container) {
 		const input = (name, type = 'text', extra = {}) => h('input', { class: 'form-control', name, type, value: d[name] ?? '', ...extra });
 		const select = (name, opciones) => h('select', { class: 'form-select', name },
 			opciones.map(([v, t]) => h('option', { value: v, selected: String(d[name] ?? '') === v }, t)));
+		// Una de antes en «Pendiente»: sin opción elegida, hasta que se diga cuál es.
+		const conEstado = (sel) => { if (!ESTADOS.some(([k]) => k === d.estado)) sel.prepend(h('option', { value: '', selected: true, disabled: true }, 'Pendiente: elige Confirmada o Cancelada')); return sel; };
 		const resumen = h('div', { class: 'col-12 small text-muted' });
 		const telefono = campoTelefono(d.telefono);
 		const form = h('form', { class: 'row g-2' },
@@ -66,7 +72,7 @@ export async function render(container) {
 			campo('Teléfono', telefono),
 			campo('Canal', select('canal', CANALES)),
 			// Una reserva de la web se cancela con su botón (avisa al cliente en su chat).
-			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta(ESTADOS, d.estado))) : select('estado', ESTADOS)),
+			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta([...ESTADOS, DE_ANTES], d.estado))) : conEstado(select('estado', ESTADOS))),
 			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any' })),
 			campo('Cobrado al huésped (sin impuestos)', input('alojamiento', 'number', { min: 0, step: 'any' })),
 			resumen,
@@ -111,6 +117,7 @@ export async function render(container) {
 			const casa = casaDe[v.propertyId];
 			if (!casa) return toast('Elige la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
+			if (!web && !f.estado.value) return toast('Elige si la reserva está confirmada o cancelada.', 'warning');
 			btn.disabled = true;
 			try {
 				await guardarReserva(r.id ? r : null, casa, {

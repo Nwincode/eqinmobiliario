@@ -23,7 +23,7 @@ async function verificar(token) {
 
 // Quien llama, con su users/{uid} (leído con su propio token: las reglas le dejan leer el suyo). null sin token o
 // sin usuario; un token inválido lanza un error.
-async function usuario(req) {
+export async function usuario(req) {
 	const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
 	if (!token) return null;
 	const payload = await verificar(token);

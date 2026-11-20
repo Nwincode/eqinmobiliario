@@ -83,7 +83,7 @@ export function nuevaReserva(casa, c) {
 		// El asesor de la casa (una casa por noche no lleva: ''), el mismo que exigen las reglas a quien no es administrador.
 		agentId: casa.agentId || '', propietarioId: casa.propietarioId || '',
 		moneda: casa.moneda || 'USD', llegada: c.llegada, salida: c.salida, noches: nochesEntre(c.llegada, c.salida),
-		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado || 'confirmada',
+		huesped: String(c.huesped || '').trim(), canal: c.canal || 'directo', estado: c.estado === 'cancelada' ? 'cancelada' : 'confirmada',
 		leadId: c.leadId || '', codigo: c.codigo || '', ...(c.chat ? { chat: c.chat } : {}), costoSocio, alojamiento, ganancia: r2(alojamiento - costoSocio),
 		pagadoSocio: Boolean(c.pagadoSocio), pagadoFecha: c.pagadoSocio ? (c.pagadoFecha || hoy()) : ''
 	};
@@ -190,6 +190,36 @@ export const esDuplicada = (a, b) => a !== b && a?.id !== b?.id && Boolean(corre
 
 // ¿La solicitud ya se respondió? (el chat con estado, o la solicitud con uno que no es «pendiente»).
 export const yaRespondida = (estadoChat, estadoSolicitud) => Boolean(estadoChat) || Boolean(estadoSolicitud && estadoSolicitud !== 'pendiente');
+
+// ¿Esta solicitud aparta sus fechas ahora? Sí mientras nadie la responde y no vence su plazo de 24 h (venceRespuesta):
+// la misma regla en la página (netlify/functions/disponibilidad.mjs), el calendario del socio (mis-casas.js), Solicitudes
+// y el servidor que cierra la que llega encima (cerrarSiSeCruza). `creada` en milisegundos. Una que sigue abierta
+// después (el anfitrión conversa con el cliente) o una de antes de los plazos (PLAZOS_DESDE) ya no aparta: se puede
+// pedir encima y Solicitudes avisa «Se cruza con otra solicitud».
+export const apartaFechas = (estadoChat, estadoSolicitud, creada, ahora = Date.now()) => !yaRespondida(estadoChat, estadoSolicitud)
+	&& conPlazo(creada) && ahora < venceRespuesta(creada);
+// ¿Dos estancias { llegada, salida } comparten alguna noche? (la salida no ocupa noche).
+export const seCruzan = (a, b) => Boolean(a?.llegada && b?.llegada) && a.llegada < b.salida && b.llegada < a.salida;
+// Una solicitud que llegó encima de otra que aparta esas fechas (la anterior manda; con la misma hora, la de id menor),
+// o de una reserva confirmada: se cierra sola. La del mismo cliente con las mismas fechas no cuenta (es repetida: la
+// cierra cerrarDuplicadas al confirmar). `otras`: solicitudes de la misma casa con `createdAt` en milisegundos.
+export function apartadaPor(lead, otras, reservas, ahora = Date.now()) {
+	const antes = (o) => o.createdAt < lead.createdAt || (o.createdAt === lead.createdAt && o.id < lead.id);
+	const sol = (otras || []).find((o) => o.id !== lead.id && o.propertyId === lead.propertyId && antes(o) && !esDuplicada(lead, o)
+		&& seCruzan(o.reserva, lead.reserva) && apartaFechas('', o.solicitud?.estado, o.createdAt, ahora));
+	if (sol) return sol.reserva.codigo;
+	const res = (reservas || []).find((r) => V().choquesReserva({ id: lead.id, propertyId: lead.propertyId, ...lead.reserva }, [r]).length);
+	return res ? (res.codigo || 'otra reserva') : '';
+}
+// ¿Alguna noche de la estancia ya está tomada en Airbnb, Booking o VRBO? `externas`: [{ desde, hasta, fuente }] (sus
+// calendarios iCal). Devuelve el motivo en una línea (409 en el servidor y en el panel) o ''.
+export function choqueExterno(reserva, externas) {
+	const x = (externas || []).find((r) => seCruzan(reserva, { llegada: r.desde, salida: r.hasta }));
+	return x ? `Esas fechas ya están ocupadas en ${x.fuente || 'otra plataforma'} (${x.desde} a ${x.hasta}): no se puede confirmar. Ciérrala con «No se dio».` : '';
+}
+export const MOTIVO_FECHAS_APARTADAS = 'Fechas ya apartadas';
+export const TEXTO_FECHAS_APARTADAS = 'Alguien pidió esas fechas un momento antes que tú, así que cerramos esta solicitud. Elige otras fechas en la ficha de la casa.';
+TEXTOS_NO[MOTIVO_FECHAS_APARTADAS] = TEXTO_FECHAS_APARTADAS;
 
 // ¿Todavía no empieza el día de llegada? (día de Guatemala: hasta las 23:59 del día anterior).
 export const antesDeLlegar = (llegada, ahora = Date.now()) => V().esFecha(llegada) && llegada > V().hoy(ahora);

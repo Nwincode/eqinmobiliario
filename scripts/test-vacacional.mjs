@@ -351,4 +351,17 @@ test('estancia más larga que el tope de la base (365 noches): no se puede pedir
 	assert.deepEqual([larga.ok, larga.error, larga.maximo], [false, 'maximo', 365]);
 });
 
+test('un mínimo con la fecha final antes de la inicial no vale', () => {
+	assert.equal(V.minimoNoches('2027-03-10', '2027-03-12', 1, [{ desde: '2027-03-20', hasta: '2027-03-01', noches: 5 }]), 1);
+	assert.equal(V.minimoNoches('2027-03-10', '2027-03-12', 1, [{ desde: '2027-03-01', hasta: '2027-03-20', noches: 5 }]), 5);
+});
+
+test('calendario de EQ para las plataformas: ida y vuelta por parseICal, sin datos del huésped', () => {
+	const texto = V.aICal([{ id: 'r1', desde: '2027-04-01', hasta: '2027-04-03' }, { id: 'r2', desde: '2027-04-10', hasta: '2027-04-11' }, { id: 'x', desde: '2027-04-05', hasta: '2027-04-05' }], '20261120T120000Z');
+	assert.deepEqual(JSON.parse(JSON.stringify(V.parseICal(texto))), [{ desde: '2027-04-01', hasta: '2027-04-03' }, { desde: '2027-04-10', hasta: '2027-04-11' }]);
+	assert.match(texto, /^BEGIN:VCALENDAR\r\n/);
+	assert.match(texto, /UID:r1@eqinmobiliario\.gt/);
+	assert.equal((texto.match(/BEGIN:VEVENT/g) || []).length, 2);
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
