@@ -1,6 +1,6 @@
 // Escenarios de los permisos del socio (admin/js/permisos-socio.js). Sin red: `node scripts/test-permisos-socio.mjs`.
 import assert from 'node:assert/strict';
-import { deudaDe, permisosDe, limpiarDevolver, documentoPermisos, mismosPermisos, puede, DIAS_CORTE } from '../admin/js/permisos-socio.js';
+import { deudaDe, faltaSaberSiPago, permisosDe, limpiarDevolver, documentoPermisos, mismosPermisos, puede, DIAS_CORTE } from '../admin/js/permisos-socio.js';
 
 let ok = 0;
 function test(nombre, fn) {
@@ -103,6 +103,20 @@ test('lo guardado con los mapas en otro orden cuenta como lo mismo (no se reescr
 	assert.equal(mismosPermisos(leido, doc), true);
 	assert.equal(mismosPermisos({ ...leido, precios: true }, doc), false);
 	assert.equal(mismosPermisos(null, doc), false);
+});
+
+test('una confirmada de la web sin «Pago recibido» no corta sola; con el pago marcado o «Cobrar comisión», sí', () => {
+	const ahora = finDe('2026-11-09') + DIAS_CORTE * 24 * H;
+	const web = (extra = {}, com = {}) => res('a', { chat: 'TokenDelChat', ...extra }, com);
+	const sinPago = deudaDe([web()], 's1', ahora);
+	assert.equal(sinPago.corta, false);
+	assert.ok(sinPago.porMoneda.USD > 0);
+	assert.equal(deudaDe([web({ pagoRecibido: true })], 's1', ahora).corta, true);
+	assert.equal(deudaDe([web({}, { cobrar: true })], 's1', ahora).corta, true);
+	assert.equal(deudaDe([web({ chatPagado: true })], 's1', ahora).corta, true);
+	assert.equal(faltaSaberSiPago(web(), 's1', ahora), true);
+	assert.equal(faltaSaberSiPago(web({ pagoRecibido: true }), 's1', ahora), false);
+	assert.equal(faltaSaberSiPago(web(), 's1', ahora - H), false);
 });
 
 console.log(`Permisos del socio: ${ok} escenarios bien.`);

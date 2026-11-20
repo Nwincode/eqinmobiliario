@@ -9,10 +9,11 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion } from '../ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
-import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
+import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
 	motivoParaNoConfirmar, comprobanteVigente, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
+import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
@@ -303,6 +304,13 @@ export async function render(container, [codigo] = []) {
 		archivo.click();
 	}
 
+	// La alerta de cada mañana: confirmada, llegada pasada y sin «Pago recibido». Si el equipo supo que el cliente pagó,
+	// «Cobrar comisión»: desde ahí su atraso cuenta para apagarle los permisos al socio (permisos-socio.js cuentaParaCorte).
+	async function cobrar(l, res) {
+		if (!(await confirmDialog(`${l.reserva.codigo}: ¿el cliente sí pagó? Se cobra la ganancia de EQ (${money(res.comision.monto, res.moneda)}) y, si el socio se atrasa ${DIAS_CORTE} días, se le apagan los permisos.`, { okText: 'Cobrar comisión', danger: false }))) return;
+		await hacer(async () => { await cobrarComision(res); toast('Comisión por cobrar.'); });
+	}
+
 	async function pagada(l, res, nivel) {
 		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
@@ -431,6 +439,7 @@ export async function render(container, [codigo] = []) {
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
 				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
+				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
 				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
 				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null,

@@ -358,6 +358,9 @@ export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, p
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
 	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
+	// En la reserva (la de la web lleva el id de su solicitud): con el pago marcado, su comisión vencida cuenta para el
+	// corte de permisos. Si las reglas no lo dejan (el socio por el camino de antes), el pago ya quedó.
+	if (leadId) await updateDoc(refReserva(leadId), { pagoRecibido: true, updatedAt: serverTimestamp() }).catch((err) => console.warn('Pago recibido en la reserva', err));
 	// En el historial de la solicitud (quién marcó el pago y cuándo); si no se puede (reglas de antes), el pago ya quedó.
 	if (session.isAdmin && leadId) await updateDoc(doc(db, 'leads', leadId), { updatedAt: serverTimestamp(),
 		'solicitud.historial': arrayUnion({ que: 'Pago recibido', quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() }) }).catch((err) => console.warn('Historial', err));
@@ -381,6 +384,15 @@ export async function comisionPagada(res, nivel) {
 	if (nivel === 3) await markPending(`${res.propertyTitulo}: comisión pagada, las casas del socio vuelven al sitio`);
 	// Si se le apagaron los permisos por el atraso, vuelven ahora (sin esperar la revisión de cada hora).
 	if (session.isAdmin && res.propietarioId) {
+		try { const { recalcularPermisosDe } = await import('./permisos-panel.js'); await recalcularPermisosDe(res.propietarioId); } catch (err) { console.warn('Permisos del socio sin recalcular (se recalculan en la próxima hora)', err); }
+	}
+}
+
+// «Cobrar comisión» (el administrador, desde la alerta de cada mañana: confirmada, llegada pasada, sin «Pago recibido»):
+// el equipo supo que el cliente sí pagó. Desde ahí su comisión vencida cuenta para el corte de permisos (cuentaParaCorte).
+export async function cobrarComision(res) {
+	await updateDoc(refReserva(res.id), { 'comision.cobrar': true, updatedAt: serverTimestamp() });
+	if (res.propietarioId) {
 		try { const { recalcularPermisosDe } = await import('./permisos-panel.js'); await recalcularPermisosDe(res.propietarioId); } catch (err) { console.warn('Permisos del socio sin recalcular (se recalculan en la próxima hora)', err); }
 	}
 }

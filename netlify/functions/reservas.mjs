@@ -150,6 +150,8 @@ const ACCIONES = {
 		if (faltaDireccion(ll)) falla(422, TEXTO_SIN_DIRECCION);
 		const id = mensaje(tx, token, { tipo: 'llegada', texto: 'llegada', direccion: ll.direccion || '', mapa: ll.mapa || '' });
 		tx.cambiar(`chats/${token}`, { estado: 'pagada', ...pendiente(id) });
+		// En la reserva también: con el pago marcado, su comisión vencida sí cuenta para el corte de permisos.
+		if (await tx.leer(`reservas/${leadId}`)) tx.cambiar(`reservas/${leadId}`, { pagoRecibido: true }, { ahora: ['updatedAt'] });
 		anotar(tx, socio, leadId, 'Pago recibido');
 		return { token };
 	}

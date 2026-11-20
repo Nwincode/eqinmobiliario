@@ -62,7 +62,7 @@ export default async () => {
 			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
 			// Las de los últimos 30 días con plazos (lo de antes no), sin la comisión ya pagada.
 			const desde30 = V.sumarDias(hoy, -30);
-			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && r.llegada >= desde30 && !r.comision?.pagada
+			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && r.llegada >= desde30 && !r.comision?.pagada && !r.comision?.cobrar
 				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0) && porId.get(r.chat)?.estado === 'confirmada')
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
 					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
@@ -95,7 +95,7 @@ export default async () => {
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;
 		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas],
 			['«No se dio» o cancelada y después esas fechas se ocuparon: revisa si el cliente se cerró por fuera', sospechosas],
-			['Confirmadas sin «Pago recibido» y con la llegada ya pasada: pregúntale al socio si el cliente pagó', sinPago]].filter(([, lista]) => lista.length);
+			['Confirmadas sin «Pago recibido» y con la llegada ya pasada: pregúntale al socio si el cliente pagó; si pagó, toca «Cobrar comisión» en la solicitud (desde ahí su atraso le apaga los permisos)', sinPago]].filter(([, lista]) => lista.length);
 		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} cerrada(s) con fechas ocupadas`, sinPago.length && `${sinPago.length} sin pago marcado`].filter(Boolean).join(' · ');
 
 		const html = await plantilla({
