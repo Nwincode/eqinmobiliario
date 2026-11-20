@@ -364,4 +364,17 @@ test('calendario de EQ para las plataformas: ida y vuelta por parseICal, sin dat
 	assert.equal((texto.match(/BEGIN:VEVENT/g) || []).length, 2);
 });
 
+test('pausa de 72 h: solo con el pago marcado o «Cobrar comisión» (una de la web sin pago marcado no saca las casas)', () => {
+	const r = { propietarioId: 's1', estado: 'confirmada', chat: 'TokenDelChat', comision: { monto: 50, vence: '2026-11-01', pagada: false } };
+	const ahora = Date.parse('2026-11-10T12:00:00Z');
+	assert.equal(V.nivelComision(r, ahora), 3);
+	assert.deepEqual({ ...V.sociosEnMora([r], ahora) }, {});
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, pagoRecibido: true }], ahora) }, { s1: 3 });
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, chatPagado: true }], ahora) }, { s1: 3 });
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, comision: { ...r.comision, cobrar: true } }], ahora) }, { s1: 3 });
+	// Sin chat (a mano o de antes): como siempre.
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, chat: '' }], ahora) }, { s1: 3 });
+	assert.equal(V.nivelMora(r, ahora), 1);
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

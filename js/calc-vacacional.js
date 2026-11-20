@@ -403,10 +403,17 @@
 		return horas === null || horas < 0 ? 0 : horas < 24 ? 1 : horas < 72 ? 2 : 3;
 	}
 	// El peor atraso de cada socio: { propietarioId: 2 | 3 }.
+	// ¿Esta comisión puede castigar al socio (casas fuera del sitio a las 72 h, permisos apagados a los 7 días)? Solo si
+	// se sabe que el cliente pagó: «Pago recibido» (pagoRecibido en la reserva; las de antes, su chat «pagada»: chatPagado,
+	// que pone quien lee el chat) o «Cobrar comisión» del equipo desde la alerta de cada mañana. Una reserva sin chat (a
+	// mano o de antes) cuenta como siempre. Sin esto, el atraso se ve pero no castiga.
+	function cobrable(r) { return Boolean(r && (r.pagoRecibido || r.chatPagado || (r.comision && r.comision.cobrar) || !r.chat)); }
+	// El nivel de atraso que castiga: el de nivelComision si es cobrable; si no, a lo más «vencida» (1).
+	function nivelMora(r, ahora) { var n = nivelComision(r, ahora); return cobrable(r) ? n : Math.min(n, 1); }
 	function sociosEnMora(reservas, ahora) {
 		var out = {};
 		(reservas || []).forEach(function (r) {
-			var n = nivelComision(r, ahora);
+			var n = nivelMora(r, ahora);
 			if (n >= 2 && r.propietarioId) out[r.propietarioId] = Math.max(n, out[r.propietarioId] || 0);
 		});
 		return out;
@@ -417,7 +424,7 @@
 	var PLAZO_RESPUESTA = 2 * 3600000;
 	function alertaSolicitud(estado, creado, fechas, reserva, bloqueos, ahora) {
 		if (estado === 'pendiente') return ahora - creado > PLAZO_RESPUESTA ? 'tarde' : '';
-		if (estado === 'confirmada') return nivelComision(reserva, ahora) === 3 ? 'mora' : '';
+		if (estado === 'confirmada') return nivelMora(reserva, ahora) === 3 ? 'mora' : '';
 		if (estado !== 'no') return '';
 		return (bloqueos || []).some(function (b) { return b.desde < fechas.salida && b.hasta > fechas.llegada; }) ? 'bloqueada' : '';
 	}
@@ -447,6 +454,6 @@
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
 		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,
-		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, alertaSolicitud: alertaSolicitud
+		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, cobrable: cobrable, nivelMora: nivelMora, alertaSolicitud: alertaSolicitud
 	};
 });

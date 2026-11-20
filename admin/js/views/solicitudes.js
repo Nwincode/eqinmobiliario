@@ -400,7 +400,8 @@ export async function render(container, [codigo] = []) {
 		const mon = res?.moneda || r.moneda || 'USD';
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
-		const nivel = com ? V.nivelComision(res, Date.now()) : 0;
+		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
+		const nivel = com ? V.nivelMora({ ...res, chatPagado: ch?.estado === 'pagada' }, Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
 		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
@@ -463,7 +464,7 @@ export async function render(container, [codigo] = []) {
 	reservas.filter((r) => r.estado === 'confirmada' && r.comision && !r.comision.pagada)
 		.forEach((r) => { total[r.moneda] = (total[r.moneda] || 0) + r.comision.monto; });
 	// Aviso al socio: lo que ya le pasa por tener una comisión atrasada.
-	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelComision(r, Date.now())));
+	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelMora({ ...r, chatPagado: datosChat[r.codigo]?.estado === 'pagada' }, Date.now())));
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
 	// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).

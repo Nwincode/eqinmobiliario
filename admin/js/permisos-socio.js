@@ -23,7 +23,7 @@ export const DIAS_CORTE = 7;
 // (pagoRecibido en la reserva; las de antes, con su chat «pagada»: chatPagado) o el equipo la marcó «Cobrar comisión»
 // desde la alerta de cada mañana. Una confirmada sin pago marcado no corta sola (el cliente quizá nunca pagó); la fuga
 // la cuidan esa alerta y la de fechas bloqueadas después. Una reserva sin chat (a mano o de antes) cuenta como antes.
-export const cuentaParaCorte = (r) => Boolean(r?.pagoRecibido || r?.chatPagado || r?.comision?.cobrar || !r?.chat);
+export const cuentaParaCorte = (r) => V().cobrable(r);
 // ¿Hay que leer su chat para saberlo? (vencida hace DIAS_CORTE días o más, con chat y sin marca en la reserva).
 export const faltaSaberSiPago = (r, propietarioId, ahora) => r?.propietarioId === propietarioId && !cuentaParaCorte(r)
 	&& (V().horasAtrasoComision(r, ahora) ?? -1) >= DIAS_CORTE * 24;
