@@ -5,7 +5,7 @@ import '../../js/calc-vacacional.js';
 import { idNuevo, transaccion } from './firestore-escritura.mjs';
 import { marcarPorPublicar } from './publicar.mjs';
 import { purgarCasa } from './ocupacion.mjs';
-import { desde } from './firestore.mjs';
+import { donde } from './firestore.mjs';
 import { montosCotizados, bajoElPlan, seCruzan, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
@@ -54,10 +54,13 @@ export async function cerrarSiSeCruza(tx, leadId) {
 	return c.token;
 }
 // Al confirmar una reserva en una casa: las otras solicitudes abiertas que se cruzan con sus fechas se cierran (cada una
-// en su transacción, con su correo). Las candidatas se buscan fuera de la transacción (las de los últimos 30 días).
+// en su transacción, con su correo). Las candidatas se buscan fuera de la transacción: solo las de esa casa (por
+// `propertyId`, sin leer las de las demás ni toparse con su límite), las que siguen abiertas y no han llegado.
 // Devuelve los tokens de los chats cerrados (quien llama manda sus correos).
 export async function cerrarLasQueSeCruzan(propertyId, llegada, salida, ahora = Date.now()) {
-	const abiertas = (await desde('leads', 'createdAt', new Date(ahora - 30 * 86400_000))).filter((l) => l.propertyId === propertyId && l.reserva?.llegada
+	if (!propertyId) return [];
+	const hoy = V.hoy(ahora);
+	const abiertas = (await donde('leads', 'propertyId', propertyId)).filter((l) => l.reserva?.llegada && l.reserva.salida > hoy
 		&& !yaRespondida('', l.solicitud?.estado) && (!llegada || seCruzan(l.reserva, { llegada, salida })));
 	const tokens = [];
 	for (const l of abiertas) {

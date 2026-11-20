@@ -1,5 +1,6 @@
 // El cron de plazos (netlify/functions/plazos-reservas.mjs) con la base, el correo y el reloj simulados (scripts/simulado/):
-// una solicitud sin chat no se queda en cada vuelta y las de verdad se atienden primero.
+// una solicitud sin chat no se queda en cada vuelta y las de verdad se atienden primero; al confirmar, se cierran las
+// abiertas de esa casa que se cruzan (netlify/lib/reservas-servidor.mjs cerrarLasQueSeCruzan).
 import './simulado/activar.mjs';
 import assert from 'node:assert/strict';
 import { S, limpiar, poner, leer } from './simulado/base.mjs';
@@ -43,6 +44,26 @@ await t('con la vuelta cortada, lo de verdad va antes que las solicitudes sin ch
 	try { await plazos(); } finally { Date.now = reloj; }
 	assert.equal(leer('leads/real').solicitud?.motivo, MOTIVO_SIN_RESPUESTA);
 	assert.ok(Array.from({ length: 40 }, (_, i) => leer(`leads/falsa${i}`).solicitud).some((x) => !x), 'quedaron sin chat para la vuelta siguiente');
+});
+
+await t('al confirmar, se cierran las abiertas de esa casa que se cruzan (solo de esa casa, también una de hace más de 30 días)', async () => {
+	const { cerrarLasQueSeCruzan } = await import('../netlify/lib/reservas-servidor.mjs');
+	for (const c of ['c1', 'c2']) poner(`properties/${c}`, { titulo: c, operacion: 'vacacional', publicado: true, estado: 'disponible', vacacional: { reservadas: [{ desde: '2026-12-20', hasta: '2026-12-23' }] } });
+	const conChat = (id, casa, min) => {
+		solicitud(id, min, { propertyId: casa });
+		const token = `TokenDelChatDe${id}000000000`;
+		poner(`chatsPorSolicitud/${id}`, { token });
+		poner(`chats/${token}`, { leadId: id, codigo: `EQ-${id}`, propertyId: casa, llegada: '2026-12-20', salida: '2026-12-23' });
+	};
+	conChat('deC1', 'c1', 60);
+	conChat('vieja', 'c1', 40 * 24 * 60);
+	conChat('deC2', 'c2', 60);
+	const cerradas = await cerrarLasQueSeCruzan('c1', '2026-12-20', '2026-12-23');
+	assert.equal(cerradas.length, 2);
+	assert.equal(leer('leads/deC1').solicitud?.estado, 'no');
+	assert.equal(leer('leads/vieja').solicitud?.estado, 'no');
+	assert.equal(leer('leads/deC2').solicitud, undefined, 'la de otra casa no se toca');
+	assert.deepEqual(await cerrarLasQueSeCruzan('', '2026-12-20', '2026-12-23'), []);
 });
 
 console.log(`${ok} pruebas del cron de plazos pasan.`);
