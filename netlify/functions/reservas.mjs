@@ -126,7 +126,9 @@ const ACCIONES = {
 			tx.cambiar(`reservas/${leadId}`, { pagoDesde: ahora, vencePago: guardarVence(vence) }, { ahora: ['updatedAt'] });
 			anotar(tx, socio, leadId, 'No me llegó el pago: plazo nuevo');
 			const id = mensaje(tx, token, { tipo: 'reabierto', texto: textoPagoReabierto(vence, chat.idioma === 'en') });
-			tx.cambiar(`chats/${token}`, { comprobanteCliente: null, comprobanteMensaje: null, recordatorioPago: false, vencePago: guardarVence(vence), ...pendiente(id) });
+			// El comprobante queda (historia: con él el cron no cancela a un cliente que dice haber pagado); pagoReabierto
+			// dice que se le pidió otro, una sola vez. El equipo recibe el aviso (avisos-chat.mjs, «reabierto»).
+			tx.cambiar(`chats/${token}`, { pagoReabierto: ahora, recordatorioPago: false, vencePago: guardarVence(vence), ...pendiente(id) });
 			return { token, reabierta: true };
 		}
 		await fechasDeLaCasa(tx, casa, reserva, { ...reserva, estado: 'cancelada' });

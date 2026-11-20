@@ -18,7 +18,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
-import { MOTIVO_SIN_PAGO, conPlazo } from '../../admin/js/reservas-calculo.js';
+import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, conPlazo } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -117,7 +117,7 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 // fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva anotada a mano en la misma casa: la señal
 // de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
 // escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
-const cerradaSinReserva = (s) => (s?.estado === 'no' && s.motivo !== 'Duplicada') || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, 'Cliente canceló'].includes(s.motivo));
+const cerradaSinReserva = (s) => (s?.estado === 'no' && s.motivo !== 'Duplicada') || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, 'Cliente canceló'].includes(s.motivo));
 async function noSeDioYBloqueada(ahora) {
 	if (!escrituraConfigurada()) return [];
 	const hoy = V.hoy(ahora);

@@ -4,7 +4,7 @@
 // con este módulo dan lo mismo que daba el panel antes de moverlo.
 import assert from 'node:assert/strict';
 import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, plazoDePago, guardarVence, cancelaSola, montosCotizados, cambioElPrecio, motivoParaNoConfirmar,
-	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada, bajoElPlan, motivoSocioNoConfirma, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
+	motivoParaNoMeLlego, comprobanteVigente, noLlegoReabre, faltaDireccion, esDuplicada, bajoElPlan, motivoSocioNoConfirma, apartaFechas, apartadaPor, choqueExterno, seCruzan } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
@@ -124,6 +124,17 @@ test('«No me llegó»: con el comprobante reabre el pago; desde el día de lleg
 	assert.match(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Otro', llegada), /de antes/);
 	// Con el comprobante subido, el socio ya no cancela: usa «No me llegó».
 	assert.match(motivoParaNoCancelar(reserva, { estado: 'confirmada', comprobanteCliente: new Date() }, 'Tk', antes), /comprobante/);
+	// Antes de la llegada, una sola vez (la segunda, el administrador).
+	assert.match(motivoParaNoMeLlego(reserva, { estado: 'confirmada', comprobanteCliente: new Date(), pagoReabierto: antes - 1 }, 'Tk', antes), /administrador/);
+	// Desde la llegada, hasta 3 días después; más tarde, el administrador.
+	assert.equal(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Tk', Date.parse('2026-12-04T23:00:00-06:00')), '');
+	assert.match(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Tk', Date.parse('2026-12-05T00:30:00-06:00')), /3 días/);
+	// El comprobante de antes de «No me llegó» queda como historia, pero ya no cuenta como enviado.
+	const t = Date.parse('2026-11-29T12:00:00Z');
+	assert.equal(comprobanteVigente({ comprobanteCliente: new Date(t) }), true);
+	assert.equal(comprobanteVigente({ comprobanteCliente: new Date(t), pagoReabierto: t + 1000 }), false);
+	assert.equal(comprobanteVigente({ comprobanteCliente: new Date(t + 5000).toISOString(), pagoReabierto: t + 1000 }), true);
+	assert.equal(comprobanteVigente({}), false);
 });
 
 test('dirección, duplicadas', () => {

@@ -264,9 +264,22 @@ export function motivoParaNoMeLlego(reserva, chat, token, ahora = Date.now()) {
 	if (!reserva.chat || reserva.chat !== token || !chat) return 'Esta reserva es de antes (sin su chat guardado): avísale al administrador.';
 	if (chat.estado !== 'confirmada') return 'Ya marcaste «Pago recibido»: avísale al administrador.';
 	if (reserva.comision?.pagada) return 'La ganancia de EQ de esta reserva ya está pagada: avísale al administrador.';
-	if (antesDeLlegar(reserva.llegada, ahora) && !chat.comprobanteCliente) return 'El cliente todavía no manda su comprobante: si ya no viene, usa «Cancelar».';
+	if (antesDeLlegar(reserva.llegada, ahora)) {
+		if (!chat.comprobanteCliente) return 'El cliente todavía no manda su comprobante: si ya no viene, usa «Cancelar».';
+		// Antes de la llegada se reabre una sola vez (el equipo ya se enteró): la segunda, la decide el administrador.
+		if (chat.pagoReabierto) return 'Ya le pediste que revisara su pago y el equipo ya lo sabe: si sigue sin llegar, avísale al administrador.';
+		return '';
+	}
+	// Desde la llegada, hasta 3 días después; más tarde, el administrador (el huésped ya pudo haber llegado y pagado).
+	if (V().hoy(ahora) > V().sumarDias(reserva.llegada, DIAS_NO_LLEGO)) return `Pasaron más de ${DIAS_NO_LLEGO} días desde la llegada: avísale al administrador.`;
 	return '';
 }
+export const DIAS_NO_LLEGO = 3;
+// Milisegundos de una fecha guardada (Timestamp del panel, Date del servidor, texto del sitio o número).
+const enMs = (v) => (typeof v === 'number' ? v : v?.toMillis?.() ?? (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0));
+// ¿El cliente mandó un comprobante que sigue en pie? El de antes de «No me llegó» (pagoReabierto) queda guardado como
+// historia (el cron no cancela a quien mandó uno), pero ya no cuenta como enviado: se le pide otro.
+export const comprobanteVigente = (chat) => Boolean(chat?.comprobanteCliente) && !(Number(chat.pagoReabierto) >= enMs(chat.comprobanteCliente));
 // ¿«No me llegó» reabre el pago (antes de la llegada) o cierra la reserva (desde el día de llegada)?
 export const noLlegoReabre = (reserva, ahora = Date.now()) => antesDeLlegar(reserva.llegada, ahora);
 export const textoPagoReabierto = (vence, en = false) => (en

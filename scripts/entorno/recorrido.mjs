@@ -534,8 +534,10 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		const re = await api('socio', { accion: 'nollego', leadId: nl.id });
 		const ch = (await leer(`chats/${nl.token}`)).fields || {};
 		const despues = Number((await leer(`reservas/${nl.id}`)).fields?.vencePago?.integerValue);
-		paso('Servidor: «No me llegó» con el comprobante (antes de la llegada) reabre el pago con plazo nuevo y sin comprobante; sin comprobante, 409',
-			conf.status === 200 && sinComp.status === 409 && re.status === 200 && re.reabierta === true && despues > antes && !ch.comprobanteCliente?.timestampValue
+		const otraVez = await api('socio', { accion: 'nollego', leadId: nl.id });
+		paso('Servidor: «No me llegó» con el comprobante (antes de la llegada) reabre el pago una vez, con plazo nuevo y el comprobante guardado como historia; sin comprobante, 409; la segunda vez, el administrador (409)',
+			conf.status === 200 && sinComp.status === 409 && re.status === 200 && re.reabierta === true && despues > antes && Boolean(ch.comprobanteCliente?.timestampValue) && Number(ch.pagoReabierto?.integerValue) > 0
+			&& otraVez.status === 409 && /administrador/.test(otraVez.error || '')
 			&& Number(ch.vencePago?.integerValue) === despues && (await leer(`reservas/${nl.id}`)).fields?.estado?.stringValue === 'confirmada', `${resp(sinComp)} · ${resp(re)}`);
 		await api('socio', { accion: 'cancelar', leadId: nl.id, motivo: 'Otro' });
 	}

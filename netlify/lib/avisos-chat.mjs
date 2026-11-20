@@ -99,8 +99,12 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		...aLaCasa(`${chat.codigo}: el pago vence en 24 h`, `El pago de ${chat.codigo} vence en 24 h`,
 			`${resumen}. Si ya te pagó, marca «Pago recibido»; si no llega, la reserva se cancela sola y las fechas quedan libres.`)];
 	// «No me llegó» antes de la llegada: el pago se reabre con un plazo nuevo (el texto del chat ya lo dice).
-	if (ultimo.tipo === 'reabierto') return alCliente(en ? `Booking ${chat.codigo}: your payment has not arrived` : `Reserva ${chat.codigo}: tu pago no ha llegado`,
-		en ? 'The host has not received your payment' : 'El anfitrión no ha recibido tu pago', String(ultimo.texto || '').slice(0, 400));
+	// El equipo se entera: el cliente mandó su comprobante y el anfitrión dice que no le llegó (puede haber una fuga).
+	if (ultimo.tipo === 'reabierto') return [
+		...((correos.equipo || []).filter(Boolean).length ? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio dice que no le llegó el pago`, titulo: `No le llegó el pago de ${chat.codigo}`,
+			intro: `${resumen}. El cliente mandó su comprobante y el socio dice que no le llegó: el cliente tiene un plazo nuevo para pagar. Revisa con los dos.`, boton: 'Abrir la solicitud', url: panel }] : []),
+		...alCliente(en ? `Booking ${chat.codigo}: your payment has not arrived` : `Reserva ${chat.codigo}: tu pago no ha llegado`,
+			en ? 'The host has not received your payment' : 'El anfitrión no ha recibido tu pago', String(ultimo.texto || '').slice(0, 400))];
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'The owner received your payment' : 'El propietario recibió tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.
@@ -108,8 +112,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		const no = chat.estado === 'no';
 		// Cada cancelación del socio le llega también al equipo (con ella sale una comisión de la mora).
 		const equipo = !no && ultimo.de === 'socio' && (correos.equipo || []).filter(Boolean).length
-			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva`, titulo: `El socio canceló ${chat.codigo}`,
-				intro: `${resumen}. Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
+			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva${chat.comprobanteCliente ? ' (con comprobante del cliente)' : ''}`, titulo: `El socio canceló ${chat.codigo}`,
+				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
 		// Lo que se cerró o canceló solo por un plazo (netlify/functions/plazos-reservas.mjs): el anfitrión también se entera.
 		const plazo = ultimo.plazo ? aLaCasa(no ? `${chat.codigo}: se cerró sin respuesta` : `${chat.codigo}: se canceló sola, sin pago`,
 			no ? `La solicitud ${chat.codigo} se cerró sola` : `La reserva ${chat.codigo} se canceló sola`,

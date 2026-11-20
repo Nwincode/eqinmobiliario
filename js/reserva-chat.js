@@ -147,7 +147,9 @@
 			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
 			var guia = cuerpo.querySelector('[data-out="sigue"]');
 			// Confirmada: el plazo exacto para pagar; con el comprobante ya enviado, que el anfitrión lo revisa.
-			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente);
+			// Si el anfitrión dijo que no le llegó (pagoReabierto, después del comprobante), se le pide otro: el de antes ya no cuenta
+			// (lo mismo que comprobanteVigente en admin/js/reservas-calculo.js).
+			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !(Number(ch.pagoReabierto) >= new Date(ch.comprobanteCliente).getTime());
 			var vence = Number(ch.vencePago) || 0;
 			guia.textContent = conComprobante ? t.vacChatSigueComprobante
 				: estado === 'Confirmada' ? (vence > 0 ? fmt(t.vacChatSigueConfirmada, { fecha: plazo.format(new Date(vence)) }) : t.vacChatSigueSinPlazo)

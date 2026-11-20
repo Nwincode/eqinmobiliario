@@ -148,10 +148,17 @@ test('«cómo pagar» dice el plazo exacto (hora de Guatemala); sin plazo autom�
 	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: 0 })[0].intro, /Paga antes de llegar/);
 	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: vence, idioma: 'en' })[0].intro, /Pay before Sat, Nov 14, 11:00 PM/);
 });
-test('«No me llegó» antes de la llegada: al cliente, con el plazo nuevo', () => {
+test('«No me llegó» antes de la llegada: al cliente, con el plazo nuevo, y el equipo se entera', () => {
 	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', tipo: 'reabierto', texto: 'El anfitrión todavía no ve tu pago…', createdAt: hace(0) }], { estado: 'confirmada' });
-	assert.deepEqual(a.map((x) => x.para), [['ana@example.com']]);
-	assert.match(a[0].intro, /todavía no ve tu pago/);
+	assert.deepEqual(a.map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
+	assert.match(a[0].asunto, /no le llegó el pago/);
+	assert.match(a[1].intro, /todavía no ve tu pago/);
+});
+test('el socio cancela con el comprobante del cliente: el correo al equipo lo dice', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', texto: 'El anfitrión no recibió tu pago…', createdAt: hace(0) }], { estado: 'cancelada', comprobanteCliente: hace(30) });
+	assert.match(a[0].asunto, /con comprobante del cliente/);
+	const sin = avisos([m('socio', 60, 'pago'), { de: 'socio', texto: 'La reserva se canceló.', createdAt: hace(0) }], { estado: 'cancelada' });
+	assert.doesNotMatch(sin[0].asunto, /comprobante/);
 });
 test('una solicitud repetida se cierra sin correo (aunque alguien llame /api/aviso-chat)', () => {
 	assert.deepEqual(avisos([{ de: 'equipo', texto: 'Esta solicitud estaba repetida…', silencioso: true, createdAt: hace(0) }], { estado: 'no' }), []);
