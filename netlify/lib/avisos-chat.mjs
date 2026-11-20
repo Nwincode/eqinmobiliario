@@ -1,6 +1,7 @@
 // Qué correos tocan por el chat de una reserva vacacional. Sin red: recibe lo guardado y devuelve los avisos.
 // Cada aviso trae lo que el correo muestra (netlify/lib/aviso-chat-envio.mjs): título, texto, tabla de datos, pasos y un botón.
 import { dinero } from '../../admin/js/formato.js';
+import { fechaHora } from '../../admin/js/reservas-calculo.js';
 // Cada aviso lleva solo un enlace a la plataforma (la reserva del cliente o la solicitud en el panel):
 // la conversación sigue allí, y nadie recibe el teléfono ni el correo del otro.
 const FRESCO = 10 * 60_000;
@@ -25,7 +26,15 @@ export const tituloDe = (chat, casa) => String((chat.idioma === 'en' && casa?.en
 // casa: la propiedad guardada (o null).
 // repaso: la revisión de cada hora (netlify/functions/solicitudes-sin-respuesta.mjs) pregunta por un mensaje de texto que
 // no salió por correo porque el otro «estaba conversando» y que sigue sin leer: ese recibe su aviso, una sola vez.
-export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora = Date.now(), repaso = false }) {
+// mensaje: el aviso pendiente que se reintenta (su id, o 'nueva' = la solicitud recién enviada): se revisa como si fuera
+// el momento en que se escribió (lo de después no cuenta), así un correo que no salió sale igual una hora después.
+export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora = Date.now(), repaso = false, mensaje = '' }) {
+	if (mensaje) {
+		const i = mensaje === 'nueva' ? -1 : mensajes.findIndex((m) => m.id === mensaje);
+		if (mensaje !== 'nueva' && i < 0) return [];
+		mensajes = mensajes.slice(0, i + 1);
+		ahora = (i < 0 ? ms(chat.createdAt) : ms(mensajes[i].createdAt)) + 1000;
+	}
 	// Lo que viaja en el asunto y el texto con la forma que pone el sitio: si no, no sale ningún correo (texto libre de alguien).
 	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
 	const reserva = `${sitio}/reserva/#${chat.id}`;
@@ -75,8 +84,12 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		];
 	}
 	if (repaso ? ultimo.tipo || ['no', 'cancelada'].includes(chat.estado) : ahora - ms(ultimo.createdAt) > FRESCO) return [];
+	// Lo que se cierra sin avisar (una solicitud repetida: el cliente ya tiene su reserva en la otra).
+	if (ultimo.silencioso) return [];
+	// El plazo exacto de pago (hora de Guatemala), el mismo que ve en su reserva; sin plazo automático, «antes de llegar».
+	const vence = Number(chat.vencePago) > 0 ? fechaHora(Number(chat.vencePago), en) : '';
 	if (ultimo.tipo === 'pago') return alCliente(en ? `Booking ${chat.codigo} confirmed: how to pay` : `Reserva ${chat.codigo} confirmada: cómo pagar`,
-		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? 'Open your booking to see the owner\'s payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments). Pay soon: if your payment does not arrive in time (48 hours, or less if you arrive sooner), the booking is cancelled automatically.' : 'Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos). Paga pronto: si tu pago no llega a tiempo (48 horas, o menos si llegas antes), la reserva se cancela sola.',
+		en ? 'Your booking is confirmed' : 'Tu reserva está confirmada', en ? `Open your booking to see the owner's payment details: you pay the owner directly (Equipo Inmobiliario does not receive payments). ${vence ? `Pay before ${vence}: otherwise the booking is cancelled automatically.` : 'Pay before you arrive.'}` : `Entra a tu reserva para ver los datos de pago del propietario: le pagas directo a él (Equipo Inmobiliario no recibe pagos). ${vence ? `Paga antes del ${vence}: si no, la reserva se cancela sola.` : 'Paga antes de llegar.'}`,
 		{ pasos: en ? ['Open your booking and see the payment details.', 'Pay the owner directly (Equipo Inmobiliario does not receive payments).', 'Upload a photo of your receipt in the chat.']
 			: ['Abre tu reserva y mira los datos de pago.', 'Págale directo al propietario (Equipo Inmobiliario no recibe pagos).', 'Sube en el chat la foto de tu comprobante.'] });
 	// Recordatorio de pago (24 h antes de que la reserva se cancele sola): al cliente y a la casa, por si ya le pagaron.
@@ -85,6 +98,9 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 			en ? 'If your payment does not arrive in time, the booking is cancelled automatically. Already paid? Attach your receipt in the chat.' : 'Si tu pago no llega a tiempo, la reserva se cancela sola. ¿Ya pagaste? Adjunta tu comprobante en el chat.'),
 		...aLaCasa(`${chat.codigo}: el pago vence en 24 h`, `El pago de ${chat.codigo} vence en 24 h`,
 			`${resumen}. Si ya te pagó, marca «Pago recibido»; si no llega, la reserva se cancela sola y las fechas quedan libres.`)];
+	// «No me llegó» antes de la llegada: el pago se reabre con un plazo nuevo (el texto del chat ya lo dice).
+	if (ultimo.tipo === 'reabierto') return alCliente(en ? `Booking ${chat.codigo}: your payment has not arrived` : `Reserva ${chat.codigo}: tu pago no ha llegado`,
+		en ? 'The host has not received your payment' : 'El anfitrión no ha recibido tu pago', String(ultimo.texto || '').slice(0, 400));
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
 		en ? 'The owner received your payment' : 'El propietario recibió tu pago', en ? 'Open your booking to see the address, the map and how to get there.' : 'Entra a tu reserva para ver la dirección, el mapa y cómo llegar.');
 	// La reserva no se dio o se canceló: el cliente se entera siempre, aunque el mensaje anterior fuera del mismo lado.

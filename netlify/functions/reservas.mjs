@@ -1,6 +1,6 @@
 // Lo que el SOCIO hace con una solicitud de reserva por noche, hecho en el servidor: POST /api/reservas
 //   Authorization: Bearer <token de Firebase del socio>
-//   { accion: 'confirmar' | 'no' | 'cancelar' | 'pago', leadId, motivo? }
+//   { accion: 'confirmar' | 'no' | 'cancelar' | 'pago' | 'nollego', leadId, motivo? }
 // El panel ya no calcula ni escribe el dinero del socio: aquí se lee todo de la base (la solicitud, la casa, sus precios
 // y su margen, las reservas de la casa, el chat de la solicitud por su índice y los datos de pago de la ficha), se
 // calcula con lo mismo que usa el panel (admin/js/reservas-calculo.js y js/calc-vacacional.js) y se escribe en una
@@ -15,10 +15,11 @@
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
-import { Respuesta, falla, fechasDeLaCasa, responder, mensaje, anotar } from '../lib/reservas-servidor.mjs';
+import { Respuesta, falla, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
-import { reservaDeSolicitud, cuentaDe, subtotalCotizado, yaRespondida, llegadaPasada, TEXTO_LLEGADA_PASADA, motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
+import { reservaDeSolicitud, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
+	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, TEXTO_NO_LLEGO, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
@@ -42,25 +43,27 @@ async function cargar({ leer }, socio, leadId) {
 }
 
 const ACCIONES = {
-	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada), la solicitud y el chat dicen «confirmada»
-	// y el cliente recibe los datos de pago de la ficha del socio.
+	// Nace la reserva con su comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat
+	// dicen «confirmada» y el cliente recibe los datos de pago de la ficha del socio. Los montos son los congelados al
+	// llegar la solicitud (montosSolicitud): lo que se le cotizó al cliente, nunca los precios de hoy ni lo que mande el panel.
 	async confirmar(tx, socio, leadId) {
 		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado) || await tx.leer(`reservas/${leadId}`)) falla(409, YA);
-		// La comisión nacería vencida y la casa quedaría con fechas que ya pasaron: se cierra con «No se dio».
-		if (llegadaPasada(lead.reserva.llegada)) falla(409, TEXTO_LLEGADA_PASADA);
-		const cuenta = cuentaDe(lead.reserva, await tx.leer(`properties/${casa.id}/privado/socio`));
-		if (!cuenta) falla(422, 'A esta casa le falta el precio del socio: avísale al administrador.');
+		const montos = await congelarMontos(tx, leadId, { lead, casa });
+		// La llegada ya pasó, la casa salió del sitio o cambió de moneda: no se confirma (se cierra con «No se dio»).
+		const no = motivoParaNoConfirmar(lead, casa, montos);
+		if (no) falla(409, no);
+		if (!montos) falla(422, 'A esta casa le falta el precio del socio: avísale al administrador.');
 		const pago = (await tx.leer(`propietarios/${casa.propietarioId}`))?.datosPago;
 		if (!pago) falla(422, 'No encontramos tus datos de pago y sin ellos el cliente no sabe a dónde pagar. Pídele al administrador que los guarde en tu ficha.');
-		const l = { id: leadId, propertyId: casa.id, propertyTitulo: lead.propertyTitulo, nombre: lead.nombre, reserva: { ...lead.reserva, subtotal: subtotalCotizado(lead.reserva) } };
-		// El socio, siempre con 'mayor': el mayor entre lo cotizado y los precios de hoy.
-		const { datos } = reservaDeSolicitud(l, cuenta, casa, { modo: 'mayor', chat: token });
+		const l = { id: leadId, propertyId: casa.id, propertyTitulo: lead.propertyTitulo, nombre: lead.nombre, reserva: lead.reserva };
+		const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, null), { chat: token });
 		await fechasDeLaCasa(tx, casa, null, { id: leadId, ...datos });
 		tx.crear(`reservas/${leadId}`, datos, { ahora: ['createdAt', 'updatedAt'] });
 		responder(tx, socio, leadId, 'confirmada', 'Confirmó', { 'solicitud.reservaId': leadId, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia });
-		tx.cambiar(`chats/${token}`, { estado: 'confirmada' });
-		mensaje(tx, token, { tipo: 'pago', texto: pago });
+		const id = mensaje(tx, token, { tipo: 'pago', texto: pago });
+		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) });
+		await cerrarDuplicadas(tx, lead, leadId);
 		return { token, costoSocio: datos.costoSocio, ganancia: datos.ganancia, moneda: datos.moneda };
 	},
 	// No se dio: la solicitud y el chat lo dicen y el cliente recibe el mensaje. No hay reserva.
@@ -69,41 +72,72 @@ const ACCIONES = {
 		const { lead, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado)) falla(409, YA);
 		responder(tx, socio, leadId, 'no', 'No se dio', { 'solicitud.motivo': motivo });
-		mensaje(tx, token, { texto: textoNo(motivo) });
-		tx.cambiar(`chats/${token}`, { estado: 'no' });
+		const id = mensaje(tx, token, { texto: textoNo(motivo) });
+		tx.cambiar(`chats/${token}`, { estado: 'no', ...pendiente(id) });
 		return { token };
 	},
 	// Cancela mientras el cliente no ha pagado ni llegado: las fechas quedan libres, la solicitud y el chat dicen
 	// «cancelada» y el cliente recibe el mensaje; el equipo recibe el correo (con ella sale una comisión de la mora).
 	async cancelar(tx, socio, leadId, motivo) {
 		if (!MOTIVOS_CANCELAR.includes(motivo)) falla(400, 'Motivo inválido.');
-		const { lead, casa, token, chat } = await cargar(tx, socio, leadId);
-		const reserva = await tx.leer(`reservas/${leadId}`);
-		if (!reserva || lead.solicitud?.estado !== 'confirmada') falla(409, 'No encontramos la reserva confirmada de esta solicitud: avísale al administrador.');
-		if (reserva.propietarioId !== socio.propietarioId || reserva.propertyId !== casa.id) falla(403, 'Esta reserva no es tuya.');
+		const { casa, token, chat, reserva } = await conReserva(tx, socio, leadId);
 		const motivoNo = motivoParaNoCancelar(reserva, chat, token, Date.now());
 		if (motivoNo) falla(409, motivoNo);
 		await fechasDeLaCasa(tx, casa, reserva, { ...reserva, estado: 'cancelada' });
 		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo }, { ahora: ['updatedAt'] });
 		responder(tx, socio, leadId, 'cancelada', 'Canceló', { 'solicitud.motivo': motivo });
-		mensaje(tx, token, { texto: TEXTO_CANCELADA });
-		tx.cambiar(`chats/${token}`, { estado: 'cancelada' });
+		const id = mensaje(tx, token, { texto: TEXTO_CANCELADA });
+		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
 		return { token };
 	},
+	// «No me llegó»: el socio no recibió el pago. Antes del día de llegada (con el comprobante del cliente) se reabre el
+	// pago con un plazo nuevo: el comprobante se quita, el cliente lo lee en su chat y el cron vuelve a cuidar el plazo.
+	// Desde el día de llegada se cierra la reserva sin comisión (fechas libres); el equipo recibe el correo de la cancelación.
+	async nollego(tx, socio, leadId) {
+		const { casa, token, chat, reserva } = await conReserva(tx, socio, leadId);
+		const ahora = Date.now();
+		const motivoNo = motivoParaNoMeLlego(reserva, chat, token, ahora);
+		if (motivoNo) falla(409, motivoNo);
+		if (noLlegoReabre(reserva, ahora)) {
+			const vence = vencePago(ahora, reserva.llegada);
+			tx.cambiar(`reservas/${leadId}`, { pagoDesde: ahora, vencePago: guardarVence(vence) }, { ahora: ['updatedAt'] });
+			anotar(tx, socio, leadId, 'No me llegó el pago: plazo nuevo');
+			const id = mensaje(tx, token, { tipo: 'reabierto', texto: textoPagoReabierto(vence, chat.idioma === 'en') });
+			tx.cambiar(`chats/${token}`, { comprobanteCliente: null, comprobanteMensaje: null, recordatorioPago: false, vencePago: guardarVence(vence), ...pendiente(id) });
+			return { token, reabierta: true };
+		}
+		await fechasDeLaCasa(tx, casa, reserva, { ...reserva, estado: 'cancelada' });
+		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo: MOTIVO_NO_LLEGO }, { ahora: ['updatedAt'] });
+		responder(tx, socio, leadId, 'cancelada', 'No me llegó el pago: se canceló sin comisión', { 'solicitud.motivo': MOTIVO_NO_LLEGO });
+		const id = mensaje(tx, token, { texto: TEXTO_NO_LLEGO });
+		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
+		return { token, reabierta: false };
+	},
 	// El cliente le pagó al socio: el chat dice «Pago recibido» y lleva la dirección y el mapa guardados en la casa
-	// (privado/llegada), todo junto. Si quedó «pagada» sin los datos de llegada (un intento de antes a medias), los manda.
+	// (privado/llegada), todo junto. Sin dirección guardada no se marca (el cliente no sabría a dónde llegar). Si quedó
+	// «pagada» sin los datos de llegada (un intento de antes a medias), los manda.
 	async pago(tx, socio, leadId) {
 		const { casa, token, chat } = await cargar(tx, socio, leadId);
 		if (chat.estado === 'pagada') {
 			if ((await tx.consultar('mensajes', 'tipo', 'llegada', `chats/${token}`)).length) falla(409, 'El pago ya estaba marcado y el cliente ya ve los datos de llegada.');
-		} else if (chat.estado === 'confirmada') tx.cambiar(`chats/${token}`, { estado: 'pagada' });
-		else falla(409, 'Esta reserva no está confirmada.');
+		} else if (chat.estado !== 'confirmada') falla(409, 'Esta reserva no está confirmada.');
 		const ll = await tx.leer(`properties/${casa.id}/privado/llegada`);
-		mensaje(tx, token, { tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}) });
+		if (faltaDireccion(ll)) falla(422, TEXTO_SIN_DIRECCION);
+		const id = mensaje(tx, token, { tipo: 'llegada', texto: 'llegada', direccion: ll.direccion || '', mapa: ll.mapa || '' });
+		tx.cambiar(`chats/${token}`, { estado: 'pagada', ...pendiente(id) });
 		anotar(tx, socio, leadId, 'Pago recibido');
 		return { token };
 	}
 };
+
+// La solicitud con su reserva confirmada (cancelar y «No me llegó»).
+async function conReserva(tx, socio, leadId) {
+	const c = await cargar(tx, socio, leadId);
+	const reserva = await tx.leer(`reservas/${leadId}`);
+	if (!reserva || c.lead.solicitud?.estado !== 'confirmada') falla(409, 'No encontramos la reserva confirmada de esta solicitud: avísale al administrador.');
+	if (reserva.propietarioId !== socio.propietarioId || reserva.propertyId !== c.casa.id) falla(403, 'Esta reserva no es tuya.');
+	return { ...c, reserva };
+}
 
 // ¿La cuenta de escritura no sirve? (Google rechaza su clave, o la base le niega el permiso: falta el rol.)
 const sinCuenta = (err) => err?.rechazo || err?.codigo === 'PERMISSION_DENIED' || err?.status === 401 || err?.status === 403;

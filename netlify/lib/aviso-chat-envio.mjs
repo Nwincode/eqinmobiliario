@@ -3,12 +3,18 @@
 // netlify/functions/reservas.mjs (después de confirmar, cancelar o cobrar por el socio).
 // El correo del cliente sale de su solicitud y el del socio de su ficha, ambos leídos con la cuenta de servicio, y el
 // título de la casa, de la casa guardada. Devuelve cuántos salieron (0 sin correo o base configurados), o null si el chat no existe.
+// Con la cuenta de escritura, cada aviso queda anotado en el chat (avisoEnviado = el id del mensaje, o 'nueva'):
+//  - el mismo aviso no sale dos veces aunque alguien llame /api/aviso-chat muchas veces;
+//  - el que no salió (el servicio falló o la función se cortó) queda en avisoPendiente, que ponen también el servidor y
+//    el cron en el mismo cambio del chat; el control de cada hora (solicitudes-sin-respuesta.mjs) lo reintenta una vez
+//    (`reintento`) y, salga o no, lo quita.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
+import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
-export async function enviarAvisosChat(token, { repaso = false } = {}) {
+export async function enviarAvisosChat(token, { repaso = false, reintento = false } = {}) {
 	// Basta el servicio de correo: el cliente y el socio reciben lo suyo aunque falten los correos del equipo (AVISO_CORREO).
 	if (!servicioCorreo() || !datosConfigurados()) return 0;
 	const chat = await leerPublico(`chats/${token}`);
@@ -24,7 +30,18 @@ export async function enviarAvisosChat(token, { repaso = false } = {}) {
 	]);
 	const casa = publica && { ...publica, codigoSocio: String(privada?.codigoSocio || '').slice(0, 30) };
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
-	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	const clave = reintento ? String(chat.avisoPendiente || '') : mensajes.at(-1)?.id || 'nueva';
+	if (reintento && !clave) return 0;
+	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, mensaje: reintento ? clave : '', correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	let anotar = escrituraConfigurada();
+	// Nada que mandar: si era un pendiente, se quita.
+	if (!avisos.length) { if (anotar && chat.avisoPendiente === clave) await marcar(token, clave, { listo: true }).catch(() => {}); return 0; }
+	// Se aparta antes de mandar: otra llamada con el mismo aviso ya no lo manda. Si la base no responde, el correo sale
+	// igual (sin anotar): mejor uno repetido que ninguno.
+	if (anotar) {
+		const libre = await apartar(token, clave, reintento).catch((err) => { console.error('Aviso de chat (apartar):', err.message); anotar = false; return true; });
+		if (!libre) return 0;
+	}
 	// Cada correo por su lado: si falla el del socio, el del cliente igual sale (y al revés).
 	let fallas = 0;
 	for (const a of avisos) {
@@ -45,6 +62,22 @@ export async function enviarAvisosChat(token, { repaso = false } = {}) {
 			await enviarCorreo({ responder: true, para: a.para, asunto: a.asunto, html, texto });
 		} catch (err) { fallas++; console.error('Aviso de chat a', a.para.length, 'correo(s):', err.message); }
 	}
+	if (anotar) await marcar(token, clave, { listo: !fallas || reintento }).catch((err) => console.error('Aviso de chat (anotar):', err.message));
 	if (fallas && fallas === avisos.length) throw new Error('No salió ningún aviso');
 	return avisos.length - fallas;
 }
+
+// ¿Este aviso todavía no salió? Lo aparta (avisoEnviado = clave) en una transacción. Un reintento solo si sigue pendiente.
+const apartar = (token, clave, reintento) => transaccion(async ({ leer, cambiar }) => {
+	const c = await leer(`chats/${token}`);
+	if (!c || (reintento ? c.avisoPendiente !== clave : c.avisoEnviado === clave)) return false;
+	cambiar(`chats/${token}`, { avisoEnviado: clave });
+	return true;
+});
+// Salió (o ya se reintentó): se quita el pendiente; si falló, queda pendiente para el control de cada hora.
+const marcar = (token, clave, { listo }) => transaccion(async ({ leer, cambiar }) => {
+	const c = await leer(`chats/${token}`);
+	if (!c) return;
+	if (listo) { if (c.avisoPendiente === clave) cambiar(`chats/${token}`, { avisoPendiente: '', avisoIntentos: 0 }); }
+	else cambiar(`chats/${token}`, { avisoPendiente: clave, avisoIntentos: (Number(c.avisoIntentos) || 0) + 1, avisoEnviado: '' });
+});

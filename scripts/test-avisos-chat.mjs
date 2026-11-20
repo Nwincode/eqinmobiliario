@@ -140,4 +140,31 @@ test('el socio cancela: al cliente y también al equipo; el equipo cancela: solo
 	assert.deepEqual(avisos([m('cliente', 5), m('equipo', 1)], { estado: 'cancelada' }).map((x) => x.para), [['ana@example.com']]);
 	assert.deepEqual(avisos([m('cliente', 5), m('socio', 1)], { estado: 'no' }).map((x) => x.para), [['ana@example.com']]);
 });
+test('«cómo pagar» dice el plazo exacto (hora de Guatemala); sin plazo automático, «antes de llegar»', () => {
+	const vence = Date.parse('2026-11-15T05:00:00Z');
+	const a = avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: vence });
+	assert.match(a[0].intro, /Paga antes del sáb, 14 nov, 11:00/);
+	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: 0 })[0].intro, /Paga antes de llegar/);
+	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: vence, idioma: 'en' })[0].intro, /Pay before Sat, Nov 14, 11:00 PM/);
+});
+test('«No me llegó» antes de la llegada: al cliente, con el plazo nuevo', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', tipo: 'reabierto', texto: 'El anfitrión todavía no ve tu pago…', createdAt: hace(0) }], { estado: 'confirmada' });
+	assert.deepEqual(a.map((x) => x.para), [['ana@example.com']]);
+	assert.match(a[0].intro, /todavía no ve tu pago/);
+});
+test('una solicitud repetida se cierra sin correo (aunque alguien llame /api/aviso-chat)', () => {
+	assert.deepEqual(avisos([{ de: 'equipo', texto: 'Esta solicitud estaba repetida…', silencioso: true, createdAt: hace(0) }], { estado: 'no' }), []);
+});
+test('reintento de un aviso pendiente: se revisa como en el momento del mensaje (una hora después igual sale)', () => {
+	const pago = { ...m('socio', 60, 'pago'), id: 'msjPago' };
+	// Sin reintento, una hora después ya no sale (FRESCO).
+	assert.deepEqual(avisos([pago], { estado: 'confirmada' }), []);
+	const r = avisosChat({ chat: { ...chat, estado: 'confirmada' }, mensajes: [pago, { ...m('cliente', 30), id: 'despues' }], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'msjPago' });
+	assert.deepEqual(r.map((x) => x.para), [['ana@example.com']]);
+	assert.match(r[0].asunto, /cómo pagar/);
+	// La solicitud nueva cuyo correo no salió ('nueva').
+	const n = avisosChat({ chat: { ...chat, createdAt: hace(120) }, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'nueva' });
+	assert.equal(n.length, 3);
+	assert.deepEqual(avisosChat({ chat, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'noExiste' }), []);
+});
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

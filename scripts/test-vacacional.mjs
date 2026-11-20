@@ -309,7 +309,8 @@ test('«1 noche», «3 noches»', () => {
 });
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',
-		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234'])
+		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234',
+		'mi cel ５５５５１２３４', 'mi cel ٥٥٥٥١٢٣٤', 'ana＠gmail.com', 'ｗｗｗ．micasa．com'])
 		assert.equal(V.tieneContacto(t), true, t);
 	for (const t of ['Llegamos el 16/11/2026 a las 15:00', '¿Aceptan 2 perros?', 'Somos 8 adultos y 2 niños', 'El total es US$ 1,122.40, ¿correcto?',
 		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', ''])
@@ -342,6 +343,12 @@ test('subtotal desde el total: nunca por debajo del cotizado (1 a 5,000 al centa
 		const s2 = V.subtotalDeTotal(q.total);
 		assert.ok(s2 >= q.subtotal && s2 - q.subtotal <= 0.02, `${q.subtotal} → ${q.total} → ${s2}`);
 	}
+});
+
+test('estancia más larga que el tope de la base (365 noches): no se puede pedir', () => {
+	assert.equal(V.validarEstancia({ llegada: '2027-01-01', salida: '2028-01-01' }).ok, true);
+	const larga = V.validarEstancia({ llegada: '2027-01-01', salida: '2028-01-02' });
+	assert.deepEqual([larga.ok, larga.error, larga.maximo], [false, 'maximo', 365]);
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

@@ -25,6 +25,8 @@
 	var IVA = 12;
 	var INGUAT = 10;
 	var MARGEN = 20;
+	// La estancia más larga que se puede pedir (la misma que acepta firestore.rules).
+	var MAX_NOCHES = 365;
 	var DIA = 86400000;
 	// Los calendarios (iCal) que puede tener una casa, uno por plataforma: el campo en privado/socio, su nombre y su
 	// columna en el importador. Airbnb sigue en «icalUrl» (el de siempre).
@@ -168,6 +170,8 @@
 		}
 		var minimo = minimoNoches(llegada, salida, o.nochesMin, o.minimos);
 		if (noches < minimo) return { ok: false, noches: noches, error: 'minimo', minimo: minimo };
+		// El tope de las reglas de la base (firestore.rules reservaCotizada): una estancia más larga no se puede pedir.
+		if (noches > MAX_NOCHES) return { ok: false, noches: noches, error: 'maximo', maximo: MAX_NOCHES };
 		return { ok: true, noches: noches, error: '' };
 	}
 
@@ -408,14 +412,17 @@
 	// Fechas, horas y montos no cuentan como teléfono; los números escritos con letras sí.
 	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
 	function tieneContacto(texto) {
-		var t = String(texto || '').toLowerCase();
+		// NFKC: los dígitos y la arroba de ancho completo («５», «＠») y otras formas pasan a los de siempre.
+		var t = String(texto || '');
+		// Los dígitos de otras escrituras (árabes, persas, devanagari) que NFKC no cambia cuentan como dígitos (la regla igual).
+		t = (t.normalize ? t.normalize('NFKC') : t).toLowerCase().replace(/[\u0660-\u0669\u06f0-\u06f9\u0966-\u096f]/g, '0');
 		if (/@|\barroba\b|https?:|www\.|wa\.me|\.(com|net|org|gt)\b/.test(t)) return true;
 		t = t.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
 		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t);
 	}
 
 	return {
-		tieneContacto: tieneContacto,
+		tieneContacto: tieneContacto, MAX_NOCHES: MAX_NOCHES,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN, CALENDARIOS: CALENDARIOS,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,

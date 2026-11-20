@@ -3,8 +3,11 @@
 // - los mensajes del cliente en el chat de su reserva que llevan más de 2 horas sin respuesta, y
 // - las reservas confirmadas que se cancelaron: por la solicitud y también por la reserva misma (una cancelación escrita
 //   directo en la base, sin pasar por el panel, no manda el correo de /api/aviso-chat; aquí sí llega).
-// - las que el socio respondió «No se dio» y después esas mismas fechas aparecen bloqueadas o con otra reserva en la
-//   casa (puede ser un cliente que se cerró por fuera de la plataforma).
+// - las que el socio respondió «No se dio», o que se cancelaron sin pago o porque «el cliente canceló», y después esas
+//   mismas fechas aparecen bloqueadas o con otra reserva en la casa (puede ser un cliente que se cerró por fuera);
+// - a las 7 a. m., las reservas confirmadas sin pago marcado cuya llegada ya pasó (el socio no tocó «Pago recibido» ni
+//   «No me llegó»): sin esto, su comisión vence sin que nadie sepa si el cliente pagó. Salen cada mañana hasta resolverse.
+// Además reintenta una vez los correos del chat que no salieron (avisoPendiente: aviso-chat-envio.mjs).
 // Cada una se avisa una sola vez: entra en el correo de la hora en que venció o se canceló (la de «No se dio» queda
 // anotada en alertas/bloqueo-{id}, que solo escribe la cuenta de escritura: las reglas no dejan a nadie más).
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
@@ -15,6 +18,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
+import { MOTIVO_SIN_PAGO } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 
 const V = globalThis.EQVacacional;
@@ -50,8 +54,18 @@ export default async () => {
 		const canceladas = [...deSolicitud, ...deReserva];
 		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
 		const hoy = V.hoy(ahora);
+		const todosLosChats = await listar('chats').catch((err) => { console.error('Chats:', err.message); return []; });
+		// Los correos del chat que no salieron: un reintento cada uno (aviso-chat-envio.mjs lo quita salga o no).
+		for (const c of todosLosChats.filter((x) => x.avisoPendiente)) await enviarAvisosChat(c.id, { reintento: true }).catch((err) => console.error('Reintento de aviso:', err.message));
+		// Confirmadas sin pago marcado con la llegada ya pasada: cada mañana, hasta que se resuelvan.
+		const sinPago = !sonLas7 ? [] : await (async () => {
+			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
+			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && porId.get(r.chat)?.estado === 'confirmada')
+				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
+					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
+		})().catch((err) => { console.error('Confirmadas sin pago:', err.message); return []; });
 		const mensajes = await (async () => {
-			const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
+			const vigentes = todosLosChats.filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
 			return (await Promise.all(vigentes.map(async (c) => {
 				const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
 				// Un mensaje que no avisó por correo (el otro estaba conversando y se fue sin leerlo): su aviso sale 10 min
@@ -64,10 +78,10 @@ export default async () => {
 		})().catch((err) => { console.error('Mensajes sin responder:', err.message); return []; });
 		// Se anota una sola vez al avisar: sin correos del equipo no se anota (se avisa cuando los haya).
 		const sospechosas = !destinatariosEquipo().length ? [] : await noSeDioYBloqueada(ahora).catch((err) => { console.error('«No se dio» y bloqueada:', err.message); return []; });
-		if (!destinatariosEquipo().length || (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length)) return;
+		if (!destinatariosEquipo().length || (!sinRespuesta.length && !canceladas.length && !mensajes.length && !sospechosas.length && !sinPago.length)) return;
 
 		const socios = {};
-		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas].map((l) => l.propietarioId).filter(Boolean))) {
+		for (const id of new Set([...sinRespuesta, ...canceladas, ...mensajes, ...sospechosas, ...sinPago].map((l) => l.propietarioId).filter(Boolean))) {
 			socios[id] = (await leerPrivado(`propietarios/${id}`).catch(() => null))?.nombre || '';
 		}
 		const linea = (l) => {
@@ -77,8 +91,9 @@ export default async () => {
 		};
 		const enPanel = (l) => `${SITE_URL}/admin/#/solicitudes/${l.reserva.codigo}`;
 		const grupos = [['Solicitudes sin responder hace más de 2 horas', sinRespuesta], ['Mensajes del cliente sin responder hace más de 2 horas', mensajes], ['Reservas canceladas', canceladas],
-			['«No se dio» y después esas fechas se ocuparon: revisa si el cliente se cerró por fuera', sospechosas]].filter(([, lista]) => lista.length);
-		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} «No se dio» con fechas ocupadas`].filter(Boolean).join(' · ');
+			['«No se dio» o cancelada y después esas fechas se ocuparon: revisa si el cliente se cerró por fuera', sospechosas],
+			['Confirmadas sin «Pago recibido» y con la llegada ya pasada: pregúntale al socio si el cliente pagó', sinPago]].filter(([, lista]) => lista.length);
+		const asunto = [sinRespuesta.length && `${sinRespuesta.length} sin responder`, mensajes.length && `${mensajes.length} mensaje(s) sin respuesta`, canceladas.length && `${canceladas.length} cancelada(s)`, sospechosas.length && `${sospechosas.length} cerrada(s) con fechas ocupadas`, sinPago.length && `${sinPago.length} sin pago marcado`].filter(Boolean).join(' · ');
 
 		const html = await plantilla({
 			titulo: 'Reservas que necesitan tu atención',
@@ -95,14 +110,16 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 	}
 };
 
-// «No se dio» (de los últimos 60 días, con fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva
-// anotada a mano en la misma casa: la señal de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
+// «No se dio» (salvo las repetidas) o cancelada sin pago o porque «el cliente canceló» (de los últimos 60 días, con
+// fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva anotada a mano en la misma casa: la señal
+// de un cliente que pudo cerrarse por fuera. Una sola vez por solicitud; sin la cuenta de
 // escritura no se puede anotar, y no se avisa (para no mandar el mismo correo cada hora).
+const cerradaSinReserva = (s) => (s?.estado === 'no' && s.motivo !== 'Duplicada') || (s?.estado === 'cancelada' && [MOTIVO_SIN_PAGO, 'Cliente canceló'].includes(s.motivo));
 async function noSeDioYBloqueada(ahora) {
 	if (!escrituraConfigurada()) return [];
 	const hoy = V.hoy(ahora);
 	const nos = (await desde('leads', 'updatedAt', new Date(ahora - 60 * 24 * HORA)))
-		.filter((l) => l.solicitud?.estado === 'no' && l.propertyId && l.reserva?.llegada && l.reserva.salida > hoy);
+		.filter((l) => cerradaSinReserva(l.solicitud) && l.propertyId && l.reserva?.llegada && l.reserva.salida > hoy);
 	if (!nos.length) return [];
 	const reservas = await listar('reservas');
 	const casas = new Map();

@@ -3,7 +3,8 @@
 // Los números de las reservas de prueba son los de scripts/emulador/test-reglas.mjs (lead-res-noche, lead-res-cara):
 // con este módulo dan lo mismo que daba el panel antes de moverlo.
 import assert from 'node:assert/strict';
-import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE } from '../admin/js/reservas-calculo.js';
+import { venceRespuesta, vencePago, recordarPagoDesde, conPlazo, PLAZOS_DESDE, plazoDePago, guardarVence, cancelaSola, montosCotizados, cambioElPrecio, motivoParaNoConfirmar,
+	motivoParaNoMeLlego, noLlegoReabre, faltaDireccion, esDuplicada } from '../admin/js/reservas-calculo.js';
 import '../js/calc-vacacional.js';
 import { nuevaReserva, comisionDeReserva, cuentaDe, subtotalCotizado, montosDeConfirmacion, difierenMontos, reservaDeSolicitud, yaRespondida, antesDeLlegar, llegadaPasada,
 	motivoParaNoCancelar, MOTIVOS_NO, MOTIVOS_CANCELAR } from '../admin/js/reservas-calculo.js';
@@ -30,37 +31,98 @@ test('la cuenta de la estancia sale de los precios guardados del dueño (sin pre
 	assert.equal(cuentaDe({ llegada: '2026-12-24', salida: '2026-12-25' }, plan).ganancia, 40);
 });
 
-test('reserva de prueba lead-res-noche: su parte 300, lo cobrado 360, ganancia y comisión 60 (lo que exigía la regla)', () => {
+test('reserva de prueba lead-res-noche: su parte 300, lo cobrado 360, ganancia y comisión 60, con su plazo de pago', () => {
 	const l = solicitud(360);
-	const { datos, montos } = reservaDeSolicitud(l, cuentaDe(l.reserva, privado), casa, { chat: 'ChatDeLaReservaRNLargoYAlAzar1' });
+	const montos = montosCotizados(l.reserva, casa, privado);
+	assert.deepEqual(montos, { moneda: 'USD', costoSocio: 300, alojamiento: 360, limpieza: 0, margen: 20, ganancia: 60, delPlan: 360, coincide: true });
+	const ahora = Date.parse('2026-11-20T12:00:00Z');
+	const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, cuentaDe(l.reserva, privado)), { chat: 'ChatDeLaReservaRNLargoYAlAzar1', ahora });
 	assert.deepEqual(datos, { propertyId: 'mx-noche', propertyTitulo: 'Casa por noche', agentId: '', propietarioId: 'm1', moneda: 'USD', llegada: '2026-12-01', salida: '2026-12-04', noches: 3,
 		huesped: 'Ana', canal: 'web', estado: 'confirmada', leadId: 'lead-res-noche', codigo: 'EQ-RN', chat: 'ChatDeLaReservaRNLargoYAlAzar1', costoSocio: 300, alojamiento: 360, ganancia: 60,
-		pagadoSocio: false, pagadoFecha: '', comision: { monto: 60, vence: '2026-12-01', pagada: false } });
-	assert.equal(montos.cotizado, 360);
-	assert.equal(montos.deHoy, 360);
-	assert.equal(difierenMontos(montos), false);
+		pagadoSocio: false, pagadoFecha: '', comision: { monto: 60, vence: '2026-12-01', pagada: false }, pagoDesde: ahora, vencePago: ahora + 48 * 3600000 });
+	assert.equal(difierenMontos(montosDeConfirmacion(montos, cuentaDe(l.reserva, privado))), false);
 });
 
-test('cotizado contra precios de hoy: el socio registra el mayor; el administrador elige', () => {
-	// lead-res-cara: se le cotizaron US$ 500 (un precio especial puesto después dejó la noche en 120 al público).
-	const cara = solicitud(500);
-	const c = cuentaDe(cara.reserva, privado);
-	const mayor = montosDeConfirmacion(cara, c, casa);
-	assert.deepEqual([mayor.alojamiento, mayor.ganancia, mayor.gananciaCotizada, mayor.hoy], [500, 200, 200, 60]);
-	assert.equal(difierenMontos(mayor), true);
-	assert.equal(montosDeConfirmacion(cara, c, casa, 'hoy').alojamiento, 360);
-	assert.equal(montosDeConfirmacion(cara, c, casa, 'cotizado').alojamiento, 500);
-	// Lo cotizado menor que hoy (subió un precio): el socio registra lo de hoy; el administrador puede registrar lo cotizado.
-	const barata = solicitud(330);
-	assert.equal(montosDeConfirmacion(barata, c, casa).alojamiento, 360);
-	assert.equal(montosDeConfirmacion(barata, c, casa, 'cotizado').ganancia, 30);
-	// La limpieza no lleva margen: se resta de lo cotizado.
-	assert.equal(montosDeConfirmacion(solicitud(460), c, { vacacional: { limpieza: 100 } }).cotizado, 360);
-	// Sin nada cotizado, «cotizado» cae a lo de hoy (nunca a 0).
-	assert.equal(montosDeConfirmacion(solicitud(0), c, casa, 'cotizado').alojamiento, 360);
-	// 1 % o menos de diferencia no se pregunta.
-	assert.equal(difierenMontos(montosDeConfirmacion(solicitud(363), c, casa)), false);
-	assert.equal(difierenMontos(montosDeConfirmacion(solicitud(364), c, casa)), true);
+test('montos congelados: la limpieza, la parte del socio y el margen de la casa al cotizar; nunca una ganancia negativa', () => {
+	// Con limpieza: lo cobrado es lo cotizado sin ella.
+	const m = montosCotizados(solicitud(460).reserva, { ...casa, vacacional: { limpieza: 100 } }, privado);
+	assert.deepEqual([m.alojamiento, m.limpieza, m.costoSocio, m.ganancia, m.coincide], [360, 100, 300, 60, true]);
+	// Una página vieja cotizó de menos (480 contra 600 de hoy): se reparten lo cotizado con la proporción de hoy.
+	const barata = montosCotizados(solicitud(300).reserva, casa, privado);
+	assert.deepEqual([barata.alojamiento, barata.costoSocio, barata.ganancia, barata.coincide], [300, 250, 50, false]);
+	// Cotizado de más (inflado): el socio y EQ en la misma proporción; lo cobrado es lo que el cliente paga.
+	const cara = montosCotizados(solicitud(500).reserva, casa, privado);
+	assert.deepEqual([cara.alojamiento, cara.costoSocio, cara.ganancia], [416.67 + 83.33, 416.67, 83.33]);
+	// Sin nada cotizado: todo en 0, nunca negativo.
+	const cero = montosCotizados(solicitud(0).reserva, casa, privado);
+	assert.deepEqual([cero.alojamiento, cero.costoSocio, cero.ganancia], [0, 0, 0]);
+	// Margen 0 y cotizado apenas menor (dentro del 1 %): la parte del socio no pasa de lo cobrado.
+	const sinMargen = montosCotizados(solicitud(299).reserva, casa, { precioBase: 100, margen: 0 });
+	assert.ok(sinMargen.ganancia >= 0 && sinMargen.costoSocio === 299);
+	assert.equal(montosCotizados(solicitud(360).reserva, casa, null), null);
+	// 20 000 estancias al azar: la parte del socio más la ganancia es siempre lo cobrado, y la ganancia nunca es negativa.
+	for (let i = 0; i < 20000; i++) {
+		const sub = Math.round(Math.random() * 200000) / 100;
+		const pr = { precioBase: 1 + Math.round(Math.random() * 500), precioFinde: Math.random() < 0.5 ? 0 : 1 + Math.round(Math.random() * 600), margen: Math.round(Math.random() * 40) };
+		const x = montosCotizados(solicitud(sub).reserva, { ...casa, vacacional: { limpieza: Math.round(Math.random() * 50) } }, pr);
+		assert.ok(x.ganancia >= 0 && x.costoSocio >= 0 && Math.abs(x.costoSocio + x.ganancia - x.alojamiento) < 0.005, JSON.stringify({ sub, pr, x }));
+	}
+});
+
+test('confirmar: siempre con lo congelado (aunque hoy el precio sea otro); el administrador puede elegir los precios de hoy', () => {
+	const congelado = montosCotizados(solicitud(360).reserva, casa, privado);
+	// Hoy el socio subió a 150 la noche: la tarjeta lo dice, pero se registra lo cotizado.
+	const hoy = cuentaDe(solicitud(360).reserva, { precioBase: 150, margen: 20 });
+	assert.equal(cambioElPrecio(congelado, hoy), true);
+	assert.equal(cambioElPrecio(congelado, cuentaDe(solicitud(360).reserva, privado)), false);
+	const m = montosDeConfirmacion(congelado, hoy);
+	assert.deepEqual([m.costoSocio, m.alojamiento, m.ganancia, m.cotizado, m.deHoy, m.hoy], [300, 360, 60, 360, 540, 90]);
+	assert.equal(difierenMontos(m), true);
+	const deHoy = montosDeConfirmacion(congelado, hoy, 'hoy');
+	assert.deepEqual([deHoy.costoSocio, deHoy.alojamiento, deHoy.ganancia], [450, 540, 90]);
+	// Sin precios de hoy (la casa ya no tiene precio): lo congelado.
+	assert.equal(montosDeConfirmacion(congelado, null, 'hoy').ganancia, 60);
+	assert.deepEqual(comisionDeReserva({ ganancia: 40, llegada: '2026-12-01' }, { pagada: true, comprobante: 'x' }), { pagada: true, comprobante: 'x', monto: 40, vence: '2026-12-01' });
+});
+
+test('no se confirma: llegada pasada, casa fuera del sitio o que cambió de moneda', () => {
+	const ahora = Date.parse('2026-11-20T18:00:00Z');
+	const lead = solicitud(360);
+	const pub = { ...casa, publicado: true };
+	assert.equal(motivoParaNoConfirmar(lead, pub, null, ahora), '');
+	assert.match(motivoParaNoConfirmar({ reserva: { ...lead.reserva, llegada: '2026-11-19' } }, pub, null, ahora), /ya pasó/);
+	assert.match(motivoParaNoConfirmar(lead, { ...pub, publicado: false }, null, ahora), /publicada/);
+	assert.match(motivoParaNoConfirmar(lead, { ...pub, estado: 'pausada' }, null, ahora), /publicada/);
+	assert.match(motivoParaNoConfirmar(lead, { ...pub, moneda: 'GTQ' }, null, ahora), /moneda/);
+	assert.match(motivoParaNoConfirmar(lead, pub, { moneda: 'GTQ' }, ahora), /moneda/);
+	assert.equal(motivoParaNoConfirmar(lead, { ...pub, moneda: '' }, null, ahora), '');
+});
+
+test('«No me llegó»: con el comprobante reabre el pago; desde el día de llegada cierra; nunca con la comisión pagada', () => {
+	const antes = Date.parse('2026-11-30T12:00:00Z'), llegada = Date.parse('2026-12-01T12:00:00Z');
+	const reserva = { estado: 'confirmada', chat: 'Tk', llegada: '2026-12-01', comision: { monto: 60, pagada: false } };
+	assert.match(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Tk', antes), /Cancelar/);
+	assert.equal(motivoParaNoMeLlego(reserva, { estado: 'confirmada', comprobanteCliente: new Date() }, 'Tk', antes), '');
+	assert.equal(noLlegoReabre(reserva, antes), true);
+	assert.equal(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Tk', llegada), '');
+	assert.equal(noLlegoReabre(reserva, llegada), false);
+	assert.match(motivoParaNoMeLlego(reserva, { estado: 'pagada' }, 'Tk', llegada), /Pago recibido/);
+	assert.match(motivoParaNoMeLlego({ ...reserva, comision: { pagada: true } }, { estado: 'confirmada' }, 'Tk', llegada), /pagada/);
+	assert.match(motivoParaNoMeLlego(reserva, { estado: 'confirmada' }, 'Otro', llegada), /de antes/);
+	// Con el comprobante subido, el socio ya no cancela: usa «No me llegó».
+	assert.match(motivoParaNoCancelar(reserva, { estado: 'confirmada', comprobanteCliente: new Date() }, 'Tk', antes), /comprobante/);
+});
+
+test('dirección, duplicadas', () => {
+	assert.equal(faltaDireccion(null), true);
+	assert.equal(faltaDireccion({ direccion: '  ' }), true);
+	assert.equal(faltaDireccion({ direccion: 'Km 5' }), false);
+	const a = { id: 'a', email: 'Ana@X.test ', propertyId: 'c', reserva: { llegada: '2026-12-01', salida: '2026-12-03' } };
+	assert.equal(esDuplicada(a, { ...a, id: 'b', email: 'ana@x.test' }), true);
+	assert.equal(esDuplicada(a, a), false);
+	assert.equal(esDuplicada(a, { ...a, id: 'b', reserva: { llegada: '2026-12-01', salida: '2026-12-04' } }), false);
+	assert.equal(esDuplicada(a, { ...a, id: 'b', propertyId: 'otra' }), false);
+	assert.equal(esDuplicada({ ...a, email: '' }, { ...a, id: 'b', email: '' }), false);
 });
 
 test('subtotal cotizado: el de la solicitud, o sacado del total que vio el cliente (chats de antes)', () => {
@@ -71,10 +133,10 @@ test('subtotal cotizado: el de la solicitud, o sacado del total que vio el clien
 
 test('la moneda de la reserva y de la comisión es la de la casa, no la que mande el cliente (sin moneda, US$)', () => {
 	const l = solicitud(360, { moneda: 'GTQ' });
-	const c = cuentaDe(l.reserva, privado);
-	assert.equal(reservaDeSolicitud(l, c, casa).datos.moneda, 'USD');
-	assert.equal(reservaDeSolicitud(solicitud(360), c, { ...casa, moneda: 'GTQ' }).datos.moneda, 'GTQ');
-	assert.equal(reservaDeSolicitud(l, c, { ...casa, moneda: '' }).datos.moneda, 'USD');
+	const m = montosDeConfirmacion(montosCotizados(l.reserva, casa, privado), null);
+	assert.equal(reservaDeSolicitud(l, casa, m).moneda, 'USD');
+	assert.equal(reservaDeSolicitud(solicitud(360), { ...casa, moneda: 'GTQ' }, m).moneda, 'GTQ');
+	assert.equal(reservaDeSolicitud(l, { ...casa, moneda: '' }, m).moneda, 'USD');
 	assert.equal(nuevaReserva(casa, { llegada: '2026-12-01', salida: '2026-12-03', moneda: 'GTQ' }).moneda, 'USD');
 });
 
@@ -98,7 +160,7 @@ test('reserva a mano y comisión: lo de siempre', () => {
 test('las fechas de la casa al confirmar: choque con otra confirmada y la salida libre para la siguiente', () => {
 	const otra = { id: 'r1', propertyId: 'mx-noche', estado: 'confirmada', llegada: '2026-12-03', salida: '2026-12-06' };
 	const l = solicitud(360);
-	const { datos } = reservaDeSolicitud(l, cuentaDe(l.reserva, privado), casa);
+	const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montosCotizados(l.reserva, casa, privado), null));
 	const c = V.cambioDeReserva({ guardadas: [{ desde: '2026-12-03', hasta: '2026-12-06' }], reservas: [otra], antes: null, despues: { id: l.id, ...datos }, propertyId: 'mx-noche', completas: true });
 	assert.equal(c.choque?.id, 'r1');
 	const pegada = V.cambioDeReserva({ guardadas: [], reservas: [{ ...otra, llegada: '2026-12-04', salida: '2026-12-06' }], antes: null, despues: { id: l.id, ...datos }, propertyId: 'mx-noche', completas: true });
@@ -125,7 +187,7 @@ test('el socio cancela hasta las 23:59 del día antes de llegar, hora de Guatema
 	const chat = { estado: 'confirmada' };
 	const antes = Date.parse('2026-11-16T05:00:00Z');
 	assert.equal(motivoParaNoCancelar(reserva, chat, 'TokenDelChat', antes), '');
-	assert.match(motivoParaNoCancelar(reserva, chat, 'TokenDelChat', Date.parse('2026-11-16T06:00:00Z')), /día de llegada/);
+	assert.match(motivoParaNoCancelar(reserva, chat, 'TokenDelChat', Date.parse('2026-11-16T06:00:00Z')), /No me llegó/);
 	assert.match(motivoParaNoCancelar(reserva, { estado: 'pagada' }, 'TokenDelChat', antes), /ya pagó/);
 	assert.match(motivoParaNoCancelar(reserva, { estado: 'confirmada', comprobanteCliente: new Date() }, 'TokenDelChat', antes), /comprobante/);
 	assert.match(motivoParaNoCancelar(reserva, chat, 'OtroChatInventado', antes), /de antes/);
@@ -141,16 +203,34 @@ test('plazos: 24 h para responder; 48 h para pagar, a más tardar las 23:00 de l
 	const c = Date.parse('2026-11-20T12:00:00Z');
 	assert.equal(venceRespuesta(c), Date.parse('2026-11-21T12:00:00Z'));
 	assert.equal(vencePago(c, '2026-12-10'), Date.parse('2026-11-22T12:00:00Z'));
-	assert.equal(recordarPagoDesde(c, '2026-12-10'), Date.parse('2026-11-21T12:00:00Z'));
+	assert.equal(recordarPagoDesde(c, vencePago(c, '2026-12-10')), Date.parse('2026-11-21T12:00:00Z'));
 	// Llega pasado mañana: vence a las 23:00 de la víspera (Guatemala); el recordatorio, 24 h antes.
 	assert.equal(vencePago(c, '2026-11-22'), Date.parse('2026-11-22T05:00:00Z'));
-	assert.equal(recordarPagoDesde(c, '2026-11-22'), Date.parse('2026-11-21T05:00:00Z'));
+	assert.equal(recordarPagoDesde(c, vencePago(c, '2026-11-22')), Date.parse('2026-11-21T05:00:00Z'));
 	// Llega mañana: plazo corto, sin recordatorio (ya se le dijo al confirmar).
-	assert.equal(recordarPagoDesde(c, '2026-11-21'), Infinity);
+	assert.equal(recordarPagoDesde(c, vencePago(c, '2026-11-21')), Infinity);
 	// Confirmada a última hora: no vence sola.
 	assert.equal(vencePago(Date.parse('2026-11-21T04:00:00Z'), '2026-11-21'), Infinity);
 	assert.equal(conPlazo(PLAZOS_DESDE - 1), false);
 	assert.equal(conPlazo(PLAZOS_DESDE), true);
+});
+
+test('plazo de pago guardado: el nuevo de «No me llegó» manda; 0 = sin plazo automático; el cron se pone al día un día', () => {
+	const c = Date.parse('2026-11-20T12:00:00Z');
+	// Reserva de antes (sin el campo): de su createdAt.
+	assert.deepEqual(plazoDePago({ llegada: '2026-12-10' }, c), { desde: c, vence: vencePago(c, '2026-12-10') });
+	const nuevo = Date.parse('2026-11-25T12:00:00Z');
+	assert.deepEqual(plazoDePago({ llegada: '2026-12-10', pagoDesde: nuevo, vencePago: nuevo + 48 * 3600000 }, c), { desde: nuevo, vence: nuevo + 48 * 3600000 });
+	// Confirmada a última hora: se guarda 0 y se lee como «sin plazo automático».
+	assert.equal(guardarVence(vencePago(Date.parse('2026-11-21T04:00:00Z'), '2026-11-21')), 0);
+	assert.equal(plazoDePago({ llegada: '2026-11-21', vencePago: 0 }, c).vence, Infinity);
+	// Se cancela sola: con el plazo vencido y la llegada a lo más ayer (una vuelta del cron perdida se pone al día).
+	const vence = Date.parse('2026-11-23T05:00:00Z');
+	assert.equal(cancelaSola(vence, '2026-11-23', Date.parse('2026-11-23T06:15:00Z')), true);
+	assert.equal(cancelaSola(vence, '2026-11-23', Date.parse('2026-11-24T12:00:00Z')), true);
+	assert.equal(cancelaSola(vence, '2026-11-23', Date.parse('2026-11-25T12:00:00Z')), false);
+	assert.equal(cancelaSola(vence, '2026-11-23', vence - 1), false);
+	assert.equal(cancelaSola(Infinity, '2026-11-23', Date.parse('2026-11-23T12:00:00Z')), false);
 });
 
 console.log(`Reservas (cuentas): ${ok} pruebas bien.`);

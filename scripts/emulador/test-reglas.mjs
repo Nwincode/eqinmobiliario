@@ -110,6 +110,10 @@ await espera('socio dueño responde', crear('socio1', msj(), m('socio', 'Sí, se
 await espera('socio dueño firma como equipo', crear('socio1', msj(), m('equipo', 'Soy del equipo')), false);
 await espera('socio dueño firma como cliente', crear('socio1', msj(), m('cliente', 'Ya no quiero')), false);
 await espera('socio manda su teléfono con espacios', crear('socio1', msj(), m('socio', 'llamame al 55 55 12 34')), false);
+await espera('cliente manda su teléfono en dígitos de ancho completo', crear(null, msj(), m('cliente', 'mi cel ５５５５１２３４')), false);
+await espera('cliente manda su teléfono en dígitos arábigos', crear(null, msj(), m('cliente', 'mi cel ٥٥٥٥١٢٣٤')), false);
+await espera('cliente manda su correo con la arroba de ancho completo', crear(null, msj(), m('cliente', 'ana＠gmail')), false);
+await espera('cliente escribe una fecha y una hora (control)', crear(null, msj(), m('cliente', 'Llegamos el 16 a las 3')), true);
 await espera('socio manda un enlace', crear('socio1', msj(), m('socio', 'mira https://micasa.gt')), false);
 await espera('socio dueño lista sus conversaciones', consulta('socio1', 'chats', 'propietarioId', 'o1'), true);
 await espera('socio dueño lee los mensajes', leer('socio1', `chats/${T}/mensajes`), true);
@@ -583,6 +587,12 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('solicitud en quetzales de una casa en quetzales (control)', enCasa('lead-mon-4', 'mx-noche-q', { ...bien, moneda: 'GTQ' }), true);
 		await espera('solicitud en dólares de una casa con la moneda vacía (control)', enCasa('lead-mon-5', 'mx-noche-vacia', bien), true);
 		await espera('solicitud de una casa que no existe', enCasa('lead-mon-6', 'no-existe', bien), false);
+		// Las personas caben en la casa (huespedesMax de la casa; sin él, sin tope).
+		await raw('properties/mx-noche-4p', { titulo: sv('Casa para 4'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '4' } } } } });
+		await espera('solicitud de 6 personas en una casa para 4', enCasa('lead-hue-1', 'mx-noche-4p', { ...bien, huespedes: 6 }), false);
+		await espera('solicitud de 0 personas', enCasa('lead-hue-2', 'mx-noche-4p', { ...bien, huespedes: 0 }), false);
+		await espera('solicitud de 4 personas en una casa para 4 (control)', enCasa('lead-hue-3', 'mx-noche-4p', { ...bien, huespedes: 4 }), true);
+		await espera('solicitud de 9 personas en una casa sin tope guardado (control)', conReserva('lead-hue-4', { ...bien, huespedes: 9 }), true);
 	}
 	// La casa cambió de asesor y la página no se ha vuelto a publicar: el sitio reintenta sin asesor y la recibe el
 	// administrador (js/site.js); con el asesor de antes, no (no le llega el contacto a quien ya no la lleva).
@@ -768,6 +778,17 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor marca «Listo» una exclusiva con una fecha mal escrita', listo('asesor7', 'exclusiva_casa-a7_mañana', exc('asesor7', 'a7', 'mañana')), false);
 	await espera('asesor marca «Listo» la exclusiva de su casa (control)', listo('asesor7', 'exclusiva_casa-a7_2026-12-01', exc('asesor7')), true);
 	await espera('el administrador deshace un «Listo» de otro (control)', quitar('admin1', 'exclusiva_casa-a7_2026-12-01'), true);
+}
+// Montos congelados de una solicitud: solo el servidor los escribe; los leen el administrador y el socio de esa casa.
+{
+	await poner('montosSolicitud/lead1', { leadId: 'lead1', propertyId: 'prueba-casa-playa-monterrico', propietarioId: 'o1', moneda: 'USD', costoSocio: 300, alojamiento: 360, ganancia: 60 });
+	await espera('administrador lee los montos de una solicitud', leer('admin1', 'montosSolicitud/lead1'), true);
+	await espera('socio de la casa lee los montos de su solicitud', leer('socio1', 'montosSolicitud/lead1'), true);
+	await espera('socio lista los montos de sus solicitudes', fetch(`${H}:runQuery`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'montosSolicitud' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: val('o1') } } } }) }).then((r) => r.status), true);
+	await espera('otro socio lee los montos de una solicitud ajena', leer('socio2', 'montosSolicitud/lead1'), false);
+	await espera('cliente sin sesión lee los montos', leer(null, 'montosSolicitud/lead1'), false);
+	await espera('socio cambia los montos de su solicitud', fetch(`${H}/montosSolicitud/lead1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ propietarioId: 'o1', costoSocio: 360 }) }) }).then((r) => r.status), false);
+	await espera('administrador escribe montos a mano (solo el servidor)', crear('admin1', 'montosSolicitud/lead-n', { propietarioId: 'o1', costoSocio: 1 }), false);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);

@@ -23,6 +23,7 @@ import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '..
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
+import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
@@ -242,10 +243,13 @@ export function slugLibre(titulo, usados) {
 //  - una casa por noche lleva dueño y no lleva asesor (agentId ''): sus solicitudes las atienden el administrador y
 //    su dueño, y así ningún asesor lee el teléfono de sus huéspedes; tampoco lleva VIP ni mantenimiento. Por eso
 //    solo el administrador la crea o la cambia (las reglas dejan al asesor solo casas con su agentId);
-//  - con huéspedes por venir no deja de ser por noche (perderían sus fechas).
+//  - con huéspedes por venir no deja de ser por noche (perderían sus fechas);
+//  - con solicitudes abiertas no cambia de moneda (sus montos están en la moneda de antes: no se comparan);
+//  - no se muestra en la página sin su dirección exacta (el cliente la recibe al pagar: revisarPublicar).
 // antes = la casa guardada (null si es nueva); d = como queda: se le ponen los ajustes. Lanza un Error con el motivo.
+// `direccion`: la que trae la ficha (sin ella, la guardada en privado/llegada).
 // Devuelve { ajustes, sinLlegada }: sinLlegada = dejó de ser por noche (su dirección y mapa privados se borran).
-export async function revisarCasa(antes, d, id) {
+export async function revisarCasa(antes, d, id, { direccion } = {}) {
 	const era = antes?.operacion === 'vacacional', es = esVacacional(d);
 	if ((es || era) && !session.isAdmin) throw new Error('Las casas por noche las lleva el administrador (no llevan asesor).');
 	if (es && !d.propietarioId) throw new Error('Elige el dueño de la casa por noche. Si todavía no existe, créalo en Propietarios.');
@@ -253,9 +257,29 @@ export async function revisarCasa(antes, d, id) {
 		const pendientes = await porVenir(id);
 		if (pendientes.length) throw new Error(avisoPorVenir(pendientes, 'No puede dejar de ser renta por noche'));
 	}
+	if (antes && es && (antes.moneda || 'USD') !== (d.moneda || 'USD')) {
+		const abiertas = await solicitudesAbiertas(id);
+		if (abiertas.length) throw new Error(`No se puede cambiar la moneda mientras tenga solicitudes abiertas (${abiertas.slice(0, 3).join(', ')}): sus montos están en la moneda de antes. Ciérralas o espera a que terminen.`);
+	}
+	await revisarPublicar({ ...d, id }, direccion);
 	const ajustes = es ? { agentId: '', vip: false, mantenimiento: '' } : {};
 	Object.assign(d, ajustes);
 	return { ajustes, sinLlegada: era && !es };
+}
+// Solicitudes de la casa sin responder o confirmadas que no han terminado (sus códigos).
+async function solicitudesAbiertas(id) {
+	const hoy = V.hoy();
+	return (await getDocs(query(collection(db, 'leads'), where('propertyId', '==', id)))).docs.map((x) => x.data())
+		.filter((l) => l.reserva?.codigo && (!l.solicitud?.estado || l.solicitud.estado === 'pendiente' || (l.solicitud.estado === 'confirmada' && l.reserva.salida >= hoy)))
+		.map((l) => l.reserva.codigo);
+}
+// Una casa por noche visible en la página lleva su dirección exacta (privado/llegada): sin ella, «Pago recibido» no
+// tiene qué mandarle al cliente. Lo revisan la ficha, el importador y «Mostrar en la página» (una o varias).
+export const SIN_DIRECCION_PUBLICAR = 'Para mostrar una casa por noche en la página, primero escribe su dirección exacta en la ficha: el cliente la recibe al pagar.';
+export async function revisarPublicar(p, direccion) {
+	if (!esVacacional(p) || !p.publicado) return;
+	const dir = direccion !== undefined ? direccion : (await getDoc(doc(db, 'properties', p.id, 'privado', 'llegada')).catch(() => null))?.data()?.direccion;
+	if (faltaDireccion({ direccion: dir })) throw new Error(SIN_DIRECCION_PUBLICAR);
 }
 
 // Casas por noche de antes con un asesor: lo pierden, y también sus reservas y solicitudes (con ese agentId el asesor
@@ -485,8 +509,9 @@ export async function render(container, [id]) {
 			if (!estado || estado === estadoDe(p).valor) return;
 			guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`, `Estado cambiado a «${label}». ${trasGuardar()}`);
 		};
-		const alternarVisible = () => {
+		const alternarVisible = async () => {
 			const publicado = !p.publicado;
+			try { await revisarPublicar({ ...p, publicado }); } catch (err) { return toast(err.message, 'warning'); }
 			guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
 				`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
 		};
@@ -585,13 +610,15 @@ export async function render(container, [id]) {
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = true; });
 		let ok = 0;
 		const fallos = [];
+		// Lo que el panel revisa (p. ej. la dirección para mostrar una casa por noche) se dice; un error de la base, no.
+		let motivo = '';
 		for (const p of lista) {
-			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); console.error(err); }
+			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); if (!err.code && !motivo) motivo = err.message; console.error(err); }
 		}
 		refrescarPortalesDe(lista.map((p) => p.id));
 		if (ok) await markPending(`${desc} (${ok})`).catch(() => {});
 		if (ok) toast(aviso(ok));
-		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}`, 'danger');
+		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}${motivo ? `. ${motivo}` : ''}`, 'danger');
 		if (deBarra) seleccion.clear();
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = false; });
 		selMasaEstado.value = '';
@@ -633,7 +660,7 @@ export async function render(container, [id]) {
 		selMasaAsesor.value = '';
 	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: () => enMasa(guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
+		onclick: () => enMasa(async (p) => { await revisarPublicar({ ...p, publicado: true }); await guardarMasa({ publicado: true }, { publicado: true })(p); }, 'Visibles en la página',
 			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) },
 		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
 	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
@@ -1214,7 +1241,7 @@ async function renderEditor(container, id, emb = null) {
 		const d = clonar(mio);
 		// Lo mismo que revisa el importador: dueño de la casa por noche, sin asesor, sin pasar a venta con huéspedes por venir.
 		let sinLlegada = false;
-		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
+		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id, { direccion: String(d.direccion ?? '') })); }
 		catch (err) { return toast(errorMessage(err), 'warning'); }
 		// Si la casa ya tenía dueño y se elige otro, se pregunta antes de guardar nada.
 		if (!isNew && !(await confirmarCambioDeDueno([{ casa: { ...data, id: ref.id }, a: d.propietarioId || '' }], propietarios))) return;

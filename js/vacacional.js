@@ -82,6 +82,7 @@
 			if (!estado.llegada || f <= estado.llegada) return false;
 			var max = V.salidaMaxima(estado.llegada, ocupadas);
 			if (max && f > max) return false;
+			if (V.nochesEntre(estado.llegada, f) > V.MAX_NOCHES) return false;
 			return V.nochesEntre(estado.llegada, f) >= minimoDe(estado.llegada, f);
 		}
 		// La llegada necesita al menos las noches mínimas libres seguidas.
@@ -442,7 +443,7 @@
 			form.eqReserva = function () {
 				var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
 				if (!v.ok) {
-					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : t.vacErrFechas;
+					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : v.error === 'maximo' ? fmt(t.vacErrMaximo, { n: v.maximo }) : t.vacErrFechas;
 					var box = statusBox();
 					if (box) { box.className = 'lead-form-status mt-3 text-danger'; box.setAttribute('data-vac', '1'); box.textContent = msg; }
 					ayuda.textContent = msg;

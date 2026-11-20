@@ -132,7 +132,11 @@
 		poner('titulo', c.propertyTitulo);
 		// Estado de la solicitud: lo marca quien la responde en el panel.
 		var sello = cuerpo.querySelector('[data-out="estado"]');
-		function ponerEstado(valor) {
+		// El plazo de pago, en hora de Guatemala (el mismo del correo): «vie, 20 nov, 14:00».
+		var plazo = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante).
+		function ponerEstado(ch) {
+			var valor = ch.estado;
 			var estado = { confirmada: 'Confirmada', pagada: 'Pagada', no: 'No', cancelada: 'Cancelada' }[valor] || 'Pendiente';
 			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
 			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
@@ -142,7 +146,12 @@
 			var espera = Date.now() - new Date(c.createdAt).getTime();
 			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
 			var guia = cuerpo.querySelector('[data-out="sigue"]');
-			guia.textContent = t['vacChatSigue' + sigue];
+			// Confirmada: el plazo exacto para pagar; con el comprobante ya enviado, que el anfitrión lo revisa.
+			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente);
+			var vence = Number(ch.vencePago) || 0;
+			guia.textContent = conComprobante ? t.vacChatSigueComprobante
+				: estado === 'Confirmada' ? (vence > 0 ? fmt(t.vacChatSigueConfirmada, { fecha: plazo.format(new Date(vence)) }) : t.vacChatSigueSinPlazo)
+				: t['vacChatSigue' + sigue];
 			// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.
 			if ((estado === 'No' || estado === 'Cancelada') && /^\/[^\/]/.test(c.url || '')) {
 				var otra = el('a', 'btn btn-outline-primary btn-sm ms-2', t.vacChatOtrasFechas);
@@ -151,9 +160,10 @@
 			}
 			// La cámara (comprobante de pago) solo cuando hay a quién pagar: con la reserva confirmada.
 			var camara = cuerpo.querySelector('.vac-chat-adjuntar');
-			if (camara) camara.hidden = estado !== 'Confirmada';
+			// (Con el comprobante ya enviado, no se pide otra vez; si el anfitrión dice que no le llegó, vuelve.)
+			if (camara) camara.hidden = estado !== 'Confirmada' || conComprobante;
 		}
-		ponerEstado(c.estado);
+		ponerEstado(c);
 		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).
 		var casa = cuerpo.querySelector('[data-out="casa"]');
 		if (/^https:\/\//.test(c.foto || '')) {
@@ -246,7 +256,7 @@
 				pedir(RAIZ + '/chats/' + token)
 			]).then(function (res) {
 				var mensajes = (res[0].documents || []).map(plano), ahora = plano(res[1]);
-				ponerEstado(ahora.estado);
+				ponerEstado(ahora);
 				var vistoOtros = [ahora.vistoSocio, ahora.vistoEquipo].filter(Boolean).sort().pop() || '';
 				pintar(mensajes, vistoOtros);
 				// Marco como visto lo que me escribieron (solo si hay algo nuevo de ellos).

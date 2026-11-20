@@ -3,6 +3,7 @@
 // netlify/functions/plazos-reservas.mjs (lo que vence solo: la solicitud sin respuesta y la reserva sin pago).
 import '../../js/calc-vacacional.js';
 import { idNuevo } from './firestore-escritura.mjs';
+import { montosCotizados, yaRespondida, esDuplicada, textoDuplicada, MOTIVO_DUPLICADA } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 
@@ -25,6 +26,60 @@ export const responder = (tx, socio, leadId, estado, que, extra = {}) => tx.camb
 // Un renglón en el historial de la solicitud sin cambiar su estado (p. ej. «Pago recibido»).
 export const anotar = (tx, quien, leadId, que) => tx.cambiar(`leads/${leadId}`, {},
 	{ ahora: ['updatedAt'], agregar: { 'solicitud.historial': [{ que, quien: quien.uid, nombre: quien.nombre, cuando: new Date().toISOString() }] } });
-// Mensaje al cliente en el chat de la solicitud: del socio, o del equipo (lo que vence solo).
-export const mensaje = (tx, token, datos, de = 'socio') => tx.crear(`chats/${token}/mensajes/${idNuevo()}`, { de, ...datos }, { ahora: ['createdAt'] });
+// Mensaje al cliente en el chat de la solicitud: del socio, o del equipo (lo que vence solo). Devuelve su id: quien
+// lo llama lo pone como aviso pendiente en el mismo cambio del chat (`{ ...pendiente(id) }`), así un correo que no
+// salió (la función se cortó o el servicio falló) lo manda el control de cada hora (aviso-chat-envio.mjs).
+export function mensaje(tx, token, datos, de = 'socio') {
+	const id = idNuevo();
+	tx.crear(`chats/${token}/mensajes/${id}`, { de, ...datos }, { ahora: ['createdAt'] });
+	return id;
+}
+export const pendiente = (id) => ({ avisoPendiente: id, avisoIntentos: 0 });
+export const SISTEMA = { uid: 'sistema', nombre: 'Plazo vencido' };
+const TOKEN = /^[A-Za-z0-9]{20,60}$/;
+
+// El chat de una solicitud por su índice (el servidor no adivina cuál es).
+export async function chatDe(leer, leadId) {
+	const token = (await leer(`chatsPorSolicitud/${leadId}`))?.token;
+	const chat = TOKEN.test(token || '') ? await leer(`chats/${token}`) : null;
+	return chat && chat.leadId === leadId ? { token, chat } : null;
+}
+
+// Los montos de la solicitud, congelados la primera vez que el servidor la ve (montosSolicitud/{solicitud}): la
+// parte del socio, la limpieza y el margen de la casa en ese momento (admin/js/reservas-calculo.js montosCotizados).
+// La llaman /api/aviso-chat (al llegar la solicitud), el cron de plazos (si ese aviso no llegó) y la confirmación (si
+// todavía no estaban). Una solicitud ya respondida no se congela (sus montos ya están en su reserva). Devuelve los
+// montos (los guardados si ya estaban) o null.
+export async function congelarMontos(tx, leadId, { lead = null, casa = null } = {}) {
+	const ruta = `montosSolicitud/${leadId}`;
+	const ya = await tx.leer(ruta);
+	if (ya) return ya;
+	lead ||= await tx.leer(`leads/${leadId}`);
+	if (!lead?.reserva?.codigo || !lead.propertyId || (lead.solicitud?.estado && lead.solicitud.estado !== 'pendiente')) return null;
+	casa ||= await tx.leer(`properties/${lead.propertyId}`);
+	if (!casa) return null;
+	const m = montosCotizados(lead.reserva, casa, await tx.leer(`properties/${lead.propertyId}/privado/socio`));
+	if (!m) return null;
+	const datos = { ...m, leadId, propertyId: lead.propertyId, propietarioId: casa.propietarioId || '', codigo: lead.reserva.codigo };
+	tx.crear(ruta, datos, { ahora: ['cuando'] });
+	return datos;
+}
+
+// Al confirmar `lead`, las otras solicitudes abiertas del mismo cliente (mismo correo), casa y fechas se cierran como
+// «Duplicada», con un mensaje que no manda correo (avisos-chat.mjs: `silencioso`). Devuelve cuántas.
+export async function cerrarDuplicadas(tx, lead, leadId) {
+	const otras = (await tx.consultar('leads', 'propertyId', lead.propertyId)).filter((o) => o.id !== leadId && esDuplicada({ ...lead, id: leadId }, o) && !yaRespondida('', o.solicitud?.estado));
+	let n = 0;
+	for (const o of otras) {
+		const c = await chatDe(tx.leer, o.id);
+		if (c && yaRespondida(c.chat.estado, '')) continue;
+		responder(tx, SISTEMA, o.id, 'no', `Duplicada de ${lead.reserva.codigo}: se cerró sola`, { 'solicitud.motivo': MOTIVO_DUPLICADA });
+		if (c) {
+			mensaje(tx, c.token, { texto: textoDuplicada(lead.reserva.codigo), silencioso: true }, 'equipo');
+			tx.cambiar(`chats/${c.token}`, { estado: 'no' });
+		}
+		n++;
+	}
+	return n;
+}
 

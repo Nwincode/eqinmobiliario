@@ -330,6 +330,13 @@ service cloud.firestore {
             && comprobanteValido(request.resource.data.comision.comprobante, id));
       allow delete: if isAdmin();
     }
+    // Montos de una solicitud de reserva por noche, congelados al llegar (la parte del socio, la limpieza y el margen de
+    // la casa en ese momento): los escribe solo el servidor (netlify/lib/reservas-servidor.mjs congelarMontos, con la
+    // cuenta de escritura, que no pasa por estas reglas). Los leen el administrador y el socio de esa casa.
+    match /montosSolicitud/{id} {
+      allow read: if isAdmin() || esSocioDe(resource.data);
+      allow write: if false;
+    }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
     match /cotizaciones/{id} {
       allow read: if propio();
@@ -484,6 +491,9 @@ service cloud.firestore {
         && (!('reserva' in request.resource.data)
             || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
                 && reservaCotizada(request.resource.data.reserva)
+                // Las personas caben en la casa (huespedesMax; sin él, sin tope): lo mismo que deja elegir la ficha.
+                && request.resource.data.reserva.get('huespedes', 1) is number && request.resource.data.reserva.get('huespedes', 1) >= 1
+                && request.resource.data.reserva.get('huespedes', 1) <= get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('vacacional', {}).get('huespedesMax', 1000)
                 // La moneda es la de la casa (sin moneda guardada, US$, como el sitio y admin/js/reservas-calculo.js):
                 // de ella salen la reserva y la comisión; el cliente no la elige.
                 && exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
@@ -632,7 +642,8 @@ service cloud.firestore {
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
-            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
+            // (Cualquier dígito: también los de ancho completo «５» u otras escrituras, que el filtro del navegador pasa a 0-9 con NFKC.)
+            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|＠|https?:|www[.]|([0-9\\p{Nd}][ .+()-]{0,2}){8,}).*')))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isAdmin())
