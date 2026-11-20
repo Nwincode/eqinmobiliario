@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { problemaDeCasa, casasSanas, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
+import { problemaDeCasa, separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
 import { deepMerge } from './lib/util.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,10 +40,25 @@ t('una casa bien formada pasa (y lo que antes se publicaba: título numérico, p
 t('cada forma equivocada se reconoce y el aviso nombra la casa y el dato', () => {
 	for (const [id, extra] of Object.entries(MALAS)) assert.notEqual(problemaDeCasa(casa({ id, ...extra })), '', id);
 	const avisos = [];
-	const quedan = casasSanas([casa({ id: 'buena' }), casa({ id: 'mala', fotos: 'x' }), null], (m) => avisos.push(m));
-	assert.deepEqual(quedan.map((p) => p.id), ['buena']);
+	const { sanas, omitidas } = separarCasas([casa({ id: 'buena' }), casa({ id: 'mala', fotos: 'x' }), null], (m) => avisos.push(m));
+	assert.deepEqual(sanas.map((p) => p.id), ['buena']);
+	assert.deepEqual(omitidas.map((o) => o.casa?.id), ['mala', undefined]);
+	assert.match(omitidas[0].motivo, /fotos/);
 	assert.equal(avisos.length, 2);
 	assert.match(avisos[0], /«mala».*fotos/);
+});
+
+t('casa omitida reparada: sin lo roto, y la de por noche con calendario roto sin calendario', () => {
+	for (const [id, extra] of Object.entries(MALAS)) assert.equal(casaReparada(casa({ id, ...extra })).motivo, '', id);
+	const f = casaReparada(casa({ fotos: [null, { url: '/b.webp' }], zona: 5 }));
+	assert.deepEqual(f.casa.fotos, [{ url: '/b.webp' }]);
+	assert.equal(f.casa.zona, '');
+	assert.equal(f.sinCalendario, false);
+	const v = casaReparada(casa({ operacion: 'vacacional', vacacional: { reservadas: { a: 1 }, base: 90 } }));
+	assert.equal(v.sinCalendario, true);
+	assert.deepEqual(v.casa.vacacional, {});
+	assert.equal(casaReparada(casa({ operacion: 'vacacional', fotos: 'x', vacacional: { reservadas: [] } })).sinCalendario, false);
+	assert.equal(casaReparada(null), null);
 });
 
 t('ajustes: lo que falta o viene con otra forma queda vacío, y el nombre del sitio nunca falta', () => {
@@ -67,18 +82,22 @@ t('fichas del sitemap publicado: /propiedad/… y /vip/…, no el listado /vip/ 
 	const B = 'https://eqinmobiliario.gt';
 	const xml = ['/', '/vip/', '/vip/casa-a/', '/propiedad/casa-b/', '/propiedad/casa-c/', '/en/property/house-b/', '/propiedades/venta/'].map((u) => `<url><loc>${B}${u}</loc></url>`).join('');
 	assert.equal(fichasEnSitemap(xml, B), 3);
+	assert.equal(fichasEnSitemap(xml, B, new Set(['casa-a'])), 2, 'las de prueba no cuentan');
 	assert.equal(fichasEnSitemap('', B), 0);
 });
 
-t('catálogo: vacío o con más de la mitad menos no se publica; con la variable, sí', () => {
-	assert.match(revisarCatalogo({ ahora: 0 }), /No hay ninguna propiedad/);
-	assert.match(revisarCatalogo({ ahora: 0, antes: null }), new RegExp(FORZAR));
-	assert.match(revisarCatalogo({ ahora: 4, antes: 10 }), /Se publicarían 4 propiedades y el sitio tiene 10/);
+t('catálogo: vacío, o con más de la mitad menos en un catálogo de 10 o más (o perdiendo más de 5), no se publica', () => {
+	assert.match(revisarCatalogo({ ahora: 0 }), /No hay ninguna propiedad publicada/);
+	assert.match(revisarCatalogo({ ahora: 4, antes: 10 }), /Se publicarían 4 de las 10 propiedades/);
+	assert.ok(!/\n/.test(revisarCatalogo({ ahora: 4, antes: 10 })), 'una línea, la que muestra Publicar');
 	assert.equal(revisarCatalogo({ ahora: 5, antes: 10 }), '', 'la mitad exacta todavía se publica');
 	assert.equal(revisarCatalogo({ ahora: 12, antes: 10 }), '');
+	assert.equal(revisarCatalogo({ ahora: 1, antes: 4 }), '', 'catálogo chico: perder 3 de 4 no frena');
+	assert.match(revisarCatalogo({ ahora: 2, antes: 9 }), /2 de las 9/, 'menos de 10 pero se pierden 7: frena');
 	assert.equal(revisarCatalogo({ ahora: 3, antes: null }), '', 'sin sitemap publicado solo se frena el vacío');
 	assert.equal(revisarCatalogo({ ahora: 0, antes: 10, forzar: true }), '');
 });
+
 
 // El build de verdad (DATOS=seed): todas las casas malas y los ajustes rotos en un solo sitio; y uno vacío.
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-antes-'));
@@ -100,9 +119,20 @@ const construir = (seed, extraEnv = {}) => {
 	const r = construir(seed);
 	t('build con casas y ajustes mal formados: publica las buenas y avisa cada id', () => {
 		assert.ok(r.ok, r.out.slice(-400));
-		for (const id of Object.keys(MALAS)) assert.match(r.out, new RegExp(`No se publica la casa «${id}»`));
+		for (const id of Object.keys(MALAS)) assert.match(r.out, new RegExp(`La casa «${id}» sale de listados`));
 		assert.ok(existsSync(path.join(r.dist, 'propiedad', buena.slug, 'index.html')));
-		assert.ok(!existsSync(path.join(r.dist, 'propiedad', 'foto-texto')));
+		const sitemap = readFileSync(path.join(r.dist, 'sitemap.xml'), 'utf8');
+		assert.doesNotMatch(sitemap, /foto-texto/);
+		assert.doesNotMatch(readFileSync(path.join(r.dist, 'propiedades', 'index.html'), 'utf8'), /\/propiedad\/foto-texto\//);
+		// Su enlace sigue abriendo, sin indexar; la de por noche con calendario roto, sin reservar.
+		const pagina = (slug) => readFileSync(path.join(r.dist, 'propiedad', slug, 'index.html'), 'utf8');
+		assert.match(pagina('foto-texto'), /<meta name="robots" content="noindex/);
+		assert.doesNotMatch(pagina('reservadas-mapa'), /vac-card|vac-datos/);
+		assert.match(pagina('reservadas-mapa'), /id="ficha-aviso-titulo"/);
+		// La lista que muestra Publicar, en el panel.
+		const { casas } = JSON.parse(readFileSync(path.join(r.dist, 'feeds', 'omitidas.json'), 'utf8'));
+		assert.deepEqual(casas.map((c) => c.id).sort(), Object.keys(MALAS).sort());
+		assert.ok(casas.every((c) => c.motivo && c.url.endsWith(`/${c.id}/`)), JSON.stringify(casas));
 		// Lo que faltaba en settings/site sale de data/seed.json.
 		assert.match(readFileSync(path.join(r.dist, 'index.html'), 'utf8'), new RegExp(seedBase.settings.general.nombreCorto));
 	});
@@ -111,27 +141,41 @@ const construir = (seed, extraEnv = {}) => {
 	const seed = structuredClone(seedBase);
 	seed.properties.forEach((p) => { p.publicado = false; });
 	const r = construir(seed);
-	t('build sin ninguna casa publicada: no publica y explica cómo forzarlo', () => {
+	t('build sin ninguna casa publicada: no publica y dice cómo hacerlo a propósito', () => {
 		assert.equal(r.ok, false);
-		assert.match(r.out, /No hay ninguna propiedad para publicar/);
-		assert.match(r.out, new RegExp(`${FORZAR}=1`));
+		assert.match(r.out, /No hay ninguna propiedad publicada/);
+		assert.match(r.out, /Publicar aunque baje/);
 		assert.ok(!existsSync(r.dist), 'no se borró ni escribió nada en la carpeta de salida');
 	});
-	t('build sin casas con la variable puesta: publica', () => assert.ok(construir(seed, { [FORZAR]: '1' }).ok));
+	t('con la variable de antes puesta publica, pero lo avisa en cada build', () => {
+		const b = construir(seed, { [FORZAR]: '1' });
+		assert.ok(b.ok);
+		assert.match(b.out, new RegExp(`La variable ${FORZAR} está puesta`));
+	});
+	t('las casas de prueba no cuentan como catálogo', () => {
+		const solo = structuredClone(seedBase);
+		solo.properties.forEach((p) => { p.demo = true; });
+		assert.match(construir(solo).out, /No hay ninguna propiedad publicada/);
+	});
 }
 {
 	// Publicación en Netlify: el sitemap en línea se simula (fetch de mentira, sin red) con 10 fichas y con 3.
 	const enLinea = (n) => {
 		const f = path.join(tmp, `en-linea-${n}.mjs`);
 		const xml = `<urlset>${Array.from({ length: n }, (_, i) => `<url><loc>https://eqinmobiliario.gt/propiedad/casa-${i}/</loc></url>`).join('')}<url><loc>https://eqinmobiliario.gt/vip/</loc></url></urlset>`;
-		writeFileSync(f, `globalThis.fetch = async () => new Response(${JSON.stringify(xml)});\n`);
+		writeFileSync(f, n == null ? 'globalThis.fetch = async () => new Response("", { status: 503 });\n' : `globalThis.fetch = async () => new Response(${JSON.stringify(xml)});\n`);
 		return f;
 	};
 	const publicadas = seedBase.properties.filter((p) => p.publicado).length;
 	const r = construir(seedBase, { NETLIFY: 'true', NODE_OPTIONS: `--import=${enLinea(10)}` });
 	t('Netlify: con menos de la mitad de las fichas del sitio en línea, no publica', () => {
 		assert.equal(r.ok, false, r.out.slice(-300));
-		assert.match(r.out, new RegExp(`Se publicarían ${publicadas} propiedades y el sitio tiene 10`));
+		assert.match(r.out, new RegExp(`Se publicarían ${publicadas} de las 10 propiedades`));
+	});
+	t('Netlify: si no se puede leer el sitemap publicado, lo avisa y publica', () => {
+		const b = construir(seedBase, { NETLIFY: 'true', NODE_OPTIONS: `--import=${enLinea(null)}` });
+		assert.ok(b.ok, b.out.slice(-300));
+		assert.match(b.out, /No se pudo leer el sitemap publicado \(error 503\)/);
 	});
 	t('Netlify: con una caída menor a la mitad, publica (y IndexNow compara con ese sitemap)', () => {
 		const b = construir(seedBase, { NETLIFY: 'true', NODE_OPTIONS: `--import=${enLinea(publicadas + 1)}` });

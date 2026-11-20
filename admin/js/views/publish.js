@@ -139,10 +139,12 @@ async function importSeed(btn) {
 }
 
 export async function render(container) {
-	const [state, priv, site] = await Promise.all([
+	const [state, priv, site, omitidas] = await Promise.all([
 		getPublishState(),
 		getDoc(doc(db, 'settings', 'private')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({})),
-		getDoc(doc(db, 'settings', 'site'))
+		getDoc(doc(db, 'settings', 'site')),
+		// Casas que el último build dejó fuera por un dato roto (scripts/build.mjs).
+		fetch('/feeds/omitidas.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.casas || []).catch(() => [])
 	]);
 	const baseVacia = session.isAdmin && !site.exists() && !(await hayPropiedades().catch(() => true));
 	const hook = priv.netlifyBuildHook || '';
@@ -155,6 +157,20 @@ export async function render(container) {
 			toast('Publicación iniciada. El sitio se actualiza en 1–2 minutos.');
 			container.replaceChildren();
 			render(container);
+		} catch (err) {
+			showError(err);
+			btn.disabled = false;
+		}
+	};
+
+	// El build se frenó porque el catálogo quedaba vacío o bajaba de golpe: un administrador puede publicarlo igual, una vez.
+	const frenada = state.fallo && state.freno;
+	const publicarAunque = async (btn) => {
+		if (!(await confirmDialog('El sitio quedará con las casas que hay ahora en el panel, aunque sean muchas menos. Vale solo para esta publicación. ¿Publicar?', { okText: 'Publicar' }))) return;
+		btn.disabled = true;
+		try {
+			await setDoc(doc(db, 'meta', 'publish'), { forzarCatalogo: true }, { merge: true });
+			await publish(btn);
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;
@@ -225,6 +241,12 @@ export async function render(container) {
 			h('dl', { class: 'row small mb-4' },
 				h('dt', { class: 'col-sm-4' }, 'Cambios pendientes'), h('dd', { class: 'col-sm-8' }, state.pendiente ? `Sí — ${state.ultimoCambioDesc || ''} (${formatDate(state.ultimoCambio)})` : 'No'),
 				h('dt', { class: 'col-sm-4' }, 'Última publicación'), h('dd', { class: 'col-sm-8' }, state.ultimaPublicacion ? `${formatDate(state.ultimaPublicacion)} · ${state.ultimaPublicacionAuto ? 'automática' : `por ${state.ultimaPublicacionPor || '—'}`}` : 'Nunca desde el panel')),
+			frenada ? h('p', { class: 'small text-danger d-flex flex-wrap align-items-center gap-2' },
+				h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }), state.freno,
+				session.isAdmin && hook ? h('button', { class: 'btn btn-sm btn-outline-danger', onclick: (e) => publicarAunque(e.currentTarget) }, 'Publicar aunque baje') : null) : null,
+			omitidas.length ? h('p', { class: 'small' },
+				h('span', { class: 'icon-exclamation-circle text-warning me-1', 'aria-hidden': 'true' }), 'No se ven en el sitio por un dato roto: ',
+				omitidas.flatMap((c, i) => [i ? ', ' : '', h('a', { href: `#/propiedades/${encodeURIComponent(c.id)}` }, c.titulo), ` (${c.motivo})`])) : null,
 			h('button', { class: `btn btn-lg ${state.pendiente ? 'btn-warning' : 'btn-primary'}`, disabled: !hook, onclick: (e) => publish(e.currentTarget) }, 'Publicar cambios'),
 			hook ? null : h('p', { class: 'small text-muted mt-2 mb-0' }, session.isAdmin ? 'Configura el enlace de Netlify abajo para activar este botón.' : 'Un administrador debe configurar la publicación.'),
 			autoControl)),

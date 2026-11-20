@@ -20,7 +20,8 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
-import { casasSanas, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
+import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
+import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -260,11 +261,35 @@ function cambiosParaIndexNow(ctx, siteUrl, sitemapXml, publicado) {
 // El sitemap que sigue publicado mientras corre el build (solo al publicar en Netlify); null si no se pudo leer.
 async function sitemapPublicado(siteUrl) {
 	if (!process.env.NETLIFY) return null;
+	const sinLeer = (motivo) => {
+		console.warn(`  ⚠ No se pudo leer el sitemap publicado (${motivo}): no se compara el catálogo con el sitio en línea y IndexNow recibe todo el sitemap.`);
+		return null;
+	};
 	try {
 		const res = await fetch(`${siteUrl.replace(/\/$/, '')}/sitemap.xml`, { signal: AbortSignal.timeout(10000) });
-		return res.ok ? await res.text() : null;
-	} catch {
-		return null;
+		return res.ok ? await res.text() : sinLeer(`error ${res.status}`);
+	} catch (err) {
+		return sinLeer(err.message);
+	}
+}
+
+// El freno del catálogo (revisarCatalogo) con lo que dice el panel, en meta/publish y con la cuenta de escritura: si un
+// administrador tocó «Publicar aunque baje» (`forzarCatalogo`), no se frena, y la marca se gasta en este build. El
+// motivo queda en `freno` (vacío si pasa) para que Publicar lo muestre. Sin la cuenta en el build, solo la variable.
+async function frenoDelCatalogo(fuente, { ahora, antes }) {
+	const porVariable = process.env[FORZAR] === '1';
+	if (porVariable) console.warn(`  ⚠ La variable ${FORZAR} está puesta: el catálogo se publica sin revisar si bajó. Quítala en Netlify (Site configuration → Environment variables); para una vez, en el panel: Publicar → «Publicar aunque baje».`);
+	if (fuente !== 'firestore' || !escrituraConfigurada()) return revisarCatalogo({ ahora, antes, forzar: porVariable });
+	try {
+		return await transaccion(async ({ leer, cambiar }) => {
+			const estado = await leer('meta/publish');
+			const freno = revisarCatalogo({ ahora, antes, forzar: porVariable || estado?.forzarCatalogo === true });
+			if (estado) cambiar('meta/publish', { freno, forzarCatalogo: false }, { ahora: ['frenoCuando'] });
+			return freno;
+		});
+	} catch (err) {
+		console.warn(`  ⚠ No se pudo leer «Publicar aunque baje» del panel (${err.message}): se revisa sin él.`);
+		return revisarCatalogo({ ahora, antes, forzar: porVariable });
 	}
 }
 
@@ -532,14 +557,22 @@ async function main() {
 	const agents = data.agents.slice().sort(byOrder);
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
-	const todas = normalizeProperties(casasSanas(data.properties));
+	// Las que tienen un dato roto (scripts/lib/antes-de-publicar.mjs) quedan fuera de todo; su enlace sigue abriendo sin
+	// indexar, con lo roto quitado, y Publicar, en el panel, las lista (/feeds/omitidas.json). Van detrás de las buenas al
+	// normalizar: si comparten dirección, la buena la conserva.
+	const { sanas, omitidas: rotas } = separarCasas(data.properties);
+	const reparadas = rotas.map(({ casa, motivo }) => ({ r: casaReparada(casa), motivo })).filter(({ r }) => r && !r.motivo)
+		.map(({ r, motivo }) => ({ ...r.casa, _omitida: { motivo, sinCalendario: r.sinCalendario } }));
+	const juntas = normalizeProperties([...sanas, ...reparadas]);
+	const todas = juntas.filter((p) => !p._omitida);
+	const omitidas = juntas.filter((p) => p._omitida);
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
 	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
 	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
 	const V = globalThis.EQVacacional;
-	for (const p of todas) if (p.operacion === 'vacacional') {
+	for (const p of juntas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());
 		if (desde > 0) p.precio = desde;
@@ -553,9 +586,14 @@ async function main() {
 	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
 	// Se cuentan las que se ofrecen sin contar la pausa por mora: un socio atrasado no frena la publicación.
 	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
+	// Las casas de prueba (Publicar → Propiedades de prueba) no cuentan.
 	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
-	const freno = revisarCatalogo({ ahora: todas.filter((p) => visibilidadDe(p) === 'visible').length, antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl), forzar: process.env[FORZAR] === '1' });
-	if (freno) throw new Error(freno);
+	const deCatalogo = {
+		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p.demo).length,
+		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p.demo).map((p) => p.slug)))
+	};
+	const freno = await frenoDelCatalogo(data.source, deCatalogo);
+	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
@@ -675,6 +713,15 @@ async function main() {
 	// Vendidas, rentadas, pausadas y retiradas: su enlace sigue abriendo, pero no van al sitemap.
 	for (const p of fueraDeListados) await writePage(T.propertyUrl(p), fichaHtml(ctx, p));
 
+	// Casas omitidas por un dato roto: su enlace abre sin indexar (la de por noche sin calendario, como «ya no disponible»,
+	// sin reservar). Si aun así no se puede generar, queda solo en la lista de Publicar.
+	const ctxOmitidas = { ...ctx, noindex: true };
+	for (const p of omitidas) {
+		try { await writePage(T.propertyUrl(p), p._omitida.sinCalendario ? T.propertyGonePage(ctxOmitidas, p) : fichaHtml(ctxOmitidas, p)); p._omitida.url = T.propertyUrl(p); }
+		catch (err) { console.warn(`  ⚠ Tampoco se pudo generar la página de «${p.id}»: ${err.message}`); }
+	}
+	const omitidasDeDatos = rotas.filter(({ casa }) => !omitidas.some((p) => p.id === casa?.id));
+
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
 		urls.push({ path: page.url, priority: '0.4', lastmod: String(page.updatedAt || '').slice(0, 10) || undefined });
@@ -774,6 +821,11 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
+	// Lo que Publicar, en el panel, muestra como «no se ve en el sitio».
+	await writeFile(path.join(DIST, 'feeds', 'omitidas.json'), JSON.stringify({ casas: [
+		...omitidas.map((p) => ({ id: p.id, titulo: String(p.titulo || p.id), motivo: p._omitida.motivo, url: p._omitida.url || '' })),
+		...omitidasDeDatos.map(({ casa, motivo }) => ({ id: String(casa?.id || ''), titulo: String(casa?.titulo || casa?.id || '?'), motivo, url: '' }))
+	] }));
 	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml, publicado)));
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${enSitemap.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);

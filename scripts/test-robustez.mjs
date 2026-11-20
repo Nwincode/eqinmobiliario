@@ -43,7 +43,15 @@ await t('chats abiertos: solo los que salen desde hoy, todos (de 300 en 300), si
 		assert.equal(q.orderBy[0].field.fieldPath, 'salida');
 		assert.ok(q.limit <= 300);
 	}
-	assert.equal((await consultar('chats', 'salida', '2026-11-20', { tope: 100 })).length, 100);
+	const avisos = [], warn = console.warn;
+	console.warn = (m) => avisos.push(m);
+	try {
+		assert.equal((await consultar('chats', 'salida', '2026-11-20', { tope: 100 })).length, 100);
+		assert.equal(avisos.length, 1, 'al llenar el tope queda en el registro');
+		assert.match(avisos[0], /chats llegó al tope de 100/);
+		await consultar('chats', 'salida', '2026-11-20');
+		assert.equal(avisos.length, 1, 'sin llegar al tope no se avisa');
+	} finally { console.warn = warn; }
 });
 
 await t('el control de cada hora consulta los chats abiertos (no lista todos los chats)', () => {
@@ -61,6 +69,17 @@ await t('«Importar datos iniciales»: solo sin propiedades, revisado al tocar, 
 	assert.match(importar, /runTransaction[\s\S]*tx\.get\(ref\)[\s\S]*!existe\[i\][\s\S]*tx\.set\(ref, datos\)/);
 	assert.match(f, /const baseVacia = session\.isAdmin && !site\.exists\(\) && !\(await hayPropiedades\(\)/);
 	assert.match(f, /baseVacia \? h\('div'/);
+});
+
+await t('Publicar muestra el freno en una línea con «Publicar aunque baje» (una vez) y las casas que no se ven', () => {
+	const f = leer('admin/js/views/publish.js');
+	assert.match(f, /const frenada = state\.fallo && state\.freno/);
+	assert.match(f, /setDoc\(doc\(db, 'meta', 'publish'\), \{ forzarCatalogo: true \}, \{ merge: true \}\)/);
+	assert.match(f, /fetch\('\/feeds\/omitidas\.json'/);
+	const b = leer('scripts/build.mjs');
+	// El build gasta la marca y deja el motivo; deploy-failed lo reconoce.
+	assert.match(b, /cambiar\('meta\/publish', \{ freno, forzarCatalogo: false \}, \{ ahora: \['frenoCuando'\] \}\)/);
+	assert.match(leer('netlify/functions/deploy-failed.mjs'), /estado\.freno[\s\S]*frenoCuando/);
 });
 
 await t('cuadro de reserva: «hoy» se calcula al enviar, no al abrir la página', () => {

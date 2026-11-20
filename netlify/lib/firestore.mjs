@@ -104,6 +104,8 @@ export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {
 		const ultimo = pagina.at(-1);
 		despues = [ultimo.fields?.[campo] || { nullValue: null }, { referenceValue: ultimo.name }];
 	}
+	// Con el tope lleno, lo que sigue no se leyó: queda en el registro de la función.
+	if (docs.length >= tope) console.warn(`consultar: ${coleccion} llegó al tope de ${tope} (${campo} desde ${valor}); los siguientes no se leyeron.`);
 	return docs;
 }
 
