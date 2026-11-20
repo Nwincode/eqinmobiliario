@@ -44,6 +44,10 @@ export function sumarPorMoneda(lista, monto, moneda = (x) => x.moneda) {
 export const dineroPorMoneda = (total, separador = ' · ') => Object.entries(total || {}).filter(([, n]) => n).map(([m, n]) => dinero(n, m)).join(separador);
 // Un porcentaje que se escribe a mano (comisión, ISR, parte del asesor): número de 0 a 100.
 export const esPorcentaje = (v) => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100;
+// Id del cliente que nace de un lead, sacado de su contacto (teléfono ya normalizado con telefonoWa, o correo): dos
+// pestañas que crean al mismo cliente nuevo a la vez escriben el mismo documento. Sin contacto, '' (id al azar).
+export const idClientePorContacto = (tel, correo) => (tel ? `tel-${String(tel).replace(/\D/g, '')}`
+	: correo ? `correo-${String(correo).toLowerCase().trim().replace(/[^a-z0-9@._+-]/g, '_').slice(0, 120)}` : '');
 // Dirección (slug) para una URL: sin tildes, minúsculas y guiones; hasta 80 letras. La misma en el panel y el sitio.
 export function slugify(text) {
 	return String(text || '')

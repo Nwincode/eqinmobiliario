@@ -57,4 +57,10 @@ t('una página que pasó a /pagina/ redirige su dirección de antes, nunca encim
 	assert.deepEqual(r, [['/docs/', '/pagina/docs/'], ['/feeds/', '/pagina/feeds/'], ['/en/luxury/', '/en/pagina/luxury/']]);
 });
 
+t('al cambiarle el nombre a una página, su dirección de antes (también /pagina/x/) lleva a la nueva', () => {
+	const p = { slug: 'documentos', idioma: 'es', url: urlPagina('documentos'), urlsAnteriores: ['/pagina/docs/', '/viejo/', 'javascript:alert(1)', '/privacidad/'] };
+	assert.deepEqual(redireccionesPaginas([p], new Set(['/privacidad/'])), [['/pagina/docs/', '/documentos/'], ['/viejo/', '/documentos/']]);
+	assert.match(readFileSync(new URL('../admin/js/views/pages.js', import.meta.url), 'utf8'), /d\.urlsAnteriores = /);
+});
+
 console.log(`\n${ok} pruebas de rutas pasan.`);

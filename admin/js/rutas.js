@@ -33,10 +33,13 @@ export const urlPagina = (slug, idioma = 'es') => `${idioma === 'en' ? '/en' : '
 // Dirección que tenía una página antes de ser reservada su nombre (la que mostraba el panel).
 export const urlAnterior = (slug, idioma = 'es') => `${idioma === 'en' ? '/en' : ''}/${slug}/`;
 
-// Redirecciones 301 de las páginas que pasaron a /pagina/: de su dirección anterior a la nueva, solo si esa dirección
-// no es una página que el sitio escribe (`escritas`: rutas como '/en/properties/'). En Netlify, una regla sin «!» no
-// tapa un archivo que existe: nunca le gana a una página ni a un archivo del sitio.
-// paginas: [{ slug, idioma, url }] (url ya con urlPagina). Devuelve [[desde, hacia]].
+// Redirecciones 301 de las páginas de contenido a su dirección de hoy: desde la de antes de que su nombre fuera reservado
+// (pasó a /pagina/) y desde las que tuvo antes de cambiarle el nombre (`urlsAnteriores`, las guarda Páginas). Solo si esa
+// dirección no es una página que el sitio escribe (`escritas`: rutas como '/en/properties/'). En Netlify, una regla sin
+// «!» no tapa un archivo que existe: nunca le gana a una página ni a un archivo del sitio.
+// paginas: [{ slug, idioma, url, urlsAnteriores? }] (url ya con urlPagina). Devuelve [[desde, hacia]].
 export function redireccionesPaginas(paginas, escritas) {
-	return paginas.map((p) => [urlAnterior(p.slug, p.idioma), p.url]).filter(([desde, hacia]) => desde !== hacia && !escritas.has(desde));
+	return paginas.flatMap((p) => [urlAnterior(p.slug, p.idioma), ...(Array.isArray(p.urlsAnteriores) ? p.urlsAnteriores : [])]
+		.filter((u) => typeof u === 'string' && /^\/[a-z0-9/-]*\/$/.test(u)).map((u) => [u, p.url]))
+		.filter(([desde, hacia]) => desde !== hacia && !escritas.has(desde));
 }

@@ -5,7 +5,7 @@ import {
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero, esPorcentaje } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 
 export const ETAPAS = [
@@ -150,7 +150,10 @@ export async function crearActividad(datos) {
 // Devuelve cuántos leads se vincularon y cuántos clientes nuevos se crearon.
 // Corre en cada pestaña de Clientes que se abre: cada lead va en su transacción, que vuelve a leer el lead y lo salta
 // si otra pestaña (u otra persona) ya lo unió; así dos pestañas no crean dos clientes del mismo lead. Al cliente que ya
-// existe se le agrega con arrayUnion (no se pisa lo que otra pestaña agregó).
+// existe se le agrega con arrayUnion (no se pisa lo que otra pestaña agregó). Un cliente nuevo lleva un id sacado de su
+// teléfono o correo (idClientePorContacto) y se escribe uniendo (merge + arrayUnion): dos leads distintos de la misma
+// persona en dos pestañas caen en la misma ficha. Si ese id ya es de un cliente de otro asesor (las reglas no dejan
+// escribirlo), el lead va a una ficha nueva con id al azar, como antes.
 export async function sincronizarLeads(leads, clientes) {
 	const porTel = new Map(clientes.filter((c) => c.telefonoNorm).map((c) => [c.telefonoNorm, c]));
 	const porMail = new Map(clientes.filter((c) => c.email).map((c) => [String(c.email).toLowerCase(), c]));
@@ -167,7 +170,7 @@ export async function sincronizarLeads(leads, clientes) {
 		const agentId = l.agentId || (session.isAdmin ? '' : session.agentId);
 		const existente = (tel && porTel.get(tel)) || (mail && porMail.get(mail)) || null;
 		const refLead = doc(db, 'leads', l.id);
-		const r = await runTransaction(db, async (tx) => {
+		const unir = (idCliente) => runTransaction(db, async (tx) => {
 			const ahora = await tx.get(refLead);
 			if (!ahora.exists()) return { salto: '' };
 			if (ahora.data().clienteId) return { salto: ahora.data().clienteId };
@@ -176,7 +179,7 @@ export async function sincronizarLeads(leads, clientes) {
 				tx.update(refLead, { clienteId: existente.id });
 				return { cliente: existente, nuevo: false };
 			}
-			const ref = doc(collection(db, 'clientes'));
+			const ref = idCliente ? doc(db, 'clientes', idCliente) : doc(collection(db, 'clientes'));
 			const c = {
 				nombre: l.nombre || 'Sin nombre',
 				telefono: l.telefono || '',
@@ -192,10 +195,17 @@ export async function sincronizarLeads(leads, clientes) {
 				createdAt: l.createdAt || serverTimestamp(),
 				updatedAt: serverTimestamp()
 			};
-			tx.set(ref, c);
+			const { interes, ...resto } = c;
+			tx.set(ref, { ...resto, ...(interes.length ? { interes: arrayUnion(...interes) } : {}), leadIds: arrayUnion(l.id) }, { merge: true });
 			tx.update(refLead, { clienteId: ref.id });
 			return { cliente: { id: ref.id, ...c }, nuevo: true };
 		});
+		const porContacto = existente ? '' : idClientePorContacto(tel, mail);
+		let r;
+		try { r = await unir(porContacto); } catch (err) {
+			if (!porContacto || err?.code !== 'permission-denied') throw err;
+			r = await unir('');
+		}
 		if (r.salto !== undefined) {
 			// Otra pestaña ya lo unió: el próximo lead de la misma persona va a esa ficha.
 			if (r.salto) { l.clienteId = r.salto; recordar(clientes.find((c) => c.id === r.salto) || { id: r.salto }, tel, mail); }

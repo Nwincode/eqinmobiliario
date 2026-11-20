@@ -72,6 +72,20 @@ await t('«Publicar» del panel: el servidor llama al enlace y, si Netlify no lo
 	assert.equal((await publicar(pedido('POST'))).status, 403);
 });
 
+await t('al cerrar el panel (token en el cuerpo, sin encabezado) se publica y queda marcado: publicar-pendiente no la repite', async () => {
+	S.staff = { uid: 'u-admin', admin: true, nombre: 'Admin' };
+	poner('settings/private', { autoPublicar: true, netlifyBuildHook: HOOK });
+	poner('meta/publish', { pendiente: true, ultimoCambio: new Date(S.reloj - 60 * 60000) });
+	pedidos.length = 0;
+	const r = await publicar(pedido('POST', { token: 'token-de-la-sesion', automatica: true }));
+	assert.equal(r.status, 200);
+	assert.equal((await r.json()).marcado, true);
+	assert.equal(leer('meta/publish').pendiente, false);
+	assert.equal(leer('meta/publish').ultimaPublicacionAuto, true);
+	await publicarPendiente();
+	assert.equal(alHook(), 1, 'una sola publicación');
+});
+
 await t('una publicación fallida marca el fallo y avisa al equipo una sola vez; la siguiente que sale bien lo quita', async () => {
 	poner('meta/publish', { pendiente: false });
 	await deployFailed(evento({ context: 'production', error_message: 'Firestore no respondió' }));
@@ -113,9 +127,16 @@ await t('comisiones-vencidas no llama al enlace de Netlify mientras la última p
 	await comisionesVencidas();
 	assert.ok(pedidos.some((p) => p.url.endsWith('/pausados.txt')), 'sí compara la lista publicada');
 	assert.equal(alHook(), 0);
-	poner('meta/publish', { pendiente: false, fallo: false });
+	// Pasadas 12 horas del fallo, lo vuelve a intentar (como mucho dos veces al día).
+	poner('meta/publish', { pendiente: true, fallo: true, ultimoCambio: new Date(S.reloj - 11 * 3600_000) });
+	await comisionesVencidas();
+	assert.equal(alHook(), 0);
+	poner('meta/publish', { pendiente: true, fallo: true, ultimoCambio: new Date(S.reloj - 13 * 3600_000) });
 	await comisionesVencidas();
 	assert.equal(alHook(), 1);
+	poner('meta/publish', { pendiente: false, fallo: false });
+	await comisionesVencidas();
+	assert.equal(alHook(), 2);
 	respuestas = () => new Response('{}', { status: 200 });
 });
 

@@ -39,7 +39,10 @@ export const render = crudView({
 	],
 	beforeSave: (d, ref, all) => {
 		d.slug = slugify(d.slug || d.titulo);
-		if (reservada(d.slug, d.idioma)) {
+		const antes = all.find((p) => p.id === ref.id);
+		// Una de antes que ya tiene un nombre reservado se puede seguir editando con ese nombre (sale en /pagina/…).
+		const mismoNombre = antes && antes.slug === d.slug && (antes.idioma || 'es') === (d.idioma || 'es');
+		if (reservada(d.slug, d.idioma) && !mismoNombre) {
 			toast(`"${d.slug}" es una dirección reservada del sitio; elige otra.`, 'warning');
 			return false;
 		}
@@ -47,6 +50,10 @@ export const render = crudView({
 			toast(`Ya existe una página con la URL "${d.slug}".`, 'warning');
 			return false;
 		}
+		// Al cambiarle el nombre o el idioma, su dirección de antes se guarda: el sitio la redirige a la nueva.
+		const previas = antes?.urlsAnteriores || [];
+		const vieja = antes?.slug ? urlPagina(antes.slug, antes.idioma) : '';
+		d.urlsAnteriores = [...new Set([...previas, vieja])].filter((u) => u && u !== urlPagina(d.slug, d.idioma)).slice(-20);
 		return true;
 	}
 });

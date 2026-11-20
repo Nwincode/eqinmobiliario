@@ -2,7 +2,7 @@
 // por la fecha en que pasaron a «Cierre» y la parte del asesor de 0 a 100 % (la misma regla que Cotizaciones).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { sumarPorMoneda, dineroPorMoneda, esPorcentaje } from '../admin/js/formato.js';
+import { sumarPorMoneda, dineroPorMoneda, esPorcentaje, idClientePorContacto, telefonoWa } from '../admin/js/formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision } from '../admin/js/acuerdo.js';
 
 let ok = 0;
@@ -50,6 +50,14 @@ t('porcentajes de 0 a 100: la misma revisión en Reportes y Cotizaciones', () =>
 	assert.match(fuente('views/reportes.js'), /esPorcentaje\(nuevas\.parteAsesorPct\)/);
 	assert.match(fuente('views/cotizacion.js'), /\[isr, isrAlto, pa\]\.every\(esPorcentaje\)/);
 	assert.match(fuente('crm.js'), /esPorcentaje\(d\.parteAsesorPct\)/);
+});
+
+t('el cliente nuevo de un lead lleva un id de su contacto: dos leads de la misma persona caen en la misma ficha', () => {
+	assert.equal(idClientePorContacto(telefonoWa('+502 5555 1234'), 'a@b.com'), idClientePorContacto(telefonoWa('+50255551234'), ''));
+	assert.equal(idClientePorContacto('', 'Ana.Lopez@Gmail.com '), 'correo-ana.lopez@gmail.com');
+	assert.doesNotMatch(idClientePorContacto('', 'a/b@c.com'), /\//);
+	assert.equal(idClientePorContacto('', ''), '');
+	assert.match(fuente('crm.js'), /idClientePorContacto\(tel, mail\)/);
 });
 
 console.log(`\n${ok} pruebas de reportes pasan.`);

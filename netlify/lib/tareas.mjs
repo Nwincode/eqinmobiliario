@@ -94,6 +94,9 @@ Si el lead preguntó por una propiedad que ya no está disponible o hay otras qu
 	traducir: {
 		effort: 'low',
 		staff: true,
+		// Una casa larga (descripción de hasta 12,000 letras, reglas, cancelación, cómo llegar) no cabe en 8,000: la
+		// respuesta salía incompleta («max_tokens») y no se traducía nada.
+		maxTokens: 16000,
 		instrucciones: `Traduce la propiedad al inglés de Estados Unidos para compradores estadounidenses y guatemaltecos que viven en EE. UU.
 - No traduzcas palabra por palabra: escribe como un anuncio inmobiliario profesional en EE. UU. (p. ej. "3-bedroom house", "gated community", "HOA fee").
 - Conserva los nombres propios (residenciales, zonas como "Zona 16").

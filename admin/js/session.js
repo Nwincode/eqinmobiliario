@@ -104,10 +104,11 @@ export async function markPending(descripcion) {
 // Lo que tarda Netlify en poner el sitio al día después de aceptar la publicación (el mismo texto en todo el panel).
 export const TIEMPO_PUBLICACION = '2 a 4 minutos';
 export async function publicarAhora({ automatica = false } = {}) {
-	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` } });
+	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ automatica }) });
 	const cuerpo = await res.json().catch(() => ({}));
 	if (!res.ok) throw new Error(cuerpo.error || `No se pudo publicar: el servidor respondió ${res.status}.`);
-	await setDoc(doc(db, 'meta', 'publish'), {
+	// El servidor ya lo marcó publicado (con la cuenta de escritura); si no tiene esa cuenta, lo marca el panel.
+	if (!cuerpo.marcado) await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
 		fallo: false,
 		ultimaPublicacion: serverTimestamp(),
@@ -125,6 +126,8 @@ export const AUTO_SEGUNDOS = 600;
 let autoConfig = null;
 let autoTimer = null;
 let autoHook = '';
+// Token de la sesión, guardado al programar: al cerrar el panel no hay tiempo de pedirlo (sendBeacon va sin encabezados).
+let autoToken = '';
 
 export function olvidarConfigPublicacion() {
 	autoConfig = null;
@@ -148,6 +151,7 @@ export async function programarAutoPublicar() {
 	autoActiva = Boolean(priv.autoPublicar && priv.netlifyBuildHook);
 	if (!autoActiva) return;
 	autoHook = priv.netlifyBuildHook;
+	session.user?.getIdToken().then((t) => { autoToken = t; }, () => {});
 	clearTimeout(autoTimer);
 	autoTimer = setTimeout(async () => {
 		autoTimer = null;
@@ -163,14 +167,15 @@ export async function programarAutoPublicar() {
 
 export const autoPublicacionEnEspera = () => Boolean(autoTimer);
 
-// Al cerrar o salir del panel con una publicación en espera, se dispara de inmediato.
-// (Si no alcanza a marcarse como publicada, se revisa la próxima vez que abras el panel.)
+// Al cerrar o salir del panel con una publicación en espera, se dispara de inmediato, por el mismo /api/publicar: el
+// servidor revisa la respuesta de Netlify y la marca publicada, así publicar-pendiente.mjs no la vuelve a publicar.
+// (Sin token o si no alcanza a salir, queda pendiente: la publica publicar-pendiente.mjs.)
 window.addEventListener('pagehide', () => {
-	if (!autoTimer || !autoHook) return;
+	if (!autoTimer || !autoHook || !autoToken) return;
 	clearTimeout(autoTimer);
 	autoTimer = null;
 	try {
-		navigator.sendBeacon(autoHook, '{}');
+		navigator.sendBeacon('/api/publicar', new Blob([JSON.stringify({ token: autoToken, automatica: true })], { type: 'text/plain' }));
 	} catch { /* sin sendBeacon */ }
 });
 

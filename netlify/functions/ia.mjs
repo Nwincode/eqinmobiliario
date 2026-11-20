@@ -141,7 +141,7 @@ export default async (req, context) => {
 	try {
 		const response = await client.beta.messages.create({
 			model: MODEL,
-			max_tokens: def.staff ? 8000 : 1000,
+			max_tokens: def.maxTokens || (def.staff ? 8000 : 1000),
 			betas: ['server-side-fallback-2026-07-01'],
 			fallbacks: 'default',
 			system: [
