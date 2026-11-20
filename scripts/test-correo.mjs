@@ -46,4 +46,20 @@ await test('equipo con correo de otro dominio: sale de noreply@ con «Responder 
 	assert.equal(enviados[0].from.address, 'noreply@ejemplo.gt');
 	assert.deepEqual(enviados[0].reply_to, [{ address: 'alguien@hotmail.com', name: 'Equipo Inmobiliario' }]);
 });
+await test('contraseña: el diseño común (plantilla) y el WhatsApp de Contenido, no uno escrito a mano', async () => {
+	const { correoContrasena } = await import('../netlify/lib/correo-contrasena.mjs');
+	const seed = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../data/seed.json', import.meta.url), 'utf8'));
+	const { html, texto } = await correoContrasena({ link: 'https://x.test/a?b=1&c=2', email: 'ana@ejemplo.gt' });
+	assert.match(html, new RegExp(`wa\\.me/${seed.settings.contacto.whatsapp}\\?text=`));
+	assert.match(html, /href="https:\/\/x\.test\/a\?b=1&amp;c=2"/);
+	assert.match(html, /Eliminar mi cuenta del panel/);
+	assert.doesNotMatch(html, /&#8199;|&#847;/, 'sin relleno invisible en la vista previa');
+	assert.match(texto, /https:\/\/x\.test\/a\?b=1&c=2/);
+});
+await test('respuesta al lead en su idioma (aviso del lead y botón de Leads)', async () => {
+	const { saludoLead } = await import('../admin/js/formato.js');
+	assert.equal(saludoLead({ nombre: 'Ana Pérez', propertyTitulo: 'Casa en zona 16' }), 'Hola Ana, gracias por escribirnos por Casa en zona 16. ');
+	assert.equal(saludoLead({ nombre: 'John Smith', propertyTitulo: 'House in Zona 16', idioma: 'en' }), 'Hi John, thanks for reaching out about House in Zona 16. ');
+	assert.equal(saludoLead({ nombre: '', idioma: 'en' }), 'Hi, thanks for reaching out. ');
+});
 console.log(`${ok} pruebas del correo pasan.`);

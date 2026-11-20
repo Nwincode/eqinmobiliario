@@ -467,6 +467,13 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	});
 }
 
+test('tarjetas: la foto no es un segundo enlace para el lector de pantalla (el título ya cubre la tarjeta)', () => {
+	const h = html['/propiedades/'];
+	const fotos = h.match(/<a [^>]*class="img"[^>]*>/g) || [];
+	assert.ok(fotos.length > 0);
+	for (const a of fotos) assert.match(a, /tabindex="-1" aria-hidden="true"/);
+});
+
 test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
 	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.
 	const autollenado = /compan|empresa|organi|business|web|url|site|address|direcc|email|correo|phone|tel|name|nombre|city|ciudad|zip|postal/i;

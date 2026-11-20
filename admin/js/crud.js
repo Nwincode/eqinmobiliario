@@ -6,7 +6,8 @@ import { markPending, porOrden, trasGuardar } from './session.js';
 import { revisar, vigilarFormulario } from './pendientes.js';
 
 // cfg.pendientes: tipo de pendientes.js para marcar datos por completar.
-// cfg: { collection, route, title, singular, schema(isNew), columns: [[label, fn(item)]], defaults, beforeSave(data, ref, all), afterSave() }
+// cfg: { collection, route, title, singular, schema(isNew), columns: [[label, fn(item)]], defaults (o una función que los da),
+//   beforeSave(data, ref, all, antes), antesDeEliminar(data, id) (false = no se elimina), afterSave() }
 export function crudView(cfg) {
 	async function loadAll() {
 		const snap = await getDocs(collection(db, cfg.collection));
@@ -45,7 +46,7 @@ export function crudView(cfg) {
 			if (!form.validate()) return;
 			const d = form.getData();
 			try {
-				if (cfg.beforeSave && (await cfg.beforeSave(d, ref, all)) === false) return;
+				if (cfg.beforeSave && (await cfg.beforeSave(d, ref, all, isNew ? null : data)) === false) return;
 				d.updatedAt = serverTimestamp();
 				if (isNew) d.createdAt = serverTimestamp();
 				btn.disabled = true;
@@ -64,6 +65,7 @@ export function crudView(cfg) {
 		const remove = async () => {
 			if (!(await confirmDialog(`¿Eliminar "${data.nombre || data.titulo}"?`, { okText: 'Eliminar' }))) return;
 			try {
+				if (cfg.antesDeEliminar && (await cfg.antesDeEliminar(data, ref.id)) === false) return;
 				await deleteDoc(ref);
 				await markPending(`${cfg.singular} eliminado`);
 				if (cfg.afterSave) cfg.afterSave();

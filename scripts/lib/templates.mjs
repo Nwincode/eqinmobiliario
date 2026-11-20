@@ -459,7 +459,7 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 	const varias = fotos.length > 1;
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
-									<a href="${url}" class="img" tabindex="-1">
+									<a href="${url}" class="img" tabindex="-1" aria-hidden="true">
 										${imgFoto(firstPhoto(p), { alt: photoAlt(p), clase: 'img-fluid', sizes: SIZES_TARJETA, anchos: [480, 800], lazy, prioridad })}
 										${fotos.slice(1).map((f, i) => `<img data-src="${esc(fotoAncho(f.url, 800) || f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
 									</a>

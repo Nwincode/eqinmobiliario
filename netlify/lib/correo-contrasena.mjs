@@ -1,93 +1,38 @@
-// Correo «Crea o cambia tu contraseña» (diseño aprobado por el dueño): el mismo para dar acceso (dueños, colaboradores,
-// equipo) y para «¿Olvidaste tu contraseña?». Lo manda netlify/functions/contrasena.mjs con el servicio de correo de la
-// empresa (Zoho CPaaS, antes ZeptoMail). Imágenes en images/correo/ (publicadas con el sitio). Colores de css/tema.css.
-// Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
-import { esc } from './correo.mjs';
+// Correo «Crea o cambia tu contraseña»: el mismo para dar acceso (dueños, colaboradores, equipo) y para «¿Olvidaste tu
+// contraseña?». Lo manda netlify/functions/contrasena.mjs. Usa el diseño común de todos los correos (`plantilla` de
+// correo.mjs: logo, cabecera, colores de Contenido y el WhatsApp de Contacto), no uno propio.
+import { plantilla, boton, esc, whatsappEmpresa, SITE_URL } from './correo.mjs';
 
 export const ASUNTO_CONTRASENA = 'Crea o cambia tu contraseña';
 
 // link: el enlace de Google (un solo uso, vence en 1 hora); email: el usuario.
-export function correoContrasena({ link, email }) {
-	const enlace = esc(link);
-	const correo = esc(email);
-	const correoUrl = encodeURIComponent(String(email || ''));
-	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#eef3f6">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef3f6" style="background:#eef3f6"><tr><td align="center" style="padding:28px 12px;font-family:Arial,Helvetica,sans-serif">
-<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
-
-<tr><td align="center" bgcolor="#0e1920" style="background:#0e1920;background-image:linear-gradient(#0e1920,#0e1920);border-radius:12px 12px 0 0;padding:24px 24px 22px">
-  <img src="https://eqinmobiliario.gt/Icono_Equipoinmobiliario@0.75x.png" width="180" height="43" alt="Equipo Inmobiliario" style="display:block;margin:0 auto;border:0;outline:none;width:180px;height:auto;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold">
-</td></tr>
-<tr><td bgcolor="#0e1920" style="background:#0e1920;line-height:0;font-size:0">
-  <img src="https://eqinmobiliario.gt/images/correo/cabecera.jpg" width="600" height="220" alt="" style="display:block;border:0;width:100%;max-width:600px;height:auto">
-</td></tr>
-<tr><td bgcolor="#00b7e7" style="background:#00b7e7;height:4px;line-height:4px;font-size:4px">&nbsp;</td></tr>
-
-<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:36px 28px 30px;font-family:Arial,Helvetica,sans-serif">
-  <h1 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;font-weight:bold;color:#0e1920">Crea o cambia tu contraseña</h1>
-  <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:#5b666f">Toca el botón y elige la contraseña con la que entrarás al panel.</p>
-
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border-collapse:separate"><tr>
-    <td bgcolor="#edf5fa" style="background:#edf5fa;border:1px solid #d3e4ee;border-radius:8px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif">
-      <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;letter-spacing:1px;font-weight:bold;color:#5b666f">TU USUARIO</p>
-      <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:24px;font-weight:bold;color:#0e1920;word-break:break-all;overflow-wrap:anywhere"><span style="color:#0e1920;text-decoration:none">${correo}</span></p>
-    </td>
-  </tr></table>
-
-  <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 14px;border-collapse:separate"><tr>
-    <td align="center" bgcolor="#0e5e8a" style="background:#0e5e8a;border:2px solid #0e5e8a;border-radius:8px;mso-padding-alt:16px 40px">
-      <a href="${enlace}" target="_blank" style="display:block;padding:16px 40px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:22px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">Crear mi contraseña</a>
-    </td>
-  </tr></table>
-  <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5b666f">Sirve una sola vez y vence en <strong style="color:#0e1920">1 hora</strong>.<br>¿El botón no abre? <a href="${enlace}" target="_blank" style="color:#0e5e8a;text-decoration:underline">Usa este enlace</a>.</p>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;border-top:1px solid #e3e9ee"><tr>
-    <td align="center" style="padding:22px 0 0;font-family:Arial,Helvetica,sans-serif">
-      <p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#5b666f">¿Necesitas ayuda? Escríbenos y te atendemos.</p>
-      <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;border-collapse:separate"><tr>
-        <td align="center" bgcolor="#ffffff" style="background:#ffffff;border:2px solid #1e7e4a;border-radius:8px;mso-padding-alt:10px 20px">
-          <a href="https://wa.me/50259131276?text=Hola%2C%20necesito%20ayuda%20para%20entrar%20al%20panel%20de%20Equipo%20Inmobiliario." target="_blank" style="display:block;padding:10px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;font-weight:bold;color:#1e7e4a;text-decoration:none;border-radius:8px"><img src="https://eqinmobiliario.gt/images/correo/whatsapp.png" width="22" height="22" alt="" style="vertical-align:middle;border:0;margin:0 8px 2px 0">Escribir por WhatsApp</a>
-        </td>
-      </tr></table>
-    </td>
-  </tr></table>
-</td></tr>
-
-<tr><td bgcolor="#ffffff" style="background:#ffffff;padding:0 28px 28px;border-radius:0 0 12px 12px;font-family:Arial,Helvetica,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr>
-    <td bgcolor="#f7f3eb" style="background:#f7f3eb;border:1px solid #e6dbc6;border-radius:8px;padding:16px 18px 6px;font-family:Arial,Helvetica,sans-serif">
-      <p style="margin:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;letter-spacing:1.5px;font-weight:bold;color:#85662b">CUIDA TU CUENTA</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td width="22" valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:bold;color:#85662b">&#10003;</td>
-          <td valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#5b666f">Entra siempre en <a href="https://eqinmobiliario.gt/admin/" target="_blank" style="color:#0e1920;font-weight:bold;text-decoration:none">eqinmobiliario.gt/admin</a>.</td>
-        </tr>
-        <tr>
-          <td width="22" valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:bold;color:#85662b">&#10003;</td>
-          <td valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#5b666f">Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.</td>
-        </tr>
-        <tr>
-          <td width="22" valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:bold;color:#85662b">&#10003;</td>
-          <td valign="top" style="padding:0 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#5b666f">¿No esperabas este correo? Ignóralo: nada cambia en tu cuenta.</td>
-        </tr>
-      </table>
-    </td>
-  </tr></table>
-</td></tr>
-
-<tr><td align="center" style="padding:24px 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#5b666f">
-  <strong style="color:#0e1920">Equipo Inmobiliario S.A.</strong><br>
-  <a href="https://eqinmobiliario.gt" target="_blank" style="display:inline-block;padding:4px 6px 12px;color:#0e5e8a;text-decoration:none;font-weight:bold">eqinmobiliario.gt</a><br>
-  <a href="https://www.instagram.com/eqinmobiliario.gt" target="_blank" style="display:inline-block;margin:0 5px;text-decoration:none"><img src="https://eqinmobiliario.gt/images/correo/instagram.png" width="32" height="32" alt="Instagram" style="display:block;border:0"></a><a href="https://www.facebook.com/eqinmobiliario.gt" target="_blank" style="display:inline-block;margin:0 5px;text-decoration:none"><img src="https://eqinmobiliario.gt/images/correo/facebook.png" width="32" height="32" alt="Facebook" style="display:block;border:0"></a><a href="https://wa.me/50259131276" target="_blank" style="display:inline-block;margin:0 5px;text-decoration:none"><img src="https://eqinmobiliario.gt/images/correo/whatsapp.png" width="32" height="32" alt="WhatsApp" style="display:block;border:0"></a>
-</td></tr>
-<tr><td align="center" style="padding:14px 16px 4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#5b666f">
-  Lo recibes porque tienes un usuario en el panel de Equipo&nbsp;Inmobiliario.<br>
-  <a href="mailto:atencioncliente@eqinmobiliario.gt?subject=Eliminar%20mi%20cuenta%20del%20panel&amp;body=Hola%2C%20quiero%20que%20eliminen%20mi%20cuenta%20del%20panel.%20Mi%20usuario%20es%3A%20${correoUrl}" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Eliminar mi cuenta del panel</a><span style="color:#b5bec5">&middot;</span><a href="https://eqinmobiliario.gt/privacidad/" target="_blank" style="display:inline-block;padding:6px 6px;color:#0e5e8a;text-decoration:underline">Política de privacidad</a>
-</td></tr>
-
-</table>
-<!--[if mso]></td></tr></table><![endif]-->
-</td></tr></table>`;
-	const texto = `Crea o cambia tu contraseña del panel de Equipo Inmobiliario.\n\nTu usuario: ${email}\n\nAbre este enlace (sirve una sola vez y vence en 1 hora):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.\n\n¿Necesitas ayuda? WhatsApp +502 5913-1276\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
+export async function correoContrasena({ link, email }) {
+	const fuente = 'font-family:Arial,Helvetica,sans-serif';
+	const ayuda = await whatsappEmpresa('Hola, necesito ayuda para entrar al panel de Equipo Inmobiliario.');
+	const cuidar = ['Entra siempre en eqinmobiliario.gt/admin.', 'Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo.', '¿No esperabas este correo? Ignóralo: nada cambia en tu cuenta.'];
+	const html = await plantilla({
+		titulo: ASUNTO_CONTRASENA,
+		intro: 'Toca el botón y elige la contraseña con la que entrarás al panel.',
+		preheader: 'Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.',
+		pie: 'Lo recibes porque tienes un usuario en el panel de Equipo Inmobiliario.',
+		pieEnlaces: [
+			['Eliminar mi cuenta del panel', `mailto:atencioncliente@eqinmobiliario.gt?subject=${encodeURIComponent('Eliminar mi cuenta del panel')}&body=${encodeURIComponent(`Hola, quiero que eliminen mi cuenta del panel. Mi usuario es: ${email}`)}`],
+			['Política de privacidad', `${SITE_URL}/privacidad/`]
+		],
+		bloques: (c) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border-collapse:separate"><tr>
+<td bgcolor="${c.suave}" style="background:${c.suave};border:1px solid ${c.linea};border-radius:8px;padding:14px 16px;${fuente}">
+<p style="margin:0 0 4px;${fuente};font-size:12px;line-height:16px;letter-spacing:1px;font-weight:bold;color:${c.ink}">TU USUARIO</p>
+<p style="margin:0;${fuente};font-size:17px;line-height:24px;font-weight:bold;color:${c.dark};word-break:break-all;overflow-wrap:anywhere">${esc(email)}</p>
+</td></tr></table>
+${boton(c, 'Crear mi contraseña', link, c.primary, { ancho: true })}
+<p style="margin:0 0 22px;text-align:center;${fuente};font-size:13px;line-height:20px;color:${c.ink}">Sirve una sola vez y vence en <strong style="color:${c.dark}">1 hora</strong>.<br>¿El botón no abre? <a href="${esc(link)}" target="_blank" style="color:${c.primary};text-decoration:underline">Usa este enlace</a>.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;border-collapse:separate"><tr>
+<td style="border:1px solid ${c.linea};border-radius:8px;padding:16px 18px 6px;${fuente}">
+<p style="margin:0 0 10px;${fuente};font-size:12px;line-height:16px;letter-spacing:1.5px;font-weight:bold;color:${c.dark}">CUIDA TU CUENTA</p>
+${cuidar.map((t) => `<p style="margin:0 0 10px;${fuente};font-size:14px;line-height:20px;color:${c.ink}">&#10003;&nbsp; ${esc(t)}</p>`).join('')}
+</td></tr></table>
+${ayuda ? `<p style="margin:0 0 10px;text-align:center;${fuente};font-size:14px;line-height:20px;color:${c.ink}">¿Necesitas ayuda? Escríbenos y te atendemos.</p>${boton(c, 'Escribir por WhatsApp', ayuda, c.whatsapp, { borde: true, ancho: true })}` : ''}`
+	});
+	const texto = `Crea o cambia tu contraseña del panel de Equipo Inmobiliario.\n\nTu usuario: ${email}\n\nAbre este enlace (sirve una sola vez y vence en 1 hora):\n${link}\n\n${cuidar.join(' ')}${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
 	return { asunto: ASUNTO_CONTRASENA, html, texto };
 }

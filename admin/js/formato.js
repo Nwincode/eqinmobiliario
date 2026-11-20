@@ -228,6 +228,15 @@ export function telefonoWa(tel) {
 	return n;
 }
 
+// Primer mensaje a quien escribió desde el sitio, en su idioma (el del sitio donde escribió, `lead.idioma`). Uno solo para
+// el aviso del lead (netlify/functions/aviso-lead.mjs: WhatsApp y correo) y el botón de WhatsApp de Leads.
+export function saludoLead({ nombre = '', propertyTitulo = '', idioma = 'es' } = {}) {
+	const n = String(nombre).trim().split(/\s+/)[0] || '';
+	return idioma === 'en'
+		? `Hi${n ? ` ${n}` : ''}, thanks for reaching out${propertyTitulo ? ` about ${propertyTitulo}` : ''}. `
+		: `Hola${n ? ` ${n}` : ''}, gracias por escribirnos${propertyTitulo ? ` por ${propertyTitulo}` : ''}. `;
+}
+
 export function whatsappUrl(tel, mensaje) {
 	const n = telefonoWa(tel);
 	const text = mensaje ? `text=${encodeURIComponent(mensaje)}` : '';

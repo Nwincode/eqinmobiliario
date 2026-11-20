@@ -16,7 +16,7 @@
 // 429 demasiados pedidos; 503 sin configurar o falló el envío.
 import { googleToken, cuentaAccesos } from '../lib/google.mjs';
 import { leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
-import { enviarCorreo, servicioCorreo, SITE_URL, plantilla, boton, esc } from '../lib/correo.mjs';
+import { enviarCorreo, servicioCorreo, SITE_URL, plantilla, boton, esc, whatsappEmpresa } from '../lib/correo.mjs';
 import { correoContrasena } from '../lib/correo-contrasena.mjs';
 import { staffUser, sesionDe, json } from '../lib/auth.mjs';
 import { limitadorDurable, ipDe } from '../lib/limite.mjs';
@@ -30,18 +30,19 @@ const ALCANCE = 'https://www.googleapis.com/auth/cloud-platform';
 const porIp = limitadorDurable('contrasena-ip', 10, 10 * 60_000);
 const porCorreo = limitadorDurable('contrasena-correo', 3, 60 * 60_000);
 const avisosPorCuenta = limitadorDurable('contrasena-aviso', 3, 60 * 60_000);
-const WHATSAPP = 'https://wa.me/50259131276?text=Hola%2C%20no%20cambi%C3%A9%20mi%20contrase%C3%B1a%20del%20panel%20y%20me%20lleg%C3%B3%20un%20aviso.';
 
 // Aviso «Tu contraseña cambió» a la cuenta que acaba de cambiarla: si no fue la persona, se entera y avisa.
 async function avisoCambio(email) {
+	// El WhatsApp de Contenido → Contacto (el mismo del sitio).
+	const wa = await whatsappEmpresa('Hola, no cambié mi contraseña del panel y me llegó un aviso.');
 	const html = await plantilla({
 		titulo: 'Tu contraseña cambió',
 		intro: `La contraseña del panel para <strong>${esc(email)}</strong> se cambió hace un momento.`,
 		preheader: 'Si fuiste tú, no tienes que hacer nada.',
 		bloques: (c) => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.ink}">Si fuiste tú, no tienes que hacer nada. <strong style="color:${c.dark}">Si no fuiste tú</strong>, escríbenos de inmediato y pide un correo nuevo para poner tu contraseña en «¿Olvidaste tu contraseña?».</p>`
-			+ boton(c, 'Escribir por WhatsApp', WHATSAPP, c.whatsapp) + boton(c, 'Abrir el panel', `${SITE_URL}/admin/`, c.primary, { borde: true })
+			+ (wa ? boton(c, 'Escribir por WhatsApp', wa, c.whatsapp) : '') + boton(c, 'Abrir el panel', `${SITE_URL}/admin/`, c.primary, { borde: true })
 	});
-	await enviarCorreo({ para: email, asunto: 'Tu contraseña del panel cambió', html, texto: `La contraseña del panel para ${email} se cambió hace un momento. Si no fuiste tú, escríbenos de inmediato por WhatsApp: ${WHATSAPP}` });
+	await enviarCorreo({ para: email, asunto: 'Tu contraseña del panel cambió', html, texto: `La contraseña del panel para ${email} se cambió hace un momento. Si no fuiste tú, escríbenos de inmediato${wa ? ` por WhatsApp: ${wa}` : '.'}` });
 }
 
 async function google(accion, cuerpo) {
@@ -117,7 +118,7 @@ export default async (req, context) => {
 	const trabajo = async () => {
 		const link = (await conAcceso(email)) ? await enlaceDe(email) : null;
 		if (!link) return false;
-		const { asunto, html, texto } = correoContrasena({ link, email });
+		const { asunto, html, texto } = await correoContrasena({ link, email });
 		await enviarCorreo({ para: email, asunto, html, texto });
 		return true;
 	};

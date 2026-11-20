@@ -194,6 +194,12 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Filtro de contacto (teléfonos, correos, enlaces)** → `js/calc-vacacional.js` `tieneContacto` (uno solo) → chat del cliente (`js/reserva-chat.js`), chat del panel (`views/solicitudes.js`) y lo que el dueño publica de su casa (`admin/js/mi-casa.js`: cada texto y cada amenidad; lo revisa también `netlify/functions/mi-casa.mjs`) → `firestore.rules` tiene su copia para el chat → `scripts/test-vacacional.mjs` y `scripts/test-mi-casa.mjs`.
 
+**Correos** → `netlify/lib/correo.mjs` `plantilla` (un solo diseño para todos, también «Crea o cambia tu contraseña» en `netlify/lib/correo-contrasena.mjs`; colores y WhatsApp de Contenido con `whatsappEmpresa`, nunca un número escrito a mano) → cada función que manda correo → `scripts/test-correo.mjs`.
+
+**Respuesta a un lead** → `admin/js/formato.js` `saludoLead` (en `lead.idioma`) → `netlify/functions/aviso-lead.mjs` (botones de WhatsApp y correo) y `admin/js/views/leads.js` (botón de WhatsApp).
+
+**Quitar u ocultar un asesor** → `admin/js/views/agents.js` (`reasignarSiTiene`: casas, leads, clientes, requerimientos, actividades y propietarios con su `agentId` pasan a otro asesor antes) → `admin/js/crud.js` (`antesDeEliminar`, `beforeSave` con lo guardado).
+
 ## 7. Cómo se prueba
 
 - Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.
