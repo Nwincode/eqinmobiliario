@@ -2,7 +2,8 @@
 // netlify/lib/firestore-escritura.mjs). Las usan netlify/functions/reservas.mjs (lo que hace el socio) y
 // netlify/functions/plazos-reservas.mjs (lo que vence solo: la solicitud sin respuesta y la reserva sin pago).
 import '../../js/calc-vacacional.js';
-import { idNuevo, marcarPorPublicar, transaccion } from './firestore-escritura.mjs';
+import { idNuevo, transaccion } from './firestore-escritura.mjs';
+import { marcarPorPublicar } from './publicar.mjs';
 import { purgarCasa } from './ocupacion.mjs';
 import { desde } from './firestore.mjs';
 import { montosCotizados, bajoElPlan, seCruzan, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';

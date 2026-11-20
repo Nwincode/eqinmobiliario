@@ -98,11 +98,17 @@ export async function markPending(descripcion) {
 }
 
 // ------------------------------------------------------------ Publicación
-// Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
+// Se publica por el servidor (netlify/functions/publicar.mjs), que llama al enlace de Netlify y revisa su respuesta:
+// si Netlify no la acepta (p. ej. el enlace se borró), lanza el error y no se marca publicado.
 // `automatica`: la lanzó la publicación automática (se dice así en «Última publicación»).
-export async function publicarAhora(hook, { automatica = false } = {}) {
-	await fetch(hook, { method: 'POST', mode: 'no-cors', body: '{}' });
-	await setDoc(doc(db, 'meta', 'publish'), {
+// Lo que tarda Netlify en poner el sitio al día después de aceptar la publicación (el mismo texto en todo el panel).
+export const TIEMPO_PUBLICACION = '2 a 4 minutos';
+export async function publicarAhora({ automatica = false } = {}) {
+	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ automatica }) });
+	const cuerpo = await res.json().catch(() => ({}));
+	if (!res.ok) throw new Error(cuerpo.error || `No se pudo publicar: el servidor respondió ${res.status}.`);
+	// El servidor ya lo marcó publicado (con la cuenta de escritura); si no tiene esa cuenta, lo marca el panel.
+	if (!cuerpo.marcado) await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
 		fallo: false,
 		ultimaPublicacion: serverTimestamp(),
@@ -120,6 +126,8 @@ export const AUTO_SEGUNDOS = 600;
 let autoConfig = null;
 let autoTimer = null;
 let autoHook = '';
+// Token de la sesión, guardado al programar: al cerrar el panel no hay tiempo de pedirlo (sendBeacon va sin encabezados).
+let autoToken = '';
 
 export function olvidarConfigPublicacion() {
 	autoConfig = null;
@@ -143,28 +151,31 @@ export async function programarAutoPublicar() {
 	autoActiva = Boolean(priv.autoPublicar && priv.netlifyBuildHook);
 	if (!autoActiva) return;
 	autoHook = priv.netlifyBuildHook;
+	session.user?.getIdToken().then((t) => { autoToken = t; }, () => {});
 	clearTimeout(autoTimer);
 	autoTimer = setTimeout(async () => {
 		autoTimer = null;
 		try {
-			await publicarAhora(autoHook, { automatica: true });
-			toast('Publicado automáticamente: el sitio se pone al día en 2 a 4 minutos.');
+			await publicarAhora({ automatica: true });
+			toast(`Publicado automáticamente: el sitio se pone al día en ${TIEMPO_PUBLICACION}.`);
 		} catch (err) {
 			console.warn('No se pudo publicar automáticamente', err);
+			toast(`No se pudo publicar automáticamente: ${err.message}`, 'danger');
 		}
 	}, AUTO_SEGUNDOS * 1000);
 }
 
 export const autoPublicacionEnEspera = () => Boolean(autoTimer);
 
-// Al cerrar o salir del panel con una publicación en espera, se dispara de inmediato.
-// (Si no alcanza a marcarse como publicada, se revisa la próxima vez que abras el panel.)
+// Al cerrar o salir del panel con una publicación en espera, se dispara de inmediato, por el mismo /api/publicar: el
+// servidor revisa la respuesta de Netlify y la marca publicada, así publicar-pendiente.mjs no la vuelve a publicar.
+// (Sin token o si no alcanza a salir, queda pendiente: la publica publicar-pendiente.mjs.)
 window.addEventListener('pagehide', () => {
-	if (!autoTimer || !autoHook) return;
+	if (!autoTimer || !autoHook || !autoToken) return;
 	clearTimeout(autoTimer);
 	autoTimer = null;
 	try {
-		navigator.sendBeacon(autoHook, '{}');
+		navigator.sendBeacon('/api/publicar', new Blob([JSON.stringify({ token: autoToken, automatica: true })], { type: 'text/plain' }));
 	} catch { /* sin sendBeacon */ }
 });
 

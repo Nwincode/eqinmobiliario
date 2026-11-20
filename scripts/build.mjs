@@ -22,13 +22,11 @@ import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (tamb
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
 import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
 import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
+import { urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
 const DIST = process.env.DIST_DIR ? path.resolve(process.env.DIST_DIR) : path.join(ROOT, 'dist');
-
-// Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios', 'calculadora-de-renta']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -122,7 +120,8 @@ function normalizePages(list, base = '') {
 	return list
 		.map((p) => {
 			const slug = slugify(p.slug || p.titulo) || p.id;
-			return { ...p, slug, url: `${base}${RESERVED.has(slug) ? `/pagina/${slug}` : `/${slug}`}/` };
+			// Con un nombre reservado del sitio (admin/js/rutas.js), en /pagina/: nunca encima de un listado.
+			return { ...p, slug, url: urlPagina(slug, base ? 'en' : 'es') };
 		})
 		.sort(byOrder);
 }
@@ -502,7 +501,8 @@ function fichaHtml(c, p) {
 }
 
 // `enPorId`: la versión en inglés ya resuelta en main() (con el sufijo que la separa de otra del mismo título).
-function redirects(ctx, todas = ctx.properties, enPorId = new Map()) {
+// `paginasMovidas`: las páginas que pasaron a /pagina/ ([de, a]).
+function redirects(ctx, todas = ctx.properties, enPorId = new Map(), paginasMovidas = []) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
@@ -527,6 +527,7 @@ function redirects(ctx, todas = ctx.properties, enPorId = new Map()) {
 			}
 		}
 	}
+	for (const [de, a] of paginasMovidas) add(de, a);
 	for (const r of ctx.site.seo.redirecciones || []) {
 		const from = String(r.desde || '').trim();
 		const to = String(r.hacia || '').trim();
@@ -836,7 +837,8 @@ async function main() {
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
 	const sitemapXml = sitemap(ctx, enSitemap);
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, new Map(todasEn.map((p) => [p.id, p]))));
+	// Una página que pasó a /pagina/ (su nombre ahora es reservado): su dirección de antes lleva a la nueva.
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, new Map(todasEn.map((p) => [p.id, p])), redireccionesPaginas([...pages, ...pagesEn], new Set(indexables.keys()))));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);

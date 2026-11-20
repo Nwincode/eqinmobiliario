@@ -94,6 +94,9 @@ Si el lead preguntó por una propiedad que ya no está disponible o hay otras qu
 	traducir: {
 		effort: 'low',
 		staff: true,
+		// Una casa larga (descripción de hasta 12,000 letras, reglas, cancelación, cómo llegar) no cabe en 8,000: la
+		// respuesta salía incompleta («max_tokens») y no se traducía nada.
+		maxTokens: 16000,
 		instrucciones: `Traduce la propiedad al inglés de Estados Unidos para compradores estadounidenses y guatemaltecos que viven en EE. UU.
 - No traduzcas palabra por palabra: escribe como un anuncio inmobiliario profesional en EE. UU. (p. ej. "3-bedroom house", "gated community", "HOA fee").
 - Conserva los nombres propios (residenciales, zonas como "Zona 16").
@@ -160,3 +163,14 @@ Usa solo valores de las listas de zonas y tipos disponibles; si no aplica, deja 
 };
 
 export { SISTEMA };
+
+// Lo que se manda de un registro (la casa para traducir o describir): cada texto se corta por su lado, nunca el JSON
+// entero (cortarlo dejaba fuera las reglas y la cancelación de una casa con descripción larga). Las listas, hasta 60.
+export function acotado(v, { texto = 12000, lista = 60, hondura = 5 } = {}) {
+	if (typeof v === 'string') return v.slice(0, texto);
+	if (typeof v === 'number' || typeof v === 'boolean' || v === null) return v;
+	if (!hondura || typeof v !== 'object') return undefined;
+	const hijo = (x) => acotado(x, { texto, lista, hondura: hondura - 1 });
+	if (Array.isArray(v)) return v.slice(0, lista).map(hijo);
+	return Object.fromEntries(Object.entries(v).slice(0, 80).map(([k, x]) => [k, hijo(x)]).filter(([, x]) => x !== undefined));
+}

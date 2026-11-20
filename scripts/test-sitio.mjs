@@ -13,12 +13,20 @@ import { precioTexto, dinero, TIPO_CAMBIO, enUSD, correoValido, horarioEn, conPi
 import { formatPrice } from './lib/util.mjs';
 import { celdaGaleriaVip, imgFoto } from './lib/templates.mjs';
 import { codigosEnCss } from './lib/assets.mjs';
+import { reservada } from '../admin/js/rutas.js';
+import { slugify } from '../admin/js/formato.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-sitio-'));
 const dist = process.env.GUARDAR ? path.resolve(process.env.GUARDAR) : path.join(tmp, 'dist');
 const seed = path.join(tmp, 'seed.json');
-writeFileSync(seed, JSON.stringify(seedEjemplo(path.join(ROOT, 'data/seed.json'))));
+// Dos páginas guardadas antes con un nombre que ahora es del sitio (admin/js/rutas.js): pasan a /pagina/ y su
+// dirección de antes redirige; la de inglés «properties» no tapa el listado ni se redirige encima de él.
+const ejemplo = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+ejemplo.pages.push(
+	{ id: 'pg-docs', titulo: 'Documentos', slug: 'docs', orden: 90, enFooter: false, publicado: true, contenido: 'Documentos que pide el banco para comprar una casa en Guatemala: identificación, constancia de ingresos y estados de cuenta.' },
+	{ id: 'pg-props-en', titulo: 'Properties', slug: 'properties', idioma: 'en', orden: 91, enFooter: false, publicado: true, contenido: 'All about how we list our properties in Guatemala: photos, prices, documents and visits with an advisor.' });
+writeFileSync(seed, JSON.stringify(ejemplo));
 const env = { ...process.env, DATOS: 'seed', SEED_FILE: seed, DIST_DIR: dist };
 delete env.CONTEXT; delete env.NETLIFY;
 const log = execFileSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -51,6 +59,32 @@ test('todo JSON-LD se puede leer', () => {
 	for (const [u, h] of Object.entries(html)) {
 		for (const m of h.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => JSON.parse(m[1]), u);
 	}
+});
+
+test('cada carpeta que escribe el generador es una página de contenido o está reservada (admin/js/rutas.js)', () => {
+	const datos = JSON.parse(readFileSync(seed, 'utf8'));
+	const paginasDe = (en) => new Set(datos.pages.filter((p) => p.publicado && (p.idioma === 'en') === en).map((p) => slugify(p.slug || p.titulo)));
+	for (const [dir, lang] of [[dist, 'es'], [path.join(dist, 'en'), 'en']]) {
+		const propias = paginasDe(lang === 'en');
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			// Los listados por tipo o zona (/apartamentos-en-venta/) le ceden su dirección a una página (planListados, `ocupadas`).
+			const listado = existsSync(path.join(dir, e.name, 'index.html')) && /<body data-listing="1"/.test(readFileSync(path.join(dir, e.name, 'index.html'), 'utf8'));
+			if (e.isDirectory() && !propias.has(e.name) && !listado) assert.ok(reservada(e.name, lang), `${lang}: /${e.name}/ la escribe el sitio y no está en RESERVADAS`);
+		}
+	}
+});
+
+test('una página con nombre reservado sale en /pagina/ y su dirección de antes redirige, sin tapar una del sitio', () => {
+	const reglas = readFileSync(path.join(dist, '_redirects'), 'utf8').split('\n');
+	assert.ok(existsSync(path.join(dist, 'pagina/docs/index.html')));
+	assert.ok(existsSync(path.join(dist, 'en/pagina/properties/index.html')));
+	const docs = reglas.indexOf('/docs/ /pagina/docs/ 301');
+	assert.ok(docs >= 0, 'redirige /docs/');
+	assert.ok(!reglas.some((l) => l.startsWith('/en/properties/ ')), 'el listado en inglés no se redirige');
+	// Antes de las reglas generales (Netlify usa la primera que coincide).
+	const general = reglas.findIndex((l) => /\* /.test(l));
+	assert.ok(general === -1 || docs < general);
+	assert.match(de('/en/properties/'), /data-listing="1"/);
 });
 
 test('sitemap = exactamente las páginas que se indexan (salvo fichas vendidas o pausadas)', () => {

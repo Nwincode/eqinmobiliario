@@ -38,11 +38,8 @@ export function mount(el, ...children) {
 	el.append(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
 }
 
-export function slugify(text) {
-	return String(text || '')
-		.normalize('NFD').replace(/[̀-ͯ]/g, '')
-		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
-}
+// Una sola: admin/js/formato.js (también la usa el generador del sitio).
+export { slugify } from './formato.js';
 
 export function toDate(v) {
 	if (!v) return null;

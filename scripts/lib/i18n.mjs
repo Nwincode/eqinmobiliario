@@ -1,16 +1,8 @@
 import { ESTADOS_PROPIEDAD } from '../../admin/js/estados.js';
 // Textos fijos del sitio en español e inglés, y rutas de cada idioma.
 
-export const RUTAS = {
-	es: {
-		inicio: '/', propiedades: '/propiedades/', venta: '/propiedades/venta/', renta: '/propiedades/renta/', vacacional: '/propiedades/vacacional/',
-		vip: '/vip/', blog: '/blog/', contacto: '/#contacto', ficha: '/propiedad/', fichaVip: '/vip/', calculadora: '/calculadora-de-renta/'
-	},
-	en: {
-		inicio: '/en/', propiedades: '/en/properties/', venta: '/en/properties/for-sale/', renta: '/en/properties/for-rent/', vacacional: '/en/properties/vacation-rentals/',
-		vip: '/en/luxury/', blog: '/en/blog/', contacto: '/en/#contact', ficha: '/en/property/', fichaVip: '/en/luxury/', calculadora: '/en/rental-calculator/'
-	}
-};
+// Rutas de cada idioma: admin/js/rutas.js (las comparte el panel, que no deja usar sus carpetas a una página).
+export { RUTAS } from '../../admin/js/rutas.js';
 
 const ES = {
 	htmlLang: 'es', ogLocale: 'es_GT', dateLocale: 'es-GT',

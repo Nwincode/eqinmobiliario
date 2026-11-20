@@ -91,6 +91,11 @@ await test('texto para WhatsApp y vigencia', () => {
 	assert.match(t, /pequeño contribuyente/);
 	assert.equal(venceEl('2026-11-05', 15), '2026-11-20');
 	assert.match(numeroCotizacion(new Date(2026, 10, 5, 9, 7)), /^COT-20261105-0907$/);
+	// Dos del mismo minuto (dos asesores, o «Duplicar») ya no se llaman igual: llevan parte del id de su documento.
+	const a = numeroCotizacion(new Date(2026, 10, 20, 14, 30, 5), 'k7qXa1B2c3D4e5F6g7H8');
+	const b = numeroCotizacion(new Date(2026, 10, 20, 14, 30, 52), 'Zr2mP0q9w8E7r6T5y4U3');
+	assert.equal(a, 'COT-20261120-1430-K7QX');
+	assert.notEqual(a, b);
 });
 
 await test('administración: empieza vacía, no suma y no deja guardar hasta tener el valor', () => {

@@ -4,7 +4,7 @@ import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, empt
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
@@ -134,9 +134,10 @@ async function renderLista(container) {
 		if (vista === 'tablero') {
 			cuerpo.replaceChildren(h('div', { class: 'crm-tablero' }, ETAPAS.map(([etapa, label]) => {
 				const items = lista.filter((c) => (c.etapa || 'nuevo') === etapa);
-				const total = items.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
+				// Q y US$ no se suman: un total por moneda.
+				const total = dineroPorMoneda(sumarPorMoneda(items, (c) => c.montoEstimado));
 				const col = h('div', { class: `crm-columna${items.length ? '' : ' vacia'}`, dataset: { etapa } },
-					h('div', { class: 'crm-columna-cabecera' }, h('strong', {}, label), h('span', { class: 'text-muted small' }, `${items.length}${total ? ` · ${money(total)}` : ''}`)),
+					h('div', { class: 'crm-columna-cabecera' }, h('strong', {}, label), h('span', { class: 'text-muted small' }, `${items.length}${total ? ` · ${total}` : ''}`)),
 					items.map(tarjeta));
 				col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('sobre'); });
 				col.addEventListener('dragleave', () => col.classList.remove('sobre'));
@@ -326,7 +327,8 @@ async function renderFicha(container, id) {
 
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${c.nombre}? Sus actividades quedan en la agenda.`, { okText: 'Eliminar' }))) return;
-		try { await deleteDoc(ref); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
+		// El resumen de los dueños de las casas que le interesaban o visitó deja de contarlo.
+		try { await deleteDoc(ref); refrescarPorCliente(c); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
 	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);

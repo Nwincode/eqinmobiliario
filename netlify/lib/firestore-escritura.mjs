@@ -95,11 +95,3 @@ export const probarEscritura = () => transaccion(async ({ crear, leer, cambiar }
 	else crear(ruta, { probado: true }, { ahora: ['cuando'] });
 });
 
-// «Hay cambios sin publicar» (meta/publish), dentro de una transacción: lo que la publicación automática
-// (netlify/functions/publicar-pendiente.mjs) publica cuando nadie cambió nada en 12 minutos. Lo usan mi-casa.mjs y
-// las fechas de una casa que cambia el servidor (reservas-servidor.mjs fechasDeLaCasa).
-export async function marcarPorPublicar(tx, desc, por) {
-	const datos = { pendiente: true, ultimoCambioDesc: String(desc).slice(0, 200), ultimoCambioPor: por };
-	if (await tx.leer('meta/publish')) tx.cambiar('meta/publish', datos, { ahora: ['ultimoCambio'] });
-	else tx.crear('meta/publish', datos, { ahora: ['ultimoCambio'] });
-}

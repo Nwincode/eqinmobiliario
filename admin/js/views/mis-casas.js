@@ -11,7 +11,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
-import { prefijoMoneda, decimales, dinero, nNoches } from '../formato.js';
+import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.js';
 import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
@@ -225,7 +225,7 @@ async function casa(container, id) {
 			else showError(err);
 			return false;
 		}
-		finally { pintar(); }
+		finally { e.guardando = false; pintar(); }
 	}
 
 	// ------------------------------------------------------------ Precios de siempre
@@ -264,8 +264,10 @@ async function casa(container, id) {
 	const soltar = () => { e.desde = ''; e.hasta = ''; e.pide = ''; };
 
 	// cada: '' (solo estas fechas), 'fecha' o 'semanaSanta' (se repite: este año y el siguiente).
+	// Mientras se guarda, la barra no ofrece nada (un segundo toque no vuelve a guardar sin días elegidos).
 	function aplicar(que, valor, cada = '') {
 		const { desde, hasta } = e;
+		if (!desde || !hasta || e.guardando) return;
 		const fin = V.sumarDias(hasta, 1);
 		const serie = cada ? nuevaSerie() : '';
 		let saltadas = [];
@@ -284,6 +286,8 @@ async function casa(container, id) {
 		}[que];
 		const texto = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' }[que];
 		soltar();
+		e.guardando = true;
+		calendario();
 		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`, cambio)
 			.then((ok) => { if (ok && saltadas.length) toast(`En ${saltadas.map((x) => rango(x)).join(', ')} ya tenías algo puesto: lo dejé como estaba.`, 'warning'); });
 	}
@@ -291,6 +295,7 @@ async function casa(container, id) {
 	// Barra que aparece al elegir días: cuatro acciones de ícono y, si hace falta, un número.
 	function barra() {
 		if (!puedePrecios && !puedeFechas) return h('p', { class: 'vac-ayuda mb-0' }, ic('icon-lock'), 'Las fechas y los precios están en pausa.');
+		if (e.guardando) return h('p', { class: 'vac-ayuda mb-0', role: 'status' }, ic('icon-refresh'), 'Guardando…');
 		if (!e.desde) return h('p', { class: 'vac-ayuda mb-0' }, `Toca un día (y otro para marcar varios) para ${[puedeFechas ? 'bloquear, habilitar' : '', puedePrecios ? 'cambiar el precio' : ''].filter(Boolean).join(' o ')}.`);
 		const cerrar = iconoBtn('icon-close', 'Cancelar', { onclick: () => { e.pide = ''; calendario(); } });
 		// Bloquear pide el motivo: un toque. Si una solicitud sin responder pidió esos días, se dice (sigue esperando respuesta).
@@ -316,6 +321,7 @@ async function casa(container, id) {
 				[['', 'Solo estas fechas'], ['fecha', 'Cada año en estas fechas'], ...(V.tocaSemanaSanta(e) ? [['semanaSanta', 'Cada año en Semana Santa (cambia de fecha sola)']] : [])]
 					.map(([v, t]) => h('option', { value: v }, t)));
 			if (yaPuesto?.cada) repite.value = yaPuesto.cada;
+			const pide = e.pide;
 			const listo = async () => {
 				const n = esPrecio ? V.r2(Number(campo.value) || 0) : Math.floor(Number(campo.value) || 0);
 				if (n < 1) return toast(esPrecio ? 'Escribe el precio.' : 'Escribe cuántas noches.', 'warning');
@@ -323,7 +329,9 @@ async function casa(container, id) {
 				if (esPrecio && n > PRECIO_MAX) return toast(`Revisa el precio: ${plata(n)} por noche es demasiado.`, 'warning');
 				// Un cero de más pasa fácil: arriba de 5 veces el precio de siempre, se pregunta.
 				if (esPrecio && e.base > 0 && n > 5 * e.base && !(await confirmDialog(`${plata(n)} por noche es ${Math.round(n / e.base)} veces tu precio de siempre (${plata(e.base)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) return;
-				aplicar(e.pide, n, repite.value);
+				// Tras la pregunta, la selección pudo cambiar (otro toque o «Cancelar»): solo se guarda si sigue la misma.
+				if (e.pide !== pide) return;
+				aplicar(pide, n, repite.value);
 			};
 			campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') listo(); });
 			setTimeout(() => campo.focus());
@@ -414,7 +422,7 @@ async function casa(container, id) {
 				h('li', { class: 'text-muted' }, ic('icon-eye'), 'Lo que ve el cliente por noche, sin impuestos'),
 				h('li', {}, ic('icon-calendar-check-o'), cuenta.reservas
 					? [`${cuenta.reservas} ${cuenta.reservas === 1 ? 'reserva confirmada' : 'reservas confirmadas'} · ${nNoches(cuenta.noches)} · tu parte: `,
-						h('strong', {}, Object.entries(cuenta.porMoneda).map(([m, x]) => dinero(x.costoSocio, m)).join(' · '))]
+						h('strong', {}, dineroPorMoneda(Object.fromEntries(Object.entries(cuenta.porMoneda).map(([m, x]) => [m, x.costoSocio]))))]
 					: 'Todavía sin reservas confirmadas'),
 				e.abiertas.length ? h('li', {}, h('a', { href: '#/solicitudes' }, ic('icon-clock-o'), `${e.abiertas.length} ${e.abiertas.length === 1 ? 'solicitud sin responder' : 'solicitudes sin responder'}`)) : null,
 				p.publicado && p.slug ? h('li', {}, h('a', { href: publicUrl(p), target: '_blank', rel: 'noopener' }, ic('icon-external-link'), 'Ver el anuncio en la página')) : null] }));
@@ -537,7 +545,8 @@ async function laCasa(container, id) {
 			const cuerpo = await res.json().catch(() => ({}));
 			if (!res.ok) throw new Error(cuerpo.error || (res.status === 503 ? 'El servidor todavía no está listo: avísale al administrador.' : `El servidor respondió ${res.status}.`));
 			base = d;
-			toast('Guardado. Sale en la página en unos minutos.');
+			// Si el sitio no se publica solo (apagado, o la última publicación falló), lo publica el equipo.
+			toast(cuerpo.publicaSola ? 'Guardado. Sale en la página en unos minutos.' : 'Guardado. Sale en la página cuando el equipo publique el sitio.');
 		} catch (err) { showError(err); }
 		finally { boton.disabled = false; }
 	};
@@ -547,7 +556,7 @@ async function laCasa(container, id) {
 		pestanas(id, 'casa'),
 		h('form', { class: 'card card-body mb-3', onsubmit: guardar, novalidate: true }, h('div', { class: puedeCasa ? '' : 'perm-off' }, form.el),
 			h('div', { class: 'd-flex align-items-center gap-2 mt-3 pt-3 border-top' },
-				h('span', { class: 'small text-muted flex-grow-1' }, ic('icon-info-circle'), 'Al guardar sale en la página en unos minutos. El administrador ve cada cambio.'),
+				h('span', { class: 'small text-muted flex-grow-1' }, ic('icon-info-circle'), 'Lo que guardas sale en la página al publicarse el sitio. El administrador ve cada cambio.'),
 				boton)));
 }
 

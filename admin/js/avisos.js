@@ -71,6 +71,7 @@ async function leerFuentes() {
 	const { exclusivasPorVencer } = await import('./acuerdo.js');
 	const { conDueno } = await import('./duenos.js');
 	const admin = session.isAdmin;
+	const fallas = [];
 	const filtroAsesor = admin ? [] : [where('agentId', '==', session.agentFiltro)];
 	const [casas, propietarios, leads, chats, reservas, comentarios, nuevos, cambiosDueno, congelados] = await Promise.all([
 		seguro(loadPropiedades()), seguro(loadPropietarios()),
@@ -82,7 +83,8 @@ async function leerFuentes() {
 		// Leads de la web sin atender: el administrador, todos; el asesor, los suyos (las reglas no le dejan leer otros).
 		seguro(todos(query(collection(db, 'leads'), ...filtroAsesor, where('estado', '==', 'nuevo')))),
 		// Lo que un dueño cambió él solo de su casa por noche (ya publicado): lo lee el servidor (netlify/functions/mi-casa.mjs).
-		admin ? seguro(cambiosDeDuenos()) : [],
+		// Si el servidor no responde, la campana lo dice (no se ve como «nada por atender»).
+		admin ? cambiosDeDuenos().catch((err) => { console.warn('Avisos', err); fallas.push('los cambios de los dueños'); return []; }) : [],
 		// Montos congelados: una cotizada por debajo del precio de la casa la confirma el administrador (bajoElPlan).
 		admin ? seguro(todos(collection(db, 'montosSolicitud'))) : []]);
 	const montos = Object.fromEntries(congelados.map((m) => [m.id, m]));
@@ -93,6 +95,7 @@ async function leerFuentes() {
 	const conCasa = casas.filter((c) => conDueno(c, propietarios));
 	const acuerdos = await seguro(loadAcuerdos(conCasa), {});
 	return {
+		fallas,
 		solicitudes: leads.map((l) => {
 			const est = l.solicitud?.estado || 'pendiente';
 			return {
@@ -123,7 +126,7 @@ export function cargarAvisos(forzar = false) {
 	if (!forzar && ultimo.promesa && Date.now() - ultimo.ts < 120000) return ultimo.promesa;
 	const promesa = leerFuentes().then(async (f) => {
 		const { hechos, puede } = await atendidos(clavesPorRevisar(f));
-		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede };
+		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede, fallas: f.fallas || [] };
 	});
 	ultimo = { ts: Date.now(), promesa };
 	promesa.catch(() => { ultimo = { ts: 0, promesa: null }; });
@@ -189,10 +192,13 @@ export function campana() {
 	// Con la lista abierta solo cambia el número: la fila recién marcada «Listo» (con su «Deshacer») sigue ahí
 	// hasta cerrarla.
 	let pendiente = null;
-	const pintarLista = ({ avisos, puedeListo }) => lista.replaceChildren(
+	// Una fuente que no respondió se dice arriba (sin ella, «Nada por atender» no sería cierto).
+	const pintarLista = ({ avisos, puedeListo, fallas = [] }) => lista.replaceChildren(...[
 		h('div', { class: 'avisos-cab' }, h('strong', {}, 'Avisos'), h('span', { class: 'avisos-ayuda' }, 'Cada uno se quita solo al resolverlo.')),
+		fallas.length ? h('p', { class: 'avisos-vacio', role: 'status' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
+			`No se pudieron leer ${fallas.join(' ni ')}. Se vuelve a intentar en unos minutos.`) : null,
 		avisos.length ? h('ul', { class: 'avisos-filas' }, avisos.map((a) => fila(a, puedeListo, () => menu.hide())))
-			: h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.'));
+			: fallas.length ? null : h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.')].filter(Boolean));
 	const pintar = (datos) => {
 		const n = datos.avisos.length;
 		numero.hidden = !n;
