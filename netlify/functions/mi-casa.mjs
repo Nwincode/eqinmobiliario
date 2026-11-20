@@ -9,7 +9,8 @@
 //   POST /api/mi-casa { accion: 'deshacer', id, campos? } → vuelve a poner lo de antes donde sigue lo del dueño.
 //   POST /api/mi-casa { accion: 'listo', id }        → el aviso se va (el cambio se queda).
 // Errores en JSON { error }: 400, 401, 403 no es suya, 404, 409 (no se puede pausar con huéspedes por venir),
-// 422 un dato que no va, 429, 503 sin cuenta de escritura.
+// 422 un dato que no va, 429 (solo lo que guarda el dueño: 40 en 10 minutos), 503 sin cuenta de escritura.
+// Lo que guarda el dueño responde { ok, cambios, publicaSola } (publicaSola: el sitio se publica solo en unos minutos).
 import '../../js/calc-vacacional.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
@@ -51,10 +52,14 @@ function escribirEn(tx, id, docs, escribir, extraCasa = {}) {
 	}
 }
 
+// Devuelve si el sitio se publica solo (netlify/functions/publicar-pendiente.mjs): con la publicación automática
+// encendida y sin una publicación fallida de por medio. El dueño no puede leer esos datos: se lo dice la respuesta.
 async function marcarPorPublicar(tx, desc, por) {
 	const datos = { pendiente: true, ultimoCambioDesc: desc.slice(0, 200), ultimoCambioPor: por };
-	if (await tx.leer('meta/publish')) tx.cambiar('meta/publish', datos, { ahora: ['ultimoCambio'] });
+	const [estado, priv] = await Promise.all([tx.leer('meta/publish'), tx.leer('settings/private')]);
+	if (estado) tx.cambiar('meta/publish', datos, { ahora: ['ultimoCambio'] });
 	else tx.crear('meta/publish', datos, { ahora: ['ultimoCambio'] });
+	return Boolean(priv?.autoPublicar && priv?.netlifyBuildHook && !estado?.fallo);
 }
 
 async function guardarDelDueno(tx, socio, id, pedido) {
@@ -89,8 +94,8 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 		propertyId: id, titulo: r.escribir.casa.titulo || casa.titulo || '', propietarioId: socio.propietarioId, uid: socio.uid, nombre: socio.nombre || '',
 		cambios: r.cambios, ingles: r.cambios.some((c) => CAMPOS_CON_INGLES.includes(c.campo)), estado: 'nuevo'
 	}, { ahora: ['cuando'] });
-	await marcarPorPublicar(tx, `${casa.titulo}: el dueño cambió ${lista}`, socio.nombre || 'Dueño');
-	return { cambios: r.cambios.map((c) => c.campo) };
+	const publicaSola = await marcarPorPublicar(tx, `${casa.titulo}: el dueño cambió ${lista}`, socio.nombre || 'Dueño');
+	return { cambios: r.cambios.map((c) => c.campo), publicaSola };
 }
 
 async function deshacer(tx, admin, avisoId, campos) {
@@ -122,7 +127,6 @@ export default async (req) => {
 	try { [socio, staff] = await Promise.all([socioUser(req), staffUser(req)]); } catch { return json(401, { error: 'Sesión inválida: vuelve a entrar.' }); }
 	const admin = staff?.admin ? staff : null;
 	if (!socio && !admin) return json(403, { error: 'Sin permiso.' });
-	if (porUsuario((socio || admin).uid)) return json(429, { error: 'Demasiados cambios seguidos: espera unos minutos.' });
 
 	if (req.method === 'GET') {
 		if (!admin) return json(403, { error: 'Solo el administrador.' });
@@ -139,6 +143,9 @@ export default async (req) => {
 	try { cuerpo = await req.json(); } catch { return json(400, { error: 'Solicitud inválida' }); }
 	try {
 		if (socio) {
+			// El límite es para lo que guarda el dueño. El administrador (la campana, «Deshacer», «Listo») no lo gasta:
+			// cada «Deshacer» vuelve a leer la campana y la pantalla, y con un solo límite la campana se quedaba sin avisos.
+			if (porUsuario(socio.uid)) return json(429, { error: 'Demasiados cambios seguidos: espera unos minutos.' });
 			const id = String(cuerpo?.casa || '');
 			const pedido = cuerpo?.cambios;
 			if (!ID.test(id) || !pedido || typeof pedido !== 'object' || Array.isArray(pedido)) return json(400, { error: 'Solicitud inválida' });

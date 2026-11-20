@@ -98,10 +98,15 @@ export async function markPending(descripcion) {
 }
 
 // ------------------------------------------------------------ Publicación
-// Netlify no devuelve CORS en los build hooks: se envía en modo "no-cors".
+// Se publica por el servidor (netlify/functions/publicar.mjs), que llama al enlace de Netlify y revisa su respuesta:
+// si Netlify no la acepta (p. ej. el enlace se borró), lanza el error y no se marca publicado.
 // `automatica`: la lanzó la publicación automática (se dice así en «Última publicación»).
-export async function publicarAhora(hook, { automatica = false } = {}) {
-	await fetch(hook, { method: 'POST', mode: 'no-cors', body: '{}' });
+// Lo que tarda Netlify en poner el sitio al día después de aceptar la publicación (el mismo texto en todo el panel).
+export const TIEMPO_PUBLICACION = '2 a 4 minutos';
+export async function publicarAhora({ automatica = false } = {}) {
+	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` } });
+	const cuerpo = await res.json().catch(() => ({}));
+	if (!res.ok) throw new Error(cuerpo.error || `No se pudo publicar: el servidor respondió ${res.status}.`);
 	await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
 		fallo: false,
@@ -147,10 +152,11 @@ export async function programarAutoPublicar() {
 	autoTimer = setTimeout(async () => {
 		autoTimer = null;
 		try {
-			await publicarAhora(autoHook, { automatica: true });
-			toast('Publicado automáticamente: el sitio se pone al día en 2 a 4 minutos.');
+			await publicarAhora({ automatica: true });
+			toast(`Publicado automáticamente: el sitio se pone al día en ${TIEMPO_PUBLICACION}.`);
 		} catch (err) {
 			console.warn('No se pudo publicar automáticamente', err);
+			toast(`No se pudo publicar automáticamente: ${err.message}`, 'danger');
 		}
 	}, AUTO_SEGUNDOS * 1000);
 }

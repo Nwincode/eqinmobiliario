@@ -120,17 +120,17 @@ ${lista.slice(0, MAX).map((x, i) => `<tr><td style="padding:7px 0;${i ? `border-
 }
 
 // Envía un correo a cada asesor con lo suyo y uno completo al equipo (AVISO_CORREO).
-// soloEquipo: para la prueba desde el panel (no molesta a los asesores).
-export async function enviarResumen({ soloEquipo = false, ahora = Date.now() } = {}) {
+// para: solo el completo, a esa dirección («Enviarme el resumen de hoy» del panel: no molesta al equipo ni a los asesores).
+export async function enviarResumen({ para = '', ahora = Date.now() } = {}) {
 	const { secciones, asesores } = await datosResumen(ahora);
 	const enviados = [];
 
 	const general = await correoDe('', secciones, ahora);
 	if (general) {
-		await enviarCorreo({ para: destinatariosEquipo(), ...general });
-		enviados.push('equipo');
+		await enviarCorreo({ para: para || destinatariosEquipo(), ...general });
+		enviados.push(para || 'equipo');
 	}
-	if (soloEquipo) return { enviados, total: general ? 1 : 0 };
+	if (para) return { enviados, total: general ? 1 : 0 };
 
 	const equipo = new Set(destinatariosEquipo().map((e) => e.toLowerCase()));
 	for (const a of asesores) {

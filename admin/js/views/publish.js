@@ -1,6 +1,6 @@
 import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount } from '../ui.js';
-import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera } from '../session.js';
+import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera, TIEMPO_PUBLICACION } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
 async function demoAction(btn, status, accion) {
@@ -139,8 +139,8 @@ export async function render(container) {
 		if (!hook) return toast('Primero configura el enlace de publicación de Netlify (abajo).', 'warning');
 		btn.disabled = true;
 		try {
-			await publicarAhora(hook);
-			toast('Publicación iniciada. El sitio se actualiza en 1–2 minutos.');
+			await publicarAhora();
+			toast(`Publicación iniciada. El sitio se actualiza en ${TIEMPO_PUBLICACION}.`);
 			container.replaceChildren();
 			render(container);
 		} catch (err) {
