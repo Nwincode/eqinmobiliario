@@ -524,7 +524,8 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	// «No me llegó»: el cliente subió un comprobante y el pago no llegó (antes de la llegada): el pago se reabre con un
 	// plazo nuevo y sin el comprobante; sin comprobante, antes de llegar, se usa «Cancelar» (409).
 	{
-		const nl = await sembrar('srv-nollego', iso(150));
+		// En fechas propias: con el comprobante guardado el socio ya no la cancela (queda confirmada).
+		const nl = await sembrar('srv-nollego', iso(300));
 		const conf = await api('socio', { accion: 'confirmar', leadId: nl.id });
 		const sinComp = await api('socio', { accion: 'nollego', leadId: nl.id });
 		await fetch(`${FS}/chats/${nl.token}?updateMask.fieldPaths=comprobanteCliente`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
@@ -539,7 +540,6 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 			conf.status === 200 && sinComp.status === 409 && re.status === 200 && re.reabierta === true && despues > antes && Boolean(ch.comprobanteCliente?.timestampValue) && Number(ch.pagoReabierto?.integerValue) > 0
 			&& otraVez.status === 409 && /administrador/.test(otraVez.error || '')
 			&& Number(ch.vencePago?.integerValue) === despues && (await leer(`reservas/${nl.id}`)).fields?.estado?.stringValue === 'confirmada', `${resp(sinComp)} · ${resp(re)}`);
-		await api('socio', { accion: 'cancelar', leadId: nl.id, motivo: 'Otro' });
 	}
 	// Llegada ya pasada (la solicitud quedó abierta): no se confirma (la comisión nacería vencida); «No se dio» sí.
 	const pasada = await sembrar('srv-pasada', iso(-3));
