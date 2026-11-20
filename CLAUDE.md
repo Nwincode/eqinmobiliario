@@ -9,6 +9,10 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
 - Gastar pocos tokens: respuestas cortas y sin trabajo que no se pidió.
 
 ## 2. Errores que el usuario ya corrigió (no se repiten)
+- Cuando el usuario dice «arréglalo» o «hazlo recomendado», Claude aplica su recomendación sin volver a preguntar y
+  al final dice qué eligió. Busca todo, arregla todo y entrega una sola vez, con un informe; no por pedacitos.
+- Ninguna causa se le dice al usuario sin haberla reproducido (emulador o script); si aún no está comprobada, se
+  dice «sin comprobar».
 - Se hace exactamente lo que pidió, nada más. Nada que no pidió (un botón, un dato, otro canal como WhatsApp)
   entra «de paso», ni aunque Claude lo haya propuesto antes: lo nuevo va como propuesta aparte y espera su sí.
 - Lo que el usuario está usando (un armador, un borrador, su diseño) no se guarda, mueve ni vuelve a publicar
