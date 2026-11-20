@@ -1,4 +1,4 @@
-import { h, badge, slugify, toast, formatDate } from '../ui.js';
+import { h, badge, slugify, toast, formatDate, hoy } from '../ui.js';
 import { crudView } from '../crud.js';
 import { session } from '../session.js';
 import { seoPreviewField, stripMd } from '../seo.js';
@@ -9,7 +9,8 @@ export const render = crudView({
 	title: 'Blog',
 	singular: 'Artículo',
 	intro: 'Artículos para atraer visitas desde Google: guías de zonas, financiamiento, consejos para comprar o vender. Publica al menos uno al mes.',
-	defaults: { publicado: false, fecha: new Date().toISOString().slice(0, 10) },
+	// El día de Guatemala al abrir el artículo nuevo (no el UTC, ni el de cuando se cargó el panel).
+	defaults: () => ({ publicado: false, fecha: hoy() }),
 	columns: [
 		['Título', (p) => h('span', { class: 'fw-semibold' }, p.titulo)],
 		['Fecha', (p) => (p.fecha ? formatDate(`${p.fecha}T12:00:00`, false) : '—')],

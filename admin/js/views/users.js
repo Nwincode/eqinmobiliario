@@ -7,6 +7,7 @@ import { loadPropietarios } from '../crm.js';
 import { etiquetaDueno, tieneCasasPorNoche } from '../duenos.js';
 import { ponerAcceso, motivoParaNoAbrir, crearUsuarioEquipo } from '../acceso.js';
 import { correoContrasena } from '../contrasena.js';
+import { correoValido } from '../formato.js';
 
 // Aquí se crean solo cuentas del equipo, con la misma pieza que da acceso a los dueños (admin/js/acceso.js): nadie
 // escribe una contraseña; la persona recibe un correo para poner la suya. Propietarios y colaboradores entran con
@@ -15,29 +16,39 @@ const ROLES = [['asesor', 'Asesor (sus propiedades y leads)'], ['admin', 'Admini
 const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'info'] };
 
 function userForm(agents, user = {}) {
-	const nombre = h('input', { class: 'form-control', value: user.nombre || '' });
-	const email = h('input', { class: 'form-control', type: 'email', value: user.email || '', disabled: Boolean(user.uid) });
-	const rol = h('select', { class: 'form-select' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
+	// Cada etiqueta con su campo (`for`/`id`): el lector de pantalla la lee y tocarla pone el cursor ahí.
+	const nombre = h('input', { class: 'form-control', id: 'u-nombre', required: true, autocomplete: 'name', maxlength: 120, value: user.nombre || '' });
+	const email = h('input', { class: 'form-control', id: 'u-email', type: 'email', required: true, autocomplete: 'email', value: user.email || '', disabled: Boolean(user.uid) });
+	const rol = h('select', { class: 'form-select', id: 'u-rol' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
 	rol.value = user.rol || 'asesor';
-	const agentId = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
+	const agentId = h('select', { class: 'form-select', id: 'u-asesor' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
 	agentId.value = user.agentId || '';
 	const activo = h('input', { class: 'form-check-input', type: 'checkbox', id: 'u-activo' });
 	activo.checked = user.activo !== false;
 	const isSelf = user.uid === session.user.uid;
 	if (isSelf) { rol.disabled = true; activo.disabled = true; }
 
-	const cajaAsesor = h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Asesor vinculado'), agentId,
+	const cajaAsesor = h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'u-asesor' }, 'Asesor vinculado'), agentId,
 		h('div', { class: 'form-text' }, 'Necesario para que un asesor vea y edite sus propiedades y leads.'));
 
 	const body = h('div', { class: 'row g-3' },
-		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Nombre *'), nombre),
-		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Correo *'), email),
-h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Rol'), rol),
+		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'u-nombre' }, 'Nombre *'), nombre),
+		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'u-email' }, 'Correo *'), email),
+		h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'u-rol' }, 'Rol'), rol),
 		cajaAsesor,
 		h('div', { class: 'col-12' }, h('div', { class: 'form-check form-switch' }, activo, h('label', { class: 'form-check-label', for: 'u-activo' }, 'Acceso activo'))));
 
+	// Lo que falta o no sirve, marcado en su campo (nombre siempre; correo válido al crear). '' si todo está bien.
+	const marcar = (input, mal) => { input.classList.toggle('is-invalid', mal); if (mal) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid'); };
+	const revisar = () => {
+		const sinNombre = !nombre.value.trim(), malCorreo = !user.uid && !correoValido(email.value);
+		marcar(nombre, sinNombre); marcar(email, malCorreo);
+		(sinNombre ? nombre : malCorreo ? email : null)?.focus();
+		return sinNombre ? 'Escribe el nombre.' : malCorreo ? 'Revisa el correo.' : '';
+	};
 	return {
 		body,
+		revisar,
 		values: () => ({ nombre: nombre.value.trim(), email: email.value.trim(), rol: rol.value, activo: activo.checked, agentId: agentId.value })
 	};
 }
@@ -66,7 +77,7 @@ export async function render(container) {
 						// El botón se toma antes de esperar: después del «await» el evento ya no lo trae.
 						const boton = e.currentTarget;
 						const v = f.values();
-						if (!v.nombre || !v.email) return toast('Completa nombre y correo.', 'warning');
+						if (f.revisar()) return toast(f.revisar(), 'warning');
 						if (falta(v)) return toast(falta(v), 'warning');
 						boton.disabled = true;
 						try {
@@ -129,6 +140,7 @@ export async function render(container) {
 					class: 'btn btn-primary',
 					onclick: async () => {
 						const v = f.values();
+						if (f.revisar()) return toast(f.revisar(), 'warning');
 						if (falta(v)) return toast(falta(v), 'warning');
 						const patch = { nombre: v.nombre, agentId: v.agentId, updatedAt: serverTimestamp() };
 						if (u.uid !== session.user.uid) Object.assign(patch, { rol: v.rol, activo: v.activo });

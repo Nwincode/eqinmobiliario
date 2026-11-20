@@ -105,7 +105,9 @@ Storage (`storage.rules`): fotos por dirección (las sube, cambia, borra y lista
 
 Cada cadena va en el orden en que conviene revisarla.
 
-**Teléfono** → `admin/js/formato.js` (formato y validación) → `admin/js/form.js` (campo `telefono`) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma y valida) → `scripts/test-telefono.mjs`.
+**Teléfono** → `admin/js/formato.js` (`CODIGOS_PAIS` con los largos de cada país según libphonenumber y el de un celular, `telefonoValido`, `unirTelefono`, `partirTelefono`, `telefonoWa`: con «+» nunca cambia de país) → `admin/js/form.js` (campo `telefono`; también el WhatsApp de Contenido y de cada asesor) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma con `EQFormato.unirTelefono` y valida; `scripts/lib/assets.mjs` `FORMATO_NAVEGADOR`) → `scripts/test-telefono.mjs`.
+
+**Dinero** → `admin/js/formato.js` (`dinero`, `montoPrecio`, `precioTexto`: siempre con centavos) → panel (`cotizacion.js`, `views/calculadora.js`), sitio (`js/vacacional.js` y `js/reserva-chat.js` por `EQFormato`) → `js/calc-renta.js` es script clásico y tiene su copia, igual (`scripts/test-calc-renta.mjs` las compara). Solo la casilla del calendario va sin centavos (`dineroCorto`, decisión del dueño).
 
 **Un texto del sitio** → `scripts/lib/i18n.mjs` (español **e** inglés). Si lo usa JavaScript de la ficha por noche o del chat, la clave debe empezar con `vac` (así viaja a la página).
 
@@ -184,6 +186,22 @@ Cada cadena va en el orden en que conviene revisarla.
 **Sección nueva del panel** → `admin/js/views/<nombre>.js` → `admin/js/app.js` (`ROUTES`) → `firestore.rules` si usa una colección nueva.
 
 **Avisos (campana)** → fuentes en `admin/js/avisos.js` `leerFuentes` (cada rol lee solo lo que sus reglas dejan) → `admin/js/avisos-reglas.js` `armarAvisos` (qué avisa, orden, `claveListo`) → `admin/js/app.js` (campana en la barra) y `views/dashboard.js` (tarjeta «Avisos») → `firestore.rules` `avisosAtendidos` (con las reglas de antes, la campana sale sin «Listo») → `scripts/test-avisos.mjs`, `scripts/emulador/test-reglas.mjs` y `scripts/entorno/recorrido.mjs`. Un aviso nuevo: su fuente, su caso en `armarAvisos` y, si no se resuelve solo, su tipo en `claveListo` y en la regla.
+
+**Precio que se muestra («Ocultar precio»)** → `admin/js/estados.js` `precioOculto` / `precioVisible` (0 = «Precio a consultar»; VIP o no, salvo por noche) `mencionaPrecio` / `textosConPrecioOculto` (el precio en cualquier forma: cifras, «987k», «1.2 millones»; la ficha, al guardar, y el importador no dejan guardarlo en título, URL, descripción, VIP, inglés ni Google), `sinPrecioOculto` y `textoSinPrecio` (lo que se copia: difusión y PDF del listado) → `admin/js/para-ia.js` y `admin/js/reglas.js` (textos sin IA, posts, WhatsApp) → `views/properties.js` (SEO automático y compartir) → `scripts/lib/templates.mjs` (`price`, tarjeta, `data-precio`, compartir, `data-view-content`, JSON-LD, precio por m², calculadora) → `scripts/lib/landings.mjs` (precios por zona) → `scripts/build.mjs` (llms, catálogos; un título o descripción para Google con el precio no se usa, y en la descripción y los textos VIP, en español e inglés, el monto pasa a «precio a consultar») → `admin/js/difusion.js` y `views/listado.js` → `scripts/test-sitio.mjs` (el precio no sale en ningún archivo).
+
+**Casa de prueba** → `admin/js/estados.js` `esDePrueba` (`demo` o «prueba» en el título en español; `scripts/build.mjs` la marca `_prueba` antes de traducirla) → `scripts/lib/templates.mjs` (ficha y VIP con `noindex`: fuera del sitemap solas) → `scripts/build.mjs` (fuera de llms.txt, llms-full.txt y catálogos) → `scripts/test-sitio.mjs`.
+
+**Zona** → `admin/js/views/properties.js` al guardar (recortada) → `scripts/lib/landings.mjs` `unificarZonas` (en `scripts/build.mjs`, antes de planear listados y de copiar al inglés: una forma por `slugZona`) → `planListados`, filtros y migas comparan esa forma → `scripts/test-seo.mjs`.
+
+**Amenidades en inglés** → `admin/js/estados.js` (`AMENIDADES_COMUNES`, `DICCIONARIO_EN`, `amenidadEn`: la que no está queda como se escribió; `amenidadesEnDe`: con los pares guardados en `en.amenidadesDe` cada una toma la suya; nunca queda una inglesa vieja) → `admin/js/reglas.js` (traductor sin IA) → `admin/js/views/properties.js` (`traducirEn`, «Poner textos preparados»; `fuenteEs` incluye amenidades y textos VIP, así el inglés se rehace si cambian) → `scripts/build.mjs` `propiedadEn`.
+
+**Filtro de contacto (teléfonos, correos, enlaces)** → `js/calc-vacacional.js` `tieneContacto` (uno solo) → chat del cliente (`js/reserva-chat.js`), chat del panel (`views/solicitudes.js`) y lo que el dueño publica de su casa (`admin/js/mi-casa.js`: cada texto y cada amenidad; lo revisa también `netlify/functions/mi-casa.mjs`) → `firestore.rules` tiene su copia para el chat → `scripts/test-vacacional.mjs` y `scripts/test-mi-casa.mjs`.
+
+**Correos** → `netlify/lib/correo.mjs` `plantilla` (el diseño común) y `netlify/lib/correo-contrasena.mjs` (su diseño aprobado, tal cual); los dos con los colores del tema (`coloresCorreo`, `mezcla`) y el WhatsApp y las redes de Contenido (`whatsappEmpresa`, `redesEmpresa`), nunca escritos a mano → cada función que manda correo → `scripts/test-correo.mjs`.
+
+**Respuesta a un lead** → `admin/js/formato.js` `saludoLead` (en `lead.idioma`) → `netlify/functions/aviso-lead.mjs` (botones de WhatsApp y correo) y `admin/js/views/leads.js` (botón de WhatsApp).
+
+**Quitar u ocultar un asesor** → `admin/js/views/agents.js` (eliminar: `reasignarAntesDeEliminar` pasa a otro asesor, elegido por id, casas, leads, clientes, requerimientos, actividades, propietarios, cotizaciones y reservas; ocultar no mueve nada y avisa si tiene usuario del panel) → `admin/js/crud.js` (`antesDeEliminar`, `beforeSave` con lo guardado).
 
 ## 7. Cómo se prueba
 

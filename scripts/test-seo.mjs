@@ -4,12 +4,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { planListados, buscar, estadisticasPrecio, crearEnlaces, tipoDominante, MIN_INDEXABLE } from './lib/landings.mjs';
+import { planListados, buscar, estadisticasPrecio, crearEnlaces, tipoDominante, MIN_INDEXABLE, unificarZonas } from './lib/landings.mjs';
 import { lugarDe, departamentoDe } from './lib/util.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { sinRepetir, autoSeoTitle } from '../admin/js/seo-auto.js';
 import { sinBloquesGenerados, generarDescripcion } from '../admin/js/descripcion.js';
 import { horarioSchema } from '../admin/js/formato.js';
+import { precioVisible, sinPrecioOculto, amenidadesEnDe, mencionaPrecio, textosConPrecioOculto, textoSinPrecio } from '../admin/js/estados.js';
 import { urlsCambiadas, urlsDelSitemap } from '../netlify/lib/indexnow.mjs';
 
 let ok = 0;
@@ -32,6 +33,36 @@ test('poco contenido: la zona se indexa desde 3; con 1 o 2 existe sin indexar', 
 	// Zona + operación con menos de 3 no se genera; igual a la zona, tampoco.
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 1' }), null);
 	assert.equal(buscar(plan, 'zonaOp', { operacion: 'venta', zona: 'Zona 16' }), null);
+});
+
+test('precio oculto (VIP o no) y textos con el precio; amenidades en inglés corregidas a mano', () => {
+	assert.equal(precioVisible({ precio: 5, vip: false, vipLanding: { ocultarPrecio: true } }), 0);
+	assert.equal(precioVisible({ precio: 5, operacion: 'vacacional', vipLanding: { ocultarPrecio: true } }), 5);
+	assert.equal(sinPrecioOculto('Casa de US$ 987,654.00 en zona 16', 987654, 'precio a consultar'), 'Casa de precio a consultar en zona 16');
+	assert.equal(sinPrecioOculto('Lote 9876543', 987654, 'x'), 'Lote 9876543');
+	// En cualquier forma: cifras, miles, millones, con o sin moneda; un número cualquiera o unos m² no cuentan.
+	for (const t of ['US$ 987,654.00', '$987654', '987.654 USD', 'USD987654', '987k', '988 mil', 'Q 1.2 millones', 'casa de 987654']) assert.equal(mencionaPrecio(t, 987654), true, t);
+	for (const t of ['Lote 9876543', '350 m²', 'Q 1,500 de mantenimiento', '4 habitaciones']) assert.equal(mencionaPrecio(t, 987654), false, t);
+	// La ficha y el importador no dejan guardar: dicen dónde está (también la URL).
+	const casa = { precio: 987654, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de US$ 987,654', slug: 'casa-de-987654', descripcion: 'Linda casa', en: { descripcion: 'only 987k' } };
+	assert.deepEqual(textosConPrecioOculto(casa).map(([k]) => k), ['Título', 'Descripción en inglés', 'URL']);
+	assert.deepEqual(textosConPrecioOculto({ ...casa, vipLanding: {} }), []);
+	// Lo que se copia (difusión, PDF del listado) sale sin el monto.
+	assert.equal(textoSinPrecio(casa, 'Por solo 987 mil'), 'Por solo precio a consultar');
+	// La lista corregida a mano se respeta; solo se agregan las que faltan (del diccionario o tal cual).
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Piscina', 'Agua municipal', 'Lobby de recepción'], en: { amenidades: ['Swimming pool'] } }), ['Swimming pool', 'Agua municipal', 'Lobby de recepción']);
+	// Si la lista en español se achica, nunca queda una inglesa vieja: con pares guardados, cada una con la suya.
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Jardín'], en: { amenidades: ['Pool', 'Garden', 'Lobby'] } }), ['Garden']);
+	assert.deepEqual(amenidadesEnDe({ amenidades: ['Jardín', 'Lobby de recepción'], en: { amenidades: ['Infinity pool', 'Lush garden', 'Front desk lobby'], amenidadesDe: ['Piscina', 'Jardín', 'Lobby de recepción'] } }), ['Lush garden', 'Front desk lobby']);
+});
+
+test('zona escrita distinto («zona 10», «Zona 10 »): una sola página con todas sus casas', () => {
+	const props = unificarZonas([p({ zona: 'Zona 10' }), p({ zona: 'Zona 10' }), p({ zona: 'zona 10' }), p({ zona: 'Zona 10 ' }), p({ zona: 'Zona  10' }), p({ zona: 'Zona 16' })]);
+	assert.deepEqual([...new Set(props.map((x) => x.zona))], ['Zona 10', 'Zona 16']);
+	const zonas = planListados(props).filter((e) => e.url === '/propiedades/zona-10/');
+	assert.equal(zonas.length, 1);
+	assert.equal(zonas[0].total, 5);
+	assert.equal(zonas[0].indexable, true);
 });
 
 test('no se genera una página cuya lista es igual a la de su padre', () => {
@@ -59,7 +90,7 @@ test('precios: rango, mediana y m²; con menos de 3 en una moneda no hay bloque;
 	assert.deepEqual([s.moneda, s.n, s.total, s.min, s.max, s.mediana, s.porM2], ['USD', 3, 4, 300000, 500000, 400000, 2000]);
 	assert.equal(estadisticasPrecio(l.slice(0, 2), 'venta'), null);
 	// Precio oculto (VIP) no cuenta.
-	assert.equal(estadisticasPrecio([...l.slice(0, 2), p({ precio: 9, vipLanding: { ocultarPrecio: true } })], 'venta'), null);
+	assert.equal(estadisticasPrecio([...l.slice(0, 2), p({ precio: 9, vip: true, vipLanding: { ocultarPrecio: true } })], 'venta'), null);
 	// Renta: al mes y sin m². Terrenos: por m² de terreno.
 	const r = estadisticasPrecio([1000, 1500, 2000, 2500].map((precio) => p({ operacion: 'renta', precio, m2Construccion: 100 })), 'renta');
 	assert.deepEqual([r.mediana, r.porM2], [1750, 0]);
@@ -158,6 +189,11 @@ test('horario para el JSON-LD: lo escrito en Contenido; lo que no entiende da nu
 	assert.deepEqual(horarioSchema('Lunes a viernes de 8:00 a 12:30 y 14:00 a 18:00; sábados 9 a 13; domingos cerrado'),
 		[h(dias(5), '08:00', '12:30'), h(dias(5), '14:00', '18:00'), h(['Saturday'], '09:00', '13:00')]);
 	assert.deepEqual(horarioSchema('Todos los días, 7:00 a 22:00'), [h(dias(7), '07:00', '22:00')]);
+	// Frases comunes: «De lunes a viernes, …», y otro tramo después de «,» o «y» (no se inventa el sábado completo).
+	assert.deepEqual(horarioSchema('De lunes a viernes, 9:00 a 18:00'), [h(dias(5), '09:00', '18:00')]);
+	for (const t of ['Lunes a viernes: 8:00 a 17:00 y sábados 8:00 a 12:00', 'Lunes a viernes 8:00 a 17:00, sábados 8:00 a 12:00'])
+		assert.deepEqual(horarioSchema(t), [h(dias(5), '08:00', '17:00'), h(['Saturday'], '08:00', '12:00')], t);
+	assert.deepEqual(horarioSchema('Lunes a viernes 9:00 a 18:00, domingos cerrado'), [h(dias(5), '09:00', '18:00')]);
 	for (const raro of ['', 'Todos los días con cita previa', 'Horario por WhatsApp', 'Lunes a viernes 18:00 a 8:00', 'Sábado a lunes 9 a 12', 'Lunes a viernes 9:00']) assert.equal(horarioSchema(raro), null, raro);
 });
 

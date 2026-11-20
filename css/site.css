@@ -2872,6 +2872,13 @@ a:hover > .eq-ic-fin,
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+/* Un paso que va solo con su ícono mide 28 px de ancho: el área de toque llega a 44 px hacia los lados (sobre la línea
+   que une los pasos, sin tocar al vecino), sin cambiar cómo se ve la fila. */
+.vac-guia button::after {
+	content: '';
+	position: absolute;
+	inset: 0 -8px;
+}
 /* El paso que toca se lee entero; lo que falta va solo con su ícono (el nombre queda para el lector de pantalla). */
 .vac-guia li.is-ahora { flex: none; }
 .vac-guia li:not(.is-ahora):not(.is-hecho) button span:not(.eq-ic) {
@@ -3769,8 +3776,8 @@ a:hover > .eq-ic-fin,
 .ini-bio {
 	display: block;
 	width: 100%;
-	padding: 6px 0;
-	margin: -6px 0;
+	padding: 14px 0;
+	margin: -14px 0;
 	border: 0;
 	background: none;
 	font-size: 12px;

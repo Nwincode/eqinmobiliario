@@ -123,7 +123,6 @@
 		document.documentElement.lang = en ? 'en' : 'es';
 		var dia = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var hora = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-		var dinero = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 		var fecha = function (x) { return dia.format(new Date(x + 'T00:00:00Z')); };
 
 		// El esqueleto ya viene en la página (con sus íconos); aquí solo se llena.
@@ -180,7 +179,8 @@
 		poner('fechas', fecha(c.llegada) + ' – ' + fecha(c.salida));
 		poner('noches', c.noches === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: c.noches }));
 		poner('huespedes', c.huespedes === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: c.huespedes }));
-		poner('total', (c.moneda === 'GTQ' ? 'Q ' : 'US$ ') + dinero.format(c.total));
+		// El dinero del formato único (admin/js/formato.js, por EQFormato del paquete del sitio).
+		poner('total', EQFormato.montoPrecio(Number(c.total) || 0, c.moneda === 'GTQ' ? 'GTQ' : 'USD'));
 		poner('nota', t.vacChatNota);
 		var lista = cuerpo.querySelector('.vac-chat-mensajes');
 		var form = cuerpo.querySelector('.vac-chat-form');

@@ -12,7 +12,7 @@ import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } f
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -37,7 +37,7 @@ const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
 const autoTitle = (d) => autoSeoTitle(d);
-const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
+const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(precioVisible(d), d.moneda, d.operacion), [
 	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
 	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
 	huespedesDe(d) ? `${huespedesDe(d)} ${huespedesDe(d) === 1 ? 'huésped' : 'huéspedes'}` : d.m2Construccion && `${miles(d.m2Construccion)} m²`
@@ -76,9 +76,13 @@ async function borrarFotos(p) {
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
 // Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
 // "fuente" guarda el texto en español traducido, para saber si cambió después.
-// Las casas vacacionales suman cómo llegar, reglas y cancelación (solo si los tienen).
+// Las casas vacacionales suman cómo llegar, reglas y cancelación; todas, sus amenidades, y las VIP sus textos de la
+// página VIP (solo lo que tienen): si cambia cualquiera de ellos, el inglés se rehace.
 const TEXTOS_VAC = ['comoLlegar', 'reglas', 'cancelacion'];
-export const fuenteEs = (d) => [d.titulo || '', d.descripcion || '', ...TEXTOS_VAC.map((k) => d.vacacional?.[k]).filter(Boolean)].join('\n');
+const TEXTOS_VIP = ['titular', 'subtitular', 'ctaTexto'];
+export const fuenteEs = (d) => [d.titulo || '', d.descripcion || '', ...TEXTOS_VAC.map((k) => d.vacacional?.[k]).filter(Boolean),
+	(d.amenidades || []).join(', '),
+	...(d.vip ? [...TEXTOS_VIP.map((k) => d.vipLanding?.[k]), (d.vipLanding?.puntosClave || []).join(', ')] : [])].filter(Boolean).join('\n');
 // ¿Hay que traducir? Falta el inglés, o el español cambió y el inglés no se corrigió a mano.
 export const faltaIngles = (d) => {
 	const en = d.en || {};
@@ -90,7 +94,10 @@ const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores
 export async function traducirEn(d) {
 	const r = await pedirIA('traducir', { propiedad: d });
 	return {
-		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
+		// Una amenidad por cada una en español: si la traducción trae menos, sale del diccionario (no se pierde ninguna).
+		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: { amenidades: r.amenidades } }),
+		// A qué lista en español corresponde cada una (estados.js `amenidadesEnDe`).
+		amenidadesDe: [...(d.amenidades || [])],
 		seo: {
 			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
 			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
@@ -410,7 +417,7 @@ async function exportarCsv(props, agentName, btn) {
 			};
 			filas.push(cab.map((c) => String(val[c] ?? '')));
 		}
-		downloadCsv(`propiedades-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+		downloadCsv(`propiedades-${hoyISO()}.csv`, filas);
 		toast(`Exportadas ${props.length} propiedades.`);
 	} catch (err) {
 		showError(err);
@@ -503,10 +510,12 @@ export async function render(container, [id]) {
 		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
-		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
+		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(precioVisible(p), p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
 		const cambiarEstado = async () => {
-			const label = await elegirOpcion(`Estado de ${nombre}`, ESTADOS.map(([, l]) => l));
-			const estado = ESTADOS.find(([, l]) => l === label)?.[0];
+			// Solo los estados que aplican a su operación (incoherencia): una casa por noche no queda «Vendida».
+			const opciones = estadosPara(p.operacion || 'venta');
+			const label = await elegirOpcion(`Estado de ${nombre}`, opciones.map((e) => e.label));
+			const estado = opciones.find((e) => e.label === label)?.valor;
 			if (!estado || estado === estadoDe(p).valor) return;
 			guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`, `Estado cambiado a «${label}». ${trasGuardar()}`);
 		};
@@ -742,7 +751,7 @@ export async function render(container, [id]) {
 				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
 				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
-					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
+					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
 					vacacional: p.en?.vacacional || {},
@@ -1012,7 +1021,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
-		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
+		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
+		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 
 		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'No hay que escribirla: se traduce sola en cuanto terminas el título y la descripción en español, y se vuelve a traducir si los cambias. Revísala; si corriges algo aquí a mano, se respeta y ya no se reemplaza.' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
@@ -1219,7 +1229,7 @@ async function renderEditor(container, id, emb = null) {
 			// Si alguien corrigió el inglés mientras se traducía, manda su corrección.
 			if (textoEn(form.state.en) !== antes) { form.state.en.manual = true; estadoEn.textContent = ''; return; }
 			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
-			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
+			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, amenidadesDe: en.amenidadesDe, fuente: en.fuente, manual: false });
 			enAuto = clonar(form.state.en);
 			estadoEn.textContent = 'Traducción automática lista: revísala.';
 		} catch {
@@ -1234,7 +1244,8 @@ async function renderEditor(container, id, emb = null) {
 		await render(view, [ref.id]);
 	};
 
-	const save = async (btn) => {
+	// `forzarIngles`: vuelve a traducir aunque el inglés esté al día (el botón «Traducir al inglés» con cambios sin guardar).
+	const save = async (btn, { forzarIngles = false } = {}) => {
 		if (!form.validate()) return;
 		// Si la traducción en vivo va en camino, se espera: así no se traduce dos veces.
 		btn.disabled = true;
@@ -1275,6 +1286,8 @@ async function renderEditor(container, id, emb = null) {
 		}
 		d.slug = slugify(d.slug || d.titulo);
 		if (!d.slug) return toast('Escribe un título.', 'warning');
+		// La zona sin espacios de más; la forma de escribirla la unifica el sitio (landings.mjs `unificarZonas`).
+		d.zona = String(d.zona || '').trim().replace(/\s+/g, ' ');
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
@@ -1294,10 +1307,26 @@ async function renderEditor(container, id, emb = null) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
 		d.estado = estadoDe(d).valor;
+		// «Ocultar precio»: ningún texto (título, URL, descripción, VIP, inglés, Google) puede decir el precio, en ninguna
+		// forma (cifras, «987k», «1.2 millones»). Se dice junto a la casilla, en una línea.
+		const conPrecio = textosConPrecioOculto(d);
+		const avisoPrecio = form.el.querySelector('[data-campo="vipLanding.ocultarPrecio"]');
+		avisoPrecio?.querySelector('.aviso-precio-oculto')?.remove();
+		if (conPrecio.length) {
+			const linea = `Con el precio oculto, quítalo de: ${conPrecio.map(([k]) => k).join(', ')}.`;
+			avisoPrecio?.append(h('div', { class: 'form-text text-danger aviso-precio-oculto', role: 'alert' }, linea));
+			avisoPrecio?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+			return toast(linea, 'warning');
+		}
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
+		// La dirección en inglés sale de su título: si se corrigió a mano, la anterior redirige a la nueva (como en español).
+		if (!isNew && data.en?.titulo && d.en.titulo && slugify(data.en.titulo) !== slugify(d.en.titulo)) d.en.slugsAnteriores = titulosEnAnteriores(data.en, d.en.titulo);
+		// Lista en inglés corregida a mano con una por cada amenidad en español: queda emparejada (amenidadesEnDe).
+		const enAmenCambio = JSON.stringify(d.en.amenidades || []) !== JSON.stringify(data.en?.amenidades || []);
+		if (enAmenCambio && (d.en.amenidades || []).length && d.en.amenidades.length === (d.amenidades || []).length) d.en.amenidadesDe = [...d.amenidades];
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
-		const traducirAhora = faltaIngles(d);
+		const traducirAhora = forzarIngles || faltaIngles(d);
 		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
 		if (!d.vip && d.titulo) {
 			const conPublico = esVacacional(d) ? { ...d, ...vacacionalPublico({ ...d, socio }) } : d;
@@ -1436,8 +1465,15 @@ async function renderEditor(container, id, emb = null) {
 		}
 	};
 
-	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano).
+	// ¿La ficha tiene algo sin guardar? (lo mismo que «Guardar» compararía con lo guardado).
+	const sinGuardar = () => {
+		const ahora = comoQuedo(form.getData());
+		return acuerdoTocado || Object.keys(cambiosEntre(alAbrir.datos, ahora.datos)).length > 0 || Object.keys(cambiosEntre(alAbrir.socio, ahora.socio, [])).length > 0;
+	};
+	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano). Con cambios sin guardar, primero se
+	// guardan y se traduce lo guardado: traducir y volver a leer la base los borraría.
 	const traducir = async (btn) => {
+		if (sinGuardar()) return save(saveBtn, { forzarIngles: true });
 		btn.disabled = true;
 		toast('Traduciendo al inglés…');
 		try {

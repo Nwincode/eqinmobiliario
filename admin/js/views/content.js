@@ -203,8 +203,8 @@ const GROUPS = [
 	{
 		id: 'contacto', label: 'Contacto y redes', keys: ['contacto', 'redes'], fields: [
 			{ name: 'contacto.titulo', label: 'Título de la sección', cols: 6 },
-			{ name: 'contacto.telefono', label: 'Teléfono', type: 'tel', cols: 4 },
-			{ name: 'contacto.whatsapp', label: 'WhatsApp (con código de país)', type: 'tel', cols: 4, placeholder: '50259131276' },
+			{ name: 'contacto.telefono', label: 'Teléfono', type: 'telefono', cols: 4 },
+			{ name: 'contacto.whatsapp', label: 'WhatsApp', type: 'telefono', cols: 4, placeholder: '5555 1234' },
 			{ name: 'contacto.email', label: 'Correo', type: 'email', cols: 4 },
 			{ name: 'contacto.direccion', label: 'Dirección', cols: 8 },
 			{ name: 'contacto.horario', label: 'Horario', cols: 4 },

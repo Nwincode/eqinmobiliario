@@ -8,9 +8,11 @@
 //   CORREO_REMITENTE quién envía, p. ej. "Equipo Inmobiliario <avisos@eqinmobiliario.gt>"
 //                    (el dominio debe estar verificado en el servicio; con ZeptoMail es obligatorio)
 import siteConfig from '../../site.config.json' with { type: 'json' };
+// Los valores de Contenido que el dueño no ha cambiado: los mismos que usa el sitio (scripts/build.mjs `defaults`).
+import seed from '../../data/seed.json' with { type: 'json' };
 import { colorTema, contraste } from '../../admin/js/tema-def.js';
 import { leerPublico } from './firestore.mjs';
-import { correoValido } from '../../admin/js/formato.js';
+import { correoValido, whatsappUrl, telefonoWa } from '../../admin/js/formato.js';
 
 export const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const NOMBRE = 'Equipo Inmobiliario';
@@ -30,29 +32,52 @@ export function destinatariosEquipo() {
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// Colores de Contenido → Colores (o los originales de css/tema.css).
-let temaCache = null;
+// Lo que los correos toman de Contenido (settings/site): los colores (o los originales de css/tema.css) y el WhatsApp
+// de la empresa (Contenido → Contacto). Se lee una vez por copia de la función.
+let sitioCache = null;
+const sitio = async () => (sitioCache ||= (await leerPublico('settings/site')) || {});
 async function colores() {
-	if (!temaCache) temaCache = (await leerPublico('settings/site'))?.tema || {};
-	const c = (k) => colorTema(temaCache, k);
-	return { dark: c('dark'), primary: c('primary'), cyan: c('cyan'), white: c('white'), ink: c('ink'), whatsapp: c('whatsapp') };
+	const tema = (await sitio()).tema || {};
+	const c = (k) => colorTema(tema, k);
+	return { dark: c('dark'), primary: c('primary'), cyan: c('cyan'), white: c('white'), ink: c('ink'), gold: c('gold'), whatsapp: c('whatsapp') };
+}
+
+// Un tono entre dos colores del tema (t: cuánto del primero). Outlook no entiende colores con transparencia.
+export const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
+// Tonos claros con nombre del diseño aprobado del correo de la contraseña (netlify/lib/correo-contrasena.mjs), tal como
+// los aprobó el dueño (no se sacan mezclando: así quedan exactos).
+export const TONOS_CORREO = { fondo: '#eef3f6', usuario: '#edf5fa', usuarioBorde: '#d3e4ee', divisor: '#e3e9ee', beige: '#f7f3eb', beigeBorde: '#e6dbc6', punto: '#b5bec5' };
+// Los colores de un correo: los del tema, la línea (c.linea) y el fondo suave (c.suave) de la plantilla común, y los
+// tonos con nombre del diseño aprobado (TONOS_CORREO).
+export async function coloresCorreo() {
+	const base = await colores();
+	return { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07), tonos: TONOS_CORREO };
+}
+// Redes de la empresa (Contenido → Redes; si no están, las del sitio por defecto).
+export async function redesEmpresa() {
+	const r = { ...(seed.settings?.redes || {}), ...Object.fromEntries(Object.entries((await sitio()).redes || {}).filter(([, v]) => v)) };
+	return { instagram: /^https:\/\//.test(r.instagram || '') ? r.instagram : '', facebook: /^https:\/\//.test(r.facebook || '') ? r.facebook : '' };
+}
+
+// Enlace de WhatsApp a la empresa con un mensaje (el número de Contenido → Contacto, el mismo del sitio); '' si no hay.
+export async function whatsappEmpresa(mensaje) {
+	const tel = (await sitio()).contacto?.whatsapp || seed.settings?.contacto?.whatsapp || '';
+	return telefonoWa(tel) ? whatsappUrl(tel, mensaje) : '';
 }
 
 // Diseño común de todos los correos (el mismo del correo de la contraseña, que aprobó el dueño): logo, foto (la de la
 // casa en los de una reserva; si no, la de la cabecera), línea de acento, contenido y pie con la empresa.
 // bloques(c) recibe los colores (los del tema, más c.linea y c.suave) y devuelve el HTML del contenido.
 // etiqueta: línea corta sobre el título (p. ej. el código de la reserva). pie: por qué le llega (si falta, el aviso del panel).
-// ayuda: el botón de WhatsApp para quien no es del panel (cliente). Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
-export async function plantilla({ titulo, intro = '', bloques, preheader = '', foto = '', etiqueta = '', pie = '', ayuda = false, lang = 'es' }) {
-	const base = await colores();
-	// Tonos suaves del gris del tema sobre el fondo (Outlook no entiende colores con transparencia).
-	const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
-	const c = { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07) };
+// ayuda: el botón de WhatsApp para quien no es del panel (cliente). pieEnlaces: [[texto, url]] después del pie.
+// Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
+export async function plantilla({ titulo, intro = '', bloques, preheader = '', foto = '', etiqueta = '', pie = '', pieEnlaces = [], ayuda = false, lang = 'es' }) {
+	const c = await coloresCorreo();
 	const fuente = 'font-family:Arial,Helvetica,sans-serif';
 	const previa = esc(preheader || String(intro).replace(/<[^>]+>/g, '')).slice(0, 180);
 	const imagen = /^https:\/\//.test(foto) ? foto : `${SITE_URL}/images/correo/cabecera.jpg`;
 	const en = lang === 'en';
-	const whatsapp = `https://wa.me/50259131276?text=${encodeURIComponent(en ? 'Hi, I need help with my booking.' : 'Hola, necesito ayuda.')}`;
+	const whatsapp = ayuda ? await whatsappEmpresa(en ? 'Hi, I need help with my booking.' : 'Hola, necesito ayuda.') : '';
 	return `<!doctype html><html lang="${en ? 'en' : 'es'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(titulo)}</title></head>
 <body style="margin:0;padding:0;background:${c.suave};${fuente};color:${c.dark}">
@@ -70,11 +95,12 @@ ${etiqueta ? `<p style="margin:0 0 6px;${fuente};font-size:13px;line-height:18px
 <h1 style="margin:0 0 10px;${fuente};font-size:24px;line-height:30px;font-weight:bold;color:${c.dark}">${esc(titulo)}</h1>
 ${intro ? `<p style="margin:0 0 20px;${fuente};font-size:16px;line-height:24px;color:${c.ink}">${intro}</p>` : ''}
 ${bloques(c)}
-${ayuda ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${c.linea};text-align:center;${fuente};font-size:14px;line-height:20px;color:${c.ink}">${en ? 'Something not working?' : '¿Algo no funciona?'} <a href="${whatsapp}" target="_blank" style="color:${c.whatsapp};font-weight:bold;text-decoration:underline">${en ? 'Message us on WhatsApp' : 'Escríbenos por WhatsApp'}</a>.</p>` : ''}
+${whatsapp ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${c.linea};text-align:center;${fuente};font-size:14px;line-height:20px;color:${c.ink}">${en ? 'Something not working?' : '¿Algo no funciona?'} <a href="${esc(whatsapp)}" target="_blank" style="color:${c.whatsapp};font-weight:bold;text-decoration:underline">${en ? 'Message us on WhatsApp' : 'Escríbenos por WhatsApp'}</a>.</p>` : ''}
 </td></tr>
 <tr><td align="center" style="padding:20px 12px 4px;${fuente};font-size:13px;line-height:20px;color:${c.ink}">
   <strong style="color:${c.dark}">Equipo Inmobiliario S.A.</strong> · <a href="${SITE_URL}" target="_blank" style="color:${c.primary};text-decoration:none;font-weight:bold">eqinmobiliario.gt</a><br>
   ${pie ? esc(pie) : `Aviso automático del panel. <a href="${SITE_URL}/admin/" target="_blank" style="display:inline-block;padding:8px 4px;color:${c.primary};text-decoration:underline">Abrir el panel</a>`}
+  ${pieEnlaces.length ? `<br>${pieEnlaces.map(([t, u]) => `<a href="${esc(u)}" target="_blank" style="display:inline-block;padding:8px 6px;color:${c.primary};text-decoration:underline">${esc(t)}</a>`).join(' · ')}` : ''}
 </td></tr>
 </table>
 <!--[if mso]></td></tr></table><![endif]-->

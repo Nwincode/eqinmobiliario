@@ -6,19 +6,27 @@
 	var EN = document.documentElement.lang === 'en';
 	var T = EN ? {
 		errorCorreo: 'Please check your email (e.g. name@email.com).', quisiste: 'Did you mean {correo}?', usar: 'Use it', estaBien: 'If yours is right, tap send again.',
-		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
+		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', errorFecha: 'Pick a date from today on.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', sinChat: 'We received your request, but we couldn\'t open its chat: we will contact you.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).', quisiste: '¿Quisiste decir {correo}?', usar: 'Usar ese', estaBien: 'Si el tuyo está bien, toca enviar otra vez.',
-		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
+		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', errorFecha: 'Elige una fecha de hoy en adelante.', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', sinChat: 'Recibimos tu solicitud, pero no pudimos abrir su chat: te contactaremos.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
 		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
+
+	// Fecha de la visita: de hoy (día de Guatemala, no el del navegador) a un año. El calendario no ofrece días pasados y,
+	// si alguien la escribe a mano, el envío la revisa (diaValido). En WhatsApp va escrita («25 nov 2026»), no «2026-11-25».
+	var DIA_MS = 86400000;
+	var diaGt = function (sumar) { return new Date(Date.now() - 6 * 3600000 + (sumar || 0) * DIA_MS).toISOString().slice(0, 10); };
+	var diaValido = function (v) { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + 'T12:00:00Z')) && v >= diaGt() && v <= diaGt(365); };
+	var diaEscrito = function (v) { return new Date(v + 'T12:00:00Z').toLocaleDateString(EN ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+	document.querySelectorAll('input[name="fechaVisita"]').forEach(function (f) { f.min = diaGt(); f.max = diaGt(365); });
 
 	// Textos personalizados desde el panel (config.t.jsGracias → T.gracias, etc.).
 	var textosPanel = config.t || {};
@@ -153,7 +161,7 @@
 	}
 
 	function whatsappFallback(lead) {
-		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + lead.fechaVisita + '.' : '') + T.tel + lead.telefono;
+		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + diaEscrito(lead.fechaVisita) + '.' : '') + T.tel + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
 	}
 
@@ -220,15 +228,9 @@
 			if (form.eq_vacio && form.eq_vacio.value) return;
 			var lead = {
 				nombre: form.nombre.value.trim(),
-				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
-				// Un solo formato: «+código número». El autollenado del navegador suele traer el código pegado al número
-				// («50255551234», «00502…»): si ya empieza con el código elegido, no se repite.
-				telefono: (function (numero) {
-					if (!numero || numero.charAt(0) === '+' || !form.codigo) return numero;
-					var cod = form.codigo.value, d = numero.replace(/\D/g, '').replace(/^00/, '');
-					if (cod && d.indexOf(cod) === 0 && d.length - cod.length >= 7) return '+' + cod + ' ' + d.slice(cod.length);
-					return '+' + cod + ' ' + numero;
-				})(form.telefono.value.trim()),
+				// Un solo formato: «+código número», el mismo del panel (formato.js `unirTelefono`): el «+» escrito manda, y
+				// el código que el autollenado pega al número («50255551234», «00502…») no se repite.
+				telefono: form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim(),
 				// En minúsculas: el mismo correo se reconoce igual siempre (las repetidas se buscan por él).
 				email: form.email ? form.email.value.trim().toLowerCase() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
@@ -256,8 +258,9 @@
 			form.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			var errores = [];
 			if (!lead.nombre) errores.push([form.nombre, T.faltaNombre]);
-			// Con la misma regla del panel (admin/js/formato.js): 7 a 15 dígitos con el código; en Guatemala, 8 después del +502.
+			// Con la misma regla del panel (admin/js/formato.js): el largo de cada país (en Guatemala, 8 después del +502).
 			if (!EQFormato.telefonoValido(lead.telefono)) errores.push([form.telefono, T.faltaTelefono]);
+			if (lead.fechaVisita && !diaValido(lead.fechaVisita)) errores.push([form.fechaVisita, T.errorFecha]);
 			// El correo (obligatorio solo en la reserva; si se escribe, siempre) con la misma regla del panel y las funciones.
 			if (form.email && (lead.email || form.email.required) && !EQFormato.correoValido(lead.email)) errores.push([form.email, lead.email ? T.errorCorreo : T.faltaCorreo]);
 			else if (form.email && lead.email && EQFormato.sugerenciaCorreo(lead.email) && form.getAttribute('data-correo-visto') !== lead.email) {

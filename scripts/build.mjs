@@ -7,10 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
-import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
+import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
-import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
+import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto, mencionaPrecio, textosConPrecioOculto } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -138,7 +138,7 @@ function propiedadEn(p) {
 		titulo: e.titulo,
 		// En inglés, cada m² con sus pies cuadrados (descripción, meta y JSON-LD).
 		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
-		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
+		amenidades: amenidadesEnDe(p),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
 		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
@@ -315,8 +315,8 @@ function llmsTxt(ctx, properties, pages, { planEn = [], pagesEn = [], postsEn = 
 		'',
 		// Los mismos listados que el sitemap: solo los que se indexan.
 		...ctx.plan.filter((e) => e.pagina !== 'vip' && indexable(e.url)).map((e) => `- [${e.opts.heading}](${base}${e.url})`),
-		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
+		...properties.filter((p) => p.estado === 'disponible' && !esDePrueba(p)).slice(0, 100).map((p) =>
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${precioVisible(p) ? `, ${montoPrecio(p.precio, p.moneda || 'USD')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
@@ -342,7 +342,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
 		dato('Ubicación', lugarDe(p)),
-		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
+		dato('Precio', precioVisible(p) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
 		dato('Parqueos', p.parqueos),
@@ -358,7 +358,7 @@ function llmsFullTxt(ctx, properties) {
 		'',
 		`> ${ctx.site.seo.descripcion}`,
 		'',
-		...properties.filter((p) => (p.estado || 'disponible') === 'disponible').flatMap(ficha),
+		...properties.filter((p) => (p.estado || 'disponible') === 'disponible' && !esDePrueba(p)).flatMap(ficha),
 		...ctx.posts.flatMap((p) => [`## ${p.titulo}`, '', `- Enlace: ${base}${p.url}`, '', textoPlano(p.contenido || p.resumen), ''])
 	].join('\n');
 }
@@ -379,14 +379,14 @@ const coordenadas = (mapa) => {
 function feeds(ctx, properties, propsEn) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
 	// Los portales de Meta y Kyero no tienen precio por noche: la renta vacacional no va en los feeds.
-	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional');
+	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional' && !esDePrueba(p));
 	const enPorId = Object.fromEntries((propsEn || []).map((p) => [p.id, p]));
 	const abs = (u) => (/^https?:/.test(u) ? u : `${base}${u}`);
 	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
 	// Los catálogos piden JPG: el CDN de imágenes de Netlify convierte las fotos WebP al vuelo.
 	const fotos = (p) => (p.fotos || []).map((f) => f.url).filter(Boolean)
 		.map((u) => `${base}${T.fotoCdn(u, 1600, '&fm=jpg&q=85')}`);
-	const sinPrecio = (p) => !p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio);
+	const sinPrecio = (p) => !precioVisible(p);
 
 	// Meta (Facebook/Instagram): catálogo de inmuebles ("home listings").
 	const tipoMeta = { casa: 'house', apartamento: 'apartment', terreno: 'land', oficina: 'other', local: 'other', bodega: 'other', finca: 'other' };
@@ -501,7 +501,8 @@ function fichaHtml(c, p) {
 	return T.vipLandingPage(c, p);
 }
 
-function redirects(ctx, todas = ctx.properties) {
+// `enPorId`: la versión en inglés ya resuelta en main() (con el sufijo que la separa de otra del mismo título).
+function redirects(ctx, todas = ctx.properties, enPorId = new Map()) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
@@ -517,7 +518,7 @@ function redirects(ctx, todas = ctx.properties) {
 			}
 		}
 		// Títulos anteriores en inglés (la dirección en inglés sale del título).
-		const en = ctx.enActivo && propiedadEn(p);
+		const en = ctx.enActivo && enPorId.get(p.id);
 		for (const old of (en && p.en.slugsAnteriores) || []) {
 			const s = slugify(old);
 			if (s && s !== en.slug) {
@@ -563,7 +564,8 @@ async function main() {
 	const { sanas, omitidas: rotas } = separarCasas(data.properties);
 	const reparadas = rotas.map(({ casa, motivo }) => ({ r: casaReparada(casa), motivo })).filter(({ r }) => r && !r.motivo)
 		.map(({ r, motivo }) => ({ ...r.casa, _omitida: { motivo, sinCalendario: r.sinCalendario } }));
-	const juntas = normalizeProperties([...sanas, ...reparadas]);
+	// Cada zona con una sola forma de escribirla (antes de planear listados y de copiar al inglés).
+	const juntas = unificarZonas(normalizeProperties([...sanas, ...reparadas]));
 	const todas = juntas.filter((p) => !p._omitida);
 	const omitidas = juntas.filter((p) => p._omitida);
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
@@ -572,6 +574,36 @@ async function main() {
 	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
 	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
 	const V = globalThis.EQVacacional;
+	// Casas de prueba: se marcan aquí, con su título en español (la copia en inglés lo hereda).
+	for (const p of juntas) if (esDePrueba(p)) p._prueba = true;
+	// Una que no salió del botón «Casas de prueba» pero dice «prueba» en el título: se avisa (si es real, hay que
+	// cambiarle el título para que Google la vea).
+	const pruebaPorTitulo = todas.filter((p) => p._prueba && p.demo !== true && visibilidadDe(p) === 'visible');
+	if (pruebaPorTitulo.length) console.warn(`  ⚠ Se tratan como casas de prueba (dicen «prueba» en el título; no se indexan): ${pruebaPorTitulo.map((p) => `«${p.titulo}»`).join(', ')}. Si alguna es real, cambia su título.`);
+	// Precio oculto: ningún texto guardado con el precio lo deja salir (ficha, VIP, /en/, llms, catálogos). Un título o
+	// descripción para Google con el precio no se usa (sale el automático, sin precio); en la descripción y los textos VIP,
+	// en español e inglés, el monto pasa a «precio a consultar».
+	// El panel ya no deja guardarlo así (textosConPrecioOculto); si llega uno (de antes, o escrito por otra vía), se avisa.
+	// También en las omitidas por un dato roto: su enlace sigue abriendo.
+	const conPrecioOculto = [];
+	for (const p of juntas) {
+		if (!p.precio || precioVisible(p)) continue;
+		const donde = textosConPrecioOculto(p);
+		if (donde.length) conPrecioOculto.push(`${p.id} (${donde.map(([k]) => k).join(', ')})`);
+		const n = Math.round(Number(p.precio));
+		const conPrecio = (t) => mencionaPrecio(t, n);
+		const limpiarSeo = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
+		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar)])),
+			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar)) } : v);
+		p.seo = limpiarSeo(p.seo);
+		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar');
+		p.titulo = sinPrecioOculto(p.titulo, n, 'precio a consultar');
+		// La URL nunca lleva el precio: se le quita (la dirección con el precio no se redirige, para no publicarla).
+		if (conPrecio(String(p.slug || '').replace(/-/g, ' '))) p.slug = slugify(sinPrecioOculto(String(p.slug).replace(/-/g, ' '), n, '')) || p.id;
+		p.vipLanding = limpiarVip(p.vipLanding, 'precio a consultar');
+		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), titulo: sinPrecioOculto(p.en.titulo, n, 'price on request'), slug: p.en.slug && conPrecio(String(p.en.slug).replace(/-/g, ' ')) ? '' : p.en.slug, descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request'), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
+	}
+	if (conPrecioOculto.length) console.warn(`  ⚠ Precio oculto escrito en sus textos (se quitó al publicar; corrígelo en la ficha): ${conPrecioOculto.join('; ')}`);
 	for (const p of juntas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());
@@ -804,7 +836,7 @@ async function main() {
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
 	const sitemapXml = sitemap(ctx, enSitemap);
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, new Map(todasEn.map((p) => [p.id, p]))));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);

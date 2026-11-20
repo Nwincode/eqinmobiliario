@@ -4,7 +4,7 @@ import { db, doc, getDoc, collection, setDoc } from '../firebase.js';
 import { h, mount, pageHeader, toast, errorMessage, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
-import { incoherencia } from '../estados.js';
+import { incoherencia, textosConPrecioOculto } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
@@ -208,6 +208,9 @@ export async function render(container) {
 			if (choque) item.errores.push(choque);
 			// Lo mismo que pide la ficha (revisarCasa): una casa por noche lleva su dueño. Al importar se vuelve a revisar.
 			if ((r.datos.operacion || base.operacion) === 'vacacional' && !(r.datos.propietarioId || base.propietarioId)) item.errores.push('Renta por noche: falta su dueño (columna «propietario», de una ficha de Propietarios)');
+			// Una casa con «Ocultar precio»: lo que trae la fila no puede decir el precio (estados.js, lo mismo que la ficha).
+			const conPrecio = textosConPrecioOculto({ ...base, ...r.datos, vipLanding: base.vipLanding, en: base.en });
+			if (conPrecio.length) item.errores.push(`Tiene «Ocultar precio» y el precio sale en: ${conPrecio.map(([k]) => k).join(', ')}`);
 			return item;
 		});
 		// Códigos generados, en orden y sin chocar con los existentes ni con los del CSV.

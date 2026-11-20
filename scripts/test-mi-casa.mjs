@@ -39,7 +39,21 @@ t('cada dato con su revisión', () => {
 	assert.throws(() => revisar({ banos: -1 }), /Baños/);
 	assert.throws(() => revisar({ limpieza: 100 }), /no se puede cambiar/);
 	assert.throws(() => revisar({ deposito: 99999 }), /Depósito/);
-	for (const t of ['Escríbeme a rosa@correo.com', 'Reserva en www.micasa.gt', 'Mira [aquí](https://x.gt)', 'wa.me/50255551234', 'Más en micasa.com']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /sin enlaces/);
+	for (const t of ['Escríbeme a rosa@correo.com', 'Reserva en www.micasa.gt', 'Mira [aquí](https://x.gt)', 'wa.me/50255551234', 'Más en micasa.com',
+		// El mismo filtro del chat (V.tieneContacto): también teléfonos y números escritos con letras.
+		'Escríbeme al WhatsApp 5512 3456 y te hago descuento', 'cinco cinco uno dos tres cuatro cinco seis', 'arroba gmail punto com']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /sin teléfonos, correos, enlaces/);
+	// Cada amenidad, igual.
+	for (const a of ['www.micasa.com', 'WhatsApp +502 5512-3456', 'yo@gmail.com']) assert.throws(() => revisar({ amenidades: ['Piscina', a] }), /Amenidades: sin teléfonos/);
+	// Lo de siempre pasa: horas, montos, kilómetros y coordenadas.
+	assert.equal(revisar({ reglas: 'Silencio de 22:00 a 7:00. Depósito Q 1,500.00. Máximo 8 personas.' }).cambios.length, 1);
+	assert.equal(revisar({ comoLlegar: 'En el Km 98.5, a 2 km del pueblo. Remodelada 2019/2020, terreno de 1200 / 1500 m².' }).cambios.length, 1);
+	// Coordenadas: en lo público no (llevan a la casa); en la dirección, que es privada hasta el pago, sí.
+	assert.throws(() => revisar({ comoLlegar: 'Coordenadas 14.5586, -90.7295' }), /Cómo llegar: sin teléfonos/);
+	assert.equal(revisar({ direccion: 'Lote 4, coordenadas 14.5586, -90.7295' }).cambios.length, 1);
+	for (const t of ['Fotos en t.me/villa', 'Más en casalago.co', 'villa-lago.me/fotos']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /sin teléfonos/, t);
+	// Depósito con centavos: redondeo a centavos, sin errores de coma flotante.
+	assert.equal(revisar({ deposito: 100.1 }).escribir.casa['vacacional.deposito'], 100.1);
+	assert.equal(revisar({ deposito: '250.555' }).escribir.casa['vacacional.deposito'], 250.56);
 	assert.throws(() => revisar({ checkIn: '25:00' }), /entrada/);
 	assert.throws(() => revisar({ mascotas: 'tal vez' }), /Mascotas/);
 	assert.throws(() => revisar({ estado: 'vendida' }), /En la página/);

@@ -613,11 +613,13 @@
 	}
 
 	function locale(lang) { return lang === 'en' ? 'en-US' : 'es-GT'; }
+	// Dinero como admin/js/formato.js `dinero` (este archivo es un script clásico y no lo puede importar): siempre con
+	// centavos y coma en miles («US$ 1,234.50»), en los dos idiomas. scripts/test-calc-renta.mjs compara los dos.
 	function dinero(v, moneda, lang, decimales) {
 		if (v === null || v === undefined || !isFinite(v)) return '—';
 		var prefijo = moneda === 'GTQ' ? 'Q' : 'US$';
-		var dec = decimales || 0;
-		var s = new Intl.NumberFormat(locale(lang), { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(Math.abs(v));
+		var dec = decimales === undefined ? 2 : decimales;
+		var s = new Intl.NumberFormat('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(Math.abs(v));
 		return (v < 0 ? '−' : '') + prefijo + ' ' + s;
 	}
 	function porcentaje(v, lang, decimales) {

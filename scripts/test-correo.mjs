@@ -46,4 +46,31 @@ await test('equipo con correo de otro dominio: sale de noreply@ con «Responder 
 	assert.equal(enviados[0].from.address, 'noreply@ejemplo.gt');
 	assert.deepEqual(enviados[0].reply_to, [{ address: 'alguien@hotmail.com', name: 'Equipo Inmobiliario' }]);
 });
+await test('contraseña: el diseño aprobado, con los colores del tema y el WhatsApp y las redes de Contenido (nada escrito a mano)', async () => {
+	const { correoContrasena } = await import('../netlify/lib/correo-contrasena.mjs');
+	const seed = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../data/seed.json', import.meta.url), 'utf8'));
+	const { html, texto } = await correoContrasena({ link: 'https://x.test/a?b=1&c=2', email: 'ana@ejemplo.gt' });
+	assert.match(html, new RegExp(`wa\\.me/${seed.settings.contacto.whatsapp}\\?text=`));
+	assert.match(html, /href="https:\/\/x\.test\/a\?b=1&amp;c=2"/);
+	assert.match(html, /Eliminar mi cuenta del panel/);
+	// Con el tema original da los colores del diseño aprobado; el cuadro «Cuida tu cuenta» y las redes siguen.
+	// Exactos los colores del diseño aprobado (con el tema original), también los tonos claros.
+	for (const x of ['#0e1920', '#0e5e8a', '#85662b', '#1e7e4a', '#00b7e7', '#5b666f', '#eef3f6', '#edf5fa', '#d3e4ee', '#e3e9ee', '#f7f3eb', '#e6dbc6', '#b5bec5']) assert.match(html, new RegExp(x), x);
+	assert.match(html, /CUIDA TU CUENTA/);
+	// Ningún correo lleva texto invisible de relleno en la vista previa (Hotmail lo manda a «No deseado»).
+	const { readdirSync, readFileSync } = await import('node:fs');
+	for (const dir of ['../netlify/lib/', '../netlify/functions/']) for (const f of readdirSync(new URL(dir, import.meta.url)).filter((x) => x.endsWith('.mjs')))
+		assert.doesNotMatch(readFileSync(new URL(dir + f, import.meta.url), 'utf8'), /&#8199;|&#847;|&zwnj;|\u200c|\u034f/, f);
+	assert.doesNotMatch(html, /&#8199;|&#847;/);
+	assert.match(html, new RegExp(seed.settings.redes.instagram.replace(/[.]/g, '\\.')));
+	const fuente = (await (await import('node:fs/promises')).readFile(new URL('../netlify/lib/correo-contrasena.mjs', import.meta.url), 'utf8'));
+	assert.doesNotMatch(fuente, /#[0-9a-f]{6}|wa\.me\/\d/i, 'sin colores ni números escritos a mano');
+	assert.match(texto, /https:\/\/x\.test\/a\?b=1&c=2/);
+});
+await test('respuesta al lead en su idioma (aviso del lead y botón de Leads)', async () => {
+	const { saludoLead } = await import('../admin/js/formato.js');
+	assert.equal(saludoLead({ nombre: 'Ana Pérez', propertyTitulo: 'Casa en zona 16' }), 'Hola Ana, gracias por escribirnos por Casa en zona 16. ');
+	assert.equal(saludoLead({ nombre: 'John Smith', propertyTitulo: 'House in Zona 16', idioma: 'en' }), 'Hi John, thanks for reaching out about House in Zona 16. ');
+	assert.equal(saludoLead({ nombre: '', idioma: 'en' }), 'Hi, thanks for reaching out. ');
+});
 console.log(`${ok} pruebas del correo pasan.`);

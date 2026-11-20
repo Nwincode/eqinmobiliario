@@ -50,7 +50,7 @@ const SAFELIST = {
 
 // Los formatos de admin/js/formato.js que usa js/site.js, como window.EQFormato: la misma regla que el panel y
 // el generador (correo válido, precio de una propiedad, US$ para comparar precios), sin una segunda copia.
-export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'montoPrecio', 'enUSD'];
+export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'unirTelefono', 'montoPrecio', 'enUSD'];
 async function formatoParaElNavegador(root) {
 	const r = await build({
 		stdin: { contents: `export { ${FORMATO_NAVEGADOR.join(', ')} } from './admin/js/formato.js';`, resolveDir: root, loader: 'js' },

@@ -10,7 +10,7 @@
 // el lead como avisado). Queda: dentro de esos 10 minutos, otra instancia podría repetir el aviso del mismo lead.
 import { json } from '../lib/auth.mjs';
 import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
-import { telefonoWa as telWa } from '../../admin/js/formato.js';
+import { telefonoWa as telWa, saludoLead } from '../../admin/js/formato.js';
 import { enviarCorreo, correoConfigurado, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
 
@@ -57,7 +57,8 @@ export default async (req, context) => {
 		pagina: cut(d.pagina, 300),
 		fechaVisita: cut(d.fechaVisita, 60),
 		tipoVisita: cut(d.tipoVisita, 40),
-		agentId: cut(d.agentId, 80).replace(/[^\w-]/g, '')
+		agentId: cut(d.agentId, 80).replace(/[^\w-]/g, ''),
+		idioma: d.idioma === 'en' ? 'en' : 'es'
 	};
 	if (!lead.nombre || (!lead.telefono && !lead.email)) return json(400, { error: 'Faltan datos' });
 
@@ -65,7 +66,8 @@ export default async (req, context) => {
 	const para = [...destinatariosEquipo(), asesor?.activo && asesor.email ? asesor.email : ''];
 
 	const pagina = /^\/[\w\-/.%]*$/.test(lead.pagina) ? SITE_URL + lead.pagina : '';
-	const saludo = `Hola ${lead.nombre.split(' ')[0]}, gracias por escribirnos${lead.propertyTitulo ? ` por ${lead.propertyTitulo}` : ''}. `;
+	// La respuesta, en el idioma en que escribió (el sitio en inglés guarda «en»).
+	const saludo = saludoLead(lead);
 	const wa = telWa(lead.telefono);
 
 	const telLink = String(lead.telefono).replace(/[^\d+]/g, '');
@@ -75,8 +77,10 @@ export default async (req, context) => {
 		['Correo', lead.email, lead.email ? `mailto:${lead.email}` : ''],
 		['Propiedad', lead.propertyTitulo, pagina],
 		['Página', !lead.propertyTitulo && pagina ? lead.pagina : '', pagina],
-		['Visita', [lead.fechaVisita, lead.tipoVisita].filter(Boolean).join(' · ')],
-		['Asesor', asesor?.nombre || '']
+		// La fecha escrita («25 nov 2026»); una que no es fecha (la regla solo mide el largo) no se muestra.
+		['Visita', [/^\d{4}-\d{2}-\d{2}$/.test(lead.fechaVisita) ? new Date(`${lead.fechaVisita}T12:00:00Z`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '', lead.tipoVisita].filter(Boolean).join(' · ')],
+		['Asesor', asesor?.nombre || ''],
+		['Idioma', lead.idioma === 'en' ? 'Inglés (escribió desde el sitio en inglés)' : '']
 	].filter(([, v]) => v);
 
 	const urlWa = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(saludo)}` : '';

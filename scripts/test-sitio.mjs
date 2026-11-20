@@ -2,7 +2,7 @@
 // y lo recorre como lo haría Google: enlaces internos, JSON-LD, sitemap = páginas que se indexan, títulos,
 // descripciones, canonical y pares de idioma. GUARDAR=<carpeta> deja el sitio ahí (para verlo o tomar capturas).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -414,6 +414,81 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 		assert.match(readFileSync(path.join(distSin, 'en/properties/for-rent/index.html'), 'utf8'), /There are no properties here yet\. <a href="\/en\/properties\/">See all properties<\/a>/);
 	});
 }
+
+// Casos de la tanda 3: precio oculto VIP, casa de prueba, amenidades que el diccionario no tiene, zona escrita distinto,
+// dos casas con el mismo título en inglés y su dirección anterior.
+{
+	const seedT = path.join(tmp, 'seed-tanda3.json');
+	const datos = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+	const vip = datos.properties.find((p) => p.vip);
+	vip.vipLanding = { ...vip.vipLanding, ocultarPrecio: true };
+	vip.precio = 987654;
+	// Descripciones guardadas con el precio: la del panel antes de ser VIP y la del traductor en inglés.
+	vip.seo = { descripcion: 'Casa en venta en Zona 16, Guatemala: 4 habitaciones. US$ 987,654.00.', auto: {} };
+	vip.en = { ...vip.en, seo: { descripcion: 'House for sale in Zona 16, Guatemala. US$ 987,654.' }, descripcion: 'Asking US$ 987,654.00, view of the forest.',
+		vipLanding: { titular: 'Forest house', subtitular: 'Only $987,654', puntosClave: ['4 bedrooms', 'US$ 987.654'] } };
+	// Y en los textos escritos a mano: descripción y página VIP.
+	vip.descripcion = 'Casa con vista al bosque. Precio: US$ 987,654.00, negociable (unos 988 mil, 987k o Q 7.6 millones).';
+	vip.vipLanding = { ...vip.vipLanding, subtitular: 'Por solo Q 987.654', puntosClave: ['4 habitaciones', 'US$ 987,654'] };
+	// Una casa que no es VIP con «Ocultar precio» marcado (dejó de ser VIP): tampoco sale.
+	const oculta = datos.properties.find((p) => p.zona === 'Zona 15' && p.operacion === 'venta' && !p.vip);
+	Object.assign(oculta, { precio: 876543, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de Q 876,543 en zona 15', slug: 'casa-de-q-876543-en-zona-15', descripcion: 'Casa en zona 15 de Q 876,543.00.' });
+	const z10 = datos.properties.filter((p) => p.zona === 'Zona 10');
+	z10[0].zona = 'zona 10 ';
+	z10[1].amenidades = ['Piscina', 'Agua municipal', 'Lobby de recepción'];
+	const [a, b] = datos.properties.filter((p) => p.zona === 'Zona 15' && p.operacion === 'venta');
+	b.en = { ...b.en, titulo: a.en.titulo, slugsAnteriores: ['Old title of the second'] };
+	datos.properties.push({ ...datos.properties[0], id: 'prueba-1', titulo: 'Casa de PRUEBA Monterrico', slug: 'casa-de-prueba-monterrico', destacada: false, vip: false,
+		en: { ...datos.properties[0].en, titulo: 'Test house in Monterrico' } });
+	writeFileSync(seedT, JSON.stringify(datos));
+	const distT = path.join(tmp, 'dist-tanda3');
+	const corrida = spawnSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...env, SEED_FILE: seedT, DIST_DIR: distT }, encoding: 'utf8' });
+	if (corrida.status !== 0) throw new Error(corrida.stderr);
+	const todo = [];
+	(function leer(dir) {
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			const f = path.join(dir, e.name);
+			if (e.isDirectory()) { if (e.name !== 'admin') leer(f); } else if (/\.(html|txt|xml|json|csv)$|^_redirects$/.test(e.name)) todo.push(f);
+		}
+	})(distT);
+	const leerT = (u) => readFileSync(path.join(distT, u), 'utf8');
+	test('VIP con «ocultar precio»: el precio no sale en ninguna página, catálogo ni archivo', () => {
+		assert.deepEqual(todo.filter((f) => /987[,.]?654|876[,.]?543|988 mil|987k|7\.6 millones/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(distT, f)), []);
+		assert.ok(!readdirSync(path.join(distT, 'propiedad')).some((d) => /876543/.test(d)), 'la URL no lleva el precio');
+		assert.match(corrida.stderr, new RegExp(`Precio oculto escrito en sus textos[^\\n]*${oculta.id}`));
+		assert.ok(todo.some((f) => path.relative(distT, f).startsWith('vip' + path.sep) && /Por solo precio a consultar/.test(readFileSync(f, 'utf8'))), 'la página VIP cambia el monto por «precio a consultar»');
+	});
+	test('casa de prueba: su ficha abre pero no se indexa ni va al sitemap, llms.txt ni los catálogos', () => {
+		assert.match(leerT('propiedad/casa-de-prueba-monterrico/index.html'), /<meta name="robots" content="noindex/);
+		// No salió del botón «Casas de prueba»: el build avisa por si es una casa real.
+		assert.match(corrida.stderr, /Se tratan como casas de prueba[^\n]*«Casa de PRUEBA Monterrico»/);
+		for (const f of ['sitemap.xml', 'llms.txt', 'llms-full.txt']) assert.doesNotMatch(leerT(f), /casa-de-prueba-monterrico|test-house-in-monterrico/, f);
+		assert.ok(!todo.filter((f) => path.relative(distT, f).startsWith('feeds')).some((f) => /casa-de-prueba-monterrico/.test(readFileSync(f, 'utf8'))));
+	});
+	test('inglés: no se pierde la amenidad que el diccionario no tiene', () => {
+		const ficha = todo.find((f) => path.relative(distT, f).startsWith(path.join('en', 'property')) && /Lobby de recepción/.test(readFileSync(f, 'utf8')));
+		assert.ok(ficha, 'la ficha en inglés muestra «Lobby de recepción»');
+		assert.match(readFileSync(ficha, 'utf8'), /Pool[\s\S]*Agua municipal/);
+	});
+	test('zona escrita distinto: una sola página de zona con todas sus casas', () => {
+		const h = leerT('propiedades/zona-10/index.html');
+		assert.doesNotMatch(h, /<meta name="robots" content="noindex/);
+		assert.equal((h.match(/class="property-item"/g) || []).length, 6);
+		assert.doesNotMatch(leerT('propiedades/index.html'), />zona 10/);
+	});
+	test('dos casas con el mismo título en inglés: la dirección anterior de la segunda lleva a la segunda', () => {
+		const r = leerT('_redirects').split('\n').find((l) => l.startsWith('/en/property/old-title-of-the-second/ '));
+		assert.ok(r, 'falta la redirección');
+		assert.match(r, new RegExp(`-${b.id.slice(0, 8)}/ 301$`));
+	});
+}
+
+test('tarjetas: la foto no es un segundo enlace para el lector de pantalla (el título ya cubre la tarjeta)', () => {
+	const h = html['/propiedades/'];
+	const fotos = h.match(/<a [^>]*class="img"[^>]*>/g) || [];
+	assert.ok(fotos.length > 0);
+	for (const a of fotos) assert.match(a, /tabindex="-1" aria-hidden="true"/);
+});
 
 test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
 	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.

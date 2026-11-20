@@ -64,9 +64,9 @@
 
 		var estado = { mes: mesMin, llegada: '', salida: '', campo: 'llegada', foco: '' };
 
+		// El dinero del formato único (admin/js/formato.js, por EQFormato del paquete del sitio, que carga antes).
 		function dinero(n) {
-			n = Number(n) || 0;
-			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			return EQFormato.montoPrecio(Number(n) || 0, D.moneda === 'GTQ' ? 'GTQ' : 'USD');
 		}
 		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
 		// En la casilla del calendario, sin centavos (se lee de un vistazo); el desglose y el total llevan los exactos.
@@ -643,7 +643,7 @@
 				var precio = col.querySelector('.price span');
 				if (c && c.total > 0 && precio) {
 					precio.textContent = buscar.getAttribute(c.noches === 1 ? 'data-total1' : 'data-totaln')
-						.replace('{total}', (d.moneda === 'GTQ' ? 'Q ' : 'US$ ') + c.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+						.replace('{total}', EQFormato.montoPrecio(c.total, d.moneda === 'GTQ' ? 'GTQ' : 'USD'))
 						.replace('{n}', c.noches);
 				}
 				Array.prototype.forEach.call(col.querySelectorAll('a[href]'), function (a) {
