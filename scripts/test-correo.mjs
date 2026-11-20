@@ -56,6 +56,11 @@ await test('contraseña: el diseño aprobado, con los colores del tema y el What
 	// Con el tema original da los colores del diseño aprobado; el cuadro «Cuida tu cuenta» y las redes siguen.
 	for (const x of ['#0e1920', '#0e5e8a', '#85662b', '#1e7e4a']) assert.match(html, new RegExp(x), x);
 	assert.match(html, /CUIDA TU CUENTA/);
+	// Ningún correo lleva texto invisible de relleno en la vista previa (Hotmail lo manda a «No deseado»).
+	const { readdirSync, readFileSync } = await import('node:fs');
+	for (const dir of ['../netlify/lib/', '../netlify/functions/']) for (const f of readdirSync(new URL(dir, import.meta.url)).filter((x) => x.endsWith('.mjs')))
+		assert.doesNotMatch(readFileSync(new URL(dir + f, import.meta.url), 'utf8'), /&#8199;|&#847;|&zwnj;|\u200c|\u034f/, f);
+	assert.doesNotMatch(html, /&#8199;|&#847;/);
 	assert.match(html, new RegExp(seed.settings.redes.instagram.replace(/[.]/g, '\\.')));
 	const fuente = (await (await import('node:fs/promises')).readFile(new URL('../netlify/lib/correo-contrasena.mjs', import.meta.url), 'utf8'));
 	assert.doesNotMatch(fuente, /#[0-9a-f]{6}|wa\.me\/\d/i, 'sin colores ni números escritos a mano');

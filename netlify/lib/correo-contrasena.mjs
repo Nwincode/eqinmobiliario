@@ -1,6 +1,6 @@
 // Correo «Crea o cambia tu contraseña»: el mismo para dar acceso (dueños, colaboradores, equipo) y para «¿Olvidaste tu
 // contraseña?». Lo manda netlify/functions/contrasena.mjs. Es el diseño que aprobó el dueño, tal cual (cuadro beige
-// «Cuida tu cuenta», redes en el pie, ícono en el botón de WhatsApp, relleno de la vista previa). No va en la plantilla
+// «Cuida tu cuenta», redes en el pie, ícono en el botón de WhatsApp, sin relleno invisible en la vista previa: docs/revision-antes-de-unir.md). No va en la plantilla
 // común porque ella cambiaría el aspecto de los demás correos; pero sus colores salen del mismo tema (`coloresCorreo`:
 // Contenido → Colores) y el WhatsApp y las redes, de Contenido (`whatsappEmpresa`, `redesEmpresa`), nunca escritos a mano.
 // Imágenes en images/correo/. Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
@@ -20,7 +20,7 @@ export async function correoContrasena({ link, email }) {
 	const enlace = esc(link);
 	const correo = esc(email);
 	const correoUrl = encodeURIComponent(String(email || ''));
-	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.suave}">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.suave}">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${c.suave}" style="background:${c.suave}"><tr><td align="center" style="padding:28px 12px;font-family:Arial,Helvetica,sans-serif">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
