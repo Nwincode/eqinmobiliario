@@ -11,7 +11,7 @@ import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, co
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, comprobanteVigente, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
+	motivoParaNoConfirmar, comprobanteVigente, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches } from '../formato.js';
@@ -403,7 +403,7 @@ export async function render(container, [codigo] = []) {
 		const wa = (mensaje) => iconoBtn('icon-whatsapp', `WhatsApp a ${l.nombre}`, { href: whatsappUrl(l.telefono, mensaje), target: '_blank', rel: 'noopener' });
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
-		const nivel = com ? V.nivelMora({ ...res, chatPagado: ch?.estado === 'pagada' }, Date.now()) : 0;
+		const nivel = com ? V.nivelMora(conDatosDelChat(res, ch), Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
 		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
@@ -467,7 +467,7 @@ export async function render(container, [codigo] = []) {
 	reservas.filter((r) => r.estado === 'confirmada' && r.comision && !r.comision.pagada)
 		.forEach((r) => { total[r.moneda] = (total[r.moneda] || 0) + r.comision.monto; });
 	// Aviso al socio: lo que ya le pasa por tener una comisión atrasada.
-	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelMora({ ...r, chatPagado: datosChat[r.codigo]?.estado === 'pagada' }, Date.now())));
+	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelMora(conDatosDelChat(r, datosChat[r.codigo]), Date.now())));
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
 	// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).

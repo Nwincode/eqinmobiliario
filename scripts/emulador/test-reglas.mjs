@@ -573,6 +573,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('solicitud con el subtotal como texto', conReserva('lead-cot-4', { ...bien, subtotal: 'mucho' }), false);
 		await espera('solicitud sin subtotal', conReserva('lead-cot-5', (({ subtotal, ...x }) => x)(bien)), false);
 		await espera('solicitud con 2.5 noches', conReserva('lead-cot-6', { ...bien, noches: 2.5 }), false);
+		await espera('solicitud en cero (nada que cobrar)', conReserva('lead-cot-13', { ...bien, subtotal: 0, impuestos: 0, total: 0 }), false);
+		await espera('solicitud de 91 noches (más que el tope de la ficha)', conReserva('lead-cot-14', { ...bien, llegada: '2027-03-01', salida: '2027-05-31', noches: 91, subtotal: 9100, impuestos: 2002, total: 11102 }), false);
+		await espera('solicitud de 90 noches (control)', conReserva('lead-cot-15', { ...bien, llegada: '2027-03-01', salida: '2027-05-30', noches: 90, subtotal: 9000, impuestos: 1980, total: 10980 }), true);
 		await espera('solicitud con 0 noches', conReserva('lead-cot-7', { ...bien, noches: 0 }), false);
 		await espera('solicitud con el subtotal negativo', conReserva('lead-cot-8', { ...bien, subtotal: -100, impuestos: -22, total: -122 }), false);
 		await espera('solicitud cotizada como la cotiza el sitio, con centavos (control)', conReserva('lead-cot-ok', { ...bien, subtotal: 433.33, impuestos: 95.33, total: 528.66 }), true);

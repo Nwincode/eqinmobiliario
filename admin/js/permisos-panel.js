@@ -2,6 +2,7 @@
 // socio (permisosSocios/{propietarioId}). La cuenta es la de admin/js/permisos-socio.js, la misma del servidor
 // (netlify/lib/permisos.mjs, cada hora): aquí se recalcula al momento para no esperar esa hora.
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp } from './firebase.js';
+import { conDatosDelChat } from './reservas-calculo.js';
 import { deudaDe, faltaSaberSiPago, permisosDe, documentoPermisos, mismosPermisos, limpiarDevolver } from './permisos-socio.js';
 
 const refGlobal = () => doc(db, 'settings', 'permisosSocios');
@@ -24,8 +25,8 @@ export async function recalcularPermisosDe(propietarioId, global = null) {
 	const propio = prop.data().permisos || {};
 	const lista = reservas.docs.map((d) => ({ id: d.id, ...d.data() }));
 	// Las de antes sin la marca: su chat dice si el socio marcó «Pago recibido».
-	await Promise.all(lista.filter((r) => faltaSaberSiPago(r, propietarioId, Date.now())).map(async (r) => {
-		r.chatPagado = (await getDoc(doc(db, 'chats', r.chat)).catch(() => null))?.data()?.estado === 'pagada';
+	await Promise.all(lista.map(async (r, i) => {
+		if (faltaSaberSiPago(r, propietarioId, Date.now())) lista[i] = conDatosDelChat(r, (await getDoc(doc(db, 'chats', r.chat)).catch(() => null))?.data());
 	}));
 	const deuda = deudaDe(lista, propietarioId, Date.now());
 	const permisos = permisosDe({ global: g, propio, deuda });

@@ -60,9 +60,9 @@ export default async () => {
 		// Confirmadas sin pago marcado con la llegada ya pasada: cada mañana, hasta que se resuelvan.
 		const sinPago = !sonLas7 ? [] : await (async () => {
 			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
-			// Las de los últimos 30 días con plazos (lo de antes no), sin la comisión ya pagada.
-			const desde30 = V.sumarDias(hoy, -30);
-			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && r.llegada >= desde30 && !r.comision?.pagada && !r.comision?.cobrar
+			// Todas las de plazos (lo de antes no) sin la comisión pagada, sin límite de días: una que el socio nunca marca
+			// sigue saliendo hasta que se resuelva (y desde los 3 días de la llegada ya cuenta para la mora: V.cobrable).
+			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && !r.comision?.pagada && !r.comision?.cobrar
 				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0) && porId.get(r.chat)?.estado === 'confirmada')
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
 					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));

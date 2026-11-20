@@ -448,10 +448,11 @@ service cloud.firestore {
     // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
     // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.
     function reservaCotizada(r) {
-      return r.get('subtotal', -1) is number && r.subtotal >= 0
+      // Con algo que cobrar (subtotal > 0) y a lo más 90 noches (V.MAX_NOCHES en js/calc-vacacional.js: la ficha no deja más).
+      return r.get('subtotal', -1) is number && r.subtotal > 0
         && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
         && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
-        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches)
+        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 90 && r.noches == math.floor(r.noches)
         // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
         && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
     }

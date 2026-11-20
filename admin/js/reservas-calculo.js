@@ -210,23 +210,21 @@ export const esDuplicada = (a, b) => a !== b && a?.id !== b?.id && Boolean(corre
 // ¿La solicitud ya se respondió? (el chat con estado, o la solicitud con uno que no es «pendiente»).
 export const yaRespondida = (estadoChat, estadoSolicitud) => Boolean(estadoChat) || Boolean(estadoSolicitud && estadoSolicitud !== 'pendiente');
 
-// ¿Esta solicitud aparta sus fechas ahora? Sí mientras nadie la responde y no vence su plazo de 24 h (venceRespuesta):
-// la misma regla en la página (netlify/functions/disponibilidad.mjs), el calendario del socio (mis-casas.js), Solicitudes
-// y el servidor que cierra la que llega encima (cerrarSiSeCruza). `creada` en milisegundos. Una que sigue abierta
-// después (el anfitrión conversa con el cliente) o una de antes de los plazos (PLAZOS_DESDE) ya no aparta: se puede
-// pedir encima y Solicitudes avisa «Se cruza con otra solicitud».
-export const apartaFechas = (estadoChat, estadoSolicitud, creada, ahora = Date.now()) => !yaRespondida(estadoChat, estadoSolicitud)
-	&& conPlazo(creada) && ahora < venceRespuesta(creada);
+// ¿Esta solicitud aparta sus fechas ahora? Sí mientras nadie la responde y no vence su plazo de 24 h (venceRespuesta),
+// y solo si el servidor ya la cotizó (montosSolicitud: la vio llegar con su chat, `montos`) a un precio válido (con algo
+// que cobrar y no por debajo del precio de la casa): una solicitud escrita a mano contra la base, sin chat o en cero, no
+// aparta nada. La misma regla en la página (netlify/functions/disponibilidad.mjs), el calendario del socio (mis-casas.js)
+// y Solicitudes. `creada` en milisegundos. Una que sigue abierta después (el anfitrión conversa con el cliente) o una de
+// antes de los plazos (PLAZOS_DESDE) ya no aparta: se puede pedir encima y Solicitudes avisa «Se cruza con otra solicitud».
+export const apartaFechas = (estadoChat, estadoSolicitud, creada, montos, ahora = Date.now()) => !yaRespondida(estadoChat, estadoSolicitud)
+	&& conPlazo(creada) && ahora < venceRespuesta(creada) && Boolean(montos) && montos.alojamiento > 0 && !bajoElPlan(montos);
 // ¿Dos estancias { llegada, salida } comparten alguna noche? (la salida no ocupa noche).
 export const seCruzan = (a, b) => Boolean(a?.llegada && b?.llegada) && a.llegada < b.salida && b.llegada < a.salida;
-// Una solicitud que llegó encima de otra que aparta esas fechas (la anterior manda; con la misma hora, la de id menor),
-// o de una reserva confirmada: se cierra sola. La del mismo cliente con las mismas fechas no cuenta (es repetida: la
-// cierra cerrarDuplicadas al confirmar). `otras`: solicitudes de la misma casa con `createdAt` en milisegundos.
-export function apartadaPor(lead, otras, reservas, ahora = Date.now()) {
-	const antes = (o) => o.createdAt < lead.createdAt || (o.createdAt === lead.createdAt && o.id < lead.id);
-	const sol = (otras || []).find((o) => o.id !== lead.id && o.propertyId === lead.propertyId && antes(o) && !esDuplicada(lead, o)
-		&& seCruzan(o.reserva, lead.reserva) && apartaFechas('', o.solicitud?.estado, o.createdAt, ahora));
-	if (sol) return sol.reserva.codigo;
+// Una solicitud abierta cuyas fechas ya tiene una reserva confirmada de la casa: se cierra sola (la cierra el servidor
+// al confirmar la otra, al llegar ella y en el cron: cerrarSiSeCruza). Dos solicitudes abiertas que se cruzan no se
+// cierran entre sí (una pudo ser falsa): Solicitudes avisa «Se cruza con otra solicitud» y al confirmar una se cierra la
+// otra. `reservas`: [{ id, propertyId, estado, llegada, salida, codigo }]. Devuelve el código de la reserva o ''.
+export function apartadaPor(lead, reservas) {
 	const res = (reservas || []).find((r) => V().choquesReserva({ id: lead.id, propertyId: lead.propertyId, ...lead.reserva }, [r]).length);
 	return res ? (res.codigo || 'otra reserva') : '';
 }
@@ -236,8 +234,8 @@ export function choqueExterno(reserva, externas) {
 	const x = (externas || []).find((r) => seCruzan(reserva, { llegada: r.desde, salida: r.hasta }));
 	return x ? `Esas fechas ya están ocupadas en ${x.fuente || 'otra plataforma'} (${x.desde} a ${x.hasta}): no se puede confirmar. Ciérrala con «No se dio».` : '';
 }
-export const MOTIVO_FECHAS_APARTADAS = 'Fechas ya apartadas';
-export const TEXTO_FECHAS_APARTADAS = 'Alguien pidió esas fechas un momento antes que tú, así que cerramos esta solicitud. Elige otras fechas en la ficha de la casa.';
+export const MOTIVO_FECHAS_APARTADAS = 'Fechas ya reservadas';
+export const TEXTO_FECHAS_APARTADAS = 'Esas fechas se acaban de reservar, así que cerramos esta solicitud. Elige otras fechas en la ficha de la casa.';
 TEXTOS_NO[MOTIVO_FECHAS_APARTADAS] = TEXTO_FECHAS_APARTADAS;
 
 // ¿Todavía no empieza el día de llegada? (día de Guatemala: hasta las 23:59 del día anterior).
@@ -275,7 +273,7 @@ export function motivoParaNoMeLlego(reserva, chat, token, ahora = Date.now()) {
 	if (V().hoy(ahora) > V().sumarDias(reserva.llegada, DIAS_NO_LLEGO)) return `Pasaron más de ${DIAS_NO_LLEGO} días desde la llegada: avísale al administrador.`;
 	return '';
 }
-export const DIAS_NO_LLEGO = 3;
+export const DIAS_NO_LLEGO = globalThis.EQVacacional.DIAS_NO_LLEGO;
 // Milisegundos de una fecha guardada (Timestamp del panel, Date del servidor, texto del sitio o número).
 const enMs = (v) => (typeof v === 'number' ? v : v?.toMillis?.() ?? (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0));
 // ¿El cliente mandó un comprobante que sigue en pie? El de antes de «No me llegó» (pagoReabierto) queda guardado como
@@ -290,3 +288,7 @@ export const textoPagoReabierto = (vence, en = false) => (en
 	: `El anfitrión todavía no ve tu pago. Revisa tu transferencia y adjunta otra vez el comprobante${Number.isFinite(vence) ? ` antes del ${fechaHora(vence, false)}` : ''}; nuestro equipo revisa la reserva contigo.`);
 // Fecha y hora de Guatemala para los textos al cliente (chat, página y correos): «vie, 20 nov, 14:00».
 export const fechaHora = (t, en = false) => new Date(t).toLocaleString(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+// La reserva con lo que dice su chat para V.cobrable (js/calc-vacacional.js): «Pago recibido» y un comprobante en pie.
+// Lo usan el panel (Solicitudes, la campana, los permisos) y el servidor (pausa por mora, permisos).
+export const conDatosDelChat = (r, chat) => ({ ...r, chatPagado: chat?.estado === 'pagada', chatComprobante: comprobanteVigente(chat) });

@@ -257,34 +257,28 @@ test('plazo de pago guardado: el nuevo de «No me llegó» manda; 0 = sin plazo 
 	assert.equal(cancelaSola(Infinity, '2026-11-23', Date.parse('2026-11-23T12:00:00Z')), false);
 });
 
-test('una solicitud aparta sus fechas mientras nadie la responde, hasta sus 24 h (la de antes de los plazos, no)', () => {
+test('una solicitud aparta sus fechas mientras nadie la responde, hasta sus 24 h, y solo si el servidor la cotizó a un precio válido', () => {
 	const creada = PLAZOS_DESDE + 86400000;
-	assert.equal(apartaFechas('', undefined, creada, creada + 1), true);
-	assert.equal(apartaFechas('', 'pendiente', creada, venceRespuesta(creada) - 1), true);
-	assert.equal(apartaFechas('', '', creada, venceRespuesta(creada)), false);
-	assert.equal(apartaFechas('confirmada', '', creada, creada + 1), false);
-	assert.equal(apartaFechas('', 'no', creada, creada + 1), false);
-	assert.equal(apartaFechas('', '', PLAZOS_DESDE - 1, PLAZOS_DESDE), false);
+	const m = montosCotizados(solicitud(360).reserva, casa, privado);
+	assert.equal(apartaFechas('', undefined, creada, m, creada + 1), true);
+	assert.equal(apartaFechas('', 'pendiente', creada, m, venceRespuesta(creada) - 1), true);
+	assert.equal(apartaFechas('', '', creada, m, venceRespuesta(creada)), false);
+	assert.equal(apartaFechas('confirmada', '', creada, m, creada + 1), false);
+	assert.equal(apartaFechas('', 'no', creada, m, creada + 1), false);
+	assert.equal(apartaFechas('', '', PLAZOS_DESDE - 1, m, PLAZOS_DESDE), false);
+	// Sin cotizar por el servidor (escrita a mano contra la base, sin chat), en cero o por debajo del precio: no aparta.
+	assert.equal(apartaFechas('', '', creada, null, creada + 1), false);
+	assert.equal(apartaFechas('', '', creada, montosCotizados(solicitud(0).reserva, casa, privado), creada + 1), false);
+	assert.equal(apartaFechas('', '', creada, montosCotizados(solicitud(300).reserva, casa, privado), creada + 1), false);
 });
 
-test('la que llega encima de otra que aparta esas fechas se cierra; la anterior manda, la repetida no cuenta', () => {
-	const t = PLAZOS_DESDE + 86400000;
-	const a = { id: 'a', propertyId: 'c', createdAt: t, email: 'x@example.com', reserva: { codigo: 'EQ-A', llegada: '2027-01-10', salida: '2027-01-13' } };
-	const b = { id: 'b', propertyId: 'c', createdAt: t + 1000, email: 'y@example.com', reserva: { codigo: 'EQ-B', llegada: '2027-01-12', salida: '2027-01-14' } };
-	assert.equal(apartadaPor(b, [a, b], [], t + 2000), 'EQ-A');
-	assert.equal(apartadaPor(a, [a, b], [], t + 2000), '');
-	// Misma hora: manda la de id menor (a la vez, solo una queda).
-	assert.equal(apartadaPor({ ...b, createdAt: t }, [a, { ...b, createdAt: t }], [], t + 1), 'EQ-A');
-	// La anterior ya no aparta (respondida o vencida): la nueva sigue.
-	assert.equal(apartadaPor(b, [{ ...a, solicitud: { estado: 'no' } }], [], t + 2000), '');
-	assert.equal(apartadaPor(b, [a], [], venceRespuesta(t) + 1), '');
-	// Salida el día de la llegada: no se cruzan.
-	assert.equal(apartadaPor({ ...b, reserva: { ...b.reserva, llegada: '2027-01-13', salida: '2027-01-15' } }, [a], [], t + 2000), '');
-	// El mismo cliente y las mismas fechas: es repetida, no se cierra por esto.
-	assert.equal(apartadaPor({ ...a, id: 'z', createdAt: t + 5 }, [a], [], t + 10), '');
-	// Encima de una reserva confirmada.
-	assert.equal(apartadaPor(b, [], [{ id: 'r', propertyId: 'c', estado: 'confirmada', llegada: '2027-01-13', salida: '2027-01-15', codigo: 'EQ-R' }], t), 'EQ-R');
-	assert.equal(apartadaPor(b, [], [{ id: 'r', propertyId: 'c', estado: 'cancelada', llegada: '2027-01-13', salida: '2027-01-15' }], t), '');
+test('una solicitud abierta encima de una reserva confirmada se cierra; dos abiertas no se cierran entre sí', () => {
+	const b = { id: 'b', propertyId: 'c', reserva: { codigo: 'EQ-B', llegada: '2027-01-12', salida: '2027-01-14' } };
+	assert.equal(apartadaPor(b, [{ id: 'r', propertyId: 'c', estado: 'confirmada', llegada: '2027-01-13', salida: '2027-01-15', codigo: 'EQ-R' }]), 'EQ-R');
+	assert.equal(apartadaPor(b, [{ id: 'r', propertyId: 'c', estado: 'cancelada', llegada: '2027-01-13', salida: '2027-01-15' }]), '');
+	assert.equal(apartadaPor(b, [{ id: 'r', propertyId: 'c', estado: 'confirmada', llegada: '2027-01-14', salida: '2027-01-16' }]), '');
+	// La reserva de esta misma solicitud no cuenta.
+	assert.equal(apartadaPor(b, [{ id: 'b', propertyId: 'c', estado: 'confirmada', llegada: '2027-01-12', salida: '2027-01-14' }]), '');
 });
 
 test('confirmar encima de noches de Airbnb, Booking o VRBO: el motivo en una línea', () => {

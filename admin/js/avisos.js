@@ -7,7 +7,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from './firebase.js';
 import { h, showError } from './ui.js';
 import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
-import { bajoElPlan } from './reservas-calculo.js';
+import { bajoElPlan, conDatosDelChat } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const DIA = 86400000;
@@ -86,6 +86,7 @@ async function leerFuentes() {
 		// Montos congelados: una cotizada por debajo del precio de la casa la confirma el administrador (bajoElPlan).
 		admin ? seguro(todos(collection(db, 'montosSolicitud'))) : []]);
 	const montos = Object.fromEntries(congelados.map((m) => [m.id, m]));
+	const chatDe = Object.fromEntries(chats.map((c) => [c.codigo, c]));
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
 	const reserva = Object.fromEntries(reservas.map((r) => [r.id, r]));
@@ -100,7 +101,8 @@ async function leerFuentes() {
 				estado: est === 'pendiente' && String(l.reserva.llegada || '') < hoy ? 'vieja' : est,
 				equipo: bajoElPlan(montos[l.id]),
 				alerta: ((a) => (a === 'mora' && reserva[l.solicitud?.reservaId]?.comision?.comprobante ? '' : a))(
-					V.alertaSolicitud(est, ms(l.createdAt), l.reserva, reserva[l.solicitud?.reservaId], casa[l.propertyId]?.vacacional?.bloqueos, ahora))
+					// Con lo que dice su chat (pago marcado, comprobante): la misma cuenta de Solicitudes (V.nivelMora).
+					V.alertaSolicitud(est, ms(l.createdAt), l.reserva, reserva[l.solicitud?.reservaId] && conDatosDelChat(reserva[l.solicitud.reservaId], chatDe[l.reserva.codigo]), casa[l.propertyId]?.vacacional?.bloqueos, ahora))
 			};
 		}),
 		mensajes: await sinResponder(chats),

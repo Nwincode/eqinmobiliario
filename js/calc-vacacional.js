@@ -25,8 +25,11 @@
 	var IVA = 12;
 	var INGUAT = 10;
 	var MARGEN = 20;
-	// La estancia más larga que se puede pedir (la misma que acepta firestore.rules).
-	var MAX_NOCHES = 365;
+	// La estancia más larga que se puede pedir: un solo número para el calendario, validarEstancia y firestore.rules
+	// (reservaCotizada: noches <= 90). Más larga es otra cosa (renta mensual) y una solicitud de un año apartaría la casa.
+	var MAX_NOCHES = 90;
+	// Días después de la llegada en que el socio todavía puede decir «No me llegó» (después, su comisión cuenta como cobrada).
+	var DIAS_NO_LLEGO = 3;
 	var DIA = 86400000;
 	// Los calendarios (iCal) que puede tener una casa, uno por plataforma: el campo en privado/socio, su nombre y su
 	// columna en el importador. Airbnb sigue en «icalUrl» (el de siempre).
@@ -403,13 +406,21 @@
 		return horas === null || horas < 0 ? 0 : horas < 24 ? 1 : horas < 72 ? 2 : 3;
 	}
 	// El peor atraso de cada socio: { propietarioId: 2 | 3 }.
-	// ¿Esta comisión puede castigar al socio (casas fuera del sitio a las 72 h, permisos apagados a los 7 días)? Solo si
-	// se sabe que el cliente pagó: «Pago recibido» (pagoRecibido en la reserva; las de antes, su chat «pagada»: chatPagado,
-	// que pone quien lee el chat) o «Cobrar comisión» del equipo desde la alerta de cada mañana. Una reserva sin chat (a
-	// mano o de antes) cuenta como siempre. Sin esto, el atraso se ve pero no castiga.
-	function cobrable(r) { return Boolean(r && (r.pagoRecibido || r.chatPagado || (r.comision && r.comision.cobrar) || !r.chat)); }
+	// ¿Esta comisión puede castigar al socio (casas fuera del sitio a las 72 h, permisos apagados a los 7 días)? Cuando se
+	// sabe que el cliente pagó o ya no hay cómo saberlo de otra forma:
+	//  - «Pago recibido» (pagoRecibido en la reserva; las de antes, su chat «pagada»: chatPagado, que pone quien lee el chat);
+	//  - el cliente mandó su comprobante y sigue en pie (chatComprobante: comprobanteVigente, también lo pone quien lee el chat);
+	//  - «Cobrar comisión» del equipo desde la alerta de cada mañana;
+	//  - sigue confirmada pasados DIAS_NO_LLEGO días de la llegada: el socio ya no puede decir «No me llegó», así que no
+	//    marcar nada no lo libra del castigo;
+	//  - una reserva sin chat (a mano o de antes) cuenta como siempre.
+	function cobrable(r, ahora) {
+		if (!r) return false;
+		if (r.pagoRecibido || r.chatPagado || r.chatComprobante || (r.comision && r.comision.cobrar) || !r.chat) return true;
+		return r.estado === 'confirmada' && esFecha(r.llegada) && hoy(ahora === undefined ? Date.now() : ahora) > sumarDias(r.llegada, DIAS_NO_LLEGO);
+	}
 	// El nivel de atraso que castiga: el de nivelComision si es cobrable; si no, a lo más «vencida» (1).
-	function nivelMora(r, ahora) { var n = nivelComision(r, ahora); return cobrable(r) ? n : Math.min(n, 1); }
+	function nivelMora(r, ahora) { var n = nivelComision(r, ahora); return cobrable(r, ahora) ? n : Math.min(n, 1); }
 	function sociosEnMora(reservas, ahora) {
 		var out = {};
 		(reservas || []).forEach(function (r) {
@@ -444,7 +455,7 @@
 	}
 
 	return {
-		tieneContacto: tieneContacto, MAX_NOCHES: MAX_NOCHES,
+		tieneContacto: tieneContacto, MAX_NOCHES: MAX_NOCHES, DIAS_NO_LLEGO: DIAS_NO_LLEGO,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN, CALENDARIOS: CALENDARIOS,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,

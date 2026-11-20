@@ -4,6 +4,7 @@
 // El panel hace lo mismo para un socio al cambiar sus interruptores o marcar su comisión pagada (admin/js/permisos-panel.js).
 // Cada socio va en su transacción, leyendo ahí su ficha, lo de todos y sus reservas: si el administrador cambia algo
 // mientras tanto (marca pagada, «Devolver»), la transacción se repite con lo nuevo y no escribe un corte viejo.
+import { conDatosDelChat } from '../../admin/js/reservas-calculo.js';
 import { deudaDe, faltaSaberSiPago, permisosDe, documentoPermisos, mismosPermisos, limpiarDevolver, CLAVES } from '../../admin/js/permisos-socio.js';
 import { listar } from './firestore.mjs';
 import { transaccion } from './firestore-escritura.mjs';
@@ -26,7 +27,7 @@ export async function recalcularPermisos(ahora = Date.now()) {
 			]);
 			if (!prop) return false;
 			// Las de antes sin la marca: su chat dice si el socio marcó «Pago recibido».
-			for (const r of reservas.filter((x) => faltaSaberSiPago(x, id, ahora))) r.chatPagado = (await leer(`chats/${r.chat}`))?.estado === 'pagada';
+			for (const [i, r] of reservas.entries()) if (faltaSaberSiPago(r, id, ahora)) reservas[i] = conDatosDelChat(r, await leer(`chats/${r.chat}`));
 			const deuda = deudaDe(reservas, id, ahora);
 			const nuevo = documentoPermisos(permisosDe({ global, propio: prop.permisos, deuda }), deuda);
 			const limpiar = limpiarDevolver(prop.permisos, deuda);
