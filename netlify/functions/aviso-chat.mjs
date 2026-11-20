@@ -11,7 +11,7 @@ import { datosConfigurados, leerPublico, leerPrivado } from '../lib/firestore.mj
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { congelarMontos, cerrarSiSeCruza, solicitudesQueApartan } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
-import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
+import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
 
 const porChat = limitador(20);
@@ -35,7 +35,8 @@ export default async (req, context) => {
 	// Solo la primera vez (todavía sin montos congelados): los mensajes del chat después no lo repiten.
 	const primera = escrituraConfigurada() && chat?.leadId && !chat.estado && !(await leerPrivado(`montosSolicitud/${chat.leadId}`).catch(() => null));
 	if (primera) {
-		await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => console.error('Montos de la solicitud:', err.message));
+		const montos = await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => { console.error('Montos de la solicitud:', err.message); return null; });
+		await avisarQueTocaConfirmar(chat.leadId, montos).catch((err) => console.error('Te toca confirmar:', err.message));
 		const candidatas = await solicitudesQueApartan(chat.propertyId).catch(() => []);
 		await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId, Date.now(), candidatas)).catch((err) => console.error('Solicitud cruzada:', err.message));
 		await purgarCasa(chat.propertyId);

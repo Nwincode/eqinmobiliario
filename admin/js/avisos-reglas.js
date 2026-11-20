@@ -31,7 +31,7 @@ function textoExclusiva(dias) {
 }
 
 // Entradas (cada lista ya trae solo lo que esa persona puede ver):
-//  solicitudes: [{ leadId, codigo, nombre, casa, creado, estado, alerta }]   alerta: '' | 'tarde' | 'mora' | 'bloqueada'
+//  solicitudes: [{ leadId, codigo, nombre, casa, creado, estado, alerta, equipo }]   alerta: '' | 'tarde' | 'mora' | 'bloqueada'; equipo: la confirma el administrador
 //  mensajes:    [{ codigo, nombre, casa, fecha }]                           chats cuyo último mensaje es del cliente
 //  comprobantes:[{ codigo, socio, casa, fecha }]                            pago a EQ subido, sin marcar pagado
 //  comisiones:  [{ codigo, casa, nivel, vence }]                            del socio: su pago a EQ vencido, sin comprobante
@@ -48,9 +48,10 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 		if (s.estado === 'pendiente') {
 			conSolicitud.add(s.codigo);
 			out.push({
-				clave: `solicitud_${s.codigo}`, tipo: 'solicitud', icono: 'icon-calendar', href: enlaceSolicitud(s.codigo), fecha: s.creado, urgente: s.alerta === 'tarde',
-				titulo: `${s.nombre || 'Un cliente'} pide reservar`,
-				detalle: [s.casa, s.alerta === 'tarde' ? 'sin responder' : '', conMensaje.has(s.codigo) ? 'te escribió' : ''].filter(Boolean).join(' · ')
+				// Cotizada por debajo del precio de la casa (s.equipo): el socio no la confirma, le toca al administrador.
+				clave: `solicitud_${s.codigo}`, tipo: 'solicitud', icono: 'icon-calendar', href: enlaceSolicitud(s.codigo), fecha: s.creado, urgente: s.alerta === 'tarde' || Boolean(s.equipo),
+				titulo: s.equipo ? `Te toca confirmar la solicitud de ${s.nombre || 'un cliente'}` : `${s.nombre || 'Un cliente'} pide reservar`,
+				detalle: [s.casa, s.equipo ? 'se le cotizó menos que el precio de la casa' : '', s.alerta === 'tarde' ? 'sin responder' : '', conMensaje.has(s.codigo) ? 'te escribió' : ''].filter(Boolean).join(' · ')
 			});
 		}
 		if (s.alerta === 'mora') out.push({

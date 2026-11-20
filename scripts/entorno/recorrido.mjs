@@ -566,8 +566,13 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		paso('Servidor: sin la dirección exacta de la casa no se confirma (409)', rDir.status === 409 && /dirección/.test(rDir.error || '') && await sinEscribir(sinDir) && dir !== '', resp(rDir));
 		// Cotizado por debajo del precio de la casa (el subtotal lo escribe el navegador): lo confirma el administrador.
 		const barata = await sembrar('srv-barata', iso(290), 2, { subtotal: 50 });
+		await fetch(`${SITIO}/api/aviso-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: barata.token }) });
 		const rBarata = await api('socio', { accion: 'confirmar', leadId: barata.id });
-		paso('Servidor: una solicitud cotizada por debajo del precio de la casa no la confirma el socio (409, «la confirma el administrador»)', rBarata.status === 409 && /administrador/.test(rBarata.error || '') && await sinEscribir(barata), resp(rBarata));
+		await ir(admin.p, '#/solicitudes', 3500);
+		const porHacer = await admin.p.locator('.alert-danger', { hasText: 'Te toca confirmar' }).innerText().catch(() => '');
+		const correoEquipo = readFileSync(path.join(DIR, 'correos.jsonl'), 'utf8').includes(`Te toca confirmar esta solicitud: ${barata.codigo}`);
+		paso('Cotizada por debajo del precio: el equipo recibe «Te toca confirmar esta solicitud» y la ve arriba en Solicitudes con su plazo', correoEquipo && porHacer.includes(barata.codigo) && /vence/.test(porHacer), porHacer.slice(0, 160));
+		paso('Servidor: una solicitud cotizada por debajo del precio de la casa no la confirma el socio (409, «La confirma el equipo»)', rBarata.status === 409 && /La confirma el equipo/.test(rBarata.error || '') && await sinEscribir(barata), resp(rBarata));
 		// Dos solicitudes que se cruzan: al llegar la segunda (/api/aviso-chat), el servidor la cierra; la primera sigue.
 		const c1 = await sembrar('srv-cruce1', iso(310), 3);
 		await espera(50);

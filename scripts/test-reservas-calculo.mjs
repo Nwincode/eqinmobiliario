@@ -52,9 +52,9 @@ test('montos congelados: la limpieza, la parte del socio y el margen de la casa 
 	const barata = montosCotizados(solicitud(300).reserva, casa, privado);
 	assert.deepEqual([barata.alojamiento, barata.costoSocio, barata.ganancia, barata.coincide], [300, 240, 60, false]);
 	assert.equal(bajoElPlan(barata), true);
-	assert.match(motivoSocioNoConfirma(barata), /la confirma el administrador/);
+	assert.match(motivoSocioNoConfirma(barata), /^La confirma el equipo/);
 	assert.equal(motivoSocioNoConfirma(montosCotizados(solicitud(360).reserva, casa, privado)), '');
-	assert.match(motivoSocioNoConfirma(montosCotizados(solicitud(0).reserva, casa, privado)), /administrador/);
+	assert.match(motivoSocioNoConfirma(montosCotizados(solicitud(0).reserva, casa, privado)), /equipo/);
 	// Uno congelado antes del piso (repartido con la proporción: 250/50): al confirmar, EQ igual recibe su margen.
 	const deAntes = { moneda: 'USD', costoSocio: 250, alojamiento: 300, limpieza: 0, margen: 20, ganancia: 50, delPlan: 360, coincide: false };
 	const conf = montosDeConfirmacion(deAntes, null);

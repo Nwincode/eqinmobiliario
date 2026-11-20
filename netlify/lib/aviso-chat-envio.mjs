@@ -12,6 +12,8 @@ import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
+import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
+import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
 export async function enviarAvisosChat(token, { repaso = false, reintento = false } = {}) {
@@ -87,3 +89,21 @@ const marcar = (token, clave, { listo }) => transaccion(async ({ leer, cambiar }
 	if (listo) { if (c.avisoPendiente === clave) cambiar(`chats/${token}`, { avisoPendiente: '' }); }
 	else cambiar(`chats/${token}`, { avisoPendiente: clave, avisoEnviado: '' });
 });
+
+// Una solicitud cotizada por debajo del precio de la casa (bajoElPlan, al congelar sus montos): el socio no la puede
+// confirmar, le toca al administrador. Correo al equipo en seguida (la campana y Solicitudes también lo dicen). Lo llaman
+// /api/aviso-chat y el cron de plazos, solo la vez que congelan los montos (no se repite).
+export async function avisarQueTocaConfirmar(leadId, montos) {
+	if (!bajoElPlan(montos) || !servicioCorreo() || !destinatariosEquipo().length) return false;
+	const lead = await leerPrivado(`leads/${leadId}`).catch(() => null);
+	const r = lead?.reserva;
+	if (!r?.codigo) return false;
+	const dinero = (n) => `${prefijoMoneda(montos.moneda)} ${miles(n)}`;
+	const url = `${SITE_URL}/admin/#/solicitudes/${encodeURIComponent(r.codigo)}`;
+	const intro = `${TEXTO_CONFIRMA_EQUIPO}: se le cotizaron ${dinero(montos.alojamiento)} de alojamiento y con los precios de la casa son ${dinero(montos.delPlan)}. El socio no la puede confirmar: confírmala o ciérrala en las próximas 24 h (después se cierra sola).`;
+	const filas = [['Solicitud', r.codigo], ['Casa', lead.propertyTitulo || ''], ['Fechas', `${r.llegada} → ${r.salida}`]];
+	const html = await plantilla({ titulo: 'Te toca confirmar esta solicitud', intro: esc(intro), preheader: intro, lang: 'es',
+		bloques: (c) => datos(c, filas) + boton(c, 'Abrir la solicitud', url, c.primary, { ancho: true }) });
+	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Te toca confirmar esta solicitud: ${r.codigo}`, html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
+	return true;
+}

@@ -20,7 +20,7 @@ import { datosConfigurados, desde, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
-import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
+import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { yaRespondida, seCruzan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
 	MOTIVO_CASA_NO_DISPONIBLE, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
@@ -128,7 +128,8 @@ export default async () => {
 		const congeladas = new Set((await desde('montosSolicitud', 'cuando', new Date(ahora - 8 * DIA)).catch(() => [])).map((m) => m.id));
 		for (const l of abiertas.filter((x) => !congeladas.has(x.id))) {
 			if (!queda()) return;
-			await transaccion((tx) => congelarMontos(tx, l.id)).catch((err) => console.error('Plazos (montos):', err.message));
+			const montos = await transaccion((tx) => congelarMontos(tx, l.id)).catch((err) => { console.error('Plazos (montos):', err.message); return null; });
+			await avisarQueTocaConfirmar(l.id, montos).catch((err) => console.error('Plazos (te toca confirmar):', err.message));
 		}
 		// Las que llegaron encima de otra que aparta esas fechas y no se cerraron al llegar (su /api/aviso-chat no llegó).
 		const cruzadas = abiertas.filter((l) => abiertas.some((o) => o !== l && o.propertyId === l.propertyId && seCruzan(o.reserva, l.reserva)));

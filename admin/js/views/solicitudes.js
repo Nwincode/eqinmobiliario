@@ -11,7 +11,7 @@ import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, co
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, comprobanteVigente, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
+	motivoParaNoConfirmar, comprobanteVigente, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches } from '../formato.js';
@@ -174,7 +174,9 @@ export async function render(container, [codigo] = []) {
 	const puedeNoMeLlego = (l) => deHoy(l.propertyId) && !motivoParaNoMeLlego(reservaDe(l), datosChat[l.reserva.codigo], chats[l.reserva.codigo]);
 	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
-	const orden = (l) => (l.reserva.codigo === codigo ? 0 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
+	// Cotizada por debajo del precio de la casa (montos congelados por el servidor): la confirma el administrador, va arriba.
+	const teToca = (l) => admin && estado(l) === 'pendiente' && bajoElPlan(congelados[l.id]) && !llegadaPasada(l.reserva.llegada);
+	const orden = (l) => (l.reserva.codigo === codigo ? 0 : teToca(l) ? 0.5 : porResponder.has(l.reserva.codigo) ? 1 : estado(l) === 'pendiente' ? 2 : 3);
 	const alerta = (l) => alertaDe(l, reservaDe(l), casaDe(l.propertyId));
 	// Una solicitud sin responder cuyas fechas ya tienen otra reserva confirmada: no se ofrece «Confirmar» (el servidor la
 	// rechazaría igual, V.choquesReserva); se dice por qué y queda «No se dio» de un toque. Un bloqueo no cuenta: el socio
@@ -410,6 +412,7 @@ export async function render(container, [codigo] = []) {
 				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 				ocupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
 				cruce ? badge(`Se cruza con otra solicitud: ${cruce}`, 'warning') : null,
+				teToca(l) ? badge('Te toca confirmar', 'danger') : null,
 				pasada ? badge('La fecha de llegada ya pasó', 'warning') : null,
 				((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
 				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
@@ -488,8 +491,15 @@ export async function render(container, [codigo] = []) {
 			h('span', { class: 'flex-grow-1' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar una reserva, porque el cliente no sabría a dónde pagar.'),
 			equipo ? h('a', { class: 'btn btn-sm btn-outline-primary', target: '_blank', rel: 'noopener', href: whatsappUrl(equipo.whatsapp, 'Hola, te envío mis datos de pago para las reservas (banco, tipo y número de cuenta, a nombre de quién): ') },
 				h('span', { class: 'icon-whatsapp me-1', 'aria-hidden': 'true' }), 'Enviar mis datos') : null) : null);
+	// Por hacer del administrador: las que le tocan a él, con su plazo de 24 h (después se cierran solas).
+	const suyas = leads.filter(teToca);
+	const porHacer = suyas.length ? h('div', { class: 'alert alert-danger d-flex flex-wrap align-items-center gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
+		h('span', { class: 'flex-grow-1' }, `Te toca confirmar (${TEXTO_CONFIRMA_EQUIPO.toLowerCase()}): `,
+			suyas.map((l, i) => [i ? ', ' : '', h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
+				conPlazo(ms(l.createdAt)) ? ` (vence ${formatDate(new Date(venceRespuesta(ms(l.createdAt))))})` : '']))) : null;
 	mount(container,
 		pageHeader('Solicitudes'),
+		porHacer,
 		avisoPago,
 		indicador,
 		variosChats.length ? h('div', { class: 'alert alert-warning d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),

@@ -135,7 +135,8 @@ export function montosCotizados(reserva, casa, privadoSocio) {
 }
 // Cotizado por debajo del plan (o en cero): lo confirma el administrador (el socio, ni en el panel ni en el servidor).
 export const bajoElPlan = (m) => Boolean(m) && (!(m.alojamiento > 0) || (!m.coincide && m.delPlan > 0 && m.alojamiento < m.delPlan));
-export const motivoSocioNoConfirma = (m) => (bajoElPlan(m) ? 'Lo que se le cotizó al cliente quedó por debajo del precio de la casa: esta solicitud la confirma el administrador.' : '');
+export const TEXTO_CONFIRMA_EQUIPO = 'Se le cotizó menos que el precio de la casa';
+export const motivoSocioNoConfirma = (m) => (bajoElPlan(m) ? `La confirma el equipo (${TEXTO_CONFIRMA_EQUIPO.toLowerCase()}).` : '');
 // Los montos congelados con el piso de EQ: con lo cotizado por debajo del plan, EQ conserva su margen completo del plan
 // (los congelados antes de este piso se repartían con la proporción de hoy; sin gananciaDelPlan, sale del margen).
 export function conPisoDeEq(m) {

@@ -7,6 +7,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from './firebase.js';
 import { h, showError } from './ui.js';
 import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
+import { bajoElPlan } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const DIA = 86400000;
@@ -71,7 +72,7 @@ async function leerFuentes() {
 	const { conDueno } = await import('./duenos.js');
 	const admin = session.isAdmin;
 	const filtroAsesor = admin ? [] : [where('agentId', '==', session.agentFiltro)];
-	const [casas, propietarios, leads, chats, reservas, comentarios, nuevos, cambiosDueno] = await Promise.all([
+	const [casas, propietarios, leads, chats, reservas, comentarios, nuevos, cambiosDueno, congelados] = await Promise.all([
 		seguro(loadPropiedades()), seguro(loadPropietarios()),
 		admin ? seguro(todos(query(collection(db, 'leads'), where('reserva.codigo', '>', '')))) : [],
 		admin ? seguro(todos(collection(db, 'chats'))) : [],
@@ -81,7 +82,10 @@ async function leerFuentes() {
 		// Leads de la web sin atender: el administrador, todos; el asesor, los suyos (las reglas no le dejan leer otros).
 		seguro(todos(query(collection(db, 'leads'), ...filtroAsesor, where('estado', '==', 'nuevo')))),
 		// Lo que un dueño cambió él solo de su casa por noche (ya publicado): lo lee el servidor (netlify/functions/mi-casa.mjs).
-		admin ? seguro(cambiosDeDuenos()) : []]);
+		admin ? seguro(cambiosDeDuenos()) : [],
+		// Montos congelados: una cotizada por debajo del precio de la casa la confirma el administrador (bajoElPlan).
+		admin ? seguro(todos(collection(db, 'montosSolicitud'))) : []]);
+	const montos = Object.fromEntries(congelados.map((m) => [m.id, m]));
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
 	const reserva = Object.fromEntries(reservas.map((r) => [r.id, r]));
@@ -94,6 +98,7 @@ async function leerFuentes() {
 				leadId: l.id, codigo: l.reserva.codigo, nombre: l.nombre, casa: l.propertyTitulo || casa[l.propertyId]?.titulo, creado: ms(l.createdAt),
 				// Una solicitud sin responder cuya llegada ya pasó ya no se puede atender: no avisa.
 				estado: est === 'pendiente' && String(l.reserva.llegada || '') < hoy ? 'vieja' : est,
+				equipo: bajoElPlan(montos[l.id]),
 				alerta: ((a) => (a === 'mora' && reserva[l.solicitud?.reservaId]?.comision?.comprobante ? '' : a))(
 					V.alertaSolicitud(est, ms(l.createdAt), l.reserva, reserva[l.solicitud?.reservaId], casa[l.propertyId]?.vacacional?.bloqueos, ahora))
 			};
