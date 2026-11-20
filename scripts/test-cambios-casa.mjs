@@ -1,6 +1,6 @@
 // Pruebas de admin/js/cambios-casa.js: guardar solo lo que cambió la ficha y el historial de estado y de precio.
 import assert from 'node:assert/strict';
-import { cambiosEntre, aplicarCambios, historialCon, huespedesMaxDe } from '../admin/js/cambios-casa.js';
+import { cambiosEntre, aplicarCambios, historialCon, huespedesMaxDe, guardarSobre } from '../admin/js/cambios-casa.js';
 
 let ok = 0;
 const t = (nombre, fn) => { fn(); ok++; console.log('✓', nombre); };
@@ -29,6 +29,18 @@ t('lo que sí cambió la ficha dentro de «vacacional» va campo por campo; lo q
 	const g = aplicarCambios({ vip: true, vacacional: { limpieza: 10, camas: 2, reservadas: [1] } }, c);
 	assert.deepEqual(g, { vacacional: { limpieza: 25, camas: 2, reservadas: [1] } });
 	assert.ok(!('vip' in g));
+});
+
+t('pantallas simples (asesor, reseña, página): una pestaña vieja guarda solo lo suyo, sin borrar lo que otra guardó', () => {
+	const alAbrir = { nombre: 'Ana', cargo: 'Asesora', bio: 'Vieja', en: { cargo: 'Advisor', bio: '' }, seo: { titulo: 'a' }, orden: 1 };
+	// Mientras tanto, otra pestaña cambió la bio, la bio en inglés y el título SEO, y agregó la foto.
+	const ahora = { nombre: 'Ana', cargo: 'Asesora', bio: 'Nueva', foto: '/f.webp', en: { cargo: 'Advisor', bio: 'New' }, seo: { titulo: 'b' }, orden: 1 };
+	// La pestaña vieja solo cambió el cargo, el cargo en inglés y quitó el orden.
+	const mio = { nombre: 'Ana', cargo: 'Gerente', bio: 'Vieja', en: { cargo: 'Manager', bio: '' }, seo: { titulo: 'a' } };
+	assert.deepEqual(guardarSobre(ahora, alAbrir, mio), { nombre: 'Ana', cargo: 'Gerente', bio: 'Nueva', foto: '/f.webp', en: { cargo: 'Manager', bio: 'New' }, seo: { titulo: 'b' } });
+	// Sin cambios propios, lo guardado queda tal cual (también fechas que el formulario copió como objeto).
+	const fecha = { seconds: 1, nanoseconds: 0 };
+	assert.deepEqual(guardarSobre({ ...ahora, createdAt: fecha }, { ...alAbrir, createdAt: fecha }, { ...alAbrir, createdAt: fecha }), { ...ahora, createdAt: fecha });
 });
 
 t('el orden de las llaves no cuenta como cambio', () => {

@@ -20,6 +20,8 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
+import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
+import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -42,6 +44,8 @@ async function readJson(file) {
 
 async function loadData(config) {
 	const seed = await readJson(process.env.SEED_FILE || 'data/seed.json');
+	// Lo que falte en settings/site se completa siempre con el del repositorio (también con otro SEED_FILE).
+	const defaults = (await readJson('data/seed.json')).settings;
 	const fb = config.firebase || {};
 	const fromSeed = () => ({
 		source: 'seed',
@@ -56,24 +60,27 @@ async function loadData(config) {
 		// DATOS=seed: generar con el archivo de ejemplo aunque Firebase esté configurado (pruebas, sin red).
 	if (!fb.projectId || !fb.apiKey || process.env.DATOS === 'seed') {
 		console.log(`· ${process.env.DATOS === 'seed' ? 'DATOS=seed' : 'Firebase sin configurar'}: se usan los datos de ${process.env.SEED_FILE || 'data/seed.json'}`);
-		return { ...fromSeed(), defaults: seed.settings };
+		return { ...fromSeed(), defaults };
 	}
 
 	const db = createClient({ projectId: fb.projectId, apiKey: fb.apiKey });
 	// Sin «plan B»: si la nube no responde o no tiene settings/site, el build falla y Netlify deja publicado
 	// el sitio anterior. Publicar el archivo de ejemplo borraría las casas reales del sitio y de Google.
 	// (Para generar con el ejemplo: DATOS=seed.)
-	const settings = await db.getDoc('settings/site');
-	if (!settings) throw new Error('Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). Si la base está vacía de verdad, importa los datos iniciales desde el panel o usa DATOS=seed.');
-	const [properties, agents, testimonials, pages, posts] = await Promise.all([
+	const [settings, properties, agents, testimonials, pages, posts] = await Promise.all([
+		db.getDoc('settings/site'),
 		db.queryTrue('properties', 'publicado'),
 		db.queryTrue('agents', 'activo'),
 		db.queryTrue('testimonials', 'activo'),
 		db.queryTrue('pages', 'publicado'),
 		db.queryTrue('posts', 'publicado')
 	]);
+	// «Importar datos iniciales» (Publicar, en el panel) solo sirve con la base vacía: con casas guardadas no se ofrece.
+	if (!settings) throw new Error(`Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). ${properties.length
+		? `Hay ${properties.length} propiedades publicadas: no importes datos iniciales. Abre Contenido en el panel y guarda para volver a crear los textos del sitio.`
+		: 'Si la base está vacía de verdad, importa los datos iniciales desde Publicar, en el panel, o usa DATOS=seed.'}`);
 	console.log(`· Datos leídos de Firestore (${fb.projectId})`);
-	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults: seed.settings };
+	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults };
 }
 
 function toMillis(v) {
@@ -246,14 +253,43 @@ async function copyAssets() {
 // Lo que cambió desde la última publicación, para IndexNow (netlify/lib/indexnow.mjs, lo manda deploy-succeeded):
 // solo al publicar en Netlify, comparando con el sitemap que sigue publicado mientras corre el build. Si no se puede
 // leer (o en local), `todas`: la función manda todo el sitemap, como antes.
-async function cambiosParaIndexNow(ctx, siteUrl, sitemapXml) {
-	if (!process.env.NETLIFY || ctx.noindex) return { todas: true };
+function cambiosParaIndexNow(ctx, siteUrl, sitemapXml, publicado) {
+	if (ctx.noindex || publicado == null) return { todas: true };
+	return { urls: urlsCambiadas(sitemapXml, publicado, siteUrl) };
+}
+
+// El sitemap que sigue publicado mientras corre el build (solo al publicar en Netlify); null si no se pudo leer.
+async function sitemapPublicado(siteUrl) {
+	if (!process.env.NETLIFY) return null;
+	const sinLeer = (motivo) => {
+		console.warn(`  ⚠ No se pudo leer el sitemap publicado (${motivo}): no se compara el catálogo con el sitio en línea y IndexNow recibe todo el sitemap.`);
+		return null;
+	};
 	try {
 		const res = await fetch(`${siteUrl.replace(/\/$/, '')}/sitemap.xml`, { signal: AbortSignal.timeout(10000) });
-		if (!res.ok) return { todas: true };
-		return { urls: urlsCambiadas(sitemapXml, await res.text(), siteUrl) };
-	} catch {
-		return { todas: true };
+		return res.ok ? await res.text() : sinLeer(`error ${res.status}`);
+	} catch (err) {
+		return sinLeer(err.message);
+	}
+}
+
+// El freno del catálogo (revisarCatalogo) con lo que dice el panel, en meta/publish y con la cuenta de escritura: si un
+// administrador tocó «Publicar aunque baje» (`forzarCatalogo`), no se frena, y la marca se gasta en este build. El
+// motivo queda en `freno` (vacío si pasa) para que Publicar lo muestre. Sin la cuenta en el build, solo la variable.
+async function frenoDelCatalogo(fuente, { ahora, antes }) {
+	const porVariable = process.env[FORZAR] === '1';
+	if (porVariable) console.warn(`  ⚠ La variable ${FORZAR} está puesta: el catálogo se publica sin revisar si bajó. Quítala en Netlify (Site configuration → Environment variables); para una vez, en el panel: Publicar → «Publicar aunque baje».`);
+	if (fuente !== 'firestore' || !escrituraConfigurada()) return revisarCatalogo({ ahora, antes, forzar: porVariable });
+	try {
+		return await transaccion(async ({ leer, cambiar }) => {
+			const estado = await leer('meta/publish');
+			const freno = revisarCatalogo({ ahora, antes, forzar: porVariable || estado?.forzarCatalogo === true });
+			if (estado) cambiar('meta/publish', { freno, forzarCatalogo: false }, { ahora: ['frenoCuando'] });
+			return freno;
+		});
+	} catch (err) {
+		console.warn(`  ⚠ No se pudo leer «Publicar aunque baje» del panel (${err.message}): se revisa sin él.`);
+		return revisarCatalogo({ ahora, antes, forzar: porVariable });
 	}
 }
 
@@ -514,21 +550,29 @@ function imageEntries(ctx, u) {
 async function main() {
 	const config = await readJson('site.config.json');
 	const data = await loadData(config);
-	const site = deepMerge(data.defaults, data.settings);
+	const site = ajustesSanos(deepMerge(data.defaults, data.settings), config.siteUrl);
 	// Textos del sitio: se guardan los originales para el panel y se aplican los personalizados.
 	const textosOriginales = textosPorDefecto();
 	aplicarTextos(site.textos);
 	const agents = data.agents.slice().sort(byOrder);
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
-	const todas = normalizeProperties(data.properties);
+	// Las que tienen un dato roto (scripts/lib/antes-de-publicar.mjs) quedan fuera de todo; su enlace sigue abriendo sin
+	// indexar, con lo roto quitado, y Publicar, en el panel, las lista (/feeds/omitidas.json). Van detrás de las buenas al
+	// normalizar: si comparten dirección, la buena la conserva.
+	const { sanas, omitidas: rotas } = separarCasas(data.properties);
+	const reparadas = rotas.map(({ casa, motivo }) => ({ r: casaReparada(casa), motivo })).filter(({ r }) => r && !r.motivo)
+		.map(({ r, motivo }) => ({ ...r.casa, _omitida: { motivo, sinCalendario: r.sinCalendario } }));
+	const juntas = normalizeProperties([...sanas, ...reparadas]);
+	const todas = juntas.filter((p) => !p._omitida);
+	const omitidas = juntas.filter((p) => p._omitida);
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
 	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
 	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
 	const V = globalThis.EQVacacional;
-	for (const p of todas) if (p.operacion === 'vacacional') {
+	for (const p of juntas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());
 		if (desde > 0) p.precio = desde;
@@ -538,6 +582,18 @@ async function main() {
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.
 	const seOfrece = (p) => visibilidadDe(p) === 'visible' && !(p.operacion === 'vacacional' && mora?.[p.propietarioId] === 3);
 	const properties = todas.filter(seOfrece);
+	// Antes de borrar nada de dist/: un catálogo vacío, o con menos de la mitad de las casas que tiene el sitio
+	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
+	// Se cuentan las que se ofrecen sin contar la pausa por mora: un socio atrasado no frena la publicación.
+	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
+	// Las casas de prueba (Publicar → Propiedades de prueba) no cuentan.
+	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
+	const deCatalogo = {
+		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p.demo).length,
+		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p.demo).map((p) => p.slug)))
+	};
+	const freno = await frenoDelCatalogo(data.source, deCatalogo);
+	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
@@ -559,7 +615,6 @@ async function main() {
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
 	[['/', '/en/'], ['/calculadora-de-renta/', '/en/rental-calculator/']].forEach(([a, b]) => registrarPar(a, b));
-	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const nombre = site.general.nombreCorto;
 	const siteEn = enActivo ? deepMerge(site, site.en || {}) : null;
 	// El horario se escribe una vez, en español; el de inglés sale de él (un `en.contacto.horario` viejo se ignora).
@@ -657,6 +712,15 @@ async function main() {
 
 	// Vendidas, rentadas, pausadas y retiradas: su enlace sigue abriendo, pero no van al sitemap.
 	for (const p of fueraDeListados) await writePage(T.propertyUrl(p), fichaHtml(ctx, p));
+
+	// Casas omitidas por un dato roto: su enlace abre sin indexar (la de por noche sin calendario, como «ya no disponible»,
+	// sin reservar). Si aun así no se puede generar, queda solo en la lista de Publicar.
+	const ctxOmitidas = { ...ctx, noindex: true };
+	for (const p of omitidas) {
+		try { await writePage(T.propertyUrl(p), p._omitida.sinCalendario ? T.propertyGonePage(ctxOmitidas, p) : fichaHtml(ctxOmitidas, p)); p._omitida.url = T.propertyUrl(p); }
+		catch (err) { console.warn(`  ⚠ Tampoco se pudo generar la página de «${p.id}»: ${err.message}`); }
+	}
+	const omitidasDeDatos = rotas.filter(({ casa }) => !omitidas.some((p) => p.id === casa?.id));
 
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
@@ -757,7 +821,12 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
-	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(await cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml)));
+	// Lo que Publicar, en el panel, muestra como «no se ve en el sitio».
+	await writeFile(path.join(DIST, 'feeds', 'omitidas.json'), JSON.stringify({ casas: [
+		...omitidas.map((p) => ({ id: p.id, titulo: String(p.titulo || p.id), motivo: p._omitida.motivo, url: p._omitida.url || '' })),
+		...omitidasDeDatos.map(({ casa, motivo }) => ({ id: String(casa?.id || ''), titulo: String(casa?.titulo || casa?.id || '?'), motivo, url: '' }))
+	] }));
+	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml, publicado)));
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${enSitemap.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	// Avisos de SEO: una propiedad sin estos datos se posiciona peor (no detiene la publicación).

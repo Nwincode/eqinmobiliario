@@ -13,7 +13,7 @@
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
 import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
-import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
+import { datosConfigurados, consultar, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
@@ -52,29 +52,40 @@ export default async () => {
 			.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId, solicitud: { motivo: r.motivo },
 				reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		const canceladas = [...deSolicitud, ...deReserva];
-		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
 		const hoy = V.hoy(ahora);
-		const todosLosChats = await listar('chats').catch((err) => { console.error('Chats:', err.message); return []; });
+		// Los chats, sin listarlos todos: cada grupo con su consulta (un rango sobre un campo, con el índice que Firestore
+		// crea solo). Los que salen hoy o después; los que tienen un correo pendiente (un texto no vacío) y los que tienen
+		// el pago reabierto, por viejos que sean. Si una falla, sigue lo demás.
+		const chatsCon = (campo, valor) => consultar('chats', campo, valor).catch((err) => { console.error(`Chats (${campo}):`, err.message); return []; });
+		const [abiertos, conAvisoPendiente, conPagoReabierto] = await Promise.all([
+			consultar('chats', 'salida', hoy).catch((err) => { console.error('Chats abiertos:', err.message); return []; }),
+			chatsCon('avisoPendiente', '\u0001'),
+			sonLas7 ? chatsCon('pagoReabierto', 1) : []
+		]);
 		// Los correos del chat que no salieron: un reintento cada uno (aviso-chat-envio.mjs lo quita salga o no).
-		for (const c of todosLosChats.filter((x) => x.avisoPendiente)) await enviarAvisosChat(c.id, { reintento: true }).catch((err) => console.error('Reintento de aviso:', err.message));
+		for (const c of conAvisoPendiente) await enviarAvisosChat(c.id, { reintento: true }).catch((err) => console.error('Reintento de aviso:', err.message));
 		// «Te toca confirmar» que no salió (cotizada por debajo del precio de la casa, sin responder): otro intento.
-		for (const c of todosLosChats.filter((x) => x.teTocaPendiente && !x.estado)) await avisarQueTocaConfirmar(c.id).catch((err) => console.error('Reintento de «Te toca confirmar»:', err.message));
+		for (const c of abiertos.filter((x) => x.teTocaPendiente && !x.estado)) await avisarQueTocaConfirmar(c.id).catch((err) => console.error('Reintento de «Te toca confirmar»:', err.message));
 		// Confirmadas sin pago marcado con la llegada ya pasada: cada mañana, hasta que se resuelvan.
 		const sinPago = !sonLas7 ? [] : await (async () => {
-			const porId = new Map(todosLosChats.map((c) => [c.id, c]));
 			// Todas las de plazos (lo de antes no) sin la comisión pagada, sin límite de días: una que el socio nunca marca
 			// sigue saliendo hasta que se resuelva (y desde los 3 días de la llegada ya cuenta para la mora: V.cobrable).
-			return (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.llegada < hoy && !r.comision?.pagada && !r.comision?.cobrar
-				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0) && porId.get(r.chat)?.estado === 'confirmada')
+			const candidatas = (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && r.llegada < hoy && !r.comision?.pagada && !r.comision?.cobrar
+				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0));
+			// Su chat, uno por uno (son pocas): solo cuenta si la solicitud sigue confirmada.
+			const chats = await Promise.all(candidatas.map((r) => leerPrivado(`chats/${r.chat}`).catch(() => null)));
+			return candidatas.filter((r, i) => chats[i]?.estado === 'confirmada')
 				.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId,
 					reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		})().catch((err) => { console.error('Confirmadas sin pago:', err.message); return []; });
 		// «No me llegó» reabrió el pago, venció el plazo nuevo y el cliente no mandó otro comprobante: no se cancela sola
 		// (mandó uno antes), lo revisa el equipo con los dos. Cada mañana, hasta que se resuelva.
-		const reabiertas = !sonLas7 ? [] : todosLosChats.filter((c) => c.estado === 'confirmada' && c.pagoReabierto && Number(c.vencePago) > 0 && Number(c.vencePago) < ahora && !comprobanteVigente(c))
+		const reabiertas = conPagoReabierto.filter((c) => c.estado === 'confirmada' && Number(c.vencePago) > 0 && Number(c.vencePago) < ahora && !comprobanteVigente(c))
 			.map((c) => ({ nombre: c.nombre, propertyTitulo: c.propertyTitulo, propietarioId: c.propietarioId, reserva: { codigo: c.codigo, llegada: c.llegada, salida: c.salida, moneda: c.moneda, total: c.total } }));
+		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado: solo los abiertos (los
+		// viejos no cuentan ni cuestan lecturas, por muchos que haya).
 		const mensajes = await (async () => {
-			const vigentes = todosLosChats.filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
+			const vigentes = abiertos.filter((c) => !['no', 'cancelada'].includes(c.estado));
 			return (await Promise.all(vigentes.map(async (c) => {
 				const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
 				// Un mensaje que no avisó por correo (el otro estaba conversando y se fue sin leerlo): su aviso sale 10 min
