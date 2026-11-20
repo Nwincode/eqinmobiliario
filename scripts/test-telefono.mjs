@@ -50,12 +50,23 @@ test('Guatemala: exactamente 8 dígitos después del +502', () => {
 	assert.equal(telefonoValido('+52 55 1234 5678'), true);
 });
 test('cada país con su largo: «+1 555 1234» o «+52 1234567» no pasan; un número con «+» nunca cambia de país', () => {
-	for (const t of ['+1 555 1234', '+52 1234567', '+34 61234567', '+503 7123 456']) assert.equal(telefonoValido(t), false, t);
+	for (const t of ['+1 555 1234', '+52 1234567', '+34 61234567', '+503 7123 45']) assert.equal(telefonoValido(t), false, t);
 	for (const t of ['+1 305 555 1234', '+52 55 1234 5678', '+34 612 345 678', '+39 392 123 4567', '+55 11 91234 5678', '+995 555 123 456']) assert.equal(telefonoValido(t), true, t);
 	assert.equal(telefonoWa('+1 555 1234'), '15551234');
 	assert.equal(telefonoWa('5555 1234'), '50255551234');
 	assert.equal(telefonoWa('+502 5555 1234'), '50255551234');
-	assert.ok(CODIGOS_PAIS.every(([c, , [min, max]]) => /^\d+$/.test(c) && min >= 6 && max >= min && max <= 12));
+	assert.ok(CODIGOS_PAIS.every(([c, , largos, celular]) => /^\d+$/.test(c) && largos.includes(celular)));
+});
+test('un número válido de cada país de la lista pasa (celulares de ejemplo de libphonenumber), y su WhatsApp lleva su código', () => {
+	const validos = ['+1 201 555 0123', '+1 506 234 5678', '+31 6 12345678', '+33 6 12 34 56 78', '+34 612 34 56 78', '+39 312 345 6789', '+44 7400 123456',
+		'+49 1512 3456789', '+52 222 123 4567', '+54 9 11 2345 6789', '+55 11 96123 4567', '+56 2 2123 4567', '+57 321 1234567', '+61 412 345 678',
+		'+501 622 1234', '+502 5123 4567', '+503 7012 3456', '+504 9123 4567', '+505 8123 4567', '+506 8312 3456', '+507 6123 4567', '+972 50 234 5678',
+		// Otros largos del plan de cada país: fijo de Alemania, 1-800 de Guatemala, fijo de Brasil sin el 9.
+		'+49 30 123456', '+502 1801 2345678', '+55 11 2345 6789'];
+	for (const t of validos) assert.equal(telefonoValido(t), true, t);
+	// Cada código de la lista tiene su ejemplo.
+	for (const [c] of CODIGOS_PAIS) assert.ok(validos.some((t) => partirTelefono(t).codigo === c), `falta un ejemplo de +${c}`);
+	for (const t of validos) assert.equal(telefonoWa(t), t.replace(/\D/g, ''), t);
 });
 test('código pegado por el autollenado: se quita solo si así queda el largo de ese país', () => {
 	assert.equal(unirTelefono('502', '50255551234'), '+502 55551234');

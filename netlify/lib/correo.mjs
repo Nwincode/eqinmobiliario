@@ -39,7 +39,20 @@ const sitio = async () => (sitioCache ||= (await leerPublico('settings/site')) |
 async function colores() {
 	const tema = (await sitio()).tema || {};
 	const c = (k) => colorTema(tema, k);
-	return { dark: c('dark'), primary: c('primary'), cyan: c('cyan'), white: c('white'), ink: c('ink'), whatsapp: c('whatsapp') };
+	return { dark: c('dark'), primary: c('primary'), cyan: c('cyan'), white: c('white'), ink: c('ink'), gold: c('gold'), whatsapp: c('whatsapp') };
+}
+
+// Un tono entre dos colores del tema (t: cuánto del primero). Outlook no entiende colores con transparencia.
+export const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
+// Los colores de un correo: los del tema más la línea (c.linea) y el fondo suave (c.suave).
+export async function coloresCorreo() {
+	const base = await colores();
+	return { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07) };
+}
+// Redes de la empresa (Contenido → Redes; si no están, las del sitio por defecto).
+export async function redesEmpresa() {
+	const r = { ...(seed.settings?.redes || {}), ...Object.fromEntries(Object.entries((await sitio()).redes || {}).filter(([, v]) => v)) };
+	return { instagram: /^https:\/\//.test(r.instagram || '') ? r.instagram : '', facebook: /^https:\/\//.test(r.facebook || '') ? r.facebook : '' };
 }
 
 // Enlace de WhatsApp a la empresa con un mensaje (el número de Contenido → Contacto, el mismo del sitio); '' si no hay.
@@ -55,10 +68,7 @@ export async function whatsappEmpresa(mensaje) {
 // ayuda: el botón de WhatsApp para quien no es del panel (cliente). pieEnlaces: [[texto, url]] después del pie.
 // Tablas y estilos en línea para Gmail, Outlook y Apple Mail.
 export async function plantilla({ titulo, intro = '', bloques, preheader = '', foto = '', etiqueta = '', pie = '', pieEnlaces = [], ayuda = false, lang = 'es' }) {
-	const base = await colores();
-	// Tonos suaves del gris del tema sobre el fondo (Outlook no entiende colores con transparencia).
-	const mezcla = (a, b, t) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
-	const c = { ...base, linea: mezcla(base.ink, base.white, 0.18), suave: mezcla(base.primary, base.white, 0.07) };
+	const c = await coloresCorreo();
 	const fuente = 'font-family:Arial,Helvetica,sans-serif';
 	const previa = esc(preheader || String(intro).replace(/<[^>]+>/g, '')).slice(0, 180);
 	const imagen = /^https:\/\//.test(foto) ? foto : `${SITE_URL}/images/correo/cabecera.jpg`;

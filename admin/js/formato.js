@@ -160,16 +160,20 @@ export function conPiesCuadrados(texto) {
 }
 
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
-// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben, con el largo del número sin el
-// código (mínimo y máximo: hay países con números de largo distinto). Cualquier otro se escribe completo, con «+».
-export const CODIGOS_PAIS = [['502', 'GT', [8, 8]], ['1', 'US/CA', [10, 10]], ['52', 'MX', [10, 11]], ['503', 'SV', [8, 8]], ['504', 'HN', [8, 8]],
-	['505', 'NI', [8, 8]], ['506', 'CR', [8, 8]], ['507', 'PA', [7, 8]], ['501', 'BZ', [7, 7]], ['57', 'CO', [10, 10]], ['34', 'ES', [9, 9]],
-	['44', 'GB', [9, 10]], ['49', 'DE', [6, 11]], ['33', 'FR', [9, 9]], ['39', 'IT', [6, 11]], ['31', 'NL', [9, 9]], ['54', 'AR', [10, 11]],
-	['56', 'CL', [9, 9]], ['55', 'BR', [10, 11]], ['972', 'IL', [8, 9]], ['61', 'AU', [9, 9]]];
-const LARGO = Object.fromEntries(CODIGOS_PAIS.map(([c, , l]) => [c, l]));
+// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben. Cualquier otro se escribe completo,
+// con «+». Cada uno con los largos posibles del número sin el código y el largo de un celular, sacados del plan de
+// numeración de cada país en libphonenumber (metadata «max», v1.11.12; scripts/test-telefono.mjs tiene un número válido
+// de cada uno). +1: los 10 dígitos del plan norteamericano (los 7 de los servicios «310-xxxx» de Canadá no se marcan
+// desde fuera del país).
+export const CODIGOS_PAIS = [['502', 'GT', [8, 11], 8], ['1', 'US/CA', [10], 10], ['52', 'MX', [10], 10], ['503', 'SV', [7, 8, 11], 8],
+	['504', 'HN', [8, 11], 8], ['505', 'NI', [8], 8], ['506', 'CR', [8, 10], 8], ['507', 'PA', [7, 8, 10, 11], 8], ['501', 'BZ', [7, 11], 7],
+	['57', 'CO', [10, 11], 10], ['34', 'ES', [9], 9], ['44', 'GB', [7, 9, 10], 10], ['49', 'DE', [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 11],
+	['33', 'FR', [9], 9], ['39', 'IT', [6, 7, 8, 9, 10, 11, 12], 10], ['31', 'NL', [5, 6, 7, 8, 9, 10, 11], 9], ['54', 'AR', [10, 11], 11],
+	['56', 'CL', [9, 10, 11], 9], ['55', 'BR', [8, 9, 10, 11], 11], ['972', 'IL', [7, 8, 9, 10, 11, 12], 9], ['61', 'AU', [5, 6, 7, 8, 9, 10, 12], 9]];
+const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular]) => [c, { largos, celular }]));
 const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
 const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
-const largoBien = (codigo, n) => Boolean(LARGO[codigo]) && n >= LARGO[codigo][0] && n <= LARGO[codigo][1];
+const largoBien = (codigo, n) => Boolean(PLAN[codigo]) && PLAN[codigo].largos.includes(n);
 // El número sin el código, cortado por dígitos («+(502) 5555-1234» → «5555-1234»).
 const sinCodigo = (t, codigo) => t.replace(new RegExp(`^\\+\\D*${codigo.split('').join('\\D*')}`), '').replace(/^[\s).\-/]+/, '').trim();
 // Código y número de un teléfono guardado, para mostrarlo en un campo con su código de país.
@@ -192,7 +196,7 @@ export function partirTelefono(tel, porDefecto = '502') {
 	return { codigo: porDefecto, numero: t };
 }
 // Código elegido + número → como se guarda. Si el número ya viene con «+» (o «00»), manda el número. El autollenado
-// del navegador suele traer el código pegado («50255551234»): se quita solo si así el número queda con el largo de ese
+// del navegador suele traer el código pegado («50255551234»): se quita solo si así queda el largo de un celular de ese
 // país y con el código no; un número que empieza igual que su código («+39» y «392 123 4567») no se corta.
 // La usan el panel (admin/js/form.js) y el sitio (js/site.js, por EQFormato).
 export function unirTelefono(codigo, numero) {
@@ -204,7 +208,8 @@ export function unirTelefono(codigo, numero) {
 		const c = codigoDe(d.slice(2));
 		return c ? `+${c} ${d.slice(2 + c.length)}` : `+${d.slice(2)}`;
 	}
-	if (d.startsWith(codigo) && !largoBien(codigo, d.length) && largoBien(codigo, d.length - codigo.length)) return `+${codigo} ${d.slice(codigo.length)}`;
+	const cel = PLAN[codigo]?.celular;
+	if (cel && d.startsWith(codigo) && d.length !== cel && d.length - codigo.length === cel) return `+${codigo} ${d.slice(codigo.length)}`;
 	return `+${codigo} ${n}`;
 }
 // ¿Es un teléfono que se puede marcar? Con un código de la lista, el número lleva el largo de ese país («+502» 8

@@ -102,7 +102,7 @@ Storage (`storage.rules`): fotos por dirección (las sube, cambia, borra y lista
 
 Cada cadena va en el orden en que conviene revisarla.
 
-**Teléfono** → `admin/js/formato.js` (`CODIGOS_PAIS` con el largo de cada país, `telefonoValido`, `unirTelefono`, `partirTelefono`, `telefonoWa`: con «+» nunca cambia de país) → `admin/js/form.js` (campo `telefono`; también el WhatsApp de Contenido y de cada asesor) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma con `EQFormato.unirTelefono` y valida; `scripts/lib/assets.mjs` `FORMATO_NAVEGADOR`) → `scripts/test-telefono.mjs`.
+**Teléfono** → `admin/js/formato.js` (`CODIGOS_PAIS` con los largos de cada país según libphonenumber y el de un celular, `telefonoValido`, `unirTelefono`, `partirTelefono`, `telefonoWa`: con «+» nunca cambia de país) → `admin/js/form.js` (campo `telefono`; también el WhatsApp de Contenido y de cada asesor) → `scripts/lib/templates.mjs` `leadForm` → `js/site.js` (arma con `EQFormato.unirTelefono` y valida; `scripts/lib/assets.mjs` `FORMATO_NAVEGADOR`) → `scripts/test-telefono.mjs`.
 
 **Dinero** → `admin/js/formato.js` (`dinero`, `montoPrecio`, `precioTexto`: siempre con centavos) → panel (`cotizacion.js`, `views/calculadora.js`), sitio (`js/vacacional.js` y `js/reserva-chat.js` por `EQFormato`) → `js/calc-renta.js` es script clásico y tiene su copia, igual (`scripts/test-calc-renta.mjs` las compara). Solo la casilla del calendario va sin centavos (`dineroCorto`, decisión del dueño).
 
@@ -194,7 +194,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Filtro de contacto (teléfonos, correos, enlaces)** → `js/calc-vacacional.js` `tieneContacto` (uno solo) → chat del cliente (`js/reserva-chat.js`), chat del panel (`views/solicitudes.js`) y lo que el dueño publica de su casa (`admin/js/mi-casa.js`: cada texto y cada amenidad; lo revisa también `netlify/functions/mi-casa.mjs`) → `firestore.rules` tiene su copia para el chat → `scripts/test-vacacional.mjs` y `scripts/test-mi-casa.mjs`.
 
-**Correos** → `netlify/lib/correo.mjs` `plantilla` (un solo diseño para todos, también «Crea o cambia tu contraseña» en `netlify/lib/correo-contrasena.mjs`; colores y WhatsApp de Contenido con `whatsappEmpresa`, nunca un número escrito a mano) → cada función que manda correo → `scripts/test-correo.mjs`.
+**Correos** → `netlify/lib/correo.mjs` `plantilla` (el diseño común) y `netlify/lib/correo-contrasena.mjs` (su diseño aprobado, tal cual); los dos con los colores del tema (`coloresCorreo`, `mezcla`) y el WhatsApp y las redes de Contenido (`whatsappEmpresa`, `redesEmpresa`), nunca escritos a mano → cada función que manda correo → `scripts/test-correo.mjs`.
 
 **Respuesta a un lead** → `admin/js/formato.js` `saludoLead` (en `lead.idioma`) → `netlify/functions/aviso-lead.mjs` (botones de WhatsApp y correo) y `admin/js/views/leads.js` (botón de WhatsApp).
 
