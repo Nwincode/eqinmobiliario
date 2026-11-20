@@ -67,11 +67,17 @@ export async function enviarAvisosChat(token, { repaso = false, reintento = fals
 	return avisos.length - fallas;
 }
 
-// ¿Este aviso todavía no salió? Lo aparta (avisoEnviado = clave) en una transacción. Un reintento solo si sigue pendiente.
+// ¿Este aviso todavía no salió? Lo aparta (avisoEnviado = clave, con la hora: avisoApartado) en una transacción.
+// Un reintento solo si sigue pendiente y nadie lo está mandando ahora: apartado por otra llamada hace menos de
+// EN_CURSO, todavía va en camino (no se manda dos veces); más viejo, esa llamada se cortó y se reintenta.
+export const EN_CURSO = 15 * 60_000;
+export const puedeApartar = (c, clave, reintento, ahora = Date.now()) => Boolean(c) && (reintento
+	? c.avisoPendiente === clave && (c.avisoEnviado !== clave || !(ahora - (Number(c.avisoApartado) || 0) < EN_CURSO))
+	: c.avisoEnviado !== clave);
 const apartar = (token, clave, reintento) => transaccion(async ({ leer, cambiar }) => {
 	const c = await leer(`chats/${token}`);
-	if (!c || (reintento ? c.avisoPendiente !== clave : c.avisoEnviado === clave)) return false;
-	cambiar(`chats/${token}`, { avisoEnviado: clave });
+	if (!puedeApartar(c, clave, reintento)) return false;
+	cambiar(`chats/${token}`, { avisoEnviado: clave, avisoApartado: Date.now() });
 	return true;
 });
 // Salió (o ya se reintentó): se quita el pendiente; si falló, queda pendiente para el control de cada hora.

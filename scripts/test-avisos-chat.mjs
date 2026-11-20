@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { avisosChat, sinResponder } from '../netlify/lib/avisos-chat.mjs';
+import { puedeApartar, EN_CURSO } from '../netlify/lib/aviso-chat-envio.mjs';
 
 const AHORA = Date.parse('2026-11-13T12:00:00Z');
 const hace = (min) => new Date(AHORA - min * 60_000);
@@ -166,5 +167,19 @@ test('reintento de un aviso pendiente: se revisa como en el momento del mensaje 
 	const n = avisosChat({ chat: { ...chat, createdAt: hace(120) }, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'nueva' });
 	assert.equal(n.length, 3);
 	assert.deepEqual(avisosChat({ chat, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'noExiste' }), []);
+});
+test('el reintento de cada hora no manda otra vez un aviso que otra llamada está mandando ahora', () => {
+	const t = AHORA;
+	// En camino (apartado hace 1 min): el reintento no lo toca.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: 'm1', avisoApartado: t - 60_000 }, 'm1', true, t), false);
+	// Falló (marcar quita avisoEnviado): se reintenta.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: '' }, 'm1', true, t), true);
+	// Apartado hace más que EN_CURSO (la función se cortó): se reintenta.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: 'm1', avisoApartado: t - EN_CURSO - 1 }, 'm1', true, t), true);
+	// Ya no pendiente: no.
+	assert.equal(puedeApartar({ avisoPendiente: '', avisoEnviado: '' }, 'm1', true, t), false);
+	// La primera vez: solo si no salió ya.
+	assert.equal(puedeApartar({ avisoEnviado: 'm1' }, 'm1', false, t), false);
+	assert.equal(puedeApartar({ avisoEnviado: 'm0' }, 'm1', false, t), true);
 });
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
