@@ -13,7 +13,7 @@
 //    su cuenta de escritura (503), sigue por el camino de antes, que las reglas publicadas aceptan o niegan.
 import '/js/calc-vacacional.js';
 import {
-	db, doc, getDoc, getDocs, setDoc, collection, query, where, runTransaction, updateDoc, addDoc,
+	db, doc, getDoc, getDocs, setDoc, collection, query, where, runTransaction, updateDoc, writeBatch,
 	serverTimestamp, arrayUnion, deleteField
 } from './firebase.js';
 import { session, markPending } from './session.js';
@@ -229,10 +229,14 @@ async function chatDe(r, chat) {
 }
 // Mensaje al cliente y estado nuevo del chat. El mensaje va antes en el mismo lote: las reglas lo miran con el chat
 // todavía abierto.
+// El aviso por correo queda pendiente en el mismo cambio (avisoPendiente): si /api/aviso-chat no llega, el control de
+// cada hora lo manda (el socio por el camino de antes no: las reglas de antes no lo aceptan).
 const cerrarChat = (tx, chat, estado, texto) => {
-	tx.set(doc(collection(chat.ref, 'mensajes')), { de: quienEscribe(), texto, createdAt: serverTimestamp() });
-	tx.update(chat.ref, { estado });
+	const msj = doc(collection(chat.ref, 'mensajes'));
+	tx.set(msj, { de: quienEscribe(), texto, createdAt: serverTimestamp() });
+	tx.update(chat.ref, { estado, ...avisoPendienteDe(msj) });
 };
+const avisoPendienteDe = (msj) => (session.esSocio ? {} : { avisoPendiente: msj.id });
 
 // La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda }) queda confirmada: nace su reserva con la
 // comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat dicen «confirmada» y el
@@ -357,7 +361,12 @@ export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, p
 	});
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
-	await addDoc(collection(chat.ref, 'mensajes'), { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
+	// Con su aviso pendiente en el mismo lote (el correo «pago recibido» se reintenta si no sale).
+	const msj = doc(collection(chat.ref, 'mensajes'));
+	const lote = writeBatch(db);
+	lote.set(msj, { de: quienEscribe(), tipo: 'llegada', texto: 'llegada', ...(ll ? { direccion: ll.direccion || '', mapa: ll.mapa || '' } : {}), createdAt: serverTimestamp() });
+	if (!session.esSocio) lote.update(chat.ref, avisoPendienteDe(msj));
+	await lote.commit();
 	// En la reserva (la de la web lleva el id de su solicitud): con el pago marcado, su comisión vencida cuenta para el
 	// corte de permisos. Si las reglas no lo dejan (el socio por el camino de antes), el pago ya quedó.
 	if (leadId) await updateDoc(refReserva(leadId), { pagoRecibido: true, updatedAt: serverTimestamp() }).catch((err) => console.warn('Pago recibido en la reserva', err));
