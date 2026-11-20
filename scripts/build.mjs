@@ -20,6 +20,7 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
+import { casasSanas, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -42,6 +43,8 @@ async function readJson(file) {
 
 async function loadData(config) {
 	const seed = await readJson(process.env.SEED_FILE || 'data/seed.json');
+	// Lo que falte en settings/site se completa siempre con el del repositorio (también con otro SEED_FILE).
+	const defaults = (await readJson('data/seed.json')).settings;
 	const fb = config.firebase || {};
 	const fromSeed = () => ({
 		source: 'seed',
@@ -56,24 +59,27 @@ async function loadData(config) {
 		// DATOS=seed: generar con el archivo de ejemplo aunque Firebase esté configurado (pruebas, sin red).
 	if (!fb.projectId || !fb.apiKey || process.env.DATOS === 'seed') {
 		console.log(`· ${process.env.DATOS === 'seed' ? 'DATOS=seed' : 'Firebase sin configurar'}: se usan los datos de ${process.env.SEED_FILE || 'data/seed.json'}`);
-		return { ...fromSeed(), defaults: seed.settings };
+		return { ...fromSeed(), defaults };
 	}
 
 	const db = createClient({ projectId: fb.projectId, apiKey: fb.apiKey });
 	// Sin «plan B»: si la nube no responde o no tiene settings/site, el build falla y Netlify deja publicado
 	// el sitio anterior. Publicar el archivo de ejemplo borraría las casas reales del sitio y de Google.
 	// (Para generar con el ejemplo: DATOS=seed.)
-	const settings = await db.getDoc('settings/site');
-	if (!settings) throw new Error('Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). Si la base está vacía de verdad, importa los datos iniciales desde el panel o usa DATOS=seed.');
-	const [properties, agents, testimonials, pages, posts] = await Promise.all([
+	const [settings, properties, agents, testimonials, pages, posts] = await Promise.all([
+		db.getDoc('settings/site'),
 		db.queryTrue('properties', 'publicado'),
 		db.queryTrue('agents', 'activo'),
 		db.queryTrue('testimonials', 'activo'),
 		db.queryTrue('pages', 'publicado'),
 		db.queryTrue('posts', 'publicado')
 	]);
+	// «Importar datos iniciales» (Publicar, en el panel) solo sirve con la base vacía: con casas guardadas no se ofrece.
+	if (!settings) throw new Error(`Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). ${properties.length
+		? `Hay ${properties.length} propiedades publicadas: no importes datos iniciales. Abre Contenido en el panel y guarda para volver a crear los textos del sitio.`
+		: 'Si la base está vacía de verdad, importa los datos iniciales desde Publicar, en el panel, o usa DATOS=seed.'}`);
 	console.log(`· Datos leídos de Firestore (${fb.projectId})`);
-	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults: seed.settings };
+	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults };
 }
 
 function toMillis(v) {
@@ -246,14 +252,19 @@ async function copyAssets() {
 // Lo que cambió desde la última publicación, para IndexNow (netlify/lib/indexnow.mjs, lo manda deploy-succeeded):
 // solo al publicar en Netlify, comparando con el sitemap que sigue publicado mientras corre el build. Si no se puede
 // leer (o en local), `todas`: la función manda todo el sitemap, como antes.
-async function cambiosParaIndexNow(ctx, siteUrl, sitemapXml) {
-	if (!process.env.NETLIFY || ctx.noindex) return { todas: true };
+function cambiosParaIndexNow(ctx, siteUrl, sitemapXml, publicado) {
+	if (ctx.noindex || publicado == null) return { todas: true };
+	return { urls: urlsCambiadas(sitemapXml, publicado, siteUrl) };
+}
+
+// El sitemap que sigue publicado mientras corre el build (solo al publicar en Netlify); null si no se pudo leer.
+async function sitemapPublicado(siteUrl) {
+	if (!process.env.NETLIFY) return null;
 	try {
 		const res = await fetch(`${siteUrl.replace(/\/$/, '')}/sitemap.xml`, { signal: AbortSignal.timeout(10000) });
-		if (!res.ok) return { todas: true };
-		return { urls: urlsCambiadas(sitemapXml, await res.text(), siteUrl) };
+		return res.ok ? await res.text() : null;
 	} catch {
-		return { todas: true };
+		return null;
 	}
 }
 
@@ -514,14 +525,14 @@ function imageEntries(ctx, u) {
 async function main() {
 	const config = await readJson('site.config.json');
 	const data = await loadData(config);
-	const site = deepMerge(data.defaults, data.settings);
+	const site = ajustesSanos(deepMerge(data.defaults, data.settings), config.siteUrl);
 	// Textos del sitio: se guardan los originales para el panel y se aplican los personalizados.
 	const textosOriginales = textosPorDefecto();
 	aplicarTextos(site.textos);
 	const agents = data.agents.slice().sort(byOrder);
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
-	const todas = normalizeProperties(data.properties);
+	const todas = normalizeProperties(casasSanas(data.properties));
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
@@ -538,6 +549,12 @@ async function main() {
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.
 	const seOfrece = (p) => visibilidadDe(p) === 'visible' && !(p.operacion === 'vacacional' && mora?.[p.propietarioId] === 3);
 	const properties = todas.filter(seOfrece);
+	// Antes de borrar nada de dist/: un catálogo vacío, o con menos de la mitad de las casas que tiene el sitio
+	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
+	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
+	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
+	const freno = revisarCatalogo({ ahora: properties.length, antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl), forzar: process.env[FORZAR] === '1' });
+	if (freno) throw new Error(freno);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
@@ -559,7 +576,6 @@ async function main() {
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
 	[['/', '/en/'], ['/calculadora-de-renta/', '/en/rental-calculator/']].forEach(([a, b]) => registrarPar(a, b));
-	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const nombre = site.general.nombreCorto;
 	const siteEn = enActivo ? deepMerge(site, site.en || {}) : null;
 	// El horario se escribe una vez, en español; el de inglés sale de él (un `en.contacto.horario` viejo se ignora).
@@ -757,7 +773,7 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
-	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(await cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml)));
+	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml, publicado)));
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${enSitemap.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	// Avisos de SEO: una propiedad sin estos datos se posiciona peor (no detiene la publicación).

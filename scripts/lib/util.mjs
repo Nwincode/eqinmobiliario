@@ -32,6 +32,8 @@ export function deepMerge(base, override) {
 	for (const [k, v] of Object.entries(override)) {
 		if (v === undefined || v === null || v === '') continue;
 		if (Array.isArray(v) && v.length === 0 && Array.isArray(base[k]) && base[k].length) continue;
+		// Un dato con otra forma (un texto donde va un grupo o una lista) no reemplaza al de `base`.
+		if ((isPlainObject(base[k]) && !isPlainObject(v)) || (Array.isArray(base[k]) && !Array.isArray(v))) continue;
 		out[k] = isPlainObject(v) && isPlainObject(base[k]) ? deepMerge(base[k], v) : v;
 	}
 	return out;
