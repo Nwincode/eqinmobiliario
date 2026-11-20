@@ -99,7 +99,10 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 // Al confirmar `lead`, las otras solicitudes abiertas del mismo cliente (mismo correo), casa y fechas se cierran como
 // «Duplicada», con un mensaje que no manda correo (avisos-chat.mjs: `silencioso`). Devuelve cuántas.
 export async function cerrarDuplicadas(tx, lead, leadId) {
-	const otras = (await tx.consultar('leads', 'propertyId', lead.propertyId)).filter((o) => o.id !== leadId && esDuplicada({ ...lead, id: leadId }, o) && !yaRespondida('', o.solicitud?.estado));
+	// Solo las del mismo correo (esDuplicada lo pide): no se leen todas las solicitudes de la casa dentro de la transacción.
+	const correo = String(lead.email || '').trim();
+	if (!correo) return 0;
+	const otras = (await tx.consultar('leads', 'email', correo)).filter((o) => o.id !== leadId && esDuplicada({ ...lead, id: leadId }, o) && !yaRespondida('', o.solicitud?.estado));
 	let n = 0;
 	for (const o of otras) {
 		const c = await chatDe(tx.leer, o.id);

@@ -16,7 +16,7 @@
 // El equipo ve las canceladas en el correo de cada hora (solicitudes-sin-respuesta.mjs). Cada cambio queda en el
 // historial de la solicitud («Plazo vencido»).
 import '../../js/calc-vacacional.js';
-import { datosConfigurados, desde, listar, leerPrivado } from '../lib/firestore.mjs';
+import { datosConfigurados, desde, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
@@ -107,6 +107,14 @@ export default async () => {
 	};
 	const queda = () => Date.now() - inicio < PRESUPUESTO;
 	try {
+		// Primero lo que cancela o recuerda un pago (lo que más pesa si la vuelta se corta a los 20 s).
+		// Reservas de la web confirmadas en los últimos 30 días (se revisa cada una en su transacción).
+		const reservas = (await desde('reservas', 'createdAt', new Date(ahora - 30 * DIA)))
+			.filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && conPlazo(ms(r.createdAt)) && (({ desde: d, vence }) => ahora >= Math.min(vence, recordarPagoDesde(d, vence)))(plazoDePago(r, ms(r.createdAt))));
+		for (const r of reservas) {
+			if (!queda()) return;
+			await uno(cobrarOCancelar(r.id, ahora), 'reserva');
+		}
 		// Solicitudes de los últimos 7 días que siguen sin respuesta.
 		const recientes = await desde('leads', 'createdAt', new Date(ahora - 7 * DIA));
 		const abiertas = recientes.filter(abierta);
@@ -116,8 +124,8 @@ export default async () => {
 			await transaccion(async (tx) => { const lead = await tx.leer(`leads/${l.id}`); if (lead?.solicitud?.estado === 'confirmada') await cerrarDuplicadas(tx, lead, l.id); })
 				.catch((err) => console.error('Plazos (duplicadas):', err.message));
 		}
-		// Montos congelados de las que todavía no los tienen.
-		const congeladas = new Set((await listar('montosSolicitud').catch(() => [])).map((m) => m.id));
+		// Montos congelados de las que todavía no los tienen (solo los de la última semana: no se lee la colección entera).
+		const congeladas = new Set((await desde('montosSolicitud', 'cuando', new Date(ahora - 8 * DIA)).catch(() => [])).map((m) => m.id));
 		for (const l of abiertas.filter((x) => !congeladas.has(x.id))) {
 			if (!queda()) return;
 			await transaccion((tx) => congelarMontos(tx, l.id)).catch((err) => console.error('Plazos (montos):', err.message));
@@ -137,13 +145,6 @@ export default async () => {
 			if (casa === undefined) continue;
 			if (!casa || visibilidadDe(casa) !== 'visible') await uno(cerrarSinRespuesta(l.id, ahora, { casaFuera: true }), 'casa fuera');
 			else if (conPlazo(ms(l.createdAt)) && ahora >= venceRespuesta(ms(l.createdAt))) await uno(cerrarSinRespuesta(l.id, ahora), 'solicitud');
-		}
-		// Reservas de la web confirmadas en los últimos 30 días (se revisa cada una en su transacción).
-		const reservas = (await desde('reservas', 'createdAt', new Date(ahora - 30 * DIA)))
-			.filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && conPlazo(ms(r.createdAt)) && (({ desde: d, vence }) => ahora >= Math.min(vence, recordarPagoDesde(d, vence)))(plazoDePago(r, ms(r.createdAt))));
-		for (const r of reservas) {
-			if (!queda()) return;
-			await uno(cobrarOCancelar(r.id, ahora), 'reserva');
 		}
 	} catch (err) {
 		console.error('Plazos:', err.message);
