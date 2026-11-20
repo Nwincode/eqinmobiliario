@@ -79,6 +79,34 @@ export async function listar(coleccion) {
 	return docs;
 }
 
+// Documentos de una colección con `campo` desde `valor` (incluido; un texto, como una fecha 'AAAA-MM-DD'), del menor
+// al mayor, de 300 en 300 hasta `tope`. Un solo filtro de rango: usa el índice que Firestore crea solo para cada campo.
+export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {
+	const token = await googleToken(SCOPE_DATOS);
+	const docs = [];
+	let despues = null;
+	while (docs.length < tope) {
+		const res = await fetch(`${BASE}:runQuery`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ structuredQuery: {
+				from: [{ collectionId: coleccion }],
+				where: { fieldFilter: { field: { fieldPath: campo }, op: 'GREATER_THAN_OR_EQUAL', value: { stringValue: String(valor) } } },
+				orderBy: [{ field: { fieldPath: campo }, direction: 'ASCENDING' }, { field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+				...(despues ? { startAt: { values: despues, before: false } } : {}),
+				limit: Math.min(300, tope - docs.length)
+			} })
+		});
+		if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
+		const pagina = (await res.json()).filter((r) => r.document).map((r) => r.document);
+		docs.push(...pagina.map(documento));
+		if (pagina.length < 300) break;
+		const ultimo = pagina.at(-1);
+		despues = [ultimo.fields?.[campo] || { nullValue: null }, { referenceValue: ultimo.name }];
+	}
+	return docs;
+}
+
 // Documentos de una colección cuyo campo de fecha es posterior a `fecha` (hasta 500).
 export async function desde(coleccion, campo, fecha) {
 	const token = await googleToken(SCOPE_DATOS);

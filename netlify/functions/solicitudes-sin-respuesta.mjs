@@ -10,7 +10,7 @@
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
 import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
-import { datosConfigurados, desde, leerPrivado, listar } from '../lib/firestore.mjs';
+import { datosConfigurados, consultar, desde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
@@ -48,10 +48,12 @@ export default async () => {
 			.map((r) => ({ nombre: r.huesped || 'Huésped', propertyTitulo: r.propertyTitulo, propietarioId: r.propietarioId, solicitud: { motivo: r.motivo },
 				reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda, total: r.alojamiento } }));
 		const canceladas = [...deSolicitud, ...deReserva];
-		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado.
+		// Chats de reservas vigentes donde lo último lo escribió el cliente y nadie le ha contestado. Solo se leen los que
+		// salen hoy o después (consulta por `salida`, de la más cercana a la más lejana): los chats viejos no cuentan ni
+		// cuestan lecturas, por muchos que haya.
 		const hoy = V.hoy(ahora);
 		const mensajes = await (async () => {
-			const vigentes = (await listar('chats')).filter((c) => !['no', 'cancelada'].includes(c.estado) && c.salida >= hoy);
+			const vigentes = (await consultar('chats', 'salida', hoy)).filter((c) => !['no', 'cancelada'].includes(c.estado));
 			return (await Promise.all(vigentes.map(async (c) => {
 				const lista = (await listar(`chats/${c.id}/mensajes`)).sort((a, b) => a.createdAt - b.createdAt);
 				// Un mensaje que no avisó por correo (el otro estaba conversando y se fue sin leerlo): su aviso sale 10 min

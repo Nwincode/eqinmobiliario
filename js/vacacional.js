@@ -440,6 +440,10 @@
 		}
 		if (form) {
 			form.eqReserva = function () {
+				// «Hoy» al enviar, no al abrir la página: abierta desde ayer, el calendario se pone al día y una llegada que
+				// ya pasó no se manda.
+				var ahora = V.hoy();
+				if (ahora !== hoy) { hoy = ahora; mesMin = mesDe(hoy); pintar(false); }
 				var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
 				if (!v.ok) {
 					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : t.vacErrFechas;
@@ -563,10 +567,9 @@
 	// y lleva esa elección a la ficha para no volver a pedirla.
 	var buscar = document.getElementById('vac-buscar');
 	if (buscar) {
-		var hoyB = V.hoy();
-		buscar.llegada.min = hoyB;
+		buscar.llegada.min = V.hoy();
 		buscar.llegada.addEventListener('change', function () {
-			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : hoyB;
+			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : V.hoy();
 			if (buscar.salida.value && buscar.salida.value <= buscar.llegada.value) buscar.salida.value = '';
 		});
 		// La disponibilidad al día de cada casa (calendarios de Airbnb, Booking y VRBO, reservas y precios de hoy), una vez
@@ -591,7 +594,7 @@
 			});
 		});
 		function filtrar(q, cols, datos, vivos) {
-			var libres = 0;
+			var libres = 0, hoyB = V.hoy(); // el día de la búsqueda, no el de abrir la página
 			cols.forEach(function (col, i) {
 				var d = datos[i], vivo = vivos[i] || {};
 				var plan = vivo.plan && vivo.plan.base > 0 ? vivo.plan : d.plan;

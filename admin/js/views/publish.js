@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, getDocs, setDoc, collection, query, limit, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount } from '../ui.js';
 import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
@@ -103,23 +103,34 @@ function tarjetaAvisos() {
 	return card;
 }
 
+// La base está vacía de verdad: sin settings/site y sin ninguna propiedad. Con casas guardadas, importar el ejemplo
+// las mezclaría con datos de muestra que la publicación automática pondría en línea.
+const hayPropiedades = async () => !(await getDocs(query(collection(db, 'properties'), limit(1)))).empty;
+
 async function importSeed(btn) {
 	if (!(await confirmDialog('Se copiarán a la base de datos los textos, propiedades, asesores, reseñas y páginas actuales del sitio. Úsalo solo una vez, al empezar. ¿Continuar?', { okText: 'Importar', danger: false }))) return;
 	btn.disabled = true;
 	try {
+		// Se vuelve a revisar al tocar: otra pestaña o persona pudo guardar casas desde que se abrió esta pantalla.
+		if (await hayPropiedades()) throw new Error('La base ya tiene propiedades: no se importan los datos iniciales.');
 		const seed = await (await fetch('/data/seed.json', { cache: 'no-store' })).json();
-		const batch = writeBatch(db);
-		batch.set(doc(db, 'settings', 'site'), { ...seed.settings, updatedAt: serverTimestamp() });
 		const now = serverTimestamp();
-		const add = (col, items) => items.forEach(({ id, ...rest }) => batch.set(doc(db, col, id), { ...rest, createdAt: now, updatedAt: now }));
+		const nuevos = [[doc(db, 'settings', 'site'), { ...seed.settings, updatedAt: now }]];
+		const add = (col, items) => items.forEach(({ id, ...rest }) => nuevos.push([doc(db, col, id), { ...rest, createdAt: now, updatedAt: now }]));
 		add('properties', seed.properties);
 		add('agents', seed.agents);
 		add('testimonials', seed.testimonials);
 		add('pages', seed.pages);
 		add('posts', seed.posts || []);
-		batch.set(doc(db, 'meta', 'publish'), { pendiente: true, ultimoCambio: now, ultimoCambioDesc: 'Importación inicial' }, { merge: true });
-		await batch.commit();
-		toast('Datos importados. Ya puedes editarlos y publicar.');
+		// Solo crea: lo que ya existe (aunque sea un asesor o una página) no se toca.
+		const creados = await runTransaction(db, async (tx) => {
+			const existe = await Promise.all(nuevos.map(([ref]) => tx.get(ref).then((s) => s.exists())));
+			const faltan = nuevos.filter((_, i) => !existe[i]);
+			faltan.forEach(([ref, datos]) => tx.set(ref, datos));
+			if (faltan.length) tx.set(doc(db, 'meta', 'publish'), { pendiente: true, ultimoCambio: now, ultimoCambioDesc: 'Importación inicial' }, { merge: true });
+			return faltan.length;
+		});
+		toast(creados ? 'Datos importados. Ya puedes editarlos y publicar.' : 'Ya estaba todo en la base: no se importó nada.');
 		location.hash = '#/inicio';
 	} catch (err) {
 		showError(err);
@@ -133,6 +144,7 @@ export async function render(container) {
 		getDoc(doc(db, 'settings', 'private')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({})),
 		getDoc(doc(db, 'settings', 'site'))
 	]);
+	const baseVacia = session.isAdmin && !site.exists() && !(await hayPropiedades().catch(() => true));
 	const hook = priv.netlifyBuildHook || '';
 
 	const publish = async (btn) => {
@@ -221,7 +233,7 @@ export async function render(container) {
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
 		session.isAdmin ? tarjetaAvisos() : null,
-		session.isAdmin && !site.exists() ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
+		baseVacia ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),
 			h('button', { class: 'btn btn-info', onclick: (e) => importSeed(e.currentTarget) }, 'Importar datos iniciales'))) : null,
