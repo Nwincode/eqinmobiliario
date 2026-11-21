@@ -322,13 +322,19 @@
 			var f = archivo.files[0];
 			archivo.value = '';
 			if (!f) return;
-			if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size >= 5 * 1024 * 1024) return alerta(t.vacChatFotoGrande);
-			var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + f.type.split('/')[1];
 			adjuntar.disabled = true;
-			fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': f.type }, body: f })
-				.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-				.then(function (r) { return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(FOTOS + encodeURIComponent(nombre) + '?alt=media&token=' + r.downloadTokens) }); })
-				.catch(function () { alerta(t.vacChatFallo); adjuntar.disabled = false; });
+			// La foto se prepara como las del panel (admin/js/imagen.js: girada, hasta 1920 px, WebP), con la misma pieza: una
+			// foto de 12 MB del teléfono o una de iPhone (HEIC) sube en segundos y cabe en el tope de 5 MB.
+			var procesar = window.EQImagen ? window.EQImagen.procesarImagen(f) : Promise.reject(new Error('sin EQImagen'));
+			procesar.then(function (p) {
+				if (!/^image\/(jpeg|png|webp)$/.test(p.blob.type) || p.blob.size >= 5 * 1024 * 1024) throw Object.assign(new Error('foto'), { foto: true });
+				var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + (p.blob.type === 'image/webp' ? 'webp' : p.blob.type.split('/')[1]);
+				return fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': p.blob.type }, body: p.blob })
+					.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+					.then(function (r) { r.nombre = nombre; return r; });
+			}, function () { throw Object.assign(new Error('foto'), { foto: true }); })
+				.then(function (r) { return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(FOTOS + encodeURIComponent(r.nombre) + '?alt=media&token=' + r.downloadTokens) }); })
+				.catch(function (err) { alerta(err && err.foto ? t.vacChatFotoGrande : t.vacChatFallo); adjuntar.disabled = false; });
 		});
 		cargar().catch(function () { pintar([], ''); });
 		// Mensajes nuevos: se revisa cada 10 s mientras la página está a la vista.

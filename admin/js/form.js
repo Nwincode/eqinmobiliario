@@ -7,6 +7,7 @@
 import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
 import { storage, db, ref, uploadBytes, getDownloadURL, deleteObject, collection, getDocs } from './firebase.js';
+import { procesarImagen as procesar } from './imagen.js';
 
 export function getPath(obj, path) {
 	return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -34,77 +35,10 @@ export function setPath(obj, path, value) {
 	o[keys[keys.length - 1]] = value;
 }
 
-// HEIC/HEIF (fotos de iPhone): el navegador casi nunca los abre; se convierten con heic2any (se carga solo si hace falta).
-// Servido desde el propio sitio (copia exacta de heic2any@0.0.4 de npm, licencia MIT): un CDN de fuera comprometido
-// podría correr código en el panel con la sesión abierta.
-const HEIC2ANY = '/admin/vendor/heic2any-0.0.4.min.js';
-let heicCargando = null;
-function cargarHeic2any() {
-	if (window.heic2any) return Promise.resolve(window.heic2any);
-	heicCargando ||= new Promise((resolve, reject) => {
-		const s = document.createElement('script');
-		s.src = HEIC2ANY;
-		s.onload = () => (window.heic2any ? resolve(window.heic2any) : reject(new Error('heic2any no cargó')));
-		s.onerror = () => { heicCargando = null; reject(new Error('No se pudo cargar el convertidor de HEIC')); };
-		document.head.append(s);
-	});
-	return heicCargando;
-}
-
-async function abrirBitmap(blob) {
-	try {
-		return await createImageBitmap(blob, { imageOrientation: 'from-image' });
-	} catch (err) {
-		if (err && err.name === 'TypeError') return createImageBitmap(blob); // navegador sin la opción
-		throw err;
-	}
-}
-
-// Prepara una foto para subirla: gira según EXIF, reduce a máx. 1920 px (sin recortar) y la pasa a WebP 0.82.
-// Acepta JPG, PNG, WebP, HEIC/HEIF, AVIF, GIF, BMP y TIFF (si el navegador lo abre).
-// Devuelve { blob, ancho, alto, hash, marca? } (hash = SHA-256 del archivo original, para no subir repetidas).
-export async function procesarImagen(file, maxSize = 1920, quality = 0.82, { marca = false } = {}) {
-	const nombre = file.name || 'foto';
-	const original = await file.arrayBuffer();
-	const digest = await crypto.subtle.digest('SHA-256', original);
-	const hash = [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, '0')).join('');
-	const heic = /image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(nombre);
-	let bitmap = null;
-	try {
-		bitmap = await abrirBitmap(file);
-	} catch {
-		if (!heic) throw new Error(`«${nombre}»: el navegador no puede abrir este formato de imagen. Conviértela a JPG o PNG.`);
-	}
-	if (!bitmap) {
-		try {
-			const heic2any = await cargarHeic2any();
-			const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-			bitmap = await abrirBitmap(Array.isArray(out) ? out[0] : out);
-		} catch {
-			throw new Error(`«${nombre}»: no se pudo convertir la foto HEIC. Ábrela en el teléfono y compártela como JPG.`);
-		}
-	}
-	const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
-	const canvas = document.createElement('canvas');
-	canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-	canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-	canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-	bitmap.close?.();
-	// Marca de agua (logo + eqinmobiliario.gt) para que una foto copiada muestre de dónde es.
-	let conMarca = false;
-	if (marca) {
-		try {
-			const { ponerMarca } = await import('./marca.js');
-			await ponerMarca(canvas);
-			conMarca = true;
-		} catch (err) {
-			console.warn('No se pudo poner la marca de agua', err);
-		}
-	}
-	let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
-	if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
-	if (!blob) throw new Error(`«${nombre}»: no se pudo procesar la imagen.`);
-	return { blob, ancho: canvas.width, alto: canvas.height, hash, ...(conMarca ? { marca: true } : {}) };
+// Preparar una foto (girar, reducir, WebP) es una sola pieza para el panel y para el comprobante del huésped en el
+// chat (js/reserva-chat.js): admin/js/imagen.js. Aquí solo se le suma la marca de agua de las fotos de las casas.
+export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
+	return procesar(file, maxSize, quality, marca ? { marcar: async (canvas) => (await import('./marca.js')).ponerMarca(canvas) } : {});
 }
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.

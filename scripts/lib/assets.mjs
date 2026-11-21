@@ -51,13 +51,18 @@ const SAFELIST = {
 // Los formatos de admin/js/formato.js que usa js/site.js, como window.EQFormato: la misma regla que el panel y
 // el generador (correo válido, precio de una propiedad, US$ para comparar precios), sin una segunda copia.
 export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'unirTelefono', 'montoPrecio', 'enUSD'];
-async function formatoParaElNavegador(root) {
+// Un módulo del panel como variable global del navegador (`globalName`), con solo lo que se exporta aquí.
+async function paraElNavegador(root, modulo, nombres, globalName) {
 	const r = await build({
-		stdin: { contents: `export { ${FORMATO_NAVEGADOR.join(', ')} } from './admin/js/formato.js';`, resolveDir: root, loader: 'js' },
-		bundle: true, format: 'iife', globalName: 'EQFormato', write: false, target: 'es2017', logLevel: 'silent'
+		stdin: { contents: `export { ${nombres.join(', ')} } from '${modulo}';`, resolveDir: root, loader: 'js' },
+		bundle: true, format: 'iife', globalName, write: false, target: 'es2017', logLevel: 'silent'
 	});
 	return r.outputFiles[0].text;
 }
+const formatoParaElNavegador = (root) => paraElNavegador(root, './admin/js/formato.js', FORMATO_NAVEGADOR, 'EQFormato');
+// La foto del comprobante que el huésped adjunta en el chat sale como las del panel (girada, reducida, WebP):
+// admin/js/imagen.js como window.EQImagen, solo en el paquete de renta vacacional (js/reserva-chat.js).
+const imagenParaElNavegador = (root) => paraElNavegador(root, './admin/js/imagen.js', ['procesarImagen'], 'EQImagen');
 
 // Íconos (icomoon) del sitio: los códigos que pide el CSS ya depurado (`content: "\e900"`), de U+E000 a U+F8FF.
 export const codigosEnCss = (css) => [...new Set([...css.matchAll(/content\s*:\s*["']\\([0-9a-f]{4,5})/gi)]
@@ -137,7 +142,7 @@ export async function buildAssets({ root, dist }) {
 	const rentaJs = (await Promise.all(RENTA_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
 	const minRenta = (await transform(rentaJs, { loader: 'js', minify: true, target: 'es2017' })).code;
 
-	const vacJs = (await Promise.all(VAC_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
+	const vacJs = [await imagenParaElNavegador(root), ...(await Promise.all(VAC_FILES.map((f) => readFile(path.join(root, f), 'utf8'))))].join(';\n');
 	const minVac = (await transform(vacJs, { loader: 'js', minify: true, target: 'es2017' })).code;
 
 	const version = hash(minCss + minJs + minRenta + minVac);

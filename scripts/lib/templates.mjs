@@ -1923,7 +1923,7 @@ export function reservaPage(ctx) {
 							</header>
 							<ol class="vac-chat-mensajes" aria-live="polite"></ol>
 							<form class="vac-chat-form">
-								<input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+								<input type="file" accept="image/*,.heic,.heif" hidden>
 								<button type="button" class="btn btn-outline-primary btn-ico vac-chat-adjuntar">${ic('camera')}</button>
 								<textarea class="form-control" rows="2" maxlength="1000" required></textarea>
 								<button type="submit" class="btn btn-primary btn-ico">${ic('paper-plane')}</button>

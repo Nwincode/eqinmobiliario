@@ -49,4 +49,13 @@ t('el token de la sesión para «publicar al cerrar» (sendBeacon) vive solo en 
 	for (const f of archivos) assert.doesNotMatch(fuente(f), /(localStorage|sessionStorage)\.setItem\([^)]*(token|Token|idToken)/, f);
 });
 
+t('comprobante del huésped: se prepara con la misma pieza que las fotos del panel (admin/js/imagen.js) antes de subirse', () => {
+	const chat = readFileSync(new URL('../js/reserva-chat.js', import.meta.url), 'utf8');
+	assert.match(chat, /window\.EQImagen\.procesarImagen\(f\)/);
+	assert.match(chat, /body: p\.blob/);
+	assert.match(fuente('form.js'), /import \{ procesarImagen as procesar \} from '\.\/imagen\.js';/);
+	assert.doesNotMatch(fuente('form.js'), /createImageBitmap/, 'una sola pieza: form.js no tiene su propia copia');
+	assert.match(readFileSync(new URL('./lib/assets.mjs', import.meta.url), 'utf8'), /'\.\/admin\/js\/imagen\.js', \['procesarImagen'\], 'EQImagen'/);
+});
+
 console.log(`\n${ok} guardas del panel en su lugar.`);
