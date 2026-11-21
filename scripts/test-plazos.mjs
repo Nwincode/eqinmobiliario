@@ -66,4 +66,36 @@ await t('al confirmar, se cierran las abiertas de esa casa que se cruzan (solo d
 	assert.deepEqual(await cerrarLasQueSeCruzan('', '2026-12-20', '2026-12-23'), []);
 });
 
+// Una reserva cuya solicitud se borró a mano (antes de que las reglas lo impidieran): ni el cron ni el socio fallan.
+const sinSolicitud = () => {
+	poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', propietarioId: 'p1', vacacional: { reservadas: [{ desde: '2026-12-20', hasta: '2026-12-23' }] } });
+	poner('chatsPorSolicitud/borrada', { token: TOKEN });
+	poner(`chats/${TOKEN}`, { leadId: 'borrada', codigo: 'EQ-B', propertyId: 'c1', propietarioId: 'p1', estado: 'confirmada', llegada: '2026-12-20', salida: '2026-12-23', idioma: 'es' });
+	poner('reservas/borrada', { leadId: 'borrada', chat: TOKEN, codigo: 'EQ-B', propertyId: 'c1', propietarioId: 'p1', estado: 'confirmada', llegada: '2026-12-20', salida: '2026-12-23', moneda: 'USD',
+		createdAt: hace(30 * 60), pagoDesde: S.reloj - 30 * 3600000, vencePago: S.reloj - 3600000, comision: { monto: 40, vence: '2026-12-20', pagada: false } });
+};
+await t('sin su solicitud, la reserva sin pago se cancela sola igual (antes: NOT_FOUND en cada vuelta y las fechas trabadas)', async () => {
+	sinSolicitud();
+	await plazos();
+	assert.equal(leer('reservas/borrada').estado, 'cancelada');
+	assert.equal(leer(`chats/${TOKEN}`).estado, 'cancelada');
+	assert.deepEqual(leer('properties/c1').vacacional.reservadas, []);
+	assert.equal(leer('leads/borrada'), null, 'no se inventa la solicitud');
+});
+await t('sin su solicitud, el socio cancela y marca el pago (antes: 404 «No encontramos esa solicitud»)', async () => {
+	const { default: reservas } = await import('../netlify/functions/reservas.mjs');
+	const pedir = (accion, extra = {}) => reservas({ method: 'POST', headers: new Headers(), json: async () => ({ accion, leadId: 'borrada', ...extra }) }, {});
+	S.socio = { uid: 'u-socio', nombre: 'Rodrigo', propietarioId: 'p1' };
+	sinSolicitud();
+	poner(`reservas/borrada`, { ...leer('reservas/borrada'), vencePago: S.reloj + 86400000 });
+	poner('properties/c1/privado/llegada', { direccion: 'Km 98.5, Monterrico', mapa: '' });
+	assert.equal((await pedir('pago')).status, 200);
+	assert.equal(leer(`chats/${TOKEN}`).estado, 'pagada');
+	sinSolicitud();
+	poner(`reservas/borrada`, { ...leer('reservas/borrada'), vencePago: S.reloj + 86400000 });
+	assert.equal((await pedir('cancelar', { motivo: 'Cliente canceló' })).status, 200);
+	assert.equal(leer('reservas/borrada').estado, 'cancelada');
+	assert.equal(leer('leads/borrada'), null);
+});
+
 console.log(`${ok} pruebas del cron de plazos pasan.`);

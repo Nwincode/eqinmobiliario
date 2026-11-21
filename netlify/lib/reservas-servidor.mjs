@@ -70,11 +70,28 @@ export async function cerrarLasQueSeCruzan(propertyId, llegada, salida, ahora = 
 	return tokens;
 }
 
+// La solicitud de una reserva, leída en la transacción. Si ya no existe (se borró a mano antes de que firestore.rules lo
+// impidiera), se arma con lo que guarda su reserva (reservas/{id}: casa, código, fechas, estado): así el socio puede
+// cancelar o marcar el pago y el cron de plazos sigue, en vez de fallar cada vuelta con NOT_FOUND. Lo que iría a la
+// solicitud (estado e historial) se omite en esa transacción (responder, anotar). Sin reserva tampoco: null.
+const SIN_SOLICITUD = new WeakMap();
+export async function solicitudDe(tx, leadId) {
+	const lead = await tx.leer(`leads/${leadId}`);
+	if (lead) return lead;
+	const r = await tx.leer(`reservas/${leadId}`);
+	if (!r?.codigo || !r.propertyId) return null;
+	if (!SIN_SOLICITUD.has(tx)) SIN_SOLICITUD.set(tx, new Set());
+	SIN_SOLICITUD.get(tx).add(leadId);
+	return { propertyId: r.propertyId, propertyTitulo: r.propertyTitulo || '', nombre: r.huesped || '', email: '', desdeReserva: true,
+		reserva: { codigo: r.codigo, llegada: r.llegada, salida: r.salida, moneda: r.moneda }, solicitud: { estado: r.estado === 'cancelada' ? 'cancelada' : 'confirmada' } };
+}
+const sinSolicitud = (tx, leadId) => Boolean(SIN_SOLICITUD.get(tx)?.has(leadId));
+
 // Lo que cambia en la solicitud al responderla, con su renglón de historial (lo mismo que `respuesta` en reservas.js).
-export const responder = (tx, socio, leadId, estado, que, extra = {}) => tx.cambiar(`leads/${leadId}`, { 'solicitud.estado': estado, ...extra },
+export const responder = (tx, socio, leadId, estado, que, extra = {}) => sinSolicitud(tx, leadId) ? null : tx.cambiar(`leads/${leadId}`, { 'solicitud.estado': estado, ...extra },
 	{ ahora: ['updatedAt'], agregar: { 'solicitud.historial': [{ que, quien: socio.uid, nombre: socio.nombre, cuando: new Date().toISOString() }] } });
 // Un renglón en el historial de la solicitud sin cambiar su estado (p. ej. «Pago recibido»).
-export const anotar = (tx, quien, leadId, que) => tx.cambiar(`leads/${leadId}`, {},
+export const anotar = (tx, quien, leadId, que) => sinSolicitud(tx, leadId) ? null : tx.cambiar(`leads/${leadId}`, {},
 	{ ahora: ['updatedAt'], agregar: { 'solicitud.historial': [{ que, quien: quien.uid, nombre: quien.nombre, cuando: new Date().toISOString() }] } });
 // Mensaje al cliente en el chat de la solicitud: del socio, o del equipo (lo que vence solo). Devuelve su id: quien
 // lo llama lo pone como aviso pendiente en el mismo cambio del chat (`{ ...pendiente(id) }`), así un correo que no

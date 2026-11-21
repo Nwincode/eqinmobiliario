@@ -20,7 +20,7 @@
 import '../../js/calc-vacacional.js';
 import { datosConfigurados, desde, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, SISTEMA } from '../lib/reservas-servidor.mjs';
+import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, solicitudDe, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
@@ -85,6 +85,8 @@ async function cobrarOCancelar(reservaId, ahora) {
 			if (!cancelaSola(vence, reserva.llegada, ahora)) return null;
 			const casa = await tx.leer(`properties/${reserva.propertyId}`);
 			if (!casa) return null;
+			// Sin su solicitud (borrada a mano), la reserva igual se cancela: lo de la solicitud se omite (solicitudDe).
+			await solicitudDe(tx, reserva.leadId);
 			await fechasDeLaCasa(tx, { ...casa, id: reserva.propertyId }, reserva, { ...reserva, estado: 'cancelada' });
 			tx.cambiar(`reservas/${reservaId}`, { estado: 'cancelada', motivo: MOTIVO_SIN_PAGO }, { ahora: ['updatedAt'] });
 			responder(tx, SISTEMA, reserva.leadId, 'cancelada', 'Sin pago a tiempo: se canceló sola', { 'solicitud.motivo': MOTIVO_SIN_PAGO });

@@ -141,6 +141,9 @@ await espera('administrador marca confirmada (camino del administrador)', act('a
 await espera('socio dueño inventa un estado', act('socio1', { estado: 'regalada' }), false);
 // El socio y los datos del cliente
 await espera('socio dueño lee la solicitud (teléfono del cliente)', leer('socio1', 'leads/lead1'), false);
+await espera('el administrador borra una solicitud de reserva (su reserva y su chat la buscan)', fetch(`${H}/leads/lead1`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+await poner('leads/lead-contacto', { nombre: 'Contacto', telefono: '55550000', agentId: '' });
+await espera('el administrador borra un lead de contacto (control)', fetch(`${H}/leads/lead-contacto`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), true);
 await espera('socio dueño lista las solicitudes de sus casas', consulta('socio1', 'leads', 'propietarioId', 'o1'), false);
 // Lo que escribe el socio en la solicitud: solo agrega un renglón al historial.
 const renglon = (que) => ({ mapValue: { fields: campos({ que, quien: 'socio1', cuando: new Date().toISOString() }) } });

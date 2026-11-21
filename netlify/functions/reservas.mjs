@@ -15,7 +15,7 @@
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
-import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas } from '../lib/reservas-servidor.mjs';
+import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas, solicitudDe } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
@@ -46,8 +46,10 @@ const YA = 'Esta solicitud ya se respondió (otra persona u otra pestaña). Reca
 
 // La solicitud, su casa (por noche y de este socio: la casa manda, no lo que diga la solicitud) y EL chat de la
 // solicitud (su índice chatsPorSolicitud), leídos dentro de la transacción.
-async function cargar({ leer }, socio, leadId) {
-	const lead = await leer(`leads/${leadId}`);
+// (Sin la solicitud, la de su reserva: solicitudDe; confirmar no, porque todavía no hay reserva.)
+async function cargar(tx, socio, leadId) {
+	const { leer } = tx;
+	const lead = await solicitudDe(tx, leadId);
 	if (!lead?.reserva?.codigo || !ID.test(lead.propertyId || '')) falla(404, 'No encontramos esa solicitud.');
 	const casa = await leer(`properties/${lead.propertyId}`);
 	if (!casa || casa.operacion !== 'vacacional' || !casa.propietarioId || casa.propietarioId !== socio.propietarioId) falla(403, 'Esta solicitud no es de una casa por noche tuya.');

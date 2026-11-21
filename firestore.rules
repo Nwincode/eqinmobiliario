@@ -320,7 +320,9 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId);
-      allow delete: if isAdmin();
+      // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
+      // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
+      allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
     }
 
     // CRM: clientes, actividades (agenda e historial) y propietarios.
@@ -630,7 +632,9 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId);
-      allow delete: if isAdmin();
+      // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
+      // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
+      allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
     }
 
     // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
