@@ -227,6 +227,11 @@ test('la ficha por noche no carga los textos del chat (solo /reserva/)', () => {
 	const datos = JSON.parse(/<script type="application\/json" class="vac-datos">([\s\S]*?)<\/script>/.exec(de(vac))[1]);
 	assert.deepEqual(Object.keys(datos.t).filter((k) => k.startsWith('vacChat')), ['vacChatVer']);
 	assert.match(de('/reserva/'), /vacChatSin/);
+	// «Tu reserva» también en inglés (el enlace de una reserva hecha en inglés), fuera de Google como la de español.
+	if (html['/en/reservation/']) {
+		assert.match(de('/en/reservation/'), /<html lang="en"/);
+		assert.match(de('/en/reservation/'), /<meta name="robots" content="noindex/);
+	} else assert.fail('falta /en/reservation/');
 });
 
 test('ninguna página que se indexa enlaza un listado que no se indexa (pastillas, migas, ubicación)', () => {
