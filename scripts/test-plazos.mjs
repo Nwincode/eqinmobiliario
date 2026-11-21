@@ -98,4 +98,25 @@ await t('sin su solicitud, el socio cancela y marca el pago (antes: 404 «No enc
 	assert.equal(leer('leads/borrada'), null);
 });
 
+await t('a las 24 h, la que confirmaba el equipo se cierra con su motivo («No se confirmó a tiempo»), no «sin respuesta del anfitrión»; el cliente en inglés lo lee en inglés', async () => {
+	const { MOTIVO_EQUIPO_NO_CONFIRMO } = await import('../admin/js/reservas-calculo.js');
+	poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', vacacional: { reservadas: [] } });
+	solicitud('equipo', 25 * 60);
+	poner('chatsPorSolicitud/equipo', { token: TOKEN });
+	poner(`chats/${TOKEN}`, { leadId: 'equipo', codigo: 'EQ-equipo', propertyId: 'c1', llegada: '2026-12-20', salida: '2026-12-23', idioma: 'en', confirmaEquipo: true, createdAt: hace(25 * 60) });
+	await plazos();
+	assert.equal(leer('leads/equipo').solicitud?.motivo, MOTIVO_EQUIPO_NO_CONFIRMO);
+	const msj = [...S.docs.keys()].filter((k) => k.startsWith(`chats/${TOKEN}/mensajes/`)).map((k) => leer(k));
+	assert.equal(msj.length, 1);
+	assert.match(msj[0].texto, /^We could not confirm your request in time/);
+	assert.equal(msj[0].motivo, MOTIVO_EQUIPO_NO_CONFIRMO);
+});
+await t('sin pago a tiempo, el cliente en inglés lee la cancelación en inglés', async () => {
+	sinSolicitud();
+	poner(`chats/${TOKEN}`, { ...leer(`chats/${TOKEN}`), idioma: 'en' });
+	await plazos();
+	const msj = [...S.docs.keys()].filter((k) => k.startsWith(`chats/${TOKEN}/mensajes/`)).map((k) => leer(k));
+	assert.match(msj.at(-1).texto, /^We did not receive your payment in time/);
+});
+
 console.log(`${ok} pruebas del cron de plazos pasan.`);

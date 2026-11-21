@@ -1,7 +1,7 @@
 // Qué correos tocan por el chat de una reserva vacacional. Sin red: recibe lo guardado y devuelve los avisos.
 // Cada aviso trae lo que el correo muestra (netlify/lib/aviso-chat-envio.mjs): título, texto, tabla de datos, pasos y un botón.
 import { dinero } from '../../admin/js/formato.js';
-import { fechaHora } from '../../admin/js/reservas-calculo.js';
+import { fechaHora, MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_EQUIPO_NO_CONFIRMO } from '../../admin/js/reservas-calculo.js';
 // Cada aviso lleva solo un enlace a la plataforma (la reserva del cliente o la solicitud en el panel):
 // la conversación sigue allí, y nadie recibe el teléfono ni el correo del otro.
 const FRESCO = 10 * 60_000;
@@ -72,13 +72,21 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		if (ahora - ms(chat.createdAt) > FRESCO) return [];
 		// El equipo también se entera de cada solicitud nueva (aparte del socio, sin repetir a quien ya la recibe).
 		const equipo = (correos.equipo || []).filter((c) => c && !deLaCasa.some((d) => d.toLowerCase() === c.toLowerCase()));
+		// Cotizada por debajo del precio de la casa: la confirma el equipo («Te toca confirmar»), no el socio, y no aparta
+		// fechas: a nadie se le promete eso (confirmaEquipo, que pone congelarMontos en reservas-servidor.mjs).
+		const delEquipo = Boolean(chat.confirmaEquipo);
 		return [
-			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, 'Nueva solicitud de reserva', 'Respóndela pronto: las fechas quedan apartadas hasta que respondas, a lo más 24 horas (después se cierra sola).'),
+			...aLaCasa(`Nueva solicitud de reserva ${chat.codigo}`, 'Nueva solicitud de reserva', delEquipo
+				? 'La confirma el equipo: se le cotizó menos que el precio de tu casa. No tienes que hacer nada; si se confirma, te llega el aviso.'
+				: 'Respóndela pronto: las fechas quedan apartadas hasta que respondas, a lo más 24 horas (después se cierra sola).'),
 			...(equipo.length ? [{ rol: 'equipo', lang: 'es', para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: 'Nueva solicitud de reserva',
 				intro: 'La atiende el socio; si en 2 horas no responde, te llega otro aviso.', boton: 'Abrir la solicitud', url: panel, datos: [['Casa', casaPanel], ...tabla('es'), ['Cliente', String(chat.nombre || '').slice(0, 40)]] }] : []),
 			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? `We received your request${chat.nombre ? `, ${chat.nombre}` : ''}` : `Recibimos tu solicitud${chat.nombre ? `, ${chat.nombre}` : ''}`,
-				en ? `The host of ${tituloDe(chat, casa) || 'the house'} reviews it and replies in your booking chat; your dates are held until the host replies, within 24 hours at most. Keep this email: the button takes you back to your booking.`
-					: `El anfitrión de ${casaEs || 'la casa'} la revisa y te responde en el chat de tu reserva; tus fechas quedan apartadas hasta que te responda, a más tardar en 24 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`,
+				delEquipo
+					? (en ? `Our team reviews your request for ${tituloDe(chat, casa) || 'the house'} and replies in your booking chat within 24 hours at most. Keep this email: the button takes you back to your booking.`
+						: `El equipo revisa tu solicitud de ${casaEs || 'la casa'} y te responde en el chat de tu reserva, a más tardar en 24 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`)
+					: en ? `The host of ${tituloDe(chat, casa) || 'the house'} reviews it and replies in your booking chat; your dates are held until the host replies, within 24 hours at most. Keep this email: the button takes you back to your booking.`
+						: `El anfitrión de ${casaEs || 'la casa'} la revisa y te responde en el chat de tu reserva; tus fechas quedan apartadas hasta que te responda, a más tardar en 24 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`,
 				{ pasos: en ? ['The host confirms your dates (you get an email).', 'You pay the owner directly with the details shown in your booking.', 'Once they receive your payment, you see the address and directions.']
 					: ['El anfitrión confirma tus fechas (te llega un correo).', 'Le pagas directo al propietario con los datos que verás en tu reserva.', 'Al recibir tu pago, ves la dirección y cómo llegar.'] })
 		];
@@ -115,9 +123,14 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva${chat.comprobanteCliente ? ' (con comprobante del cliente)' : ''}`, titulo: `El socio canceló ${chat.codigo}`,
 				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
 		// Lo que se cerró o canceló solo por un plazo (netlify/functions/plazos-reservas.mjs): el anfitrión también se entera.
-		const plazo = ultimo.plazo ? aLaCasa(no ? `${chat.codigo}: se cerró sin respuesta` : `${chat.codigo}: se canceló sola, sin pago`,
+		// Con el motivo de verdad (lo deja el cron en el mensaje): la casa salió del sitio, la confirmaba el equipo, o nadie
+		// respondió.
+		const porQue = { [MOTIVO_CASA_NO_DISPONIBLE]: ['se cerró: la casa ya no está en el sitio', 'La casa ya no está disponible en el sitio'],
+			[MOTIVO_EQUIPO_NO_CONFIRMO]: ['se cerró: el equipo no la confirmó a tiempo', 'La confirmaba el equipo (se le cotizó menos que el precio de la casa) y no se confirmó en 24 h'] }[ultimo.motivo]
+			|| ['se cerró sin respuesta', 'Nadie la respondió en 24 h'];
+		const plazo = ultimo.plazo ? aLaCasa(no ? `${chat.codigo}: ${porQue[0]}` : `${chat.codigo}: se canceló sola, sin pago`,
 			no ? `La solicitud ${chat.codigo} se cerró sola` : `La reserva ${chat.codigo} se canceló sola`,
-			no ? `${resumen}. Nadie la respondió en 24 h: el cliente ya lo sabe.` : `${resumen}. El cliente no pagó ni subió su comprobante a tiempo: las fechas quedaron libres. Si sí te pagó, avísale al administrador.`) : [];
+			no ? `${resumen}. ${porQue[1]}: el cliente ya lo sabe.` : `${resumen}. El cliente no pagó ni subió su comprobante a tiempo: las fechas quedaron libres. Si sí te pagó, avísale al administrador.`) : [];
 		// «No se dio» no siempre es por las fechas (el motivo va en el mensaje del chat): el correo no lo da por hecho.
 		return [...equipo, ...plazo, ...alCliente(en ? `Booking ${chat.codigo}: ${no ? 'not confirmed' : 'cancelled'}` : `Reserva ${chat.codigo}: ${no ? 'no se concretó' : 'cancelada'}`,
 			en ? (no ? 'Your request was not confirmed' : 'Your booking was cancelled') : (no ? 'Tu solicitud no se concretó' : 'Tu reserva se canceló'),

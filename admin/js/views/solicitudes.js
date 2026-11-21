@@ -60,7 +60,7 @@ export async function render(container, [codigo] = []) {
 	const datosChat = Object.fromEntries(chatsSnap.docs.map((d) => [d.data().codigo, d.data()]));
 	const refChat = (l) => chats[l.reserva.codigo] && doc(db, 'chats', chats[l.reserva.codigo]);
 	// El chat de la solicitud con el estado que ve el cliente (lo que reservas.js necesita para escribir en él).
-	const chatDe = (l) => (refChat(l) ? { ref: refChat(l), estado: datosChat[l.reserva.codigo]?.estado || '' } : null);
+	const chatDe = (l) => (refChat(l) ? { ref: refChat(l), estado: datosChat[l.reserva.codigo]?.estado || '', idioma: datosChat[l.reserva.codigo]?.idioma || l.idioma || 'es' } : null);
 	// Chats donde lo último lo escribió el cliente: falta responderle.
 	const porResponder = new Set();
 	// Chats que ya mandaron los datos de llegada (si el segundo paso de «Pago recibido» falló, el botón sigue ahí).

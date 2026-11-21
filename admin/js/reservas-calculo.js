@@ -8,16 +8,26 @@ import { visibilidadDe } from './estados.js';
 const V = () => globalThis.EQVacacional;
 export const MOTIVOS_CANCELAR = ['Cliente canceló', 'Fechas ya no disponibles', 'Otro'];
 export const MOTIVOS_NO = ['Cliente no respondió', 'Fechas no disponibles', 'Precio', 'Otro'];
-// Lo que lee el cliente en su chat al cerrarse la solicitud.
-export const TEXTO_NO = 'Lo sentimos: la casa no está disponible en esas fechas.';
-// Lo que lee el cliente en su chat cuando «no se dio», según el motivo (no siempre fue por las fechas).
-const TEXTOS_NO = {
-	'Cliente no respondió': 'Cerramos esta solicitud porque no tuvimos respuesta. Si todavía quieres la casa, elige tus fechas otra vez.',
-	'Precio': 'Esta solicitud no se pudo concretar. Si quieres, elige otras fechas o mira otras casas.',
-	'Otro': 'Esta solicitud no se pudo concretar. Si quieres, elige otras fechas o mira otras casas.'
+// Lo que lee el cliente en su chat cuando el sistema, el socio o el equipo cierran su solicitud o reserva: en su idioma
+// (chat.idioma; `en` = true en inglés). Una sola lista para el servidor y el panel; el correo dice lo mismo.
+const TEXTOS_CLIENTE = {
+	no: ['Lo sentimos: la casa no está disponible en esas fechas.', 'Sorry: the house is not available on those dates.'],
+	noRespondio: ['Cerramos esta solicitud porque no tuvimos respuesta. Si todavía quieres la casa, elige tus fechas otra vez.', 'We closed this request because we did not hear back from you. If you still want the house, choose your dates again.'],
+	noSeConcreto: ['Esta solicitud no se pudo concretar. Si quieres, elige otras fechas o mira otras casas.', 'This request could not go ahead. If you like, choose other dates or look at other houses.'],
+	cancelada: ['La reserva se canceló.', 'The booking was cancelled.'],
+	sinRespuesta: ['El anfitrión no respondió a tiempo, así que cerramos esta solicitud. Puedes elegir otras fechas u otra casa.', 'The host did not reply in time, so we closed this request. You can choose other dates or another house.'],
+	equipoNoConfirmo: ['No pudimos confirmar tu solicitud a tiempo, así que la cerramos y las fechas quedan libres. Si todavía te interesa, elige tus fechas otra vez.', 'We could not confirm your request in time, so we closed it and the dates are free again. If you are still interested, choose your dates again.'],
+	sinPago: ['No recibimos tu pago a tiempo, así que la reserva se canceló y las fechas quedaron libres. Si todavía la quieres, elige tus fechas otra vez.', 'We did not receive your payment in time, so the booking was cancelled and the dates were released. If you still want it, choose your dates again.'],
+	noLlego: ['El anfitrión no recibió tu pago, así que la reserva se canceló. Si sí pagaste, escríbenos aquí con tu comprobante.', 'The host did not receive your payment, so the booking was cancelled. If you did pay, write to us here with your receipt.'],
+	casaNoDisponible: ['Esta casa ya no está disponible, así que cerramos tu solicitud. Puedes mirar otras casas en el sitio.', 'This house is no longer available, so we closed your request. You can look at other houses on the site.'],
+	fechasApartadas: ['Esas fechas se acaban de reservar, así que cerramos esta solicitud. Elige otras fechas en la ficha de la casa.', 'Those dates were just booked, so we closed this request. Choose other dates on the house page.']
 };
-export const textoNo = (motivo) => TEXTOS_NO[motivo] || TEXTO_NO;
-export const TEXTO_CANCELADA = 'La reserva se canceló.';
+export const textoCliente = (clave, en = false) => TEXTOS_CLIENTE[clave][en ? 1 : 0];
+// Lo que lee el cliente en su chat cuando «no se dio», según el motivo (no siempre fue por las fechas).
+const CLAVE_NO = { 'Cliente no respondió': 'noRespondio', 'Precio': 'noSeConcreto', 'Otro': 'noSeConcreto' };
+export const textoNo = (motivo, en = false) => textoCliente(CLAVE_NO[motivo] || 'no', en);
+export const TEXTO_NO = textoCliente('no');
+export const TEXTO_CANCELADA = textoCliente('cancelada');
 
 // Plazos de una reserva por noche (netlify/functions/plazos-reservas.mjs los cumple; el panel y el chat los muestran):
 //  - el anfitrión responde la solicitud en 24 h; si no, se cierra sola («no se dio»);
@@ -43,13 +53,18 @@ export const MOTIVO_DUPLICADA = 'Duplicada';
 // Una solicitud sin su chat (escrita a mano contra la base, o el chat nunca se creó): nadie puede atenderla ni la
 // cotiza el servidor. El cron de plazos la cierra pasados unos minutos, sin correo, para que no gaste sus vueltas.
 export const MOTIVO_SIN_CHAT = 'Sin chat';
-export const TEXTO_SIN_RESPUESTA = 'El anfitrión no respondió a tiempo, así que cerramos esta solicitud. Puedes elegir otras fechas u otra casa.';
-export const TEXTO_SIN_PAGO = 'No recibimos tu pago a tiempo, así que la reserva se canceló y las fechas quedaron libres. Si todavía la quieres, elige tus fechas otra vez.';
-export const TEXTO_NO_LLEGO = 'El anfitrión no recibió tu pago, así que la reserva se canceló. Si sí pagaste, escríbenos aquí con tu comprobante.';
-export const TEXTO_CASA_NO_DISPONIBLE = 'Esta casa ya no está disponible, así que cerramos tu solicitud. Puedes mirar otras casas en el sitio.';
-export const textoDuplicada = (codigo) => `Esta solicitud estaba repetida y la cerramos. Tu reserva sigue en ${codigo}: búscala en tu correo.`;
-TEXTOS_NO[MOTIVO_SIN_RESPUESTA] = TEXTO_SIN_RESPUESTA;
-TEXTOS_NO[MOTIVO_CASA_NO_DISPONIBLE] = TEXTO_CASA_NO_DISPONIBLE;
+// Una solicitud cotizada por debajo del precio de la casa la confirma el equipo (motivoSocioNoConfirma); si nadie la
+// confirma en 24 h, se cierra con este motivo (no «sin respuesta del anfitrión»: el anfitrión no podía).
+export const MOTIVO_EQUIPO_NO_CONFIRMO = 'No se confirmó a tiempo';
+export const TEXTO_SIN_RESPUESTA = textoCliente('sinRespuesta');
+export const TEXTO_SIN_PAGO = textoCliente('sinPago');
+export const TEXTO_NO_LLEGO = textoCliente('noLlego');
+export const TEXTO_CASA_NO_DISPONIBLE = textoCliente('casaNoDisponible');
+export const textoDuplicada = (codigo, en = false) => (en ? `This request was a duplicate and we closed it. Your booking continues as ${codigo}: look for it in your email.`
+	: `Esta solicitud estaba repetida y la cerramos. Tu reserva sigue en ${codigo}: búscala en tu correo.`);
+CLAVE_NO[MOTIVO_SIN_RESPUESTA] = 'sinRespuesta';
+CLAVE_NO[MOTIVO_CASA_NO_DISPONIBLE] = 'casaNoDisponible';
+CLAVE_NO[MOTIVO_EQUIPO_NO_CONFIRMO] = 'equipoNoConfirmo';
 export const venceRespuesta = (creada) => creada + HORAS_RESPUESTA * HORA;
 // desde: milisegundos (al confirmar, o al reabrir el pago con «No me llegó»). llegada: 'AAAA-MM-DD' (Guatemala, UTC−6).
 export function vencePago(desde, llegada) {
@@ -242,8 +257,8 @@ export function choqueExterno(reserva, externas) {
 	return x ? `Esas fechas ya están ocupadas en ${x.fuente || 'otra plataforma'} (${x.desde} a ${x.hasta}): no se puede confirmar. Ciérrala con «No se dio».` : '';
 }
 export const MOTIVO_FECHAS_APARTADAS = 'Fechas ya reservadas';
-export const TEXTO_FECHAS_APARTADAS = 'Esas fechas se acaban de reservar, así que cerramos esta solicitud. Elige otras fechas en la ficha de la casa.';
-TEXTOS_NO[MOTIVO_FECHAS_APARTADAS] = TEXTO_FECHAS_APARTADAS;
+export const TEXTO_FECHAS_APARTADAS = textoCliente('fechasApartadas');
+CLAVE_NO[MOTIVO_FECHAS_APARTADAS] = 'fechasApartadas';
 
 // ¿Todavía no empieza el día de llegada? (día de Guatemala: hasta las 23:59 del día anterior).
 export const antesDeLlegar = (llegada, ahora = Date.now()) => V().esFecha(llegada) && llegada > V().hoy(ahora);

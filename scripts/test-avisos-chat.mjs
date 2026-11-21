@@ -24,6 +24,19 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 	// Sin socio con correo, el equipo la recibe una sola vez.
 	assert.deepEqual(avisosChat({ chat, mensajes: [], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA }).map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
 });
+test('solicitud que confirma el equipo (cotizada por debajo): al socio no se le pide responder ni al cliente se le prometen fechas apartadas', () => {
+	const a = avisos([], { confirmaEquipo: true });
+	assert.match(a[0].intro, /La confirma el equipo/);
+	assert.ok(a.every((x) => !/apartad|held/i.test(`${x.intro} ${x.titulo}`)), a.map((x) => x.intro).join(' | '));
+	assert.match(avisos([], { confirmaEquipo: true, idioma: 'en' }).at(-1).intro, /Our team reviews your request/);
+});
+test('lo que se cerró solo por un plazo dice el motivo de verdad: la casa salió del sitio, el equipo no la confirmó o nadie respondió', () => {
+	const cerrada = (motivo) => avisos([m('cliente', 60), { de: 'equipo', texto: 'Cerramos…', plazo: true, motivo, createdAt: hace(0) }], { estado: 'no' }).find((x) => x.para[0] === 'socio@example.com');
+	assert.match(cerrada('La casa ya no está disponible').asunto, /la casa ya no está en el sitio/);
+	assert.doesNotMatch(cerrada('La casa ya no está disponible').intro, /Nadie la respondió/);
+	assert.match(cerrada('No se confirmó a tiempo').intro, /La confirmaba el equipo/);
+	assert.match(cerrada('Sin respuesta del anfitrión').intro, /Nadie la respondió en 24 h/);
+});
 test('recordatorio de pago (lo que vence solo): al cliente y al socio, por si ya le pagaron', () => {
 	const a = avisos([m('socio', 60, 'pago'), { de: 'equipo', tipo: 'recordatorio', texto: 'Recuerda…', createdAt: hace(0) }], { estado: 'confirmada' });
 	assert.deepEqual(a.map((x) => x.para), [['ana@example.com'], ['socio@example.com']]);

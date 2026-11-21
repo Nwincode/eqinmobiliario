@@ -19,7 +19,7 @@ import {
 import { session, markPending } from './session.js';
 import { dia, ahoraServidor } from './ui.js';
 
-import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
+import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
 const V = window.EQVacacional;
 const quienEscribe = () => (session.esSocio ? 'socio' : 'equipo');
@@ -221,11 +221,11 @@ async function chatDe(r, chat) {
 	if (chat !== undefined) return chat;
 	if (r.chat && !session.esSocio) {
 		const s = await getDoc(doc(db, 'chats', r.chat));
-		if (s.exists()) return { ref: s.ref, estado: s.data().estado || '' };
+		if (s.exists()) return { ref: s.ref, estado: s.data().estado || '', idioma: s.data().idioma || 'es' };
 	}
 	if (!r.codigo || session.esSocio) return null;
 	const s = (await getDocs(query(collection(db, 'chats'), where('codigo', '==', r.codigo)))).docs[0];
-	return s ? { ref: s.ref, estado: s.data().estado || '' } : null;
+	return s ? { ref: s.ref, estado: s.data().estado || '', idioma: s.data().idioma || 'es' } : null;
 }
 // Mensaje al cliente y estado nuevo del chat. El mensaje va antes en el mismo lote: las reglas lo miran con el chat
 // todavía abierto.
@@ -315,7 +315,8 @@ export const noSeDio = conCaminoDeAntes(async function noSeDio(l, motivo, chat =
 	await runTransaction(db, async (tx) => {
 		await sinResponder(tx, l, chat);
 		tx.update(doc(db, 'leads', l.id), respuesta('no', 'No se dio', { 'solicitud.motivo': motivo }));
-		if (chat) cerrarChat(tx, chat, 'no', textoNo(motivo));
+		// En el idioma del cliente (el de su chat).
+		if (chat) cerrarChat(tx, chat, 'no', textoNo(motivo, chat.idioma === 'en'));
 	});
 	if (chat) avisarChat(chat.ref.id);
 	await alDiaEnLaWeb(l.propertyId);
@@ -337,7 +338,7 @@ export const cancelarReserva = conCaminoDeAntes(async function cancelarReserva(r
 		escribir: (tx, ref) => tx.set(ref, { estado: 'cancelada', motivo, updatedAt: serverTimestamp() }, { merge: true }),
 		ademas: (tx) => {
 			if (r.leadId) tx.update(doc(db, 'leads', r.leadId), respuesta('cancelada', 'Canceló', { 'solicitud.motivo': motivo }));
-			if (cierra) cerrarChat(tx, delCliente, 'cancelada', TEXTO_CANCELADA);
+			if (cierra) cerrarChat(tx, delCliente, 'cancelada', textoCliente('cancelada', delCliente.idioma === 'en'));
 		}
 	});
 	if (cierra) avisarChat(delCliente.ref.id);

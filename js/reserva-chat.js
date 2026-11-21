@@ -20,7 +20,7 @@
 		var out = {}, f = (doc && doc.fields) || {};
 		Object.keys(f).forEach(function (k) {
 			var v = f[k];
-			out[k] = 'stringValue' in v ? v.stringValue : 'doubleValue' in v ? v.doubleValue : 'integerValue' in v ? Number(v.integerValue) : 'timestampValue' in v ? v.timestampValue : '';
+			out[k] = 'stringValue' in v ? v.stringValue : 'doubleValue' in v ? v.doubleValue : 'integerValue' in v ? Number(v.integerValue) : 'timestampValue' in v ? v.timestampValue : 'booleanValue' in v ? v.booleanValue : '';
 		});
 		return out;
 	}
@@ -169,7 +169,8 @@
 			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 24 h (se cierra sola:
 			// netlify/functions/plazos-reservas.mjs).
 			var espera = Date.now() - new Date(c.createdAt).getTime();
-			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
+			// La que confirma el equipo (se cotizó por debajo del precio de la casa) no aparta fechas: no se le promete.
+			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : ch.confirmaEquipo ? 'Equipo' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
 			var guia = cuerpo.querySelector('[data-out="sigue"]');
 			// Confirmada: el plazo exacto para pagar; con el comprobante ya enviado, que el anfitrión lo revisa.
 			// Si el anfitrión dijo que no le llegó (pagoReabierto, después del comprobante), se le pide otro: el de antes ya no cuenta

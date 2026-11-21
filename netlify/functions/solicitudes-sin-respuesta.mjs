@@ -45,7 +45,7 @@ export default async () => {
 			desde('leads', 'createdAt', new Date(ahora - ventana - PLAZO)),
 			desde('leads', 'updatedAt', new Date(ahora - ventana))
 		]);
-		const sinRespuesta = nuevas.filter((l) => l.reserva?.codigo && !l.solicitud?.estado && enVentana(l.createdAt.getTime() + PLAZO));
+		const nuevasSinRespuesta = nuevas.filter((l) => l.reserva?.codigo && !l.solicitud?.estado && enVentana(l.createdAt.getTime() + PLAZO));
 		const deSolicitud = cambiadas.filter((l) => l.solicitud?.estado === 'cancelada');
 		// Reservas de la web canceladas en la ventana (las reglas exigen al socio la hora del servidor en updatedAt) que no
 		// salieron ya por su solicitud. Si esta lectura falla, se avisa lo de siempre.
@@ -65,6 +65,10 @@ export default async () => {
 			chatsCon('avisoPendiente', '\u0001'),
 			sonLas7 ? chatsCon('pagoReabierto', 1) : []
 		]);
+		// «El socio no respondió»: no las que confirma el equipo (cotizadas por debajo: el socio no puede; el equipo ya
+		// recibió «Te toca confirmar»).
+		const delEquipo = new Set(abiertos.filter((c) => c.confirmaEquipo).map((c) => c.leadId));
+		const sinRespuesta = nuevasSinRespuesta.filter((l) => !delEquipo.has(l.id));
 		// Los correos del chat que no salieron: un reintento cada uno (aviso-chat-envio.mjs lo quita salga o no).
 		for (const c of conAvisoPendiente) await enviarAvisosChat(c.id, { reintento: true }).catch((err) => console.error('Reintento de aviso:', err.message));
 		// «Te toca confirmar» que no salió (cotizada por debajo del precio de la casa, sin responder): otro intento.

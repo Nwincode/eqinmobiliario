@@ -21,7 +21,7 @@ import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
 import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
-	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, TEXTO_NO_LLEGO, textoNo, TEXTO_CANCELADA } from '../../admin/js/reservas-calculo.js';
+	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, textoNo, textoCliente } from '../../admin/js/reservas-calculo.js';
 
 const porUsuario = limitador(30);
 const ID = /^[A-Za-z0-9_-]{1,60}$/;
@@ -101,7 +101,7 @@ const ACCIONES = {
 		const { lead, token, chat } = await cargar(tx, socio, leadId);
 		if (yaRespondida(chat.estado, lead.solicitud?.estado)) falla(409, YA);
 		responder(tx, socio, leadId, 'no', 'No se dio', { 'solicitud.motivo': motivo });
-		const id = mensaje(tx, token, { texto: textoNo(motivo) });
+		const id = mensaje(tx, token, { texto: textoNo(motivo, chat.idioma === 'en') });
 		tx.cambiar(`chats/${token}`, { estado: 'no', ...pendiente(id) });
 		return { token, casa: lead.propertyId };
 	},
@@ -115,7 +115,7 @@ const ACCIONES = {
 		await fechasDeLaCasa(tx, casa, reserva, { ...reserva, estado: 'cancelada' });
 		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo }, { ahora: ['updatedAt'] });
 		responder(tx, socio, leadId, 'cancelada', 'Canceló', { 'solicitud.motivo': motivo });
-		const id = mensaje(tx, token, { texto: TEXTO_CANCELADA });
+		const id = mensaje(tx, token, { texto: textoCliente('cancelada', chat.idioma === 'en') });
 		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
 		return { token, casa: casa.id };
 	},
@@ -140,7 +140,7 @@ const ACCIONES = {
 		await fechasDeLaCasa(tx, casa, reserva, { ...reserva, estado: 'cancelada' });
 		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo: MOTIVO_NO_LLEGO }, { ahora: ['updatedAt'] });
 		responder(tx, socio, leadId, 'cancelada', 'No me llegó el pago: se canceló sin comisión', { 'solicitud.motivo': MOTIVO_NO_LLEGO });
-		const id = mensaje(tx, token, { texto: TEXTO_NO_LLEGO });
+		const id = mensaje(tx, token, { texto: textoCliente('noLlego', chat.idioma === 'en') });
 		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
 		return { token, casa: casa.id, reabierta: false };
 	},

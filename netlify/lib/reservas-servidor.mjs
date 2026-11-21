@@ -6,7 +6,7 @@ import { idNuevo, transaccion } from './firestore-escritura.mjs';
 import { marcarPorPublicar } from './publicar.mjs';
 import { purgarCasa } from './ocupacion.mjs';
 import { donde } from './firestore.mjs';
-import { montosCotizados, bajoElPlan, seCruzan, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, TEXTO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
+import { montosCotizados, bajoElPlan, seCruzan, yaRespondida, esDuplicada, textoDuplicada, apartadaPor, textoCliente, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
@@ -49,7 +49,7 @@ export async function cerrarSiSeCruza(tx, leadId) {
 	const c = await chatDe(tx.leer, leadId);
 	if (!c || yaRespondida(c.chat.estado, '')) return null;
 	responder(tx, SISTEMA_APARTADAS, leadId, 'no', 'Esas fechas ya tienen otra reserva confirmada: se cerró sola', { 'solicitud.motivo': MOTIVO_FECHAS_APARTADAS });
-	const id = mensaje(tx, c.token, { texto: TEXTO_FECHAS_APARTADAS }, 'equipo');
+	const id = mensaje(tx, c.token, { texto: textoCliente('fechasApartadas', c.chat.idioma === 'en') }, 'equipo');
 	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
 	return c.token;
 }
@@ -135,7 +135,8 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 	tx.crear(ruta, datos, { ahora: ['cuando'] });
 	// Cotizada por debajo del precio de la casa: le toca al equipo. El aviso queda pendiente en el chat en este mismo
 	// cambio (solo quien la congela lo pone) y lo manda avisarQueTocaConfirmar; el control de cada hora lo reintenta.
-	if (bajoElPlan(m)) tx.cambiar(`chats/${c.token}`, { teTocaPendiente: true });
+	// (`confirmaEquipo` queda: el correo y la página no le prometen fechas apartadas a una que el socio no puede confirmar.)
+	if (bajoElPlan(m)) tx.cambiar(`chats/${c.token}`, { teTocaPendiente: true, confirmaEquipo: true });
 	return datos;
 }
 
@@ -155,7 +156,7 @@ export async function cerrarDuplicadas(tx, lead, leadId) {
 		if (c && yaRespondida(c.chat.estado, '')) continue;
 		responder(tx, SISTEMA, o.id, 'no', `Duplicada de ${lead.reserva.codigo}: se cerró sola`, { 'solicitud.motivo': MOTIVO_DUPLICADA });
 		if (c) {
-			mensaje(tx, c.token, { texto: textoDuplicada(lead.reserva.codigo), silencioso: true }, 'equipo');
+			mensaje(tx, c.token, { texto: textoDuplicada(lead.reserva.codigo, c.chat.idioma === 'en'), silencioso: true }, 'equipo');
 			tx.cambiar(`chats/${c.token}`, { estado: 'no' });
 		}
 		n++;

@@ -48,4 +48,17 @@ await t('con 3,500 reservas de otras casas: el recordatorio de comisiones de hoy
 	assert.ok(S.salida.some((c) => /cerrada\(s\) con fechas ocupadas/.test(c.asunto)), S.salida.map((c) => c.asunto).join(' | '));
 });
 
+await t('a las 2 h: «sin responder» no incluye la que confirma el equipo (el socio no puede; ya le llegó «Te toca confirmar»)', async () => {
+	S.reloj = Date.parse('2026-11-25T12:10:00-06:00');
+	const lead = (id, min) => poner(`leads/${id}`, { nombre: 'Ana', propertyId: 'c1', propertyTitulo: 'Casa', propietarioId: '', createdAt: new Date(S.reloj - min * 60000), reserva: { codigo: `EQ-${id.toUpperCase()}`, llegada: '2026-12-20', salida: '2026-12-23' } });
+	lead('socio', 150); lead('equipo', 150);
+	poner('chats/ChatDeLaDelSocio000000000001', { leadId: 'socio', codigo: 'EQ-SOCIO', salida: '2026-12-23', llegada: '2026-12-20' });
+	poner('chats/ChatDeLaDelEquipo00000000001', { leadId: 'equipo', codigo: 'EQ-EQUIPO', salida: '2026-12-23', llegada: '2026-12-20', confirmaEquipo: true });
+	await control();
+	const alerta = S.salida.find((c) => /^Reservas:/.test(c.asunto));
+	assert.ok(alerta);
+	assert.match(alerta.texto, /EQ-SOCIO/);
+	assert.doesNotMatch(alerta.texto, /EQ-EQUIPO/);
+});
+
 console.log(`${ok} pruebas del control de cada hora pasan.`);

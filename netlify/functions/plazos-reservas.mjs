@@ -24,7 +24,7 @@ import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe,
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
-	MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_SIN_CHAT, TEXTO_SIN_RESPUESTA, TEXTO_SIN_PAGO, TEXTO_CASA_NO_DISPONIBLE, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
+	MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_SIN_CHAT, MOTIVO_EQUIPO_NO_CONFIRMO, textoCliente, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
 
 const DIA = 86400000;
@@ -61,10 +61,14 @@ async function cerrarSinRespuesta(leadId, ahora, { casaFuera = false } = {}) {
 			const suyos = await tx.consultar('mensajes', 'de', 'socio', `chats/${c.token}`);
 			if (suyos.some((m) => ahora - ms(m.createdAt) < 12 * 3600000)) return null;
 		}
-		const [motivo, texto, que] = casaFuera ? [MOTIVO_CASA_NO_DISPONIBLE, TEXTO_CASA_NO_DISPONIBLE, 'La casa ya no está en el sitio: se cerró sola']
-			: [MOTIVO_SIN_RESPUESTA, TEXTO_SIN_RESPUESTA, `No respondida en ${HORAS_RESPUESTA} h: se cerró sola`];
+		// El motivo de verdad: la casa salió del sitio; la confirmaba el equipo (cotizada por debajo: el socio no podía) y
+		// no se confirmó; o el anfitrión no respondió. El cliente lo lee en su idioma y el correo del plazo lo repite.
+		const en = c.chat.idioma === 'en';
+		const [motivo, clave, que] = casaFuera ? [MOTIVO_CASA_NO_DISPONIBLE, 'casaNoDisponible', 'La casa ya no está en el sitio: se cerró sola']
+			: c.chat.confirmaEquipo ? [MOTIVO_EQUIPO_NO_CONFIRMO, 'equipoNoConfirmo', `La confirmaba el equipo y no se confirmó en ${HORAS_RESPUESTA} h: se cerró sola`]
+				: [MOTIVO_SIN_RESPUESTA, 'sinRespuesta', `No respondida en ${HORAS_RESPUESTA} h: se cerró sola`];
 		responder(tx, SISTEMA, leadId, 'no', que, { 'solicitud.motivo': motivo });
-		const id = mensaje(tx, c.token, { texto, plazo: true }, 'equipo');
+		const id = mensaje(tx, c.token, { texto: textoCliente(clave, en), plazo: true, motivo }, 'equipo');
 		tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
 		return { token: c.token, casa: lead.propertyId };
 	});
@@ -90,7 +94,7 @@ async function cobrarOCancelar(reservaId, ahora) {
 			await fechasDeLaCasa(tx, { ...casa, id: reserva.propertyId }, reserva, { ...reserva, estado: 'cancelada' });
 			tx.cambiar(`reservas/${reservaId}`, { estado: 'cancelada', motivo: MOTIVO_SIN_PAGO }, { ahora: ['updatedAt'] });
 			responder(tx, SISTEMA, reserva.leadId, 'cancelada', 'Sin pago a tiempo: se canceló sola', { 'solicitud.motivo': MOTIVO_SIN_PAGO });
-			const id = mensaje(tx, reserva.chat, { texto: TEXTO_SIN_PAGO, plazo: true }, 'equipo');
+			const id = mensaje(tx, reserva.chat, { texto: textoCliente('sinPago', chat.idioma === 'en'), plazo: true, motivo: MOTIVO_SIN_PAGO }, 'equipo');
 			tx.cambiar(`chats/${reserva.chat}`, { estado: 'cancelada', ...pendiente(id) });
 			return { token: reserva.chat, casa: reserva.propertyId, reserva: true };
 		}
