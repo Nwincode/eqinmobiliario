@@ -31,6 +31,8 @@ export const NORMALES = [
 	'Síguenos en Instagram para ver más fotos', 'Hola.Me interesa la casa', 'Excelente ubicación.Muy cerca de todo', 'Mi número de reserva de Airbnb no aplica, es la primera vez que reservo por aquí.',
 	'Vi la casa en Facebook', '¿Tienen más fotos?', 'Listo.Co mo quedamos', 'Bueno.Io no sé', 'Me encantó la vista', 'Gracias por responder tan rápido', '',
 	'Perfecto, entonces confirmamos', '¿Hay señal de celular en la casa?', '¿La cocina tiene licuadora?', 'Llevamos nuestras toallas', '¿Se puede hacer fogata?',
+	'Son 4 noches por 1500 cada una, 6000 en total', 'Mi NIT es 1234567-8', 'NIT 1234567-8', 'We arrive at 1500 and leave at 1100', '1350*4=5400', 'Precio por noche: Q 1,350.00',
+	'Llegamos el 20 a las 1500 y salimos el 23 a las 1100', 'Son 2,500.00 en total', 'Total 4500 quetzales', '6000 + 350 = 6350', 'Total 6000 más 350 de limpieza',
 	'Is the pool heated?', 'We arrive on the 20th around 3 pm', 'How far is the beach?', 'Thanks, see you on Saturday!', 'We are 2 adults and 3 kids',
 	'¿Aceptan mascotas de 5 kilos?', 'Somos 12 en total', 'Llegamos el 5 y nos vamos el 8', 'Es nuestro aniversario número 10', '¿El precio incluye IVA?'
 ];
@@ -46,9 +48,18 @@ export const EVASIONES = [
 	'casa(dot)com', 'casa[.]com', 'casa,com', 'casa。com', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'ｗｗｗ．micasa．com', 'www casa com',
 	'mira [aquí](x)', 't.me/villa', 'casalago.co', 'fotos en villa-lago.me/fotos', 'T.ME/X', 'Bit.Ly/x', 'casa.lago.me', 'mi.link.me/y', 'micasa punto com', 'visita micasa.gt',
 	'http//micasa', 'ana.perez@hotmail', 'reservas en lacasa.net',
+	'5555 noches 1234', 'mi tel 5555 hrs 1234', '5555 total 1234', '5555km 1234km', 'las 5555 las 1234', '5555 de limpieza 1234', '5555 personas 1234', '5555 quetzales 1234',
+	'son 5555 noches y 1234 noches', '5555 kms y 1234 kms', 'Q5555 y Q1234', 'Q 5555 y Q 1234', '5555 quetzales y 1234 de limpieza',
+	'cinco cinco cinco cinco, doce treinta y cuatro', 'five five five five twelve thirty four', 'cincuenta y cinco cincuenta y cinco doce treinta y cuatro',
 	// Usuarios en otras plataformas.
 	'ig casalago_gt', 'gmail: juanperez', 'escríbeme al wa', 'búscame por whats', 'instagram @villalago', 'skype juan.perez', 'telegram villa_lago', 'fb casadelago',
-	'en airbnb me encuentras como villalago', 'mi wsp es el mismo',
+	'en airbnb me encuentras como villalago', 'mi wsp es el mismo', 'búscame en insta como villalago', 'búscame en tiktok como villalago', 'me encuentras en ig como villa.lago',
+	'mi correo es ana.perez en hotmail', 'escribe a anaperez en el gmail', 'ana perez at gmail', 'juan dot perez at gmail', 'villalago(punto)com',
 	// Coordenadas.
 	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
 ];
+
+// Se bloquean aunque podrían ser normales: no se distinguen de un teléfono partido («5555 y luego 1234») ni de uno de
+// 8 cifras con una palabra delante. Entre las dos cosas, se protege el contacto; el cliente manda su comprobante en foto.
+export const BLOQUEADAS_A_PROPOSITO = ['Pago 2500 hoy, 2500 mañana', 'Ya transferí 1500 y 1500', 'Le transferí 2350 y 1800', 'Mandé 1250 y luego 1250 más',
+	'El precio es 1350 y no 1530', 'número de boleta 12345678', 'Autorización 00123456', 'Referencia 2025112001'];

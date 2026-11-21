@@ -89,12 +89,17 @@ await espera('cliente manda su correo con la arroba de ancho completo', crear(nu
 // mismo corpus da lo mismo en los dos (scripts/corpus-contacto.mjs).
 {
 	await import('../../js/calc-vacacional.js');
-	const { NORMALES, EVASIONES } = await import('../corpus-contacto.mjs');
+	const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO } = await import('../corpus-contacto.mjs');
 	const distintas = [];
-	for (const texto of [...NORMALES, ...EVASIONES].filter(Boolean)) {
+	for (const texto of [...NORMALES, ...EVASIONES, ...BLOQUEADAS_A_PROPOSITO].filter(Boolean)) {
 		const s = await crear(null, msj(), m('cliente', texto));
 		const navegador = globalThis.EQVacacional.tieneContacto(texto);
 		if ((s === 200) === navegador || (s !== 200 && s !== 403)) distintas.push(`${texto} (regla ${s}, navegador ${navegador ? 'bloquea' : 'deja'})`);
+	}
+	{
+		let largo = ''; while (largo.length < 1000) largo += 'Hola, somos 4 adultos y 2 niños, llegamos el viernes 20 a las 3 de la tarde. Pagué 1500 + 350 de limpieza. ';
+		const s = await crear(null, msj(), m('cliente', largo.slice(0, 1000)));
+		if (s !== 200) distintas.push(`mensaje normal de 1000 letras (${s})`);
 	}
 	n++; if (distintas.length) fallas++;
 	console.log(`${distintas.length ? 'FALLA' : 'ok   '} igual  · el filtro de la regla y el del navegador dicen lo mismo de ${NORMALES.length + EVASIONES.length} frases${distintas.length ? `: ${distintas.join(' | ')}` : ''}`);

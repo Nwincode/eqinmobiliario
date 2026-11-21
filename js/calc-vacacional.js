@@ -481,7 +481,7 @@
 	// «＠» o «ｗｗｗ» cuenta como contacto; las cifras de otras escrituras, «٥» o «⑤», como dígitos).
 	// pasos: ['si', patrón] → contacto si aparece; ['cambia', patrón, por] → reemplaza todo lo que aparece.
 	//   'crudo': en el texto tal como llegó; el resto, en minúsculas.
-	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|al mes|en total|total)';
+	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)';
 	var LETRA = 'a-záéíóúñü';
 	var FILTRO_CONTACTO = [
 		// Ancho completo y puntos de otras escrituras: nadie los escribe sin querer disfrazar algo.
@@ -492,8 +492,12 @@
 		['cambia', '[^\\P{N}0-9²³¹]', '0'],
 		// Enlaces y correos.
 		['si', '@|\\barroba\\b|https?:|https?//|www\\.|\\bw[ \\t]*w[ \\t]*w\\b|wa\\.me|\\]\\(|\\.(com|net|org|gt)\\b|\\bpunto[ \\t]+(com|net|org|gt)\\b'],
-		['si', '\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|[\\[(](at|dot|\\.)[\\])]|[a-z0-9-]{3,},(com|net|org)\\b'],
+		['si', '\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|[\\[(](at|dot|punto|arroba|\\.)[\\])]|[a-z0-9-]{3,},(com|net|org)\\b'
+			// «ana perez at gmail», «anaperez en el gmail», «ana.perez en hotmail».
+			+ '|\\b(at|en|en el|del)[ \\t]+(gmail|hotmail|outlook|yahoo|icloud|live)\\b'],
 		// Un usuario en otra plataforma («ig casalago_gt», «gmail: juanperez», «al wa»); «Instagram para ver fotos» no.
+		// «búscame en insta como villalago» (antes de quitar «insta como» de lo que sigue).
+		['si', '\\b(ig|insta|instagram|tiktok|facebook|fb|telegram)\\b[^\\n]{0,20}\\bcomo[ \\t]+[a-z0-9._]{3,}'],
 		['cambia', '\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?(para|como|por|del|los|las|con|que|una|unas|unos|tambien)\\b', ' x '],
 		['si', '\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?[a-z0-9._]{4,}|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b'],
 		// Páginas cortas (t.me/x, bit.ly/x, casa.lago.me): con «/» después o al final del texto.
@@ -509,21 +513,37 @@
 		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
 		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
 		['cambia', '\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x '],
-		['cambia', '(^|[^0-9 \\t.,+-])[ \\t]*[0-9]{1,6}([.,][0-9]+)*[ \\t]*' + UNIDAD + '([^' + LETRA + ']|$)', ' x '],
+		// Un monto o una hora de 4 cifras queda marcado (####): no cuenta como teléfono, pero junto a otro grupo de 4 cifras
+		// suelto sí («5555 noches 1234», «las 5555 las 1234»: abajo). Las horas, solo si lo son (00:00 a 23:59).
+		['cambia', ',[ \\t]*[0-9]{4}[ \\t]*' + UNIDAD + '\\b', ', #### '],
+		['cambia', '(^|[^0-9#% \\t.+-])[ \\t]*[0-9]{4}[ \\t]*' + UNIDAD + '\\b', ' #### '],
+		['cambia', '(^|[^0-9#% \\t.,+-])[ \\t]*[0-9]{1,6}([.,][0-9]+)*[ \\t]*' + UNIDAD + '([^' + LETRA + ']|$)', ' x '],
+		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{4}\\b', ' %%%% '],
 		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]*[^0-9 ,.-]|[ ,.-]*$)', ' x '],
-		['cambia', '\\blas[ \\t]+[0-9]{3,4}([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x '],
+		['cambia', '\\b(las|at)[ \\t]+([01][0-9]|2[0-3])[0-5][0-9]\\b', ' #### '],
+		['cambia', '\\b(las|at)[ \\t]+[0-9][0-5][0-9]([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x '],
 		['cambia', '\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x '],
 		// Cuentas: «1500 + 350» y «450 = 1350» (de 3 o 4 cifras con una de 3, o 3 con 4: siete en total como mucho) no se
 		// leen como un número seguido; «5555 + 1234», «55 55 = 12 34» y «555*51234» siguen siendo teléfonos.
-		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' 000    000 '],
-		['cambia', '(^|[^0-9])[0-9]{3}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{4}([^0-9]|$)', ' 000    000 '],
-		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' 000    000 '],
+		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x '],
+		['cambia', '(^|[^0-9])[0-9]{3}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{4}([^0-9]|$)', ' x    x '],
+		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x '],
+		// Una cuenta con números enteros («1350*4=5400», «3 x 450»): cada número suelto, no pegado a otro grupo de cifras.
+		['cambia', '(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x '],
+		['cambia', '(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x '],
+		// El NIT de Guatemala («NIT 1234567-8»: con su guion y su dígito).
+		['cambia', '\\bnit([ \\t:.]+es)?[ \\t:.]*[0-9]{4,10}-[0-9k]\\b', ' x '],
 		// Una «x» suelta entre números no corta un teléfono («5 5 5 5 x 1 2 3 4»).
 		['cambia', '[ \\t]x[ \\t]', ' * '],
-		// Los números escritos con letras («cinco cinco…»).
+		// Los números escritos con letras («cinco cinco…», «doce treinta y cuatro», «twelve thirty four»).
+		['cambia', '\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '0'],
+		['cambia', '\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa'
+			+ '|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '00'],
 		['cambia', 'cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '0'],
-		// Siete dígitos seguidos, o un número partido en dos grupos de 4 («5555 y luego 1234»).
-		['si', '([0-9][^0-9' + LETRA + ']{0,3}){7,}|(^|[^0-9])[0-9]{4}[^0-9]{1,30}[0-9]{4}([^0-9]|$)']
+		// Siete dígitos seguidos, o un número partido en dos grupos de 4 («5555 y luego 1234»), también un grupo suelto junto
+		// a un monto o una hora de 4 cifras (####; «5555km 1234km») y dos de esos seguidos («5555 noches y 1234 noches», «Q5555 y Q1234»; %%%% = con moneda).
+		['si', '([0-9][^0-9' + LETRA + ']{0,3}){7,}|(^|[^0-9])[0-9]{4}[^0-9]{1,30}[0-9]{4}([^0-9]|$)'
+			+ '|(^|[^0-9#%])[0-9]{4}[^0-9#%]{1,30}(####|%%%%)|(####|%%%%)[^0-9#%]{1,30}[0-9]{4}([^0-9]|$)|(####|%%%%)[ \\t]{0,3}((y|e|o|and|or)[ \\t]{1,3})?(####|%%%%)']
 	];
 	var filtroListo = null;
 	function tieneContacto(texto) {
