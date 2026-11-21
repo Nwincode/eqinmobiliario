@@ -872,6 +872,23 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('el asesor edita otra cosa de su cotización (control)', fetch(`${H}/cotizaciones/cot1?updateMask.fieldPaths=notas`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: { notas: { stringValue: 'Ajuste' } } }) }).then((r) => r.status), true);
 	await espera('socio lee el contador', leer('socio1', 'contadores/cotizaciones'), false);
 }
+// Una casa nueva y su privado en un solo lote (admin/js/privado-casa.js crearCasa): o queda todo o nada.
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const nueva = (id, f) => ({ update: { name: `${R}/properties/${id}`, fields: f }, currentDocument: { exists: false } });
+	const priv = (id, doc, f) => ({ update: { name: `${R}/properties/${id}/privado/${doc}`, fields: f } });
+	await espera('el administrador crea una casa por noche con su precio del socio y su llegada, juntos (control)', lote('admin1', [
+		nueva('lote-noche', { titulo: { stringValue: 'Casa nueva' }, operacion: { stringValue: 'vacacional' }, agentId: { stringValue: '' }, publicado: { booleanValue: false } }),
+		priv('lote-noche', 'socio', { precioBase: { integerValue: '100' } }), priv('lote-noche', 'llegada', { direccion: { stringValue: 'Km 98.5' } })]), true);
+	await espera('el asesor crea su casa en venta con su acuerdo, juntos (control)', lote('asesor7', [
+		nueva('lote-venta', { titulo: { stringValue: 'Casa en venta nueva' }, operacion: { stringValue: 'venta' }, agentId: { stringValue: 'a7' } }),
+		priv('lote-venta', 'acuerdo', { exclusiva: { booleanValue: true } })]), true);
+	await espera('el asesor crea una casa de otro asesor con su privado', lote('asesor7', [
+		nueva('lote-ajena', { titulo: { stringValue: 'Ajena' }, operacion: { stringValue: 'venta' }, agentId: { stringValue: 'a9' } }),
+		priv('lote-ajena', 'acuerdo', { exclusiva: { booleanValue: true } })]), false);
+	await espera('el asesor escribe el privado de una casa de otro asesor', lote('asesor7', [priv('lote-noche', 'socio', { precioBase: { integerValue: '1' } })]), false);
+}
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
 

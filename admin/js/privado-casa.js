@@ -2,7 +2,7 @@
 // (privado/llegada: dirección y mapa). Una sola forma de escribirlo para todo el panel: la ficha, el importador,
 // «Duplicar» y «Mis propiedades» del dueño. Se escribe solo lo que se pasa (merge): lo que cambió otra pantalla
 // mientras tanto no se pisa. El contacto del socio no se copia aquí: vive en su ficha de Propietarios.
-import { db, doc, setDoc, serverTimestamp } from './firebase.js';
+import { db, doc, setDoc, serverTimestamp, writeBatch } from './firebase.js';
 import { session } from './session.js';
 import '/js/calc-vacacional.js';
 
@@ -31,4 +31,14 @@ export async function guardarPrivadoVacacional(id, socio, llegada, tx = null) {
 	const s = socioLimpio(socio || {});
 	if (Object.keys(s).length) await escribir('socio', { ...s, ...sello });
 	if (llegada) await escribir('llegada', { direccion: String(llegada.direccion || '').trim(), mapa: String(llegada.mapa || '').trim(), ...sello });
+}
+
+// Una casa nueva y lo privado de una por noche (precio del socio, dirección y mapa) en un solo lote: o queda todo o nada.
+// Antes iban por separado y un corte dejaba una casa publicada sin el precio del socio (no se podía confirmar). La usan la
+// ficha (nueva y «Duplicar») y el importador. Una casa por noche la crea solo el administrador (firestore.rules).
+export async function crearCasa(ref, casa, { socio = null, llegada = null } = {}) {
+	const lote = writeBatch(db);
+	lote.set(ref, casa);
+	if (casa.operacion === 'vacacional') await guardarPrivadoVacacional(ref.id, socio, llegada, lote);
+	await lote.commit();
 }

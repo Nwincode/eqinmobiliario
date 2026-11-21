@@ -269,8 +269,11 @@ service cloud.firestore {
       // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
       // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
       match /privado/{docId} {
-        allow read, write: if isAdmin()
+        // (getAfter: también en el mismo lote que crea la casa, admin/js/privado-casa.js crearCasa.)
+        allow read: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+        allow write: if isAdmin()
+          || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
         // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
         // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
         // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente

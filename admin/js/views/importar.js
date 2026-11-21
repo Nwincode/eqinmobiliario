@@ -1,12 +1,12 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
-import { db, doc, getDoc, collection, setDoc } from '../firebase.js';
+import { db, doc, getDoc, collection } from '../firebase.js';
 import { h, mount, pageHeader, toast, errorMessage, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia, textosConPrecioOculto } from '../estados.js';
 import { datosDe } from '../ficha-casa.js';
-import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, guardarPrivadoVacacional, guardarCambios, revisarCasa } from './properties.js';
+import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, crearCasa, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, avisoCambioDeDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import {
@@ -448,9 +448,8 @@ export async function render(container) {
 					const d = propiedadNueva({ agentId: '', ...it.datos, ...(vac ? vac.pub : {}), ...ajustes, slug: slugLibre(titulo, slugs), fotos: r.fotos, publicado: false });
 					const en = await enIngles(d);
 					if (en) d.en = en;
-					await guardar(() => setDoc(nref, d), r.fotos);
-					// Lo privado va después de crear la casa: su regla la lee.
-					if (vac) await guardarPrivadoVacacional(nref.id, vac.socio, vac.llegada);
+					// La casa y lo privado de una por noche, juntos (crearCasa): un corte no deja una casa sin el precio del socio.
+					await guardar(() => crearCasa(nref, d, vac ? { socio: vac.socio, llegada: vac.llegada } : {}), r.fotos);
 					existentes.push({ id: nref.id, ...d });
 					await enlazar({ id: nref.id, propietarioId: '', operacion: d.operacion }, d);
 					cuenta.creadas++;

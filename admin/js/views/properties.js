@@ -27,7 +27,7 @@ import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '..
 import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
-import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
+import { guardarPrivadoVacacional, socioLimpio, crearCasa } from '../privado-casa.js';
 import { propiedadParaIA } from '../para-ia.js';
 import { TEXTOS_VAC, fuenteEs, faltaIngles, fuenteTraducida } from '../ingles.js';
 import '/js/calc-vacacional.js';
@@ -294,7 +294,7 @@ async function sinAsesorPorNoche(p) {
 
 // Lo privado de una casa por noche (costo del socio, dirección y mapa) se escribe con guardarPrivadoVacacional
 // (admin/js/privado-casa.js); se reexporta para quien ya lo importa de aquí.
-export { guardarPrivadoVacacional };
+export { guardarPrivadoVacacional, crearCasa };
 
 // Guarda los cambios de una propiedad que ya existe. Una sola para el panel: la ficha y el importador.
 // En una transacción vuelve a leer la casa (y el costo del socio) y pone encima solo lo que cambió quien guarda
@@ -1337,10 +1337,9 @@ async function renderEditor(container, id, emb = null) {
 				if (esVacacional(d)) Object.assign(d, vacacionalPublico({ ...d, socio }));
 				// Lo que lleva toda propiedad al nacer: historial de estado y de precio, y quién la creó.
 				Object.assign(d, propiedadNueva(d));
-				await setDoc(ref, d);
+				// La casa y lo privado de una por noche, juntos (crearCasa).
+				await crearCasa(ref, d, esVacacional(d) ? { socio, llegada } : {});
 				guardada = d;
-				// Lo privado va después de crear la casa: su regla la lee.
-				if (esVacacional(d)) await guardarPrivadoVacacional(ref.id, socio, llegada);
 			} else {
 				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
 				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
@@ -1442,15 +1441,11 @@ async function renderEditor(container, id, emb = null) {
 				// La dirección y el mapa de una casa por noche son privados (data los trae de privado/llegada).
 				...(vac ? { direccion: '', mapa: '' } : {})
 			});
-			await setDoc(newRef, d);
-			// Después de crear la casa: su regla la lee.
-			if (vac) {
-				// El costo del socio sí (sin los calendarios ni el código del socio, que son de la original); la dirección y el mapa también.
-				const socioCopia = { ...(socioPriv.data() || {}) };
-				for (const c of V.CALENDARIOS) delete socioCopia[c.campo];
-				delete socioCopia.codigoSocio;
-				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
-			}
+			// El costo del socio sí (sin los calendarios ni el código del socio, que son de la original); la dirección y el
+			// mapa también. Todo junto con la casa (crearCasa).
+			const socioCopia = vac ? { ...(socioPriv.data() || {}) } : null;
+			if (vac) { for (const c of V.CALENDARIOS) delete socioCopia[c.campo]; delete socioCopia.codigoSocio; }
+			await crearCasa(newRef, d, vac ? { socio: socioCopia, llegada: llegadaPriv.data() || {} } : {});
 			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			toast('Copia creada como borrador. Ajusta los datos y guarda.');
 			location.hash = `#/propiedades/${newRef.id}`;
