@@ -275,10 +275,12 @@ async function sitemapPublicado(siteUrl) {
 // El freno del catálogo (revisarCatalogo) con lo que dice el panel, en meta/publish y con la cuenta de escritura: si un
 // administrador tocó «Publicar aunque baje» (`forzarCatalogo`), no se frena, y la marca se gasta en este build. El
 // motivo queda en `freno` (vacío si pasa) para que Publicar lo muestre. Sin la cuenta en el build, solo la variable.
-async function frenoDelCatalogo(fuente, { ahora, antes }) {
+// Solo el build de producción lee y escribe meta/publish: una vista previa o una rama (con la cuenta de escritura en
+// sus variables) no gasta el «Publicar aunque baje» del administrador ni le borra el aviso del freno.
+async function frenoDelCatalogo(fuente, { ahora, antes }, { produccion = true } = {}) {
 	const porVariable = process.env[FORZAR] === '1';
 	if (porVariable) console.warn(`  ⚠ La variable ${FORZAR} está puesta: el catálogo se publica sin revisar si bajó. Quítala en Netlify (Site configuration → Environment variables); para una vez, en el panel: Publicar → «Publicar aunque baje».`);
-	if (fuente !== 'firestore' || !escrituraConfigurada()) return revisarCatalogo({ ahora, antes, forzar: porVariable });
+	if (fuente !== 'firestore' || !produccion || !escrituraConfigurada()) return revisarCatalogo({ ahora, antes, forzar: porVariable });
 	try {
 		return await transaccion(async ({ leer, cambiar }) => {
 			const estado = await leer('meta/publish');
@@ -626,7 +628,7 @@ async function main() {
 		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p._prueba).length,
 		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p._prueba).map((p) => p.slug)))
 	};
-	const freno = await frenoDelCatalogo(data.source, deCatalogo);
+	const freno = await frenoDelCatalogo(data.source, deCatalogo, { produccion: isProduction });
 	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));

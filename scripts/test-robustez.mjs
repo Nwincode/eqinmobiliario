@@ -106,6 +106,13 @@ await t('justo antes de enviar: precios al día (si cambió el total, no se env�
 	assert.match(leer('scripts/lib/i18n.mjs'), /vacPrecioCambio: 'El precio cambió: revisa el total y vuelve a enviar\.'/);
 });
 
+await t('el freno del catálogo: solo el build de producción lee y escribe meta/publish (una vista previa no gasta «Publicar aunque baje»)', () => {
+	const b = leer('scripts/build.mjs');
+	assert.match(b, /if \(fuente !== 'firestore' \|\| !produccion \|\| !escrituraConfigurada\(\)\) return revisarCatalogo\(/);
+	assert.match(b, /frenoDelCatalogo\(data\.source, deCatalogo, \{ produccion: isProduction \}\)/);
+	assert.match(b, /const isProduction = !process\.env\.CONTEXT \|\| process\.env\.CONTEXT === 'production';/);
+});
+
 await t('eliminar una casa borra todo su privado, también lo que escribe el servidor (calendario de EQ, lo último leído de los iCal)', () => {
 	const f = leer('admin/js/views/properties.js');
 	const borra = f.slice(f.indexOf('export async function eliminarPropiedad'), f.indexOf('export function slugLibre'));
