@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 const REGLAS = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8');
+const SOLICITUD = await readFile(new URL('../netlify/functions/solicitud.mjs', import.meta.url), 'utf8');
 
 const code = await readFile(new URL('../js/calc-vacacional.js', import.meta.url), 'utf8');
 const sandbox = { module: { exports: {} }, Math, Number, String, Object, Date, isFinite, isNaN };
@@ -352,11 +353,11 @@ test('subtotal desde el total: nunca por debajo del cotizado (1 a 5,000 al centa
 	}
 });
 
-test('estancia más larga que el tope de la base (90 noches, el mismo número de la regla): no se puede pedir', () => {
+test('estancia más larga que el tope (90 noches, el mismo número que revisa el servidor): no se puede pedir', () => {
 	assert.equal(V.validarEstancia({ llegada: '2027-01-01', salida: '2027-04-01' }).ok, true);
 	const larga = V.validarEstancia({ llegada: '2027-01-01', salida: '2027-04-02' });
 	assert.deepEqual([larga.ok, larga.error, larga.maximo], [false, 'maximo', 90]);
-	assert.match(REGLAS, new RegExp(`r\\.noches <= ${V.MAX_NOCHES} `));
+	assert.match(SOLICITUD, /reserva\.noches > V\.MAX_NOCHES/);
 });
 
 test('un mínimo con la fecha final antes de la inicial no vale', () => {

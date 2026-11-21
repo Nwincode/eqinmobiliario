@@ -1,0 +1,126 @@
+// La solicitud de reserva por el servidor (netlify/functions/solicitud.mjs), con la base, la sesión y el reloj simulados
+// (scripts/simulado/): solicitud, chat e índice en una sola transacción; lo que antes revisaban las reglas (cotización,
+// fechas, moneda, personas, dueño y asesor de la casa) y lo nuevo (llegada desde hoy con la hora del servidor, Turnstile,
+// límite por IP y por correo, reintento sin duplicar).
+import './simulado/activar.mjs';
+import assert from 'node:assert/strict';
+import { S, limpiar, poner, leer, hijos } from './simulado/base.mjs';
+
+let ok = 0;
+const t = async (nombre, fn) => { limpiar(); delete process.env.TURNSTILE_SITE_KEY; delete process.env.TURNSTILE_SECRET; await fn(); ok++; console.log('✓', nombre); };
+const { default: solicitud } = await import('../netlify/functions/solicitud.mjs');
+let ip = 0;
+const pedir = (cuerpo, { mismaIp = false } = {}) => solicitud({ method: 'POST', headers: new Headers(), json: async () => cuerpo }, { ip: mismaIp ? '10.0.0.1' : `10.1.${Math.floor(++ip / 250)}.${ip % 250}` });
+let sec = 0;
+const ids = () => { sec++; const leadId = `Lead${String(sec).padStart(16, '0')}`, token = `Token${String(sec).padStart(23, '0')}`; return { leadId, token }; };
+const hoy = () => new Date(S.reloj - 6 * 3600000).toISOString().slice(0, 10);
+const masDias = (n) => new Date(Date.parse(`${hoy()}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const bien = (extra = {}) => ({ codigo: 'EQ-ABC123', llegada: masDias(10), salida: masDias(13), noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD', ...extra });
+const cuerpo = (r = bien(), lead = {}, extra = {}) => ({ ...ids(), lead: { nombre: 'Ana Morales', telefono: '+502 5555 1234', email: `ana${sec}@example.com`, mensaje: 'EQ-ABC123 · 3 noches', origen: 'reserva', pagina: '/propiedad/casa/',
+	propertyId: 'c1', idioma: 'es', ...lead }, reserva: r, chat: { foto: 'https://ejemplo.com/a.jpg', url: '/propiedad/casa/' }, ...extra });
+const casa = (extra = {}) => poner('properties/c1', { titulo: 'Casa del lago', operacion: 'vacacional', publicado: true, estado: 'disponible', propietarioId: 'p1', agentId: '', moneda: 'USD', vacacional: { huespedesMax: 4 }, ...extra });
+const estado = async (c) => { const r = await pedir(c); return [r.status, await r.json()]; };
+
+await t('solicitud, chat e índice nacen juntos, con el dueño, el asesor y el título de la casa (no los que mande la página)', async () => {
+	casa();
+	const c = cuerpo(bien(), { propertyTitulo: 'Otro título', agentId: 'a7', propietarioId: 'p9' });
+	const [s, d] = await estado(c);
+	assert.equal(s, 200, JSON.stringify(d));
+	assert.equal(d.token, c.token);
+	const lead = leer(`leads/${c.leadId}`), chat = leer(`chats/${c.token}`);
+	assert.deepEqual([lead.propietarioId, lead.agentId, lead.propertyTitulo, lead.estado, lead.email], ['p1', '', 'Casa del lago', 'nuevo', `ana${sec}@example.com`]);
+	assert.ok(lead.createdAt instanceof Date);
+	assert.deepEqual([chat.leadId, chat.codigo, chat.propietarioId, chat.nombre, chat.subtotal, chat.total, chat.huespedes], [c.leadId, 'EQ-ABC123', 'p1', 'Ana', 400, 488, 2]);
+	assert.equal(leer(`chatsPorSolicitud/${c.leadId}`).token, c.token);
+});
+
+await t('el mismo envío otra vez (la respuesta se perdió) responde lo mismo y no crea otra; con otro chat, 409', async () => {
+	casa();
+	const c = cuerpo();
+	assert.equal((await pedir(c)).status, 200);
+	assert.equal((await pedir(c)).status, 200);
+	assert.equal(hijos('leads').length, 1);
+	assert.equal(hijos('chats').length, 1);
+	assert.equal((await pedir({ ...c, token: `Otro${'x'.repeat(24)}` })).status, 409);
+});
+
+await t('llegada: hoy sí; ayer no (con la hora del servidor, no la del teléfono)', async () => {
+	casa();
+	S.reloj = Date.parse('2026-11-25T23:30:00-06:00');
+	assert.equal((await pedir(cuerpo(bien({ llegada: '2026-11-25', salida: '2026-11-27', noches: 2 })))).status, 200);
+	const [s, d] = await estado(cuerpo(bien({ llegada: '2026-11-24', salida: '2026-11-27', noches: 3 })));
+	assert.equal(s, 409);
+	assert.equal(d.pasado, true);
+	S.reloj = Date.parse('2026-11-20T12:00:00-06:00');
+});
+
+await t('lo cotizado: impuestos del 22 %, total = subtotal + impuestos, noches de las fechas, 1 a 90, algo que cobrar', async () => {
+	casa();
+	const malas = [{ subtotal: 100000 }, { impuestos: 10, total: 410 }, { total: 1 }, { subtotal: 'mucho' }, { subtotal: undefined }, { noches: 1, subtotal: 100, impuestos: 22, total: 122 },
+		{ noches: 2.5 }, { subtotal: 0, impuestos: 0, total: 0 }, { subtotal: -100, impuestos: -22, total: -122 }, { llegada: 'mañana' },
+		{ llegada: masDias(1), salida: masDias(92), noches: 91, subtotal: 9100, impuestos: 2002, total: 11102 }, { huespedes: 0 }, { moneda: undefined }];
+	for (const m of malas) assert.equal((await pedir(cuerpo(bien(m)))).status, 400, JSON.stringify(m));
+	for (const m of [{ subtotal: 433.33, impuestos: 95.33, total: 528.66 }, { llegada: masDias(1), salida: masDias(91), noches: 90, subtotal: 9000, impuestos: 1980, total: 10980 }])
+		assert.equal((await pedir(cuerpo(bien(m)))).status, 200, JSON.stringify(m));
+});
+
+await t('la casa manda: moneda, personas máximo, por noche, publicada y sin pausa por atraso', async () => {
+	casa();
+	assert.equal((await pedir(cuerpo(bien({ moneda: 'GTQ' })))).status, 409);
+	assert.equal((await pedir(cuerpo(bien({ huespedes: 6 })))).status, 409);
+	assert.equal((await pedir(cuerpo(bien({ huespedes: 4 })))).status, 200);
+	casa({ operacion: 'venta' });
+	assert.equal((await pedir(cuerpo())).status, 409);
+	casa({ publicado: false });
+	assert.equal((await pedir(cuerpo())).status, 409);
+	assert.equal((await pedir(cuerpo(bien(), { propertyId: 'no-existe' }))).status, 409);
+	casa({ moneda: '' });
+	assert.equal((await pedir(cuerpo())).status, 200, 'sin moneda guardada: US$');
+	// (Otro socio: la mora se recuerda 5 min por socio en la función.)
+	casa({ propietarioId: 'p-mora' });
+	poner('reservas/r1', { estado: 'confirmada', propietarioId: 'p-mora', llegada: '2026-11-01', comision: { monto: 50, vence: '2026-11-01', pagada: false }, pagoRecibido: true });
+	const [s, d] = await estado(cuerpo());
+	assert.equal(s, 409);
+	assert.equal(d.pausada, true);
+});
+
+await t('correo y teléfono con la regla de formato.js', async () => {
+	casa();
+	assert.equal((await pedir(cuerpo(bien(), { email: 'no-es-correo' }))).status, 400);
+	assert.equal((await pedir(cuerpo(bien(), { email: '' }))).status, 400);
+	assert.equal((await pedir(cuerpo(bien(), { telefono: '12' }))).status, 400);
+	assert.equal((await pedir({ ...cuerpo(), leadId: 'corto' })).status, 400);
+});
+
+await t('límite: 5 por correo y 10 por IP en una hora (lo comparten todas las instancias: en la base)', async () => {
+	casa();
+	for (let i = 0; i < 5; i++) assert.equal((await pedir(cuerpo(bien(), { email: 'mismo@example.com' }))).status, 200, `envío ${i + 1}`);
+	assert.equal((await pedir(cuerpo(bien(), { email: 'mismo@example.com' }))).status, 429);
+	for (let i = 0; i < 10; i++) assert.equal((await pedir(cuerpo(bien(), { email: `otro${i}@example.com` }), { mismaIp: true })).status, 200, `envío ${i + 1}`);
+	assert.equal((await pedir(cuerpo(bien(), { email: 'otro99@example.com' }), { mismaIp: true })).status, 429);
+	assert.ok(hijos('limites').length > 0, 'guardado en la base');
+});
+
+await t('Turnstile: sin llaves, la solicitud pasa con el límite; con las dos, sin prueba o con una mala no; con una buena, sí', async () => {
+	casa();
+	const real = globalThis.fetch;
+	assert.equal((await (await solicitud({ method: 'GET', headers: new Headers() })).json()).turnstile, '');
+	assert.equal((await pedir(cuerpo())).status, 200);
+	process.env.TURNSTILE_SITE_KEY = '0x4AAAAAAAprueba';
+	assert.equal((await (await solicitud({ method: 'GET', headers: new Headers() })).json()).turnstile, '', 'con una sola llave no se pide la prueba');
+	process.env.TURNSTILE_SECRET = '0x4AAAAAAAsecreta';
+	assert.equal((await (await solicitud({ method: 'GET', headers: new Headers() })).json()).turnstile, '0x4AAAAAAAprueba');
+	const vistos = [];
+	globalThis.fetch = async (url, op) => { vistos.push(String(op.body)); return Response.json({ success: String(op.body).includes('response=buena') }); };
+	try {
+		assert.equal((await pedir(cuerpo())).status, 403);
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'mala' }))).status, 403);
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'buena' }))).status, 200);
+		assert.ok(vistos.every((b) => b.includes('secret=0x4AAAAAAAsecreta')));
+		// Cloudflare no responde: una reserva de verdad no se pierde (sigue el límite).
+		globalThis.fetch = async () => { throw new Error('sin red'); };
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'cualquiera' }))).status, 200);
+	} finally { globalThis.fetch = real; }
+});
+
+console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

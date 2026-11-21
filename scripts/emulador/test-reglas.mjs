@@ -30,21 +30,25 @@ const espera = async (nombre, promesa, ok) => { const s = await promesa; const b
 const m = (de, texto) => ({ de, texto });
 let i = 0; const msj = () => `chats/${T}/mensajes/m${++i}`;
 
-// El chat nace junto con su índice chatsPorSolicitud/{solicitud} (js/reserva-chat.js crear): uno por solicitud.
+// El chat y su índice chatsPorSolicitud/{solicitud} los crea el servidor junto con la solicitud
+// (netlify/functions/solicitud.mjs, scripts/test-solicitud.mjs); desde el navegador, nadie.
 const RAIZ = 'projects/demo-eq/databases/(default)/documents';
 const crearChat = (token, o, { indice = true, lead = o.leadId, encima = false } = {}) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [
 	{ update: { name: `${RAIZ}/chats/${token}`, fields: campos(o) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
 	...(indice ? [{ update: { name: `${RAIZ}/chatsPorSolicitud/${lead}`, fields: campos({ token }) }, ...(encima ? {} : { currentDocument: { exists: false } }) }] : [])] }) }).then((r) => r.status);
-await espera('cliente abre el chat de su reserva, con su índice', crearChat(T, chat), true);
-// (Con «no existe» la base lo rechaza antes de las reglas (409); escribiendo encima del índice, lo niegan las reglas.)
-await espera('segundo chat para la misma solicitud, escribiendo encima de su índice', crearChat('SegundoChatLargoYAlAzar234567', chat, { encima: true }), false);
-await espera('segundo chat para la misma solicitud, sin índice', crearChat('SegundoChatLargoYAlAzar234568', chat, { indice: false }), false);
+await espera('cliente abre el chat de su reserva con su índice, directo en la base (lo hace el servidor)', crearChat(T, chat), false);
+await espera('cliente abre un chat sin índice', crearChat(T, chat, { indice: false }), false);
+await espera('socio abre un chat', fetch(`${H}:commit`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/chats/${T}`, fields: campos(chat) }, currentDocument: { exists: false } }] }) }).then((r) => r.status), false);
+// El chat de la solicitud, como lo deja el servidor.
+await poner(`chats/${T}`, chat);
+await fetch(`${H}/chats/${T}?updateMask.fieldPaths=createdAt`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() } } }) });
+await poner('chatsPorSolicitud/lead1', { token: T });
 await espera('nadie cambia el índice de una solicitud a otro chat', fetch(`${H}/chatsPorSolicitud/lead1`, { method: 'PATCH', headers: cab(null), body: JSON.stringify({ fields: campos({ token: 'OtroChat' }) }) }).then((r) => r.status), false);
 await espera('anónimo lee el índice', leer(null, 'chatsPorSolicitud/lead1'), false);
 await espera('administrador lee el índice (control)', leer('admin1', 'chatsPorSolicitud/lead1'), true);
 {
 	const probar = await leer(null, `chatsPorSolicitud/prueba-${Math.random().toString(36).slice(2)}`);
-	n++; if (probar !== 404) fallas++; console.log(`${probar === 404 ? 'ok   ' : 'FALLA'} 404    · leer un índice que no existe responde «no existe» (así el sitio sabe que las reglas son las nuevas) (${probar})`);
+	n++; if (probar !== 404) fallas++; console.log(`${probar === 404 ? 'ok   ' : 'FALLA'} 404    · leer un índice que no existe responde «no existe» (las páginas de antes lo consultan) (${probar})`);
 }
 // Solicitud de antes (sin índice): su chat ya existe. Nadie le inventa otro chat con su índice ni le pone índice a un
 // chat ya existente; solo el administrador, al chat de esa solicitud (Solicitudes lo hace al abrirla).
@@ -54,50 +58,17 @@ await espera('administrador lee el índice (control)', leer('admin1', 'chatsPorS
 	const CV = 'ChatDeUnaSolicitudDeAntesLargo123';
 	await poner(`chats/${CV}`, { ...chat, leadId: 'lead-vieja', codigo: 'EQ-VJA' });
 	const indice = (quien, token) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/chatsPorSolicitud/lead-vieja`, fields: campos({ token }) }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
-	await espera('chat inventado con su índice para una solicitud de antes', crearChat('ChatFalsoDeAntesLargoYAlAzar2', { ...chat, leadId: 'lead-vieja', codigo: 'EQ-VJA' }), false);
 	await espera('anónimo pone el índice de una solicitud de antes a su chat ya existente', indice(null, CV), false);
 	await espera('socio pone el índice de una solicitud de antes', indice('socio1', CV), false);
 	await espera('administrador pone el índice de una solicitud de antes a un chat de otra solicitud', indice('admin1', T), false);
 	await espera('administrador pone el índice de una solicitud de antes a su chat (control)', indice('admin1', CV), true);
 	await espera('administrador lista los índices (control)', consulta('admin1', 'chatsPorSolicitud'), true);
 }
-// Otra solicitud (sin chat todavía) para los chats mal hechos: cada uno falla solo por lo que tiene mal.
-await fetch(`${H}/leads/lead-n`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Beto'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-const chatN = { ...chat, leadId: 'lead-n' };
-await espera('chat con token corto', crearChat('corto', chatN), false);
-await espera('chat con un socio que no es el dueño de la casa', crearChat('OtroTokenLargoYAlAzar23456789', { ...chatN, propietarioId: 'o2' }), false);
-await espera('chat con un teléfono como campo extra', crearChat('OtroTokenLargoYAlAzar2345678A', { ...chatN, telefono: '55551234' }), false);
-await poner('properties/otra-casa-noche', { titulo: 'Otra casa', operacion: 'vacacional', publicado: true, propietarioId: 'o1' });
-await espera('chat de otra casa que la de la solicitud', crearChat('TokenOtraCasaLargoYAlAzar2345', { ...chatN, propertyId: 'otra-casa-noche', propertyTitulo: 'Otra casa' }), false);
-await espera('chat de un código que no es el de la solicitud', crearChat('TokenOtroCodigoLargoAlAzar234', { ...chatN, codigo: 'EQ-OTRO' }), false);
-await espera('chat cuyo índice apunta a otro chat', fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [
-	{ update: { name: `${RAIZ}/chats/TokenIndiceAjenoLargoYAlAzar23`, fields: campos(chatN) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
-	{ update: { name: `${RAIZ}/chatsPorSolicitud/lead-n`, fields: campos({ token: T }) }, currentDocument: { exists: false } }] }) }).then((r) => r.status), false);
-// El título no se compara con el de la casa (una página publicada antes de cambiarlo no abriría el chat): los correos lo toman de la casa.
-// El chat lleva el subtotal cotizado (con él confirma el socio): el de su solicitud.
 {
-	await fetch(`${H}/leads/lead-s`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Sara'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-	await espera('chat con un subtotal distinto del de su solicitud', crearChat('TokenSubtotalMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 9200 }), false);
-	await espera('chat con otro número de huéspedes que su solicitud', crearChat('TokenHuespedMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', huespedes: 10 }), false);
-	await espera('chat con el subtotal de su solicitud (control)', crearChat('TokenSubtotalBienLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 920 }), true);
 	const r5 = await leer(null, 'reglas/r5');
-	n++; if (r5 !== 404) fallas++; console.log(`${r5 === 404 ? 'ok   ' : 'FALLA'} 404    · leer reglas/r5 responde «no existe» (así el sitio sabe que puede mandar el subtotal) (${r5})`);
+	n++; if (r5 !== 404) fallas++; console.log(`${r5 === 404 ? 'ok   ' : 'FALLA'} 404    · leer reglas/r5 responde «no existe» (las páginas de antes lo consultan) (${r5})`);
 	await espera('nadie escribe en reglas/r5', fetch(`${H}/reglas/r5`, { method: 'PATCH', headers: cab(null), body: JSON.stringify({ fields: campos({ x: 1 }) }) }).then((r) => r.status), false);
 }
-// El chat es lo que ve el socio en Solicitudes: fechas, noches, total, moneda y subtotal iguales a los de su solicitud
-// (el servidor confirma con los de la solicitud: si no, el socio confirmaría una cosa y se guardaría otra).
-{
-	await fetch(`${H}/leads/lead-a1`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Carla'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-	const chatA1 = { ...chat, leadId: 'lead-a1' };
-	await espera('chat con otra llegada que su solicitud', crearChat('TokenA1LlegadaLargoYAlAzar2345', { ...chatA1, llegada: '2027-02-03' }), false);
-	await espera('chat con otra salida que su solicitud', crearChat('TokenA1SalidaLargoYAlAzar23456', { ...chatA1, salida: '2026-11-17' }), false);
-	await espera('chat con menos noches que su solicitud', crearChat('TokenA1NochesLargoYAlAzar23456', { ...chatA1, noches: 1 }), false);
-	await espera('chat con un total más bajo que su solicitud', crearChat('TokenA1TotalLargoYAlAzar234567', { ...chatA1, total: 122 }), false);
-	await espera('chat en otra moneda que su solicitud', crearChat('TokenA1MonedaLargoYAlAzar23456', { ...chatA1, moneda: 'GTQ' }), false);
-	await espera('chat sin el subtotal cotizado', crearChat('TokenA1SinSubLargoYAlAzar23456', (({ subtotal, ...x }) => x)(chatA1)), false);
-	await espera('chat igual a su solicitud (control)', crearChat('TokenA1BienLargoYAlAzar2345678', chatA1), true);
-}
-await espera('chat con foto, dirección de la ficha y un título de antes (control)', crearChat('TokenConFotoLargoYAlAzar2345', { ...chatN, propertyTitulo: 'Título de antes', foto: 'https://ejemplo.com/a.jpg', url: '/propiedad/x/' }), true);
 await espera('quien tiene el enlace lee su reserva', leer(null, `chats/${T}`), true);
 await espera('anónimo lista todas las conversaciones', consulta(null, 'chats'), false);
 await espera('cliente escribe', crear(null, msj(), m('cliente', '¿Aceptan 2 perros? Llegamos el 16/11/2026 a las 15:00')), true);
@@ -588,52 +559,22 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const lead = (agentId) => ({ nombre: 'Ana', telefono: '+502 5555 1234', email: '', mensaje: '', origen: 'reserva', pagina: '/x/', propertyId: 'mx-noche', propertyTitulo: 'Casa', agentId, estado: 'nuevo' });
 		await espera('formulario de una casa por noche con el asesor de una página vieja', crear(null, 'leads/lead-pagina-vieja', lead('a7')), false);
 		await espera('formulario de una casa por noche sin asesor (control)', crear(null, 'leads/lead-pagina-nueva', lead('')), true);
-		// La cotización de la solicitud (js/vacacional.js con V.cotizar): números, impuestos = 22 % y total = subtotal + impuestos.
+		// Una solicitud de reserva (con «reserva») no nace desde el navegador: la crea el servidor con su chat y su índice
+		// (netlify/functions/solicitud.mjs; lo que se revisaba aquí —cotización, fechas, moneda, personas— se prueba en
+		// scripts/test-solicitud.mjs).
 		const conReserva = (id, r) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [{ update: { name: `${R}/leads/${id}`,
 			fields: { ...campos(lead('')), reserva: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'number' ? { doubleValue: x } : sv(x)])) } } } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((x) => x.status);
-		const bien = { codigo: 'EQ-COT', llegada: '2027-03-01', salida: '2027-03-04', noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD' };
-		// Inflar el subtotal sin inflar los impuestos ni el total no pasa (el cliente vería y pagaría otra cosa).
-		await espera('solicitud con el subtotal inflado y los impuestos y el total de antes', conReserva('lead-cot-1', { ...bien, subtotal: 100000 }), false);
-		// Inflado pero coherente (100,000 + 22,000 = 122,000) sí pasa la regla: lo frena «Confirmada», donde el
-		// administrador elige registrar con los precios de hoy (montosDeConfirmacion). Se deja probado para que se sepa.
-		await espera('solicitud inflada pero coherente: la regla la deja (la frena el administrador al confirmar)', conReserva('lead-cot-9', { ...bien, subtotal: 100000, impuestos: 22000, total: 122000 }), true);
-		await espera('solicitud de 3 noches que declara 1 (menos comisión)', conReserva('lead-cot-10', { ...bien, noches: 1, subtotal: 100, impuestos: 22, total: 122 }), false);
-		await espera('solicitud con fechas que no son fechas', conReserva('lead-cot-11', { ...bien, llegada: 'mañana' }), false);
-		await espera('solicitud de un mes que cruza de año, con sus 31 noches (control)', conReserva('lead-cot-12', { ...bien, llegada: '2026-12-15', salida: '2027-01-15', noches: 31 }), true);
-		await espera('solicitud con impuestos que no son el 22 %', conReserva('lead-cot-2', { ...bien, impuestos: 10, total: 410 }), false);
-		await espera('solicitud con un total que no es subtotal + impuestos', conReserva('lead-cot-3', { ...bien, total: 1 }), false);
-		await espera('solicitud con el subtotal como texto', conReserva('lead-cot-4', { ...bien, subtotal: 'mucho' }), false);
-		await espera('solicitud sin subtotal', conReserva('lead-cot-5', (({ subtotal, ...x }) => x)(bien)), false);
-		await espera('solicitud con 2.5 noches', conReserva('lead-cot-6', { ...bien, noches: 2.5 }), false);
-		await espera('solicitud en cero (nada que cobrar)', conReserva('lead-cot-13', { ...bien, subtotal: 0, impuestos: 0, total: 0 }), false);
-		await espera('solicitud de 91 noches (más que el tope de la ficha)', conReserva('lead-cot-14', { ...bien, llegada: '2027-03-01', salida: '2027-05-31', noches: 91, subtotal: 9100, impuestos: 2002, total: 11102 }), false);
-		await espera('solicitud de 90 noches (control)', conReserva('lead-cot-15', { ...bien, llegada: '2027-03-01', salida: '2027-05-30', noches: 90, subtotal: 9000, impuestos: 1980, total: 10980 }), true);
-		await espera('solicitud con 0 noches', conReserva('lead-cot-7', { ...bien, noches: 0 }), false);
-		await espera('solicitud con el subtotal negativo', conReserva('lead-cot-8', { ...bien, subtotal: -100, impuestos: -22, total: -122 }), false);
-		await espera('solicitud cotizada como la cotiza el sitio, con centavos (control)', conReserva('lead-cot-ok', { ...bien, subtotal: 433.33, impuestos: 95.33, total: 528.66 }), true);
-		// La moneda es la de la casa (de ella salen la reserva y la comisión); sin moneda guardada, US$.
-		await espera('solicitud en quetzales de una casa en dólares (sin moneda guardada)', conReserva('lead-mon-1', { ...bien, moneda: 'GTQ' }), false);
-		await espera('solicitud sin moneda', conReserva('lead-mon-2', (({ moneda, ...x }) => x)(bien)), false);
-		await raw('properties/mx-noche-q', { titulo: sv('Casa por noche en quetzales'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('GTQ') });
-		await raw('properties/mx-noche-vacia', { titulo: sv('Casa por noche con la moneda vacía'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('') });
-		const enCasa = (id, casa, r) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [{ update: { name: `${R}/leads/${id}`,
-			fields: { ...campos({ ...lead(''), propertyId: casa }), reserva: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'number' ? { doubleValue: x } : sv(x)])) } } } },
-			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((x) => x.status);
-		await espera('solicitud en dólares de una casa en quetzales', enCasa('lead-mon-3', 'mx-noche-q', bien), false);
-		await espera('solicitud en quetzales de una casa en quetzales (control)', enCasa('lead-mon-4', 'mx-noche-q', { ...bien, moneda: 'GTQ' }), true);
-		await espera('solicitud en dólares de una casa con la moneda vacía (control)', enCasa('lead-mon-5', 'mx-noche-vacia', bien), true);
-		await espera('solicitud de una casa que no existe', enCasa('lead-mon-6', 'no-existe', bien), false);
-		// Las personas caben en la casa (huespedesMax de la casa; sin él, sin tope).
-		await raw('properties/mx-noche-4p', { titulo: sv('Casa para 4'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '4' } } } } });
-		await espera('solicitud de 6 personas en una casa para 4', enCasa('lead-hue-1', 'mx-noche-4p', { ...bien, huespedes: 6 }), false);
-		await espera('solicitud de 0 personas', enCasa('lead-hue-2', 'mx-noche-4p', { ...bien, huespedes: 0 }), false);
-		await espera('solicitud de 4 personas en una casa para 4 (control)', enCasa('lead-hue-3', 'mx-noche-4p', { ...bien, huespedes: 4 }), true);
-		await espera('solicitud de 9 personas en una casa sin tope guardado (control)', conReserva('lead-hue-4', { ...bien, huespedes: 9 }), true);
-		await raw('properties/mx-noche-texto', { titulo: sv('Casa con el tope como texto'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: sv('4') } } } });
-		await espera('casa de antes con el tope guardado como texto: no rechaza todas sus solicitudes (control)', enCasa('lead-hue-5', 'mx-noche-texto', { ...bien, huespedes: 3 }), true);
-		await raw('properties/mx-noche-cero', { titulo: sv('Casa con el tope en 0'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('USD'), vacacional: { mapValue: { fields: { huespedesMax: { integerValue: '0' } } } } });
-		await espera('casa con el tope en 0 (dato malo): sin tope, como la ficha (control)', enCasa('lead-hue-6', 'mx-noche-cero', { ...bien, huespedes: 3 }), true);
+		const bien = { codigo: 'EQ-COT', llegada: '2030-03-01', salida: '2030-03-04', noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD' };
+		await espera('anónimo crea una solicitud de reserva bien cotizada directo en la base (la crea el servidor)', conReserva('lead-cot-ok', bien), false);
+		await espera('anónimo crea un lead con el socio de la casa (solo con reserva, por el servidor)', crear(null, 'leads/lead-socio', { ...lead(''), propietarioId: 'm1' }), false);
+		// La fecha de visita: AAAA-MM-DD, de hoy a un año (hoy en Guatemala con la hora del servidor).
+		const dia = (n) => new Date(Date.now() - 6 * 3600000 + n * 86400000).toISOString().slice(0, 10);
+		await espera('formulario con la fecha de visita de ayer', crear(null, 'leads/lead-visita-1', { ...lead(''), fechaVisita: dia(-1) }), false);
+		await espera('formulario con la fecha de visita en dos años', crear(null, 'leads/lead-visita-2', { ...lead(''), fechaVisita: dia(730) }), false);
+		await espera('formulario con la fecha de visita como texto', crear(null, 'leads/lead-visita-3', { ...lead(''), fechaVisita: 'el lunes' }), false);
+		await espera('formulario con la fecha de visita de hoy (control)', crear(null, 'leads/lead-visita-4', { ...lead(''), fechaVisita: dia(0) }), true);
+		await espera('formulario con la fecha de visita en 365 días (control)', crear(null, 'leads/lead-visita-5', { ...lead(''), fechaVisita: dia(365) }), true);
 	}
 	// La casa cambió de asesor y la página no se ha vuelto a publicar: el sitio reintenta sin asesor y la recibe el
 	// administrador (js/site.js); con el asesor de antes, no (no le llega el contacto a quien ya no la lleva).

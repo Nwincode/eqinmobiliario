@@ -17,7 +17,7 @@ import {
 	serverTimestamp, arrayUnion, deleteField
 } from './firebase.js';
 import { session, markPending } from './session.js';
-import { dia } from './ui.js';
+import { dia, ahoraServidor } from './ui.js';
 
 import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, TEXTO_CANCELADA, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
@@ -253,7 +253,9 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	const r = l.reserva;
 	const p = (await getDoc(doc(db, 'properties', l.propertyId))).data();
 	// Lo mismo que revisa el servidor por el socio: llegada pasada, casa fuera del sitio o con otra moneda.
-	const no = motivoParaNoConfirmar(l, p, montos?.moneda ? montos : null);
+	// Con la hora del servidor: el reloj del dispositivo puede ir adelantado (el día de llegada parecería pasado).
+	const ahora = await ahoraServidor();
+	const no = motivoParaNoConfirmar(l, p, montos?.moneda ? montos : null, ahora);
 	if (no) throw Object.assign(new Error(no), { servidor: 409 });
 	// Sin la dirección exacta no se confirma (lo mismo que revisa el servidor por el socio).
 	if (faltaDireccion((await getDoc(doc(db, 'properties', l.propertyId, 'privado', 'llegada')).catch(() => null))?.data())) throw Object.assign(new Error(TEXTO_SIN_DIRECCION), { servidor: 409 });
@@ -267,7 +269,7 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// Una reserva por solicitud: su id es el de la solicitud. Guarda su chat: con él se sabe si el cliente ya pagó.
 	const id = l.id;
 	const revisadoAMano = sinLeer.length && revisado ? sinLeer : [];
-	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '', revisadoAMano });
+	const datos = reservaDeSolicitud(l, { id: l.propertyId, ...p }, montos, { chat: chat?.ref.id || '', revisadoAMano, ahora });
 	// El socio llega aquí solo sin el servidor (503), con las reglas de antes: no aceptan el plazo guardado ni el aviso
 	// pendiente (el plazo sale de createdAt, como antes: plazoDePago).
 	const deAntes = session.esSocio;

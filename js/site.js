@@ -8,14 +8,14 @@
 		errorCorreo: 'Please check your email (e.g. name@email.com).', quisiste: 'Did you mean {correo}?', usar: 'Use it', estaBien: 'If yours is right, tap send again.',
 		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', errorFecha: 'Pick a date from today on.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
-		fallo: 'We couldn\'t send the form.', sinChat: 'We received your request, but we couldn\'t open its chat: we will contact you.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
+		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
 		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).', quisiste: '¿Quisiste decir {correo}?', usar: 'Usar ese', estaBien: 'Si el tuyo está bien, toca enviar otra vez.',
 		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', errorFecha: 'Elige una fecha de hoy en adelante.', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
-		fallo: 'No pudimos enviar el formulario.', sinChat: 'Recibimos tu solicitud, pero no pudimos abrir su chat: te contactaremos.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
+		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
 		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
@@ -104,9 +104,10 @@
 
 	function str(v) { return { stringValue: String(v || '') }; }
 
-	// Guarda el lead en Firestore por REST: no hace falta cargar el SDK en el sitio público.
+	// Guarda el lead de contacto en Firestore por REST: no hace falta cargar el SDK en el sitio público. (La solicitud de
+	// reserva la guarda el servidor, con su chat: js/reserva-chat.js solicitar.)
 	function saveLead(lead) {
-		// El id se conserva en el lead: el chat de la reserva lo usa para enlazarse a su solicitud.
+		// El id se conserva en el lead: con él, /api/aviso-lead lee el lead guardado.
 		lead.id = randomId();
 		var base = 'projects/' + config.projectId + '/databases/(default)/documents';
 		var fields = {
@@ -121,7 +122,6 @@
 			agentId: str(lead.agentId),
 			estado: str('nuevo')
 		};
-		if (lead.propietarioId) fields.propietarioId = str(lead.propietarioId);
 		if (lead.fechaVisita) fields.fechaVisita = str(lead.fechaVisita);
 		if (lead.tipoVisita) fields.tipoVisita = str(lead.tipoVisita);
 		fields.idioma = str(lead.idioma);
@@ -129,15 +129,6 @@
 			var mapa = {};
 			Object.keys(lead.campana).slice(0, 8).forEach(function (k) { mapa[k] = str(lead.campana[k]); });
 			fields.campana = { mapValue: { fields: mapa } };
-		}
-		// Renta vacacional: fechas, noches, huéspedes y total de la solicitud de reserva.
-		if (lead.reserva) {
-			var res = {};
-			Object.keys(lead.reserva).slice(0, 10).forEach(function (k) {
-				var v = lead.reserva[k];
-				res[k] = typeof v === 'number' && isFinite(v) ? { doubleValue: v } : str(v);
-			});
-			fields.reserva = { mapValue: { fields: res } };
 		}
 		var body = {
 			writes: [{
@@ -220,7 +211,16 @@
 		box.innerHTML = '<span class="' + (ok ? 'icon-check-circle' : 'icon-exclamation-triangle') + ' eq-ic" aria-hidden="true"></span>' + html;
 	}
 
+	// La prueba de «no soy un robot» de cada formulario de reserva (js/reserva-chat.js): se prepara al tocarlo, no al abrir.
+	var pruebas = [];
+	function pruebaDe(form) {
+		for (var i = 0; i < pruebas.length; i++) if (pruebas[i][0] === form) return pruebas[i][1];
+		var p = window.EQChat.prueba(form);
+		pruebas.push([form, p]);
+		return p;
+	}
 	document.querySelectorAll('.lead-form').forEach(function (form) {
+		form.addEventListener('focusin', function () { if (typeof form.eqReserva === 'function' && window.EQChat) pruebaDe(form); });
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
@@ -248,8 +248,6 @@
 			var sinFechas = typeof form.eqReserva === 'function' && !reserva;
 			if (reserva) {
 				lead.reserva = reserva.datos;
-				// Casa de un socio: la solicitud le aparece en su panel.
-				if (form.getAttribute('data-propietario-id')) lead.propietarioId = form.getAttribute('data-propietario-id');
 				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
 			}
 			lead.idioma = EN ? 'en' : 'es';
@@ -292,15 +290,16 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
-				// La solicitud quedó guardada pero su chat no se abrió: se dice, con el contacto a la mano.
-				if (!chat) return setStatus(form, reserva.gracias + ' ' + T.sinChat + (config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : ''), true);
 				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
 				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
 				if (chat) location.href = window.EQChat.enlace(chat);
 			};
-			var fail = function () {
+			// Lo que el servidor de reservas explica (la llegada ya pasó, la casa ya no recibe, demasiados envíos) se dice tal
+			// cual en español; lo demás, el aviso de siempre. Siempre con WhatsApp a la mano.
+			var fail = function (err) {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
-				setStatus(form, T.fallo + wa, false);
+				var motivo = !EN && err && [403, 409, 429].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
+				setStatus(form, (motivo ? motivo.replace(/[<>&]/g, '') + ' ' : T.fallo) + wa, false);
 			};
 
 			if (!config.projectId) {
@@ -315,8 +314,7 @@
 				return;
 			}
 			// Lo que una página publicada antes puede mandar distinto no hace perder la solicitud:
-			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador);
-			//  - las reglas de la base todavía no aceptan «propietarioId»: va sin él.
+			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador).
 			// Solo si las reglas lo rechazan (403): un corte de red no la manda a otro asesor ni la guarda dos veces.
 			// Reserva: las fechas se revisan otra vez al día justo antes de guardar (otra persona pudo pedirlas con esta
 			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
@@ -326,22 +324,23 @@
 				guardar();
 			});
 			function guardar() {
+			// Reserva: la solicitud, su chat y su índice los guarda juntos el servidor (/api/solicitud), con la prueba de «no
+			// soy un robot» si está activa. Después, los avisos al socio, al equipo y al cliente con su enlace.
+			if (reserva) {
+				if (!window.EQChat) { fail(); button.disabled = false; return; }
+				var pruebaForm = pruebaDe(form);
+				pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); })
+					.then(function (token) { window.EQChat.avisar(token); done(token); }, fail)
+					.then(function () { pruebaForm.otra(); button.disabled = false; });
+				return;
+			}
 			saveLead(lead).catch(function (err) {
 				if (!lead.propertyId || !lead.agentId || err.message !== 'HTTP 403') throw err;
 				lead.agentId = '';
 				return saveLead(lead);
-			}).catch(function (err) {
-				if (!lead.propietarioId || err.message !== 'HTTP 403') throw err;
-				delete lead.propietarioId;
-				return saveLead(lead);
 			}).then(function () {
-				// Chat de la reserva: si no se pudo abrir, la solicitud igual quedó guardada.
-				var chat = reserva && window.EQChat ? window.EQChat.crear(lead, reserva.datos).catch(function () { return ''; }) : Promise.resolve('');
-				return chat.then(function (token) {
-					// Reserva con chat: avisos al socio, al equipo y al cliente con su enlace. Lo demás, el aviso de siempre al equipo.
-					if (token) window.EQChat.avisar(token); else avisarEquipo(lead);
-					done(token);
-				});
+				avisarEquipo(lead);
+				done('');
 			}, fail).then(function () { button.disabled = false; });
 			}
 		});

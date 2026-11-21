@@ -58,4 +58,12 @@ t('comprobante del huésped: se prepara con la misma pieza que las fotos del pan
 	assert.match(readFileSync(new URL('./lib/assets.mjs', import.meta.url), 'utf8'), /'\.\/admin\/js\/imagen\.js', \['procesarImagen'\], 'EQImagen'/);
 });
 
+t('confirmar y lo que depende del día de llegada usan la hora del servidor, no la del dispositivo (un reloj adelantado no da por pasado el día de llegada)', () => {
+	assert.match(fuente('ui.js'), /export async function ahoraServidor\(\)[\s\S]*headers\.get\('date'\)/);
+	assert.match(fuente('reservas.js'), /const ahora = await ahoraServidor\(\);\n\tconst no = motivoParaNoConfirmar\(l, p, montos\?\.moneda \? montos : null, ahora\);/);
+	const sol = fuente('views/solicitudes.js');
+	assert.doesNotMatch(sol, /llegadaPasada\([^)]*\.llegada\)/, 'toda llegadaPasada de Solicitudes lleva la hora del servidor');
+	assert.match(sol, /await ahoraServidor\(\);/);
+});
+
 console.log(`\n${ok} guardas del panel en su lugar.`);

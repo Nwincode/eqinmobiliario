@@ -127,6 +127,20 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
     chat con dígitos de cualquier escritura. Se publican **después** del sitio y las funciones (el panel lee
     `montosSolicitud` y, mientras las reglas no estén, calcula los montos con la casa de hoy). Antes de publicar,
     revisar que cada casa por noche visible tenga su dirección exacta: sin ella ya no se marca «Pago recibido».
+    **Tanda de reglas y servidor (solicitudes por el servidor, Turnstile, datos de pago, cotizaciones):** en este orden.
+    1. (Opcional, recomendado) **Crear las llaves de Turnstile** en Cloudflare (gratis): dash.cloudflare.com → Turnstile →
+       Add widget, dominio `eqinmobiliario.gt`, modo «Managed». En Netlify → Site configuration → Environment variables:
+       `TURNSTILE_SITE_KEY` (Site Key) y `TURNSTILE_SECRET` (Secret Key), con alcance «Functions». Sin las dos, las
+       solicitudes funcionan igual, solo con el límite por IP y por correo, y el registro de la función lo dice.
+    2. **Revisar que Solicitudes diga «Reservas por servidor: activo»**: desde esta tanda, la solicitud de reserva la
+       guarda el servidor con la cuenta de escritura (`/api/solicitud`); sin ella el sitio ofrece WhatsApp.
+    3. **Publicar el sitio** (si se agregaron las llaves después: **Deploys → Trigger deploy**). Con las reglas de
+       antes, el sitio nuevo ya funciona (el servidor no pasa por las reglas).
+    4. **Publicar las reglas** en seguida (Firestore y Storage, juntas). Desde ahí, una página abierta desde antes del
+       paso 3 que intente reservar directo en la base recibe «no pudimos enviar» con el botón de WhatsApp (al recargar,
+       ya va por el servidor); el número de cotización, los datos de pago y el calendario del socio con topes
+       necesitan las reglas nuevas, por eso van sin esperar: en los minutos entre 3 y 4, guardar una cotización nueva o
+       cambiar unos datos de pago da «sin permiso» (se vuelve a guardar después del paso 4).
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

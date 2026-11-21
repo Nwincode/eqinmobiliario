@@ -60,6 +60,23 @@ export function formatDate(v, withTime = true) {
 // Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
 // «Hoy» es el día de Guatemala, el mismo del sitio y de las funciones (una sola cuenta: js/calc-vacacional.js).
 export const hoy = () => window.EQVacacional.hoy();
+// La hora del servidor, no la del dispositivo: un teléfono con el reloj adelantado no da por pasado el día de llegada de
+// una reserva (ni uno atrasado deja confirmar una que ya pasó). Sale del encabezado Date de una respuesta del propio sitio
+// y se recuerda como diferencia 10 minutos; si no responde, la del dispositivo. La usan las revisiones de admin/js/reservas.js.
+let desfase = null, desfaseDe = 0;
+export async function ahoraServidor() {
+	if (desfase === null || Date.now() - desfaseDe > 600000) {
+		try {
+			const antes = Date.now();
+			const r = await fetch('/admin/', { method: 'HEAD', cache: 'no-store' });
+			const servidor = Date.parse(r.headers.get('date') || '');
+			if (servidor) { desfase = servidor + (Date.now() - antes) / 2 - Date.now(); desfaseDe = Date.now(); }
+		} catch { /* sin red: la hora del dispositivo */ }
+	}
+	return ahoraYa();
+}
+// Lo mismo sin esperar: con la diferencia ya medida (ahoraServidor al abrir la pantalla); antes, la del dispositivo.
+export const ahoraYa = () => Date.now() + (desfase || 0);
 export const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
 
 // El precio según la operación sale de formato.js (uno solo para el panel, la difusión y las reglas).

@@ -554,43 +554,20 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isStaff() && resource.data.por == request.auth.uid);
     }
 
-    // Lo que cotizó el sitio en una solicitud de reserva (js/vacacional.js con V.cotizar): números, impuestos = 22 % del
-    // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
-    // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.
-    function reservaCotizada(r) {
-      // Con algo que cobrar (subtotal > 0) y a lo más 90 noches (V.MAX_NOCHES en js/calc-vacacional.js: la ficha no deja más).
-      return r.get('subtotal', -1) is number && r.subtotal > 0
-        && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
-        && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
-        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 90 && r.noches == math.floor(r.noches)
-        // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
-        && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
-    }
-    // ¿Caben esas personas en la casa? (huespedesMax de la casa cuando es un número de 1 o más; si no, sin tope: lo mismo
-    // que manda /api/disponibilidad a la ficha.)
-    function caben(huespedes, propertyId) {
-      let max = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('vacacional', {}).get('huespedesMax', 1000);
-      return !(max is number) || max < 1 || huespedes <= max;
-    }
-    // La moneda de una casa; sin moneda guardada (o vacía), US$.
-    function monedaDe(propertyId) {
-      let m = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('moneda', '');
-      return m == '' ? 'USD' : m;
-    }
-    // Noches entre dos fechas 'AAAA-MM-DD' (salida − llegada en días).
-    function nochesEntre(llegada, salida) {
-      let a = llegada.split('-');
-      let b = salida.split('-');
-      return llegada.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && salida.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
-        ? (timestamp.date(int(b[0]), int(b[1]), int(b[2])) - timestamp.date(int(a[0]), int(a[1]), int(a[2]))).seconds() / 86400
-        : -1;
+    // «Hoy» en Guatemala (UTC−6 todo el año) como 'AAAA-MM-DD', con la hora del servidor (no la del teléfono).
+    function hoyGt(diasMas) {
+      let d = request.time - duration.value(6, 'h') + duration.value(diasMas * 24, 'h');
+      return string(d.year()) + '-' + (d.month() < 10 ? '0' : '') + string(d.month()) + '-' + (d.day() < 10 ? '0' : '') + string(d.day());
     }
     match /leads/{id} {
-      // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
+      // Formularios públicos de contacto: campos fijos, tamaños limitados y fecha del servidor.
+      // Una solicitud de reserva (con «reserva») no nace aquí: la crea el servidor junto con su chat y su índice, en una
+      // transacción, con la prueba de «no soy un robot» y el límite por IP y por correo (netlify/functions/solicitud.mjs,
+      // con la cuenta de escritura, que no pasa por estas reglas; ahí se revisa lo cotizado, las fechas y la casa).
       allow create: if request.resource.data.keys().hasOnly([
             'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
             'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
-            'tipoVisita', 'idioma', 'campana', 'reserva', 'propietarioId'])
+            'tipoVisita', 'idioma', 'campana'])
         && isNonEmptyString(request.resource.data.nombre, 100)
         && isNonEmptyString(request.resource.data.telefono, 30)
         && isShortString(request.resource.data.email, 120)
@@ -600,27 +577,18 @@ service cloud.firestore {
         && isShortString(request.resource.data.propertyId, 60)
         && isShortString(request.resource.data.propertyTitulo, 200)
         && isShortString(request.resource.data.agentId, 60)
-        && (!('fechaVisita' in request.resource.data) || isShortString(request.resource.data.fechaVisita, 20))
+        // La fecha de visita: 'AAAA-MM-DD', de hoy a un año (hoy en Guatemala, con la hora del servidor; js/site.js diaValido).
+        && (!('fechaVisita' in request.resource.data)
+            || (request.resource.data.fechaVisita is string
+                && request.resource.data.fechaVisita.matches('20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+                && request.resource.data.fechaVisita >= hoyGt(0) && request.resource.data.fechaVisita <= hoyGt(366)))
         && (!('tipoVisita' in request.resource.data) || request.resource.data.tipoVisita in ['presencial', 'videollamada'])
         && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
         && (!('campana' in request.resource.data)
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
-        && (!('reserva' in request.resource.data)
-            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
-                && reservaCotizada(request.resource.data.reserva)
-                // Las personas caben en la casa (huespedesMax; sin él, sin tope): lo mismo que deja elegir la ficha.
-                && request.resource.data.reserva.get('huespedes', 1) is number && request.resource.data.reserva.get('huespedes', 1) >= 1
-                && caben(request.resource.data.reserva.get('huespedes', 1), request.resource.data.propertyId)
-                // La moneda es la de la casa (sin moneda guardada, US$, como el sitio y admin/js/reservas-calculo.js):
-                // de ella salen la reserva y la comisión; el cliente no la elige.
-                && exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
-                && request.resource.data.reserva.get('moneda', '') == monedaDe(request.resource.data.propertyId)))
-        // El socio de la solicitud tiene que ser el dueño real de la casa.
-        && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
-            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
-        // El asesor del formulario es el de la casa (una casa por noche no lleva: ''); así una página publicada antes
-        // no le manda al asesor la solicitud ni el contacto de un huésped. Sin asesor ('') también vale: si la casa cambió
-        // de asesor y la página no se ha vuelto a publicar, el sitio reintenta así (js/site.js) y la recibe el administrador.
+        // El asesor del formulario es el de la casa; así una página publicada antes no le manda al asesor el contacto de
+        // otro. Sin asesor ('') también vale: si la casa cambió de asesor y la página no se ha vuelto a publicar, el sitio
+        // reintenta así (js/site.js) y la recibe el administrador.
         && (request.resource.data.propertyId == ''
             || request.resource.data.agentId == ''
             || !exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
@@ -643,70 +611,31 @@ service cloud.firestore {
     // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
     // equipo solo entra el administrador). El id es la llave: largo y al azar,
     // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
-    // Índice de un chat por solicitud: lo crea el cliente junto con su chat, una sola vez (crear sobre uno que ya existe
-    // no es «crear»). Con él, el servidor (netlify/functions/reservas.mjs) usa EL chat de la solicitud, no uno inventado.
-    // Nace solo junto con su chat, en el mismo lote (el chat no existía y su createdAt es la hora de este pedido): nadie
-    // le pone índice a un chat inventado para una solicitud de antes. El administrador se lo pone a un chat que ya existe
-    // (Solicitudes, al abrirla: los chats de antes de este cambio).
-    // Leer uno que no existe responde «no existe» a cualquiera (así el sitio sabe que las reglas nuevas están publicadas).
-    // Versión de las reglas: leer reglas/r5 da «no existe» (404) desde esta versión y «sin permiso» (403) antes; así el
-    // sitio sabe si ya puede mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal). Nadie escribe aquí.
+    // Índice de un chat por solicitud (chatsPorSolicitud/{solicitud} → token): con él, el servidor usa EL chat de la
+    // solicitud, no uno inventado. Leer uno que no existe responde «no existe» a cualquiera, y reglas/r5 da «no existe»:
+    // las páginas publicadas antes de que el servidor creara las solicitudes lo consultan (así no se quedan esperando).
+    // Nadie escribe en reglas/.
     match /reglas/{version} {
       allow get: if version == 'r5';
     }
     match /chatsPorSolicitud/{leadId} {
+      // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
+      // un chat de antes que no lo tiene (Solicitudes, al abrirla), solo al de esa solicitud.
       allow create: if request.resource.data.keys().hasOnly(['token'])
         && request.resource.data.token is string && request.resource.data.token.size() >= 20
-        && ((!exists(/databases/$(database)/documents/chats/$(request.resource.data.token))
-            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId
-            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.createdAt == request.time)
-          || (isAdmin() && get(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId));
+        && isAdmin() && get(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId;
       allow get: if resource == null || isAdmin()
         || esSocioDeCasaPorNoche(get(/databases/$(database)/documents/chats/$(resource.data.token)).data.get('propertyId', ''));
       allow list: if isAdmin();
       allow update, delete: if false;
     }
-    function chatComoSuSolicitud(c, r) {
-      return c.get('subtotal', -1) is number && c.subtotal == r.get('subtotal', -2)
-        && c.llegada == r.get('llegada', '') && c.salida == r.get('salida', '') && c.noches == r.get('noches', -1)
-        && c.total == r.get('total', -1) && c.moneda == r.get('moneda', '')
-        && c.get('huespedes', -1) == r.get('huespedes', -2);
-    }
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
       allow list: if isAdmin() || esSocioDe(resource.data);
-      allow create: if token.size() >= 20
-        && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
-            'llegada', 'salida', 'noches', 'huespedes', 'total', 'subtotal', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
-        // Lo que ve el socio en Solicitudes (que se arma desde el chat) es lo que pidió el cliente: fechas, noches, total,
-        // moneda y subtotal cotizado iguales a los de su solicitud (el servidor confirma con los de la solicitud).
-        && chatComoSuSolicitud(request.resource.data,
-            get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva)
-        // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId
-        // De una solicitud recién enviada (el sitio abre el chat en seguida): a una solicitud de antes nadie le inventa un chat.
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.createdAt > request.time - duration.value(1, 'h')
-        // Uno por solicitud: nace junto con su índice chatsPorSolicitud/{leadId} (que solo se crea una vez).
-        // (El título no se compara con el de la casa: una página publicada antes de cambiarlo no abriría el chat; los
-        // correos toman el título de la casa guardada.)
-        && getAfter(/databases/$(database)/documents/chatsPorSolicitud/$(request.resource.data.leadId)).data.token == token
-        && isShortString(request.resource.data.get('foto', ''), 500)
-        && isShortString(request.resource.data.get('url', ''), 200)
-        && isNonEmptyString(request.resource.data.codigo, 20)
-        && isNonEmptyString(request.resource.data.propertyId, 60)
-        && isShortString(request.resource.data.propertyTitulo, 200)
-        && isShortString(request.resource.data.nombre, 40)
-        && isNonEmptyString(request.resource.data.llegada, 10)
-        && isNonEmptyString(request.resource.data.salida, 10)
-        && request.resource.data.noches is number && request.resource.data.huespedes is number
-        && request.resource.data.total is number && isShortString(request.resource.data.moneda, 3)
-        && request.resource.data.idioma in ['es', 'en']
-        // El socio de la conversación es el dueño real de la casa.
-        && request.resource.data.propietarioId
-            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
-        && request.resource.data.createdAt == request.time;
+      // Lo crea solo el servidor, junto con su solicitud y su índice (netlify/functions/solicitud.mjs): la conversación
+      // copia lo que pidió el cliente (fechas, noches, total, moneda, subtotal) y el dueño real de la casa.
+      allow create: if false;
       // El estado que ve el cliente (confirmada, no, pagada, cancelada) lo marcan el administrador y, por el socio, el
       // servidor (netlify/functions/reservas.mjs, junto con la reserva, la solicitud y el mensaje).
       allow update: if isAdmin()

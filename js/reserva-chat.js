@@ -2,7 +2,7 @@
  * pase teléfonos ni correos. La conversación vive en Firestore (chats/{token}/mensajes) y se usa por
  * REST, sin cargar el SDK. El token es la llave: largo, al azar y solo va en el enlace del cliente
  * (/reserva/#token), después del «#» para que no llegue a estadísticas ni a otros sitios.
- * Deja window.EQChat: crear(lead, reserva) al reservar y la página /reserva/ (#reserva-chat).
+ * Deja window.EQChat: solicitar(lead, reserva, turnstile) y prueba(form) al reservar, y la página /reserva/ (#reserva-chat).
  * Sintaxis ES5 a propósito, como el resto del sitio público.
  */
 (function () {
@@ -15,7 +15,6 @@
 	var GUARDADO = 'eq-reserva';
 
 	function str(v) { return { stringValue: String(v == null ? '' : v) }; }
-	function num(v) { return { doubleValue: Number(v) || 0 }; }
 	// Documento de Firestore (REST) → objeto sencillo.
 	function plano(doc) {
 		var out = {}, f = (doc && doc.fields) || {};
@@ -47,55 +46,82 @@
 		try { fetch('/api/aviso-chat', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: token }) }).catch(function () {}); } catch (e) { /* sin fetch keepalive */ }
 	}
 
-	// ¿Están publicadas las reglas nuevas de la base? Leer un índice que no existe responde «no existe» (404) con las
-	// nuevas y «sin permiso» (403) con las de antes. Solo con las de antes se escribe a la manera de antes; ante cualquier
-	// otra respuesta o sin red, se escribe como piden las nuevas (si falla, se ve el error: no se esconde).
-	var reglas = null;
-	function reglasDeAntes() {
-		// Un id al azar en cada carga: nadie puede crear de antemano el documento que se consulta y engañar a todos los clientes.
-		if (!reglas) reglas = fetch(API + RAIZ + '/chatsPorSolicitud/prueba-' + alAzar(24) + (LLAVE ? '?' + LLAVE : ''))
-			.then(function (r) { return r.status === 403; }, function () { return false; });
-		return reglas;
+	// Prueba de «no soy un robot» (Cloudflare Turnstile), solo si el servidor tiene sus llaves (GET /api/solicitud).
+	// `prueba(form)` la prepara en el formulario de reserva (al tocarlo) y devuelve una función que da su respuesta
+	// (promesa: '' si no hace falta o no se pudo). Va invisible; Cloudflare la muestra solo si duda.
+	var llave = null;
+	function llaveTurnstile() {
+		if (!llave) llave = fetch('/api/solicitud', { headers: { Accept: 'application/json' } })
+			.then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return d.turnstile || ''; }, function () { return ''; });
+		return llave;
 	}
-
-	// ¿Ya aceptan las reglas el subtotal en el chat (versión r5)? Leer reglas/r5 da «no existe» (404) con ellas y «sin
-	// permiso» (403) antes. Solo con las de antes va sin subtotal; las nuevas lo exigen, así que ante cualquier otra
-	// respuesta o sin red va con él (como reglasDeAntes).
-	var conSubtotal = null;
-	function aceptaSubtotal() {
-		if (!conSubtotal) conSubtotal = fetch(API + RAIZ + '/reglas/r5' + (LLAVE ? '?' + LLAVE : ''))
-			.then(function (r) { return r.status !== 403; }, function () { return true; });
-		return conSubtotal;
-	}
-
-	// Abre la conversación de una solicitud recién enviada. Devuelve el token (promesa).
-	function crear(lead, r) {
-		if (!config.projectId) return Promise.reject(new Error('sin base de datos'));
-		var token = alAzar(28);
-		var campos = {
-			codigo: str(r.codigo), leadId: str(lead.id), propertyId: str(lead.propertyId), propertyTitulo: str(lead.propertyTitulo),
-			propietarioId: str(lead.propietarioId), nombre: str(String(lead.nombre || '').trim().split(/\s+/)[0].slice(0, 40)),
-			llegada: str(r.llegada), salida: str(r.salida), noches: num(r.noches), huespedes: num(r.huespedes),
-			total: num(r.total), moneda: str(r.moneda), idioma: str(lead.idioma === 'en' ? 'en' : 'es'),
-			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
-			foto: str(((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500)), url: str(location.pathname.slice(0, 200))
-		};
-		// Un chat por solicitud: nace junto con su índice (chatsPorSolicitud/{solicitud}, que solo se crea una vez).
-		// Con las reglas de antes (que no conocen ese índice) el chat se abre solo.
-		var indice = { update: { name: RAIZ + '/chatsPorSolicitud/' + lead.id, fields: { token: str(token) } }, currentDocument: { exists: false } };
-		// El subtotal cotizado (sin impuestos): con él el anfitrión confirma lo que se le cotizó al cliente.
-		return Promise.all([reglasDeAntes(), aceptaSubtotal()]).then(function (x) {
-			if (x[1] && typeof r.subtotal === 'number' && isFinite(r.subtotal)) campos.subtotal = num(r.subtotal);
-			var chat = nuevo('chats/' + token, campos);
-			return pedir(RAIZ + ':commit', { writes: x[0] ? [chat] : [chat, indice] });
-		}).then(function () {
-			// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
-			try { localStorage.setItem(GUARDADO, token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); } catch (e) { /* sin memoria del navegador */ }
-			return token;
+	var cargaTurnstile = null;
+	function cargarTurnstile() {
+		if (!cargaTurnstile) cargaTurnstile = new Promise(function (ok, mal) {
+			var s = document.createElement('script');
+			s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+			s.async = true;
+			s.onload = function () { window.turnstile ? ok(window.turnstile) : mal(new Error('sin turnstile')); };
+			s.onerror = function () { cargaTurnstile = null; mal(new Error('sin turnstile')); };
+			document.head.appendChild(s);
 		});
+		return cargaTurnstile;
+	}
+	function prueba(form) {
+		var widget = null, respuesta = '', esperando = [];
+		var listo = function (v) { respuesta = v || ''; esperando.splice(0).forEach(function (f) { f(respuesta); }); };
+		var preparar = llaveTurnstile().then(function (k) {
+			if (!k) return '';
+			return cargarTurnstile().then(function (ts) {
+				var caja = document.createElement('div');
+				caja.className = 'eq-turnstile';
+				// Justo antes de la fila del botón de enviar (si Cloudflare la muestra, queda donde se va a tocar).
+				var fila = (form.querySelector('button[type=submit]') || {}).parentNode;
+				if (fila && fila !== form && fila.parentNode) fila.parentNode.insertBefore(caja, fila); else form.appendChild(caja);
+				widget = ts.render(caja, { sitekey: k, appearance: 'interaction-only', size: 'flexible', language: document.documentElement.lang === 'en' ? 'en' : 'es',
+					callback: listo, 'expired-callback': function () { respuesta = ''; }, 'error-callback': function () { listo(''); } });
+				return k;
+			});
+		}).catch(function () { return ''; });
+		return {
+			// La respuesta de la prueba (a lo más 15 s); '' sin llaves.
+			respuesta: function () {
+				return preparar.then(function (k) {
+					if (!k || respuesta) return respuesta;
+					return new Promise(function (f) { esperando.push(f); setTimeout(function () { f(respuesta); }, 15000); });
+				});
+			},
+			// Cada respuesta sirve una vez: después de un envío se pide otra.
+			otra: function () { respuesta = ''; if (widget !== null && window.turnstile) window.turnstile.reset(widget); }
+		};
 	}
 
-	window.EQChat = { crear: crear, enlace: enlace, avisar: avisar };
+	// Manda una solicitud de reserva al servidor (netlify/functions/solicitud.mjs), que guarda juntos la solicitud, su chat
+	// y su índice. `lead` (lo del formulario) y `r` (lo cotizado) ya vienen revisados por la página. El id y el token se
+	// ponen una vez por solicitud: si se reintenta (corte de red), el servidor reconoce que ya quedó. Devuelve el token.
+	function solicitar(lead, r, turnstile) {
+		lead.id = lead.id || alAzar(20);
+		lead.token = lead.token || alAzar(28);
+		var cuerpo = {
+			leadId: lead.id, token: lead.token, turnstile: turnstile || '',
+			lead: { nombre: lead.nombre, telefono: lead.telefono, email: lead.email, mensaje: lead.mensaje, origen: lead.origen, pagina: lead.pagina,
+				propertyId: lead.propertyId, idioma: lead.idioma, campana: lead.campana },
+			reserva: r,
+			// Foto y dirección de la ficha, para que el cliente reconozca la casa en su reserva.
+			chat: { foto: ((document.querySelector('meta[property="og:image"]') || {}).content || '').slice(0, 500), url: location.pathname.slice(0, 200) }
+		};
+		return fetch('/api/solicitud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
+			.then(function (res) {
+				return res.json().catch(function () { return {}; }).then(function (d) {
+					if (!res.ok || !d.token) throw Object.assign(new Error(d.error || 'HTTP ' + res.status), { status: res.status, datos: d });
+					// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
+					try { localStorage.setItem(GUARDADO, d.token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); } catch (e) { /* sin memoria del navegador */ }
+					return d.token;
+				});
+			});
+	}
+
+	window.EQChat = { solicitar: solicitar, prueba: prueba, enlace: enlace, avisar: avisar };
 
 	// ------------------------------------------------------------ Página /reserva/
 	var caja = document.getElementById('reserva-chat');
@@ -275,7 +301,7 @@
 			});
 		}
 		// La foto del comprobante va junto con la marca «el cliente adjuntó su comprobante» en el chat (desde ahí el
-		// anfitrión ya no cancela solo). Con las reglas de antes, que no la conocen, el mensaje va solo.
+		// anfitrión ya no cancela solo).
 		// La marca dice qué mensaje es la foto (comprobanteMensaje): las reglas revisan que nazca en el mismo lote.
 		function guardarMensaje(campos) {
 			var id = alAzar(20);
@@ -283,7 +309,7 @@
 			if (!campos.tipo || campos.tipo.stringValue !== 'foto') return pedir(RAIZ + ':commit', { writes: [msj] });
 			var marca = { update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
-			return reglasDeAntes().then(function (antes) { return pedir(RAIZ + ':commit', { writes: antes ? [msj] : [msj, marca] }); });
+			return pedir(RAIZ + ':commit', { writes: [msj, marca] });
 		}
 		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
 		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
