@@ -151,8 +151,10 @@ await espera(1000);
 // ---------------------------------------------------------------- 3. El cliente reserva
 const cliente = await persona(390);
 await cliente.p.goto(`${SITIO}/propiedades/vacacional/`);
-const ficha = await cliente.p.locator('a[href^="/propiedad/"]').first().getAttribute('href').catch(() => '');
-paso('La casa sale en el listado de renta vacacional', Boolean(ficha));
+// Es una casa de prueba («prueba» en el título): tiene su ficha (sin indexar) pero no sale en los listados; se entra por su enlace.
+const ficha = `/propiedad/${(await (await fetch(`http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents/properties/${idCasa}`, { headers: { Authorization: 'Bearer owner' } })).json()).fields?.slug?.stringValue}/`;
+const enListado = await cliente.p.locator(`a[href="${ficha}"]`).count();
+paso('La casa de prueba no sale en el listado de renta vacacional, pero su ficha abre por su enlace', enListado === 0 && (await fetch(`${SITIO}${ficha}`)).status === 200, `${ficha} · en listado: ${enListado}`);
 await cliente.p.goto(`${SITIO}${ficha}`);
 await espera(1200);
 const html = await cliente.p.content();
@@ -213,8 +215,15 @@ await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
 {
 	const idCasaPub = await beto.p.locator('.vac-card').getAttribute('data-id');
-	const api = await (await fetch(`${SITIO}/api/disponibilidad?id=${idCasaPub}`)).json();
 	const q = new URLSearchParams(fechasAna);
+	// El aviso de la solicitud (que congela sus montos y aparta las fechas) sale de la página justo al enviar: se espera a
+	// que termine (hasta 10 s) en vez de mirar en el mismo instante.
+	let api = {};
+	for (let i = 0; i < 20; i++) {
+		api = await (await fetch(`${SITIO}/api/disponibilidad/al-dia?id=${idCasaPub}`)).json();
+		if ((api.apartadas || []).some((r) => r.desde <= q.get('llegada') && r.hasta >= q.get('salida'))) break;
+		await espera(500);
+	}
 	paso('La solicitud de Ana aparta sus fechas en la página mientras nadie responde', (api.apartadas || []).some((r) => r.desde <= q.get('llegada') && r.hasta >= q.get('salida')), JSON.stringify(api.apartadas));
 	await beto.p.fill('.vac-card [name=nombre]', 'Beto Segundo');
 	await beto.p.locator('.vac-card [name=codigo]').selectOption('502');
