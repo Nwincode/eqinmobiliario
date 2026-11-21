@@ -122,7 +122,9 @@ test('una confirmada de la web sin «Pago recibido» no corta sola; con el pago 
 	assert.equal(deudaDe([web({ chatPagado: true })], 's1', ahora).corta, true);
 	assert.equal(faltaSaberSiPago(web(), 's1', ahora), true);
 	assert.equal(faltaSaberSiPago(web({ pagoRecibido: true }), 's1', ahora), false);
-	assert.equal(faltaSaberSiPago(web(), 's1', ahora - H), false);
+	// Se lee el chat desde que vence (no solo a los 7 días): la pausa de 72 h lo necesita antes (V.faltaLeerChat).
+	assert.equal(faltaSaberSiPago(web(), 's1', finDe('2026-11-09') + H), true);
+	assert.equal(faltaSaberSiPago(web(), 's1', finDe('2026-11-09') - H), false);
 });
 
 console.log(`Permisos del socio: ${ok} escenarios bien.`);
