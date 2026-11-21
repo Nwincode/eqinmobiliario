@@ -427,6 +427,15 @@
 	// Horas de atraso que castigan: con una prueba de pago, desde que vence (horasAtrasoComision); cobrable solo por el
 	// tiempo, desde que dejó de poder decir «No me llegó» (el fin de ultimoDiaNoLlego): así no salta de golpe a 72 h.
 	// null si no castiga.
+	// ¿Hay que leer su chat para saber si castiga? Cuando la reserva no trae su propia prueba (cobrablePorPrueba) y la
+	// comisión ya venció: el chat dice si se marcó «pagada» o si el cliente mandó su comprobante (conDatosDelChat en
+	// admin/js/reservas-calculo.js). La misma condición para la pausa (netlify/lib/comisiones.mjs) y el corte de
+	// permisos (admin/js/permisos-socio.js faltaSaberSiPago): así el servidor y el panel cuentan lo mismo cada día.
+	function faltaLeerChat(r, ahora) {
+		if (!r || !r.chat || cobrablePorPrueba(r)) return false;
+		var horas = horasAtrasoComision(r, ahora);
+		return horas !== null && horas >= 0;
+	}
 	function horasMora(r, ahora) {
 		var horas = horasAtrasoComision(r, ahora);
 		if (horas === null || !cobrable(r, ahora)) return null;
@@ -536,6 +545,6 @@
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
 		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,
-		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, cobrable: cobrable, horasMora: horasMora, ultimoDiaNoLlego: ultimoDiaNoLlego, nivelMora: nivelMora, alertaSolicitud: alertaSolicitud
+		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, cobrable: cobrable, cobrablePorPrueba: cobrablePorPrueba, faltaLeerChat: faltaLeerChat, horasMora: horasMora, ultimoDiaNoLlego: ultimoDiaNoLlego, nivelMora: nivelMora, alertaSolicitud: alertaSolicitud
 	};
 });

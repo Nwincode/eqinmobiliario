@@ -24,10 +24,10 @@ export const DIAS_CORTE = 7;
 // desde la alerta de cada mañana. Una confirmada sin pago marcado no corta sola (el cliente quizá nunca pagó); la fuga
 // la cuidan esa alerta y la de fechas bloqueadas después. Una reserva sin chat (a mano o de antes) cuenta como antes.
 export const cuentaParaCorte = (r, ahora) => V().cobrable(r, ahora);
-// ¿Hay que leer su chat para saberlo? (vencida hace DIAS_CORTE días o más, con chat y sin marca en la reserva). Quien lo
-// lee pone chatPagado (estado «pagada») y chatComprobante (comprobanteVigente).
-export const faltaSaberSiPago = (r, propietarioId, ahora) => r?.propietarioId === propietarioId && !cuentaParaCorte(r, ahora)
-	&& (V().horasAtrasoComision(r, ahora) ?? -1) >= DIAS_CORTE * 24;
+// ¿Hay que leer su chat para saberlo? La misma condición que la pausa del servidor (V.faltaLeerChat: sin prueba propia
+// en la reserva y con la comisión vencida). Quien lo lee pone chatPagado (estado «pagada») y chatComprobante
+// (comprobanteVigente).
+export const faltaSaberSiPago = (r, propietarioId, ahora) => r?.propietarioId === propietarioId && V().faltaLeerChat(r, ahora);
 
 // Lo que debe un socio: las comisiones vencidas (desde la primera hora de atraso), por moneda, la más vieja y si ya
 // pasaron los días del corte (cuentaParaCorte). Cuenta solo sus reservas (las de una casa que fue suya siguen siendo suyas).

@@ -6,9 +6,10 @@ import { conDatosDelChat } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const CHAT = /^[A-Za-z0-9]{20,60}$/;
-// Las que todavía no se sabe si castigan (V.cobrable) y ya castigarían: su chat dice si se marcó el pago o hay comprobante.
+// Las que no traen su propia prueba de pago y ya vencieron (V.faltaLeerChat): su chat dice si se marcó el pago o hay
+// comprobante (la misma condición que el corte de permisos, admin/js/permisos-socio.js).
 async function conSuChat(reservas, ahora) {
-	return Promise.all(reservas.map(async (r) => (!V.cobrable(r, ahora) && V.nivelComision(r, ahora) >= 2 && CHAT.test(r.chat || '')
+	return Promise.all(reservas.map(async (r) => (V.faltaLeerChat(r, ahora) && CHAT.test(r.chat || '')
 		? conDatosDelChat(r, await leerPrivado(`chats/${r.chat}`).catch(() => null)) : r)));
 }
 // Todos los socios (la publicación y el control de cada hora).

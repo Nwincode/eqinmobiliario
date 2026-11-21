@@ -206,4 +206,32 @@ await t('datos de pago cambiados: un correo al equipo por cambio (quién, antes 
 	assert.equal((await (await avisoPago(pedido('POST'))).json()).enviados, 0, 'no se repite');
 });
 
+await t('mora con el comprobante del cliente: la pausa del servidor y el nivel del panel coinciden cada día, y el corte de permisos también (una sola condición para leer el chat)', async () => {
+	const { moraDe } = await import('../netlify/lib/comisiones.mjs');
+	const { conDatosDelChat } = await import('../admin/js/reservas-calculo.js');
+	const { deudaDe, faltaSaberSiPago } = await import('../admin/js/permisos-socio.js');
+	const V = globalThis.EQVacacional;
+	const gt = (x) => Date.parse(`${x}:00-06:00`);
+	const T = 'ChatConComprobanteDelCliente1';
+	const chat = { estado: 'confirmada', comprobanteCliente: new Date(gt('2026-11-28T10:00')) };
+	const r = { propietarioId: 'p-mora-dia', estado: 'confirmada', chat: T, llegada: '2026-12-01', salida: '2026-12-03', moneda: 'USD', comision: { monto: 80, vence: '2026-12-01', pagada: false } };
+	poner('reservas/r-mora', r);
+	poner(`chats/${T}`, chat);
+	const reloj = S.reloj;
+	try {
+		for (let d = 2; d <= 14; d++) for (const h of ['06:00', '23:00']) {
+			const ahora = gt(`2026-12-${String(d).padStart(2, '0')}T${h}`);
+			S.reloj = ahora;
+			// (moraDe recuerda 5 min por socio: cada día es otro momento.)
+			const servidor = await moraDe(r.propietarioId, ahora);
+			const panel = V.nivelMora(conDatosDelChat(r, chat), ahora);
+			assert.equal(servidor, panel >= 2 ? panel : 0, `pausa el ${d} a las ${h}: servidor ${servidor}, panel ${panel}`);
+			const corteServidor = deudaDe([faltaSaberSiPago(r, r.propietarioId, ahora) ? conDatosDelChat(r, chat) : r], r.propietarioId, ahora)?.corta || false;
+			assert.equal(corteServidor, deudaDe([conDatosDelChat(r, chat)], r.propietarioId, ahora)?.corta || false, `corte el ${d} a las ${h}`);
+		}
+		// El caso del informe: el 5 de diciembre la pausa ya no baja a 0 (antes: 2 el 4, 0 el 5, 3 recién el 8).
+		assert.equal(await moraDe(r.propietarioId, gt('2026-12-05T12:00') + 3600000), 3);
+	} finally { S.reloj = reloj; }
+});
+
 console.log(`\n${ok} pruebas de las funciones pasan.`);
