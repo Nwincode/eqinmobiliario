@@ -329,7 +329,15 @@
 			if (reserva) {
 				if (!window.EQChat) { fail(); button.disabled = false; return; }
 				var pruebaForm = pruebaDe(form);
-				pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); })
+				// La misma solicitud otra vez (se cortó la red y el cliente vuelve a tocar «Reservar»): con el mismo id y
+				// token, el servidor reconoce que ya quedó y no crea otra.
+				var firma = JSON.stringify([lead.email, lead.propertyId, reserva.datos.llegada, reserva.datos.salida, reserva.datos.huespedes]);
+				if (form.eqIds && form.eqIds.firma === firma) { lead.id = form.eqIds.id; lead.token = form.eqIds.token; }
+				pruebaForm.respuesta().then(function (ts) {
+					var envio = window.EQChat.solicitar(lead, reserva.datos, ts);
+					form.eqIds = { firma: firma, id: lead.id, token: lead.token };
+					return envio;
+				})
 					.then(function (token) { window.EQChat.avisar(token); done(token); }, fail)
 					.then(function () { pruebaForm.otra(); button.disabled = false; });
 				return;

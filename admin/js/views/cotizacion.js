@@ -965,8 +965,11 @@ async function editor(container, id, { duplicar = false } = {}) {
 			toast('Cotización guardada.');
 		} catch (err) { showError(err); } finally { btnGuardar.disabled = false; }
 	}
+	// Lo que sale de la pantalla (WhatsApp, PDF) lleva su número: una cotización nueva se guarda antes (ahí se le da).
+	const conNumero = async () => docId || (await guardar(), Boolean(docId));
 	async function copiarWhatsApp() {
 		if (!revisarPendientes('copiar')) return;
+		if (!(await conNumero())) return;
 		const texto = textoWhatsApp(c, reglas);
 		try { await navigator.clipboard.writeText(texto); } catch {
 			const ta = h('textarea', { class: 'visually-hidden' }, texto);
@@ -976,7 +979,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		}
 		toast('Resumen copiado. Pégalo en WhatsApp.');
 	}
-	function imprimir() { if (revisarPendientes('descargar el PDF')) window.print(); }
+	async function imprimir() { if (revisarPendientes('descargar el PDF') && await conNumero()) window.print(); }
 	// Hoja completa en una ventana: la misma hoja, a tamaño de lectura, con su propio desplazamiento.
 	function verHoja(ev) {
 		const origen = ev.currentTarget;

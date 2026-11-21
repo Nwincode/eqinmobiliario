@@ -355,6 +355,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña pone un mínimo de 0 noches', juntos('mixto1', [casa({ minimos: minimos(1, 0) })]), false);
 		await espera('dueña pone 11 mínimos de noches', juntos('mixto1', [casa({ minimos: minimos(11) })]), false);
 		await espera('dueña pone 10 mínimos de 30 noches (control)', juntos('mixto1', [casa({ minimos: minimos(10, 30) })]), true);
+		// «Faltan tus temporadas» pone precios y mínimos de un toque: el caso más grande junto (10 y 10) cabe en las reglas.
+		await espera('dueña pone 10 precios por fechas y 10 mínimos en un solo cambio (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez), minimos: minimos(10, 3) })]), true);
 		await espera('dueña bloquea hasta dentro de 5 años', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-01-01', hasta: `${new Date().getUTCFullYear() + 5}-01-01` }] })]), false);
 		await espera('dueña bloquea con la salida antes de la llegada', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-02-10', hasta: '2027-02-01' }] })]), false);
 		await espera('dueña bloquea con una fecha mal escrita', juntos('mixto1', [casa({ bloqueos: [{ desde: 'mañana', hasta: '2027-02-01' }] })]), false);

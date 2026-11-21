@@ -62,13 +62,14 @@ export function formatDate(v, withTime = true) {
 export const hoy = () => window.EQVacacional.hoy();
 // La hora del servidor, no la del dispositivo: un teléfono con el reloj adelantado no da por pasado el día de llegada de
 // una reserva (ni uno atrasado deja confirmar una que ya pasó). Sale del encabezado Date de una respuesta del propio sitio
-// y se recuerda como diferencia 10 minutos; si no responde, la del dispositivo. La usan las revisiones de admin/js/reservas.js.
+// (una función: el CDN no la guarda) y se recuerda como diferencia 10 minutos; si no responde, la del dispositivo. La usan
+// las revisiones de admin/js/reservas.js y de Solicitudes.
 let desfase = null, desfaseDe = 0;
 export async function ahoraServidor() {
 	if (desfase === null || Date.now() - desfaseDe > 600000) {
 		try {
 			const antes = Date.now();
-			const r = await fetch('/admin/', { method: 'HEAD', cache: 'no-store' });
+			const r = await fetch('/api/solicitud', { cache: 'no-store' });
 			const servidor = Date.parse(r.headers.get('date') || '');
 			if (servidor) { desfase = servidor + (Date.now() - antes) / 2 - Date.now(); desfaseDe = Date.now(); }
 		} catch { /* sin red: la hora del dispositivo */ }

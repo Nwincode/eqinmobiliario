@@ -509,14 +509,17 @@
 		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
 		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
 		['cambia', '\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x '],
-		['cambia', '(^|[^0-9 \\t.,+-])[ \\t]*[0-9]+([.,][0-9]+)*[ \\t]*' + UNIDAD + '([^' + LETRA + ']|$)', ' x '],
+		['cambia', '(^|[^0-9 \\t.,+-])[ \\t]*[0-9]{1,6}([.,][0-9]+)*[ \\t]*' + UNIDAD + '([^' + LETRA + ']|$)', ' x '],
 		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]*[^0-9 ,.-]|[ ,.-]*$)', ' x '],
-		['cambia', '\\blas[ \\t]+[0-9]{3,4}\\b', ' x '],
+		['cambia', '\\blas[ \\t]+[0-9]{3,4}([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x '],
 		['cambia', '\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x '],
-		// Cuentas: «1500 + 350» y «3 x 450 = 1350» no se leen como un número seguido; «5555 + 1234» sigue siendo dos grupos
-		// de cuatro (abajo).
-		['cambia', '[0-9]{3}[ \\t]+\\+[ \\t]+[0-9]{3}', '000    +    000'],
-		['cambia', '[ \\t]*[=×*][ \\t]*|[ \\t]x[ \\t]', '    '],
+		// Cuentas: «1500 + 350» y «450 = 1350» (de 3 o 4 cifras con una de 3, o 3 con 4: siete en total como mucho) no se
+		// leen como un número seguido; «5555 + 1234», «55 55 = 12 34» y «555*51234» siguen siendo teléfonos.
+		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' 000    000 '],
+		['cambia', '(^|[^0-9])[0-9]{3}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{4}([^0-9]|$)', ' 000    000 '],
+		['cambia', '(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' 000    000 '],
+		// Una «x» suelta entre números no corta un teléfono («5 5 5 5 x 1 2 3 4»).
+		['cambia', '[ \\t]x[ \\t]', ' * '],
 		// Los números escritos con letras («cinco cinco…»).
 		['cambia', 'cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '0'],
 		// Siete dígitos seguidos, o un número partido en dos grupos de 4 («5555 y luego 1234»).

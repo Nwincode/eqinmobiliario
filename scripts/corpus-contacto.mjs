@@ -40,7 +40,7 @@ export const EVASIONES = [
 	'mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro', 'cinco5cinco5 1234', 'Llámame al 2024 5678',
 	'5O55 1234', '5555 y luego 1234', 'mi número termina en 1234 y empieza con 5555', '5555 + 1234', '5555 1234', 'Q 5555 1234', 'Q5555-1234', '5555 1234 quetzales',
 	'mi cel ５５５５１２３４', 'mi cel ٥٥٥٥١٢٣٤', 'mi cel ⑤⑤⑤⑤①②③④', 'escribime al 4012-3344', 'whats 3012 4455', 'mi tel: 2233-4455', '(502) 5555-1234', '502.5555.1234',
-	'5-5-5-5-1-2-3-4', 'cinco5cinco cinco 1 2 3 4', 'llámame: 55551234', 'el 5555 y el 1234', 'nueve ocho siete seis cinco cuatro tres dos', '+1 305 555 1234',
+	'5-5-5-5-1-2-3-4', 'llámame al 55551234 noches', 'mi número 55551234 total', '55 55 = 12 34', '5 5 5 5 x 1 2 3 4', '555*51234', 'a las 5555 1234', '5555 1234 personas', 'tel 5555 x 1234', 'cinco5cinco cinco 1 2 3 4', 'llámame: 55551234', 'el 5555 y el 1234', 'nueve ocho siete seis cinco cuatro tres dos', '+1 305 555 1234',
 	// Correos y enlaces.
 	'escribime a ana@correo.com', 'ana arroba gmail', 'ana arroba gmail punto com', 'ana＠gmail.com', 'juan at gmail dot com', 'juan[at]gmail', 'juanATgmailDOTcom',
 	'casa(dot)com', 'casa[.]com', 'casa,com', 'casa。com', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'ｗｗｗ．micasa．com', 'www casa com',

@@ -139,5 +139,8 @@ export async function donde(coleccion, campo, valor) {
 		} })
 	});
 	if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
-	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
+	const docs = (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
+	// Con el tope lleno, lo que sigue no se leyó: queda en el registro de la función (como en `consultar`).
+	if (docs.length >= 1000) console.warn(`donde: ${coleccion} llegó al tope de 1,000 (${campo} = ${valor}); los siguientes no se leyeron.`);
+	return docs;
 }
