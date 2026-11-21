@@ -281,13 +281,11 @@ export function rentas(m) {
 	return `${numero(m, 2)} renta${Math.abs(m - 1) < 1e-9 ? '' : 's'}`;
 }
 
-// Número de cotización: fecha y hora más 4 letras del id del documento (COT-AAAAMMDD-HHMM-K7QX). Dos cotizaciones del
-// mismo minuto (dos asesores, o «Duplicar») ya no se llaman igual. No es un contador seguido: un contador compartido
-// pediría un documento que todos los asesores escriben (las reglas no lo permiten).
-export function numeroCotizacion(fecha = new Date(), id = '') {
-	const p = (n) => String(n).padStart(2, '0');
-	const sufijo = String(id).replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase();
-	return `COT-${fecha.getFullYear()}${p(fecha.getMonth() + 1)}${p(fecha.getDate())}-${p(fecha.getHours())}${p(fecha.getMinutes())}${sufijo ? `-${sufijo}` : ''}`;
+// Número de cotización: el consecutivo del contador (contadores/cotizaciones) con 4 cifras: COT-0001, COT-0002…
+// Lo pone la primera vez que se guarda, en una transacción (views/cotizacion.js); firestore.rules arma el mismo texto.
+// Las de antes conservan el suyo (fecha y hora).
+export function numeroCotizacion(n) {
+	return `COT-${String(Math.max(1, Math.floor(Number(n) || 0))).padStart(4, '0')}`;
 }
 
 export function fechaISO(fecha = new Date()) {

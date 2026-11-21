@@ -7,7 +7,7 @@
 //  - settings/cotizacion          datos de la empresa, ISR %, % para el asesor, vigencia y condiciones (los edita el administrador)
 //  - emisoresAsesor/{agentId}     datos del asesor para facturar (los edita el asesor y el administrador)
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, runTransaction
 } from '../firebase.js';
 import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
@@ -296,7 +296,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const empresaActual = emisorDesde('empresa', { empresa: def.empresa });
 	let c;
 	let docId = duplicar ? null : id;
-	// Una nueva (o duplicada) ya sabe su id: su número lleva parte de él y así no se repite.
+	// Una nueva (o duplicada) ya sabe su id: el contador lo anota junto con su número (las reglas lo revisan).
 	const idNuevo = docId ? null : doc(collection(db, COL)).id;
 	if (id) {
 		try {
@@ -304,10 +304,11 @@ async function editor(container, id, { duplicar = false } = {}) {
 			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
 			c = structuredClone(s.data());
 		} catch (err) { showError(err); container.replaceChildren(emptyState('No se pudo abrir la cotización.')); return; }
-		if (duplicar) { c.numero = numeroCotizacion(new Date(), idNuevo); c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
+		// El número de la copia lo pone el contador al guardarla (uno seguido, en la misma transacción).
+		if (duplicar) { c.numero = ''; delete c.consecutivo; c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
 	} else {
 		c = {
-			numero: numeroCotizacion(new Date(), idNuevo), fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
+			numero: '', fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
 			asesor: session.profile?.nombre || '', emisorTipo: 'empresa', emisor: { ...empresaActual }, regimen: empresaActual.regimen, modo: 'todo',
 			cliente: snapshotCliente(null), propiedad: snapshotPropiedad(null),
 			condiciones: def.condiciones, notas: '', lineas: [lineaVacia('compraventa')]
@@ -604,7 +605,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 		selCliente.el,
 		selPropiedad.el,
 		h('div', { class: 'col-12 cot-sep p-0' }),
-		campo('numero', 'Número', { attrs: { autocomplete: 'off' } }),
+		// El número lo pone el contador al guardar por primera vez (COT-0001, COT-0002…): seguido y sin repetirse; no se edita.
+		campo('numero', 'Número', { attrs: { readonly: true, placeholder: 'Se pone al guardar', 'data-numero': '' } }),
 		campo('fecha', 'Fecha', { tipo: 'date' }),
 		campo('vigenciaDias', 'Vigencia (días)', { tipo: 'number', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
 		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: selAsesor.id }, 'Asesor'), selAsesor));
@@ -938,7 +940,18 @@ async function editor(container, id, { duplicar = false } = {}) {
 			if (!docId) {
 				const ref = doc(db, COL, idNuevo);
 				datos.createdAt = serverTimestamp();
-				await setDoc(ref, datos);
+				// El número sale del contador, en la misma transacción que la cotización: dos asesores a la vez (o
+				// «Duplicar») nunca tienen el mismo, y no queda un hueco (las reglas lo revisan: +1 y con esta cotización).
+				const n = await runTransaction(db, async (tx) => {
+					const refCont = doc(db, 'contadores', 'cotizaciones');
+					const siguiente = (Number((await tx.get(refCont)).data()?.ultimo) || 0) + 1;
+					tx.set(refCont, { ultimo: siguiente, cotizacion: ref.id });
+					tx.set(ref, { ...datos, consecutivo: siguiente, numero: numeroCotizacion(siguiente) });
+					return siguiente;
+				});
+				c.consecutivo = n; c.numero = numeroCotizacion(n);
+				const campoNumero = container.querySelector('[data-numero]'); if (campoNumero) campoNumero.value = c.numero;
+				pintarDoc();
 				docId = ref.id; c.agentId = datos.agentId;
 				history.replaceState(null, '', `#/cotizaciones/${encodeURIComponent(docId)}`);
 			} else {

@@ -806,6 +806,26 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('socio cambia los montos de su solicitud', fetch(`${H}/montosSolicitud/lead1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ propietarioId: 'o1', costoSocio: 360 }) }) }).then((r) => r.status), false);
 	await espera('administrador escribe montos a mano (solo el servidor)', crear('admin1', 'montosSolicitud/lead-n', { propietarioId: 'o1', costoSocio: 1 }), false);
 }
+// Cotizaciones con número seguido: el contador sube de 1 en 1, solo junto con la cotización que nace con ese número.
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const ent = (n) => ({ integerValue: String(n) });
+	const cot = (id, n, extra = {}) => ({ update: { name: `${R}/cotizaciones/${id}`, fields: { agentId: { stringValue: 'a7' }, numero: { stringValue: typeof n === 'number' ? `COT-${String(n).padStart(4, '0')}` : n.numero }, consecutivo: ent(typeof n === 'number' ? n : n.consecutivo), ...extra } }, currentDocument: { exists: false } });
+	const cont = (n, id, existe) => ({ update: { name: `${R}/contadores/cotizaciones`, fields: { ultimo: ent(n), cotizacion: { stringValue: id } } }, currentDocument: { exists: existe } });
+	await espera('asesor crea la primera cotización con el contador en 1', lote('asesor7', [cont(1, 'cot1', false), cot('cot1', 1)]), true);
+	await espera('asesor crea una cotización sin el contador', lote('asesor7', [cot('cot-sin', 2)]), false);
+	await espera('asesor salta un número (contador de 1 a 3)', lote('asesor7', [cont(3, 'cot3', true), cot('cot3', 3)]), false);
+	await espera('asesor repite el número 1', lote('asesor7', [cont(1, 'cot1b', true), cot('cot1b', 1)]), false);
+	await espera('asesor sube el contador sin crear su cotización', lote('asesor7', [cont(2, 'cot-nada', true)]), false);
+	await espera('asesor sube el contador para una cotización que ya existe', lote('asesor7', [cont(2, 'cot1', true)]), false);
+	await espera('asesor crea la 2 con otro número escrito («COT-0099»)', lote('asesor7', [cont(2, 'cot2', true), cot('cot2', { numero: 'COT-0099', consecutivo: 2 })]), false);
+	await espera('asesor crea la 2 con el contador apuntando a otra cotización', lote('asesor7', [cont(2, 'otra', true), cot('cot2', 2)]), false);
+	await espera('otro asesor crea la 2 (control: el número es de todos)', lote('asesor9', [cont(2, 'cot2', true), { update: { ...cot('cot2', 2).update, fields: { ...cot('cot2', 2).update.fields, agentId: { stringValue: 'a9' } } }, currentDocument: { exists: false } }]), true);
+	await espera('el asesor cambia el número de su cotización', fetch(`${H}/cotizaciones/cot1?updateMask.fieldPaths=numero`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: { numero: { stringValue: 'COT-0007' } } }) }).then((r) => r.status), false);
+	await espera('el asesor edita otra cosa de su cotización (control)', fetch(`${H}/cotizaciones/cot1?updateMask.fieldPaths=notas`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: { notas: { stringValue: 'Ajuste' } } }) }).then((r) => r.status), true);
+	await espera('socio lee el contador', leer('socio1', 'contadores/cotizaciones'), false);
+}
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
 

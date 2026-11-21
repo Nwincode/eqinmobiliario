@@ -338,10 +338,34 @@ service cloud.firestore {
       allow write: if false;
     }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
+    // Número seguido (COT-0001, COT-0002…): lo da el contador contadores/cotizaciones { ultimo, cotizacion }, en la misma
+    // transacción que crea la cotización (admin/js/views/cotizacion.js). El contador sube de 1 en 1 y solo junto con la
+    // cotización que nace con ese número; la cotización nace solo con el número que el contador le dio. Nadie lo cambia después.
+    function numeroDe(n) {
+      return 'COT-' + (n < 10 ? '000' : n < 100 ? '00' : n < 1000 ? '0' : '') + string(n);
+    }
+    function contadorCotizaciones() {
+      return /databases/$(database)/documents/contadores/cotizaciones;
+    }
+    function contadorValido(c) {
+      return c.keys().hasOnly(['ultimo', 'cotizacion']) && c.ultimo is int && c.cotizacion is string && c.cotizacion.size() > 0
+        && !exists(/databases/$(database)/documents/cotizaciones/$(c.cotizacion))
+        && getAfter(/databases/$(database)/documents/cotizaciones/$(c.cotizacion)).data.get('consecutivo', -1) == c.ultimo;
+    }
+    match /contadores/cotizaciones {
+      allow get: if isStaff();
+      allow create: if isStaff() && request.resource.data.get('ultimo', 0) == 1 && contadorValido(request.resource.data);
+      allow update: if isStaff() && request.resource.data.get('ultimo', 0) == resource.data.ultimo + 1 && contadorValido(request.resource.data);
+    }
     match /cotizaciones/{id} {
       allow read: if propio();
-      allow create: if nuevoPropio();
-      allow update: if propio() && conservaAsesor();
+      allow create: if nuevoPropio()
+        && request.resource.data.get('consecutivo', 0) is int
+        && getAfter(contadorCotizaciones()).data.get('ultimo', -1) == request.resource.data.consecutivo
+        && getAfter(contadorCotizaciones()).data.get('cotizacion', '') == id
+        && request.resource.data.get('numero', '') == numeroDe(request.resource.data.consecutivo);
+      allow update: if propio() && conservaAsesor()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'consecutivo']);
       allow delete: if propio();
     }
 
