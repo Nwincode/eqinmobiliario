@@ -132,11 +132,13 @@
 			});
 	}
 
-	// ¿El servidor ya tiene esta solicitud? (antes de reintentar una que se cortó). Sin respuesta, no se da por guardada.
+	// ¿El servidor ya tiene esta solicitud? (antes de reintentar una que se cortó). true / false, o null si no respondió.
+	// El token va en el cuerpo (no en la dirección: no queda en registros ni en el historial).
 	function yaGuardada(lead) {
 		if (!lead.id || !lead.token) return Promise.resolve(false);
-		return fetch('/api/solicitud?lead=' + encodeURIComponent(lead.id) + '&token=' + encodeURIComponent(lead.token), { headers: { Accept: 'application/json' } })
-			.then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return d.guardada === true; }, function () { return false; });
+		return fetch('/api/solicitud', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ consulta: true, leadId: lead.id, token: lead.token }) })
+			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+			.then(function (d) { return d.guardada === true; }, function () { return null; });
 	}
 
 	window.EQChat = { solicitar: solicitar, prueba: prueba, enlace: enlace, avisar: avisar, yaGuardada: yaGuardada };
@@ -332,14 +334,21 @@
 		// La foto del comprobante va junto con la marca «el cliente adjuntó su comprobante» en el chat (desde ahí el
 		// anfitrión ya no cancela solo).
 		// La marca dice qué mensaje es la foto (comprobanteMensaje): las reglas revisan que nazca en el mismo lote.
-		// `id`: el mismo en los reintentos del mismo mensaje (se cortó la red con el mensaje ya guardado): si ya existe (409),
-		// quedó la primera vez y no se escribe otro igual.
+		// `id`: el mismo en los reintentos del mismo mensaje (se cortó la red con el mensaje ya guardado). Si la base lo
+		// rechaza, se lee ese mensaje: solo si existe y es este (mismo autor y mismo texto o foto) cuenta como hecho; el
+		// código del error no basta (una contención o la base de producción pueden dar otro).
 		function guardarMensaje(campos, id) {
 			var msj = nuevo('chats/' + token + '/mensajes/' + id, campos);
 			var lote = [msj];
 			if (campos.tipo && campos.tipo.stringValue === 'foto') lote.push({ update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] });
-			return pedir(RAIZ + ':commit', { writes: lote }).catch(function (err) { if (!/ALREADY_EXISTS/.test(err.message)) throw err; });
+			return pedir(RAIZ + ':commit', { writes: lote }).catch(function (err) {
+				return pedir(RAIZ + '/chats/' + token + '/mensajes/' + id).then(function (doc) {
+					var f = (doc && doc.fields) || {};
+					var igual = ['de', 'texto', 'url'].every(function (k) { return (f[k] && f[k].stringValue) === (campos[k] && campos[k].stringValue); });
+					if (!igual) throw err;
+				}, function () { throw err; });
+			});
 		}
 		// Lo que se está mandando, por intento (texto o foto): su id (y la foto ya subida), para reintentar sin repetir. El
 		// texto que volvió al campo por un corte y se manda otra vez es el mismo intento; si se escribe algo distinto, o el

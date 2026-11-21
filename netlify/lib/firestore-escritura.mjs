@@ -55,10 +55,10 @@ function anidar(campos) {
 }
 
 // Una transacción: `trabajo({ leer, consultar, crear, cambiar })` lee (dentro de la transacción) y deja anotado lo que
-// se escribe; al terminar se escribe todo junto. Si otro escribió lo leído mientras tanto (ABORTED), se repite.
+// se escribe; al terminar se escribe todo junto. Si otro escribió lo leído mientras tanto (ABORTED), se repite (hasta 5).
 // leer(ruta) → documento o null; consultar(coleccion, campo, valor, padre?) → documentos con campo == valor.
 // crear(ruta, datos, transforma): solo si no existe; cambiar(ruta, campos, transforma): solo esos campos, si existe.
-export async function transaccion(trabajo, intentos = 3) {
+export async function transaccion(trabajo, intentos = 5) {
 	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
 	for (let i = 1; ; i++) {
 		const { transaction } = await pedir(token, `${BASE}:beginTransaction`, { options: { readWrite: {} } });
@@ -81,7 +81,9 @@ export async function transaccion(trabajo, intentos = 3) {
 		} catch (err) {
 			// Lo que no llegó al commit se suelta (si no, la base lo tiene bloqueado hasta que venza).
 			await pedir(token, `${BASE}:rollback`, { transaction }).catch(() => {});
-			if (err instanceof ErrorBase && err.codigo === 'ABORTED' && i < intentos) continue;
+			// Con una espera al azar que crece: muchos a la vez sobre el mismo documento (un límite, una casa) no vuelven a
+			// chocar todos juntos.
+			if (err instanceof ErrorBase && err.codigo === 'ABORTED' && i < intentos) { await new Promise((r) => setTimeout(r, Math.random() * 300 * i)); continue; }
 			throw err;
 		}
 	}

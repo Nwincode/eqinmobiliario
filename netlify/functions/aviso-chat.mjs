@@ -39,11 +39,13 @@ export default async (req, context) => {
 		// sigue abierta y todavía no tiene montos, se congelan (la primera vez: aparta sus fechas) y, si le toca al
 		// equipo, se le avisa.
 		const cerrada = await transaccion((tx) => cerrarSiSeCruza(tx, chat.leadId)).catch((err) => { console.error('Solicitud cruzada:', err.message); return null; });
+		// (Las de /api/solicitud ya nacen con sus montos y la casa purgada: aquí solo sale su «Te toca confirmar».)
 		if (!cerrada && !(await leerPrivado(`montosSolicitud/${chat.leadId}`).catch(() => null))) {
 			await transaccion((tx) => congelarMontos(tx, chat.leadId)).catch((err) => console.error('Montos de la solicitud:', err.message));
 			await avisarQueTocaConfirmar(token).catch((err) => console.error('Te toca confirmar:', err.message));
 			await purgarCasa(chat.propertyId);
 		} else if (cerrada) await purgarCasa(chat.propertyId);
+		else if (chat.teTocaPendiente) await avisarQueTocaConfirmar(token).catch((err) => console.error('Te toca confirmar:', err.message));
 	} else if (escrituraConfigurada() && chat?.estado === 'confirmada' && chat.avisoPendiente && chat.propertyId) {
 		// Recién confirmada en el panel (su aviso todavía pendiente): las otras abiertas que se cruzan se cierran.
 		for (const t of await cerrarLasQueSeCruzan(chat.propertyId, chat.llegada, chat.salida).catch(() => [])) await enviarAvisosChat(t).catch(() => {});

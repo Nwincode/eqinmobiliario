@@ -30,41 +30,36 @@ export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-clien
 // vez para la misma clave), se frena (429): justo en un ataque, no se deja pasar. Con `{ siFalla: 'memoria' }` (lo que
 // un cliente de verdad necesita para seguir, como revisar fechas antes de reservar), en ese caso cuenta el de memoria.
 // limitadorDurable(nombre, max, ventanaMs, opciones) → async (clave) => true si ya pasó el límite.
-// `.lleno(clave)`: solo mira si ya está en su tope, sin contar este pedido (para contar después solo lo que se guardó).
-export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar' } = {}) {
+// `.enTransaccion(tx, clave)`: cuenta dentro de la transacción de quien llama (la del guardado): si esta falla o se
+// rechaza, no cuenta, y dos pedidos a la vez no pasan los dos por el mismo cupo (la base los pone en fila).
+// `{ avisar: true }`: al llegar al tope lo dice en el registro (console.warn), una vez por hora.
+export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', avisar = false } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
+	let avisadoEn = 0;
+	const tope = () => { if (avisar && Date.now() - avisadoEn > 3_600_000) { avisadoEn = Date.now(); console.warn(`Límite «${nombre}» en su tope (${max} en ${Math.round(ventanaMs / 60_000)} min).`); } return true; };
 	const ruta = (clave) => `limites/${createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(`${nombre}:${clave}`).digest('hex')}`;
+	// Lee, decide y anota en `tx` (la transacción de quien llama). true = ya estaba en su tope (no anota nada).
+	const enTx = async ({ leer, crear, cambiar }, clave) => {
+		const ahora = Date.now();
+		const r = ruta(clave);
+		const doc = await leer(r);
+		const veces = (doc?.veces || []).map(Number).filter((t) => ahora - t < ventanaMs);
+		// Un pedido rechazado no cuenta (nadie deja bloqueada una clave ajena) y no se escribe nada.
+		if (veces.length >= max) return tope();
+		// `vence`: para que una política de vida (TTL) de Firestore borre los viejos sola, si se activa.
+		const datos = { veces: [...veces, ahora], vence: new Date(ahora + ventanaMs) };
+		if (doc) cambiar(r, datos); else crear(r, datos);
+		return false;
+	};
 	const contar = async (clave) => {
 		if (!escrituraConfigurada()) return enMemoria(clave);
 		try {
-			return await transaccion(async ({ leer, crear, cambiar }) => {
-				const ahora = Date.now();
-				const r = ruta(clave);
-				const doc = await leer(r);
-				const veces = (doc?.veces || []).map(Number).filter((t) => ahora - t < ventanaMs);
-				// Un pedido rechazado no cuenta (nadie deja bloqueada una clave ajena) y no se escribe nada.
-				if (veces.length >= max) return true;
-				// `vence`: para que una política de vida (TTL) de Firestore borre los viejos sola, si se activa.
-				const datos = { veces: [...veces, ahora], vence: new Date(ahora + ventanaMs) };
-				if (doc) cambiar(r, datos); else crear(r, datos);
-				return false;
-			});
+			return await transaccion((tx) => enTx(tx, clave));
 		} catch (err) {
 			console.error('Límite en la base:', err.message);
 			return siFalla === 'memoria' ? enMemoria(clave) : true;
 		}
 	};
-	contar.lleno = async (clave) => {
-		if (!escrituraConfigurada()) return false;
-		try {
-			return await transaccion(async ({ leer }) => {
-				const ahora = Date.now();
-				return ((await leer(ruta(clave)))?.veces || []).map(Number).filter((t) => ahora - t < ventanaMs).length >= max;
-			});
-		} catch (err) {
-			console.error('Límite en la base (revisar):', err.message);
-			return siFalla !== 'memoria';
-		}
-	};
+	contar.enTransaccion = enTx;
 	return contar;
 }

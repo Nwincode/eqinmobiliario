@@ -73,10 +73,10 @@ t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago
 });
 
 const site0 = () => readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
-t('chat del huésped y «Reservar»: un reintento tras un corte de red no duplica (id estable por intento de envío y por foto; solo «ya existe» es «ya quedó»; la solicitud pendiente se reconoce en el servidor antes)', () => {
+t('chat del huésped y «Reservar»: un reintento tras un corte de red no duplica (id estable por intento de envío y por foto; un error al repetir solo cuenta como hecho si el mensaje con ese id existe y es el mismo; la solicitud pendiente se reconoce en el servidor antes)', () => {
 	const chat = readFileSync(new URL('../js/reserva-chat.js', import.meta.url), 'utf8');
 	assert.match(chat, /function guardarMensaje\(campos, id\)/);
-	assert.match(chat, /if \(!\/ALREADY_EXISTS\/\.test\(err\.message\)\) throw err;/);
+	assert.match(chat, /var igual = \['de', 'texto', 'url'\]\.every/);
 	assert.match(chat, /'t:' \+ intentoTexto\(texto\)/);
 	assert.match(site0(), /window\.EQChat\.yaGuardada\(pend\.lead\)/);
 	assert.match(chat, /var ya = pendientes\[clave\] && pendientes\[clave\]\.url;/);

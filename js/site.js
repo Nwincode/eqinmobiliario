@@ -333,9 +333,10 @@
 			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
 			var revisar = function () { return reserva && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true); };
 			// Una pendiente que el servidor no tiene se revisa como nueva; si ya no cuadra (fechas tomadas, precio que cambió),
-			// se suelta: la próxima sale como una solicitud nueva, con lo que el cliente ve ahora.
+			// se suelta: la próxima sale como una solicitud nueva, con lo que el cliente ve ahora. Si el servidor no respondió
+			// la pregunta, no se suelta: se manda la misma (mismo id) y el servidor decide.
 			var libres = pend ? window.EQChat.yaGuardada(pend.lead).then(function (si) {
-				return si || revisar().then(function (ok) { if (!ok) form.eqPendiente = null; return ok; });
+				return si !== false || revisar().then(function (ok) { if (!ok) form.eqPendiente = null; return ok; });
 			}) : revisar();
 			libres.then(function (ok) {
 				if (!ok) { button.disabled = false; return; }

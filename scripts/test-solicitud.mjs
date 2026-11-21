@@ -179,7 +179,7 @@ await t('reintento con el nombre o el teléfono corregidos: la misma solicitud s
 	assert.equal((await pedir({ ...c, lead: { ...c.lead, nombre: 'Ana María Morales', telefono: '+502 5555 9999' } })).status, 200);
 	assert.equal(hijos('leads').length, 1);
 	assert.deepEqual([leer(`leads/${c.leadId}`).nombre, leer(`leads/${c.leadId}`).telefono], ['Ana María Morales', '+502 5555 9999']);
-	const consulta = async (lead, token) => (await (await solicitud({ method: 'GET', url: `https://x/api/solicitud?lead=${lead}&token=${token}`, headers: new Headers() })).json()).guardada;
+	const consulta = async (leadId, token) => (await (await pedir({ consulta: true, leadId, token })).json()).guardada;
 	assert.equal(await consulta(c.leadId, c.token), true);
 	assert.equal(await consulta(`${'Z'.repeat(20)}`, c.token), false);
 });
@@ -222,6 +222,36 @@ await t('fechas tomadas: con una reserva confirmada, un bloqueo del socio u otra
 	assert.deepEqual([s, d.error], [409, 'Those dates are no longer available: pick others on the calendar.']);
 	assert.equal((await pedir(cuerpo(bien({ llegada: masDias(13), salida: masDias(16) })))).status, 200);
 	assert.equal(hijos('leads').length, 2);
+});
+
+await t('reintento que no es la misma (otro correo, casa, fechas o personas): no cambia el contacto, se trata como nueva (409)', async () => {
+	casa(); poner('properties/c2', { ...leer('properties/c1'), titulo: 'Otra' });
+	const c = cuerpo();
+	assert.equal((await pedir(c)).status, 200);
+	for (const cambio of [{ lead: { ...c.lead, email: 'otro@example.com' } }, { lead: { ...c.lead, propertyId: 'c2' } }, { reserva: bien({ llegada: masDias(20), salida: masDias(23) }) }, { reserva: bien({ huespedes: 3 }) }]) {
+		const r = await pedir({ ...c, ...cambio, lead: { ...(cambio.lead || c.lead), nombre: 'Intruso X', telefono: '+502 4444 9999' } });
+		assert.equal(r.status, 409, JSON.stringify(cambio));
+	}
+	assert.deepEqual([leer(`leads/${c.leadId}`).nombre, leer(`leads/${c.leadId}`).telefono, hijos('leads').length], ['Ana Morales', '+502 5555 1234', 1]);
+	// El reintento verdadero pasa por el límite por IP (10 por hora).
+	let rechazados = 0;
+	for (let i = 0; i < 12; i++) if ((await pedir({ ...c, lead: { ...c.lead, nombre: `Ana ${i}` } }, { mismaIp: true })).status === 429) rechazados++;
+	assert.ok(rechazados >= 2, String(rechazados));
+});
+
+await t('montos congelados al guardar: la solicitud aparta sus fechas al instante (la siguiente sobre ellas, 409); por debajo del plan, le toca al equipo', async () => {
+	casa({ vacacional: { huespedesMax: 4 } });
+	poner('properties/c1/privado/socio', { margen: 20, precioBase: 100, precioFinde: 100 });
+	const c = cuerpo(bien({ subtotal: 400, impuestos: 88, total: 488 }));
+	assert.equal((await pedir(c)).status, 200);
+	const m = leer(`montosSolicitud/${c.leadId}`);
+	assert.ok(m && m.alojamiento > 0, JSON.stringify(m));
+	assert.equal(leer('apartadasCasa/c1').lista.length, 1);
+	const [s2, d2] = await estado(cuerpo(bien({ llegada: masDias(11), salida: masDias(12), noches: 1, subtotal: 200, impuestos: 44, total: 244 })));
+	assert.deepEqual([s2, d2.fechas], [409, true]);
+	const barata = cuerpo(bien({ llegada: masDias(30), salida: masDias(33), subtotal: 10, impuestos: 2.2, total: 12.2 }));
+	assert.equal((await pedir(barata)).status, 200);
+	assert.deepEqual([leer(`chats/${barata.token}`).confirmaEquipo, leer(`chats/${barata.token}`).teTocaPendiente], [true, true]);
 });
 
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

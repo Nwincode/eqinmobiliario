@@ -115,9 +115,15 @@ export async function chatDe(leer, leadId) {
 
 // Los montos de la solicitud, congelados la primera vez que el servidor la ve (montosSolicitud/{solicitud}): la
 // parte del socio, la limpieza y el margen de la casa en ese momento (admin/js/reservas-calculo.js montosCotizados).
-// La llaman /api/aviso-chat (al llegar la solicitud), el cron de plazos (si ese aviso no llegó) y la confirmación (si
-// todavía no estaban). Una solicitud ya respondida no se congela (sus montos ya están en su reserva). Devuelve los
+// /api/solicitud ya los congela al guardarla; congelarMontos queda para las de antes: la llaman /api/aviso-chat, el cron
+// de plazos (si ese aviso no llegó) y la confirmación (si todavía no estaban). Una solicitud ya respondida no se congela (sus montos ya están en su reserva). Devuelve los
 // montos (los guardados si ya estaban) o null.
+// Los montos de una solicitud con la casa de ahora (el precio del socio, leído en `tx`), listos para guardar, o null.
+// La usan congelarMontos y /api/solicitud (que los congela al guardar la solicitud: aparta sus fechas al instante).
+export async function montosDe(tx, leadId, lead, casa) {
+	const m = montosCotizados(lead.reserva, casa, await tx.leer(`properties/${lead.propertyId}/privado/socio`));
+	return m ? { ...m, leadId, propertyId: lead.propertyId, propietarioId: casa.propietarioId || '', codigo: lead.reserva.codigo } : null;
+}
 export async function congelarMontos(tx, leadId, { lead = null, casa = null } = {}) {
 	const ruta = `montosSolicitud/${leadId}`;
 	const ya = await tx.leer(ruta);
@@ -129,9 +135,8 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 	// Solo una solicitud con su chat (la del sitio): una escrita a mano contra la base no se cotiza ni aparta fechas.
 	const c = await chatDe(tx.leer, leadId);
 	if (!c) return null;
-	const m = montosCotizados(lead.reserva, casa, await tx.leer(`properties/${lead.propertyId}/privado/socio`));
-	if (!m) return null;
-	const datos = { ...m, leadId, propertyId: lead.propertyId, propietarioId: casa.propietarioId || '', codigo: lead.reserva.codigo };
+	const datos = await montosDe(tx, leadId, lead, casa);
+	if (!datos) return null;
 	tx.crear(ruta, datos, { ahora: ['cuando'] });
 	// Cotizada por debajo del precio de la casa: le toca al equipo. El aviso queda pendiente en el chat en este mismo
 	// cambio (solo quien la congela lo pone) y lo manda avisarQueTocaConfirmar; el control de cada hora lo reintenta.
