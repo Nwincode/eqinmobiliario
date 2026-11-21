@@ -200,7 +200,17 @@ export const CODIGOS_PAIS = [
 	['55', 'BR', [10, 11], 11, '300\\d{5}|4(?:00\\d|020|370)\\d{4}|[3589]00\\d{6,7}'], ['972', 'IL', [8, 9], 9, '1\\d{6,11}'],
 	['61', 'AU', [9], 9, '1\\d{3,9}']];
 const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular, especial]) => [c, { largos, celular, especial: especial ? new RegExp(`^(?:${especial})$`) : null }]));
-const TRONCAL_0 = ['44', '49', '33', '31', '61', '972', '54', '55', '57', '56'];
+// Los países donde dentro del país se marca un 0 antes del número (el «0 de larga distancia»), sacados de los datos de
+// libphonenumber (national_prefix «0», versión 1.11.14), no de memoria. Desde fuera, con el código, ese 0 no va:
+// «+593 099 123 4567» es «+593 99 123 4567». Italia (39) no está: ahí el 0 es parte del número.
+export const TRONCAL_0 = ('20 27 31 32 33 40 41 43 44 46 49 51 53 54 55 57 58 60 61 62 63 64 66 81 82 84 86 90 91 92 93 94 95 98 211 212 213 218 '
+	+ '231 232 233 234 243 249 250 251 252 254 255 256 260 261 262 263 264 265 291 353 355 358 359 370 373 374 377 380 381 382 383 385 386 387 389 '
+	+ '421 423 508 590 591 593 594 595 596 598 686 850 855 856 880 886 961 962 963 964 966 967 970 971 972 976 977 994 995 996').split(' ');
+const TRONCAL_POR_LARGO = [...TRONCAL_0].sort((a, b) => b.length - a.length);
+// El código de un número con «+» que tiene 0 de larga distancia (aunque no esté en CODIGOS_PAIS), o ''.
+const codigoConTroncal = (d) => TRONCAL_POR_LARGO.find((c) => d.startsWith(c)) || '';
+// Un «+» repetido («++502») es un error de dedo: queda uno.
+const unMas = (t) => t.replace(/^\s*\+[\s+]*/, '+');
 const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
 const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
 const nacionalBien = (codigo, n) => Boolean(PLAN[codigo]) && (PLAN[codigo].largos.includes(n.length) || Boolean(PLAN[codigo].especial?.test(n)));
@@ -211,6 +221,8 @@ const sinExtension = (t) => String(t || '').trim().replace(/\s*[,;]?\s*(?:ext\.?
 // llevaban los celulares de México («+52 1 55 1234 5678»), cuando sin él queda un número de ese país (en Italia el 0 es
 // parte del número y se queda).
 function nacionalDe(codigo, n) {
+	// En un país con 0 de larga distancia, ningún número empieza con 0 (libphonenumber): ese 0 nunca se marca desde fuera.
+	if (TRONCAL_0.includes(codigo) && n.startsWith('0') && nacionalBien(codigo, n.slice(1))) return n.slice(1);
 	if (nacionalBien(codigo, n)) return n;
 	// El 0 solo en los países donde se marca dentro del país (Reino Unido, Alemania, Francia…); en Centroamérica no.
 	const prefijo = codigo === '1' || codigo === '52' ? '1' : TRONCAL_0.includes(codigo) ? '0' : '';
@@ -242,9 +254,10 @@ export function partirTelefono(tel, porDefecto = '502') {
 // país y con el código no; un número que empieza igual que su código («+39» y «392 123 4567») no se corta.
 // La usan el panel (admin/js/form.js) y el sitio (js/site.js, por EQFormato).
 export function unirTelefono(codigo, numero) {
-	const n = String(numero || '').trim();
+	const n = unMas(String(numero || '').trim());
 	if (!n) return '';
-	if (n.startsWith('+') || !codigo) return n;
+	if (n.startsWith('+')) return sinTroncal(n);
+	if (!codigo) return n;
 	const d = n.replace(/\D/g, '');
 	if (/^00/.test(n.replace(/[\s.\-()]/g, ''))) {
 		const c = codigoDe(d.slice(2));
@@ -252,13 +265,24 @@ export function unirTelefono(codigo, numero) {
 	}
 	const cel = PLAN[codigo]?.celular;
 	if (cel && d.startsWith(codigo) && d.length !== cel && d.length - codigo.length === cel) return `+${codigo} ${d.slice(codigo.length)}`;
-	return `+${codigo} ${n}`;
+	return sinTroncal(`+${codigo} ${n}`);
+}
+// «+593 099 123 4567» → «+593 99 123 4567»: sin el 0 de larga distancia de un país que lo usa (TRONCAL_0), si con él no
+// queda un número válido de su plan (si está en CODIGOS_PAIS).
+function sinTroncal(t) {
+	const d = t.replace(/\D/g, '');
+	const codigo = codigoDe(d) || codigoConTroncal(d);
+	if (!codigo || !TRONCAL_0.includes(codigo)) return t;
+	const nacional = d.slice(codigo.length);
+	if (!nacional.startsWith('0') || (PLAN[codigo] && !nacionalBien(codigo, nacional.slice(1)))) return t;
+	return t.replace(new RegExp(`^(\\+\\D*${codigo.split('').join('\\D*')}\\D*)0`), '$1');
 }
 // ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
 // dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con
 // otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o de 7 a 15 con el código pegado.
 export const telefonoValido = (tel) => {
 	const t = sinExtension(tel), d = t.replace(/\D/g, '');
+	if (/^\s*\+[\s]*\+/.test(String(tel || ''))) return false;
 	if (t.startsWith('+')) {
 		const codigo = codigoDe(d);
 		if (codigo) return nacionalBien(codigo, nacionalDe(codigo, d.slice(codigo.length)));
@@ -274,6 +298,9 @@ export function telefonoWa(tel) {
 	let n = t.replace(/\D/g, '');
 	const codigo = t.startsWith('+') ? codigoDe(n) : '';
 	if (codigo) return codigo + nacionalDe(codigo, n.slice(codigo.length));
+	// Un país con 0 de larga distancia que no está en CODIGOS_PAIS: el 0 tampoco se marca desde fuera.
+	const troncal = t.startsWith('+') ? codigoConTroncal(n) : '';
+	if (troncal && n[troncal.length] === '0') return troncal + n.slice(troncal.length + 1);
 	if (n.length === 8 && !t.startsWith('+')) n = `502${n}`;
 	return n;
 }

@@ -111,4 +111,17 @@ test('WhatsApp: mismo número con o sin código guardado', () => {
 	assert.equal(telefonoWa('+1 305 555 1234'), '13055551234');
 });
 
+test('0 de larga distancia (países de libphonenumber con prefijo nacional 0): no se guarda ni se marca desde fuera; «++» queda en uno', () => {
+	assert.equal(unirTelefono('593', '099 123 4567'), '+593 99 123 4567');
+	assert.equal(telefonoWa('+593 099 123 4567'), '593991234567');
+	assert.equal(unirTelefono('49', '0151 23456789'), '+49 151 23456789');
+	assert.equal(telefonoWa('+49 0151 23456789'), '4915123456789');
+	assert.equal(unirTelefono('44', '07700 900123'), '+44 7700 900123');
+	// Italia no usa el 0 de larga distancia: ahí el 0 es parte del número.
+	assert.equal(unirTelefono('39', '06 1234 5678'), '+39 06 1234 5678');
+	assert.equal(unirTelefono('502', '++502 5555 1234'), '+502 5555 1234');
+	assert.equal(telefonoValido('++502 5555 1234'), false);
+	assert.equal(telefonoValido(unirTelefono('502', '++502 5555 1234')), true);
+});
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);
