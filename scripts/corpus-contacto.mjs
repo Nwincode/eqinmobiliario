@@ -36,7 +36,14 @@ export const NORMALES = [
 	'Son 4 noches por 1500 cada una, 6000 en total', 'Mi NIT es 1234567-8', 'NIT 1234567-8', 'We arrive at 1500 and leave at 1100', '1350*4=5400', 'Precio por noche: Q 1,350.00',
 	'Llegamos el 20 a las 1500 y salimos el 23 a las 1100', 'Son 2,500.00 en total', 'Total 4500 quetzales', '6000 + 350 = 6350', 'Total 6000 más 350 de limpieza',
 	'Is the pool heated?', 'We arrive on the 20th around 3 pm', 'How far is the beach?', 'Thanks, see you on Saturday!', 'We are 2 adults and 3 kids',
-	'¿Aceptan mascotas de 5 kilos?', 'Somos 12 en total', 'Llegamos el 5 y nos vamos el 8', 'Es nuestro aniversario número 10', '¿El precio incluye IVA?'
+	'¿Aceptan mascotas de 5 kilos?', 'Somos 12 en total', 'Llegamos el 5 y nos vamos el 8', 'Es nuestro aniversario número 10', '¿El precio incluye IVA?',
+	// Revisión 5: una red seguida de una palabra cualquiera no es un usuario; los números de un pago, un vuelo, dos montos.
+	'Lo vi en facebook marketplace', 'Encontré la casa en instagram buscando lagos', 'Mi gmail funciona mal, mejor por aquí', 'Saw it on instagram yesterday, love it',
+	'Por instagram preguntamos antes', 'Vi el video en tiktok: increíble', 'Una amiga la compartió en facebook recientemente', 'Vi las fotos en instagram anteriormente',
+	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
+	'Transferí Q2450 desde la cuenta terminada en 3456', 'Son Q2345 y Q5678 en total?', 'Our flight UA 2318 lands at 1450, we drive straight there',
+	'Vuelo AV 2318 aterriza a las 1450', 'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
+	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567'
 ];
 
 export const EVASIONES = [
@@ -59,9 +66,12 @@ export const EVASIONES = [
 	'en airbnb me encuentras como villalago', 'mi wsp es el mismo', 'búscame en insta como villalago', 'búscame en tiktok como villalago', 'me encuentras en ig como villa.lago',
 	'mi correo es ana.perez en hotmail', 'escribe a anaperez en el gmail', 'ana perez at gmail', 'juan dot perez at gmail', 'villalago(punto)com',
 	// Coordenadas.
+	// Revisión 5.
+	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
+	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
 	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
 ];
 
-// Se bloquea aunque podría ser normal: 10 cifras seguidas son un teléfono internacional posible. Entre las dos cosas, se
-// protege el contacto; el cliente manda su comprobante en foto.
-export const BLOQUEADAS_A_PROPOSITO = ['Referencia 2025112001'];
+// Se bloquea aunque podría ser normal (hoy, ninguna: los números de un pago pasan después de referencia, autorización,
+// boleta, transacción o «No.»).
+export const BLOQUEADAS_A_PROPOSITO = [];
