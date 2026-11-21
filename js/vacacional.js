@@ -523,7 +523,25 @@
 				.then(function (r) { return r.ok ? r.json() : null; })
 				.then(function (res) {
 					if (!res || !res.ocupadas) return true;
+					// Casa en pausa (atraso del socio): ya no se puede reservar; se dice en el cuadro, como al abrir la página.
+					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return false; }
 					alDia(res);
+					if (res.minimos) minimos = res.minimos;
+					// Precios al día: si el socio los cambió con esta página abierta, el total se recalcula y no se envía
+					// hasta que el cliente lo vea (si no, saldría cotizada por debajo y no se podría confirmar).
+					if (res.plan && res.plan.base > 0) {
+						var cotizar = function () { return V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito }).total; };
+						var antes = estado.llegada && estado.salida ? cotizar() : 0;
+						D.plan = res.plan; ponerDesde(D.plan);
+						if (antes && Math.abs(cotizar() - antes) > 0.005) {
+							actualizar();
+							var cajaP = statusBox();
+							if (cajaP) { cajaP.className = 'lead-form-status mt-3 text-danger'; cajaP.setAttribute('data-vac', '1'); cajaP.textContent = t.vacPrecioCambio; }
+							ayuda.textContent = t.vacPrecioCambio;
+							card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+							return false;
+						}
+					}
 					if (V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) return true;
 					estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; estado.nota = t.vacFechasYaNo;
 					pintar(false);

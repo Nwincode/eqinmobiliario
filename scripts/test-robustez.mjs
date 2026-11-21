@@ -97,6 +97,15 @@ await t('cuadro de reserva: «hoy» se calcula al enviar, no al abrir la página
 	assert.doesNotMatch(f, /var hoyB = V\.hoy\(\);\n\t\tbuscar/);
 });
 
+await t('justo antes de enviar: precios al día (si cambió el total, no se envía y se dice), casa en pausa no reserva', () => {
+	const v = leer('js/vacacional.js');
+	const revisar = v.slice(v.indexOf('form.eqRevisar = function'), v.indexOf('if (id && window.fetch) {', v.indexOf('form.eqRevisar = function')));
+	assert.match(revisar, /if \(res\.pausada\) \{[^}]*vacPausada[^}]*return false; \}/);
+	assert.match(revisar, /D\.plan = res\.plan;/);
+	assert.match(revisar, /t\.vacPrecioCambio[\s\S]*return false;/);
+	assert.match(leer('scripts/lib/i18n.mjs'), /vacPrecioCambio: 'El precio cambió: revisa el total y vuelve a enviar\.'/);
+});
+
 await t('eliminar una casa borra todo su privado, también lo que escribe el servidor (calendario de EQ, lo último leído de los iCal)', () => {
 	const f = leer('admin/js/views/properties.js');
 	const borra = f.slice(f.indexOf('export async function eliminarPropiedad'), f.indexOf('export function slugLibre'));
