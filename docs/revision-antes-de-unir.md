@@ -121,9 +121,9 @@ agrega aquí en el mismo cambio que lo corrige.
 | Reportes y el tablero de Clientes sumaban Q y US$ y lo mostraban como US$ (US$ 250,000 + Q 1,500,000 salía «US$ 1,750,000.00»); un cierre de marzo editado en noviembre contaba como cierre de noviembre; Reportes aceptaba 150 % para el asesor y Cotizaciones no. | Un monto sin su moneda no se suma: `sumarPorMoneda` y `dineroPorMoneda` (`admin/js/formato.js`), también en el CSV. Un hecho se fecha con la fecha de ese hecho (`etapaFecha`), no con la última edición. Una revisión por dato (`esPorcentaje`) en todas las pantallas que lo piden (`scripts/test-reportes.mjs`). |
 | Dos cotizaciones del mismo minuto (dos asesores o «Duplicar») tenían el mismo número. | Un número que se muestra como único se prueba con dos del mismo momento; sin contador compartido (las reglas no lo permiten), lleva parte del id del documento. |
 | Dos pestañas de Clientes abiertas creaban dos clientes del mismo lead (cada una unía los leads con lo leído al abrir). | Lo que corre solo al abrir una pantalla se escribe en una transacción que vuelve a leer lo que decide (el lead ya unido se salta) y agrega con `arrayUnion`. |
+| (Tanda de reglas y servidor) Con «Ocultar precio», cualquier monto en millones («cuotas de Q 1.5 millones») impedía guardar la ficha aunque no fuera el precio de la casa. | Lo que se bloquea por parecerse a un dato es solo ese dato, en todas sus formas (también pasado a la otra moneda con `TIPO_CAMBIO`), nunca una familia entera de textos (`patronPrecio` en `admin/js/estados.js`, con casos legítimos en `test-seo.mjs`). |
 
 Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una segunda revisión independiente antes de unir.
-| (Tanda de reglas y servidor) Con «Ocultar precio», cualquier monto en millones («cuotas de Q 1.5 millones») impedía guardar la ficha aunque no fuera el precio de la casa. | Lo que se bloquea por parecerse a un dato es solo ese dato, en todas sus formas (también pasado a la otra moneda con `TIPO_CAMBIO`), nunca una familia entera de textos (`patronPrecio` en `admin/js/estados.js`, con casos legítimos en `test-seo.mjs`). |
 
 ## 5. Diseño
 
