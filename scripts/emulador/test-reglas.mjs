@@ -85,6 +85,20 @@ await espera('cliente manda su teléfono en dígitos de ancho completo', crear(n
 await espera('cliente manda su teléfono en dígitos arábigos', crear(null, msj(), m('cliente', 'mi cel ٥٥٥٥١٢٣٤')), false);
 await espera('cliente manda su teléfono en números encerrados (①②③…)', crear(null, msj(), m('cliente', 'mi cel ⑤⑤⑤⑤①②③④')), false);
 await espera('cliente manda su correo con la arroba de ancho completo', crear(null, msj(), m('cliente', 'ana＠gmail')), false);
+// El filtro de la regla es el del navegador (js/calc-vacacional.js FILTRO_CONTACTO → scripts/reglas-contacto.mjs): el
+// mismo corpus da lo mismo en los dos (scripts/corpus-contacto.mjs).
+{
+	await import('../../js/calc-vacacional.js');
+	const { NORMALES, EVASIONES } = await import('../corpus-contacto.mjs');
+	const distintas = [];
+	for (const texto of [...NORMALES, ...EVASIONES].filter(Boolean)) {
+		const s = await crear(null, msj(), m('cliente', texto));
+		const navegador = globalThis.EQVacacional.tieneContacto(texto);
+		if ((s === 200) === navegador || (s !== 200 && s !== 403)) distintas.push(`${texto} (regla ${s}, navegador ${navegador ? 'bloquea' : 'deja'})`);
+	}
+	n++; if (distintas.length) fallas++;
+	console.log(`${distintas.length ? 'FALLA' : 'ok   '} igual  · el filtro de la regla y el del navegador dicen lo mismo de ${NORMALES.length + EVASIONES.length} frases${distintas.length ? `: ${distintas.join(' | ')}` : ''}`);
+}
 await espera('cliente escribe una fecha y una hora (control)', crear(null, msj(), m('cliente', 'Llegamos el 16 a las 3')), true);
 await espera('socio manda un enlace', crear('socio1', msj(), m('socio', 'mira https://micasa.gt')), false);
 await espera('socio dueño lista sus conversaciones', consulta('socio1', 'chats', 'propietarioId', 'o1'), true);

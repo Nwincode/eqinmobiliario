@@ -460,43 +460,73 @@
 
 	// ¿El texto trae un teléfono, un correo o un enlace? Un solo filtro para el chat de la reserva y para lo que el dueño
 	// escribe de su casa y sale publicado (admin/js/mi-casa.js): los datos de contacto se entregan al confirmar la reserva;
-	// antes, nadie los pasa. Fechas, años («2019/2020»), horas, montos y medidas («1200 / 1500 m²») no cuentan como
-	// teléfono; los números escritos con letras sí, y también unas coordenadas (llevan a la casa, que es privada hasta el
-	// pago). Una página corta (t.me/villa, Bit.Ly/x, casa.lago.me) cuenta con «/» después o al final: «Perfecto.Me avisas»
-	// no. También correos y usuarios disfrazados («juan at gmail dot com», «ig casalago_gt») y un número partido en dos. (firestore.rules tiene su propia copia para el chat: se pone al día en otra tanda.)
-	var DIGITOS = /cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine/g;
-	function tieneContacto(texto) {
-		// NFKC: los dígitos y la arroba de ancho completo («５», «＠») y otras formas pasan a los de siempre; los dígitos de
-		// otras escrituras (árabes, persas, devanagari) que NFKC no cambia cuentan como dígitos (la regla igual).
-		// Puntos «raros» (。．) como punto; una «O» entre números como cero («5O55»).
-		var crudo = String(texto || '');
-		var original = (crudo.normalize ? crudo.normalize('NFKC') : crudo).replace(/[\u0660-\u0669\u06f0-\u06f9\u0966-\u096f]/g, '0').replace(/[。．｡]/g, '.').replace(/(\d)[oO](?=\d)/g, '$10').replace(/(\d)[oO](?=\d)/g, '$10');
-		var t = original.toLowerCase();
-		if (/@|\barroba\b|https?:|https?\/\/|www\.|\bw\s*w\s*w\b|wa\.me|\]\(|\.(com|net|org|gt)\b|\bpunto (com|net|org|gt)\b/.test(t)) return true;
-		// Correos y páginas disfrazados: «juan at gmail dot com», «juan[at]gmail», «casa(dot)com», «casa[.]com», «casa,com».
-		if (/\b(at|arroba)\b.{1,30}\b(dot|punto)\b|[\[(](at|dot|\.)[\])]|[a-z0-9-]{3,},(com|net|org)\b/.test(t) || /[a-z]AT[a-z]+DOT[a-z]/.test(original)) return true;
-		// Un usuario en otra plataforma («ig casalago_gt», «gmail: juanperez», «skype juan.perez», «al wa»).
-		if (/\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\b\s*:?\s*@?(?!(para|como|por|del|los|las|con|que|una|unas|unos|tambi)\b)[a-z0-9._]{4,}/.test(t)
-			|| /\b(al|por|mi) (wa|whats|wsp|wasap)\b/.test(t) || /\b(airbnb|booking|vrbo)\b.{0,20}\bcomo\b/.test(t)) return true;
-		// Páginas cortas (t.me/x, Bit.Ly/x, casa.lago.me): con «/» después o al final del texto, en mayúscula o minúscula.
-		if (/(^|[^\w.@-])[a-z0-9-]+(\.[a-z0-9-]+)*\.(me|co|io|ly|ee|info|biz|gl|page|link|app)(\/|$)/i.test(original.trim())) return true;
+	// antes, nadie los pasa. Fechas, años («2019/2020»), horas («a las 1430»), montos con su moneda o su unidad («3450
+	// quetzales», «2500 pies», «350 de limpieza», «1100 entre semana»), cuentas («1500 + 350», «3 x 450 = 1350») y medidas
+	// («1200 / 1500 m²») no cuentan como teléfono; los números escritos con letras sí, y también unas coordenadas (llevan
+	// a la casa, que es privada hasta el pago), una página corta (t.me/villa, Bit.Ly/x, casa.lago.me), correos y usuarios
+	// disfrazados («juan at gmail dot com», «ig casalago_gt»), un número partido en dos («5555 y luego 1234», «5555 + 1234»)
+	// y un monto que en realidad es un teléfono («Q 5555 1234»).
+	// LA MISMA LISTA corre en firestore.rules (función tieneContacto, escrita por scripts/reglas-contacto.mjs desde aquí;
+	// `npm test` revisa que esté al día y scripts/emulador/test-reglas.mjs pasa el mismo corpus por las dos): por eso solo
+	// usa lo que entienden las dos (sin «lookahead», sin funciones al reemplazar, sin NFKC: el ancho completo «５»,
+	// «＠» o «ｗｗｗ» cuenta como contacto; las cifras de otras escrituras, «٥» o «⑤», como dígitos).
+	// pasos: ['si', patrón] → contacto si aparece; ['cambia', patrón, por] → reemplaza todo lo que aparece.
+	//   'crudo': en el texto tal como llegó; el resto, en minúsculas.
+	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|al mes|en total|total)';
+	var LETRA = 'a-záéíóúñü';
+	var FILTRO_CONTACTO = [
+		// Ancho completo y puntos de otras escrituras: nadie los escribe sin querer disfrazar algo.
+		['si', '[０-９Ａ-Ｚａ-ｚ＠．。｡：／]', 'crudo'],
+		['si', '[a-z]AT[a-z]+DOT[a-z]', 'crudo'],
+		// Una «o» entre números como cero («5O55»); las cifras de otras escrituras como dígitos (no las de m²).
+		['cambia', '[0-9]o[0-9]', '000'], ['cambia', '[0-9]o[0-9]', '000'],
+		['cambia', '[^\\P{N}0-9²³¹]', '0'],
+		// Enlaces y correos.
+		['si', '@|\\barroba\\b|https?:|https?//|www\\.|\\bw[ \\t]*w[ \\t]*w\\b|wa\\.me|\\]\\(|\\.(com|net|org|gt)\\b|\\bpunto[ \\t]+(com|net|org|gt)\\b'],
+		['si', '\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|[\\[(](at|dot|\\.)[\\])]|[a-z0-9-]{3,},(com|net|org)\\b'],
+		// Un usuario en otra plataforma («ig casalago_gt», «gmail: juanperez», «al wa»); «Instagram para ver fotos» no.
+		['cambia', '\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?(para|como|por|del|los|las|con|que|una|unas|unos|tambien)\\b', ' x '],
+		['si', '\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?[a-z0-9._]{4,}|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b'],
+		// Páginas cortas (t.me/x, bit.ly/x, casa.lago.me): con «/» después o al final del texto.
+		['si', '(^|[^a-z0-9_.@-])[a-z0-9-]+(\\.[a-z0-9-]+)*\\.(me|co|io|ly|ee|info|biz|gl|page|link|app)(/|[ \\t\\r\\n]*$)'],
 		// Coordenadas: dos números con decimales (con «lat/lon», N/S/E/O o grados, o «14.63,-90.50»), o en grados y minutos.
-		if (/(^|[^\d.,])-?\d{1,2}\.\d{3,}\s*°?\s*[ns]?\s*[,;]?\s*(lon(g(itud)?)?|lng)?\s*[:=]?\s*[eowv]?\s*-?\d{1,3}\.\d{3,}(?!\d)/.test(t)
-			|| /(^|[^\d.,])-?\d{1,2}\.\d{2,},\s*-\d{1,3}\.\d{2,}(?!\d)/.test(t) || /\d{1,2}\s*°\s*\d{1,2}\s*['′]/.test(t)) return true;
-		// Años: un rango («2019/2020», «2024-2025») o uno suelto sin otros números pegados (un fijo de Guatemala
-		// «2024 5678» empieza como un año y sigue siendo teléfono).
-		t = t.replace(/\b(19|20)\d{2}-[01]\d-[0-3]\d\b/g, ' x ')
-			.replace(/\b((?:19|20)\d{2})\s*[-\/]\s*((?:19|20)\d{2})\b/g, function (m, a, b) { return b - a > 0 && b - a <= 10 ? ' x ' : m; })
-			.replace(/\b(19|20)\d{2}\b/g, function (m, a, i, s) { return /\d/.test(s.slice(Math.max(0, i - 3), i)) || /^[^\da-záéíóúñ]{0,3}\d/.test(s.slice(i + 4, i + 8)) ? m : ' x '; })
-			.replace(/\b\d+([.,]\d+)?\s*m(²|2\b)/g, ' x ')
-			.replace(/(\bq\.?|\bus\$|\$|\busd)\s?\d+([.,]\d+)*/g, ' x ')
-			.replace(/\b(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}:\d{2}|\d{1,3}(,\d{3})+(\.\d+)?|\d+\.\d{2})\b/g, ' x ').replace(DIGITOS, '0');
+		['si', '(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{3,}[ \\t]*°?[ \\t]*[ns]?[ \\t]*[,;]?[ \\t]*(lon(g(itud)?)?|lng)?[ \\t]*[:=]?[ \\t]*[eowv]?[ \\t]*-?[0-9]{1,3}\\.[0-9]{3,}'
+			+ '|(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{2,},[ \\t]*-[0-9]{1,3}\\.[0-9]{2,}|[0-9]{1,2}[ \\t]*°[ \\t]*[0-9]{1,2}[ \\t]*[\'′]'],
+		// Lo que no es teléfono: fechas, rangos de años, un año suelto (no «2024 5678»), m², montos con unidad o moneda
+		// (no uno que sigue a otro número: «5555 1234 quetzales»), con Q o US$ (no «Q 5555 1234»), horas, miles y decimales.
+		['cambia', '\\b(19|20)[0-9]{2}-[01][0-9]-[0-3][0-9]\\b', ' x '],
+		['cambia', '\\b(19[5-9][0-9]|20[0-3][0-9])[ \\t]*[-/][ \\t]*(19[5-9][0-9]|20[0-3][0-9])\\b', ' x '],
+		['cambia', '\\b(19[5-9][0-9]|20[0-3][0-9])([ \\t]*,[ \\t]*(19[5-9][0-9]|20[0-3][0-9]))+\\b', ' x '],
+		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
+		['cambia', '(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9' + LETRA + ']{0,3}[' + LETRA + ']|[^0-9' + LETRA + ']{0,3}$|[^0-9' + LETRA + ']{4})', ' x '],
+		['cambia', '\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x '],
+		['cambia', '(^|[^0-9 \\t.,+-])[ \\t]*[0-9]+([.,][0-9]+)*[ \\t]*' + UNIDAD + '([^' + LETRA + ']|$)', ' x '],
+		['cambia', '(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]*[^0-9 ,.-]|[ ,.-]*$)', ' x '],
+		['cambia', '\\blas[ \\t]+[0-9]{3,4}\\b', ' x '],
+		['cambia', '\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x '],
+		// Cuentas: «1500 + 350» y «3 x 450 = 1350» no se leen como un número seguido; «5555 + 1234» sigue siendo dos grupos
+		// de cuatro (abajo).
+		['cambia', '[0-9]{3}[ \\t]+\\+[ \\t]+[0-9]{3}', '000    +    000'],
+		['cambia', '[ \\t]*[=×*][ \\t]*|[ \\t]x[ \\t]', '    '],
+		// Los números escritos con letras («cinco cinco…»).
+		['cambia', 'cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '0'],
 		// Siete dígitos seguidos, o un número partido en dos grupos de 4 («5555 y luego 1234»).
-		return /(\d[^\da-záéíóúñ]{0,3}){7,}/.test(t) || /(^|\D)\d{4}(?!\d)[^\d]{1,30}(^|\D)\d{4}(?!\d)/.test(t);
+		['si', '([0-9][^0-9' + LETRA + ']{0,3}){7,}|(^|[^0-9])[0-9]{4}[^0-9]{1,30}[0-9]{4}([^0-9]|$)']
+	];
+	var filtroListo = null;
+	function tieneContacto(texto) {
+		if (!filtroListo) filtroListo = FILTRO_CONTACTO.map(function (p) { return [p[0], new RegExp(p[1], p[0] === 'cambia' ? 'gu' : 'u'), p[2], p[3]]; });
+		var crudo = String(texto || ''), t = crudo.toLowerCase();
+		for (var i = 0; i < filtroListo.length; i++) {
+			var p = filtroListo[i];
+			if (p[0] === 'si' && p[1].test(p[2] === 'crudo' ? crudo : t)) return true;
+			if (p[0] === 'cambia') t = t.replace(p[1], p[2]);
+		}
+		return false;
 	}
 
 	return {
-		tieneContacto: tieneContacto, MAX_NOCHES: MAX_NOCHES, DIAS_NO_LLEGO: DIAS_NO_LLEGO,
+		tieneContacto: tieneContacto, FILTRO_CONTACTO: FILTRO_CONTACTO, MAX_NOCHES: MAX_NOCHES, DIAS_NO_LLEGO: DIAS_NO_LLEGO,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN, CALENDARIOS: CALENDARIOS,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,

@@ -58,7 +58,7 @@ Las rutas son desde la raíz del repositorio.
 - Generar el sitio en Netlify: `netlify.toml` → `[build] ignore` corre `scripts/netlify-ignorar.sh`, que lo salta cuando entre la publicación anterior y esta solo cambiaron documentos o pruebas (`docs/` menos `docs/marca/logo/`, que el sitio sirve; `scripts/entorno/`, `scripts/simulado/`, `scripts/test-*`, `CLAUDE.md`; prueba: `scripts/test-netlify-ignorar.mjs`), y nunca genera vistas previas ni ramas (`CONTEXT` distinto de `production`). Con «Publicar» del panel (gancho de compilación) siempre se genera. Si se agrega una carpeta que el sitio no usa, se suma a la lista del archivo.
 - En el navegador:
   - `js/site.js`: formularios (guarda el lead de contacto; la solicitud de reserva la manda `EQChat.solicitar` al servidor, con la prueba de Turnstile de `EQChat.prueba`), filtros, seguimiento.
-  - `js/calc-vacacional.js`: fórmulas de la renta por noche y filtro de contacto del chat. **Lo usan el sitio, el panel y las funciones.**
+  - `js/calc-vacacional.js`: fórmulas de la renta por noche y filtro de contacto del chat (`FILTRO_CONTACTO` / `tieneContacto`: su copia en `firestore.rules` la escribe `scripts/reglas-contacto.mjs`, nunca a mano; corpus en `scripts/corpus-contacto.mjs`). **Lo usan el sitio, el panel, las funciones y las reglas.**
   - `js/vacacional.js`: calendario y desglose de la ficha por noche; con los precios al día de `/api/disponibilidad` pone al día también el «Desde» de la ficha (`.ficha-precio` y `.vac-desde`, con `precioDesde`), sin esperar a publicar.
   - `js/reserva-chat.js`: página «Tu reserva» y su chat; `solicitar` (`POST /api/solicitud`) y `prueba` (Turnstile, solo si el servidor tiene sus llaves).
   - `js/calc-renta.js` + `js/calc-renta-ui.js`: calculadora de inversión.

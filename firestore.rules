@@ -629,6 +629,22 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow update, delete: if false;
     }
+    // <filtro-contacto> Lo escribe scripts/reglas-contacto.mjs desde js/calc-vacacional.js (FILTRO_CONTACTO): no se edita a mano.
+    // Los mismos pasos que el navegador: reemplazos en orden y, entre ellos, las búsquedas («si»).
+    function tieneContacto(texto) {
+      let t1 = texto.lower().replace('[0-9]o[0-9]', '000').replace('[0-9]o[0-9]', '000').replace('[^\\P{N}0-9²³¹]', '0');
+      let t2 = t1.replace('\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?(para|como|por|del|los|las|con|que|una|unas|unos|tambien)\\b', ' x ');
+      let t3 = t2.replace('\\b(19|20)[0-9]{2}-[01][0-9]-[0-3][0-9]\\b', ' x ').replace('\\b(19[5-9][0-9]|20[0-3][0-9])[ \\t]*[-/][ \\t]*(19[5-9][0-9]|20[0-3][0-9])\\b', ' x ').replace('\\b(19[5-9][0-9]|20[0-3][0-9])([ \\t]*,[ \\t]*(19[5-9][0-9]|20[0-3][0-9]))+\\b', ' x ').replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záéíóúñü]{0,3}[a-záéíóúñü]|[^0-9a-záéíóúñü]{0,3}$|[^0-9a-záéíóúñü]{4})', ' x ').replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záéíóúñü]{0,3}[a-záéíóúñü]|[^0-9a-záéíóúñü]{0,3}$|[^0-9a-záéíóúñü]{4})', ' x ').replace('\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x ').replace('(^|[^0-9 \\t.,+-])[ \\t]*[0-9]+([.,][0-9]+)*[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|al mes|en total|total)([^a-záéíóúñü]|$)', ' x ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]*[^0-9 ,.-]|[ ,.-]*$)', ' x ').replace('\\blas[ \\t]+[0-9]{3,4}\\b', ' x ').replace('\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x ').replace('[0-9]{3}[ \\t]+\\+[ \\t]+[0-9]{3}', '000    +    000').replace('[ \\t]*[=×*][ \\t]*|[ \\t]x[ \\t]', '    ').replace('cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '0');
+      return texto.matches('[\\s\\S]*(?:[０-９Ａ-Ｚａ-ｚ＠．。｡：／])[\\s\\S]*')
+        || texto.matches('[\\s\\S]*(?:[a-z]AT[a-z]+DOT[a-z])[\\s\\S]*')
+        || t1.matches('[\\s\\S]*(?:@|\\barroba\\b|https?:|https?//|www\\.|\\bw[ \\t]*w[ \\t]*w\\b|wa\\.me|\\]\\(|\\.(com|net|org|gt)\\b|\\bpunto[ \\t]+(com|net|org|gt)\\b)[\\s\\S]*')
+        || t1.matches('[\\s\\S]*(?:\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|[\\[(](at|dot|\\.)[\\])]|[a-z0-9-]{3,},(com|net|org)\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(gmail|hotmail|outlook|yahoo|skype|ig|fb|insta|instagram|facebook|telegram|signal|tiktok)\\b[ \\t]*:?[ \\t]*@?[a-z0-9._]{4,}|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:(^|[^a-z0-9_.@-])[a-z0-9-]+(\\.[a-z0-9-]+)*\\.(me|co|io|ly|ee|info|biz|gl|page|link|app)(/|[ \\t\\r\\n]*$))[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{3,}[ \\t]*°?[ \\t]*[ns]?[ \\t]*[,;]?[ \\t]*(lon(g(itud)?)?|lng)?[ \\t]*[:=]?[ \\t]*[eowv]?[ \\t]*-?[0-9]{1,3}\\.[0-9]{3,}|(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{2,},[ \\t]*-[0-9]{1,3}\\.[0-9]{2,}|[0-9]{1,2}[ \\t]*°[ \\t]*[0-9]{1,2}[ \\t]*[\'′])[\\s\\S]*')
+        || t3.matches('[\\s\\S]*(?:([0-9][^0-9a-záéíóúñü]{0,3}){7,}|(^|[^0-9])[0-9]{4}[^0-9]{1,30}[0-9]{4}([^0-9]|$))[\\s\\S]*');
+    }
+    // </filtro-contacto>
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
@@ -661,7 +677,7 @@ service cloud.firestore {
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
         allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
-        // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
+        // Sin teléfonos, correos ni enlaces: el mismo filtro del navegador (tieneContacto, arriba).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
         //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
         //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
@@ -690,8 +706,7 @@ service cloud.firestore {
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
-            // (Cualquier dígito: también los de ancho completo «５» u otras escrituras, que el filtro del navegador pasa a 0-9 con NFKC.)
-            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|＠|https?:|www[.]|([0-9\\p{N}][ .+()-]{0,2}){8,}).*')))
+                : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isAdmin())

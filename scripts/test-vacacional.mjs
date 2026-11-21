@@ -309,6 +309,11 @@ test('«1 noche», «3 noches»', () => {
 	assert.equal(nNoches(1), '1 noche');
 	assert.equal(nNoches(3), '3 noches');
 });
+const { NORMALES, EVASIONES } = await import('./corpus-contacto.mjs');
+test(`filtro de contacto: ninguna de las ${NORMALES.length} frases normales se bloquea y ninguno de los ${EVASIONES.length} intentos pasa (el mismo corpus que la regla)`, () => {
+	assert.deepEqual(NORMALES.filter((t) => V.tieneContacto(t)), []);
+	assert.deepEqual(EVASIONES.filter((t) => !V.tieneContacto(t)), []);
+});
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',
 		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'ana arroba gmail punto com', 't.me/villa', 'casalago.co', 'fotos en villa-lago.me/fotos',
