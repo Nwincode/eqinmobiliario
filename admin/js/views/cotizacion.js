@@ -975,6 +975,15 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const conNumero = async () => docId || (await guardar(), Boolean(docId));
 	async function copiarWhatsApp() {
 		if (!revisarPendientes('copiar')) return;
+		// Una nueva se guarda antes (ahí recibe su número). El portapapeles se pide en el mismo toque, con el texto que
+		// llega cuando termine de guardarse (ClipboardItem con promesa): así Safari no pierde el permiso por esperar la red.
+		if (!docId && window.ClipboardItem && navigator.clipboard?.write) {
+			let guardada = false;
+			const texto = conNumero().then((ok) => { guardada = ok; if (!ok) throw new Error('sin guardar'); return new Blob([textoWhatsApp(c, reglas)], { type: 'text/plain' }); });
+			try { await navigator.clipboard.write([new ClipboardItem({ 'text/plain': texto })]); toast('Resumen copiado. Pégalo en WhatsApp.'); return; } catch {
+				if (!guardada) return;
+			}
+		}
 		if (!(await conNumero())) return;
 		const texto = textoWhatsApp(c, reglas);
 		try { await navigator.clipboard.writeText(texto); } catch {

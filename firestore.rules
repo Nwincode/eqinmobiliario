@@ -577,11 +577,12 @@ service cloud.firestore {
         && isShortString(request.resource.data.propertyId, 60)
         && isShortString(request.resource.data.propertyTitulo, 200)
         && isShortString(request.resource.data.agentId, 60)
-        // La fecha de visita: 'AAAA-MM-DD', de hoy a un año (hoy en Guatemala, con la hora del servidor; js/site.js diaValido).
+        // La fecha de visita: 'AAAA-MM-DD', de hoy a un año (js/site.js diaValido, con el reloj del teléfono). Con un día de
+        // holgura a cada lado: un teléfono con el reloj corrido no se queda sin poder pedir la visita de hoy.
         && (!('fechaVisita' in request.resource.data)
             || (request.resource.data.fechaVisita is string
                 && request.resource.data.fechaVisita.matches('20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
-                && request.resource.data.fechaVisita >= hoyGt(0) && request.resource.data.fechaVisita <= hoyGt(366)))
+                && request.resource.data.fechaVisita >= hoyGt(-1) && request.resource.data.fechaVisita <= hoyGt(367)))
         && (!('tipoVisita' in request.resource.data) || request.resource.data.tipoVisita in ['presencial', 'videollamada'])
         && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
         && (!('campana' in request.resource.data)

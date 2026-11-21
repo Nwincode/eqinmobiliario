@@ -591,7 +591,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('anónimo crea un lead con el socio de la casa (solo con reserva, por el servidor)', crear(null, 'leads/lead-socio', { ...lead(''), propietarioId: 'm1' }), false);
 		// La fecha de visita: AAAA-MM-DD, de hoy a un año (hoy en Guatemala con la hora del servidor).
 		const dia = (n) => new Date(Date.now() - 6 * 3600000 + n * 86400000).toISOString().slice(0, 10);
-		await espera('formulario con la fecha de visita de ayer', crear(null, 'leads/lead-visita-1', { ...lead(''), fechaVisita: dia(-1) }), false);
+		await espera('formulario con la fecha de visita de anteayer', crear(null, 'leads/lead-visita-1', { ...lead(''), fechaVisita: dia(-2) }), false);
+		await espera('formulario con la fecha de visita de «ayer» (teléfono con el reloj corrido: un día de holgura, control)', crear(null, 'leads/lead-visita-0', { ...lead(''), fechaVisita: dia(-1) }), true);
 		await espera('formulario con la fecha de visita en dos años', crear(null, 'leads/lead-visita-2', { ...lead(''), fechaVisita: dia(730) }), false);
 		await espera('formulario con la fecha de visita como texto', crear(null, 'leads/lead-visita-3', { ...lead(''), fechaVisita: 'el lunes' }), false);
 		await espera('formulario con la fecha de visita de hoy (control)', crear(null, 'leads/lead-visita-4', { ...lead(''), fechaVisita: dia(0) }), true);
