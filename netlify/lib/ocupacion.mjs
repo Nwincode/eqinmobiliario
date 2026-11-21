@@ -7,7 +7,8 @@
 //   Usa NETLIFY_PURGE_API_TOKEN, que Netlify pone en las funciones (y SITE_ID si está); sin él no hace nada y el CDN
 //   igual olvida en 30 s. Cada falla queda en el registro («CDN: no se pudo purgar»).
 import '../../js/calc-vacacional.js';
-import { leerPrivado } from './firestore.mjs';
+import { leerPrivado, desde } from './firestore.mjs';
+import { apartaFechas, yaRespondida, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 
 const V = globalThis.EQVacacional;
@@ -96,4 +97,16 @@ export async function purgarCasa(...ids) {
 	} finally {
 		clearTimeout(t);
 	}
+}
+
+// Las fechas que apartan las solicitudes abiertas de una casa: [{ desde, hasta, leadId }]. Solo las que el servidor
+// cotizó a un precio válido (montosSolicitud: una escrita a mano contra la base no aparta) y siguen en su plazo. La usan
+// /api/disponibilidad (el calendario) y /api/solicitud (una nueva no se guarda encima). Si la lista no se puede leer, lanza.
+const msDe = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
+export async function apartadasDe(propertyId, ahora = Date.now()) {
+	const recientes = await desde('leads', 'createdAt', new Date(ahora - HORAS_RESPUESTA * 3600_000));
+	const abiertas = (recientes || []).filter((l) => l.propertyId === propertyId && l.reserva?.llegada && !yaRespondida('', l.solicitud?.estado));
+	const montos = await Promise.all(abiertas.map((l) => leerPrivado(`montosSolicitud/${l.id}`).catch(() => null)));
+	return abiertas.filter((l, i) => apartaFechas('', l.solicitud?.estado, msDe(l.createdAt), montos[i], ahora))
+		.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida, leadId: l.id }));
 }

@@ -194,4 +194,34 @@ await t('reintento con la base sin responder: 503 (no «la llegada ya pasó» ni
 	try { assert.equal((await pedir(c)).status, 503); } finally { S.lecturaFalla = false; S.reloj = Date.parse('2026-11-20T12:00:00-06:00'); }
 });
 
+await t('reintento ya atendido o de hace más de 30 min: el enlace no cambia el contacto', async () => {
+	casa();
+	const c = cuerpo();
+	assert.equal((await pedir(c)).status, 200);
+	poner(`leads/${c.leadId}`, { ...leer(`leads/${c.leadId}`), solicitud: { estado: 'confirmada' } });
+	assert.equal((await pedir({ ...c, lead: { ...c.lead, nombre: 'Otro Nombre' } })).status, 200);
+	assert.equal(leer(`leads/${c.leadId}`).nombre, 'Ana Morales');
+	const d = cuerpo();
+	assert.equal((await pedir(d)).status, 200);
+	S.reloj += 31 * 60_000;
+	try { assert.equal((await pedir({ ...d, lead: { ...d.lead, nombre: 'Otro Nombre' } })).status, 200); } finally { S.reloj = Date.parse('2026-11-20T12:00:00-06:00'); }
+	assert.equal(leer(`leads/${d.leadId}`).nombre, 'Ana Morales');
+});
+
+await t('fechas tomadas: con una reserva confirmada, un bloqueo del socio u otra solicitud que las aparta, 409 y no se guarda; las de al lado sí', async () => {
+	casa({ vacacional: { huespedesMax: 4, reservadas: [{ desde: masDias(11), hasta: masDias(12) }] } });
+	let [s, d] = await estado(cuerpo());
+	assert.deepEqual([s, d.fechas], [409, true], JSON.stringify(d));
+	casa({ vacacional: { huespedesMax: 4, bloqueos: [{ desde: masDias(12), hasta: masDias(20) }] } });
+	assert.equal((await pedir(cuerpo())).status, 409);
+	casa();
+	const primera = cuerpo();
+	assert.equal((await pedir(primera)).status, 200);
+	poner(`montosSolicitud/${primera.leadId}`, { alojamiento: 400, delPlan: 400, coincide: true });
+	[s, d] = await estado(cuerpo(bien(), { idioma: 'en' }));
+	assert.deepEqual([s, d.error], [409, 'Those dates are no longer available: pick others on the calendar.']);
+	assert.equal((await pedir(cuerpo(bien({ llegada: masDias(13), salida: masDias(16) })))).status, 200);
+	assert.equal(hijos('leads').length, 2);
+});
+
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

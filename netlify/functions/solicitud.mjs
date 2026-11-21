@@ -14,6 +14,8 @@ import { leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { limitadorDurable, ipDe } from '../lib/limite.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
+import { apartadasDe } from '../lib/ocupacion.mjs';
+import { seCruzan } from '../../admin/js/reservas-calculo.js';
 import { pasaTurnstile, llavePublica } from '../lib/turnstile.mjs';
 import { correoValido, telefonoValido } from '../../admin/js/formato.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
@@ -83,6 +85,7 @@ export const nombreDelChat = (nombre, idioma = 'es') => {
 	return primero && !V.tieneContacto(primero) ? primero : idioma === 'en' ? 'Guest' : 'Cliente';
 };
 
+const FECHAS_TOMADAS = ['Esas fechas ya no están libres: elige otras en el calendario.', 'Those dates are no longer available: pick others on the calendar.'];
 // En la transacción: la casa manda (dueño, asesor, título, moneda y personas máximo). Devuelve el token del chat.
 export async function guardarSolicitud(tx, leadId, token, { lead, reserva, chat }) {
 	// Reintento de la misma solicitud (la respuesta anterior se perdió): ya quedó, se responde lo mismo.
@@ -96,6 +99,10 @@ export async function guardarSolicitud(tx, leadId, token, { lead, reserva, chat 
 	if ((casa.moneda || 'USD') !== reserva.moneda) no(409, ['La casa cambió de moneda: recarga la página.', 'The house changed its currency: reload the page.'], { recargar: true });
 	const max = casa.vacacional?.huespedesMax;
 	if (typeof max === 'number' && max >= 1 && reserva.huespedes > max) no(409, ['Son más personas de las que caben.', 'That is more guests than the house allows.'], { recargar: true });
+	// Fechas que ya no están libres (una reserva confirmada o un bloqueo del socio, leídos en la transacción): no se
+	// guarda ni se le dice al cliente «apartadas».
+	if ([...(casa.vacacional?.bloqueos || []), ...(casa.vacacional?.reservadas || [])].some((r) => seCruzan(reserva, { llegada: r?.desde, salida: r?.hasta })))
+		no(409, FECHAS_TOMADAS, { fechas: true });
 	const propietarioId = casa.propietarioId || '';
 	const titulo = String(casa.titulo || '').slice(0, 200);
 	tx.crear(`leads/${leadId}`, { ...lead, propertyTitulo: titulo, agentId: casa.agentId || '', propietarioId, estado: 'nuevo', reserva }, { ahora: ['createdAt'] });
@@ -150,6 +157,10 @@ export default async (req, context) => {
 		const casa = await leerPrivado(`properties/${datos.lead.propertyId}`).catch(() => null);
 		const pausada = casa?.propietarioId ? await moraDe(casa.propietarioId).then((n) => n === 3, (err) => { console.error('Solicitud (mora):', err.message); return false; }) : false;
 		if (pausada) no(409, ['Esta casa no recibe reservas por ahora.', 'This house is not taking bookings right now.'], { pausada: true });
+		// Otra solicitud abierta ya aparta esas fechas (la misma cuenta que el calendario, ocupacion.mjs). Si no se puede
+		// leer, sigue: la página ya lo revisó y lo confirmado se revisa en la transacción.
+		const apartadas = await apartadasDe(datos.lead.propertyId).catch((err) => { console.error('Solicitud (apartadas):', err.message); return []; });
+		if (apartadas.some((r) => seCruzan(datos.reserva, { llegada: r.desde, salida: r.hasta }))) no(409, FECHAS_TOMADAS, { fechas: true });
 		const token = await transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos));
 		if (prueba === 'sin') await Promise.all([sinPruebaEnElSitio('todas'), porIpSinPrueba(ip), porCorreoSinPrueba(datos.lead.email)]).catch(() => {});
 		return json(200, { token });
@@ -174,6 +185,10 @@ async function ponerAlDiaContacto(p) {
 	await transaccion(async ({ leer, cambiar }) => {
 		const lead = await leer(`leads/${p.leadId}`);
 		if (!lead || (lead.nombre === nombre && lead.telefono === telefono)) return;
+		// Solo el reintento de una recién enviada (30 min, la misma espera que la página) y sin responder: el enlace del
+		// chat no sirve para cambiar el contacto de una reserva ya atendida.
+		const creada = lead.createdAt instanceof Date ? lead.createdAt.getTime() : Date.parse(lead.createdAt || '') || 0;
+		if (Date.now() - creada > 30 * 60_000 || lead.solicitud?.estado) return;
 		cambiar(`leads/${p.leadId}`, { nombre, telefono }, { ahora: ['updatedAt'] });
 		if (lead.nombre !== nombre) cambiar(`chats/${p.token}`, { nombre: nombreDelChat(nombre, lead.idioma) });
 	});

@@ -261,7 +261,7 @@ async function renderEditor(container, id) {
 		} catch (err) {
 			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes (comprobado: el administrador no
 			// puede leer cambiosDatosPago) se dice qué falta.
-			if (cambiaPagoAhora && await faltanReglas(err, 'cambiosDatosPago/comprobar')) toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
+			if (cambiaPagoAhora && session.isAdmin && await faltanReglas(err, 'cambiosDatosPago/comprobar')) toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
 			return false;
 		}
 	};

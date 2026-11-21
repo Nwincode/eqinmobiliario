@@ -13,12 +13,11 @@
 // POST /api/disponibilidad { id } con el token del panel: el panel cambió fechas de la casa (Rentas, Solicitudes,
 // el calendario del dueño) y se purga su copia del CDN.
 import '../../js/calc-vacacional.js';
-import { leerPublico, leerPrivado, desde, datosConfigurados } from '../lib/firestore.mjs';
+import { leerPublico, leerPrivado, datosConfigurados } from '../lib/firestore.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
-import { externasDe, purgarCasa, etiquetaCasa } from '../lib/ocupacion.mjs';
+import { externasDe, purgarCasa, etiquetaCasa, apartadasDe } from '../lib/ocupacion.mjs';
 import { json, usuario } from '../lib/auth.mjs';
 import { limitador, limitadorDurable, ipDe } from '../lib/limite.mjs';
-import { apartaFechas, yaRespondida, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 
 const V = globalThis.EQVacacional;
 const CACHE = 30;
@@ -27,7 +26,6 @@ const porUsuario = limitador(120);
 // La consulta al día (sin CDN): límite por IP guardado en la base, compartido por todas las instancias.
 // Si la base no responde, el de memoria: un cliente que va a reservar no se queda con un 429 por una falla nuestra.
 const porIp = limitadorDurable('al-dia', 60, 10 * 60_000, { siFalla: 'memoria' });
-const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0);
 
 function respuesta(status, body, id = '', fresco = false) {
 	const headers = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -77,20 +75,17 @@ export default async (req, context) => {
 	const ahora = Date.now();
 	if (datosConfigurados()) {
 		// Cada lectura falla por su cuenta: sin Airbnb o sin socio, el calendario igual responde.
-		const [privado, recientes, mora] = await Promise.all([
+		const [privado, abiertas, mora] = await Promise.all([
 			leerPrivado(`properties/${id}/privado/socio`),
-			desde('leads', 'createdAt', new Date(ahora - HORAS_RESPUESTA * 3600_000)),
+			apartadasDe(id, ahora),
 			moraDe(p.propietarioId, ahora)
 		].map((x) => Promise.resolve(x).catch(() => null)));
 		const ext = await externasDe(privado, id);
 		externas = ext.rangos.map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		fuentes = ext.fuentes;
 		sinLeer = ext.sinLeer;
-		// Solo las que el servidor cotizó a un precio válido (montosSolicitud): una escrita a mano contra la base no aparta.
-		const abiertas = (recientes || []).filter((l) => l.propertyId === id && l.reserva?.llegada && !yaRespondida('', l.solicitud?.estado));
-		const montos = await Promise.all(abiertas.map((l) => leerPrivado(`montosSolicitud/${l.id}`).catch(() => null)));
-		apartadas = abiertas.filter((l, i) => apartaFechas('', l.solicitud?.estado, ms(l.createdAt), montos[i], ahora))
-			.map((l) => ({ desde: l.reserva.llegada, hasta: l.reserva.salida }));
+		// Las que apartan las solicitudes abiertas (ocupacion.mjs `apartadasDe`, la misma que revisa /api/solicitud).
+		apartadas = (abiertas || []).map((r) => ({ desde: r.desde, hasta: r.hasta }));
 		atraso = mora || 0;
 	}
 	const hoy = V.hoy();
