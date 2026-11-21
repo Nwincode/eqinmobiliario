@@ -1,7 +1,7 @@
 // Guardas del panel que viven en pantallas con Firebase (no se pueden correr en Node): se revisa que sigan en su lugar.
 // Lo que sí se puede correr está en sus pruebas (test-funciones, test-reportes…); esto evita que un cambio las quite.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import '../js/calc-vacacional.js';
 
 let ok = 0;
@@ -38,6 +38,15 @@ t('el panel publica por el servidor (sin no-cors) y dice el mismo tiempo en toda
 	assert.doesNotMatch(s, /no-cors/);
 	assert.match(s, /fetch\('\/api\/publicar'/);
 	assert.doesNotMatch(fuente('views/publish.js'), /1–2 minutos/);
+});
+
+t('el token de la sesión para «publicar al cerrar» (sendBeacon) vive solo en memoria: nunca en localStorage ni sessionStorage', () => {
+	const s = fuente('session.js');
+	assert.match(s, /^let autoToken = '';$/m);
+	assert.match(s, /navigator\.sendBeacon\('\/api\/publicar', new Blob\(\[JSON\.stringify\(\{ token: autoToken/);
+	const dir = new URL('../admin/js/', import.meta.url);
+	const archivos = readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith('.js'));
+	for (const f of archivos) assert.doesNotMatch(fuente(f), /(localStorage|sessionStorage)\.setItem\([^)]*(token|Token|idToken)/, f);
 });
 
 console.log(`\n${ok} guardas del panel en su lugar.`);
