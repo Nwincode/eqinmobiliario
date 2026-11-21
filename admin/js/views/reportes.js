@@ -26,6 +26,8 @@ export async function render(container) {
 	const selector = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Periodo' },
 		[[7, 'Últimos 7 días'], [30, 'Últimos 30 días'], [90, 'Últimos 3 meses'], [365, 'Último año']].map(([v, l]) => h('option', { value: v, selected: v === dias }, l)));
 
+	// Un monto por renglón y sin partirse («Q» junto a su número): Q y US$ no se suman (dineroPorMoneda).
+	const renglones = (texto, antes = '', clase = '') => (texto ? texto.split(' · ').map((x) => h('div', { class: `text-nowrap ${clase}` }, antes + x)) : null);
 	const calcular = () => {
 		const desde = Date.now() - dias * 86400000;
 		const filas = [...agentes.map((a) => ({ id: a.id, nombre: a.nombre })), { id: '', nombre: 'Sin asignar' }].map((a) => {
@@ -80,10 +82,10 @@ export async function render(container) {
 						h('td', { class: 'text-end' }, horas(f.respuesta)),
 						h('td', { class: 'text-end' }, f.actividades, alerta(f.vencidas, f.vencidas === 1 ? 'vencida' : 'vencidas')),
 						h('td', { class: 'text-end' }, f.visitas),
-						h('td', { class: 'text-end' }, [f.enProceso, dineroPorMoneda(f.pipeline)].filter((x) => x !== '').join(' · ')),
-						h('td', { class: 'text-end' }, [f.cierres, dineroPorMoneda(f.montoCerrado)].filter((x) => x !== '').join(' · ')),
-						h('td', { class: 'text-end' }, dineroPorMoneda(redondo(f.comision)) || '—',
-							dineroPorMoneda(f.parteAsesor) ? h('span', { class: 'text-muted' }, ` · asesor ${dineroPorMoneda(redondo(f.parteAsesor))}`) : null))))))),
+						h('td', { class: 'text-end' }, h('div', {}, f.enProceso), renglones(dineroPorMoneda(f.pipeline))),
+						h('td', { class: 'text-end' }, h('div', {}, f.cierres), renglones(dineroPorMoneda(f.montoCerrado))),
+						h('td', { class: 'text-end' }, renglones(dineroPorMoneda(redondo(f.comision))) || '—',
+							renglones(dineroPorMoneda(redondo(f.parteAsesor)), 'asesor ', 'text-muted')))))))),
 			h('div', { class: 'card' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
 				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },

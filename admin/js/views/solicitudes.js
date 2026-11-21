@@ -468,7 +468,7 @@ export async function render(container, [codigo] = []) {
 	};
 	pintar();
 
-	const numero = (icono, valor, texto) => h('div', { class: 'col-4' }, statCard(icono, texto, valor));
+	const numero = (icono, valor, texto) => h('div', { class: 'col-4' }, statCard(icono, texto, valor, { cls: 'stat-envuelve' }));
 	const elegir = (campo, titulo, opciones) => h('select', {
 		class: 'form-select form-select-sm w-auto', 'aria-label': titulo, onchange: (e) => { filtro[campo] = e.target.value; pintar(); }
 	}, h('option', { value: '' }, titulo), opciones.map(([v, t]) => h('option', { value: v }, t)));
@@ -502,7 +502,7 @@ export async function render(container, [codigo] = []) {
 				h('span', { class: 'icon-whatsapp me-1', 'aria-hidden': 'true' }), 'Enviar mis datos') : null) : null);
 	// Por hacer del administrador: las que le tocan a él, con su plazo de 24 h (después se cierran solas).
 	const suyas = leads.filter(teToca);
-	const porHacer = suyas.length ? h('div', { class: 'alert alert-danger d-flex flex-wrap align-items-center gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
+	const porHacer = suyas.length ? h('div', { class: 'alert alert-danger d-flex align-items-baseline gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
 		h('span', { class: 'flex-grow-1' }, `Te toca confirmar (${TEXTO_CONFIRMA_EQUIPO.toLowerCase()}): `,
 			suyas.map((l, i) => [i ? ', ' : '', h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
 				conPlazo(ms(l.createdAt)) ? ` (vence ${formatDate(new Date(venceRespuesta(ms(l.createdAt))))})` : '']))) : null;
