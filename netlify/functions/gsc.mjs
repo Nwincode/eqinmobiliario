@@ -15,9 +15,15 @@ function rango(dias, desplazamiento = 0) {
 	return { startDate: dia(inicio), endDate: dia(fin) };
 }
 
-function propiedadValida(p) {
+// Solo la propiedad de Search Console de ESTE sitio: la del dominio (sc-domain:) o la de su dirección, con o sin www,
+// o la de GSC_PROPERTY. La que manda el panel (Contenido → SEO) vale si es una de esas; cualquier otra (otra propiedad a
+// la que la cuenta de servicio tenga acceso) se cambia por la del sitio: un asesor no consulta datos ajenos.
+const DOMINIO = new URL(SITE_URL).hostname.replace(/^www\./, '').toLowerCase();
+export function propiedadValida(p) {
 	const v = String(p || '').trim();
-	return /^sc-domain:[a-z0-9.-]+$/i.test(v) || /^https?:\/\/[^\s]+\/$/.test(v) ? v : propiedadPorDefecto();
+	const delSitio = new Set([propiedadPorDefecto(), `sc-domain:${DOMINIO}`,
+		...['https', 'http'].flatMap((esquema) => [`${esquema}://${DOMINIO}/`, `${esquema}://www.${DOMINIO}/`])]);
+	return delSitio.has(v) || delSitio.has(v.toLowerCase()) ? v : propiedadPorDefecto();
 }
 
 const fila = (r) => ({

@@ -122,6 +122,7 @@ agrega aquí en el mismo cambio que lo corrige.
 | Dos cotizaciones del mismo minuto (dos asesores o «Duplicar») tenían el mismo número. | Un número que se muestra como único se prueba con dos del mismo momento; sin contador compartido (las reglas no lo permiten), lleva parte del id del documento. |
 | Dos pestañas de Clientes abiertas creaban dos clientes del mismo lead (cada una unía los leads con lo leído al abrir). | Lo que corre solo al abrir una pantalla se escribe en una transacción que vuelve a leer lo que decide (el lead ya unido se salta) y agrega con `arrayUnion`. |
 | (Tanda de reglas y servidor) Con «Ocultar precio», cualquier monto en millones («cuotas de Q 1.5 millones») impedía guardar la ficha aunque no fuera el precio de la casa. | Lo que se bloquea por parecerse a un dato es solo ese dato, en todas sus formas (también pasado a la otra moneda con `TIPO_CAMBIO`), nunca una familia entera de textos (`patronPrecio` en `admin/js/estados.js`, con casos legítimos en `test-seo.mjs`). |
+| (Tanda de reglas y servidor) `/api/gsc` consultaba la propiedad de Search Console que mandara el panel: un asesor podía leer cualquier otra a la que la cuenta de servicio tuviera acceso. | Lo que una función hace con una cuenta de servicio se limita en el servidor a lo de este sitio (`propiedadValida`: dominio del sitio, con o sin www, o `GSC_PROPERTY`), nunca a lo que diga quien llama. |
 
 Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una segunda revisión independiente antes de unir.
 

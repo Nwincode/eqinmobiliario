@@ -185,4 +185,10 @@ await t('«Enviarme el resumen de hoy» lo manda solo a quien lo pide', async ()
 	assert.match((await r.json()).mensaje, /admin@ejemplo\.test/);
 });
 
+await t('/api/gsc: solo la propiedad de Search Console de este sitio; otra que mande el panel se cambia por la del sitio', async () => {
+	const { propiedadValida } = await import('../netlify/functions/gsc.mjs');
+	for (const p of ['sc-domain:eqinmobiliario.gt', 'https://eqinmobiliario.gt/', 'https://www.eqinmobiliario.gt/', 'http://eqinmobiliario.gt/']) assert.equal(propiedadValida(p), p);
+	for (const p of ['sc-domain:otro-sitio.com', 'https://otro-sitio.com/', 'https://eqinmobiliario.gt.otro.com/', '', 'x']) assert.equal(propiedadValida(p), 'sc-domain:eqinmobiliario.gt', p);
+});
+
 console.log(`\n${ok} pruebas de las funciones pasan.`);
