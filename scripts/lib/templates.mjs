@@ -9,7 +9,7 @@ import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
 import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
-import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
+import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { fotoCdn, pasaPorCdn } from './foto-cdn.mjs';
@@ -1165,12 +1165,19 @@ export function autoSeoTitle(p) {
 export function seoTitle(p) {
 	return p._tituloUnico || (p.seo && p.seo.titulo) || autoSeoTitle(p);
 }
-// El título de una ficha que repetía el de otra: con su código (o su id) delante del sitio, sin pasar del largo para Google.
+// El título de una ficha que repetía el de otra: con su código (o su id) detrás del nombre, sin pasar del largo para
+// Google (si no cabe, se quita lo de después de « | » y luego se acorta el nombre). Quién lo lleva no depende del orden
+// en que llegan: build.mjs se lo da a la más nueva (por fecha de creación y, si empatan, por código).
 export function tituloUnico(p, titulo, vistos) {
 	const extra = p.codigo || String(p.id || '').slice(0, 6);
 	const [base, ...resto] = titulo.split(' | ');
 	let n = 0, out;
-	do out = [`${base} · ${extra}${n ? `-${n}` : ''}`, ...resto].join(' | '); while (vistos.has(out) && ++n < 50);
+	do {
+		const marca = ` · ${extra}${n ? `-${n}` : ''}`;
+		out = [`${base}${marca}`, ...resto].join(' | ');
+		if (out.length > TITULO_MAX) out = `${base}${marca}`;
+		if (out.length > TITULO_MAX) out = `${recortar(base, TITULO_MAX - marca.length)}${marca}`;
+	} while (vistos.has(out) && ++n < 50);
 	return out;
 }
 

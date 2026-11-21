@@ -11,7 +11,7 @@ import { seedEjemplo } from './lib/sitio-ejemplo.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { precioTexto, dinero, TIPO_CAMBIO, enUSD, correoValido, horarioEn, conPiesCuadrados } from '../admin/js/formato.js';
 import { formatPrice } from './lib/util.mjs';
-import { celdaGaleriaVip, imgFoto } from './lib/templates.mjs';
+import { celdaGaleriaVip, imgFoto, tituloUnico } from './lib/templates.mjs';
 import { codigosEnCss } from './lib/assets.mjs';
 import { reservada } from '../admin/js/rutas.js';
 import { slugify } from '../admin/js/formato.js';
@@ -540,6 +540,12 @@ test('tarjetas: la foto no es un segundo enlace para el lector de pantalla (el t
 	for (const a of fotos) assert.match(a, /tabindex="-1" aria-hidden="true"/);
 });
 
+test('título repetido: con su código, sin pasar de 60 letras (si no cabe, se quita lo de después de « | »)', () => {
+	assert.equal(tituloUnico({ codigo: 'EQ-12' }, 'Casa en venta | Zona 15', new Set()), 'Casa en venta · EQ-12 | Zona 15');
+	const largo = tituloUnico({ codigo: 'EQ-1234' }, 'Casa de lujo con jardín y piscina en Cayalá | Venta en Zona 16, Guatemala', new Set());
+	assert.ok(largo.length <= 60 && largo.endsWith(' · EQ-1234'), largo);
+	assert.ok(tituloUnico({ codigo: 'EQ-1' }, `${'Casa muy grande '.repeat(5)}`.trim(), new Set()).length <= 60);
+});
 test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
 	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.
 	const autollenado = /compan|empresa|organi|business|web|url|site|address|direcc|email|correo|phone|tel|name|nombre|city|ciudad|zip|postal/i;

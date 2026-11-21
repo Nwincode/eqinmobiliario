@@ -11,7 +11,7 @@ import {
 } from '../firebase.js';
 import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
-import { SIN_REGLAS_NUEVAS } from '../reglas-publicadas.js';
+import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { esPorcentaje } from '../formato.js';
@@ -966,8 +966,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 			toast('Cotización guardada.');
 		} catch (err) {
 			// Entre publicar el sitio y publicar las reglas, las de antes no conocen el contador: se dice qué falta (no se
-			// guarda a la manera de antes, sin número seguido).
-			if (!docId && err?.code === 'permission-denied') toast(SIN_REGLAS_NUEVAS, 'danger');
+			// guarda a la manera de antes, sin número seguido). Solo si se comprueba que no se puede leer el contador.
+			if (!docId && await faltanReglas(err, 'contadores/cotizaciones')) toast(SIN_REGLAS_NUEVAS, 'danger');
 			else showError(err);
 		} finally { btnGuardar.disabled = false; }
 	}

@@ -226,11 +226,17 @@
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
 			// del navegador conozca (empresa, sitio web, dirección…), o le llenaría el campo a un cliente real y su envío se perdería.
 			if (form.eq_vacio && form.eq_vacio.value) return;
-			// La misma solicitud de reserva otra vez, sin cambiar nada (la anterior se cortó: red o servidor): se manda tal
-			// cual, con su id, su token y su código. No se vuelve a revisar (pasada la medianoche no se corta por «la llegada
-			// ya pasó», y sus propias fechas no le salen «ya no están libres»): el servidor reconoce que ya quedó.
-			var firmaForm = JSON.stringify([form.nombre.value, form.telefono.value, form.codigo ? form.codigo.value : '', form.email ? form.email.value : '', location.search]);
-			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && window.EQChat ? form.eqPendiente : null;
+			// La misma solicitud de reserva otra vez (la anterior se cortó: red o servidor; mismo correo, casa, fechas y
+			// personas, y hace menos de 30 min): va con su id, su token y su código. El nombre y el teléfono, como estén ahora
+			// (si los corrigió, el servidor pone al día la misma solicitud). Antes se le pregunta al servidor si ya la tiene:
+			// si sí, no se vuelve a revisar (pasada la medianoche no se corta por «la llegada ya pasó», y sus propias fechas no
+			// le salen «ya no están libres»); si no, se revisa como una nueva.
+			var firmaForm = JSON.stringify([form.email ? form.email.value.trim().toLowerCase() : '', form.getAttribute('data-property-id') || '', location.search]);
+			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && Date.now() - form.eqPendiente.cuando < 30 * 60000 && window.EQChat ? form.eqPendiente : null;
+			if (pend) {
+				pend.lead.nombre = form.nombre.value.trim();
+				pend.lead.telefono = form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim();
+			}
 			var lead = pend ? pend.lead : {
 				nombre: form.nombre.value.trim(),
 				// Un solo formato: «+código número», el mismo del panel (formato.js `unirTelefono`): el «+» escrito manda, y
@@ -272,7 +278,7 @@
 				if (!sinFechas) form.setAttribute('data-correo-visto', lead.email);
 				errores.push([form.email, sugerencia(form, EQFormato.sugerenciaCorreo(lead.email))]);
 			}
-			if (pend) errores = [];
+			if (pend) errores = errores.filter(function (e) { return e[0] === form.nombre || e[0] === form.telefono; });
 			if (errores.length) {
 				marcarCampos(form, errores, sinFechas);
 				if (!sinFechas) setStatus(form, T.revisa, false);
@@ -325,7 +331,12 @@
 			// Solo si las reglas lo rechazan (403): un corte de red no la manda a otro asesor ni la guarda dos veces.
 			// Reserva: las fechas se revisan otra vez al día justo antes de guardar (otra persona pudo pedirlas con esta
 			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
-			var libres = reserva && !pend && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true);
+			var revisar = function () { return reserva && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true); };
+			// Una pendiente que el servidor no tiene se revisa como nueva; si ya no cuadra (fechas tomadas, precio que cambió),
+			// se suelta: la próxima sale como una solicitud nueva, con lo que el cliente ve ahora.
+			var libres = pend ? window.EQChat.yaGuardada(pend.lead).then(function (si) {
+				return si || revisar().then(function (ok) { if (!ok) form.eqPendiente = null; return ok; });
+			}) : revisar();
 			libres.then(function (ok) {
 				if (!ok) { button.disabled = false; return; }
 				guardar();
@@ -339,7 +350,7 @@
 				pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); })
 					.then(function (token) { form.eqPendiente = null; window.EQChat.avisar(token); done(token); }, function (err) {
 						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
-						form.eqPendiente = !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva } : null;
+						form.eqPendiente = !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null;
 						fail(err);
 					})
 					.then(function () { pruebaForm.otra(); button.disabled = false; });

@@ -34,7 +34,7 @@ export async function enviarAvisosChat(token, { repaso = false, reintento = fals
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
 	const clave = reintento ? String(chat.avisoPendiente || '') : mensajes.at(-1)?.id || 'nueva';
 	if (reintento && !clave) return 0;
-	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, mensaje: reintento ? clave : '', correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, mensaje: reintento ? clave : '', correos: { cliente: lead?.email || '', nombre: lead?.nombre ?? chat.nombre, socio: socio?.email || '', equipo: destinatariosEquipo() } });
 	let anotar = escrituraConfigurada();
 	// Nada que mandar: si era un pendiente, se quita.
 	if (!avisos.length) { if (anotar && chat.avisoPendiente === clave) await marcar(token, clave, { listo: true }).catch(() => {}); return 0; }

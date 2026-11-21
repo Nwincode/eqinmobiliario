@@ -267,7 +267,7 @@ export function unirTelefono(codigo, numero) {
 	if (cel && d.startsWith(codigo) && d.length !== cel && d.length - codigo.length === cel) return `+${codigo} ${d.slice(codigo.length)}`;
 	return sinTroncal(`+${codigo} ${n}`);
 }
-// «+593 099 123 4567» → «+593 99 123 4567»: sin el 0 de larga distancia de un país que lo usa (TRONCAL_0), si con él no
+// «+593 099 123 4567» → «+593 99 123 4567» y «+44 (0)20…» → «+44 20…»: sin el 0 de larga distancia de un país que lo usa (TRONCAL_0), si con él no
 // queda un número válido de su plan (si está en CODIGOS_PAIS).
 function sinTroncal(t) {
 	const d = t.replace(/\D/g, '');
@@ -275,7 +275,10 @@ function sinTroncal(t) {
 	if (!codigo || !TRONCAL_0.includes(codigo)) return t;
 	const nacional = d.slice(codigo.length);
 	if (!nacional.startsWith('0') || (PLAN[codigo] && !nacionalBien(codigo, nacional.slice(1)))) return t;
-	return t.replace(new RegExp(`^(\\+\\D*${codigo.split('').join('\\D*')}\\D*)0`), '$1');
+	// «(0)» se va entero, con sus paréntesis («+44 (0)20…» → «+44 20…»).
+	const pre = `^(\\+\\D*${codigo.split('').join('\\D*')})`;
+	const sinParentesis = t.replace(new RegExp(`${pre}[\\s.-]*\\(\\s*0\\s*\\)[\\s.-]*`), '$1 ');
+	return sinParentesis !== t ? sinParentesis : t.replace(new RegExp(`${pre}(\\D*)0`), '$1$2');
 }
 // ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
 // dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con

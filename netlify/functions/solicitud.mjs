@@ -27,6 +27,9 @@ const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000, { siFalla
 // un cliente de verdad reserva igual; un robot que la salta, muy poco.
 const porIpSinPrueba = limitadorDurable('solicitud-ip-sin-prueba', 3, 60 * 60_000, { siFalla: 'memoria' });
 const porCorreoSinPrueba = limitadorDurable('solicitud-correo-sin-prueba', 2, 60 * 60_000, { siFalla: 'memoria' });
+// Y un tope para todo el sitio: pasadas 20 solicitudes sin prueba en una hora (un robot que cambia de IP y de correo),
+// se exige la prueba. Estos tres cuentan solo lo que se guardó (no un intento que falló ni un reintento).
+const sinPruebaEnElSitio = limitadorDurable('solicitud-sin-prueba-sitio', 20, 60 * 60_000, { siFalla: 'memoria' });
 const ID = /^[A-Za-z0-9]{20}$/;
 const TOKEN = /^[A-Za-z0-9]{28}$/;
 const CASA = /^[A-Za-z0-9_-]{1,60}$/;
@@ -96,7 +99,7 @@ export async function guardarSolicitud(tx, leadId, token, { lead, reserva, chat 
 	const propietarioId = casa.propietarioId || '';
 	const titulo = String(casa.titulo || '').slice(0, 200);
 	tx.crear(`leads/${leadId}`, { ...lead, propertyTitulo: titulo, agentId: casa.agentId || '', propietarioId, estado: 'nuevo', reserva }, { ahora: ['createdAt'] });
-	tx.crear(`chats/${token}`, { codigo: reserva.codigo, leadId, propertyId: lead.propertyId, propertyTitulo: titulo, propietarioId,
+	tx.crear(`chats/${token}`, { codigo: reserva.codigo, leadId, propertyId: lead.propertyId, propertyTitulo: titulo, propertyTituloEn: String(casa.en?.titulo || '').slice(0, 200), propietarioId,
 		nombre: nombreDelChat(lead.nombre, lead.idioma), llegada: reserva.llegada, salida: reserva.salida, noches: reserva.noches, huespedes: reserva.huespedes,
 		total: reserva.total, subtotal: reserva.subtotal, moneda: reserva.moneda, idioma: lead.idioma, ...chat,
 		// El aviso de la solicitud nueva queda pendiente desde que nace: si la respuesta no le llega a la página (y no llama
@@ -107,7 +110,15 @@ export async function guardarSolicitud(tx, leadId, token, { lead, reserva, chat 
 }
 
 export default async (req, context) => {
-	if (req.method === 'GET') return json(200, { turnstile: llavePublica() });
+	// GET: la llave pública de Turnstile; con ?lead=&token=, si esa solicitud ya está guardada (la página lo pregunta
+	// antes de reintentar una que se cortó: si no está, la revisa otra vez como nueva).
+	if (req.method === 'GET') {
+		const q = new URL(req.url, 'http://x').searchParams;
+		if (q.get('lead')) {
+			try { return json(200, { guardada: Boolean(await yaGuardada(q.get('lead'), q.get('token'))) }); } catch { return json(503, { error: 'Sin respuesta' }); }
+		}
+		return json(200, { turnstile: llavePublica() });
+	}
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!escrituraConfigurada()) return json(503, { error: 'Reservas sin configurar' });
 	let pedido;
@@ -117,14 +128,22 @@ export default async (req, context) => {
 	const error = (status, es, eng, extra = {}) => json(status, { error: en ? eng : es, ...extra });
 	try {
 		// El mismo envío otra vez (la respuesta anterior se perdió): ya quedó, se responde lo mismo, antes de revisar las
-		// fechas (pudo pasar la medianoche) y de los límites (no gasta otro).
-		const ya = await yaGuardada(pedido?.leadId, pedido?.token);
-		if (ya) return json(200, { token: ya });
+		// fechas (pudo pasar la medianoche) y de los límites (no gasta otro). Si el cliente corrigió su nombre o su teléfono
+		// antes de reintentar, la solicitud se pone al día. Si no se puede leer, no se sigue como nueva (diría «ya pasó»).
+		let ya;
+		try { ya = await yaGuardada(pedido?.leadId, pedido?.token); } catch (err) {
+			console.error('Solicitud (reintento):', err.message);
+			return error(503, 'No pudimos revisar tu solicitud: vuelve a intentarlo en un momento.', 'We could not check your request: please try again in a moment.');
+		}
+		if (ya) { await ponerAlDiaContacto(pedido).catch((err) => console.error('Solicitud (contacto):', err.message)); return json(200, { token: ya }); }
 		const datos = revisarPedido(pedido);
-		const prueba = await pasaTurnstile(pedido.turnstile, ip);
+		let prueba = await pasaTurnstile(pedido.turnstile, ip);
 		if (prueba === 'mala') return error(403, 'No pudimos comprobar que no eres un robot. Vuelve a intentarlo.', 'We could not verify that you are not a robot. Please try again.', { turnstile: true });
+		// Sin prueba, el sitio entero tiene un tope: pasado, se exige (si Cloudflare está caído, la página ofrece WhatsApp).
+		if (prueba === 'sin' && await sinPruebaEnElSitio.lleno('todas'))
+			return error(403, 'Necesitamos comprobar que no eres un robot y no pudimos: recarga la página o escríbenos por WhatsApp.', 'We need to verify that you are not a robot and could not: reload the page or message us on WhatsApp.', { turnstile: true });
 		if (await porIp(ip) || await porCorreo(datos.lead.email)
-			|| (prueba === 'sin' && (await porIpSinPrueba(ip) || await porCorreoSinPrueba(datos.lead.email))))
+			|| (prueba === 'sin' && (await porIpSinPrueba.lleno(ip) || await porCorreoSinPrueba.lleno(datos.lead.email))))
 			return error(429, 'Demasiadas solicitudes seguidas: espera un rato o escríbenos por WhatsApp.', 'Too many requests in a row: wait a while or message us on WhatsApp.');
 		// Socio con las casas fuera del sitio por su atraso (más de 72 h): no se reserva (la ficha ya lo dice). Fuera de la
 		// transacción; si no se puede leer, no frena (lo revisa otra vez la confirmación).
@@ -132,6 +151,7 @@ export default async (req, context) => {
 		const pausada = casa?.propietarioId ? await moraDe(casa.propietarioId).then((n) => n === 3, (err) => { console.error('Solicitud (mora):', err.message); return false; }) : false;
 		if (pausada) no(409, ['Esta casa no recibe reservas por ahora.', 'This house is not taking bookings right now.'], { pausada: true });
 		const token = await transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos));
+		if (prueba === 'sin') await Promise.all([sinPruebaEnElSitio('todas'), porIpSinPrueba(ip), porCorreoSinPrueba(datos.lead.email)]).catch(() => {});
 		return json(200, { token });
 	} catch (err) {
 		if (err instanceof Rechazo) return json(err.status, { error: en ? err.en : err.message, ...err.extra });
@@ -140,11 +160,23 @@ export default async (req, context) => {
 	}
 };
 
-// ¿Ya está guardada esta solicitud con este chat? (un reintento). Devuelve el token o ''.
+// ¿Ya está guardada esta solicitud con este chat? (un reintento). Devuelve el token o ''. Si la base no responde, lanza.
 async function yaGuardada(leadId, token) {
 	if (!ID.test(leadId || '') || !TOKEN.test(token || '')) return '';
-	const indice = await leerPrivado(`chatsPorSolicitud/${leadId}`).catch(() => null);
+	const indice = await leerPrivado(`chatsPorSolicitud/${leadId}`);
 	return indice?.token === token ? token : '';
+}
+// Un reintento con otro nombre o teléfono (el cliente lo corrigió): la solicitud se pone al día; el chat lleva el primer
+// nombre, filtrado. Solo lo que pasa la misma revisión que una nueva.
+async function ponerAlDiaContacto(p) {
+	const nombre = texto(p?.lead?.nombre, 100)?.trim(), telefono = texto(p?.lead?.telefono, 30)?.trim();
+	if (!nombre || !telefono || !telefonoValido(telefono)) return;
+	await transaccion(async ({ leer, cambiar }) => {
+		const lead = await leer(`leads/${p.leadId}`);
+		if (!lead || (lead.nombre === nombre && lead.telefono === telefono)) return;
+		cambiar(`leads/${p.leadId}`, { nombre, telefono }, { ahora: ['updatedAt'] });
+		if (lead.nombre !== nombre) cambiar(`chats/${p.token}`, { nombre: nombreDelChat(nombre, lead.idioma) });
+	});
 }
 
 export const config = { path: '/api/solicitud' };

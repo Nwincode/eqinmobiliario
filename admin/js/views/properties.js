@@ -79,6 +79,8 @@ async function borrarFotos(p) {
 // Qué se traduce y cuándo falta: admin/js/ingles.js.
 export { fuenteEs, faltaIngles };
 // La dirección en inglés sale del título: al cambiarlo se guarda el anterior para redirigir.
+// Descripción para Google escrita a mano pero muy corta (menos de 70): el sitio pone la automática (templates.mjs).
+const propiaCorta = (t) => Boolean(t) && String(t).length < 70;
 const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
 // Al traductor va solo lo público: pedirIA lo limpia con admin/js/para-ia.js.
 export async function traducirEn(d) {
@@ -1035,13 +1037,16 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
 			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
-			description: (d) => d.seo?.descripcion || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
+			// La misma regla del sitio (templates.mjs seoDescription): la escrita, si tiene 70 letras o más.
+			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
 				[(d.fotos || []).length > 0 && d.fotos.every((f) => f.alt), 'Todas las fotos tienen descripción.'],
 				[stripMd(d.descripcion).split(/\s+/).filter(Boolean).length >= 80, 'Descripción de al menos 80 palabras (Google premia el contenido original).'],
-				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).']
+				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).'],
+				...[['', d.seo?.descripcion], [' en inglés', d.en?.seo?.descripcion]].filter(([, t]) => propiaCorta(t))
+					.map(([idioma, t]) => [false, `Tu descripción${idioma} tiene ${t.length} letras: con menos de 70, Google recibe la automática.`])
 			]
 		})
 	];

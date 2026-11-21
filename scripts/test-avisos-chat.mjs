@@ -24,6 +24,12 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 	// Sin socio con correo, el equipo la recibe una sola vez.
 	assert.deepEqual(avisosChat({ chat, mensajes: [], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA }).map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
 });
+test('al cliente se le saluda con su nombre (del lead) aunque el chat diga «Cliente»; el socio ve el del chat y el equipo el completo', () => {
+	const a = avisosChat({ chat: { ...chat, nombre: 'Guest', idioma: 'en' }, mensajes: [], correos: { ...correos, nombre: 'John@x Smith' }, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	assert.equal(a[2].titulo, 'We received your request, John@x');
+	assert.deepEqual(a[0].datos.at(-1), ['Cliente', 'Guest']);
+	assert.deepEqual(a[1].datos.at(-1), ['Cliente', 'John@x Smith']);
+});
 test('solicitud que confirma el equipo (cotizada por debajo): al socio no se le pide responder ni al cliente se le prometen fechas apartadas', () => {
 	const a = avisos([], { confirmaEquipo: true });
 	assert.match(a[0].intro, /La confirma el equipo/);

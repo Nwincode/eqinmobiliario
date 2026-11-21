@@ -1,5 +1,5 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { SIN_REGLAS_NUEVAS } from '../reglas-publicadas.js';
+import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
@@ -259,8 +259,9 @@ async function renderEditor(container, id) {
 			avisarCambio();
 			return true;
 		} catch (err) {
-			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes se dice qué falta.
-			if (cambiaPagoAhora && err?.code === 'permission-denied') toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
+			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes (comprobado: el administrador no
+			// puede leer cambiosDatosPago) se dice qué falta.
+			if (cambiaPagoAhora && await faltanReglas(err, 'cambiosDatosPago/comprobar')) toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
 			return false;
 		}
 	};

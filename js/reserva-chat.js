@@ -27,7 +27,11 @@
 	function pedir(url, cuerpo) {
 		return fetch(API + url + (url.indexOf('?') > -1 ? '&' : '?') + LLAVE, cuerpo
 			? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) } : undefined)
-			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+			.then(function (r) {
+				if (r.ok) return r.json();
+				// Con el motivo de la base (ALREADY_EXISTS, ABORTED…): un 409 no siempre es «ya quedó».
+				return r.json().catch(function () { return {}; }).then(function (d) { throw new Error('HTTP ' + r.status + ' ' + ((d.error && d.error.status) || '')); });
+			});
 	}
 	// Un documento nuevo con la hora del servidor (como escritura de un lote).
 	function nuevo(ruta, fields) {
@@ -128,7 +132,14 @@
 			});
 	}
 
-	window.EQChat = { solicitar: solicitar, prueba: prueba, enlace: enlace, avisar: avisar };
+	// ¿El servidor ya tiene esta solicitud? (antes de reintentar una que se cortó). Sin respuesta, no se da por guardada.
+	function yaGuardada(lead) {
+		if (!lead.id || !lead.token) return Promise.resolve(false);
+		return fetch('/api/solicitud?lead=' + encodeURIComponent(lead.id) + '&token=' + encodeURIComponent(lead.token), { headers: { Accept: 'application/json' } })
+			.then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return d.guardada === true; }, function () { return false; });
+	}
+
+	window.EQChat = { solicitar: solicitar, prueba: prueba, enlace: enlace, avisar: avisar, yaGuardada: yaGuardada };
 
 	// ------------------------------------------------------------ Página /reserva/
 	var caja = document.getElementById('reserva-chat');
@@ -171,7 +182,7 @@
 		// El esqueleto ya viene en la página (con sus íconos); aquí solo se llena.
 		var cuerpo = caja.querySelector('.vac-chat-cuerpo');
 		var poner = function (k, v) { cuerpo.querySelector('[data-out="' + k + '"]').textContent = v; };
-		poner('titulo', c.propertyTitulo);
+		poner('titulo', en && c.propertyTituloEn || c.propertyTitulo);
 		// Estado de la solicitud: lo marca quien la responde en el panel.
 		var sello = cuerpo.querySelector('[data-out="estado"]');
 		// El plazo de pago, en hora de Guatemala (el mismo del correo): «vie, 20 nov, 14:00».
@@ -328,10 +339,16 @@
 			var lote = [msj];
 			if (campos.tipo && campos.tipo.stringValue === 'foto') lote.push({ update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
 				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] });
-			return pedir(RAIZ + ':commit', { writes: lote }).catch(function (err) { if (!/HTTP 409/.test(err.message)) throw err; });
+			return pedir(RAIZ + ':commit', { writes: lote }).catch(function (err) { if (!/ALREADY_EXISTS/.test(err.message)) throw err; });
 		}
-		// Lo que se está mandando, por texto o por foto: su id (y la foto ya subida), para reintentar sin repetir.
-		var pendientes = {};
+		// Lo que se está mandando, por intento (texto o foto): su id (y la foto ya subida), para reintentar sin repetir. El
+		// texto que volvió al campo por un corte y se manda otra vez es el mismo intento; si se escribe algo distinto, o el
+		// mismo texto después de haber salido bien, es otro.
+		var pendientes = {}, ultimoTexto = null;
+		function intentoTexto(texto) {
+			if (!ultimoTexto || ultimoTexto.texto !== texto) ultimoTexto = { texto: texto, n: (ultimoTexto ? ultimoTexto.n : 0) + 1 };
+			return ultimoTexto.n + ':' + texto;
+		}
 		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
 		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
 		var enviando = false, fila = Promise.resolve();
@@ -342,7 +359,7 @@
 				enviando = true;
 				boton.disabled = true; adjuntar.disabled = true;
 				return guardarMensaje(campos, p.id)
-					.then(function () { delete pendientes[clave]; alerta(''); avisar(token); return cargar().catch(function () {}); })
+					.then(function () { delete pendientes[clave]; if (clave.charAt(0) === 't') ultimoTexto = null; alerta(''); avisar(token); return cargar().catch(function () {}); })
 					.catch(function () { alerta(t.vacChatFallo); })
 					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
 			};
@@ -350,6 +367,8 @@
 			fila = fila.then(paso, paso);
 			return fila;
 		}
+		// Lo que se escribe a mano en el campo es otro intento (el texto que vuelve por un corte no pasa por aquí).
+		campo.addEventListener('input', function () { ultimoTexto = null; });
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {
 			if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : boton.click(); }
@@ -363,7 +382,7 @@
 			if (enviando) return;
 			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
 			campo.value = '';
-			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + texto).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
+			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + intentoTexto(texto)).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
 		});
 		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
 		adjuntar.addEventListener('click', function () { archivo.click(); });

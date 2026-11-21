@@ -30,21 +30,23 @@ export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-clien
 // vez para la misma clave), se frena (429): justo en un ataque, no se deja pasar. Con `{ siFalla: 'memoria' }` (lo que
 // un cliente de verdad necesita para seguir, como revisar fechas antes de reservar), en ese caso cuenta el de memoria.
 // limitadorDurable(nombre, max, ventanaMs, opciones) → async (clave) => true si ya pasó el límite.
+// `.lleno(clave)`: solo mira si ya está en su tope, sin contar este pedido (para contar después solo lo que se guardó).
 export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar' } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
-	return async (clave) => {
+	const ruta = (clave) => `limites/${createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(`${nombre}:${clave}`).digest('hex')}`;
+	const contar = async (clave) => {
 		if (!escrituraConfigurada()) return enMemoria(clave);
-		const ruta = `limites/${createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(`${nombre}:${clave}`).digest('hex')}`;
 		try {
 			return await transaccion(async ({ leer, crear, cambiar }) => {
 				const ahora = Date.now();
-				const doc = await leer(ruta);
+				const r = ruta(clave);
+				const doc = await leer(r);
 				const veces = (doc?.veces || []).map(Number).filter((t) => ahora - t < ventanaMs);
 				// Un pedido rechazado no cuenta (nadie deja bloqueada una clave ajena) y no se escribe nada.
 				if (veces.length >= max) return true;
 				// `vence`: para que una política de vida (TTL) de Firestore borre los viejos sola, si se activa.
 				const datos = { veces: [...veces, ahora], vence: new Date(ahora + ventanaMs) };
-				if (doc) cambiar(ruta, datos); else crear(ruta, datos);
+				if (doc) cambiar(r, datos); else crear(r, datos);
 				return false;
 			});
 		} catch (err) {
@@ -52,4 +54,17 @@ export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar' } 
 			return siFalla === 'memoria' ? enMemoria(clave) : true;
 		}
 	};
+	contar.lleno = async (clave) => {
+		if (!escrituraConfigurada()) return false;
+		try {
+			return await transaccion(async ({ leer }) => {
+				const ahora = Date.now();
+				return ((await leer(ruta(clave)))?.veces || []).map(Number).filter((t) => ahora - t < ventanaMs).length >= max;
+			});
+		} catch (err) {
+			console.error('Límite en la base (revisar):', err.message);
+			return siFalla !== 'memoria';
+		}
+	};
+	return contar;
 }

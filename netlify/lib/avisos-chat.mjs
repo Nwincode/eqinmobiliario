@@ -60,6 +60,10 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	const casaEs = String(casa?.titulo || '').slice(0, 200);
 	// Para el socio y el equipo, con el código que el socio usa para esa casa (si lo tiene); el cliente no lo ve.
 	const casaPanel = casaEs + (casa?.codigoSocio ? ` (${String(casa.codigoSocio).slice(0, 30)})` : '');
+	// El nombre del cliente tal como lo escribió (del lead): a él se le saluda con su nombre y el equipo lo ve completo.
+	// El socio ve el del chat (el primero, y «Cliente» si traía un contacto).
+	const nombreLead = String(correos.nombre ?? chat.nombre ?? '').trim().slice(0, 80);
+	const saludo = nombreLead.split(/\s+/)[0].slice(0, 40);
 	// Al cliente: botón a su reserva y la nota de que se conversa en el chat (si responde el correo, no le llega al anfitrión).
 	const alCliente = (asunto, titulo, intro, extra = {}) => (correos.cliente ? [{ rol: 'cliente', lang: en ? 'en' : 'es', para: [correos.cliente], asunto, titulo, intro,
 		boton: en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url: reserva, datos: tabla(en ? 'en' : 'es'),
@@ -81,8 +85,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 				? 'La confirma el equipo: se le cotizó menos que el precio de tu casa. No tienes que hacer nada; si se confirma, te llega el aviso.'
 				: 'Respóndela pronto: las fechas quedan apartadas hasta que respondas, a lo más 24 horas (después se cierra sola).'),
 			...(equipo.length ? [{ rol: 'equipo', lang: 'es', para: equipo, asunto: `Nueva solicitud de reserva ${chat.codigo}`, titulo: 'Nueva solicitud de reserva',
-				intro: 'La atiende el socio; si en 2 horas no responde, te llega otro aviso.', boton: 'Abrir la solicitud', url: panel, datos: [['Casa', casaPanel], ...tabla('es'), ['Cliente', String(chat.nombre || '').slice(0, 40)]] }] : []),
-			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? `We received your request${chat.nombre ? `, ${chat.nombre}` : ''}` : `Recibimos tu solicitud${chat.nombre ? `, ${chat.nombre}` : ''}`,
+				intro: 'La atiende el socio; si en 2 horas no responde, te llega otro aviso.', boton: 'Abrir la solicitud', url: panel, datos: [['Casa', casaPanel], ...tabla('es'), ['Cliente', nombreLead]] }] : []),
+			...alCliente(en ? `Your booking request ${chat.codigo}` : `Tu solicitud de reserva ${chat.codigo}`, en ? `We received your request${saludo ? `, ${saludo}` : ''}` : `Recibimos tu solicitud${saludo ? `, ${saludo}` : ''}`,
 				delEquipo
 					? (en ? `Our team reviews your request for ${tituloDe(chat, casa) || 'the house'} and replies in your booking chat within 24 hours at most. Keep this email: the button takes you back to your booking.`
 						: `El equipo revisa tu solicitud de ${casaEs || 'la casa'} y te responde en el chat de tu reserva, a más tardar en 24 horas. Guarda este correo: el botón te lleva de vuelta a tu reserva.`)

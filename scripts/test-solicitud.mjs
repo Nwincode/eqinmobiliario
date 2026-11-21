@@ -155,4 +155,43 @@ await t('los motivos que lee el cliente vienen en su idioma', async () => {
 	assert.match((await (await pedir(cuerpo())).json()).error, /ya no recibe reservas/);
 });
 
+await t('sin prueba: el sitio entero tiene un tope (20 por hora); pasado, se pide la prueba. Solo cuenta lo que se guardó', async () => {
+	casa();
+	process.env.TURNSTILE_SITE_KEY = 'pk'; process.env.TURNSTILE_SECRET = 'sk';
+	let guardadas = 0;
+	for (let i = 0; i < 30; i++) if ((await pedir(cuerpo())).status === 200) guardadas++;
+	assert.equal(guardadas, 20);
+	const r = await pedir(cuerpo());
+	assert.equal(r.status, 403);
+	assert.equal((await r.json()).turnstile, true);
+	limpiar(); casa();
+	// Un intento que no se guarda (la casa no recibe) no gasta el tope estricto de su IP.
+	casa({ publicado: false });
+	for (let i = 0; i < 5; i++) assert.equal((await pedir(cuerpo(), { mismaIp: true })).status, 409);
+	casa();
+	assert.equal((await pedir(cuerpo(), { mismaIp: true })).status, 200);
+});
+
+await t('reintento con el nombre o el teléfono corregidos: la misma solicitud se pone al día (no otra); la página puede preguntar si ya quedó', async () => {
+	casa();
+	const c = cuerpo();
+	assert.equal((await pedir(c)).status, 200);
+	assert.equal((await pedir({ ...c, lead: { ...c.lead, nombre: 'Ana María Morales', telefono: '+502 5555 9999' } })).status, 200);
+	assert.equal(hijos('leads').length, 1);
+	assert.deepEqual([leer(`leads/${c.leadId}`).nombre, leer(`leads/${c.leadId}`).telefono], ['Ana María Morales', '+502 5555 9999']);
+	const consulta = async (lead, token) => (await (await solicitud({ method: 'GET', url: `https://x/api/solicitud?lead=${lead}&token=${token}`, headers: new Headers() })).json()).guardada;
+	assert.equal(await consulta(c.leadId, c.token), true);
+	assert.equal(await consulta(`${'Z'.repeat(20)}`, c.token), false);
+});
+
+await t('reintento con la base sin responder: 503 (no «la llegada ya pasó» ni otra solicitud)', async () => {
+	casa();
+	S.reloj = Date.parse('2026-11-25T23:59:50-06:00');
+	const c = cuerpo(bien({ llegada: '2026-11-25', salida: '2026-11-27', noches: 2 }));
+	assert.equal((await pedir(c)).status, 200);
+	S.reloj = Date.parse('2026-11-26T00:00:20-06:00');
+	S.lecturaFalla = true;
+	try { assert.equal((await pedir(c)).status, 503); } finally { S.lecturaFalla = false; S.reloj = Date.parse('2026-11-20T12:00:00-06:00'); }
+});
+
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

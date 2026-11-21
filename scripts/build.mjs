@@ -648,10 +648,12 @@ async function main() {
 	// La misma regla que en español (incluye la pausa por mora): una sola función para los dos idiomas.
 	const propsEn = todasEn.filter(seOfrece);
 	// Dos fichas con el mismo título para Google compiten entre sí: a la segunda (y siguientes) se le suma su código o
-	// su zona (T.tituloUnico). En los dos idiomas.
+	// su zona (T.tituloUnico). En los dos idiomas. Siempre la misma ficha conserva su título: la más antigua (por fecha
+	// de creación y, si empatan, por código), sin importar el orden en que vengan de la base.
+	const antes = (a, b) => (toMillis(a.createdAt) || 0) - (toMillis(b.createdAt) || 0) || String(a.codigo || a.id || '').localeCompare(String(b.codigo || b.id || ''));
 	for (const lista of [todas, todasEn]) {
 		const vistos = new Set();
-		for (const p of lista) {
+		for (const p of [...lista].sort(antes)) {
 			const titulo = T.seoTitle(p);
 			if (vistos.has(titulo)) p._tituloUnico = T.tituloUnico(p, titulo, vistos);
 			vistos.add(p._tituloUnico || titulo);
