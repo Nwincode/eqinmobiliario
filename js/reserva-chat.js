@@ -344,9 +344,9 @@
 		// Lo que se está mandando, por intento (texto o foto): su id (y la foto ya subida), para reintentar sin repetir. El
 		// texto que volvió al campo por un corte y se manda otra vez es el mismo intento; si se escribe algo distinto, o el
 		// mismo texto después de haber salido bien, es otro.
-		var pendientes = {}, ultimoTexto = null;
+		var pendientes = {}, ultimoTexto = null, intentos = 0;
 		function intentoTexto(texto) {
-			if (!ultimoTexto || ultimoTexto.texto !== texto) ultimoTexto = { texto: texto, n: (ultimoTexto ? ultimoTexto.n : 0) + 1 };
+			if (!ultimoTexto || ultimoTexto.texto !== texto) ultimoTexto = { texto: texto, n: ++intentos };
 			return ultimoTexto.n + ':' + texto;
 		}
 		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
