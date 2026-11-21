@@ -12,8 +12,10 @@ import { sinRepetir, TITULO_MAX } from '../../admin/js/seo-auto.js';
 // propiedades a la vista; con menos es «poco contenido» para Google. Con menos, la zona sola existe sin indexar
 // (sus casas siguen enlazadas desde el listado de arriba) y las otras no se generan.
 export const MIN_INDEXABLE = 3;
-// La misma regla para tipo y zona: ¿hay suficientes propiedades para que la página se indexe?
-export const bastante = (lista) => lista.length >= MIN_INDEXABLE;
+// La misma regla para tipo y zona: ¿hay suficientes propiedades para que la página se indexe? Las casas de prueba
+// (`_prueba`, estados.js esDePrueba: no se indexan ni van al sitemap) no cuentan: no hacen indexable una página.
+const deVerdad = (lista) => lista.filter((p) => !p._prueba);
+export const bastante = (lista) => deVerdad(lista).length >= MIN_INDEXABLE;
 // Bloque de precios: necesita al menos tantos precios a la vista en una misma moneda.
 export const MIN_PRECIOS = 3;
 
@@ -65,15 +67,15 @@ export function planListados(props, { lang = 'es', ocupadas = new Set() } = {}) 
 	};
 	// ¿La lista es idéntica a la de alguna página de arriba que ya existe? Entonces no aporta nada nuevo.
 	const repite = (lista, ...padres) => padres.some((pd) => pd && pd.firma === firma(lista));
-	const todas = add({ pagina: 'todas', url: r.propiedades, lista: props, indexable: props.length > 0 });
+	const todas = add({ pagina: 'todas', url: r.propiedades, lista: props, indexable: deVerdad(props).length > 0 });
 	const porOp = {};
 	for (const o of OPS) {
 		const lista = props.filter((p) => op(p) === o);
 		// Venta y renta siempre tienen su página (enlaces de siempre); la vacacional solo si hay alguna casa.
 		if (o === 'vacacional' && !lista.length) continue;
-		porOp[o] = add({ pagina: 'op', operacion: o, url: r[o], lista, indexable: lista.length > 0 });
+		porOp[o] = add({ pagina: 'op', operacion: o, url: r[o], lista, indexable: deVerdad(lista).length > 0 });
 	}
-	add({ pagina: 'vip', url: r.vip, lista: props.filter((p) => p.vip), indexable: props.some((p) => p.vip) });
+	add({ pagina: 'vip', url: r.vip, lista: props.filter((p) => p.vip), indexable: props.some((p) => p.vip && !p._prueba) });
 	const porTipo = {};
 	for (const o of ['venta', 'renta']) {
 		for (const tipo of Object.keys(TIPOS_LANDING)) {

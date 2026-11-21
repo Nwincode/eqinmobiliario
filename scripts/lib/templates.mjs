@@ -812,7 +812,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	const itemListLd = {
 		'@context': 'https://schema.org',
 		'@type': 'ItemList',
-		itemListElement: list.slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(ctx, propertyUrl(p)), name: p.titulo }))
+		// Sin las casas de prueba: no se indexan (noindex), así que tampoco van en la lista que lee Google.
+		itemListElement: list.filter((p) => !p._prueba).slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(ctx, propertyUrl(p)), name: p.titulo }))
 	};
 
 	// Introducción y precios: debajo del buscador, que sube sobre la portada (sin taparlos).

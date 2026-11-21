@@ -60,6 +60,13 @@ test('precio oculto (VIP o no) y textos con el precio; amenidades en inglés cor
 	assert.deepEqual(amenidadesEnDe({ amenidades: ['Jardín', 'Lobby de recepción'], en: { amenidades: ['Infinity pool', 'Lush garden', 'Front desk lobby'], amenidadesDe: ['Piscina', 'Jardín', 'Lobby de recepción'] } }), ['Lush garden', 'Front desk lobby']);
 });
 
+test('las casas de prueba no hacen indexable una zona ni un tipo (2 de verdad + 1 de prueba no son 3)', () => {
+	const props = [p({ zona: 'Zona 10' }), p({ zona: 'Zona 10' }), p({ zona: 'Zona 10', _prueba: true }), p({ zona: 'Zona 14' })];
+	const plan = planListados(props);
+	assert.equal(buscar(plan, 'zona', { zona: 'Zona 10' }).indexable, false);
+	assert.equal(planListados([...props, p({ zona: 'Zona 10' })].filter(Boolean)).find((e) => e.pagina === 'zona' && e.zona === 'Zona 10').indexable, true);
+	assert.equal(planListados([p({ _prueba: true })]).find((e) => e.pagina === 'todas').indexable, false);
+});
 test('zona escrita distinto («zona 10», «Zona 10 »): una sola página con todas sus casas', () => {
 	const props = unificarZonas([p({ zona: 'Zona 10' }), p({ zona: 'Zona 10' }), p({ zona: 'zona 10' }), p({ zona: 'Zona 10 ' }), p({ zona: 'Zona  10' }), p({ zona: 'Zona 16' })]);
 	assert.deepEqual([...new Set(props.map((x) => x.zona))], ['Zona 10', 'Zona 16']);
