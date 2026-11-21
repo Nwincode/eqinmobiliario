@@ -8,6 +8,7 @@
 //   'oculta'  → no aparece en ningún lado; su enlace muestra «Ya no está disponible»
 //               (sin fotos ni datos) con propiedades parecidas, y Google no la indexa.
 // «Visible en la página» (campo publicado) apagado oculta todo, como un borrador.
+import { TIPO_CAMBIO } from './formato.js';
 export const ESTADOS_PROPIEDAD = [
 	{ valor: 'disponible', label: 'Disponible', es: 'Disponible', en: 'Available', visibilidad: 'visible',
 		ayuda: 'Se muestra en todo el sitio.' },
@@ -105,36 +106,38 @@ export const esDePrueba = (p) => Boolean(p && (p._prueba || p.demo === true || (
 export const precioOculto = (p) => Boolean(p && p.operacion !== 'vacacional' && p.vipLanding && p.vipLanding.ocultarPrecio);
 export const precioVisible = (p) => (precioOculto(p) ? 0 : Number(p?.precio) || 0);
 // El precio escrito en un texto, en cualquier forma: con cifras (987,654 · 987.654 · 987654, con o sin moneda y
-// centavos), en miles («987k», «988 mil») o en millones («Q 1.2 millones», «1,2 MM», «US$ 1.25M»). null sin precio.
-function patronPrecio(precio) {
+// centavos), en miles («987k», «988 mil») o en millones («Q 1.2 millones», «1,2 MM», «US$ 1.25M»), también pasado a la
+// otra moneda (US$ 987,654 ≈ «Q 7.6 millones», con TIPO_CAMBIO de admin/js/formato.js). Solo el precio de ESTA casa:
+// otro monto («cuotas de Q 1.5 millones», «enganche de US$ 50 mil») no cuenta. null sin precio.
+function patronPrecio(precio, moneda = 'USD') {
 	const n = Math.round(Number(precio));
 	if (!n) return null;
 	const esc = (f) => f.replace(/[.]/g, '\\.');
+	const otra = moneda === 'GTQ' ? n / TIPO_CAMBIO : n * TIPO_CAMBIO;
 	const cifras = [...new Set([n.toLocaleString('en-US'), n.toLocaleString('de-DE'), String(n)])];
-	const miles = [...new Set([Math.floor(n / 1000), Math.round(n / 1000), Number((n / 1000).toFixed(1))].filter((x) => x > 0).map(String))];
-	const millones = n >= 1e6 ? [...new Set([1, 2].map((d) => String(Number((n / 1e6).toFixed(d)))).concat(Number.isInteger(n / 1e6) ? [String(n / 1e6)] : []))] : [];
+	const enMiles = (x) => [Math.floor(x / 1000), Math.round(x / 1000), Number((x / 1000).toFixed(1))].filter((y) => y > 0).map(String);
+	const enMillones = (x) => (x >= 1e6 ? [1, 2].map((d) => String(Number((x / 1e6).toFixed(d)))).concat(Number.isInteger(x / 1e6) ? [String(x / 1e6)] : []) : []);
+	const miles = [...new Set([...enMiles(n), ...enMiles(otra)])];
+	const millones = [...new Set([...enMillones(n), ...enMillones(otra)])];
 	const conComa = (x) => [x, x.replace('.', ',')];
 	const formas = [
 		...cifras.map((f) => `${esc(f)}(?:[.,]\\d{2})?`),
 		...miles.flatMap(conComa).map((f) => `${esc(f)}\\s?(?:k\\b|mil\\b)`),
 		...millones.flatMap(conComa).map((f) => `${esc(f)}\\s?(?:millones\\b|mill[oó]n\\b|mm\\b|m\\b)`)
 	].sort((a, b) => b.length - a.length);
-	// Y cualquier monto en millones o miles con moneda («Q 1.2 millones», «US$ 900 mil»), o en millones sin ella: con el
-	// precio oculto, una cifra así se lee como el precio (aunque esté en otra moneda o redondeada).
-	const enPalabras = '(?:(?:US\\$|USD|GTQ|Q\\.?|\\$)\\s?\\d+(?:[.,]\\d+)?\\s?(?:millones\\b|mill[oó]n\\b|mm\\b|m\\b|mil\\b|k\\b)|\\d+(?:[.,]\\d+)?\\s?(?:millones|mill[oó]n)\\b(?!\\s+de\\s+(?:visitas|personas|habitantes|años)))';
-	return new RegExp(`(^|[^\\d.,])(?:${enPalabras}|(?:(?:US\\$|USD|GTQ|Q\\.?|\\$)\\s?)?(?:${formas.join('|')})(?!\\d)(?![.,]\\d))`, 'gi');
+	return new RegExp(`(^|[^\\d.,])(?:(?:US\\$|USD|GTQ|Q\\.?|\\$)\\s?)?(?:${formas.join('|')})(?!\\d)(?![.,]\\d)`, 'gi');
 }
 // ¿El texto dice el precio? Con «Ocultar precio» no se guarda un título, descripción o texto VIP (ni en inglés) que lo
 // diga: lo revisan la ficha (views/properties.js), «Mi casa» del dueño (mi-casa.js) y el importador.
-export const mencionaPrecio = (texto, precio) => { const re = patronPrecio(precio); return Boolean(re && texto && re.test(String(texto))); };
+export const mencionaPrecio = (texto, precio, moneda) => { const re = patronPrecio(precio, moneda); return Boolean(re && texto && re.test(String(texto))); };
 // El mismo texto con ese monto cambiado por `consultar` («precio a consultar»): la red de seguridad del build.
-export function sinPrecioOculto(texto, precio, consultar) {
-	const re = patronPrecio(precio);
+export function sinPrecioOculto(texto, precio, consultar, moneda) {
+	const re = patronPrecio(precio, moneda);
 	if (!re || !texto) return texto;
 	return String(texto).replace(re, (m, antes) => `${antes}${consultar}`);
 }
 // Un texto de una casa con el precio oculto, listo para salir (difusión, PDF del listado): sin el monto.
-export const textoSinPrecio = (p, texto, lang = 'es') => (precioOculto(p) ? sinPrecioOculto(texto, p.precio, lang === 'en' ? 'price on request' : 'precio a consultar') : texto);
+export const textoSinPrecio = (p, texto, lang = 'es') => (precioOculto(p) ? sinPrecioOculto(texto, p.precio, lang === 'en' ? 'price on request' : 'precio a consultar', p.moneda) : texto);
 // Los textos de una casa que no pueden decir el precio oculto: [etiqueta, texto]. Vacío si el precio no va oculto.
 export function textosConPrecioOculto(p) {
 	if (!precioOculto(p) || !Number(p.precio)) return [];
@@ -143,7 +146,7 @@ export function textosConPrecioOculto(p) {
 		['Puntos clave VIP', (v.puntosClave || []).join(' · ')], ['Título en inglés', e.titulo], ['Descripción en inglés', e.descripcion],
 		['Titular VIP en inglés', ev.titular], ['Subtítulo VIP en inglés', ev.subtitular], ['Puntos clave VIP en inglés', (ev.puntosClave || []).join(' · ')],
 		['URL', p.slug], ['Título para Google', p.seo?.titulo], ['Descripción para Google', p.seo?.descripcion]]
-		.filter(([, t]) => mencionaPrecio(String(t || '').replace(/-/g, ' '), p.precio) || mencionaPrecio(t, p.precio));
+		.filter(([, t]) => mencionaPrecio(String(t || '').replace(/-/g, ' '), p.precio, p.moneda) || mencionaPrecio(t, p.precio, p.moneda));
 }
 // Amenidades en inglés: un solo diccionario para el sitio (ficha en inglés), el traductor sin IA (reglas.js) y lo que se
 // guarda al traducir. La que no está en ninguno queda como se escribió: nunca se pierde una (el inglés también la muestra).

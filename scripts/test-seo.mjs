@@ -41,8 +41,12 @@ test('precio oculto (VIP o no) y textos con el precio; amenidades en inglés cor
 	assert.equal(sinPrecioOculto('Casa de US$ 987,654.00 en zona 16', 987654, 'precio a consultar'), 'Casa de precio a consultar en zona 16');
 	assert.equal(sinPrecioOculto('Lote 9876543', 987654, 'x'), 'Lote 9876543');
 	// En cualquier forma: cifras, miles, millones, con o sin moneda; un número cualquiera o unos m² no cuentan.
-	for (const t of ['US$ 987,654.00', '$987654', '987.654 USD', 'USD987654', '987k', '988 mil', 'Q 1.2 millones', 'casa de 987654']) assert.equal(mencionaPrecio(t, 987654), true, t);
-	for (const t of ['Lote 9876543', '350 m²', 'Q 1,500 de mantenimiento', '4 habitaciones']) assert.equal(mencionaPrecio(t, 987654), false, t);
+	// También pasado a la otra moneda (US$ 987,654 × 7.7 ≈ Q 7.6 millones; Q 7,700,000 ≈ US$ 1 millón).
+	for (const t of ['US$ 987,654.00', '$987654', '987.654 USD', 'USD987654', '987k', '988 mil', 'Q 7.6 millones', 'casa de 987654']) assert.equal(mencionaPrecio(t, 987654), true, t);
+	assert.equal(mencionaPrecio('Unos US$ 1 millón', 7700000, 'GTQ'), true);
+	// Solo el precio de esta casa: otros montos (cuotas, enganche, mantenimiento) sí se pueden escribir.
+	for (const t of ['Lote 9876543', '350 m²', 'Q 1,500 de mantenimiento', '4 habitaciones', 'Enganche de Q 1.2 millones y el resto en cuotas', 'Cuotas de US$ 50 mil al año', 'Más de 2 millones de visitas'])
+		assert.equal(mencionaPrecio(t, 987654), false, t);
 	// La ficha y el importador no dejan guardar: dicen dónde está (también la URL).
 	const casa = { precio: 987654, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de US$ 987,654', slug: 'casa-de-987654', descripcion: 'Linda casa', en: { descripcion: 'only 987k' } };
 	assert.deepEqual(textosConPrecioOculto(casa).map(([k]) => k), ['Título', 'Descripción en inglés', 'URL']);

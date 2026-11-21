@@ -592,17 +592,17 @@ async function main() {
 		const donde = textosConPrecioOculto(p);
 		if (donde.length) conPrecioOculto.push(`${p.id} (${donde.map(([k]) => k).join(', ')})`);
 		const n = Math.round(Number(p.precio));
-		const conPrecio = (t) => mencionaPrecio(t, n);
+		const conPrecio = (t) => mencionaPrecio(t, n, p.moneda);
 		const limpiarSeo = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
-		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar)])),
-			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar)) } : v);
+		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar, p.moneda)])),
+			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar, p.moneda)) } : v);
 		p.seo = limpiarSeo(p.seo);
-		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar');
-		p.titulo = sinPrecioOculto(p.titulo, n, 'precio a consultar');
+		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar', p.moneda);
+		p.titulo = sinPrecioOculto(p.titulo, n, 'precio a consultar', p.moneda);
 		// La URL nunca lleva el precio: se le quita (la dirección con el precio no se redirige, para no publicarla).
-		if (conPrecio(String(p.slug || '').replace(/-/g, ' '))) p.slug = slugify(sinPrecioOculto(String(p.slug).replace(/-/g, ' '), n, '')) || p.id;
+		if (conPrecio(String(p.slug || '').replace(/-/g, ' '))) p.slug = slugify(sinPrecioOculto(String(p.slug).replace(/-/g, ' '), n, '', p.moneda)) || p.id;
 		p.vipLanding = limpiarVip(p.vipLanding, 'precio a consultar');
-		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), titulo: sinPrecioOculto(p.en.titulo, n, 'price on request'), slug: p.en.slug && conPrecio(String(p.en.slug).replace(/-/g, ' ')) ? '' : p.en.slug, descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request'), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
+		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), titulo: sinPrecioOculto(p.en.titulo, n, 'price on request', p.moneda), slug: p.en.slug && conPrecio(String(p.en.slug).replace(/-/g, ' ')) ? '' : p.en.slug, descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request', p.moneda), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
 	}
 	if (conPrecioOculto.length) console.warn(`  ⚠ Precio oculto escrito en sus textos (se quitó al publicar; corrígelo en la ficha): ${conPrecioOculto.join('; ')}`);
 	for (const p of juntas) if (p.operacion === 'vacacional') {
