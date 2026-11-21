@@ -34,4 +34,18 @@ await t('fuera de las 7 no se leen los pagos reabiertos ni las confirmadas sin p
 	assert.ok(!S.salida.some((c) => /pago reabierto/.test(c.asunto)));
 });
 
+await t('con 3,500 reservas de otras casas: el recordatorio de comisiones de hoy y «No se dio» con fechas ocupadas igual salen (consultan por su campo)', async () => {
+	S.reloj = Date.parse('2026-11-25T07:10:00-06:00');
+	for (let i = 0; i < 3500; i++) poner(`reservas/a${String(i).padStart(5, '0')}`, { estado: 'confirmada', propertyId: `otra${i % 40}`, llegada: '2025-01-01', salida: '2025-01-03', comision: { monto: 10, vence: '2025-01-01', pagada: true } });
+	poner('propietarios/s1', { nombre: 'Socia', email: 'socia@ejemplo.test' });
+	poner('reservas/zz-hoy', { estado: 'confirmada', propertyId: 'c1', propietarioId: 's1', codigo: 'EQ-HOY', propertyTitulo: 'Casa', moneda: 'USD', llegada: '2026-11-25', salida: '2026-11-27', comision: { monto: 50, vence: '2026-11-25', pagada: false } });
+	// «No se dio» y después esas fechas se anotaron a mano en la misma casa.
+	poner('leads/l-no', { propertyId: 'c9', propietarioId: 's1', nombre: 'Nora', reserva: { codigo: 'EQ-NO', llegada: '2026-12-10', salida: '2026-12-12' }, solicitud: { estado: 'no', motivo: 'Fechas ocupadas' }, updatedAt: new Date(S.reloj - 3600000), createdAt: new Date(S.reloj - 86400000) });
+	poner('properties/c9', { titulo: 'Casa 9', operacion: 'vacacional', vacacional: {} });
+	poner('reservas/zz-mano', { estado: 'confirmada', propertyId: 'c9', llegada: '2026-12-10', salida: '2026-12-12' });
+	await control();
+	assert.ok(S.salida.some((c) => c.asunto === 'Comisiones de hoy: 1' && c.para.includes('socia@ejemplo.test')), S.salida.map((c) => c.asunto).join(' | '));
+	assert.ok(S.salida.some((c) => /cerrada\(s\) con fechas ocupadas/.test(c.asunto)), S.salida.map((c) => c.asunto).join(' | '));
+});
+
 console.log(`${ok} pruebas del control de cada hora pasan.`);

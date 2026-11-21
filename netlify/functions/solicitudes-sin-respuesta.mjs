@@ -13,7 +13,7 @@
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
 import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
-import { datosConfigurados, consultar, desde, leerPrivado, listar } from '../lib/firestore.mjs';
+import { datosConfigurados, consultar, desde, donde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
@@ -70,7 +70,7 @@ export default async () => {
 		const sinPago = !sonLas7 ? [] : await (async () => {
 			// Todas las de plazos (lo de antes no) sin la comisión pagada, sin límite de días: una que el socio nunca marca
 			// sigue saliendo hasta que se resuelva (y desde los 3 días de la llegada ya cuenta para la mora: V.cobrable).
-			const candidatas = (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && r.llegada < hoy && !r.comision?.pagada && !r.comision?.cobrar
+			const candidatas = (await donde('reservas', 'comision.pagada', false)).filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && r.llegada < hoy && !r.comision?.pagada && !r.comision?.cobrar
 				&& conPlazo(r.createdAt instanceof Date ? r.createdAt.getTime() : Date.parse(r.createdAt || '') || 0));
 			// Su chat, uno por uno (son pocas): solo cuenta si la solicitud sigue confirmada.
 			const chats = await Promise.all(candidatas.map((r) => leerPrivado(`chats/${r.chat}`).catch(() => null)));
@@ -146,7 +146,8 @@ async function noSeDioYBloqueada(ahora) {
 	const nos = (await desde('leads', 'updatedAt', new Date(ahora - 60 * 24 * HORA)))
 		.filter((l) => cerradaSinReserva(l.solicitud) && l.propertyId && l.reserva?.llegada && l.reserva.salida > hoy);
 	if (!nos.length) return [];
-	const reservas = await listar('reservas');
+	// Las reservas de cada casa que hace falta (por su campo), no la colección entera: con miles, `listar` llegaba a su tope.
+	const reservasDe = new Map();
 	const casas = new Map();
 	const avisar = [];
 	for (const l of nos) {
@@ -155,7 +156,8 @@ async function noSeDioYBloqueada(ahora) {
 		const bloqueada = (casas.get(l.propertyId)?.vacacional?.bloqueos || []).some(choca);
 		// Solo una reserva anotada a mano (sin solicitud de la web): otra solicitud de la web confirmada en esas fechas es el
 		// camino normal (dos clientes pidieron lo mismo y se le dio a uno).
-		const otra = reservas.some((r) => r.propertyId === l.propertyId && r.estado !== 'cancelada' && !r.leadId && choca({ desde: r.llegada, hasta: r.salida }));
+		if (!reservasDe.has(l.propertyId)) reservasDe.set(l.propertyId, await donde('reservas', 'propertyId', l.propertyId));
+		const otra = reservasDe.get(l.propertyId).some((r) => r.estado !== 'cancelada' && !r.leadId && choca({ desde: r.llegada, hasta: r.salida }));
 		if (!bloqueada && !otra) continue;
 		const ruta = `alertas/bloqueo-${l.id}`;
 		const nueva = await transaccion(async ({ leer, crear }) => {
@@ -171,7 +173,8 @@ async function noSeDioYBloqueada(ahora) {
 // Comisiones que se pagan hoy: un correo a cada socio con las suyas, para que pague y suba su comprobante sin que el equipo lo persiga.
 async function recordarComisiones(ahora) {
 	const hoy = V.hoy(ahora);
-	const deHoy = (await listar('reservas')).filter((r) => r.estado === 'confirmada' && r.comision?.monto > 0 && !r.comision.pagada && r.comision.vence === hoy && r.propietarioId);
+	// Solo las que vencen hoy (por su campo): no se lee la colección entera.
+	const deHoy = (await donde('reservas', 'comision.vence', hoy)).filter((r) => r.estado === 'confirmada' && r.comision?.monto > 0 && !r.comision.pagada && r.propietarioId);
 	for (const id of new Set(deHoy.map((r) => r.propietarioId))) {
 		const socio = await leerPrivado(`propietarios/${id}`).catch(() => null);
 		if (!socio?.email) continue;

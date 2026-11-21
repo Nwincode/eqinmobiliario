@@ -125,7 +125,8 @@ export async function desde(coleccion, campo, fecha) {
 	return (await res.json()).filter((r) => r.document).map((r) => documento(r.document));
 }
 
-// Documentos de una colección interna con `campo` == `valor` (hasta 1,000).
+// Documentos de una colección interna con `campo` == `valor` (un texto o un sí/no; hasta 1,000). `campo` puede ir anidado
+// ('comision.vence'): usa el índice que Firestore crea solo para cada campo.
 export async function donde(coleccion, campo, valor) {
 	const token = await googleToken(SCOPE_DATOS);
 	const res = await fetch(`${BASE}:runQuery`, {
@@ -133,7 +134,7 @@ export async function donde(coleccion, campo, valor) {
 		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({ structuredQuery: {
 			from: [{ collectionId: coleccion }],
-			where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: { stringValue: String(valor) } } },
+			where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: typeof valor === 'boolean' ? { booleanValue: valor } : { stringValue: String(valor) } } },
 			limit: 1000
 		} })
 	});

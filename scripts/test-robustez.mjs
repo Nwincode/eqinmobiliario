@@ -61,6 +61,14 @@ await t('el control de cada hora consulta los chats abiertos (no lista todos los
 	assert.deepEqual(JSON.parse(leer('firestore.indexes.json')).indexes, [], 'no necesita índice compuesto');
 });
 
+await t('«No se dio» con fechas ocupadas, el recordatorio de comisiones y las confirmadas sin pago: consultan lo que necesitan (no listan todas las reservas, con tope de 3,000)', () => {
+	const f = leer('netlify/functions/solicitudes-sin-respuesta.mjs');
+	assert.doesNotMatch(f, /listar\('reservas'\)/);
+	assert.match(f, /donde\('reservas', 'propertyId', l\.propertyId\)/);
+	assert.match(f, /donde\('reservas', 'comision\.vence', hoy\)/);
+	assert.match(f, /donde\('reservas', 'comision\.pagada', false\)/);
+});
+
 await t('«Importar datos iniciales»: solo sin propiedades, revisado al tocar, y solo crea lo que falta', () => {
 	const f = leer('admin/js/views/publish.js');
 	const importar = f.slice(f.indexOf('async function importSeed'), f.indexOf('export async function render'));
