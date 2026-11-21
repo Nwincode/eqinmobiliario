@@ -191,4 +191,19 @@ await t('/api/gsc: solo la propiedad de Search Console de este sitio; otra que m
 	for (const p of ['sc-domain:otro-sitio.com', 'https://otro-sitio.com/', 'https://eqinmobiliario.gt.otro.com/', '', 'x']) assert.equal(propiedadValida(p), 'sc-domain:eqinmobiliario.gt', p);
 });
 
+await t('datos de pago cambiados: un correo al equipo por cambio (quién, antes y después), una sola vez; solo el administrador lo pide', async () => {
+	const { default: avisoPago } = await import('../netlify/functions/aviso-pago.mjs');
+	poner('propietarios/p1', { nombre: 'Rodrigo', datosPago: 'Banco B 222' });
+	poner('cambiosDatosPago/c1', { propietarioId: 'p1', antes: 'Banco A 111', despues: 'Banco B 222', quien: 'u-admin', nombre: 'Admin', cuando: new Date(S.reloj), avisado: false });
+	S.staff = { uid: 'u-asesor', admin: false, nombre: 'Asesor' };
+	assert.equal((await avisoPago(pedido('POST'))).status, 403);
+	S.staff = { uid: 'u-admin', admin: true, nombre: 'Admin' };
+	assert.equal((await (await avisoPago(pedido('POST'))).json()).enviados, 1);
+	const correo = S.salida.find((c) => /Datos de pago cambiados: Rodrigo/.test(c.asunto));
+	assert.ok(correo);
+	assert.match(correo.texto, /Antes: Banco A 111[\s\S]*Ahora: Banco B 222/);
+	assert.equal(leer('cambiosDatosPago/c1').avisado, true);
+	assert.equal((await (await avisoPago(pedido('POST'))).json()).enviados, 0, 'no se repite');
+});
+
 console.log(`\n${ok} pruebas de las funciones pasan.`);

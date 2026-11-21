@@ -14,6 +14,7 @@
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
 import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
 import { datosConfigurados, consultar, desde, donde, leerPrivado, listar } from '../lib/firestore.mjs';
+import { avisarCambiosDePago } from '../lib/avisos-pago.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { sinResponder } from '../lib/avisos-chat.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
@@ -35,6 +36,8 @@ export default async () => {
 		// Guatemala va 6 horas detrás de UTC, sin horario de verano. A las 7 se recogen también las de la noche.
 		const sonLas7 = (new Date(ahora).getUTCHours() + 18) % 24 === 7;
 		const ventana = sonLas7 ? 10 * HORA : HORA;
+		// Cambios de datos de pago de un socio cuyo correo al equipo no salió al guardar.
+		await avisarCambiosDePago().catch((err) => console.error('Datos de pago:', err.message));
 		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
 		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;

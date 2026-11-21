@@ -659,6 +659,26 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	// Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche.
 	await espera('un asesor se devuelve los permisos del socio en la ficha del dueño', parche('asesor7', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: true } } } } }), false);
 	await espera('un asesor lee los permisos de un socio', leer('asesor7', 'permisosSocios/m1'), false);
+	// Datos de pago del socio (los recibe el cliente al confirmar): solo el administrador, con su renglón de cambio.
+	{
+		const R = 'projects/demo-eq/databases/(default)/documents';
+		const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const ficha = (pago, log) => ({ update: { name: `${R}/propietarios/m1`, fields: { datosPago: sv(pago), ...(log ? { datosPagoCambio: sv(log) } : {}) } }, updateMask: { fieldPaths: ['datosPago', ...(log ? ['datosPagoCambio'] : [])] } });
+		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/cambiosDatosPago/${id}`, fields: { propietarioId: sv('m1'), antes: sv('Banco 1'), despues: sv('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
+			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+		await espera('el asesor de la dueña le cambia sus datos de pago', parche('asesor7', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+		await espera('el asesor cambia los datos de pago con su renglón', lote('asesor7', [ficha('Banco 2', 'pg1'), renglon('pg1', 'asesor7')]), false);
+		await espera('el administrador cambia los datos de pago sin su renglón', parche('admin1', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco 2') }), false);
+		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: sv('Banco 0') })]), false);
+		await espera('el administrador anota otro «después» del que guarda', lote('admin1', [ficha('Banco 2', 'pg3'), renglon('pg3', 'admin1', { despues: sv('Banco 3') })]), false);
+		await espera('el administrador firma el renglón como otra persona', lote('admin1', [ficha('Banco 2', 'pg4'), renglon('pg4', 'asesor7')]), false);
+		await espera('el administrador cambia los datos de pago con su renglón (control)', lote('admin1', [ficha('Banco 2', 'pg5'), renglon('pg5', 'admin1')]), true);
+		await espera('nadie cambia un renglón de datos de pago', parche('admin1', 'cambiosDatosPago/pg5', ['despues'], { despues: sv('Banco 9') }), false);
+		await espera('el asesor lee los cambios de datos de pago', leer('asesor7', 'cambiosDatosPago/pg5'), false);
+		await espera('el administrador lee los cambios de datos de pago (control)', leer('admin1', 'cambiosDatosPago/pg5'), true);
+		await espera('el asesor guarda otra cosa de la ficha (control)', parche('asesor7', 'propietarios/m1', ['notas'], { notas: sv('Nota nueva') }), true);
+		await espera('el asesor pone otros datos de pago en el resumen de la dueña', parche('asesor7', `portalPropietarios/${TM}`, ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+	}
 	await espera('el administrador devuelve los permisos en la ficha del dueño (control)', parche('admin1', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } } }), true);
 	await espera('un asesor crea una casa por noche a su nombre', crear('asesor7', 'properties/noche-del-asesor', { titulo: 'x', operacion: 'vacacional', agentId: 'a7', publicado: false }), false);
 	await espera('un asesor pasa su casa en venta a por noche', parche('asesor7', 'properties/prueba-casa-en-venta', ['operacion'], { operacion: sv('vacacional') }), false);
@@ -674,10 +694,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{
-		const resumen = (quien, token, propietarioId, agentId) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/portalPropietarios/${token}`,
-			fields: { email: sv('x@example.com'), agentId: sv(agentId), propietarioId: sv(propietarioId), propiedades: { arrayValue: { values: [] } } } }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
+		const resumen = (quien, token, propietarioId, agentId, pago = 'Banco 2') => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/portalPropietarios/${token}`,
+			fields: { email: sv('x@example.com'), agentId: sv(agentId), propietarioId: sv(propietarioId), datosPago: sv(pago), propiedades: { arrayValue: { values: [] } } } }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
 		await espera('un asesor arma el resumen de una persona de otro asesor', resumen('asesor7', 'ResumenAjenoDeOtroAsesorLargoYAlAzar12', 'o2', 'a7'), false);
-		await espera('un asesor arma el resumen de una persona suya (control)', resumen('asesor7', 'ResumenPropioDelAsesorLargoYAlAzar1234', 'm1', 'a7'), true);
+		await espera('un asesor arma el resumen de una persona suya con otros datos de pago que los de su ficha', resumen('asesor7', 'ResumenPagoAjenoDelAsesorLargoYAlAzar12', 'm1', 'a7', 'Banco del asesor 999'), false);
+		await espera('un asesor arma el resumen de una persona suya, con los datos de pago de su ficha (control)', resumen('asesor7', 'ResumenPropioDelAsesorLargoYAlAzar1234', 'm1', 'a7'), true);
 	}
 	// Casa por noche sin privado/socio todavía: el dueño lo crea con sus precios, junto con el público y con el margen.
 	{

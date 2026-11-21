@@ -299,13 +299,42 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if propio();
     }
+    // Datos de pago del socio (los recibe el cliente en el chat al confirmar): solo el administrador los cambia, y cada
+    // cambio deja su renglón en cambiosDatosPago/{id} en el mismo lote (quién, cuándo, antes y después), que la ficha
+    // nombra en datosPagoCambio. El servidor manda el correo al equipo (netlify/lib/avisos-pago.mjs) y lo marca avisado.
+    function pagoAnotado(id, antes) {
+      let log = request.resource.data.get('datosPagoCambio', '');
+      return log is string && log.size() > 0 && log != antes.get('datosPagoCambio', '')
+        && !exists(/databases/$(database)/documents/cambiosDatosPago/$(log))
+        && getAfter(/databases/$(database)/documents/cambiosDatosPago/$(log)).data.get('propietarioId', '') == id;
+    }
     match /propietarios/{id} {
       // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
       allow read: if propio();
-      // Los permisos del socio (permisos) los cambia solo el administrador.
-      allow create: if nuevoPropio() && (isAdmin() || !request.resource.data.keys().hasAny(['permisos']));
-      allow update: if propio() && conservaAsesor() && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos']));
+      // Los permisos del socio (permisos) y sus datos de pago los cambia solo el administrador.
+      allow create: if nuevoPropio()
+        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
+        && (request.resource.data.get('datosPago', '') == '' || pagoAnotado(id, {}));
+      allow update: if propio() && conservaAsesor()
+        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
+        && (request.resource.data.get('datosPago', '') == resource.data.get('datosPago', '') || pagoAnotado(id, resource.data));
       allow delete: if isAdmin();
+    }
+    match /cambiosDatosPago/{cambio} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['propietarioId', 'antes', 'despues', 'quien', 'nombre', 'cuando', 'avisado'])
+        && request.resource.data.quien == request.auth.uid
+        && isShortString(request.resource.data.get('nombre', ''), 120)
+        && request.resource.data.cuando == request.time
+        && request.resource.data.avisado == false
+        && request.resource.data.propietarioId is string
+        && request.resource.data.antes == (exists(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId))
+            ? get(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '') : '')
+        && request.resource.data.despues == getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '')
+        && request.resource.data.antes != request.resource.data.despues
+        && getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPagoCambio', '') == cambio;
+      allow update, delete: if false;
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
     // almacenamiento de la empresa (las pruebas usan ese mismo nombre en el emulador): una foto alojada en otro proyecto
@@ -387,6 +416,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/propietarios/$(propietarioId))
         && get(/databases/$(database)/documents/propietarios/$(propietarioId)).data.get('agentId', '') == myAgentId();
     }
+    // Los datos de pago del resumen que arma un asesor son los de la ficha (los cambia solo el administrador).
+    function pagoDeLaFicha() {
+      return request.resource.data.get('datosPago', '')
+        == get(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '');
+    }
     function resumenPropio() {
       return esSocio() && resource.data.propietarioId == userDoc().data.propietarioId;
     }
@@ -395,10 +429,10 @@ service cloud.firestore {
         || isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
       allow create: if isStaff() && portalValido(token)
-        && (isAdmin() || (request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+        && (isAdmin() || (request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId) && pagoDeLaFicha()));
       allow update: if isStaff() && portalValido(token)
         && (isAdmin() || (resource.data.agentId == myAgentId()
-            && request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+            && request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId) && pagoDeLaFicha()));
       allow delete: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
     }
