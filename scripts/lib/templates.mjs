@@ -1734,7 +1734,7 @@ export function vipLandingPage(ctx, p) {
 		alternates: p._alternates,
 		preloadImage: portada,
 		title: (p.seo && p.seo.titulo) || `${v.titular || p.titulo} | ${t.propiedadExclusiva}`,
-		description: (p.seo && p.seo.descripcion) || v.subtitular || seoDescription(p),
+		description: (p.seo && p.seo.descripcion && p.seo.descripcion.length >= 70 && p.seo.descripcion) || v.subtitular || seoDescription(p),
 		noindex: esDePrueba(p),
 		image: portada,
 		ogType: 'article',
