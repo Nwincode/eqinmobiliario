@@ -356,6 +356,28 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña se cambia el margen de su casa', juntos('mixto1', [suyo({ margen: 0 })]), false);
+		// Su calendario con topes: personas 1 a 50, mínimos de 1 a 30 noches (hasta 10), hasta 15 grupos de días bloqueados.
+		const diaN = (k) => new Date(Date.UTC(2027, 0, 1) + k * 86400000).toISOString().slice(0, 10);
+		const bloqueos = (n) => Array.from({ length: n }, (_, k) => ({ desde: diaN(3 * k), hasta: diaN(3 * k + 2) }));
+		const minimos = (n, noches = 3) => Array.from({ length: n }, (_, k) => ({ desde: diaN(3 * k), hasta: diaN(3 * k + 1), noches }));
+		await espera('dueña pone 51 personas máximo', juntos('mixto1', [casa({ huespedesMax: 51 })]), false);
+		await espera('dueña pone 2.5 personas máximo', juntos('mixto1', [casa({ huespedesMax: 2.5 })]), false);
+		await espera('dueña pone 50 personas máximo (control)', juntos('mixto1', [casa({ huespedesMax: 50 })]), true);
+		await espera('dueña pone un mínimo de 365 noches', juntos('mixto1', [casa({ minimos: minimos(1, 365) })]), false);
+		await espera('dueña pone un mínimo de 0 noches', juntos('mixto1', [casa({ minimos: minimos(1, 0) })]), false);
+		await espera('dueña pone 11 mínimos de noches', juntos('mixto1', [casa({ minimos: minimos(11) })]), false);
+		await espera('dueña pone 10 mínimos de 30 noches (control)', juntos('mixto1', [casa({ minimos: minimos(10, 30) })]), true);
+		await espera('dueña bloquea hasta dentro de 5 años', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-01-01', hasta: `${new Date().getUTCFullYear() + 5}-01-01` }] })]), false);
+		await espera('dueña bloquea con la salida antes de la llegada', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-02-10', hasta: '2027-02-01' }] })]), false);
+		await espera('dueña bloquea con una fecha mal escrita', juntos('mixto1', [casa({ bloqueos: [{ desde: 'mañana', hasta: '2027-02-01' }] })]), false);
+		await espera('dueña bloquea en el año 2099', juntos('mixto1', [casa({ bloqueos: [{ desde: '2099-01-01', hasta: '2099-01-05' }] })]), false);
+		await espera('dueña bloquea 16 grupos de días', juntos('mixto1', [casa({ bloqueos: bloqueos(16) })]), false);
+		await espera('dueña bloquea 15 grupos de días (el caso más grande, control)', juntos('mixto1', [casa({ bloqueos: bloqueos(15) })]), true);
+		// Una casa con más de los que caben (de antes): solo quita.
+		await fetch(`${H}/properties/mx-noche?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { vacacional: mapa({ bloqueos: bloqueos(20) }) } }) });
+		await espera('con 20 grupos de antes, dueña agrega otro', juntos('mixto1', [casa({ bloqueos: [...bloqueos(20), { desde: '2027-12-20', hasta: '2027-12-22' }] })]), false);
+		await espera('con 20 grupos de antes, dueña quita uno (control)', juntos('mixto1', [casa({ bloqueos: bloqueos(20).slice(1) })]), true);
+		await espera('dueña deja sus días bloqueados en 15 (control)', juntos('mixto1', [casa({ bloqueos: bloqueos(15) })]), true);
 		// Permisos del socio (permisosSocios/{propietarioId}): lo apagado no se cambia; lo demás sí.
 		// Cada vez otro día (si el valor no cambia, no cuenta como cambio).
 		let dia = 1;

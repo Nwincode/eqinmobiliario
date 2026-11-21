@@ -953,7 +953,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, max: 10000, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
 		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
 		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, max: 30, step: 1, cols: 2, when: esVacacional, help: 'Lo normal es 1 o 2. Para feriados, mejor un mínimo por fechas en el calendario del dueño.' },
-		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, max: 50, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.camas', label: 'Camas', type: 'number', min: 0, step: 1, cols: 2, when: esVacacional },

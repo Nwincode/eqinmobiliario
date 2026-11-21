@@ -47,6 +47,10 @@ const porFecha = (a, b) => a.desde.localeCompare(b.desde);
 // al guardar). Hasta 10 a la vez: las reglas revisan uno por uno que el público cuadre con el suyo, y más que eso pasa
 // del límite de revisiones de Firestore por guardado (se probó: con 12 ya se rechaza). `cada` (si se repite) se conserva.
 const MAX_TARIFAS = 10;
+// Topes del calendario del dueño (los mismos de firestore.rules calendarioSano): personas 1 a 50 (huespedesMaxDe),
+// mínimos de 1 a 30 noches, hasta 10 a la vez, y hasta 15 grupos de días bloqueados (lo que cabe en las reglas).
+const MAX_MINIMOS = 10;
+const MAX_BLOQUEOS = 15;
 const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) && V.esFecha(t.hasta) && t.hasta >= t.desde && Number(t.precio) > 0 && t.hasta >= hoy())
 	.map((t) => ({ desde: t.desde, hasta: t.hasta, precio: V.r2(Number(t.precio)), ...(t.cada ? { cada: t.cada, serie: t.serie } : {}) }));
 // Temporadas que se repiten: se guardan este año y el siguiente (fechas de verdad, como cualquier otro precio); cada año
@@ -183,8 +187,18 @@ async function casa(container, id) {
 					bloqueos: V.unirRangos(cv.bloqueos || []), minimos: cv.minimos || [], huespedes: huespedesMaxDe(cv.huespedesMax) };
 				const nuevo = cambio(actual);
 				const casa = {};
-				if ('bloqueos' in nuevo) casa['vacacional.bloqueos'] = nuevo.bloqueos;
-				if ('minimos' in nuevo) casa['vacacional.minimos'] = nuevo.minimos;
+				// Lo que ya pasó no se guarda, y cada lista tiene su tope (el mismo de firestore.rules calendarioSano). Con más
+				// (de antes), solo se puede quitar: las reglas lo revisan así (más corta y con lo que ya tenía).
+				const tope = (campo, lista, max, texto) => {
+					const antes = campo === 'bloqueos' ? cv.bloqueos || [] : cv.minimos || [];
+					const tenia = (x) => antes.some((a) => mismoRango(a, x) && (campo === 'bloqueos' || a.noches === x.noches));
+					if (lista.length > max && !(lista.every(tenia) && lista.length < antes.length)) throw new Error(texto);
+					return lista;
+				};
+				if ('bloqueos' in nuevo) casa['vacacional.bloqueos'] = nuevo.bloqueos = tope('bloqueos', nuevo.bloqueos.filter((b) => b.hasta > hoy()), MAX_BLOQUEOS,
+					`Hasta ${MAX_BLOQUEOS} grupos de días bloqueados a la vez: habilita alguno antes de bloquear otro.`);
+				if ('minimos' in nuevo) casa['vacacional.minimos'] = nuevo.minimos = tope('minimos', nuevo.minimos.filter((m) => m.hasta >= hoy()), MAX_MINIMOS,
+					`Hasta ${MAX_MINIMOS} mínimos de noches a la vez: quita uno antes de poner otro.`);
 				if ('huespedes' in nuevo) casa['vacacional.huespedesMax'] = nuevo.huespedes;
 				// Con más de 10 (de antes) solo se puede quitar: se guardan las mismas listas sin las quitadas, tal como
 				// estaban (las reglas lo revisan así: más cortas y con lo que ya tenían).
@@ -475,7 +489,7 @@ async function casa(container, id) {
 			h('div', { class: 'col-6' },
 				h('label', { class: 'form-label', for: 'mc-huespedes' }, 'Personas máximo'),
 				h('input', {
-					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', value: e.huespedes || '', disabled: !puedePrecios,
+					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', max: '50', value: e.huespedes || '', disabled: !puedePrecios,
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
 					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(`personas máximo ${n}`, () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
 				})))), listas),

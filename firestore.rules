@@ -114,6 +114,50 @@ service cloud.firestore {
       return exists(ruta) ? get(ruta).data : {};
     }
 
+    // Lo que el dueño pone en su calendario, con sus topes (los mismos de «Mis propiedades», admin/js/views/mis-casas.js):
+    // personas de 1 a 50 (entero); mínimos de noches de 1 a 30, hasta 10 a la vez; días bloqueados hasta 15 grupos a la vez,
+    // cada uno con fechas AAAA-MM-DD, la salida después de la llegada y a lo más hasta el fin del año dentro de 3.
+    // Con más de los que caben (de antes), solo puede quitar (como los precios: quita). Las reglas no recorren listas.
+    // (Cada revisión cuenta: las reglas paran en 1000 operaciones por pedido y cada dato de la lista cuesta varias. Por eso
+    // solo se comparan textos —«AAAA-MM-DD» se ordena igual que la fecha: una fecha mal escrita queda fuera de los
+    // límites— y los topes son los que caben, medidos en el emulador con su caso más grande en test-reglas.mjs.)
+    function bloqueoSano(r, t) {
+      return r.desde >= '2020-01-01' && r.desde < r.hasta && r.hasta <= t;
+    }
+    function minimoSano(r, t) {
+      return r.desde >= '2020-01-01' && r.desde <= r.hasta && r.hasta <= t && r.noches is int && r.noches >= 1 && r.noches <= 30;
+    }
+    function bloqueosSanos(l, t) {
+      let n = l.size();
+      return n <= 15
+        && (n < 1 || bloqueoSano(l[0], t)) && (n < 2 || bloqueoSano(l[1], t))
+        && (n < 3 || bloqueoSano(l[2], t)) && (n < 4 || bloqueoSano(l[3], t))
+        && (n < 5 || bloqueoSano(l[4], t)) && (n < 6 || bloqueoSano(l[5], t))
+        && (n < 7 || bloqueoSano(l[6], t)) && (n < 8 || bloqueoSano(l[7], t))
+        && (n < 9 || bloqueoSano(l[8], t)) && (n < 10 || bloqueoSano(l[9], t))
+        && (n < 11 || bloqueoSano(l[10], t)) && (n < 12 || bloqueoSano(l[11], t))
+        && (n < 13 || bloqueoSano(l[12], t)) && (n < 14 || bloqueoSano(l[13], t))
+        && (n < 15 || bloqueoSano(l[14], t));
+    }
+    function minimosSanos(l, t) {
+      let n = l.size();
+      return n <= 10
+        && (n < 1 || minimoSano(l[0], t)) && (n < 2 || minimoSano(l[1], t))
+        && (n < 3 || minimoSano(l[2], t)) && (n < 4 || minimoSano(l[3], t))
+        && (n < 5 || minimoSano(l[4], t)) && (n < 6 || minimoSano(l[5], t))
+        && (n < 7 || minimoSano(l[6], t)) && (n < 8 || minimoSano(l[7], t))
+        && (n < 9 || minimoSano(l[8], t)) && (n < 10 || minimoSano(l[9], t));
+    }
+    function listaSana(lista, antes, sana) {
+      return lista is list && (sana || (antes is list && quita(lista, antes)));
+    }
+    function calendarioSano(v, antes, cambia) {
+      let tope = string(request.time.year() + 3) + '-12-31';
+      return (!cambia.hasAny(['huespedesMax']) || (v.huespedesMax is int && v.huespedesMax >= 1 && v.huespedesMax <= 50))
+        && (!cambia.hasAny(['minimos']) || (v.minimos is list && listaSana(v.minimos, antes.get('minimos', []), minimosSanos(v.minimos, tope))))
+        && (!cambia.hasAny(['bloqueos']) || (v.bloqueos is list && listaSana(v.bloqueos, antes.get('bloqueos', []), bloqueosSanos(v.bloqueos, tope))));
+    }
+
     // Marca de que ya hay administrador. El arranque «crear el primer administrador» desde el navegador se cerró: con el
     // alta de Firebase pública, cualquiera habría podido hacerse administrador si este documento faltara. Ya nadie la
     // escribe ni la borra; un administrador nuevo lo crea otro administrador (Usuarios).
@@ -196,6 +240,9 @@ service cloud.firestore {
               || socioPuede('precios'))
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['bloqueos']) || socioPuede('fechas'))
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['precio']) || socioPuede('precios'))
+            // Personas, mínimos y días bloqueados con sus topes (calendarioSano).
+            && calendarioSano(request.resource.data.vacacional, resource.data.vacacional,
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys())
             // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
             // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])

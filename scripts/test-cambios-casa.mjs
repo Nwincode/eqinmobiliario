@@ -78,6 +78,7 @@ t('una propiedad que nace: su estado y su primer precio', () => {
 t('huéspedes máximos: al menos 1 y entero, igual en la ficha y en «Mis propiedades»', () => {
 	assert.equal(huespedesMaxDe(''), 1);
 	assert.equal(huespedesMaxDe(0), 1);
+	assert.equal(huespedesMaxDe(80), 50, 'tope de 50 (el mismo de las reglas)');
 	assert.equal(huespedesMaxDe('6.7'), 6);
 	assert.equal(huespedesMaxDe(null), 1);
 });

@@ -69,4 +69,6 @@ export function historialCon(antes, despues, quien) {
 }
 
 // Huéspedes máximos de una casa por noche: al menos 1, entero. La misma regla en la ficha y en «Mis propiedades».
-export const huespedesMaxDe = (n) => Math.max(1, Math.floor(Number(n) || 1));
+// Personas máximo: un entero de 1 a 50 (lo mismo que deja firestore.rules al dueño).
+export const HUESPEDES_MAX = 50;
+export const huespedesMaxDe = (n) => Math.min(HUESPEDES_MAX, Math.max(1, Math.floor(Number(n) || 1)));
