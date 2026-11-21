@@ -1,4 +1,5 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
+import { SIN_REGLAS_NUEVAS } from '../reglas-publicadas.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
@@ -200,6 +201,7 @@ async function renderEditor(container, id) {
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
 
 	// Guarda la ficha. Devuelve false si falta algo o falló (ya avisó).
+	let cambiaPagoAhora = false;
 	const persistir = async () => {
 		if (!form.validate()) return false;
 		const d = form.getData();
@@ -227,6 +229,7 @@ async function renderEditor(container, id) {
 			const pagoAntes = typeof ahora.datosPago === 'string' ? ahora.datosPago : '';
 			if (!session.isAdmin || d.datosPago === undefined) d.datosPago = pagoAntes;
 			const cambiaPago = String(d.datosPago || '') !== pagoAntes;
+			cambiaPagoAhora = cambiaPago;
 			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos', 'datosPagoCambio']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
 				else if (k === 'propiedades') d[k] = [];
@@ -255,7 +258,11 @@ async function renderEditor(container, id) {
 			if (conId.portalToken) Object.assign(data, { portalToken: conId.portalToken, portalVersion: conId.portalVersion, portalPrivado: conId.portalPrivado });
 			avisarCambio();
 			return true;
-		} catch (err) { showError(err); return false; }
+		} catch (err) {
+			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes se dice qué falta.
+			if (cambiaPagoAhora && err?.code === 'permission-denied') toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
+			return false;
+		}
 	};
 	const guardar = async (btn) => {
 		btn.disabled = true;

@@ -136,11 +136,17 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
        guarda el servidor con la cuenta de escritura (`/api/solicitud`); sin ella el sitio ofrece WhatsApp.
     3. **Publicar el sitio** (si se agregaron las llaves después: **Deploys → Trigger deploy**). Con las reglas de
        antes, el sitio nuevo ya funciona (el servidor no pasa por las reglas).
-    4. **Publicar las reglas** en seguida (Firestore y Storage, juntas). Desde ahí, una página abierta desde antes del
-       paso 3 que intente reservar directo en la base recibe «no pudimos enviar» con el botón de WhatsApp (al recargar,
-       ya va por el servidor); el número de cotización, los datos de pago y el calendario del socio con topes
-       necesitan las reglas nuevas, por eso van sin esperar: en los minutos entre 3 y 4, guardar una cotización nueva o
-       cambiar unos datos de pago da «sin permiso» (se vuelve a guardar después del paso 4).
+    4. **Publicar las reglas** en seguida (Firestore y Storage, juntas). Lo que pasa en cada ventana (probado en el
+       emulador con las dos versiones de las reglas):
+       - **Entre 3 y 4** (sitio nuevo, reglas de antes): las reservas, el chat, las fotos y todo lo demás funcionan. Solo
+         dos guardados del panel esperan las reglas: una cotización **nueva** (número seguido) y un **cambio de datos de
+         pago** (con su renglón). El panel no los guarda a la manera de antes: dice «falta publicar las reglas nuevas»
+         y se vuelven a guardar después del paso 4. Una casa nueva sí se guarda (la por noche la crea el administrador).
+       - **Después de 4**, una pestaña del sitio abierta desde antes del paso 3 que intente reservar recibe «No pudimos
+         enviar el formulario» con el botón de WhatsApp (al recargar, ya reserva por el servidor). Una pestaña del panel
+         abierta desde antes que guarde una cotización nueva recibe «sin permiso» (al recargar, se guarda).
+       - Al revés (reglas antes que el sitio) se rompen las reservas desde todas las páginas publicadas hasta que el
+         sitio nuevo termine: por eso el orden es sitio y después reglas.
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.
