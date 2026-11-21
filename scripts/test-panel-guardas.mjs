@@ -72,4 +72,16 @@ t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago
 	assert.doesNotMatch(s, /if \(!d\.datosPago && !pagoAntes\) delete d\.datosPago;/);
 });
 
+t('chat del huésped y «Reservar»: un reintento tras un corte de red no duplica (id estable por mensaje y por foto; la solicitud pendiente se manda tal cual)', () => {
+	const chat = readFileSync(new URL('../js/reserva-chat.js', import.meta.url), 'utf8');
+	assert.match(chat, /function guardarMensaje\(campos, id\)/);
+	assert.match(chat, /if \(!\/HTTP 409\/\.test\(err\.message\)\) throw err;/);
+	assert.match(chat, /var ya = pendientes\[clave\] && pendientes\[clave\]\.url;/);
+	assert.match(chat, /return \/HTTP 404\/\.test\(err && err\.message\) \? sinReserva\(\) : sinRed\(\);/);
+	const site = readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
+	assert.match(site, /var pend = form\.eqPendiente && form\.eqPendiente\.firma === firmaForm/);
+	assert.match(site, /var libres = reserva && !pend &&/);
+	assert.doesNotMatch(site, /var motivo = !EN/);
+});
+
 console.log(`\n${ok} guardas del panel en su lugar.`);

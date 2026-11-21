@@ -40,19 +40,22 @@
 		for (var i = 0; i < n; i++) out += letras[bytes[i] % letras.length];
 		return out;
 	}
-	function enlace(token) { return location.origin + '/reserva/#' + token; }
+	// La página «Tu reserva» en el idioma de la reserva (/en/reservation/ en inglés).
+	function enlace(token, en) { return location.origin + (en ? '/en/reservation/#' : '/reserva/#') + token; }
 	// Avisa por correo a quien le toca leer (lo decide el servidor con lo guardado). Si falla, el mensaje ya quedó.
 	function avisar(token) {
 		try { fetch('/api/aviso-chat', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: token }) }).catch(function () {}); } catch (e) { /* sin fetch keepalive */ }
 	}
 
 	// Prueba de «no soy un robot» (Cloudflare Turnstile), solo si el servidor tiene sus llaves (GET /api/solicitud).
-	// `prueba(form)` la prepara en el formulario de reserva (al tocarlo) y devuelve una función que da su respuesta
-	// (promesa: '' si no hace falta o no se pudo). Va invisible; Cloudflare la muestra solo si duda.
+	// `prueba(form)` la prepara en el formulario de reserva (al tocarlo); `respuesta()` da la de este envío (a lo más 15 s)
+	// y, si el script de Cloudflare no cargó o falló, lo vuelve a intentar en cada envío. Sin respuesta va '' y el
+	// servidor la recibe igual, con un límite más estricto: la reserva nunca se queda trabada por la prueba.
 	var llave = null;
 	function llaveTurnstile() {
 		if (!llave) llave = fetch('/api/solicitud', { headers: { Accept: 'application/json' } })
-			.then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return d.turnstile || ''; }, function () { return ''; });
+			.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+			.then(function (d) { return d.turnstile || ''; }, function () { llave = null; return ''; });
 		return llave;
 	}
 	var cargaTurnstile = null;
@@ -62,37 +65,41 @@
 			s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 			s.async = true;
 			s.onload = function () { window.turnstile ? ok(window.turnstile) : mal(new Error('sin turnstile')); };
-			s.onerror = function () { cargaTurnstile = null; mal(new Error('sin turnstile')); };
+			s.onerror = function () { cargaTurnstile = null; s.remove(); mal(new Error('sin turnstile')); };
 			document.head.appendChild(s);
 		});
 		return cargaTurnstile;
 	}
 	function prueba(form) {
-		var widget = null, respuesta = '', esperando = [];
+		var widget = null, respuesta = '', esperando = [], preparando = null;
 		var listo = function (v) { respuesta = v || ''; esperando.splice(0).forEach(function (f) { f(respuesta); }); };
-		var preparar = llaveTurnstile().then(function (k) {
-			if (!k) return '';
-			return cargarTurnstile().then(function (ts) {
-				var caja = document.createElement('div');
-				caja.className = 'eq-turnstile';
-				// Justo antes de la fila del botón de enviar (si Cloudflare la muestra, queda donde se va a tocar).
-				var fila = (form.querySelector('button[type=submit]') || {}).parentNode;
-				if (fila && fila !== form && fila.parentNode) fila.parentNode.insertBefore(caja, fila); else form.appendChild(caja);
-				widget = ts.render(caja, { sitekey: k, appearance: 'interaction-only', size: 'flexible', language: document.documentElement.lang === 'en' ? 'en' : 'es',
-					callback: listo, 'expired-callback': function () { respuesta = ''; }, 'error-callback': function () { listo(''); } });
-				return k;
-			});
-		}).catch(function () { return ''; });
+		function preparar() {
+			if (widget !== null) return Promise.resolve(true);
+			if (!preparando) preparando = llaveTurnstile().then(function (k) {
+				if (!k) return false;
+				return cargarTurnstile().then(function (ts) {
+					var caja = form.querySelector('.eq-turnstile') || document.createElement('div');
+					caja.className = 'eq-turnstile';
+					// Justo antes de la fila del botón de enviar (si Cloudflare la muestra, queda donde se va a tocar).
+					var fila = (form.querySelector('button[type=submit]') || {}).parentNode;
+					if (!caja.parentNode) { if (fila && fila !== form && fila.parentNode) fila.parentNode.insertBefore(caja, fila); else form.appendChild(caja); }
+					widget = ts.render(caja, { sitekey: k, appearance: 'interaction-only', size: 'flexible', language: document.documentElement.lang === 'en' ? 'en' : 'es',
+						callback: listo, 'expired-callback': function () { respuesta = ''; }, 'error-callback': function () { listo(''); } });
+					return true;
+				});
+			}).catch(function () { return false; }).then(function (hay) { preparando = null; return hay; });
+			return preparando;
+		}
+		preparar();
 		return {
-			// La respuesta de la prueba (a lo más 15 s); '' sin llaves.
 			respuesta: function () {
-				return preparar.then(function (k) {
-					if (!k || respuesta) return respuesta;
+				return preparar().then(function (hay) {
+					if (!hay || respuesta) return respuesta;
 					return new Promise(function (f) { esperando.push(f); setTimeout(function () { f(respuesta); }, 15000); });
 				});
 			},
 			// Cada respuesta sirve una vez: después de un envío se pide otra.
-			otra: function () { respuesta = ''; if (widget !== null && window.turnstile) window.turnstile.reset(widget); }
+			otra: function () { respuesta = ''; if (widget !== null && window.turnstile) try { window.turnstile.reset(widget); } catch (e) { widget = null; } }
 		};
 	}
 
@@ -115,7 +122,7 @@
 				return res.json().catch(function () { return {}; }).then(function (d) {
 					if (!res.ok || !d.token) throw Object.assign(new Error(d.error || 'HTTP ' + res.status), { status: res.status, datos: d });
 					// Y de qué casa es: si vuelve a la ficha (botón «atrás»), ve el enlace a su solicitud (js/vacacional.js).
-					try { localStorage.setItem(GUARDADO, d.token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); } catch (e) { /* sin memoria del navegador */ }
+					try { localStorage.setItem(GUARDADO, d.token); localStorage.setItem(GUARDADO + '-casa', lead.propertyId || ''); localStorage.setItem(GUARDADO + '-idioma', lead.idioma || 'es'); } catch (e) { /* sin memoria del navegador */ }
 					return d.token;
 				});
 			});
@@ -127,7 +134,8 @@
 	var caja = document.getElementById('reserva-chat');
 	if (!caja) return;
 	var TEXTOS = JSON.parse(caja.querySelector('.vac-chat-textos').textContent);
-	var t = TEXTOS.es;
+	// Antes de leer la reserva, el idioma de la página (/en/reservation/ o /reserva/).
+	var t = TEXTOS[document.documentElement.lang === 'en' ? 'en' : 'es'] || TEXTOS.es;
 	var token = location.hash.slice(1);
 	if (!token) { try { token = localStorage.getItem(GUARDADO) || ''; } catch (e) { token = ''; } }
 
@@ -139,6 +147,15 @@
 	}
 	function fmt(s, datos) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return datos[k] == null ? '' : datos[k]; }); }
 	function sinReserva() { caja.querySelector('.vac-chat-estado').textContent = t.vacChatSin; }
+	// Sin red (o la base no respondió): no es «no encontramos tu reserva»; se dice y se ofrece reintentar.
+	function sinRed() {
+		var estado = caja.querySelector('.vac-chat-estado');
+		estado.textContent = t.vacChatSinRed + ' ';
+		var otra = el('button', 'btn btn-outline-primary btn-sm', t.vacChatReintentar);
+		otra.type = 'button';
+		otra.addEventListener('click', function () { location.reload(); });
+		estado.appendChild(otra);
+	}
 
 	if (!/^[A-Za-z0-9]{20,40}$/.test(token) || !config.projectId) return sinReserva();
 
@@ -304,23 +321,28 @@
 		// La foto del comprobante va junto con la marca «el cliente adjuntó su comprobante» en el chat (desde ahí el
 		// anfitrión ya no cancela solo).
 		// La marca dice qué mensaje es la foto (comprobanteMensaje): las reglas revisan que nazca en el mismo lote.
-		function guardarMensaje(campos) {
-			var id = alAzar(20);
+		// `id`: el mismo en los reintentos del mismo mensaje (se cortó la red con el mensaje ya guardado): si ya existe (409),
+		// quedó la primera vez y no se escribe otro igual.
+		function guardarMensaje(campos, id) {
 			var msj = nuevo('chats/' + token + '/mensajes/' + id, campos);
-			if (!campos.tipo || campos.tipo.stringValue !== 'foto') return pedir(RAIZ + ':commit', { writes: [msj] });
-			var marca = { update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
-				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] };
-			return pedir(RAIZ + ':commit', { writes: [msj, marca] });
+			var lote = [msj];
+			if (campos.tipo && campos.tipo.stringValue === 'foto') lote.push({ update: { name: RAIZ + '/chats/' + token, fields: { comprobanteMensaje: str(id) } }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true },
+				updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] });
+			return pedir(RAIZ + ':commit', { writes: lote }).catch(function (err) { if (!/HTTP 409/.test(err.message)) throw err; });
 		}
+		// Lo que se está mandando, por texto o por foto: su id (y la foto ya subida), para reintentar sin repetir.
+		var pendientes = {};
 		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
 		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
 		var enviando = false, fila = Promise.resolve();
-		function mandar(campos) {
+		function mandar(campos, clave) {
+			var p = pendientes[clave] = pendientes[clave] || {};
+			p.id = p.id || alAzar(20);
 			var paso = function () {
 				enviando = true;
 				boton.disabled = true; adjuntar.disabled = true;
-				return guardarMensaje(campos)
-					.then(function () { alerta(''); avisar(token); return cargar().catch(function () {}); })
+				return guardarMensaje(campos, p.id)
+					.then(function () { delete pendientes[clave]; alerta(''); avisar(token); return cargar().catch(function () {}); })
 					.catch(function () { alerta(t.vacChatFallo); })
 					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
 			};
@@ -341,7 +363,7 @@
 			if (enviando) return;
 			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
 			campo.value = '';
-			mandar({ de: str('cliente'), texto: str(texto) }).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
+			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + texto).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
 		});
 		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
 		adjuntar.addEventListener('click', function () { archivo.click(); });
@@ -350,21 +372,29 @@
 			archivo.value = '';
 			if (!f) return;
 			adjuntar.disabled = true;
+			// La misma foto otra vez (se cortó la red): si ya se subió, se usa esa (no queda un archivo de más ni otro mensaje).
+			var clave = 'f:' + f.name + ':' + f.size + ':' + f.lastModified;
+			var ya = pendientes[clave] && pendientes[clave].url;
 			// La foto se prepara como las del panel (admin/js/imagen.js: girada, hasta 1920 px, WebP), con la misma pieza: una
 			// foto de 12 MB del teléfono o una de iPhone (HEIC) sube en segundos y cabe en el tope de 5 MB.
-			var procesar = window.EQImagen ? window.EQImagen.procesarImagen(f) : Promise.reject(new Error('sin EQImagen'));
+			var procesar = ya ? Promise.resolve(null) : window.EQImagen ? window.EQImagen.procesarImagen(f) : Promise.reject(new Error('sin EQImagen'));
 			procesar.then(function (p) {
+				if (ya) return { url: ya };
 				if (!/^image\/(jpeg|png|webp)$/.test(p.blob.type) || p.blob.size >= 5 * 1024 * 1024) throw Object.assign(new Error('foto'), { foto: true });
 				var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + (p.blob.type === 'image/webp' ? 'webp' : p.blob.type.split('/')[1]);
 				return fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': p.blob.type }, body: p.blob })
 					.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-					.then(function (r) { r.nombre = nombre; return r; });
+					.then(function (r) { return { url: FOTOS + encodeURIComponent(nombre) + '?alt=media&token=' + r.downloadTokens }; });
 			}, function () { throw Object.assign(new Error('foto'), { foto: true }); })
-				.then(function (r) { return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(FOTOS + encodeURIComponent(r.nombre) + '?alt=media&token=' + r.downloadTokens) }); })
+				.then(function (r) {
+					pendientes[clave] = pendientes[clave] || {};
+					pendientes[clave].url = r.url;
+					return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(r.url) }, clave);
+				})
 				.catch(function (err) { alerta(err && err.foto ? t.vacChatFotoGrande : t.vacChatFallo); adjuntar.disabled = false; });
 		});
 		cargar().catch(function () { pintar([], ''); });
 		// Mensajes nuevos: se revisa cada 10 s mientras la página está a la vista.
 		setInterval(function () { if (!document.hidden) cargar().catch(function () {}); }, 10000);
-	}, sinReserva);
+	}, function (err) { return /HTTP 404/.test(err && err.message) ? sinReserva() : sinRed(); });
 })();

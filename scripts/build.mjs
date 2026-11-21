@@ -817,6 +817,8 @@ async function main() {
 		for (const es of todas.filter((x) => x._alternates)) await writePage(T.propertyUrl(es), fichaHtml(ctx, es));
 		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
 		for (const post of ctx.posts.filter((x) => x._alternates)) await writePage(post.url, T.blogPostPage(ctx, post));
+		// «Tu reserva» en inglés: el cliente que reservó en inglés la abre desde su correo y su chat (fuera del sitemap).
+		if (hayVacacional) await writePage('/en/reservation/', T.reservaPage(ctxEn));
 		console.log(`· Sitio en inglés: ${propsEn.length} propiedades traducidas, ${pagesEn.length} páginas, ${postsEn.length} artículos`);
 	}
 

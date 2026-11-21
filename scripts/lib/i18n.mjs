@@ -28,6 +28,7 @@ const ES = {
 	// Chat de la reserva (/reserva/)
 	vacChatTitulo: 'Tu reserva', vacChatCargando: 'Cargando tu reserva…', vacChatVer: 'Ver mi reserva y chatear', vacCorreo: 'Correo (te avisamos ahí cuando te respondan)',
 	vacChatSin: 'No encontramos esta reserva. Abre el enlace que recibiste al reservar.',
+	vacChatSinRed: 'No pudimos cargar tu reserva: revisa tu conexión.', vacChatReintentar: 'Reintentar',
 	vacChatVacio: 'Escribe tu duda: te responde el anfitrión o nuestro equipo.', vacChatPh: 'Escribe un mensaje…', vacChatEnviar: 'Enviar',
 	vacChatBloqueo: 'Por seguridad, aquí no se comparten teléfonos, correos ni enlaces. Todo se coordina aquí, en tu reserva.',
 	vacChatFallo: 'No se pudo enviar. Inténtalo de nuevo.', vacChatTu: 'Tú', vacChatSocio: 'Anfitrión', vacChatEquipo: 'Equipo Inmobiliario',
@@ -165,6 +166,7 @@ const EN = {
 	vacAntes: 'Before you book', vacMascotasSi: 'Allowed', vacMascotasNo: 'Not allowed', vacComoLlegar: 'Getting there',
 	vacChatTitulo: 'Your booking', vacChatCargando: 'Loading your booking…', vacChatVer: 'See my booking and chat', vacCorreo: 'Email (we notify you there when we reply)',
 	vacChatSin: 'We could not find this booking. Open the link you received when you booked.',
+	vacChatSinRed: 'We could not load your booking: check your connection.', vacChatReintentar: 'Try again',
 	vacChatVacio: 'Ask anything: the host or our team will reply.', vacChatPh: 'Write a message…', vacChatEnviar: 'Send',
 	vacChatBloqueo: 'For your safety, phone numbers, emails and links are not shared here. Everything is arranged here, in your booking.',
 	vacChatFallo: 'Could not send. Please try again.', vacChatTu: 'You', vacChatSocio: 'Host', vacChatEquipo: 'Equipo Inmobiliario',

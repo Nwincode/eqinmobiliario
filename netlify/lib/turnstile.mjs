@@ -9,23 +9,25 @@ let avisado = false;
 export const turnstileConfigurado = () => Boolean(process.env.TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET);
 export const llavePublica = () => (turnstileConfigurado() ? process.env.TURNSTILE_SITE_KEY : '');
 
-// true si la prueba pasó (o si no está configurada); false si no.
+// 'ok' si la prueba pasó (o si no está configurada); 'mala' si Cloudflare la rechazó; 'sin' si no llegó prueba (el
+// navegador no pudo cargarla o hacerla) o Cloudflare no respondió: entonces la solicitud sigue, pero con un límite más
+// estricto por IP y por correo (netlify/functions/solicitud.mjs). Nunca «pasa cualquier respuesta».
 export async function pasaTurnstile(respuesta, ip) {
 	if (!turnstileConfigurado()) {
 		if (!avisado) { avisado = true; console.warn('Turnstile sin configurar (TURNSTILE_SITE_KEY y TURNSTILE_SECRET): las solicitudes solo tienen el límite por IP y por correo.'); }
-		return true;
+		return 'ok';
 	}
-	if (typeof respuesta !== 'string' || !respuesta || respuesta.length > 2048) return false;
+	if (typeof respuesta !== 'string' || !respuesta) return 'sin';
+	if (respuesta.length > 2048) return 'mala';
 	try {
 		const cuerpo = new URLSearchParams({ secret: process.env.TURNSTILE_SECRET, response: respuesta });
 		if (ip && ip !== 'anon') cuerpo.set('remoteip', ip);
 		const res = await fetch(VERIFICAR, { method: 'POST', body: cuerpo, signal: AbortSignal.timeout(5000) });
-		const datos = await res.json().catch(() => ({}));
-		return datos.success === true;
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const datos = await res.json();
+		return datos.success === true ? 'ok' : 'mala';
 	} catch (err) {
-		// Cloudflare no respondió (caído o lento): una reserva de verdad no se pierde por una falla de fuera; sigue
-		// frenando el límite por IP y por correo, y el registro lo dice.
-		console.error('Turnstile sin respuesta, sigue con el límite:', err.message);
-		return true;
+		console.error('Turnstile sin respuesta, sigue con el límite estricto:', err.message);
+		return 'sin';
 	}
 }

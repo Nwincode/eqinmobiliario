@@ -37,7 +37,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	}
 	// Lo que viaja en el asunto y el texto con la forma que pone el sitio: si no, no sale ningún correo (texto libre de alguien).
 	if (!/^[A-Z0-9-]{1,20}$/.test(chat.codigo || '') || ![chat.llegada, chat.salida].every((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || ''))) return [];
-	const reserva = `${sitio}/reserva/#${chat.id}`;
+	// La página «Tu reserva» en el idioma del cliente.
+	const reserva = `${sitio}${chat.idioma === 'en' ? '/en/reservation/' : '/reserva/'}#${chat.id}`;
 	const panel = `${sitio}/admin/#/solicitudes/${chat.codigo}`;
 	// El resumen en el idioma de quien lo lee: el socio y el equipo, en español (título en español); el cliente, en el suyo.
 	const fecha = (iso, lang) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-GT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });

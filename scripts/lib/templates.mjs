@@ -1938,7 +1938,7 @@ export function reservaPage(ctx) {
 		</div>
 	</div>`;
 	// Mismo marco que la ficha (sin portada): la conversación es lo primero que se ve. Sin WhatsApp flotante: aquí se conversa en la página.
-	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
+	return layout(ctx, { path: rt(ctx).reserva, title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
 }
 
 // Además del botón, las zonas, tipos y operaciones que se indexan (`porZona`): quien llega a un enlace viejo sigue buscando.

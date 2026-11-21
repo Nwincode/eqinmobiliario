@@ -226,7 +226,12 @@
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
 			// del navegador conozca (empresa, sitio web, dirección…), o le llenaría el campo a un cliente real y su envío se perdería.
 			if (form.eq_vacio && form.eq_vacio.value) return;
-			var lead = {
+			// La misma solicitud de reserva otra vez, sin cambiar nada (la anterior se cortó: red o servidor): se manda tal
+			// cual, con su id, su token y su código. No se vuelve a revisar (pasada la medianoche no se corta por «la llegada
+			// ya pasó», y sus propias fechas no le salen «ya no están libres»): el servidor reconoce que ya quedó.
+			var firmaForm = JSON.stringify([form.nombre.value, form.telefono.value, form.codigo ? form.codigo.value : '', form.email ? form.email.value : '', location.search]);
+			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && window.EQChat ? form.eqPendiente : null;
+			var lead = pend ? pend.lead : {
 				nombre: form.nombre.value.trim(),
 				// Un solo formato: «+código número», el mismo del panel (formato.js `unirTelefono`): el «+» escrito manda, y
 				// el código que el autollenado pega al número («50255551234», «00502…») no se repite.
@@ -240,13 +245,13 @@
 				propertyTitulo: form.getAttribute('data-property-titulo') || '',
 				agentId: form.getAttribute('data-agent-id') || ''
 			};
-			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
-			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
+			if (!pend && form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
+			if (!pend && form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
 			// Cuadro de reserva (js/vacacional.js): sin fechas válidas no se envía.
-			var reserva = typeof form.eqReserva === 'function' ? form.eqReserva() : null;
+			var reserva = pend ? pend.reserva : typeof form.eqReserva === 'function' ? form.eqReserva() : null;
 			// Sin fechas, el calendario se marca y se lleva la vista; los demás campos igual se revisan y se marcan.
-			var sinFechas = typeof form.eqReserva === 'function' && !reserva;
-			if (reserva) {
+			var sinFechas = !pend && typeof form.eqReserva === 'function' && !reserva;
+			if (reserva && !pend) {
 				lead.reserva = reserva.datos;
 				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
 			}
@@ -267,6 +272,7 @@
 				if (!sinFechas) form.setAttribute('data-correo-visto', lead.email);
 				errores.push([form.email, sugerencia(form, EQFormato.sugerenciaCorreo(lead.email))]);
 			}
+			if (pend) errores = [];
 			if (errores.length) {
 				marcarCampos(form, errores, sinFechas);
 				if (!sinFechas) setStatus(form, T.revisa, false);
@@ -291,14 +297,15 @@
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
 				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
-				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
-				if (chat) location.href = window.EQChat.enlace(chat);
+				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat, EN) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
+				if (chat) location.href = window.EQChat.enlace(chat, EN);
 			};
 			// Lo que el servidor de reservas explica (la llegada ya pasó, la casa ya no recibe, demasiados envíos) se dice tal
-			// cual en español; lo demás, el aviso de siempre. Siempre con WhatsApp a la mano.
+			// cual; lo demás, el aviso de siempre. Siempre con WhatsApp a la mano.
 			var fail = function (err) {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
-				var motivo = !EN && err && [403, 409, 429].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
+				// (El servidor lo dice en el idioma del cliente.)
+				var motivo = err && [403, 409, 429].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
 				setStatus(form, (motivo ? motivo.replace(/[<>&]/g, '') + ' ' : T.fallo) + wa, false);
 			};
 
@@ -318,7 +325,7 @@
 			// Solo si las reglas lo rechazan (403): un corte de red no la manda a otro asesor ni la guarda dos veces.
 			// Reserva: las fechas se revisan otra vez al día justo antes de guardar (otra persona pudo pedirlas con esta
 			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
-			var libres = reserva && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true);
+			var libres = reserva && !pend && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true);
 			libres.then(function (ok) {
 				if (!ok) { button.disabled = false; return; }
 				guardar();
@@ -329,16 +336,12 @@
 			if (reserva) {
 				if (!window.EQChat) { fail(); button.disabled = false; return; }
 				var pruebaForm = pruebaDe(form);
-				// La misma solicitud otra vez (se cortó la red y el cliente vuelve a tocar «Reservar»): con el mismo id y
-				// token, el servidor reconoce que ya quedó y no crea otra.
-				var firma = JSON.stringify([lead.email, lead.propertyId, reserva.datos.llegada, reserva.datos.salida, reserva.datos.huespedes]);
-				if (form.eqIds && form.eqIds.firma === firma) { lead.id = form.eqIds.id; lead.token = form.eqIds.token; }
-				pruebaForm.respuesta().then(function (ts) {
-					var envio = window.EQChat.solicitar(lead, reserva.datos, ts);
-					form.eqIds = { firma: firma, id: lead.id, token: lead.token };
-					return envio;
-				})
-					.then(function (token) { window.EQChat.avisar(token); done(token); }, fail)
+				pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); })
+					.then(function (token) { form.eqPendiente = null; window.EQChat.avisar(token); done(token); }, function (err) {
+						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
+						form.eqPendiente = !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva } : null;
+						fail(err);
+					})
 					.then(function () { pruebaForm.otra(); button.disabled = false; });
 				return;
 			}

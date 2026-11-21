@@ -101,7 +101,7 @@ await t('límite: 5 por correo y 10 por IP en una hora (lo comparten todas las i
 	assert.ok(hijos('limites').length > 0, 'guardado en la base');
 });
 
-await t('Turnstile: sin llaves, la solicitud pasa con el límite; con las dos, sin prueba o con una mala no; con una buena, sí', async () => {
+await t('Turnstile: sin llaves, la solicitud pasa con el límite; con las dos, una prueba mala no pasa, sin prueba (o con Cloudflare caído) pasa con un límite estricto', async () => {
 	casa();
 	const real = globalThis.fetch;
 	assert.equal((await (await solicitud({ method: 'GET', headers: new Headers() })).json()).turnstile, '');
@@ -113,14 +113,46 @@ await t('Turnstile: sin llaves, la solicitud pasa con el límite; con las dos, s
 	const vistos = [];
 	globalThis.fetch = async (url, op) => { vistos.push(String(op.body)); return Response.json({ success: String(op.body).includes('response=buena') }); };
 	try {
-		assert.equal((await pedir(cuerpo())).status, 403);
-		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'mala' }))).status, 403);
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'mala' }))).status, 403, 'una respuesta rechazada por Cloudflare no pasa');
 		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'buena' }))).status, 200);
 		assert.ok(vistos.every((b) => b.includes('secret=0x4AAAAAAAsecreta')));
-		// Cloudflare no responde: una reserva de verdad no se pierde (sigue el límite).
+		// Sin prueba (el navegador no la pudo cargar o hacer): sigue, con un límite más estricto (3 por IP en una hora).
+		for (let i = 0; i < 3; i++) assert.equal((await pedir(cuerpo(), { mismaIp: true })).status, 200, `sin prueba ${i + 1}`);
+		assert.equal((await pedir(cuerpo(), { mismaIp: true })).status, 429);
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'buena' }), { mismaIp: true })).status, 200, 'con la prueba, el límite normal');
+		// Cloudflare no responde: no pasa «cualquier respuesta»; cuenta como sin prueba (límite estricto).
 		globalThis.fetch = async () => { throw new Error('sin red'); };
-		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'cualquiera' }))).status, 200);
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'cualquiera' }), { mismaIp: true })).status, 429, 'con la IP ya en su tope estricto');
+		assert.equal((await pedir(cuerpo(bien(), {}, { turnstile: 'cualquiera' }))).status, 200, 'otra IP: pasa con el límite estricto');
 	} finally { globalThis.fetch = real; }
+});
+
+await t('reintento (la respuesta se perdió): se reconoce antes de revisar las fechas (pasó la medianoche) y de los límites; responde el mismo token', async () => {
+	casa();
+	S.reloj = Date.parse('2026-11-25T23:59:50-06:00');
+	const c = cuerpo(bien({ llegada: '2026-11-25', salida: '2026-11-27', noches: 2 }));
+	assert.equal((await pedir(c)).status, 200);
+	S.reloj = Date.parse('2026-11-26T00:00:20-06:00');
+	const r = await pedir({ ...c, reserva: { ...c.reserva, codigo: 'EQ-OTRO99' } });
+	assert.equal(r.status, 200);
+	assert.equal((await r.json()).token, c.token);
+	assert.equal(leer(`chats/${c.token}`).codigo, 'EQ-ABC123');
+	S.reloj = Date.parse('2026-11-20T12:00:00-06:00');
+});
+
+await t('el chat nace con su aviso pendiente (si la página no llama /api/aviso-chat, lo manda el control de cada hora); el nombre con contacto no llega al socio', async () => {
+	casa();
+	const c = cuerpo(bien(), { nombre: '55551234 Ana' });
+	assert.equal((await pedir(c)).status, 200);
+	assert.equal(leer(`chats/${c.token}`).avisoPendiente, 'nueva');
+	assert.equal(leer(`chats/${c.token}`).nombre, 'Cliente');
+	assert.equal(leer(`leads/${c.leadId}`).nombre, '55551234 Ana', 'la solicitud (la ve el equipo) lo guarda completo');
+});
+
+await t('los motivos que lee el cliente vienen en su idioma', async () => {
+	casa({ publicado: false });
+	assert.match((await (await pedir(cuerpo(bien(), { idioma: 'en' }))).json()).error, /no longer takes bookings/);
+	assert.match((await (await pedir(cuerpo())).json()).error, /ya no recibe reservas/);
 });
 
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

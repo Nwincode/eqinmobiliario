@@ -606,7 +606,7 @@
 				ya.className = 'vac-ya-pediste';
 				ya.textContent = t.vacYaPediste + ' ';
 				var ir = document.createElement('a');
-				ir.href = '/reserva/#' + miToken;
+				ir.href = (document.documentElement.lang === 'en' ? '/en/reservation/#' : '/reserva/#') + miToken;
 				ir.textContent = t.vacChatVer;
 				ya.appendChild(ir);
 				form.parentNode.insertBefore(ya, form);

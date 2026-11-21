@@ -11,7 +11,7 @@ export const RUTAS = {
 	en: {
 		inicio: '/en/', propiedades: '/en/properties/', venta: '/en/properties/for-sale/', renta: '/en/properties/for-rent/', vacacional: '/en/properties/vacation-rentals/',
 		vip: '/en/luxury/', blog: '/en/blog/', contacto: '/en/#contact', ficha: '/en/property/', fichaVip: '/en/luxury/', calculadora: '/en/rental-calculator/',
-		portal: '/en/owners/'
+		portal: '/en/owners/', reserva: '/en/reservation/'
 	}
 };
 
