@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
 import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
-import { revisarEnlaces } from './lib/enlaces.mjs';
+import { revisarEnlaces, repetidosSeo } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
 import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto, mencionaPrecio, textosConPrecioOculto } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
@@ -647,6 +647,16 @@ async function main() {
 	}
 	// La misma regla que en español (incluye la pausa por mora): una sola función para los dos idiomas.
 	const propsEn = todasEn.filter(seOfrece);
+	// Dos fichas con el mismo título para Google compiten entre sí: a la segunda (y siguientes) se le suma su código o
+	// su zona (T.tituloUnico). En los dos idiomas.
+	for (const lista of [todas, todasEn]) {
+		const vistos = new Set();
+		for (const p of lista) {
+			const titulo = T.seoTitle(p);
+			if (vistos.has(titulo)) p._tituloUnico = T.tituloUnico(p, titulo, vistos);
+			vistos.add(p._tituloUnico || titulo);
+		}
+	}
 	// Pares de URLs español ↔ inglés para el selector de idioma (los de los listados los agrega el plan).
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
@@ -658,8 +668,11 @@ async function main() {
 	const pagesEn = enActivo ? normalizePages(data.pagesEn, '/en') : [];
 	// Listados y páginas de aterrizaje de los dos idiomas (scripts/lib/landings.mjs). Se planean antes de escribir
 	// nada: de ellos dependen los enlaces de todas las páginas (menú, pie, migas, enlaces del blog).
-	const planEs = planListados(properties, { lang: 'es', ocupadas: new Set(pages.map((p) => p.url)) });
-	const planEn = enActivo ? planListados(propsEn, { lang: 'en', ocupadas: new Set(pagesEn.map((p) => p.url)) }) : [];
+	// Las casas de prueba tienen su ficha (sin indexar) pero no salen en listados, portada ni «similares».
+	const enListados = properties.filter((p) => !p._prueba);
+	const enListadosEn = propsEn.filter((p) => !p._prueba);
+	const planEs = planListados(enListados, { lang: 'es', ocupadas: new Set(pages.map((p) => p.url)) });
+	const planEn = enActivo ? planListados(enListadosEn, { lang: 'en', ocupadas: new Set(pagesEn.map((p) => p.url)) }) : [];
 	textosDelPlan(planEs, site.listados, site, 'es', nombre);
 	if (enActivo) textosDelPlan(planEn, siteEn.listados, site, 'en', nombre);
 	for (const e of planEs) {
@@ -676,7 +689,7 @@ async function main() {
 		// Vistas previas de Netlify o sitio marcado "no indexar": Google no debe indexarlas.
 		noindex: !isProduction || site.seo.indexar === false,
 		site,
-		properties,
+		properties: enListados,
 		agents,
 		agentsById: Object.fromEntries(agents.map((a) => [a.id, a])),
 		testimonials: data.testimonials.slice().sort(byOrder),
@@ -777,7 +790,7 @@ async function main() {
 			lang: 'en',
 			site: siteEn,
 			altLang: (ruta) => altMap.get(ruta) || '/',
-			properties: propsEn,
+			properties: enListadosEn,
 			agents: agents.map((a) => ({ ...a, cargo: (a.en && a.en.cargo) || 'Real estate advisor', bio: (a.en && a.en.bio) || '' })),
 			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
 			pages: pagesEn,
@@ -877,6 +890,12 @@ async function main() {
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);
 	// Enlaces internos rotos en lo generado (plantillas o contenido del panel): se avisan con su página.
 	// `npm test` genera un sitio de ejemplo y no pasa con uno solo (scripts/test-sitio.mjs).
+	// Títulos y descripciones repetidos entre páginas indexadas: se avisa con las páginas (se corrigen en el panel).
+	const repetidos = await repetidosSeo(DIST);
+	if (repetidos.length) {
+		console.warn(`  ⚠ ${repetidos.length} título(s) o descripción(es) repetidos entre páginas que Google indexa:`);
+		for (const r of repetidos.slice(0, 20)) console.warn(`    ${r.tipo} «${r.texto.slice(0, 70)}»: ${r.paginas.slice(0, 4).join(', ')}`);
+	}
 	const rotos = await revisarEnlaces(DIST);
 	if (rotos.length) {
 		console.warn(`  ⚠ ${rotos.length} enlace${rotos.length === 1 ? '' : 's'} interno${rotos.length === 1 ? '' : 's'} roto${rotos.length === 1 ? '' : 's'}:`);

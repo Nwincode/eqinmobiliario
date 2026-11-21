@@ -498,10 +498,17 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 		assert.match(corrida.stderr, /Se tratan como casas de prueba[^\n]*«Casa de PRUEBA Monterrico»/);
 		for (const f of ['sitemap.xml', 'llms.txt', 'llms-full.txt']) assert.doesNotMatch(leerT(f), /casa-de-prueba-monterrico|test-house-in-monterrico/, f);
 		assert.ok(!todo.filter((f) => path.relative(distT, f).startsWith('feeds')).some((f) => /casa-de-prueba-monterrico/.test(readFileSync(f, 'utf8'))));
+		// Ni en listados, portada ni «similares» de otras fichas: solo su propia ficha (y la suya en inglés) la nombran.
+		const laNombran = todo.filter((f) => f.endsWith('.html') && !/casa-de-prueba-monterrico|test-house-in-monterrico/.test(f) && /casa-de-prueba-monterrico|test-house-in-monterrico/.test(readFileSync(f, 'utf8')));
+		assert.deepEqual(laNombran.map((f) => path.relative(distT, f)), []);
 		// Tampoco en la lista que lee Google (ItemList) de ningún listado.
 		const listas = todo.filter((f) => f.endsWith('.html')).map((f) => readFileSync(f, 'utf8')).flatMap((h) => [...h.matchAll(/<script type="application\/ld\+json">([^<]*"ItemList"[^<]*)<\/script>/g)].map((m) => m[1]));
 		assert.ok(listas.length > 0);
 		assert.ok(listas.every((j) => !/casa-de-prueba-monterrico/.test(j)), 'ninguna ItemList lleva la casa de prueba');
+	});
+	const repetidosT = await (await import('./lib/enlaces.mjs')).repetidosSeo(distT);
+	test('ninguna página que Google indexa repite el título o la descripción de otra (el build lo avisa)', () => {
+		assert.deepEqual(repetidosT, []);
 	});
 	test('inglés: no se pierde la amenidad que el diccionario no tiene', () => {
 		const ficha = todo.find((f) => path.relative(distT, f).startsWith(path.join('en', 'property')) && /Lobby de recepción/.test(readFileSync(f, 'utf8')));

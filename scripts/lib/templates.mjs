@@ -1162,13 +1162,24 @@ export function autoSeoTitle(p) {
 	return autoSeoTitleBase(p, lng(p) === 'en');
 }
 
-function seoTitle(p) {
-	return (p.seo && p.seo.titulo) || autoSeoTitle(p);
+export function seoTitle(p) {
+	return p._tituloUnico || (p.seo && p.seo.titulo) || autoSeoTitle(p);
+}
+// El título de una ficha que repetía el de otra: con su código (o su id) delante del sitio, sin pasar del largo para Google.
+export function tituloUnico(p, titulo, vistos) {
+	const extra = p.codigo || String(p.id || '').slice(0, 6);
+	const [base, ...resto] = titulo.split(' | ');
+	let n = 0, out;
+	do out = [`${base} · ${extra}${n ? `-${n}` : ''}`, ...resto].join(' | '); while (vistos.has(out) && ++n < 50);
+	return out;
 }
 
+// La descripción para Google de una casa: la escrita en la ficha si dice lo suficiente (70 letras o más); si no, la
+// automática con los datos de la casa (precio, habitaciones, baños, personas o m²).
 function seoDescription(p) {
 	const t = TEXTOS[lng(p)];
-	return (p.seo && p.seo.descripcion) || autoSeoDescripcion(p, price(p), [
+	const propia = p.seo && p.seo.descripcion;
+	return (propia && propia.length >= 70 && propia) || autoSeoDescripcion(p, price(p), [
 		p.habitaciones && plural(p.habitaciones, t.habitacion, t.habitaciones),
 		p.banos && plural(p.banos, t.bano, t.banos),
 		// Renta vacacional: a quien busca dónde quedarse le importa cuántos caben, no los m².
