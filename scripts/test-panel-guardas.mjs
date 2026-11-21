@@ -66,4 +66,10 @@ t('confirmar y lo que depende del día de llegada usan la hora del servidor, no 
 	assert.match(sol, /await ahoraServidor\(\);/);
 });
 
+t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago si no cambiaron (el asesor recibía 403 con datosPago vacío guardado)', () => {
+	const s = fuente('views/propietarios.js');
+	assert.match(s, /if \(!d\.datosPago && !\('datosPago' in ahora\)\) delete d\.datosPago;/);
+	assert.doesNotMatch(s, /if \(!d\.datosPago && !pagoAntes\) delete d\.datosPago;/);
+});
+
 console.log(`\n${ok} guardas del panel en su lugar.`);

@@ -232,7 +232,8 @@ async function renderEditor(container, id) {
 				else if (k === 'propiedades') d[k] = [];
 				else { delete d[k]; delete data[k]; }
 			}
-			if (!d.datosPago && !pagoAntes) delete d.datosPago;
+			// Sin datos de pago: la llave queda como estaba (guardada vacía, o sin llave); quitarla o ponerla también es un cambio.
+			if (!d.datosPago && !('datosPago' in ahora)) delete d.datosPago;
 			const lote = writeBatch(db);
 			if (cambiaPago) {
 				const log = doc(collection(db, 'cambiosDatosPago'));
