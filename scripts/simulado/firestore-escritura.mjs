@@ -15,11 +15,9 @@ export async function transaccion(trabajo) {
 	return r;
 }
 export const probarEscritura = async () => true;
-// Como el real: suma 1 a `ruta`.n (y crea `marca` si no existe; si ya existía, no suma y devuelve null).
-export async function sumarUno(ruta, vence, marca = '') {
+// Como el real: suma a cada `ruta`.n (y crea `marca` si no existe; si ya existía, no suma y devuelve null).
+export async function sumar(sumas, vence, marca = '') {
 	if (S.escrituraFalla) throw new Error('Error 503 al escribir');
 	if (marca) { if (S.docs.has(marca)) return null; S.docs.set(marca, { vence }); }
-	const d = S.docs.get(ruta) || {};
-	S.docs.set(ruta, { ...d, vence, n: (d.n || 0) + 1 });
-	return S.docs.get(ruta).n;
+	return sumas.map(({ ruta, n }) => { const d = S.docs.get(ruta) || {}; S.docs.set(ruta, { ...d, vence, n: (d.n || 0) + n }); return S.docs.get(ruta).n; });
 }

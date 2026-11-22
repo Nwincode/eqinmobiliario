@@ -147,6 +147,14 @@ publiquen las reglas nuevas, todo lo de antes sigue funcionando; el orden evita 
          abierta desde antes que guarde una cotización nueva recibe «sin permiso» (al recargar, se guarda).
        - Al revés (reglas antes que el sitio) se rompen las reservas desde todas las páginas publicadas hasta que el
          sitio nuevo termine: por eso el orden es sitio y después reglas.
+    5. **Activar la política de vida (TTL) de `limites`**: Google Cloud Console → Firestore → Time-to-live → Create
+       policy, colección `limites`, campo `vence`. Cada pedido al sitio crea ahí un contador (con su `vence`, una fecha)
+       y nada más los borra: con la política, Firestore los borra solo un día después de vencer. Sin ella, se acumulan.
+    6. **Comprobar el filtro del chat con las reglas publicadas** (no se puede comprobar fuera de producción): la regla
+       arma los años de una fecha desde `request.time` (`let anios = string(y - 1) + …`). En el chat de una reserva de
+       prueba, escribir «Llegamos el 20/12/<año que viene>» (debe enviarse) y «escríbeme al 23-12-2015» (debe salir el
+       aviso de teléfono). Si el primero no se envía o las reglas no se publican, avisar: hay que volver a escribir los
+       años en la regla.
 10. **Prueba de punta a punta** con un socio y una casa de prueba: pedir una reserva, confirmarla, subir el
     comprobante, marcar «Pago recibido», cancelar otra; revisar que llegan los correos (también el del equipo cuando
     el socio cancela). Después, borrar la casa y el socio de prueba.

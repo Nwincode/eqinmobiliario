@@ -273,15 +273,18 @@ await t('montos congelados al guardar: la solicitud aparta sus fechas al instant
 	assert.deepEqual([leer(`chats/${barata.token}`).confirmaEquipo, leer(`chats/${barata.token}`).teTocaPendiente], [true, true]);
 });
 
-await t('freno previo por IP: 60 solicitudes distintas por hora aunque ninguna se guarde (casa que no existe), con o sin prueba; repetir la misma no cuenta; el GET con basura no cuenta', async () => {
+await t('freno previo por IP: 60 solicitudes distintas por hora aunque ninguna se guarde (casa que no existe), con o sin prueba; repetir la misma no suma a la IP pero tiene 5 reintentos; el GET con basura no cuenta', async () => {
+	// La misma solicitud otra vez no suma a la IP, pero tiene sus propios reintentos (5 por hora): reusar un id no salta el freno.
 	const misma = cuerpo(bien(), { propertyId: 'no-existe-x' });
-	for (let i = 0; i < 70; i++) assert.equal((await pedir(misma, { mismaIp: true })).status, 409);
+	const reintentos = [];
+	for (let i = 0; i < 8; i++) reintentos.push((await pedir(misma, { mismaIp: true })).status);
+	assert.deepEqual(reintentos, [409, 409, 409, 409, 409, 409, 429, 429]);
 	const st = [];
 	for (let i = 0; i < 61; i++) st.push((await pedir(cuerpo(bien(), { propertyId: `no-existe-${i}` }), { mismaIp: true })).status);
 	assert.deepEqual([st.slice(0, 59).every((x) => x === 409), st.slice(59)], [true, [429, 429]], st.join(','));
 	const g = await solicitud({ method: 'GET', url: 'https://x/api/solicitud?lead=basura&token=x', headers: new Headers() }, { ip: '10.7.7.7' });
 	assert.deepEqual(await g.json(), { guardada: false });
-	assert.equal(hijos('limites').length, 63);
+	assert.ok(hijos('limites').every((d) => d.vence instanceof Date));
 });
 
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

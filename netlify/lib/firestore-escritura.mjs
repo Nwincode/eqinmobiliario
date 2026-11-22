@@ -128,19 +128,19 @@ async function quedoEscrito(token, writes) {
 	} catch { return false; }
 }
 
-// Contar sin transacción: un solo commit (no choca con otros a la vez) que suma 1 a `ruta` (campo `n`) y deja su `vence`;
-// con `marca`, también crea ese documento solo si no existe (contar cosas distintas: si ya existía, no se suma y devuelve
-// null). Devuelve el valor después de sumar. Si la base falla, lanza.
-export async function sumarUno(ruta, vence, marca = '') {
+// Contar sin transacción: un solo commit (no choca con otros a la vez) que suma a cada contador de `sumas` ({ ruta, n };
+// n = 0 solo lee) y deja su `vence` (fecha: la política de vida de Firestore borra el documento después); con `marca`,
+// también crea ese documento solo si no existe (contar cosas distintas: si ya existía, no se suma nada y devuelve null).
+// Devuelve los valores después de sumar, en el orden de `sumas`. Si la base falla, lanza.
+export async function sumar(sumas, vence, marca = '') {
 	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
 	const writes = [
 		...(marca ? [{ update: { name: `${RAIZ}/${marca}`, fields: aCampos({ vence }) }, currentDocument: { exists: false } }] : []),
-		{ update: { name: `${RAIZ}/${ruta}`, fields: aCampos({ vence }) }, updateMask: { fieldPaths: ['vence'] }, updateTransforms: [{ fieldPath: 'n', increment: { integerValue: '1' } }] }
+		...sumas.map(({ ruta, n }) => ({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos({ vence }) }, updateMask: { fieldPaths: ['vence'] }, updateTransforms: [{ fieldPath: 'n', increment: { integerValue: String(n) } }] }))
 	];
 	try {
 		const r = await pedir(token, `${BASE}:commit`, { writes }, Date.now() + 3000);
-		const t = r.writeResults?.at(-1)?.transformResults?.[0];
-		return Number(t?.integerValue ?? t?.doubleValue ?? 0);
+		return (r.writeResults || []).slice(marca ? 1 : 0).map((w) => { const t = w.transformResults?.[0]; return Number(t?.integerValue ?? t?.doubleValue ?? 0); });
 	} catch (err) {
 		if (marca && err instanceof ErrorBase && err.codigo === 'ALREADY_EXISTS') return null;
 		throw err;

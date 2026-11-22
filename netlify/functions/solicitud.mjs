@@ -210,7 +210,8 @@ export default async (req, context) => {
 			return json(200, { token: ya });
 		}
 		// El freno, después de reconocer el reenvío de una ya guardada y antes de revisar la nueva.
-		if (await porIpIntentos(ip, ID.test(pedido?.leadId || '') ? pedido.leadId : 'sin-id')) return muchas();
+		// (Un id sin forma de id cuenta cada vez, sin marca compartida.)
+		if (await porIpIntentos(ip, ID.test(pedido?.leadId || '') ? pedido.leadId : '')) return muchas();
 		const datos = revisarPedido(pedido);
 		const prueba = await pasaTurnstile(pedido.turnstile, ip);
 		if (prueba === 'mala') return error(403, 'No pudimos comprobar que no eres un robot. Vuelve a intentarlo.', 'We could not verify that you are not a robot. Please try again.', { turnstile: true });
