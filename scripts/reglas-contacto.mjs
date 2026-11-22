@@ -2,10 +2,37 @@
 // filtro del chat es UNO, el del navegador, y la regla corre exactamente los mismos pasos (reemplazos y búsquedas).
 //   node scripts/reglas-contacto.mjs           la pone al día
 //   node scripts/reglas-contacto.mjs --revisar  falla si no está al día (lo corre scripts/test-reglas-contacto.mjs)
+//
+// Antes, escribe en js/calc-vacacional.js (entre <codigos-pais> y </codigos-pais>) el patrón de un teléfono con su
+// código de país, seguido, desde admin/js/formato.js CODIGOS_PAIS (los largos de libphonenumber, con su versión): el
+// filtro no lleva una lista de códigos escrita de memoria.
 import { readFileSync, writeFileSync } from 'node:fs';
-import '../js/calc-vacacional.js';
+import { CODIGOS_PAIS } from '../admin/js/formato.js';
 
+const CALC = new URL('../js/calc-vacacional.js', import.meta.url);
 const ARCHIVO = new URL('../firestore.rules', import.meta.url);
+
+// «502[0-9]{8}|1[0-9]{10}|…|49[0-9]{4,15}|…»: cada código con los largos de su país (un rango si son seguidos) y sus
+// números especiales (gratuitos, de pago…), con \d como [0-9].
+export function patronConCodigo() {
+	const largos = (l) => (l.length > 1 && l.every((x, i) => !i || x === l[i - 1] + 1) ? `[0-9]{${l[0]},${l.at(-1)}}` : l.map((x) => `[0-9]{${x}}`).join('|'));
+	return CODIGOS_PAIS.map(([c, , l, , especial]) => `${c}(${largos(l)}${especial ? `|${especial.replace(/\\d/g, '[0-9]').replace(/\(\?:/g, '(')}` : ''})`).join('|');
+}
+const I_COD = '	// <codigos-pais>', F_COD = '	// </codigos-pais>';
+export function calcAlDia(calc = readFileSync(CALC, 'utf8')) {
+	const a = calc.indexOf(I_COD), b = calc.indexOf(F_COD);
+	if (a < 0 || b < 0) throw new Error('js/calc-vacacional.js no tiene las marcas <codigos-pais>');
+	const linea = calc.slice(a, calc.indexOf('\n', a));
+	return `${calc.slice(0, a)}${linea}\n	var CON_CODIGO = '${patronConCodigo().replace(/\\/g, '\\\\')}';\n${calc.slice(b)}`;
+}
+{
+	const antes = readFileSync(CALC, 'utf8'), despues = calcAlDia(antes);
+	if (antes !== despues) {
+		if (process.argv.includes('--revisar') && import.meta.url === `file://${process.argv[1]}`) { console.error('js/calc-vacacional.js: los códigos de país no están al día. Corre node scripts/reglas-contacto.mjs'); process.exit(1); }
+		if (import.meta.url === `file://${process.argv[1]}`) writeFileSync(CALC, despues);
+	}
+}
+await import('../js/calc-vacacional.js');
 const INICIO = '    // <filtro-contacto>';
 const FIN = '    // </filtro-contacto>';
 const texto = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;

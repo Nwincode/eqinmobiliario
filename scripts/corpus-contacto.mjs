@@ -43,6 +43,38 @@ export const NORMALES = [
 	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
 	'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
 	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Transferí Q2450 desde la cuenta terminada en 3456', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567',
+	// Revisión 7.
+	'Llegamos el 12/12 y salimos el 15/12', 'del 20 al 27 de diciembre', '20/12/2026 al 27/12/2026', '2026-12-20 a 2026-12-27', 'Dec 20 - Dec 27, 2026',
+	'12-20-2026', '20.12.2026', '20-12-26 al 27-12-26', 'del 24/12/26 al 02/01/27', 'from 12/20 to 12/27',
+	'llegamos el 31 de diciembre de 2026 y nos vamos el 2 de enero de 2027', 'Llegamos a las 3:30 pm', 'a las 15:00', 'check in 15:00 check out 11:00',
+	'llegamos 14:30 y salimos 11:00', 'entre 2 y 4 de la tarde', 'a las 1430', 'at 1500', 'a eso de las 10 am', 'llegamos como a las 8:45 de la noche',
+	'arrival around 9.30pm', 'Q1,250.00 por noche', 'Q1.250,00', 'Q 2,500 la noche', '$350.00', 'Son Q3,750 por 3 noches', 'el total es Q4,550.50',
+	'Q12,345.67 total', 'US$ 1,200', 'cuesta 1.250 quetzales', 'Q2500 de depósito', 'pagué Q1,500 de anticipo y el resto Q3,000',
+	'Mandé Q 3,450.00 por transferencia', 'el saldo es Q2,050', 'deposité 1500 en BI', '2500 + 350 de limpieza', 'zona 10, 5a avenida 12-34',
+	'5a avenida 12-34 zona 10', '13 calle 3-40 zona 10, edificio Atlantis', 'km 25.5 carretera a El Salvador', 'Km. 14.5 Carretera a Muxbal',
+	'casa 23, condominio Los Álamos', 'lote 15 manzana B', 'Diagonal 6 10-01 zona 10, oficina 1203', '4a calle 7-53 zona 1',
+	'Calzada Roosevelt 22-43 zona 11', 'km 28.5 ruta a Antigua', 'Boulevard Los Próceres 18-00 zona 10', '7a avenida 15-45 zona 9 apartamento 502',
+	'Ruta 4 4-56 zona 4', 'Anillo Periférico 17-36 zona 11', 'kilómetro 25 y medio', 'casa #12', 'Apto 1204, torre 2', 'somos 12 personas',
+	'somos 8 adultos y 4 niños', '6 adults 3 kids', 'we are 10 people', 'dos familias de 5', 'para 15 personas, 3 noches', 'mi NIT es 98765432',
+	'NIT: 4512378-K', 'NIT 12345678', 'CF', 'NIT 108542356', 'EQ-AB12CD', 'mi código es EQ-7K3M9P', 'reserva EQ-2X4Y6Z', 'código EQ-123456',
+	'EQ-555512', '3 noches', 'son 7 noches del 20 al 27', '2 noches x Q1,250 = Q2,500', '3 noches por 450 = 1350', '4 noches', '14 noches',
+	'Ya hice el depósito, boleta 123456', 'transferencia No. 98765', 'Ya transferí Q2,500 a la cuenta Banrural', 'Número de autorización 004512',
+	'ref. 7788123', 'boleta No. 4512789', 'Te mandé el comprobante, transacción 2026112201', 'pagué con tarjeta terminada en 4521',
+	'transferencia de Q 1,875.00, referencia 98451236', 'autorización 845123', 'Pagué Q3,500 el 20/11 y Q2,000 el 21/11', 'Ya pagué los Q2,500 del 50%',
+	'depósito Q 1,250 + Q 1,250', 'We arrive Dec 20 around 3pm and leave Dec 27 at 11am', 'Total is $1,250.00', 'Is it 4 bedrooms and 3 bathrooms?',
+	'2 adults, 2 kids (ages 5 and 8)', 'We will be 6 people for 4 nights', 'Address: 5th avenue 12-34, zone 10', 'Price is Q2,500 per night?',
+	'Paid $500 deposit, ref 7781234', 'gracias!! 😀', 'la casa 2 o la 3?', 'el lote mide 20x30', 'el terreno es de 600 varas',
+	'la piscina mide 5 x 10 m', 'llegamos 2 carros', 'nos quedamos del 1 al 5', 'Tengo 2 perros de 15 kg', 'mi esposo trabaja en el km 15',
+	'el bebé tiene 18 meses', 'tengo 35 años', 'la reserva de 2025 fue genial', 'vinimos en 2024 y 2025', 'Hola, vi la casa en Instagram',
+	'la vi en facebook', 'mi correo es el mismo', 'mi correo es correcto', 'sí, mi correo es ese', 'mi correo es nuevo', 'Mi whatsapp es lento hoy',
+	'Mi correo es hotmail, ¿llega bien?', 'mi correo es gmail', 'Mi instagram es público', 'Facebook: excelentes fotos', 'Correo: recibido, gracias',
+	'mail: enviado', 'Email: sent the receipt', 'WhatsApp: tampoco', '¿El correo es obligatorio?', 'My email is jumping to spam',
+	'Mi correo es todo en minúsculas', 'El correo es mío', 'Mi correo es corporativo', 'my email is down today', 'My email is above',
+	'my email is listed in the form', 'mi correo es el de arriba', 'Mi correo es empresarial', 'el mail es lento', 'Correo: llegó a spam',
+	'correo: confirmado', 'Instagram: hermosas fotos!', 'Vi su tiktok: buenísimo', 'tiktok: increíbles videos', 'Gmail: no me llegó nada',
+	'email: ya revisé spam', 'My email is ok', 'Mi correo es: el mismo', 'el correo es seguro?', 'mail: gracias', 'Correo: perfecto',
+	'My email is correct', 'my email is the same', 'My email is changed', 'Mi correo es viejito', 'Su correo es muy rápido', 'Telegram: no uso',
+	'IG: lindas fotos', 'fb: gracias',
 	// Revisión 6.
 	'TRANSACCIÓN 1234567890', 'AUTORIZACIÓN: 0045871236', 'Mi correo es CORRECTO', 'Vi la casa en INSTAGRAM, se ve como ESPECTACULAR.',
 	'Mi correo es el que puse en el formulario.', 'Mi correo es correcto.', 'Mi correo es nuevo, por si no les llega.',
@@ -77,24 +109,44 @@ export const EVASIONES = [
 	'son 5555 noches y 1234 noches', '5555 kms y 1234 kms', 'Q5555 y Q1234', 'Q 5555 y Q 1234', '5555 quetzales y 1234 de limpieza',
 	'cinco cinco cinco cinco, doce treinta y cuatro', 'five five five five twelve thirty four', 'cincuenta y cinco cincuenta y cinco doce treinta y cuatro',
 	// Usuarios en otras plataformas.
-	'ig casalago_gt', 'gmail: juanperez', 'escríbeme al wa', 'búscame por whats', 'instagram @villalago', 'skype juan.perez', 'telegram villa_lago',
+	'ig casalago_gt', 'escríbeme al wa', 'búscame por whats', 'instagram @villalago', 'skype juan.perez', 'telegram villa_lago',
 	'en airbnb me encuentras como villalago', 'mi wsp es el mismo', 'búscame en insta como villalago', 'búscame en tiktok como villalago', 'me encuentras en ig como villa.lago',
 	'mi correo es ana.perez en hotmail', 'escribe a anaperez en el gmail', 'ana perez at gmail', 'juan dot perez at gmail', 'villalago(punto)com',
 	// Coordenadas.
 	// Revisión 5.
 	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
 	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
+	// Revisión 7.
+	'5555_1234', '5555~1234', '5555|1234', '5555•1234', '5555—1234', '5555–1234', '5555 ... 1234', '5555 ___ 1234', '5555/1234', '5555\\1234',
+	'(5555)1234', '5555 , 1234', '5 . 5 . 5 . 5 . 1 . 2 . 3 . 4', '5555  ·  1234', '5555 -- 1234', '5555 *** 1234', '5555😀1234', '5😀5😀5😀5😀1😀2😀3😀4',
+	'5555 📞 1234', '5️⃣5️⃣5️⃣5️⃣1️⃣2️⃣3️⃣4️⃣', '5⃣5⃣5⃣5⃣1⃣2⃣3⃣4⃣', '٥٥٥٥١٢٣٤', '۵۵۵۵۱۲۳۴', '५५५५१२३४', '৫৫৫৫১২৩৪', '๕๕๕๕๑๒๓๔', '⑤⑤⑤⑤①②③④', '𝟓𝟓𝟓𝟓𝟏𝟐𝟑𝟒',
+	'𝟱𝟱𝟱𝟱𝟭𝟮𝟯𝟰', 'Ⅴ Ⅴ Ⅴ Ⅴ Ⅰ Ⅱ Ⅲ Ⅳ', '₅₅₅₅₁₂₃₄', '❺❺❺❺❶❷❸❹', '➎➎➎➎➊➋➌➍', '5555​1234', '5​5​5​5​1​2​3​4', '5555‍1234', '5555⁠ 1234', '5555﻿1234',
+	'5555­1234', 'ig:​villa_lago', 'gm​ail: ana.perez', 'ana.perez@​gmail', 'ana​@gmail.com', 'ww​w.casa.com', 'wa​.me/50255551234', '5555᠎1234',
+	'5555͏1234', 'іg: villa_lago', 'іnstagram villa_lago', 'gmаil: ana.perez', 'ana.perez аt gmail', 'wа.me/5555', '5555 О 1234',
+	'сinco cinco cinco cinco uno dos tres cuatro', '5555 1234', '5555 1234', '5555 1234', '5555　1234', '5555  1234', 'ig villa_lago', '5 5 5 5 1 2 3 4',
+	'ig villa_lago', 'más cinco cero dos 5555 1234', 'mas quinientos dos cinco cinco cinco cinco uno dos tres cuatro',
+	'plus five zero two 5555', 'código 502, luego 5555 y 1234', 'quinientos dos, cincuenta y cinco cincuenta y cinco doce treinta y cuatro',
+	'bit.ly/3abcd', 'tinyurl.com/abc', 't.me/villalago', 'wa.link/abc12', 'linktr.ee/villalago', 'goo.gl/maps/abc', 'is.gd/abc', 'cutt.ly/abc',
+	'rb.gy/abc', 'shorturl.at/abc', 'tiny.cc/abc', 'bit ly/3abcd', 'bit. ly/3abcd', 'bitly slash abcd', 'wa.me/50255551234',
+	'api.whatsapp.com/send?phone=50255551234', 'api whatsapp com send phone 502', 'whatsapp.com/send', 'chat.whatsapp.com/AbCdEf', 'wa . me / 5025555',
+	'wa(.)me/5025', 'w a . m e', 'm.me/villalago', 'fb.me/villalago', 'instagram.com/villalago', 'ig.me/m/villalago', 'ana.perez(at)gmail',
+	'ana.perez [at] gmail [dot] com', 'ana perez a r r o b a gmail', 'anaperez90 en gmail', 'ana.perez AT gmail DOT com', 'ana.perez{at}gmail',
+	'ana.perez<at>gmail', 'ana.perez @ gmail', 'ana.perez ＠ gmail', 'ana.perez﹫gmail', 'anaperez90 gmail', 'gmail anaperez90', 'anaperez90 (gmail)',
+	'ana_perez at hotmail', 'ana.perez en outlook', 'escríbeme: ana.perez gmail', 'ana.perez 4rr0b4 gmail', 'ana.perez arrob@ gmail',
+	'mi correo anaperez90', 'mi correo, anaperez90', 'correo -> anaperez90', 'correo = anaperez90', 'correo => ana.perez', 'mi cel empieza con 5555',
+	'llamame 5 5 5 5 - 1 2 3 4', '5555 y 1234', 'cinco5cinco5 uno2tres4', '5 5 5 5 one two three four', '5555 one two three four', 'five5five5 1234',
+	'wsp 55551234', 'wasap: 5555-1234', 'mi whats 5555 12 34', '5́5́5́5́ ́1́2́3́4', '5555⃣1234', '５５５５１２３４',
 	// Revisión 6.
 	'mi no. 55551234', 'Mi no. de cel es 5555 1234', 'no. 5555-1234 escríbeme', 'ref 55551234 llámame', 'mi número de referencia: 55551234 (cel)',
 	'boleta 55551234 jaja es mi cel', 'vuelo 5555 1234', 'flight 55 551234', 'total q5555 y q1234 jaja', 'son $5555 y $1234 (mi cel)',
 	'mi correo es anaperez90', 'My email is anaperez90 at gmail', 'my insta is villalago_gt', 'my ig: villa.lago', 'find me on instagram as villalago',
-	'cel 5555l234', 'cel 5555 I234', 'ig villa_lago', 'telegram @villalago', 'tg villalago_gt', 'búscame en insta: villalago', 'mi ig es villa lago gt',
+	'cel 5555l234', 'cel 5555 I234', 'ig villa_lago', 'telegram @villalago', 'tg villalago_gt',
 	'five five five five one two three four', '5555 1234 (tel)', 'tel cinco cinco 5 5 12 34', 'mi correo: ana punto perez arroba gmail',
 	'tarjeta terminada en 5555 y 1234 es mi cel', 'Mi cuenta terminada en 5555, el resto 1234', 'búscame en ig: villa_lago',
 	'escríbeme por ig: villa.lago', 'en telegram: villalago_gt', 'agrégame en fb: ana.perez.90', 'desde instagram: @villalago',
-	'on instagram: villa_lago', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago', 'Ref: 5555 1234', 'referencia 5555-1234',
+	'on instagram: villa_lago', 'Ref: 5555 1234', 'referencia 5555-1234',
 	'No. 5555 1234', 'transacción 55551234', 'mi cel, ref 55551234', 'vuelo 55551234', 'vuelo AV 5555 1234', 'pago Q5555 y Q1234',
-	'precio $5555 and $1234', 'mi correo es ana.perez', 'mi correo es anaperez',
+	'precio $5555 and $1234', 'mi correo es ana.perez',
 	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
 ];
 
@@ -104,13 +156,22 @@ export const BLOQUEADAS_A_PROPOSITO = [
 	// aunque sean un monto, una cuenta, un vuelo o una referencia corta. Es preferible a dejar pasar un teléfono.
 	'Pagué 2500 + 2500 = 5000', '6000 + 350 = 6350', 'Son 3 noches x 450 = 1350 + 200 de limpieza = 1550 total.', 'Q 2,500,000.00',
 	'Son Q2345 y Q5678 en total?', 'Our flight UA 2318 lands at 1450, we drive straight there', 'Vuelo AV 2318 aterriza a las 1450',
-	'La referencia de mi pago es 20241234, ya transferí', 'Transfer ref 778812345 done'
+	'La referencia de mi pago es 20241234, ya transferí', 'Transfer ref 778812345 done',
+	'factura a nombre de Ana, NIT 3456789-1', 'deposité en la cuenta 3012345678', 'cuenta monetaria 01-2345678-9', 'cuenta 123-456789-0',
+	'el depósito fue de Q3,250.00 en Banco Industrial, boleta 70012345', 'Transfer done, confirmation #4512-7788', 'Zelle confirmation 25563412',
+	'boleta 70012345'
 ];
 
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
 // normales («facebook marketplace»).
-export const LIMITES_ACEPTADOS = ['fb casadelago', 'busca villa lago gt en facebook', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
-	'los primeros son 5555 y los últimos cuatro son 1234', 'mi whatsapp es el mismo del formulario', 'llámame al número que dejé', 'ana.perez g m a i l'];
+export const LIMITES_ACEPTADOS = ['mi correo\u2028es anaperez', 'fb casadelago', 'busca villa lago gt en facebook', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
+	'los primeros son 5555 y los últimos cuatro son 1234', 'mi whatsapp es el mismo del formulario', 'llámame al número que dejé', 'ana.perez g m a i l',
+	// Una palabra pura después de «red:» o «red es» (sin cifra, punto, guion bajo ni @): pasa, para que pasen «Mi correo es
+	// obligatorio», «Mi whatsapp es lento». Y las cifras repartidas en varios mensajes o en partes sueltas.
+	'gmail: juanperez', 'búscame en insta: villalago', 'mi ig es villa lago gt', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago',
+	'mi correo es anaperez', '🔟', 'i​g: villalago', 'telegrаm villalago', 'ig: villalago', 'ig:\tvillalago', 'mi correo es anaperez',
+	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'mi número: cinco cinco cinco cinco', 'termina en 1234', '55-55',
+	'12-34', 'IV IV', 'whatsapp 5555'];
 
 // Corpus GENERADO: cada teléfono y cada usuario conocidos envueltos en cada contexto de excepción que tiene el filtro
 // (sus palabras, con dos puntos, en mayúsculas, con y sin acentos, en dos líneas, delante y detrás, en español y en
@@ -125,7 +186,28 @@ const REDES = ['ig', 'insta', 'instagram', 'fb', 'facebook', 'tiktok', 'telegram
 const ANTES_RED = ['', 'en ', 'por ', 'desde ', 'on ', 'in ', 'búscame en ', 'agrégame en ', 'find me on ', 'mi ', 'my '];
 const ENTRE = [' ', ': ', ' es ', ' is ', ' como ', ' as ', ':\n'];
 const variantes = (s) => [s, s.toUpperCase(), s.replace(/ /, '\n')];
+// Con su código de país, seguidos (la excepción de 10 o más cifras después de «referencia» no los deja pasar).
+const CON_CODIGO = ['50255551234', '+50255551234', '0050255551234', '13055551234', '+13055551234', '525512345678', '50377771234', '50699998888', '34612345678', '447911123456'];
+// Fijos con forma de fecha o de años, con una palabra de teléfono cerca.
+const FECHAS_TEL = ['2020-12-31', '25/12/2034', '2025-2031', '2025, 2031', '22/12/2055', '20.12.2031'];
+const PALABRAS_TEL = ['tel', 'cel', 'fijo', 'llámame', 'llamame al', 'whatsapp', 'número', 'mi número es', 'phone', 'call me', 'teléfono:'];
+// Lo que se escribe con caracteres de otras escrituras o invisibles.
+const INVISIBLES = ['\u200b', '\u200d', '\u2060', '\ufeff', '\u00ad', '\u034f', '\u180e', '\u202e'];
+const ESPACIOS = ['\u00a0', '\u2009', '\u202f', '\u3000', '\u2007', '\u205f', '\u2028'];
+const PARECIDAS = { a: '\u0430', e: '\u0435', o: '\u043e', i: '\u0456', c: '\u0441', p: '\u0440', x: '\u0445', y: '\u0443' };
+const conInvisible = (s, z) => s.split('').join(z);
+const conParecidas = (s) => s.replace(/[aeoicpxy]/g, (l) => PARECIDAS[l]);
+const BASE_UNICODE = ['5555 1234', 'ig: villa_lago', 'gmail: ana.perez', 'ana.perez@gmail', 'wa.me/50255551234', 'www.casa.com', 'telegram villa_lago', 'mi correo es ana.perez90'];
+const CORREOS_RAROS = ['ana.perez{at}gmail', 'ana.perez<at>gmail', 'ana.perez﹫gmail', 'ana.perez a r r o b a gmail', 'anaperez90 gmail', 'anaperez90 (gmail)',
+	'anaperez90 [hotmail]', 'correo = anaperez90', 'correo -> anaperez90', 'correo => ana.perez', 'mi correo, anaperez90', 'email: ana_perez', 'ana.perez 4rr0b4 gmail'];
+const ENLACES = ['is.gd/abc', 'rb.gy/abc', 'goo.gy/x1', 'shorturl.at/abc', 'tiny.cc/abc', 'bit.ly/3abcd', 'casa.me/x', 'link.to/x', 'mi.co/x', 'ab.link/x', 'bit ly/3abcd',
+	'bit. ly/3abcd', 'wa . me / 5025555', 'w a . m e', 't.me/villalago', 'm.me/villalago', 'linktr.ee/villalago', 'whatsapp com/send'];
+const PALABRAS_502 = ['plus five zero two 5555', 'más cinco cero dos', 'mas cinco cero dos 5555', 'plus 5 0 2'];
 export const EVASIONES_GENERADAS = [...new Set([
 	...TELEFONOS.flatMap((t) => PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`, `mi cel, ${w} ${t}`, `my phone, ${w} ${t}`].flatMap(variantes))),
-	...USUARIOS.flatMap((u) => REDES.flatMap((r) => ANTES_RED.flatMap((a) => ENTRE.map((e) => `${a}${r}${e}${u}`)).flatMap(variantes)))
+	...USUARIOS.flatMap((u) => REDES.flatMap((r) => ANTES_RED.flatMap((a) => ENTRE.map((e) => `${a}${r}${e}${u}`)).flatMap(variantes))),
+	...CON_CODIGO.flatMap((t) => [t, ...PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`])].flatMap(variantes)),
+	...FECHAS_TEL.flatMap((f) => PALABRAS_TEL.flatMap((w) => [`${w} ${f}`, `${w}: ${f}`, `${f} es mi ${w}`, `${f} (${w})`]).flatMap(variantes)),
+	...BASE_UNICODE.flatMap((b) => [...INVISIBLES.map((z) => conInvisible(b, z)), ...ESPACIOS.map((e) => b.replace(/ /g, e)), conParecidas(b)]),
+	...[...CORREOS_RAROS, ...ENLACES, ...PALABRAS_502].flatMap((x) => [x, `mira: ${x}`, `look ${x} ok`].flatMap(variantes))
 ])];

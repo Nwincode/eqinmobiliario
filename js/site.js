@@ -38,11 +38,14 @@
 	// ------------------------------------------------------------ Aviso «View this site in English»
 	// Solo se ofrece (nunca se cambia el idioma solo) y no vuelve a salir si se cierra.
 	var aviso = document.querySelector('.aviso-idioma');
-	if (aviso && /^en/i.test(navigator.language || '') && !localStorage.getItem('eq_aviso_idioma')) {
+	// (Con el almacenamiento bloqueado, se ofrece igual y no se recuerda: nada de esto tumba el resto del sitio.)
+	var avisoCerrado = false;
+	try { avisoCerrado = Boolean(localStorage.getItem('eq_aviso_idioma')); } catch (e) { /* sin memoria del navegador */ }
+	if (aviso && /^en/i.test(navigator.language || '') && !avisoCerrado) {
 		aviso.hidden = false;
 		aviso.querySelector('button').addEventListener('click', function () {
 			aviso.hidden = true;
-			localStorage.setItem('eq_aviso_idioma', '1');
+			try { localStorage.setItem('eq_aviso_idioma', '1'); } catch (e) { /* sin memoria del navegador */ }
 		});
 	}
 
@@ -222,14 +225,15 @@
 	// La solicitud de reserva que se cortó (sin respuesta o el servidor falló) se recuerda en la pestaña 30 min
 	// (sessionStorage), no solo en memoria: si el cliente recarga, el reintento va con el mismo id. Al abrir la ficha, si el
 	// servidor ya la tiene, se muestra el enlace a su solicitud (sus fechas salen ocupadas porque ya las apartó él).
-	var PENDIENTE = 'eq-pendiente';
+	// Una llave por casa (eq-pendiente:{casa}): dos fichas abiertas en la misma pestaña no se pisan.
+	var PENDIENTE = function (form) { return 'eq-pendiente:' + (form.getAttribute('data-property-id') || ''); };
 	function guardarPendiente(form, p) {
 		form.eqPendiente = p;
-		try { if (p) sessionStorage.setItem(PENDIENTE, JSON.stringify(p)); else sessionStorage.removeItem(PENDIENTE); } catch (e) { /* sin memoria del navegador */ }
+		try { if (p) sessionStorage.setItem(PENDIENTE(form), JSON.stringify(p)); else sessionStorage.removeItem(PENDIENTE(form)); } catch (e) { /* sin memoria del navegador */ }
 	}
 	function leerPendiente(form) {
 		try {
-			var p = JSON.parse(sessionStorage.getItem(PENDIENTE) || 'null');
+			var p = JSON.parse(sessionStorage.getItem(PENDIENTE(form)) || 'null');
 			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && Date.now() - p.cuando < 30 * 60000) return p;
 		} catch (e) { /* sin memoria del navegador */ }
 		return null;
@@ -246,6 +250,8 @@
 				guardarPendiente(form, null);
 				try { localStorage.setItem('eq-reserva', recordada.lead.token); localStorage.setItem('eq-reserva-casa', recordada.lead.propertyId); } catch (e) { /* sin memoria */ }
 				if (typeof form.eqYaPediste === 'function') form.eqYaPediste(recordada.lead.token);
+				// El aviso al anfitrión y al cliente que la respuesta perdida no alcanzó a pedir (si ya salió, no sale dos veces).
+				window.EQChat.avisar(recordada.lead.token);
 			});
 		});
 		form.addEventListener('submit', function (e) {

@@ -324,7 +324,7 @@ test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y mo
 		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'ana arroba gmail punto com', 't.me/villa', 'casalago.co', 'fotos en villa-lago.me/fotos',
 		'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'Llámame al 2024 5678',
 		'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", 'T.ME/X', 'Bit.Ly/x', 'casa.lago.me', 'mi.link.me/y',
-		'juan at gmail dot com', 'juan[at]gmail', 'casa(dot)com', 'casa[.]com', 'casa,com', 'casa。com', 'www casa com', 'ig casalago_gt', 'gmail: juanperez',
+		'juan at gmail dot com', 'juan[at]gmail', 'casa(dot)com', 'casa[.]com', 'casa,com', 'casa。com', 'www casa com', 'ig casalago_gt', 'gmail: juan.perez',
 		'escríbeme al wa', '5O55 1234', '5555 y luego 1234', 'mi número termina en 1234 y empieza con 5555',
 		'mi cel ５５５５１２３４', 'mi cel ٥٥٥٥١٢٣٤', 'ana＠gmail.com', 'ｗｗｗ．micasa．com', 'mi cel ⑤⑤⑤⑤①②③④'])
 		assert.equal(V.tieneContacto(t), true, t);

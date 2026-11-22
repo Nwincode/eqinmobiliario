@@ -387,7 +387,9 @@
 			var texto = campo.value.trim();
 			if (!texto) return;
 			// Teléfonos, correos y enlaces no pasan: los datos de contacto se entregan al confirmar la reserva.
-			if (V.tieneContacto(texto)) return alerta(t.vacChatBloqueo);
+			// Qué parte parece contacto, en una línea y en su idioma (un número de pago: que lo mande en foto).
+			var tipo = V.tipoDeContacto(texto);
+			if (tipo) return alerta(t['vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1)] || t.vacChatBloqueo);
 			if (enviando) return;
 			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
 			campo.value = '';

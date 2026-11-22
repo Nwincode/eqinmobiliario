@@ -30,6 +30,9 @@ const porIp = limitadorDurable('solicitud-ip', 10, 60 * 60_000);
 const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000);
 // La pregunta «¿ya quedó?» y el reintento de una ya guardada: su propio límite por IP, más holgado.
 const porIpConsulta = limitadorDurable('solicitud-consulta-ip', 30, 60 * 60_000, { siFalla: 'memoria' });
+// Un freno previo de intentos por IP, contados ANTES de cualquier lectura y con o sin prueba de Turnstile: una ráfaga que
+// termina en 409 o 403 (casas que no existen, fechas tomadas) no se guarda, pero tampoco sigue sin tope.
+const porIpIntentos = limitadorDurable('solicitud-intentos-ip', 30, 60 * 60_000, { siFalla: 'memoria', avisar: true });
 // Sin la prueba de «no soy un robot» (el navegador no la pudo hacer o Cloudflare no responde), además, uno más estricto:
 // un cliente de verdad reserva igual; un robot que la salta, muy poco.
 const porIpSinPrueba = limitadorDurable('solicitud-ip-sin-prueba', 3, 60 * 60_000, { avisar: true });
@@ -165,6 +168,8 @@ export default async (req, context) => {
 	if (req.method === 'GET') {
 		const q = new URL(req.url, 'http://x').searchParams;
 		if (!q.get('lead')) return json(200, { turnstile: llavePublica() });
+		// Lo que no tiene forma de id y token no se cuenta ni se lee (no llena la base de límites).
+		if (!ID.test(q.get('lead')) || !TOKEN.test(q.get('token') || '')) return json(200, { guardada: false });
 		if (await porIpConsulta(ipDe(req, context))) return json(429, { error: 'Demasiados pedidos seguidos' });
 		try { return json(200, { guardada: Boolean(await yaGuardada(q.get('lead'), q.get('token'))) }); } catch { return json(503, { error: 'Sin respuesta' }); }
 	}
@@ -180,9 +185,11 @@ export default async (req, context) => {
 		// { consulta: true, leadId, token }: ¿ya está guardada? (la página lo pregunta antes de reintentar una que se cortó;
 		// si no está, la revisa otra vez como nueva). Con el límite por IP; el token, en el cuerpo y no en la dirección.
 		if (pedido?.consulta === true) {
+			if (!ID.test(pedido.leadId || '') || !TOKEN.test(pedido.token || '')) return json(200, { guardada: false });
 			if (await porIpConsulta(ip)) return muchas();
 			try { return json(200, { guardada: Boolean(await yaGuardada(pedido.leadId, pedido.token)) }); } catch { return json(503, { error: 'Sin respuesta' }); }
 		}
+		if (await porIpIntentos(ip)) return muchas();
 		// El mismo envío otra vez (la respuesta anterior se perdió): si es la misma solicitud (mismo correo, casa, fechas y
 		// personas), ya quedó: se responde lo mismo antes de revisar las fechas (pudo pasar la medianoche), con el límite por
 		// IP, y si el cliente corrigió su nombre o su teléfono, se pone al día. Si no es la misma, sigue como una nueva (con

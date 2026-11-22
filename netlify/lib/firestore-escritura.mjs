@@ -85,12 +85,16 @@ export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
 		const crear = (ruta, datos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(datos) }, currentDocument: { exists: false }, updateTransforms: transformaciones(transforma) });
 		const cambiar = (ruta, campos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(anidar(campos)) }, updateMask: { fieldPaths: Object.keys(campos) },
 			currentDocument: { exists: true }, updateTransforms: transformaciones(transforma) });
-		let resultado;
+		let resultado, enCommit = false;
 		try {
 			resultado = await trabajo({ leer, consultar, crear, cambiar });
+			enCommit = true;
 			await pedir(token, `${BASE}:commit`, { transaction, writes }, hasta);
 			return resultado;
 		} catch (err) {
+			// El commit pudo llegar aunque su respuesta no (se cortó el plazo o la red): si todo lo que esta transacción crea
+			// ya existe, quedó escrito, y quien llama sigue (correos, cierre de las cruzadas, purga) en vez de decir «error».
+			if (enCommit && (!(err instanceof ErrorBase) || err.codigo === 'DEADLINE_EXCEEDED') && await quedoEscrito(token, writes)) return resultado;
 			// Lo que no llegó al commit se suelta (si no, la base lo tiene bloqueado hasta que venza).
 			await pedir(token, `${BASE}:rollback`, { transaction }, Date.now() + 1000).catch(() => {});
 			// Con una espera al azar que crece: muchos a la vez sobre el mismo documento (un límite, una casa) no vuelven a
@@ -100,6 +104,17 @@ export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
 			throw err;
 		}
 	}
+}
+
+// ¿Quedó escrito un commit cuya respuesta se perdió? Solo se puede saber si crea documentos (sus ids son nuevos): todos
+// existen ahora. Sin documentos nuevos, no se adivina (se responde el error).
+async function quedoEscrito(token, writes) {
+	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update.name);
+	if (!nuevos.length) return false;
+	try {
+		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos }, Date.now() + 1500);
+		return r.length === nuevos.length && r.every((x) => x.found);
+	} catch { return false; }
 }
 
 // Prueba de la cuenta de escritura (el indicador de Solicitudes): escribe la hora en un documento que solo ella toca
