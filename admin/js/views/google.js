@@ -1,6 +1,6 @@
 // Visibilidad: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig, SITIO as SITE } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, iconoBtn } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, tarjeta, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 import { diaConAnio, fechaHora } from '../formato.js';
@@ -55,9 +55,7 @@ const MOTIVOS = {
 	pagina1: ['A un paso de la página 1', 'Apareces en la página 2. Usa la búsqueda exacta en el título, el H1 o un subtítulo, y enlaza la página desde otras.', 'info']
 };
 
-function card(titulo, ...contenido) {
-	return h('div', { class: 'card mb-3' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), h('div', { class: 'card-body' }, ...contenido));
-}
+const card = (titulo, ...contenido) => tarjeta(null, titulo, ...contenido);
 
 // Pasos de la conexión, en el orden en que los revisa /api/gsc (acción "estado"): [clave, qué se comprueba, cómo se arregla].
 const PASOS = [

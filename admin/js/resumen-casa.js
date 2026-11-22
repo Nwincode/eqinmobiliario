@@ -3,7 +3,7 @@
 // el acuerdo (solo la fecha de la exclusiva de esta casa) y sin notas internas. Lo único que escribe el dueño es su
 // respuesta al anuncio (comentariosPropietarios), que el asesor ve en la ficha de la persona.
 import { db, addDoc, collection, serverTimestamp } from './firebase.js';
-import { h, toast, showError, badge, statCard, iconoBtn, tablaAdmin, formatPrice } from './ui.js';
+import { h, toast, showError, badge, statCard, iconoBtn, tablaAdmin, tarjeta, formatPrice } from './ui.js';
 import { ESTADOS_PROPIEDAD, OPERACIONES } from './estados.js';
 import { whatsappUrl, fechaCorta, fechaLarga } from './formato.js';
 import { estadoExclusiva, datosDe } from './ficha-casa.js';
@@ -65,9 +65,6 @@ function respuesta(resumen, p) {
 	return caja;
 }
 
-const tarjeta = (titulo, icono, ...cuerpo) => h('section', { class: 'card mb-3' },
-	h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h6 mb-0' }, ic(icono), titulo)),
-	h('div', { class: 'card-body' }, ...cuerpo));
 
 // Estado de la casa (Disponible, Vendida…), con el color de su visibilidad en el sitio.
 export function estadoCasa(p) {
@@ -121,7 +118,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 					ag.telefono ? iconoBtn('icon-phone', `Llamar a ${ag.nombre || 'tu asesor'}`, { href: `tel:${ag.telefono}` }) : null) : null,
 				// Interés: consultas, visitas y ofertas (total y últimos 30 días), junto a la foto.
 				h('div', { class: 'row g-2' }, kpi('consultas', 'Consultas', 'icon-commenting-o'), kpi('visitas', 'Visitas', 'icon-calendar-check-o'), kpi('ofertas', 'Ofertas', 'icon-handshake-o'))] }),
-		tarjeta('Cómo se anuncia', 'icon-bullhorn',
+		tarjeta('icon-bullhorn', 'Cómo se anuncia',
 			h('p', { class: 'small text-muted' }, 'Así ven tu propiedad los interesados en nuestra página.'),
 			h('div', { class: 'fw-semibold' }, p.titulo),
 			h('div', { class: 'small text-muted mb-1' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, a.zona, a.ciudad].filter(Boolean).join(' · ')}`),
@@ -132,18 +129,18 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 			resumen.id && responder ? respuesta(resumen, p) : null),
 		h('div', { class: 'row gx-3' },
 			h('div', { class: 'col-lg-5' },
-				precios.length > 1 ? tarjeta('Historial de precio', 'icon-line-chart', h('ul', { class: 'list-group list-group-flush' }, precios.map((x, i) => h('li', { class: 'list-group-item d-flex justify-content-between px-0' },
+				precios.length > 1 ? tarjeta('icon-line-chart', 'Historial de precio', h('ul', { class: 'list-group list-group-flush' }, precios.map((x, i) => h('li', { class: 'list-group-item d-flex justify-content-between px-0' },
 					h('span', { class: i ? 'text-muted' : 'fw-semibold' }, formatPrice(x.precio, x.moneda, p.operacion)), h('span', { class: 'small text-muted' }, fecha(x.fecha, true)))))) : null,
-				tarjeta('Dónde se anuncia', 'icon-globe', (p.portales || []).length ? h('ul', { class: 'list-unstyled mb-0 d-grid gap-1' }, p.portales.map((po) => h('li', {},
+				tarjeta('icon-globe', 'Dónde se anuncia', (p.portales || []).length ? h('ul', { class: 'list-unstyled mb-0 d-grid gap-1' }, p.portales.map((po) => h('li', {},
 					enlaceSeguro(po.url) ? h('a', { href: po.url, target: '_blank', rel: 'noopener' }, ic('icon-external-link'), po.nombre) : h('span', {}, ic('icon-globe'), po.nombre))))
 					: h('p', { class: 'small text-muted mb-0' }, 'Tu asesor está preparando la publicación.'))),
 			h('div', { class: 'col-lg-7' },
-				tarjeta('Lo que ha pasado', 'icon-history', eventos.length ? h('ul', { class: 'list-group list-group-flush' }, eventos.map((e) => {
+				tarjeta('icon-history', 'Lo que ha pasado', eventos.length ? h('ul', { class: 'list-group list-group-flush' }, eventos.map((e) => {
 					const [tipo, icono] = EVENTO[e.tipo] || EVENTO.nota;
 					return h('li', { class: 'list-group-item d-flex gap-2 px-0' }, h('span', { class: `${icono} text-muted mt-1`, 'aria-hidden': 'true' }),
 						h('div', {}, h('div', { class: 'small text-muted' }, `${tipo}${e.fecha ? ` · ${fecha(e.fecha)}` : ''}`), h('div', {}, e.auto ? textoAuto(e, p) : e.texto)));
 				})) : h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay novedades. Tu asesor las irá agregando aquí.')))),
-		tarjeta('Clientes interesados', 'icon-users',
+		tarjeta('icon-users', 'Clientes interesados',
 			h('p', { class: 'small text-muted' }, ic('icon-lock'), 'Sin nombres ni teléfonos: cada persona tiene un número, en el orden en que nos contactó.'),
 			(() => {
 				const t = tablaAdmin({

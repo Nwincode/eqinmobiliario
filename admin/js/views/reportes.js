@@ -1,6 +1,6 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
 import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, tablaAdmin } from '../ui.js';
+import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, tablaAdmin, tarjeta, barras } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
 import { loadClientes, loadActividades, vencimiento, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
@@ -66,7 +66,6 @@ export async function render(container) {
 
 		const tot = (k) => filas.reduce((s, f) => s + (f[k] || 0), 0);
 		const embudo = ETAPAS.map(([v, l]) => [l, clientes.filter((c) => (c.etapa || 'nuevo') === v).length]);
-		const maxE = Math.max(1, ...embudo.map(([, n]) => n));
 
 		const tablaAsesores = tablaAdmin({
 			tarjeta: false,
@@ -87,14 +86,8 @@ export async function render(container) {
 			h('div', { class: 'row g-3 mb-4' }, [
 				['icon-envelope-o', 'Leads', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
 			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
-			h('div', { class: 'card mb-3 overflow-hidden' },
-				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
-				tablaAsesores),
-			h('div', { class: 'card' },
-				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
-				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },
-					h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, l), h('strong', {}, n)),
-					h('div', { class: 'bar' }, h('span', { style: `width:${(n / maxE) * 100}%` })))))),
+			tarjeta('icon-users', 'Por asesor', { sinCuerpo: true, cls: 'overflow-hidden' }, tablaAsesores),
+			tarjeta('icon-filter', 'Embudo actual de clientes', barras(embudo)),
 			h('p', { class: 'small text-muted mt-3' }, 'Respuesta: mediana del tiempo entre que llega el lead y la primera llamada, mensaje o visita registrada con ese cliente. Monto y comisión salen de los clientes en etapa "Cierre"; si el cliente no tiene comisión propia se aplica la regla general.'));
 		cuerpo._filas = filas;
 	};

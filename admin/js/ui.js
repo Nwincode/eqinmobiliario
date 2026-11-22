@@ -224,6 +224,23 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	return caja;
 };
 
+// Tarjeta con encabezado (ícono opcional y título) y su cuerpo: la única del panel para un bloque con título.
+// Si lo primero del cuerpo es { sinCuerpo: true }, el contenido va directo (una tabla o una lista que ya trae su borde).
+export function tarjeta(icono, titulo, ...cuerpo) {
+	const op = cuerpo[0] && cuerpo[0].constructor === Object ? cuerpo.shift() : {};
+	return h('section', { class: `card mb-3${op.cls ? ` ${op.cls}` : ''}` },
+		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h6 mb-0' }, icono ? h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }) : null, titulo)),
+		op.sinCuerpo ? cuerpo : h('div', { class: 'card-body' }, cuerpo));
+}
+
+// Barras de un embudo o reparto: [[etiqueta, número]], cada barra a escala de la mayor.
+export function barras(filas) {
+	const max = Math.max(1, ...filas.map(([, n]) => n));
+	return filas.map(([etiqueta, n]) => h('div', { class: 'mb-2' },
+		h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, etiqueta), h('strong', {}, n)),
+		h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` }))));
+}
+
 export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }

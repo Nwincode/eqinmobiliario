@@ -1,5 +1,5 @@
 import { db, getDocs, collection } from '../firebase.js';
-import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
+import { h, statCard, pageHeader, formatDate, toDate, mount, tarjeta, barras } from '../ui.js';
 import { session, getPublishState } from '../session.js';
 import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
@@ -42,7 +42,6 @@ export async function render(container) {
 	const nuevos = interesados.filter((l) => (l.estado || 'nuevo') === 'nuevo');
 	const byEstado = ESTADOS.map(([v, l]) => [l, interesados.filter((x) => (x.estado || 'nuevo') === v).length]);
 	const byOrigen = Object.entries(last30.reduce((acc, l) => { const k = fuenteLead(l).split(' · ')[0]; acc[k] = (acc[k] || 0) + 1; return acc; }, {}));
-	const max = Math.max(1, ...byEstado.map(([, n]) => n));
 
 	mount(container, 
 		pageHeader(`Hola, ${(session.profile.nombre || '').split(' ')[0] || 'bienvenido'}`,
@@ -80,11 +79,7 @@ export async function render(container) {
 					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
 				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),
 			h('div', { class: 'col-lg-5' },
-				h('div', { class: 'card mb-3' },
-					h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo de leads'),
-					h('div', { class: 'card-body' }, byEstado.map(([label, n]) => h('div', { class: 'mb-2' },
-						h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, label), h('strong', {}, n)),
-						h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` })))))),
+				tarjeta('icon-filter', 'Embudo de leads', barras(byEstado)),
 				h('div', { class: 'card' },
 					h('div', { class: 'card-header bg-white fw-semibold' }, 'Fuente de leads (30 días)'),
 					h('div', { class: 'card-body' }, byOrigen.length
