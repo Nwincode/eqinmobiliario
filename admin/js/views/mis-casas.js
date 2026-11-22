@@ -19,7 +19,7 @@ import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { anotar, bitacoraActiva } from '../bitacora-panel.js';
 import { fotoCasa, igual } from '../bitacora.js';
 // Los textos de la bitácora de la casa: solo los que dejan las reglas (texto-dueno.js).
-import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno } from '../texto-dueno.js';
+import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno, sinValores } from '../texto-dueno.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
@@ -174,8 +174,9 @@ async function casa(container, id) {
 	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
 	// casa y la bitácora. `descripcion(antes, ahora)` da el texto de su renglón (texto-dueno.js) con los valores leídos aquí.
 	// Si no cambia nada (el mismo precio otra vez, días ya bloqueados), no se escribe nada: ni la casa ni el renglón.
-	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó.
-	async function guardar(descripcion, cambio) {
+	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó. `conValores` en false:
+	// el renglón sin los valores (sinValores), el que aceptan las reglas de antes; se reintenta así una vez si lo niegan.
+	async function guardar(descripcion, cambio, conValores = true) {
 		let sinPrecioPropio = false, texto = '';
 		try {
 			const conBitacora = await bitacoraActiva();
@@ -229,7 +230,7 @@ async function casa(container, id) {
 					const bitacoraId = anotar(tx, { tipo: 'casa', objeto: id, casa: id, antes: fotoCasa(c.data(), sv), despues: fotoCasa(c.data(), { ...sv, ...socioLimpio(suyo) }) }, conBitacora);
 					await guardarPrivadoVacacional(id, suyo, null, tx, { bitacoraId });
 				}
-				texto = descripcion(previo, nuevo);
+				texto = conValores ? descripcion(previo, nuevo) : sinValores(descripcion(previo, nuevo));
 				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
 				tx.set(doc(collection(refCasa, 'bitacora')), { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
 				return { ...actual, ...nuevo, margen: sv.margen };
@@ -237,11 +238,14 @@ async function casa(container, id) {
 			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
 			s.margen = r.margen;
 			if (r.sinCambio) { toast('Ya estaba así: no hubo nada que guardar.'); return true; }
-			markPending(`${p.titulo}: ${texto}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
+			// Sin los valores: el aviso lo lee todo el equipo y el precio del dueño no (texto-dueno.js sinValores).
+			markPending(`${p.titulo}: ${sinValores(texto)}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
 			alDiaEnLaWeb(id);
 			toast('Guardado.');
 			return true;
 		} catch (err) {
+			// Las reglas de antes (el sitio se publica primero) niegan el renglón con valores: otra vez, sin ellos.
+			if (conValores && err?.code === 'permission-denied' && texto !== sinValores(texto)) return guardar(descripcion, cambio, false);
 			// Casa por noche sin su precio guardado todavía: con las reglas de antes el dueño no puede crearlo.
 			if (sinPrecioPropio && err?.code === 'permission-denied') toast('Esta casa todavía no tiene tu precio registrado. Pídele al administrador que lo ponga en la ficha de la casa; después ya puedes cambiarlo aquí.', 'warning');
 			else showError(err);

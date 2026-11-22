@@ -40,6 +40,11 @@ export const textoDueno = {
 	personas: (n, antes) => (antes && antes !== n ? `personas máximo: ${antes} → ${n}` : `personas máximo ${n}`)
 };
 
+// El mismo texto sin los valores («precio entre semana», «personas máximo 12»): el de las reglas de antes (una pestaña con el
+// sitio nuevo y las reglas todavía sin publicar: mis-casas.js lo reintenta así) y el del aviso «Hay cambios sin publicar»
+// (meta/publish lo lee todo el equipo; el precio del dueño solo el administrador y el asesor de la casa).
+export const sinValores = (t) => String(t).replace(/^personas máximo: [0-9]+ → ([0-9]+)$/, 'personas máximo $1').replace(/: .*$/, '');
+
 // Lo que dejan escribir las reglas (RE2, el texto entero; sin barras invertidas para copiarla tal cual).
 // Un día: «16», «16 nov» o «16 nov 2027» (el año solo después del mes).
 const D = `[1-3]?[0-9]( (${MESES_CORTOS.join('|')})( 20[0-9]{2})?)?`;

@@ -108,7 +108,7 @@ await t('lo que resulta para un socio (permisosSocios/{id}) cambia con su rengl�
 
 await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis propiedades» (las reglas tienen la misma expresión)', async () => {
 	await import('../js/calc-vacacional.js');
-	const { textoDueno: T, TEXTO_DUENO, MOTIVOS_BLOQUEO, QUE_CADA } = await import('../admin/js/texto-dueno.js');
+	const { textoDueno: T, TEXTO_DUENO, MOTIVOS_BLOQUEO, QUE_CADA, sinValores } = await import('../admin/js/texto-dueno.js');
 	const { readFileSync } = await import('node:fs');
 	assert.ok(readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8').includes(`.matches('${TEXTO_DUENO}')`), 'la misma expresión en firestore.rules');
 	const re = new RegExp(`^(?:${TEXTO_DUENO})$`);
@@ -123,6 +123,12 @@ await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis pro
 			...['', ...Object.keys(QUE_CADA)].flatMap((c) => [T.calendario('precio', r, 250, c), T.calendario('precio', r, 12500.5, c, 'GTQ'), T.calendario('minimo', r, 3, c), T.calendario('minimo', r, 1, c)]),
 			T.quito('Precios especiales', r), T.quito('Mínimos de noches', r, true)])];
 	for (const x of textos) assert.match(x, re);
+	// Sin los valores: lo que aceptan las reglas de antes (la expresión de antes de los valores, copiada tal cual; el sitio
+	// se publica antes que las reglas y mis-casas.js reintenta así) y lo que va al aviso que lee todo el equipo (sin montos).
+	const D = '[1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?', R = `${D}( – ${D})?`;
+	const antes = new RegExp(`^(?:(precio (entre semana|fin de semana)|personas máximo [0-9]{1,2}|puso las temporadas de [0-9]{4}|(bloqueó|habilitó|precio especial|mínimo de noches) ${R}( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?|quitó (precios especiales|mínimos de noches) ${R}( [(]todos los años[)])?))$`);
+	for (const x of textos) { assert.match(sinValores(x), antes, x); assert.match(sinValores(x), re, x); assert.doesNotMatch(sinValores(x), /US[$]|Q [0-9]|→/, x); }
+	assert.equal(sinValores(T.personas(12, 8)), 'personas máximo 12');
 	assert.equal(T.precio('Entre semana', 900, 1000, 'GTQ'), 'precio entre semana: Q 900 → Q 1,000');
 	assert.equal(T.precio('Fin de semana', 150, 0), 'precio fin de semana: US$ 150 → igual que entre semana');
 	assert.equal(T.calendario('minimo', rangos[0], 1), 'mínimo de noches 16 – 20 nov: 1 noche');
