@@ -238,6 +238,8 @@
 		try {
 			var p = JSON.parse(localStorage.getItem(PENDIENTE(form)) || 'null');
 			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && vigente(p)) return p;
+			// Vencido: se borra, para que sus datos (nombre, correo, token) no queden en una computadora compartida.
+			if (p) localStorage.removeItem(PENDIENTE(form));
 		} catch (e) { /* sin memoria del navegador */ }
 		return null;
 	}

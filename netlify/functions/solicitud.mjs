@@ -254,7 +254,12 @@ export default async (req, context) => {
 		return json(200, { token });
 	} catch (err) {
 		if (err instanceof Rechazo) {
-			if (err.reenviar) await reenviarEnlace(err.reenviar).catch((e) => console.error('Solicitud (reenviar enlace):', e.message));
+			// Sin esperar el correo: si el 409 tardara más cuando es la misma persona, el tiempo diría que ese correo tiene una
+			// solicitud en esa casa y esas fechas (oráculo). Con waitUntil sigue después de responder.
+			if (err.reenviar) {
+				const envio = reenviarEnlace(err.reenviar).catch((e) => console.error('Solicitud (reenviar enlace):', e.message));
+				if (typeof context?.waitUntil === 'function') context.waitUntil(envio); else await envio;
+			}
 			return json(err.status, { error: en ? err.en : err.message, ...err.extra });
 		}
 		console.error('Solicitud:', err.message);
