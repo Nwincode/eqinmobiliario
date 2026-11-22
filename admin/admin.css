@@ -745,6 +745,7 @@ a.stat-card:hover {
 .list-field-item.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
 .list-sin-encabezado .list-quitar { position: absolute; top: 1px; right: 1px; z-index: 1; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; }
 .list-sin-encabezado .casa-fila { padding-right: 52px; }
+@media (min-width: 768px) { .list-field-item.list-sin-encabezado { margin-bottom: 12px; } } /* el mismo espacio que .lista-casas */
 .list-field-item {
 	background: var(--adm-bg);
 	border: 1px solid var(--adm-border);
@@ -3589,7 +3590,9 @@ a.casa-fila:hover { color: var(--adm-text); }
 .casa-ok { color: var(--eq-whatsapp); }
 /* «Elegir varias»: la casilla aparece sobre la foto y la fila entera la marca. */
 .casa-sel { display: none; position: absolute; top: 0; left: 0; width: 44px; height: 44px; place-items: center; margin: 0; }
-.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; background-color: var(--adm-surface); }
+.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; }
+/* Sin marcar, blanca sobre la foto; marcada, la de Bootstrap (azul con ✓): un fondo fijo tapaba la marca. */
+.casa-sel .form-check-input:not(:checked) { background-color: var(--adm-surface); }
 .lista-casas.eligiendo .casa-sel { display: grid; }
 .solo-eligiendo { display: none; }
 .lista-casas.eligiendo ~ * .solo-eligiendo, body:has(.lista-casas.eligiendo) .solo-eligiendo { display: inline-block; }
