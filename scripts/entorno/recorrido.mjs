@@ -632,7 +632,8 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	paso('Servidor: la misma solicitud confirmada dos veces a la vez deja una sola reserva (200 y 409)', mismas.join() === '200,409', mismas.join());
 	const g1 = await sembrar('srv-g1', iso(240)), g2 = await sembrar('srv-g2', iso(241));
 	const cruzadas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: g1.id }), api('socio', { accion: 'confirmar', leadId: g2.id })])).map((x) => x.status).sort();
-	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422)', cruzadas.join() === '200,422', cruzadas.join());
+	// La otra: 422 si choca en su transacción, o 409 si al repetirse (la base la puso en fila) ya la cerró la ganadora.
+	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422 o 409)', ['200,422', '200,409'].includes(cruzadas.join()), cruzadas.join());
 	const trasPagar = await api('socio', { accion: 'cancelar', leadId: lead1, motivo: 'Cliente canceló' });
 	paso('Servidor: el socio no cancela una reserva ya pagada (409)', trasPagar.status === 409 && (await leer(`reservas/${lead1}`)).fields?.estado?.stringValue === 'confirmada', resp(trasPagar));
 

@@ -213,6 +213,10 @@ export default async (req, context) => {
 	} catch (err) {
 		if (err instanceof Rechazo) return json(err.status, { error: en ? err.en : err.message, ...err.extra });
 		console.error('Solicitud:', err.message);
+		// Muchas a la vez sobre el mismo documento (una ráfaga): la base no alcanzó a ponerla en fila. La página guarda la
+		// misma para reintentar (mismo id).
+		if (err?.codigo === 'ABORTED' || /lock timeout|contention/i.test(err?.message || ''))
+			return error(503, 'Hay muchas solicitudes en este momento: vuelve a intentarlo en un minuto.', 'There are many requests right now: please try again in a minute.');
 		return error(500, 'No se pudo guardar. Vuelve a intentarlo.', 'We could not save it. Please try again.');
 	}
 };
