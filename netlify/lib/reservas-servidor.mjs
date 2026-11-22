@@ -141,7 +141,7 @@ export async function congelarMontos(tx, leadId, { lead = null, casa = null } = 
 	// Cotizada por debajo del precio de la casa: le toca al equipo. El aviso queda pendiente en el chat en este mismo
 	// cambio (solo quien la congela lo pone) y lo manda avisarQueTocaConfirmar; el control de cada hora lo reintenta.
 	// (`confirmaEquipo` queda: el correo y la página no le prometen fechas apartadas a una que el socio no puede confirmar.)
-	if (bajoElPlan(m)) tx.cambiar(`chats/${c.token}`, { teTocaPendiente: true, confirmaEquipo: true });
+	if (bajoElPlan(datos)) tx.cambiar(`chats/${c.token}`, { teTocaPendiente: true, confirmaEquipo: true });
 	return datos;
 }
 
