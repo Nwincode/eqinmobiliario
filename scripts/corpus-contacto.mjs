@@ -48,6 +48,19 @@ export const NORMALES = (() => [
 	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
 	'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
 	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Transferí Q2450 desde la cuenta terminada en 3456', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567',
+	// Revisión 11.
+	'Llámame el 24/12 a las 14:30', 'llámame en 2027 el 24/12', 'Llámanos en 2027 el 20/12 para reservar', 'call me in 2027 at 15:00',
+	'te llamo el 2026 el 24/12 jaja', 'Número de huéspedes: 4, llegada 24/12 14:30', 'Atención tel. 9:00 a 17:00', 'Celular 8:00-17:00',
+	'whatsapp 22:00 - 07:00', 'Contacto: 24/12 – 26/12', 'Mi contacto llega 24/12', 'mobile check-in 15:00 - 16:00', 'Phone hours 9:00-17:00',
+	'call 9:00 - 17:00', 'te escribo el 24/12 a las 14:30', 'escríbeme el 24/12 o el 26/12', 'llámame 24/12 o 26/12', 'text me on 12/24 at 2:30',
+	'call me 12/24 at 15:00', 'número de reserva 2026, llegada el 24/12', 'el número de personas 2027 el 24/12', 'Llegamos 2 adultos, 2027 el 24/12',
+	'contacto 24/12', 'whatsapp me 24/12', 'cel 24/12 14:30', 'mi cel muere el 24/12 14:30', 'Llegamos el 24/12 14:30 y salimos el 31/12 11:00',
+	'Check-in 24/12 14:30, check-out 31/12 11:00', 'Arrive 12/24 14:30, leave 12/31 11:00', 'Llámame mañana, llegamos 24/12 a las 14:30',
+	'la llamada 24/12 y 26/12', 'Llamé 24/12 y 26/12', 'call me 9:00 or 9:30', 'número 1 el 24/12', 'phone me 15:00 - 16:00',
+	'Llamamos a las 2026 personas', 'call at 2030 hrs', 'Te llamo a las 1530 o 15:45', 'Llámanos 2027 a las 15:00',
+	'Celebramos 2026 el 31/12 con 8 personas', 'llamaré 2026 y 2027', 'whatsapp 2026 y 2027 sin señal', 'llámame en 2027 el 24/12',
+	'Llámanos 2027 a las 15:00', 'call me in 2027 at 15:00', 'Atención tel. 9:00 a 17:00', 'Celular 8:00-17:00', 'whatsapp 22:00 - 07:00',
+	'Contacto: 24/12 – 26/12',
 	// Revisión 10.
 	'check-in 15:00', 'Check-in 15:00, check-out 11:00', 'Llegamos 14:30 y salimos 11:00.', 'llegamos 14:30, salimos 11:00',
 	'llegamos a las 14:30 y nos vamos 11:00', 'check-in: 15:00 / check-out: 11:00', 'Entrada 15:00 · Salida 11:00', 'llegada 14:37 salida 11:12',
@@ -190,14 +203,27 @@ export const EVASIONES = (() => [
 	// Revisión 5.
 	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
 	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
+	// Revisión 11.
+	'llámame el 22/12 12:31', 'llamame 22/12 12:31', 'call me 12/22 12:31', 'escribeme el 22/12 12:31', 'text me 12/22 12:31', 'wa 22/12 y 12/31',
+	'wa: 22/12 12:31', 'wa 22:12 y 12:31', 'wa 22:12 12:31', 'wa 5555 12:34', 'whats 22/12 y 12/31', 'wsp 22/12 12:31', 'cell 12/22 12:31',
+	'mobile 12/22 and 12/31', 'número 22/12 y 12/31', 'whats al 22/12 y 12/31', 'whats: el 22/12 y 12/31', 'número: es 22/12 y 12/31',
+	'cel es 22/12 y 12/31', 'mi cel es el 22/12 12:31', 'mi número es 22/12 y 12/31', 'my number is 12/22 12:31', 'my cell is 12/22 and 12/31',
+	'phone is 12/22 12:31', 'llámame 22:12 a las 12:31', 'llámame 22/12 a las 12:31', 'wa 22/12 a las 12:31', 'wsp 22/12 a las 12:31',
+	'whats 22/12 a las 12:31', 'cel 22/12 a las 12:31', 'número 22/12 a las 12:31', 'tel 22/12 a las 12:31', 'llámame 5555 12/31',
+	'llámame 5555 el 12/12', 'wsp 5555 y 12/31', 'llámame 22/12 1231', 'llámame 22/12 y 1231', 'wsp 22/12 1231', 'llámame 2212 12:31',
+	'llámame 22 12 12:31', 'llámame al 22, 12, 12:31', 'llámame 22.12 12.31', 'llámame 22-12 12-31', 'llámame 22/1 2/12 3/1', 'llámame 2/2 1/2 3/1',
+	'wa 5/5 5/5 1/2 3/4', 'llámame al 5/5, 5/5, 1/2 y 3/4', 'número? 22/12 y 12/31', 'mi whats va por fechas: 22/12 y 12/31', 'cel → 22/12 y 12/31',
+	'mi cel 22/12 12:31', 'cel. 22/12 12:31', 'tel.: 22/12, 12:31', 'whatsapp: 22/12 y 12/31', 'escríbeme: 22/12 12:31 gracias',
+	'llámame el 22/12 12:31', 'wa: 22/12 12:31', 'mi cel es el 22/12 12:31', 'cel 22/12 a las 12:31', 'mi número es 22/12 y 12/31',
+	'my number is 12/12 12:31', 'call me 12/22 12:31', 'wa 22:12 y 12:31',
 	// Revisión 10.
 	'escríbeme 21:12 23:45', 'escribeme al 21:12 23:45', 'contáctame 22:55 12:34', 'contacto 22:55 12:34', 'text me 22:55 12:34',
 	'write me 21:12 23:45', 'reach me 22:55 12:34', 'contáctame al 23-12-2026', 'text me 2026-12-23', 'contacto 2026/12/23', 'escríbeme 22:55 y 12:34',
 	'escribeme 2255 12:34', 'contacto 5555 12:34', 'contacto 5555, 12:34', 'contacto: 5555-12:34', 'llegamos 22:55 12:34 jaja', 'mi número 22:55 12:34',
-	'whats 22 55 12 34', 'cel 5555 12:30', 'cel 5555 14:00', 'cel 5555 23:45', 'llámame 22:00 - 07:00 5555', 'cel 22:00-12:30', 'cel 22:00 12:30',
-	'whatsapp 22:00 - 12:30', 'mi cel 22:30 a 12:45', 'tel 21:00 a 23:45', 'mi número es 5512 a las 12:34', 'cel 5555 a las 12:34', 'cel 5555 el 12/3',
+	'whats 22 55 12 34', 'cel 5555 12:30', 'cel 5555 14:00', 'cel 5555 23:45', 'llámame 22:00 - 07:00 5555', 'cel 22:00 12:30',
+	'mi número es 5512 a las 12:34', 'cel 5555 a las 12:34', 'cel 5555 el 12/3',
 	'cel 5555 el 12/12', 'whatsapp 5555 del 12/3 al 4/5', 'tel 5555 - 1234', 'mi cel 5555 hasta 12:34', 'mi cel 5555 to 12:34',
-	'contacto de emergencia 5555 1234', 'my number 22:55 to 12:34', 'whatsapp 22:15 - 12:45', 'cel 22:15 y 12:45', 'llamame 20:00 a 23:30 5555 1234',
+	'contacto de emergencia 5555 1234', 'my number 22:55 to 12:34', 'cel 22:15 y 12:45', 'llamame 20:00 a 23:30 5555 1234',
 	'cel 5555 a las 12:34', 'cel 5555 y 12:34', 'mi cel 5555 hasta 12:34', 'cel 5555 el 12/12', 'escribime 23/12/2026', 'contactame 23/12/2026',
 	'text me 23/12/2026',
 	// Revisión 9.
@@ -267,6 +293,10 @@ export const BLOQUEADAS_A_PROPOSITO = (() => [
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
 // normales («facebook marketplace»).
 export const LIMITES_ACEPTADOS = [
+	'call me 12/22 and 12/31', 'escríbeme 22/12 y 12/31', 'text me 12/22 and 12/31', 'contáctame 22/12, 12/31', 'WA 22/12 - 12/31', 'el número va así: 22/12 y 12/31', 'llámame (22/12 y 12/31)',
+	// Revisión 11: un rango de horas redondas pegado a un sustantivo de teléfono es un horario («Celular 8:00-17:00»), y
+	// dos días/mes después de «llámame» con «y».
+	'cel 22:00-12:30', 'whatsapp 22:00 - 12:30', 'mi cel 22:30 a 12:45', 'tel 21:00 a 23:45', 'whatsapp 22:15 - 12:45', 'llámame 22/12 y 12/31',
 	// Revisión 10: días/mes inválidos con palabras en medio.
 	'cel 55 del 55/12 al 12/34',
 	// Revisión 8: 9 cifras sin palabra de teléfono (prima una referencia), 10 después de «referencia» sin palabra de
@@ -330,6 +360,7 @@ export const NORMALES_GENERADAS = [...new Set([
 	...['24 dic', '31 dic', '1 ene', 'Dec 24'].flatMap((d) => HORAS_NORMALES.map((h) => `${d} ${h}`)),
 	...[['24/12', '25/12', '26/12'], ['30/12', '31/12', '1/1'], ['12/24', '12/25', '12/31']].flatMap((l) => [`Las noches ${l.join(', ')}`, `Fin de año ${l.slice(0, -1).join(', ')} y ${l.at(-1)}`, `(${l.join(', ')})`, `Nights ${l.slice(0, -1).join(', ')} and ${l.at(-1)}`, `Del ${l[0]} - ${l[2]}`]),
 	...[['24/12', '26/12'], ['31/12', '2/1']].flatMap(([a, b]) => [`Fechas especiales: ${a} - ${b}`, `del ${a} al ${b}`, `${a} to ${b}`, `Temporada ${a} - ${b}: Q1,800`]),
+	...['llámame en 2027 el 24/12', 'Llámanos 2027 a las 15:00', 'call me in 2027 at 15:00', 'Atención tel. 9:00 a 17:00', 'Celular 8:00-17:00', 'whatsapp 22:00 - 07:00', 'Contacto: 24/12 – 26/12'].map(alAnio),
 	...['Silencio 22:00 - 06:00', 'Música 20:00-23:00', 'Horario de silencio: 22:00 – 07:00', 'Quiet hours 22:00 to 07:00'].flatMap((x) => [x, `Reglas: ${x}.`])
 ])];
 
@@ -343,7 +374,9 @@ export const EVASIONES_GENERADAS = [...new Set([].concat(
 	...FECHAS_CERCANAS.flatMap((f) => [...CODIGOS_DELANTE.map((c) => `${c}${f}`), ...CODIGOS_DELANTE.map((c) => `whatsapp ${c}${f}`)].flatMap(variantes)),
 	...ANTES_HORA.flatMap((a) => HORAS_TEL.map((h) => `${a}${h}`)).flatMap(variantes),
 	// Un sustantivo de teléfono con días/mes u horas pegados, y una palabra de teléfono + 4 cifras + conector + hora o día/mes.
-	...['cel ', 'tel: ', 'whatsapp ', 'mi número ', 'contacto ', 'my number ', 'phone: '].flatMap((w) => ['22:00-12:30', '22:15 y 12:45', '21:00 a 23:45', '22:30 to 12:45', '12/3 - 4/5', '22:55, 12:34'].map((h) => `${w}${h}`)).flatMap(variantes),
+	...['cel ', 'tel: ', 'whatsapp ', 'mi número ', 'contacto ', 'my number ', 'phone: '].flatMap((w) => ['22:15 y 12:45', '22:55, 12:34', '22/12 12:31', '22/12 y 12/31', '22:12 y 12:31', 'es el 22/12 12:31', 'is 12/22 12:31', 'a las 22:12', '22:00 12:30'].map((h) => `${w}${h}`)).flatMap(variantes),
+	// Una palabra de teléfono con un día/mes y una hora no redonda, o 4 cifras, o tres días/mes seguidos.
+	...['llámame ', 'llámame el ', 'wa: ', 'wsp ', 'whats ', 'call me ', 'text me ', 'mi cel es el ', 'my number is ', 'escríbeme: '].flatMap((w) => ['22/12 12:31', '12/22 12:31', '22/12 a las 12:31', '22/12 y 1231', '2/2 1/2 3/1', '5/5, 5/5, 1/2 y 3/4'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...['cel 5555', 'mi número es 5512', 'whatsapp 4123', 'llámame al 5555', 'escríbeme 5555', 'call me 5555'].flatMap((w) => [' a las 12:34', ' y 12:34', ' hasta 12:34', ' el 12/12', ' del 12/3', ' to 12:34', ', 12:34', ' at 12:34'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...['escríbeme al ', 'llámame ', 'whatsapp ', 'call me at ', 'mi cel: '].flatMap((w) => ['21:12 y 23:45', '23:59 - 12:34', '21:00, 23:41', '22:13 23:45'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...[...CORREOS_RAROS, ...ENLACES, ...PALABRAS_502].flatMap((x) => [x, `mira: ${x}`, `look ${x} ok`].flatMap(variantes))
