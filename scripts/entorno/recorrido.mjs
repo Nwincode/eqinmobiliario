@@ -32,7 +32,8 @@ async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
-	await p.route('**/*', async (r) => {
+	// En el contexto (no en la página): una segunda pestaña de la misma persona va por el mismo camino.
+	await ctx.route('**/*', async (r) => {
 		const u = r.request().url();
 		if (reglasViejas && /\/portalPropietarios\/prueba-[^/?]+/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
@@ -95,7 +96,7 @@ const delaCasa = `${(await opcionesDe('estado')).join('/')} · ${(await opciones
 paso('Renta vacacional: solo los estados y tipos que aplican a una casa por noche', !/Vendida|Rentada|oferta|Terreno|Bodega|Oficina|Local/.test(delaCasa) && /Disponible.*Pausada.*Casa.*Finca/.test(delaCasa), delaCasa);
 const fila1 = await admin.p.evaluate(() => ['moneda', 'orden', 'publicado', 'destacada'].map((c) => document.querySelector(`[data-campo="${c}"]`)?.getBoundingClientRect().top));
 paso('Renta vacacional: moneda, orden, visible y destacada en una sola fila (sin hueco)', fila1.every((t) => t && Math.abs(t - fila1[0]) < 4), fila1.map(Math.round).join(','));
-const faltan = await admin.p.locator('.admin-main .alert').first().innerText().catch(() => '');
+const faltan = await admin.p.locator('.admin-main .alert:not(#aviso-dos-pasos)').first().innerText().catch(() => '');
 paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el precio, ni se piden m² ni parqueos', !/Precio|m²|Parqueos/.test(faltan), faltan.replace(/\s+/g, ' ').slice(0, 140));
 const google = await admin.p.locator('.card-body').innerText();
 paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /US\$ ?120(\.00)? por noche/.test(google) && !/Desde/.test(google) && !/A consultar/.test(google));
@@ -1090,7 +1091,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const suLista = JSON.stringify((await f('propietarios/legado-lista')).propiedades || {});
 		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo ni la saca de su lista', num(enLista.comisionPct) === 7 && suLista.includes('leg-lista'), avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
-		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
+		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas):not(#aviso-dos-pasos)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
 		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
@@ -1342,20 +1343,24 @@ const duenos = [];
 		return [await intento(['propietarios', 'dueno-mixto']), await intento(['properties', 'residencial-san-antonio', 'privado', 'acuerdo'])];
 	});
 	paso('La dueña no puede leer su ficha interna ni el acuerdo de su casa', prohibido.every((x) => x === 'permission-denied'), prohibido.join(', '));
-	// d) Su casa por noche: cambia su precio, como siempre.
+	// d) Su casa por noche: cambia su precio, como siempre. Otra pestaña abierta desde antes (con el precio de antes en
+	// pantalla) pone el mismo precio después: no deja otra línea y dice que ya estaba así.
 	await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
+	const otraMixta = await mixta.p.context().newPage();
+	await otraMixta.goto(`${SITIO}/admin/#/mis-casas/casa-noche-mixta`);
+	await espera(4000);
 	await mixta.p.fill('#mc-base', '95');
 	await mixta.p.locator('#mc-base').press('Tab');
 	await espera(2500);
 	const neto = (await leer('properties/casa-noche-mixta/privado/socio')).fields?.precioBase || {};
 	paso('Cambia el precio de su casa por noche', Number(neto.doubleValue ?? neto.integerValue) === 95, await avisos(mixta.p));
-	// El mismo precio otra vez (otro Tab, otro toque): no deja otra línea; la que quedó dice de cuánto a cuánto.
-	await mixta.p.fill('#mc-base', '95');
-	await mixta.p.locator('#mc-base').press('Tab');
-	await espera(2000);
-	const yaEstaba = await avisos(mixta.p);
+	await otraMixta.fill('#mc-base', '95');
+	await otraMixta.locator('#mc-base').press('Tab');
+	await espera(2500);
+	const yaEstaba = await avisos(otraMixta);
+	await otraMixta.close();
 	const lineasMixta = (await lineasBitacora('casa-noche-mixta')).filter((x) => /^precio entre semana/.test(x));
-	paso('«Mis propiedades»: su línea dice el precio de antes y el de ahora, y el mismo precio otra vez no deja otra línea',
+	paso('«Mis propiedades»: su línea dice el precio de antes y el de ahora, y el mismo precio desde otra pestaña no deja otra línea',
 		lineasMixta.length === 1 && /^precio entre semana: (US\$|Q) [\d,.]+ → (US\$|Q) 95$/.test(lineasMixta[0]) && /Ya estaba así/.test(yaEstaba), `${lineasMixta.join(' | ')} · ${yaEstaba}`);
 	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
 	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
@@ -1777,16 +1782,30 @@ const duenos = [];
 	await socio.p.unroute('**/v0/b/**');
 }
 
-// ---------------------------------------------------------------- Dos pasos: el aviso de Inicio, sin rutas de archivos
+// ---------------------------------------------------------------- Dos pasos: los avisos, sin rutas de archivos
+// El emulador pide el correo confirmado antes del segundo paso: «Confirma tu correo» en cada pantalla. Un proyecto sin el
+// segundo paso encendido (se le responde así): solo Inicio, con el enlace a Firebase.
 {
-	await ir(admin.p, '#/inicio', 3000);
-	const aviso = admin.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' });
-	const texto = await aviso.innerText().catch(() => '');
-	const enlace = await aviso.locator('a').getAttribute('href').catch(() => '');
 	await ir(admin.p, '#/propiedades', 3000);
-	const enOtra = await admin.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' }).count();
+	const verificar = (await admin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
+	paso('Dos pasos: sin el correo confirmado, cada pantalla lo dice con el botón para mandarlo', /Confirma tu correo/.test(verificar) && /Mandarme el correo/.test(verificar), verificar);
+	const sin = await persona(1280);
+	await sin.p.route('**/mfaEnrollment:start**', (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } })
+		: r.fulfill({ status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }, body: JSON.stringify({ error: { code: 400, message: 'OPERATION_NOT_ALLOWED' } }) }));
+	await sin.p.goto(`${SITIO}/admin/`);
+	await sin.p.fill('#login-email', 'admin@example.com');
+	await sin.p.fill('#login-pass', CLAVE);
+	await sin.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await sin.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await ir(sin.p, '#/inicio', 3000);
+	const texto = (await sin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const enlace = await sin.p.locator('#aviso-dos-pasos a').getAttribute('href').catch(() => '');
+	await sin.p.screenshot({ path: `${CAPTURAS}/dos-pasos-inicio-1280.png` });
+	await ir(sin.p, '#/propiedades', 3000);
+	const enOtra = await sin.p.locator('#aviso-dos-pasos').count();
 	paso('Proyecto sin el segundo paso: Inicio lo dice en una línea con el enlace a Firebase (sin rutas de archivos) y las demás pantallas no', /Abrir Firebase/.test(texto) && !/docs\/|\.md/.test(texto)
-		&& /^https:\/\/console\.firebase\.google\.com\/project\/[\w-]+\/authentication/.test(enlace || '') && enOtra === 0, `${texto.replace(/\s+/g, ' ')} · ${enlace} · ${enOtra}`);
+		&& /^https:\/\/console\.firebase\.google\.com\/project\/[\w-]+\/authentication/.test(enlace || '') && enOtra === 0, `${texto} · ${enlace} · ${enOtra}`);
+	await sin.p.context().close();
 }
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
@@ -1819,7 +1838,7 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	await ins.p.reload();
 	await ins.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
 	await ir(ins.p, '#/propiedades', 3000);
-	const avisoIns = ins.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' });
+	const avisoIns = ins.p.locator('#aviso-dos-pasos');
 	const textoIns = (await avisoIns.innerText().catch(() => '')).replace(/\s+/g, ' ');
 	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-aviso-390.png`, fullPage: true });
 	await avisoIns.locator('button', { hasText: 'Activar' }).click().catch(() => {});

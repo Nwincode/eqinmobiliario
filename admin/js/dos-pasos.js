@@ -124,10 +124,11 @@ export async function pantallaInscribir(user, secreto, mostrar) {
 
 // Lo que dice el panel mientras falta: `pendiente`, lo que resulta de revisarDosPasos (pendienteDe). Lo del
 // administrador mismo va en cada pantalla; que el proyecto no lo tenga activado, solo en Inicio.
-export const pendienteDe = (r) => (r === 'listo' ? '' : r === 'verificar' || r === 'reentrar' ? r : r?.secreto ? 'inscribir' : 'activar');
+// Sin red no se sabe: no se dice nada (en la próxima entrada se vuelve a revisar).
+export const pendienteDe = (r) => (r === 'listo' || r?.sinActivar === 'auth/network-request-failed' ? '' : r === 'verificar' || r === 'reentrar' ? r : r?.secreto ? 'inscribir' : 'activar');
 export function avisoDosPasos(pendiente, ruta, { user, activar }) {
 	if (!pendiente || (pendiente === 'activar' && ruta !== 'inicio')) return null;
-	const caja = (...hijos) => h('div', { class: 'alert alert-warning small d-flex flex-wrap align-items-center gap-2', role: 'status' }, h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ...hijos);
+	const caja = (...hijos) => h('div', { id: 'aviso-dos-pasos', class: 'alert alert-warning small d-flex flex-wrap align-items-center gap-2', role: 'status' }, h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ...hijos);
 	if (pendiente === 'verificar') return caja(h('span', {}, `Confirma tu correo (${user.email}) para activar la verificación en dos pasos.`), botonVerificar(user));
 	if (pendiente === 'inscribir') return caja(h('span', {}, 'Activa la verificación en dos pasos: tu cuenta maneja el dinero de todos.'),
 		h('button', { type: 'button', class: 'btn btn-sm btn-warning ms-auto', onclick: (e) => { e.currentTarget.disabled = true; activar(); } }, 'Activar'));

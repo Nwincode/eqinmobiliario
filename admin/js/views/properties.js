@@ -223,10 +223,19 @@ export async function eliminarPropiedad(p) {
 	const reservas = p.operacion === 'vacacional' ? await deLaCasa(p.id) : [];
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
-	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	// La casa y lo privado, en un solo lote: el precio del dueño y el margen (privado/socio) solo se van con la casa
-	// (firestore.rules), y un corte no deja una casa sin su precio ni un privado suelto.
+	// La casa y lo privado (también el contacto de sus huéspedes), en un solo lote: el precio del dueño y el margen
+	// (privado/socio) solo se van con la casa (firestore.rules), y un corte o un rechazo no deja una casa sin su precio, ni
+	// un privado suelto, ni sus huéspedes sin contacto con la casa todavía ahí. (Un lote lleva hasta 500: con más reservas
+	// que eso, los contactos de más se borran antes, en lotes propios.)
+	const contactos = reservas.map((r) => refContacto(p.id, r.id));
+	const sobran = contactos.slice(0, Math.max(0, contactos.length - 480));
+	for (let i = 0; i < sobran.length; i += 480) {
+		const parte = writeBatch(db);
+		sobran.slice(i, i + 480).forEach((ref) => parte.delete(ref));
+		await parte.commit();
+	}
 	const lote = writeBatch(db);
+	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
 	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
 	lote.delete(doc(db, 'properties', p.id));
 	await lote.commit();
@@ -1250,10 +1259,11 @@ async function renderEditor(container, id, emb = null) {
 	};
 	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
 
+	// Se vuelve a pintar en su propio contenedor (no «el primer hijo de la pantalla»: arriba puede ir un aviso, como el de
+	// la verificación en dos pasos). Solo en la página: en una ventana (emb) no hay «Traducir» y el guardado avisa a quien la abrió.
 	const recargar = async () => {
-		const view = document.getElementById('view').firstElementChild;
-		view.replaceChildren();
-		await render(view, [ref.id]);
+		container.replaceChildren();
+		await render(container, [ref.id]);
 	};
 
 	// `forzarIngles`: vuelve a traducir aunque el inglés esté al día (el botón «Traducir al inglés» con cambios sin guardar).

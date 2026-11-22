@@ -81,6 +81,19 @@ await t('el cliente vuelve a escribir en su chat después del rebote: la marca s
 	assert.equal(await quitarRebote('no-existe', new Date()), false);
 });
 
+await t('desde el aviso del chat: el mensaje del cliente después del rebote quita la marca (y los avisos salen igual)', async () => {
+	const { enviarAvisosChat } = await import('../netlify/lib/aviso-chat-envio.mjs');
+	const cuando = new Date(Date.now() - 3600_000);
+	poner('leads/l9', { email: 'ana@correo.com', nombre: 'Ana', createdAt: reciente(), reboteCorreo: { cuando, motivo: 'x' }, reserva: { codigo: 'R-9', llegada: diaIso(3), salida: diaIso(5) } });
+	poner('chats/tok9', { leadId: 'l9', codigo: 'R-9', propertyId: 'c9', nombre: 'Ana', createdAt: reciente() });
+	poner('chats/tok9/mensajes/m1', { de: 'socio', texto: 'Hola', createdAt: new Date(cuando.getTime() - 60_000) });
+	await enviarAvisosChat('tok9');
+	assert.ok(leer('leads/l9').reboteCorreo, 'sin mensaje del cliente después del rebote, sigue');
+	poner('chats/tok9/mensajes/m2', { de: 'cliente', texto: 'Sigo interesada', createdAt: new Date() });
+	await enviarAvisosChat('tok9');
+	assert.equal(leer('leads/l9').reboteCorreo, undefined);
+});
+
 await t('cuerpo que no es JSON o demasiado grande', async () => {
 	assert.equal((await rebote(pedido('no es json'))).status, 400);
 	assert.equal((await rebote(pedido('x'.repeat(70 * 1024)))).status, 413);
