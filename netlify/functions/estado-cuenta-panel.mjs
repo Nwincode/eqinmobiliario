@@ -30,7 +30,8 @@ export default async (req) => {
 	if (!MES.test(String(mes || '')) || mes > V.hoy().slice(0, 7)) return json(400, { error: 'Elige un mes que ya empezó.' });
 	if ((accion === 'vista' ? muchasVistas : muchosEnvios)(user.uid)) return json(429, { error: 'Demasiados intentos seguidos. Espera unos minutos.' });
 	if (!datosConfigurados()) return json(503, { error: 'Falta la cuenta de servicio de Google en Netlify.' });
-	if (accion === 'enviar' && (!servicioCorreo() || !escrituraConfigurada())) return json(503, { error: 'El correo no está configurado en Netlify: no se puede enviar.' });
+	if (accion === 'enviar' && !servicioCorreo()) return json(503, { error: 'El correo no está configurado en Netlify: no se puede enviar.' });
+	if (accion === 'enviar' && !escrituraConfigurada()) return json(503, { error: 'Falta la cuenta de escritura de Google en Netlify: no se puede anotar el envío.' });
 	try {
 		const socio = await leerPrivado(`propietarios/${propietarioId}`);
 		if (!socio) return json(404, { error: 'Ese socio no existe.' });

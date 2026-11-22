@@ -13,21 +13,27 @@ async function pedir(accion, propietarioId, mes) {
 	return cuerpo;
 }
 
-// Los últimos 12 meses, del anterior hacia atrás, y el que va: [['2026-10', 'octubre de 2026'], …].
+// Los últimos 12 meses, del anterior hacia atrás: [['2026-10', 'octubre de 2026'], …].
 function meses() {
 	const nombre = (m) => new Intl.DateTimeFormat('es-GT', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m}-15T12:00:00Z`));
-	const lista = [hoy().slice(0, 7)];
-	for (let i = 0; i < 12; i++) lista.push(mesAnterior(`${lista.at(-1)}-01`));
+	const lista = [mesAnterior(hoy())];
+	while (lista.length < 12) lista.push(mesAnterior(`${lista.at(-1)}-01`));
 	return lista.map((m) => [m, nombre(m)]);
 }
 
 export function enviarEstadoDeCuenta(socio) {
 	const opciones = meses();
 	const elegir = h('select', { class: 'form-select mb-3', 'aria-label': 'Mes' }, opciones.map(([m, t]) => h('option', { value: m }, t)));
-	elegir.value = opciones[1][0];
 	// Sin scripts (sandbox); mide lo que ocupa el correo para que la ventana tenga un solo scroll.
 	const vista = h('iframe', { class: 'w-100 border rounded', title: 'Vista previa del correo', sandbox: 'allow-same-origin', height: '480' });
-	vista.addEventListener('load', () => { const alto = vista.contentDocument?.documentElement?.scrollHeight; if (alto) vista.height = String(alto); });
+	vista.addEventListener('load', () => {
+		const cuerpo = vista.contentDocument?.body;
+		if (!cuerpo) return;
+		const ajustar = () => { if (cuerpo.scrollHeight) vista.height = String(cuerpo.scrollHeight + vista.offsetHeight - vista.clientHeight); };
+		ajustar();
+		// La foto de arriba llega después: vuelve a medir cuando cambia.
+		new ResizeObserver(ajustar).observe(cuerpo);
+	});
 	const aviso = h('p', { class: 'small text-muted mb-2' }, 'Preparando…');
 	const enviar = h('button', { type: 'button', class: 'btn btn-primary', disabled: true }, 'Enviar');
 	const m = modal({

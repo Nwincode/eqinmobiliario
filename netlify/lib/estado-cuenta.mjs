@@ -24,17 +24,17 @@ export const reservasDeSocio = async (propietarioId, ahora) => listas(await dond
 
 const nombreMes = (mes, opciones) => new Intl.DateTimeFormat('es-GT', { timeZone: 'UTC', ...opciones }).format(new Date(`${mes}-15T12:00:00Z`));
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-// Una reserva en un renglón: «Casa Lago · 5 – 7 oct» | «US$ 30.50 · vencida». En un celular caben unos 44 caracteres
-// entre las dos (datos compacto, 14 px): la casa se acorta a lo que sobra y, si no sobra casi nada, sale (quedan las
-// fechas y el monto).
+// Una reserva en un renglón: «Casa Lago · 5 – 7 oct» | «US$ 30.50 · vencida». En el correo (corto: true) caben unos 44
+// caracteres entre las dos en un celular (datos compacto, 14 px): la casa se acorta a lo que sobra y, si no sobra casi
+// nada, sale (quedan las fechas y el monto). En el texto plano va completa.
 const CABEN = 44;
-const fila = (x, anio) => {
+const fila = (x, anio, corto) => {
 	const fechas = rango({ desde: x.reserva.llegada, hasta: x.reserva.salida }, anio);
 	const der = [dinero(x.monto, x.moneda), x.estado].filter(Boolean).join(' · ');
-	const espacio = CABEN - fechas.length - der.length - 3;
 	const nombre = x.reserva.propertyTitulo || x.reserva.codigo || '';
+	const espacio = corto ? CABEN - fechas.length - der.length - 3 : Infinity;
 	// En una palabra completa (recortar); si así queda muy corta («Villa…»), en la letra («Villa Anti…»).
-	const porPalabra = recortar(nombre, espacio);
+	const porPalabra = corto ? recortar(nombre, espacio) : nombre;
 	const casa = espacio < 8 ? '' : nombre.length <= espacio || porPalabra.length >= espacio - 2 ? porPalabra : `${nombre.slice(0, espacio - 1).trimEnd()}…`;
 	return [casa ? `${casa} · ${fechas}` : fechas, der];
 };
@@ -48,7 +48,8 @@ export async function correoDeCuenta(socio, cuenta) {
 	const delMes = cuenta.total ? [['Reservas', `${cuenta.total} · ${nNoches(cuenta.noches)}`], ['Tu parte', dineroPorMoneda(cuenta.tuParte)],
 		['Ganancia de EQ', dineroPorMoneda(cuenta.comision)], ['Ya pagaste', dineroPorMoneda(cuenta.pagada)]] : [];
 	const anio = cuenta.mes.slice(0, 4);
-	const reservas = cuenta.reservas.map((x) => fila(x, anio)), anteriores = cuenta.anteriores.map((x) => fila(x, anio));
+	const filas = (lista, corto) => lista.map((x) => fila(x, anio, corto));
+	const [reservas, anteriores] = [filas(cuenta.reservas, true), filas(cuenta.anteriores, true)];
 	const titulo = `Tu estado de cuenta de ${nombreMes(cuenta.mes, { month: 'long', year: 'numeric' })}`;
 	const nombre = String(socio.nombre || '').trim().split(' ')[0];
 	const intro = `Hola${nombre ? ` ${nombre}` : ''}, esto es lo que llevas con EQ.`;
@@ -62,7 +63,7 @@ export async function correoDeCuenta(socio, cuenta) {
 	});
 	const lineas = (l) => l.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
 	const textoPlano = [titulo, '', intro, '', ...lineas(resumen), '', `${texto}: ${url}`,
-		...(cuenta.total ? ['', mes, ...lineas(delMes), '', ...lineas(reservas)] : []),
-		...(anteriores.length ? ['', 'De meses anteriores', ...lineas(anteriores)] : [])].join('\n');
+		...(cuenta.total ? ['', mes, ...lineas(delMes), '', ...lineas(filas(cuenta.reservas, false))] : []),
+		...(anteriores.length ? ['', 'De meses anteriores', ...lineas(filas(cuenta.anteriores, false))] : [])].join('\n');
 	return { asunto: `${titulo} · Equipo Inmobiliario`, html, texto: textoPlano };
 }

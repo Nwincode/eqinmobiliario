@@ -115,8 +115,8 @@ await t('el día 1: un correo por socio con reservas o con deuda; el que no debe
 	assert.match(ana, /Subir comprobante: https:\/\/eqinmobiliario\.gt\/admin\/#\/solicitudes/);
 	assert.match(ana, /\nOctubre\nReservas: 4 · 9 noches\nTu parte: US\$ 300\.00 · Q 800\.00\nGanancia de EQ: US\$ 90\.00 · Q 160\.00\nYa pagaste: US\$ 20\.00\n/);
 	assert.match(ana, /Casa Lago · 5 – 7 oct: US\$ 20\.00 · pagada/);
-	// En un celular no cabe la casa junto a «por confirmar pago»: quedan las fechas y el monto.
-	assert.match(ana, /\n31 oct – 2 nov: US\$ 40\.00 · por confirmar pago/);
+	// En el texto plano la casa va completa (en el correo, si no cabe junto a «por confirmar pago», sale).
+	assert.match(ana, /Casa Lago · 31 oct – 2 nov: US\$ 40\.00 · por confirmar pago/);
 	assert.match(ana, /Casa Lago · 22 – 24 oct: Q 160\.00 · vencida/);
 	assert.match(ana, /De meses anteriores\nCasa Lago · 12 – 14 sept: US\$ 25\.00 · vencida/);
 	assert.doesNotMatch(ana, /20 – 23 dic|18 – 20 oct/, 'ni la de diciembre ni la cancelada en las filas');

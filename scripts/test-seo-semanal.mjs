@@ -30,8 +30,9 @@ await t('bajaron: perdió 30 % de 5 clics o más y más que el azar, desapareci�
 await t('simulación: 28 contra 28 casi no da falsas alarmas y encuentra las que bajaron a la mitad', () => {
 	let semilla = 20261122;
 	const azar = () => { semilla = (semilla + 0x6D2B79F5) | 0; let x = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
-	const poisson = (l) => { let k = 0, p = 1; const L = Math.exp(-l); do { k++; p *= azar(); } while (p > L); return k - 1; };
 	const normal = () => Math.sqrt(-2 * Math.log(1 - azar())) * Math.cos(2 * Math.PI * azar());
+	// Con muchas (las impresiones), la normal: exp(−λ) se va a cero pasado ~700.
+	const poisson = (l) => { if (l > 200) return Math.max(0, Math.round(l + normal() * Math.sqrt(l))); let k = 0, p = 1; const L = Math.exp(-l); do { k++; p *= azar(); } while (p > L); return k - 1; };
 	// Clics e impresiones de `dias` días; la posición media se mueve menos cuantas más impresiones.
 	const periodo = (pagina, porDia, dias, posicion) => {
 		const impresiones = poisson(porDia * 25 * dias), clics = poisson(porDia * dias);
