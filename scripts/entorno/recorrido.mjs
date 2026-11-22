@@ -245,7 +245,13 @@ await cliente.p.keyboard.press('Enter'); await cliente.p.keyboard.press('Enter')
 await espera(1500);
 paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (await cliente.p.locator('.vac-chat-aviso').innerText()) === ''
 	&& await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
-paso('El chat bloquea un teléfono', /no se comparten/.test(await escribir('Mejor llamame al 5555-1234')));
+{
+	// Y dice qué parte parece contacto, en una línea (un número: que lo mande en foto si es de un pago).
+	const aviso = await escribir('Mejor llamame al 5555-1234');
+	paso('El chat bloquea un teléfono y dice que parece un teléfono (si es un pago, en foto)', /Parece un número de teléfono.*foto del comprobante/.test(aviso), aviso);
+	const aviso2 = await escribir('mi ig es villa.lago');
+	paso('…y un usuario de red social, con su aviso', /Parece un usuario de red social/.test(aviso2), aviso2);
+}
 await cliente.p.fill('.vac-chat-form textarea', '');
 
 // ---------------------------------------------------------------- 4. El socio atiende
