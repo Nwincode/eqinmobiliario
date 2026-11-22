@@ -127,24 +127,37 @@ export async function avisarQueTocaConfirmar(token) {
 	}
 }
 
-// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide): para quien pide las
-// mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el token: el correo, la casa y
-// las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud. Devuelve si salió.
-const reenvioCorto = limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000);
-const reenvioDia = limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000);
-export async function reenviarEnlace(leadId) {
+// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide). Dos casos:
+//  - 'repetida': quien pide las mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el
+//    token: el correo, la casa y las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud.
+//  - 'correo': el equipo corrigió su correo (/api/reenviar-enlace, desde admin/js/crm.js corregirCorreo): le llega lo que
+//    se perdió (su reserva, su estado y el chat). Su límite va por solicitud y correo (1 cada 10 min a cada correo): si se
+//    corrige un error de dedo un minuto después, el correo bueno también lo recibe; y 6 al día por solicitud.
+// Devuelve el correo al que salió ('' si no salió).
+const LIMITES = {
+	repetida: [limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000), limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000)],
+	correo: [limitadorDurable('enlace-correo-10min', 1, 10 * 60_000), limitadorDurable('enlace-correo-dia', 6, 24 * 3_600_000)]
+};
+const INTRO = {
+	repetida: ['Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.',
+		'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'],
+	correo: ['Corregimos tu correo: por eso no te llegaban nuestros avisos. Aquí ves tu reserva, cómo va y el chat.',
+		'We corrected your email address, so our updates had not reached you. Here you can see your booking, its status and the chat.']
+};
+export async function reenviarEnlace(leadId, { motivo = 'repetida' } = {}) {
 	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
 	const token = indice?.token;
-	if (!lead?.email || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return false;
-	if (await reenvioCorto(leadId) || await reenvioDia(leadId)) return false;
+	const para = String(lead?.email || '').trim().toLowerCase();
+	if (!para || !LIMITES[motivo] || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return '';
+	const [corto, dia] = LIMITES[motivo];
+	if (await corto(motivo === 'correo' ? `${leadId}:${para}` : leadId) || await dia(leadId)) return '';
 	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
 	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
 	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
-	const intro = en ? 'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'
-		: 'Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.';
+	const intro = INTRO[motivo][en ? 1 : 0];
 	const html = await plantilla({ titulo, intro: esc(intro), preheader: intro, lang: en ? 'en' : 'es', ayuda: true, etiqueta: `${en ? 'Booking' : 'Solicitud'} ${codigo}`,
 		pie: en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.',
 		bloques: (c) => boton(c, en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url, c.primary, { ancho: true }) });
-	await enviarCorreo({ para: [lead.email], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
-	return true;
+	await enviarCorreo({ para: [para], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
+	return para;
 }

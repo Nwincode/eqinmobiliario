@@ -58,6 +58,10 @@ const R = `${D}( – ${D})?`;
 // Un monto con sus comas: hasta 999,999.99 (el panel no deja pasar de PRECIO_MAX), sin lugar para un teléfono.
 const M = '(US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?';
 const P = `(${M}|${SIN_FINDE})`;
+// El motivo del bloqueo y si se repite cada año.
+const CON = `( [(](${MOTIVOS_BLOQUEO.join('|')})[)])?( [(](${Object.values(QUE_CADA).join('|')})[)])?`;
 export const TEXTO_DUENO = `(precio (entre semana|fin de semana)(: (${P} → )?${P})?|personas máximo(: [0-9]{1,2} →)? [0-9]{1,2}|puso las temporadas de [0-9]{4}`
-	+ `|(bloqueó|habilitó|precio especial|mínimo de noches) ${R}( [(](${MOTIVOS_BLOQUEO.join('|')})[)])?( [(](${Object.values(QUE_CADA).join('|')})[)])?(: (${M}|[0-9]{1,2} noches?))?`
+	// Cada verbo con su valor: el monto solo en «precio especial», las noches solo en «mínimo de noches»; «bloqueó» y
+	// «habilitó», sin valor (las reglas solo revisan que los bloqueos cambiaron: un monto ahí sería inventado).
+	+ `|(bloqueó|habilitó) ${R}${CON}|precio especial ${R}${CON}(: ${M})?|mínimo de noches ${R}${CON}(: [0-9]{1,2} noches?)?`
 	+ `|quitó (precios especiales|mínimos de noches) ${R}( [(]todos los años[)])?)`;

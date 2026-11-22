@@ -443,7 +443,7 @@ const leadId3 = (await leer(`chats/${token3}`)).fields?.leadId?.stringValue || '
 	await t3().locator('[aria-label="Corregir el correo"]').click();
 	await espera(800);
 	await admin.p.locator('.modal.show input[type=email]').fill('Marta.OK@Example.com');
-	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a marta\.ok@example\.com$/ }).click();
 	await espera(3500);
 	const sinRebote = await t3().innerText();
 	await t3().screenshot({ path: `${TANDA}/solicitud-rebote-despues-1280.png` });
@@ -968,16 +968,33 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	await espera(800);
 	const sigueAbierta = await admin.p.locator('.modal.show input[type=email]').count() === 1;
 	paso('Corregir el correo: sugiere el dominio bien escrito y no guarda uno incompleto', /gmail\.com/.test(pistaC) && sigueAbierta, pistaC);
+	// Antes de guardar, el botón dice a qué correo se reenvía su reserva, tal como se guarda (sin espacios y en minúsculas);
+	// con el mismo correo de ahora, no guarda.
+	await campoCorreo.fill('ANA@example.com ');
+	const igualC = admin.p.locator('.modal.show .modal-footer .btn-primary');
+	const conElMismo = [await igualC.innerText(), await igualC.isDisabled()];
 	await campoCorreo.fill('  Ana.Nueva@Example.com ');
+	const botonC = (await igualC.innerText()).trim();
+	const anchoC = await admin.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-confirmar-1280.png` });
+	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio; con el mismo de ahora, apagado',
+		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === true && /^Guardar$/.test(conElMismo[0].trim()) && anchoC <= 0, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]}`);
 	const antesC = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
-	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
 	await espera(3500);
+	const reenvio = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l)).filter((c) => /El enlace de tu reserva/.test(c.subject || ''));
 	const leadId = (await leer(`chats/${token}`)).fields?.leadId?.stringValue;
 	const lead = (await leer(`leads/${leadId}`)).fields || {};
 	const hist = (lead.solicitud?.mapValue?.fields?.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
 	paso('Solicitudes: el correo corregido queda en la solicitud (limpio, en minúsculas) con su renglón en el historial',
 		lead.email?.stringValue === 'ana.nueva@example.com' && hist.includes('Correo corregido: ana@example.com → ana.nueva@example.com') && /ana\.nueva@example\.com/.test(await admin.p.locator('.card', { hasText: codigo }).first().innerText()),
 		`${lead.email?.stringValue} · ${hist.at(-1)} · ${await avisos(admin.p)}`);
+	// Al guardar, el servidor le reenvía al cliente el enlace de su reserva (el aviso que se perdió), solo al correo nuevo, y
+	// queda en el historial. La tarjeta sigue diciendo lo último que pasó (no la corrección).
+	const resumenC = await admin.p.locator('.card', { hasText: codigo }).first().locator('details summary').first().innerText().catch(() => '');
+	paso('Con el correo corregido, le llega el enlace de su reserva al nuevo (uno solo), queda «Se reenvió el enlace a …» y la tarjeta sigue con lo último que pasó',
+		reenvio.length === 1 && para(reenvio[0]) === 'ana.nueva@example.com' && hist.includes('Se reenvió el enlace a ana.nueva@example.com') && Boolean(resumenC) && !/^(Correo corregido|Se reenvió)/.test(resumenC.trim()),
+		`${reenvio.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió'} · ${hist.slice(-2).join(' | ')} · resumen: ${resumenC.slice(0, 80)}`);
 	// El siguiente aviso al cliente (el equipo le escribe en el chat) sale al correo nuevo. Que el cliente vio el chat hace
 	// 4 min, después de los mensajes de antes (netlify/lib/avisos-chat.mjs: visto hace menos de 3 min, está conversando; un
 	// mensaje de la casa ya avisado después de «visto», no se repite): fijo, así no depende de cuánto tardó el recorrido.
@@ -991,7 +1008,8 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	await admin.p.locator('.modal.show .btn-close').click();
 	await espera(1500);
 	const nuevos = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l));
-	paso('Con el correo corregido, el aviso siguiente le llega al nuevo y ninguno al de antes', nuevos.some((c) => para(c) === 'ana.nueva@example.com') && !nuevos.some((c) => para(c).includes('ana@example.com')), nuevos.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió');
+	const delChat = nuevos.filter((c) => !/El enlace de tu reserva/.test(c.subject || ''));
+	paso('Con el correo corregido, el aviso siguiente le llega al nuevo y ninguno al de antes', delChat.some((c) => para(c) === 'ana.nueva@example.com') && !nuevos.some((c) => para(c).includes('ana@example.com')), nuevos.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió');
 	await admin.p.setViewportSize({ width: 390, height: 844 });
 	await ir(admin.p, `#/solicitudes/${codigo}`, 3000);
 	await admin.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${TANDA}/solicitud-correo-390.png` });
@@ -1898,6 +1916,122 @@ const duenos = [];
 	}
 	paso('Si Storage no deja subir el comprobante, se dice y el botón vuelve a servir', /No se pudo subir el comprobante/.test(negado) && vuelve, negado);
 	await socio.p.unroute('**/v0/b/**');
+}
+
+// ---------------------------------------------------------------- Lo que el socio debe a EQ, a la vista (Solicitudes)
+// El aviso dice cuánto debe y cuánto con atraso, por moneda (nunca Q + US$), con «Ver lo que debo» (#/solicitudes/cobrar,
+// el filtro «cobrar» del administrador; la dirección sirve para el correo del mes) y «Ver todas». Sin atraso, una línea
+// sin rojo. Con 25 solicitudes más, para ver que no hay que bajar a buscar. Y «Confirmadas» cuenta por el «Confirmó».
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const valor = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : typeof v === 'boolean' ? { booleanValue: v }
+		: Array.isArray(v) ? { arrayValue: { values: v.map(valor) } } : v && typeof v === 'object' ? { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, valor(x)])) } } : { stringValue: String(v) });
+	const escribir = (ruta, o) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: valor(o).mapValue.fields }) });
+	const borrar = (ruta) => fetch(`${FS}/${ruta}`, { method: 'DELETE', headers: dueno });
+	const dia = (n) => new Date(Date.now() - 6 * 3600e3 + n * 864e5).toISOString().slice(0, 10);
+	const sembrados = [];
+	// Una reserva confirmada del socio con su chat (el cliente ya pagó: «Pago recibido», cuenta como cobrada).
+	const deuda = async (codigo, n, moneda, monto) => {
+		const token = `Deuda${codigo.replace(/\W/g, '')}000000000000000`.slice(0, 28);
+		await escribir(`chats/${token}`, { codigo, leadId: `lead-${codigo}`, propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', nombre: 'Cliente Deuda',
+			llegada: dia(n), salida: dia(n + 2), noches: 2, huespedes: 2, total: monto * 4, moneda, estado: 'pagada' });
+		await escribir(`reservas/res-${codigo}`, { codigo, leadId: `lead-${codigo}`, propertyId: idCasa, propietarioId: 'socio-prueba', estado: 'confirmada', moneda, llegada: dia(n), salida: dia(n + 2),
+			chat: token, pagoRecibido: true, comision: { monto, vence: dia(n), pagada: false }, costoSocio: monto * 3 });
+		sembrados.push(`chats/${token}`, `reservas/res-${codigo}`);
+	};
+	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=..');
+	await socio.p.setViewportSize({ width: 390, height: 844 });
+	await ir(socio.p, '#/solicitudes', 4000);
+	const inicio = await aviso().innerText().catch(() => '');
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-inicio-390.png` });
+	paso('Socio: antes de sembrar deudas, el aviso dice lo que ya debe (o no hay aviso)', !inicio || /^Debes a EQ/.test(inicio.trim()), inicio.replace(/\s+/g, ' ').slice(0, 140) || 'sin aviso');
+
+	// Debe sin atraso (la comisión se paga en 3 días): una línea sin rojo con el monto y el botón.
+	await deuda('EQ-DEB0K1', 3, 'USD', 30);
+	await ir(socio.p, '#/solicitudes', 4000);
+	const neutro = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const rojo0 = await socio.p.locator('.admin-main .alert-danger').count();
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-atraso-390.png` });
+	paso('Socio con una deuda sin atraso: una línea sin rojo con el monto, cuándo se paga y «Ver lo que debo»', /Debes a EQ US\$ ?\d/.test(neutro) && /se paga el/.test(neutro) && rojo0 === 0, neutro);
+
+	// Con atraso en dos monedas (US$ más de 72 h, Q más de 24 h) y 25 solicitudes más del socio.
+	await deuda('EQ-DEB072', -5, 'USD', 44);
+	await deuda('EQ-DEB024', -2, 'GTQ', 300);
+	for (let i = 0; i < 25; i++) {
+		const token = `Relleno${String(i).padStart(21, '0')}`;
+		await escribir(`chats/${token}`, { codigo: `EQ-REL${String(i).padStart(3, '0')}`, leadId: `lead-rel-${i}`, propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba',
+			nombre: `Cliente ${i}`, llegada: dia(60 + i * 3), salida: dia(62 + i * 3), noches: 2, huespedes: 2, total: 400, moneda: 'USD' });
+		sembrados.push(`chats/${token}`);
+	}
+	await ir(socio.p, '#/solicitudes', 6000);
+	const banda = aviso();
+	const textoRojo = (await banda.innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const boton = await socio.p.locator('.admin-main a', { hasText: 'Ver lo que debo' }).first().boundingBox();
+	const tarjetas = await socio.p.locator('.admin-main .card.mb-2').count();
+	const medida = await banda.evaluate((el) => ({ alto: el.getBoundingClientRect().height, arriba: el.getBoundingClientRect().top, lado: document.documentElement.scrollWidth - innerWidth })).catch(() => ({}));
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-390.png` });
+	paso('Socio con atraso en dos monedas: el aviso rojo dice cuánto debe y cuánto con atraso, en US$ y en Q por separado, y qué le pasa',
+		(await banda.getAttribute('class').catch(() => '')).includes('alert-danger') && /Debes a EQ .*US\$.*Q /.test(textoRojo) && /con atraso/.test(textoRojo) && /72 horas/.test(textoRojo) && !/US\$ ?3[0-9]{2}/.test(textoRojo),
+		textoRojo);
+	paso('Socio: «Ver lo que debo» mide 44 px o más, arriba de la lista (sin bajar entre 25+ tarjetas) y sin scroll de lado',
+		boton && boton.height >= 44 && medida.arriba < 400 && medida.lado <= 0 && tarjetas >= 25, `${boton ? Math.round(boton.height) : '—'} px · arriba ${Math.round(medida.arriba)} · ${tarjetas} tarjetas · alto ${Math.round(medida.alto)}`);
+	await socio.p.locator('.admin-main a', { hasText: 'Ver lo que debo' }).first().click();
+	await espera(5000);
+	const codigos = await socio.p.locator('.admin-main .card.mb-2 strong').allInnerTexts();
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-filtro-390.png` });
+	paso('«Ver lo que debo» deja solo lo que debe, la más atrasada primero, y la dirección es #/solicitudes/cobrar',
+		socio.p.url().endsWith('#/solicitudes/cobrar') && codigos[0] === 'EQ-DEB072' && codigos.includes('EQ-DEB024') && codigos.includes('EQ-DEB0K1') && !codigos.some((c) => c.startsWith('EQ-REL')), codigos.join(', '));
+	await socio.p.locator('.admin-main a', { hasText: 'Ver todas' }).first().click();
+	await espera(5000);
+	paso('«Ver todas» vuelve a la lista completa', socio.p.url().endsWith('#/solicitudes') && await socio.p.locator('.admin-main .card.mb-2').count() >= 25);
+	await socio.p.setViewportSize({ width: 1280, height: 900 });
+	await ir(socio.p, '#/solicitudes', 5000);
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-1280.png` });
+	// El administrador llega por la misma dirección: su filtro «Ganancia de EQ por cobrar» ya elegido.
+	await ir(admin.p, '#/solicitudes/cobrar', 5000);
+	const elegido = await admin.p.locator('select[aria-label="Todos los estados"]').inputValue().catch(() => '');
+	paso('El administrador abre #/solicitudes/cobrar con «Ganancia de EQ por cobrar» elegido', elegido === 'cobrar', elegido);
+
+	// «Confirmadas» del mes: una confirmada el mes pasado con el correo corregido hoy no cuenta en este mes, y su tarjeta
+	// sigue diciendo «Confirmó» (antes contaba y decía «Correo corregido»).
+	const confirmadas = async () => Number((await admin.p.locator('.stat-card', { hasText: 'Confirmadas' }).locator('.stat-value').innerText()).trim());
+	await ir(admin.p, '#/solicitudes', 5000);
+	const antesN = await confirmadas();
+	const mesPasado = new Date(Date.now() - 40 * 864e5).toISOString();
+	await escribir('leads/conf-vieja', { nombre: 'Cliente Vieja', email: 'vieja@example.com', telefono: '+502 5555 7777', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', agentId: '',
+		reserva: { codigo: 'EQ-VIEJA1', llegada: dia(20), salida: dia(22), noches: 2, huespedes: 2, total: 400, moneda: 'USD' },
+		solicitud: { estado: 'confirmada', historial: [{ que: 'Confirmó', nombre: 'Socio', quien: 'x', cuando: mesPasado }, { que: 'Correo corregido: vieja@exmaple.com → vieja@example.com', nombre: 'Admin', quien: 'y', cuando: new Date().toISOString() }] } });
+	sembrados.push('leads/conf-vieja');
+	await ir(admin.p, '#/solicitudes', 5000);
+	const despuesN = await confirmadas();
+	const resumenV = await admin.p.locator('.card', { hasText: 'EQ-VIEJA1' }).first().locator('details summary').innerText().catch(() => '');
+	paso('«Confirmadas» cuenta por el día del «Confirmó» (una corrección de hoy no la trae a este mes) y la tarjeta dice «Confirmó»',
+		despuesN === antesN && /^Confirmó/.test(resumenV.trim()), `${antesN} → ${despuesN} · ${resumenV}`);
+
+	// Dos pestañas del administrador corrigen el mismo correo: la segunda parte del que guardó la primera (el «antes» de
+	// verdad) y cada correo nuevo recibe su enlace una vez.
+	const otra = await admin.p.context().newPage();
+	await otra.goto(admin.p.url());
+	await espera(5000);
+	const abrir = async (p) => { await ir(p, `#/solicitudes/${codigo3}`, 4000); await p.locator('.card', { hasText: codigo3 }).first().locator('[aria-label="Corregir el correo"]').click(); await espera(800); };
+	await abrir(admin.p);
+	await abrir(otra);
+	const antesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('.modal.show input[type=email]').fill('marta.uno@example.com');
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
+	await espera(3500);
+	await otra.locator('.modal.show input[type=email]').fill('marta.dos@example.co.uk');
+	await otra.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
+	await espera(3500);
+	const histT = ((await leer(`leads/${leadId3}`)).fields?.solicitud?.mapValue?.fields?.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	const enlacesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesT).map((l) => JSON.parse(l)).filter((c) => /El enlace de tu reserva/.test(c.subject || '')).map(para);
+	paso('Dos pestañas corrigen el mismo correo: la segunda anota el «antes» de verdad y cada correo nuevo recibe su enlace una vez (también uno .co.uk)',
+		histT.includes('Correo corregido: marta.ok@example.com → marta.uno@example.com') && histT.includes('Correo corregido: marta.uno@example.com → marta.dos@example.co.uk')
+		&& enlacesT.join() === 'marta.uno@example.com,marta.dos@example.co.uk' && histT.includes('Se reenvió el enlace a marta.dos@example.co.uk'), `${histT.slice(-4).join(' | ')} · ${enlacesT.join(', ')}`);
+	await otra.close();
+
+	for (const r of sembrados) await borrar(r);
 }
 
 // ---------------------------------------------------------------- Dos pasos: los avisos, sin rutas de archivos

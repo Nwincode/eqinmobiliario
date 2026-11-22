@@ -11,13 +11,13 @@ import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMess
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, comprobanteVigente, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
+	motivoParaNoConfirmar, comprobanteVigente, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA, ultimoDelHistorial, diaQueConfirmo } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
-import { whatsappUrl, nNoches } from '../formato.js';
+import { whatsappUrl, nNoches, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
 import { uploadImage, renderForm } from '../form.js';
 import { PARECE } from '../mi-casa.js';
-import { money, ms, loadPropietarios, loadPropiedades, loadReservas, corregirCorreo } from '../crm.js';
+import { money, ms, loadPropietarios, loadPropiedades, loadReservas, corregirCorreo, limpiarCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
 
@@ -185,7 +185,14 @@ export async function render(container, [codigo] = []) {
 	// Lo mismo que revisa el servidor (motivoParaNoCancelar y motivoParaNoMeLlego en reservas-calculo.js).
 	const puedeCancelar = (l) => deHoy(l.propertyId) && !motivoParaNoCancelar(reservaDe(l), datosChat[l.reserva.codigo], chats[l.reserva.codigo]);
 	const puedeNoMeLlego = (l) => deHoy(l.propertyId) && !motivoParaNoMeLlego(reservaDe(l), datosChat[l.reserva.codigo], chats[l.reserva.codigo]);
-	const porCobrar = (l) => { const x = reservaDe(l); return estado(l) === 'confirmada' && x?.comision?.monto > 0 && !x.comision.pagada; };
+	// La ganancia de EQ por cobrar (el filtro «cobrar», también por la dirección #/solicitudes/cobrar: el botón del aviso y
+	// el correo del mes). Al socio, solo lo que ya debe: lo que cuenta como cobrado (V.cobrable, lo mismo que la pausa y el
+	// corte); al equipo, toda la que falta pagar.
+	const ahoraMora = Date.now();
+	const conChat = (x) => conDatosDelChat(x, datosChat[x.codigo]);
+	const debe = (x) => x?.estado === 'confirmada' && x.comision?.monto > 0 && !x.comision.pagada && (admin || V.cobrable(conChat(x), ahoraMora));
+	const moraDe = (x) => (x ? V.nivelMora(conChat(x), ahoraMora) : 0);
+	const porCobrar = (l) => estado(l) === 'confirmada' && debe(reservaDe(l));
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	// Cotizada por debajo del precio de la casa (montos congelados por el servidor): la confirma el administrador, va arriba.
 	const teToca = (l) => admin && estado(l) === 'pendiente' && bajoElPlan(congelados[l.id]) && !llegadaPasada(l.reserva.llegada, ahoraYa());
@@ -410,33 +417,53 @@ export async function render(container, [codigo] = []) {
 		return h('div', { class: `small ${vence - Date.now() < 6 * 3600000 ? 'text-danger' : 'text-muted'}` }, h('span', { class: 'icon-clock-o me-1', 'aria-hidden': 'true' }),
 			`Vence ${formatDate(new Date(vence))}: ${texto}.`);
 	}
-	// Quién hizo qué y cuándo con esta solicitud: lo último a la vista; todo, al abrirlo.
+	// Quién hizo qué y cuándo con esta solicitud: lo último que pasó a la vista (un correo corregido o reenviado no lo
+	// tapa: ultimoDelHistorial); todo, al abrirlo.
 	function historial(sol) {
 		const renglones = (sol.historial || []).filter((x) => x?.que);
 		if (!renglones.length) return null;
 		const linea = (x) => `${x.que} · ${x.nombre || ''}${x.nombre ? ' · ' : ''}${formatDate(x.cuando)}`;
-		const ultimo = renglones.at(-1);
-		const motivo = sol.motivo ? ` · ${sol.motivo}` : '';
-		if (renglones.length === 1) return h('div', { class: 'small text-muted' }, linea(ultimo) + motivo);
-		return h('details', { class: 'small text-muted' }, h('summary', {}, linea(ultimo) + motivo),
-			h('ol', { class: 'mb-0 ps-3' }, renglones.map((x) => h('li', {}, linea(x)))));
+		const ultimo = ultimoDelHistorial(renglones);
+		// El motivo va con el renglón que lo puso (el que la cerró: lo último que pasó), no con una nota de después.
+		const conMotivo = (x) => linea(x) + (sol.motivo && x === ultimo ? ` · ${sol.motivo}` : '');
+		if (renglones.length === 1) return h('div', { class: 'small text-muted' }, conMotivo(ultimo));
+		return h('details', { class: 'small text-muted' }, h('summary', {}, conMotivo(ultimo)),
+			h('ol', { class: 'mb-0 ps-3' }, renglones.map((x) => h('li', {}, conMotivo(x)))));
 	}
 
 	// Corregir el correo del cliente (crm.js corregirCorreo: el mismo que usa su ficha de cliente). Con el formulario del panel:
-	// revisa el formato y sugiere «¿Quisiste decir …?».
+	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le reenvía el enlace de su reserva: el botón dice a qué
+	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, no se guarda.
 	function corregirElCorreo(l) {
 		const form = renderForm([{ name: 'email', label: 'Correo del cliente', type: 'email', required: true }], { email: l.email || '' });
-		const guardar = h('button', { class: 'btn btn-primary', onclick: async (e) => {
+		const campo = form.el.querySelector('input[type=email]');
+		const texto = h('span', { class: 'text-break' });
+		const avion = h('span', { class: 'icon-paper-plane me-1', 'aria-hidden': 'true' });
+		// Lo mismo que revisa el servidor: abierta (sin responder o confirmada) y su salida no ha pasado.
+		const reenvia = ['pendiente', 'confirmada'].includes(estado(l)) && l.reserva.salida >= hoy();
+		const guardar = h('button', { class: 'btn btn-primary text-start', onclick: async (e) => {
 			const boton = e.currentTarget;
 			if (!form.validate()) return;
 			boton.disabled = true;
 			try {
-				const cambio = await corregirCorreo(l, form.getData().email);
+				const r = await corregirCorreo(l, form.getData().email);
 				m.close();
-				toast(cambio ? 'Correo corregido: los próximos avisos le llegan ahí.' : 'Ya tenía ese correo.');
+				if (!r.cambio) toast('Ya tenía ese correo.');
+				else if (r.enviado) toast(`Correo corregido: le reenviamos el enlace de su reserva a ${r.enviado}.`);
+				else if (r.enviado === '' && reenvia) toast(`Correo corregido, pero el enlace no se reenvió${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}: los próximos avisos sí le llegan ahí.`, 'warning');
+				else toast('Correo corregido: los próximos avisos le llegan ahí.');
 				await recargar();
 			} catch (err) { showError(err); boton.disabled = false; }
-		} }, 'Guardar');
+		} }, avion, texto);
+		const pintarBoton = () => {
+			const nuevo = limpiarCorreo(campo?.value);
+			const igual = nuevo === limpiarCorreo(l.email);
+			texto.textContent = igual || !correoValido(nuevo) ? 'Guardar' : reenvia ? `Guardar y reenviar a ${nuevo}` : `Guardar ${nuevo}`;
+			guardar.disabled = igual;
+			avion.hidden = !(reenvia && !igual && correoValido(nuevo));
+		};
+		campo?.addEventListener('input', pintarBoton);
+		pintarBoton();
 		const m = modal({ title: `Correo · ${l.reserva.codigo}`, body: form.el, footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), guardar] });
 	}
 
@@ -516,7 +543,6 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
-				// El correo al que le llegan los avisos de su reserva; el lápiz lo corrige (lo lee el servidor de la solicitud).
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
@@ -536,9 +562,11 @@ export async function render(container, [codigo] = []) {
 	}
 
 	const lista = h('div', {});
-	const filtro = { socio: '', estado: '' };
+	const filtro = { socio: '', estado: codigo === 'cobrar' ? 'cobrar' : '' };
 	const pintar = vista.pintar = () => {
 		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
+		// Por cobrar: primero la más atrasada; luego la que vence antes.
+		if (filtro.estado === 'cobrar') ver.sort((a, b) => moraDe(reservaDe(b)) - moraDe(reservaDe(a)) || String(reservaDe(a).comision.vence).localeCompare(String(reservaDe(b).comision.vence)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
 	};
 	pintar();
@@ -546,12 +574,31 @@ export async function render(container, [codigo] = []) {
 	const numero = (icono, valor, texto) => h('div', { class: 'col-4' }, statCard(icono, texto, valor, { cls: 'stat-envuelve' }));
 	const elegir = (campo, titulo, opciones) => h('select', {
 		class: 'form-select form-select-sm w-auto', 'aria-label': titulo, onchange: (e) => { filtro[campo] = e.target.value; pintar(); }
-	}, h('option', { value: '' }, titulo), opciones.map(([v, t]) => h('option', { value: v }, t)));
+	}, h('option', { value: '' }, titulo), opciones.map(([v, t]) => h('option', { value: v, selected: filtro[campo] === v }, t)));
 	const total = {};
 	reservas.filter((r) => r.estado === 'confirmada' && r.comision && !r.comision.pagada)
 		.forEach((r) => { total[r.moneda] = (total[r.moneda] || 0) + r.comision.monto; });
-	// Aviso al socio: lo que ya le pasa por tener una comisión atrasada.
-	const peor = admin ? 0 : Math.max(0, ...reservas.map((r) => V.nivelMora(conDatosDelChat(r, datosChat[r.codigo]), Date.now())));
+	// Aviso al socio: cuánto debe a EQ (por moneda: nunca se suman Q y US$), cuánto con atraso y lo que ya le pasa por eso,
+	// con el botón que deja solo esas reservas (y el que vuelve a todas). Sin atraso, una línea sin rojo.
+	const avisoDeuda = (() => {
+		if (admin) return null;
+		const debidas = reservas.filter(debe);
+		if (!debidas.length) return null;
+		const peor = Math.max(...debidas.map(moraDe));
+		const suma = (l) => dineroPorMoneda(sumarPorMoneda(l, (r) => r.comision.monto, (r) => r.moneda || r.comision.moneda));
+		const todo = suma(debidas), atrasado = suma(debidas.filter((r) => moraDe(r) >= 1));
+		const deuda = `Debes a EQ ${todo}${!peor ? '' : atrasado === todo ? ', con atraso' : ` (con atraso: ${atrasado})`}`;
+		const texto = peor === 3 ? `${deuda}. Con más de 72 horas de atraso, tus casas salieron del sitio hasta que EQ lo marque pagado.`
+			: peor === 2 ? `${deuda}. Con más de 24 horas de atraso, los clientes de tus casas le escriben a EQ hasta que lo marque pagado.`
+			: peor === 1 ? `${deuda}. A las 24 horas de atraso, los clientes de tus casas le escriben a EQ.`
+			: `${deuda}: se paga el ${dia(debidas.map((r) => r.comision.vence).sort()[0])}.`;
+		const ver = filtro.estado === 'cobrar'
+			? h('a', { class: 'cot-btn btn btn-sm btn-outline-secondary', href: '#/solicitudes' }, h('span', { class: 'icon-list me-1', 'aria-hidden': 'true' }), 'Ver todas')
+			: h('a', { class: 'cot-btn btn btn-sm btn-outline-primary', href: '#/solicitudes/cobrar' }, h('span', { class: 'icon-money me-1', 'aria-hidden': 'true' }), 'Ver lo que debo');
+		const icono = h('span', { class: `${peor ? 'icon-exclamation-triangle' : 'icon-money'}`, 'aria-hidden': 'true' });
+		return h('div', { class: `d-flex flex-wrap align-items-center gap-2 ${peor >= 2 ? 'alert alert-danger' : peor ? 'alert alert-warning' : 'small text-muted mb-3'}`, role: peor ? 'alert' : null },
+			icono, h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto), ver);
+	})();
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
 	// ¿El servidor ya escribe lo del socio? (con su cuenta de escritura en Netlify: ver docs/portal-propietarios.md).
@@ -591,14 +638,12 @@ export async function render(container, [codigo] = []) {
 		admin ? [
 			h('div', { class: 'row g-2 mb-3' },
 				numero('icon-clock-o', leads.filter((l) => estado(l) === 'pendiente').length, 'Sin responder'),
-				numero('icon-check', leads.filter((l) => estado(l) === 'confirmada' && l.solicitud.historial?.at(-1)?.cuando.startsWith(hoy().slice(0, 7))).length, 'Confirmadas'),
+				numero('icon-check', leads.filter((l) => estado(l) === 'confirmada' && diaQueConfirmo(l.solicitud.historial).startsWith(hoy().slice(0, 7))).length, 'Confirmadas'),
 				numero('icon-money', Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
 				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Ganancia de EQ por cobrar'], ['alerta', 'Con alerta']]))
-		] : peor >= 2 ? h('div', { class: 'alert alert-danger d-flex gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }), peor === 3
-			? 'Tienes un pago a EQ con más de 72 horas de atraso: tus casas salieron del sitio. Vuelven cuando EQ la marque pagada.'
-			: 'Tienes un pago a EQ con más de 24 horas de atraso: los clientes de tus casas le escriben a EQ hasta que se marque pagada.') : null,
+		] : avisoDeuda,
 		lista);
 }
 

@@ -7,6 +7,7 @@ import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
 import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
+import { queCorreoCorregido, queEnlaceReenviado } from './reservas-calculo.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -149,25 +150,42 @@ export async function crearActividad(datos) {
 // Corrige el correo de un lead: la única forma (la ficha del cliente, en sus leads, y Solicitudes). Es el correo al que
 // escriben los avisos del servidor (aviso-chat-envio.mjs, solicitud.mjs y rebotes.mjs lo leen de leads/{id}, nunca de una
 // copia): limpio y en minúsculas, como lo guarda el sitio (los rebotes y las repetidas lo buscan tal cual). Quita «El correo
-// no llegó» y, en una solicitud de reserva, deja el renglón en su historial. Sin cambio (el mismo correo que el guardado ahora), no escribe nada.
-// Devuelve si lo cambió. Las reglas: el administrador y el asesor del lead (firestore.rules match /leads).
+// no llegó» y, en una solicitud de reserva, deja el renglón en su historial y le pide al servidor que le mande al cliente el
+// enlace de su reserva al correo nuevo (/api/reenviar-enlace: lo que se perdió); si salió, también queda en el historial,
+// con el correo al que salió. Un lead de contacto (sin reserva) no recibe nada. Sin cambio (el mismo correo que el guardado
+// ahora), no escribe nada. Devuelve { cambio, enviado: el correo al que salió el enlace ('' si no salió; null si no tocaba),
+// motivo }. Las reglas: el administrador y el asesor del lead (firestore.rules match /leads).
 export async function corregirCorreo(lead, correo) {
-	const nuevo = String(correo || '').trim().toLowerCase();
+	const nuevo = limpiarCorreo(correo);
 	if (!correoValido(nuevo)) throw new Error('Revisa el correo (p. ej. nombre@correo.com).');
 	// Se lee el guardado ahora (otra pestaña pudo corregirlo ya): el «antes» del historial es el de verdad.
 	const ref = doc(db, 'leads', lead.id);
-	const cambio = await runTransaction(db, async (tx) => {
+	const renglon = (que) => ({ que, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() });
+	const { cambio, reserva } = await runTransaction(db, async (tx) => {
 		const l = (await tx.get(ref)).data() || {};
-		const antes = String(l.email || '').trim().toLowerCase();
-		if (nuevo === antes) return false;
+		const antes = limpiarCorreo(l.email);
+		if (nuevo === antes) return { cambio: false };
 		tx.update(ref, { email: nuevo, reboteCorreo: deleteField(), updatedAt: serverTimestamp(),
-			...(l.reserva?.codigo ? { 'solicitud.historial': arrayUnion({ que: `Correo corregido: ${antes || 'sin correo'} → ${nuevo}`, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() }) } : {}) });
-		return true;
+			...(l.reserva?.codigo ? { 'solicitud.historial': arrayUnion(renglon(queCorreoCorregido(antes, nuevo))) } : {}) });
+		return { cambio: true, reserva: Boolean(l.reserva?.codigo) };
 	});
 	lead.email = nuevo;
 	delete lead.reboteCorreo;
-	return cambio;
+	if (!cambio || !reserva) return { cambio, enviado: null, motivo: '' };
+	let r = {};
+	try {
+		const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id }) });
+		r = await res.json().catch(() => ({}));
+		if (!res.ok) r = { motivo: r.error || `El servidor respondió ${res.status}.` };
+	} catch { r = { motivo: 'Sin conexión con el servidor.' }; }
+	if (r.enviado && r.para) {
+		await updateDoc(ref, { 'solicitud.historial': arrayUnion(renglon(queEnlaceReenviado(r.para))), updatedAt: serverTimestamp() })
+			.catch((err) => console.warn('Historial del reenvío', err));
+	}
+	return { cambio, enviado: r.enviado ? r.para || '' : '', motivo: r.motivo || '' };
 }
+// Un correo como lo guarda el sitio: sin espacios y en minúsculas (lo que muestra el botón es lo que se guarda).
+export const limpiarCorreo = (correo) => String(correo || '').trim().toLowerCase();
 
 // Une los leads en una ficha por persona: busca cliente por teléfono o correo; si no existe, lo crea.
 // Devuelve cuántos leads se vincularon y cuántos clientes nuevos se crearon.

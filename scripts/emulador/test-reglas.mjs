@@ -801,6 +801,10 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña cuela un teléfono en un texto de la bitácora', con('bloqueó 16 – 20 nov (llámame 5555-1234)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), false);
 		await espera('la dueña bloquea días y lo anota (control)', con('bloqueó 16 – 20 mar 2027 (Uso propio)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), true);
 		await espera('la dueña anota «bloqueó» cuando cambió su precio', con('bloqueó 16 – 20 mar 2027 (Uso propio)', precio(1100)), false);
+		// Cada verbo con su valor: «bloqueó» no lleva monto (las reglas solo ven que los bloqueos cambiaron: sería inventado), el
+		// mínimo no lleva un monto y el precio especial no lleva noches.
+		await espera('la dueña bloquea días y anota un monto inventado', con('bloqueó 16 – 20 mar 2027 (Uso propio): Q 999,999.99', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-22' }] })]), false);
+		await espera('la dueña habilita días y anota unas noches', con('habilitó 16 – 20 mar 2027: 3 noches', [vac({ bloqueos: [] })]), false);
 		// Precio entre semana: el de antes y el de ahora, los de verdad (privado/socio), en la moneda de la casa.
 		await espera('la dueña anota un precio de ahora que no es el que guarda', con('precio entre semana: Q 1,000 → Q 1,500', precio(1100)), false);
 		await espera('la dueña anota un precio de antes que no era', con('precio entre semana: Q 900 → Q 1,100', precio(1100)), false);
@@ -831,6 +835,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const mn = (noches) => ({ desde: '2027-04-01', hasta: '2027-04-05', noches });
 		await espera('la dueña pone un mínimo de 3 noches y anota 5', con('mínimo de noches 1 – 5 abr 2027: 5 noches', [vac({ minimos: [mn(3)] })]), false);
 		await espera('la dueña pone un mínimo de noches y lo anota (control)', con('mínimo de noches 1 – 5 abr 2027: 3 noches', [vac({ minimos: [mn(3)] })]), true);
+		await espera('la dueña pone un mínimo de noches y lo anota con un monto', con('mínimo de noches 1 – 5 abr 2027: Q 5', [vac({ minimos: [mn(4)] })]), false);
+		await espera('la dueña pone un precio especial y lo anota con noches', con('precio especial 1 – 5 abr 2027: 3 noches', [suyo({ tarifas: [tf(810)] }), vac({ tarifas: [tf(972)] })]), false);
 		await espera('«Faltan tus temporadas» que solo copia mínimos de noches (control)', con('puso las temporadas de 2028', [vac({ minimos: [mn(3), { ...mn(3), desde: '2028-04-01', hasta: '2028-04-05' }] })]), true);
 		await espera('«puso las temporadas» sin copiar nada', con('puso las temporadas de 2028', [vac({ huespedesMax: 11 })]), false);
 		// Los casos más pesados con valor (el tope de 1000 revisiones es de todo el pedido): 10 precios especiales con el monto

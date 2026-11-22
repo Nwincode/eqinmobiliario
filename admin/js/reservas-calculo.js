@@ -206,6 +206,19 @@ export function reservaDeSolicitud(l, casa, m, { chat = '', ahora = Date.now(), 
 }
 // El renglón del historial al confirmar (el mismo en el servidor y en el panel).
 export const queConfirmo = (revisadoAMano = []) => (revisadoAMano.length ? `Confirmó (revisó a mano ${revisadoAMano.join(' y ')})` : 'Confirmó');
+// Renglones del historial que no cambian la solicitud: el correo corregido y el enlace reenviado (admin/js/crm.js
+// corregirCorreo). No mueven la fecha de la confirmación ni son «lo último que pasó» en la tarjeta de Solicitudes.
+export const queCorreoCorregido = (antes, ahora) => `Correo corregido: ${antes || 'sin correo'} → ${ahora}`;
+export const queEnlaceReenviado = (correo) => `Se reenvió el enlace a ${correo}`;
+export const esNotaDelHistorial = (x) => /^(Correo corregido: |Se reenvió el enlace a )/.test(String(x?.que || ''));
+// Lo último que pasó con la solicitud (sin las notas); sin otro renglón, la última nota.
+export const ultimoDelHistorial = (renglones = []) => renglones.filter((x) => !esNotaDelHistorial(x)).at(-1) || renglones.at(-1) || null;
+// El día (Guatemala) en que se confirmó: el de su último «Confirmó…» ('' si no tiene).
+export function diaQueConfirmo(historial) {
+	const x = (historial || []).filter((r) => /^Confirmó/.test(String(r?.que || ''))).at(-1);
+	const t = Date.parse(x?.cuando || '');
+	return Number.isFinite(t) ? V().hoy(t) : '';
+}
 
 // Por qué una solicitud NO se confirma ('' = sí): lo mismo en el panel (el administrador) y en el servidor (el socio).
 // `lead` = la solicitud ({ reserva }); `casa` = la propiedad guardada; `montos` = los congelados (o null).

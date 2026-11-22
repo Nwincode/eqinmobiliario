@@ -137,7 +137,9 @@ await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis pro
 	assert.equal(T.precio('Fin de semana', 2000000, 0), 'precio fin de semana: igual que entre semana');
 	assert.match(T.precio('Entre semana', 1500000, 900, 'GTQ'), re);
 	for (const x of ['cambio', 'el administrador aprobó bajar la comisión', 'bloqueó 16 – 20 nov (llámame 55551234)', 'precio entre semana, llama al 5555 1234', 'bloqueó 5555 1234',
-		'precio entre semana: Q 5555 1234', 'precio entre semana: Q 5,5551,234', 'precio especial 16 – 20 nov: Q 55551234', 'precio entre semana: US$ 1 → llámame', 'personas máximo: 5555 → 1234'])
+		'precio entre semana: Q 5555 1234', 'precio entre semana: Q 5,5551,234', 'precio especial 16 – 20 nov: Q 55551234', 'precio entre semana: US$ 1 → llámame', 'personas máximo: 5555 → 1234',
+		// Cada verbo con su valor: un monto o unas noches en otro verbo serían inventados (las reglas no los revisan ahí).
+		'bloqueó 16 nov (Uso propio): Q 999,999.99', 'habilitó 16 – 20 nov: 3 noches', 'mínimo de noches 16 – 20 nov: Q 5', 'precio especial 16 – 20 nov: 3 noches'])
 		assert.doesNotMatch(x, re, x);
 });
 
