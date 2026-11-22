@@ -716,7 +716,7 @@
 		pascua: pascua, semanaSanta: semanaSanta, tocaSemanaSanta: tocaSemanaSanta, repetirRango: repetirRango,
 		esFinde: esFinde, precioNoche: precioNoche, nochesDe: nochesDe, planPublico: planPublico,
 		precioDesde: precioDesde, cotizarEstancia: cotizarEstancia, gananciaEstancia: gananciaEstancia,
-		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas,
+		choquesReserva: choquesReserva, rangosReservados: rangosReservados, cambioDeReserva: cambioDeReserva, esSolicitudReserva: esSolicitudReserva, resumenReservas: resumenReservas, confirmada: confirmada,
 		nivelComision: nivelComision, horasAtrasoComision: horasAtrasoComision, sociosEnMora: sociosEnMora, cobrable: cobrable, cobrablePorPrueba: cobrablePorPrueba, faltaLeerChat: faltaLeerChat, horasMora: horasMora, ultimoDiaNoLlego: ultimoDiaNoLlego, nivelMora: nivelMora, alertaSolicitud: alertaSolicitud
 	};
 });

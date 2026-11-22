@@ -78,7 +78,8 @@ export async function ahoraServidor() {
 }
 // Lo mismo sin esperar: con la diferencia ya medida (ahoraServidor al abrir la pantalla); antes, la del dispositivo.
 export const ahoraYa = () => Date.now() + (desfase || 0);
-export const dia = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-GT', { day: 'numeric', month: 'short' });
+// El día corto («16 nov»): uno solo, en formato.js.
+export { dia } from './formato.js';
 
 // El precio según la operación sale de formato.js (uno solo para el panel, la difusión y las reglas).
 export { precioTexto as formatPrice } from './formato.js';

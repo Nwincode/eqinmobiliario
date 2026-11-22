@@ -8,6 +8,8 @@ import { conDatosDelChat } from '../../admin/js/reservas-calculo.js';
 import { deudaDe, faltaSaberSiPago, permisosDe, documentoPermisos, mismosPermisos, limpiarDevolver, CLAVES } from '../../admin/js/permisos-socio.js';
 import { listar } from './firestore.mjs';
 import { transaccion } from './firestore-escritura.mjs';
+import { anotarEnTx } from './bitacora.mjs';
+import { fotoPropietario, fotoPermisos, igual } from '../../admin/js/bitacora.js';
 
 // Sin documento guardado, todo está permitido: no hace falta crear uno que diga lo mismo.
 const todoPermitido = (d) => CLAVES.every((k) => d[k]) && !d.deuda && !d.motivo;
@@ -32,9 +34,18 @@ export async function recalcularPermisos(ahora = Date.now()) {
 			const nuevo = documentoPermisos(permisosDe({ global, propio: prop.permisos, deuda }), deuda);
 			const limpiar = limpiarDevolver(prop.permisos, deuda);
 			if (!limpiar && (mismosPermisos(guardado, nuevo) || (!guardado && todoPermitido(nuevo)))) return false;
-			if (limpiar) cambiar(`propietarios/${id}`, { 'permisos.devolver': false });
-			if (guardado) cambiar(ruta, nuevo, { ahora: ['actualizado'] });
-			else crear(ruta, nuevo, { ahora: ['actualizado'] });
+			// «Devolver hasta que pague» se apaga solo al pagar: con su renglón en la bitácora (quien: el servidor).
+			if (limpiar) {
+				const bitacoraId = anotarEnTx({ crear }, { tipo: 'propietario', objeto: id, antes: fotoPropietario(prop), despues: fotoPropietario({ ...prop, permisos: { ...prop.permisos, devolver: false } }) }, { nombre: 'Servidor (pagó lo que debía)' });
+				cambiar(`propietarios/${id}`, { 'permisos.devolver': false, ...(bitacoraId ? { bitacoraId } : {}) });
+			}
+			// Si se apaga o enciende un interruptor (el atraso de la comisión, el pago, o lo que el panel no alcanzó a poner): su
+			// renglón en la bitácora (quien: el servidor).
+			const antes = fotoPermisos(guardado || {}), despues = fotoPermisos(nuevo);
+			const bitacoraId = igual(antes, despues) ? null : anotarEnTx({ crear }, { tipo: 'permisosSocio', objeto: id, antes, despues }, { nombre: 'Servidor (permisos de cada hora)' });
+			const datos = { ...nuevo, ...(bitacoraId ? { bitacoraId } : {}) };
+			if (guardado) cambiar(ruta, datos, { ahora: ['actualizado'] });
+			else crear(ruta, datos, { ahora: ['actualizado'] });
 			return true;
 		});
 		if (cambio) cambiados++;

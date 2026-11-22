@@ -22,14 +22,15 @@ export const socioLimpio = (s = {}) => Object.fromEntries(Object.keys(LIMPIAR).f
 
 // «tx»: una transacción o un lote (la ficha lo escribe junto con la casa). Sin él, se escribe en el momento.
 // En una casa nueva va después de crearla: su regla la lee.
-export async function guardarPrivadoVacacional(id, socio, llegada, tx = null) {
+// bitacoraId: el renglón de la bitácora de este cambio (precios del dueño o margen: admin/js/bitacora-panel.js).
+export async function guardarPrivadoVacacional(id, socio, llegada, tx = null, { bitacoraId = '' } = {}) {
 	const sello = { updatedAt: serverTimestamp(), updatedBy: session.user.uid };
 	const escribir = (nombre, v) => {
 		const r = doc(db, 'properties', id, 'privado', nombre);
 		return tx ? tx.set(r, v, { merge: true }) : setDoc(r, v, { merge: true });
 	};
 	const s = socioLimpio(socio || {});
-	if (Object.keys(s).length) await escribir('socio', { ...s, ...sello });
+	if (Object.keys(s).length) await escribir('socio', { ...s, ...sello, ...(bitacoraId ? { bitacoraId } : {}) });
 	if (llegada) await escribir('llegada', { direccion: String(llegada.direccion || '').trim(), mapa: String(llegada.mapa || '').trim(), ...sello });
 }
 

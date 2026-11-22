@@ -20,6 +20,7 @@ import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { externasDe, purgarCasa } from '../lib/ocupacion.mjs';
+import { anotarEnTx } from '../lib/bitacora.mjs';
 import { choqueExterno, motivoSocioNoConfirma, reservaDeSolicitud, queConfirmo, montosDeConfirmacion, motivoParaNoConfirmar, yaRespondida, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, textoPagoReabierto,
 	vencePago, guardarVence, faltaDireccion, TEXTO_SIN_DIRECCION, MOTIVOS_NO, MOTIVOS_CANCELAR, MOTIVO_NO_LLEGO, textoNo, textoCliente } from '../../admin/js/reservas-calculo.js';
 
@@ -99,7 +100,9 @@ const ACCIONES = {
 		const revisadoAMano = sinLeer.length && revisado ? sinLeer : [];
 		const datos = reservaDeSolicitud(l, casa, montosDeConfirmacion(montos, null), { chat: token, revisadoAMano });
 		await fechasDeLaCasa(tx, casa, null, { id: leadId, ...datos });
-		tx.crear(`reservas/${leadId}`, datos, { ahora: ['createdAt', 'updatedAt'] });
+		// «Revisé Airbnb…»: su renglón en la bitácora de cambios sensibles, en esta misma transacción.
+		const bitacoraId = anotarEnTx(tx, { tipo: 'reserva', objeto: leadId, casa: casa.id, antes: { revisadoAMano: [] }, despues: { revisadoAMano: datos.revisadoAMano || [] } }, { quien: socio.uid, nombre: socio.nombre });
+		tx.crear(`reservas/${leadId}`, { ...datos, ...(bitacoraId ? { bitacoraId } : {}) }, { ahora: ['createdAt', 'updatedAt'] });
 		responder(tx, socio, leadId, 'confirmada', queConfirmo(revisadoAMano), { 'solicitud.reservaId': leadId, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia });
 		const id = mensaje(tx, token, { tipo: 'pago', texto: pago });
 		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) });

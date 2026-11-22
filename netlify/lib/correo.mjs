@@ -7,6 +7,7 @@
 //   AVISO_CORREO     a quién llegan los avisos y el resumen del día (varios, separados por coma)
 //   CORREO_REMITENTE quién envía, p. ej. "Equipo Inmobiliario <avisos@eqinmobiliario.gt>"
 //                    (el dominio debe estar verificado en el servicio; con ZeptoMail es obligatorio)
+import { anotarOk, anotarFallo } from './estado.mjs';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 // Los valores de Contenido que el dueño no ha cambiado: los mismos que usa el sitio (scripts/build.mjs `defaults`).
 import seed from '../../data/seed.json' with { type: 'json' };
@@ -214,5 +215,13 @@ export async function enviarCorreo({ para, asunto, html, texto, responder = fals
 	if (!servicio) throw new Error('Falta la clave del servicio de correo en Netlify (ZEPTOMAIL_TOKEN o RESEND_API_KEY).');
 	if (!lista.length) throw new Error('Falta AVISO_CORREO en Netlify.');
 	const datos = { lista, asunto, html, texto, responder };
-	return servicio === 'zeptomail' ? enviarZepto(datos) : enviarResend(datos);
+	// Lo que sale o falla queda en estado/correo (la tarjeta «Estado del sistema»; un ok por hora como mucho).
+	try {
+		const id = await (servicio === 'zeptomail' ? enviarZepto(datos) : enviarResend(datos));
+		await anotarOk('correo');
+		return id;
+	} catch (err) {
+		await anotarFallo('correo', err.message);
+		throw err;
+	}
 }

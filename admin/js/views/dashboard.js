@@ -5,6 +5,7 @@ import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.j
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
 import { tarjetaAvisos } from '../avisos.js';
+import { tarjetaEstado } from '../estado.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -22,6 +23,8 @@ export async function render(container) {
 	const todas = propSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 	// Lo que espera respuesta (solicitudes, mensajes, cambios que piden los dueños, exclusivas): lo mismo que la campana.
 	const avisos = await tarjetaAvisos().catch(() => null);
+	// Lo que falló en el sistema (correos, publicación, calendarios, relojes…): solo el administrador.
+	const estado = session.isAdmin ? await tarjetaEstado(todas).catch((err) => { console.warn('Estado del sistema', err); return null; }) : null;
 	// Lo que hay que atender hoy (el administrador con ficha de asesor ve lo suyo y lo no asignado).
 	const mias = actividades.filter((a) => !a.hecha && (!session.isAdmin || !session.agentId || a.agentId === session.agentId || !a.agentId));
 	const vencidas = mias.filter((a) => vencimiento(a) === 'vencida');
@@ -46,6 +49,7 @@ export async function render(container) {
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
 			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
+		estado,
 		avisos,
 		pend ? tarjetaPendientes(pend) : null,
 		canSeeLeads ? h('div', { class: 'card mb-4' },

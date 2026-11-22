@@ -1,4 +1,7 @@
-# Corre las pruebas en cada pull request y en cada cambio a main: sintaxis, lógica y reglas de Firestore y Storage.
+# Corre las pruebas en cada pull request y en cada cambio a main, en tres trabajos a la vez: sintaxis y lógica, reglas de
+# Firestore y Storage (emuladores) y el recorrido de la reserva por noche (panel y sitio en un navegador, contra los
+# emuladores). Todo con datos inventados: ningún trabajo usa secretos ni toca la base real.
+# Las acciones van fijas por su commit (la versión, al lado): una etiqueta movida no cambia lo que corre aquí.
 name: Pruebas
 on:
   pull_request:
@@ -7,24 +10,73 @@ on:
 permissions:
   contents: read
 jobs:
-  pruebas:
+  logica:
+    name: Sintaxis y lógica
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       # Las pruebas cargan código del proyecto que usa sus dependencias (p. ej. la lectura de Google).
       - name: Dependencias
         run: npm ci
-      - uses: actions/setup-java@v4
+      - name: Sintaxis y lógica
+        run: npm test
+
+  reglas:
+    name: Reglas de Firestore y Storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: 21
-      - name: Sintaxis y lógica
-        run: npm test
-      # Firestore y Storage con firebase-tools (lo instala scripts/emulador/correr.sh).
-      - name: Reglas de Firestore y Storage (emuladores)
+      # Sin npm ci: la prueba no usa paquetes del proyecto; firebase-tools (versión fija) lo instala scripts/emulador/correr.sh.
+      - name: Reglas (emuladores)
         run: npm run test:reglas
+
+  recorrido:
+    name: Recorrido de la reserva por noche
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: 21
+      # Playwright no está en package.json (solo lo usa el recorrido): misma versión que en local, sin cambiar el lockfile.
+      - name: Dependencias y navegador
+        run: |
+          npm ci
+          npm i --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      # Emuladores (inicio de sesión, base y fotos), datos inventados, el sitio generado y el servidor en el puerto 8090, todo en /tmp/eq-entorno.
+      - name: Levantar el entorno
+        run: npm run entorno
+      - name: Recorrido
+        run: npm run recorrido
+      - name: Capturas y registros (si falló)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: recorrido
+          path: |
+            /tmp/eq-entorno/capturas
+            /tmp/eq-entorno/*.log
+            /tmp/eq-entorno/correos.jsonl
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { transaccion, escrituraConfigurada, sumar } from './firestore-escritura.mjs';
+import { anotarTope } from './estado.mjs';
 
 // Límite de pedidos por clave (IP, chat…) dentro de una ventana. `limitador` vive en la memoria de cada instancia de la
 // función (Netlify puede levantar varias y reiniciarlas): frena ráfagas, no a un atacante decidido; para eso, abajo,
@@ -22,6 +23,22 @@ export function limitador(max, ventanaMs = 10 * 60_000) {
 // La IP de quien llama, como la da Netlify.
 export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-client-connection-ip') || 'anon';
 
+// Al llegar al tope (con `avisar`): una vez por hora en el registro (console.warn) y en estado/limites (la tarjeta
+// «Estado del sistema»). Lo de estado va por su lado, sin esperarlo: nunca cambia la respuesta del límite ni entra en la
+// transacción de quien llama. Devuelve true (ya pasó el límite).
+function avisoDeTope(nombre, max, ventanaMs, avisar) {
+	let avisadoEn = 0;
+	return () => {
+		if (avisar && Date.now() - avisadoEn > 3_600_000) {
+			avisadoEn = Date.now();
+			const minutos = Math.round(ventanaMs / 60_000);
+			console.warn(`Límite «${nombre}» en su tope (${max} en ${minutos} min).`);
+			anotarTope(nombre, max, minutos);
+		}
+		return true;
+	};
+}
+
 // El mismo límite, pero guardado en la base (limites/{huella}): lo comparten todas las instancias de la función y no se
 // pierde cuando Netlify las reinicia. Para lo que se puede abusar desde afuera (p. ej. mandar correos de contraseña).
 // La clave se guarda como huella HMAC-SHA256 con un secreto del servidor (la clave de la cuenta de escritura): ni correos
@@ -35,8 +52,7 @@ export const ipDe = (req, context) => context?.ip || req.headers.get('x-nf-clien
 // `{ avisar: true }`: al llegar al tope lo dice en el registro (console.warn), una vez por hora.
 export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', avisar = false } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
-	let avisadoEn = 0;
-	const tope = () => { if (avisar && Date.now() - avisadoEn > 3_600_000) { avisadoEn = Date.now(); console.warn(`Límite «${nombre}» en su tope (${max} en ${Math.round(ventanaMs / 60_000)} min).`); } return true; };
+	const tope = avisoDeTope(nombre, max, ventanaMs, avisar);
 	const ruta = (clave) => `limites/${createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(`${nombre}:${clave}`).digest('hex')}`;
 	// Lee, decide y anota en `tx` (la transacción de quien llama). true = ya estaba en su tope (no anota nada).
 	const enTx = async ({ leer, crear, cambiar }, clave) => {
@@ -72,9 +88,8 @@ export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', a
 // falla, cuenta en memoria. limitadorContador(nombre, max, ventanaMs) → async (clave, distinto?) => true si ya pasó.
 export function limitadorContador(nombre, max, ventanaMs, { avisar = false, reintentos = 6 } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
-	let avisadoEn = 0;
 	const huella = (x) => createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(x).digest('hex');
-	const tope = () => { if (avisar && Date.now() - avisadoEn > 3_600_000) { avisadoEn = Date.now(); console.warn(`Límite «${nombre}» en su tope (${max} en ${Math.round(ventanaMs / 60_000)} min).`); } return true; };
+	const tope = avisoDeTope(nombre, max, ventanaMs, avisar);
 	return async (clave, distinto = '') => {
 		if (!escrituraConfigurada()) return enMemoria(clave);
 		const ventana = Math.floor(Date.now() / ventanaMs);

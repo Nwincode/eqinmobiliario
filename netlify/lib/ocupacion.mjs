@@ -10,6 +10,7 @@ import '../../js/calc-vacacional.js';
 import { leerPrivado, desde } from './firestore.mjs';
 import { apartaFechas, yaRespondida, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
+import { anotarOk, anotarFallo } from './estado.mjs';
 
 const V = globalThis.EQVacacional;
 
@@ -67,6 +68,18 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 		if (g && g.url === url && ahora - (Number(g.cuando) || 0) < ULTIMO) return [c, g.rangos || [], Number(g.cuando)];
 		return [c, null];
 	}));
+	// Un calendario que no respondió queda con `fallo` (desde cuándo, solo al pasar de bien a mal) para «Estado del
+	// sistema»; al volver a responder se quita. Solo se escribe cuando cambia.
+	if (casaId) {
+		const g = leidos.some(([, r, cuando]) => !r || cuando) || Object.keys(nuevos).length ? await deLaBase() : null;
+		for (const [c, r, cuando] of leidos) {
+			const mismo = g?.[c.campo]?.url === privado[c.campo];
+			const antes = mismo ? g[c.campo].fallo : null;
+			const fallaAhora = !r || Boolean(cuando);
+			if (fallaAhora && !antes) nuevos[c.campo] = { ...(mismo ? g[c.campo] : { url: privado[c.campo], rangos: [] }), fallo: ahora };
+			else if (!fallaAhora && antes) nuevos[c.campo] = { ...(nuevos[c.campo] || g[c.campo]), fallo: null };
+		}
+	}
 	// Lo leído se guarda para la próxima; con `hasta` (al confirmar) no se espera más allá del plazo (si no alcanza, la
 	// próxima lectura lo guarda).
 	if (casaId && Object.keys(nuevos).length && escrituraConfigurada()) {
@@ -86,7 +99,9 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 export async function purgarCasa(...ids) {
 	const token = process.env.NETLIFY_PURGE_API_TOKEN;
 	const tags = [...new Set(ids.filter((x) => /^[A-Za-z0-9_-]{1,60}$/.test(x || '')))].map(etiquetaCasa);
-	if (!token || !tags.length) return false;
+	if (!tags.length) return false;
+	// Sin la llave el CDN igual olvida en 30 s, pero lo que cambió tarda en verse: queda en «Estado del sistema».
+	if (!token) { await anotarFallo('cdn', 'Falta NETLIFY_PURGE_API_TOKEN en Netlify', { cada: 3600_000 }); return false; }
 	// A lo más 3 s: quien la llama (una respuesta, el cron) no se queda esperando; el CDN igual olvida en 30 s.
 	const ctrl = new AbortController();
 	const t = setTimeout(() => ctrl.abort(), 3000);
@@ -95,10 +110,11 @@ export async function purgarCasa(...ids) {
 			method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
 			body: JSON.stringify({ cache_tags: tags, ...(process.env.SITE_ID ? { site_id: process.env.SITE_ID } : {}) })
 		});
-		if (!res.ok) console.error('CDN: no se pudo purgar', res.status, tags.join(','));
+		if (!res.ok) { console.error('CDN: no se pudo purgar', res.status, tags.join(',')); await anotarFallo('cdn', `Netlify respondió ${res.status} al limpiar el CDN`); } else await anotarOk('cdn');
 		return res.ok;
 	} catch (err) {
 		console.error('CDN: no se pudo purgar', err.message, tags.join(','));
+		await anotarFallo('cdn', `No se pudo limpiar el CDN: ${err.message}`);
 		return false;
 	} finally {
 		clearTimeout(t);

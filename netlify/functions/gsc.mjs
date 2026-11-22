@@ -2,42 +2,10 @@
 // Solo usuarios activos del panel; enviar el sitemap requiere rol de administrador.
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { staffUser, json } from '../lib/auth.mjs';
-import { gsc, googleToken, googleConfigurado, propiedadPorDefecto } from '../lib/google.mjs';
+import { gsc, googleToken, googleConfigurado, propiedadValida, rangoGSC as rango, filaGSC as fila, consultaGSC as consulta, inspeccionarGSC, sitioGSC } from '../lib/google.mjs';
+import { bajaron } from '../lib/seo-semanal.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
-const API = 'https://searchconsole.googleapis.com/webmasters/v3/sites';
-
-const dia = (d) => d.toISOString().slice(0, 10);
-function rango(dias, desplazamiento = 0) {
-	// Search Console tarda ~2 días en consolidar los datos.
-	const fin = new Date(Date.now() - (2 + desplazamiento) * 86400000);
-	const inicio = new Date(fin.getTime() - (dias - 1) * 86400000);
-	return { startDate: dia(inicio), endDate: dia(fin) };
-}
-
-// Solo la propiedad de Search Console de ESTE sitio: la del dominio (sc-domain:) o la de su dirección, con o sin www,
-// o la de GSC_PROPERTY. La que manda el panel (Contenido → SEO) vale si es una de esas; cualquier otra (otra propiedad a
-// la que la cuenta de servicio tenga acceso) se cambia por la del sitio: un asesor no consulta datos ajenos.
-const DOMINIO = new URL(SITE_URL).hostname.replace(/^www\./, '').toLowerCase();
-export function propiedadValida(p) {
-	const v = String(p || '').trim();
-	const delSitio = new Set([propiedadPorDefecto(), `sc-domain:${DOMINIO}`,
-		...['https', 'http'].flatMap((esquema) => [`${esquema}://${DOMINIO}/`, `${esquema}://www.${DOMINIO}/`])]);
-	return delSitio.has(v) || delSitio.has(v.toLowerCase()) ? v : propiedadPorDefecto();
-}
-
-const fila = (r) => ({
-	claves: r.keys || [],
-	clics: r.clicks || 0,
-	impresiones: r.impressions || 0,
-	ctr: r.ctr || 0,
-	posicion: r.position || 0
-});
-
-async function consulta(prop, cuerpo) {
-	const data = await gsc('POST', `${API}/${encodeURIComponent(prop)}/searchAnalytics/query`, { dataState: 'final', ...cuerpo });
-	return (data.rows || []).map(fila);
-}
 
 // CTR esperado aproximado según la posición; por debajo de esto el título o la descripción no convencen.
 const CTR_ESPERADO = [0, 0.28, 0.15, 0.10, 0.07, 0.05, 0.04, 0.03, 0.025, 0.02, 0.018];
@@ -52,7 +20,8 @@ export async function resumen(prop, dias) {
 		consulta(prop, { ...anterior }),
 		consulta(prop, { ...actual, dimensions: ['date'], rowLimit: 500 }),
 		consulta(prop, { ...actual, dimensions: ['query'], rowLimit: 100 }),
-		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 100 }),
+		// 1,000 páginas en los dos periodos: con menos, una que solo salió de la lista se vería con 0 clics («Páginas que bajaron»).
+		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 1000 }),
 		consulta(prop, { ...actual, dimensions: ['country'], rowLimit: 10 }),
 		consulta(prop, { ...actual, dimensions: ['device'], rowLimit: 5 }),
 		consulta(prop, { ...actual, dimensions: ['query', 'page'], rowLimit: 2000 }),
@@ -73,13 +42,8 @@ export async function resumen(prop, dias) {
 		.sort((a, b) => b.clicsPotenciales - a.clicsPotenciales)
 		.slice(0, 40);
 
-	// Páginas que pierden posiciones frente al periodo anterior.
-	const paginasAntes = await consulta(prop, { ...anterior, dimensions: ['page'], rowLimit: 100 });
-	const antes = new Map(paginasAntes.map((r) => [r.claves[0], r]));
-	const caidas = paginas
-		.map((r) => ({ pagina: r.claves[0], ahora: r, antes: antes.get(r.claves[0]) }))
-		.filter((x) => x.antes && x.antes.clics >= 3 && x.ahora.clics < x.antes.clics * 0.7)
-		.slice(0, 10);
+	// Páginas que bajaron frente al periodo anterior (la misma regla que el informe semanal).
+	const caidas = bajaron(paginas, await consulta(prop, { ...anterior, dimensions: ['page'], rowLimit: 1000 }), 10);
 
 	return { propiedad: prop, rango: actual, totales: totales[0] || fila({}), previos: previos[0] || fila({}), porDia, consultas, paginas, paises, dispositivos, oportunidades, caidas, consultasUsa };
 }
@@ -99,7 +63,7 @@ export async function estado(prop) {
 	}
 	let lista;
 	try {
-		lista = await gsc('GET', `${API}/${encodeURIComponent(prop)}/sitemaps`);
+		lista = await gsc('GET', `${sitioGSC(prop)}/sitemaps`);
 	} catch (err) {
 		return hasta(err.falta || 'permiso', err.message);
 	}
@@ -137,30 +101,16 @@ export default async (req) => {
 			case 'inspeccionar': {
 				const url = String(datos.url || '');
 				if (!url.startsWith(SITE_URL)) return json(400, { error: 'La URL debe ser de este sitio.' });
-				const r = await gsc('POST', 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', { inspectionUrl: url, siteUrl: prop, languageCode: 'es' });
-				const idx = r.inspectionResult?.indexStatusResult || {};
-				return json(200, {
-					configurado: true,
-					veredicto: idx.verdict,
-					cobertura: idx.coverageState,
-					rastreo: idx.lastCrawlTime,
-					canonicaGoogle: idx.googleCanonical,
-					canonicaUsuario: idx.userCanonical,
-					robots: idx.robotsTxtState,
-					indexacion: idx.indexingState,
-					movil: r.inspectionResult?.mobileUsabilityResult?.verdict,
-					enriquecidos: (r.inspectionResult?.richResultsResult?.detectedItems || []).map((d) => d.richResultType),
-					enlace: r.inspectionResult?.inspectionResultLink
-				});
+				return json(200, { configurado: true, ...(await inspeccionarGSC(prop, url)) });
 			}
 			case 'sitemaps': {
-				const r = await gsc('GET', `${API}/${encodeURIComponent(prop)}/sitemaps`);
+				const r = await gsc('GET', `${sitioGSC(prop)}/sitemaps`);
 				return json(200, { configurado: true, sitemaps: r.sitemap || [] });
 			}
 			case 'enviarSitemap': {
 				if (!usuario.admin) return json(403, { error: 'Solo un administrador puede enviar el sitemap.' });
 				const feed = `${SITE_URL}/sitemap.xml`;
-				await gsc('PUT', `${API}/${encodeURIComponent(prop)}/sitemaps/${encodeURIComponent(feed)}`);
+				await gsc('PUT', `${sitioGSC(prop)}/sitemaps/${encodeURIComponent(feed)}`);
 				return json(200, { configurado: true, enviado: feed });
 			}
 			default:

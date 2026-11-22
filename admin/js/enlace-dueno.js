@@ -15,6 +15,8 @@ import { session } from './session.js';
 import { toast, errorMessage, confirmDialog, h } from './ui.js';
 import { tieneCasasPorNoche, duenoDe } from './duenos.js';
 import { deLaCasa, porVenir, avisoPorVenir } from './reservas.js';
+import { anotar, bitacoraActiva } from './bitacora-panel.js';
+import { fotoCasa } from './bitacora.js';
 
 // Casas que ya son de otra persona y pasarían a un dueño nuevo: cambios = [{ casa, a }] (a: id en Propietarios).
 // Su dueño de ahora es el que dice la casa o, si no lo dice, el que la tiene en su lista (duenoDe).
@@ -91,7 +93,18 @@ export async function asignarDueno(casa, nuevoId, { duenos = [], casas = [], esc
 	const cambiaDueno = anterior !== nuevoId;
 	if (cambiaDueno && !nuevoId) await revisarSinDueno([casa]);
 	// 1) La casa. Sin «catch»: si no se pudo, no se toca nada más.
-	if (escribirCasa && cambiaDueno) await updateDoc(doc(db, 'properties', casa.id), { propietarioId: nuevoId });
+	if (escribirCasa && cambiaDueno) {
+		// Con su renglón en la bitácora de cambios sensibles (cambio de dueño), en la misma transacción.
+		const conBitacora = await bitacoraActiva();
+		await runTransaction(db, async (tx) => {
+			const ref = doc(db, 'properties', casa.id);
+			const [c, so] = await Promise.all([tx.get(ref), tx.get(doc(db, 'properties', casa.id, 'privado', 'socio')).catch(() => null)]);
+			if (!c.exists()) throw new Error('La propiedad ya no existe.');
+			const socio = so?.exists() ? so.data() : {};
+			const bitacoraId = anotar(tx, { tipo: 'casa', objeto: casa.id, casa: casa.id, antes: fotoCasa(c.data(), socio), despues: fotoCasa({ ...c.data(), propietarioId: nuevoId }, socio) }, conBitacora);
+			tx.update(ref, { propietarioId: nuevoId, ...(bitacoraId ? { bitacoraId } : {}) });
+		});
+	}
 	// 2) Las reservas que todavía no terminan son del dueño nuevo (él las atiende y las ve en su panel).
 	if (cambiaDueno && casa.operacion === 'vacacional') {
 		const hoy = window.EQVacacional.hoy();

@@ -1,5 +1,4 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
@@ -17,6 +16,8 @@ import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
 import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import { tarjetaGlobal, bloqueSocio } from '../permisos-ui.js';
+import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
+import { fotoPropietario } from '../bitacora.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
 // forma de enlazar (asignarDueno: la casa manda; la lista `propiedades` de cada persona y su `porNoche` los pone al día
@@ -201,7 +202,6 @@ async function renderEditor(container, id) {
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
 
 	// Guarda la ficha. Devuelve false si falta algo o falló (ya avisó).
-	let cambiaPagoAhora = false;
 	const persistir = async () => {
 		if (!form.validate()) return false;
 		const d = form.getData();
@@ -229,8 +229,7 @@ async function renderEditor(container, id) {
 			const pagoAntes = typeof ahora.datosPago === 'string' ? ahora.datosPago : '';
 			if (!session.isAdmin || d.datosPago === undefined) d.datosPago = pagoAntes;
 			const cambiaPago = String(d.datosPago || '') !== pagoAntes;
-			cambiaPagoAhora = cambiaPago;
-			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos', 'datosPagoCambio']) {
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos', 'datosPagoCambio', 'bitacoraId']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
 				else if (k === 'propiedades') d[k] = [];
 				else { delete d[k]; delete data[k]; }
@@ -238,7 +237,11 @@ async function renderEditor(container, id) {
 			// Sin datos de pago: la llave queda como estaba (guardada vacía, o sin llave); quitarla o ponerla también es un cambio.
 			if (!d.datosPago && !('datosPago' in ahora)) delete d.datosPago;
 			const lote = writeBatch(db);
-			if (cambiaPago) {
+			// El cambio de datos de pago va con su renglón en la bitácora de cambios sensibles (quién, cuándo, antes y
+			// después), en el mismo lote. Con las reglas de antes (sin bitácora), en cambiosDatosPago como antes.
+			if (cambiaPago && await bitacoraActiva()) {
+				d.bitacoraId = data.bitacoraId = anotar(lote, { tipo: 'propietario', objeto: ref.id, antes: fotoPropietario(ahora), despues: fotoPropietario(d) }, true);
+			} else if (cambiaPago) {
 				const log = doc(collection(db, 'cambiosDatosPago'));
 				d.datosPagoCambio = data.datosPagoCambio = log.id;
 				lote.set(log, { propietarioId: ref.id, antes: pagoAntes, despues: d.datosPago || '', quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: serverTimestamp(), avisado: false });
@@ -259,9 +262,7 @@ async function renderEditor(container, id) {
 			avisarCambio();
 			return true;
 		} catch (err) {
-			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes (comprobado: el administrador no
-			// puede leer cambiosDatosPago) se dice qué falta.
-			if (cambiaPagoAhora && session.isAdmin && await faltanReglas(err, 'cambiosDatosPago/comprobar')) toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
+			showError(err);
 			return false;
 		}
 	};
@@ -360,7 +361,10 @@ async function renderEditor(container, id) {
 	};
 
 	mount(container,
-		pageHeader(nuevo ? 'Nuevo propietario' : data.nombre, h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Volver')),
+		pageHeader(nuevo ? 'Nuevo propietario' : data.nombre,
+			// Datos de pago y permisos: quién, cuándo, antes y después (bitácora de cambios sensibles).
+			!nuevo && session.isAdmin ? iconoBtn('icon-history', 'Cambios', { onclick: () => verCambios({ propietarioId: ref.id, titulo: `Cambios: ${data.nombre || 'propietario'}` }) }) : null,
+			h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Volver')),
 		!nuevo ? h('div', { class: 'd-flex flex-wrap gap-2 mb-3 align-items-center' },
 			data.telefono ? h('a', { href: whatsappUrl(data.telefono, `Hola ${String(data.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
 			data.telefono ? h('a', { href: `tel:${data.telefono}`, class: 'btn btn-sm btn-outline-primary' }, 'Llamar') : null,
@@ -387,7 +391,7 @@ function avisoResumenes(lista) {
 	let faltan = [];
 	const pintar = async () => {
 		const nuevas = await reglasNuevas();
-		const pasos = 'Publica las dos reglas juntas en la consola de Firebase (Firestore → Reglas y Storage → Reglas; orden completo en docs/portal-propietarios.md) y enseguida abre Solicitudes. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		const pasos = 'Publica las dos reglas juntas en la consola de Firebase (Firestore → Reglas y Storage → Reglas) y enseguida abre Solicitudes. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
 		caja.hidden = nuevas && !faltan.length && !fallas.size;
 		caja.replaceChildren(
 			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Deja esta pantalla abierta hasta que llegue a 0.' : ['Deja esta pantalla abierta. Cuando llegue a 0: ', pasos])

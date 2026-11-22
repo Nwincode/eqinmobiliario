@@ -5,10 +5,12 @@
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { datosConfigurados } from '../lib/firestore.mjs';
 import { publicarSitio, estadoPublicacion } from '../lib/publicar.mjs';
+import { conReloj } from '../lib/estado.mjs';
 
 const QUIETO_MS = 12 * 60_000;
 
-export default async () => {
+// La última vuelta buena queda en estado/publicar-pendiente (la tarjeta «Estado del sistema» avisa si deja de correr).
+export default conReloj('publicar-pendiente', async () => {
 	if (!datosConfigurados() || !escrituraConfigurada()) return;
 	try {
 		const { estado, hook, auto } = await estadoPublicacion();
@@ -27,6 +29,6 @@ export default async () => {
 	} catch (e) {
 		console.error('publicar-pendiente:', e.message);
 	}
-};
+});
 
 export const config = { schedule: '*/10 * * * *' };

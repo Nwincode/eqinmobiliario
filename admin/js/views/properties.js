@@ -1,5 +1,5 @@
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, Timestamp, runTransaction
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, Timestamp, runTransaction, writeBatch
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
@@ -28,6 +28,8 @@ import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio, crearCasa } from '../privado-casa.js';
+import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
+import { fotoCasa, igual } from '../bitacora.js';
 import { propiedadParaIA } from '../para-ia.js';
 import { TEXTOS_VAC, fuenteEs, faltaIngles, fuenteTraducida } from '../ingles.js';
 import '/js/calc-vacacional.js';
@@ -221,9 +223,22 @@ export async function eliminarPropiedad(p) {
 	const reservas = p.operacion === 'vacacional' ? await deLaCasa(p.id) : [];
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
-	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
-	await deleteDoc(doc(db, 'properties', p.id));
+	// La casa y lo privado (también el contacto de sus huéspedes), en un solo lote: el precio del dueño y el margen
+	// (privado/socio) solo se van con la casa (firestore.rules), y un corte o un rechazo no deja una casa sin su precio, ni
+	// un privado suelto, ni sus huéspedes sin contacto con la casa todavía ahí. (Un lote lleva hasta 500: con más reservas
+	// que eso, los contactos de más se borran antes, en lotes propios.)
+	const contactos = reservas.map((r) => refContacto(p.id, r.id));
+	const sobran = contactos.slice(0, Math.max(0, contactos.length - 480));
+	for (let i = 0; i < sobran.length; i += 480) {
+		const parte = writeBatch(db);
+		sobran.slice(i, i + 480).forEach((ref) => parte.delete(ref));
+		await parte.commit();
+	}
+	const lote = writeBatch(db);
+	contactos.slice(sobran.length).forEach((ref) => lote.delete(ref));
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	lote.delete(doc(db, 'properties', p.id));
+	await lote.commit();
 	await borrarFotos(p);
 	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya
 	// no existe y la ficha del dueño no la muestra: se anota en la consola y el borrado sigue.
@@ -309,24 +324,30 @@ export { guardarPrivadoVacacional, crearCasa };
 export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false } = {}) {
 	const ref = doc(db, 'properties', id);
 	const quien = autor();
+	const conBitacora = await bitacoraActiva();
 	return runTransaction(db, async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists()) throw new Error('La propiedad ya no existe.');
 		const antes = snap.data();
 		const casa = aplicarCambios(antes, cambios);
 		const vac = esVacacional(casa);
+		// El costo del socio guardado AHORA (también en una casa que dejó de ser por noche: la bitácora lo compara).
+		const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || {};
+		const socioDespues = vac ? { ...guardado, ...socioLimpio(socio || {}) } : guardado;
 		if (vac) {
 			// El precio público sale del costo del socio guardado AHORA más lo que se cambió aquí.
-			const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio'))).data() || {};
-			const pub = vacacionalPublico({ ...casa, socio: { ...guardado, ...socioLimpio(socio || {}) } });
+			const pub = vacacionalPublico({ ...casa, socio: socioDespues });
 			casa.precio = pub.precio;
 			casa.vacacional = { ...casa.vacacional, ...pub.vacacional };
 		}
 		const hist = historialCon(antes, casa, quien);
 		Object.assign(casa, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 		if (hist.cambioEstado) casa.estadoFecha = serverTimestamp();
+		// Moneda, dueño, limpieza, precios del dueño o margen: su renglón en la bitácora, en esta misma transacción.
+		const bitacoraId = anotar(tx, { tipo: 'casa', objeto: id, casa: id, antes: fotoCasa(antes, guardado), despues: fotoCasa(casa, socioDespues) }, conBitacora);
+		if (bitacoraId) casa.bitacoraId = bitacoraId;
 		tx.set(ref, casa);
-		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx);
+		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx, { bitacoraId: igual(fotoCasa({}, guardado), fotoCasa({}, socioDespues)) ? '' : bitacoraId });
 		if (sinLlegada) tx.delete(doc(db, 'properties', id, 'privado', 'llegada'));
 		return casa;
 	});
@@ -1238,10 +1259,11 @@ async function renderEditor(container, id, emb = null) {
 	};
 	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
 
+	// Se vuelve a pintar en su propio contenedor (no «el primer hijo de la pantalla»: arriba puede ir un aviso, como el de
+	// la verificación en dos pasos). Solo en la página: en una ventana (emb) no hay «Traducir» y el guardado avisa a quien la abrió.
 	const recargar = async () => {
-		const view = document.getElementById('view').firstElementChild;
-		view.replaceChildren();
-		await render(view, [ref.id]);
+		container.replaceChildren();
+		await render(container, [ref.id]);
 	};
 
 	// `forzarIngles`: vuelve a traducir aunque el inglés esté al día (el botón «Traducir al inglés» con cambios sin guardar).
@@ -1503,6 +1525,8 @@ async function renderEditor(container, id, emb = null) {
 		{ icono: 'icon-file-text-o', texto: 'Armar borrador de ficha', href: `#/ia/redactar/${id}` },
 		{ icono: 'icon-globe', texto: 'Traducir al inglés', onclick: (e) => traducir(e.currentTarget) },
 		{ icono: 'icon-copy', texto: 'Duplicar', onclick: (e) => duplicate(e.currentTarget) },
+		// Moneda, dueño, limpieza, precios del dueño, margen y «Revisé Airbnb»: quién, cuándo, antes y después.
+		session.isAdmin && { icono: 'icon-history', texto: 'Cambios', onclick: () => verCambios({ casaId: id, titulo: `Cambios: ${data.titulo || 'la propiedad'}`, moneda: data.moneda }) },
 		session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: remove }
 	]);
 	mount(container,

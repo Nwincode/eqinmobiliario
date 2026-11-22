@@ -32,7 +32,8 @@ async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
-	await p.route('**/*', async (r) => {
+	// En el contexto (no en la página): una segunda pestaña de la misma persona va por el mismo camino.
+	await ctx.route('**/*', async (r) => {
 		const u = r.request().url();
 		if (reglasViejas && /\/portalPropietarios\/prueba-[^/?]+/.test(u)) return r.fulfill({ status: 404, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' });
 		const sdk = u.match(/^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+\.js)$/);
@@ -95,7 +96,7 @@ const delaCasa = `${(await opcionesDe('estado')).join('/')} · ${(await opciones
 paso('Renta vacacional: solo los estados y tipos que aplican a una casa por noche', !/Vendida|Rentada|oferta|Terreno|Bodega|Oficina|Local/.test(delaCasa) && /Disponible.*Pausada.*Casa.*Finca/.test(delaCasa), delaCasa);
 const fila1 = await admin.p.evaluate(() => ['moneda', 'orden', 'publicado', 'destacada'].map((c) => document.querySelector(`[data-campo="${c}"]`)?.getBoundingClientRect().top));
 paso('Renta vacacional: moneda, orden, visible y destacada en una sola fila (sin hueco)', fila1.every((t) => t && Math.abs(t - fila1[0]) < 4), fila1.map(Math.round).join(','));
-const faltan = await admin.p.locator('.admin-main .alert').first().innerText().catch(() => '');
+const faltan = await admin.p.locator('.admin-main .alert:not(#aviso-dos-pasos)').first().innerText().catch(() => '');
 paso('Renta vacacional: con el precio del socio puesto no se avisa que falta el precio, ni se piden m² ni parqueos', !/Precio|m²|Parqueos/.test(faltan), faltan.replace(/\s+/g, ' ').slice(0, 140));
 const google = await admin.p.locator('.card-body').innerText();
 paso('Renta vacacional: la vista de Google lleva el precio por noche, no «A consultar»', /US\$ ?120(\.00)? por noche/.test(google) && !/Desde/.test(google) && !/A consultar/.test(google));
@@ -405,6 +406,9 @@ paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón p
 // ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
 const FS = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
 const leer = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).json();
+// Los textos de la bitácora de una casa (lo que el dueño cambió en «Mis propiedades»), del más viejo al más nuevo.
+const lineasBitacora = async (id) => ((await leer(`properties/${id}/bitacora?pageSize=300`)).documents || [])
+	.sort((a, b) => String(a.fields?.cuando?.timestampValue).localeCompare(String(b.fields?.cuando?.timestampValue))).map((d) => d.fields?.que?.stringValue || '');
 const reservadas = async () => JSON.stringify((await leer(`properties/${idCasa}`)).fields.vacacional.mapValue.fields.reservadas || {});
 const tercero = await persona(390);
 await tercero.p.goto(`${SITIO}${ficha}`);
@@ -437,7 +441,7 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 {
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await socio.p.fill('#mc-base', '110');
-	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await socio.p.locator('#mc-base').press('Tab');
 	await espera(2500);
 	await campo(admin.p, 'vacacional.camas').fill('4');
 	await guardar(admin.p);
@@ -700,8 +704,15 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		const rd = (await leer(`reservas/${d.id}`)).fields || {};
 		paso('Transición: sin la cuenta de escritura (503) y con las reglas de antes, el socio confirma por el camino de antes', puestas === 200 && r7.status === 503 && rd.estado?.stringValue === 'confirmada'
 			&& (await leer(`chats/${d.token}`)).fields?.estado?.stringValue === 'confirmada' && /Confirmada/.test(await socio.p.locator('.card', { hasText: d.codigo }).first().innerText()), `${resp(r7)} · reglas ${puestas} · ${await avisos(socio.p)}`);
+		// Una pestaña del administrador abierta con las reglas de antes (la bitácora todavía no existe para ella)…
+		const vieja = await entrar('admin');
+		const bitacoraAntes = await vieja.p.evaluate(async () => (await import('/admin/js/bitacora-panel.js')).bitacoraActiva());
 		// Reglas nuevas y el servidor sin cuenta: el camino de antes ya no pasa y se dice por qué (no «no cuadra»).
 		await reglas('firestore.rules');
+		// …guarda un permiso después de publicar las nuevas: va con su renglón y las reglas lo dejan pasar.
+		const permisoVieja = await vieja.p.evaluate(async () => { try { await (await import('/admin/js/permisos-panel.js')).guardarPropios('colab-prueba', { fechas: true }); return 'ok'; } catch (e) { return e.code || e.message; } });
+		paso('Una pestaña abierta con las reglas de antes guarda con la bitácora en cuanto se publican las nuevas', bitacoraAntes === false && permisoVieja === 'ok', `${bitacoraAntes} · ${permisoVieja}`);
+		await vieja.p.context().close();
 		const hh = await sembrar('srv-h', iso(260));
 		await ir(socio.p, `#/solicitudes/${hh.codigo}`, 3500);
 		await socio.p.locator('.card', { hasText: hh.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
@@ -1080,7 +1091,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		const suLista = JSON.stringify((await f('propietarios/legado-lista')).propiedades || {});
 		paso('Guardar una casa enlazada solo desde la lista del dueño no borra su acuerdo ni la saca de su lista', num(enLista.comisionPct) === 7 && suLista.includes('leg-lista'), avisoAdmin);
 		await ir(admin.p, '#/propietarios', 5000);
-		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas)').first().innerText().catch(() => '');
+		const aviso = await admin.p.locator('.alert-warning:not(#aviso-reglas):not(#aviso-dos-pasos)').first().innerText().catch(() => '');
 		paso('El aviso de exclusivas por vencer nombra cada inmueble', /Casa heredada en venta/.test(aviso) && /Apartamento heredado en renta/.test(aviso) && !/Casa con acuerdo propio/.test(aviso), aviso.slice(0, 160));
 		const sinSesion = await fetch(`${FS}/properties/leg-venta`).then((r) => r.text());
 		const privadoSinSesion = await fetch(`${FS}/properties/leg-venta/privado/acuerdo`);
@@ -1332,13 +1343,25 @@ const duenos = [];
 		return [await intento(['propietarios', 'dueno-mixto']), await intento(['properties', 'residencial-san-antonio', 'privado', 'acuerdo'])];
 	});
 	paso('La dueña no puede leer su ficha interna ni el acuerdo de su casa', prohibido.every((x) => x === 'permission-denied'), prohibido.join(', '));
-	// d) Su casa por noche: cambia su precio, como siempre.
+	// d) Su casa por noche: cambia su precio, como siempre. Otra pestaña abierta desde antes (con el precio de antes en
+	// pantalla) pone el mismo precio después: no deja otra línea y dice que ya estaba así.
 	await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
+	const otraMixta = await mixta.p.context().newPage();
+	await otraMixta.goto(`${SITIO}/admin/#/mis-casas/casa-noche-mixta`);
+	await espera(4000);
 	await mixta.p.fill('#mc-base', '95');
-	await mixta.p.locator('#mc-base').dispatchEvent('change');
+	await mixta.p.locator('#mc-base').press('Tab');
 	await espera(2500);
 	const neto = (await leer('properties/casa-noche-mixta/privado/socio')).fields?.precioBase || {};
 	paso('Cambia el precio de su casa por noche', Number(neto.doubleValue ?? neto.integerValue) === 95, await avisos(mixta.p));
+	await otraMixta.fill('#mc-base', '95');
+	await otraMixta.locator('#mc-base').press('Tab');
+	await espera(2500);
+	const yaEstaba = await avisos(otraMixta);
+	await otraMixta.close();
+	const lineasMixta = (await lineasBitacora('casa-noche-mixta')).filter((x) => /^precio entre semana/.test(x));
+	paso('«Mis propiedades»: su línea dice el precio de antes y el de ahora, y el mismo precio desde otra pestaña no deja otra línea',
+		lineasMixta.length === 1 && /^precio entre semana: (US\$|Q) [\d,.]+ → (US\$|Q) 95$/.test(lineasMixta[0]) && /Ya estaba así/.test(yaEstaba), `${lineasMixta.join(' | ')} · ${yaEstaba}`);
 	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
 	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
 	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
@@ -1488,13 +1511,34 @@ const duenos = [];
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await pon(`properties/${idCasa}`, { vacacional: mapa({ bloqueos: { arrayValue: { values: [mapa({ desde: sv(dia(40)), hasta: sv(dia(42)), motivo: sv('Otra pestaña') })] } } }) }, ['vacacional.bloqueos']);
 	await socio.p.fill('#mc-base', '115');
-	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await socio.p.locator('#mc-base').press('Tab');
 	await espera(3000);
 	const num = (x) => Number(x?.doubleValue ?? x?.integerValue);
 	const v5 = (await f(`properties/${idCasa}`)).vacacional?.mapValue?.fields || {};
 	const s5 = await f(`properties/${idCasa}/privado/socio`);
 	paso('«Mis propiedades» guarda solo lo que cambió: no borra lo que otra pestaña bloqueó, y su precio y el público van juntos',
 		JSON.stringify(v5.bloqueos || {}).includes(dia(40)) && num(s5.precioBase) === 115 && num(v5.base) === 138, `${num(s5.precioBase)} → ${num(v5.base)} · ${await avisos(socio.p)}`);
+	// Las dos listas «Cambios»: cada cambio de precio una vez, con su valor. En la de la casa, el antes → después de la
+	// bitácora sin repetirlo en el texto del dueño; en la de Rentas («Cambios de los socios»), el texto con su valor.
+	const lineasSocio = (await lineasBitacora(idCasa)).filter((x) => /^precio entre semana/.test(x));
+	await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
+	await delMenu(admin.p, 'Cambios');
+	await espera(2500);
+	const deLaCasa = (await admin.p.locator('.modal.show .list-group-item').allInnerTexts()).map((x) => x.replace(/\s+/g, ' '));
+	await admin.p.screenshot({ path: `${CAPTURAS}/cambios-casa-1280.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	const al115 = deLaCasa.filter((x) => /Precio del dueño por noche: US\$ ?110\.00 → US\$ ?115\.00/.test(x));
+	await ir(admin.p, '#/rentas', 3500);
+	await admin.p.locator('button[aria-label="Cambios de los socios"]').click();
+	await espera(2500);
+	const deRentas = (await admin.p.locator('.modal.show .list-group-item').allInnerTexts()).map((x) => x.replace(/\s+/g, ' '));
+	await admin.p.screenshot({ path: `${CAPTURAS}/cambios-socios-1280.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	const repetidas = lineasSocio.filter((x, i) => lineasSocio.indexOf(x) !== i);
+	paso('«Cambios»: cada precio que cambió el socio sale una vez y con su valor (en la casa, sin repetir el texto; en Rentas, con «→»)',
+		lineasSocio.length >= 2 && !repetidas.length && lineasSocio.every((x) => / → /.test(x) || /^precio entre semana: US\$ [\d,.]+$/.test(x))
+		&& al115.length === 1 && !/precio entre semana/.test(al115[0]) && deRentas.some((x) => /precio entre semana: US\$ 110 → US\$ 115/.test(x)),
+		`${lineasSocio.join(' | ')} · casa: ${al115.join(' ; ') || deLaCasa.slice(0, 2).join(' ; ')} · rentas: ${deRentas.slice(0, 2).join(' ; ')}`);
 
 	// Usuarios: una cuenta del equipo nace con la misma pieza que la de un dueño (acceso.js), sin contraseña escrita.
 	await ir(admin.p, '#/usuarios', 3000);
@@ -1550,6 +1594,18 @@ const duenos = [];
 	await guardar(admin.p);
 	const segundo = await acuerdo();
 	paso('Un segundo «Guardar» sin recargar, después de cambiar el dueño, no borra el acuerdo recién guardado', primero === 200 && segundo === 200, `${primero} → ${segundo} · ${await avisos(admin.p)}`);
+	// «Cambios» de cada dueño: la casa que se le puso (a B) y la que se le quitó (a A), con el nombre de la casa.
+	const cambiosDe = async (id) => {
+		await ir(admin.p, `#/propietarios/${id}`, 3000);
+		await admin.p.locator('button[aria-label="Cambios"]').click();
+		await espera(2500);
+		const t = (await admin.p.locator('.modal.show .modal-body').innerText()).replace(/\s+/g, ' ');
+		await admin.p.locator('.modal.show .btn-close').click();
+		return t;
+	};
+	const deB = await cambiosDe('dueno-b-prueba'), deA = await cambiosDe('dueno-a-prueba');
+	const movida = /Casa de dos guardados \(prueba\) Dueño: Dueño A \(prueba\) → Dueño B \(prueba\)/;
+	paso('«Cambios» de un dueño: la casa que se le puso y la que se le quitó salen en los dos, con el nombre de la casa', movida.test(deB) && movida.test(deA), `B: ${deB.slice(0, 120)} · A: ${deA.slice(0, 120)}`);
 }
 
 // ---------------------------------------------------------------- Ronda 3: lo que no debe romper ni saltarse
@@ -1685,8 +1741,127 @@ const duenos = [];
 	await vis.p.context().close();
 }
 
+// ---------------------------------------------------------------- El socio sube el comprobante del pago a EQ
+// Con la red lenta: el botón se apaga y dice «Subiendo…», un segundo toque no sube otra; si Storage lo niega, se dice.
+{
+	await ir(socio.p, '#/solicitudes', 4000);
+	const subir = socio.p.locator('button[aria-label="Subir comprobante del pago a EQ"], button[aria-label="Cambiar comprobante"]').first();
+	const hay = await subir.count();
+	let subidas = 0, modo = 'lenta';
+	await socio.p.route('**/v0/b/**', async (r) => {
+		if (r.request().method() !== 'POST') return r.fallback();
+		subidas++;
+		if (modo === 'niega') return r.fulfill({ status: 403, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: { code: 403, message: 'Permission denied.' } }) });
+		await espera(3000);
+		return r.fallback();
+	});
+	const elegir = async () => { const [fc] = await Promise.all([socio.p.waitForEvent('filechooser', { timeout: 5000 }), subir.click()]); await fc.setFiles(png); };
+	let mientras = '', apagado = false, tras = '';
+	if (hay) {
+		await elegir();
+		await espera(800);
+		const boton = socio.p.locator('.admin-main button', { hasText: 'Subiendo…' }).first();
+		mientras = await boton.innerText().catch(() => '');
+		apagado = await boton.isDisabled().catch(() => false);
+		await boton.click({ force: true, timeout: 1000 }).catch(() => {});
+		await espera(5000);
+		tras = await avisos(socio.p);
+	}
+	await socio.p.screenshot({ path: `${CAPTURAS}/comprobante-subido-1280.png` });
+	paso('El socio sube su comprobante con la red lenta: «Subiendo…» apagado, una sola subida y «Comprobante enviado»', hay > 0 && /Subiendo/.test(mientras) && apagado && subidas === 1 && /Comprobante enviado/.test(tras), `${hay} botón · «${mientras}» · apagado ${apagado} · ${subidas} subida(s) · ${tras}`);
+	modo = 'niega';
+	let negado = '', vuelve = false;
+	if (hay) {
+		await subir.waitFor({ timeout: 8000 }).catch(() => {});
+		await elegir().catch(() => {});
+		await espera(3000);
+		negado = await avisos(socio.p);
+		vuelve = await subir.isEnabled().catch(() => false);
+	}
+	paso('Si Storage no deja subir el comprobante, se dice y el botón vuelve a servir', /No se pudo subir el comprobante/.test(negado) && vuelve, negado);
+	await socio.p.unroute('**/v0/b/**');
+}
+
+// ---------------------------------------------------------------- Dos pasos: los avisos, sin rutas de archivos
+// El emulador pide el correo confirmado antes del segundo paso: «Confirma tu correo» en cada pantalla. Un proyecto sin el
+// segundo paso encendido (se le responde así): solo Inicio, con el enlace a Firebase.
+{
+	await ir(admin.p, '#/propiedades', 3000);
+	const verificar = (await admin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
+	paso('Dos pasos: sin el correo confirmado, cada pantalla lo dice con el botón para mandarlo', /Confirma tu correo/.test(verificar) && /Mandarme el correo/.test(verificar), verificar);
+	const sin = await persona(1280);
+	await sin.p.route('**/mfaEnrollment:start**', (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } })
+		: r.fulfill({ status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }, body: JSON.stringify({ error: { code: 400, message: 'OPERATION_NOT_ALLOWED' } }) }));
+	await sin.p.goto(`${SITIO}/admin/`);
+	await sin.p.fill('#login-email', 'admin@example.com');
+	await sin.p.fill('#login-pass', CLAVE);
+	await sin.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await sin.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await ir(sin.p, '#/inicio', 3000);
+	const texto = (await sin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const enlace = await sin.p.locator('#aviso-dos-pasos a').getAttribute('href').catch(() => '');
+	await sin.p.screenshot({ path: `${CAPTURAS}/dos-pasos-inicio-1280.png` });
+	await ir(sin.p, '#/propiedades', 3000);
+	const enOtra = await sin.p.locator('#aviso-dos-pasos').count();
+	paso('Proyecto sin el segundo paso: Inicio lo dice en una línea con el enlace a Firebase (sin rutas de archivos) y las demás pantallas no', /Abrir Firebase/.test(texto) && !/docs\/|\.md/.test(texto)
+		&& /^https:\/\/console\.firebase\.google\.com\/project\/[\w-]+\/authentication/.test(enlace || '') && enOtra === 0, `${texto} · ${enlace} · ${enOtra}`);
+	await sin.p.context().close();
+}
+
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
+// ---------------------------------------------------------------- Verificación en dos pasos del administrador
+// El emulador no ofrece TOTP: se le responde como un proyecto que sí (mfaEnrollment:start / signInWithPassword con el
+// segundo paso) para ver las pantallas reales; el código pegado con espacio («123 456», como lo copian varias apps).
+{
+	const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Content-Type': 'application/json' };
+	const responder = (cuerpo, status = 200) => (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: cors }) : r.fulfill({ status, headers: cors, body: JSON.stringify(cuerpo) });
+	const codigoMalo = responder({ error: { code: 400, message: 'INVALID_CODE' } }, 400);
+	const pegar = async (p, id) => { await p.focus(id); await p.keyboard.insertText('123 456'); return p.inputValue(id); };
+	const ins = await persona(390);
+	await ins.p.route('**/mfaEnrollment:start**', responder({ totpSessionInfo: { sharedSecretKey: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', verificationCodeLength: 6, hashingAlgorithm: 'SHA1', periodSec: 30, sessionInfo: 's', finalizeEnrollmentTime: new Date(Date.now() + 6e5).toISOString() } }));
+	await ins.p.route('**/mfaEnrollment:finalize**', codigoMalo);
+	await ins.p.goto(`${SITIO}/admin/`);
+	await ins.p.fill('#login-email', 'admin@example.com');
+	await ins.p.fill('#login-pass', CLAVE);
+	await ins.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await ins.p.locator('#codigo-inscribir').waitFor({ timeout: 15000 }).catch(() => {});
+	const qr = await ins.p.locator('.dos-pasos-qr svg').count();
+	const pegado = await pegar(ins.p, '#codigo-inscribir');
+	await ins.p.locator('button[type=submit]', { hasText: 'Activar' }).click();
+	await espera(1500);
+	const malo = await ins.p.locator('[role=alert]').innerText().catch(() => '');
+	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-inscribir-390.png`, fullPage: true });
+	paso('Dos pasos: el administrador sin inscribir ve el QR; el código pegado con espacio queda en 6 cifras y uno malo se explica', qr === 1 && pegado === '123456' && /no sirve/.test(malo), `qr ${qr} · «${pegado}» · ${malo}`);
+	// Recargó la pantalla del QR (o abrió otra pestaña): entra sin que se le cierre la sesión, y cada pantalla le avisa con
+	// «Activar», que vuelve a mostrar el QR.
+	await ins.p.reload();
+	await ins.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await ir(ins.p, '#/propiedades', 3000);
+	const avisoIns = ins.p.locator('#aviso-dos-pasos');
+	const textoIns = (await avisoIns.innerText().catch(() => '')).replace(/\s+/g, ' ');
+	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-aviso-390.png`, fullPage: true });
+	await avisoIns.locator('button', { hasText: 'Activar' }).click().catch(() => {});
+	await ins.p.locator('#codigo-inscribir').waitFor({ timeout: 15000 }).catch(() => {});
+	const qrOtraVez = await ins.p.locator('.dos-pasos-qr svg').count();
+	paso('Dos pasos: al recargar entra igual, cada pantalla le avisa y «Activar» vuelve al QR', /Activar/.test(textoIns) && qrOtraVez === 1, `${textoIns} · qr ${qrOtraVez}`);
+	await ins.p.context().close();
+	const ent = await persona(390);
+	await ent.p.route('**/accounts:signInWithPassword**', responder({ localId: 'uid-falso', email: 'admin@example.com', mfaPendingCredential: 'pendiente', mfaInfo: [{ mfaEnrollmentId: 'totp-1', displayName: 'App de códigos', totpInfo: {}, enrolledAt: new Date().toISOString() }] }));
+	await ent.p.route('**/mfaSignIn:finalize**', codigoMalo);
+	await ent.p.goto(`${SITIO}/admin/`);
+	await ent.p.fill('#login-email', 'admin@example.com');
+	await ent.p.fill('#login-pass', CLAVE);
+	await ent.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await ent.p.locator('#codigo-entrar').waitFor({ timeout: 15000 }).catch(() => {});
+	const pegado2 = await pegar(ent.p, '#codigo-entrar').catch(() => '');
+	await ent.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await espera(1500);
+	const malo2 = await ent.p.locator('[role=alert]').innerText().catch(() => '');
+	paso('Dos pasos: con la cuenta inscrita, al entrar pide el código (pegado con espacio, 6 cifras) y uno malo se explica', pegado2 === '123456' && /no sirve/.test(malo2), `«${pegado2}» · ${malo2}`);
+	await ent.p.context().close();
+}
+
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();
 process.exit(fallas ? 1 : 0);

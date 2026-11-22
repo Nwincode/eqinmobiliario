@@ -12,6 +12,7 @@ import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
+import { quitarRebote } from './rebotes.mjs';
 import { limitadorDurable } from './limite.mjs';
 import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
@@ -33,6 +34,10 @@ export async function enviarAvisosChat(token, { repaso = false, reintento = fals
 	]);
 	const casa = publica && { ...publica, codigoSocio: String(privada?.codigoSocio || '').slice(0, 30) };
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
+	// El cliente volvió a escribir después de que su correo rebotara: ya se le alcanza, la marca se quita (rebotes.mjs).
+	// Aparte: si falla, los avisos salen igual.
+	const delCliente = mensajes.filter((m) => m.de === 'cliente').at(-1);
+	if (lead?.reboteCorreo && delCliente) await quitarRebote(chat.leadId, delCliente.createdAt).catch((err) => console.error('Rebote (quitar):', err.message));
 	const clave = reintento ? String(chat.avisoPendiente || '') : mensajes.at(-1)?.id || 'nueva';
 	if (reintento && !clave) return 0;
 	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, mensaje: reintento ? clave : '', correos: { cliente: lead?.email || '', nombre: lead?.nombre ?? chat.nombre, socio: socio?.email || '', equipo: destinatariosEquipo() } });

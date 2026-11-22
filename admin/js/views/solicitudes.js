@@ -7,7 +7,7 @@
 // servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
-import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion, ahoraServidor, ahoraYa } from '../ui.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion, ahoraServidor, ahoraYa } from '../ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
@@ -22,6 +22,11 @@ import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
 
 const V = window.EQVacacional;
+// Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno. `vista`: la pantalla de
+// Solicitudes abierta ahora (si se salió y se volvió mientras subía, al terminar se pone al día esa, no la de antes).
+const SUBIENDO = new Set();
+const LIMITE_SUBIDA = 90_000;
+const vista = { pintar: () => {}, recargar: () => {} };
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 // Atraso de la comisión, según V.nivelComision().
 const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
@@ -37,7 +42,7 @@ export async function render(container, [codigo] = []) {
 	// El socio habla con el equipo por WhatsApp: su asesor o, si no tiene, la empresa.
 	const equipo = admin ? null : await contactoDelEquipo();
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, chatsSnap, propietarios, casas, reservas, mias, congeladosSnap] = await Promise.all([
+	const [snap, chatsSnap, propietarios, casas, reservas, mias, congeladosSnap, revisionesSnap] = await Promise.all([
 		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
 		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
 		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
@@ -50,10 +55,13 @@ export async function render(container, [codigo] = []) {
 		admin ? null : misCasas().then((l) => l.filter((c) => c.operacion === 'vacacional')),
 		// Los montos de cada solicitud, congelados por el servidor al llegar (montosSolicitud): la tarjeta, el diálogo y la
 		// reserva salen de ellos. Si todavía no están (o no se pueden leer), se calculan igual con la casa de hoy.
-		getDocs(admin ? collection(db, 'montosSolicitud') : query(collection(db, 'montosSolicitud'), where('propietarioId', '==', mio))).catch((err) => { console.warn('Montos de las solicitudes', err); return { docs: [] }; })]);
+		getDocs(admin ? collection(db, 'montosSolicitud') : query(collection(db, 'montosSolicitud'), where('propietarioId', '==', mio))).catch((err) => { console.warn('Montos de las solicitudes', err); return { docs: [] }; }),
+		// Lo que la IA leyó del comprobante del cliente y si cuadra con la reserva (netlify/lib/comprobantes.mjs).
+		getDocs(admin ? collection(db, 'revisionesComprobante') : query(collection(db, 'revisionesComprobante'), where('propietarioId', '==', mio))).catch(() => ({ docs: [] }))]);
 	const misIds = new Set((mias || []).map((c) => c.id));
 	const deHoy = (propertyId) => admin || misIds.has(propertyId);
 	const congelados = Object.fromEntries(congeladosSnap.docs.map((d) => [d.id, d.data()]));
+	const revisiones = Object.fromEntries(revisionesSnap.docs.map((d) => [d.id, d.data()]));
 	const casaDe = (id) => (admin ? casas : mias).find((p) => p.id === id);
 	// Chats de antes de su índice: el administrador se lo pone al abrir esta pantalla (con las reglas de antes no se puede: se salta).
 	const variosChats = admin ? await ponerIndices(snap.docs, chatsSnap.docs).catch((err) => { console.warn('Índice de chats', err); return []; }) : [];
@@ -230,6 +238,7 @@ export async function render(container, [codigo] = []) {
 	// Con el piso de EQ (conPisoDeEq): lo que muestra la tarjeta es lo que se registra al confirmar.
 	const montosDe = (l) => { const m = congelados[l.id] || montosCotizados(l.reserva, casaDe(l.propertyId), netos[l.propertyId]); return m && conPisoDeEq(m); };
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
+	vista.recargar = () => (container.isConnected ? recargar() : undefined);
 	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
 	const hacer = async (tarea) => {
 		try { await tarea(); avisarAvisos(); await recargar(); } catch (err) {
@@ -311,15 +320,40 @@ export async function render(container, [codigo] = []) {
 		});
 	}
 
-	// El socio sube la foto de su transferencia o depósito.
+	// El socio sube la foto de su transferencia o depósito. Mientras sube, su botón se apaga y dice «Subiendo…» (otro toque
+	// o una pestaña que se repinta no suben otra: SUBIENDO, por reserva); si no termina en LIMITE_SUBIDA, se dice y se
+	// puede volver a intentar. El archivo que llegara tarde queda sin usar: la reserva guarda solo el que sí se registró.
 	function subirComprobante(res) {
-		const archivo = h('input', { type: 'file', accept: 'image/*', onchange: () => archivo.files[0] && hacer(async () => {
-			const { url } = await uploadImage(archivo.files[0], `comprobantes/${res.id}`);
-			await ponerComprobante(res, url);
-			toast('Comprobante enviado.');
-		}) });
+		if (SUBIENDO.has(res.id)) return;
+		const archivo = h('input', { type: 'file', accept: 'image/*', onchange: async () => {
+			const foto = archivo.files[0];
+			if (!foto || SUBIENDO.has(res.id)) return;
+			SUBIENDO.add(res.id);
+			vista.pintar();
+			let url;
+			try {
+				let vence;
+				const tarde = new Promise((_, mal) => { vence = setTimeout(() => mal(Object.assign(new Error('lenta'), { code: 'subida/lenta' })), LIMITE_SUBIDA); });
+				({ url } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`), tarde]).finally(() => clearTimeout(vence)));
+			} catch (err) {
+				const red = err?.code === 'subida/lenta' || /^storage\/(retry-limit-exceeded|canceled|unknown)$/.test(err?.code || '') || err?.code === 'auth/network-request-failed';
+				toast(red ? 'No se pudo subir el comprobante: la conexión está lenta o se cortó. Vuelve a intentarlo.' : `No se pudo subir el comprobante: ${errorMessage(err)}`, 'warning');
+				SUBIENDO.delete(res.id);
+				return vista.pintar();
+			}
+			// Apagado hasta que la reserva lo registra; después la pantalla abierta se repinta con lo guardado.
+			try { await ponerComprobante(res, url); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
+			SUBIENDO.delete(res.id);
+			vista.pintar();
+			await vista.recargar();
+		} });
 		archivo.click();
 	}
+	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
+	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
+		? h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
+			h('span', { class: 'spinner-border spinner-border-sm me-1', 'aria-hidden': 'true' }), 'Subiendo…')
+		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }));
 
 	// La alerta de cada mañana: confirmada, llegada pasada y sin «Pago recibido». Si el equipo supo que el cliente pagó,
 	// «Cobrar comisión»: desde ahí su atraso cuenta para apagarle los permisos al socio (permisos-socio.js cuentaParaCorte).
@@ -443,6 +477,14 @@ export async function render(container, [codigo] = []) {
 			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			sinConfirmar ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), sinConfirmar) : null,
+			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
+			((rv) => (rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
+				? h('div', { class: `small ${rv.cuadra ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
+					rv.texto, h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
+				: null))(revisiones[l.id]),
+			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
+			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),
+				`El correo no llegó a ${l.email}: escríbele por WhatsApp.`) : null,
 			plazo(l, est, res),
 			// Hasta cuándo vale «No me llegó»: después, sin pago marcado, la ganancia de EQ cuenta como cobrada (V.cobrable).
 			!admin && est === 'confirmada' && res && puedeNoMeLlego(l) ? h('div', { class: 'small text-muted' }, icono('clock-o'),
@@ -459,7 +501,7 @@ export async function render(container, [codigo] = []) {
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
-				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
+				com && !com.pagada && !admin ? botonComprobante(com, res) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada, ahoraYa()) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
@@ -471,7 +513,7 @@ export async function render(container, [codigo] = []) {
 
 	const lista = h('div', {});
 	const filtro = { socio: '', estado: '' };
-	const pintar = () => {
+	const pintar = vista.pintar = () => {
 		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
 	};

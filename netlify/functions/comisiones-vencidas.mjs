@@ -10,10 +10,12 @@ import { publicarSitio, estadoPublicacion } from '../lib/publicar.mjs';
 import { sociosEnMora, pausados } from '../lib/comisiones.mjs';
 import { escrituraConfigurada } from '../lib/firestore-escritura.mjs';
 import { recalcularPermisos } from '../lib/permisos.mjs';
+import { conReloj } from '../lib/estado.mjs';
 
 const REINTENTO_TRAS_FALLO = 12 * 3600_000;
 
-export default async () => {
+// La última vuelta buena queda en estado/comisiones-vencidas (la tarjeta «Estado del sistema» avisa si deja de correr).
+export default conReloj('comisiones-vencidas', async () => {
 	if (!datosConfigurados()) return;
 	if (escrituraConfigurada()) {
 		try { await recalcularPermisos(); } catch (e) { console.error('comisiones-vencidas (permisos):', e.message); }
@@ -29,6 +31,6 @@ export default async () => {
 	} catch (e) {
 		console.error('comisiones-vencidas:', e.message);
 	}
-};
+});
 
 export const config = { schedule: '5 * * * *' };

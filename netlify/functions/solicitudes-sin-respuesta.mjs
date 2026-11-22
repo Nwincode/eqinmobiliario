@@ -21,6 +21,7 @@ import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envi
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, MOTIVO_SIN_CHAT, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
+import { conReloj } from '../lib/estado.mjs';
 
 const V = globalThis.EQVacacional;
 
@@ -28,7 +29,8 @@ const HORA = 3600_000;
 const PLAZO = 2 * HORA;
 const REPASO = 10 * 60_000;
 
-export default async () => {
+// La última vuelta buena queda en estado/solicitudes-sin-respuesta (la tarjeta «Estado del sistema» avisa si deja de correr).
+export default conReloj('solicitudes-sin-respuesta', async () => {
 	// Basta el servicio de correo: el recordatorio de comisiones va a cada socio; lo demás, solo si hay correos del equipo.
 	if (!servicioCorreo() || !datosConfigurados()) return;
 	try {
@@ -138,7 +140,7 @@ ${boton(c, `Abrir ${l.reserva.codigo}`, enPanel(l), c.primary)}`).join('')}`).jo
 	} catch (err) {
 		console.error('Solicitudes sin respuesta:', err.message);
 	}
-};
+});
 
 // «No se dio» (salvo las repetidas) o cancelada sin pago o porque «el cliente canceló» (de los últimos 60 días, con
 // fechas por venir) y ahora esas noches están bloqueadas o tienen una reserva anotada a mano en la misma casa: la señal

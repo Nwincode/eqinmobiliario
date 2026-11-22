@@ -1,7 +1,7 @@
 // Función de IA (Netlify Functions v2). POST /api/ia { tarea, datos }
 // Las tareas del panel exigen un usuario activo de Firebase; la búsqueda pública no.
 // Requiere la variable de entorno ANTHROPIC_API_KEY en Netlify.
-import Anthropic from '@anthropic-ai/sdk';
+import { client, MODEL, Anthropic } from '../lib/ia-cliente.mjs';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { TAREAS, SISTEMA, acotado } from '../lib/tareas.mjs';
 import { staffUser, json } from '../lib/auth.mjs';
@@ -9,9 +9,6 @@ import { leerPublico } from '../lib/firestore.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
-const MODEL = 'claude-opus-5-5';
-
-const client = new Anthropic({ timeout: 25_000, maxRetries: 0 });
 
 // Límite por IP para la búsqueda pública (por instancia; evita abusos obvios): 8 por minuto. Un pedido rechazado no cuenta.
 const publicRateLimited = limitador(8, 60_000);
