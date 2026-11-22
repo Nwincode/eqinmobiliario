@@ -468,7 +468,7 @@
 	}
 
 	// ¿El texto trae un teléfono, un correo o un enlace? Un solo filtro para el chat de la reserva y para lo que el dueño
-	// escribe de su casa y sale publicado (admin/js/mi-casa.js): los datos de contacto se entregan al confirmar la reserva;
+	// escribe de su casa y sale publicado (admin/js/mi-casa.js): no se pasan por aquí;
 	// antes, nadie los pasa. Fechas, años («2019/2020»), horas («a las 1430»), montos con su moneda o su unidad («3450
 	// quetzales», «2500 pies», «350 de limpieza», «1100 entre semana»), cuentas («1500 + 350», «3 x 450 = 1350») y medidas
 	// («1200 / 1500 m²») no cuentan como teléfono; los números escritos con letras sí, y también unas coordenadas (llevan

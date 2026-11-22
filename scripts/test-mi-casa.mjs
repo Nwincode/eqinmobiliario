@@ -41,16 +41,18 @@ t('cada dato con su revisión', () => {
 	assert.throws(() => revisar({ deposito: 99999 }), /Depósito/);
 	for (const t of ['Escríbeme a rosa@correo.com', 'Reserva en www.micasa.gt', 'Mira [aquí](https://x.gt)', 'wa.me/50255551234', 'Más en micasa.com',
 		// El mismo filtro del chat (V.tieneContacto): también teléfonos y números escritos con letras.
-		'Escríbeme al WhatsApp 5512 3456 y te hago descuento', 'cinco cinco uno dos tres cuatro cinco seis', 'arroba gmail punto com']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /sin teléfonos, correos, enlaces/);
+		'Escríbeme al WhatsApp 5512 3456 y te hago descuento', 'cinco cinco uno dos tres cuatro cinco seis', 'arroba gmail punto com']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /parece un (teléfono|correo|enlace): los contactos no se publican/);
 	// Cada amenidad, igual.
-	for (const a of ['www.micasa.com', 'WhatsApp +502 5512-3456', 'yo@gmail.com']) assert.throws(() => revisar({ amenidades: ['Piscina', a] }), /Amenidades: sin teléfonos/);
+	for (const a of ['www.micasa.com', 'WhatsApp +502 5512-3456', 'yo@gmail.com']) assert.throws(() => revisar({ amenidades: ['Piscina', a] }), /Amenidades: «.+»: parece un (teléfono|correo|enlace)/);
 	// Lo de siempre pasa: horas, montos, kilómetros y coordenadas.
 	assert.equal(revisar({ reglas: 'Silencio de 22:00 a 7:00. Depósito Q 1,500.00. Máximo 8 personas.' }).cambios.length, 1);
+	// Rangos de horas y días con guion (revisión 8).
+	assert.equal(revisar({ reglas: 'Silencio 22:00 - 06:00. Música 20:00-23:00. Del 20/12 - 27/12. Horario de silencio: 22:00 – 07:00.' }).cambios.length, 1);
 	assert.equal(revisar({ comoLlegar: 'En el Km 98.5, a 2 km del pueblo. Remodelada 2019/2020, terreno de 1200 / 1500 m².' }).cambios.length, 1);
 	// Coordenadas: en lo público no (llevan a la casa); en la dirección, que es privada hasta el pago, sí.
-	assert.throws(() => revisar({ comoLlegar: 'Coordenadas 14.5586, -90.7295' }), /Cómo llegar: sin teléfonos/);
+	assert.throws(() => revisar({ comoLlegar: 'Coordenadas 14.5586, -90.7295' }), /Cómo llegar: parecen coordenadas: la ubicación exacta no se publica/);
 	assert.equal(revisar({ direccion: 'Lote 4, coordenadas 14.5586, -90.7295' }).cambios.length, 1);
-	for (const t of ['Fotos en t.me/villa', 'Más en casalago.co', 'villa-lago.me/fotos']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /sin teléfonos/, t);
+	for (const t of ['Fotos en t.me/villa', 'Más en casalago.co', 'villa-lago.me/fotos']) assert.throws(() => revisar({ descripcion: `Casa frente al mar con piscina privada. ${t}` }), /parece un enlace: los contactos no se publican/, t);
 	// Depósito con centavos: redondeo a centavos, sin errores de coma flotante.
 	assert.equal(revisar({ deposito: 100.1 }).escribir.casa['vacacional.deposito'], 100.1);
 	assert.equal(revisar({ deposito: '250.555' }).escribir.casa['vacacional.deposito'], 250.56);

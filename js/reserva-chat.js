@@ -386,10 +386,14 @@
 			e.preventDefault();
 			var texto = campo.value.trim();
 			if (!texto) return;
-			// Teléfonos, correos y enlaces no pasan: los datos de contacto se entregan al confirmar la reserva.
-			// Qué parte parece contacto, en una línea y en su idioma (un número de pago: que lo mande en foto).
+			// Teléfonos, correos y enlaces no pasan. El aviso dice qué parte parece contacto, en una línea y en su idioma; la
+			// foto del comprobante solo se ofrece si la cámara está a la mano (reserva confirmada y sin comprobante).
 			var tipo = V.tipoDeContacto(texto);
-			if (tipo) return alerta(t['vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1)] || t.vacChatBloqueo);
+			if (tipo) {
+				var clave = 'vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1);
+				var conCamara = adjuntar && !adjuntar.hidden && t[clave + 'Pago'];
+				return alerta(conCamara ? t[clave + 'Pago'] : t[clave] || t.vacChatBloqueo);
+			}
 			if (enviando) return;
 			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
 			campo.value = '';

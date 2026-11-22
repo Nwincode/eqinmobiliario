@@ -18,15 +18,20 @@ export const MAX_FOTOS = 40;
 export const ESTADOS_DUENO = ['disponible', 'pausada'];
 
 // Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin teléfonos, correos, enlaces ni páginas
-// (para que el huésped no salga de la plataforma; los datos de contacto se entregan al confirmar). Un solo filtro: el del
+// (para que el huésped no salga de la plataforma). Un solo filtro: el del
 // chat (`V.tieneContacto`), para cada texto y cada amenidad.
 const SIN_CONTACTO = 'sin teléfonos, correos, enlaces ni páginas web';
+// Qué parte parece contacto (V.tipoDeContacto: la misma pieza que el aviso del huésped), en palabras del socio. La usan
+// «Mi casa» (aquí) y el chat del panel (views/solicitudes.js).
+export const PARECE = { telefono: 'parece un teléfono', correo: 'parece un correo', red: 'parece un usuario de red social', enlace: 'parece un enlace',
+	ubicacion: 'parecen coordenadas', raro: 'tiene letras o cifras de otro alfabeto' };
+export const sinContacto = (texto) => { const tipo = V.tipoDeContacto(texto); return tipo ? `${PARECE[tipo] || SIN_CONTACTO}: ${tipo === 'ubicacion' ? 'la ubicación exacta no se publica' : 'los contactos no se publican'}` : ''; };
 // `privado`: lo que el huésped recibe al confirmar (la dirección), junto con el contacto: ahí no se filtra.
 const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
-	if (!privado && V.tieneContacto(s)) return { error: SIN_CONTACTO };
+	if (!privado && sinContacto(s)) return { error: sinContacto(s) };
 	// La dirección sí puede llevar coordenadas, pero no enlaces (el mapa va en su campo).
 	if (privado && /https?:|www\./i.test(s)) return { error: 'sin enlaces (el mapa va en su campo)' };
 	return { valor: s };
@@ -72,7 +77,8 @@ const amenidades = (v) => {
 	if (!Array.isArray(v)) return { error: 'lista inválida' };
 	const lista = [...new Set(v.map((a) => String(a ?? '').trim()).filter(Boolean))];
 	if (lista.length > 40 || lista.some((a) => a.length > 60)) return { error: 'hasta 40, de 60 letras cada una' };
-	if (lista.some((a) => V.tieneContacto(a))) return { error: SIN_CONTACTO };
+	const conContacto = lista.find((a) => sinContacto(a));
+	if (conContacto) return { error: `«${conContacto}»: ${sinContacto(conContacto)}` };
 	return { valor: lista };
 };
 

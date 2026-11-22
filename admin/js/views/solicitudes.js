@@ -16,6 +16,7 @@ import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches } from '../formato.js';
 import { uploadImage } from '../form.js';
+import { PARECE } from '../mi-casa.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
@@ -127,7 +128,9 @@ export async function render(container, [codigo] = []) {
 			e.preventDefault();
 			let texto = campo.value.trim();
 			if (!texto || enviando) return;
-			if (V.tieneContacto(texto)) return toast('Aquí no se comparten teléfonos, correos ni enlaces: todo se coordina en este chat.', 'warning');
+			// Qué parte parece contacto, con la misma pieza del huésped y de «Mi casa» (mi-casa.js PARECE).
+			const tipo = V.tipoDeContacto(texto);
+			if (tipo) return toast(`${(PARECE[tipo] || 'parece un contacto').replace(/^./, (l) => l.toUpperCase())}: por aquí no se comparten contactos.`, 'warning');
 			enviando = true;
 			const escrito = campo.value;
 			campo.value = ''; campo.style.height = '';
