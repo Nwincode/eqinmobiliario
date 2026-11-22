@@ -11,6 +11,7 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 DIR="${ENTORNO_DIR:-${TMPDIR:-/tmp}/eq-entorno}"
 PUERTO="${PORT:-8090}"
 export CORREOS="$DIR/correos.jsonl"
+export PURGAS="$DIR/purgas.jsonl"
 mkdir -p "$DIR"
 
 copiar() {

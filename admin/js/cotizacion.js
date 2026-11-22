@@ -7,7 +7,7 @@
 //  - pequeño contribuyente (5 %): no se cobra IVA aparte; el emisor paga el 5 % del total a la SAT.
 //      · «Todo incluido»: total = honorario ÷ 0.95, así el emisor sigue recibiendo el honorario.
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
-import { miles } from './formato.js';
+import { miles, dinero as dineroFormato } from './formato.js';
 import { OPERACIONES, enOperacion } from './estados.js';
 import { REGLAS_POR_DEFECTO, montoComision, comisionDe } from './acuerdo.js';
 
@@ -266,12 +266,10 @@ export function calcularCotizacion(cot, reglas) {
 	return { regimen, modo, lineas, totales };
 }
 
-// ── Formato (igual que la calculadora: es-GT, «US$ 1,234») ─────────────
-export function dinero(v, moneda = 'USD', dec) {
+// ── Formato: el dinero de formato.js, siempre con centavos («US$ 350,000.00»), con «−» si es negativo ─────────────
+export function dinero(v, moneda = 'USD') {
 	if (v === null || v === undefined || !isFinite(v)) return '—';
-	const d = dec ?? (Math.abs(v - Math.round(v)) > 0.004 ? 2 : 0);
-	const s = new Intl.NumberFormat('es-GT', { minimumFractionDigits: d, maximumFractionDigits: d }).format(Math.abs(v));
-	return `${v < 0 ? '−' : ''}${moneda === 'GTQ' ? 'Q' : 'US$'} ${s}`;
+	return `${v < 0 ? '−' : ''}${dineroFormato(Math.abs(v), moneda === 'GTQ' ? 'GTQ' : 'USD')}`;
 }
 export function numero(v, max = 2) {
 	return new Intl.NumberFormat('es-GT', { maximumFractionDigits: max }).format(num(v));
@@ -283,10 +281,11 @@ export function rentas(m) {
 	return `${numero(m, 2)} renta${Math.abs(m - 1) < 1e-9 ? '' : 's'}`;
 }
 
-// Número de cotización por fecha y hora: COT-AAAAMMDD-HHMM (único por asesor sin contador compartido).
-export function numeroCotizacion(fecha = new Date()) {
-	const p = (n) => String(n).padStart(2, '0');
-	return `COT-${fecha.getFullYear()}${p(fecha.getMonth() + 1)}${p(fecha.getDate())}-${p(fecha.getHours())}${p(fecha.getMinutes())}`;
+// Número de cotización: el consecutivo del contador (contadores/cotizaciones) con 4 cifras: COT-0001, COT-0002…
+// Lo pone la primera vez que se guarda, en una transacción (views/cotizacion.js); firestore.rules arma el mismo texto.
+// Las de antes conservan el suyo (fecha y hora).
+export function numeroCotizacion(n) {
+	return `COT-${String(Math.max(1, Math.floor(Number(n) || 0))).padStart(4, '0')}`;
 }
 
 export function fechaISO(fecha = new Date()) {
@@ -396,6 +395,7 @@ export function datosPropiedad(s) {
 		p.parqueos ? `${mil(p.parqueos)} ${p.parqueos === 1 ? 'parqueo' : 'parqueos'}` : '',
 		m2, p.m2Terreno ? `${mil(p.m2Terreno)} m² de terreno` : ''
 	].filter(Boolean);
+	// Con centavos (formato.js, por `dinero`) y «al mes» como el resto de la cotización.
 	const precio = p.precio ? `${dinero(p.precio, p.moneda)}${p.operacion === 'renta' ? ' al mes' : p.operacion === 'vacacional' ? ' por noche' : ''}` : '';
 	return { titulo: p.titulo || p.codigo, codigo: p.titulo ? p.codigo : '', lugar: [p.direccion, p.zona, p.ciudad].filter(Boolean).join(', '), rasgos, precio };
 }

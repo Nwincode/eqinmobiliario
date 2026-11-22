@@ -9,12 +9,15 @@
 //   POST /api/mi-casa { accion: 'deshacer', id, campos? } → vuelve a poner lo de antes donde sigue lo del dueño.
 //   POST /api/mi-casa { accion: 'listo', id }        → el aviso se va (el cambio se queda).
 // Errores en JSON { error }: 400, 401, 403 no es suya, 404, 409 (no se puede pausar con huéspedes por venir),
-// 422 un dato que no va, 429, 503 sin cuenta de escritura.
+// 422 un dato que no va, 429 (solo lo que guarda el dueño: 40 en 10 minutos), 503 sin cuenta de escritura.
+// Lo que guarda el dueño responde { ok, cambios, publicaSola } (publicaSola: el sitio se publica solo en unos minutos).
 import '../../js/calc-vacacional.js';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, idNuevo } from '../lib/firestore-escritura.mjs';
+import { marcarPorPublicar } from '../lib/publicar.mjs';
 import { desde } from '../lib/firestore.mjs';
+import { purgarCasa } from '../lib/ocupacion.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { revisarCambiosDueno, valoresDueno, paraDeshacer, CAMPOS_CON_INGLES } from '../../admin/js/mi-casa.js';
 import { historialCon } from '../../admin/js/cambios-casa.js';
@@ -51,12 +54,6 @@ function escribirEn(tx, id, docs, escribir, extraCasa = {}) {
 	}
 }
 
-async function marcarPorPublicar(tx, desc, por) {
-	const datos = { pendiente: true, ultimoCambioDesc: desc.slice(0, 200), ultimoCambioPor: por };
-	if (await tx.leer('meta/publish')) tx.cambiar('meta/publish', datos, { ahora: ['ultimoCambio'] });
-	else tx.crear('meta/publish', datos, { ahora: ['ultimoCambio'] });
-}
-
 async function guardarDelDueno(tx, socio, id, pedido) {
 	const docs = await leerCasa(tx, id);
 	const { casa } = docs;
@@ -89,8 +86,8 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 		propertyId: id, titulo: r.escribir.casa.titulo || casa.titulo || '', propietarioId: socio.propietarioId, uid: socio.uid, nombre: socio.nombre || '',
 		cambios: r.cambios, ingles: r.cambios.some((c) => CAMPOS_CON_INGLES.includes(c.campo)), estado: 'nuevo'
 	}, { ahora: ['cuando'] });
-	await marcarPorPublicar(tx, `${casa.titulo}: el dueño cambió ${lista}`, socio.nombre || 'Dueño');
-	return { cambios: r.cambios.map((c) => c.campo) };
+	const publicaSola = await marcarPorPublicar(tx, `${casa.titulo}: el dueño cambió ${lista}`, socio.nombre || 'Dueño');
+	return { cambios: r.cambios.map((c) => c.campo), publicaSola };
 }
 
 async function deshacer(tx, admin, avisoId, campos) {
@@ -122,7 +119,6 @@ export default async (req) => {
 	try { [socio, staff] = await Promise.all([socioUser(req), staffUser(req)]); } catch { return json(401, { error: 'Sesión inválida: vuelve a entrar.' }); }
 	const admin = staff?.admin ? staff : null;
 	if (!socio && !admin) return json(403, { error: 'Sin permiso.' });
-	if (porUsuario((socio || admin).uid)) return json(429, { error: 'Demasiados cambios seguidos: espera unos minutos.' });
 
 	if (req.method === 'GET') {
 		if (!admin) return json(403, { error: 'Solo el administrador.' });
@@ -139,10 +135,16 @@ export default async (req) => {
 	try { cuerpo = await req.json(); } catch { return json(400, { error: 'Solicitud inválida' }); }
 	try {
 		if (socio) {
+			// El límite es para lo que guarda el dueño. El administrador (la campana, «Deshacer», «Listo») no lo gasta:
+			// cada «Deshacer» vuelve a leer la campana y la pantalla, y con un solo límite la campana se quedaba sin avisos.
+			if (porUsuario(socio.uid)) return json(429, { error: 'Demasiados cambios seguidos: espera unos minutos.' });
 			const id = String(cuerpo?.casa || '');
 			const pedido = cuerpo?.cambios;
 			if (!ID.test(id) || !pedido || typeof pedido !== 'object' || Array.isArray(pedido)) return json(400, { error: 'Solicitud inválida' });
-			return json(200, { ok: true, ...(await transaccion((tx) => guardarDelDueno(tx, socio, id, pedido))) });
+			const hecho = await transaccion((tx) => guardarDelDueno(tx, socio, id, pedido));
+			// Pausar o cambiar un calendario cambia lo que responde /api/disponibilidad: su copia del CDN se borra.
+			await purgarCasa(id);
+			return json(200, { ok: true, ...hecho });
 		}
 		const avisoId = String(cuerpo?.id || '');
 		if (!ID.test(avisoId)) return json(400, { error: 'Solicitud inválida' });

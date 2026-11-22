@@ -5,14 +5,17 @@
 import { slugify, TIPOS, TIPOS_LANDING, truncate, departamentoDe } from './util.mjs';
 import { RUTAS } from './i18n.mjs';
 import { montoPrecio } from '../../admin/js/formato.js';
+import { precioVisible } from '../../admin/js/estados.js';
 import { sinRepetir, TITULO_MAX } from '../../admin/js/seo-auto.js';
 
 // Una página de zona (zona, zona + operación, zona + tipo + operación) se indexa solo con al menos tantas
 // propiedades a la vista; con menos es «poco contenido» para Google. Con menos, la zona sola existe sin indexar
 // (sus casas siguen enlazadas desde el listado de arriba) y las otras no se generan.
 export const MIN_INDEXABLE = 3;
-// La misma regla para tipo y zona: ¿hay suficientes propiedades para que la página se indexe?
-export const bastante = (lista) => lista.length >= MIN_INDEXABLE;
+// La misma regla para tipo y zona: ¿hay suficientes propiedades para que la página se indexe? Las casas de prueba
+// (`_prueba`, estados.js esDePrueba: no se indexan ni van al sitemap) no cuentan: no hacen indexable una página.
+const deVerdad = (lista) => lista.filter((p) => !p._prueba);
+export const bastante = (lista) => deVerdad(lista).length >= MIN_INDEXABLE;
 // Bloque de precios: necesita al menos tantos precios a la vista en una misma moneda.
 export const MIN_PRECIOS = 3;
 
@@ -25,6 +28,22 @@ export const slugZona = (nombre) => {
 	const s = slugify(nombre);
 	return RESERVADAS.includes(s) ? `zona-${s}` : s;
 };
+// Una zona, una sola forma de escribirla: «Zona 10», «zona 10» y «Zona 10 » darían la misma dirección
+// (/propiedades/zona-10/) y se pisarían, y el filtro de zona mostraría opciones repetidas. Se recortan los espacios y
+// cada zona queda con la forma más usada (empate: la primera). Cambia `zona` en las casas y las devuelve.
+export function unificarZonas(props) {
+	const formas = new Map();
+	for (const p of props) {
+		p.zona = String(p.zona || '').trim().replace(/\s+/g, ' ');
+		if (!p.zona) continue;
+		const s = slugZona(p.zona);
+		if (!formas.has(s)) formas.set(s, new Map());
+		formas.get(s).set(p.zona, (formas.get(s).get(p.zona) || 0) + 1);
+	}
+	const elegida = new Map([...formas].map(([s, m]) => [s, [...m].reduce((a, b) => (b[1] > a[1] ? b : a))[0]]));
+	for (const p of props) if (p.zona) p.zona = elegida.get(slugZona(p.zona));
+	return props;
+}
 // «Casas en venta» / «Houses for sale» y su dirección (/casas-en-venta/, /en/houses-for-sale/).
 const OP_TIPO = { venta: ['en venta', 'for sale'], renta: ['en renta', 'for rent'] };
 export const nombreTipo = (tipo, operacion, en = false) => {
@@ -48,15 +67,15 @@ export function planListados(props, { lang = 'es', ocupadas = new Set() } = {}) 
 	};
 	// ¿La lista es idéntica a la de alguna página de arriba que ya existe? Entonces no aporta nada nuevo.
 	const repite = (lista, ...padres) => padres.some((pd) => pd && pd.firma === firma(lista));
-	const todas = add({ pagina: 'todas', url: r.propiedades, lista: props, indexable: props.length > 0 });
+	const todas = add({ pagina: 'todas', url: r.propiedades, lista: props, indexable: deVerdad(props).length > 0 });
 	const porOp = {};
 	for (const o of OPS) {
 		const lista = props.filter((p) => op(p) === o);
 		// Venta y renta siempre tienen su página (enlaces de siempre); la vacacional solo si hay alguna casa.
 		if (o === 'vacacional' && !lista.length) continue;
-		porOp[o] = add({ pagina: 'op', operacion: o, url: r[o], lista, indexable: lista.length > 0 });
+		porOp[o] = add({ pagina: 'op', operacion: o, url: r[o], lista, indexable: deVerdad(lista).length > 0 });
 	}
-	add({ pagina: 'vip', url: r.vip, lista: props.filter((p) => p.vip), indexable: props.some((p) => p.vip) });
+	add({ pagina: 'vip', url: r.vip, lista: props.filter((p) => p.vip), indexable: props.some((p) => p.vip && !p._prueba) });
 	const porTipo = {};
 	for (const o of ['venta', 'renta']) {
 		for (const tipo of Object.keys(TIPOS_LANDING)) {
@@ -169,7 +188,7 @@ export function crearEnlaces(...planes) {
 
 // ------------------------------------------------ Números de una lista (precios y habitaciones)
 
-const visiblesConPrecio = (lista) => lista.filter((p) => Number(p.precio) > 0 && !(p.vipLanding && p.vipLanding.ocultarPrecio));
+const visiblesConPrecio = (lista) => lista.filter((p) => precioVisible(p) > 0);
 const mediana = (xs) => {
 	const s = [...xs].sort((a, b) => a - b);
 	const m = Math.floor(s.length / 2);

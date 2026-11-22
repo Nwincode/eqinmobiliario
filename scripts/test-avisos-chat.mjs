@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { avisosChat, sinResponder } from '../netlify/lib/avisos-chat.mjs';
+import { puedeApartar, EN_CURSO } from '../netlify/lib/aviso-chat-envio.mjs';
 
 const AHORA = Date.parse('2026-11-13T12:00:00Z');
 const hace = (min) => new Date(AHORA - min * 60_000);
@@ -22,6 +23,25 @@ test('solicitud nueva: al socio y al equipo (panel) y al cliente (su reserva)', 
 	assert.equal(a[2].url, 'https://ejemplo.gt/reserva/#TokenDePruebaLargoYAlAzar2345');
 	// Sin socio con correo, el equipo la recibe una sola vez.
 	assert.deepEqual(avisosChat({ chat, mensajes: [], correos: { ...correos, socio: '' }, sitio: 'https://ejemplo.gt', ahora: AHORA }).map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
+});
+test('al cliente se le saluda con su nombre (del lead) aunque el chat diga «Cliente»; el socio ve el del chat y el equipo el completo', () => {
+	const a = avisosChat({ chat: { ...chat, nombre: 'Guest', idioma: 'en' }, mensajes: [], correos: { ...correos, nombre: 'John@x Smith' }, sitio: 'https://ejemplo.gt', ahora: AHORA });
+	assert.equal(a[2].titulo, 'We received your request, John@x');
+	assert.deepEqual(a[0].datos.at(-1), ['Cliente', 'Guest']);
+	assert.deepEqual(a[1].datos.at(-1), ['Cliente', 'John@x Smith']);
+});
+test('solicitud que confirma el equipo (cotizada por debajo): al socio no se le pide responder ni al cliente se le prometen fechas apartadas', () => {
+	const a = avisos([], { confirmaEquipo: true });
+	assert.match(a[0].intro, /La confirma el equipo/);
+	assert.ok(a.every((x) => !/apartad|held/i.test(`${x.intro} ${x.titulo}`)), a.map((x) => x.intro).join(' | '));
+	assert.match(avisos([], { confirmaEquipo: true, idioma: 'en' }).at(-1).intro, /Our team reviews your request/);
+});
+test('lo que se cerró solo por un plazo dice el motivo de verdad: la casa salió del sitio, el equipo no la confirmó o nadie respondió', () => {
+	const cerrada = (motivo) => avisos([m('cliente', 60), { de: 'equipo', texto: 'Cerramos…', plazo: true, motivo, createdAt: hace(0) }], { estado: 'no' }).find((x) => x.para[0] === 'socio@example.com');
+	assert.match(cerrada('La casa ya no está disponible').asunto, /la casa ya no está en el sitio/);
+	assert.doesNotMatch(cerrada('La casa ya no está disponible').intro, /Nadie la respondió/);
+	assert.match(cerrada('No se confirmó a tiempo').intro, /La confirmaba el equipo/);
+	assert.match(cerrada('Sin respuesta del anfitrión').intro, /Nadie la respondió en 24 h/);
 });
 test('recordatorio de pago (lo que vence solo): al cliente y al socio, por si ya le pagaron', () => {
 	const a = avisos([m('socio', 60, 'pago'), { de: 'equipo', tipo: 'recordatorio', texto: 'Recuerda…', createdAt: hace(0) }], { estado: 'confirmada' });
@@ -139,5 +159,53 @@ test('el socio cancela: al cliente y también al equipo; el equipo cancela: solo
 	assert.match(socio[0].asunto, /socio canceló/);
 	assert.deepEqual(avisos([m('cliente', 5), m('equipo', 1)], { estado: 'cancelada' }).map((x) => x.para), [['ana@example.com']]);
 	assert.deepEqual(avisos([m('cliente', 5), m('socio', 1)], { estado: 'no' }).map((x) => x.para), [['ana@example.com']]);
+});
+test('«cómo pagar» dice el plazo exacto (hora de Guatemala); sin plazo automático, «antes de llegar»', () => {
+	const vence = Date.parse('2026-11-15T05:00:00Z');
+	const a = avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: vence });
+	assert.match(a[0].intro, /Paga antes del sáb, 14 nov, 11:00/);
+	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: 0 })[0].intro, /Paga antes de llegar/);
+	assert.match(avisos([m('socio', 0, 'pago')], { estado: 'confirmada', vencePago: vence, idioma: 'en' })[0].intro, /Pay before Sat, Nov 14, 11:00 PM/);
+});
+test('«No me llegó» antes de la llegada: al cliente, con el plazo nuevo, y el equipo se entera', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', tipo: 'reabierto', texto: 'El anfitrión todavía no ve tu pago…', createdAt: hace(0) }], { estado: 'confirmada' });
+	assert.deepEqual(a.map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
+	assert.match(a[0].asunto, /no le llegó el pago/);
+	assert.match(a[1].intro, /todavía no ve tu pago/);
+});
+test('el socio cancela con el comprobante del cliente: el correo al equipo lo dice', () => {
+	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', texto: 'El anfitrión no recibió tu pago…', createdAt: hace(0) }], { estado: 'cancelada', comprobanteCliente: hace(30) });
+	assert.match(a[0].asunto, /con comprobante del cliente/);
+	const sin = avisos([m('socio', 60, 'pago'), { de: 'socio', texto: 'La reserva se canceló.', createdAt: hace(0) }], { estado: 'cancelada' });
+	assert.doesNotMatch(sin[0].asunto, /comprobante/);
+});
+test('una solicitud repetida se cierra sin correo (aunque alguien llame /api/aviso-chat)', () => {
+	assert.deepEqual(avisos([{ de: 'equipo', texto: 'Esta solicitud estaba repetida…', silencioso: true, createdAt: hace(0) }], { estado: 'no' }), []);
+});
+test('reintento de un aviso pendiente: se revisa como en el momento del mensaje (una hora después igual sale)', () => {
+	const pago = { ...m('socio', 60, 'pago'), id: 'msjPago' };
+	// Sin reintento, una hora después ya no sale (FRESCO).
+	assert.deepEqual(avisos([pago], { estado: 'confirmada' }), []);
+	const r = avisosChat({ chat: { ...chat, estado: 'confirmada' }, mensajes: [pago, { ...m('cliente', 30), id: 'despues' }], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'msjPago' });
+	assert.deepEqual(r.map((x) => x.para), [['ana@example.com']]);
+	assert.match(r[0].asunto, /cómo pagar/);
+	// La solicitud nueva cuyo correo no salió ('nueva').
+	const n = avisosChat({ chat: { ...chat, createdAt: hace(120) }, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'nueva' });
+	assert.equal(n.length, 3);
+	assert.deepEqual(avisosChat({ chat, mensajes: [pago], correos, sitio: 'https://ejemplo.gt', ahora: AHORA, mensaje: 'noExiste' }), []);
+});
+test('el reintento de cada hora no manda otra vez un aviso que otra llamada está mandando ahora', () => {
+	const t = AHORA;
+	// En camino (apartado hace 1 min): el reintento no lo toca.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: 'm1', avisoApartado: t - 60_000 }, 'm1', true, t), false);
+	// Falló (marcar quita avisoEnviado): se reintenta.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: '' }, 'm1', true, t), true);
+	// Apartado hace más que EN_CURSO (la función se cortó): se reintenta.
+	assert.equal(puedeApartar({ avisoPendiente: 'm1', avisoEnviado: 'm1', avisoApartado: t - EN_CURSO - 1 }, 'm1', true, t), true);
+	// Ya no pendiente: no.
+	assert.equal(puedeApartar({ avisoPendiente: '', avisoEnviado: '' }, 'm1', true, t), false);
+	// La primera vez: solo si no salió ya.
+	assert.equal(puedeApartar({ avisoEnviado: 'm1' }, 'm1', false, t), false);
+	assert.equal(puedeApartar({ avisoEnviado: 'm0' }, 'm1', false, t), true);
 });
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

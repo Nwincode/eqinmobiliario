@@ -114,6 +114,50 @@ service cloud.firestore {
       return exists(ruta) ? get(ruta).data : {};
     }
 
+    // Lo que el dueño pone en su calendario, con sus topes (los mismos de «Mis propiedades», admin/js/views/mis-casas.js):
+    // personas de 1 a 50 (entero); mínimos de noches de 1 a 30, hasta 10 a la vez; días bloqueados hasta 15 grupos a la vez,
+    // cada uno con fechas AAAA-MM-DD, la salida después de la llegada y a lo más hasta el fin del año dentro de 3.
+    // Con más de los que caben (de antes), solo puede quitar (como los precios: quita). Las reglas no recorren listas.
+    // (Cada revisión cuenta: las reglas paran en 1000 operaciones por pedido y cada dato de la lista cuesta varias. Por eso
+    // solo se comparan textos —«AAAA-MM-DD» se ordena igual que la fecha: una fecha mal escrita queda fuera de los
+    // límites— y los topes son los que caben, medidos en el emulador con su caso más grande en test-reglas.mjs.)
+    function bloqueoSano(r, t) {
+      return r.desde >= '2020-01-01' && r.desde < r.hasta && r.hasta <= t;
+    }
+    function minimoSano(r, t) {
+      return r.desde >= '2020-01-01' && r.desde <= r.hasta && r.hasta <= t && r.noches is int && r.noches >= 1 && r.noches <= 30;
+    }
+    function bloqueosSanos(l, t) {
+      let n = l.size();
+      return n <= 15
+        && (n < 1 || bloqueoSano(l[0], t)) && (n < 2 || bloqueoSano(l[1], t))
+        && (n < 3 || bloqueoSano(l[2], t)) && (n < 4 || bloqueoSano(l[3], t))
+        && (n < 5 || bloqueoSano(l[4], t)) && (n < 6 || bloqueoSano(l[5], t))
+        && (n < 7 || bloqueoSano(l[6], t)) && (n < 8 || bloqueoSano(l[7], t))
+        && (n < 9 || bloqueoSano(l[8], t)) && (n < 10 || bloqueoSano(l[9], t))
+        && (n < 11 || bloqueoSano(l[10], t)) && (n < 12 || bloqueoSano(l[11], t))
+        && (n < 13 || bloqueoSano(l[12], t)) && (n < 14 || bloqueoSano(l[13], t))
+        && (n < 15 || bloqueoSano(l[14], t));
+    }
+    function minimosSanos(l, t) {
+      let n = l.size();
+      return n <= 10
+        && (n < 1 || minimoSano(l[0], t)) && (n < 2 || minimoSano(l[1], t))
+        && (n < 3 || minimoSano(l[2], t)) && (n < 4 || minimoSano(l[3], t))
+        && (n < 5 || minimoSano(l[4], t)) && (n < 6 || minimoSano(l[5], t))
+        && (n < 7 || minimoSano(l[6], t)) && (n < 8 || minimoSano(l[7], t))
+        && (n < 9 || minimoSano(l[8], t)) && (n < 10 || minimoSano(l[9], t));
+    }
+    function listaSana(lista, antes, sana) {
+      return lista is list && (sana || (antes is list && quita(lista, antes)));
+    }
+    function calendarioSano(v, antes, cambia) {
+      let tope = string(request.time.year() + 3) + '-12-31';
+      return (!cambia.hasAny(['huespedesMax']) || (v.huespedesMax is int && v.huespedesMax >= 1 && v.huespedesMax <= 50))
+        && (!cambia.hasAny(['minimos']) || (v.minimos is list && listaSana(v.minimos, antes.get('minimos', []), minimosSanos(v.minimos, tope))))
+        && (!cambia.hasAny(['bloqueos']) || (v.bloqueos is list && listaSana(v.bloqueos, antes.get('bloqueos', []), bloqueosSanos(v.bloqueos, tope))));
+    }
+
     // Marca de que ya hay administrador. El arranque «crear el primer administrador» desde el navegador se cerró: con el
     // alta de Firebase pública, cualquiera habría podido hacerse administrador si este documento faltara. Ya nadie la
     // escribe ni la borra; un administrador nuevo lo crea otro administrador (Usuarios).
@@ -196,6 +240,9 @@ service cloud.firestore {
               || socioPuede('precios'))
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['bloqueos']) || socioPuede('fechas'))
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['precio']) || socioPuede('precios'))
+            // Personas, mínimos y días bloqueados con sus topes (calendarioSano).
+            && calendarioSano(request.resource.data.vacacional, resource.data.vacacional,
+                 request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys())
             // Sus precios públicos cuadran con los suyos (privado/socio tal como queda en la misma transacción).
             // Solo si tocó precios: una casa sin privado/socio todavía también bloquea días.
             && (!request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys().hasAny(['base', 'finde', 'tarifas'])
@@ -222,8 +269,11 @@ service cloud.firestore {
       // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
       // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
       match /privado/{docId} {
-        allow read, write: if isAdmin()
+        // (getAfter: también en el mismo lote que crea la casa, admin/js/privado-casa.js crearCasa.)
+        allow read: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+        allow write: if isAdmin()
+          || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
         // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
         // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
         // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
@@ -273,7 +323,9 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId);
-      allow delete: if isAdmin();
+      // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
+      // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
+      allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
     }
 
     // CRM: clientes, actividades (agenda e historial) y propietarios.
@@ -299,13 +351,42 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if propio();
     }
+    // Datos de pago del socio (los recibe el cliente en el chat al confirmar): solo el administrador los cambia, y cada
+    // cambio deja su renglón en cambiosDatosPago/{id} en el mismo lote (quién, cuándo, antes y después), que la ficha
+    // nombra en datosPagoCambio. El servidor manda el correo al equipo (netlify/lib/avisos-pago.mjs) y lo marca avisado.
+    function pagoAnotado(id, antes) {
+      let log = request.resource.data.get('datosPagoCambio', '');
+      return log is string && log.size() > 0 && log != antes.get('datosPagoCambio', '')
+        && !exists(/databases/$(database)/documents/cambiosDatosPago/$(log))
+        && getAfter(/databases/$(database)/documents/cambiosDatosPago/$(log)).data.get('propietarioId', '') == id;
+    }
     match /propietarios/{id} {
       // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
       allow read: if propio();
-      // Los permisos del socio (permisos) los cambia solo el administrador.
-      allow create: if nuevoPropio() && (isAdmin() || !request.resource.data.keys().hasAny(['permisos']));
-      allow update: if propio() && conservaAsesor() && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos']));
+      // Los permisos del socio (permisos) y sus datos de pago los cambia solo el administrador.
+      allow create: if nuevoPropio()
+        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
+        && (request.resource.data.get('datosPago', '') == '' || pagoAnotado(id, {}));
+      allow update: if propio() && conservaAsesor()
+        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
+        && (request.resource.data.get('datosPago', '') == resource.data.get('datosPago', '') || pagoAnotado(id, resource.data));
       allow delete: if isAdmin();
+    }
+    match /cambiosDatosPago/{cambio} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['propietarioId', 'antes', 'despues', 'quien', 'nombre', 'cuando', 'avisado'])
+        && request.resource.data.quien == request.auth.uid
+        && isShortString(request.resource.data.get('nombre', ''), 120)
+        && request.resource.data.cuando == request.time
+        && request.resource.data.avisado == false
+        && request.resource.data.propietarioId is string
+        && request.resource.data.antes == (exists(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId))
+            ? get(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '') : '')
+        && request.resource.data.despues == getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '')
+        && request.resource.data.antes != request.resource.data.despues
+        && getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPagoCambio', '') == cambio;
+      allow update, delete: if false;
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
     // almacenamiento de la empresa (las pruebas usan ese mismo nombre en el emulador): una foto alojada en otro proyecto
@@ -330,11 +411,42 @@ service cloud.firestore {
             && comprobanteValido(request.resource.data.comision.comprobante, id));
       allow delete: if isAdmin();
     }
+    // Montos de una solicitud de reserva por noche, congelados al llegar (la parte del socio, la limpieza y el margen de
+    // la casa en ese momento): los escribe solo el servidor (netlify/lib/reservas-servidor.mjs congelarMontos, con la
+    // cuenta de escritura, que no pasa por estas reglas). Los leen el administrador y el socio de esa casa.
+    match /montosSolicitud/{id} {
+      allow read: if isAdmin() || esSocioDe(resource.data);
+      allow write: if false;
+    }
     // Cotizaciones de servicios: cada asesor ve y edita las suyas; el administrador, todas.
+    // Número seguido (COT-0001, COT-0002…): lo da el contador contadores/cotizaciones { ultimo, cotizacion }, en la misma
+    // transacción que crea la cotización (admin/js/views/cotizacion.js). El contador sube de 1 en 1 y solo junto con la
+    // cotización que nace con ese número; la cotización nace solo con el número que el contador le dio. Nadie lo cambia después.
+    function numeroDe(n) {
+      return 'COT-' + (n < 10 ? '000' : n < 100 ? '00' : n < 1000 ? '0' : '') + string(n);
+    }
+    function contadorCotizaciones() {
+      return /databases/$(database)/documents/contadores/cotizaciones;
+    }
+    function contadorValido(c) {
+      return c.keys().hasOnly(['ultimo', 'cotizacion']) && c.ultimo is int && c.cotizacion is string && c.cotizacion.size() > 0
+        && !exists(/databases/$(database)/documents/cotizaciones/$(c.cotizacion))
+        && getAfter(/databases/$(database)/documents/cotizaciones/$(c.cotizacion)).data.get('consecutivo', -1) == c.ultimo;
+    }
+    match /contadores/cotizaciones {
+      allow get: if isStaff();
+      allow create: if isStaff() && request.resource.data.get('ultimo', 0) == 1 && contadorValido(request.resource.data);
+      allow update: if isStaff() && request.resource.data.get('ultimo', 0) == resource.data.ultimo + 1 && contadorValido(request.resource.data);
+    }
     match /cotizaciones/{id} {
       allow read: if propio();
-      allow create: if nuevoPropio();
-      allow update: if propio() && conservaAsesor();
+      allow create: if nuevoPropio()
+        && request.resource.data.get('consecutivo', 0) is int
+        && getAfter(contadorCotizaciones()).data.get('ultimo', -1) == request.resource.data.consecutivo
+        && getAfter(contadorCotizaciones()).data.get('cotizacion', '') == id
+        && request.resource.data.get('numero', '') == numeroDe(request.resource.data.consecutivo);
+      allow update: if propio() && conservaAsesor()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'consecutivo']);
       allow delete: if propio();
     }
 
@@ -356,6 +468,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/propietarios/$(propietarioId))
         && get(/databases/$(database)/documents/propietarios/$(propietarioId)).data.get('agentId', '') == myAgentId();
     }
+    // Los datos de pago del resumen que arma un asesor son los de la ficha (los cambia solo el administrador).
+    function pagoDeLaFicha() {
+      return request.resource.data.get('datosPago', '')
+        == get(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '');
+    }
     function resumenPropio() {
       return esSocio() && resource.data.propietarioId == userDoc().data.propietarioId;
     }
@@ -364,10 +481,10 @@ service cloud.firestore {
         || isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
       allow create: if isStaff() && portalValido(token)
-        && (isAdmin() || (request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+        && (isAdmin() || (request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId) && pagoDeLaFicha()));
       allow update: if isStaff() && portalValido(token)
         && (isAdmin() || (resource.data.agentId == myAgentId()
-            && request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId)));
+            && request.resource.data.agentId == myAgentId() && fichaDelAsesor(request.resource.data.propietarioId) && pagoDeLaFicha()));
       allow delete: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
     }
@@ -437,36 +554,20 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isStaff() && resource.data.por == request.auth.uid);
     }
 
-    // Lo que cotizó el sitio en una solicitud de reserva (js/vacacional.js con V.cotizar): números, impuestos = 22 % del
-    // subtotal (IVA 12 + INGUAT 10, js/calc-vacacional.js) y total = subtotal + impuestos, al centavo. Con eso nadie infla
-    // el subtotal (sale de ahí la ganancia de EQ) sin inflar también lo que ve y paga el cliente.
-    function reservaCotizada(r) {
-      return r.get('subtotal', -1) is number && r.subtotal >= 0
-        && r.get('impuestos', -1) is number && math.abs(r.impuestos - r.subtotal * 0.22) <= 0.02
-        && r.get('total', -1) is number && math.abs(r.total - r.subtotal - r.impuestos) <= 0.02
-        && r.get('noches', 0) is number && r.noches >= 1 && r.noches <= 365 && r.noches == math.floor(r.noches)
-        // Las noches son las de las fechas (de ahí salen los pisos de la reserva del socio y la comisión).
-        && nochesEntre(r.get('llegada', ''), r.get('salida', '')) == r.noches;
-    }
-    // La moneda de una casa; sin moneda guardada (o vacía), US$.
-    function monedaDe(propertyId) {
-      let m = get(/databases/$(database)/documents/properties/$(propertyId)).data.get('moneda', '');
-      return m == '' ? 'USD' : m;
-    }
-    // Noches entre dos fechas 'AAAA-MM-DD' (salida − llegada en días).
-    function nochesEntre(llegada, salida) {
-      let a = llegada.split('-');
-      let b = salida.split('-');
-      return llegada.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && salida.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
-        ? (timestamp.date(int(b[0]), int(b[1]), int(b[2])) - timestamp.date(int(a[0]), int(a[1]), int(a[2]))).seconds() / 86400
-        : -1;
+    // «Hoy» en Guatemala (UTC−6 todo el año) como 'AAAA-MM-DD', con la hora del servidor (no la del teléfono).
+    function hoyGt(diasMas) {
+      let d = request.time - duration.value(6, 'h') + duration.value(diasMas * 24, 'h');
+      return string(d.year()) + '-' + (d.month() < 10 ? '0' : '') + string(d.month()) + '-' + (d.day() < 10 ? '0' : '') + string(d.day());
     }
     match /leads/{id} {
-      // Formularios públicos: campos fijos, tamaños limitados y fecha del servidor.
+      // Formularios públicos de contacto: campos fijos, tamaños limitados y fecha del servidor.
+      // Una solicitud de reserva (con «reserva») no nace aquí: la crea el servidor junto con su chat y su índice, en una
+      // transacción, con la prueba de «no soy un robot» y el límite por IP y por correo (netlify/functions/solicitud.mjs,
+      // con la cuenta de escritura, que no pasa por estas reglas; ahí se revisa lo cotizado, las fechas y la casa).
       allow create: if request.resource.data.keys().hasOnly([
             'nombre', 'telefono', 'email', 'mensaje', 'origen', 'pagina',
             'propertyId', 'propertyTitulo', 'agentId', 'estado', 'createdAt', 'fechaVisita',
-            'tipoVisita', 'idioma', 'campana', 'reserva', 'propietarioId'])
+            'tipoVisita', 'idioma', 'campana'])
         && isNonEmptyString(request.resource.data.nombre, 100)
         && isNonEmptyString(request.resource.data.telefono, 30)
         && isShortString(request.resource.data.email, 120)
@@ -476,24 +577,19 @@ service cloud.firestore {
         && isShortString(request.resource.data.propertyId, 60)
         && isShortString(request.resource.data.propertyTitulo, 200)
         && isShortString(request.resource.data.agentId, 60)
-        && (!('fechaVisita' in request.resource.data) || isShortString(request.resource.data.fechaVisita, 20))
+        // La fecha de visita: 'AAAA-MM-DD', de hoy a un año (js/site.js diaValido, con el reloj del teléfono). Con un día de
+        // holgura a cada lado: un teléfono con el reloj corrido no se queda sin poder pedir la visita de hoy.
+        && (!('fechaVisita' in request.resource.data)
+            || (request.resource.data.fechaVisita is string
+                && request.resource.data.fechaVisita.matches('20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')
+                && request.resource.data.fechaVisita >= hoyGt(-1) && request.resource.data.fechaVisita <= hoyGt(367)))
         && (!('tipoVisita' in request.resource.data) || request.resource.data.tipoVisita in ['presencial', 'videollamada'])
         && (!('idioma' in request.resource.data) || request.resource.data.idioma in ['es', 'en'])
         && (!('campana' in request.resource.data)
             || (request.resource.data.campana is map && request.resource.data.campana.size() <= 8))
-        && (!('reserva' in request.resource.data)
-            || (request.resource.data.reserva is map && request.resource.data.reserva.size() <= 10
-                && reservaCotizada(request.resource.data.reserva)
-                // La moneda es la de la casa (sin moneda guardada, US$, como el sitio y admin/js/reservas-calculo.js):
-                // de ella salen la reserva y la comisión; el cliente no la elige.
-                && exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
-                && request.resource.data.reserva.get('moneda', '') == monedaDe(request.resource.data.propertyId)))
-        // El socio de la solicitud tiene que ser el dueño real de la casa.
-        && (!('propietarioId' in request.resource.data) || request.resource.data.propietarioId
-            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', ''))
-        // El asesor del formulario es el de la casa (una casa por noche no lleva: ''); así una página publicada antes
-        // no le manda al asesor la solicitud ni el contacto de un huésped. Sin asesor ('') también vale: si la casa cambió
-        // de asesor y la página no se ha vuelto a publicar, el sitio reintenta así (js/site.js) y la recibe el administrador.
+        // El asesor del formulario es el de la casa; así una página publicada antes no le manda al asesor el contacto de
+        // otro. Sin asesor ('') también vale: si la casa cambió de asesor y la página no se ha vuelto a publicar, el sitio
+        // reintenta así (js/site.js) y la recibe el administrador.
         && (request.resource.data.propertyId == ''
             || request.resource.data.agentId == ''
             || !exists(/databases/$(database)/documents/properties/$(request.resource.data.propertyId))
@@ -508,76 +604,65 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId);
-      allow delete: if isAdmin();
+      // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
+      // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
+      allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
     }
 
     // Chat de una solicitud de reserva (cliente, socio y administrador: las casas por noche no llevan asesor, así que del
     // equipo solo entra el administrador). El id es la llave: largo y al azar,
     // viaja solo en el enlace del cliente. Aquí no hay teléfono ni correo de nadie.
-    // Índice de un chat por solicitud: lo crea el cliente junto con su chat, una sola vez (crear sobre uno que ya existe
-    // no es «crear»). Con él, el servidor (netlify/functions/reservas.mjs) usa EL chat de la solicitud, no uno inventado.
-    // Nace solo junto con su chat, en el mismo lote (el chat no existía y su createdAt es la hora de este pedido): nadie
-    // le pone índice a un chat inventado para una solicitud de antes. El administrador se lo pone a un chat que ya existe
-    // (Solicitudes, al abrirla: los chats de antes de este cambio).
-    // Leer uno que no existe responde «no existe» a cualquiera (así el sitio sabe que las reglas nuevas están publicadas).
-    // Versión de las reglas: leer reglas/r5 da «no existe» (404) desde esta versión y «sin permiso» (403) antes; así el
-    // sitio sabe si ya puede mandar el subtotal en el chat (js/reserva-chat.js aceptaSubtotal). Nadie escribe aquí.
+    // Índice de un chat por solicitud (chatsPorSolicitud/{solicitud} → token): con él, el servidor usa EL chat de la
+    // solicitud, no uno inventado. Leer uno que no existe responde «no existe» a cualquiera, y reglas/r5 da «no existe»:
+    // las páginas publicadas antes de que el servidor creara las solicitudes lo consultan (así no se quedan esperando).
+    // Nadie escribe en reglas/.
     match /reglas/{version} {
       allow get: if version == 'r5';
     }
     match /chatsPorSolicitud/{leadId} {
+      // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
+      // un chat de antes que no lo tiene (Solicitudes, al abrirla), solo al de esa solicitud.
       allow create: if request.resource.data.keys().hasOnly(['token'])
         && request.resource.data.token is string && request.resource.data.token.size() >= 20
-        && ((!exists(/databases/$(database)/documents/chats/$(request.resource.data.token))
-            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId
-            && getAfter(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.createdAt == request.time)
-          || (isAdmin() && get(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId));
+        && isAdmin() && get(/databases/$(database)/documents/chats/$(request.resource.data.token)).data.leadId == leadId;
       allow get: if resource == null || isAdmin()
         || esSocioDeCasaPorNoche(get(/databases/$(database)/documents/chats/$(resource.data.token)).data.get('propertyId', ''));
       allow list: if isAdmin();
       allow update, delete: if false;
     }
-    function chatComoSuSolicitud(c, r) {
-      return c.get('subtotal', -1) is number && c.subtotal == r.get('subtotal', -2)
-        && c.llegada == r.get('llegada', '') && c.salida == r.get('salida', '') && c.noches == r.get('noches', -1)
-        && c.total == r.get('total', -1) && c.moneda == r.get('moneda', '')
-        && c.get('huespedes', -1) == r.get('huespedes', -2);
+    // <filtro-contacto> Lo escribe scripts/reglas-contacto.mjs desde js/calc-vacacional.js (FILTRO_CONTACTO): no se edita a mano.
+    // Los mismos pasos que el navegador: reemplazos en orden y, entre ellos, las búsquedas («si»).
+    function tieneContacto(texto) {
+      let y = request.time.year();
+      let anios = string(y - 2) + '|' + string(y - 1) + '|' + string(y) + '|' + string(y + 1) + '|' + string(y + 2) + '|' + string(y + 3) + '|' + string(y + 4) + '|' + string(y + 5);
+      let t1 = texto.lower().replace('[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯︀-️﻿\\p{M}]', '').replace('[\\p{Z}\\t\\r\\n]+', ' ').replace('[аαАΑ]', 'a').replace('[еεёЕΕЁ]', 'e').replace('[оοσОΟ]', 'o').replace('[рρРΡ]', 'p').replace('[сС]', 'c').replace('[уγУ]', 'y').replace('[хχХΧ]', 'x').replace('[іιӏІΙӀİ]', 'i').replace('[јЈ]', 'j').replace('[ѕЅ]', 's').replace('[кκКΚ]', 'k').replace('[тτТΤ]', 't').replace('[νΝ]', 'v').replace('[мМΜ]', 'm').replace('[нНΗ]', 'h').replace('[вВΒ]', 'b').replace('[ԁ]', 'd').replace('[ɡ]', 'g').replace('[ΖZ]', 'z').replace('🔟', '55').replace('[0-9]o[0-9]', '555').replace('[0-9]o[0-9]', '555').replace('[0-9][ \\t]?[li][0-9]', '555').replace('[0-9][ \\t]?[li][0-9]', '555').replace('[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55').replace('[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55').replace('[^\\P{N}0-9²³¹]', '5');
+      let t2 = t1.replace('\\b((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)\\b', ' x ').replace('(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+|[^0-9 \\t.,;:/-]:[ \\t]*)((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])([ \\t]*(,|y|e|o|or|a las|a|al|at|-|–|and|to|hasta)[ \\t]*((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])){0,11}(([.,:;!?]|\\))*[ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,:][^0-9])', ' x ').replace('\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5').replace('\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55').replace('cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '5').replace('\\ba[ \\t]r[ \\t]r[ \\t]o[ \\t]b[ \\t]a\\b|\\b4rr0b4\\b|\\b4rr5b4\\b', ' arroba ');
+      let t3 = t2.replace('\\b(referencia|ref|autorizaci[oóÓ]n|boleta|transacci[oóÓ]n|reference|transaction|authorization|confirmation|receipt)\\b[^0-9+\\n]{0,30}[0-9]{10,18}([.,]?[ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x ').replace('[ \\t]x[ \\t]', ' * ');
+      let t4 = t3.replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[a-záÁéÉíÍóÓúÚñÑüÜ]|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}$|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{4})', ' x ').replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[a-záÁéÉíÍóÓúÚñÑüÜ]|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}$|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{4})', ' x ').replace('\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x ').replace(',[ \\t]*[2-7][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #R# ').replace(',[ \\t]*[2-7][0-9]{3}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #A# ').replace(',[ \\t]*[0189][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #C# ').replace(',[ \\t]*[0-9]{4}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #B# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[2-7][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #R# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[2-7][0-9]{3}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #A# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[0189][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #C# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[0-9]{4}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #B# ').replace('(^|[^0-9# \\t.,+-])[ \\t]*[0-9]{1,6}([.,][0-9]+)*[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)([^a-záÁéÉíÍóÓúÚñÑüÜ]|$)', ' x ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[2-7][0-9](00|50)\\b', ' #R# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[2-7][0-9]{3}\\b', ' #A# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0189][0-9](00|50)\\b', ' #C# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{4}\\b', ' #B# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]+[^0-9 ,.-]|[^0-9a-z ,.-]|[ ,.-]*$)', ' x ').replace('\\b(las|at)[ \\t]+2[0-3](00|30)\\b', ' #R# ').replace('\\b(las|at)[ \\t]+2[0-3][0-5][0-9]\\b', ' #A# ').replace('\\b(las|at)[ \\t]+[01][0-9](00|30)\\b', ' #C# ').replace('\\b(las|at)[ \\t]+[01][0-9][0-5][0-9]\\b', ' #B# ').replace('\\b(las|at)[ \\t]+[0-9][0-5][0-9]([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x ').replace('\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x ').replace('(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])[0-9]{3}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{4}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])([2-7][0-9]|[0189][0-9])(00|50)[ \\t]*[+=][ \\t]*([2-7][0-9]|[0189][0-9])(00|50)([^0-9]|$)', ' x    x ').replace('(^|[^0-9])([2-7][0-9]|[0189][0-9])(00|50)[ \\t]*[+=][ \\t]*([2-7][0-9]|[0189][0-9])(00|50)([^0-9]|$)', ' x    x ').replace('(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x ').replace('(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x ').replace('\\bnit([ \\t:.]+es)?[ \\t:.]*([0-9]{1,6}-[0-9k]|[0189][0-9]{6}-[0-9]|[0-9]{7}-k)\\b', ' x ');
+      return texto.matches('[\\s\\S]*(?:[０-９Ａ-Ｚａ-ｚ＠．。｡：／﹫])[\\s\\S]*')
+        || texto.matches('[\\s\\S]*(?:[a-z]AT[a-z]+DOT[a-z])[\\s\\S]*')
+        || t1.matches('[\\s\\S]*(?:((\\+|(^|[^0-9:.,/-])00)[ \\t]*\\(?[0-9]{0,4}\\)?|(^|[^0-9:.,/-])\\(?(502|52|503|504|505|506|507|501|57|34|44|49|33|39|31|54|56|55|972|61)\\)?)[ \\t.-]*(((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)|(([01]?[0-9]|2[0-3]):[0-5][0-9]|(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([^/0-9]|$)))|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}(\\+?[0-9]{1,4}([ \\t.-]|\\(|\\))*)?((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)|((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)[^0-9\\n]{0,15}\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b)[\\s\\S]*')
+        || t1.matches('[\\s\\S]*(?:\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}(([01]?[0-9]|2[0-3]):[0-5][0-9][ \\t]*(y|e|and|-|–|,|a las|a)?[ \\t]*([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])|([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])[ \\t]*(y|e|and|-|–|,|a las|a)?[ \\t]*([01]?[0-9]|2[0-3]):[0-5][0-9])|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|mobile|cell|contacto|contact)\\b([^0-9a-záÁéÉíÍóÓúÚñÑüÜ\\n]{0,5}|[ \\t:]*((es|is|son)[ \\t]+)?((el|al|a las|at|del)[ \\t]+)?)(((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])|([01]?[0-9]|2[0-3]):[0-5][0-9])([ \\t]*(,|y|e|o|a las|a|al|-|–|and|to|hasta)[ \\t]*|[ \\t]+)){0,2}([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|mobile|cell|contacto|contact)\\b([^0-9a-záÁéÉíÍóÓúÚñÑüÜ\\n]{0,5}|[ \\t:]*((es|is|son)[ \\t]+)?((el|al|a las|at|del)[ \\t]+)?)(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]*(,|y|e|and)[ \\t]*|[ \\t]+)(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|mobile|cell|contacto|contact)\\b([^0-9a-záÁéÉíÍóÓúÚñÑüÜ\\n]{0,5}|[ \\t:]*((es|is|son)[ \\t]+)?((el|al|a las|at|del)[ \\t]+)?)([01]?[0-9]|2[0-3]):[0-5][0-9]([ \\t]*(,|y|e|and)[ \\t]*|[ \\t]+)([01]?[0-9]|2[0-3]):[0-5][0-9]|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])[ \\t,]+((a las|at)[ \\t]+)?([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]*(,|y|e|o|a las|a|al|-|–|and|to|hasta)[ \\t]*|[ \\t]+)[0-9]{4}([^0-9]|$)|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])(([ \\t]*(,|y|e|o|a las|a|al|-|–|and|to|hasta)[ \\t]*|[ \\t]+)(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])){2,11}|\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wa|wasap|n[uúÚ]mero|number|phone|call|mobile|cell|escr[iíÍ]beme|escr[iíÍ]bime|escr[iíÍ]benos|escr[iíÍ]binos|cont[aáÁ]ctame|cont[aáÁ]ctanos|text me|write me|reach me|contact me)\\b[^0-9\\n]{0,15}([013-9][0-9]{3}|2[1-9][0-9]{2}|20[0-14-9][0-9])[ \\t,.-]*((a las|las|y|e|hasta|to|el|del|a|al|and|at)[ \\t]+)?((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])|([01]?[0-9]|2[0-3]):[0-5][0-9]))[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:[@﹫]|\\barroba\\b|https?:|https?//|www\\.|\\bw[ \\t]*w[ \\t]*w\\b|\\.(com|net|org|gt)\\b|\\bpunto[ \\t]+(com|net|org|gt)\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|(\\[|\\(|<|\\{)(at|dot|punto|arroba|\\.)(\\]|\\)|>|\\})|[a-z0-9-]{3,},(com|net|org)\\b|\\bat[ \\t]+(gmail|hotmail|outlook|yahoo|icloud)\\b|\\b(gmail|hotmail|outlook|yahoo|icloud)[ \\t,]+(punto|dot|com)\\b|\\b([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)[ \\t]*(\\(|\\[)?[ \\t]*((en|del|de)[ \\t]+(el[ \\t]+)?)?(gmail|hotmail|outlook|yahoo|icloud)\\b|(^|\\b(a|al|es|is)\\b|:)[ \\t]*[a-z]{8,}[ \\t]+(en|del)[ \\t]+(el[ \\t]+)?(gmail|hotmail|outlook|yahoo|icloud)\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:wa\\.me|\\bw[ \\t]*a[ \\t]*\\.[ \\t]*m[ \\t]*e\\b|\\]\\(|\\bbit[ \\t.]*ly\\b|\\bwhatsapp[ \\t.]+com\\b|\\b(tinyurl|linktr|shorturl|cutt[ \\t.]*ly|rebrand[ \\t.]*ly)\\b|(^|[^a-z0-9_.@-])[a-z0-9-]+([ \\t]?\\.[ \\t]?[a-z0-9-]+)*[ \\t]?\\.[ \\t]?([a-z]{2}|link|page|app|info|biz|xyz|site|online)[ \\t]?/[ \\t]?[a-z0-9]|(^|[^a-z0-9_.@-])[a-z0-9-]+(\\.[a-z0-9-]+)*\\.(me|co|io|ly|ee|gd|gy|cc|to|info|biz|gl|page|link|app)[ \\t]*$)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[ \\t]*([:,=>-]+[ \\t]*|\\b(es|is)\\b[ \\t]*)?@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[^\\n]{0,20}\\b(handle|account|username|user|usuario|cuenta|id|nick)\\b[ \\t]*(:|\\b(es|is)\\b)?[ \\t]*@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\bdiscord\\b[ \\t:]*@?[a-z0-9._]+#[0-9]{4}|\\bline[ \\t]*(:|\\bid\\b)[ \\t:]*@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)[ \\t]+(en|on)[ \\t]+(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)\\b|\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[^\\n]{0,25}\\b(como|as|llamo|soy)[ \\t]+@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b(b[uúÚ]sca(me|nos)|encu[eéÉ]ntra(me|nos)|encuentras|find me|look me up|search)\\b[^\\n]{0,30}\\b(como|as)[ \\t]+@?[a-z][a-z0-9._]{3,}|\\b(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t]*,?[ \\t]*me[ \\t]+llamo[ \\t]+@?[a-z]{4,}|^[ \\t]*[a-z][a-z0-9._]{3,}[ \\t]+(en|on)[ \\t]+(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t.!]*$|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{3,}[ \\t]*°?[ \\t]*[ns]?[ \\t]*[,;]?[ \\t]*(lon(g(itud)?)?|lng)?[ \\t]*[:=]?[ \\t]*[eowv]?[ \\t]*-?[0-9]{1,3}\\.[0-9]{3,}|(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{2,},[ \\t]*-[0-9]{1,3}\\.[0-9]{2,}|[0-9]{1,2}[ \\t]*°[ \\t]*[0-9]{1,2}[ \\t]*[\'′])[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(plus|m[aáÁ]s)[ \\t]+(5[ \\t,]*5[ \\t,]*5|5[ \\t,]*0[ \\t,]*[0-9])\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:(^|[^0-9.,])[2-7][0-9](\\.[0-9]{2}){3}([^0-9.]|$)|(^|[^0-9.,])[2-7][0-9]{3}\\.[0-9]{2}\\.[0-9]{2}([^0-9.]|$)|(^|[^0-9.,])[2-7][0-9]\\.[0-9]{2}\\.[0-9]{4}([^0-9.]|$))[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:(^|[^0-9])(\\+|00)?(502([0-9]{8}|18[01][0-9]{8}|19[0-9]{9})|1([0-9]{10})|52([0-9]{10})|503([0-9]{8}|[89]00[0-9]{4}([0-9]{4})?)|504([0-9]{8}|8002[0-9]{7})|505([0-9]{8})|506([0-9]{8}|800[0-9]{7}|90[059][0-9]{7})|507([0-9]{7,8}|800[0-9]{4,5}|(00800|800[0-9])[0-9]{6})|501([0-9]{7}|0800[0-9]{7})|57([0-9]{10}|1800[0-9]{7}|19(0[01]|4[78])[0-9]{7})|34([0-9]{9})|44([0-9]{9,10}|800[0-9]{4})|49([0-9]{4,15})|33([0-9]{9})|39([0-9]{6,12})|31([0-9]{9}|140[0-9]{2,3}|800[0-9]{4,7}|90[069][0-9]{4,7}|970[0-9]{8})|54([0-9]{10,11})|56([0-9]{9}|(123|800)[0-9]{8}|600[0-9]{7,8})|55([0-9]{10,11}|300[0-9]{5}|4(00[0-9]|020|370)[0-9]{4}|[3589]00[0-9]{6,7})|972([0-9]{8,9}|1[0-9]{6,11})|61([0-9]{9}|1[0-9]{3,9}))([^0-9]|$))[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wasap|phone|call|mobile|cell)\\b[^\\n]{0,30}[0-9]([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[0-9]){8}|[0-9]{9}[^\\n]{0,30}\\b(tel|tel[eéÉ]fono|cel|celular|m[oóÓ]vil|fijo|ll[aáÁ]m[a-z]*|whats[a-z]*|wsp|wasap|phone|call|mobile|cell)\\b)[\\s\\S]*')
+        || t3.matches('[\\s\\S]*(?:(^|[^0-9])[2-7]([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[0-9]){7}|[0-9]([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[0-9]){9})[\\s\\S]*')
+        || t4.matches('[\\s\\S]*(?:(^|[^0-9#])[2-7][0-9]([0-9][1-9]|[1-46-9]0)[^0-9#][^0-9]{0,29}([0-9]([^0-9a-záÁéÉíÍóÓúÚñÑüÜ#]{0,3}[0-9]){3}([^0-9]|$)|#[ARBC]#)|(^|[^0-9#])[2-7][0-9](00|50)[^0-9#][^0-9]{0,29}([0-9]{2}([0-9][1-9]|[1-46-9]0)([^0-9]|$)|#[AB]#)|#A#[^0-9]{0,29}[^0-9#][0-9]{4}([^0-9#]|$)|#R#[^0-9]{0,29}[^0-9#][0-9]{2}([0-9][1-9]|[1-46-9]0)([^0-9#]|$)|#A#[ \\t,;]{0,3}((y|e|o|and|or|las|a las|at)[ \\t]{1,3})?#[ARBC]#|#R#[ \\t,;]{0,3}((y|e|o|and|or|las|a las|at)[ \\t]{1,3})?#[AB]#|\\b(empieza|comienza|inicia|starts)[^0-9]{0,15}[2-7][0-9]{3}([^0-9]|$))[\\s\\S]*');
     }
+    // </filtro-contacto>
     match /chats/{token} {
       // Quien tiene el enlace lo abre; nadie de fuera puede listar las conversaciones.
       allow get: if true;
       allow list: if isAdmin() || esSocioDe(resource.data);
-      allow create: if token.size() >= 20
-        && request.resource.data.keys().hasOnly(['codigo', 'propertyId', 'propertyTitulo', 'propietarioId', 'nombre',
-            'llegada', 'salida', 'noches', 'huespedes', 'total', 'subtotal', 'moneda', 'idioma', 'foto', 'url', 'leadId', 'createdAt'])
-        // Lo que ve el socio en Solicitudes (que se arma desde el chat) es lo que pidió el cliente: fechas, noches, total,
-        // moneda y subtotal cotizado iguales a los de su solicitud (el servidor confirma con los de la solicitud).
-        && chatComoSuSolicitud(request.resource.data,
-            get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva)
-        // La conversación es de una solicitud que existe, con ese mismo código y esa misma casa.
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.reserva.codigo == request.resource.data.codigo
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.get('propertyId', '') == request.resource.data.propertyId
-        // De una solicitud recién enviada (el sitio abre el chat en seguida): a una solicitud de antes nadie le inventa un chat.
-        && get(/databases/$(database)/documents/leads/$(request.resource.data.leadId)).data.createdAt > request.time - duration.value(1, 'h')
-        // Uno por solicitud: nace junto con su índice chatsPorSolicitud/{leadId} (que solo se crea una vez).
-        // (El título no se compara con el de la casa: una página publicada antes de cambiarlo no abriría el chat; los
-        // correos toman el título de la casa guardada.)
-        && getAfter(/databases/$(database)/documents/chatsPorSolicitud/$(request.resource.data.leadId)).data.token == token
-        && isShortString(request.resource.data.get('foto', ''), 500)
-        && isShortString(request.resource.data.get('url', ''), 200)
-        && isNonEmptyString(request.resource.data.codigo, 20)
-        && isNonEmptyString(request.resource.data.propertyId, 60)
-        && isShortString(request.resource.data.propertyTitulo, 200)
-        && isShortString(request.resource.data.nombre, 40)
-        && isNonEmptyString(request.resource.data.llegada, 10)
-        && isNonEmptyString(request.resource.data.salida, 10)
-        && request.resource.data.noches is number && request.resource.data.huespedes is number
-        && request.resource.data.total is number && isShortString(request.resource.data.moneda, 3)
-        && request.resource.data.idioma in ['es', 'en']
-        // El socio de la conversación es el dueño real de la casa.
-        && request.resource.data.propietarioId
-            == get(/databases/$(database)/documents/properties/$(request.resource.data.propertyId)).data.get('propietarioId', '')
-        && request.resource.data.createdAt == request.time;
+      // Lo crea solo el servidor, junto con su solicitud y su índice (netlify/functions/solicitud.mjs): la conversación
+      // copia lo que pidió el cliente (fechas, noches, total, moneda, subtotal) y el dueño real de la casa.
+      allow create: if false;
       // El estado que ve el cliente (confirmada, no, pagada, cancelada) lo marcan el administrador y, por el socio, el
       // servidor (netlify/functions/reservas.mjs, junto con la reserva, la solicitud y el mensaje).
       allow update: if isAdmin()
@@ -603,7 +688,7 @@ service cloud.firestore {
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
         allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
-        // Sin teléfonos, correos ni enlaces (js/calc-vacacional.js hace el filtro fino; esto es el piso).
+        // Sin teléfonos, correos ni enlaces: el mismo filtro del navegador (tieneContacto, arriba).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
         //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
         //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
@@ -632,7 +717,7 @@ service cloud.firestore {
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
                   && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
-            : (sinLlegada() && !request.resource.data.texto.matches('(?s).*(@|https?:|www[.]|([0-9][ .+()-]{0,2}){8,}).*')))
+                : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
           && ((request.resource.data.de == 'cliente' && !signedIn())
             || (request.resource.data.de == 'equipo' && isAdmin())

@@ -5,7 +5,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
 import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
-import { whatsappUrl, nNoches } from '../formato.js';
+import { whatsappUrl, nNoches, dineroPorMoneda } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
@@ -13,9 +13,13 @@ import { deSolicitud, MOTIVOS_CANCELAR } from '../reservas-calculo.js';
 
 const V = window.EQVacacional;
 const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Airbnb'], ['booking', 'Booking'], ['otro', 'Otro']];
-const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['pendiente', 'Pendiente', 'warning'], ['cancelada', 'Cancelada', 'light']];
+// Una reserva a mano está confirmada o cancelada: «Pendiente» no apartaba fechas ni vencía. Las de antes que quedaron
+// así se ven «Pendiente · no aparta fechas» y, al abrirlas, se elige Confirmada o Cancelada (nada se cambia solo:
+// algunas se cruzan con una confirmada).
+const ESTADOS = [['confirmada', 'Confirmada', 'success'], ['cancelada', 'Cancelada', 'light']];
+const DE_ANTES = ['pendiente', 'Pendiente · no aparta fechas', 'warning'];
 const etiqueta = (lista, v) => (lista.find(([k]) => k === v) || lista[0])[1];
-const estadoBadge = (r) => { const e = ESTADOS.find(([k]) => k === r.estado) || ESTADOS[1]; return badge(e[1], e[2]); };
+const estadoBadge = (r) => { const e = [...ESTADOS, DE_ANTES].find(([k]) => k === r.estado) || DE_ANTES; return badge(e[1], e[2]); };
 // Un dato con su ícono delante; `titulo` lo nombra cuando el ícono solo no basta.
 const dato = (icono, texto, cls = '', titulo) => h('span', { class: cls || null, title: titulo || null },
 	h('span', { class: `${icono} text-muted me-1`, 'aria-hidden': 'true' }), titulo ? h('span', { class: 'visually-hidden' }, `${titulo}: `) : null, String(texto));
@@ -27,8 +31,8 @@ const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const moverMes = (mes, n) => { const d = new Date(`${mes}-15T12:00:00`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5)), 0).getDate();
 
-// Suma de dinero por moneda en un solo texto: "$ 1,200 · Q 3,000".
-const dinero = (porMoneda, campo) => Object.entries(porMoneda).filter(([, m]) => m[campo]).map(([mon, m]) => money(m[campo], mon)).join(' · ') || '—';
+// Suma de dinero por moneda en un solo texto: "US$ 1,200.00 · Q 3,000.00" (formato.js `dineroPorMoneda`).
+const dinero = (porMoneda, campo) => dineroPorMoneda(Object.fromEntries(Object.entries(porMoneda).map(([mon, m]) => [mon, m[campo]]))) || '—';
 
 export async function render(container) {
 	let [reservas, todas, propietarios] = await Promise.all([loadReservas(), loadPropiedades(), loadPropietarios()]);
@@ -56,6 +60,8 @@ export async function render(container) {
 		const input = (name, type = 'text', extra = {}) => h('input', { class: 'form-control', name, type, value: d[name] ?? '', ...extra });
 		const select = (name, opciones) => h('select', { class: 'form-select', name },
 			opciones.map(([v, t]) => h('option', { value: v, selected: String(d[name] ?? '') === v }, t)));
+		// Una de antes en «Pendiente»: sin opción elegida, hasta que se diga cuál es.
+		const conEstado = (sel) => { if (!ESTADOS.some(([k]) => k === d.estado)) sel.prepend(h('option', { value: '', selected: true, disabled: true }, 'Pendiente: elige Confirmada o Cancelada')); return sel; };
 		const resumen = h('div', { class: 'col-12 small text-muted' });
 		const telefono = campoTelefono(d.telefono);
 		const form = h('form', { class: 'row g-2' },
@@ -66,7 +72,7 @@ export async function render(container) {
 			campo('Teléfono', telefono),
 			campo('Canal', select('canal', CANALES)),
 			// Una reserva de la web se cancela con su botón (avisa al cliente en su chat).
-			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta(ESTADOS, d.estado))) : select('estado', ESTADOS)),
+			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta([...ESTADOS, DE_ANTES], d.estado))) : conEstado(select('estado', ESTADOS))),
 			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any' })),
 			campo('Cobrado al huésped (sin impuestos)', input('alojamiento', 'number', { min: 0, step: 'any' })),
 			resumen,
@@ -111,6 +117,7 @@ export async function render(container) {
 			const casa = casaDe[v.propertyId];
 			if (!casa) return toast('Elige la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
+			if (!web && !f.estado.value) return toast('Elige si la reserva está confirmada o cancelada.', 'warning');
 			btn.disabled = true;
 			try {
 				await guardarReserva(r.id ? r : null, casa, {

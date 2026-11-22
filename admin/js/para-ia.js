@@ -1,7 +1,8 @@
 // Lo que sale del panel a un servicio de fuera (la IA de Netlify y el traductor gratuito de admin/js/reglas.js):
 // de cada propiedad, solo lo que se publica; de los clientes, su primer nombre y lo que buscan, sin teléfono ni
 // correo. Lo aplica pedirIA (admin/js/ia.js) a todo lo que manda, así ninguna pantalla se lo salta.
-// Sin dependencias: lo prueba scripts/test-para-ia.mjs.
+// Solo depende de estados.js (puro): lo prueba scripts/test-para-ia.mjs.
+import { precioOculto } from './estados.js';
 
 // Lista de lo permitido (lo que no está aquí no sale: socio, acuerdo, privado, historial, difusión, dueño, asesor, uid…).
 // «id» es el de la propiedad: con él vuelven los resultados de la búsqueda.
@@ -22,10 +23,9 @@ export function propiedadParaIA(p) {
 		delete d.direccion; delete d.mantenimiento;
 		d.vacacional = tomar(p.vacacional, VACACIONAL);
 	}
-	if (p.vip && p.operacion !== 'vacacional') {
-		d.vipLanding = tomar(p.vipLanding, VIP);
-		if (d.vipLanding.ocultarPrecio) delete d.precio;
-	}
+	if (p.vip && p.operacion !== 'vacacional') d.vipLanding = tomar(p.vipLanding, VIP);
+	// Precio oculto (estados.js `precioOculto`, VIP o no): no sale ni al traductor ni a los textos que se arman.
+	if (precioOculto(p)) delete d.precio;
 	if (p.seo) d.seo = tomar(p.seo, SEO);
 	return d;
 }

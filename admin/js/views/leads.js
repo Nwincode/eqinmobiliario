@@ -2,11 +2,11 @@ import {
 	db, doc, getDocs, updateDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
-	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate
+	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate, hoy
 , mount, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { avisarAvisos } from '../avisos.js';
-import { telefonoWa, whatsappUrl } from '../formato.js';
+import { telefonoWa, whatsappUrl, saludoLead } from '../formato.js';
 
 export const ESTADOS = [
 	['nuevo', 'Nuevo', 'primary'],
@@ -40,8 +40,9 @@ export async function loadLeads() {
 		.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
 }
 
-function waLink(tel, nombre) {
-	return telefonoWa(tel) ? whatsappUrl(tel, `Hola ${nombre}, te escribo de Equipo Inmobiliario.`) : '';
+// El mismo primer mensaje que el aviso del lead, en su idioma (formato.js `saludoLead`).
+function waLink(lead) {
+	return telefonoWa(lead.telefono) ? whatsappUrl(lead.telefono, saludoLead(lead)) : '';
 }
 
 function openLead(lead, agents, onChange) {
@@ -54,7 +55,7 @@ function openLead(lead, agents, onChange) {
 	const notes = h('div', {}, (lead.notas || []).slice().reverse().map((n) => h('div', { class: 'lead-note' },
 		h('div', {}, n.texto),
 		h('div', { class: 'small text-muted' }, `${n.autor || ''} · ${formatDate(n.fecha)}`))));
-	const wa = waLink(lead.telefono, lead.nombre);
+	const wa = waLink(lead);
 
 	const save = async () => {
 		const patch = { estado: estado.value, updatedAt: serverTimestamp() };
@@ -149,7 +150,7 @@ export async function render(container) {
 	[search, fEstado, fAgent].forEach((el) => el.addEventListener('input', draw));
 	draw();
 
-	const exportCsv = () => downloadCsv(`leads-${new Date().toISOString().slice(0, 10)}.csv`, [
+	const exportCsv = () => downloadCsv(`leads-${hoy()}.csv`, [
 		['Fecha', 'Nombre', 'Teléfono', 'Correo', 'Mensaje', 'Propiedad', 'Origen', 'Fuente', 'Campaña', 'Idioma', 'Asesor', 'Estado'],
 		...filtered().map((l) => [formatDate(l.createdAt), l.nombre, l.telefono, l.email, l.mensaje, l.propertyTitulo, ORIGENES[l.origen] || l.origen, fuenteLead(l), l.campana?.utm_campaign || '', l.idioma || 'es', agentName[l.agentId] || '', ESTADOS.find(([v]) => v === l.estado)?.[1] || l.estado])
 	]);

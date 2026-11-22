@@ -7,12 +7,14 @@
 //  - settings/cotizacion          datos de la empresa, ISR %, % para el asesor, vigencia y condiciones (los edita el administrador)
 //  - emisoresAsesor/{agentId}     datos del asesor para facturar (los edita el asesor y el administrador)
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, runTransaction
 } from '../firebase.js';
 import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
+import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
+import { esPorcentaje } from '../formato.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
 	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
@@ -263,7 +265,7 @@ async function vistaEmpresa(container) {
 	const btn = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: async () => {
 		const n = (x) => (x === '' || x === null || x === undefined ? NaN : Number(x));
 		const isr = n(v.isrPct), isrAlto = n(v.isrPctAlto), lim = n(v.isrLimite), tc = n(v.tipoCambio), pa = n(v.pctAsesor), vig = n(v.vigenciaDias);
-		if (!(isr >= 0 && isr <= 100) || !(isrAlto >= 0 && isrAlto <= 100) || !(pa >= 0 && pa <= 100)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
+		if (![isr, isrAlto, pa].every(esPorcentaje)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
 		if (!(lim >= 0) || !(tc > 0)) { toast('Revisa el límite y el tipo de cambio.', 'danger'); return; }
 		if (!(vig >= 1)) { toast('La vigencia debe ser de al menos 1 día.', 'danger'); return; }
 		const empresa = Object.fromEntries(['razonSocial', 'nombreComercial', 'nit', 'direccion', 'telefono', 'email'].map((k) => [k, String(emp[k] ?? '').trim()]));
@@ -295,16 +297,19 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const empresaActual = emisorDesde('empresa', { empresa: def.empresa });
 	let c;
 	let docId = duplicar ? null : id;
+	// Una nueva (o duplicada) ya sabe su id: el contador lo anota junto con su número (las reglas lo revisan).
+	const idNuevo = docId ? null : doc(collection(db, COL)).id;
 	if (id) {
 		try {
 			const s = await getDoc(doc(db, COL, id));
 			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
 			c = structuredClone(s.data());
 		} catch (err) { showError(err); container.replaceChildren(emptyState('No se pudo abrir la cotización.')); return; }
-		if (duplicar) { c.numero = numeroCotizacion(); c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
+		// El número de la copia lo pone el contador al guardarla (uno seguido, en la misma transacción).
+		if (duplicar) { c.numero = ''; delete c.consecutivo; c.fecha = fechaISO(); c.cliente = snapshotCliente(null); delete c.createdAt; }
 	} else {
 		c = {
-			numero: numeroCotizacion(), fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
+			numero: '', fecha: fechaISO(), vigenciaDias: def.vigenciaDias,
 			asesor: session.profile?.nombre || '', emisorTipo: 'empresa', emisor: { ...empresaActual }, regimen: empresaActual.regimen, modo: 'todo',
 			cliente: snapshotCliente(null), propiedad: snapshotPropiedad(null),
 			condiciones: def.condiciones, notas: '', lineas: [lineaVacia('compraventa')]
@@ -601,7 +606,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 		selCliente.el,
 		selPropiedad.el,
 		h('div', { class: 'col-12 cot-sep p-0' }),
-		campo('numero', 'Número', { attrs: { autocomplete: 'off' } }),
+		// El número lo pone el contador al guardar por primera vez (COT-0001, COT-0002…): seguido y sin repetirse; no se edita.
+		campo('numero', 'Número', { attrs: { readonly: true, placeholder: 'Se pone al guardar', 'data-numero': '' } }),
 		campo('fecha', 'Fecha', { tipo: 'date' }),
 		campo('vigenciaDias', 'Vigencia (días)', { tipo: 'number', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
 		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: selAsesor.id }, 'Asesor'), selAsesor));
@@ -933,9 +939,20 @@ async function editor(container, id, { duplicar = false } = {}) {
 		try {
 			btnGuardar.disabled = true;
 			if (!docId) {
-				const ref = doc(collection(db, COL));
+				const ref = doc(db, COL, idNuevo);
 				datos.createdAt = serverTimestamp();
-				await setDoc(ref, datos);
+				// El número sale del contador, en la misma transacción que la cotización: dos asesores a la vez (o
+				// «Duplicar») nunca tienen el mismo, y no queda un hueco (las reglas lo revisan: +1 y con esta cotización).
+				const n = await runTransaction(db, async (tx) => {
+					const refCont = doc(db, 'contadores', 'cotizaciones');
+					const siguiente = (Number((await tx.get(refCont)).data()?.ultimo) || 0) + 1;
+					tx.set(refCont, { ultimo: siguiente, cotizacion: ref.id });
+					tx.set(ref, { ...datos, consecutivo: siguiente, numero: numeroCotizacion(siguiente) });
+					return siguiente;
+				});
+				c.consecutivo = n; c.numero = numeroCotizacion(n);
+				const campoNumero = container.querySelector('[data-numero]'); if (campoNumero) campoNumero.value = c.numero;
+				pintarDoc();
 				docId = ref.id; c.agentId = datos.agentId;
 				history.replaceState(null, '', `#/cotizaciones/${encodeURIComponent(docId)}`);
 			} else {
@@ -947,10 +964,27 @@ async function editor(container, id, { duplicar = false } = {}) {
 				try { await guardarAsesor(claveEmisor, asesorDatos); asesorSucio = false; } catch (err) { console.warn('Cotización: no se guardaron los datos del asesor', err); toast('La cotización se guardó, pero no tus datos para facturar.', 'warning'); return; }
 			}
 			toast('Cotización guardada.');
-		} catch (err) { showError(err); } finally { btnGuardar.disabled = false; }
+		} catch (err) {
+			// Entre publicar el sitio y publicar las reglas, las de antes no conocen el contador: se dice qué falta (no se
+			// guarda a la manera de antes, sin número seguido). Solo si se comprueba que no se puede leer el contador.
+			if (!docId && await faltanReglas(err, 'contadores/cotizaciones')) toast(SIN_REGLAS_NUEVAS, 'danger');
+			else showError(err);
+		} finally { btnGuardar.disabled = false; }
 	}
+	// Lo que sale de la pantalla (WhatsApp, PDF) lleva su número: una cotización nueva se guarda antes (ahí se le da).
+	const conNumero = async () => docId || (await guardar(), Boolean(docId));
 	async function copiarWhatsApp() {
 		if (!revisarPendientes('copiar')) return;
+		// Una nueva se guarda antes (ahí recibe su número). El portapapeles se pide en el mismo toque, con el texto que
+		// llega cuando termine de guardarse (ClipboardItem con promesa): así Safari no pierde el permiso por esperar la red.
+		if (!docId && window.ClipboardItem && navigator.clipboard?.write) {
+			let guardada = false;
+			const texto = conNumero().then((ok) => { guardada = ok; if (!ok) throw new Error('sin guardar'); return new Blob([textoWhatsApp(c, reglas)], { type: 'text/plain' }); });
+			try { await navigator.clipboard.write([new ClipboardItem({ 'text/plain': texto })]); toast('Resumen copiado. Pégalo en WhatsApp.'); return; } catch {
+				if (!guardada) return;
+			}
+		}
+		if (!(await conNumero())) return;
 		const texto = textoWhatsApp(c, reglas);
 		try { await navigator.clipboard.writeText(texto); } catch {
 			const ta = h('textarea', { class: 'visually-hidden' }, texto);
@@ -960,7 +994,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		}
 		toast('Resumen copiado. Pégalo en WhatsApp.');
 	}
-	function imprimir() { if (revisarPendientes('descargar el PDF')) window.print(); }
+	async function imprimir() { if (revisarPendientes('descargar el PDF') && await conNumero()) window.print(); }
 	// Hoja completa en una ventana: la misma hoja, a tamaño de lectura, con su propio desplazamiento.
 	function verHoja(ev) {
 		const origen = ev.currentTarget;

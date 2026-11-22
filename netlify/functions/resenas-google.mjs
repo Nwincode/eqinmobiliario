@@ -2,8 +2,17 @@
 // Variables de entorno en Netlify: GOOGLE_PLACES_API_KEY y GOOGLE_PLACE_ID.
 // Sin esas variables responde { configurado: false } y el sitio muestra solo las reseñas del panel.
 // Google no permite guardar las reseñas: se leen en cada consulta y el CDN las recuerda solo 1 hora.
+// Las reseñas de solo estrellas (sin texto) no se mandan: el sitio dibuja solo las que tienen texto.
+// Si Google falla, durante 5 minutos no se le vuelve a preguntar (cada visita lo llamaría, y cada llamada se cobra):
+// se responde el mismo error, también guardado 5 minutos en el CDN.
 
 const CAMPOS = 'rating,userRatingCount,reviews,googleMapsUri,googleMapsLinks';
+const ESPERA_FALLO = 5 * 60;
+let falloHasta = 0;
+const fallo = () => {
+	falloHasta = Date.now() + ESPERA_FALLO * 1000;
+	return respuesta(502, { configurado: true, error: 'No se pudieron leer las reseñas de Google.' }, ESPERA_FALLO);
+};
 
 function respuesta(status, body, cacheSegundos = 0) {
 	const headers = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -32,6 +41,7 @@ export default async (req) => {
 	const placeId = process.env.GOOGLE_PLACE_ID;
 	if (!key || !placeId) return respuesta(200, { configurado: false }, 3600);
 
+	if (Date.now() < falloHasta) return respuesta(502, { configurado: true, error: 'No se pudieron leer las reseñas de Google.' }, ESPERA_FALLO);
 	const lang = new URL(req.url).searchParams.get('lang') === 'en' ? 'en' : 'es';
 	try {
 		const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=${lang}`, {
@@ -40,7 +50,7 @@ export default async (req) => {
 		const data = await res.json().catch(() => ({}));
 		if (!res.ok) {
 			console.error('Places API', res.status, data.error?.message);
-			return respuesta(502, { configurado: true, error: 'No se pudieron leer las reseñas de Google.' });
+			return fallo();
 		}
 		return respuesta(200, {
 			configurado: true,
@@ -52,7 +62,7 @@ export default async (req) => {
 		}, 3600);
 	} catch (err) {
 		console.error('Places API', err);
-		return respuesta(502, { configurado: true, error: 'No se pudieron leer las reseñas de Google.' });
+		return fallo();
 	}
 };
 

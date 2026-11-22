@@ -39,9 +39,9 @@ body {
 .btn-sm {
 	font-size: .8125rem;
 }
-/* En celular el botón pequeño sigue viéndose compacto, pero se deja tocar (44 px). */
+/* En celular todo botón se deja tocar (44 px); el pequeño sigue viéndose compacto. */
 @media (max-width: 767.98px) {
-	.btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+	.btn, .btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
 }
 .btn-light {
 	background-color: var(--adm-surface);
@@ -430,10 +430,13 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	text-decoration: none;
 	transition: border-color .15s ease, transform .15s ease;
 }
-/* Tres indicadores en una fila angosta (resumen de una casa del dueño): en celular el ícono va arriba del nombre,
-   para que el nombre quepa entero. */
+/* Tres indicadores en una fila angosta (resumen de una casa del dueño, Solicitudes): en celular el ícono va arriba del nombre,
+   el nombre puede ocupar dos renglones y el número es un poco menor, para que quepan enteros. */
 @media (max-width: 575.98px) {
+	.stat-envuelve .stat-label { white-space: normal; }
 	.stat-envuelve .stat-label [class^="icon-"] { display: block; margin-bottom: 2px; }
+	.stat-envuelve.stat-card { padding: 10px; }
+	.stat-envuelve .stat-value { font-size: 1.05rem; }
 }
 a.stat-card:hover {
 	border-color: color-mix(in srgb, var(--adm-primary) 35%, var(--adm-border));

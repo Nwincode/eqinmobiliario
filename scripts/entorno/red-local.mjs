@@ -26,6 +26,8 @@ process.env.FIRESTORE_EMULATOR_HOST ||= process.env.EMU_FIRESTORE || '127.0.0.1:
 process.env.ZEPTOMAIL_TOKEN ||= 'pruebas';
 process.env.AVISO_CORREO ||= 'equipo@example.com';
 process.env.CORREO_REMITENTE ||= 'avisos@example.com';
+// La purga del CDN de Netlify (netlify/lib/ocupacion.mjs): aquí no hay CDN; cada purga queda anotada en $PURGAS.
+process.env.NETLIFY_PURGE_API_TOKEN ||= 'pruebas';
 
 const real = globalThis.fetch;
 globalThis.fetch = async (entrada, opciones = {}) => {
@@ -34,6 +36,13 @@ globalThis.fetch = async (entrada, opciones = {}) => {
 	if (/^https:\/\/api\.(zeptomail|resend)\./.test(url) || /(zeptomail\.[a-z.]+|cpaas\.zoho\.[a-z.]+)\/v1\.1\/email/.test(url)) {
 		if (process.env.CORREOS) appendFileSync(process.env.CORREOS, `${opciones.body}\n`);
 		return Response.json({ data: [{ message: 'OK' }], id: 'pruebas' });
+	}
+	// Un calendario de Airbnb de prueba con las fechas en la dirección: https://ical.entorno.prueba/AAAAMMDD-AAAAMMDD.ics
+	const ical = /^https:\/\/ical\.entorno\.prueba\/(\d{8})-(\d{8})\.ics$/.exec(url);
+	if (ical) return new Response(['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `DTSTART;VALUE=DATE:${ical[1]}`, `DTEND;VALUE=DATE:${ical[2]}`, 'UID:prueba@airbnb.com', 'SUMMARY:Reserved', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n'), { headers: { 'Content-Type': 'text/calendar' } });
+	if (url.startsWith('https://api.netlify.com/api/v1/purge')) {
+		if (process.env.PURGAS) appendFileSync(process.env.PURGAS, `${JSON.stringify({ cuando: Date.now(), ...JSON.parse(opciones.body || '{}') })}\n`);
+		return new Response(null, { status: 202 });
 	}
 	const destino = DESTINOS.find(([de]) => url.startsWith(de));
 	return real(destino ? url.replace(destino[0], destino[1]) : entrada, opciones);

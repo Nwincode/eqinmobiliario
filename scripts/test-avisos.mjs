@@ -104,4 +104,12 @@ prueba('un lead nuevo de la web avisa; después de 24 h va en rojo', () => {
 	assert.equal(a[1].href, '#/leads');
 });
 
+prueba('cotizada por debajo del precio: «Te toca confirmar», urgente, en un solo aviso', () => {
+	const a = armarAvisos({ ahora: AHORA, solicitudes: [{ leadId: 'l9', codigo: 'EQ-9', nombre: 'Eva', casa: 'Casa Lago', creado: AHORA - H, estado: 'pendiente', alerta: '', equipo: true }] });
+	assert.equal(a.length, 1);
+	assert.equal(a[0].urgente, true);
+	assert.match(a[0].titulo, /Te toca confirmar la solicitud de Eva/);
+	assert.match(a[0].detalle, /menos que el precio/);
+});
+
 console.log(`\n${n} pruebas de avisos bien.`);

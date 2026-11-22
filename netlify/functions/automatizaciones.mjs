@@ -1,7 +1,8 @@
 // Estado de las automatizaciones y pruebas desde el panel (solo administradores).
 // GET  /api/automatizaciones           → qué está configurado en Netlify
-// POST /api/automatizaciones {accion}  → 'correo' (correo de prueba) o 'resumen' (resumen de hoy al equipo)
-import { staffUser, json } from '../lib/auth.mjs';
+// POST /api/automatizaciones {accion}  → 'correo' (correo de prueba al equipo) o 'resumen' (el resumen de hoy, solo a
+//                                        quien lo pide: «Enviarme el resumen de hoy»)
+import { staffUser, sesionDe, json } from '../lib/auth.mjs';
 import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, servicioCorreo } from '../lib/correo.mjs';
 import { datosConfigurados } from '../lib/firestore.mjs';
 import { enviarResumen } from '../lib/resumen.mjs';
@@ -41,8 +42,10 @@ export default async (req) => {
 		}
 		if (accion === 'resumen') {
 			if (!datosConfigurados()) return json(400, { error: 'Falta la cuenta de servicio de Google (GOOGLE_SA_EMAIL y GOOGLE_SA_KEY).' });
-			const r = await enviarResumen({ soloEquipo: true });
-			return json(200, { ok: true, mensaje: r.total ? `Resumen enviado a ${destinatariosEquipo().join(', ')}.` : 'Hoy no hay pendientes: no se envió nada.' });
+			const correo = (await sesionDe(req).catch(() => null))?.email;
+			if (!correo) return json(400, { error: 'Tu usuario no tiene correo: no hay a dónde enviarlo.' });
+			const r = await enviarResumen({ para: correo });
+			return json(200, { ok: true, mensaje: r.total ? `Resumen enviado a ${correo}.` : 'Hoy no hay pendientes: no se envió nada.' });
 		}
 		return json(400, { error: 'Acción desconocida' });
 	} catch (err) {

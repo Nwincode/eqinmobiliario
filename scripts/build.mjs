@@ -7,10 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from './lib/firestore.mjs';
 import { deepMerge, slugify, byOrder, cifra, lugarDe, departamentoDe } from './lib/util.mjs';
-import { planListados, crearEnlaces, textosListado, nombreTipo } from './lib/landings.mjs';
-import { revisarEnlaces } from './lib/enlaces.mjs';
+import { planListados, crearEnlaces, textosListado, nombreTipo, unificarZonas } from './lib/landings.mjs';
+import { revisarEnlaces, repetidosSeo } from './lib/enlaces.mjs';
 import { montoPrecio, telefonoWa, horarioEn, horarioSchema, conPiesCuadrados } from '../admin/js/formato.js';
-import { amenidadesEn, mascotasUnaVez } from '../admin/js/estados.js';
+import { amenidadesEnDe, mascotasUnaVez, esDePrueba, precioVisible, sinPrecioOculto, mencionaPrecio, textosConPrecioOculto } from '../admin/js/estados.js';
 import * as T from './lib/templates.mjs';
 import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
@@ -20,13 +20,13 @@ import { seoEnViejo } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
+import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
+import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
+import { urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
 const DIST = process.env.DIST_DIR ? path.resolve(process.env.DIST_DIR) : path.join(ROOT, 'dist');
-
-// Rutas que no pueden usar las páginas de contenido.
-const RESERVED = new Set(['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404', 'propietarios', 'calculadora-de-renta']);
 
 const STATIC_ASSETS = [
 	'css', 'js', 'images', 'admin',
@@ -42,6 +42,8 @@ async function readJson(file) {
 
 async function loadData(config) {
 	const seed = await readJson(process.env.SEED_FILE || 'data/seed.json');
+	// Lo que falte en settings/site se completa siempre con el del repositorio (también con otro SEED_FILE).
+	const defaults = (await readJson('data/seed.json')).settings;
 	const fb = config.firebase || {};
 	const fromSeed = () => ({
 		source: 'seed',
@@ -56,24 +58,27 @@ async function loadData(config) {
 		// DATOS=seed: generar con el archivo de ejemplo aunque Firebase esté configurado (pruebas, sin red).
 	if (!fb.projectId || !fb.apiKey || process.env.DATOS === 'seed') {
 		console.log(`· ${process.env.DATOS === 'seed' ? 'DATOS=seed' : 'Firebase sin configurar'}: se usan los datos de ${process.env.SEED_FILE || 'data/seed.json'}`);
-		return { ...fromSeed(), defaults: seed.settings };
+		return { ...fromSeed(), defaults };
 	}
 
 	const db = createClient({ projectId: fb.projectId, apiKey: fb.apiKey });
 	// Sin «plan B»: si la nube no responde o no tiene settings/site, el build falla y Netlify deja publicado
 	// el sitio anterior. Publicar el archivo de ejemplo borraría las casas reales del sitio y de Google.
 	// (Para generar con el ejemplo: DATOS=seed.)
-	const settings = await db.getDoc('settings/site');
-	if (!settings) throw new Error('Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). Si la base está vacía de verdad, importa los datos iniciales desde el panel o usa DATOS=seed.');
-	const [properties, agents, testimonials, pages, posts] = await Promise.all([
+	const [settings, properties, agents, testimonials, pages, posts] = await Promise.all([
+		db.getDoc('settings/site'),
 		db.queryTrue('properties', 'publicado'),
 		db.queryTrue('agents', 'activo'),
 		db.queryTrue('testimonials', 'activo'),
 		db.queryTrue('pages', 'publicado'),
 		db.queryTrue('posts', 'publicado')
 	]);
+	// «Importar datos iniciales» (Publicar, en el panel) solo sirve con la base vacía: con casas guardadas no se ofrece.
+	if (!settings) throw new Error(`Firestore no tiene settings/site: no se publica (el sitio anterior sigue en línea). ${properties.length
+		? `Hay ${properties.length} propiedades publicadas: no importes datos iniciales. Abre Contenido en el panel y guarda para volver a crear los textos del sitio.`
+		: 'Si la base está vacía de verdad, importa los datos iniciales desde Publicar, en el panel, o usa DATOS=seed.'}`);
 	console.log(`· Datos leídos de Firestore (${fb.projectId})`);
-	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults: seed.settings };
+	return { source: 'firestore', settings, properties, agents, testimonials, pages, posts, defaults };
 }
 
 function toMillis(v) {
@@ -115,7 +120,8 @@ function normalizePages(list, base = '') {
 	return list
 		.map((p) => {
 			const slug = slugify(p.slug || p.titulo) || p.id;
-			return { ...p, slug, url: `${base}${RESERVED.has(slug) ? `/pagina/${slug}` : `/${slug}`}/` };
+			// Con un nombre reservado del sitio (admin/js/rutas.js), en /pagina/: nunca encima de un listado.
+			return { ...p, slug, url: urlPagina(slug, base ? 'en' : 'es') };
 		})
 		.sort(byOrder);
 }
@@ -131,7 +137,7 @@ function propiedadEn(p) {
 		titulo: e.titulo,
 		// En inglés, cada m² con sus pies cuadrados (descripción, meta y JSON-LD).
 		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
-		amenidades: e.amenidades?.length ? e.amenidades : amenidadesEn(p.amenidades),
+		amenidades: amenidadesEnDe(p),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
 		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
@@ -246,14 +252,45 @@ async function copyAssets() {
 // Lo que cambió desde la última publicación, para IndexNow (netlify/lib/indexnow.mjs, lo manda deploy-succeeded):
 // solo al publicar en Netlify, comparando con el sitemap que sigue publicado mientras corre el build. Si no se puede
 // leer (o en local), `todas`: la función manda todo el sitemap, como antes.
-async function cambiosParaIndexNow(ctx, siteUrl, sitemapXml) {
-	if (!process.env.NETLIFY || ctx.noindex) return { todas: true };
+function cambiosParaIndexNow(ctx, siteUrl, sitemapXml, publicado) {
+	if (ctx.noindex || publicado == null) return { todas: true };
+	return { urls: urlsCambiadas(sitemapXml, publicado, siteUrl) };
+}
+
+// El sitemap que sigue publicado mientras corre el build (solo al publicar en Netlify); null si no se pudo leer.
+async function sitemapPublicado(siteUrl) {
+	if (!process.env.NETLIFY) return null;
+	const sinLeer = (motivo) => {
+		console.warn(`  ⚠ No se pudo leer el sitemap publicado (${motivo}): no se compara el catálogo con el sitio en línea y IndexNow recibe todo el sitemap.`);
+		return null;
+	};
 	try {
 		const res = await fetch(`${siteUrl.replace(/\/$/, '')}/sitemap.xml`, { signal: AbortSignal.timeout(10000) });
-		if (!res.ok) return { todas: true };
-		return { urls: urlsCambiadas(sitemapXml, await res.text(), siteUrl) };
-	} catch {
-		return { todas: true };
+		return res.ok ? await res.text() : sinLeer(`error ${res.status}`);
+	} catch (err) {
+		return sinLeer(err.message);
+	}
+}
+
+// El freno del catálogo (revisarCatalogo) con lo que dice el panel, en meta/publish y con la cuenta de escritura: si un
+// administrador tocó «Publicar aunque baje» (`forzarCatalogo`), no se frena, y la marca se gasta en este build. El
+// motivo queda en `freno` (vacío si pasa) para que Publicar lo muestre. Sin la cuenta en el build, solo la variable.
+// Solo el build de producción lee y escribe meta/publish: una vista previa o una rama (con la cuenta de escritura en
+// sus variables) no gasta el «Publicar aunque baje» del administrador ni le borra el aviso del freno.
+async function frenoDelCatalogo(fuente, { ahora, antes }, { produccion = true } = {}) {
+	const porVariable = process.env[FORZAR] === '1';
+	if (porVariable) console.warn(`  ⚠ La variable ${FORZAR} está puesta: el catálogo se publica sin revisar si bajó. Quítala en Netlify (Site configuration → Environment variables); para una vez, en el panel: Publicar → «Publicar aunque baje».`);
+	if (fuente !== 'firestore' || !produccion || !escrituraConfigurada()) return revisarCatalogo({ ahora, antes, forzar: porVariable });
+	try {
+		return await transaccion(async ({ leer, cambiar }) => {
+			const estado = await leer('meta/publish');
+			const freno = revisarCatalogo({ ahora, antes, forzar: porVariable || estado?.forzarCatalogo === true });
+			if (estado) cambiar('meta/publish', { freno, forzarCatalogo: false }, { ahora: ['frenoCuando'] });
+			return freno;
+		});
+	} catch (err) {
+		console.warn(`  ⚠ No se pudo leer «Publicar aunque baje» del panel (${err.message}): se revisa sin él.`);
+		return revisarCatalogo({ ahora, antes, forzar: porVariable });
 	}
 }
 
@@ -279,8 +316,8 @@ function llmsTxt(ctx, properties, pages, { planEn = [], pagesEn = [], postsEn = 
 		'',
 		// Los mismos listados que el sitemap: solo los que se indexan.
 		...ctx.plan.filter((e) => e.pagina !== 'vip' && indexable(e.url)).map((e) => `- [${e.opts.heading}](${base}${e.url})`),
-		...properties.filter((p) => p.estado === 'disponible').slice(0, 100).map((p) =>
-			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? `, ${p.moneda || 'USD'} ${Number(p.precio).toLocaleString('en-US')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
+		...properties.filter((p) => p.estado === 'disponible' && !esDePrueba(p)).slice(0, 100).map((p) =>
+			`- [${p.titulo}](${base}${T.propertyUrl(p)}): ${p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion === 'renta' ? 'renta' : 'venta'}, ${lugarDe(p)}${precioVisible(p) ? `, ${montoPrecio(p.precio, p.moneda || 'USD')}` : ''}${p.habitaciones ? `, ${p.habitaciones} ${Number(p.habitaciones) === 1 ? 'habitación' : 'habitaciones'}` : ''}${p.m2Construccion ? `, ${cifra(p.m2Construccion)} m²` : ''}`),
 		'',
 		'## Guías',
 		'',
@@ -306,7 +343,7 @@ function llmsFullTxt(ctx, properties) {
 		dato('Operación', p.operacion === 'vacacional' ? 'renta vacacional por noche' : p.operacion),
 		dato('Tipo', p.tipo),
 		dato('Ubicación', lugarDe(p)),
-		dato('Precio', p.precio && !(p.vipLanding && p.vipLanding.ocultarPrecio) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
+		dato('Precio', precioVisible(p) ? montoPrecio(p.precio, p.moneda || 'USD') : ''),
 		dato('Habitaciones', p.habitaciones),
 		dato('Baños', p.banos),
 		dato('Parqueos', p.parqueos),
@@ -322,7 +359,7 @@ function llmsFullTxt(ctx, properties) {
 		'',
 		`> ${ctx.site.seo.descripcion}`,
 		'',
-		...properties.filter((p) => (p.estado || 'disponible') === 'disponible').flatMap(ficha),
+		...properties.filter((p) => (p.estado || 'disponible') === 'disponible' && !esDePrueba(p)).flatMap(ficha),
 		...ctx.posts.flatMap((p) => [`## ${p.titulo}`, '', `- Enlace: ${base}${p.url}`, '', textoPlano(p.contenido || p.resumen), ''])
 	].join('\n');
 }
@@ -343,14 +380,14 @@ const coordenadas = (mapa) => {
 function feeds(ctx, properties, propsEn) {
 	const base = ctx.siteUrl.replace(/\/$/, '');
 	// Los portales de Meta y Kyero no tienen precio por noche: la renta vacacional no va en los feeds.
-	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional');
+	const disponibles = properties.filter((p) => (p.estado || 'disponible') === 'disponible' && p.operacion !== 'vacacional' && !esDePrueba(p));
 	const enPorId = Object.fromEntries((propsEn || []).map((p) => [p.id, p]));
 	const abs = (u) => (/^https?:/.test(u) ? u : `${base}${u}`);
 	const url = (p, fuente) => `${base}${T.propertyUrl(p)}?utm_source=${fuente}&utm_medium=catalogo&utm_campaign=difusion`;
 	// Los catálogos piden JPG: el CDN de imágenes de Netlify convierte las fotos WebP al vuelo.
 	const fotos = (p) => (p.fotos || []).map((f) => f.url).filter(Boolean)
 		.map((u) => `${base}${T.fotoCdn(u, 1600, '&fm=jpg&q=85')}`);
-	const sinPrecio = (p) => !p.precio || (p.vipLanding && p.vipLanding.ocultarPrecio);
+	const sinPrecio = (p) => !precioVisible(p);
 
 	// Meta (Facebook/Instagram): catálogo de inmuebles ("home listings").
 	const tipoMeta = { casa: 'house', apartamento: 'apartment', terreno: 'land', oficina: 'other', local: 'other', bodega: 'other', finca: 'other' };
@@ -465,7 +502,9 @@ function fichaHtml(c, p) {
 	return T.vipLandingPage(c, p);
 }
 
-function redirects(ctx, todas = ctx.properties) {
+// `enPorId`: la versión en inglés ya resuelta en main() (con el sufijo que la separa de otra del mismo título).
+// `paginasMovidas`: las páginas que pasaron a /pagina/ ([de, a]).
+function redirects(ctx, todas = ctx.properties, enPorId = new Map(), paginasMovidas = []) {
 	const lines = [];
 	const add = (from, to) => {
 		if (from && to && from !== to && !lines.some((l) => l.startsWith(`${from} `))) lines.push(`${from} ${to} 301`);
@@ -481,7 +520,7 @@ function redirects(ctx, todas = ctx.properties) {
 			}
 		}
 		// Títulos anteriores en inglés (la dirección en inglés sale del título).
-		const en = ctx.enActivo && propiedadEn(p);
+		const en = ctx.enActivo && enPorId.get(p.id);
 		for (const old of (en && p.en.slugsAnteriores) || []) {
 			const s = slugify(old);
 			if (s && s !== en.slug) {
@@ -490,6 +529,7 @@ function redirects(ctx, todas = ctx.properties) {
 			}
 		}
 	}
+	for (const [de, a] of paginasMovidas) add(de, a);
 	for (const r of ctx.site.seo.redirecciones || []) {
 		const from = String(r.desde || '').trim();
 		const to = String(r.hacia || '').trim();
@@ -514,21 +554,60 @@ function imageEntries(ctx, u) {
 async function main() {
 	const config = await readJson('site.config.json');
 	const data = await loadData(config);
-	const site = deepMerge(data.defaults, data.settings);
+	const site = ajustesSanos(deepMerge(data.defaults, data.settings), config.siteUrl);
 	// Textos del sitio: se guardan los originales para el panel y se aplican los personalizados.
 	const textosOriginales = textosPorDefecto();
 	aplicarTextos(site.textos);
 	const agents = data.agents.slice().sort(byOrder);
 	// Todas las publicadas conservan su enlace; solo las que se ofrecen salen en portada, listados,
 	// buscador, zonas, sitemap y catálogos. Vendidas/rentadas y pausadas/retiradas quedan aparte.
-	const todas = normalizeProperties(data.properties);
+	// Las que tienen un dato roto (scripts/lib/antes-de-publicar.mjs) quedan fuera de todo; su enlace sigue abriendo sin
+	// indexar, con lo roto quitado, y Publicar, en el panel, las lista (/feeds/omitidas.json). Van detrás de las buenas al
+	// normalizar: si comparten dirección, la buena la conserva.
+	const { sanas, omitidas: rotas } = separarCasas(data.properties);
+	const reparadas = rotas.map(({ casa, motivo }) => ({ r: casaReparada(casa), motivo })).filter(({ r }) => r && !r.motivo)
+		.map(({ r, motivo }) => ({ ...r.casa, _omitida: { motivo, sinCalendario: r.sinCalendario } }));
+	// Cada zona con una sola forma de escribirla (antes de planear listados y de copiar al inglés).
+	const juntas = unificarZonas(normalizeProperties([...sanas, ...reparadas]));
+	const todas = juntas.filter((p) => !p._omitida);
+	const omitidas = juntas.filter((p) => p._omitida);
 	// La dirección y el mapa de una casa por noche son privados (properties/{id}/privado/llegada): si una casa
 	// todavía los trae en su documento, no entran a ninguna página, catálogo ni archivo del sitio.
 	// Tampoco usan la landing VIP: no tiene caja de reserva.
 	// Su «Desde» se saca al publicar, con las tarifas que siguen vigentes (un precio especial vencido ya no cuenta), con la
 	// misma regla del panel (`precioDesde`); js/vacacional.js lo pone al día en la página con los precios de hoy.
 	const V = globalThis.EQVacacional;
-	for (const p of todas) if (p.operacion === 'vacacional') {
+	// Casas de prueba: se marcan aquí, con su título en español (la copia en inglés lo hereda).
+	for (const p of juntas) if (esDePrueba(p)) p._prueba = true;
+	// Una que no salió del botón «Casas de prueba» pero dice «prueba» en el título: se avisa (si es real, hay que
+	// cambiarle el título para que Google la vea).
+	const pruebaPorTitulo = todas.filter((p) => p._prueba && p.demo !== true && visibilidadDe(p) === 'visible');
+	if (pruebaPorTitulo.length) console.warn(`  ⚠ Se tratan como casas de prueba (dicen «prueba» en el título; no se indexan): ${pruebaPorTitulo.map((p) => `«${p.titulo}»`).join(', ')}. Si alguna es real, cambia su título.`);
+	// Precio oculto: ningún texto guardado con el precio lo deja salir (ficha, VIP, /en/, llms, catálogos). Un título o
+	// descripción para Google con el precio no se usa (sale el automático, sin precio); en la descripción y los textos VIP,
+	// en español e inglés, el monto pasa a «precio a consultar».
+	// El panel ya no deja guardarlo así (textosConPrecioOculto); si llega uno (de antes, o escrito por otra vía), se avisa.
+	// También en las omitidas por un dato roto: su enlace sigue abriendo.
+	const conPrecioOculto = [];
+	for (const p of juntas) {
+		if (!p.precio || precioVisible(p)) continue;
+		const donde = textosConPrecioOculto(p);
+		if (donde.length) conPrecioOculto.push(`${p.id} (${donde.map(([k]) => k).join(', ')})`);
+		const n = Math.round(Number(p.precio));
+		const conPrecio = (t) => mencionaPrecio(t, n, p.moneda);
+		const limpiarSeo = (seo) => (seo ? { ...seo, ...(conPrecio(seo.titulo) ? { titulo: '' } : {}), ...(conPrecio(seo.descripcion) ? { descripcion: '' } : {}) } : seo);
+		const limpiarVip = (v, consultar) => (v ? { ...v, ...Object.fromEntries(['titular', 'subtitular', 'ctaTexto'].map((k) => [k, sinPrecioOculto(v[k], n, consultar, p.moneda)])),
+			puntosClave: (v.puntosClave || []).map((x) => sinPrecioOculto(x, n, consultar, p.moneda)) } : v);
+		p.seo = limpiarSeo(p.seo);
+		p.descripcion = sinPrecioOculto(p.descripcion, n, 'precio a consultar', p.moneda);
+		p.titulo = sinPrecioOculto(p.titulo, n, 'precio a consultar', p.moneda);
+		// La URL nunca lleva el precio: se le quita (la dirección con el precio no se redirige, para no publicarla).
+		if (conPrecio(String(p.slug || '').replace(/-/g, ' '))) p.slug = slugify(sinPrecioOculto(String(p.slug).replace(/-/g, ' '), n, '', p.moneda)) || p.id;
+		p.vipLanding = limpiarVip(p.vipLanding, 'precio a consultar');
+		if (p.en) p.en = { ...p.en, seo: limpiarSeo(p.en.seo), titulo: sinPrecioOculto(p.en.titulo, n, 'price on request', p.moneda), slug: p.en.slug && conPrecio(String(p.en.slug).replace(/-/g, ' ')) ? '' : p.en.slug, descripcion: sinPrecioOculto(p.en.descripcion, n, 'price on request', p.moneda), vipLanding: limpiarVip(p.en.vipLanding, 'price on request') };
+	}
+	if (conPrecioOculto.length) console.warn(`  ⚠ Precio oculto escrito en sus textos (se quitó al publicar; corrígelo en la ficha): ${conPrecioOculto.join('; ')}`);
+	for (const p of juntas) if (p.operacion === 'vacacional') {
 		Object.assign(mascotasUnaVez(p), { direccion: '', mapa: '', vip: false });
 		const desde = V.precioDesde(p.vacacional, V.hoy());
 		if (desde > 0) p.precio = desde;
@@ -538,6 +617,19 @@ async function main() {
 	// Solo sus casas por noche: si el mismo dueño tiene algo en venta o renta, eso sigue publicado.
 	const seOfrece = (p) => visibilidadDe(p) === 'visible' && !(p.operacion === 'vacacional' && mora?.[p.propietarioId] === 3);
 	const properties = todas.filter(seOfrece);
+	// Antes de borrar nada de dist/: un catálogo vacío, o con menos de la mitad de las casas que tiene el sitio
+	// publicado, no se publica (scripts/lib/antes-de-publicar.mjs). Solo producción se compara con el sitemap en línea.
+	// Se cuentan las que se ofrecen sin contar la pausa por mora: un socio atrasado no frena la publicación.
+	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
+	// Las casas de prueba no cuentan: las mismas que no se indexan (`_prueba`, `esDePrueba`: el botón «Casas de prueba» o
+	// «prueba» en el título).
+	const publicado = isProduction ? await sitemapPublicado(config.siteUrl) : null;
+	const deCatalogo = {
+		ahora: todas.filter((p) => visibilidadDe(p) === 'visible' && !p._prueba).length,
+		antes: publicado == null ? null : fichasEnSitemap(publicado, config.siteUrl, new Set(todas.filter((p) => p._prueba).map((p) => p.slug)))
+	};
+	const freno = await frenoDelCatalogo(data.source, deCatalogo, { produccion: isProduction });
+	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
 	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
@@ -555,11 +647,22 @@ async function main() {
 	}
 	// La misma regla que en español (incluye la pausa por mora): una sola función para los dos idiomas.
 	const propsEn = todasEn.filter(seOfrece);
+	// Dos fichas con el mismo título para Google compiten entre sí: a la segunda (y siguientes) se le suma su código o
+	// su zona (T.tituloUnico). En los dos idiomas. Siempre la misma ficha conserva su título: la más antigua (por fecha
+	// de creación y, si empatan, por código), sin importar el orden en que vengan de la base.
+	const antes = (a, b) => (toMillis(a.createdAt) || 0) - (toMillis(b.createdAt) || 0) || String(a.codigo || a.id || '').localeCompare(String(b.codigo || b.id || ''));
+	for (const lista of [todas, todasEn]) {
+		const vistos = new Set();
+		for (const p of [...lista].sort(antes)) {
+			const titulo = T.seoTitle(p);
+			if (vistos.has(titulo)) p._tituloUnico = T.tituloUnico(p, titulo, vistos);
+			vistos.add(p._tituloUnico || titulo);
+		}
+	}
 	// Pares de URLs español ↔ inglés para el selector de idioma (los de los listados los agrega el plan).
 	const altMap = new Map();
 	const registrarPar = (es, en) => { altMap.set(es, en); altMap.set(en, es); };
 	[['/', '/en/'], ['/calculadora-de-renta/', '/en/rental-calculator/']].forEach(([a, b]) => registrarPar(a, b));
-	const isProduction = !process.env.CONTEXT || process.env.CONTEXT === 'production';
 	const nombre = site.general.nombreCorto;
 	const siteEn = enActivo ? deepMerge(site, site.en || {}) : null;
 	// El horario se escribe una vez, en español; el de inglés sale de él (un `en.contacto.horario` viejo se ignora).
@@ -567,8 +670,11 @@ async function main() {
 	const pagesEn = enActivo ? normalizePages(data.pagesEn, '/en') : [];
 	// Listados y páginas de aterrizaje de los dos idiomas (scripts/lib/landings.mjs). Se planean antes de escribir
 	// nada: de ellos dependen los enlaces de todas las páginas (menú, pie, migas, enlaces del blog).
-	const planEs = planListados(properties, { lang: 'es', ocupadas: new Set(pages.map((p) => p.url)) });
-	const planEn = enActivo ? planListados(propsEn, { lang: 'en', ocupadas: new Set(pagesEn.map((p) => p.url)) }) : [];
+	// Las casas de prueba tienen su ficha (sin indexar) pero no salen en listados, portada ni «similares».
+	const enListados = properties.filter((p) => !p._prueba);
+	const enListadosEn = propsEn.filter((p) => !p._prueba);
+	const planEs = planListados(enListados, { lang: 'es', ocupadas: new Set(pages.map((p) => p.url)) });
+	const planEn = enActivo ? planListados(enListadosEn, { lang: 'en', ocupadas: new Set(pagesEn.map((p) => p.url)) }) : [];
 	textosDelPlan(planEs, site.listados, site, 'es', nombre);
 	if (enActivo) textosDelPlan(planEn, siteEn.listados, site, 'en', nombre);
 	for (const e of planEs) {
@@ -585,7 +691,7 @@ async function main() {
 		// Vistas previas de Netlify o sitio marcado "no indexar": Google no debe indexarlas.
 		noindex: !isProduction || site.seo.indexar === false,
 		site,
-		properties,
+		properties: enListados,
 		agents,
 		agentsById: Object.fromEntries(agents.map((a) => [a.id, a])),
 		testimonials: data.testimonials.slice().sort(byOrder),
@@ -658,6 +764,15 @@ async function main() {
 	// Vendidas, rentadas, pausadas y retiradas: su enlace sigue abriendo, pero no van al sitemap.
 	for (const p of fueraDeListados) await writePage(T.propertyUrl(p), fichaHtml(ctx, p));
 
+	// Casas omitidas por un dato roto: su enlace abre sin indexar (la de por noche sin calendario, como «ya no disponible»,
+	// sin reservar). Si aun así no se puede generar, queda solo en la lista de Publicar.
+	const ctxOmitidas = { ...ctx, noindex: true };
+	for (const p of omitidas) {
+		try { await writePage(T.propertyUrl(p), p._omitida.sinCalendario ? T.propertyGonePage(ctxOmitidas, p) : fichaHtml(ctxOmitidas, p)); p._omitida.url = T.propertyUrl(p); }
+		catch (err) { console.warn(`  ⚠ Tampoco se pudo generar la página de «${p.id}»: ${err.message}`); }
+	}
+	const omitidasDeDatos = rotas.filter(({ casa }) => !omitidas.some((p) => p.id === casa?.id));
+
 	for (const page of pages) {
 		await writePage(page.url, T.contentPage(ctx, page));
 		urls.push({ path: page.url, priority: '0.4', lastmod: String(page.updatedAt || '').slice(0, 10) || undefined });
@@ -677,7 +792,7 @@ async function main() {
 			lang: 'en',
 			site: siteEn,
 			altLang: (ruta) => altMap.get(ruta) || '/',
-			properties: propsEn,
+			properties: enListadosEn,
 			agents: agents.map((a) => ({ ...a, cargo: (a.en && a.en.cargo) || 'Real estate advisor', bio: (a.en && a.en.bio) || '' })),
 			testimonials: ctx.testimonials.filter((tm) => tm.en && tm.en.texto).map((tm) => ({ ...tm, texto: tm.en.texto, rol: tm.en.rol || '' })),
 			pages: pagesEn,
@@ -717,6 +832,8 @@ async function main() {
 		for (const es of todas.filter((x) => x._alternates)) await writePage(T.propertyUrl(es), fichaHtml(ctx, es));
 		for (const page of pages.filter((x) => x._alternates)) await writePage(page.url, T.contentPage(ctx, page));
 		for (const post of ctx.posts.filter((x) => x._alternates)) await writePage(post.url, T.blogPostPage(ctx, post));
+		// «Tu reserva» en inglés: el cliente que reservó en inglés la abre desde su correo y su chat (fuera del sitemap).
+		if (hayVacacional) await writePage('/en/reservation/', T.reservaPage(ctxEn));
 		console.log(`· Sitio en inglés: ${propsEn.length} propiedades traducidas, ${pagesEn.length} páginas, ${postsEn.length} artículos`);
 	}
 
@@ -740,7 +857,8 @@ async function main() {
 	if (!ctx.noindex && sinSitemap.length) console.warn(`  ⚠ Se indexan pero no están en el sitemap: ${sinSitemap.join(', ')}`);
 	const sitemapXml = sitemap(ctx, enSitemap);
 	await writeFile(path.join(DIST, 'sitemap.xml'), sitemapXml);
-	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas));
+	// Una página que pasó a /pagina/ (su nombre ahora es reservado): su dirección de antes lleva a la nueva.
+	await writeFile(path.join(DIST, '_redirects'), redirects(ctx, todas, new Map(todasEn.map((p) => [p.id, p])), redireccionesPaginas([...pages, ...pagesEn], new Set(indexables.keys()))));
 	await writeFile(path.join(DIST, 'robots.txt'), ctx.noindex
 		? 'User-agent: *\nDisallow: /\n'
 		: `${['*', ...BOTS_IA].map((bot) => `User-agent: ${bot}\nAllow: /\nDisallow: /admin/\n`).join('\n')}\nSitemap: ${config.siteUrl.replace(/\/$/, '')}/sitemap.xml\n`);
@@ -757,7 +875,12 @@ async function main() {
 	await writeFile(path.join(DIST, 'feeds', 'meta-inmuebles.xml'), catalogos.meta);
 	await writeFile(path.join(DIST, 'feeds', 'kyero.xml'), catalogos.kyero);
 	await writeFile(path.join(DIST, 'feeds', 'propiedades.json'), catalogos.json);
-	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(await cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml)));
+	// Lo que Publicar, en el panel, muestra como «no se ve en el sitio».
+	await writeFile(path.join(DIST, 'feeds', 'omitidas.json'), JSON.stringify({ casas: [
+		...omitidas.map((p) => ({ id: p.id, titulo: String(p.titulo || p.id), motivo: p._omitida.motivo, url: p._omitida.url || '' })),
+		...omitidasDeDatos.map(({ casa, motivo }) => ({ id: String(casa?.id || ''), titulo: String(casa?.titulo || casa?.id || '?'), motivo, url: '' }))
+	] }));
+	await writeFile(path.join(DIST, 'feeds', 'indexnow.json'), JSON.stringify(cambiosParaIndexNow(ctx, config.siteUrl, sitemapXml, publicado)));
 
 	console.log(`✓ Sitio generado en dist/ (${data.source}): ${properties.length} propiedades${fueraDeListados.length ? ` (+${fueraDeListados.length} vendidas, rentadas o pausadas, solo con enlace)` : ''}, ${pages.length} páginas, ${ctx.posts.length} artículos, ${enSitemap.length} URLs en el sitemap${ctx.noindex ? ' · SIN INDEXAR' : ''}`);
 	// Avisos de SEO: una propiedad sin estos datos se posiciona peor (no detiene la publicación).
@@ -769,6 +892,12 @@ async function main() {
 	console.log(`  CSS ${assets.cssOriginalKb} KB → ${assets.cssKb} KB · JS ${assets.jsOriginalKb} KB → ${assets.jsKb} KB`);
 	// Enlaces internos rotos en lo generado (plantillas o contenido del panel): se avisan con su página.
 	// `npm test` genera un sitio de ejemplo y no pasa con uno solo (scripts/test-sitio.mjs).
+	// Títulos y descripciones repetidos entre páginas indexadas: se avisa con las páginas (se corrigen en el panel).
+	const repetidos = await repetidosSeo(DIST);
+	if (repetidos.length) {
+		console.warn(`  ⚠ ${repetidos.length} título(s) o descripción(es) repetidos entre páginas que Google indexa:`);
+		for (const r of repetidos.slice(0, 20)) console.warn(`    ${r.tipo} «${r.texto.slice(0, 70)}»: ${r.paginas.slice(0, 4).join(', ')}`);
+	}
 	const rotos = await revisarEnlaces(DIST);
 	if (rotos.length) {
 		console.warn(`  ⚠ ${rotos.length} enlace${rotos.length === 1 ? '' : 's'} interno${rotos.length === 1 ? '' : 's'} roto${rotos.length === 1 ? '' : 's'}:`);

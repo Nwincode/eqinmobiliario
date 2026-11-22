@@ -30,21 +30,25 @@ const espera = async (nombre, promesa, ok) => { const s = await promesa; const b
 const m = (de, texto) => ({ de, texto });
 let i = 0; const msj = () => `chats/${T}/mensajes/m${++i}`;
 
-// El chat nace junto con su índice chatsPorSolicitud/{solicitud} (js/reserva-chat.js crear): uno por solicitud.
+// El chat y su índice chatsPorSolicitud/{solicitud} los crea el servidor junto con la solicitud
+// (netlify/functions/solicitud.mjs, scripts/test-solicitud.mjs); desde el navegador, nadie.
 const RAIZ = 'projects/demo-eq/databases/(default)/documents';
 const crearChat = (token, o, { indice = true, lead = o.leadId, encima = false } = {}) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [
 	{ update: { name: `${RAIZ}/chats/${token}`, fields: campos(o) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
 	...(indice ? [{ update: { name: `${RAIZ}/chatsPorSolicitud/${lead}`, fields: campos({ token }) }, ...(encima ? {} : { currentDocument: { exists: false } }) }] : [])] }) }).then((r) => r.status);
-await espera('cliente abre el chat de su reserva, con su índice', crearChat(T, chat), true);
-// (Con «no existe» la base lo rechaza antes de las reglas (409); escribiendo encima del índice, lo niegan las reglas.)
-await espera('segundo chat para la misma solicitud, escribiendo encima de su índice', crearChat('SegundoChatLargoYAlAzar234567', chat, { encima: true }), false);
-await espera('segundo chat para la misma solicitud, sin índice', crearChat('SegundoChatLargoYAlAzar234568', chat, { indice: false }), false);
+await espera('cliente abre el chat de su reserva con su índice, directo en la base (lo hace el servidor)', crearChat(T, chat), false);
+await espera('cliente abre un chat sin índice', crearChat(T, chat, { indice: false }), false);
+await espera('socio abre un chat', fetch(`${H}:commit`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/chats/${T}`, fields: campos(chat) }, currentDocument: { exists: false } }] }) }).then((r) => r.status), false);
+// El chat de la solicitud, como lo deja el servidor.
+await poner(`chats/${T}`, chat);
+await fetch(`${H}/chats/${T}?updateMask.fieldPaths=createdAt`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() } } }) });
+await poner('chatsPorSolicitud/lead1', { token: T });
 await espera('nadie cambia el índice de una solicitud a otro chat', fetch(`${H}/chatsPorSolicitud/lead1`, { method: 'PATCH', headers: cab(null), body: JSON.stringify({ fields: campos({ token: 'OtroChat' }) }) }).then((r) => r.status), false);
 await espera('anónimo lee el índice', leer(null, 'chatsPorSolicitud/lead1'), false);
 await espera('administrador lee el índice (control)', leer('admin1', 'chatsPorSolicitud/lead1'), true);
 {
 	const probar = await leer(null, `chatsPorSolicitud/prueba-${Math.random().toString(36).slice(2)}`);
-	n++; if (probar !== 404) fallas++; console.log(`${probar === 404 ? 'ok   ' : 'FALLA'} 404    · leer un índice que no existe responde «no existe» (así el sitio sabe que las reglas son las nuevas) (${probar})`);
+	n++; if (probar !== 404) fallas++; console.log(`${probar === 404 ? 'ok   ' : 'FALLA'} 404    · leer un índice que no existe responde «no existe» (las páginas de antes lo consultan) (${probar})`);
 }
 // Solicitud de antes (sin índice): su chat ya existe. Nadie le inventa otro chat con su índice ni le pone índice a un
 // chat ya existente; solo el administrador, al chat de esa solicitud (Solicitudes lo hace al abrirla).
@@ -54,50 +58,17 @@ await espera('administrador lee el índice (control)', leer('admin1', 'chatsPorS
 	const CV = 'ChatDeUnaSolicitudDeAntesLargo123';
 	await poner(`chats/${CV}`, { ...chat, leadId: 'lead-vieja', codigo: 'EQ-VJA' });
 	const indice = (quien, token) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/chatsPorSolicitud/lead-vieja`, fields: campos({ token }) }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
-	await espera('chat inventado con su índice para una solicitud de antes', crearChat('ChatFalsoDeAntesLargoYAlAzar2', { ...chat, leadId: 'lead-vieja', codigo: 'EQ-VJA' }), false);
 	await espera('anónimo pone el índice de una solicitud de antes a su chat ya existente', indice(null, CV), false);
 	await espera('socio pone el índice de una solicitud de antes', indice('socio1', CV), false);
 	await espera('administrador pone el índice de una solicitud de antes a un chat de otra solicitud', indice('admin1', T), false);
 	await espera('administrador pone el índice de una solicitud de antes a su chat (control)', indice('admin1', CV), true);
 	await espera('administrador lista los índices (control)', consulta('admin1', 'chatsPorSolicitud'), true);
 }
-// Otra solicitud (sin chat todavía) para los chats mal hechos: cada uno falla solo por lo que tiene mal.
-await fetch(`${H}/leads/lead-n`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Beto'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-const chatN = { ...chat, leadId: 'lead-n' };
-await espera('chat con token corto', crearChat('corto', chatN), false);
-await espera('chat con un socio que no es el dueño de la casa', crearChat('OtroTokenLargoYAlAzar23456789', { ...chatN, propietarioId: 'o2' }), false);
-await espera('chat con un teléfono como campo extra', crearChat('OtroTokenLargoYAlAzar2345678A', { ...chatN, telefono: '55551234' }), false);
-await poner('properties/otra-casa-noche', { titulo: 'Otra casa', operacion: 'vacacional', publicado: true, propietarioId: 'o1' });
-await espera('chat de otra casa que la de la solicitud', crearChat('TokenOtraCasaLargoYAlAzar2345', { ...chatN, propertyId: 'otra-casa-noche', propertyTitulo: 'Otra casa' }), false);
-await espera('chat de un código que no es el de la solicitud', crearChat('TokenOtroCodigoLargoAlAzar234', { ...chatN, codigo: 'EQ-OTRO' }), false);
-await espera('chat cuyo índice apunta a otro chat', fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [
-	{ update: { name: `${RAIZ}/chats/TokenIndiceAjenoLargoYAlAzar23`, fields: campos(chatN) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
-	{ update: { name: `${RAIZ}/chatsPorSolicitud/lead-n`, fields: campos({ token: T }) }, currentDocument: { exists: false } }] }) }).then((r) => r.status), false);
-// El título no se compara con el de la casa (una página publicada antes de cambiarlo no abriría el chat): los correos lo toman de la casa.
-// El chat lleva el subtotal cotizado (con él confirma el socio): el de su solicitud.
 {
-	await fetch(`${H}/leads/lead-s`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Sara'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-	await espera('chat con un subtotal distinto del de su solicitud', crearChat('TokenSubtotalMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 9200 }), false);
-	await espera('chat con otro número de huéspedes que su solicitud', crearChat('TokenHuespedMaloLargoYAlAzar2', { ...chat, leadId: 'lead-s', huespedes: 10 }), false);
-	await espera('chat con el subtotal de su solicitud (control)', crearChat('TokenSubtotalBienLargoYAlAzar2', { ...chat, leadId: 'lead-s', subtotal: 920 }), true);
 	const r5 = await leer(null, 'reglas/r5');
-	n++; if (r5 !== 404) fallas++; console.log(`${r5 === 404 ? 'ok   ' : 'FALLA'} 404    · leer reglas/r5 responde «no existe» (así el sitio sabe que puede mandar el subtotal) (${r5})`);
+	n++; if (r5 !== 404) fallas++; console.log(`${r5 === 404 ? 'ok   ' : 'FALLA'} 404    · leer reglas/r5 responde «no existe» (las páginas de antes lo consultan) (${r5})`);
 	await espera('nadie escribe en reglas/r5', fetch(`${H}/reglas/r5`, { method: 'PATCH', headers: cab(null), body: JSON.stringify({ fields: campos({ x: 1 }) }) }).then((r) => r.status), false);
 }
-// El chat es lo que ve el socio en Solicitudes: fechas, noches, total, moneda y subtotal iguales a los de su solicitud
-// (el servidor confirma con los de la solicitud: si no, el socio confirmaría una cosa y se guardaría otra).
-{
-	await fetch(`${H}/leads/lead-a1`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Carla'), telefono: val('55550000'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
-	const chatA1 = { ...chat, leadId: 'lead-a1' };
-	await espera('chat con otra llegada que su solicitud', crearChat('TokenA1LlegadaLargoYAlAzar2345', { ...chatA1, llegada: '2027-02-03' }), false);
-	await espera('chat con otra salida que su solicitud', crearChat('TokenA1SalidaLargoYAlAzar23456', { ...chatA1, salida: '2026-11-17' }), false);
-	await espera('chat con menos noches que su solicitud', crearChat('TokenA1NochesLargoYAlAzar23456', { ...chatA1, noches: 1 }), false);
-	await espera('chat con un total más bajo que su solicitud', crearChat('TokenA1TotalLargoYAlAzar234567', { ...chatA1, total: 122 }), false);
-	await espera('chat en otra moneda que su solicitud', crearChat('TokenA1MonedaLargoYAlAzar23456', { ...chatA1, moneda: 'GTQ' }), false);
-	await espera('chat sin el subtotal cotizado', crearChat('TokenA1SinSubLargoYAlAzar23456', (({ subtotal, ...x }) => x)(chatA1)), false);
-	await espera('chat igual a su solicitud (control)', crearChat('TokenA1BienLargoYAlAzar2345678', chatA1), true);
-}
-await espera('chat con foto, dirección de la ficha y un título de antes (control)', crearChat('TokenConFotoLargoYAlAzar2345', { ...chatN, propertyTitulo: 'Título de antes', foto: 'https://ejemplo.com/a.jpg', url: '/propiedad/x/' }), true);
 await espera('quien tiene el enlace lee su reserva', leer(null, `chats/${T}`), true);
 await espera('anónimo lista todas las conversaciones', consulta(null, 'chats'), false);
 await espera('cliente escribe', crear(null, msj(), m('cliente', '¿Aceptan 2 perros? Llegamos el 16/11/2026 a las 15:00')), true);
@@ -110,6 +81,32 @@ await espera('socio dueño responde', crear('socio1', msj(), m('socio', 'Sí, se
 await espera('socio dueño firma como equipo', crear('socio1', msj(), m('equipo', 'Soy del equipo')), false);
 await espera('socio dueño firma como cliente', crear('socio1', msj(), m('cliente', 'Ya no quiero')), false);
 await espera('socio manda su teléfono con espacios', crear('socio1', msj(), m('socio', 'llamame al 55 55 12 34')), false);
+await espera('cliente manda su teléfono en dígitos de ancho completo', crear(null, msj(), m('cliente', 'mi cel ５５５５１２３４')), false);
+await espera('cliente manda su teléfono en dígitos arábigos', crear(null, msj(), m('cliente', 'mi cel ٥٥٥٥١٢٣٤')), false);
+await espera('cliente manda su teléfono en números encerrados (①②③…)', crear(null, msj(), m('cliente', 'mi cel ⑤⑤⑤⑤①②③④')), false);
+await espera('cliente manda su correo con la arroba de ancho completo', crear(null, msj(), m('cliente', 'ana＠gmail')), false);
+// El filtro de la regla es el del navegador (js/calc-vacacional.js FILTRO_CONTACTO → scripts/reglas-contacto.mjs): el
+// mismo corpus da lo mismo en los dos (scripts/corpus-contacto.mjs).
+{
+	await import('../../js/calc-vacacional.js');
+	const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS } = await import('../corpus-contacto.mjs');
+	const distintas = [];
+	// De las generadas, una de cada 20 (todas corren en npm test contra el navegador; aquí, que la regla diga lo mismo).
+	const muestra = EVASIONES_GENERADAS.filter((t, i) => i % 20 === 0);
+	for (const texto of [...NORMALES, ...EVASIONES, ...BLOQUEADAS_A_PROPOSITO, ...muestra].filter(Boolean)) {
+		const s = await crear(null, msj(), m('cliente', texto));
+		const navegador = globalThis.EQVacacional.tieneContacto(texto);
+		if ((s === 200) === navegador || (s !== 200 && s !== 403)) distintas.push(`${texto} (regla ${s}, navegador ${navegador ? 'bloquea' : 'deja'})`);
+	}
+	{
+		let largo = ''; while (largo.length < 1000) largo += 'Hola, somos 4 adultos y 2 niños, llegamos el viernes 20 a las 3 de la tarde. Pagué 1500 + 350 de limpieza. ';
+		const s = await crear(null, msj(), m('cliente', largo.slice(0, 1000)));
+		if (s !== 200) distintas.push(`mensaje normal de 1000 letras (${s})`);
+	}
+	n++; if (distintas.length) fallas++;
+	console.log(`${distintas.length ? 'FALLA' : 'ok   '} igual  · el filtro de la regla y el del navegador dicen lo mismo de ${NORMALES.length + EVASIONES.length + BLOQUEADAS_A_PROPOSITO.length + muestra.length} frases${distintas.length ? `: ${distintas.join(' | ')}` : ''}`);
+}
+await espera('cliente escribe una fecha y una hora (control)', crear(null, msj(), m('cliente', 'Llegamos el 16 a las 3')), true);
 await espera('socio manda un enlace', crear('socio1', msj(), m('socio', 'mira https://micasa.gt')), false);
 await espera('socio dueño lista sus conversaciones', consulta('socio1', 'chats', 'propietarioId', 'o1'), true);
 await espera('socio dueño lee los mensajes', leer('socio1', `chats/${T}/mensajes`), true);
@@ -136,6 +133,9 @@ await espera('administrador marca confirmada (camino del administrador)', act('a
 await espera('socio dueño inventa un estado', act('socio1', { estado: 'regalada' }), false);
 // El socio y los datos del cliente
 await espera('socio dueño lee la solicitud (teléfono del cliente)', leer('socio1', 'leads/lead1'), false);
+await espera('el administrador borra una solicitud de reserva (su reserva y su chat la buscan)', fetch(`${H}/leads/lead1`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+await poner('leads/lead-contacto', { nombre: 'Contacto', telefono: '55550000', agentId: '' });
+await espera('el administrador borra un lead de contacto (control)', fetch(`${H}/leads/lead-contacto`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), true);
 await espera('socio dueño lista las solicitudes de sus casas', consulta('socio1', 'leads', 'propietarioId', 'o1'), false);
 // Lo que escribe el socio en la solicitud: solo agrega un renglón al historial.
 const renglon = (que) => ({ mapValue: { fields: campos({ que, quien: 'socio1', cuando: new Date().toISOString() }) } });
@@ -218,6 +218,14 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await espera('socio dueño de la casa lee el acuerdo', leer('socio2', ACUERDO), false);
 	await espera('socio dueño de la casa cambia el acuerdo', escribir('socio2', ACUERDO, { ...acuerdo, comisionPct: 0 }), false);
 	await espera('socio lee el acuerdo de su casa por noche', leer('socio1', 'properties/prueba-casa-playa-monterrico/privado/acuerdo'), false);
+	// Al eliminar la casa (eliminarPropiedad), lo que escribe el servidor también se borra: la llave del calendario de EQ y
+	// lo último leído de Airbnb/Booking/VRBO. El socio no.
+	const borrar = (quien, ruta) => fetch(`${H}/${ruta}`, { method: 'DELETE', headers: cab(quien) }).then((r) => r.status);
+	for (const d of ['calendario', 'icalLeido']) {
+		await poner(`properties/prueba-casa-playa-monterrico/privado/${d}`, { x: 1 });
+		await espera(`socio borra privado/${d} de su casa por noche`, borrar('socio1', `properties/prueba-casa-playa-monterrico/privado/${d}`), false);
+		await espera(`administrador borra privado/${d} al eliminar la casa`, borrar('admin1', `properties/prueba-casa-playa-monterrico/privado/${d}`), true);
+	}
 }
 await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T) }), true);
 // Con la foto, el cliente marca en el chat «adjuntó su comprobante» (hora del servidor): desde ahí el socio no cancela solo.
@@ -343,6 +351,30 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña bloquea días de una casa que aún no tiene su precio en privado (control)', parche('mixto1', 'properties/mx-noche-sin-precio', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña bloquea días sin tocar precios (control)', parche('mixto1', 'properties/mx-noche', ['vacacional.bloqueos'], { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [] } } } } } }), true);
 		await espera('dueña se cambia el margen de su casa', juntos('mixto1', [suyo({ margen: 0 })]), false);
+		// Su calendario con topes: personas 1 a 50, mínimos de 1 a 30 noches (hasta 10), hasta 15 grupos de días bloqueados.
+		const diaN = (k) => new Date(Date.UTC(2027, 0, 1) + k * 86400000).toISOString().slice(0, 10);
+		const bloqueos = (n) => Array.from({ length: n }, (_, k) => ({ desde: diaN(3 * k), hasta: diaN(3 * k + 2) }));
+		const minimos = (n, noches = 3) => Array.from({ length: n }, (_, k) => ({ desde: diaN(3 * k), hasta: diaN(3 * k + 1), noches }));
+		await espera('dueña pone 51 personas máximo', juntos('mixto1', [casa({ huespedesMax: 51 })]), false);
+		await espera('dueña pone 2.5 personas máximo', juntos('mixto1', [casa({ huespedesMax: 2.5 })]), false);
+		await espera('dueña pone 50 personas máximo (control)', juntos('mixto1', [casa({ huespedesMax: 50 })]), true);
+		await espera('dueña pone un mínimo de 365 noches', juntos('mixto1', [casa({ minimos: minimos(1, 365) })]), false);
+		await espera('dueña pone un mínimo de 0 noches', juntos('mixto1', [casa({ minimos: minimos(1, 0) })]), false);
+		await espera('dueña pone 11 mínimos de noches', juntos('mixto1', [casa({ minimos: minimos(11) })]), false);
+		await espera('dueña pone 10 mínimos de 30 noches (control)', juntos('mixto1', [casa({ minimos: minimos(10, 30) })]), true);
+		// «Faltan tus temporadas» pone precios y mínimos de un toque: el caso más grande junto (10 y 10) cabe en las reglas.
+		await espera('dueña pone 10 precios por fechas y 10 mínimos en un solo cambio (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez), minimos: minimos(10, 3) })]), true);
+		await espera('dueña bloquea hasta dentro de 5 años', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-01-01', hasta: `${new Date().getUTCFullYear() + 5}-01-01` }] })]), false);
+		await espera('dueña bloquea con la salida antes de la llegada', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-02-10', hasta: '2027-02-01' }] })]), false);
+		await espera('dueña bloquea con una fecha mal escrita', juntos('mixto1', [casa({ bloqueos: [{ desde: 'mañana', hasta: '2027-02-01' }] })]), false);
+		await espera('dueña bloquea en el año 2099', juntos('mixto1', [casa({ bloqueos: [{ desde: '2099-01-01', hasta: '2099-01-05' }] })]), false);
+		await espera('dueña bloquea 16 grupos de días', juntos('mixto1', [casa({ bloqueos: bloqueos(16) })]), false);
+		await espera('dueña bloquea 15 grupos de días (el caso más grande, control)', juntos('mixto1', [casa({ bloqueos: bloqueos(15) })]), true);
+		// Una casa con más de los que caben (de antes): solo quita.
+		await fetch(`${H}/properties/mx-noche?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { vacacional: mapa({ bloqueos: bloqueos(20) }) } }) });
+		await espera('con 20 grupos de antes, dueña agrega otro', juntos('mixto1', [casa({ bloqueos: [...bloqueos(20), { desde: '2027-12-20', hasta: '2027-12-22' }] })]), false);
+		await espera('con 20 grupos de antes, dueña quita uno (control)', juntos('mixto1', [casa({ bloqueos: bloqueos(20).slice(1) })]), true);
+		await espera('dueña deja sus días bloqueados en 15 (control)', juntos('mixto1', [casa({ bloqueos: bloqueos(15) })]), true);
 		// Permisos del socio (permisosSocios/{propietarioId}): lo apagado no se cambia; lo demás sí.
 		// Cada vez otro día (si el valor no cambia, no cuenta como cambio).
 		let dia = 1;
@@ -550,39 +582,23 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const lead = (agentId) => ({ nombre: 'Ana', telefono: '+502 5555 1234', email: '', mensaje: '', origen: 'reserva', pagina: '/x/', propertyId: 'mx-noche', propertyTitulo: 'Casa', agentId, estado: 'nuevo' });
 		await espera('formulario de una casa por noche con el asesor de una página vieja', crear(null, 'leads/lead-pagina-vieja', lead('a7')), false);
 		await espera('formulario de una casa por noche sin asesor (control)', crear(null, 'leads/lead-pagina-nueva', lead('')), true);
-		// La cotización de la solicitud (js/vacacional.js con V.cotizar): números, impuestos = 22 % y total = subtotal + impuestos.
+		// Una solicitud de reserva (con «reserva») no nace desde el navegador: la crea el servidor con su chat y su índice
+		// (netlify/functions/solicitud.mjs; lo que se revisaba aquí —cotización, fechas, moneda, personas— se prueba en
+		// scripts/test-solicitud.mjs).
 		const conReserva = (id, r) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [{ update: { name: `${R}/leads/${id}`,
 			fields: { ...campos(lead('')), reserva: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'number' ? { doubleValue: x } : sv(x)])) } } } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((x) => x.status);
-		const bien = { codigo: 'EQ-COT', llegada: '2027-03-01', salida: '2027-03-04', noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD' };
-		// Inflar el subtotal sin inflar los impuestos ni el total no pasa (el cliente vería y pagaría otra cosa).
-		await espera('solicitud con el subtotal inflado y los impuestos y el total de antes', conReserva('lead-cot-1', { ...bien, subtotal: 100000 }), false);
-		// Inflado pero coherente (100,000 + 22,000 = 122,000) sí pasa la regla: lo frena «Confirmada», donde el
-		// administrador elige registrar con los precios de hoy (montosDeConfirmacion). Se deja probado para que se sepa.
-		await espera('solicitud inflada pero coherente: la regla la deja (la frena el administrador al confirmar)', conReserva('lead-cot-9', { ...bien, subtotal: 100000, impuestos: 22000, total: 122000 }), true);
-		await espera('solicitud de 3 noches que declara 1 (menos comisión)', conReserva('lead-cot-10', { ...bien, noches: 1, subtotal: 100, impuestos: 22, total: 122 }), false);
-		await espera('solicitud con fechas que no son fechas', conReserva('lead-cot-11', { ...bien, llegada: 'mañana' }), false);
-		await espera('solicitud de un mes que cruza de año, con sus 31 noches (control)', conReserva('lead-cot-12', { ...bien, llegada: '2026-12-15', salida: '2027-01-15', noches: 31 }), true);
-		await espera('solicitud con impuestos que no son el 22 %', conReserva('lead-cot-2', { ...bien, impuestos: 10, total: 410 }), false);
-		await espera('solicitud con un total que no es subtotal + impuestos', conReserva('lead-cot-3', { ...bien, total: 1 }), false);
-		await espera('solicitud con el subtotal como texto', conReserva('lead-cot-4', { ...bien, subtotal: 'mucho' }), false);
-		await espera('solicitud sin subtotal', conReserva('lead-cot-5', (({ subtotal, ...x }) => x)(bien)), false);
-		await espera('solicitud con 2.5 noches', conReserva('lead-cot-6', { ...bien, noches: 2.5 }), false);
-		await espera('solicitud con 0 noches', conReserva('lead-cot-7', { ...bien, noches: 0 }), false);
-		await espera('solicitud con el subtotal negativo', conReserva('lead-cot-8', { ...bien, subtotal: -100, impuestos: -22, total: -122 }), false);
-		await espera('solicitud cotizada como la cotiza el sitio, con centavos (control)', conReserva('lead-cot-ok', { ...bien, subtotal: 433.33, impuestos: 95.33, total: 528.66 }), true);
-		// La moneda es la de la casa (de ella salen la reserva y la comisión); sin moneda guardada, US$.
-		await espera('solicitud en quetzales de una casa en dólares (sin moneda guardada)', conReserva('lead-mon-1', { ...bien, moneda: 'GTQ' }), false);
-		await espera('solicitud sin moneda', conReserva('lead-mon-2', (({ moneda, ...x }) => x)(bien)), false);
-		await raw('properties/mx-noche-q', { titulo: sv('Casa por noche en quetzales'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('GTQ') });
-		await raw('properties/mx-noche-vacia', { titulo: sv('Casa por noche con la moneda vacía'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('') });
-		const enCasa = (id, casa, r) => fetch(`${H}:commit`, { method: 'POST', headers: cab(null), body: JSON.stringify({ writes: [{ update: { name: `${R}/leads/${id}`,
-			fields: { ...campos({ ...lead(''), propertyId: casa }), reserva: { mapValue: { fields: Object.fromEntries(Object.entries(r).map(([k, x]) => [k, typeof x === 'number' ? { doubleValue: x } : sv(x)])) } } } },
-			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((x) => x.status);
-		await espera('solicitud en dólares de una casa en quetzales', enCasa('lead-mon-3', 'mx-noche-q', bien), false);
-		await espera('solicitud en quetzales de una casa en quetzales (control)', enCasa('lead-mon-4', 'mx-noche-q', { ...bien, moneda: 'GTQ' }), true);
-		await espera('solicitud en dólares de una casa con la moneda vacía (control)', enCasa('lead-mon-5', 'mx-noche-vacia', bien), true);
-		await espera('solicitud de una casa que no existe', enCasa('lead-mon-6', 'no-existe', bien), false);
+		const bien = { codigo: 'EQ-COT', llegada: '2030-03-01', salida: '2030-03-04', noches: 3, huespedes: 2, subtotal: 400, impuestos: 88, total: 488, deposito: 0, moneda: 'USD' };
+		await espera('anónimo crea una solicitud de reserva bien cotizada directo en la base (la crea el servidor)', conReserva('lead-cot-ok', bien), false);
+		await espera('anónimo crea un lead con el socio de la casa (solo con reserva, por el servidor)', crear(null, 'leads/lead-socio', { ...lead(''), propietarioId: 'm1' }), false);
+		// La fecha de visita: AAAA-MM-DD, de hoy a un año (hoy en Guatemala con la hora del servidor).
+		const dia = (n) => new Date(Date.now() - 6 * 3600000 + n * 86400000).toISOString().slice(0, 10);
+		await espera('formulario con la fecha de visita de anteayer', crear(null, 'leads/lead-visita-1', { ...lead(''), fechaVisita: dia(-2) }), false);
+		await espera('formulario con la fecha de visita de «ayer» (teléfono con el reloj corrido: un día de holgura, control)', crear(null, 'leads/lead-visita-0', { ...lead(''), fechaVisita: dia(-1) }), true);
+		await espera('formulario con la fecha de visita en dos años', crear(null, 'leads/lead-visita-2', { ...lead(''), fechaVisita: dia(730) }), false);
+		await espera('formulario con la fecha de visita como texto', crear(null, 'leads/lead-visita-3', { ...lead(''), fechaVisita: 'el lunes' }), false);
+		await espera('formulario con la fecha de visita de hoy (control)', crear(null, 'leads/lead-visita-4', { ...lead(''), fechaVisita: dia(0) }), true);
+		await espera('formulario con la fecha de visita en 365 días (control)', crear(null, 'leads/lead-visita-5', { ...lead(''), fechaVisita: dia(365) }), true);
 	}
 	// La casa cambió de asesor y la página no se ha vuelto a publicar: el sitio reintenta sin asesor y la recibe el
 	// administrador (js/site.js); con el asesor de antes, no (no le llega el contacto a quien ya no la lleva).
@@ -633,6 +649,26 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	// Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche.
 	await espera('un asesor se devuelve los permisos del socio en la ficha del dueño', parche('asesor7', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: true } } } } }), false);
 	await espera('un asesor lee los permisos de un socio', leer('asesor7', 'permisosSocios/m1'), false);
+	// Datos de pago del socio (los recibe el cliente al confirmar): solo el administrador, con su renglón de cambio.
+	{
+		const R = 'projects/demo-eq/databases/(default)/documents';
+		const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const ficha = (pago, log) => ({ update: { name: `${R}/propietarios/m1`, fields: { datosPago: sv(pago), ...(log ? { datosPagoCambio: sv(log) } : {}) } }, updateMask: { fieldPaths: ['datosPago', ...(log ? ['datosPagoCambio'] : [])] } });
+		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/cambiosDatosPago/${id}`, fields: { propietarioId: sv('m1'), antes: sv('Banco 1'), despues: sv('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
+			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+		await espera('el asesor de la dueña le cambia sus datos de pago', parche('asesor7', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+		await espera('el asesor cambia los datos de pago con su renglón', lote('asesor7', [ficha('Banco 2', 'pg1'), renglon('pg1', 'asesor7')]), false);
+		await espera('el administrador cambia los datos de pago sin su renglón', parche('admin1', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco 2') }), false);
+		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: sv('Banco 0') })]), false);
+		await espera('el administrador anota otro «después» del que guarda', lote('admin1', [ficha('Banco 2', 'pg3'), renglon('pg3', 'admin1', { despues: sv('Banco 3') })]), false);
+		await espera('el administrador firma el renglón como otra persona', lote('admin1', [ficha('Banco 2', 'pg4'), renglon('pg4', 'asesor7')]), false);
+		await espera('el administrador cambia los datos de pago con su renglón (control)', lote('admin1', [ficha('Banco 2', 'pg5'), renglon('pg5', 'admin1')]), true);
+		await espera('nadie cambia un renglón de datos de pago', parche('admin1', 'cambiosDatosPago/pg5', ['despues'], { despues: sv('Banco 9') }), false);
+		await espera('el asesor lee los cambios de datos de pago', leer('asesor7', 'cambiosDatosPago/pg5'), false);
+		await espera('el administrador lee los cambios de datos de pago (control)', leer('admin1', 'cambiosDatosPago/pg5'), true);
+		await espera('el asesor guarda otra cosa de la ficha (control)', parche('asesor7', 'propietarios/m1', ['notas'], { notas: sv('Nota nueva') }), true);
+		await espera('el asesor pone otros datos de pago en el resumen de la dueña', parche('asesor7', `portalPropietarios/${TM}`, ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
+	}
 	await espera('el administrador devuelve los permisos en la ficha del dueño (control)', parche('admin1', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } } }), true);
 	await espera('un asesor crea una casa por noche a su nombre', crear('asesor7', 'properties/noche-del-asesor', { titulo: 'x', operacion: 'vacacional', agentId: 'a7', publicado: false }), false);
 	await espera('un asesor pasa su casa en venta a por noche', parche('asesor7', 'properties/prueba-casa-en-venta', ['operacion'], { operacion: sv('vacacional') }), false);
@@ -648,10 +684,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{
-		const resumen = (quien, token, propietarioId, agentId) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/portalPropietarios/${token}`,
-			fields: { email: sv('x@example.com'), agentId: sv(agentId), propietarioId: sv(propietarioId), propiedades: { arrayValue: { values: [] } } } }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
+		const resumen = (quien, token, propietarioId, agentId, pago = 'Banco 2') => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/portalPropietarios/${token}`,
+			fields: { email: sv('x@example.com'), agentId: sv(agentId), propietarioId: sv(propietarioId), datosPago: sv(pago), propiedades: { arrayValue: { values: [] } } } }, currentDocument: { exists: false } }] }) }).then((r) => r.status);
 		await espera('un asesor arma el resumen de una persona de otro asesor', resumen('asesor7', 'ResumenAjenoDeOtroAsesorLargoYAlAzar12', 'o2', 'a7'), false);
-		await espera('un asesor arma el resumen de una persona suya (control)', resumen('asesor7', 'ResumenPropioDelAsesorLargoYAlAzar1234', 'm1', 'a7'), true);
+		await espera('un asesor arma el resumen de una persona suya con otros datos de pago que los de su ficha', resumen('asesor7', 'ResumenPagoAjenoDelAsesorLargoYAlAzar12', 'm1', 'a7', 'Banco del asesor 999'), false);
+		await espera('un asesor arma el resumen de una persona suya, con los datos de pago de su ficha (control)', resumen('asesor7', 'ResumenPropioDelAsesorLargoYAlAzar1234', 'm1', 'a7'), true);
 	}
 	// Casa por noche sin privado/socio todavía: el dueño lo crea con sus precios, junto con el público y con el margen.
 	{
@@ -728,6 +765,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('el administrador lee un límite de pedidos', leer('admin1', 'limites/abc'), false);
 	await espera('alguien de afuera borra su límite de pedidos', lote(null, [{ delete: `${RAIZ}/limites/abc` }]), false);
 	await espera('el administrador escribe un límite de pedidos', lote('admin1', [docu('limites/abc', { veces: [1] })]), false);
+	// Las solicitudes recientes de cada casa (apartadasCasa/{casa}, las que ponen en fila a las de a la vez): solo el servidor.
+	await poner('apartadasCasa/casa1', { lista: [] });
+	for (const [quien, nombre] of [[null, 'sin sesión'], ['socio1', 'el socio'], ['admin1', 'el administrador']]) {
+		await espera(`${nombre} lee apartadasCasa`, leer(quien, 'apartadasCasa/casa1'), false);
+		await espera(`${nombre} lista apartadasCasa`, consulta(quien, 'apartadasCasa'), false);
+		await espera(`${nombre} crea apartadasCasa`, lote(quien, [docu('apartadasCasa/otra', { lista: [] })]), false);
+		await espera(`${nombre} cambia apartadasCasa`, lote(quien, [{ update: { name: `${RAIZ}/apartadasCasa/casa1`, fields: campos({ lista: [] }) } }]), false);
+	}
 	// Las alertas de «No se dio» con fechas ocupadas (alertas/bloqueo-{id}) también: solo el servidor, para que nadie
 	// las borre y el aviso salga otra vez, ni marque una como avisada para que no salga.
 	await espera('el administrador lee una alerta de bloqueo', leer('admin1', 'alertas/bloqueo-x'), false);
@@ -768,6 +813,54 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor marca «Listo» una exclusiva con una fecha mal escrita', listo('asesor7', 'exclusiva_casa-a7_mañana', exc('asesor7', 'a7', 'mañana')), false);
 	await espera('asesor marca «Listo» la exclusiva de su casa (control)', listo('asesor7', 'exclusiva_casa-a7_2026-12-01', exc('asesor7')), true);
 	await espera('el administrador deshace un «Listo» de otro (control)', quitar('admin1', 'exclusiva_casa-a7_2026-12-01'), true);
+}
+// Montos congelados de una solicitud: solo el servidor los escribe; los leen el administrador y el socio de esa casa.
+{
+	await poner('montosSolicitud/lead1', { leadId: 'lead1', propertyId: 'prueba-casa-playa-monterrico', propietarioId: 'o1', moneda: 'USD', costoSocio: 300, alojamiento: 360, ganancia: 60 });
+	await espera('administrador lee los montos de una solicitud', leer('admin1', 'montosSolicitud/lead1'), true);
+	await espera('socio de la casa lee los montos de su solicitud', leer('socio1', 'montosSolicitud/lead1'), true);
+	await espera('socio lista los montos de sus solicitudes', fetch(`${H}:runQuery`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'montosSolicitud' }], where: { fieldFilter: { field: { fieldPath: 'propietarioId' }, op: 'EQUAL', value: val('o1') } } } }) }).then((r) => r.status), true);
+	await espera('otro socio lee los montos de una solicitud ajena', leer('socio2', 'montosSolicitud/lead1'), false);
+	await espera('cliente sin sesión lee los montos', leer(null, 'montosSolicitud/lead1'), false);
+	await espera('socio cambia los montos de su solicitud', fetch(`${H}/montosSolicitud/lead1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ propietarioId: 'o1', costoSocio: 360 }) }) }).then((r) => r.status), false);
+	await espera('administrador escribe montos a mano (solo el servidor)', crear('admin1', 'montosSolicitud/lead-n', { propietarioId: 'o1', costoSocio: 1 }), false);
+}
+// Cotizaciones con número seguido: el contador sube de 1 en 1, solo junto con la cotización que nace con ese número.
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const ent = (n) => ({ integerValue: String(n) });
+	const cot = (id, n, extra = {}) => ({ update: { name: `${R}/cotizaciones/${id}`, fields: { agentId: { stringValue: 'a7' }, numero: { stringValue: typeof n === 'number' ? `COT-${String(n).padStart(4, '0')}` : n.numero }, consecutivo: ent(typeof n === 'number' ? n : n.consecutivo), ...extra } }, currentDocument: { exists: false } });
+	const cont = (n, id, existe) => ({ update: { name: `${R}/contadores/cotizaciones`, fields: { ultimo: ent(n), cotizacion: { stringValue: id } } }, currentDocument: { exists: existe } });
+	await espera('asesor crea la primera cotización con el contador en 1', lote('asesor7', [cont(1, 'cot1', false), cot('cot1', 1)]), true);
+	await espera('asesor crea una cotización sin el contador', lote('asesor7', [cot('cot-sin', 2)]), false);
+	await espera('asesor salta un número (contador de 1 a 3)', lote('asesor7', [cont(3, 'cot3', true), cot('cot3', 3)]), false);
+	await espera('asesor repite el número 1', lote('asesor7', [cont(1, 'cot1b', true), cot('cot1b', 1)]), false);
+	await espera('asesor sube el contador sin crear su cotización', lote('asesor7', [cont(2, 'cot-nada', true)]), false);
+	await espera('asesor sube el contador para una cotización que ya existe', lote('asesor7', [cont(2, 'cot1', true)]), false);
+	await espera('asesor crea la 2 con otro número escrito («COT-0099»)', lote('asesor7', [cont(2, 'cot2', true), cot('cot2', { numero: 'COT-0099', consecutivo: 2 })]), false);
+	await espera('asesor crea la 2 con el contador apuntando a otra cotización', lote('asesor7', [cont(2, 'otra', true), cot('cot2', 2)]), false);
+	await espera('otro asesor crea la 2 (control: el número es de todos)', lote('asesor9', [cont(2, 'cot2', true), { update: { ...cot('cot2', 2).update, fields: { ...cot('cot2', 2).update.fields, agentId: { stringValue: 'a9' } } }, currentDocument: { exists: false } }]), true);
+	await espera('el asesor cambia el número de su cotización', fetch(`${H}/cotizaciones/cot1?updateMask.fieldPaths=numero`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: { numero: { stringValue: 'COT-0007' } } }) }).then((r) => r.status), false);
+	await espera('el asesor edita otra cosa de su cotización (control)', fetch(`${H}/cotizaciones/cot1?updateMask.fieldPaths=notas`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: { notas: { stringValue: 'Ajuste' } } }) }).then((r) => r.status), true);
+	await espera('socio lee el contador', leer('socio1', 'contadores/cotizaciones'), false);
+}
+// Una casa nueva y su privado en un solo lote (admin/js/privado-casa.js crearCasa): o queda todo o nada.
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const nueva = (id, f) => ({ update: { name: `${R}/properties/${id}`, fields: f }, currentDocument: { exists: false } });
+	const priv = (id, doc, f) => ({ update: { name: `${R}/properties/${id}/privado/${doc}`, fields: f } });
+	await espera('el administrador crea una casa por noche con su precio del socio y su llegada, juntos (control)', lote('admin1', [
+		nueva('lote-noche', { titulo: { stringValue: 'Casa nueva' }, operacion: { stringValue: 'vacacional' }, agentId: { stringValue: '' }, publicado: { booleanValue: false } }),
+		priv('lote-noche', 'socio', { precioBase: { integerValue: '100' } }), priv('lote-noche', 'llegada', { direccion: { stringValue: 'Km 98.5' } })]), true);
+	await espera('el asesor crea su casa en venta con su acuerdo, juntos (control)', lote('asesor7', [
+		nueva('lote-venta', { titulo: { stringValue: 'Casa en venta nueva' }, operacion: { stringValue: 'venta' }, agentId: { stringValue: 'a7' } }),
+		priv('lote-venta', 'acuerdo', { exclusiva: { booleanValue: true } })]), true);
+	await espera('el asesor crea una casa de otro asesor con su privado', lote('asesor7', [
+		nueva('lote-ajena', { titulo: { stringValue: 'Ajena' }, operacion: { stringValue: 'venta' }, agentId: { stringValue: 'a9' } }),
+		priv('lote-ajena', 'acuerdo', { exclusiva: { booleanValue: true } })]), false);
+	await espera('el asesor escribe el privado de una casa de otro asesor', lote('asesor7', [priv('lote-noche', 'socio', { precioBase: { integerValue: '1' } })]), false);
 }
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);

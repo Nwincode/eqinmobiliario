@@ -6,10 +6,10 @@ import {
 import { buscar, paginaDeZona, zonasHermanas, padres, nombreTipo } from './landings.mjs';
 import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosCliente } from './i18n.mjs';
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
-import { estadoDe } from '../../admin/js/estados.js';
+import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
 import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
-import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe } from '../../admin/js/seo-auto.js';
+import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { fotoCdn, pasaPorCdn } from './foto-cdn.mjs';
@@ -42,14 +42,14 @@ const rt = (ctx) => RUTAS[(ctx && ctx.lang) || 'es'];
 const visible = (ctx, href) => !ctx.enlaces || ctx.enlaces.visible(href);
 const md = (ctx, texto, nivel = 2) => markdown(texto, ctx.enlaces ? ctx.enlaces.resolver : null, nivel);
 const lng = (p) => p._lang || 'es';
-const price = (p) => formatPrice(p.precio, p.moneda, p.operacion, lng(p));
+const price = (p) => formatPrice(precioVisible(p), p.moneda, p.operacion, lng(p));
 
 // Precio rebajado: el último cambio de precio (misma moneda) fue una baja hace 60 días o menos.
 // Sale del historial de precio que guarda el panel. Devuelve el precio anterior o 0.
 const DIAS_REBAJA = 60;
 export function precioAnterior(p, hoy = Date.now()) {
 	if (!p || !Number(p.precio) || p.operacion === 'vacacional' || (p.estado && p.estado !== 'disponible')) return 0;
-	if (p.vipLanding && p.vipLanding.ocultarPrecio) return 0;
+	if (!precioVisible(p)) return 0;
 	const h = (p.historialPrecio || []).filter((x) => x && Number(x.precio));
 	if (h.length < 2) return 0;
 	const ultimo = h[h.length - 1];
@@ -447,7 +447,7 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 	const url = propertyUrl(p);
 	const data = [
 		// Precio en US$ (formato.js `enUSD`, un solo tipo de cambio): así el orden y los filtros comparan Q con US$.
-		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(p.precio, p.moneda))],
+		['operacion', p.operacion], ['tipo', p.tipo], ['zona', p.zona], ['precio', Math.round(enUSD(precioVisible(p), p.moneda))],
 		['habitaciones', p.habitaciones || 0], ['fecha', p.fechaOrden || 0],
 		['texto', [p.titulo, p.zona, p.ciudad, porNoche(p) ? '' : p.direccion, tipoLabel(p)].filter(Boolean).join(' ').toLowerCase()],
 		...(vacacionalVisible(p) ? [['vac', JSON.stringify((({ bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza }) => ({ id: p.id, bloqueos, huespedesMax, nochesMin, minimos, plan, limpieza, moneda: p.moneda || 'USD' }))(datosVacacional(p)))]] : [])
@@ -459,7 +459,7 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 	const varias = fotos.length > 1;
 	return `<div class="property-item" ${data}>
 								<div class="prop-fotos"${varias ? ` role="group" aria-label="${esc(`${t.galeriaFotos}: ${p.titulo}`)}"` : ''}>
-									<a href="${url}" class="img" tabindex="-1">
+									<a href="${url}" class="img" tabindex="-1" aria-hidden="true">
 										${imgFoto(firstPhoto(p), { alt: photoAlt(p), clase: 'img-fluid', sizes: SIZES_TARJETA, anchos: [480, 800], lazy, prioridad })}
 										${fotos.slice(1).map((f, i) => `<img data-src="${esc(fotoAncho(f.url, 800) || f.url)}" alt="${esc(photoAlt(p, i + 1))}" class="img-fluid" width="800" height="600">`).join('')}
 									</a>
@@ -486,7 +486,7 @@ export function leadForm({ origen, property = null, agentId = '', titulo = '', b
 	const msg = mensaje === false ? '' : mensaje || (property ? fmt(t.msgInteres, { titulo: property.titulo }) : '');
 	// Una casa por noche no lleva asesor: su solicitud la atienden el administrador y su dueño (las reglas lo exigen).
 	const asesor = property && property.operacion === 'vacacional' ? '' : agentId;
-	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(asesor)}"${property && property.propietarioId ? ` data-propietario-id="${esc(property.propietarioId)}"` : ''} data-lang="${lang}" novalidate>
+	return `<form class="lead-form${dark ? ' lead-form-dark' : ''}" data-origen="${esc(origen)}" data-property-id="${esc(pid)}" data-property-titulo="${esc(ptitle)}" data-agent-id="${esc(asesor)}" data-lang="${lang}" novalidate>
 		${titulo ? `<h2 class="h5 mb-3">${ic(visita ? 'calendar' : 'comments')}${esc(titulo)}</h2>` : ''}
 		<div class="mb-3"><label class="form-label" for="lf-nombre-${esc(origen)}">${t.nombre} *</label><input id="lf-nombre-${esc(origen)}" class="form-control" name="nombre" required maxlength="100" autocomplete="name"></div>
 		<div class="mb-3"><label class="form-label" for="lf-tel-${esc(origen)}">${t.telefono} *</label>
@@ -812,7 +812,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 	const itemListLd = {
 		'@context': 'https://schema.org',
 		'@type': 'ItemList',
-		itemListElement: list.slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(ctx, propertyUrl(p)), name: p.titulo }))
+		// Sin las casas de prueba: no se indexan (noindex), así que tampoco van en la lista que lee Google.
+		itemListElement: list.filter((p) => !p._prueba).slice(0, 50).map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: absUrl(ctx, propertyUrl(p)), name: p.titulo }))
 	};
 
 	// Introducción y precios: debajo del buscador, que sube sobre la portada (sin taparlos).
@@ -940,7 +941,7 @@ export function propertyCode(p) {
 function mortgageCalculator(ctx, p) {
 	const c = ctx.site.calculadora || {};
 	const t = tr(ctx);
-	if (c.visible === false || p.operacion === 'renta' || p.operacion === 'vacacional' || !p.precio) return '';
+	if (c.visible === false || p.operacion === 'renta' || p.operacion === 'vacacional' || !precioVisible(p)) return '';
 	return `<div class="calc-card mt-4" data-calc data-precio="${esc(p.precio)}" data-moneda="${esc(p.moneda || 'USD')}" data-lang="${ctx.lang || 'es'}">
 						<h3 class="h5 mb-3">${ic('calculator')}${t.calcTitulo}</h3>
 						<div class="row g-2">
@@ -956,7 +957,7 @@ function mortgageCalculator(ctx, p) {
 // Calculadora de renta (versión pública). Las cuentas las hace js/calc-renta.js en el navegador.
 // Se muestra en fichas en venta (no terrenos) con precio, y vacía en /calculadora-de-renta/.
 export function rentaVisible(p) {
-	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && Number(p.precio) > 0);
+	return Boolean(p && p.operacion === 'venta' && p.tipo !== 'terreno' && precioVisible(p) > 0);
 }
 function rentaWidget(ctx, p = null) {
 	const t = tr(ctx);
@@ -1030,7 +1031,7 @@ function factsList(p) {
 		['calendar', t.fAnio, p.anioConstruccion],
 		['wrench', t.fMantenimiento, p.mantenimiento ? formatPrice(p.mantenimiento, p.moneda, 'renta', lng(p)) : ''],
 		['map-marker', t.fUbicacion, lugarDe(p, !porNoche(p))],
-		['usd', t.fPrecioM2, p.operacion === 'venta' && p.precio && m2
+		['usd', t.fPrecioM2, p.operacion === 'venta' && precioVisible(p) && m2
 			? formatPrice(Math.round(p.precio / (en ? m2 * M2_A_FT2 : m2)), p.moneda, 'venta', lng(p)) : ''],
 		['hashtag', t.fCodigo, propertyCode(p)]
 	];
@@ -1108,10 +1109,10 @@ function listingLd(ctx, p) {
 	const offer = {
 		'@type': 'Offer',
 		url: absUrl(ctx, propertyUrl(p)),
-		price: p.vipLanding && p.vipLanding.ocultarPrecio ? undefined : (p.precio || undefined),
+		price: precioVisible(p) || undefined,
 		priceCurrency: p.moneda || 'USD',
 		// Renta vacacional: el precio es por noche, antes de impuestos.
-		priceSpecification: p.operacion === 'vacacional' && p.precio
+		priceSpecification: p.operacion === 'vacacional' && precioVisible(p)
 			? { '@type': 'UnitPriceSpecification', price: p.precio, priceCurrency: p.moneda || 'USD', unitText: lng(p) === 'en' ? 'night' : 'noche', valueAddedTaxIncluded: false }
 			: undefined,
 		offeredBy: agent
@@ -1161,13 +1162,31 @@ export function autoSeoTitle(p) {
 	return autoSeoTitleBase(p, lng(p) === 'en');
 }
 
-function seoTitle(p) {
-	return (p.seo && p.seo.titulo) || autoSeoTitle(p);
+export function seoTitle(p) {
+	return p._tituloUnico || (p.seo && p.seo.titulo) || autoSeoTitle(p);
+}
+// El título de una ficha que repetía el de otra: con su código (o su id) detrás del nombre, sin pasar del largo para
+// Google (si no cabe, se quita lo de después de « | » y luego se acorta el nombre). Quién lo lleva no depende del orden
+// en que llegan: build.mjs se lo da a la más nueva (por fecha de creación y, si empatan, por código).
+export function tituloUnico(p, titulo, vistos) {
+	const extra = p.codigo || String(p.id || '').slice(0, 6);
+	const [base, ...resto] = titulo.split(' | ');
+	let n = 0, out;
+	do {
+		const marca = ` · ${extra}${n ? `-${n}` : ''}`;
+		out = [`${base}${marca}`, ...resto].join(' | ');
+		if (out.length > TITULO_MAX) out = `${base}${marca}`;
+		if (out.length > TITULO_MAX) out = `${recortar(base, TITULO_MAX - marca.length)}${marca}`;
+	} while (vistos.has(out) && ++n < 50);
+	return out;
 }
 
+// La descripción para Google de una casa: la escrita en la ficha si dice lo suficiente (70 letras o más); si no, la
+// automática con los datos de la casa (precio, habitaciones, baños, personas o m²).
 function seoDescription(p) {
 	const t = TEXTOS[lng(p)];
-	return (p.seo && p.seo.descripcion) || autoSeoDescripcion(p, price(p), [
+	const propia = p.seo && p.seo.descripcion;
+	return (propia && propia.length >= 70 && propia) || autoSeoDescripcion(p, price(p), [
 		p.habitaciones && plural(p.habitaciones, t.habitacion, t.habitaciones),
 		p.banos && plural(p.banos, t.bano, t.banos),
 		// Renta vacacional: a quien busca dónde quedarse le importa cuántos caben, no los m².
@@ -1176,7 +1195,7 @@ function seoDescription(p) {
 }
 
 function viewContentAttrs(p) {
-	return `data-view-content='${esc(JSON.stringify({ content_ids: [p.id], content_name: p.titulo, content_type: 'home_listing', value: p.precio || 0, currency: p.moneda || 'USD' }))}'`;
+	return `data-view-content='${esc(JSON.stringify({ content_ids: [p.id], content_name: p.titulo, content_type: 'home_listing', value: precioVisible(p), currency: p.moneda || 'USD' }))}'`;
 }
 
 function shareButtons(ctx, p) {
@@ -1220,7 +1239,7 @@ function datosVacacional(p) {
 		},
 		nochesMin: Math.max(1, Math.round(num(v.nochesMin, 1)) || 1),
 		// Mínimos de noches por fechas (Navidad, Semana Santa…): los pone el socio o el equipo.
-		minimos: (v.minimos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), noches: Math.round(num(x.noches)) })).filter((x) => x.desde && x.hasta && x.noches > 1),
+		minimos: (v.minimos || []).map((x) => ({ desde: fecha(x.desde), hasta: fecha(x.hasta), noches: Math.round(num(x.noches)) })).filter((x) => x.desde && x.hasta && x.desde <= x.hasta && x.noches > 1),
 		huespedesMax: Math.max(1, Math.round(num(v.huespedesMax, 2)) || 1),
 		limpieza: num(v.limpieza),
 		deposito: num(v.deposito),
@@ -1436,6 +1455,7 @@ ${esVac ? '' : lateral}
 		preloadSizes: sizesGaleria((p.fotos || []).length, 0),
 		title: seoTitle(p),
 		description: seoDescription(p),
+		noindex: esDePrueba(p),
 		image: firstPhoto(p),
 		imageAlt: photoAlt(p),
 		ogType: 'article',
@@ -1523,7 +1543,7 @@ export function vipIndexPage(ctx, entrada = null) {
 						<span class="vip-card-body">
 							<span class="prop-badge prop-badge-vip">VIP</span>
 							<span class="vip-card-title">${esc((p.vipLanding && p.vipLanding.titular) || p.titulo)}</span>
-							<span class="vip-card-meta">${ic('map-marker')}${esc(lugarDe(p))}${p.vipLanding && p.vipLanding.ocultarPrecio ? '' : ` · ${esc(price(p))}`}</span>
+							<span class="vip-card-meta">${ic('map-marker')}${esc(lugarDe(p))}${precioVisible(p) ? ` · ${esc(price(p))}` : ''}</span>
 						</span>
 					</a>
 				</div>`).join('\n') : `<p class="text-center text-black-50">${t.vipPronto} <a href="${r.contacto}">${t.contactanos}</a> ${t.paraConocerlas}</p>`}
@@ -1572,7 +1592,7 @@ export function vipLandingPage(ctx, p) {
 	const portada = v.portada || firstPhoto(p);
 	const video = videoEmbedUrl(v.video || p.video);
 	const mapa = !porNoche(p) && (v.mapa || p.mapa) ? mapEmbedUrl(v.mapa || p.mapa) : '';
-	const precio = v.ocultarPrecio ? t.precioConsultar : price(p);
+	const precio = price(p);
 	const waNumber = (agent && agent.whatsapp) || s.contacto.whatsapp;
 	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));
 	const cta = v.ctaTexto || t.agendarPrivada;
@@ -1714,7 +1734,8 @@ export function vipLandingPage(ctx, p) {
 		alternates: p._alternates,
 		preloadImage: portada,
 		title: (p.seo && p.seo.titulo) || `${v.titular || p.titulo} | ${t.propiedadExclusiva}`,
-		description: (p.seo && p.seo.descripcion) || v.subtitular || seoDescription(p),
+		description: (p.seo && p.seo.descripcion && p.seo.descripcion.length >= 70 && p.seo.descripcion) || v.subtitular || seoDescription(p),
+		noindex: esDePrueba(p),
 		image: portada,
 		ogType: 'article',
 		bare: true,
@@ -1809,7 +1830,7 @@ function faqLd(page) {
 
 function postDate(post, ctx) {
 	const d = new Date(post.fecha ? `${post.fecha}T12:00:00` : post.createdAt || Date.now());
-	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(tr(ctx).dateLocale, { day: 'numeric', month: 'long', year: 'numeric' });
+	return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(tr(ctx).dateLocale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Guatemala' });
 }
 
 export function blogIndexPage(ctx) {
@@ -1921,7 +1942,7 @@ export function reservaPage(ctx) {
 							</header>
 							<ol class="vac-chat-mensajes" aria-live="polite"></ol>
 							<form class="vac-chat-form">
-								<input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+								<input type="file" accept="image/*,.heic,.heif" hidden>
 								<button type="button" class="btn btn-outline-primary btn-ico vac-chat-adjuntar">${ic('camera')}</button>
 								<textarea class="form-control" rows="2" maxlength="1000" required></textarea>
 								<button type="submit" class="btn btn-primary btn-ico">${ic('paper-plane')}</button>
@@ -1935,7 +1956,7 @@ export function reservaPage(ctx) {
 		</div>
 	</div>`;
 	// Mismo marco que la ficha (sin portada): la conversación es lo primero que se ve. Sin WhatsApp flotante: aquí se conversa en la página.
-	return layout(ctx, { path: '/reserva/', title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
+	return layout(ctx, { path: rt(ctx).reserva, title: `${t.vacChatTitulo} | ${ctx.site.general.nombreCorto}`, noindex: true, extraJs: VAC_JS, bodyAttrs: 'class="pagina-ficha"', sinFlotante: true }, body);
 }
 
 // Además del botón, las zonas, tipos y operaciones que se indexan (`porZona`): quien llega a un enlace viejo sigue buscando.

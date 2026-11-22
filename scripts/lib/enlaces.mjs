@@ -45,3 +45,22 @@ export async function revisarEnlaces(dist) {
 	}
 	return rotos;
 }
+
+// Títulos y descripciones repetidos entre las páginas que Google indexa (sin «noindex»): dos páginas con el mismo
+// <title> o la misma descripción compiten entre sí y Google elige una. Devuelve [{ tipo, texto, paginas }].
+export async function repetidosSeo(dist) {
+	const vistos = { titulo: new Map(), descripcion: new Map() };
+	for (const f of await paginas(dist)) {
+		const html = await readFile(f, 'utf8');
+		if (/<meta name="robots" content="noindex/.test(html)) continue;
+		const pagina = `/${path.relative(dist, f).replace(/index\.html$/, '')}`;
+		const titulo = (/<title>([^<]*)<\/title>/.exec(html) || [])[1];
+		const descripcion = (/<meta name="description" content="([^"]*)"/.exec(html) || [])[1];
+		for (const [tipo, texto] of [['titulo', titulo], ['descripcion', descripcion]]) {
+			if (!texto) continue;
+			if (!vistos[tipo].has(texto)) vistos[tipo].set(texto, []);
+			vistos[tipo].get(texto).push(pagina);
+		}
+	}
+	return Object.entries(vistos).flatMap(([tipo, m]) => [...m].filter(([, p]) => p.length > 1).map(([texto, p]) => ({ tipo, texto, paginas: p })));
+}

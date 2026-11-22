@@ -94,4 +94,11 @@ t('el asesor conserva los clientes que no puede ver', () => {
 	assert.deepEqual(r.map((f) => f.id), ['otro']);
 	assert.equal(combinarClientes([], ant, null).length, 0);
 });
+t('fechas del día de Guatemala: un contacto a las 19:30 del 20 nov no sale como «21 nov»', () => {
+	// 21 nov 01:30 UTC = 20 nov 19:30 en Guatemala; un día escrito («2026-11-20») es ese mismo día.
+	const ev = eventosAuto({ enLinea: true, enMercadoDesde: '2026-11-20', visitasHechas: [Date.parse('2026-11-21T01:30:00Z')] });
+	assert.deepEqual(ev.map((e) => [e.tipo, e.fecha]).sort(), [['publicado', '2026-11-20'], ['visita', '2026-11-20']]);
+	const [fila] = clientesInteresados({ propertyId: 'p1', clientes: [{ id: 'c', interes: ['p1'], createdAt: new Date('2026-11-21T01:30:00Z') }], leads: [], visitas: [], ahora: Date.parse('2026-11-22T12:00:00Z') });
+	assert.equal(fila.desde, '2026-11-20');
+});
 console.log(`\n${ok} pruebas correctas.`);

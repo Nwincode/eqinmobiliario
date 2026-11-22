@@ -2,7 +2,7 @@
 // y lo recorre como lo haría Google: enlaces internos, JSON-LD, sitemap = páginas que se indexan, títulos,
 // descripciones, canonical y pares de idioma. GUARDAR=<carpeta> deja el sitio ahí (para verlo o tomar capturas).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,14 +11,22 @@ import { seedEjemplo } from './lib/sitio-ejemplo.mjs';
 import { revisarEnlaces } from './lib/enlaces.mjs';
 import { precioTexto, dinero, TIPO_CAMBIO, enUSD, correoValido, horarioEn, conPiesCuadrados } from '../admin/js/formato.js';
 import { formatPrice } from './lib/util.mjs';
-import { celdaGaleriaVip, imgFoto } from './lib/templates.mjs';
+import { celdaGaleriaVip, imgFoto, tituloUnico } from './lib/templates.mjs';
 import { codigosEnCss } from './lib/assets.mjs';
+import { reservada } from '../admin/js/rutas.js';
+import { slugify } from '../admin/js/formato.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = mkdtempSync(path.join(tmpdir(), 'eq-sitio-'));
 const dist = process.env.GUARDAR ? path.resolve(process.env.GUARDAR) : path.join(tmp, 'dist');
 const seed = path.join(tmp, 'seed.json');
-writeFileSync(seed, JSON.stringify(seedEjemplo(path.join(ROOT, 'data/seed.json'))));
+// Dos páginas guardadas antes con un nombre que ahora es del sitio (admin/js/rutas.js): pasan a /pagina/ y su
+// dirección de antes redirige; la de inglés «properties» no tapa el listado ni se redirige encima de él.
+const ejemplo = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+ejemplo.pages.push(
+	{ id: 'pg-docs', titulo: 'Documentos', slug: 'docs', orden: 90, enFooter: false, publicado: true, contenido: 'Documentos que pide el banco para comprar una casa en Guatemala: identificación, constancia de ingresos y estados de cuenta.' },
+	{ id: 'pg-props-en', titulo: 'Properties', slug: 'properties', idioma: 'en', orden: 91, enFooter: false, publicado: true, contenido: 'All about how we list our properties in Guatemala: photos, prices, documents and visits with an advisor.' });
+writeFileSync(seed, JSON.stringify(ejemplo));
 const env = { ...process.env, DATOS: 'seed', SEED_FILE: seed, DIST_DIR: dist };
 delete env.CONTEXT; delete env.NETLIFY;
 const log = execFileSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -51,6 +59,32 @@ test('todo JSON-LD se puede leer', () => {
 	for (const [u, h] of Object.entries(html)) {
 		for (const m of h.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => JSON.parse(m[1]), u);
 	}
+});
+
+test('cada carpeta que escribe el generador es una página de contenido o está reservada (admin/js/rutas.js)', () => {
+	const datos = JSON.parse(readFileSync(seed, 'utf8'));
+	const paginasDe = (en) => new Set(datos.pages.filter((p) => p.publicado && (p.idioma === 'en') === en).map((p) => slugify(p.slug || p.titulo)));
+	for (const [dir, lang] of [[dist, 'es'], [path.join(dist, 'en'), 'en']]) {
+		const propias = paginasDe(lang === 'en');
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			// Los listados por tipo o zona (/apartamentos-en-venta/) le ceden su dirección a una página (planListados, `ocupadas`).
+			const listado = existsSync(path.join(dir, e.name, 'index.html')) && /<body data-listing="1"/.test(readFileSync(path.join(dir, e.name, 'index.html'), 'utf8'));
+			if (e.isDirectory() && !propias.has(e.name) && !listado) assert.ok(reservada(e.name, lang), `${lang}: /${e.name}/ la escribe el sitio y no está en RESERVADAS`);
+		}
+	}
+});
+
+test('una página con nombre reservado sale en /pagina/ y su dirección de antes redirige, sin tapar una del sitio', () => {
+	const reglas = readFileSync(path.join(dist, '_redirects'), 'utf8').split('\n');
+	assert.ok(existsSync(path.join(dist, 'pagina/docs/index.html')));
+	assert.ok(existsSync(path.join(dist, 'en/pagina/properties/index.html')));
+	const docs = reglas.indexOf('/docs/ /pagina/docs/ 301');
+	assert.ok(docs >= 0, 'redirige /docs/');
+	assert.ok(!reglas.some((l) => l.startsWith('/en/properties/ ')), 'el listado en inglés no se redirige');
+	// Antes de las reglas generales (Netlify usa la primera que coincide).
+	const general = reglas.findIndex((l) => /\* /.test(l));
+	assert.ok(general === -1 || docs < general);
+	assert.match(de('/en/properties/'), /data-listing="1"/);
 });
 
 test('sitemap = exactamente las páginas que se indexan (salvo fichas vendidas o pausadas)', () => {
@@ -193,6 +227,11 @@ test('la ficha por noche no carga los textos del chat (solo /reserva/)', () => {
 	const datos = JSON.parse(/<script type="application\/json" class="vac-datos">([\s\S]*?)<\/script>/.exec(de(vac))[1]);
 	assert.deepEqual(Object.keys(datos.t).filter((k) => k.startsWith('vacChat')), ['vacChatVer']);
 	assert.match(de('/reserva/'), /vacChatSin/);
+	// «Tu reserva» también en inglés (el enlace de una reserva hecha en inglés), fuera de Google como la de español.
+	if (html['/en/reservation/']) {
+		assert.match(de('/en/reservation/'), /<html lang="en"/);
+		assert.match(de('/en/reservation/'), /<meta name="robots" content="noindex/);
+	} else assert.fail('falta /en/reservation/');
 });
 
 test('ninguna página que se indexa enlaza un listado que no se indexa (pastillas, migas, ubicación)', () => {
@@ -415,6 +454,98 @@ test('404: además del botón, enlaces a las zonas y tipos que se indexan', () =
 	});
 }
 
+// Casos de la tanda 3: precio oculto VIP, casa de prueba, amenidades que el diccionario no tiene, zona escrita distinto,
+// dos casas con el mismo título en inglés y su dirección anterior.
+{
+	const seedT = path.join(tmp, 'seed-tanda3.json');
+	const datos = seedEjemplo(path.join(ROOT, 'data/seed.json'));
+	const vip = datos.properties.find((p) => p.vip);
+	vip.vipLanding = { ...vip.vipLanding, ocultarPrecio: true };
+	vip.precio = 987654;
+	// Descripciones guardadas con el precio: la del panel antes de ser VIP y la del traductor en inglés.
+	vip.seo = { descripcion: 'Casa en venta en Zona 16, Guatemala: 4 habitaciones. US$ 987,654.00.', auto: {} };
+	vip.en = { ...vip.en, seo: { descripcion: 'House for sale in Zona 16, Guatemala. US$ 987,654.' }, descripcion: 'Asking US$ 987,654.00, view of the forest.',
+		vipLanding: { titular: 'Forest house', subtitular: 'Only $987,654', puntosClave: ['4 bedrooms', 'US$ 987.654'] } };
+	// Y en los textos escritos a mano: descripción y página VIP.
+	vip.descripcion = 'Casa con vista al bosque. Precio: US$ 987,654.00, negociable (unos 988 mil, 987k o Q 7.6 millones).';
+	vip.vipLanding = { ...vip.vipLanding, subtitular: 'Por solo Q 987.654', puntosClave: ['4 habitaciones', 'US$ 987,654'] };
+	// Una casa que no es VIP con «Ocultar precio» marcado (dejó de ser VIP): tampoco sale.
+	const oculta = datos.properties.find((p) => p.zona === 'Zona 15' && p.operacion === 'venta' && !p.vip);
+	Object.assign(oculta, { precio: 876543, vipLanding: { ocultarPrecio: true }, titulo: 'Casa de Q 876,543 en zona 15', slug: 'casa-de-q-876543-en-zona-15', descripcion: 'Casa en zona 15 de Q 876,543.00.' });
+	const z10 = datos.properties.filter((p) => p.zona === 'Zona 10');
+	z10[0].zona = 'zona 10 ';
+	z10[1].amenidades = ['Piscina', 'Agua municipal', 'Lobby de recepción'];
+	const [a, b] = datos.properties.filter((p) => p.zona === 'Zona 15' && p.operacion === 'venta');
+	b.en = { ...b.en, titulo: a.en.titulo, slugsAnteriores: ['Old title of the second'] };
+	datos.properties.push({ ...datos.properties[0], id: 'prueba-1', titulo: 'Casa de PRUEBA Monterrico', slug: 'casa-de-prueba-monterrico', destacada: false, vip: false,
+		en: { ...datos.properties[0].en, titulo: 'Test house in Monterrico' } });
+	writeFileSync(seedT, JSON.stringify(datos));
+	const distT = path.join(tmp, 'dist-tanda3');
+	const corrida = spawnSync(process.execPath, [path.join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...env, SEED_FILE: seedT, DIST_DIR: distT }, encoding: 'utf8' });
+	if (corrida.status !== 0) throw new Error(corrida.stderr);
+	const todo = [];
+	(function leer(dir) {
+		for (const e of readdirSync(dir, { withFileTypes: true })) {
+			const f = path.join(dir, e.name);
+			if (e.isDirectory()) { if (e.name !== 'admin') leer(f); } else if (/\.(html|txt|xml|json|csv)$|^_redirects$/.test(e.name)) todo.push(f);
+		}
+	})(distT);
+	const leerT = (u) => readFileSync(path.join(distT, u), 'utf8');
+	test('VIP con «ocultar precio»: el precio no sale en ninguna página, catálogo ni archivo', () => {
+		assert.deepEqual(todo.filter((f) => /987[,.]?654|876[,.]?543|988 mil|987k|7\.6 millones/.test(readFileSync(f, 'utf8'))).map((f) => path.relative(distT, f)), []);
+		assert.ok(!readdirSync(path.join(distT, 'propiedad')).some((d) => /876543/.test(d)), 'la URL no lleva el precio');
+		assert.match(corrida.stderr, new RegExp(`Precio oculto escrito en sus textos[^\\n]*${oculta.id}`));
+		assert.ok(todo.some((f) => path.relative(distT, f).startsWith('vip' + path.sep) && /Por solo precio a consultar/.test(readFileSync(f, 'utf8'))), 'la página VIP cambia el monto por «precio a consultar»');
+	});
+	test('casa de prueba: su ficha abre pero no se indexa ni va al sitemap, llms.txt ni los catálogos', () => {
+		assert.match(leerT('propiedad/casa-de-prueba-monterrico/index.html'), /<meta name="robots" content="noindex/);
+		// No salió del botón «Casas de prueba»: el build avisa por si es una casa real.
+		assert.match(corrida.stderr, /Se tratan como casas de prueba[^\n]*«Casa de PRUEBA Monterrico»/);
+		for (const f of ['sitemap.xml', 'llms.txt', 'llms-full.txt']) assert.doesNotMatch(leerT(f), /casa-de-prueba-monterrico|test-house-in-monterrico/, f);
+		assert.ok(!todo.filter((f) => path.relative(distT, f).startsWith('feeds')).some((f) => /casa-de-prueba-monterrico/.test(readFileSync(f, 'utf8'))));
+		// Ni en listados, portada ni «similares» de otras fichas: solo su propia ficha (y la suya en inglés) la nombran.
+		const laNombran = todo.filter((f) => f.endsWith('.html') && !/casa-de-prueba-monterrico|test-house-in-monterrico/.test(f) && /casa-de-prueba-monterrico|test-house-in-monterrico/.test(readFileSync(f, 'utf8')));
+		assert.deepEqual(laNombran.map((f) => path.relative(distT, f)), []);
+		// Tampoco en la lista que lee Google (ItemList) de ningún listado.
+		const listas = todo.filter((f) => f.endsWith('.html')).map((f) => readFileSync(f, 'utf8')).flatMap((h) => [...h.matchAll(/<script type="application\/ld\+json">([^<]*"ItemList"[^<]*)<\/script>/g)].map((m) => m[1]));
+		assert.ok(listas.length > 0);
+		assert.ok(listas.every((j) => !/casa-de-prueba-monterrico/.test(j)), 'ninguna ItemList lleva la casa de prueba');
+	});
+	const repetidosT = await (await import('./lib/enlaces.mjs')).repetidosSeo(distT);
+	test('ninguna página que Google indexa repite el título o la descripción de otra (el build lo avisa)', () => {
+		assert.deepEqual(repetidosT, []);
+	});
+	test('inglés: no se pierde la amenidad que el diccionario no tiene', () => {
+		const ficha = todo.find((f) => path.relative(distT, f).startsWith(path.join('en', 'property')) && /Lobby de recepción/.test(readFileSync(f, 'utf8')));
+		assert.ok(ficha, 'la ficha en inglés muestra «Lobby de recepción»');
+		assert.match(readFileSync(ficha, 'utf8'), /Pool[\s\S]*Agua municipal/);
+	});
+	test('zona escrita distinto: una sola página de zona con todas sus casas', () => {
+		const h = leerT('propiedades/zona-10/index.html');
+		assert.doesNotMatch(h, /<meta name="robots" content="noindex/);
+		assert.equal((h.match(/class="property-item"/g) || []).length, 6);
+		assert.doesNotMatch(leerT('propiedades/index.html'), />zona 10/);
+	});
+	test('dos casas con el mismo título en inglés: la dirección anterior de la segunda lleva a la segunda', () => {
+		const r = leerT('_redirects').split('\n').find((l) => l.startsWith('/en/property/old-title-of-the-second/ '));
+		assert.ok(r, 'falta la redirección');
+		assert.match(r, new RegExp(`-${b.id.slice(0, 8)}/ 301$`));
+	});
+}
+
+test('tarjetas: la foto no es un segundo enlace para el lector de pantalla (el título ya cubre la tarjeta)', () => {
+	const h = html['/propiedades/'];
+	const fotos = h.match(/<a [^>]*class="img"[^>]*>/g) || [];
+	assert.ok(fotos.length > 0);
+	for (const a of fotos) assert.match(a, /tabindex="-1" aria-hidden="true"/);
+});
+
+test('título repetido: con su código, sin pasar de 60 letras (si no cabe, se quita lo de después de « | »)', () => {
+	assert.equal(tituloUnico({ codigo: 'EQ-12' }, 'Casa en venta | Zona 15', new Set()), 'Casa en venta · EQ-12 | Zona 15');
+	const largo = tituloUnico({ codigo: 'EQ-1234' }, 'Casa de lujo con jardín y piscina en Cayalá | Venta en Zona 16, Guatemala', new Set());
+	assert.ok(largo.length <= 60 && largo.endsWith(' · EQ-1234'), largo);
+	assert.ok(tituloUnico({ codigo: 'EQ-1' }, `${'Casa muy grande '.repeat(5)}`.trim(), new Set()).length <= 60);
+});
 test('formularios: la trampa para bots no se parece a nada que el autollenado del navegador llene', () => {
 	// Un campo oculto que el autollenado reconoce (empresa, company, website…) se llena solo y el envío del cliente se pierde.
 	const autollenado = /compan|empresa|organi|business|web|url|site|address|direcc|email|correo|phone|tel|name|nombre|city|ciudad|zip|postal/i;

@@ -2,6 +2,7 @@
 // El motor es el mismo del sitio (js/calc-renta.js → window.EQRenta), así los números coinciden con la ficha pública.
 import '/js/calc-renta.js';
 import { h, statCard, mount, pageHeader, toast, cajaTabla } from '../ui.js';
+import { dinero } from '../formato.js';
 
 const R = window.EQRenta;
 
@@ -10,7 +11,8 @@ const USOS = [['habitacional', 'Habitacional (vivienda)'], ['mixto', 'Mixto'], [
 const ISR = [['capital', 'Rentas de capital (10 % sobre el 70 %)'], ['simplificado', 'Régimen simplificado (5 % / 7 %)'], ['utilidades', 'Sobre utilidades (25 %)']];
 const IVA = [['auto', 'Automático, según lo que cobras al año'], ['pequeno', 'Pequeño contribuyente 5 % (lo pagas tú)'], ['general', 'General 12 % (lo cobras al inquilino)']];
 const IVA_CORTO = { pequeno: 'pequeño contribuyente 5 %', general: 'general 12 %' };
-const q = (v) => `Q\u00a0${Math.round(v).toLocaleString('es-GT')}`;
+// Quetzales del formato único (formato.js `dinero`), con centavos.
+const q = (v) => dinero(v, 'GTQ');
 
 const AVISOS = {
 	terreno: 'Un terreno casi nunca se renta: la referencia de cap rate no aplica y el resultado es solo ilustrativo.',
@@ -54,7 +56,8 @@ export async function render(container) {
 	let props = [];
 
 	const num = (v) => (v === '' || v === null || v === undefined || !isFinite(Number(v)) ? undefined : Number(v));
-	const dinero = (v, dec = 0) => R.dinero(v, estado.moneda, 'es', dec);
+	// Con centavos, como todo monto (js/calc-renta.js `dinero`, igual que formato.js).
+	const dinero = (v) => R.dinero(v, estado.moneda, 'es');
 	const pct = (v, dec = 2) => (v === null || v === undefined || !isFinite(v) ? '—' : R.porcentaje(v, 'es', dec));
 	const paramValores = () => Object.fromEntries(Object.entries(params).map(([k, p]) => [k, p.valor]));
 	const entradas = () => ({

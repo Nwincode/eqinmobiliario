@@ -6,19 +6,27 @@
 	var EN = document.documentElement.lang === 'en';
 	var T = EN ? {
 		errorCorreo: 'Please check your email (e.g. name@email.com).', quisiste: 'Did you mean {correo}?', usar: 'Use it', estaBien: 'If yours is right, tap send again.',
-		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
+		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', errorFecha: 'Pick a date from today on.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
-		fallo: 'We couldn\'t send the form.', sinChat: 'We received your request, but we couldn\'t open its chat: we will contact you.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
-		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
+		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
+		ver: 'Show', enviando: 'Sending…', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).', quisiste: '¿Quisiste decir {correo}?', usar: 'Usar ese', estaBien: 'Si el tuyo está bien, toca enviar otra vez.',
-		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
+		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', errorFecha: 'Elige una fecha de hoy en adelante.', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
-		fallo: 'No pudimos enviar el formulario.', sinChat: 'Recibimos tu solicitud, pero no pudimos abrir su chat: te contactaremos.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
-		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
+		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
+		ver: 'Ver', enviando: 'Enviando…', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
+
+	// Fecha de la visita: de hoy (día de Guatemala, no el del navegador) a un año. El calendario no ofrece días pasados y,
+	// si alguien la escribe a mano, el envío la revisa (diaValido). En WhatsApp va escrita («25 nov 2026»), no «2026-11-25».
+	var DIA_MS = 86400000;
+	var diaGt = function (sumar) { return new Date(Date.now() - 6 * 3600000 + (sumar || 0) * DIA_MS).toISOString().slice(0, 10); };
+	var diaValido = function (v) { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + 'T12:00:00Z')) && v >= diaGt() && v <= diaGt(365); };
+	var diaEscrito = function (v) { return new Date(v + 'T12:00:00Z').toLocaleDateString(EN ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+	document.querySelectorAll('input[name="fechaVisita"]').forEach(function (f) { f.min = diaGt(); f.max = diaGt(365); });
 
 	// Textos personalizados desde el panel (config.t.jsGracias → T.gracias, etc.).
 	var textosPanel = config.t || {};
@@ -30,11 +38,14 @@
 	// ------------------------------------------------------------ Aviso «View this site in English»
 	// Solo se ofrece (nunca se cambia el idioma solo) y no vuelve a salir si se cierra.
 	var aviso = document.querySelector('.aviso-idioma');
-	if (aviso && /^en/i.test(navigator.language || '') && !localStorage.getItem('eq_aviso_idioma')) {
+	// (Con el almacenamiento bloqueado, se ofrece igual y no se recuerda: nada de esto tumba el resto del sitio.)
+	var avisoCerrado = false;
+	try { avisoCerrado = Boolean(localStorage.getItem('eq_aviso_idioma')); } catch (e) { /* sin memoria del navegador */ }
+	if (aviso && /^en/i.test(navigator.language || '') && !avisoCerrado) {
 		aviso.hidden = false;
 		aviso.querySelector('button').addEventListener('click', function () {
 			aviso.hidden = true;
-			localStorage.setItem('eq_aviso_idioma', '1');
+			try { localStorage.setItem('eq_aviso_idioma', '1'); } catch (e) { /* sin memoria del navegador */ }
 		});
 	}
 
@@ -96,9 +107,10 @@
 
 	function str(v) { return { stringValue: String(v || '') }; }
 
-	// Guarda el lead en Firestore por REST: no hace falta cargar el SDK en el sitio público.
+	// Guarda el lead de contacto en Firestore por REST: no hace falta cargar el SDK en el sitio público. (La solicitud de
+	// reserva la guarda el servidor, con su chat: js/reserva-chat.js solicitar.)
 	function saveLead(lead) {
-		// El id se conserva en el lead: el chat de la reserva lo usa para enlazarse a su solicitud.
+		// El id se conserva en el lead: con él, /api/aviso-lead lee el lead guardado.
 		lead.id = randomId();
 		var base = 'projects/' + config.projectId + '/databases/(default)/documents';
 		var fields = {
@@ -113,7 +125,6 @@
 			agentId: str(lead.agentId),
 			estado: str('nuevo')
 		};
-		if (lead.propietarioId) fields.propietarioId = str(lead.propietarioId);
 		if (lead.fechaVisita) fields.fechaVisita = str(lead.fechaVisita);
 		if (lead.tipoVisita) fields.tipoVisita = str(lead.tipoVisita);
 		fields.idioma = str(lead.idioma);
@@ -121,15 +132,6 @@
 			var mapa = {};
 			Object.keys(lead.campana).slice(0, 8).forEach(function (k) { mapa[k] = str(lead.campana[k]); });
 			fields.campana = { mapValue: { fields: mapa } };
-		}
-		// Renta vacacional: fechas, noches, huéspedes y total de la solicitud de reserva.
-		if (lead.reserva) {
-			var res = {};
-			Object.keys(lead.reserva).slice(0, 10).forEach(function (k) {
-				var v = lead.reserva[k];
-				res[k] = typeof v === 'number' && isFinite(v) ? { doubleValue: v } : str(v);
-			});
-			fields.reserva = { mapValue: { fields: res } };
 		}
 		var body = {
 			writes: [{
@@ -153,7 +155,7 @@
 	}
 
 	function whatsappFallback(lead) {
-		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + lead.fechaVisita + '.' : '') + T.tel + lead.telefono;
+		var text = T.soy + lead.nombre + '. ' + (lead.mensaje || '') + (lead.fechaVisita ? T.visita + diaEscrito(lead.fechaVisita) + '.' : '') + T.tel + lead.telefono;
 		return 'https://wa.me/' + String(config.whatsapp || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
 	}
 
@@ -212,24 +214,75 @@
 		box.innerHTML = '<span class="' + (ok ? 'icon-check-circle' : 'icon-exclamation-triangle') + ' eq-ic" aria-hidden="true"></span>' + html;
 	}
 
+	// La prueba de «no soy un robot» de cada formulario de reserva (js/reserva-chat.js): se prepara al tocarlo, no al abrir.
+	var pruebas = [];
+	function pruebaDe(form) {
+		for (var i = 0; i < pruebas.length; i++) if (pruebas[i][0] === form) return pruebas[i][1];
+		var p = window.EQChat.prueba(form);
+		pruebas.push([form, p]);
+		return p;
+	}
+	// La solicitud de reserva que se cortó (sin respuesta o el servidor falló) se recuerda en la pestaña 30 min
+	// (sessionStorage), no solo en memoria: si el cliente recarga, el reintento va con el mismo id. Al abrir la ficha, si el
+	// servidor ya la tiene, se muestra el enlace a su solicitud (sus fechas salen ocupadas porque ya las apartó él).
+	// Una llave por casa (eq-pendiente:{casa}), en localStorage: otra pestaña del mismo navegador sigue con el mismo id y
+	// token (que sí prueban que es la misma persona; el servidor no devuelve un token por correo, casa y fechas).
+	// `hasta`: 30 min, o hasta que se pueda reintentar si el servidor dijo «en N min» (429).
+	var PENDIENTE = function (form) { return 'eq-pendiente:' + (form.getAttribute('data-property-id') || ''); };
+	var vigente = function (p) { return Boolean(p) && Date.now() < (p.hasta || p.cuando + 30 * 60000); };
+	function guardarPendiente(form, p) {
+		form.eqPendiente = p;
+		try { if (p) localStorage.setItem(PENDIENTE(form), JSON.stringify(p)); else localStorage.removeItem(PENDIENTE(form)); } catch (e) { /* sin memoria del navegador */ }
+	}
+	function leerPendiente(form) {
+		try {
+			var p = JSON.parse(localStorage.getItem(PENDIENTE(form)) || 'null');
+			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && vigente(p)) return p;
+			// Vencido: se borra, para que sus datos (nombre, correo, token) no queden en una computadora compartida.
+			if (p) localStorage.removeItem(PENDIENTE(form));
+		} catch (e) { /* sin memoria del navegador */ }
+		return null;
+	}
 	document.querySelectorAll('.lead-form').forEach(function (form) {
+		form.addEventListener('focusin', function () { if (typeof form.eqReserva === 'function' && window.EQChat) pruebaDe(form); });
+		var recordada = form.getAttribute('data-property-id') ? leerPendiente(form) : null;
+		if (recordada) form.eqPendiente = recordada;
+		// (Cuando ya cargaron reserva-chat.js y vacacional.js.)
+		if (recordada) window.addEventListener('load', function () {
+			if (!window.EQChat) return;
+			window.EQChat.yaGuardada(recordada.lead).then(function (si) {
+				if (si !== true) return;
+				guardarPendiente(form, null);
+				try { localStorage.setItem('eq-reserva', recordada.lead.token); localStorage.setItem('eq-reserva-casa', recordada.lead.propertyId); } catch (e) { /* sin memoria */ }
+				if (typeof form.eqYaPediste === 'function') form.eqYaPediste(recordada.lead.token);
+				// El aviso al anfitrión y al cliente que la respuesta perdida no alcanzó a pedir (si ya salió, no sale dos veces).
+				window.EQChat.avisar(recordada.lead.token);
+			});
+		});
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
 			// del navegador conozca (empresa, sitio web, dirección…), o le llenaría el campo a un cliente real y su envío se perdería.
 			if (form.eq_vacio && form.eq_vacio.value) return;
-			var lead = {
+			// La misma solicitud de reserva otra vez (la anterior se cortó: red o servidor; mismo correo, casa, fechas y
+			// personas, y hace menos de 30 min): va con su id, su token y su código. El nombre y el teléfono, como estén ahora
+			// (si los corrigió, el servidor pone al día la misma solicitud). Antes se le pregunta al servidor si ya la tiene:
+			// si sí, no se vuelve a revisar (pasada la medianoche no se corta por «la llegada ya pasó», y sus propias fechas no
+			// le salen «ya no están libres»); si no, se revisa como una nueva.
+			var firmaForm = JSON.stringify([form.email ? form.email.value.trim().toLowerCase() : '', form.getAttribute('data-property-id') || '', location.search]);
+			if (!form.eqPendiente) form.eqPendiente = leerPendiente(form);
+			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && vigente(form.eqPendiente) && window.EQChat ? form.eqPendiente : null;
+			if (pend) {
+				pend.lead.nombre = form.nombre.value.trim();
+				pend.lead.telefono = form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim();
+			}
+			var lead = pend ? pend.lead : {
 				nombre: form.nombre.value.trim(),
-				// Un solo formato: «+código número». Si la persona ya escribió su «+», se respeta lo que escribió.
-				// Un solo formato: «+código número». El autollenado del navegador suele traer el código pegado al número
-				// («50255551234», «00502…»): si ya empieza con el código elegido, no se repite.
-				telefono: (function (numero) {
-					if (!numero || numero.charAt(0) === '+' || !form.codigo) return numero;
-					var cod = form.codigo.value, d = numero.replace(/\D/g, '').replace(/^00/, '');
-					if (cod && d.indexOf(cod) === 0 && d.length - cod.length >= 7) return '+' + cod + ' ' + d.slice(cod.length);
-					return '+' + cod + ' ' + numero;
-				})(form.telefono.value.trim()),
-				email: form.email ? form.email.value.trim() : '',
+				// Un solo formato: «+código número», el mismo del panel (formato.js `unirTelefono`): el «+» escrito manda, y
+				// el código que el autollenado pega al número («50255551234», «00502…») no se repite.
+				telefono: form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim(),
+				// En minúsculas: el mismo correo se reconoce igual siempre (las repetidas se buscan por él).
+				email: form.email ? form.email.value.trim().toLowerCase() : '',
 				mensaje: form.mensaje ? form.mensaje.value.trim() : '',
 				origen: form.getAttribute('data-origen') || 'sitio',
 				pagina: location.pathname,
@@ -237,16 +290,14 @@
 				propertyTitulo: form.getAttribute('data-property-titulo') || '',
 				agentId: form.getAttribute('data-agent-id') || ''
 			};
-			if (form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
-			if (form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
+			if (!pend && form.fechaVisita && form.fechaVisita.value) lead.fechaVisita = form.fechaVisita.value;
+			if (!pend && form.tipoVisita) lead.tipoVisita = form.tipoVisita.value;
 			// Cuadro de reserva (js/vacacional.js): sin fechas válidas no se envía.
-			var reserva = typeof form.eqReserva === 'function' ? form.eqReserva() : null;
+			var reserva = pend ? pend.reserva : typeof form.eqReserva === 'function' ? form.eqReserva() : null;
 			// Sin fechas, el calendario se marca y se lleva la vista; los demás campos igual se revisan y se marcan.
-			var sinFechas = typeof form.eqReserva === 'function' && !reserva;
-			if (reserva) {
+			var sinFechas = !pend && typeof form.eqReserva === 'function' && !reserva;
+			if (reserva && !pend) {
 				lead.reserva = reserva.datos;
-				// Casa de un socio: la solicitud le aparece en su panel.
-				if (form.getAttribute('data-propietario-id')) lead.propietarioId = form.getAttribute('data-propietario-id');
 				lead.mensaje = (reserva.resumen + (lead.mensaje ? '\n' + lead.mensaje : '')).slice(0, 2000);
 			}
 			lead.idioma = EN ? 'en' : 'es';
@@ -255,8 +306,9 @@
 			form.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			var errores = [];
 			if (!lead.nombre) errores.push([form.nombre, T.faltaNombre]);
-			// Con la misma regla del panel (admin/js/formato.js): 7 a 15 dígitos con el código; en Guatemala, 8 después del +502.
+			// Con la misma regla del panel (admin/js/formato.js): el largo de cada país (en Guatemala, 8 después del +502).
 			if (!EQFormato.telefonoValido(lead.telefono)) errores.push([form.telefono, T.faltaTelefono]);
+			if (lead.fechaVisita && !diaValido(lead.fechaVisita)) errores.push([form.fechaVisita, T.errorFecha]);
 			// El correo (obligatorio solo en la reserva; si se escribe, siempre) con la misma regla del panel y las funciones.
 			if (form.email && (lead.email || form.email.required) && !EQFormato.correoValido(lead.email)) errores.push([form.email, lead.email ? T.errorCorreo : T.faltaCorreo]);
 			else if (form.email && lead.email && EQFormato.sugerenciaCorreo(lead.email) && form.getAttribute('data-correo-visto') !== lead.email) {
@@ -265,6 +317,7 @@
 				if (!sinFechas) form.setAttribute('data-correo-visto', lead.email);
 				errores.push([form.email, sugerencia(form, EQFormato.sugerenciaCorreo(lead.email))]);
 			}
+			if (pend) errores = errores.filter(function (e) { return e[0] === form.nombre || e[0] === form.telefono; });
 			if (errores.length) {
 				marcarCampos(form, errores, sinFechas);
 				if (!sinFechas) setStatus(form, T.revisa, false);
@@ -288,15 +341,18 @@
 				track('Lead', { content_name: lead.propertyTitulo || lead.origen, content_ids: lead.propertyId ? [lead.propertyId] : [], transaction_id: 'lead-' + Date.now().toString(36) });
 				form.reset();
 				if (!reserva) return setStatus(form, T.gracias, true);
-				// La solicitud quedó guardada pero su chat no se abrió: se dice, con el contacto a la mano.
-				if (!chat) return setStatus(form, reserva.gracias + ' ' + T.sinChat + (config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : ''), true);
 				// Reserva: todo sigue dentro del sitio, en la página de la reserva (solicitud, estado y chat).
-				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
-				if (chat) location.href = window.EQChat.enlace(chat);
+				setStatus(form, reserva.gracias + (chat ? ' <a class="btn btn-primary btn-sm mt-2" href="' + window.EQChat.enlace(chat, EN) + '"><span class="icon-comments eq-ic" aria-hidden="true"></span>' + reserva.ver + '</a>' : ''), true);
+				if (chat) location.href = window.EQChat.enlace(chat, EN);
 			};
-			var fail = function () {
+			// Lo que el servidor de reservas explica (la llegada ya pasó, la casa ya no recibe, demasiados envíos) se dice tal
+			// cual; lo demás, el aviso de siempre. Siempre con WhatsApp a la mano.
+			var fail = function (err) {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
-				setStatus(form, T.fallo + wa, false);
+				// (El servidor lo dice en el idioma del cliente.)
+				// Un 503 que no pasó con sus reintentos: «Hay muchas solicitudes en este momento…», no el aviso de siempre.
+				var motivo = err && [403, 409, 429, 503].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
+				setStatus(form, (motivo ? motivo.replace(/[<>&]/g, '') + ' ' : T.fallo) + wa, false);
 			};
 
 			if (!config.projectId) {
@@ -311,26 +367,57 @@
 				return;
 			}
 			// Lo que una página publicada antes puede mandar distinto no hace perder la solicitud:
-			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador);
-			//  - las reglas de la base todavía no aceptan «propietarioId»: va sin él.
+			//  - la casa cambió de asesor y el sitio no se ha vuelto a publicar: va sin asesor (la recibe el administrador).
 			// Solo si las reglas lo rechazan (403): un corte de red no la manda a otro asesor ni la guarda dos veces.
+			// Reserva: las fechas se revisan otra vez al día justo antes de guardar (otra persona pudo pedirlas con esta
+			// página abierta); si ya no están libres, no se envía y el calendario lo dice.
+			var revisar = function () { return reserva && typeof form.eqRevisar === 'function' ? form.eqRevisar() : Promise.resolve(true); };
+			// Una pendiente que el servidor no tiene se revisa como nueva; si ya no cuadra (fechas tomadas, precio que cambió),
+			// se suelta: la próxima sale como una solicitud nueva, con lo que el cliente ve ahora. Si el servidor no respondió
+			// la pregunta, no se suelta: se manda la misma (mismo id) y el servidor decide.
+			var libres = pend ? window.EQChat.yaGuardada(pend.lead).then(function (si) {
+				return si !== false || revisar().then(function (ok) { if (!ok) guardarPendiente(form, null); return ok; });
+			}) : revisar();
+			libres.then(function (ok) {
+				if (!ok) { button.disabled = false; return; }
+				guardar();
+			});
+			function guardar() {
+			// Reserva: la solicitud, su chat y su índice los guarda juntos el servidor (/api/solicitud), con la prueba de «no
+			// soy un robot» si está activa. Después, los avisos al socio, al equipo y al cliente con su enlace.
+			if (reserva) {
+				if (!window.EQChat) { fail(); button.disabled = false; return; }
+				var pruebaForm = pruebaDe(form);
+				// Un 503 (muchas solicitudes a la vez) se reintenta solo, con espera creciente (1, 2 y 4 s) y otra prueba de
+				// «no soy un robot» (cada una sirve una vez), mostrando «Enviando…»: el cliente no tiene que hacer nada.
+				var enviar = function (n) {
+					return pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); }).catch(function (err) {
+						if (!err || err.status !== 503 || n >= 3) throw err;
+						setStatus(form, T.enviando, true);
+						return new Promise(function (listo) { setTimeout(listo, 1000 * Math.pow(2, n)); }).then(function () { pruebaForm.otra(); return enviar(n + 1); });
+					});
+				};
+				enviar(0)
+					.then(function (token) { guardarPendiente(form, null); window.EQChat.avisar(token); done(token); }, function (err) {
+						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
+						// (Con 429 tampoco se suelta: el aviso dice en cuántos minutos volver a intentar, con la misma.)
+						var minutos = err && err.status === 429 && err.datos && Number(err.datos.reintentarEn);
+						guardarPendiente(form, !err || !err.status || err.status >= 500 || err.status === 429 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now(),
+							hasta: minutos ? Date.now() + (minutos + 30) * 60000 : 0 } : null);
+						fail(err);
+					})
+					.then(function () { pruebaForm.otra(); button.disabled = false; });
+				return;
+			}
 			saveLead(lead).catch(function (err) {
 				if (!lead.propertyId || !lead.agentId || err.message !== 'HTTP 403') throw err;
 				lead.agentId = '';
 				return saveLead(lead);
-			}).catch(function (err) {
-				if (!lead.propietarioId || err.message !== 'HTTP 403') throw err;
-				delete lead.propietarioId;
-				return saveLead(lead);
 			}).then(function () {
-				// Chat de la reserva: si no se pudo abrir, la solicitud igual quedó guardada.
-				var chat = reserva && window.EQChat ? window.EQChat.crear(lead, reserva.datos).catch(function () { return ''; }) : Promise.resolve('');
-				return chat.then(function (token) {
-					// Reserva con chat: avisos al socio, al equipo y al cliente con su enlace. Lo demás, el aviso de siempre al equipo.
-					if (token) window.EQChat.avisar(token); else avisarEquipo(lead);
-					done(token);
-				});
+				avisarEquipo(lead);
+				done('');
 			}, fail).then(function () { button.disabled = false; });
+			}
 		});
 	});
 
@@ -952,13 +1039,11 @@
 			cabeza.appendChild(quien);
 			tarjeta.appendChild(cabeza);
 
-			// Reseñas de solo estrellas (sin texto): no se dibujan comillas vacías.
-			if (String(r.texto || '').trim()) {
-				var cita = el('blockquote', 'gr-resena-texto');
-				cita.appendChild(el('p', '', String(r.texto)));
-				tarjeta.appendChild(cita);
-				tarjeta.appendChild(botonMas());
-			}
+			// Llegan solo las que tienen texto (las de solo estrellas las quita netlify/functions/resenas-google.mjs).
+			var cita = el('blockquote', 'gr-resena-texto');
+			cita.appendChild(el('p', '', String(r.texto)));
+			tarjeta.appendChild(cita);
+			tarjeta.appendChild(botonMas());
 
 			var pie = el('footer', 'gr-resena-pie');
 			var fuente = el('span', 'gr-fuente');

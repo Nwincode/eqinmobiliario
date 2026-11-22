@@ -1,5 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
-import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction } from '../firebase.js';
+import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
+import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
 import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { correoContrasena } from '../contrasena.js';
@@ -185,7 +186,8 @@ async function renderEditor(container, id) {
 		] },
 		// Venta, renta y renta por noche no son lo mismo: cada una con su bloque y lo que se le pide.
 		{ type: 'section', label: 'Renta por noche', when: conNoche, help: 'Es socio de renta vacacional: a su correo le llegan las solicitudes de reserva y atiende él mismo sus casas. La empresa gana el margen de cada casa (se pone en la ficha de la casa).' },
-		{ name: 'datosPago', label: 'Datos de pago para las reservas', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva.' },
+		// Solo el administrador los cambia (firestore.rules): cada cambio queda anotado y le llega al equipo por correo.
+		session.isAdmin ? { name: 'datosPago', label: 'Datos de pago para las reservas', type: 'textarea', rows: 2, maxlength: 1000, when: conNoche, placeholder: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de…', help: 'Se le envían al cliente por el chat al confirmar su reserva. Cada cambio queda anotado y le llega al equipo por correo.' } : null,
 		// La exclusiva, la comisión y los impuestos son de cada inmueble: se ponen en la ficha del inmueble
 		// («Acuerdo con el dueño»). Aquí queda solo quién atiende a esta persona, que decide qué asesor la ve.
 		session.isAdmin ? { type: 'section', label: 'Asesor', when: conComision, help: 'El asesor que atiende a esta persona por lo que tiene en venta o renta: es quien la ve en su panel. Sus casas por noche no llevan asesor.' } : null,
@@ -199,6 +201,7 @@ async function renderEditor(container, id) {
 	].filter(Boolean), data, { folder: `propietarios/${ref.id}` });
 
 	// Guarda la ficha. Devuelve false si falta algo o falló (ya avisó).
+	let cambiaPagoAhora = false;
 	const persistir = async () => {
 		if (!form.validate()) return false;
 		const d = form.getData();
@@ -221,12 +224,29 @@ async function renderEditor(container, id) {
 			if (!(await confirmarCambioDeDueno(ajenas, [...duenos, { id: ref.id, nombre: d.nombre || 'esta persona' }]))) return false;
 			// La lista de sus casas y `porNoche` también se conservan como están: los pone al día asignarDueno (vincularCasas).
 			const ahora = nuevo ? {} : (await getDoc(ref)).data() || {};
-			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos']) {
+			// Los datos de pago: los del asesor (que no los ve) quedan como están; los del administrador, si cambiaron, van
+			// con su renglón en cambiosDatosPago en el mismo lote (quién, cuándo, antes y después) y el correo al equipo.
+			const pagoAntes = typeof ahora.datosPago === 'string' ? ahora.datosPago : '';
+			if (!session.isAdmin || d.datosPago === undefined) d.datosPago = pagoAntes;
+			const cambiaPago = String(d.datosPago || '') !== pagoAntes;
+			cambiaPagoAhora = cambiaPago;
+			for (const k of ['bitacora', 'portalToken', 'portalVersion', 'proximoPaso', 'portalActualizado', 'portalPrivado', 'acceso', 'propiedades', 'porNoche', 'permisos', 'datosPagoCambio']) {
 				if (ahora[k] !== undefined) d[k] = data[k] = ahora[k];
 				else if (k === 'propiedades') d[k] = [];
 				else { delete d[k]; delete data[k]; }
 			}
-			await setDoc(ref, d);
+			// Sin datos de pago: la llave queda como estaba (guardada vacía, o sin llave); quitarla o ponerla también es un cambio.
+			if (!d.datosPago && !('datosPago' in ahora)) delete d.datosPago;
+			const lote = writeBatch(db);
+			if (cambiaPago) {
+				const log = doc(collection(db, 'cambiosDatosPago'));
+				d.datosPagoCambio = data.datosPagoCambio = log.id;
+				lote.set(log, { propietarioId: ref.id, antes: pagoAntes, despues: d.datosPago || '', quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: serverTimestamp(), avisado: false });
+			}
+			lote.set(ref, d);
+			await lote.commit();
+			// El correo al equipo sale en seguida; si no, lo manda el control de cada hora (queda «sin avisar»).
+			if (cambiaPago) session.user.getIdToken().then((t) => fetch('/api/aviso-pago', { method: 'POST', headers: { Authorization: `Bearer ${t}` } })).catch(() => {});
 			await vincularCasas(ref.id, lista, antes, { duenos, propiedades });
 			data.propiedades = lista.map((propertyId) => ({ propertyId }));
 			// Su resumen (lo que lee en su panel, con sus datos de pago): se arma o se actualiza con cada guardado.
@@ -238,7 +258,12 @@ async function renderEditor(container, id) {
 			if (conId.portalToken) Object.assign(data, { portalToken: conId.portalToken, portalVersion: conId.portalVersion, portalPrivado: conId.portalPrivado });
 			avisarCambio();
 			return true;
-		} catch (err) { showError(err); return false; }
+		} catch (err) {
+			// Los datos de pago con su renglón necesitan las reglas nuevas: con las de antes (comprobado: el administrador no
+			// puede leer cambiosDatosPago) se dice qué falta.
+			if (cambiaPagoAhora && session.isAdmin && await faltanReglas(err, 'cambiosDatosPago/comprobar')) toast(SIN_REGLAS_NUEVAS, 'danger'); else showError(err);
+			return false;
+		}
 	};
 	const guardar = async (btn) => {
 		btn.disabled = true;

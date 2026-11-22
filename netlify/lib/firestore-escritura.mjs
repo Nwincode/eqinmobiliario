@@ -30,8 +30,17 @@ class ErrorBase extends Error {
 	constructor(status, cuerpo) { super(cuerpo?.error?.message || `Error ${status} de la base`); this.status = status; this.codigo = cuerpo?.error?.status || ''; }
 }
 
-async function pedir(token, url, cuerpo) {
-	const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+// `plazo`: hasta qué hora (ms) se espera la respuesta; pasada, DEADLINE_EXCEEDED (la función no se queda colgada).
+async function pedir(token, url, cuerpo, plazo = 0) {
+	const espera = plazo ? Math.max(300, plazo - Date.now()) : 0;
+	let res;
+	try {
+		res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo),
+			...(espera ? { signal: AbortSignal.timeout(espera) } : {}) });
+	} catch (err) {
+		if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw new ErrorBase(504, { error: { status: 'DEADLINE_EXCEEDED', message: 'La base no respondió a tiempo' } });
+		throw err;
+	}
 	const datos = await res.json().catch(() => ({}));
 	if (!res.ok) throw new ErrorBase(res.status, datos);
 	return datos;
@@ -55,35 +64,86 @@ function anidar(campos) {
 }
 
 // Una transacción: `trabajo({ leer, consultar, crear, cambiar })` lee (dentro de la transacción) y deja anotado lo que
-// se escribe; al terminar se escribe todo junto. Si otro escribió lo leído mientras tanto (ABORTED), se repite.
+// se escribe; al terminar se escribe todo junto. Si otro escribió lo leído mientras tanto (ABORTED), se repite (hasta 5),
+// pero todo junto no pasa de `plazoMs` (7 s): una función de Netlify se corta a los 10 s, y es mejor responder «vuelve a
+// intentarlo» (DEADLINE_EXCEEDED o el ABORTED) que quedarse sin respuesta.
 // leer(ruta) → documento o null; consultar(coleccion, campo, valor, padre?) → documentos con campo == valor.
 // crear(ruta, datos, transforma): solo si no existe; cambiar(ruta, campos, transforma): solo esos campos, si existe.
-export async function transaccion(trabajo, intentos = 3) {
+export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
+	const hasta = Date.now() + plazoMs;
 	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
 	for (let i = 1; ; i++) {
-		const { transaction } = await pedir(token, `${BASE}:beginTransaction`, { options: { readWrite: {} } });
+		const { transaction } = await pedir(token, `${BASE}:beginTransaction`, { options: { readWrite: {} } }, hasta);
 		const writes = [];
 		const leer = async (ruta) => {
-			const [r] = await pedir(token, `${BASE}:batchGet`, { transaction, documents: [`${RAIZ}/${ruta}`] });
+			const [r] = await pedir(token, `${BASE}:batchGet`, { transaction, documents: [`${RAIZ}/${ruta}`] }, hasta);
 			return r?.found ? documento(r.found) : null;
 		};
 		const consultar = async (coleccion, campo, valor, padre = '') => (await pedir(token, `${BASE}${padre ? `/${padre}` : ''}:runQuery`, { transaction, structuredQuery: {
-			from: [{ collectionId: coleccion }], where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: aValor(valor) } } } }))
+			from: [{ collectionId: coleccion }], where: { fieldFilter: { field: { fieldPath: campo }, op: 'EQUAL', value: aValor(valor) } } } }, hasta))
 			.filter((r) => r.document).map((r) => documento(r.document));
 		const crear = (ruta, datos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(datos) }, currentDocument: { exists: false }, updateTransforms: transformaciones(transforma) });
 		const cambiar = (ruta, campos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(anidar(campos)) }, updateMask: { fieldPaths: Object.keys(campos) },
 			currentDocument: { exists: true }, updateTransforms: transformaciones(transforma) });
-		let resultado;
+		let resultado, enCommit = false;
 		try {
 			resultado = await trabajo({ leer, consultar, crear, cambiar });
-			await pedir(token, `${BASE}:commit`, { transaction, writes });
+			enCommit = true;
+			await pedir(token, `${BASE}:commit`, { transaction, writes }, hasta);
 			return resultado;
 		} catch (err) {
+			// El commit pudo llegar aunque su respuesta no (se cortó el plazo o la red): si todo lo que esta transacción crea
+			// ya existe, quedó escrito, y quien llama sigue (correos, cierre de las cruzadas, purga) en vez de decir «error».
+			if (enCommit && (!(err instanceof ErrorBase) || err.codigo === 'DEADLINE_EXCEEDED') && await quedoEscrito(token, writes)) return resultado;
 			// Lo que no llegó al commit se suelta (si no, la base lo tiene bloqueado hasta que venza).
-			await pedir(token, `${BASE}:rollback`, { transaction }).catch(() => {});
-			if (err instanceof ErrorBase && err.codigo === 'ABORTED' && i < intentos) continue;
+			await pedir(token, `${BASE}:rollback`, { transaction }, Date.now() + 1000).catch(() => {});
+			// Con una espera al azar que crece: muchos a la vez sobre el mismo documento (un límite, una casa) no vuelven a
+			// chocar todos juntos.
+			const pausa = Math.random() * 300 * i;
+			if (err instanceof ErrorBase && err.codigo === 'ABORTED' && i < intentos && Date.now() + pausa + 500 < hasta) { await new Promise((r) => setTimeout(r, pausa)); continue; }
 			throw err;
 		}
+	}
+}
+
+// ¿Quedó escrito un commit cuya respuesta se perdió? Solo se puede saber si crea documentos: todos existen ahora y con
+// lo que este commit escribió en ellos (campo por campo; otro pudo crear el mismo id con otra cosa: eso es un error real).
+// Sin documentos nuevos, no se adivina (se responde el error).
+const mismoValor = (a, b) => {
+	if (!a || !b) return false;
+	if ('timestampValue' in a) return Date.parse(a.timestampValue) === Date.parse(b.timestampValue);
+	if ('integerValue' in a || 'doubleValue' in a) return Number(a.integerValue ?? a.doubleValue) === Number(b.integerValue ?? b.doubleValue);
+	if ('mapValue' in a) return mismosCampos(a.mapValue.fields || {}, b.mapValue?.fields || {});
+	if ('arrayValue' in a) { const x = a.arrayValue.values || [], y = b.arrayValue?.values || []; return x.length === y.length && x.every((v, i) => mismoValor(v, y[i])); }
+	return JSON.stringify(a) === JSON.stringify(b);
+};
+const mismosCampos = (escritos, guardados) => Object.keys(escritos).every((k) => mismoValor(escritos[k], guardados[k]));
+async function quedoEscrito(token, writes) {
+	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update);
+	if (!nuevos.length) return false;
+	try {
+		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos.map((d) => d.name) }, Date.now() + 1500);
+		const porNombre = Object.fromEntries(r.filter((x) => x.found).map((x) => [x.found.name, x.found.fields || {}]));
+		return nuevos.every((d) => porNombre[d.name] && mismosCampos(d.fields || {}, porNombre[d.name]));
+	} catch { return false; }
+}
+
+// Contar sin transacción: un solo commit (no choca con otros a la vez) que suma a cada contador de `sumas` ({ ruta, n };
+// n = 0 solo lee) y deja su `vence` (fecha: la política de vida de Firestore borra el documento después); con `marca`,
+// también crea ese documento solo si no existe (contar cosas distintas: si ya existía, no se suma nada y devuelve null).
+// Devuelve los valores después de sumar, en el orden de `sumas`. Si la base falla, lanza.
+export async function sumar(sumas, vence, marca = '') {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	const writes = [
+		...(marca ? [{ update: { name: `${RAIZ}/${marca}`, fields: aCampos({ vence }) }, currentDocument: { exists: false } }] : []),
+		...sumas.map(({ ruta, n }) => ({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos({ vence }) }, updateMask: { fieldPaths: ['vence'] }, updateTransforms: [{ fieldPath: 'n', increment: { integerValue: String(n) } }] }))
+	];
+	try {
+		const r = await pedir(token, `${BASE}:commit`, { writes }, Date.now() + 3000);
+		return (r.writeResults || []).slice(marca ? 1 : 0).map((w) => { const t = w.transformResults?.[0]; return Number(t?.integerValue ?? t?.doubleValue ?? 0); });
+	} catch (err) {
+		if (marca && err instanceof ErrorBase && err.codigo === 'ALREADY_EXISTS') return null;
+		throw err;
 	}
 }
 
@@ -94,3 +154,4 @@ export const probarEscritura = () => transaccion(async ({ crear, leer, cambiar }
 	if (await leer(ruta)) cambiar(ruta, { probado: true }, { ahora: ['cuando'] });
 	else crear(ruta, { probado: true }, { ahora: ['cuando'] });
 });
+

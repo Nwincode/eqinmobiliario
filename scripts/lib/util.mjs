@@ -9,15 +9,8 @@ export function esc(value) {
 	return String(value).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-export function slugify(text) {
-	return String(text || '')
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 80);
-}
+// Una sola: admin/js/formato.js (también la usa el panel).
+export { slugify } from '../../admin/js/formato.js';
 
 export function isPlainObject(v) {
 	return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -32,6 +25,8 @@ export function deepMerge(base, override) {
 	for (const [k, v] of Object.entries(override)) {
 		if (v === undefined || v === null || v === '') continue;
 		if (Array.isArray(v) && v.length === 0 && Array.isArray(base[k]) && base[k].length) continue;
+		// Un dato con otra forma (un texto donde va un grupo o una lista) no reemplaza al de `base`.
+		if ((isPlainObject(base[k]) && !isPlainObject(v)) || (Array.isArray(base[k]) && !Array.isArray(v))) continue;
 		out[k] = isPlainObject(v) && isPlainObject(base[k]) ? deepMerge(base[k], v) : v;
 	}
 	return out;

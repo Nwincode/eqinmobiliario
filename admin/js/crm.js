@@ -1,11 +1,11 @@
 // CRM: clientes, actividades (agenda e historial) y propietarios.
 // El asesor solo consulta lo suyo (lo exigen las reglas de Firestore); el administrador, todo.
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, writeBatch
+	db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 
 export const ETAPAS = [
@@ -82,7 +82,9 @@ export async function loadReglas() {
 		const [snap, cot] = await Promise.all([getDoc(doc(db, 'settings', 'crm')), getDoc(doc(db, 'settings', 'cotizacion')).catch(() => null)]);
 		const d = snap.exists() ? { ...snap.data() } : {};
 		const valido = (v) => v !== '' && v != null && Number.isFinite(Number(v));
-		const parteAsesorFuente = valido(d.parteAsesorPct) ? 'regla' : valido(cot?.data()?.pctAsesor) ? 'cotizaciones' : 'defecto';
+		// La parte del asesor es un porcentaje de 0 a 100 (una guardada fuera de eso no vale: Reportes pide revisarla).
+		const parteAsesorFuente = esPorcentaje(d.parteAsesorPct) ? 'regla' : esPorcentaje(cot?.data()?.pctAsesor) ? 'cotizaciones' : 'defecto';
+		if (parteAsesorFuente !== 'regla') delete d.parteAsesorPct;
 		if (parteAsesorFuente === 'cotizaciones') d.parteAsesorPct = cot.data().pctAsesor;
 		return { ...Object.fromEntries(Object.entries(REGLAS_POR_DEFECTO).map(([k, v]) => [k, valido(d[k]) ? Number(d[k]) : v])), parteAsesorFuente };
 	} catch {
@@ -146,32 +148,44 @@ export async function crearActividad(datos) {
 
 // Une los leads en una ficha por persona: busca cliente por teléfono o correo; si no existe, lo crea.
 // Devuelve cuántos leads se vincularon y cuántos clientes nuevos se crearon.
+// Corre en cada pestaña de Clientes que se abre: cada lead va en su transacción, que vuelve a leer el lead y lo salta
+// si otra pestaña (u otra persona) ya lo unió; así dos pestañas no crean dos clientes del mismo lead. Al cliente que ya
+// existe se le agrega con arrayUnion (no se pisa lo que otra pestaña agregó). Un cliente nuevo lleva un id sacado de su
+// teléfono o correo (idClientePorContacto) y se escribe uniendo (merge + arrayUnion): dos leads distintos de la misma
+// persona en dos pestañas caen en la misma ficha. Si ese id ya es de un cliente de otro asesor (las reglas no dejan
+// escribirlo), el lead va a una ficha nueva con id al azar, como antes.
 export async function sincronizarLeads(leads, clientes) {
 	const porTel = new Map(clientes.filter((c) => c.telefonoNorm).map((c) => [c.telefonoNorm, c]));
 	const porMail = new Map(clientes.filter((c) => c.email).map((c) => [String(c.email).toLowerCase(), c]));
+	const recordar = (c, tel, mail) => { if (tel && !porTel.has(tel)) porTel.set(tel, c); if (mail && !porMail.has(mail)) porMail.set(mail, c); };
 	// Una solicitud de reserva por noche no es un cliente del CRM (la atiende Solicitudes).
 	const pendientes = leads.filter((l) => !l.clienteId && !window.EQVacacional.esSolicitudReserva(l));
 	let vinculados = 0;
 	let nuevos = 0;
-	let batch = writeBatch(db);
-	let ops = 0;
-	const flush = async () => { if (ops) { await batch.commit(); batch = writeBatch(db); ops = 0; } };
 	for (const l of pendientes) {
+		// El asesor solo puede vincular leads asignados a él.
+		if (!session.isAdmin && l.agentId !== session.agentId) continue;
 		const tel = telNorm(l.telefono);
 		const mail = String(l.email || '').toLowerCase();
-		let c = (tel && porTel.get(tel)) || (mail && porMail.get(mail));
-		// El asesor solo puede vincular leads asignados a él.
 		const agentId = l.agentId || (session.isAdmin ? '' : session.agentId);
-		if (!session.isAdmin && l.agentId !== session.agentId) continue;
-		if (!c) {
-			const ref = doc(collection(db, 'clientes'));
-			c = {
-				id: ref.id,
+		const existente = (tel && porTel.get(tel)) || (mail && porMail.get(mail)) || null;
+		const refLead = doc(db, 'leads', l.id);
+		const unir = (idCliente) => runTransaction(db, async (tx) => {
+			const ahora = await tx.get(refLead);
+			if (!ahora.exists()) return { salto: '' };
+			if (ahora.data().clienteId) return { salto: ahora.data().clienteId };
+			if (existente) {
+				tx.update(doc(db, 'clientes', existente.id), { ...(l.propertyId ? { interes: arrayUnion(l.propertyId) } : {}), leadIds: arrayUnion(l.id), updatedAt: serverTimestamp() });
+				tx.update(refLead, { clienteId: existente.id });
+				return { cliente: existente, nuevo: false };
+			}
+			const ref = idCliente ? doc(db, 'clientes', idCliente) : doc(collection(db, 'clientes'));
+			const c = {
 				nombre: l.nombre || 'Sin nombre',
 				telefono: l.telefono || '',
 				telefonoNorm: tel,
 				email: l.email || '',
-				tipo: l.propertyId ? 'comprador' : 'comprador',
+				tipo: 'comprador',
 				etapa: 'nuevo',
 				agentId,
 				fuente: l.campana?.utm_source || l.origen || '',
@@ -181,27 +195,31 @@ export async function sincronizarLeads(leads, clientes) {
 				createdAt: l.createdAt || serverTimestamp(),
 				updatedAt: serverTimestamp()
 			};
-			batch.set(ref, Object.fromEntries(Object.entries(c).filter(([k]) => k !== 'id')));
-			ops++;
-			if (tel) porTel.set(tel, c);
-			if (mail) porMail.set(mail, c);
-			clientes.push(c);
-			nuevos++;
-		} else {
-			const interes = [...new Set([...(c.interes || []), ...(l.propertyId ? [l.propertyId] : [])])];
-			const leadIds = [...new Set([...(c.leadIds || []), l.id])];
-			c.interes = interes;
-			c.leadIds = leadIds;
-			batch.update(doc(db, 'clientes', c.id), { interes, leadIds, updatedAt: serverTimestamp() });
-			ops++;
+			const { interes, ...resto } = c;
+			tx.set(ref, { ...resto, ...(interes.length ? { interes: arrayUnion(...interes) } : {}), leadIds: arrayUnion(l.id) }, { merge: true });
+			tx.update(refLead, { clienteId: ref.id });
+			return { cliente: { id: ref.id, ...c }, nuevo: true };
+		});
+		const porContacto = existente ? '' : idClientePorContacto(tel, mail);
+		let r;
+		try { r = await unir(porContacto); } catch (err) {
+			if (!porContacto || err?.code !== 'permission-denied') throw err;
+			r = await unir('');
 		}
-		batch.update(doc(db, 'leads', l.id), { clienteId: c.id });
-		ops++;
+		if (r.salto !== undefined) {
+			// Otra pestaña ya lo unió: el próximo lead de la misma persona va a esa ficha.
+			if (r.salto) { l.clienteId = r.salto; recordar(clientes.find((c) => c.id === r.salto) || { id: r.salto }, tel, mail); }
+			continue;
+		}
+		const c = r.cliente;
+		if (r.nuevo) { clientes.push(c); nuevos++; } else {
+			c.interes = [...new Set([...(c.interes || []), ...(l.propertyId ? [l.propertyId] : [])])];
+			c.leadIds = [...new Set([...(c.leadIds || []), l.id])];
+		}
+		recordar(c, tel, mail);
 		l.clienteId = c.id;
 		vinculados++;
-		if (ops >= 400) await flush();
 	}
-	await flush();
 	return { vinculados, nuevos };
 }
 

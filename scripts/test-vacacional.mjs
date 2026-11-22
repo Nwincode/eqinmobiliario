@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+const REGLAS = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8');
+const SOLICITUD = await readFile(new URL('../netlify/functions/solicitud.mjs', import.meta.url), 'utf8');
 
 const code = await readFile(new URL('../js/calc-vacacional.js', import.meta.url), 'utf8');
 const sandbox = { module: { exports: {} }, Math, Number, String, Object, Date, isFinite, isNaN };
@@ -307,13 +309,33 @@ test('«1 noche», «3 noches»', () => {
 	assert.equal(nNoches(1), '1 noche');
 	assert.equal(nNoches(3), '3 noches');
 });
+const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS, NORMALES_GENERADAS, alAnio } = await import('./corpus-contacto.mjs');
+test(`filtro de contacto: ninguna de las ${NORMALES.length} frases normales se bloquea y ninguno de los ${EVASIONES.length} intentos pasa (el mismo corpus que la regla)`, () => {
+	assert.deepEqual(NORMALES.filter((t) => V.tieneContacto(t)), []);
+	assert.deepEqual(EVASIONES.filter((t) => !V.tieneContacto(t)), []);
+	assert.deepEqual(BLOQUEADAS_A_PROPOSITO.filter((t) => !V.tieneContacto(t)), []);
+});
+test(`filtro de contacto: las ${EVASIONES_GENERADAS.length} evasiones generadas (cada teléfono y usuario en cada contexto de excepción) se bloquean`, () => {
+	const pasan = EVASIONES_GENERADAS.filter((t) => !V.tieneContacto(t));
+	assert.deepEqual(pasan.slice(0, 20), [], `${pasan.length} pasan`);
+});
+test(`filtro de contacto: las ${NORMALES_GENERADAS.length} normales generadas (días/mes con hora y listas de días, en ES y EN) pasan`, () => {
+	assert.deepEqual(NORMALES_GENERADAS.filter((t) => V.tieneContacto(t)).slice(0, 20), []);
+});
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',
-		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234'])
+		'escribime a ana@correo.com', 'ana arroba gmail', 'mirá wa.me/50255551234', 'https://ejemplo.gt/casa', 'www.micasa.com', 'cinco5cinco5 1234', 'mira [aquí](x)', 'ana arroba gmail punto com', 't.me/villa', 'casalago.co', 'fotos en villa-lago.me/fotos',
+		'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'Llámame al 2024 5678',
+		'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", 'T.ME/X', 'Bit.Ly/x', 'casa.lago.me', 'mi.link.me/y',
+		'juan at gmail dot com', 'juan[at]gmail', 'casa(dot)com', 'casa[.]com', 'casa,com', 'casa。com', 'www casa com', 'ig casalago_gt', 'gmail: juan.perez',
+		'escríbeme al wa', '5O55 1234', '5555 y luego 1234', 'mi número termina en 1234 y empieza con 5555',
+		'mi cel ５５５５１２３４', 'mi cel ٥٥٥٥١٢٣٤', 'ana＠gmail.com', 'ｗｗｗ．micasa．com', 'mi cel ⑤⑤⑤⑤①②③④'])
 		assert.equal(V.tieneContacto(t), true, t);
 	for (const t of ['Llegamos el 16/11/2026 a las 15:00', '¿Aceptan 2 perros?', 'Somos 8 adultos y 2 niños', 'El total es US$ 1,122.40, ¿correcto?',
-		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', ''])
-		assert.equal(V.tieneContacto(t), false, t);
+		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', 'En el Km 98.5', 'Perfecto.Me avisas', 'Gracias.Info del parqueo', 'Llegamos a las 3.me dices',
+		'Remodelada 2019/2020', 'Temporada 2024-2025', 'Terreno de 1200 / 1500 m²', 'Casa de 350 m² y 2 niveles', 'construida en 2019, 3 habitaciones', 'Del 2026-11-20 al 2026-11-25', 'Mantenimiento Q 1500 y luz Q 1800',
+		'Síguenos en Instagram para ver más fotos', 'Hola.Me interesa la casa', 'Excelente ubicación.Muy cerca de todo', ''])
+		assert.equal(V.tieneContacto(alAnio(t)), false, alAnio(t));
 });
 
 const { mascotasUnaVez, amenidadesPara } = await import('../admin/js/estados.js');
@@ -342,6 +364,60 @@ test('subtotal desde el total: nunca por debajo del cotizado (1 a 5,000 al centa
 		const s2 = V.subtotalDeTotal(q.total);
 		assert.ok(s2 >= q.subtotal && s2 - q.subtotal <= 0.02, `${q.subtotal} → ${q.total} → ${s2}`);
 	}
+});
+
+test('estancia más larga que el tope (90 noches, el mismo número que revisa el servidor): no se puede pedir', () => {
+	assert.equal(V.validarEstancia({ llegada: '2027-01-01', salida: '2027-04-01' }).ok, true);
+	const larga = V.validarEstancia({ llegada: '2027-01-01', salida: '2027-04-02' });
+	assert.deepEqual([larga.ok, larga.error, larga.maximo], [false, 'maximo', 90]);
+	assert.match(SOLICITUD, /reserva\.noches > V\.MAX_NOCHES/);
+});
+
+test('un mínimo con la fecha final antes de la inicial no vale', () => {
+	assert.equal(V.minimoNoches('2027-03-10', '2027-03-12', 1, [{ desde: '2027-03-20', hasta: '2027-03-01', noches: 5 }]), 1);
+	assert.equal(V.minimoNoches('2027-03-10', '2027-03-12', 1, [{ desde: '2027-03-01', hasta: '2027-03-20', noches: 5 }]), 5);
+});
+
+test('calendario de EQ para las plataformas: ida y vuelta por parseICal, sin datos del huésped', () => {
+	const texto = V.aICal([{ id: 'r1', desde: '2027-04-01', hasta: '2027-04-03' }, { id: 'r2', desde: '2027-04-10', hasta: '2027-04-11' }, { id: 'x', desde: '2027-04-05', hasta: '2027-04-05' }], '20261120T120000Z');
+	assert.deepEqual(JSON.parse(JSON.stringify(V.parseICal(texto))), [{ desde: '2027-04-01', hasta: '2027-04-03' }, { desde: '2027-04-10', hasta: '2027-04-11' }]);
+	assert.match(texto, /^BEGIN:VCALENDAR\r\n/);
+	assert.match(texto, /UID:r1@eqinmobiliario\.gt/);
+	assert.equal((texto.match(/BEGIN:VEVENT/g) || []).length, 2);
+});
+
+test('pausa de 72 h: solo con el pago marcado o «Cobrar comisión» (una de la web sin pago marcado no saca las casas)', () => {
+	const r = { propietarioId: 's1', estado: 'confirmada', chat: 'TokenDelChat', comision: { monto: 50, vence: '2026-11-01', pagada: false } };
+	const ahora = Date.parse('2026-11-10T12:00:00Z');
+	assert.equal(V.nivelComision(r, ahora), 3);
+	assert.deepEqual({ ...V.sociosEnMora([r], ahora) }, {});
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, pagoRecibido: true }], ahora) }, { s1: 3 });
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, chatPagado: true }], ahora) }, { s1: 3 });
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, comision: { ...r.comision, cobrar: true } }], ahora) }, { s1: 3 });
+	// Sin chat (a mano o de antes): como siempre.
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, chat: '' }], ahora) }, { s1: 3 });
+	assert.equal(V.nivelMora(r, ahora), 1);
+	// El cliente mandó su comprobante (y sigue en pie): cuenta.
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, chatComprobante: true }], ahora) }, { s1: 3 });
+	// Sigue confirmada pasados 3 días de la llegada (ya no hay «No me llegó»): cuenta aunque nadie marque nada.
+	assert.equal(V.cobrable({ ...r, llegada: '2026-11-01' }, Date.parse('2026-11-04T12:00:00-06:00')), false);
+	assert.equal(V.cobrable({ ...r, llegada: '2026-11-01' }, Date.parse('2026-11-05T00:30:00-06:00')), true);
+	assert.deepEqual({ ...V.sociosEnMora([{ ...r, llegada: '2026-11-01' }], ahora) }, { s1: 3 });
+});
+
+test('cobrable solo por el tiempo: el atraso cuenta desde que ya no hay «No me llegó» (no salta a 72 h de golpe)', () => {
+	const r = { propietarioId: 's1', estado: 'confirmada', chat: 'TokenDelChat', llegada: '2026-11-01', comision: { monto: 50, vence: '2026-11-01', pagada: false } };
+	const gt = (x) => Date.parse(`${x}-06:00`);
+	assert.equal(V.ultimoDiaNoLlego(r), '2026-11-04');
+	assert.equal(V.nivelMora(r, gt('2026-11-04T23:00:00')), 1, 'todavía puede decir «No me llegó»: a lo más «vencida»');
+	assert.equal(V.nivelMora(r, gt('2026-11-05T00:30:00')), 1, 'recién cobrable: vencida, no 3');
+	assert.equal(V.nivelMora(r, gt('2026-11-06T01:00:00')), 2);
+	assert.equal(V.nivelMora(r, gt('2026-11-08T01:00:00')), 3);
+	assert.deepEqual({ ...V.sociosEnMora([r], gt('2026-11-05T00:30:00')) }, {});
+	// Con una prueba de pago, desde que vence (como siempre).
+	assert.equal(V.nivelMora({ ...r, pagoRecibido: true }, gt('2026-11-05T00:30:00')), 3);
+	assert.equal(Math.round(V.horasMora(r, gt('2026-11-05T02:00:00'))), 2);
+	assert.equal(V.horasMora({ ...r, chat: 'TokenDelChat', llegada: '2026-11-03' }, gt('2026-11-05T02:00:00')), null);
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

@@ -64,9 +64,9 @@
 
 		var estado = { mes: mesMin, llegada: '', salida: '', campo: 'llegada', foco: '' };
 
+		// El dinero del formato único (admin/js/formato.js, por EQFormato del paquete del sitio, que carga antes).
 		function dinero(n) {
-			n = Number(n) || 0;
-			return prefijo + ' ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+			return EQFormato.montoPrecio(Number(n) || 0, D.moneda === 'GTQ' ? 'GTQ' : 'USD');
 		}
 		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
 		// En la casilla del calendario, sin centavos (se lee de un vistazo); el desglose y el total llevan los exactos.
@@ -82,6 +82,7 @@
 			if (!estado.llegada || f <= estado.llegada) return false;
 			var max = V.salidaMaxima(estado.llegada, ocupadas);
 			if (max && f > max) return false;
+			if (V.nochesEntre(estado.llegada, f) > V.MAX_NOCHES) return false;
 			return V.nochesEntre(estado.llegada, f) >= minimoDe(estado.llegada, f);
 		}
 		// La llegada necesita al menos las noches mínimas libres seguidas.
@@ -440,9 +441,13 @@
 		}
 		if (form) {
 			form.eqReserva = function () {
+				// «Hoy» al enviar, no al abrir la página: abierta desde ayer, el calendario se pone al día y una llegada que
+				// ya pasó no se manda.
+				var ahora = V.hoy();
+				if (ahora !== hoy) { hoy = ahora; mesMin = mesDe(hoy); pintar(false); }
 				var v = V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy });
 				if (!v.ok) {
-					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : t.vacErrFechas;
+					var msg = v.error === 'pasado' ? t.vacErrPasado : v.error === 'ocupada' ? t.vacErrOcupada : v.error === 'minimo' ? fmt(t.vacErrMinimo, { n: v.minimo }) : v.error === 'maximo' ? fmt(t.vacErrMaximo, { n: v.maximo }) : t.vacErrFechas;
 					var box = statusBox();
 					if (box) { box.className = 'lead-form-status mt-3 text-danger'; box.setAttribute('data-vac', '1'); box.textContent = msg; }
 					ayuda.textContent = msg;
@@ -502,8 +507,53 @@
 		}
 		ponerDesde(D.plan);
 
-		// Disponibilidad al día (iCal del socio y reservas confirmadas); si falla, quedan los bloqueos publicados.
+		// Disponibilidad al día (iCal del socio, reservas confirmadas y solicitudes que apartan sus fechas); si falla,
+		// quedan los bloqueos publicados. Con la respuesta, solo ella: una reserva cancelada después de publicar ya no
+		// ocupa (la API trae también los bloqueos y las reservas de la casa).
 		var id = card.getAttribute('data-id');
+		function alDia(res) { ocupadas = V.nochesOcupadas(res.ocupadas); }
+		// Justo antes de enviar, otra vez y sin la copia del CDN: alguien pudo pedir esas fechas con esta página abierta.
+		// Si ya no están libres, no se envía y se dice; si no responde, se envía (el servidor cierra la que llega encima).
+		if (form) form.eqRevisar = function () {
+			if (!id || !window.fetch) return Promise.resolve(true);
+			// A lo más 5 s: si no responde, se envía (el servidor cierra la que llega encima).
+			var ctrl = window.AbortController ? new AbortController() : null;
+			if (ctrl) setTimeout(function () { ctrl.abort(); }, 5000);
+			return fetch('/api/disponibilidad/al-dia?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' }, signal: ctrl ? ctrl.signal : undefined })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(function (res) {
+					if (!res || !res.ocupadas) return true;
+					// Casa en pausa (atraso del socio): ya no se puede reservar; se dice en el cuadro, como al abrir la página.
+					if (res.pausada) { card.innerHTML = '<p class="mb-0">' + t.vacPausada + '</p>'; return false; }
+					alDia(res);
+					if (res.minimos) minimos = res.minimos;
+					// Precios al día: si el socio los cambió con esta página abierta, el total se recalcula y no se envía
+					// hasta que el cliente lo vea (si no, saldría cotizada por debajo y no se podría confirmar).
+					if (res.plan && res.plan.base > 0) {
+						var cotizar = function () { return V.cotizarEstancia({ plan: D.plan, llegada: estado.llegada, salida: estado.salida, limpieza: D.limpieza, deposito: D.deposito }).total; };
+						var antes = estado.llegada && estado.salida ? cotizar() : 0;
+						D.plan = res.plan; ponerDesde(D.plan);
+						if (antes && Math.abs(cotizar() - antes) > 0.005) {
+							actualizar();
+							var cajaP = statusBox();
+							if (cajaP) { cajaP.className = 'lead-form-status mt-3 text-danger'; cajaP.setAttribute('data-vac', '1'); cajaP.textContent = t.vacPrecioCambio; }
+							ayuda.textContent = t.vacPrecioCambio;
+							card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+							return false;
+						}
+					}
+					if (V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) return true;
+					estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; estado.nota = t.vacFechasYaNo;
+					pintar(false);
+					actualizar();
+					// Se marca como cualquier fecha que falta (el calendario a la vista), con el porqué.
+					form.eqReserva();
+					var box = statusBox();
+					if (box) box.textContent = t.vacFechasYaNo;
+					ayuda.textContent = t.vacFechasYaNo;
+					return false;
+				}, function () { return true; });
+		};
 		if (id && window.fetch) {
 			fetch('/api/disponibilidad?id=' + encodeURIComponent(id), { headers: { Accept: 'application/json' } })
 				.then(function (r) { return r.ok ? r.json() : null; })
@@ -514,7 +564,12 @@
 					// Precios y mínimos al día: el socio los cambia sin esperar a que se publique el sitio.
 					if (res.plan && res.plan.base > 0) { D.plan = res.plan; ponerDesde(D.plan); }
 					if (res.minimos) minimos = res.minimos;
-					ocupadas = V.nochesOcupadas((D.bloqueos || []).concat(res.ocupadas));
+					// Las personas que caben, al día: si el socio bajó el máximo, no se ofrece más (la base lo rechazaría).
+					if (res.huespedesMax && selHuespedes) {
+						Array.prototype.slice.call(selHuespedes.options).forEach(function (o) { if (+o.value > res.huespedesMax) o.remove(); });
+						if (+selHuespedes.value > res.huespedesMax) selHuespedes.value = '';
+					}
+					alDia(res);
 					var antes = estado.llegada + estado.salida;
 					if (estado.llegada && ocupadas[estado.llegada]) { estado.llegada = ''; estado.salida = ''; estado.campo = 'llegada'; }
 					else if (estado.salida && !V.validarEstancia({ llegada: estado.llegada, salida: estado.salida, ocupadas: ocupadas, nochesMin: nochesMin, minimos: minimos, hoy: hoy }).ok) { estado.salida = ''; estado.campo = 'salida'; }
@@ -543,19 +598,23 @@
 		actualizar();
 		if (traia && !sirve) { estado.nota = t.vacFechasYaNo; actualizar(); }
 
-		// Volvió a la ficha después de pedir esta casa (botón «atrás», otra pestaña): el enlace a su solicitud, arriba.
+		// Volvió a la ficha después de pedir esta casa (botón «atrás», otra pestaña, o recargó con la respuesta perdida:
+		// js/site.js lo llama con `form.eqYaPediste`): el enlace a su solicitud, arriba. Una sola vez.
+		function yaPediste(miToken) {
+			if (!form || form.parentNode.querySelector('.vac-ya-pediste')) return;
+			var ya = document.createElement('p');
+			ya.className = 'vac-ya-pediste';
+			ya.textContent = t.vacYaPediste + ' ';
+			var ir = document.createElement('a');
+			ir.href = (document.documentElement.lang === 'en' ? '/en/reservation/#' : '/reserva/#') + miToken;
+			ir.textContent = t.vacChatVer;
+			ya.appendChild(ir);
+			form.parentNode.insertBefore(ya, form);
+		}
+		if (form) form.eqYaPediste = yaPediste;
 		try {
 			var miToken = localStorage.getItem('eq-reserva');
-			if (form && id && miToken && /^[A-Za-z0-9]{20,40}$/.test(miToken) && localStorage.getItem('eq-reserva-casa') === id) {
-				var ya = document.createElement('p');
-				ya.className = 'vac-ya-pediste';
-				ya.textContent = t.vacYaPediste + ' ';
-				var ir = document.createElement('a');
-				ir.href = '/reserva/#' + miToken;
-				ir.textContent = t.vacChatVer;
-				ya.appendChild(ir);
-				form.parentNode.insertBefore(ya, form);
-			}
+			if (form && id && miToken && /^[A-Za-z0-9]{20,40}$/.test(miToken) && localStorage.getItem('eq-reserva-casa') === id) yaPediste(miToken);
 		} catch (e) { /* sin memoria del navegador */ }
 	}
 
@@ -563,10 +622,9 @@
 	// y lleva esa elección a la ficha para no volver a pedirla.
 	var buscar = document.getElementById('vac-buscar');
 	if (buscar) {
-		var hoyB = V.hoy();
-		buscar.llegada.min = hoyB;
+		buscar.llegada.min = V.hoy();
 		buscar.llegada.addEventListener('change', function () {
-			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : hoyB;
+			buscar.salida.min = buscar.llegada.value ? V.sumarDias(buscar.llegada.value, 1) : V.hoy();
 			if (buscar.salida.value && buscar.salida.value <= buscar.llegada.value) buscar.salida.value = '';
 		});
 		// La disponibilidad al día de cada casa (calendarios de Airbnb, Booking y VRBO, reservas y precios de hoy), una vez
@@ -591,12 +649,14 @@
 			});
 		});
 		function filtrar(q, cols, datos, vivos) {
-			var libres = 0;
+			var libres = 0, hoyB = V.hoy(); // el día de la búsqueda, no el de abrir la página
 			cols.forEach(function (col, i) {
 				var d = datos[i], vivo = vivos[i] || {};
 				var plan = vivo.plan && vivo.plan.base > 0 ? vivo.plan : d.plan;
-				var ocupadas = V.nochesOcupadas((d.bloqueos || []).concat(vivo.ocupadas || []));
-				var ok = !vivo.pausada && q.huespedes <= (d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
+				// Con la respuesta al día, solo ella (ya trae bloqueos y reservas; una cancelada después de publicar queda libre);
+				// sin ella, lo publicado.
+				var ocupadas = V.nochesOcupadas(vivo.ocupadas || d.bloqueos || []);
+				var ok = !vivo.pausada && q.huespedes <= (vivo.huespedesMax || d.huespedesMax || 1) && V.validarEstancia({ llegada: q.llegada, salida: q.salida, ocupadas: ocupadas, nochesMin: d.nochesMin || 1, minimos: vivo.minimos || d.minimos, hoy: hoyB }).ok;
 				col.hidden = !ok;
 				if (!ok) return;
 				libres++;
@@ -605,7 +665,7 @@
 				var precio = col.querySelector('.price span');
 				if (c && c.total > 0 && precio) {
 					precio.textContent = buscar.getAttribute(c.noches === 1 ? 'data-total1' : 'data-totaln')
-						.replace('{total}', (d.moneda === 'GTQ' ? 'Q ' : 'US$ ') + c.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+						.replace('{total}', EQFormato.montoPrecio(c.total, d.moneda === 'GTQ' ? 'GTQ' : 'USD'))
 						.replace('{n}', c.noches);
 				}
 				Array.prototype.forEach.call(col.querySelectorAll('a[href]'), function (a) {

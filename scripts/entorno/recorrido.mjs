@@ -151,8 +151,10 @@ await espera(1000);
 // ---------------------------------------------------------------- 3. El cliente reserva
 const cliente = await persona(390);
 await cliente.p.goto(`${SITIO}/propiedades/vacacional/`);
-const ficha = await cliente.p.locator('a[href^="/propiedad/"]').first().getAttribute('href').catch(() => '');
-paso('La casa sale en el listado de renta vacacional', Boolean(ficha));
+// Es una casa de prueba («prueba» en el título): tiene su ficha (sin indexar) pero no sale en los listados; se entra por su enlace.
+const ficha = `/propiedad/${(await (await fetch(`http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents/properties/${idCasa}`, { headers: { Authorization: 'Bearer owner' } })).json()).fields?.slug?.stringValue}/`;
+const enListado = await cliente.p.locator(`a[href="${ficha}"]`).count();
+paso('La casa de prueba no sale en el listado de renta vacacional, pero su ficha abre por su enlace', enListado === 0 && (await fetch(`${SITIO}${ficha}`)).status === 200, `${ficha} · en listado: ${enListado}`);
 await cliente.p.goto(`${SITIO}${ficha}`);
 await espera(1200);
 const html = await cliente.p.content();
@@ -202,9 +204,37 @@ await espera(300);
 	paso('La línea de pasos va en una sola fila, marca fechas y personas y lo guarda en la dirección', guia.unaFila && guia.alto < 60 && guia.hechos >= 2
 		&& /llegada=.*salida=.*huespedes=2/.test(guia.url), JSON.stringify(guia));
 }
+// Otra persona abre la misma ficha con esas fechas ANTES de que Ana envíe (una pestaña abierta): cuando quiera enviar,
+// la página revisa otra vez y no la deja (las fechas ya están apartadas por Ana).
+const fechasAna = new URL(cliente.p.url()).search;
+const beto = await persona(390);
+await beto.p.goto(`${SITIO}${ficha}${fechasAna}`);
+await espera(1200);
 await cliente.p.locator('.vac-card button[type=submit]').click();
 await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
+{
+	const idCasaPub = await beto.p.locator('.vac-card').getAttribute('data-id');
+	const q = new URLSearchParams(fechasAna);
+	// El aviso de la solicitud (que congela sus montos y aparta las fechas) sale de la página justo al enviar: se espera a
+	// que termine (hasta 10 s) en vez de mirar en el mismo instante.
+	let api = {};
+	for (let i = 0; i < 20; i++) {
+		api = await (await fetch(`${SITIO}/api/disponibilidad/al-dia?id=${idCasaPub}`)).json();
+		if ((api.apartadas || []).some((r) => r.desde <= q.get('llegada') && r.hasta >= q.get('salida'))) break;
+		await espera(500);
+	}
+	paso('La solicitud de Ana aparta sus fechas en la página mientras nadie responde', (api.apartadas || []).some((r) => r.desde <= q.get('llegada') && r.hasta >= q.get('salida')), JSON.stringify(api.apartadas));
+	await beto.p.fill('.vac-card [name=nombre]', 'Beto Segundo');
+	await beto.p.locator('.vac-card [name=codigo]').selectOption('502');
+	await beto.p.fill('.vac-card [name=telefono]', '5555 9876');
+	await beto.p.fill('.vac-card [name=email]', 'beto@example.com');
+	await beto.p.locator('.vac-card button[type=submit]').click();
+	await espera(2000);
+	const aviso = await beto.p.locator('.vac-card .lead-form-status').innerText().catch(() => '');
+	paso('Con la página abierta desde antes, otro cliente no puede pedir las fechas que Ana apartó: se le dice al enviar', !/\/reserva\//.test(beto.p.url()) && /ya no están libres/.test(aviso), aviso);
+	await beto.p.close();
+}
 paso('Al solicitar, el cliente queda en «Tu reserva» (sin WhatsApp)', Boolean(token), cliente.p.url().replace(/#.*/, '#…'));
 await espera(1500);
 const codigo = (await cliente.p.locator('[data-out="codigo"]').innerText()).trim();
@@ -215,7 +245,14 @@ await cliente.p.keyboard.press('Enter'); await cliente.p.keyboard.press('Enter')
 await espera(1500);
 paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (await cliente.p.locator('.vac-chat-aviso').innerText()) === ''
 	&& await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
-paso('El chat bloquea un teléfono', /no se comparten/.test(await escribir('Mejor llamame al 5555-1234')));
+{
+	// Y dice qué parte parece contacto, en una línea (un número: que lo mande en foto si es de un pago).
+	const aviso = await escribir('Mejor llamame al 5555-1234');
+	// Sin reserva confirmada no hay cámara: el aviso no promete la foto.
+	paso('El chat bloquea un teléfono y dice que parece un teléfono (sin prometer la foto: aún no hay cámara)', /^Parece un número de teléfono\. Por aquí no se comparten contactos\.$/.test(aviso), aviso);
+	const aviso2 = await escribir('mi ig es villa.lago');
+	paso('…y un usuario de red social, con su aviso', /Parece un usuario de red social/.test(aviso2), aviso2);
+}
 await cliente.p.fill('.vac-chat-form textarea', '');
 
 // ---------------------------------------------------------------- 4. El socio atiende
@@ -270,6 +307,18 @@ await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
 const r1 = await confirmo;
 await espera(3000);
 paso('El socio confirma la reserva, por el servidor', porServidor(r1, 'confirmar') && /Confirmada/.test(await socio.p.locator('.card', { hasText: codigo }).first().innerText()), `${resp(r1)} · ${await avisos(socio.p)}`);
+{
+	// Los montos se congelaron al llegar la solicitud (/api/aviso-chat) y la reserva guardó esos mismos.
+	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { headers: { Authorization: 'Bearer owner' } };
+	const leadId = (await (await fetch(`${fs}/chats/${token}`, ow)).json()).fields?.leadId?.stringValue;
+	const congelado = (await (await fetch(`${fs}/montosSolicitud/${leadId}`, ow)).json()).fields || {};
+	const reserva = (await (await fetch(`${fs}/reservas/${leadId}`, ow)).json()).fields || {};
+	const n = (v) => Number(v?.doubleValue ?? v?.integerValue);
+	paso('Los montos de la solicitud se congelaron al llegar y la reserva guardó esos (parte del socio + ganancia = lo cobrado)',
+		n(congelado.costoSocio) > 0 && n(reserva.costoSocio) === n(congelado.costoSocio) && n(reserva.alojamiento) === n(congelado.alojamiento)
+		&& Math.abs(n(reserva.costoSocio) + n(reserva.comision?.mapValue?.fields?.monto) - n(reserva.alojamiento)) < 0.01 && n(reserva.vencePago) > Date.now(),
+		`congelado ${n(congelado.costoSocio)}/${n(congelado.alojamiento)} · reserva ${n(reserva.costoSocio)}/${n(reserva.alojamiento)}`);
+}
 const trasConfirmar = await campanaSocio();
 paso('Al confirmar, la solicitud sale de la campana', !trasConfirmar.enlaces.some((h) => h.includes(codigo)), `${trasConfirmar.etiqueta} · ${trasConfirmar.enlaces.join(' ')}`);
 
@@ -277,14 +326,33 @@ await cliente.p.reload();
 await espera(2500);
 paso('El cliente ve «Reserva confirmada» y los datos de pago', /confirmada/i.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
 paso('El cliente todavía no ve la dirección', !/Calle Real 12/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
+paso('El cliente ve la fecha y hora exactas para pagar', /Paga antes del \w+, \d+ \w+, \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
+// Confirmada y con la cámara a la mano: un número de pago escrito se pide en foto.
+{
+	const aviso = await escribir('boleta 70012345');
+	paso('Confirmada: un número de pago escrito se bloquea y el aviso pide la foto del comprobante (📷)', /referencia de pago, súbela como foto del comprobante/.test(aviso) && await cliente.p.locator('.vac-chat-adjuntar').isVisible(), aviso);
+	await cliente.p.fill('.vac-chat-form textarea', '');
+}
 // Comprobante: una imagen PNG mínima.
 const png = `${CAPTURAS}/comprobante.png`;
 writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
 await cliente.p.setInputFiles('.vac-chat-form input[type=file]', png);
 await espera(3500);
 paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.locator('.vac-chat-msj img').count() === 1, await cliente.p.locator('.vac-chat-aviso').innerText());
+paso('Con el comprobante enviado, la página ya no dice «Paga…»: «Comprobante enviado, el anfitrión lo revisa» y sin la cámara',
+	/Comprobante enviado/.test(await cliente.p.locator('[data-out="sigue"]').innerText()) && await cliente.p.locator('.vac-chat-adjuntar').isHidden(), await cliente.p.locator('[data-out="sigue"]').innerText());
+await cliente.p.locator('.vac-chat').screenshot({ path: `${CAPTURAS}/cliente-comprobante-enviado-390.png` }).catch(() => {});
 
 await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
+{
+	const conComprobante = await socio.p.locator('.card', { hasText: codigo }).first().innerText();
+	await socio.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${CAPTURAS}/socio-comprobante-1280.png` }).catch(() => {});
+	const t0 = socio.p.viewportSize();
+	await socio.p.setViewportSize({ width: 390, height: 844 }); await espera(400);
+	await socio.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${CAPTURAS}/socio-comprobante-390.png` }).catch(() => {});
+	await socio.p.setViewportSize(t0); await espera(300);
+	paso('El socio ve «Cliente subió comprobante» y «No me llegó» en vez de «Cancelar»', /Cliente subió comprobante/.test(conComprobante) && /No me llegó/.test(conComprobante) && !/Cancelar/.test(conComprobante), conComprobante.replace(/\s+/g, ' ').slice(0, 200));
+}
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Pago recibido' }).click();
 await espera(800);
 const pagoRes = delServidor(socio.p);
@@ -451,9 +519,9 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const poner = (ruta, fields) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
 	const existe = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).status === 200;
 	// Una solicitud como la deja el sitio (solicitud, chat con su subtotal e índice), en fechas lejanas y libres.
-	const sembrar = async (id, llegada, noches = 2, { indice = true } = {}) => {
+	const sembrar = async (id, llegada, noches = 2, { indice = true, subtotal: cotizado } = {}) => {
 		const salida = new Date(Date.parse(`${llegada}T00:00:00Z`) + noches * 86400000).toISOString().slice(0, 10);
-		const subtotal = 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
+		const subtotal = cotizado ?? 132 * noches, impuestos = Math.round(subtotal * 22) / 100, total = Math.round((subtotal + impuestos) * 100) / 100;
 		const codigo = `EQ-${id.toUpperCase()}`, token = `Sembrado${id.replace(/[^A-Za-z0-9]/g, '')}LargoYAlAzar123456`;
 		const reserva = { codigo: sv(codigo), llegada: sv(llegada), salida: sv(salida), noches: nv(noches), huespedes: nv(2), subtotal: nv(subtotal), impuestos: nv(impuestos), total: nv(total), moneda: sv('USD') };
 		await poner(`leads/${id}`, { nombre: sv('Sol Sembrada'), telefono: sv('+502 5555 2222'), email: sv('sol@example.com'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'),
@@ -475,10 +543,81 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	const b = await sembrar('srv-b', llegada1, 1);
 	const choca = await api('socio', { accion: 'confirmar', leadId: b.id });
 	paso('Servidor: fechas que chocan con otra reserva confirmada no se confirman y no se escribe nada (422)', choca.status === 422 && !(await existe(`reservas/${b.id}`)) && !(await leer(`chats/${b.token}`)).fields?.estado, resp(choca));
+	// «No me llegó»: el cliente subió un comprobante y el pago no llegó (antes de la llegada): el pago se reabre con un
+	// plazo nuevo y sin el comprobante; sin comprobante, antes de llegar, se usa «Cancelar» (409).
+	{
+		// En fechas propias: con el comprobante guardado el socio ya no la cancela (queda confirmada).
+		const nl = await sembrar('srv-nollego', iso(300));
+		const conf = await api('socio', { accion: 'confirmar', leadId: nl.id });
+		const sinComp = await api('socio', { accion: 'nollego', leadId: nl.id });
+		await fetch(`${FS}/chats/${nl.token}?updateMask.fieldPaths=comprobanteCliente`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ fields: { comprobanteCliente: { timestampValue: new Date().toISOString() } } }) });
+		const antes = Number((await leer(`reservas/${nl.id}`)).fields?.vencePago?.integerValue);
+		await espera(1100);
+		const re = await api('socio', { accion: 'nollego', leadId: nl.id });
+		const ch = (await leer(`chats/${nl.token}`)).fields || {};
+		const despues = Number((await leer(`reservas/${nl.id}`)).fields?.vencePago?.integerValue);
+		const otraVez = await api('socio', { accion: 'nollego', leadId: nl.id });
+		paso('Servidor: «No me llegó» con el comprobante (antes de la llegada) reabre el pago una vez, con plazo nuevo y el comprobante guardado como historia; sin comprobante, 409; la segunda vez, el administrador (409)',
+			conf.status === 200 && sinComp.status === 409 && re.status === 200 && re.reabierta === true && despues > antes && Boolean(ch.comprobanteCliente?.timestampValue) && Number(ch.pagoReabierto?.integerValue) > 0
+			&& otraVez.status === 409 && /administrador/.test(otraVez.error || '')
+			&& Number(ch.vencePago?.integerValue) === despues && (await leer(`reservas/${nl.id}`)).fields?.estado?.stringValue === 'confirmada', `${resp(sinComp)} · ${resp(re)}`);
+	}
 	// Llegada ya pasada (la solicitud quedó abierta): no se confirma (la comisión nacería vencida); «No se dio» sí.
 	const pasada = await sembrar('srv-pasada', iso(-3));
 	const tarde = await api('socio', { accion: 'confirmar', leadId: pasada.id });
 	paso('Servidor: una solicitud con la llegada ya pasada no se confirma ni se escribe nada (409, sin «ya respondida»)', tarde.status === 409 && !tarde.yaRespondida && !(await existe(`reservas/${pasada.id}`)) && !(await leer(`chats/${pasada.token}`)).fields?.estado, resp(tarde));
+	// Lo que el servidor rechaza al confirmar (tanda 2b y su revisión), cada uno sin escribir nada.
+	{
+		const parche = (ruta, fields) => fetch(`${FS}/${ruta}?${Object.keys(fields).map((k) => `updateMask.fieldPaths=${k}`).join('&')}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+		const sinEscribir = async (x) => !(await existe(`reservas/${x.id}`)) && !(await leer(`chats/${x.token}`)).fields?.estado;
+		// Noches tomadas en Airbnb (su calendario: scripts/entorno/red-local.mjs sirve uno de prueba con esas fechas).
+		await parche(`properties/${idCasa}/privado/socio`, { icalUrl: sv(`https://ical.entorno.prueba/${iso(270).replace(/-/g, '')}-${iso(273).replace(/-/g, '')}.ics`) });
+		const enAirbnb = await sembrar('srv-ical', iso(271), 1);
+		const rIcal = await api('socio', { accion: 'confirmar', leadId: enAirbnb.id });
+		const dispo = await (await fetch(`${SITIO}/api/disponibilidad/al-dia?id=${idCasa}`)).json();
+		await parche(`properties/${idCasa}/privado/socio`, { icalUrl: sv('') });
+		paso('Servidor: no se confirma encima de noches de Airbnb (409 con el porqué) y la página las muestra ocupadas', rIcal.status === 409 && /Airbnb/.test(rIcal.error || '') && await sinEscribir(enAirbnb)
+			&& (dispo.externas || []).some((r) => r.desde <= iso(271) && r.hasta > iso(271)), resp(rIcal));
+		// Sin la dirección exacta de la casa.
+		const dir = (await leer(`properties/${idCasa}/privado/llegada`)).fields?.direccion?.stringValue || '';
+		await parche(`properties/${idCasa}/privado/llegada`, { direccion: sv('') });
+		const sinDir = await sembrar('srv-sindir', iso(280), 1);
+		const rDir = await api('socio', { accion: 'confirmar', leadId: sinDir.id });
+		await parche(`properties/${idCasa}/privado/llegada`, { direccion: sv(dir) });
+		paso('Servidor: sin la dirección exacta de la casa no se confirma (409)', rDir.status === 409 && /dirección/.test(rDir.error || '') && await sinEscribir(sinDir) && dir !== '', resp(rDir));
+		// Cotizado por debajo del precio de la casa (el subtotal lo escribe el navegador): lo confirma el administrador.
+		const barata = await sembrar('srv-barata', iso(290), 2, { subtotal: 50 });
+		await fetch(`${SITIO}/api/aviso-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: barata.token }) });
+		const rBarata = await api('socio', { accion: 'confirmar', leadId: barata.id });
+		await ir(admin.p, '#/solicitudes', 3500);
+		const porHacer = await admin.p.locator('.alert-danger', { hasText: 'Te toca confirmar' }).innerText().catch(() => '');
+		const correoEquipo = readFileSync(path.join(DIR, 'correos.jsonl'), 'utf8').includes(`Te toca confirmar esta solicitud: ${barata.codigo}`);
+		paso('Cotizada por debajo del precio: el equipo recibe «Te toca confirmar esta solicitud» y la ve arriba en Solicitudes con su plazo', correoEquipo && porHacer.includes(barata.codigo) && /vence/.test(porHacer), porHacer.slice(0, 160));
+		paso('Servidor: una solicitud cotizada por debajo del precio de la casa no la confirma el socio (409, «La confirma el equipo»)', rBarata.status === 409 && /La confirma el equipo/.test(rBarata.error || '') && await sinEscribir(barata), resp(rBarata));
+		// Dos solicitudes que se cruzan: las dos siguen abiertas (una pudo ser falsa: Solicitudes avisa «Se cruza»); al
+		// confirmar una, el servidor cierra la otra («Fechas ya reservadas»).
+		const c1 = await sembrar('srv-cruce1', iso(310), 3);
+		await espera(50);
+		const c2 = await sembrar('srv-cruce2', iso(311), 3);
+		const avisar = (t) => fetch(`${SITIO}/api/aviso-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat: t }) });
+		await avisar(c1.token); await avisar(c2.token);
+		const sol = async (x) => (await leer(`leads/${x.id}`)).fields?.solicitud?.mapValue?.fields || {};
+		const antesDe = [await sol(c1), await sol(c2)];
+		const conf1 = await api('socio', { accion: 'confirmar', leadId: c1.id });
+		const l2 = await sol(c2);
+		paso('Servidor: dos solicitudes que se cruzan siguen abiertas; al confirmar una, la otra se cierra sola («Fechas ya reservadas»)',
+			!antesDe[0].estado && !antesDe[1].estado && conf1.status === 200 && l2.estado?.stringValue === 'no' && l2.motivo?.stringValue === 'Fechas ya reservadas' && (await leer(`chats/${c2.token}`)).fields?.estado?.stringValue === 'no',
+			JSON.stringify({ conf1: conf1.status, l2: l2.estado, motivo: l2.motivo }));
+		// El calendario de EQ para las plataformas: solo el administrador y el dueño de la casa piden el enlace.
+		const enlace = async (rol) => { const x = await fetch(`${SITIO}/api/calendario?casa=${idCasa}`, { headers: { Authorization: `Bearer ${await tokenDe(rol)}` } }); return { status: x.status, ...(await x.json().catch(() => ({}))) }; };
+		const [deColab, deSocio] = [await enlace('colab'), await enlace('socio')];
+		const ics = deSocio.url ? await (await fetch(deSocio.url)).text() : '';
+		const ajenoIcs = await fetch(`${SITIO}/api/calendario?casa=${idCasa}&t=${'0'.repeat(48)}`);
+		paso('Calendario de EQ: el dueño recibe su enlace privado y trae la reserva confirmada sin datos del huésped; otro dueño no (403) y una llave equivocada no (404)',
+			deColab.status === 403 && /^http.*\/api\/calendario\?casa=.*&t=[a-f0-9]{48}$/.test(deSocio.url || '') && ics.includes(`DTSTART;VALUE=DATE:${llegada1.replace(/-/g, '')}`) && !/Ana|Sol/.test(ics) && ajenoIcs.status === 404,
+			`${deColab.status} · ${(deSocio.url || deSocio.error || '').replace(/t=\w+/, 't=…')} · ${ajenoIcs.status}`);
+	}
 	// En Solicitudes no se ofrece «Confirmar» y se dice por qué (queda «No se dio»).
 	await ir(socio.p, `#/solicitudes/${pasada.codigo}`, 3500);
 	const tarjetaPasada = socio.p.locator('.card', { hasText: pasada.codigo }).first();
@@ -506,7 +645,8 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 	paso('Servidor: la misma solicitud confirmada dos veces a la vez deja una sola reserva (200 y 409)', mismas.join() === '200,409', mismas.join());
 	const g1 = await sembrar('srv-g1', iso(240)), g2 = await sembrar('srv-g2', iso(241));
 	const cruzadas = (await Promise.all([api('socio', { accion: 'confirmar', leadId: g1.id }), api('socio', { accion: 'confirmar', leadId: g2.id })])).map((x) => x.status).sort();
-	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422)', cruzadas.join() === '200,422', cruzadas.join());
+	// La otra: 422 si choca en su transacción, o 409 si al repetirse (la base la puso en fila) ya la cerró la ganadora.
+	paso('Servidor: dos solicitudes que se cruzan confirmadas a la vez: gana una (200 y 422 o 409)', ['200,422', '200,409'].includes(cruzadas.join()), cruzadas.join());
 	const trasPagar = await api('socio', { accion: 'cancelar', leadId: lead1, motivo: 'Cliente canceló' });
 	paso('Servidor: el socio no cancela una reserva ya pagada (409)', trasPagar.status === 409 && (await leer(`reservas/${lead1}`)).fields?.estado?.stringValue === 'confirmada', resp(trasPagar));
 
@@ -718,7 +858,8 @@ await tercero.p.locator('.vac-card button[type=submit]').click();
 		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: [...antes, { mapValue: { fields: { desde: no.llegada, hasta: no.salida, motivo: sv('Otra reserva') } } }] } } } } } } }) });
 	const control = () => execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', '-e', "import('./netlify/functions/solicitudes-sin-respuesta.mjs').then((m) => m.default())"], { cwd: `${DIR}/sitio`, stdio: 'pipe', env: { ...process.env, CORREOS: `${DIR}/correos.jsonl` } });
 	// Antes del bloqueo: otra solicitud de la web confirmada en esas mismas fechas es el camino normal y no se avisa.
-	const conAlerta = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter((l) => /No se dio» con fechas ocupadas/.test(l)).length;
+	const conAlerta = () => readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter((l) => /cerrada\(s\) con fechas ocupadas/.test(l) && l.includes(codigo2)).length;
+	// (Solo la de codigo2: una cancelada «Cliente canceló» del recorrido con fechas ocupadas después también avisa, y está bien.)
 	await fetch(`${FS}/properties/${idCasa}?updateMask.fieldPaths=vacacional.bloqueos`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
 		body: JSON.stringify({ fields: { vacacional: { mapValue: { fields: { bloqueos: { arrayValue: { values: antes } } } } } } }) });
 	await poner('reservas/web-mismas-fechas', { propertyId: sv(idCasa), llegada: no.llegada, salida: no.salida, estado: sv('confirmada'), leadId: sv('otra-solicitud'), codigo: sv('EQ-OTRA') });
@@ -748,7 +889,10 @@ paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@exa
 paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.some((r) => /equipo@example\.com ← .*el socio canceló/.test(r)));
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
-const conBloqueo = correos.filter((c) => /No se dio» con fechas ocupadas/.test(c.subject || ''));
+const conBloqueo = correos.filter((c) => /cerrada\(s\) con fechas ocupadas/.test(c.subject || '') && JSON.stringify(c).includes(codigo2));
+// La cancelada «Cliente canceló» del servidor (EQ-SRV-A) cae en las fechas de una reserva hecha a mano en Rentas (la de
+// antes, sin solicitud): también es la señal de un cliente que se cerró por fuera, y avisa.
+paso('Control de cada hora: una reserva cancelada «Cliente canceló» con una reserva a mano en esas fechas también avisa', correos.some((c) => /cerrada\(s\) con fechas ocupadas/.test(c.subject || '') && JSON.stringify(c).includes('EQ-SRV-A')));
 paso('Control de cada hora: avisa una sola vez que una solicitud «No se dio» tiene ahora esas fechas bloqueadas', conBloqueo.length === 1 && JSON.stringify(conBloqueo[0]).includes(codigo2), conBloqueo.map((c) => c.subject).join(' | ') || 'no salió');
 paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) && !/wa\.me/.test(JSON.stringify(alerta)) && /admin\/#\/solicitudes\/EQ-VIEJA/.test(JSON.stringify(alerta)));
 paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no se concretó/.test(r)));

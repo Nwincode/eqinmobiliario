@@ -90,7 +90,8 @@ await test('texto para WhatsApp y vigencia', () => {
 	assert.match(t, /\*Total: US\$ 10,526\.32\*/);
 	assert.match(t, /pequeño contribuyente/);
 	assert.equal(venceEl('2026-11-05', 15), '2026-11-20');
-	assert.match(numeroCotizacion(new Date(2026, 10, 5, 9, 7)), /^COT-20261105-0907$/);
+	// El número es el consecutivo del contador (lo pone la transacción al guardar; firestore.rules arma el mismo texto).
+	assert.deepEqual([1, 9, 10, 123, 1000, 12345].map(numeroCotizacion), ['COT-0001', 'COT-0009', 'COT-0010', 'COT-0123', 'COT-1000', 'COT-12345']);
 });
 
 await test('administración: empieza vacía, no suma y no deja guardar hasta tener el valor', () => {
@@ -253,8 +254,8 @@ await test('inmueble y cliente: se guarda una copia del registro, y la hoja la l
 	const d = datosPropiedad(s);
 	assert.deepEqual(d.rasgos, ['Casa en venta', '3 habitaciones', '1 baño', '250 m² de construcción', '400 m² de terreno']);
 	assert.equal(d.lugar, 'Zona 16, Guatemala');
-	assert.equal(d.precio, 'US$ 200,000');
-	assert.equal(datosPropiedad(snapshotPropiedad({ titulo: 'Apto', operacion: 'renta', precio: 1500, moneda: 'GTQ' })).precio, 'Q 1,500 al mes');
+	assert.equal(d.precio, 'US$ 200,000.00');
+	assert.equal(datosPropiedad(snapshotPropiedad({ titulo: 'Apto', operacion: 'renta', precio: 1500, moneda: 'GTQ' })).precio, 'Q 1,500.00 al mes');
 	assert.equal(snapshotPropiedad({ titulo: 'Sin fotos', fotos: [] }).foto, null);
 	assert.equal(snapshotPropiedad({ titulo: 'Fotos viejas', fotos: ['/x.jpg'] }).foto.url, '/x.jpg');
 	// Cotizaciones de antes: solo el texto.

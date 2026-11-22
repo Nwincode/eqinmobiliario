@@ -1,6 +1,6 @@
 // Escenarios de los permisos del socio (admin/js/permisos-socio.js). Sin red: `node scripts/test-permisos-socio.mjs`.
 import assert from 'node:assert/strict';
-import { deudaDe, permisosDe, limpiarDevolver, documentoPermisos, mismosPermisos, puede, DIAS_CORTE } from '../admin/js/permisos-socio.js';
+import { deudaDe, faltaSaberSiPago, permisosDe, limpiarDevolver, documentoPermisos, mismosPermisos, puede, DIAS_CORTE } from '../admin/js/permisos-socio.js';
 
 let ok = 0;
 function test(nombre, fn) {
@@ -25,6 +25,12 @@ test('vencida 6 días y 23 h: debe, pero todavía no se corta', () => {
 	assert.equal(d.corta, false);
 	assert.equal(d.dias, 6);
 	assert.deepEqual(solo(permisosDe({ deuda: d })), todo);
+});
+test('con chat y sin prueba de pago: el corte cuenta desde que ya no hay «No me llegó» (llegada + 3)', () => {
+	const r = res('a', { chat: 'TokenDelChat', llegada: '2026-11-09' });
+	// Llegada + 3 + 6 días 23 h: todavía no; llegada + 3 + 7 días: sí.
+	assert.equal(deudaDe([r], 's1', finDe('2026-11-12') + (DIAS_CORTE * 24 - 1) * H).corta, false);
+	assert.equal(deudaDe([r], 's1', finDe('2026-11-12') + DIAS_CORTE * 24 * H).corta, true);
 });
 test('a los 7 días exactos se cortan los tres', () => {
 	const d = deudaDe([res('a')], 's1', finDe('2026-11-09') + DIAS_CORTE * 24 * H);
@@ -103,6 +109,22 @@ test('lo guardado con los mapas en otro orden cuenta como lo mismo (no se reescr
 	assert.equal(mismosPermisos(leido, doc), true);
 	assert.equal(mismosPermisos({ ...leido, precios: true }, doc), false);
 	assert.equal(mismosPermisos(null, doc), false);
+});
+
+test('una confirmada de la web sin «Pago recibido» no corta sola; con el pago marcado o «Cobrar comisión», sí', () => {
+	const ahora = finDe('2026-11-09') + DIAS_CORTE * 24 * H;
+	const web = (extra = {}, com = {}) => res('a', { chat: 'TokenDelChat', ...extra }, com);
+	const sinPago = deudaDe([web()], 's1', ahora);
+	assert.equal(sinPago.corta, false);
+	assert.ok(sinPago.porMoneda.USD > 0);
+	assert.equal(deudaDe([web({ pagoRecibido: true })], 's1', ahora).corta, true);
+	assert.equal(deudaDe([web({}, { cobrar: true })], 's1', ahora).corta, true);
+	assert.equal(deudaDe([web({ chatPagado: true })], 's1', ahora).corta, true);
+	assert.equal(faltaSaberSiPago(web(), 's1', ahora), true);
+	assert.equal(faltaSaberSiPago(web({ pagoRecibido: true }), 's1', ahora), false);
+	// Se lee el chat desde que vence (no solo a los 7 días): la pausa de 72 h lo necesita antes (V.faltaLeerChat).
+	assert.equal(faltaSaberSiPago(web(), 's1', finDe('2026-11-09') + H), true);
+	assert.equal(faltaSaberSiPago(web(), 's1', finDe('2026-11-09') - H), false);
 });
 
 console.log(`Permisos del socio: ${ok} escenarios bien.`);

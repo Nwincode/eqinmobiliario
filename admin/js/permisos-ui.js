@@ -5,12 +5,12 @@
 // La cuenta: admin/js/permisos-socio.js. Lo que se guarda: admin/js/permisos-panel.js.
 import { db, doc, getDoc } from './firebase.js';
 import { h, toast, showError, badge, dia } from './ui.js';
-import { dinero } from './formato.js';
+import { dineroPorMoneda } from './formato.js';
 import { PERMISOS, DIAS_CORTE, puede } from './permisos-socio.js';
 import { leerGlobal, guardarGlobal, guardarPropios, recalcularPermisosDe } from './permisos-panel.js';
 
 const EMPRESA = 'Equipo Inmobiliario';
-const montos = (deuda) => Object.entries(deuda.porMoneda || {}).map(([m, n]) => dinero(n, m)).join(' y ');
+const montos = (deuda) => dineroPorMoneda(deuda.porMoneda, ' y ');
 const hace = (n) => (n === 1 ? 'hace 1 día' : `hace ${n} días`);
 
 function interruptor(icono, texto, marcado, { disabled = false, onchange } = {}) {

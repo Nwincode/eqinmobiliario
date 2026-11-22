@@ -1,10 +1,10 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
@@ -109,7 +109,7 @@ async function renderLista(container) {
 			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre || '(sin nombre)'),
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
 			dato('icon-map-marker', c.zonas),
-			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold'),
+			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),
 			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaCorta(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
 				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
 			session.isAdmin ? dato('icon-id-badge', nombreAsesor[c.agentId]) : null,
@@ -134,9 +134,10 @@ async function renderLista(container) {
 		if (vista === 'tablero') {
 			cuerpo.replaceChildren(h('div', { class: 'crm-tablero' }, ETAPAS.map(([etapa, label]) => {
 				const items = lista.filter((c) => (c.etapa || 'nuevo') === etapa);
-				const total = items.reduce((s, c) => s + (Number(c.montoEstimado) || 0), 0);
+				// Q y US$ no se suman: un total por moneda.
+				const total = dineroPorMoneda(sumarPorMoneda(items, (c) => c.montoEstimado));
 				const col = h('div', { class: `crm-columna${items.length ? '' : ' vacia'}`, dataset: { etapa } },
-					h('div', { class: 'crm-columna-cabecera' }, h('strong', {}, label), h('span', { class: 'text-muted small' }, `${items.length}${total ? ` · ${money(total)}` : ''}`)),
+					h('div', { class: 'crm-columna-cabecera' }, h('strong', {}, label), h('span', { class: 'text-muted small' }, `${items.length}${total ? ` · ${total}` : ''}`)),
 					items.map(tarjeta));
 				col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('sobre'); });
 				col.addEventListener('dragleave', () => col.classList.remove('sobre'));
@@ -172,7 +173,7 @@ async function renderLista(container) {
 		renderLista(container);
 	} }, label);
 
-	const exportar = () => downloadCsv(`clientes-${new Date().toISOString().slice(0, 10)}.csv`, [
+	const exportar = () => downloadCsv(`clientes-${hoy()}.csv`, [
 		['Nombre', 'Teléfono', 'Correo', 'Tipo', 'Etapa', 'Presupuesto', 'Zonas', 'Monto', 'Asesor', 'Fuente'],
 		...filtrados().map((c) => [c.nombre, c.telefono, c.email, c.tipo, etapaLabel(c.etapa), c.presupuesto || '', c.zonas || '', c.montoEstimado || '', nombreAsesor[c.agentId] || '', c.fuente || ''])
 	]);
@@ -326,7 +327,8 @@ async function renderFicha(container, id) {
 
 	const eliminar = async () => {
 		if (!(await confirmDialog(`¿Eliminar a ${c.nombre}? Sus actividades quedan en la agenda.`, { okText: 'Eliminar' }))) return;
-		try { await deleteDoc(ref); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
+		// El resumen de los dueños de las casas que le interesaban o visitó deja de contarlo.
+		try { await deleteDoc(ref); refrescarPorCliente(c); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
 	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);

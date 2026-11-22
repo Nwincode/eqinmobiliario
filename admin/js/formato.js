@@ -31,6 +31,29 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
+// Montos en monedas distintas no se suman: un total por moneda. sumarPorMoneda(lista, monto) → { USD: n, GTQ: m }
+// (sin moneda, US$); dineroPorMoneda({ USD, GTQ }) → «US$ 250,000.00 · Q 1,500,000.00» ('' si todo es cero).
+export function sumarPorMoneda(lista, monto, moneda = (x) => x.moneda) {
+	const total = {};
+	for (const x of lista) {
+		const n = Number(monto(x)) || 0;
+		if (n) total[moneda(x) || 'USD'] = (total[moneda(x) || 'USD'] || 0) + n;
+	}
+	return total;
+}
+export const dineroPorMoneda = (total, separador = ' · ') => Object.entries(total || {}).filter(([, n]) => n).map(([m, n]) => dinero(n, m)).join(separador);
+// Un porcentaje que se escribe a mano (comisión, ISR, parte del asesor): número de 0 a 100.
+export const esPorcentaje = (v) => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100;
+// Id del cliente que nace de un lead, sacado de su contacto (teléfono ya normalizado con telefonoWa, o correo): dos
+// pestañas que crean al mismo cliente nuevo a la vez escriben el mismo documento. Sin contacto, '' (id al azar).
+export const idClientePorContacto = (tel, correo) => (tel ? `tel-${String(tel).replace(/\D/g, '')}`
+	: correo ? `correo-${String(correo).toLowerCase().trim().replace(/[^a-z0-9@._+-]/g, '_').slice(0, 120)}` : '');
+// Dirección (slug) para una URL: sin tildes, minúsculas y guiones; hasta 80 letras. La misma en el panel y el sitio.
+export function slugify(text) {
+	return String(text || '')
+		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
 // Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
 // («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
 // Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.
@@ -53,11 +76,12 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
 
 // ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
-// («ana@» o «ana@correo» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
+// («ana@», «ana@correo», «.ana@gmail.com», «ana..x@gmail.com» o «ana@-gmail.com» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
 // y las funciones.
 export const correoValido = (correo) => {
 	const c = String(correo || '').trim();
-	return c.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.\d]{2,}$/.test(c);
+	// Antes de la @, sin punto al inicio, al final ni dos seguidos; cada parte del dominio sin guion al inicio ni al final.
+	return c.length <= 254 && /^[^\s@.]+(\.[^\s@.]+)*@([^\s@.-]([^\s@.]*[^\s@.-])?\.)+[^\s@.\d-]{2,}$/.test(c);
 };
 // Correo con el dominio mal escrito («gmial.com», «hotmail.con»): devuelve el correo corregido para sugerirlo, o ''.
 // Solo los proveedores más usados y a 1 o 2 letras de distancia (una letra de más, de menos, cambiada o dos al revés).
@@ -122,7 +146,10 @@ export function horarioSchema(horario) {
 	if (!sinTilde) return null;
 	const DIA = '(lunes|martes|miercoles|jueves|viernes|sabados?|domingos?)';
 	const out = [];
-	for (const tramo of sinTilde.split(';').map((x) => x.trim().replace(/\.$/, '')).filter(Boolean)) {
+	// Otro tramo también empieza con «,» o «y» después de una hora cuando sigue un día («…17:00 y sábados 8:00 a 12:00»),
+	// y cada tramo puede empezar con «de» o «desde» («De lunes a viernes, 9:00 a 18:00»).
+	const tramos = sinTilde.replace(new RegExp(`(\\d(?:\\s*[ap]\\.?\\s*m\\b\\.?|\\s*h(?:rs|oras)?\\b)?)\\s*(?:,|\\by\\b)\\s+(?=(?:de |desde )?(?:todos los dias|${DIA})\\b)`, 'g'), '$1;');
+	for (const tramo of tramos.split(';').map((x) => x.trim().replace(/\.$/, '').replace(/^(de|desde)\s+/, '')).filter(Boolean)) {
 		if (new RegExp(`^${DIA}( (a|al|y) ${DIA})?,? cerrados?$`).test(tramo)) continue;
 		const d = new RegExp(`^(?:todos los dias|${DIA}(?:\\s+(?:a|al)\\s+${DIA})?)[\\s,:]+(.*)$`).exec(tramo);
 		if (!d) return null;
@@ -156,23 +183,65 @@ export function conPiesCuadrados(texto) {
 }
 
 // Teléfonos: un solo formato en todo el sistema, «+código número» (p. ej. «+502 5555 1234»).
-// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben; cualquier otro
-// se escribe completo, empezando con «+».
-export const CODIGOS_PAIS = [['502', 'GT'], ['1', 'US/CA'], ['52', 'MX'], ['503', 'SV'], ['504', 'HN'], ['505', 'NI'], ['506', 'CR'], ['507', 'PA'], ['501', 'BZ'],
-	['57', 'CO'], ['34', 'ES'], ['44', 'GB'], ['49', 'DE'], ['33', 'FR'], ['39', 'IT'], ['31', 'NL'], ['54', 'AR'], ['56', 'CL'], ['55', 'BR'], ['972', 'IL'], ['61', 'AU']];
+// Códigos de país que ofrece cada campo de teléfono, primero los que más escriben. Cualquier otro se escribe completo,
+// con «+». Cada uno con el plan de numeración de su país en libphonenumber (metadata «max», v1.11.12):
+//  [código, país, largos de fijos y celulares, largo de un celular, otros números (gratuitos, de pago…) con su patrón]
+// Un largo «raro» solo vale con el patrón de su país: «+502 1801 2345678» (1-800) sí, «+502 1 305 555 1234» no.
+// scripts/test-telefono.mjs tiene un número válido de cada país. +1: los 10 dígitos del plan norteamericano (los
+// «310-xxxx» de Canadá no se marcan desde fuera del país).
+export const CODIGOS_PAIS = [
+	['502', 'GT', [8], 8, '18[01]\\d{8}|19\\d{9}'], ['1', 'US/CA', [10], 10], ['52', 'MX', [10], 10],
+	['503', 'SV', [8], 8, '[89]00\\d{4}(?:\\d{4})?'], ['504', 'HN', [8], 8, '8002\\d{7}'], ['505', 'NI', [8], 8],
+	['506', 'CR', [8], 8, '800\\d{7}|90[059]\\d{7}'], ['507', 'PA', [7, 8], 8, '800\\d{4,5}|(?:00800|800\\d)\\d{6}'],
+	['501', 'BZ', [7], 7, '0800\\d{7}'], ['57', 'CO', [10], 10, '1800\\d{7}|19(?:0[01]|4[78])\\d{7}'], ['34', 'ES', [9], 9],
+	['44', 'GB', [9, 10], 10, '800\\d{4}'], ['49', 'DE', [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 11], ['33', 'FR', [9], 9],
+	['39', 'IT', [6, 7, 8, 9, 10, 11, 12], 10], ['31', 'NL', [9], 9, '140\\d{2,3}|800\\d{4,7}|90[069]\\d{4,7}|970\\d{8}'],
+	['54', 'AR', [10, 11], 11], ['56', 'CL', [9], 9, '(?:123|800)\\d{8}|600\\d{7,8}'],
+	['55', 'BR', [10, 11], 11, '300\\d{5}|4(?:00\\d|020|370)\\d{4}|[3589]00\\d{6,7}'], ['972', 'IL', [8, 9], 9, '1\\d{6,11}'],
+	['61', 'AU', [9], 9, '1\\d{3,9}']];
+const PLAN = Object.fromEntries(CODIGOS_PAIS.map(([c, , largos, celular, especial]) => [c, { largos, celular, especial: especial ? new RegExp(`^(?:${especial})$`) : null }]));
+// Los países donde dentro del país se marca un 0 antes del número (el «0 de larga distancia»), sacados de los datos de
+// libphonenumber (national_prefix «0», versión 1.11.14), no de memoria. Desde fuera, con el código, ese 0 no va:
+// «+593 099 123 4567» es «+593 99 123 4567». Italia (39) no está: ahí el 0 es parte del número.
+export const TRONCAL_0 = ('20 27 31 32 33 40 41 43 44 46 49 51 53 54 55 57 58 60 61 62 63 64 66 81 82 84 86 90 91 92 93 94 95 98 211 212 213 218 '
+	+ '231 232 233 234 243 249 250 251 252 254 255 256 260 261 262 263 264 265 291 353 355 358 359 370 373 374 377 380 381 382 383 385 386 387 389 '
+	+ '421 423 508 590 591 593 594 595 596 598 686 850 855 856 880 886 961 962 963 964 966 967 970 971 972 976 977 994 995 996').split(' ');
+const TRONCAL_POR_LARGO = [...TRONCAL_0].sort((a, b) => b.length - a.length);
+// El código de un número con «+» que tiene 0 de larga distancia (aunque no esté en CODIGOS_PAIS), o ''.
+const codigoConTroncal = (d) => TRONCAL_POR_LARGO.find((c) => d.startsWith(c)) || '';
+// Un «+» repetido («++502») es un error de dedo: queda uno.
+const unMas = (t) => t.replace(/^\s*\+[\s+]*/, '+');
+const POR_LARGO = CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length);
+const codigoDe = (d) => POR_LARGO.find((c) => d.startsWith(c)) || '';
+const nacionalBien = (codigo, n) => Boolean(PLAN[codigo]) && (PLAN[codigo].largos.includes(n.length) || Boolean(PLAN[codigo].especial?.test(n)));
+// Lo que se escribe de más y no es parte del número: una extensión al final («ext. 12», «x12», «extensión 3»).
+const sinExtension = (t) => String(t || '').trim().replace(/\s*[,;]?\s*(?:ext\.?|extensi[oó]n|x)\s*\d{1,6}\s*$/i, '').trim();
+// El número nacional como se marca desde fuera: sin el 0 de larga distancia que se escribe dentro del país
+// («+44 07911 123456»), el «1» de larga distancia de EE. UU. y Canadá («+1 1 305 555 1234») ni el «1» que antes
+// llevaban los celulares de México («+52 1 55 1234 5678»), cuando sin él queda un número de ese país (en Italia el 0 es
+// parte del número y se queda).
+function nacionalDe(codigo, n) {
+	// En un país con 0 de larga distancia, ningún número empieza con 0 (libphonenumber): ese 0 nunca se marca desde fuera.
+	if (TRONCAL_0.includes(codigo) && n.startsWith('0') && nacionalBien(codigo, n.slice(1))) return n.slice(1);
+	if (nacionalBien(codigo, n)) return n;
+	// El 0 solo en los países donde se marca dentro del país (Reino Unido, Alemania, Francia…); en Centroamérica no.
+	const prefijo = codigo === '1' || codigo === '52' ? '1' : TRONCAL_0.includes(codigo) ? '0' : '';
+	return prefijo && n.startsWith(prefijo) && nacionalBien(codigo, n.slice(1)) ? n.slice(1) : n;
+}
+// El número sin el código, cortado por dígitos («+(502) 5555-1234» → «5555-1234»).
+const sinCodigo = (t, codigo) => t.replace(new RegExp(`^\\+\\D*${codigo.split('').join('\\D*')}`), '').replace(/^[\s).\-/]+/, '').trim();
 // Código y número de un teléfono guardado, para mostrarlo en un campo con su código de país.
 //  «+502 5555 1234» → { codigo: '502', numero: '5555 1234' }
 //  «5555 1234» (sin código, como se guardaba antes) → el código por defecto
-//  «50255551234» o «13055551234» (11 dígitos con el código pegado) → se separa
+//  «50255551234» o «13055551234» (con el código pegado y el largo justo de ese país) → se separa
 //  «+995 555 123» (código que no está en la lista) → { codigo: '', numero: '+995 555 123' }: se conserva tal cual
 export function partirTelefono(tel, porDefecto = '502') {
 	const t = String(tel || '').trim();
 	if (!t) return { codigo: porDefecto, numero: '' };
 	const digitos = t.replace(/\D/g, '');
-	const conocido = (d) => CODIGOS_PAIS.map(([c]) => c).sort((a, b) => b.length - a.length).find((c) => d.startsWith(c)) || '';
 	if (t.startsWith('+')) {
-		const codigo = conocido(digitos);
-		return codigo ? { codigo, numero: t.slice(1).trim().slice(codigo.length).trim() } : { codigo: '', numero: t };
+		const codigo = codigoDe(digitos);
+		return codigo ? { codigo, numero: sinCodigo(t, codigo) } : { codigo: '', numero: t };
 	}
 	if (digitos.length === 11 && (digitos.startsWith('502') || digitos.startsWith('1')) && !/\D/.test(t)) {
 		const codigo = digitos.startsWith('502') ? '502' : '1';
@@ -180,25 +249,72 @@ export function partirTelefono(tel, porDefecto = '502') {
 	}
 	return { codigo: porDefecto, numero: t };
 }
-// Código + número → como se guarda. Si el número ya viene con «+», manda el número.
+// Código elegido + número → como se guarda. Si el número ya viene con «+» (o «00»), manda el número. El autollenado
+// del navegador suele traer el código pegado («50255551234»): se quita solo si así queda el largo de un celular de ese
+// país y con el código no; un número que empieza igual que su código («+39» y «392 123 4567») no se corta.
+// La usan el panel (admin/js/form.js) y el sitio (js/site.js, por EQFormato).
 export function unirTelefono(codigo, numero) {
-	const n = String(numero || '').trim();
+	const n = unMas(String(numero || '').trim());
 	if (!n) return '';
-	return n.startsWith('+') || !codigo ? n : `+${codigo} ${n}`;
+	if (n.startsWith('+')) return sinTroncal(n);
+	if (!codigo) return n;
+	const d = n.replace(/\D/g, '');
+	if (/^00/.test(n.replace(/[\s.\-()]/g, ''))) {
+		const c = codigoDe(d.slice(2));
+		return c ? `+${c} ${d.slice(2 + c.length)}` : `+${d.slice(2)}`;
+	}
+	const cel = PLAN[codigo]?.celular;
+	if (cel && d.startsWith(codigo) && d.length !== cel && d.length - codigo.length === cel) return `+${codigo} ${d.slice(codigo.length)}`;
+	return sinTroncal(`+${codigo} ${n}`);
 }
-// ¿Es un teléfono que se puede marcar? Entre 7 y 15 dígitos, contando el código de país; uno de Guatemala (+502, o
-// 8 dígitos sin código) lleva exactamente 8 después del código.
+// «+593 099 123 4567» → «+593 99 123 4567» y «+44 (0)20…» → «+44 20…»: sin el 0 de larga distancia de un país que lo usa (TRONCAL_0), si con él no
+// queda un número válido de su plan (si está en CODIGOS_PAIS).
+function sinTroncal(t) {
+	const d = t.replace(/\D/g, '');
+	const codigo = codigoDe(d) || codigoConTroncal(d);
+	if (!codigo || !TRONCAL_0.includes(codigo)) return t;
+	const nacional = d.slice(codigo.length);
+	if (!nacional.startsWith('0') || (PLAN[codigo] && !nacionalBien(codigo, nacional.slice(1)))) return t;
+	// «(0)» se va entero, con sus paréntesis («+44 (0)20…» → «+44 20…»).
+	const pre = `^(\\+\\D*${codigo.split('').join('\\D*')})`;
+	const sinParentesis = t.replace(new RegExp(`${pre}[\\s.-]*\\(\\s*0\\s*\\)[\\s.-]*`), '$1 ');
+	return sinParentesis !== t ? sinParentesis : t.replace(new RegExp(`${pre}(\\D*)0`), '$1$2');
+}
+// ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
+// dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con
+// otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o de 7 a 15 con el código pegado.
 export const telefonoValido = (tel) => {
-	const t = String(tel || '').trim(), d = t.replace(/\D/g, '');
-	if (/^\+\s*502/.test(t)) return d.length === 11;
+	const t = sinExtension(tel), d = t.replace(/\D/g, '');
+	if (/^\s*\+[\s]*\+/.test(String(tel || ''))) return false;
+	if (t.startsWith('+')) {
+		const codigo = codigoDe(d);
+		if (codigo) return nacionalBien(codigo, nacionalDe(codigo, d.slice(codigo.length)));
+	}
 	return d.length >= 7 && d.length <= 15;
 };
 
-// Teléfono comparable y listo para wa.me: solo dígitos; los de 8 dígitos se asumen de Guatemala.
+// Teléfono comparable y listo para wa.me: solo dígitos, sin extensión, y con el número como se marca desde fuera
+// (sin el 0 de larga distancia ni el «1» viejo de México). Solo uno escrito sin «+» y de 8 dígitos se toma de
+// Guatemala; uno con «+» nunca cambia de país.
 export function telefonoWa(tel) {
-	let n = String(tel || '').replace(/\D/g, '');
-	if (n.length === 8) n = `502${n}`;
+	const t = sinExtension(tel);
+	let n = t.replace(/\D/g, '');
+	const codigo = t.startsWith('+') ? codigoDe(n) : '';
+	if (codigo) return codigo + nacionalDe(codigo, n.slice(codigo.length));
+	// Un país con 0 de larga distancia que no está en CODIGOS_PAIS: el 0 tampoco se marca desde fuera.
+	const troncal = t.startsWith('+') ? codigoConTroncal(n) : '';
+	if (troncal && n[troncal.length] === '0') return troncal + n.slice(troncal.length + 1);
+	if (n.length === 8 && !t.startsWith('+')) n = `502${n}`;
 	return n;
+}
+
+// Primer mensaje a quien escribió desde el sitio, en su idioma (el del sitio donde escribió, `lead.idioma`). Uno solo para
+// el aviso del lead (netlify/functions/aviso-lead.mjs: WhatsApp y correo) y el botón de WhatsApp de Leads.
+export function saludoLead({ nombre = '', propertyTitulo = '', idioma = 'es' } = {}) {
+	const n = String(nombre).trim().split(/\s+/)[0] || '';
+	return idioma === 'en'
+		? `Hi${n ? ` ${n}` : ''}, thanks for reaching out${propertyTitulo ? ` about ${propertyTitulo}` : ''}. `
+		: `Hola${n ? ` ${n}` : ''}, gracias por escribirnos${propertyTitulo ? ` por ${propertyTitulo}` : ''}. `;
 }
 
 export function whatsappUrl(tel, mensaje) {

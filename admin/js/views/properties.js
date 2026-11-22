@@ -6,12 +6,13 @@ import {
 , mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion } from '../ui.js';
 import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
 import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
+import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -22,11 +23,13 @@ import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
-import { deLaCasa, porVenir, avisoPorVenir, refContacto } from '../reservas.js';
+import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
+import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
-import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
+import { guardarPrivadoVacacional, socioLimpio, crearCasa } from '../privado-casa.js';
 import { propiedadParaIA } from '../para-ia.js';
+import { TEXTOS_VAC, fuenteEs, faltaIngles, fuenteTraducida } from '../ingles.js';
 import '/js/calc-vacacional.js';
 
 const V = window.EQVacacional;
@@ -35,7 +38,7 @@ const faltanDe = (p) => revisar('propiedades', p);
 
 // Mismo SEO automático que usa el generador del sitio (admin/js/seo-auto.js).
 const autoTitle = (d) => autoSeoTitle(d);
-const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(d.precio, d.moneda, d.operacion), [
+const autoDescription = (d) => autoSeoDescripcion(d, formatPrice(precioVisible(d), d.moneda, d.operacion), [
 	d.habitaciones && `${d.habitaciones} ${Number(d.habitaciones) === 1 ? 'habitación' : 'habitaciones'}`,
 	d.banos && `${d.banos} ${Number(d.banos) === 1 ? 'baño' : 'baños'}`,
 	huespedesDe(d) ? `${huespedesDe(d)} ${huespedesDe(d) === 1 ? 'huésped' : 'huéspedes'}` : d.m2Construccion && `${miles(d.m2Construccion)} m²`
@@ -73,22 +76,20 @@ async function borrarFotos(p) {
 // Pone la marca de agua a las fotos ya subidas que no la tienen. Sube una copia nueva con marca
 // y guarda la ruta de la original en «sinMarca». Devuelve la galería nueva, o null si no cambió nada.
 // Traduce (sin IA: diccionario, plantillas y traductor gratuito) los textos en español y devuelve la versión en inglés.
-// "fuente" guarda el texto en español traducido, para saber si cambió después.
-// Las casas vacacionales suman cómo llegar, reglas y cancelación (solo si los tienen).
-const TEXTOS_VAC = ['comoLlegar', 'reglas', 'cancelacion'];
-export const fuenteEs = (d) => [d.titulo || '', d.descripcion || '', ...TEXTOS_VAC.map((k) => d.vacacional?.[k]).filter(Boolean)].join('\n');
-// ¿Hay que traducir? Falta el inglés, o el español cambió y el inglés no se corrigió a mano.
-export const faltaIngles = (d) => {
-	const en = d.en || {};
-	return Boolean(d.titulo) && (!String(en.titulo || '').trim() || (!en.manual && (!String(en.descripcion || '').trim() || en.fuente !== fuenteEs(d))));
-};
+// Qué se traduce y cuándo falta: admin/js/ingles.js.
+export { fuenteEs, faltaIngles };
 // La dirección en inglés sale del título: al cambiarlo se guarda el anterior para redirigir.
+// Descripción para Google escrita a mano pero muy corta (menos de 70): el sitio pone la automática (templates.mjs).
+const propiaCorta = (t) => Boolean(t) && String(t).length < 70;
 const titulosEnAnteriores = (en, titulo) => [...new Set([...(en?.slugsAnteriores || []), en?.slug ? '' : en?.titulo])].filter((t) => t && t !== titulo);
 // Al traductor va solo lo público: pedirIA lo limpia con admin/js/para-ia.js.
 export async function traducirEn(d) {
 	const r = await pedirIA('traducir', { propiedad: d });
 	return {
-		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: r.amenidades || [],
+		// Una amenidad por cada una en español: si la traducción trae menos, sale del diccionario (no se pierde ninguna).
+		titulo: r.titulo || '', descripcion: r.descripcion || '', amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: { amenidades: r.amenidades } }),
+		// A qué lista en español corresponde cada una (estados.js `amenidadesEnDe`).
+		amenidadesDe: [...(d.amenidades || [])],
 		seo: {
 			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
 			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
@@ -96,7 +97,7 @@ export async function traducirEn(d) {
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		vacacional: Object.fromEntries(TEXTOS_VAC.map((k) => [k, r[k] || ''])),
 		slugsAnteriores: titulosEnAnteriores(d.en, r.titulo),
-		fuente: fuenteEs(d),
+		fuente: fuenteTraducida(d, r),
 		manual: false
 	};
 }
@@ -212,7 +213,8 @@ export function propiedadNueva(datos) {
 	d.createdBy = d.updatedBy = session.user.uid;
 	return d;
 }
-// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo), el documento, sus fotos y su
+// Borra una propiedad con todo lo suyo: lo privado (socio, llegada, acuerdo, la llave del calendario de EQ y lo último
+// leído de Airbnb/Booking/VRBO), el documento, sus fotos y su
 // renglón en la lista de casas de su dueño. Una sola para todo el panel: la usan la ficha y el listado.
 export async function eliminarPropiedad(p) {
 	// Una casa por noche con huéspedes por venir no se borra; sin ellos, se borra también el contacto de sus huéspedes.
@@ -220,7 +222,7 @@ export async function eliminarPropiedad(p) {
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
 	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	for (const privado of ['socio', 'llegada', 'acuerdo']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
 	await deleteDoc(doc(db, 'properties', p.id));
 	await borrarFotos(p);
 	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya
@@ -242,10 +244,13 @@ export function slugLibre(titulo, usados) {
 //  - una casa por noche lleva dueño y no lleva asesor (agentId ''): sus solicitudes las atienden el administrador y
 //    su dueño, y así ningún asesor lee el teléfono de sus huéspedes; tampoco lleva VIP ni mantenimiento. Por eso
 //    solo el administrador la crea o la cambia (las reglas dejan al asesor solo casas con su agentId);
-//  - con huéspedes por venir no deja de ser por noche (perderían sus fechas).
+//  - con huéspedes por venir no deja de ser por noche (perderían sus fechas);
+//  - con solicitudes abiertas no cambia de moneda (sus montos están en la moneda de antes: no se comparan);
+//  - no se muestra en la página sin su dirección exacta (el cliente la recibe al pagar: revisarPublicar).
 // antes = la casa guardada (null si es nueva); d = como queda: se le ponen los ajustes. Lanza un Error con el motivo.
+// `direccion`: la que trae la ficha (sin ella, la guardada en privado/llegada).
 // Devuelve { ajustes, sinLlegada }: sinLlegada = dejó de ser por noche (su dirección y mapa privados se borran).
-export async function revisarCasa(antes, d, id) {
+export async function revisarCasa(antes, d, id, { direccion } = {}) {
 	const era = antes?.operacion === 'vacacional', es = esVacacional(d);
 	if ((es || era) && !session.isAdmin) throw new Error('Las casas por noche las lleva el administrador (no llevan asesor).');
 	if (es && !d.propietarioId) throw new Error('Elige el dueño de la casa por noche. Si todavía no existe, créalo en Propietarios.');
@@ -253,9 +258,29 @@ export async function revisarCasa(antes, d, id) {
 		const pendientes = await porVenir(id);
 		if (pendientes.length) throw new Error(avisoPorVenir(pendientes, 'No puede dejar de ser renta por noche'));
 	}
+	if (antes && es && (antes.moneda || 'USD') !== (d.moneda || 'USD')) {
+		const abiertas = await solicitudesAbiertas(id);
+		if (abiertas.length) throw new Error(`No se puede cambiar la moneda mientras tenga solicitudes abiertas (${abiertas.slice(0, 3).join(', ')}): sus montos están en la moneda de antes. Ciérralas o espera a que terminen.`);
+	}
+	await revisarPublicar({ ...d, id }, direccion);
 	const ajustes = es ? { agentId: '', vip: false, mantenimiento: '' } : {};
 	Object.assign(d, ajustes);
 	return { ajustes, sinLlegada: era && !es };
+}
+// Solicitudes de la casa sin responder o confirmadas que no han terminado (sus códigos).
+async function solicitudesAbiertas(id) {
+	const hoy = V.hoy();
+	return (await getDocs(query(collection(db, 'leads'), where('propertyId', '==', id)))).docs.map((x) => x.data())
+		.filter((l) => l.reserva?.codigo && (!l.solicitud?.estado || l.solicitud.estado === 'pendiente' || (l.solicitud.estado === 'confirmada' && l.reserva.salida >= hoy)))
+		.map((l) => l.reserva.codigo);
+}
+// Una casa por noche visible en la página lleva su dirección exacta (privado/llegada): sin ella, «Pago recibido» no
+// tiene qué mandarle al cliente. Lo revisan la ficha, el importador y «Mostrar en la página» (una o varias).
+export const SIN_DIRECCION_PUBLICAR = 'Para mostrar una casa por noche en la página, primero escribe su dirección exacta en la ficha: el cliente la recibe al pagar.';
+export async function revisarPublicar(p, direccion) {
+	if (!esVacacional(p) || !p.publicado) return;
+	const dir = direccion !== undefined ? direccion : (await getDoc(doc(db, 'properties', p.id, 'privado', 'llegada')).catch(() => null))?.data()?.direccion;
+	if (faltaDireccion({ direccion: dir })) throw new Error(SIN_DIRECCION_PUBLICAR);
 }
 
 // Casas por noche de antes con un asesor: lo pierden, y también sus reservas y solicitudes (con ese agentId el asesor
@@ -271,7 +296,7 @@ async function sinAsesorPorNoche(p) {
 
 // Lo privado de una casa por noche (costo del socio, dirección y mapa) se escribe con guardarPrivadoVacacional
 // (admin/js/privado-casa.js); se reexporta para quien ya lo importa de aquí.
-export { guardarPrivadoVacacional };
+export { guardarPrivadoVacacional, crearCasa };
 
 // Guarda los cambios de una propiedad que ya existe. Una sola para el panel: la ficha y el importador.
 // En una transacción vuelve a leer la casa (y el costo del socio) y pone encima solo lo que cambió quien guarda
@@ -385,7 +410,7 @@ async function exportarCsv(props, agentName, btn) {
 			};
 			filas.push(cab.map((c) => String(val[c] ?? '')));
 		}
-		downloadCsv(`propiedades-${new Date().toISOString().slice(0, 10)}.csv`, filas);
+		downloadCsv(`propiedades-${hoyISO()}.csv`, filas);
 		toast(`Exportadas ${props.length} propiedades.`);
 	} catch (err) {
 		showError(err);
@@ -478,15 +503,18 @@ export async function render(container, [id]) {
 		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
-		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(p.precio, p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
+		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(precioVisible(p), p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
 		const cambiarEstado = async () => {
-			const label = await elegirOpcion(`Estado de ${nombre}`, ESTADOS.map(([, l]) => l));
-			const estado = ESTADOS.find(([, l]) => l === label)?.[0];
+			// Solo los estados que aplican a su operación (incoherencia): una casa por noche no queda «Vendida».
+			const opciones = estadosPara(p.operacion || 'venta');
+			const label = await elegirOpcion(`Estado de ${nombre}`, opciones.map((e) => e.label));
+			const estado = opciones.find((e) => e.label === label)?.valor;
 			if (!estado || estado === estadoDe(p).valor) return;
 			guardarRapido(p, cambioDeEstado(estado), { estado }, `Estado de ${p.titulo}: ${label}`, `Estado cambiado a «${label}». ${trasGuardar()}`);
 		};
-		const alternarVisible = () => {
+		const alternarVisible = async () => {
 			const publicado = !p.publicado;
+			try { await revisarPublicar({ ...p, publicado }); } catch (err) { return toast(err.message, 'warning'); }
 			guardarRapido(p, { publicado }, { publicado }, `${publicado ? 'Visible' : 'Oculta'}: ${p.titulo}`,
 				`${publicado ? 'Visible en la página.' : 'Oculta de la página.'} ${trasGuardar()}`);
 		};
@@ -585,13 +613,15 @@ export async function render(container, [id]) {
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = true; });
 		let ok = 0;
 		const fallos = [];
+		// Lo que el panel revisa (p. ej. la dirección para mostrar una casa por noche) se dice; un error de la base, no.
+		let motivo = '';
 		for (const p of lista) {
-			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); console.error(err); }
+			try { await accion(p); ok++; } catch (err) { fallos.push(p.titulo || p.id); if (!err.code && !motivo) motivo = err.message; console.error(err); }
 		}
 		refrescarPortalesDe(lista.map((p) => p.id));
 		if (ok) await markPending(`${desc} (${ok})`).catch(() => {});
 		if (ok) toast(aviso(ok));
-		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}`, 'danger');
+		if (fallos.length) toast(`No se pudieron cambiar ${fallos.length}: ${fallos.slice(0, 3).join(', ')}${fallos.length > 3 ? '…' : ''}${motivo ? `. ${motivo}` : ''}`, 'danger');
 		if (deBarra) seleccion.clear();
 		barra.querySelectorAll('button, select').forEach((el) => { el.disabled = false; });
 		selMasaEstado.value = '';
@@ -633,7 +663,7 @@ export async function render(container, [id]) {
 		selMasaAsesor.value = '';
 	});
 	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: () => enMasa(guardarMasa({ publicado: true }, { publicado: true }), 'Visibles en la página',
+		onclick: () => enMasa(async (p) => { await revisarPublicar({ ...p, publicado: true }); await guardarMasa({ publicado: true }, { publicado: true })(p); }, 'Visibles en la página',
 			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) },
 		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
 	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
@@ -714,12 +744,13 @@ export async function render(container, [id]) {
 				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
 				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
-					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: t.en.amenidades || [],
+					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
 					seo: { titulo: autoSeoTitle({ ...d, titulo: t.en.titulo }, true), descripcion: recortar(resumenSeo(t.en.descripcion), 155) },
 					vipLanding: p.en?.vipLanding || { titular: '', subtitular: '', puntosClave: [], ctaTexto: '' },
 					vacacional: p.en?.vacacional || {},
 					slugsAnteriores: titulosEnAnteriores(p.en, t.en.titulo),
-					fuente: fuenteEs(d), manual: false
+					fuente: fuenteTraducida(d, { titulo: t.en.titulo, descripcion: t.en.descripcion, ...(p.en?.vacacional || {}),
+						vipTitular: p.en?.vipLanding?.titular, vipSubtitular: p.en?.vipLanding?.subtitular, ctaTexto: p.en?.vipLanding?.ctaTexto }), manual: false
 				};
 				await guardarMasa(cambios, cambios)(p);
 			}, 'Textos preparados', (k) => `Textos puestos en ${k} propiedad${k === 1 ? '' : 'es'}. Revísalos y publica.`);
@@ -856,7 +887,7 @@ export async function render(container, [id]) {
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 
-function schema(agentOpts, isNew, socioOpts, ajeno = false) {
+function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
@@ -924,7 +955,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.limpieza', label: 'Cargo de limpieza (por estancia)', type: 'number', min: 0, max: 10000, step: 0.01, cols: 4, when: esVacacional, help: 'Se suma al cliente sin margen.' },
 		{ name: 'vacacional.deposito', label: 'Depósito reembolsable', type: 'number', min: 0, max: 50000, step: 0.01, cols: 4, when: esVacacional, help: 'Se devuelve; no lleva impuestos.' },
 		{ name: 'vacacional.nochesMin', label: 'Noches mínimas', type: 'number', min: 1, max: 30, step: 1, cols: 2, when: esVacacional, help: 'Lo normal es 1 o 2. Para feriados, mejor un mínimo por fechas en el calendario del dueño.' },
-		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, step: 1, cols: 2, when: esVacacional },
+		{ name: 'vacacional.huespedesMax', label: 'Huéspedes máximos', type: 'number', min: 1, max: 50, step: 1, cols: 2, when: esVacacional },
 		{ name: 'vacacional.checkIn', label: 'Hora de entrada', type: 'select', options: HORAS, default: '15:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.checkOut', label: 'Hora de salida', type: 'select', options: HORAS, default: '11:00', cols: 3, when: esVacacional },
 		{ name: 'vacacional.camas', label: 'Camas', type: 'number', min: 0, step: 1, cols: 2, when: esVacacional },
@@ -934,6 +965,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vacacional.cancelacion', label: 'Cancelación', type: 'textarea', rows: 2, when: esVacacional, help: 'Vacío = la política general de Contenido → Textos → Renta vacacional.' },
 		// Un calendario por plataforma (V.CALENDARIOS): sus noches ocupadas se bloquean solas en la página.
 		...V.CALENDARIOS.map((c) => ({ name: `socio.${c.campo}`, label: `Calendario de ${c.nombre} (iCal, opcional)`, type: 'url', cols: 4, when: esVacacional, placeholder: 'https://….ics', help: AYUDA_ICAL[c.nombre] })),
+		// Y al revés: lo que reservan los clientes de EQ, para que esas plataformas lo bloqueen.
+		campoCalendarioEq(casaId, { when: esVacacional }),
 		{ name: 'vacacional.bloqueos', label: 'Fechas ocupadas (además de los calendarios)', type: 'list', itemLabel: 'Bloqueo', ordenar: false, when: esVacacional, help: 'Ejemplo: primera 24 y última 26 = ocupadas las noches del 24, 25 y 26. El 24 en la mañana todavía puede salir el huésped anterior (en la página dice «Solo salida») y el 27 ya se puede llegar.', fields: [
 			{ name: 'desde', label: 'Primera noche ocupada', type: 'date', cols: 6 },
 			{ name: 'ultima', label: 'Última noche ocupada (incluida)', type: 'date', cols: 6 }
@@ -982,7 +1015,8 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
 		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
-		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: vip },
+		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
+		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 
 		{ type: 'section', label: 'Versión en inglés (mercado de EE. UU.)', help: 'No hay que escribirla: se traduce sola en cuanto terminas el título y la descripción en español, y se vuelve a traducir si los cambias. Revísala; si corriges algo aquí a mano, se respeta y ya no se reemplaza.' },
 		{ name: 'en.titulo', label: 'Title (English)', cols: 12 },
@@ -1003,13 +1037,16 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false) {
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
 			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
-			description: (d) => d.seo?.descripcion || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
+			// La misma regla del sitio (templates.mjs seoDescription): la escrita, si tiene 70 letras o más.
+			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
 				[(d.fotos || []).length > 0 && d.fotos.every((f) => f.alt), 'Todas las fotos tienen descripción.'],
 				[stripMd(d.descripcion).split(/\s+/).filter(Boolean).length >= 80, 'Descripción de al menos 80 palabras (Google premia el contenido original).'],
-				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).']
+				[Boolean(d.zona), 'Tiene zona (aparece en las búsquedas por zona).'],
+				...[['', d.seo?.descripcion], [' en inglés', d.en?.seo?.descripcion]].filter(([, t]) => propiaCorta(t))
+					.map(([idioma, t]) => [false, `Tu descripción${idioma} tiene ${t.length} letras: con menos de 70, Google recibe la automática.`])
 			]
 		})
 	];
@@ -1091,7 +1128,7 @@ async function renderEditor(container, id, emb = null) {
 	let slugTouched = Boolean(data.slug);
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
-	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {
@@ -1163,7 +1200,9 @@ async function renderEditor(container, id, emb = null) {
 	// (al salir del campo), sin esperar a «Guardar». Lo corregido a mano se respeta.
 	const CAMPOS_EN = ['titulo', 'descripcion', 'amenidades', 'seo.titulo', 'seo.descripcion', 'vipLanding.titular', 'vipLanding.ctaTexto',
 		'vipLanding.subtitular', 'vipLanding.puntosClave', ...TEXTOS_VAC.map((k) => `vacacional.${k}`)];
-	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve();
+	// intentadoCon: el español con que ya se tradujo aquí sin quedar completa (un texto volvió vacío); con ese mismo
+	// español no se vuelve a pedir en cada cambio de otro campo: se intenta otra vez al guardar.
+	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve(), intentadoCon = null;
 	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status' });
 	form.el.querySelector('[data-campo="en.titulo"]').before(estadoEn);
 	// Lo que se manda a traducir: lo mismo que queda público al guardar. De una casa por noche no van la dirección
@@ -1180,7 +1219,7 @@ async function renderEditor(container, id, emb = null) {
 		const s = form.state;
 		s.en = s.en || {};
 		if (s.en.titulo && textoEn(s.en) !== textoEn(enAuto)) s.en.manual = true;
-		if (!String(s.descripcion || '').trim() || !faltaIngles(s)) return;
+		if (!String(s.descripcion || '').trim() || !faltaIngles(s) || fuenteEs(s) === intentadoCon) return;
 		const turno = ++turnoEn, antes = textoEn(s.en);
 		estadoEn.textContent = 'Traduciendo al inglés…';
 		try {
@@ -1189,9 +1228,10 @@ async function renderEditor(container, id, emb = null) {
 			// Si alguien corrigió el inglés mientras se traducía, manda su corrección.
 			if (textoEn(form.state.en) !== antes) { form.state.en.manual = true; estadoEn.textContent = ''; return; }
 			CAMPOS_EN.forEach((k) => form.poner(`en.${k}`, getPath(en, k)));
-			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, fuente: en.fuente, manual: false });
+			Object.assign(form.state.en, { slugsAnteriores: en.slugsAnteriores, amenidadesDe: en.amenidadesDe, fuente: en.fuente, manual: false });
 			enAuto = clonar(form.state.en);
-			estadoEn.textContent = 'Traducción automática lista: revísala.';
+			intentadoCon = en.fuente ? null : fuenteEs(s);
+			estadoEn.textContent = en.fuente ? 'Traducción automática lista: revísala.' : 'Faltó traducir un texto; se intenta de nuevo al guardar.';
 		} catch {
 			if (turno === turnoEn) estadoEn.textContent = 'No se pudo traducir ahora; se intenta de nuevo al guardar.';
 		}
@@ -1204,7 +1244,8 @@ async function renderEditor(container, id, emb = null) {
 		await render(view, [ref.id]);
 	};
 
-	const save = async (btn) => {
+	// `forzarIngles`: vuelve a traducir aunque el inglés esté al día (el botón «Traducir al inglés» con cambios sin guardar).
+	const save = async (btn, { forzarIngles = false } = {}) => {
 		if (!form.validate()) return;
 		// Si la traducción en vivo va en camino, se espera: así no se traduce dos veces.
 		btn.disabled = true;
@@ -1214,7 +1255,7 @@ async function renderEditor(container, id, emb = null) {
 		const d = clonar(mio);
 		// Lo mismo que revisa el importador: dueño de la casa por noche, sin asesor, sin pasar a venta con huéspedes por venir.
 		let sinLlegada = false;
-		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id)); }
+		try { ({ sinLlegada } = await revisarCasa(isNew ? null : { ...data, operacion: eraVacacional ? 'vacacional' : data.operacion }, d, ref.id, { direccion: String(d.direccion ?? '') })); }
 		catch (err) { return toast(errorMessage(err), 'warning'); }
 		// Si la casa ya tenía dueño y se elige otro, se pregunta antes de guardar nada.
 		if (!isNew && !(await confirmarCambioDeDueno([{ casa: { ...data, id: ref.id }, a: d.propietarioId || '' }], propietarios))) return;
@@ -1245,6 +1286,8 @@ async function renderEditor(container, id, emb = null) {
 		}
 		d.slug = slugify(d.slug || d.titulo);
 		if (!d.slug) return toast('Escribe un título.', 'warning');
+		// La zona sin espacios de más; la forma de escribirla la unifica el sitio (landings.mjs `unificarZonas`).
+		d.zona = String(d.zona || '').trim().replace(/\s+/g, ' ');
 		const clash = all.find((p) => p.id !== ref.id && p.slug === d.slug);
 		if (clash) return toast(`La URL "${d.slug}" ya la usa "${clash.titulo}". Cámbiala.`, 'warning');
 		if (!session.isAdmin) d.agentId = session.agentId;
@@ -1264,10 +1307,26 @@ async function renderEditor(container, id, emb = null) {
 			d.slugsAnteriores = [...new Set([...(data.slugsAnteriores || []), data.slug])].filter((s) => s !== d.slug);
 		}
 		d.estado = estadoDe(d).valor;
+		// «Ocultar precio»: ningún texto (título, URL, descripción, VIP, inglés, Google) puede decir el precio, en ninguna
+		// forma (cifras, «987k», «1.2 millones»). Se dice junto a la casilla, en una línea.
+		const conPrecio = textosConPrecioOculto(d);
+		const avisoPrecio = form.el.querySelector('[data-campo="vipLanding.ocultarPrecio"]');
+		avisoPrecio?.querySelector('.aviso-precio-oculto')?.remove();
+		if (conPrecio.length) {
+			const linea = `Con el precio oculto, quítalo de: ${conPrecio.map(([k]) => k).join(', ')}.`;
+			avisoPrecio?.append(h('div', { class: 'form-text text-danger aviso-precio-oculto', role: 'alert' }, linea));
+			avisoPrecio?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+			return toast(linea, 'warning');
+		}
 		// Versión en inglés automática: si alguien la corrigió a mano, se respeta.
 		d.en = d.en || {};
+		// La dirección en inglés sale de su título: si se corrigió a mano, la anterior redirige a la nueva (como en español).
+		if (!isNew && data.en?.titulo && d.en.titulo && slugify(data.en.titulo) !== slugify(d.en.titulo)) d.en.slugsAnteriores = titulosEnAnteriores(data.en, d.en.titulo);
+		// Lista en inglés corregida a mano con una por cada amenidad en español: queda emparejada (amenidadesEnDe).
+		const enAmenCambio = JSON.stringify(d.en.amenidades || []) !== JSON.stringify(data.en?.amenidades || []);
+		if (enAmenCambio && (d.en.amenidades || []).length && d.en.amenidades.length === (d.amenidades || []).length) d.en.amenidadesDe = [...d.amenidades];
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
-		const traducirAhora = faltaIngles(d);
+		const traducirAhora = forzarIngles || faltaIngles(d);
 		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
 		if (!d.vip && d.titulo) {
 			const conPublico = esVacacional(d) ? { ...d, ...vacacionalPublico({ ...d, socio }) } : d;
@@ -1283,10 +1342,9 @@ async function renderEditor(container, id, emb = null) {
 				if (esVacacional(d)) Object.assign(d, vacacionalPublico({ ...d, socio }));
 				// Lo que lleva toda propiedad al nacer: historial de estado y de precio, y quién la creó.
 				Object.assign(d, propiedadNueva(d));
-				await setDoc(ref, d);
+				// La casa y lo privado de una por noche, juntos (crearCasa).
+				await crearCasa(ref, d, esVacacional(d) ? { socio, llegada } : {});
 				guardada = d;
-				// Lo privado va después de crear la casa: su regla la lee.
-				if (esVacacional(d)) await guardarPrivadoVacacional(ref.id, socio, llegada);
 			} else {
 				// Solo lo que cambió aquí, sobre lo guardado ahora; lo privado, en la misma transacción.
 				guardada = await guardarCambios(ref.id, cambiosEntre(alAbrir.datos, d), {
@@ -1317,6 +1375,8 @@ async function renderEditor(container, id, emb = null) {
 			Object.assign(data, guardada, llegada || {});
 			await form.flushDeletes();
 			await markPending(`Propiedad: ${d.titulo}`);
+			// Casa por noche: sus fechas, precios y estado salen en la página sin esperar al CDN (/api/disponibilidad).
+			if (guardada.operacion === 'vacacional' || eraVacacional) alDiaEnLaWeb(ref.id);
 			const casa = { id: ref.id, ...guardada };
 			if (!traducirAhora) {
 				toast(`Propiedad guardada. ${trasGuardar()}`);
@@ -1386,15 +1446,11 @@ async function renderEditor(container, id, emb = null) {
 				// La dirección y el mapa de una casa por noche son privados (data los trae de privado/llegada).
 				...(vac ? { direccion: '', mapa: '' } : {})
 			});
-			await setDoc(newRef, d);
-			// Después de crear la casa: su regla la lee.
-			if (vac) {
-				// El costo del socio sí (sin los calendarios ni el código del socio, que son de la original); la dirección y el mapa también.
-				const socioCopia = { ...(socioPriv.data() || {}) };
-				for (const c of V.CALENDARIOS) delete socioCopia[c.campo];
-				delete socioCopia.codigoSocio;
-				await guardarPrivadoVacacional(newRef.id, socioCopia, llegadaPriv.data() || {});
-			}
+			// El costo del socio sí (sin los calendarios ni el código del socio, que son de la original); la dirección y el
+			// mapa también. Todo junto con la casa (crearCasa).
+			const socioCopia = vac ? { ...(socioPriv.data() || {}) } : null;
+			if (vac) { for (const c of V.CALENDARIOS) delete socioCopia[c.campo]; delete socioCopia.codigoSocio; }
+			await crearCasa(newRef, d, vac ? { socio: socioCopia, llegada: llegadaPriv.data() || {} } : {});
 			if (data.propietarioId) await asignarDueno({ id: newRef.id, propietarioId: data.propietarioId, operacion: data.operacion }, data.propietarioId, { duenos: propietarios, casas: all, escribirCasa: false, conservarAcuerdo: true });
 			toast('Copia creada como borrador. Ajusta los datos y guarda.');
 			location.hash = `#/propiedades/${newRef.id}`;
@@ -1404,8 +1460,15 @@ async function renderEditor(container, id, emb = null) {
 		}
 	};
 
-	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano).
+	// ¿La ficha tiene algo sin guardar? (lo mismo que «Guardar» compararía con lo guardado).
+	const sinGuardar = () => {
+		const ahora = comoQuedo(form.getData());
+		return acuerdoTocado || Object.keys(cambiosEntre(alAbrir.datos, ahora.datos)).length > 0 || Object.keys(cambiosEntre(alAbrir.socio, ahora.socio, [])).length > 0;
+	};
+	// Botón manual: vuelve a traducir todo (reemplaza correcciones hechas a mano). Con cambios sin guardar, primero se
+	// guardan y se traduce lo guardado: traducir y volver a leer la base los borraría.
 	const traducir = async (btn) => {
+		if (sinGuardar()) return save(saveBtn, { forzarIngles: true });
 		btn.disabled = true;
 		toast('Traduciendo al inglés…');
 		try {

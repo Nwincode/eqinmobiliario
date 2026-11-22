@@ -8,25 +8,39 @@
 // ni borrar la casa.
 // Pruebas: scripts/test-mi-casa.mjs.
 import { estadoDe } from './estados.js';
+// El mismo filtro de contacto del chat (js/calc-vacacional.js `tieneContacto`). Ruta relativa: también corre en Node.
+import '../../js/calc-vacacional.js';
+
+const V = globalThis.EQVacacional;
 
 export const HORAS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 export const MAX_FOTOS = 40;
 export const ESTADOS_DUENO = ['disponible', 'pausada'];
 
-// Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin enlaces, correos ni páginas (para que el
-// huésped no salga de la plataforma; los datos de contacto se entregan al confirmar).
-const CON_ENLACE = /https?:|www\.|wa\.me|\]\(|@|\b[a-z0-9-]+\.(com|net|org|gt|me|io|co|info|biz)\b/i;
-const texto = (max, { min = 0 } = {}) => (v) => {
+// Lo que escribe el dueño sale publicado sin que nadie lo revise antes: sin teléfonos, correos, enlaces ni páginas
+// (para que el huésped no salga de la plataforma). Un solo filtro: el del
+// chat (`V.tieneContacto`), para cada texto y cada amenidad.
+const SIN_CONTACTO = 'sin teléfonos, correos, enlaces ni páginas web';
+// Qué parte parece contacto (V.tipoDeContacto: la misma pieza que el aviso del huésped), en palabras del socio. La usan
+// «Mi casa» (aquí) y el chat del panel (views/solicitudes.js).
+export const PARECE = { telefono: 'parece un teléfono', correo: 'parece un correo', red: 'parece un usuario de red social', enlace: 'parece un enlace',
+	ubicacion: 'parecen coordenadas', raro: 'tiene letras o cifras de otro alfabeto' };
+export const sinContacto = (texto) => { const tipo = V.tipoDeContacto(texto); return tipo ? `${PARECE[tipo] || SIN_CONTACTO}. ${tipo === 'ubicacion' ? 'La ubicación exacta no se publica' : 'Los contactos no se publican'}` : ''; };
+// `privado`: lo que el huésped recibe al confirmar (la dirección), junto con el contacto: ahí no se filtra.
+const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
-	if (CON_ENLACE.test(s)) return { error: 'sin enlaces, correos ni páginas web' };
+	if (!privado && sinContacto(s)) return { error: sinContacto(s) };
+	// La dirección sí puede llevar coordenadas, pero no enlaces (el mapa va en su campo).
+	if (privado && /https?:|www\./i.test(s)) return { error: 'sin enlaces (el mapa va en su campo)' };
 	return { valor: s };
 };
 const numero = (max, paso = 1) => (v) => {
 	const n = v === '' || v === null || v === undefined ? 0 : Number(v);
 	if (!Number.isFinite(n) || n < 0 || n > max) return { error: `de 0 a ${max}` };
-	return { valor: Math.round(n / paso) * paso };
+	// Con centavos, redondeo a centavos (100.10, no 100.10000000000001).
+	return { valor: paso === 0.01 ? V.r2(n) : Math.round(n / paso) * paso };
 };
 const deLista = (opciones) => (v) => (opciones.includes(v ?? '') ? { valor: v ?? '' } : { error: 'elige una opción de la lista' });
 
@@ -63,6 +77,8 @@ const amenidades = (v) => {
 	if (!Array.isArray(v)) return { error: 'lista inválida' };
 	const lista = [...new Set(v.map((a) => String(a ?? '').trim()).filter(Boolean))];
 	if (lista.length > 40 || lista.some((a) => a.length > 60)) return { error: 'hasta 40, de 60 letras cada una' };
+	const conContacto = lista.find((a) => sinContacto(a));
+	if (conContacto) return { error: `«${conContacto}» ${sinContacto(conContacto)}` };
 	return { valor: lista };
 };
 
@@ -85,7 +101,7 @@ export const CAMPOS_DUENO = [
 	{ campo: 'reglas', donde: 'casa', ruta: 'vacacional.reglas', etiqueta: 'Reglas de la casa', revisar: texto(2000) },
 	{ campo: 'comoLlegar', donde: 'casa', ruta: 'vacacional.comoLlegar', etiqueta: 'Cómo llegar', revisar: texto(1500) },
 	{ campo: 'estado', donde: 'casa', ruta: 'estado', etiqueta: 'En la página', revisar: deLista(ESTADOS_DUENO) },
-	{ campo: 'direccion', donde: 'llegada', ruta: 'direccion', etiqueta: 'Dirección', revisar: texto(300) },
+	{ campo: 'direccion', donde: 'llegada', ruta: 'direccion', etiqueta: 'Dirección', revisar: texto(300, { privado: true }) },
 	{ campo: 'mapa', donde: 'llegada', ruta: 'mapa', etiqueta: 'Mapa', revisar: mapa },
 	{ campo: 'icalUrl', donde: 'socio', ruta: 'icalUrl', etiqueta: 'Calendario de Airbnb', revisar: ical('icalUrl') },
 	{ campo: 'icalBooking', donde: 'socio', ruta: 'icalBooking', etiqueta: 'Calendario de Booking', revisar: ical('icalBooking') },

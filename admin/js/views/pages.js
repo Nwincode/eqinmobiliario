@@ -1,8 +1,7 @@
 import { h, badge, slugify, toast } from '../ui.js';
 import { crudView } from '../crud.js';
 import { seoPreviewField, stripMd } from '../seo.js';
-
-const RESERVED = ['propiedades', 'propiedad', 'vip', 'blog', 'admin', 'css', 'js', 'images', 'fonts', 'data', 'scripts', '404'];
+import { reservada, urlPagina } from '../rutas.js';
 
 export const render = crudView({
 	collection: 'pages',
@@ -13,7 +12,9 @@ export const render = crudView({
 	defaults: { publicado: false, enFooter: true },
 	columns: [
 		['Título', (p) => h('span', { class: 'fw-semibold' }, p.titulo)],
-		['URL', (p) => h('code', {}, `${p.idioma === 'en' ? '/en' : ''}/${p.slug}/`)],
+		// Una de antes con un nombre que ahora es del sitio se publica en /pagina/…: se le dice al dueño dónde quedó.
+		['URL', (p) => h('div', {}, h('code', {}, urlPagina(p.slug, p.idioma)),
+			reservada(p.slug, p.idioma) ? h('div', { class: 'small text-muted' }, `Se movió aquí: «${p.slug}» es una dirección del sitio.`) : null)],
 		['Pie de página', (p) => (p.enFooter ? 'Sí' : 'No')],
 		['Estado', (p) => (p.publicado ? badge('Publicada', 'success') : badge('Borrador', 'secondary'))]
 	],
@@ -33,12 +34,15 @@ export const render = crudView({
 		seoPreviewField({
 			title: (d) => d.seo?.titulo || `${d.titulo || ''} | Equipo Inmobiliario`,
 			description: (d) => d.seo?.descripcion || stripMd(d.contenido),
-			path: (d) => `${d.idioma === 'en' ? '/en' : ''}/${slugify(d.slug || d.titulo || '')}/`
+			path: (d) => urlPagina(slugify(d.slug || d.titulo || ''), d.idioma)
 		})
 	],
 	beforeSave: (d, ref, all) => {
 		d.slug = slugify(d.slug || d.titulo);
-		if (RESERVED.includes(d.slug)) {
+		const antes = all.find((p) => p.id === ref.id);
+		// Una de antes que ya tiene un nombre reservado se puede seguir editando con ese nombre (sale en /pagina/…).
+		const mismoNombre = antes && antes.slug === d.slug && (antes.idioma || 'es') === (d.idioma || 'es');
+		if (reservada(d.slug, d.idioma) && !mismoNombre) {
 			toast(`"${d.slug}" es una dirección reservada del sitio; elige otra.`, 'warning');
 			return false;
 		}
@@ -46,6 +50,10 @@ export const render = crudView({
 			toast(`Ya existe una página con la URL "${d.slug}".`, 'warning');
 			return false;
 		}
+		// Al cambiarle el nombre o el idioma, su dirección de antes se guarda: el sitio la redirige a la nueva.
+		const previas = antes?.urlsAnteriores || [];
+		const vieja = antes?.slug ? urlPagina(antes.slug, antes.idioma) : '';
+		d.urlsAnteriores = [...new Set([...previas, vieja])].filter((u) => u && u !== urlPagina(d.slug, d.idioma)).slice(-20);
 		return true;
 	}
 });

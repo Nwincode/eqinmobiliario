@@ -1,6 +1,6 @@
-import { db, doc, getDoc, setDoc, writeBatch, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, getDocs, setDoc, collection, query, limit, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount } from '../ui.js';
-import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera } from '../session.js';
+import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera, TIEMPO_PUBLICACION } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
 async function demoAction(btn, status, accion) {
@@ -103,23 +103,34 @@ function tarjetaAvisos() {
 	return card;
 }
 
+// La base está vacía de verdad: sin settings/site y sin ninguna propiedad. Con casas guardadas, importar el ejemplo
+// las mezclaría con datos de muestra que la publicación automática pondría en línea.
+const hayPropiedades = async () => !(await getDocs(query(collection(db, 'properties'), limit(1)))).empty;
+
 async function importSeed(btn) {
 	if (!(await confirmDialog('Se copiarán a la base de datos los textos, propiedades, asesores, reseñas y páginas actuales del sitio. Úsalo solo una vez, al empezar. ¿Continuar?', { okText: 'Importar', danger: false }))) return;
 	btn.disabled = true;
 	try {
+		// Se vuelve a revisar al tocar: otra pestaña o persona pudo guardar casas desde que se abrió esta pantalla.
+		if (await hayPropiedades()) throw new Error('La base ya tiene propiedades: no se importan los datos iniciales.');
 		const seed = await (await fetch('/data/seed.json', { cache: 'no-store' })).json();
-		const batch = writeBatch(db);
-		batch.set(doc(db, 'settings', 'site'), { ...seed.settings, updatedAt: serverTimestamp() });
 		const now = serverTimestamp();
-		const add = (col, items) => items.forEach(({ id, ...rest }) => batch.set(doc(db, col, id), { ...rest, createdAt: now, updatedAt: now }));
+		const nuevos = [[doc(db, 'settings', 'site'), { ...seed.settings, updatedAt: now }]];
+		const add = (col, items) => items.forEach(({ id, ...rest }) => nuevos.push([doc(db, col, id), { ...rest, createdAt: now, updatedAt: now }]));
 		add('properties', seed.properties);
 		add('agents', seed.agents);
 		add('testimonials', seed.testimonials);
 		add('pages', seed.pages);
 		add('posts', seed.posts || []);
-		batch.set(doc(db, 'meta', 'publish'), { pendiente: true, ultimoCambio: now, ultimoCambioDesc: 'Importación inicial' }, { merge: true });
-		await batch.commit();
-		toast('Datos importados. Ya puedes editarlos y publicar.');
+		// Solo crea: lo que ya existe (aunque sea un asesor o una página) no se toca.
+		const creados = await runTransaction(db, async (tx) => {
+			const existe = await Promise.all(nuevos.map(([ref]) => tx.get(ref).then((s) => s.exists())));
+			const faltan = nuevos.filter((_, i) => !existe[i]);
+			faltan.forEach(([ref, datos]) => tx.set(ref, datos));
+			if (faltan.length) tx.set(doc(db, 'meta', 'publish'), { pendiente: true, ultimoCambio: now, ultimoCambioDesc: 'Importación inicial' }, { merge: true });
+			return faltan.length;
+		});
+		toast(creados ? 'Datos importados. Ya puedes editarlos y publicar.' : 'Ya estaba todo en la base: no se importó nada.');
 		location.hash = '#/inicio';
 	} catch (err) {
 		showError(err);
@@ -128,21 +139,38 @@ async function importSeed(btn) {
 }
 
 export async function render(container) {
-	const [state, priv, site] = await Promise.all([
+	const [state, priv, site, omitidas] = await Promise.all([
 		getPublishState(),
 		getDoc(doc(db, 'settings', 'private')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({})),
-		getDoc(doc(db, 'settings', 'site'))
+		getDoc(doc(db, 'settings', 'site')),
+		// Casas que el último build dejó fuera por un dato roto (scripts/build.mjs).
+		fetch('/feeds/omitidas.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.casas || []).catch(() => [])
 	]);
+	const baseVacia = session.isAdmin && !site.exists() && !(await hayPropiedades().catch(() => true));
 	const hook = priv.netlifyBuildHook || '';
 
 	const publish = async (btn) => {
 		if (!hook) return toast('Primero configura el enlace de publicación de Netlify (abajo).', 'warning');
 		btn.disabled = true;
 		try {
-			await publicarAhora(hook);
-			toast('Publicación iniciada. El sitio se actualiza en 1–2 minutos.');
+			await publicarAhora();
+			toast(`Publicación iniciada. El sitio se actualiza en ${TIEMPO_PUBLICACION}.`);
 			container.replaceChildren();
 			render(container);
+		} catch (err) {
+			showError(err);
+			btn.disabled = false;
+		}
+	};
+
+	// El build se frenó porque el catálogo quedaba vacío o bajaba de golpe: un administrador puede publicarlo igual, una vez.
+	const frenada = state.fallo && state.freno;
+	const publicarAunque = async (btn) => {
+		if (!(await confirmDialog('El sitio quedará con las casas que hay ahora en el panel, aunque sean muchas menos. Vale solo para esta publicación. ¿Publicar?', { okText: 'Publicar' }))) return;
+		btn.disabled = true;
+		try {
+			await setDoc(doc(db, 'meta', 'publish'), { forzarCatalogo: true }, { merge: true });
+			await publish(btn);
 		} catch (err) {
 			showError(err);
 			btn.disabled = false;
@@ -211,8 +239,14 @@ export async function render(container) {
 		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
 			h('p', {}, 'Los cambios que haces en el panel se guardan al instante, pero el sitio público se regenera al publicar. Así las páginas cargan rápido y Google las indexa completas.'),
 			h('dl', { class: 'row small mb-4' },
-				h('dt', { class: 'col-sm-4' }, 'Cambios pendientes'), h('dd', { class: 'col-sm-8' }, state.pendiente ? `Sí — ${state.ultimoCambioDesc || ''} (${formatDate(state.ultimoCambio)})` : 'No'),
+				h('dt', { class: 'col-sm-4' }, 'Cambios pendientes'), h('dd', { class: 'col-sm-8' }, state.pendiente ? (frenada ? `Sí (${formatDate(state.ultimoCambio)})` : `Sí — ${state.ultimoCambioDesc || ''} (${formatDate(state.ultimoCambio)})`) : 'No'),
 				h('dt', { class: 'col-sm-4' }, 'Última publicación'), h('dd', { class: 'col-sm-8' }, state.ultimaPublicacion ? `${formatDate(state.ultimaPublicacion)} · ${state.ultimaPublicacionAuto ? 'automática' : `por ${state.ultimaPublicacionPor || '—'}`}` : 'Nunca desde el panel')),
+			frenada ? h('p', { class: 'small text-danger d-flex flex-wrap align-items-center gap-2' },
+				h('span', {}, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), state.freno),
+				session.isAdmin && hook ? h('button', { class: 'btn btn-sm btn-outline-danger', onclick: (e) => publicarAunque(e.currentTarget) }, 'Publicar aunque baje') : null) : null,
+			omitidas.length ? h('p', { class: 'small' },
+				h('span', { class: 'icon-exclamation-circle text-warning me-1', 'aria-hidden': 'true' }), 'No se ven en el sitio por un dato roto: ',
+				omitidas.flatMap((c, i) => [i ? '; ' : '', h('a', { href: `#/propiedades/${encodeURIComponent(c.id)}` }, c.titulo), `: ${c.motivo}`])) : null,
 			h('button', { class: `btn btn-lg ${state.pendiente ? 'btn-warning' : 'btn-primary'}`, disabled: !hook, onclick: (e) => publish(e.currentTarget) }, 'Publicar cambios'),
 			hook ? null : h('p', { class: 'small text-muted mt-2 mb-0' }, session.isAdmin ? 'Configura el enlace de Netlify abajo para activar este botón.' : 'Un administrador debe configurar la publicación.'),
 			autoControl)),
@@ -221,7 +255,7 @@ export async function render(container) {
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
 		session.isAdmin ? tarjetaAvisos() : null,
-		session.isAdmin && !site.exists() ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
+		baseVacia ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),
 			h('button', { class: 'btn btn-info', onclick: (e) => importSeed(e.currentTarget) }, 'Importar datos iniciales'))) : null,

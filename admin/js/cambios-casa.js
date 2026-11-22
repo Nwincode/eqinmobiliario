@@ -1,7 +1,8 @@
 // Guardar una propiedad sin pisar lo que escriben otras pantallas mientras la ficha está abierta (Solicitudes y
 // Rentas: noches reservadas; el dueño en «Mis propiedades»: precios, días bloqueados, mínimos y personas;
 // Difusión; el listado: estado, visible, fotos…). Sin dependencias del navegador: lo prueba
-// scripts/test-cambios-casa.mjs. Lo usan la ficha (admin/js/views/properties.js `guardarCambios`) y el importador.
+// scripts/test-cambios-casa.mjs. Lo usan la ficha (admin/js/views/properties.js `guardarCambios`), el importador y
+// las pantallas simples (`guardarSobre` en admin/js/crud.js).
 import { estadoDe } from './estados.js';
 
 // Igualdad por contenido (el orden de las llaves no cuenta).
@@ -35,6 +36,14 @@ export function aplicarCambios(actual = {}, cambios = {}, porCampo = POR_CAMPO) 
 	return m;
 }
 
+// Documento entero de una pantalla simple (asesor, reseña, página, artículo: admin/js/crud.js): lo que cambió quien
+// guarda («alAbrir» → «mio») sobre lo guardado AHORA; los grupos (en, seo…) campo por campo. Así una pestaña abierta
+// desde antes no borra lo que otra guardó mientras tanto.
+export function guardarSobre(actual = {}, alAbrir = {}, mio = {}) {
+	const grupos = [...new Set([alAbrir, mio].flatMap((o) => Object.keys(o || {}).filter((k) => esObjeto(o[k]))))];
+	return aplicarCambios(actual, cambiosEntre(alAbrir, mio, grupos), grupos);
+}
+
 // Una entrada del historial de estados («quien»: { fecha, por, porUid }; serverTimestamp no va dentro de arreglos).
 export const entradaEstado = (estado, { fecha, por = '', porUid = '' } = {}) => ({ estado, fecha, por, porUid });
 
@@ -60,4 +69,6 @@ export function historialCon(antes, despues, quien) {
 }
 
 // Huéspedes máximos de una casa por noche: al menos 1, entero. La misma regla en la ficha y en «Mis propiedades».
-export const huespedesMaxDe = (n) => Math.max(1, Math.floor(Number(n) || 1));
+// Personas máximo: un entero de 1 a 50 (lo mismo que deja firestore.rules al dueño).
+export const HUESPEDES_MAX = 50;
+export const huespedesMaxDe = (n) => Math.min(HUESPEDES_MAX, Math.max(1, Math.floor(Number(n) || 1)));

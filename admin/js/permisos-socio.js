@@ -19,8 +19,18 @@ export const PERMISOS = [
 export const CLAVES = PERMISOS.map(([k]) => k);
 export const DIAS_CORTE = 7;
 
+// ¿Esta comisión vencida puede cortar permisos? Solo si se sabe que el cliente pagó: el socio marcó «Pago recibido»
+// (pagoRecibido en la reserva; las de antes, con su chat «pagada»: chatPagado) o el equipo la marcó «Cobrar comisión»
+// desde la alerta de cada mañana. Una confirmada sin pago marcado no corta sola (el cliente quizá nunca pagó); la fuga
+// la cuidan esa alerta y la de fechas bloqueadas después. Una reserva sin chat (a mano o de antes) cuenta como antes.
+export const cuentaParaCorte = (r, ahora) => V().cobrable(r, ahora);
+// ¿Hay que leer su chat para saberlo? La misma condición que la pausa del servidor (V.faltaLeerChat: sin prueba propia
+// en la reserva y con la comisión vencida). Quien lo lee pone chatPagado (estado «pagada») y chatComprobante
+// (comprobanteVigente).
+export const faltaSaberSiPago = (r, propietarioId, ahora) => r?.propietarioId === propietarioId && V().faltaLeerChat(r, ahora);
+
 // Lo que debe un socio: las comisiones vencidas (desde la primera hora de atraso), por moneda, la más vieja y si ya
-// pasaron los días del corte. Cuenta solo sus reservas (las de una casa que fue suya siguen siendo suyas).
+// pasaron los días del corte (cuentaParaCorte). Cuenta solo sus reservas (las de una casa que fue suya siguen siendo suyas).
 export function deudaDe(reservas, propietarioId, ahora) {
 	const porMoneda = {};
 	let vence = '';
@@ -32,7 +42,8 @@ export function deudaDe(reservas, propietarioId, ahora) {
 		const moneda = r.moneda || r.comision.moneda || 'USD';
 		porMoneda[moneda] = Math.round(((porMoneda[moneda] || 0) + Number(r.comision.monto)) * 100) / 100;
 		if (!vence || r.comision.vence < vence) vence = r.comision.vence;
-		if (horas >= DIAS_CORTE * 24) corta = true;
+		// El corte cuenta las horas que castigan (V.horasMora): sin prueba de pago, desde que ya no puede decir «No me llegó».
+		if ((V().horasMora(r, ahora) ?? -1) >= DIAS_CORTE * 24) corta = true;
 	}
 	if (!vence) return null;
 	const dias = Math.floor((ahora - (Date.parse(`${vence}T00:00:00-06:00`) + 86400000)) / 86400000);

@@ -3,12 +3,21 @@
 // netlify/functions/reservas.mjs (después de confirmar, cancelar o cobrar por el socio).
 // El correo del cliente sale de su solicitud y el del socio de su ficha, ambos leídos con la cuenta de servicio, y el
 // título de la casa, de la casa guardada. Devuelve cuántos salieron (0 sin correo o base configurados), o null si el chat no existe.
+// Con la cuenta de escritura, cada aviso queda anotado en el chat (avisoEnviado = el id del mensaje, o 'nueva'):
+//  - el mismo aviso no sale dos veces aunque alguien llame /api/aviso-chat muchas veces;
+//  - el que no salió (el servicio falló o la función se cortó) queda en avisoPendiente, que ponen también el servidor y
+//    el cron en el mismo cambio del chat; el control de cada hora (solicitudes-sin-respuesta.mjs) lo reintenta una vez
+//    (`reintento`) y, salga o no, lo quita.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
+import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
+import { limitadorDurable } from './limite.mjs';
+import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
+import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
-export async function enviarAvisosChat(token, { repaso = false } = {}) {
+export async function enviarAvisosChat(token, { repaso = false, reintento = false } = {}) {
 	// Basta el servicio de correo: el cliente y el socio reciben lo suyo aunque falten los correos del equipo (AVISO_CORREO).
 	if (!servicioCorreo() || !datosConfigurados()) return 0;
 	const chat = await leerPublico(`chats/${token}`);
@@ -24,7 +33,18 @@ export async function enviarAvisosChat(token, { repaso = false } = {}) {
 	]);
 	const casa = publica && { ...publica, codigoSocio: String(privada?.codigoSocio || '').slice(0, 30) };
 	mensajes.sort((a, b) => a.createdAt - b.createdAt);
-	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, correos: { cliente: lead?.email || '', socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	const clave = reintento ? String(chat.avisoPendiente || '') : mensajes.at(-1)?.id || 'nueva';
+	if (reintento && !clave) return 0;
+	const avisos = avisosChat({ chat, casa, mensajes, sitio: SITE_URL, repaso, mensaje: reintento ? clave : '', correos: { cliente: lead?.email || '', nombre: lead?.nombre ?? chat.nombre, socio: socio?.email || '', equipo: destinatariosEquipo() } });
+	let anotar = escrituraConfigurada();
+	// Nada que mandar: si era un pendiente, se quita.
+	if (!avisos.length) { if (anotar && chat.avisoPendiente === clave) await marcar(token, clave, { listo: true }).catch(() => {}); return 0; }
+	// Se aparta antes de mandar: otra llamada con el mismo aviso ya no lo manda. Si la base no responde, el correo sale
+	// igual (sin anotar): mejor uno repetido que ninguno.
+	if (anotar) {
+		const libre = await apartar(token, clave, reintento).catch((err) => { console.error('Aviso de chat (apartar):', err.message); anotar = false; return true; });
+		if (!libre) return 0;
+	}
 	// Cada correo por su lado: si falla el del socio, el del cliente igual sale (y al revés).
 	let fallas = 0;
 	for (const a of avisos) {
@@ -45,6 +65,81 @@ export async function enviarAvisosChat(token, { repaso = false } = {}) {
 			await enviarCorreo({ responder: true, para: a.para, asunto: a.asunto, html, texto });
 		} catch (err) { fallas++; console.error('Aviso de chat a', a.para.length, 'correo(s):', err.message); }
 	}
+	if (anotar) await marcar(token, clave, { listo: !fallas || reintento }).catch((err) => console.error('Aviso de chat (anotar):', err.message));
 	if (fallas && fallas === avisos.length) throw new Error('No salió ningún aviso');
 	return avisos.length - fallas;
+}
+
+// ¿Este aviso todavía no salió? Lo aparta (avisoEnviado = clave, con la hora: avisoApartado) en una transacción.
+// Un reintento solo si sigue pendiente y nadie lo está mandando ahora: apartado por otra llamada hace menos de
+// EN_CURSO, todavía va en camino (no se manda dos veces); más viejo, esa llamada se cortó y se reintenta.
+export const EN_CURSO = 15 * 60_000;
+export const puedeApartar = (c, clave, reintento, ahora = Date.now()) => Boolean(c) && (reintento
+	? c.avisoPendiente === clave && (c.avisoEnviado !== clave || !(ahora - (Number(c.avisoApartado) || 0) < EN_CURSO))
+	: c.avisoEnviado !== clave);
+const apartar = (token, clave, reintento) => transaccion(async ({ leer, cambiar }) => {
+	const c = await leer(`chats/${token}`);
+	if (!puedeApartar(c, clave, reintento)) return false;
+	cambiar(`chats/${token}`, { avisoEnviado: clave, avisoApartado: Date.now() });
+	return true;
+});
+// Salió (o ya se reintentó): se quita el pendiente; si falló, queda pendiente para el control de cada hora.
+const marcar = (token, clave, { listo }) => transaccion(async ({ leer, cambiar }) => {
+	const c = await leer(`chats/${token}`);
+	if (!c) return;
+	if (listo) { if (c.avisoPendiente === clave) cambiar(`chats/${token}`, { avisoPendiente: '' }); }
+	else cambiar(`chats/${token}`, { avisoPendiente: clave, avisoEnviado: '' });
+});
+
+// Una solicitud cotizada por debajo del precio de la casa (bajoElPlan): el socio no la puede confirmar, le toca al
+// administrador. congelarMontos deja `teTocaPendiente` en el chat en el mismo cambio en que crea los montos (una sola
+// vez); aquí se aparta en una transacción (dos llamadas a la vez no lo mandan dos veces), se manda al equipo y, si
+// falla, vuelve a quedar pendiente: el control de cada hora (solicitudes-sin-respuesta.mjs) lo reintenta.
+export async function avisarQueTocaConfirmar(token) {
+	if (!servicioCorreo() || !destinatariosEquipo().length || !escrituraConfigurada()) return false;
+	const tomado = await transaccion(async ({ leer, cambiar }) => {
+		const c = await leer(`chats/${token}`);
+		if (!c?.teTocaPendiente) return null;
+		cambiar(`chats/${token}`, { teTocaPendiente: false });
+		return c;
+	}).catch((err) => { console.error('Te toca confirmar (apartar):', err.message); return null; });
+	if (!tomado?.leadId) return false;
+	try {
+		const [lead, montos] = await Promise.all([leerPrivado(`leads/${tomado.leadId}`), leerPrivado(`montosSolicitud/${tomado.leadId}`)]);
+		const r = lead?.reserva;
+		if (!r?.codigo || !bajoElPlan(montos)) return false;
+		const dinero = (n) => `${prefijoMoneda(montos.moneda)} ${miles(n)}`;
+		const url = `${SITE_URL}/admin/#/solicitudes/${encodeURIComponent(r.codigo)}`;
+		const intro = `${TEXTO_CONFIRMA_EQUIPO}: se le cotizaron ${dinero(montos.alojamiento)} de alojamiento y con los precios de la casa son ${dinero(montos.delPlan)}. El socio no la puede confirmar: confírmala o ciérrala en las próximas 24 h (después se cierra sola).`;
+		const filas = [['Solicitud', r.codigo], ['Casa', lead.propertyTitulo || ''], ['Fechas', `${r.llegada} → ${r.salida}`]];
+		const html = await plantilla({ titulo: 'Te toca confirmar esta solicitud', intro: esc(intro), preheader: intro, lang: 'es',
+			bloques: (c) => datos(c, filas) + boton(c, 'Abrir la solicitud', url, c.primary, { ancho: true }) });
+		await enviarCorreo({ para: destinatariosEquipo(), asunto: `Te toca confirmar esta solicitud: ${r.codigo}`, html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
+		return true;
+	} catch (err) {
+		await transaccion(async ({ cambiar }) => cambiar(`chats/${token}`, { teTocaPendiente: true })).catch(() => {});
+		throw err;
+	}
+}
+
+// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide): para quien pide las
+// mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el token: el correo, la casa y
+// las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud. Devuelve si salió.
+const reenvioCorto = limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000);
+const reenvioDia = limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000);
+export async function reenviarEnlace(leadId) {
+	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
+	const token = indice?.token;
+	if (!lead?.email || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return false;
+	if (await reenvioCorto(leadId) || await reenvioDia(leadId)) return false;
+	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
+	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
+	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
+	const intro = en ? 'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'
+		: 'Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.';
+	const html = await plantilla({ titulo, intro: esc(intro), preheader: intro, lang: en ? 'en' : 'es', ayuda: true, etiqueta: `${en ? 'Booking' : 'Solicitud'} ${codigo}`,
+		pie: en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.',
+		bloques: (c) => boton(c, en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url, c.primary, { ancho: true }) });
+	await enviarCorreo({ para: [lead.email], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
+	return true;
 }

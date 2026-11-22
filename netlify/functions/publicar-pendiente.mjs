@@ -3,21 +3,21 @@
 // automáticamente»), publica el sitio. Espera 12 minutos sin cambios nuevos: el panel abierto publica a los 10
 // (admin/js/session.js) y así no salen dos publicaciones por lo mismo.
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { datosConfigurados, leerPrivado } from '../lib/firestore.mjs';
+import { datosConfigurados } from '../lib/firestore.mjs';
+import { publicarSitio, estadoPublicacion } from '../lib/publicar.mjs';
 
 const QUIETO_MS = 12 * 60_000;
 
 export default async () => {
 	if (!datosConfigurados() || !escrituraConfigurada()) return;
 	try {
-		const [estado, priv] = await Promise.all([leerPrivado('meta/publish'), leerPrivado('settings/private')]);
+		const { estado, hook, auto } = await estadoPublicacion();
 		// Si la última falló (deploy-failed.mjs), no se reintenta sola cada 10 minutos: espera a «Publicar» en el panel.
-		if (!estado?.pendiente || estado.fallo || !priv?.autoPublicar || !priv?.netlifyBuildHook) return;
+		if (!estado.pendiente || estado.fallo || !auto || !hook) return;
 		const ms = (d) => (d instanceof Date ? d.getTime() : 0);
 		const ultimo = ms(estado.ultimoCambio);
 		if (Date.now() - ultimo < QUIETO_MS) return;
-		const res = await fetch(priv.netlifyBuildHook, { method: 'POST', body: '{}' });
-		if (!res.ok) throw new Error(`Netlify respondió ${res.status}`);
+		await publicarSitio(hook);
 		// Se marca publicado solo si nadie cambió nada mientras tanto (si cambió, lo publica la próxima vuelta).
 		await transaccion(async ({ leer, cambiar }) => {
 			const ahora = await leer('meta/publish');
