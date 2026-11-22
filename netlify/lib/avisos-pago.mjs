@@ -5,6 +5,7 @@
 // Lo llaman /api/aviso-pago (el panel, al guardar) y el control de cada hora (lo que no salió).
 import { donde, leerPrivado } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
+import { firma } from '../../admin/js/bitacora.js';
 import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, datos, boton, SITE_URL } from './correo.mjs';
 
 const fecha = (v) => new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guatemala', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(v));
@@ -16,7 +17,7 @@ export async function avisarCambiosDePago() {
 	// Los dos lugares, con la misma forma: { col, id, propietarioId, antes, despues, nombre, cuando }.
 	const [nuevos, deAntes] = await Promise.all([donde('bitacora', 'avisado', false), donde('cambiosDatosPago', 'avisado', false)]);
 	const lista = [
-		...nuevos.filter((b) => b.tipo === 'propietario').map((b) => ({ col: 'bitacora', id: b.id, propietarioId: b.objeto, antes: b.antes?.datosPago, despues: b.despues?.datosPago, nombre: b.nombre, cuando: b.cuando })),
+		...nuevos.filter((b) => b.tipo === 'propietario').map((b) => ({ col: 'bitacora', id: b.id, propietarioId: b.objeto, antes: b.antes?.datosPago, despues: b.despues?.datosPago, quien: b.quien, nombre: b.nombre, cuando: b.cuando })),
 		...deAntes.map((c) => ({ col: 'cambiosDatosPago', ...c }))
 	];
 	for (const c of lista) {
@@ -29,7 +30,9 @@ export async function avisarCambiosDePago() {
 		}).catch((err) => { console.error('Datos de pago (apartar):', err.message); return false; });
 		if (!mio) continue;
 		const socio = (await leerPrivado(`propietarios/${c.propietarioId}`).catch(() => null))?.nombre || c.propietarioId;
-		const filas = [['Socio', socio], ['Cambió', `${c.nombre || 'Administrador'} · ${fecha(c.cuando)}`], ['Antes', c.antes || '(sin datos)'], ['Ahora', c.despues || '(sin datos)']];
+		// Quién: el nombre de su usuario (el `nombre` del renglón lo escribe quien anota; las reglas solo atan `quien`).
+		const usuario = /^[A-Za-z0-9_-]{1,128}$/.test(String(c.quien || '')) ? await leerPrivado(`users/${c.quien}`).catch(() => null) : null;
+		const filas = [['Socio', socio], ['Cambió', `${firma(c, { [c.quien]: usuario }) || 'Administrador'} · ${fecha(c.cuando)}`], ['Antes', c.antes || '(sin datos)'], ['Ahora', c.despues || '(sin datos)']];
 		const html = await plantilla({
 			titulo: 'Cambiaron los datos de pago de un socio',
 			intro: 'Es la cuenta a la que el cliente paga al confirmar su reserva. Si no lo reconoces, revísalo ya en su ficha.',

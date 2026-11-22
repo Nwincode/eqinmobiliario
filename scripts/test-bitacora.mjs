@@ -68,4 +68,16 @@ await t('datos de pago: el correo al equipo sale de la bitácora y de cambiosDat
 	assert.ok(S.salida.some((m) => m.texto.includes('Banco B')));
 });
 
+await t('quién cambió: el nombre de su usuario, no el que escribió en el renglón (las reglas solo atan «quien»)', async () => {
+	const { firma } = await import('../admin/js/bitacora.js');
+	assert.equal(firma({ quien: 'u1', nombre: 'Otro administrador' }, { u1: { nombre: 'Ana López' } }), 'Ana López');
+	assert.equal(firma({ quien: 'servidor', nombre: 'Servidor' }, {}), 'Servidor');
+	poner('users/u1', { nombre: 'Ana López', rol: 'admin' });
+	poner('propietarios/p1', { nombre: 'Socio' });
+	poner('bitacora/b9', { tipo: 'propietario', objeto: 'p1', antes: { datosPago: 'Banco A', permisos: {} }, despues: { datosPago: 'Banco Z', permisos: {} }, quien: 'u1', nombre: 'Luis (otro admin)', cuando: new Date(S.reloj), avisado: false });
+	assert.equal(await avisarCambiosDePago(), 1);
+	assert.match(S.salida[0].texto, /Cambió: Ana López/);
+	assert.doesNotMatch(S.salida[0].texto, /Luis/);
+});
+
 console.log(`${n} pruebas de la bitácora pasan.`);

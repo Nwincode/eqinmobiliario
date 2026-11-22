@@ -77,6 +77,34 @@ await t('tope: 3 fotos por chat', async () => {
 	}
 });
 
+await t('tope de la IA por chat: fotos nuevas que fallan (o se cortan) no la llaman sin fin', async () => {
+	preparar();
+	let veces = 0;
+	const mal = async () => { veces++; throw new Error('IA: max_tokens'); };
+	for (let i = 1; i <= 10; i++) {
+		poner(`chats/${T}`, { ...leer(`chats/${T}`), comprobanteMensaje: `f${i}` });
+		poner(`chats/${T}/mensajes/f${i}`, { de: 'cliente', tipo: 'foto', texto: URL_FOTO });
+		for (let k = 0; k < 3; k++) await revisarComprobante(T, { leer: mal, bajar }).catch(() => {});
+	}
+	assert.equal(veces, 6);
+	// Cortada (la función se cerró sin anotar el fallo): pasado el apartado, también cuenta.
+	limpiar(); preparar(); veces = 0;
+	const corta = () => { veces++; return new Promise(() => {}); };
+	for (let k = 0; k < 10; k++) { revisarComprobante(T, { leer: corta, bajar, ahora: S.reloj + k * 11 * 60_000 }); await new Promise((r) => setTimeout(r, 5)); }
+	assert.equal(veces, 6);
+});
+
+await t('sin moneda a la vista no cuadra (un monto igual en quetzales no es lo mismo que en dólares)', () => {
+	assert.match(compararComprobante(leido({ moneda: '' }), esperado).texto, /no se lee la moneda/);
+});
+
+await t('un mensaje que no es la foto del cliente no aparta ni deja revisión', async () => {
+	preparar();
+	poner(`chats/${T}/mensajes/m1`, { de: 'socio', tipo: 'foto', texto: URL_FOTO });
+	assert.equal(await revisarComprobante(T, { leer: async () => leido(), bajar }), null);
+	assert.equal(leer('revisionesComprobante/l1'), null);
+});
+
 await t('sin la IA configurada, nada', async () => {
 	preparar();
 	delete process.env.ANTHROPIC_API_KEY;

@@ -4,7 +4,7 @@ import { db, doc, getDoc, getDocs, collection, query, where, serverTimestamp } f
 import { h, modal, spinner, emptyState, showError, formatDate } from './ui.js';
 import { dinero } from './formato.js';
 import { session } from './session.js';
-import { renglon, diferencias } from './bitacora.js';
+import { renglon, diferencias, firma } from './bitacora.js';
 
 // ¿Están publicadas las reglas con la bitácora? Con las de antes (el sitio se publica primero, las reglas en seguida), el
 // renglón se negaría y con él todo el guardado: entonces se guarda como antes, sin renglón (esas reglas no lo piden).
@@ -45,18 +45,21 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 		const ids = [...new Set(sensibles.flatMap((e) => [e.antes?.propietarioId, e.despues?.propietarioId]).filter(Boolean))];
 		const nombres = Object.fromEntries(await Promise.all(ids.map(async (x) => [x, (await getDoc(doc(db, 'propietarios', x)).catch(() => null))?.data()?.nombre || x])));
 		const nombreDe = (x) => nombres[x] || x;
-		const textos = deLaCasa.map((b) => ({ cuando: ms(b.cuando), nombre: b.nombre, texto: b.que }));
-		const sens = sensibles.filter((e) => casaId || e.tipo === 'propietario').map((e) => ({ cuando: ms(e.cuando), nombre: e.nombre, cambios: diferencias(e, { nombreDe, dinero: (n) => dinero(n, moneda), fecha: conAnio }) }));
+		// Quién: el nombre de su usuario (quien lo verifican las reglas; el nombre guardado lo escribe quien anota).
+		const uids = [...new Set([...sensibles, ...deLaCasa, ...deAntes].map((e) => e.quien).filter((x) => typeof x === 'string' && x && !x.includes('/')))];
+		const usuarios = Object.fromEntries(await Promise.all(uids.map(async (x) => [x, (await getDoc(doc(db, 'users', x)).catch(() => null))?.data() || null])));
+		const textos = deLaCasa.map((b) => ({ cuando: ms(b.cuando), quien: b.quien, nombre: firma(b, usuarios), texto: b.que }));
+		const sens = sensibles.filter((e) => casaId || e.tipo === 'propietario').map((e) => ({ cuando: ms(e.cuando), quien: e.quien, nombre: firma(e, usuarios), cambios: diferencias(e, { nombreDe, dinero: (n) => dinero(n, moneda), fecha: conAnio }) }));
 		// Lo que el dueño cambió solo deja su texto y, si tocó precios, su renglón de la bitácora en la misma transacción:
 		// una sola fila (el texto arriba y el antes → después abajo), no dos.
 		for (const s of sens) {
 			// La misma transacción: la misma hora del servidor (la más cercana, por si acaso, y a lo más 2 s).
 			let i = -1;
-			textos.forEach((t, k) => { if (t.nombre === s.nombre && Math.abs(t.cuando - s.cuando) <= 2000 && (i < 0 || Math.abs(t.cuando - s.cuando) < Math.abs(textos[i].cuando - s.cuando))) i = k; });
+			textos.forEach((t, k) => { if (t.quien === s.quien && Math.abs(t.cuando - s.cuando) <= 2000 && (i < 0 || Math.abs(t.cuando - s.cuando) < Math.abs(textos[i].cuando - s.cuando))) i = k; });
 			if (i >= 0) s.texto = textos.splice(i, 1)[0].texto;
 		}
 		const filas = [...sens, ...textos,
-			...deAntes.map((c) => ({ cuando: ms(c.cuando), nombre: c.nombre, cambios: [{ campo: 'Datos de pago', antes: c.antes || '(vacío)', despues: c.despues || '(vacío)' }] }))
+			...deAntes.map((c) => ({ cuando: ms(c.cuando), nombre: firma(c, usuarios), cambios: [{ campo: 'Datos de pago', antes: c.antes || '(vacío)', despues: c.despues || '(vacío)' }] }))
 		].sort((a, b) => b.cuando - a.cuando);
 		caja.replaceChildren(filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0' },
 			f.texto ? h('div', {}, f.texto) : null, (f.cambios || []).map((c) => h('div', {}, h('span', { class: 'fw-semibold' }, `${c.campo}: `), c.antes, h('span', { class: 'text-muted', 'aria-label': 'cambió a' }, ' → '), c.despues)),

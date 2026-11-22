@@ -6,7 +6,9 @@
 // escribe desde el navegador). Nunca decide ni cancela nada. Sin IA configurada o si falla, no deja nada que mostrar.
 // La foto sale del mensaje guardado (nunca de quien llama) y solo de la carpeta de ese chat; una revisión por foto y a
 // lo más 3 revisiones terminadas por chat (y 3 fallidas por foto). Si la función se corta antes de terminar (la IA tarda),
-// la retoma el control de cada 15 minutos (plazos-reservas.mjs, `revisarPendientes`).
+// la retoma el control de cada 15 minutos (plazos-reservas.mjs, `revisarPendientes`). Tope de llamadas a la IA por chat
+// (`intentos`, se cuenta al apartar: también las cortadas y las de fotos nuevas que fallan): así una foto que siempre
+// falla, o una foto nueva tras otra, no la llama sin fin.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
@@ -15,7 +17,7 @@ import { dinero } from '../../admin/js/formato.js';
 
 const V = globalThis.EQVacacional;
 const MAX_FOTO = 5 * 1024 * 1024;
-const REVISIONES = 3, FALLOS = 3;
+const REVISIONES = 3, FALLOS = 3, INTENTOS = REVISIONES + FALLOS;
 const EN_CURSO = 10 * 60_000;
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
@@ -44,7 +46,9 @@ export function compararComprobante(leido, { total, moneda, confirmada }) {
 	const monto = Number(leido.monto);
 	if (!Number.isFinite(monto) || !monto) fallas.push('no se lee el monto');
 	else if (Math.abs(monto - Number(total)) > Math.max(1, Number(total) * 0.01)) fallas.push(`monto ${dinero(monto, leido.moneda === 'otra' ? moneda : leido.moneda || moneda)}, esperado ${dinero(total, moneda)}`);
-	if (leido.moneda && leido.moneda !== moneda) fallas.push(`moneda ${leido.moneda === 'otra' ? 'distinta' : leido.moneda}, esperada ${moneda}`);
+	// Sin la moneda a la vista no se sabe si el monto es el mismo (Q 1,122 no son US$ 1,122).
+	if (!leido.moneda) fallas.push('no se lee la moneda');
+	else if (leido.moneda !== moneda) fallas.push(`moneda ${leido.moneda === 'otra' ? 'distinta' : leido.moneda}, esperada ${moneda}`);
 	const fecha = /^\d{4}-\d{2}-\d{2}$/.test(leido.fecha || '') ? leido.fecha : '';
 	if (!fecha) fallas.push('no se lee la fecha');
 	else if (confirmada && fecha < confirmada) fallas.push(`fecha ${fecha}, antes de confirmar la reserva (${confirmada})`);
@@ -81,20 +85,21 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	if (!chat?.leadId || chat.estado !== 'confirmada' || !chat.comprobanteMensaje) return null;
 	const ruta = `revisionesComprobante/${chat.leadId}`;
 	const mensajeId = String(chat.comprobanteMensaje);
+	// Solo la foto del cliente, de la carpeta de su chat: lo demás ni se aparta.
+	const mensaje = await leerPrivado(`chats/${token}/mensajes/${mensajeId}`);
+	if (mensaje?.tipo !== 'foto' || mensaje.de !== 'cliente' || !urlDelComprobante(token, mensaje.texto)) return null;
 	// Se aparta: una revisión por foto (dos avisos a la vez no la mandan dos veces a la IA), con tope por chat.
 	const toca = await transaccion(async ({ leer: l, crear, cambiar }) => {
 		const prev = await l(ruta);
 		const misma = prev?.mensaje === mensajeId;
 		if (misma && (prev.texto || ahora - (Number(prev.apartado) || 0) < EN_CURSO || (Number(prev.fallos) || 0) >= FALLOS)) return false;
-		if ((Number(prev?.revisiones) || 0) >= REVISIONES) return false;
-		const datos = { mensaje: mensajeId, apartado: ahora, fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0,
+		if ((Number(prev?.revisiones) || 0) >= REVISIONES || (Number(prev?.intentos) || 0) >= INTENTOS) return false;
+		const datos = { mensaje: mensajeId, apartado: ahora, fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0, intentos: (Number(prev?.intentos) || 0) + 1,
 			propietarioId: chat.propietarioId || '', propertyId: chat.propertyId || '', texto: '', cuadra: false };
 		if (prev) cambiar(ruta, datos); else crear(ruta, datos);
 		return true;
 	});
 	if (!toca) return null;
-	const mensaje = await leerPrivado(`chats/${token}/mensajes/${mensajeId}`);
-	if (mensaje?.tipo !== 'foto' || mensaje.de !== 'cliente' || !urlDelComprobante(token, mensaje.texto)) return null;
 	const reserva = await leerPrivado(`reservas/${chat.leadId}`).catch(() => null);
 	let leido;
 	try {

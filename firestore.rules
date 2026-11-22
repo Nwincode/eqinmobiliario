@@ -237,7 +237,8 @@ service cloud.firestore {
       // Con su renglón en la bitácora si cambia un interruptor.
       allow create, update: if isAdmin()
         && (fotoPermisos(request.resource.data) == fotoPermisos(resource == null ? {} : resource.data) || anotado('permisos', 'permisosSocios'));
-      allow delete: if isAdmin();
+      // Borrarlo encendería todo para todos sin renglón: nadie lo borra (se apaga o enciende cada interruptor).
+      allow delete: if false;
     }
     // Lo que puede cada socio (el resultado): lo escriben el administrador y el servidor; el socio lee el suyo.
     match /permisosSocios/{propietarioId} {
@@ -505,7 +506,8 @@ service cloud.firestore {
       // «Revisé Airbnb…» (revisadoAMano) va con su renglón en la bitácora.
       allow create: if isAdmin() && (request.resource.data.get('revisadoAMano', []).size() == 0 || anotado('reserva', id));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
-      allow update: if isAdmin()
+      // «Revisé Airbnb…» queda como nació (su renglón es de la confirmación): nadie lo pone ni lo quita después.
+      allow update: if (isAdmin() && request.resource.data.get('revisadoAMano', []) == resource.data.get('revisadoAMano', []))
         // El comprobante lo pone quien ganó la reserva, aunque la casa ya no sea suya (lo mismo que storage.rules).
         || (esSocioDe(resource.data) && soloCambia(['comision', 'updatedAt'])
             && request.resource.data.comision.diff(resource.data.comision).affectedKeys().hasOnly(['comprobante'])

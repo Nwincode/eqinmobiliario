@@ -434,6 +434,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 				{ update: { name: `${R}/settings/permisosSocios`, fields: { precios: { booleanValue: false }, bitacoraId: sv('glob1') } }, updateMask: { fieldPaths: ['precios', 'bitacoraId'] } },
 				{ update: { name: `${R}/bitacora/glob1`, fields: { tipo: sv('permisos'), objeto: sv('permisosSocios'), antes: foto(true), despues: foto(false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), true);
 		}
+		// Borrarlo encendería todo para todos sin renglón.
+		await espera('el administrador borra los permisos para todos', fetch(`${H}/settings/permisosSocios`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
 		await fetch(`${H}/permisosSocios/m1`, { method: 'DELETE', headers: cab('dueño') });
 		await fetch(`${H}/settings/permisosSocios`, { method: 'DELETE', headers: cab('dueño') });
 		await espera('sin documento de permisos: bloquea días (control)', bloquear(), true);
@@ -948,6 +950,12 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
 	await espera('el administrador confirma con «Revisé Airbnb» sin su renglón', lote('admin1', [reserva('res-bit1')]), false);
 	await espera('el administrador confirma con «Revisé Airbnb» y su renglón (control)', lote('admin1', [reserva('res-bit2', 'br2'), renglonReserva('br2', 'res-bit2')]), true);
+	// Después de confirmar, «Revisé Airbnb» no se pone ni se quita sin renglón (el renglón es de la confirmación).
+	const revisado = (id, valores) => ({ update: { name: `${R}/reservas/${id}`, fields: valores ? { revisadoAMano: { arrayValue: { values: valores.map(svG) } } } : {} }, updateMask: { fieldPaths: ['revisadoAMano'] } });
+	await poner('reservas/res-bit3', { propertyId: 'bit-casa', estado: 'confirmada' });
+	await espera('el administrador le pone «Revisé Airbnb» a una reserva ya creada', lote('admin1', [revisado('res-bit3', ['Airbnb'])]), false);
+	await espera('el administrador le quita «Revisé Airbnb» a una reserva', lote('admin1', [revisado('res-bit2', null)]), false);
+	await espera('el administrador cambia el huésped de una reserva con «Revisé Airbnb» (control)', lote('admin1', [{ update: { name: `${R}/reservas/res-bit2`, fields: { huesped: svG('Ana') } }, updateMask: { fieldPaths: ['huesped'] } }]), true);
 }
 // Revisión del comprobante con la IA: la escribe el servidor; la leen el administrador y el socio de esa casa.
 {
