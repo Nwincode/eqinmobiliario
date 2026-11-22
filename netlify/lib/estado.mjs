@@ -22,14 +22,14 @@ const rota = (d) => Boolean(d?.fallo) && !(d?.ok >= d.fallo);
 export function anotarOk(pieza, { cada = HORA } = {}) {
 	if (cada && !toca(`ok:${pieza}`, cada)) return Promise.resolve();
 	ultimo.delete(`fallo:${pieza}`);
-	return escribir(`estado/${pieza}`, () => ({ ok: new Date() }));
+	return escribir(`estado/${pieza}`, () => ({ ok: new Date(Date.now()) }));
 }
 
 // Falló (con el motivo en una línea). Un fallo repetido se anota a lo más cada 10 minutos.
 export function anotarFallo(pieza, motivo, { cada = 10 * 60_000 } = {}) {
 	if (cada && !toca(`fallo:${pieza}`, cada)) return Promise.resolve();
 	ultimo.delete(`ok:${pieza}`);
-	const ahora = new Date();
+	const ahora = new Date(Date.now());
 	return escribir(`estado/${pieza}`, (d) => ({ fallo: ahora, motivo: String(motivo || '').slice(0, 200), ...(rota(d) ? {} : { falloDesde: ahora }) }));
 }
 
@@ -37,7 +37,7 @@ export function anotarFallo(pieza, motivo, { cada = 10 * 60_000 } = {}) {
 export function anotarTope(nombre, max, minutos) {
 	if (!toca(`tope:${nombre}`, HORA)) return Promise.resolve();
 	const clave = String(nombre).replace(/[^A-Za-z0-9_]/g, '_');
-	return escribir('estado/limites', () => ({ [clave]: { nombre: String(nombre), max, minutos, cuando: new Date() } }));
+	return escribir('estado/limites', () => ({ [clave]: { nombre: String(nombre), max, minutos, cuando: new Date(Date.now()) } }));
 }
 
 // Un reloj automático (función programada): corre `fn` y anota su última vuelta buena en estado/{nombre}. Si lanza, el

@@ -862,6 +862,16 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		priv('lote-ajena', 'acuerdo', { exclusiva: { booleanValue: true } })]), false);
 	await espera('el asesor escribe el privado de una casa de otro asesor', lote('asesor7', [priv('lote-noche', 'socio', { precioBase: { integerValue: '1' } })]), false);
 }
+// Estado del sistema (netlify/lib/estado.mjs): lo escribe solo el servidor; lo lee el administrador.
+{
+	await poner('estado/correo', { motivo: 'prueba' });
+	await espera('el administrador lee el estado del sistema (control)', leer('admin1', 'estado/correo'), true);
+	await espera('el administrador lista el estado del sistema (control)', consulta('admin1', 'estado'), true);
+	await espera('un asesor lee el estado del sistema', leer('asesor7', 'estado/correo'), false);
+	await espera('un socio lee el estado del sistema', leer('socio1', 'estado/correo'), false);
+	await espera('anónimo lee el estado del sistema', leer(null, 'estado/correo'), false);
+	await espera('el administrador escribe el estado del sistema', crear('admin1', 'estado/otro', { motivo: 'x' }), false);
+}
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
 
