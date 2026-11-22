@@ -29,7 +29,8 @@ export function datosDe(p) {
 //  marcas   etiquetas al lado del nombre (exclusiva, «Sin publicar»…).
 //  foto     otra foto (el importador la abre del archivo); precio: otro texto de precio.
 //  oculta   foto apagada (no sale en la página); elegida: la que ya está elegida en un selector.
-export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], foto, precio, oculta = !p.publicado, elegida = false } = {}) {
+//  titulo   lo que dice al pasar el ratón (qué hace tocarla).
+export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], foto, precio, oculta = !p.publicado, elegida = false, titulo } = {}) {
 	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 	const nombre = p.titulo || 'la propiedad';
 	const tocar = (e) => {
@@ -48,7 +49,7 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 	const extras = extra.filter(Boolean);
 	return h(href ? 'a' : 'article', {
 		class: `casa-fila${oculta ? ' casa-oculta' : ''}${elegida ? ' casa-elegida' : ''}`, href,
-		tabindex: href ? null : '0', 'aria-label': nombre, 'aria-current': elegida ? 'true' : null,
+		tabindex: href ? null : '0', 'aria-label': nombre, title: titulo, 'aria-current': elegida ? 'true' : null,
 		dataset: { operacion: p.operacion || '' },
 		onclick: href ? null : tocar, onkeydown: href ? null : conTeclado
 	},

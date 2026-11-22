@@ -2185,11 +2185,9 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 /* Cotización: en celular la barra ocupa menos (la lista sigue en «Mis cotizaciones», arriba) */
 @media (max-width: 575.98px) {
-	.cot-barra {
-		padding: 8px 10px;
-	}
 	/* Una sola fila: «Guardar» con texto y lo demás de ícono (el nombre va en aria-label). */
 	.cot-barra {
+		padding: 8px 10px;
 		flex-wrap: nowrap;
 	}
 	.cot-barra .btn-toque {
@@ -2882,12 +2880,10 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 .cot-doc-serv {
 	width: 34%;
+	font-weight: 600;
 }
 .is-separado .cot-doc-serv {
 	width: 28%;
-}
-.cot-doc-serv {
-	font-weight: 600;
 }
 .cot-doc-serv-ico {
 	display: inline-flex;

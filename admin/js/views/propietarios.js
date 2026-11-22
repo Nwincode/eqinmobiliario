@@ -282,7 +282,7 @@ async function renderEditor(container, id) {
 		const p = propiedades.find((x) => x.id === item.propertyId);
 		// Tocar la ficha la abre para editarla (fotos, datos, acuerdo); sin casa todavía, elige una. Quitarla: la ✕ de la esquina.
 		el.replaceChildren(p
-			? filaCasa(p, { marcas: [p.publicado ? null : badge('Sin publicar', 'light'), exclusivaDe(p)], alTocar: () => editarPropiedad(item) })
+			? filaCasa(p, { marcas: [p.publicado ? null : badge('Sin publicar', 'light'), exclusivaDe(p)], alTocar: () => editarPropiedad(item), titulo: 'Editar la propiedad (datos, fotos, acuerdo)' })
 			: h('button', { type: 'button', class: 'btn btn-light border w-100 text-start', onclick: () => elegirCasa(item) },
 				h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…'));
 	}

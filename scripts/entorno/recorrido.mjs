@@ -1019,7 +1019,8 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	// Es la misma ficha de Propiedades (una sola forma de crear y editar): desde aquí también se corrige y se elimina.
-	const lapiz = () => admin.p.locator('.list-field-item').last().locator('button[aria-label^="Editar la propiedad"], button[title^="Editar la propiedad"]').first();
+	// La fila de la casa (la misma de Propiedades) se toca para editarla; su title lo dice.
+	const lapiz = () => admin.p.locator('.list-field-item').last().locator('.casa-fila[title^="Editar la propiedad"]').first();
 	await lapiz().click();
 	await espera(3000);
 	const conFotos = await admin.p.locator('.modal.show [data-campo="fotos"]').count();
