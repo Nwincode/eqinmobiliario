@@ -19,11 +19,19 @@ export function patronConCodigo() {
 	return CODIGOS_PAIS.map(([c, , l, , especial]) => `${c}(${largos(l)}${especial ? `|${especial.replace(/\\d/g, '[0-9]').replace(/\(\?:/g, '(')}` : ''})`).join('|');
 }
 const I_COD = '	// <codigos-pais>', F_COD = '	// </codigos-pais>';
+// Los códigos de 2 o más cifras («502|503|…|52|…»): delante de una fecha, la vuelven un teléfono («502 23-12-2015»).
+export const patronCodigos = () => CODIGOS_PAIS.map(([c]) => c).filter((c) => c.length > 1).join('|');
+// Los años de una fecha completa: del año pasado a dentro de 3 («23-12-2015» no es una fecha de reserva). Cambia cada
+// año: el 1 de enero `npm test` falla hasta que se corre este guion y se publican las reglas.
+export const patronAnios = (hoy = new Date()) => Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - 1 + i).join('|');
+// Dos años seguidos («2024-2025», «2019/2020», «2018, 2019»): una temporada o una lista, no un teléfono.
+export const patronSeguidos = () => Array.from({ length: 51 }, (_, i) => 1990 + i).map((y) => `${y}[ \\t]*[-/,][ \\t]*${y + 1}`).join('|');
 export function calcAlDia(calc = readFileSync(CALC, 'utf8')) {
 	const a = calc.indexOf(I_COD), b = calc.indexOf(F_COD);
 	if (a < 0 || b < 0) throw new Error('js/calc-vacacional.js no tiene las marcas <codigos-pais>');
 	const linea = calc.slice(a, calc.indexOf('\n', a));
-	return `${calc.slice(0, a)}${linea}\n	var CON_CODIGO = '${patronConCodigo().replace(/\\/g, '\\\\')}';\n${calc.slice(b)}`;
+	const js = (x) => x.replace(/\\/g, '\\\\');
+	return `${calc.slice(0, a)}${linea}\n	var CON_CODIGO = '${js(patronConCodigo())}';\n	var CODIGOS = '${patronCodigos()}';\n	var ANIOS = '${patronAnios()}';\n	var SEGUIDOS = '${js(patronSeguidos())}';\n${calc.slice(b)}`;
 }
 {
 	const antes = readFileSync(CALC, 'utf8'), despues = calcAlDia(antes);

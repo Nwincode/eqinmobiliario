@@ -490,16 +490,24 @@
 	var USUARIO = '([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)';
 	var LARGO = '[a-z]{8,}';
 	var REDES = '(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)';
-	var RED_O_CORREO = 'gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa';
+	var RED_O_CORREO = 'gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa'
+		+ '|snap|snapchat|wechat|discord|viber|threads|twitter';
 	var CORREOS = '(gmail|hotmail|outlook|yahoo|icloud)';
 	// Palabras que dicen «esto es un teléfono»: una fecha junto a ellas no se lee como fecha («tel 2020-12-31»).
 	var PALABRA_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|n[uú]mero|phone|call|mobile|cell)';
-	// Fechas completas y válidas (día 1-31, mes 1-12 en cualquier orden; año 19xx/20xx), rangos y listas de años.
-	var FECHA = '((19|20)[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](19|20)[0-9]{2}'
-		+ '|(19[5-9][0-9]|20[0-3][0-9])[ \\t]*[-/][ \\t]*(19[5-9][0-9]|20[0-3][0-9])|(19[5-9][0-9]|20[0-3][0-9])([ \\t]*,[ \\t]*(19[5-9][0-9]|20[0-3][0-9]))+)';
+	// Las que no dejan duda (sin «número», que también es de una boleta o una referencia).
+	var TEL_CLARO = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|phone|call|mobile|cell)';
 	// <codigos-pais> Lo escribe scripts/reglas-contacto.mjs desde admin/js/formato.js CODIGOS_PAIS (largos de libphonenumber): no se edita a mano.
 	var CON_CODIGO = '502([0-9]{8}|18[01][0-9]{8}|19[0-9]{9})|1([0-9]{10})|52([0-9]{10})|503([0-9]{8}|[89]00[0-9]{4}([0-9]{4})?)|504([0-9]{8}|8002[0-9]{7})|505([0-9]{8})|506([0-9]{8}|800[0-9]{7}|90[059][0-9]{7})|507([0-9]{7,8}|800[0-9]{4,5}|(00800|800[0-9])[0-9]{6})|501([0-9]{7}|0800[0-9]{7})|57([0-9]{10}|1800[0-9]{7}|19(0[01]|4[78])[0-9]{7})|34([0-9]{9})|44([0-9]{9,10}|800[0-9]{4})|49([0-9]{4,15})|33([0-9]{9})|39([0-9]{6,12})|31([0-9]{9}|140[0-9]{2,3}|800[0-9]{4,7}|90[069][0-9]{4,7}|970[0-9]{8})|54([0-9]{10,11})|56([0-9]{9}|(123|800)[0-9]{8}|600[0-9]{7,8})|55([0-9]{10,11}|300[0-9]{5}|4(00[0-9]|020|370)[0-9]{4}|[3589]00[0-9]{6,7})|972([0-9]{8,9}|1[0-9]{6,11})|61([0-9]{9}|1[0-9]{3,9})';
+	var CODIGOS = '502|52|503|504|505|506|507|501|57|34|44|49|33|39|31|54|56|55|972|61';
+	var ANIOS = '2025|2026|2027|2028|2029';
+	var SEGUIDOS = '1990[ \\t]*[-/,][ \\t]*1991|1991[ \\t]*[-/,][ \\t]*1992|1992[ \\t]*[-/,][ \\t]*1993|1993[ \\t]*[-/,][ \\t]*1994|1994[ \\t]*[-/,][ \\t]*1995|1995[ \\t]*[-/,][ \\t]*1996|1996[ \\t]*[-/,][ \\t]*1997|1997[ \\t]*[-/,][ \\t]*1998|1998[ \\t]*[-/,][ \\t]*1999|1999[ \\t]*[-/,][ \\t]*2000|2000[ \\t]*[-/,][ \\t]*2001|2001[ \\t]*[-/,][ \\t]*2002|2002[ \\t]*[-/,][ \\t]*2003|2003[ \\t]*[-/,][ \\t]*2004|2004[ \\t]*[-/,][ \\t]*2005|2005[ \\t]*[-/,][ \\t]*2006|2006[ \\t]*[-/,][ \\t]*2007|2007[ \\t]*[-/,][ \\t]*2008|2008[ \\t]*[-/,][ \\t]*2009|2009[ \\t]*[-/,][ \\t]*2010|2010[ \\t]*[-/,][ \\t]*2011|2011[ \\t]*[-/,][ \\t]*2012|2012[ \\t]*[-/,][ \\t]*2013|2013[ \\t]*[-/,][ \\t]*2014|2014[ \\t]*[-/,][ \\t]*2015|2015[ \\t]*[-/,][ \\t]*2016|2016[ \\t]*[-/,][ \\t]*2017|2017[ \\t]*[-/,][ \\t]*2018|2018[ \\t]*[-/,][ \\t]*2019|2019[ \\t]*[-/,][ \\t]*2020|2020[ \\t]*[-/,][ \\t]*2021|2021[ \\t]*[-/,][ \\t]*2022|2022[ \\t]*[-/,][ \\t]*2023|2023[ \\t]*[-/,][ \\t]*2024|2024[ \\t]*[-/,][ \\t]*2025|2025[ \\t]*[-/,][ \\t]*2026|2026[ \\t]*[-/,][ \\t]*2027|2027[ \\t]*[-/,][ \\t]*2028|2028[ \\t]*[-/,][ \\t]*2029|2029[ \\t]*[-/,][ \\t]*2030|2030[ \\t]*[-/,][ \\t]*2031|2031[ \\t]*[-/,][ \\t]*2032|2032[ \\t]*[-/,][ \\t]*2033|2033[ \\t]*[-/,][ \\t]*2034|2034[ \\t]*[-/,][ \\t]*2035|2035[ \\t]*[-/,][ \\t]*2036|2036[ \\t]*[-/,][ \\t]*2037|2037[ \\t]*[-/,][ \\t]*2038|2038[ \\t]*[-/,][ \\t]*2039|2039[ \\t]*[-/,][ \\t]*2040|2040[ \\t]*[-/,][ \\t]*2041';
 	// </codigos-pais>
+	// Una fecha de reserva, por su forma: completa con un año cercano (ANIOS) y separador, o dos años seguidos. Una hora
+	// (00:00 a 23:59) y un día/mes sin año («20/12», sin otra «/» y cifras detrás) también se leen por su forma, pero no las
+	// protege una palabra de teléfono (es normal escribir «llámame a las 22:00»).
+	var FECHA = '((' + ANIOS + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + ANIOS + ')|' + SEGUIDOS + ')';
+	var HORA_O_DIA = '(([01]?[0-9]|2[0-3]):[0-5][0-9]|(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])([^/0-9]|$))';
 	// La forma de un grupo de 4 cifras: A empieza de 2 a 7 (como la mitad de un celular de Guatemala), R igual pero
 	// redondo (termina en 00 o 50: un monto), B y C los demás (C redondo). NR: uno que no es redondo.
 	var G = { R: '[2-7][0-9](00|50)', A: '[2-7][0-9]{3}', C: '[0189][0-9](00|50)', B: '[0-9]{4}', NR: '[0-9]{2}([0-9][1-9]|[1-46-9]0)', AN: '[2-7][0-9]([0-9][1-9]|[1-46-9]0)' };
@@ -519,18 +527,22 @@
 		// cifras; otras escrituras, «٥», «⑤», «𝟓»; las escritas con letras: cada una vale 5).
 		['cambia', '[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF\\p{M}]', ''],
 		['cambia', '[\\p{Z}\\t\\r\\n\u0085]+', ' '],
-		['cambia', '[аαа]', 'a'], ['cambia', '[еεё]', 'e'], ['cambia', '[оοσ]', 'o'], ['cambia', '[рρ]', 'p'], ['cambia', '[с]', 'c'], ['cambia', '[уγ]', 'y'],
-		['cambia', '[хχ]', 'x'], ['cambia', '[іιӏ]', 'i'], ['cambia', '[ј]', 'j'], ['cambia', '[ѕ]', 's'], ['cambia', '[кκ]', 'k'], ['cambia', '[тτ]', 't'],
-		['cambia', '[νν]', 'v'], ['cambia', '[м]', 'm'], ['cambia', '[н]', 'h'], ['cambia', '[в]', 'b'], ['cambia', '[ԁ]', 'd'], ['cambia', '[ɡ]', 'g'],
+		// (Con sus mayúsculas: lower() de las reglas no las pasa a minúscula; tampoco la «İ».)
+		['cambia', '[аαАΑ]', 'a'], ['cambia', '[еεёЕΕЁ]', 'e'], ['cambia', '[оοσОΟ]', 'o'], ['cambia', '[рρРΡ]', 'p'], ['cambia', '[сС]', 'c'], ['cambia', '[уγУ]', 'y'],
+		['cambia', '[хχХΧ]', 'x'], ['cambia', '[іιӏІΙӀİ]', 'i'], ['cambia', '[јЈ]', 'j'], ['cambia', '[ѕЅ]', 's'], ['cambia', '[кκКΚ]', 'k'], ['cambia', '[тτТΤ]', 't'],
+		['cambia', '[νΝ]', 'v'], ['cambia', '[мМΜ]', 'm'], ['cambia', '[нНΗ]', 'h'], ['cambia', '[вВΒ]', 'b'], ['cambia', '[ԁ]', 'd'], ['cambia', '[ɡ]', 'g'], ['cambia', '[ΖZ]', 'z'],
 		['cambia', '🔟', '55'],
 		['cambia', '[0-9]o[0-9]', '555'], ['cambia', '[0-9]o[0-9]', '555'], ['cambia', '[0-9][ \\t]?[li][0-9]', '555'], ['cambia', '[0-9][ \\t]?[li][0-9]', '555'],
 		['cambia', '[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55'], ['cambia', '[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55'],
 		['cambia', '[^\\P{N}0-9²³¹]', '5'],
-		// Las fechas completas y válidas se leen como fechas (antes de pasar los números en palabras a cifras: «phone» lleva
-		// «one»), salvo que tengan cerca una palabra de teléfono («tel 2020-12-31», «2025-2031 es mi fijo» se bloquean). Es la
-		// única excepción que se aplica antes de buscar teléfonos.
-		['si', '\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}' + FECHA + '|' + FECHA + '[^0-9\\n]{0,15}\\b' + PALABRA_TEL + '\\b', 0, 'telefono'],
+		// Las fechas, horas y días/meses se leen por su forma (antes de pasar los números en palabras a cifras: «phone» lleva
+		// «one»), salvo que tengan delante un código de país, «+» o «00» («whatsapp +502 23-12-2025»), o una fecha completa
+		// tenga cerca una palabra de teléfono, aunque haya un código en medio («tel 502 2026-12-31», «2025-2026 es mi fijo»).
+		// Es la única excepción que se aplica antes de buscar teléfonos.
+		['si', '((\\+|(^|[^0-9:.,/-])00)[ \\t]*\\(?[0-9]{0,4}\\)?|(^|[^0-9:.,/-])\\(?(' + CODIGOS + ')\\)?)[ \\t.-]*(' + FECHA + '|' + HORA_O_DIA + ')'
+			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}(\\+?[0-9]{1,4}([ \\t.-]|\\(|\\))*)?' + FECHA + '|' + FECHA + '[^0-9\\n]{0,15}\\b' + PALABRA_TEL + '\\b', 0, 'telefono'],
 		['cambia', '\\b' + FECHA + '\\b', ' x '],
+		['cambia', '\\b' + HORA_O_DIA, ' x '],
 		['cambia', '\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5'],
 		['cambia', '\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa'
 			+ '|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55'],
@@ -552,6 +564,10 @@
 		// usuario («ig: villa_lago», «correo -> anaperez90»); también «villa.lago en insta», «en ig como villa.lago»,
 		// «búscame como villalago», «red, me llamo X» y un mensaje que es solo «villalago en insta».
 		['si', '\\b(' + RED_O_CORREO + ')\\b[ \\t]*([:,=>-]+[ \\t]*|\\b(es|is)\\b[ \\t]*)?@?' + USUARIO
+			// «my insta handle is villa.lago», «IG handle: villa_lago», «instagram account: villa_lago», «discord villa#1234»,
+			// «line: villa_lago», «line id villa_lago» (no la palabra «line» sola).
+			+ '|\\b(' + RED_O_CORREO + ')\\b[^\\n]{0,20}\\b(handle|account|username|user|usuario|cuenta|id|nick)\\b[ \\t]*(:|\\b(es|is)\\b)?[ \\t]*@?' + USUARIO
+			+ '|\\bdiscord\\b[ \\t:]*@?[a-z0-9._]+#[0-9]{4}|\\bline[ \\t]*(:|\\bid\\b)[ \\t:]*@?' + USUARIO
 			+ '|\\b' + USUARIO + '[ \\t]+(en|on)[ \\t]+' + REDES + '\\b'
 			+ '|\\b(' + RED_O_CORREO + ')\\b[^\\n]{0,25}\\b(como|as|llamo|soy)[ \\t]+@?' + USUARIO
 			+ '|\\b(b[uú]sca(me|nos)|encu[eé]ntra(me|nos)|encuentras|find me|look me up|search)\\b[^\\n]{0,30}\\b(como|as)[ \\t]+@?[a-z][a-z0-9._]{3,}'
@@ -569,9 +585,14 @@
 		// Con su código de país, seguido («50255551234», «+50255551234», «0050255551234», «13055551234»): siempre, aunque
 		// vaya después de «referencia».
 		['si', '(^|[^0-9])(\\+|00)?(' + CON_CODIGO + ')([^0-9]|$)', 0, 'telefono'],
+		// Con una palabra que no deja duda cerca, 10 cifras (un celular de EE. UU., México o Colombia sin código) o 9 (España,
+		// Perú) son un teléfono, aunque vayan después de «referencia». Sin esa palabra, 9 cifras pasan y 10 después de
+		// «referencia» también: prima la referencia (los dos, límites aceptados en el corpus).
+		['si', '\\b' + TEL_CLARO + '\\b[^\\n]{0,30}[0-9]([^0-9' + LETRA + ']{0,3}[0-9]){8}|[0-9]{9}[^\\n]{0,30}\\b' + TEL_CLARO + '\\b', 0, 'telefono'],
 		// La única excepción antes de juntar cifras: 10 o más seguidas (sin juntar grupos) justo después de referencia,
-		// autorización, boleta o transacción, hasta 18 (ya se revisó arriba que no sean un número con su código de país).
-		['cambia', '\\b(referencia|ref|autorizaci[oó]n|boleta|transacci[oó]n)\\b[^0-9\\n]{0,30}[0-9]{10,18}([ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x '],
+		// autorización, boleta o transacción (y en inglés), hasta 18, sin «+» (ya se revisó arriba que no sean un número con su
+		// código de país ni lleven cerca una palabra de teléfono).
+		['cambia', '\\b(referencia|ref|autorizaci[oó]n|boleta|transacci[oó]n|reference|transaction|authorization|confirmation|receipt)\\b[^0-9+\\n]{0,30}[0-9]{10,18}([.,]?[ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x '],
 		// Un teléfono posible: se juntan las cifras de los grupos cercanos (como se marcaría) y se bloquea un celular o fijo
 		// de Guatemala (8 cifras que empiezan de 2 a 7) o uno internacional (10 o más), lleve lo que lleve delante («ref»,
 		// «vuelo», «Q», «No.»…). «Son Q2345 y Q5678» o «boleta 70012345» se bloquean: preferible a dejar pasar un teléfono
