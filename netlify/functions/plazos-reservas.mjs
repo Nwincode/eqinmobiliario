@@ -135,10 +135,13 @@ export default async () => {
 		// Reservas de la web confirmadas en los últimos 30 días (se revisa cada una en su transacción).
 		const todasLasReservas = await desde('reservas', 'createdAt', new Date(ahora - 30 * DIA));
 		// «Por publicar» que no alcanzó a marcarse (lo de después de confirmar o cancelar se cortó por el plazo de la
-		// función): una reserva que cambió después de la última publicación y meta/publish sin «pendiente» → se marca (la
-		// misma pieza que usa reservas.mjs).
+		// función): solo si cambió lo que se publica, las fechas reservadas de una casa por noche (fechasDeLaCasa pone su
+		// updatedAt al cambiar vacacional.reservadas) después de la última publicación, y meta/publish sin «pendiente». Un
+		// pago recibido o un comprobante no cuentan. La misma pieza que usa reservas.mjs.
 		const pub = await leerPrivado('meta/publish').catch(() => undefined);
-		if (pub !== undefined && !pub?.pendiente && todasLasReservas.some((r) => Math.max(ms(r.createdAt), ms(r.updatedAt)) > ms(pub?.ultimaPublicacion)))
+		const cambiadas = pub !== undefined && !pub?.pendiente
+			? (await desde('properties', 'updatedAt', new Date(ms(pub?.ultimaPublicacion) || ahora - 30 * DIA)).catch(() => [])).filter((p) => p.operacion === 'vacacional') : [];
+		if (cambiadas.length)
 			await transaccion((tx) => marcarPorPublicar(tx, 'Reservas que cambiaron después de la última publicación', 'Reservas')).catch((err) => console.error('Plazos (por publicar):', err.message));
 		const reservas = todasLasReservas
 			.filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && conPlazo(ms(r.createdAt)) && (({ desde: d, vence }) => ahora >= Math.min(vence, recordarPagoDesde(d, vence)))(plazoDePago(r, ms(r.createdAt))));

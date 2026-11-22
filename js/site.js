@@ -225,16 +225,19 @@
 	// La solicitud de reserva que se cortó (sin respuesta o el servidor falló) se recuerda en la pestaña 30 min
 	// (sessionStorage), no solo en memoria: si el cliente recarga, el reintento va con el mismo id. Al abrir la ficha, si el
 	// servidor ya la tiene, se muestra el enlace a su solicitud (sus fechas salen ocupadas porque ya las apartó él).
-	// Una llave por casa (eq-pendiente:{casa}): dos fichas abiertas en la misma pestaña no se pisan.
+	// Una llave por casa (eq-pendiente:{casa}), en localStorage: otra pestaña del mismo navegador sigue con el mismo id y
+	// token (que sí prueban que es la misma persona; el servidor no devuelve un token por correo, casa y fechas).
+	// `hasta`: 30 min, o hasta que se pueda reintentar si el servidor dijo «en N min» (429).
 	var PENDIENTE = function (form) { return 'eq-pendiente:' + (form.getAttribute('data-property-id') || ''); };
+	var vigente = function (p) { return Boolean(p) && Date.now() < (p.hasta || p.cuando + 30 * 60000); };
 	function guardarPendiente(form, p) {
 		form.eqPendiente = p;
-		try { if (p) sessionStorage.setItem(PENDIENTE(form), JSON.stringify(p)); else sessionStorage.removeItem(PENDIENTE(form)); } catch (e) { /* sin memoria del navegador */ }
+		try { if (p) localStorage.setItem(PENDIENTE(form), JSON.stringify(p)); else localStorage.removeItem(PENDIENTE(form)); } catch (e) { /* sin memoria del navegador */ }
 	}
 	function leerPendiente(form) {
 		try {
-			var p = JSON.parse(sessionStorage.getItem(PENDIENTE(form)) || 'null');
-			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && Date.now() - p.cuando < 30 * 60000) return p;
+			var p = JSON.parse(localStorage.getItem(PENDIENTE(form)) || 'null');
+			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && vigente(p)) return p;
 		} catch (e) { /* sin memoria del navegador */ }
 		return null;
 	}
@@ -265,7 +268,8 @@
 			// si sí, no se vuelve a revisar (pasada la medianoche no se corta por «la llegada ya pasó», y sus propias fechas no
 			// le salen «ya no están libres»); si no, se revisa como una nueva.
 			var firmaForm = JSON.stringify([form.email ? form.email.value.trim().toLowerCase() : '', form.getAttribute('data-property-id') || '', location.search]);
-			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && Date.now() - form.eqPendiente.cuando < 30 * 60000 && window.EQChat ? form.eqPendiente : null;
+			if (!form.eqPendiente) form.eqPendiente = leerPendiente(form);
+			var pend = form.eqPendiente && form.eqPendiente.firma === firmaForm && vigente(form.eqPendiente) && window.EQChat ? form.eqPendiente : null;
 			if (pend) {
 				pend.lead.nombre = form.nombre.value.trim();
 				pend.lead.telefono = form.codigo ? EQFormato.unirTelefono(form.codigo.value, form.telefono.value) : form.telefono.value.trim();
@@ -395,7 +399,9 @@
 					.then(function (token) { guardarPendiente(form, null); window.EQChat.avisar(token); done(token); }, function (err) {
 						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
 						// (Con 429 tampoco se suelta: el aviso dice en cuántos minutos volver a intentar, con la misma.)
-						guardarPendiente(form, !err || !err.status || err.status >= 500 || err.status === 429 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null);
+						var minutos = err && err.status === 429 && err.datos && Number(err.datos.reintentarEn);
+						guardarPendiente(form, !err || !err.status || err.status >= 500 || err.status === 429 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now(),
+							hasta: minutos ? Date.now() + (minutos + 30) * 60000 : 0 } : null);
 						fail(err);
 					})
 					.then(function () { pruebaForm.otra(); button.disabled = false; });

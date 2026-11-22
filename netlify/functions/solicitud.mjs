@@ -15,6 +15,7 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 import { limitadorDurable, limitadorContador, ipDe } from '../lib/limite.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
 import { apartadasDe, purgarCasa } from '../lib/ocupacion.mjs';
+import { reenviarEnlace } from '../lib/aviso-chat-envio.mjs';
 import { seCruzan, apartaFechas, bajoElPlan, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { montosDe } from '../lib/reservas-servidor.mjs';
 import { pasaTurnstile, llavePublica } from '../lib/turnstile.mjs';
@@ -99,7 +100,13 @@ export const nombreDelChat = (nombre, idioma = 'es') => {
 };
 
 const MUCHAS = ['Demasiadas solicitudes seguidas: espera un rato o escríbenos por WhatsApp.', 'Too many requests in a row: wait a while or message us on WhatsApp.'];
-const FECHAS_TOMADAS = ['Esas fechas ya no están libres: elige otras en el calendario.', 'Those dates are no longer available: pick others on the calendar.'];
+// El mismo texto para todos (otra persona o la misma con otro navegador): el token nunca sale por datos que otro puede
+// conocer (correo, casa, fechas). A la misma persona se le manda el enlace a su correo guardado (reenviarEnlace).
+const FECHAS_TOMADAS = ['Esas fechas ya no están libres. Si ya las pediste con este correo, te mandamos el enlace de tu reserva.',
+	'Those dates are no longer available. If you already requested them with this email, we have sent you the link to your booking.'];
+// Un 409 de fechas tomadas que es de la misma persona: lleva por dentro (no en la respuesta) la solicitud a cuyo correo se
+// reenvía el enlace.
+const tomadasPor = (leadId) => Object.assign(new Rechazo(409, FECHAS_TOMADAS, { fechas: true }), { reenviar: leadId });
 // ¿Es la misma solicitud? Lo que la define (correo, casa, fechas y personas) igual a lo guardado: solo así un reintento
 // cuenta como tal (y puede corregir nombre y teléfono). Lo demás se trata como una solicitud nueva.
 export const mismaSolicitud = (guardado, { lead, reserva }) => Boolean(guardado) && String(guardado.email || '').toLowerCase() === lead.email
@@ -139,9 +146,8 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 	for (const r of vigentes.filter((x) => seCruzan(reserva, x))) {
 		const [otra, sus] = await Promise.all([tx.leer(`leads/${r.leadId}`), tx.leer(`montosSolicitud/${r.leadId}`)]);
 		if (otra && apartaFechas('', otra.solicitud?.estado, Number(r.creada), sus, ahora)) {
-			// La misma persona con otro id (reintentó desde otra pestaña): se responde con la suya.
-			const suya = mismaSolicitud(otra, datos) ? (await tx.leer(`chatsPorSolicitud/${r.leadId}`))?.token : '';
-			if (TOKEN.test(suya || '')) return suya;
+			// La misma persona con otro id: el mismo 409, y su enlace va a su correo guardado.
+			if (mismaSolicitud(otra, datos)) throw tomadasPor(r.leadId);
 			no(409, FECHAS_TOMADAS, { fechas: true });
 		}
 	}
@@ -235,9 +241,8 @@ export default async (req, context) => {
 		// de antes de apartadasCasa). Si no se puede leer, sigue: la transacción revisa las recientes y lo confirmado.
 		const apartadas = await apartadasDe(datos.lead.propertyId).catch((err) => { console.error('Solicitud (apartadas):', err.message); return []; });
 		for (const r of apartadas.filter((x) => seCruzan(datos.reserva, { llegada: x.desde, salida: x.hasta }))) {
-			// La misma persona (mismo correo, casa, fechas y personas) que pidió otra vez con otro id: es la suya, no «no libres».
-			const suya = await mismaPersona(r.leadId, datos).catch(() => '');
-			if (suya) return json(200, { token: suya });
+			// La misma persona (mismo correo, casa, fechas y personas) con otro id: el mismo 409, y su enlace va a su correo.
+			if (await esMismaPersona(r.leadId, datos).catch(() => false)) throw tomadasPor(r.leadId);
 			no(409, FECHAS_TOMADAS, { fechas: true });
 		}
 		// Sin prueba (`sin`), los topes estrictos cuentan dentro de la transacción. Dos que crean a la vez el mismo documento
@@ -248,7 +253,10 @@ export default async (req, context) => {
 		await purgarCasa(datos.lead.propertyId).catch(() => {});
 		return json(200, { token });
 	} catch (err) {
-		if (err instanceof Rechazo) return json(err.status, { error: en ? err.en : err.message, ...err.extra });
+		if (err instanceof Rechazo) {
+			if (err.reenviar) await reenviarEnlace(err.reenviar).catch((e) => console.error('Solicitud (reenviar enlace):', e.message));
+			return json(err.status, { error: en ? err.en : err.message, ...err.extra });
+		}
 		console.error('Solicitud:', err.message);
 		// Muchas a la vez sobre el mismo documento (una ráfaga): la base no alcanzó a ponerla en fila. La página guarda la
 		// misma para reintentar (mismo id).
@@ -258,11 +266,9 @@ export default async (req, context) => {
 	}
 };
 
-// ¿La solicitud `leadId` es de la misma persona y la misma estancia que `datos`? Devuelve el token de su chat o ''.
-async function mismaPersona(leadId, datos) {
-	const [l, i] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
-	return l && mismaSolicitud(l, datos) && TOKEN.test(i?.token || '') ? i.token : '';
-}
+// ¿La solicitud `leadId` es de la misma persona y la misma estancia que `datos`? (Solo para reenviarle su enlace a su
+// correo; nunca para responder con su token.)
+const esMismaPersona = async (leadId, datos) => mismaSolicitud(await leerPrivado(`leads/${leadId}`), datos);
 // ¿Ya está guardada esta solicitud con este chat? (un reintento). Devuelve el token o ''. Si la base no responde, lanza.
 async function yaGuardada(leadId, token) {
 	if (!ID.test(leadId || '') || !TOKEN.test(token || '')) return '';

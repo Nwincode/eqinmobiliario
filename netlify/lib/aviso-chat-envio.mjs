@@ -12,6 +12,7 @@ import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
+import { limitadorDurable } from './limite.mjs';
 import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
@@ -119,4 +120,26 @@ export async function avisarQueTocaConfirmar(token) {
 		await transaccion(async ({ cambiar }) => cambiar(`chats/${token}`, { teTocaPendiente: true })).catch(() => {});
 		throw err;
 	}
+}
+
+// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide): para quien pide las
+// mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el token: el correo, la casa y
+// las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud. Devuelve si salió.
+const reenvioCorto = limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000);
+const reenvioDia = limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000);
+export async function reenviarEnlace(leadId) {
+	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
+	const token = indice?.token;
+	if (!lead?.email || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return false;
+	if (await reenvioCorto(leadId) || await reenvioDia(leadId)) return false;
+	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
+	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
+	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
+	const intro = en ? 'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'
+		: 'Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.';
+	const html = await plantilla({ titulo, intro: esc(intro), preheader: intro, lang: en ? 'en' : 'es', ayuda: true, etiqueta: `${en ? 'Booking' : 'Solicitud'} ${codigo}`,
+		pie: en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.',
+		bloques: (c) => boton(c, en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url, c.primary, { ancho: true }) });
+	await enviarCorreo({ para: [lead.email], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
+	return true;
 }

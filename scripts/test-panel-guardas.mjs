@@ -83,7 +83,7 @@ t('chat del huésped y «Reservar»: un reintento tras un corte de red no duplic
 	assert.match(chat, /return \/HTTP 404\/\.test\(err && err\.message\) \? sinReserva\(\) : sinRed\(\);/);
 	const site = readFileSync(new URL('../js/site.js', import.meta.url), 'utf8');
 	assert.match(site, /var pend = form\.eqPendiente && form\.eqPendiente\.firma === firmaForm/);
-	assert.match(site, /Date\.now\(\) - form\.eqPendiente\.cuando < 30 \* 60000/);
+	assert.match(site, /var vigente = function \(p\) \{ return Boolean\(p\) && Date\.now\(\) < \(p\.hasta \|\| p\.cuando \+ 30 \* 60000\); \};/);
 	assert.doesNotMatch(site, /var motivo = !EN/);
 });
 
