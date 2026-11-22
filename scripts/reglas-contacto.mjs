@@ -21,9 +21,6 @@ export function patronConCodigo() {
 const I_COD = '	// <codigos-pais>', F_COD = '	// </codigos-pais>';
 // Los códigos de 2 o más cifras («502|503|…|52|…»): delante de una fecha, la vuelven un teléfono («502 23-12-2015»).
 export const patronCodigos = () => CODIGOS_PAIS.map(([c]) => c).filter((c) => c.length > 1).join('|');
-// Los años de una fecha completa: del año pasado a dentro de 3 («23-12-2015» no es una fecha de reserva). Cambia cada
-// año: el 1 de enero `npm test` falla hasta que se corre este guion y se publican las reglas.
-export const patronAnios = (hoy = new Date()) => Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - 1 + i).join('|');
 // Dos años seguidos («2024-2025», «2019/2020», «2018, 2019»): una temporada o una lista, no un teléfono.
 // (De 2010 a 2036, con un espacio a lo más: el compilador de reglas no acepta un patrón de más de 4096 letras.)
 export const patronSeguidos = () => Array.from({ length: 26 }, (_, i) => 2010 + i).map((y) => `${y} ?[-/,] ?${y + 1}`).join('|');
@@ -32,7 +29,7 @@ export function calcAlDia(calc = readFileSync(CALC, 'utf8')) {
 	if (a < 0 || b < 0) throw new Error('js/calc-vacacional.js no tiene las marcas <codigos-pais>');
 	const linea = calc.slice(a, calc.indexOf('\n', a));
 	const js = (x) => x.replace(/\\/g, '\\\\');
-	return `${calc.slice(0, a)}${linea}\n	var CON_CODIGO = '${js(patronConCodigo())}';\n	var CODIGOS = '${patronCodigos()}';\n	var ANIOS = '${patronAnios()}';\n	var SEGUIDOS = '${js(patronSeguidos())}';\n${calc.slice(b)}`;
+	return `${calc.slice(0, a)}${linea}\n	var CON_CODIGO = '${js(patronConCodigo())}';\n	var CODIGOS = '${patronCodigos()}';\n	var SEGUIDOS = '${js(patronSeguidos())}';\n${calc.slice(b)}`;
 }
 {
 	const antes = readFileSync(CALC, 'utf8'), despues = calcAlDia(antes);
@@ -46,9 +43,14 @@ const INICIO = '    // <filtro-contacto>';
 const FIN = '    // </filtro-contacto>';
 const texto = (s) => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 
+const V = () => globalThis.EQVacacional;
 export function funcionDeReglas(pasos = globalThis.EQVacacional.FILTRO_CONTACTO) {
 	const lineas = [`${INICIO} Lo escribe scripts/reglas-contacto.mjs desde js/calc-vacacional.js (FILTRO_CONTACTO): no se edita a mano.`,
-		'    // Los mismos pasos que el navegador: reemplazos en orden y, entre ellos, las búsquedas («si»).', '    function tieneContacto(texto) {'];
+		'    // Los mismos pasos que el navegador: reemplazos en orden y, entre ellos, las búsquedas («si»).', '    function tieneContacto(texto) {',
+		// Los años de una fecha de reserva, del año de la base (ANIOS_MARCA en el navegador, con su reloj): uno más hacia
+		// adelante que el navegador, para que cerca del cambio de año la regla nunca rechace lo que el navegador deja pasar.
+		'      let y = request.time.year();',
+		"      let anios = string(y - 1) + '|' + string(y) + '|' + string(y + 1) + '|' + string(y + 2) + '|' + string(y + 3) + '|' + string(y + 4);"];
 	const condiciones = [];
 	let actual = 'texto.lower()', n = 0, pendiente = false;
 	for (const [tipo, patron, tercero] of pasos) {
@@ -57,7 +59,7 @@ export function funcionDeReglas(pasos = globalThis.EQVacacional.FILTRO_CONTACTO)
 		condiciones.push(`${tercero === 'crudo' ? 'texto' : actual}.matches(${texto(`[\\s\\S]*(?:${patron})[\\s\\S]*`)})`);
 	}
 	lineas.push(`      return ${condiciones.join('\n        || ')};`, '    }', FIN);
-	return lineas.join('\n');
+	return lineas.join('\n').split(V().ANIOS_MARCA).join("' + anios + '");
 }
 
 export function reglasAlDia(reglas = readFileSync(ARCHIVO, 'utf8')) {

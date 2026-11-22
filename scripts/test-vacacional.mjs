@@ -309,7 +309,7 @@ test('«1 noche», «3 noches»', () => {
 	assert.equal(nNoches(1), '1 noche');
 	assert.equal(nNoches(3), '3 noches');
 });
-const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS } = await import('./corpus-contacto.mjs');
+const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS, alAnio } = await import('./corpus-contacto.mjs');
 test(`filtro de contacto: ninguna de las ${NORMALES.length} frases normales se bloquea y ninguno de los ${EVASIONES.length} intentos pasa (el mismo corpus que la regla)`, () => {
 	assert.deepEqual(NORMALES.filter((t) => V.tieneContacto(t)), []);
 	assert.deepEqual(EVASIONES.filter((t) => !V.tieneContacto(t)), []);
@@ -332,7 +332,7 @@ test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y mo
 		'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP', '¿La casa está a 45 min de la capital? Son 2 km de terracería', 'Q 3500.00 por 4 noches', 'En el Km 98.5', 'Perfecto.Me avisas', 'Gracias.Info del parqueo', 'Llegamos a las 3.me dices',
 		'Remodelada 2019/2020', 'Temporada 2024-2025', 'Terreno de 1200 / 1500 m²', 'Casa de 350 m² y 2 niveles', 'construida en 2019, 3 habitaciones', 'Del 2026-11-20 al 2026-11-25', 'Mantenimiento Q 1500 y luz Q 1800',
 		'Síguenos en Instagram para ver más fotos', 'Hola.Me interesa la casa', 'Excelente ubicación.Muy cerca de todo', ''])
-		assert.equal(V.tieneContacto(t), false, t);
+		assert.equal(V.tieneContacto(alAnio(t)), false, alAnio(t));
 });
 
 const { mascotasUnaVez, amenidadesPara } = await import('../admin/js/estados.js');

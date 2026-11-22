@@ -500,9 +500,14 @@
 	// <codigos-pais> Lo escribe scripts/reglas-contacto.mjs desde admin/js/formato.js CODIGOS_PAIS (largos de libphonenumber): no se edita a mano.
 	var CON_CODIGO = '502([0-9]{8}|18[01][0-9]{8}|19[0-9]{9})|1([0-9]{10})|52([0-9]{10})|503([0-9]{8}|[89]00[0-9]{4}([0-9]{4})?)|504([0-9]{8}|8002[0-9]{7})|505([0-9]{8})|506([0-9]{8}|800[0-9]{7}|90[059][0-9]{7})|507([0-9]{7,8}|800[0-9]{4,5}|(00800|800[0-9])[0-9]{6})|501([0-9]{7}|0800[0-9]{7})|57([0-9]{10}|1800[0-9]{7}|19(0[01]|4[78])[0-9]{7})|34([0-9]{9})|44([0-9]{9,10}|800[0-9]{4})|49([0-9]{4,15})|33([0-9]{9})|39([0-9]{6,12})|31([0-9]{9}|140[0-9]{2,3}|800[0-9]{4,7}|90[069][0-9]{4,7}|970[0-9]{8})|54([0-9]{10,11})|56([0-9]{9}|(123|800)[0-9]{8}|600[0-9]{7,8})|55([0-9]{10,11}|300[0-9]{5}|4(00[0-9]|020|370)[0-9]{4}|[3589]00[0-9]{6,7})|972([0-9]{8,9}|1[0-9]{6,11})|61([0-9]{9}|1[0-9]{3,9})';
 	var CODIGOS = '502|52|503|504|505|506|507|501|57|34|44|49|33|39|31|54|56|55|972|61';
-	var ANIOS = '2025|2026|2027|2028|2029';
 	var SEGUIDOS = '2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036';
 	// </codigos-pais>
+	// Los años de una fecha de reserva: del año pasado a dentro de 3, con el reloj del navegador. En el patrón va la marca
+	// ANIOS_MARCA: se cambia por esos años al usarlo, y scripts/reglas-contacto.mjs la cambia en la regla por los del año de
+	// la base (request.time), uno más hacia adelante. Así no hay que escribir los años cada enero.
+	var ANIOS_MARCA = '§ANIOS§';
+	function aniosCercanos() { var y = new Date().getUTCFullYear(); return [y - 1, y, y + 1, y + 2, y + 3].join('|'); }
+	var ANIOS = ANIOS_MARCA;
 	// Una fecha de reserva, por su forma: completa con un año cercano (ANIOS) y separador, o dos años seguidos. Una hora
 	// (00:00 a 23:59) y un día/mes sin año («20/12», sin otra «/» y cifras detrás) también se leen por su forma, pero no las
 	// protege una palabra de teléfono (es normal escribir «llámame a las 22:00»).
@@ -542,7 +547,11 @@
 		['si', '((\\+|(^|[^0-9:.,/-])00)[ \\t]*\\(?[0-9]{0,4}\\)?|(^|[^0-9:.,/-])\\(?(' + CODIGOS + ')\\)?)[ \\t.-]*(' + FECHA + '|' + HORA_O_DIA + ')'
 			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}(\\+?[0-9]{1,4}([ \\t.-]|\\(|\\))*)?' + FECHA + '|' + FECHA + '[^0-9\\n]{0,15}\\b' + PALABRA_TEL + '\\b', 0, 'telefono'],
 		['cambia', '\\b' + FECHA + '\\b', ' x '],
-		['cambia', '\\b' + HORA_O_DIA, ' x '],
+		// Un rango de horas redondas («22:00 - 07:00», «8:30 a 17:45») o de días («del 20/12 - 27/12») vale como uno; una hora o un día/mes suelto, solo si no
+		// tiene cifras pegadas ni un separador antes (si no, «5555 12:34» o «5555, 12:34» pasaban como hora).
+		['cambia', '\\b([01]?[0-9]|2[0-3]):(00|15|30|45)[ \\t]*(-|–|a|y|to|and|hasta)[ \\t]*([01]?[0-9]|2[0-3]):(00|15|30|45)\\b', ' x '],
+		['cambia', '(^|[^0-9 \\t.,;:/-][ \\t]*)(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])[ \\t]*(-|–|a|al|to|hasta)[ \\t]*(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])([^/0-9]|$)', ' x '],
+		['cambia', '(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+)' + HORA_O_DIA + '([ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,][^0-9])', ' x '],
 		['cambia', '\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5'],
 		['cambia', '\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa'
 			+ '|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55'],
@@ -650,7 +659,7 @@
 	// Qué parece contacto en el texto: 'telefono', 'correo', 'red', 'enlace', 'ubicacion', 'raro', o '' si nada. El aviso
 	// se lo dice al cliente en una línea (vacChatBloqueo_<tipo> en scripts/lib/i18n.mjs).
 	function tipoDeContacto(texto) {
-		if (!filtroListo) filtroListo = FILTRO_CONTACTO.map(function (p) { return [p[0], new RegExp(p[1], p[0] === 'cambia' ? 'gu' : 'u'), p[2], p[3]]; });
+		if (!filtroListo) { var anios = aniosCercanos(); filtroListo = FILTRO_CONTACTO.map(function (p) { return [p[0], new RegExp(p[1].split(ANIOS_MARCA).join(anios), p[0] === 'cambia' ? 'gu' : 'u'), p[2], p[3]]; }); }
 		var crudo = String(texto || ''), t = crudo.toLowerCase();
 		for (var i = 0; i < filtroListo.length; i++) {
 			var p = filtroListo[i];
@@ -662,7 +671,7 @@
 	function tieneContacto(texto) { return tipoDeContacto(texto) !== ''; }
 
 	return {
-		tieneContacto: tieneContacto, tipoDeContacto: tipoDeContacto, FILTRO_CONTACTO: FILTRO_CONTACTO, MAX_NOCHES: MAX_NOCHES, DIAS_NO_LLEGO: DIAS_NO_LLEGO,
+		tieneContacto: tieneContacto, tipoDeContacto: tipoDeContacto, FILTRO_CONTACTO: FILTRO_CONTACTO, ANIOS_MARCA: ANIOS_MARCA, MAX_NOCHES: MAX_NOCHES, DIAS_NO_LLEGO: DIAS_NO_LLEGO,
 		IVA: IVA, INGUAT: INGUAT, MARGEN: MARGEN, CALENDARIOS: CALENDARIOS,
 		r2: r2, nochePublica: nochePublica, desgloseNoche: desgloseNoche, cotizar: cotizar, subtotalDeTotal: subtotalDeTotal,
 		esFecha: esFecha, hoy: hoy, sumarDias: sumarDias, nochesEntre: nochesEntre, unirRangos: unirRangos,

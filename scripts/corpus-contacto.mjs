@@ -2,7 +2,12 @@
 // un huésped o un dueño (no se bloquea ninguna) e intentos de pasar un teléfono, correo, enlace, usuario o coordenadas
 // (se bloquean todos). Lo usan scripts/test-vacacional.mjs (el navegador) y scripts/emulador/test-reglas.mjs (la regla):
 // las dos tienen que decir lo mismo de cada frase. Cada caso nuevo que aparezca se agrega aquí.
-export const NORMALES = [
+// Las fechas completas del corpus están escritas para 2026: se corren al año en curso (una fecha de reserva vale del año
+// pasado a dentro de 3, js/calc-vacacional.js aniosCercanos), así el corpus no caduca cada enero. Los rangos de años
+// («2024-2025») no se corren: valen de 2010 a 2036 (SEGUIDOS).
+const CORRE = new Date().getUTCFullYear() - 2026;
+export const alAnio = (s) => (CORRE ? s.replace(/(\b\d{1,2}[/.-]\d{1,2}[/.-])(20\d\d)\b|\b(20\d\d)(-\d\d-\d\d)\b/g, (m, a, y1, y2, b) => (a ? a + (Number(y1) + CORRE) : (Number(y2) + CORRE) + b)) : s);
+export const NORMALES = (() => [
 	// Revisiones y cacerías (pagos, horas, redes sin usuario, NIT): 
 	'Pago 2500 hoy, 2500 mañana', 'Ya transferí 1500 y 1500', 'Le transferí 2350 y 1800', 'Mandé 1250 y luego 1250 más', 'El precio es 1350 y no 1530', 'número de boleta 12345678', 'Autorización 00123456', 'Vi la casa en Instagram, se ve como muy bonita', 'La vi en facebook, como dos semanas atrás', 'La encontré en tiktok como recomendación', 'Mi presupuesto es entre 1500 y 2000 quetzales por noche', '¿El depósito es Q1500 o Q2000?', '¿Es $1500 o $2000?', 'Pagué 1500 de los 3000 quetzales', 'De los 3000 quetzales ya pagué 1500', 'Son 2500 noches? no, 2500 quetzales', 'Llegamos a las 1530 y salimos a las 1100', 'Somos doce, trece o catorce personas', 'Llegamos el quince, dieciséis o diecisiete', 'del veinte al veinticinco, somos doce', 'Pago 1500 quetzales y 1500 quetzales', 'Total 4500 quetzales, el depósito 1500', 'Lo tengo guardado en outlook', 'Te lo paso en el live de facebook', 'Somos veinte y cinco niños', 'Llegamos at 1530', 'Mañana a las 0930 te transfiero 2500', 'Q1500 y Q350 de limpieza', 'El total es 6000 quetzales, ya pagué 3000', '4 noches a 1500 cada noche, son 6000', 'Habitación 1204, piso 12', 'Hay 2000 metros de terreno y 1500 de construcción', 'treinta y cinco grados de calor, cuarenta y dos el domingo', 'Son Q1,500 por noche y Q350 de limpieza', 'La cuota es de 750 mensuales', 'Pagamos en 3 cuotas de 1250', 'Pago la mitad ahora, 2500, y la otra mitad al llegar', 'El anticipo es del 50%', 'Le hice depósito de Q2500 en Banrural', 'Transferencia a BI por 3,200', 'Deposité 2500 en el Banco Industrial', 'Total: 4500', 'Me salió en 1800 por noche', '¿Me lo deja en 1200?', '¿Lo puede dejar en 1,000?', 'El total fue 3450', 'Pagué 3450', 'Precio 1500, limpieza 350', 'La noche está en 1500 y el depósito en 500', 'Llevo 1500 en efectivo y 2000 con tarjeta', 'Q1350 x 4 = Q5400', 'Pagué con la tarjeta terminada en 4321', 'Mi boleta es la 123456', 'El número de autorización es 987654', 'La transferencia salió con número 12345678', 'Llegamos a las 2:30 pm', 'Llegamos entre 2 y 3', 'Llegamos como a las 1600', 'Salimos 11am', 'Check in 3pm check out 11am', 'Llegamos 10 y media', 'Salimos el domingo 1100 hrs', 'Our flight lands at 14:30', 'Vamos desde zona 10 por la carretera a El Salvador', 'Salimos de Antigua por la ruta a Ciudad Vieja', 'Estamos en el km 25 de la carretera a El Salvador', 'La casa queda en el kilómetro 89.5?', 'Vamos por la CA-9 hasta el km 102', 'Estamos en el condominio, ¿cuál es la casa?', 'Pasamos por Escuintla a las 2', 'Vivimos en zona 15, colonia Vista Hermosa 2', 'Desde Mixco son como 2 horas', 'Calle 4 zona 1', 'Llegamos por la 6a avenida', 'Estamos en la gasolinera del km 45', 'We are 6 adults and 4 kids, arriving Dec 20', 'Total is $1,250, right?', 'I paid $980 today', 'We paid 1400 dollars', 'Can we check in at 2pm?', 'We will be 8 people for 5 nights', 'Our dog weighs 25 lbs', 'Is it 15 minutes from the beach?', 'We land at 10:45 and drive 2 hours', 'The house is 2500 sq ft?', 'I sent the transfer for 3450, receipt attached', 'Is there a 2 night minimum?', 'Can you do 1200 per night?', 'We arrive 12/20 and leave 12/27', 'Dates: 2026-12-20 to 2026-12-27', 'Room 1 has 2 beds and room 2 has 1 bed', 'Booking ref EQ-ABC123', 'We are flying in from the US, flight AA 1234', 'Flight UA1520 arrives 14:05', 'I paid 1,500.00 USD', 'Somos 4 adultos, edades 35, 36, 60 y 62', 'Niños de 3, 5 y 8 años', 'Somos 6 adultos y 2 niños de 4 y 7', 'Mi papá tiene 85 años, ¿hay gradas?', 'Del 30/12/2026 al 02/01/2027', 'Del 29 de febrero al 3 de marzo', 'Del 24/12 al 26/12 y del 31/12 al 1/1', 'Del 20 al 27 de diciembre del 2026', 'Semana Santa 2027, del 21 al 28 de marzo', 'Para el 15 de septiembre', 'Fin de año 2026-2027', 'La casa 2 o la casa 3?', 'Vi el anuncio en Marketplace', 'Me recomendó una amiga', '¿Tienen WiFi?', '¿Cuál es la clave del wifi?', 'La contraseña del wifi no funciona', 'Hay 2 camas king, 3 queen y 4 individuales', 'Nivel 2, apartamento 4B', 'El portón tiene código', 'Mi DPI termina en 0101', 'Necesito factura con NIT 1234567-8', 'Factura a nombre de Juan Pérez, NIT CF', '¿Aceptan Visa?', 'El 50% ahora y el 50% al llegar', 'Del 1 al 5 de enero: 4 noches', 'Somos 15, ¿cabemos?', 'Somos 3 familias de 4', 'Hora de llegada: 15:30. Hora de salida: 11:00.',
 	// Fechas, horas y personas.
@@ -125,9 +130,9 @@ export const NORMALES = [
 	'We land at 14:30 on flight 2318', 'Check-in 3pm, check-out 11am?', 'Total: Q 4,550.00', 'Room 2 i 3?',
 	'I will pay the deposit of $500 and the balance of $1500', 'El código de mi reserva es EQ-AB12CD', 'Order no. 12345 from Amazon arrived lol',
 	'nos vemos el 24 de diciembre 2026', 'mi correo es correcto, gracias'
-];
+].map(alAnio))();
 
-export const EVASIONES = [
+export const EVASIONES = (() => [
 	'mi cel 5555 y 1234 quetzales', 'búscame en ig, me llamo villalago', 'insta: villa_lago', 'Q5555 Q1234', '5555, 1234 noches', 'cincuenta y cinco, cincuenta y cinco, doce, treinta y cuatro', 'fifty five fifty five twelve thirty four', 'ana.perez arroba gmail', 'anaperez(arroba)gmail(punto)com', 'anaperez en gmail', 'villalago en insta', 'sígueme en insta: villa.lago.gt', 'mi correo ana perez en yahoo punto es', '5555 hrs 1234 hrs', 'las 2359 las 1234', 'at 5555 at 1234', '$5555 $1234', '5555% 1234', '5555#1234', '55 55 12 34', 'nit 5555123-4 y 4', 'NIT 55551234-k', 'q5555y q1234', '5555 personas 1234 personas', '5555 quetzales, 1234 quetzales',
 	// Teléfonos.
 	'mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro', 'cinco5cinco5 1234', 'Llámame al 2024 5678',
@@ -197,10 +202,10 @@ export const EVASIONES = [
 	'No. 5555 1234', 'transacción 55551234', 'mi cel, ref 55551234', 'vuelo 55551234', 'vuelo AV 5555 1234', 'pago Q5555 y Q1234',
 	'precio $5555 and $1234', 'mi correo es ana.perez',
 	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
-];
+].map(alAnio))();
 
 // Se bloquea aunque podría ser normal.
-export const BLOQUEADAS_A_PROPOSITO = [
+export const BLOQUEADAS_A_PROPOSITO = (() => [
 	'Hice la transferencia, número de boleta 70012345',
 	// Juntando los grupos cercanos forman un teléfono posible (8 cifras que empiezan de 2 a 7, o 10 o más): se bloquean
 	// aunque sean un monto, una cuenta, un vuelo o una referencia corta. Es preferible a dejar pasar un teléfono.
@@ -210,7 +215,7 @@ export const BLOQUEADAS_A_PROPOSITO = [
 	'factura a nombre de Ana, NIT 3456789-1', 'deposité en la cuenta 3012345678', 'cuenta monetaria 01-2345678-9', 'cuenta 123-456789-0',
 	'el depósito fue de Q3,250.00 en Banco Industrial, boleta 70012345', 'Transfer done, confirmation #4512-7788', 'Zelle confirmation 25563412',
 	'boleta 70012345'
-];
+].map(alAnio))();
 
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
 // normales («facebook marketplace»).
@@ -264,8 +269,11 @@ const ENLACES = ['is.gd/abc', 'rb.gy/abc', 'goo.gy/x1', 'shorturl.at/abc', 'tiny
 const FECHAS_LEJANAS = ['23-12-2015', '23/12/2015', '23.12.2015', '31-12-2045', '22.11.2034', '2015-12-23'];
 const FECHAS_CERCANAS = ['23-12-2025', '23/12/2026', '23.12.2027', '2026-12-23', '2025-2026', '22:00 - 06:00', '20/12'];
 const CODIGOS_DELANTE = ['+502 ', '+502', '(502) ', '502 ', '00502 ', '+ 502 ', '+1 ', '+52 ', '0052 ', '+(502) '];
+// Un celular partido en «4 cifras + hora o día/mes» («mi cel 5555 12:34», «5555 12/11»), con cada separador y con código.
+const HORAS_TEL = ['12:34', '20:15', '23:59', '07:05', '12/11', '31/12', '30/04'];
+const ANTES_HORA = ['mi cel 5555 ', 'llámame al 4123 ', 'whatsapp 5555-', 'tel 5555.', 'cel 5555, ', '+502 5555 ', '502 5555 ', 'mi tel 55 55 ', 'call 3055 55 ', '5555 '];
 const PALABRAS_502 = ['plus five zero two 5555', 'más cinco cero dos', 'mas cinco cero dos 5555', 'plus 5 0 2'];
-export const EVASIONES_GENERADAS = [...new Set([
+export const EVASIONES_GENERADAS = [...new Set([].concat(
 	...TELEFONOS.flatMap((t) => PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`, `mi cel, ${w} ${t}`, `my phone, ${w} ${t}`].flatMap(variantes))),
 	...USUARIOS.flatMap((u) => REDES.flatMap((r) => ANTES_RED.flatMap((a) => ENTRE.map((e) => `${a}${r}${e}${u}`)).flatMap(variantes))),
 	...CON_CODIGO.flatMap((t) => [t, ...PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`])].flatMap(variantes)),
@@ -273,5 +281,6 @@ export const EVASIONES_GENERADAS = [...new Set([
 	...BASE_UNICODE.flatMap((b) => [...INVISIBLES.map((z) => conInvisible(b, z)), ...ESPACIOS.map((e) => b.replace(/ /g, e)), conParecidas(b), conParecidas(b).toUpperCase(), b.replace(/i/g, 'İ')]),
 	...FECHAS_LEJANAS.flatMap((f) => [f, `escríbeme al ${f}`, `al ${f} me encuentras`, `whatsapp ${f}`, ...CODIGOS_DELANTE.map((c) => `${c}${f}`)].flatMap(variantes)),
 	...FECHAS_CERCANAS.flatMap((f) => [...CODIGOS_DELANTE.map((c) => `${c}${f}`), ...CODIGOS_DELANTE.map((c) => `whatsapp ${c}${f}`)].flatMap(variantes)),
+	...ANTES_HORA.flatMap((a) => HORAS_TEL.map((h) => `${a}${h}`)).flatMap(variantes),
 	...[...CORREOS_RAROS, ...ENLACES, ...PALABRAS_502].flatMap((x) => [x, `mira: ${x}`, `look ${x} ok`].flatMap(variantes))
-])];
+).map(alAnio))];
