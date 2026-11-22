@@ -87,7 +87,7 @@ export async function render(container) {
 			h('div', { class: 'row g-3 mb-4' }, [
 				['icon-envelope-o', 'Leads', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
 			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
-			h('div', { class: 'card mb-4 overflow-hidden' },
+			h('div', { class: 'card mb-3 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
 				tablaAsesores),
 			h('div', { class: 'card' },
@@ -133,7 +133,7 @@ export async function render(container) {
 	const DE_DONDE = { cotizaciones: 'la que se guardó en Cotizaciones', defecto: 'la de siempre (no hay una guardada)' };
 	const avisoParte = h('p', { class: 'small alert alert-warning py-2 mb-0 mt-3', hidden: reglas.parteAsesorFuente === 'regla' },
 		`Parte del asesor vigente: ${reglas.parteAsesorPct} %, ${DE_DONDE[reglas.parteAsesorFuente] || ''}. Es la misma para Reportes y las cotizaciones. Revisa este porcentaje y guarda la regla.`);
-	const tarjetaReglas = h('div', { class: 'card mb-4' },
+	const tarjetaReglas = h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white fw-semibold' }, 'Regla general de comisión'),
 		h('div', { class: 'card-body' },
 			h('div', { class: 'row g-3 align-items-end' }, campos.map((c) => c.col)),

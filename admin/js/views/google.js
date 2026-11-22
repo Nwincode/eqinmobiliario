@@ -56,7 +56,7 @@ const MOTIVOS = {
 };
 
 function card(titulo, ...contenido) {
-	return h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), h('div', { class: 'card-body' }, ...contenido));
+	return h('div', { class: 'card mb-3' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), h('div', { class: 'card-body' }, ...contenido));
 }
 
 // Pasos de la conexión, en el orden en que los revisa /api/gsc (acción "estado"): [clave, qué se comprueba, cómo se arregla].
@@ -77,7 +77,7 @@ function verificador(e, revisar) {
 			h('span', { class: 'flex-grow-1' }, 'Search Console conectado · ', h('span', { class: 'text-muted text-break' }, e.propiedad)), otraVez);
 	}
 	const hechos = new Set(e.hechos);
-	return h('div', { class: 'card mb-4' },
+	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center gap-2' },
 			h('span', { class: 'flex-grow-1' }, 'Conexión con Search Console'), badge(`${e.hechos.length} de ${PASOS.length}`, 'warning'), otraVez),
 		h('ul', { class: 'list-group list-group-flush' }, PASOS.map(([clave, titulo, arreglo]) => {

@@ -124,7 +124,7 @@ export function tarjetaPendientes(pend) {
 	const total = grupos.reduce((n, [, l]) => n + l.length, 0);
 	if (!total) return null;
 	const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes', 'aria-labelledby': 'pend-titulo' },
+	return h('section', { class: 'card mb-3 tarjeta-pendientes', 'aria-labelledby': 'pend-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-exclamation-triangle', 'aria-hidden': 'true' }),
 			h('div', { class: 'me-auto' },

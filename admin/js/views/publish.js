@@ -49,7 +49,7 @@ function filaEstado(estado, titulo, detalle, ultima = false) {
 
 function tarjetaAvisos() {
 	const cuerpo = h('div', { 'aria-live': 'polite' });
-	const card = h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+	const card = h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
 		h('h2', { class: 'h6' }, 'Avisos por correo'),
 		h('p', { class: 'small text-muted' }, 'Los correos llegan solo a las direcciones del equipo y al asesor asignado. Nunca se envían a quien escribe desde el sitio.'),
 		cuerpo));
@@ -236,7 +236,7 @@ export async function render(container) {
 
 	mount(container,
 		pageHeader('Publicar el sitio'),
-		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+		h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
 			h('p', {}, 'Los cambios que haces en el panel se guardan al instante, pero el sitio público se regenera al publicar. Así las páginas cargan rápido y Google las indexa completas.'),
 			h('dl', { class: 'row small mb-4' },
 				h('dt', { class: 'col-sm-4' }, 'Cambios pendientes'), h('dd', { class: 'col-sm-8' }, state.pendiente ? (frenada ? `Sí (${formatDate(state.ultimoCambio)})` : `Sí — ${state.ultimoCambioDesc || ''} (${formatDate(state.ultimoCambio)})`) : 'No'),
@@ -250,7 +250,7 @@ export async function render(container) {
 			h('button', { class: `btn btn-lg ${state.pendiente ? 'btn-warning' : 'btn-primary'}`, disabled: !hook, onclick: (e) => publish(e.currentTarget) }, 'Publicar cambios'),
 			hook ? null : h('p', { class: 'small text-muted mt-2 mb-0' }, session.isAdmin ? 'Configura el enlace de Netlify abajo para activar este botón.' : 'Un administrador debe configurar la publicación.'),
 			autoControl)),
-		session.isAdmin ? h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+		session.isAdmin ? h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Enlace de publicación de Netlify (build hook)'),
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
@@ -259,7 +259,7 @@ export async function render(container) {
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),
 			h('button', { class: 'btn btn-info', onclick: (e) => importSeed(e.currentTarget) }, 'Importar datos iniciales'))) : null,
-		session.isAdmin ? h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' },
+		session.isAdmin ? h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Propiedades de prueba'),
 			h('p', { class: 'small text-muted' }, 'Crea 3 propiedades de ejemplo con fotos para probar el panel y la subida de imágenes. Quedan ocultas al público; para verlas en el sitio, márcalas como publicadas en Propiedades. Bórralas cuando termines.'),
 			h('div', { class: 'd-flex gap-2 flex-wrap' },

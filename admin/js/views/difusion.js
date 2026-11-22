@@ -83,7 +83,7 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 function seccionFotos(p) {
 	const estado = h('div', { class: 'small text-muted mt-2', 'aria-live': 'polite' });
 	const n = (p.fotos || []).length;
-	return h('div', { class: 'card mb-4' },
+	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white fw-semibold' }, `Fotos (${n})`),
 		h('div', { class: 'card-body' },
 			n ? null : h('p', { class: 'text-muted mb-2' }, 'Esta propiedad no tiene fotos.'),

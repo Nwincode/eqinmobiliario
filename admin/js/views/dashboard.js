@@ -52,7 +52,7 @@ export async function render(container) {
 		estado,
 		avisos,
 		pend ? tarjetaPendientes(pend) : null,
-		canSeeLeads ? h('div', { class: 'card mb-4' },
+		canSeeLeads ? h('div', { class: 'card mb-3' },
 			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
 			h('div', { class: 'card-body' },
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },

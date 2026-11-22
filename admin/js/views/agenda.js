@@ -56,7 +56,7 @@ export async function render(container) {
 		const grupos = GRUPOS.map(([k, label, cls]) => {
 			const items = pend.filter((a) => vencimiento(a) === k).sort((a, b) => ms(a.fecha) - ms(b.fecha));
 			if (!items.length) return null;
-			return h('div', { class: 'card mb-4' },
+			return h('div', { class: 'card mb-3' },
 				h('div', { class: `card-header bg-white fw-semibold ${cls}` }, `${label} (${items.length})`),
 				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 					iconoActividad(a.tipo),
@@ -101,7 +101,7 @@ export async function render(container) {
 
 	mount(container,
 		pageHeader('Agenda', fAsesor),
-		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' }, form)),
+		h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' }, form)),
 		lista);
 	dibujar();
 }

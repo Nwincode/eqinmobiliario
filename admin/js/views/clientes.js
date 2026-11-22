@@ -347,7 +347,7 @@ async function renderFicha(container, id) {
 		try { await deleteDoc(ref); refrescarPorCliente(c); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
-	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);
+	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-3' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);
 
 	mount(container,
 		pageHeader(c.nombre, etapa, contactoBotones(c),
