@@ -493,8 +493,13 @@
 	var RED_O_CORREO = 'gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa'
 		+ '|snap|snapchat|wechat|discord|viber|threads|twitter';
 	var CORREOS = '(gmail|hotmail|outlook|yahoo|icloud)';
-	// Palabras que dicen «esto es un teléfono»: una fecha junto a ellas no se lee como fecha («tel 2020-12-31»).
-	var PALABRA_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|n[uú]mero|phone|call|mobile|cell|escr[ií]b[a-z]*|contact[a-z]*|text me|write me|reach me)';
+	// Palabras que dicen «esto es un teléfono»: una fecha junto a ellas no se lee como fecha («tel 2020-12-31»). De «escribir»
+	// y «contactar», solo el imperativo dirigido («escríbeme», «contáctanos», «text me»), no «te escribo el 20/12».
+	var IMPERATIVO = 'escr[ií]beme|escr[ií]bime|escr[ií]benos|escr[ií]binos|cont[aá]ctame|cont[aá]ctanos|text me|write me|reach me|contact me';
+	var PALABRA_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|n[uú]mero|phone|call|mobile|cell|' + IMPERATIVO + ')';
+	// Un sustantivo que anuncia un número («cel 22:00-12:30», «contacto 22:55 12:34»): lo que va pegado a él (sin palabras en
+	// medio) no es un horario.
+	var SUST_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|whats[a-z]*|wsp|wasap|n[uú]mero|number|phone|mobile|cell|contacto|contact)';
 	// Las que no dejan duda (sin «número», que también es de una boleta o una referencia).
 	var TEL_CLARO = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|phone|call|mobile|cell)';
 	// <codigos-pais> Lo escribe scripts/reglas-contacto.mjs desde admin/js/formato.js CODIGOS_PAIS (largos de libphonenumber): no se edita a mano.
@@ -506,17 +511,27 @@
 	// ANIOS_MARCA: se cambia por esos años al usarlo, y scripts/reglas-contacto.mjs la cambia en la regla por los del año de
 	// la base (request.time), uno más hacia adelante. Así no hay que escribir los años cada enero.
 	var ANIOS_MARCA = '§ANIOS§';
-	function aniosCercanos() { var y = new Date().getUTCFullYear(); return [y - 1, y, y + 1, y + 2, y + 3].join('|'); }
+	// (Del año pasado a dentro de 4; la regla, de y−2 a y+5: con el reloj del teléfono un año corrido, el navegador nunca
+	// deja pasar una fecha que la regla rechace.)
+	function aniosCercanos() { var y = new Date().getUTCFullYear(); return [y - 1, y, y + 1, y + 2, y + 3, y + 4].join('|'); }
 	var ANIOS = ANIOS_MARCA;
 	// Una fecha de reserva, por su forma: completa con un año cercano (ANIOS) y separador, o dos años seguidos. Una hora
 	// (00:00 a 23:59) y un día/mes sin año («20/12», sin otra «/» y cifras detrás) también se leen por su forma, pero no las
 	// protege una palabra de teléfono (es normal escribir «llámame a las 22:00»).
 	var FECHA = '((' + ANIOS + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + ANIOS + ')|' + SEGUIDOS + ')';
-	var HORA_O_DIA = '(([01]?[0-9]|2[0-3]):[0-5][0-9]|(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])([^/0-9]|$))';
+	// Un día/mes en los dos órdenes («24/12», «12/24»).
+	var DM = '((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])|(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01]))';
+	var HORA_O_DIA = '(([01]?[0-9]|2[0-3]):[0-5][0-9]|' + DM + '([^/0-9]|$))';
 	// Dos horas seguidas y una no es «redonda» (:00, :15, :30, :45): con una palabra de teléfono cerca, un número partido
 	// («escríbeme al 21:12 y 23:45»); «llámame entre 14:00 y 16:00» sí es un horario.
 	var HORA = '([01]?[0-9]|2[0-3]):[0-5][0-9]', HORA_RARA = '([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])';
 	var DOS_HORAS = '(' + HORA + '[ \\t]*(y|e|and|-|–|,|a)?[ \\t]*' + HORA_RARA + '|' + HORA_RARA + '[ \\t]*(y|e|and|-|–|,|a)?[ \\t]*' + HORA + ')';
+	// Una secuencia de días/mes y horas («24/12 14:30», «24/12, 25/12 y 1/1», «22:00 - 07:00», «20/12 a las 15:00»): cada
+	// elemento es un día/mes (con su hora, si va pegada) o una hora, y entre dos va un conector de verdad (dos horas con solo un
+	// espacio en medio no se juntan: «22:55 12:34» es un número).
+	var TOK = '(' + DM + '|' + HORA + ')';
+	var ELEM = '(' + DM + '([ \\t]+' + HORA + ')?|' + HORA + ')';
+	var UNE = '[ \\t]*(,|y|e|o|or|a las|a|al|at|-|–|and|to|hasta)[ \\t]*';
 	// La forma de un grupo de 4 cifras: A empieza de 2 a 7 (como la mitad de un celular de Guatemala), R igual pero
 	// redondo (termina en 00 o 50: un monto), B y C los demás (C redondo). NR: uno que no es redondo.
 	var G = { R: '[2-7][0-9](00|50)', A: '[2-7][0-9]{3}', C: '[0189][0-9](00|50)', B: '[0-9]{4}', NR: '[0-9]{2}([0-9][1-9]|[1-46-9]0)', AN: '[2-7][0-9]([0-9][1-9]|[1-46-9]0)' };
@@ -549,14 +564,16 @@
 		// tenga cerca una palabra de teléfono, aunque haya un código en medio («tel 502 2026-12-31», «2025-2026 es mi fijo»).
 		// Es la única excepción que se aplica antes de buscar teléfonos.
 		['si', '((\\+|(^|[^0-9:.,/-])00)[ \\t]*\\(?[0-9]{0,4}\\)?|(^|[^0-9:.,/-])\\(?(' + CODIGOS + ')\\)?)[ \\t.-]*(' + FECHA + '|' + HORA_O_DIA + ')'
-			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}' + DOS_HORAS
 			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}(\\+?[0-9]{1,4}([ \\t.-]|\\(|\\))*)?' + FECHA + '|' + FECHA + '[^0-9\\n]{0,15}\\b' + PALABRA_TEL + '\\b', 0, 'telefono'],
+		['si', '\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}' + DOS_HORAS
+			// Un sustantivo de teléfono con días/mes u horas pegados («cel 22:00-12:30»), o una palabra de teléfono con 4 cifras
+			// sueltas y una hora o un día/mes detrás («mi cel 5555 hasta 12:34», «número 5512 a las 12:34», «cel 5555 el 12/12»).
+			+ '|\\b' + SUST_TEL + '\\b[^0-9a-z' + LETRA + '\\n]{0,5}' + TOK + '([ \\t]*(,|y|e|o|a|al|-|–|and|to|hasta)?[ \\t]*' + TOK + ')+'
+			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}[0-9]{4}[ \\t,.-]*((a las|las|y|e|hasta|to|el|del|a|al|and|at)[ \\t]+)?' + TOK, 0, 'telefono'],
 		['cambia', '\\b' + FECHA + '\\b', ' x '],
-		// Un rango de horas redondas («22:00 - 07:00», «8:30 a 17:45») o de días («del 20/12 - 27/12») vale como uno; una hora o un día/mes suelto, solo si no
-		// tiene cifras pegadas ni un separador antes (si no, «5555 12:34» o «5555, 12:34» pasaban como hora).
-		['cambia', '\\b([01]?[0-9]|2[0-3]):(00|15|30|45)[ \\t]*(-|–|a|y|to|and|hasta)[ \\t]*([01]?[0-9]|2[0-3]):(00|15|30|45)\\b', ' x '],
-		['cambia', '(^|[^0-9 \\t.,;:/-][ \\t]*)(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])[ \\t]*(-|–|a|al|to|hasta)[ \\t]*(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])([^/0-9]|$)', ' x '],
-		['cambia', '(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+)' + HORA_O_DIA + '([ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,][^0-9])', ' x '],
+		// Una secuencia de días/mes y horas se lee entera como fechas, solo si no tiene cifras ni un separador pegados delante (si
+		// no, «5555 12:34» o «5555, 12:34» pasaban) ni detrás. Lo que sigue a una palabra de teléfono ya se revisó arriba.
+		['cambia', '(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+|[^0-9 \\t.,;:/-]:[ \\t]*)' + ELEM + '(' + UNE + ELEM + ')*(([.,:;!?]|\\))*[ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,:][^0-9])', ' x '],
 		['cambia', '\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5'],
 		['cambia', '\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa'
 			+ '|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55'],

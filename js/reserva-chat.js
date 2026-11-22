@@ -372,7 +372,16 @@
 				boton.disabled = true; adjuntar.disabled = true;
 				return guardarMensaje(campos, p.id)
 					.then(function () { delete pendientes[clave]; if (clave.charAt(0) === 't') ultimoTexto = null; alerta(''); avisar(token); return cargar().catch(function () {}); })
-					.catch(function () { alerta(t.vacChatFallo); })
+					// La base lo rechazó (403): con un texto, es su filtro de contacto (el mismo del navegador; con el reloj del teléfono
+					// muy corrido pueden no coincidir): se dice eso, por tipo si se reconoce, no «no se pudo enviar».
+					.catch(function (err) {
+						var texto = campos.texto && campos.texto.stringValue;
+						if (texto && /HTTP 403/.test(err && err.message)) {
+							var tipo = V.tipoDeContacto(texto);
+							return alerta(t['vacChatBloqueo' + (tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : '')] || t.vacChatBloqueo);
+						}
+						alerta(t.vacChatFallo);
+					})
 					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
 			};
 			// Pase lo que pase con un envío, el siguiente sale igual (la fila nunca se queda trabada).

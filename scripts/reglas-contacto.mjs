@@ -48,9 +48,10 @@ export function funcionDeReglas(pasos = globalThis.EQVacacional.FILTRO_CONTACTO)
 	const lineas = [`${INICIO} Lo escribe scripts/reglas-contacto.mjs desde js/calc-vacacional.js (FILTRO_CONTACTO): no se edita a mano.`,
 		'    // Los mismos pasos que el navegador: reemplazos en orden y, entre ellos, las búsquedas («si»).', '    function tieneContacto(texto) {',
 		// Los años de una fecha de reserva, del año de la base (ANIOS_MARCA en el navegador, con su reloj): uno más hacia
-		// adelante que el navegador, para que cerca del cambio de año la regla nunca rechace lo que el navegador deja pasar.
+		// adelante y uno hacia atrás más que el navegador (y−2 a y+5 contra y−1 a y+4): con el reloj del teléfono corrido un año,
+		// la regla nunca rechaza lo que el navegador deja pasar.
 		'      let y = request.time.year();',
-		"      let anios = string(y - 1) + '|' + string(y) + '|' + string(y + 1) + '|' + string(y + 2) + '|' + string(y + 3) + '|' + string(y + 4);"];
+		"      let anios = string(y - 2) + '|' + string(y - 1) + '|' + string(y) + '|' + string(y + 1) + '|' + string(y + 2) + '|' + string(y + 3) + '|' + string(y + 4) + '|' + string(y + 5);"];
 	const condiciones = [];
 	let actual = 'texto.lower()', n = 0, pendiente = false;
 	for (const [tipo, patron, tercero] of pasos) {

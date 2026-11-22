@@ -48,6 +48,39 @@ export const NORMALES = (() => [
 	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
 	'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
 	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Transferí Q2450 desde la cuenta terminada en 3456', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567',
+	// Revisión 10.
+	'check-in 15:00', 'Check-in 15:00, check-out 11:00', 'Llegamos 14:30 y salimos 11:00.', 'llegamos 14:30, salimos 11:00',
+	'llegamos a las 14:30 y nos vamos 11:00', 'check-in: 15:00 / check-out: 11:00', 'Entrada 15:00 · Salida 11:00', 'llegada 14:37 salida 11:12',
+	'Llegamos 13:20, el vuelo aterriza 12:05', 'llegamos 14:30 o 15:00', 'nuestro vuelo sale 6:40 y llega 9:55', 'Arrival 14:30, departure 11:00',
+	'we arrive 14:30 and leave 11:00', 'we land 13:20 and arrive 15:35', 'ETA 16:10', 'check-out 11:00 sharp please', 'llegamos el 24/12 14:30',
+	'el 24/12, 14:30', 'del 24/12 al 31/12', 'del 24/12 - 31/12', '24/12-31/12', '24/12 al 31/12 y 2/1 al 5/1',
+	'Llegamos el 20/12 a las 15:00 y salimos el 27/12 a las 11:00', 'contacto de emergencia: mi hermana viaja conmigo',
+	'Mi contacto de emergencia llega el 20/12', '¿Cuál es el contacto de emergencia de la casa?', 'text me when ready',
+	'Text me when ready, we arrive 15:30', 'please text me here when the house is ready, 14:30?', 'reach me here at 15:00',
+	'escríbeme cuando esté lista, llegamos 14:30', 'escríbeme por aquí el 20/12', 'Contactame por aquí a las 9:00 del 24/12',
+	'te escribo el 2026-12-20', 'escríbeme 15:00 o 15:30', 'contáctame entre 14:00 y 16:00', 'escribí el 23/12/2026 y nadie respondió',
+	'contact me 14:30 - 15:30', 'llámame a las 22:00', 'call me at 15:00 or 15:30', 'text me between 9:00 and 11:00',
+	'escríbeme 14:35 o 15:10, aterrizamos', 'contacto: llegamos 21:12 y 23:45 al hotel',
+	'Check-in: 15:00 – 21:00. Check-out: 11:00. Silencio: 22:00 a 07:00.', 'Horas de silencio 22:00-7:00',
+	'Piscina 8:00 – 20:00, gimnasio 6:00 a 22:00', 'No fiestas. Mascotas con aviso. Check out 11:00.', 'Quiet hours 22:00 to 07:00',
+	'Pool hours 8:00 to 20:00', 'Check-in after 15:00, check-out before 11:00', 'Hora de entrada 15:00 hrs, salida 11:00 hrs',
+	'Entrada a partir de las 3:00 pm', 'Recepción 7:00-19:00 lunes a sábado', 'Late checkout 13:00 por Q200', 'Temporada alta 15/12 - 15/01: Q1,800',
+	'Temporada alta del 15/12 al 15/1, Q 2,350', 'Semana Santa 2027: Q2,500 la noche', 'Navidad 24/12/2026 Q3,000',
+	'Del 20/12/2026 al 03/01/2027 tarifa especial', 'Tarifa 2026-2027: $180', 'High season 12/15 - 1/15 $220/night', 'Low season Q1,200 (1/2 - 30/4)',
+	'Precio 2027-01-10 a 2027-01-12: Q2,500', 'Fin de año 30/12, 31/12 y 1/1', 'Del 28/12/2027 al 2/1/2028', 'Reservamos 2030-01-05',
+	'Check-in: 15:00\nCheck-out: 11:00\nSilencio: 22:00 a 07:00', '• Entrada: 15:00\n• Salida: 11:00\n• Piscina: 8:00 - 20:00\n• No fiestas',
+	'- Llegada 14:30\n- Salida 11:00\n- Mascotas con aviso',
+	'Horario de llegada: 14:00 – 20:00\nHorario de salida: 10:30\nLate check-out: 12:30 (Q200)',
+	'Check-in 15:00 / Check-out 11:00\nQuiet hours 22:00-08:00\nMax 8 guests', 'Entrada 15:00\nSalida 11:00\n\nTemporada alta 15/12 - 15/01',
+	'Llegada: 3:00 pm\nSalida: 11:00 am\nContacto de emergencia: el equipo, por el chat',
+	'Reglas:\n1. Entrada 15:00\n2. Salida 11:00\n3. Silencio 22:00',
+	'Check in: 15:00\nCheck out: 11:00\nPiscina 7:00 a 21:00\nGimnasio 6:00-22:00\nBBQ hasta las 22:00',
+	'Navidad y Año Nuevo (24/12, 25/12, 31/12 y 1/1): mínimo 3 noches', 'Fechas especiales: 24/12 - 26/12 y 31/12 - 2/1',
+	'Llegada 15:00 hrs\nSalida 11:00 hrs\nWifi: VillaLago2026', 'Check-in 14:45\nCheck-out 11:15', 'Entrada 15:10\nSalida 10:50', '24/12 14:30',
+	'Llegada 24/12 14:30, salida 31/12 11:00', 'Las noches 24/12, 25/12, 26/12', 'Fin de año 30/12, 31/12 y 1/1', 'Check-in 24/12 14:30?',
+	'Navidad y Año Nuevo (24/12, 25/12, 31/12 y 1/1): mínimo 3 noches', 'Fechas especiales: 24/12 - 26/12 y 31/12 - 2/1', 'arrive 12/24 2:30pm',
+	'24 dic 14:30', 'te escribo el 20/12/2026', 'escribí el 23/12/2026', 'contactamos el 20/12/2026', 'contacto de emergencia 20/12/2026',
+	'contacto: llegamos 21:12 y 23:45 al hotel',
 	// Revisión 9.
 	'llámame entre 14:00 y 16:00', 'Escríbeme el 23/12 para confirmar', 'Llámame a las 22:00', 'Silencio 22:00 - 06:00, música hasta las 21:45',
 	// Revisión 8.
@@ -157,6 +190,16 @@ export const EVASIONES = (() => [
 	// Revisión 5.
 	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
 	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
+	// Revisión 10.
+	'escríbeme 21:12 23:45', 'escribeme al 21:12 23:45', 'contáctame 22:55 12:34', 'contacto 22:55 12:34', 'text me 22:55 12:34',
+	'write me 21:12 23:45', 'reach me 22:55 12:34', 'contáctame al 23-12-2026', 'text me 2026-12-23', 'contacto 2026/12/23', 'escríbeme 22:55 y 12:34',
+	'escribeme 2255 12:34', 'contacto 5555 12:34', 'contacto 5555, 12:34', 'contacto: 5555-12:34', 'llegamos 22:55 12:34 jaja', 'mi número 22:55 12:34',
+	'whats 22 55 12 34', 'cel 5555 12:30', 'cel 5555 14:00', 'cel 5555 23:45', 'llámame 22:00 - 07:00 5555', 'cel 22:00-12:30', 'cel 22:00 12:30',
+	'whatsapp 22:00 - 12:30', 'mi cel 22:30 a 12:45', 'tel 21:00 a 23:45', 'mi número es 5512 a las 12:34', 'cel 5555 a las 12:34', 'cel 5555 el 12/3',
+	'cel 5555 el 12/12', 'whatsapp 5555 del 12/3 al 4/5', 'tel 5555 - 1234', 'mi cel 5555 hasta 12:34', 'mi cel 5555 to 12:34',
+	'contacto de emergencia 5555 1234', 'my number 22:55 to 12:34', 'whatsapp 22:15 - 12:45', 'cel 22:15 y 12:45', 'llamame 20:00 a 23:30 5555 1234',
+	'cel 5555 a las 12:34', 'cel 5555 y 12:34', 'mi cel 5555 hasta 12:34', 'cel 5555 el 12/12', 'escribime 23/12/2026', 'contactame 23/12/2026',
+	'text me 23/12/2026',
 	// Revisión 9.
 	'escríbeme 23/12/2026', 'escríbeme al 21:12 y 23:45', 'mi cel 5555 12:34', 'cel 5555, 12:34', 'whatsapp 4123 20:15',
 	// Revisión 8.
@@ -224,6 +267,8 @@ export const BLOQUEADAS_A_PROPOSITO = (() => [
 // Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
 // normales («facebook marketplace»).
 export const LIMITES_ACEPTADOS = [
+	// Revisión 10: días/mes inválidos con palabras en medio.
+	'cel 55 del 55/12 al 12/34',
 	// Revisión 8: 9 cifras sin palabra de teléfono (prima una referencia), 10 después de «referencia» sin palabra de
 	// teléfono (prima la referencia), una fecha válida de un año cercano sin código ni palabra de teléfono, una hora sin
 	// código («22:00-06:00» junto a «llámame»).
@@ -277,6 +322,17 @@ const CODIGOS_DELANTE = ['+502 ', '+502', '(502) ', '502 ', '00502 ', '+ 502 ', 
 const HORAS_TEL = ['12:34', '20:15', '23:59', '07:05', '12/11', '31/12', '30/04'];
 const ANTES_HORA = ['mi cel 5555 ', 'llámame al 4123 ', 'whatsapp 5555-', 'tel 5555.', 'cel 5555, ', '+502 5555 ', '502 5555 ', 'mi tel 55 55 ', 'call 3055 55 ', '5555 '];
 const PALABRAS_502 = ['plus five zero two 5555', 'más cinco cero dos', 'mas cinco cero dos 5555', 'plus 5 0 2'];
+// Normales GENERADAS: días/mes con su hora y listas de días/mes, en español y en inglés, en los formatos que se escriben.
+const DIAS_NORMALES = ['24/12', '31/12', '1/1', '15/6'], DIAS_EN = ['12/24', '12/31', '1/1', '6/15'], HORAS_NORMALES = ['14:30', '15:00', '11:00', '9:45'];
+export const NORMALES_GENERADAS = [...new Set([
+	...DIAS_NORMALES.flatMap((d) => HORAS_NORMALES.flatMap((h) => [`Check-in ${d} ${h}`, `Llegamos el ${d} ${h}`, `llegada ${d} a las ${h}`, `${d} ${h}`, `Salida ${d}, ${h}`])),
+	...DIAS_EN.flatMap((d) => ['2:30pm', '11am', '15:00'].flatMap((h) => [`arrive ${d} ${h}`, `check-out ${d} at ${h}`, `We arrive ${d} ${h}`])),
+	...['24 dic', '31 dic', '1 ene', 'Dec 24'].flatMap((d) => HORAS_NORMALES.map((h) => `${d} ${h}`)),
+	...[['24/12', '25/12', '26/12'], ['30/12', '31/12', '1/1'], ['12/24', '12/25', '12/31']].flatMap((l) => [`Las noches ${l.join(', ')}`, `Fin de año ${l.slice(0, -1).join(', ')} y ${l.at(-1)}`, `(${l.join(', ')})`, `Nights ${l.slice(0, -1).join(', ')} and ${l.at(-1)}`, `Del ${l[0]} - ${l[2]}`]),
+	...[['24/12', '26/12'], ['31/12', '2/1']].flatMap(([a, b]) => [`Fechas especiales: ${a} - ${b}`, `del ${a} al ${b}`, `${a} to ${b}`, `Temporada ${a} - ${b}: Q1,800`]),
+	...['Silencio 22:00 - 06:00', 'Música 20:00-23:00', 'Horario de silencio: 22:00 – 07:00', 'Quiet hours 22:00 to 07:00'].flatMap((x) => [x, `Reglas: ${x}.`])
+])];
+
 export const EVASIONES_GENERADAS = [...new Set([].concat(
 	...TELEFONOS.flatMap((t) => PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`, `mi cel, ${w} ${t}`, `my phone, ${w} ${t}`].flatMap(variantes))),
 	...USUARIOS.flatMap((u) => REDES.flatMap((r) => ANTES_RED.flatMap((a) => ENTRE.map((e) => `${a}${r}${e}${u}`)).flatMap(variantes))),
@@ -286,6 +342,9 @@ export const EVASIONES_GENERADAS = [...new Set([].concat(
 	...FECHAS_LEJANAS.flatMap((f) => [f, `escríbeme al ${f}`, `al ${f} me encuentras`, `whatsapp ${f}`, ...CODIGOS_DELANTE.map((c) => `${c}${f}`)].flatMap(variantes)),
 	...FECHAS_CERCANAS.flatMap((f) => [...CODIGOS_DELANTE.map((c) => `${c}${f}`), ...CODIGOS_DELANTE.map((c) => `whatsapp ${c}${f}`)].flatMap(variantes)),
 	...ANTES_HORA.flatMap((a) => HORAS_TEL.map((h) => `${a}${h}`)).flatMap(variantes),
+	// Un sustantivo de teléfono con días/mes u horas pegados, y una palabra de teléfono + 4 cifras + conector + hora o día/mes.
+	...['cel ', 'tel: ', 'whatsapp ', 'mi número ', 'contacto ', 'my number ', 'phone: '].flatMap((w) => ['22:00-12:30', '22:15 y 12:45', '21:00 a 23:45', '22:30 to 12:45', '12/3 - 4/5', '22:55, 12:34'].map((h) => `${w}${h}`)).flatMap(variantes),
+	...['cel 5555', 'mi número es 5512', 'whatsapp 4123', 'llámame al 5555', 'escríbeme 5555', 'call me 5555'].flatMap((w) => [' a las 12:34', ' y 12:34', ' hasta 12:34', ' el 12/12', ' del 12/3', ' to 12:34', ', 12:34', ' at 12:34'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...['escríbeme al ', 'llámame ', 'whatsapp ', 'call me at ', 'mi cel: '].flatMap((w) => ['21:12 y 23:45', '23:59 - 12:34', '21:00, 23:41', '22:13 23:45'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...[...CORREOS_RAROS, ...ENLACES, ...PALABRAS_502].flatMap((x) => [x, `mira: ${x}`, `look ${x} ok`].flatMap(variantes))
 ).map(alAnio))];

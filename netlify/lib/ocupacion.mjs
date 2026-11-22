@@ -78,7 +78,7 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 	for (const [c, r, cuando] of leidos) {
 		if (r) { rangos.push(...r.map((x) => ({ desde: x.desde, hasta: x.hasta, fuente: c.nombre }))); fuentes.push(c.nombre.toLowerCase()); }
 		else sinLeer.push(c.nombre);
-		if (r && cuando) deHace.push({ nombre: c.nombre, horas: Math.max(1, Math.round((ahora - cuando) / 3_600_000)) });
+		if (r && cuando) deHace.push({ nombre: c.nombre, minutos: Math.max(1, Math.round((ahora - cuando) / 60_000)) });
 	}
 	return { rangos, fuentes, sinLeer, deHace };
 }

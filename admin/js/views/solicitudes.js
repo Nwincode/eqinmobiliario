@@ -286,7 +286,8 @@ export async function render(container, [codigo] = []) {
 					hecho = await confirmarYa(true);
 				}
 				// Un calendario que no respondió a tiempo se revisó con su última lectura: se dice de cuándo.
-				const viejos = (hecho?.calendarios || []).map((c) => `${c.nombre} no respondió: revisé con lo de hace ${c.horas} h.`);
+				const hace = (m) => (m < 60 ? `${m} min` : `${Math.round(m / 60)} h`);
+				const viejos = (hecho?.calendarios || []).map((c) => `${c.nombre} no respondió: revisé con lo de hace ${hace(Number(c.minutos) || 1)}.`);
 				toast(['Reserva confirmada.', ...viejos].join(' '));
 			} catch (err) {
 				if (err instanceof ChoqueDeFechas || (err?.servidor && !err.yaRespondida)) toast(err.message, 'warning');
