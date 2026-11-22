@@ -494,7 +494,7 @@
 		+ '|snap|snapchat|wechat|discord|viber|threads|twitter';
 	var CORREOS = '(gmail|hotmail|outlook|yahoo|icloud)';
 	// Palabras que dicen «esto es un teléfono»: una fecha junto a ellas no se lee como fecha («tel 2020-12-31»).
-	var PALABRA_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|n[uú]mero|phone|call|mobile|cell)';
+	var PALABRA_TEL = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|n[uú]mero|phone|call|mobile|cell|escr[ií]b[a-z]*|contact[a-z]*|text me|write me|reach me)';
 	// Las que no dejan duda (sin «número», que también es de una boleta o una referencia).
 	var TEL_CLARO = '(tel|tel[eé]fono|cel|celular|m[oó]vil|fijo|ll[aá]m[a-z]*|whats[a-z]*|wsp|wasap|phone|call|mobile|cell)';
 	// <codigos-pais> Lo escribe scripts/reglas-contacto.mjs desde admin/js/formato.js CODIGOS_PAIS (largos de libphonenumber): no se edita a mano.
@@ -513,6 +513,10 @@
 	// protege una palabra de teléfono (es normal escribir «llámame a las 22:00»).
 	var FECHA = '((' + ANIOS + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + ANIOS + ')|' + SEGUIDOS + ')';
 	var HORA_O_DIA = '(([01]?[0-9]|2[0-3]):[0-5][0-9]|(0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|1[0-2])([^/0-9]|$))';
+	// Dos horas seguidas y una no es «redonda» (:00, :15, :30, :45): con una palabra de teléfono cerca, un número partido
+	// («escríbeme al 21:12 y 23:45»); «llámame entre 14:00 y 16:00» sí es un horario.
+	var HORA = '([01]?[0-9]|2[0-3]):[0-5][0-9]', HORA_RARA = '([01]?[0-9]|2[0-3]):(0[1-9]|1[0-46-9]|2[0-9]|3[1-9]|4[0-46-9]|5[0-9])';
+	var DOS_HORAS = '(' + HORA + '[ \\t]*(y|e|and|-|–|,|a)?[ \\t]*' + HORA_RARA + '|' + HORA_RARA + '[ \\t]*(y|e|and|-|–|,|a)?[ \\t]*' + HORA + ')';
 	// La forma de un grupo de 4 cifras: A empieza de 2 a 7 (como la mitad de un celular de Guatemala), R igual pero
 	// redondo (termina en 00 o 50: un monto), B y C los demás (C redondo). NR: uno que no es redondo.
 	var G = { R: '[2-7][0-9](00|50)', A: '[2-7][0-9]{3}', C: '[0189][0-9](00|50)', B: '[0-9]{4}', NR: '[0-9]{2}([0-9][1-9]|[1-46-9]0)', AN: '[2-7][0-9]([0-9][1-9]|[1-46-9]0)' };
@@ -545,6 +549,7 @@
 		// tenga cerca una palabra de teléfono, aunque haya un código en medio («tel 502 2026-12-31», «2025-2026 es mi fijo»).
 		// Es la única excepción que se aplica antes de buscar teléfonos.
 		['si', '((\\+|(^|[^0-9:.,/-])00)[ \\t]*\\(?[0-9]{0,4}\\)?|(^|[^0-9:.,/-])\\(?(' + CODIGOS + ')\\)?)[ \\t.-]*(' + FECHA + '|' + HORA_O_DIA + ')'
+			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}' + DOS_HORAS
 			+ '|\\b' + PALABRA_TEL + '\\b[^0-9\\n]{0,15}(\\+?[0-9]{1,4}([ \\t.-]|\\(|\\))*)?' + FECHA + '|' + FECHA + '[^0-9\\n]{0,15}\\b' + PALABRA_TEL + '\\b', 0, 'telefono'],
 		['cambia', '\\b' + FECHA + '\\b', ' x '],
 		// Un rango de horas redondas («22:00 - 07:00», «8:30 a 17:45») o de días («del 20/12 - 27/12») vale como uno; una hora o un día/mes suelto, solo si no

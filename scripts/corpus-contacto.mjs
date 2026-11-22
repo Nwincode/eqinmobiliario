@@ -48,6 +48,8 @@ export const NORMALES = (() => [
 	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
 	'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
 	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Transferí Q2450 desde la cuenta terminada en 3456', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567',
+	// Revisión 9.
+	'llámame entre 14:00 y 16:00', 'Escríbeme el 23/12 para confirmar', 'Llámame a las 22:00', 'Silencio 22:00 - 06:00, música hasta las 21:45',
 	// Revisión 8.
 	'Hola, llegamos el 23-12-2025 y salimos el 27-12-2025', 'Del 20/12/2025 al 27/12/2025 somos 6', 'Somos 2 adultos y 3 niños',
 	'¿Aceptan mascotas? Tenemos 2 perros pequeños', 'Llegamos a las 15:00 y salimos a las 11:00', 'Pagué Q2,500 de anticipo y Q1,500 de limpieza',
@@ -155,6 +157,8 @@ export const EVASIONES = (() => [
 	// Revisión 5.
 	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
 	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
+	// Revisión 9.
+	'escríbeme 23/12/2026', 'escríbeme al 21:12 y 23:45', 'mi cel 5555 12:34', 'cel 5555, 12:34', 'whatsapp 4123 20:15',
 	// Revisión 8.
 	'escríbeme al 23-12-2015', 'al 23.12.2015 me encuentras', 'búscame 31-12-2045', 'contacto: 22.11.2034', '2312-2015 pls', 'mi otro: 23-12-2015',
 	'whatsapp de mi hermano, que te contesta él: 23-12-2015', 'mi número 55 1234 5678', '55 1234 5678', 'call me 305 555 1234', '(305) 555-1234',
@@ -282,5 +286,6 @@ export const EVASIONES_GENERADAS = [...new Set([].concat(
 	...FECHAS_LEJANAS.flatMap((f) => [f, `escríbeme al ${f}`, `al ${f} me encuentras`, `whatsapp ${f}`, ...CODIGOS_DELANTE.map((c) => `${c}${f}`)].flatMap(variantes)),
 	...FECHAS_CERCANAS.flatMap((f) => [...CODIGOS_DELANTE.map((c) => `${c}${f}`), ...CODIGOS_DELANTE.map((c) => `whatsapp ${c}${f}`)].flatMap(variantes)),
 	...ANTES_HORA.flatMap((a) => HORAS_TEL.map((h) => `${a}${h}`)).flatMap(variantes),
+	...['escríbeme al ', 'llámame ', 'whatsapp ', 'call me at ', 'mi cel: '].flatMap((w) => ['21:12 y 23:45', '23:59 - 12:34', '21:00, 23:41', '22:13 23:45'].map((h) => `${w}${h}`)).flatMap(variantes),
 	...[...CORREOS_RAROS, ...ENLACES, ...PALABRAS_502].flatMap((x) => [x, `mira: ${x}`, `look ${x} ok`].flatMap(variantes))
 ).map(alAnio))];
