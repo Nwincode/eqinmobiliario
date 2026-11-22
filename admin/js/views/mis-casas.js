@@ -15,7 +15,9 @@ import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.j
 import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
-import { guardarPrivadoVacacional } from '../privado-casa.js';
+import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
+import { anotar, bitacoraActiva } from '../bitacora-panel.js';
+import { fotoCasa } from '../bitacora.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
@@ -179,6 +181,7 @@ async function casa(container, id) {
 	async function guardar(descripcion, cambio) {
 		let sinPrecioPropio = false;
 		try {
+			const conBitacora = await bitacoraActiva();
 			const r = await runTransaction(db, async (tx) => {
 				const [c, so] = await Promise.all([tx.get(refCasa), tx.get(refSocio)]);
 				sinPrecioPropio = !so.exists();
@@ -221,7 +224,9 @@ async function casa(container, id) {
 						casa['vacacional.tarifas'] = soloQuita ? (cv.tarifas || []).filter(queda) : pub.tarifas;
 					}
 					casa.precio = V.precioDesde(pub, hoy()) || null;
-					await guardarPrivadoVacacional(id, suyo, null, tx);
+					// Sus precios cambian: renglón en la bitácora de cambios sensibles, en esta misma transacción.
+					const bitacoraId = anotar(tx, { tipo: 'casa', objeto: id, casa: id, antes: fotoCasa(c.data(), sv), despues: fotoCasa(c.data(), { ...sv, ...socioLimpio(suyo) }) }, conBitacora);
+					await guardarPrivadoVacacional(id, suyo, null, tx, { bitacoraId });
 				}
 				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
 				tx.set(doc(collection(refCasa, 'bitacora')), { que: descripcion, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });

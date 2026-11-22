@@ -17,6 +17,7 @@ import {
 	serverTimestamp, arrayUnion, deleteField
 } from './firebase.js';
 import { session, markPending } from './session.js';
+import { anotar, bitacoraActiva } from './bitacora-panel.js';
 import { dia, ahoraServidor } from './ui.js';
 
 import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
@@ -274,11 +275,16 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 	// pendiente (el plazo sale de createdAt, como antes: plazoDePago).
 	const deAntes = session.esSocio;
 	if (deAntes) { delete datos.pagoDesde; delete datos.vencePago; delete datos.revisadoAMano; }
+	// «Revisé Airbnb…»: su renglón en la bitácora de cambios sensibles, junto con la reserva.
+	const conBitacora = datos.revisadoAMano?.length ? await bitacoraActiva() : false;
 	const escribirTodo = () => cambiar({
 		despues: { id, ...datos },
 		// Nadie la respondió mientras tanto (otra pestaña, el socio o el equipo).
 		revisar: async (tx) => sinResponder(tx, l, chat),
-		escribir: (tx, ref) => tx.set(ref, { ...datos, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }),
+		escribir: (tx, ref) => {
+			const bitacoraId = anotar(tx, { tipo: 'reserva', objeto: id, casa: datos.propertyId, antes: { revisadoAMano: [] }, despues: { revisadoAMano: datos.revisadoAMano || [] } }, conBitacora);
+			tx.set(ref, { ...datos, ...(bitacoraId ? { bitacoraId } : {}), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+		},
 		ademas: (tx) => {
 			tx.update(doc(db, 'leads', l.id), respuesta('confirmada', queConfirmo(revisadoAMano), { 'solicitud.reservaId': id, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia }));
 			if (chat) {

@@ -10,11 +10,12 @@ const fecha = (v) => new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guate
 const seguro = (p, vacio) => p.catch((err) => { console.error('Estado del sistema:', err.message); return vacio; });
 
 export async function leerEstado(ahora = Date.now()) {
-	const [lista, publish, chats, pagos, casas] = await Promise.all([
+	const [lista, publish, chats, pagos, pagosNuevos, casas] = await Promise.all([
 		seguro(listar('estado'), []),
 		seguro(leerPrivado('meta/publish'), {}),
 		seguro(consultar('chats', 'avisoPendiente', '\u0001'), []),
 		seguro(donde('cambiosDatosPago', 'avisado', false), []),
+		seguro(donde('bitacora', 'avisado', false), []),
 		seguro(donde('properties', 'operacion', 'vacacional'), [])
 	]);
 	const calendarios = (await Promise.all(casas.map(async (c) => {
@@ -23,7 +24,7 @@ export async function leerEstado(ahora = Date.now()) {
 	}))).flat();
 	return armarEstado({
 		estados: Object.fromEntries(lista.map(({ id, ...d }) => [id, d])), publish: publish || {}, correos: correosDe(chats),
-		pagos: pagos.map((p) => ({ desde: p.cuando })), calendarios, ahora
+		pagos: [...pagos, ...pagosNuevos].map((p) => ({ desde: p.cuando })), calendarios, ahora
 	});
 }
 

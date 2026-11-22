@@ -148,6 +148,10 @@ agrega aquí en el mismo cambio que lo corrige.
 | (Revisión de 776da2d..c154c40) El filtro de contacto iba y venía: cada excepción nueva abría un hueco («NIT 55551234-k») o bloqueaba un pago normal («Pagué 1500 de los 3000 quetzales», «a las 0930… 2500», «se ve como muy bonita», «en outlook»). Se arreglaba frase por frase. | La regla de un filtro se escribe sobre lo que protege, no sobre la frase: bloquea solo si las cifras de los grupos cercanos forman un teléfono posible (8 cifras de Guatemala que empiezan de 2 a 7, o 10 o más), sin dos montos redondos; una excepción (NIT, usuario de una red) solo si tiene su propia forma y no la de un teléfono. Cada cambio se mide antes y después con todo el corpus (falsos positivos y evasiones) y la regla se vuelve a generar. |
 
 Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una segunda revisión independiente antes de unir.
+| No quedaba rastro de quién cambió un precio, un margen, la moneda, el dueño, los permisos del socio o «Revisé Airbnb». | Un campo nuevo que toque dinero o al dueño entra a la foto de `admin/js/bitacora.js` **y** a la de `firestore.rules` (mismos valores por omisión) y se escribe con `anotar` en el mismo lote; se prueba en `test-reglas` también el caso más grande del socio (10 temporadas: tope de 1000 revisiones por pedido). |
+| Si el correo del cliente no existía, nadie se enteraba. | Un aviso nuevo por correo al cliente se puede rebotar: `reboteCorreo` en su lead (`/api/rebote-correo`) y la pantalla que lo atiende lo dice con el WhatsApp al lado. |
+| La IA podía «decidir» sobre dinero. | La IA solo lee (salida con esquema); cuadra o no cuadra lo decide el código (`compararComprobante`) y nunca cambia una reserva. Lo que lee la IA sale de lo guardado, nunca de quien llama. |
+| Un correo programado que falla una vez no se repetía nunca (o salía dos veces). | Un envío programado aparta su marca antes de mandar (`estadosCuenta/…`), la suelta si falla y corre más de un día. |
 
 ## 5. Diseño
 

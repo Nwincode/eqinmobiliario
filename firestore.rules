@@ -65,6 +65,37 @@ service cloud.firestore {
       return v is string && v.size() <= max;
     }
 
+    // Bitácora de cambios sensibles (admin/js/bitacora.js): quién, cuándo, antes y después de lo que toca dinero o al dueño.
+    // El documento que cambia nombra su renglón nuevo en `bitacoraId`, en el mismo lote; el renglón (bitacora/{id}) lleva la
+    // «foto» de lo sensible antes y después, que aquí se compara con lo guardado (get) y con lo que queda (getAfter).
+    // Las fotos: las mismas en admin/js/bitacora.js (fotoCasa, fotoPropietario, fotoPermisos), con los mismos valores
+    // por omisión. El servidor (cuenta de escritura) escribe el suyo en la misma transacción.
+    function fotoCasa(p, s) {
+      return { 'moneda': p.get('moneda', ''), 'propietarioId': p.get('propietarioId', ''), 'limpieza': p.get('vacacional', {}).get('limpieza', 0),
+        'precioBase': s.get('precioBase', 0), 'precioFinde': s.get('precioFinde', 0), 'tarifas': s.get('tarifas', []), 'margen': s.get('margen', 20) };
+    }
+    function cambiaCasa(a, b) {
+      return a.get('moneda', '') != b.get('moneda', '') || a.get('propietarioId', '') != b.get('propietarioId', '')
+        || a.get('vacacional', {}).get('limpieza', 0) != b.get('vacacional', {}).get('limpieza', 0);
+    }
+    function cambiaSocio(a, b) {
+      return a.get('precioBase', 0) != b.get('precioBase', 0) || a.get('precioFinde', 0) != b.get('precioFinde', 0)
+        || a.get('tarifas', []) != b.get('tarifas', []) || a.get('margen', 20) != b.get('margen', 20);
+    }
+    function fotoPropietario(d) {
+      return { 'datosPago': d.get('datosPago', ''), 'permisos': d.get('permisos', {}) };
+    }
+    function fotoPermisos(d) {
+      return { 'precios': d.get('precios', true), 'fechas': d.get('fechas', true), 'casa': d.get('casa', true) };
+    }
+    // El documento que cambia nombra un renglón nuevo de la bitácora, de su tipo y de este objeto, creado en el mismo lote.
+    function anotado(tipo, objeto) {
+      let id = request.resource.data.get('bitacoraId', '');
+      let ruta = /databases/$(database)/documents/bitacora/$(id);
+      return id is string && id.size() > 0 && (resource == null || id != resource.data.get('bitacoraId', ''))
+        && !exists(ruta) && getAfter(ruta).data.tipo == tipo && getAfter(ruta).data.objeto == objeto;
+    }
+
     // Precio por noche que ve el cliente = precio del dueño × (1 + margen / 100), al centavo (js/calc-vacacional.js
     // nochePublica). Cuando el dueño cambia sus precios, el público y el suyo van juntos (una transacción en
     // «Mis propiedades») y tienen que cuadrar: así no baja su parte sin bajar la del cliente (la comisión de EQ sale
@@ -197,7 +228,10 @@ service cloud.firestore {
     // Permisos de los socios para todos { precios, fechas, casa }: los cambia el administrador (Propietarios).
     match /settings/permisosSocios {
       allow get: if isAdmin();
-      allow write: if isAdmin();
+      // Con su renglón en la bitácora si cambia un interruptor.
+      allow create, update: if isAdmin()
+        && (fotoPermisos(request.resource.data) == fotoPermisos(resource == null ? {} : resource.data) || anotado('permisos', 'permisosSocios'));
+      allow delete: if isAdmin();
     }
     // Lo que puede cada socio (el resultado): lo escriben el administrador y el servidor; el socio lee el suyo.
     match /permisosSocios/{propietarioId} {
@@ -233,9 +267,11 @@ service cloud.firestore {
       // Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche (solo el administrador).
       allow create: if isAdmin()
         || (isStaff() && request.resource.data.agentId == myAgentId() && request.resource.data.get('operacion', '') != 'vacacional');
-      allow update: if isAdmin()
-        || (isStaff() && resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId()
-            && request.resource.data.get('operacion', '') != 'vacacional')
+      // Moneda, dueño y limpieza (cambiaCasa) van con su renglón en la bitácora (anotado). El socio no los toca (su rama
+      // solo deja precios, personas y fechas): no se le revisa, así su pedido cabe en el tope de 1000 revisiones.
+      allow update: if ((isStaff() && (!cambiaCasa(resource.data, request.resource.data) || anotado('casa', id))) && (isAdmin()
+        || (resource.data.agentId == myAgentId() && request.resource.data.agentId == myAgentId()
+            && request.resource.data.get('operacion', '') != 'vacacional')))
         // El socio solo toca precios, personas, días bloqueados y mínimos de noches de sus casas por noche (las noches
         // reservadas las escriben el administrador y el servidor: netlify/functions/reservas.mjs).
         || (esSocioPorNoche(resource.data) && request.resource.data.get('operacion', '') == 'vacacional'
@@ -275,11 +311,30 @@ service cloud.firestore {
       // Lo privado de la casa: precio del socio, margen e iCal (privado/socio), dirección y mapa (llegada), acuerdo con
       // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
       // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
+      // Precios del dueño y margen (privado/socio) de una casa que ya existía: con su renglón en la bitácora. (La casa nueva
+      // con su privado, en un solo lote, no: nace así.)
+      function socioAnotado(id) {
+        return !exists(/databases/$(database)/documents/properties/$(id))
+          || !cambiaSocio(resource == null ? {} : resource.data, request.resource.data) || anotado('casa', id);
+      }
+      // Lo que el dueño cambia de su privado/socio: solo sus precios, con su renglón en la bitácora si cambian, y cuadrando
+      // con los públicos. (Lo que cambió se calcula una sola vez: cada comparación de 10 precios por fechas cuenta para el
+      // tope de 1000 revisiones por pedido.)
+      function socioActualiza(id, cambia) {
+        return cambia.hasOnly(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy', 'bitacoraId'])
+          && (!cambia.hasAny(['precioBase', 'precioFinde', 'tarifas']) || anotado('casa', id))
+          && socioPuede('precios')
+          && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
+               cambia, get(/databases/$(database)/documents/properties/$(id)).data, resource.data);
+      }
       match /privado/{docId} {
         // (getAfter: también en el mismo lote que crea la casa, admin/js/privado-casa.js crearCasa.)
         allow read: if isAdmin()
           || (isStaff() && get(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
-        allow write: if isAdmin()
+        allow create, update: if (isAdmin()
+          || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId()))
+          && (docId != 'socio' || socioAnotado(id));
+        allow delete: if isAdmin()
           || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
         // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
         // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
@@ -287,14 +342,12 @@ service cloud.firestore {
         // con el pago recibido; solo el equipo la escribe.
         allow get: if docId in ['socio', 'llegada'] && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data);
         allow update: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
-          && soloCambia(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
-          && socioPuede('precios')
-          && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
-               request.resource.data.diff(resource.data).affectedKeys(), get(/databases/$(database)/documents/properties/$(id)).data, resource.data);
+          && socioActualiza(id, request.resource.data.diff(resource.data).affectedKeys());
         // Una casa por noche que todavía no tiene privado/socio: el dueño lo crea con sus precios, con las mismas
         // condiciones (el margen, que no puede poner, queda el de siempre: 20 %).
         allow create: if docId == 'socio' && esSocioPorNoche(get(/databases/$(database)/documents/properties/$(id)).data)
-          && request.resource.data.keys().hasOnly(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy'])
+          && request.resource.data.keys().hasOnly(['precioBase', 'precioFinde', 'tarifas', 'updatedAt', 'updatedBy', 'bitacoraId'])
+          && (!request.resource.data.keys().hasAny(['precioBase', 'precioFinde', 'tarifas']) || anotado('casa', id))
           && socioPuede('precios')
           && preciosCuadran(getAfter(/databases/$(database)/documents/properties/$(id)).data, request.resource.data,
                request.resource.data.keys(), get(/databases/$(database)/documents/properties/$(id)).data, {});
@@ -358,41 +411,75 @@ service cloud.firestore {
       allow update: if propio() && conservaAsesor();
       allow delete: if propio();
     }
-    // Datos de pago del socio (los recibe el cliente en el chat al confirmar): solo el administrador los cambia, y cada
-    // cambio deja su renglón en cambiosDatosPago/{id} en el mismo lote (quién, cuándo, antes y después), que la ficha
-    // nombra en datosPagoCambio. El servidor manda el correo al equipo (netlify/lib/avisos-pago.mjs) y lo marca avisado.
-    function pagoAnotado(id, antes) {
-      let log = request.resource.data.get('datosPagoCambio', '');
-      return log is string && log.size() > 0 && log != antes.get('datosPagoCambio', '')
-        && !exists(/databases/$(database)/documents/cambiosDatosPago/$(log))
-        && getAfter(/databases/$(database)/documents/cambiosDatosPago/$(log)).data.get('propietarioId', '') == id;
-    }
+    // Datos de pago del socio (los recibe el cliente en el chat al confirmar) y sus permisos: solo el administrador los
+    // cambia, y cada cambio deja su renglón en la bitácora en el mismo lote (anotado). Si cambian los datos de pago, el
+    // servidor manda el correo al equipo (netlify/lib/avisos-pago.mjs) y lo marca avisado. (cambiosDatosPago: los de antes.)
     match /propietarios/{id} {
       // Solo el equipo: la ficha lleva notas, bitácora y datos internos. El dueño lee su resumen (portalPropietarios).
       allow read: if propio();
       // Los permisos del socio (permisos) y sus datos de pago los cambia solo el administrador.
       allow create: if nuevoPropio()
-        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
-        && (request.resource.data.get('datosPago', '') == '' || pagoAnotado(id, {}));
+        && (isAdmin() || !request.resource.data.keys().hasAny(['permisos', 'datosPago', 'datosPagoCambio', 'bitacoraId']))
+        && (fotoPropietario(request.resource.data) == fotoPropietario({}) || anotado('propietario', id));
       allow update: if propio() && conservaAsesor()
-        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'datosPagoCambio']))
-        && (request.resource.data.get('datosPago', '') == resource.data.get('datosPago', '') || pagoAnotado(id, resource.data));
+        && (isAdmin() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permisos', 'datosPago', 'datosPagoCambio', 'bitacoraId']))
+        && (fotoPropietario(request.resource.data) == fotoPropietario(resource.data) || anotado('propietario', id));
       allow delete: if isAdmin();
     }
+    // Los cambios de datos de pago de antes de la bitácora: se leen (la ficha del dueño y el correo pendiente); ya no se crean.
     match /cambiosDatosPago/{cambio} {
       allow read: if isAdmin();
-      allow create: if isAdmin()
-        && request.resource.data.keys().hasOnly(['propietarioId', 'antes', 'despues', 'quien', 'nombre', 'cuando', 'avisado'])
+      allow write: if false;
+    }
+    // Bitácora de cambios sensibles: solo crear, con la foto de antes y de después tal como están en la base. La lee el
+    // administrador. Tipos: casa (moneda, dueño, limpieza; precios del dueño y margen), propietario (datos de pago y
+    // permisos), permisos (los de todos los socios), reserva («Revisé Airbnb…» al confirmar).
+    function entradaCasa(id, d) {
+      let p = /databases/$(database)/documents/properties/$(d.objeto);
+      let s = /databases/$(database)/documents/properties/$(d.objeto)/privado/socio;
+      return exists(p) && d.get('casa', '') == d.objeto && !('avisado' in d)
+        && (isAdmin() || (isStaff() && get(p).data.get('agentId', '') == myAgentId()) || esSocioPorNoche(get(p).data))
+        && d.antes == fotoCasa(get(p).data, exists(s) ? get(s).data : {})
+        && d.despues == fotoCasa(getAfter(p).data, existsAfter(s) ? getAfter(s).data : {})
+        && (getAfter(p).data.get('bitacoraId', '') == id || (existsAfter(s) && getAfter(s).data.get('bitacoraId', '') == id));
+    }
+    function entradaPropietario(id, d) {
+      let r = /databases/$(database)/documents/propietarios/$(d.objeto);
+      return isAdmin() && !('casa' in d)
+        && d.antes == fotoPropietario(exists(r) ? get(r).data : {})
+        && d.despues == fotoPropietario(getAfter(r).data)
+        && getAfter(r).data.get('bitacoraId', '') == id
+        && (d.antes.datosPago == d.despues.datosPago ? !('avisado' in d) : d.get('avisado', true) == false);
+    }
+    function entradaPermisos(id, d) {
+      let r = /databases/$(database)/documents/settings/permisosSocios;
+      return isAdmin() && d.objeto == 'permisosSocios' && !('casa' in d) && !('avisado' in d)
+        && d.antes == fotoPermisos(exists(r) ? get(r).data : {})
+        && d.despues == fotoPermisos(getAfter(r).data)
+        && getAfter(r).data.get('bitacoraId', '') == id;
+    }
+    function entradaReserva(id, d) {
+      let r = /databases/$(database)/documents/reservas/$(d.objeto);
+      return isAdmin() && !exists(r) && !('avisado' in d)
+        && d.get('casa', '') == getAfter(r).data.get('propertyId', '')
+        && d.antes == { 'revisadoAMano': [] }
+        && d.despues == { 'revisadoAMano': getAfter(r).data.get('revisadoAMano', []) }
+        && getAfter(r).data.get('bitacoraId', '') == id;
+    }
+    match /bitacora/{entrada} {
+      allow read: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['tipo', 'objeto', 'casa', 'antes', 'despues', 'quien', 'nombre', 'cuando', 'avisado'])
+        && isNonEmptyString(request.resource.data.objeto, 128)
         && request.resource.data.quien == request.auth.uid
-        && isShortString(request.resource.data.get('nombre', ''), 120)
         && request.resource.data.cuando == request.time
-        && request.resource.data.avisado == false
-        && request.resource.data.propietarioId is string
-        && request.resource.data.antes == (exists(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId))
-            ? get(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '') : '')
-        && request.resource.data.despues == getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPago', '')
+        && isShortString(request.resource.data.get('nombre', ''), 120)
+        && request.resource.data.antes is map && request.resource.data.despues is map
         && request.resource.data.antes != request.resource.data.despues
-        && getAfter(/databases/$(database)/documents/propietarios/$(request.resource.data.propietarioId)).data.get('datosPagoCambio', '') == cambio;
+        && ((request.resource.data.tipo == 'casa' && entradaCasa(entrada, request.resource.data))
+          || (request.resource.data.tipo == 'propietario' && entradaPropietario(entrada, request.resource.data))
+          || (request.resource.data.tipo == 'permisos' && entradaPermisos(entrada, request.resource.data))
+          || (request.resource.data.tipo == 'reserva' && entradaReserva(entrada, request.resource.data)));
       allow update, delete: if false;
     }
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
@@ -409,7 +496,8 @@ service cloud.firestore {
     // servicio, que no pasa por estas reglas: los montos y las revisiones viven allí, no en el navegador del socio.
     match /reservas/{id} {
       allow read: if propio() || esSocioDe(resource.data);
-      allow create: if isAdmin();
+      // «Revisé Airbnb…» (revisadoAMano) va con su renglón en la bitácora.
+      allow create: if isAdmin() && (request.resource.data.get('revisadoAMano', []).size() == 0 || anotado('reserva', id));
       // La comisión la marca pagada solo el administrador; el socio solo le pone su comprobante.
       allow update: if isAdmin()
         // El comprobante lo pone quien ganó la reserva, aunque la casa ya no sea suya (lo mismo que storage.rules).
@@ -422,6 +510,12 @@ service cloud.firestore {
     // la casa en ese momento): los escribe solo el servidor (netlify/lib/reservas-servidor.mjs congelarMontos, con la
     // cuenta de escritura, que no pasa por estas reglas). Los leen el administrador y el socio de esa casa.
     match /montosSolicitud/{id} {
+      allow read: if isAdmin() || esSocioDe(resource.data);
+      allow write: if false;
+    }
+    // Revisión del comprobante del huésped con la IA (netlify/lib/comprobantes.mjs): lo leído y si cuadra con la reserva.
+    // La escribe solo el servidor; la leen el administrador y el socio de esa casa (como los montos congelados).
+    match /revisionesComprobante/{id} {
       allow read: if isAdmin() || esSocioDe(resource.data);
       allow write: if false;
     }
@@ -624,7 +718,8 @@ service cloud.firestore {
     // las páginas publicadas antes de que el servidor creara las solicitudes lo consultan (así no se quedan esperando).
     // Nadie escribe en reglas/.
     match /reglas/{version} {
-      allow get: if version == 'r5';
+      // r6: las reglas con la bitácora de cambios sensibles (el panel pregunta por ella: admin/js/bitacora.js).
+      allow get: if version in ['r5', 'r6'];
     }
     match /chatsPorSolicitud/{leadId} {
       // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a

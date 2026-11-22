@@ -1,6 +1,7 @@
 // Correo al equipo cuando cambian los datos de pago de un socio (lo que el cliente recibe en el chat al confirmar).
-// Cada cambio lo deja el panel en cambiosDatosPago/{id} (firestore.rules: solo el administrador, con quién, cuándo,
-// antes y después) con `avisado: false`; aquí se manda uno por cambio y se marca avisado (cuenta de escritura).
+// Cada cambio lo deja el panel en la bitácora de cambios sensibles (bitacora/{id}, tipo «propietario», con quién, cuándo,
+// antes y después; los de antes, en cambiosDatosPago/{id}) con `avisado: false`; aquí se manda uno por cambio y se marca
+// avisado (cuenta de escritura).
 // Lo llaman /api/aviso-pago (el panel, al guardar) y el control de cada hora (lo que no salió).
 import { donde, leerPrivado } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
@@ -12,12 +13,18 @@ const fecha = (v) => new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guate
 export async function avisarCambiosDePago() {
 	if (!servicioCorreo() || !destinatariosEquipo().length || !escrituraConfigurada()) return null;
 	let enviados = 0;
-	for (const c of await donde('cambiosDatosPago', 'avisado', false)) {
+	// Los dos lugares, con la misma forma: { col, id, propietarioId, antes, despues, nombre, cuando }.
+	const [nuevos, deAntes] = await Promise.all([donde('bitacora', 'avisado', false), donde('cambiosDatosPago', 'avisado', false)]);
+	const lista = [
+		...nuevos.filter((b) => b.tipo === 'propietario').map((b) => ({ col: 'bitacora', id: b.id, propietarioId: b.objeto, antes: b.antes?.datosPago, despues: b.despues?.datosPago, nombre: b.nombre, cuando: b.cuando })),
+		...deAntes.map((c) => ({ col: 'cambiosDatosPago', ...c }))
+	];
+	for (const c of lista) {
 		// Se aparta en una transacción: dos llamadas a la vez no mandan el mismo correo dos veces.
 		const mio = await transaccion(async ({ leer, cambiar }) => {
-			const ahora = await leer(`cambiosDatosPago/${c.id}`);
+			const ahora = await leer(`${c.col}/${c.id}`);
 			if (!ahora || ahora.avisado !== false) return false;
-			cambiar(`cambiosDatosPago/${c.id}`, { avisado: true });
+			cambiar(`${c.col}/${c.id}`, { avisado: true });
 			return true;
 		}).catch((err) => { console.error('Datos de pago (apartar):', err.message); return false; });
 		if (!mio) continue;
@@ -34,7 +41,7 @@ export async function avisarCambiosDePago() {
 		} catch (err) {
 			// No salió: vuelve a quedar pendiente para la siguiente vuelta.
 			console.error('Datos de pago (correo):', err.message);
-			await transaccion(({ cambiar }) => cambiar(`cambiosDatosPago/${c.id}`, { avisado: false })).catch(() => {});
+			await transaccion(({ cambiar }) => cambiar(`${c.col}/${c.id}`, { avisado: false })).catch(() => {});
 		}
 	}
 	return enviados;

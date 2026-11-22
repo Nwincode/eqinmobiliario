@@ -28,6 +28,8 @@ import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
 import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio, crearCasa } from '../privado-casa.js';
+import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
+import { fotoCasa, igual } from '../bitacora.js';
 import { propiedadParaIA } from '../para-ia.js';
 import { TEXTOS_VAC, fuenteEs, faltaIngles, fuenteTraducida } from '../ingles.js';
 import '/js/calc-vacacional.js';
@@ -309,24 +311,30 @@ export { guardarPrivadoVacacional, crearCasa };
 export async function guardarCambios(id, cambios, { socio = null, llegada = null, sinLlegada = false } = {}) {
 	const ref = doc(db, 'properties', id);
 	const quien = autor();
+	const conBitacora = await bitacoraActiva();
 	return runTransaction(db, async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists()) throw new Error('La propiedad ya no existe.');
 		const antes = snap.data();
 		const casa = aplicarCambios(antes, cambios);
 		const vac = esVacacional(casa);
+		// El costo del socio guardado AHORA (también en una casa que dejó de ser por noche: la bitácora lo compara).
+		const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio')).catch(() => null))?.data() || {};
+		const socioDespues = vac ? { ...guardado, ...socioLimpio(socio || {}) } : guardado;
 		if (vac) {
 			// El precio público sale del costo del socio guardado AHORA más lo que se cambió aquí.
-			const guardado = (await tx.get(doc(db, 'properties', id, 'privado', 'socio'))).data() || {};
-			const pub = vacacionalPublico({ ...casa, socio: { ...guardado, ...socioLimpio(socio || {}) } });
+			const pub = vacacionalPublico({ ...casa, socio: socioDespues });
 			casa.precio = pub.precio;
 			casa.vacacional = { ...casa.vacacional, ...pub.vacacional };
 		}
 		const hist = historialCon(antes, casa, quien);
 		Object.assign(casa, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio, updatedAt: serverTimestamp(), updatedBy: session.user.uid });
 		if (hist.cambioEstado) casa.estadoFecha = serverTimestamp();
+		// Moneda, dueño, limpieza, precios del dueño o margen: su renglón en la bitácora, en esta misma transacción.
+		const bitacoraId = anotar(tx, { tipo: 'casa', objeto: id, casa: id, antes: fotoCasa(antes, guardado), despues: fotoCasa(casa, socioDespues) }, conBitacora);
+		if (bitacoraId) casa.bitacoraId = bitacoraId;
 		tx.set(ref, casa);
-		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx);
+		if (vac) await guardarPrivadoVacacional(id, socio, llegada, tx, { bitacoraId: igual(fotoCasa({}, guardado), fotoCasa({}, socioDespues)) ? '' : bitacoraId });
 		if (sinLlegada) tx.delete(doc(db, 'properties', id, 'privado', 'llegada'));
 		return casa;
 	});
@@ -1503,6 +1511,8 @@ async function renderEditor(container, id, emb = null) {
 		{ icono: 'icon-file-text-o', texto: 'Armar borrador de ficha', href: `#/ia/redactar/${id}` },
 		{ icono: 'icon-globe', texto: 'Traducir al inglés', onclick: (e) => traducir(e.currentTarget) },
 		{ icono: 'icon-copy', texto: 'Duplicar', onclick: (e) => duplicate(e.currentTarget) },
+		// Moneda, dueño, limpieza, precios del dueño, margen y «Revisé Airbnb»: quién, cuándo, antes y después.
+		session.isAdmin && { icono: 'icon-history', texto: 'Cambios', onclick: () => verCambios({ casaId: id, titulo: `Cambios: ${data.titulo || 'la propiedad'}`, moneda: data.moneda }) },
 		session.isAdmin && { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: remove }
 	]);
 	mount(container,

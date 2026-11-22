@@ -8,6 +8,8 @@ import { conDatosDelChat } from '../../admin/js/reservas-calculo.js';
 import { deudaDe, faltaSaberSiPago, permisosDe, documentoPermisos, mismosPermisos, limpiarDevolver, CLAVES } from '../../admin/js/permisos-socio.js';
 import { listar } from './firestore.mjs';
 import { transaccion } from './firestore-escritura.mjs';
+import { anotarEnTx } from './bitacora.mjs';
+import { fotoPropietario } from '../../admin/js/bitacora.js';
 
 // Sin documento guardado, todo está permitido: no hace falta crear uno que diga lo mismo.
 const todoPermitido = (d) => CLAVES.every((k) => d[k]) && !d.deuda && !d.motivo;
@@ -32,7 +34,11 @@ export async function recalcularPermisos(ahora = Date.now()) {
 			const nuevo = documentoPermisos(permisosDe({ global, propio: prop.permisos, deuda }), deuda);
 			const limpiar = limpiarDevolver(prop.permisos, deuda);
 			if (!limpiar && (mismosPermisos(guardado, nuevo) || (!guardado && todoPermitido(nuevo)))) return false;
-			if (limpiar) cambiar(`propietarios/${id}`, { 'permisos.devolver': false });
+			// «Devolver hasta que pague» se apaga solo al pagar: con su renglón en la bitácora (quien: el servidor).
+			if (limpiar) {
+				const bitacoraId = anotarEnTx({ crear }, { tipo: 'propietario', objeto: id, antes: fotoPropietario(prop), despues: fotoPropietario({ ...prop, permisos: { ...prop.permisos, devolver: false } }) }, { nombre: 'Servidor (pagó lo que debía)' });
+				cambiar(`propietarios/${id}`, { 'permisos.devolver': false, ...(bitacoraId ? { bitacoraId } : {}) });
+			}
 			if (guardado) cambiar(ruta, nuevo, { ahora: ['actualizado'] });
 			else crear(ruta, nuevo, { ahora: ['actualizado'] });
 			return true;

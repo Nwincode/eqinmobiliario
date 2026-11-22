@@ -16,17 +16,18 @@ const dato = async (...ruta) => { const s = await getDoc(doc(db, ...ruta)); retu
 
 // casas: las del panel (ya leídas en Inicio); solo se leen los calendarios de las de por noche.
 export async function leerEstado(casas = []) {
-	const [estados, publish, chats, pagos] = await Promise.all([
+	const [estados, publish, chats, pagos, pagosNuevos] = await Promise.all([
 		seguro(todos(collection(db, 'estado')), []),
 		seguro(dato('meta', 'publish'), {}),
 		seguro(todos(query(collection(db, 'chats'), where('avisoPendiente', '>', ''))), []),
-		seguro(todos(query(collection(db, 'cambiosDatosPago'), where('avisado', '==', false))), [])
+		seguro(todos(query(collection(db, 'cambiosDatosPago'), where('avisado', '==', false))), []),
+		seguro(todos(query(collection(db, 'bitacora'), where('avisado', '==', false))), [])
 	]);
 	const calendarios = (await Promise.all(casas.filter((c) => c.operacion === 'vacacional').map(async (c) => {
 		const [leido, socio] = await Promise.all([seguro(dato('properties', c.id, 'privado', 'icalLeido'), null), seguro(dato('properties', c.id, 'privado', 'socio'), null)]);
 		return calendariosDe(c, leido, socio, V.CALENDARIOS);
 	}))).flat();
-	return armarEstado({ estados: Object.fromEntries(estados.map(({ id, ...d }) => [id, d])), publish: publish || {}, correos: correosDe(chats), pagos: pagos.map((p) => ({ desde: p.cuando })), calendarios });
+	return armarEstado({ estados: Object.fromEntries(estados.map(({ id, ...d }) => [id, d])), publish: publish || {}, correos: correosDe(chats), pagos: [...pagos, ...pagosNuevos].map((p) => ({ desde: p.cuando })), calendarios });
 }
 
 export async function tarjetaEstado(casas) {

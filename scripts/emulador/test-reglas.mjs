@@ -25,6 +25,29 @@ const cotizada = (codigo) => ({ mapValue: { fields: campos({ codigo, llegada: '2
 await fetch(`${H}/leads/lead1`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { createdAt: { timestampValue: new Date().toISOString() }, nombre: val('Ana Morales'), telefono: val('55551234'), email: val('ana@example.com'), propertyId: val('prueba-casa-playa-monterrico'), propietarioId: val('o1'), agentId: val(''), reserva: cotizada('EQ-PRUEBA') } }) });
 const T = 'TokenDePruebaLargoYAlAzar2345';
 const chat = { leadId: 'lead1', codigo: 'EQ-PRUEBA', propertyId: 'prueba-casa-playa-monterrico', propertyTitulo: 'Casa de playa en Monterrico (prueba)', propietarioId: 'o1', nombre: 'Ana', llegada: '2026-11-16', salida: '2026-11-20', noches: 4, huespedes: 2, total: 1122.4, subtotal: 920, moneda: 'USD', idioma: 'es' };
+const svG = (v) => ({ stringValue: v });
+// Como «Mis propiedades»: si cambian los precios del dueño, el renglón de la bitácora va en el mismo lote
+// (admin/js/bitacora.js fotoCasa, con lo guardado antes y lo que queda) y privado/socio lo nombra en bitacoraId.
+let nb = 0;
+const fotoCasaRaw = (p, s) => ({ mapValue: { fields: {
+	moneda: p.moneda || svG(''), propietarioId: p.propietarioId || svG(''), limpieza: p.vacacional?.mapValue?.fields?.limpieza || { integerValue: '0' },
+	precioBase: s.precioBase || { integerValue: '0' }, precioFinde: s.precioFinde || { integerValue: '0' }, tarifas: s.tarifas || { arrayValue: {} }, margen: s.margen || { integerValue: '20' } } } });
+const crudo = async (ruta) => (await (await fetch(`${H}/${ruta}`, { headers: cab('dueño') })).json()).fields || {};
+async function conRenglon(quien, writes, { antesOtro = null } = {}) {
+	const i = writes.findIndex((w) => w.update?.name.endsWith('/privado/socio'));
+	if (i < 0) return writes;
+	const casaId = writes[i].update.name.split('/properties/')[1].split('/')[0];
+	const [pc, so] = await Promise.all([crudo(`properties/${casaId}`), crudo(`properties/${casaId}/privado/socio`)]);
+	const despues = { ...so, ...writes[i].update.fields };
+	if (JSON.stringify(fotoCasaRaw(pc, so)) === JSON.stringify(fotoCasaRaw(pc, despues))) return writes;
+	const id = `bit${++nb}`;
+	const w = structuredClone(writes);
+	w[i].update.fields.bitacoraId = svG(id); if (w[i].updateMask) w[i].updateMask.fieldPaths.push('bitacoraId');
+	return [...w, { update: { name: `projects/demo-eq/databases/(default)/documents/bitacora/${id}`, fields: { tipo: svG('casa'), objeto: svG(casaId), casa: svG(casaId), antes: antesOtro || fotoCasaRaw(pc, so), despues: fotoCasaRaw(pc, despues), quien: svG(quien), nombre: svG('Dueña') } },
+		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }];
+}
+const loteConRenglon = async (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: await conRenglon(quien, writes) }) }).then((r) => r.status);
+
 let fallas = 0, n = 0;
 const espera = async (nombre, promesa, ok) => { const s = await promesa; const bien = ok ? s === 200 : s === 403; n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${ok ? 'permite' : 'niega  '} · ${nombre} (${s})`); };
 const m = (de, texto) => ({ de, texto });
@@ -328,7 +351,10 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? { arrayValue: { values: x.map(mapa) } } : typeof x === 'number' ? num(x) : sv(x)])) } });
 		const casa = (vac, extra = {}) => ({ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: mapa(vac), ...extra } }, updateMask: { fieldPaths: [...Object.keys(vac).map((k) => `vacacional.${k}`), ...Object.keys(extra)] } });
 		const suyo = (o) => ({ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: mapa(o).mapValue.fields }, updateMask: { fieldPaths: Object.keys(o) } });
-		const juntos = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const soloJuntos = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const juntos = async (quien, writes) => soloJuntos(quien, await conRenglon(quien, writes));
+		await espera('dueña sube su precio sin su renglón en la bitácora', soloJuntos('mixto1', [suyo({ precioBase: 110 }), casa({ base: 132 }, { precio: num(132) })]), false);
+		await espera('dueña sube su precio con otro «antes» en la bitácora', soloJuntos('mixto1', await conRenglon('mixto1', [suyo({ precioBase: 110 }), casa({ base: 132 }, { precio: num(132) })], { antesOtro: fotoCasaRaw({ propietarioId: sv('m1') }, { precioBase: { integerValue: '1' } }) })), false);
 		await espera('dueña cambia solo el precio público de su casa por noche', parche('mixto1', 'properties/mx-noche', ['precio', 'vacacional.base'], { precio: { doubleValue: 130 }, vacacional: { mapValue: { fields: { base: { doubleValue: 130 } } } } }), false);
 		await espera('dueña baja solo su precio (el público queda igual)', juntos('mixto1', [suyo({ precioBase: 50 })]), false);
 		await espera('dueña quita el margen: público igual a su precio', juntos('mixto1', [suyo({ precioBase: 110 }), casa({ base: 110 }, { precio: num(110) })]), false);
@@ -392,7 +418,13 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña se devuelve los permisos', parche('mixto1', 'permisosSocios/m1', ['fechas'], { fechas: { booleanValue: true } }), false);
 		await espera('otro socio lee los permisos de la dueña', leer('socio2', 'permisosSocios/m1'), false);
 		await espera('la dueña lee los permisos para todos', leer('mixto1', 'settings/permisosSocios'), false);
-		await espera('el administrador apaga un permiso para todos', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), true);
+		await espera('el administrador apaga un permiso para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), false);
+		{
+			const foto = (p) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: true }, casa: { booleanValue: true } } } });
+			await espera('el administrador apaga un permiso para todos, con su renglón (control)', soloJuntos('admin1', [
+				{ update: { name: `${R}/settings/permisosSocios`, fields: { precios: { booleanValue: false }, bitacoraId: sv('glob1') } }, updateMask: { fieldPaths: ['precios', 'bitacoraId'] } },
+				{ update: { name: `${R}/bitacora/glob1`, fields: { tipo: sv('permisos'), objeto: sv('permisosSocios'), antes: foto(true), despues: foto(false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), true);
+		}
 		await fetch(`${H}/permisosSocios/m1`, { method: 'DELETE', headers: cab('dueño') });
 		await fetch(`${H}/settings/permisosSocios`, { method: 'DELETE', headers: cab('dueño') });
 		await espera('sin documento de permisos: bloquea días (control)', bloquear(), true);
@@ -463,9 +495,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }) : sv(x)])) } });
 		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
 		const viejo = (precio) => ({ desde: '2000-01-01', hasta: '2000-01-01', precio });
-		const truco = await fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+		const truco = await loteConRenglon('mixto1', [
 			{ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: { tarifas: lista([viejo(1)]) } }, updateMask: { fieldPaths: ['tarifas'] } },
-			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista([viejo(1.2)]) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista([viejo(1.2)]) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }]);
 		await espera('dueña pone un precio por fechas viejo de 1 en los dos documentos (cuadra con el margen)', Promise.resolve(truco), true);
 	}
 	await espera('el administrador crea la reserva de la solicitud (camino del administrador)', crearR('admin1', 'reservas/lead-res-noche', delSocio()), true);
@@ -537,9 +569,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }) : sv(x)])) } });
 		const lista = (xs) => ({ arrayValue: { values: xs.map(mapa) } });
 		const diez = Array.from({ length: 10 }, (_, k) => ({ desde: '2026-11-25', hasta: `2026-12-0${k < 9 ? k + 1 : 9}`, precio: 90 + k }));
-		const puso = await fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+		const puso = await loteConRenglon('mixto1', [
 			{ update: { name: `${R}/properties/mx-noche/privado/socio`, fields: { tarifas: lista(diez) } }, updateMask: { fieldPaths: ['tarifas'] } },
-			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(diez.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }))) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+			{ update: { name: `${R}/properties/mx-noche`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(diez.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 }))) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }]);
 		await espera('dueña pone 10 precios por fechas que tocan diciembre (control)', Promise.resolve(puso), true);
 		await raw('leads/lead-res-noche2', { nombre: sv('Cliente'), telefono: sv('5555'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), reserva: { mapValue: { fields: { codigo: sv('EQ-RN2'), llegada: sv('2026-12-01'), salida: sv('2026-12-04'), noches: { integerValue: '3' } } } } });
 		// El lote de «Confirmada» que el socio mandaba antes (reserva, fechas de la casa, solicitud, chat y datos de pago):
@@ -570,9 +602,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const pub = (xs) => xs.map((x) => ({ ...x, precio: 120 }));
 		await raw('properties/mx-noche-12', { titulo: sv('Casa con 12 precios por fechas'), operacion: sv('vacacional'), propietarioId: sv('m1'), publicado: { booleanValue: false }, vacacional: { mapValue: { fields: { base: { integerValue: '120' }, tarifas: lista(pub(doce)) } } } });
 		await raw('properties/mx-noche-12/privado/socio', { precioBase: { integerValue: '100' }, tarifas: lista(doce) });
-		const escribir = (soc, publico) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: [
+		const escribir = (soc, publico) => loteConRenglon('mixto1', [
 			{ update: { name: `${R}/properties/mx-noche-12/privado/socio`, fields: { tarifas: lista(soc) } }, updateMask: { fieldPaths: ['tarifas'] } },
-			{ update: { name: `${R}/properties/mx-noche-12`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(publico) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }] }) }).then((r) => r.status);
+			{ update: { name: `${R}/properties/mx-noche-12`, fields: { vacacional: { mapValue: { fields: { tarifas: lista(publico) } } } } }, updateMask: { fieldPaths: ['vacacional.tarifas'] } }]);
 		const otro = [...doce.slice(1, 11), { ...doce[0], precio: 1 }];
 		await espera('dueña con 12 precios por fechas cambia uno (11 que no estaban así)', escribir(otro, pub(otro)), false);
 		await espera('dueña con 12 precios por fechas quita uno (control)', escribir(doce.slice(1), pub(doce.slice(1))), true);
@@ -653,23 +685,38 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	{
 		const R = 'projects/demo-eq/databases/(default)/documents';
 		const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
-		const ficha = (pago, log) => ({ update: { name: `${R}/propietarios/m1`, fields: { datosPago: sv(pago), ...(log ? { datosPagoCambio: sv(log) } : {}) } }, updateMask: { fieldPaths: ['datosPago', ...(log ? ['datosPagoCambio'] : [])] } });
-		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/cambiosDatosPago/${id}`, fields: { propietarioId: sv('m1'), antes: sv('Banco 1'), despues: sv('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
+		// Con la bitácora de cambios sensibles: la ficha nombra su renglón (bitacoraId) y el renglón lleva la foto de
+		// antes y de después (datos de pago y permisos) tal como están en la base.
+		const ficha = (pago, log) => ({ update: { name: `${R}/propietarios/m1`, fields: { datosPago: sv(pago), ...(log ? { bitacoraId: sv(log) } : {}) } }, updateMask: { fieldPaths: ['datosPago', ...(log ? ['bitacoraId'] : [])] } });
+		const foto = (pago) => ({ mapValue: { fields: { datosPago: sv(pago), permisos: { mapValue: {} } } } });
+		const renglon = (id, quien, o = {}) => ({ update: { name: `${R}/bitacora/${id}`, fields: { tipo: sv('propietario'), objeto: sv('m1'), antes: foto('Banco 1'), despues: foto('Banco 2'), quien: sv(quien), nombre: sv('Admin'), avisado: { booleanValue: false }, ...o } },
 			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
 		await espera('el asesor de la dueña le cambia sus datos de pago', parche('asesor7', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
 		await espera('el asesor cambia los datos de pago con su renglón', lote('asesor7', [ficha('Banco 2', 'pg1'), renglon('pg1', 'asesor7')]), false);
 		await espera('el administrador cambia los datos de pago sin su renglón', parche('admin1', 'propietarios/m1', ['datosPago'], { datosPago: sv('Banco 2') }), false);
-		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: sv('Banco 0') })]), false);
-		await espera('el administrador anota otro «después» del que guarda', lote('admin1', [ficha('Banco 2', 'pg3'), renglon('pg3', 'admin1', { despues: sv('Banco 3') })]), false);
+		await espera('el administrador anota otro «antes» del que había', lote('admin1', [ficha('Banco 2', 'pg2'), renglon('pg2', 'admin1', { antes: foto('Banco 0') })]), false);
+		await espera('el administrador anota otro «después» del que guarda', lote('admin1', [ficha('Banco 2', 'pg3'), renglon('pg3', 'admin1', { despues: foto('Banco 3') })]), false);
 		await espera('el administrador firma el renglón como otra persona', lote('admin1', [ficha('Banco 2', 'pg4'), renglon('pg4', 'asesor7')]), false);
+		await espera('el administrador cambia los datos de pago sin «avisado» (sin correo al equipo)', lote('admin1', [ficha('Banco 2', 'pg6'), renglon('pg6', 'admin1', { avisado: { booleanValue: true } })]), false);
 		await espera('el administrador cambia los datos de pago con su renglón (control)', lote('admin1', [ficha('Banco 2', 'pg5'), renglon('pg5', 'admin1')]), true);
-		await espera('nadie cambia un renglón de datos de pago', parche('admin1', 'cambiosDatosPago/pg5', ['despues'], { despues: sv('Banco 9') }), false);
-		await espera('el asesor lee los cambios de datos de pago', leer('asesor7', 'cambiosDatosPago/pg5'), false);
-		await espera('el administrador lee los cambios de datos de pago (control)', leer('admin1', 'cambiosDatosPago/pg5'), true);
+		await espera('nadie cambia un renglón de la bitácora', parche('admin1', 'bitacora/pg5', ['nombre'], { nombre: sv('Otro') }), false);
+		await espera('nadie borra un renglón de la bitácora', fetch(`${H}/bitacora/pg5`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+		await espera('el asesor lee la bitácora de cambios sensibles', leer('asesor7', 'bitacora/pg5'), false);
+		await espera('la dueña lee la bitácora de cambios sensibles', leer('mixto1', 'bitacora/pg5'), false);
+		await espera('el asesor busca en la bitácora por dueño', consulta('asesor7', 'bitacora', 'objeto', 'm1'), false);
+		await espera('el administrador lee la bitácora de cambios sensibles (control)', leer('admin1', 'bitacora/pg5'), true);
+		await espera('el administrador busca en la bitácora por dueño (control)', consulta('admin1', 'bitacora', 'objeto', 'm1'), true);
+		await espera('ya nadie crea renglones en cambiosDatosPago', lote('admin1', [{ update: { name: `${R}/cambiosDatosPago/viejo1`, fields: { propietarioId: sv('m1') } }, currentDocument: { exists: false } }]), false);
 		await espera('el asesor guarda otra cosa de la ficha (control)', parche('asesor7', 'propietarios/m1', ['notas'], { notas: sv('Nota nueva') }), true);
 		await espera('el asesor pone otros datos de pago en el resumen de la dueña', parche('asesor7', `portalPropietarios/${TM}`, ['datosPago'], { datosPago: sv('Banco del asesor 999') }), false);
 	}
-	await espera('el administrador devuelve los permisos en la ficha del dueño (control)', parche('admin1', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } } }), true);
+	await espera('el administrador devuelve los permisos sin su renglón en la bitácora', parche('admin1', 'propietarios/m1', ['permisos'], { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } } }), false);
+	{
+		const foto = (dev) => ({ mapValue: { fields: { datosPago: sv('Banco 2'), permisos: dev === null ? { mapValue: {} } : { mapValue: { fields: { devolver: { booleanValue: dev } } } } } } });
+		await espera('el administrador devuelve los permisos en la ficha del dueño, con su renglón (control)', fetch(`${H}:commit`, { method: 'POST', headers: cab('admin1'), body: JSON.stringify({ writes: [
+			{ update: { name: `${RAIZ}/propietarios/m1`, fields: { permisos: { mapValue: { fields: { devolver: { booleanValue: false } } } }, bitacoraId: sv('perm1') } }, updateMask: { fieldPaths: ['permisos', 'bitacoraId'] } },
+			{ update: { name: `${RAIZ}/bitacora/perm1`, fields: { tipo: sv('propietario'), objeto: sv('m1'), antes: foto(null), despues: foto(false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status), true);
+	}
 	await espera('un asesor crea una casa por noche a su nombre', crear('asesor7', 'properties/noche-del-asesor', { titulo: 'x', operacion: 'vacacional', agentId: 'a7', publicado: false }), false);
 	await espera('un asesor pasa su casa en venta a por noche', parche('asesor7', 'properties/prueba-casa-en-venta', ['operacion'], { operacion: sv('vacacional') }), false);
 	await espera('un asesor cambia el título de su casa en venta (control)', parche('asesor7', 'properties/prueba-casa-en-venta', ['titulo'], { titulo: sv('Casa en venta (prueba)') }), true);
@@ -697,7 +744,12 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const publico = (n) => ({ update: { name: `${R}/properties/mx-noche-sin-precio`, fields: { vacacional: { mapValue: { fields: { base: { integerValue: String(n) } } } } } }, updateMask: { fieldPaths: ['vacacional.base'] } });
 		await espera('dueña crea su precio sin el margen en el público', juntos([suyo({ precioBase: { integerValue: '100' } }), publico(100)]), false);
 		await espera('dueña crea su precio poniéndose el margen', juntos([suyo({ precioBase: { integerValue: '100' }, margen: { integerValue: '0' } }), publico(100)]), false);
-		await espera('dueña crea su precio con el público y el margen (control)', juntos([suyo({ precioBase: { integerValue: '100' } }), publico(120)]), true);
+		const renglon = { update: { name: `${R}/bitacora/crea1`, fields: { tipo: sv('casa'), objeto: sv('mx-noche-sin-precio'), casa: sv('mx-noche-sin-precio'), quien: sv('mixto1'), nombre: sv('Dueña'),
+			antes: { mapValue: { fields: { moneda: sv(''), propietarioId: sv('m1'), limpieza: { integerValue: '0' }, precioBase: { integerValue: '0' }, precioFinde: { integerValue: '0' }, tarifas: { arrayValue: {} }, margen: { integerValue: '20' } } } },
+			despues: { mapValue: { fields: { moneda: sv(''), propietarioId: sv('m1'), limpieza: { integerValue: '0' }, precioBase: { integerValue: '100' }, precioFinde: { integerValue: '0' }, tarifas: { arrayValue: {} }, margen: { integerValue: '20' } } } } } },
+			currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] };
+		await espera('dueña crea su precio con el público y el margen, sin su renglón en la bitácora', juntos([suyo({ precioBase: { integerValue: '100' } }), publico(120)]), false);
+		await espera('dueña crea su precio con el público, el margen y su renglón (control)', juntos([suyo({ precioBase: { integerValue: '100' }, bitacoraId: sv('crea1') }), publico(120), renglon]), true);
 	}
 }
 // Storage (storage.rules): fotos del sitio, comprobantes del cliente (chats/{token}) y de la comisión (comprobantes/{reserva}).
@@ -861,6 +913,42 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		nueva('lote-ajena', { titulo: { stringValue: 'Ajena' }, operacion: { stringValue: 'venta' }, agentId: { stringValue: 'a9' } }),
 		priv('lote-ajena', 'acuerdo', { exclusiva: { booleanValue: true } })]), false);
 	await espera('el asesor escribe el privado de una casa de otro asesor', lote('asesor7', [priv('lote-noche', 'socio', { precioBase: { integerValue: '1' } })]), false);
+}
+// Bitácora de cambios sensibles en una casa (moneda, dueño, limpieza) y en una reserva («Revisé Airbnb»).
+{
+	const R = 'projects/demo-eq/databases/(default)/documents';
+	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
+	const foto = (moneda) => ({ mapValue: { fields: { moneda: svG(moneda), propietarioId: svG(''), limpieza: { integerValue: '0' }, precioBase: { integerValue: '0' }, precioFinde: { integerValue: '0' }, tarifas: { arrayValue: {} }, margen: { integerValue: '20' } } } });
+	const renglon = (id, quien, casa, antes, despues, o = {}) => ({ update: { name: `${R}/bitacora/${id}`, fields: { tipo: svG('casa'), objeto: svG(casa), casa: svG(casa), antes, despues, quien: svG(quien), nombre: svG('X'), ...o } },
+		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+	const moneda = (casa, m, log) => ({ update: { name: `${R}/properties/${casa}`, fields: { moneda: svG(m), ...(log ? { bitacoraId: svG(log) } : {}) } }, updateMask: { fieldPaths: ['moneda', ...(log ? ['bitacoraId'] : [])] } });
+	await poner('properties/bit-casa', { titulo: 'Casa de la bitácora', operacion: 'venta', agentId: 'a7', moneda: 'USD' });
+	await espera('el administrador cambia la moneda de una casa sin su renglón', lote('admin1', [moneda('bit-casa', 'GTQ')]), false);
+	await espera('el administrador cambia la moneda con un renglón que dice otra cosa', lote('admin1', [moneda('bit-casa', 'GTQ', 'bc1'), renglon('bc1', 'admin1', 'bit-casa', foto('USD'), foto('EUR'))]), false);
+	await espera('el administrador cambia la moneda con un renglón de otra casa', lote('admin1', [moneda('bit-casa', 'GTQ', 'bc2'), renglon('bc2', 'admin1', 'prueba-casa-en-venta', foto('USD'), foto('GTQ'))]), false);
+	await espera('el asesor de otra casa anota y cambia la moneda', lote('asesor9', [moneda('bit-casa', 'GTQ', 'bc3'), renglon('bc3', 'asesor9', 'bit-casa', foto('USD'), foto('GTQ'))]), false);
+	await espera('el administrador cambia la moneda con su renglón (control)', lote('admin1', [moneda('bit-casa', 'GTQ', 'bc4'), renglon('bc4', 'admin1', 'bit-casa', foto('USD'), foto('GTQ'))]), true);
+	await espera('el asesor de la casa cambia la moneda con su renglón (control)', lote('asesor7', [moneda('bit-casa', 'USD', 'bc5'), renglon('bc5', 'asesor7', 'bit-casa', foto('GTQ'), foto('USD'))]), true);
+	await espera('el asesor de la casa cambia el título sin renglón (control: no es sensible)', lote('asesor7', [{ update: { name: `${R}/properties/bit-casa`, fields: { titulo: svG('Otro título') } }, updateMask: { fieldPaths: ['titulo'] } }]), true);
+	await espera('un renglón sin cambio (antes igual a después)', lote('admin1', [renglon('bc6', 'admin1', 'bit-casa', foto('USD'), foto('USD'))]), false);
+	await espera('un renglón suelto que nadie nombra', lote('admin1', [renglon('bc7', 'admin1', 'bit-casa', foto('USD'), foto('GTQ'))]), false);
+	// Reserva con «Revisé Airbnb»: el administrador la crea con su renglón.
+	const reserva = (id, log) => ({ update: { name: `${R}/reservas/${id}`, fields: { propertyId: svG('bit-casa'), estado: svG('confirmada'), revisadoAMano: { arrayValue: { values: [svG('Airbnb')] } }, ...(log ? { bitacoraId: svG(log) } : {}) } }, currentDocument: { exists: false } });
+	const renglonReserva = (id, reservaId) => ({ update: { name: `${R}/bitacora/${id}`, fields: { tipo: svG('reserva'), objeto: svG(reservaId), casa: svG('bit-casa'), quien: svG('admin1'), nombre: svG('Admin'),
+		antes: { mapValue: { fields: { revisadoAMano: { arrayValue: {} } } } }, despues: { mapValue: { fields: { revisadoAMano: { arrayValue: { values: [svG('Airbnb')] } } } } } } },
+		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+	await espera('el administrador confirma con «Revisé Airbnb» sin su renglón', lote('admin1', [reserva('res-bit1')]), false);
+	await espera('el administrador confirma con «Revisé Airbnb» y su renglón (control)', lote('admin1', [reserva('res-bit2', 'br2'), renglonReserva('br2', 'res-bit2')]), true);
+}
+// Revisión del comprobante con la IA: la escribe el servidor; la leen el administrador y el socio de esa casa.
+{
+	await poner('revisionesComprobante/lead1', { propietarioId: 'o1', propertyId: 'prueba-casa-playa-monterrico', texto: 'El comprobante cuadra', cuadra: true });
+	await espera('el administrador lee la revisión del comprobante (control)', leer('admin1', 'revisionesComprobante/lead1'), true);
+	await espera('el socio de la casa lee la revisión del comprobante (control)', leer('socio1', 'revisionesComprobante/lead1'), true);
+	await espera('el socio de la casa busca sus revisiones (control)', consulta('socio1', 'revisionesComprobante', 'propietarioId', 'o1'), true);
+	await espera('otro socio lee la revisión del comprobante', leer('socio2', 'revisionesComprobante/lead1'), false);
+	await espera('anónimo lee la revisión del comprobante', leer(null, 'revisionesComprobante/lead1'), false);
+	await espera('el administrador escribe una revisión del comprobante', crear('admin1', 'revisionesComprobante/lead9', { propietarioId: 'o1' }), false);
 }
 // Estado del sistema (netlify/lib/estado.mjs): lo escribe solo el servidor; lo lee el administrador.
 {
