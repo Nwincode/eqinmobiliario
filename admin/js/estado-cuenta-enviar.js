@@ -24,22 +24,36 @@ function meses() {
 export function enviarEstadoDeCuenta(socio) {
 	const opciones = meses();
 	const elegir = h('select', { class: 'form-select mb-3', 'aria-label': 'Mes' }, opciones.map(([m, t]) => h('option', { value: m }, t)));
-	// Sin scripts (sandbox); mide lo que ocupa el correo para que la ventana tenga un solo scroll.
-	const vista = h('iframe', { class: 'w-100 border rounded', title: 'Vista previa del correo', sandbox: 'allow-same-origin', height: '480' });
-	vista.addEventListener('load', () => {
+	// La vista previa, sin scripts (sandbox). El correo se dibuja como en un celular (390 px) y, si la ventana es más
+	// angosta, se escala para que quepa entero; con más espacio, a su ancho (el correo no pasa de 600 px). El alto se
+	// mide ya escalado: la ventana tiene un solo scroll y no queda hueco debajo.
+	const vista = h('iframe', { class: 'd-block border-0', title: 'Vista previa del correo', sandbox: 'allow-same-origin', height: '480' });
+	const marco = h('div', { class: 'border rounded overflow-hidden' }, vista);
+	const CELULAR = 390;
+	const ajustar = () => {
 		const cuerpo = vista.contentDocument?.body;
-		if (!cuerpo) return;
-		const ajustar = () => { if (cuerpo.scrollHeight) vista.height = String(cuerpo.scrollHeight + vista.offsetHeight - vista.clientHeight); };
+		const ancho = marco.clientWidth;
+		if (!cuerpo || !ancho) return;
+		const dibujo = Math.max(ancho, CELULAR);
+		const escala = ancho / dibujo;
+		vista.width = String(dibujo);
+		vista.style.transform = escala < 1 ? `scale(${escala})` : '';
+		vista.style.transformOrigin = 'top left';
+		const alto = cuerpo.scrollHeight;
+		vista.height = String(alto);
+		marco.style.height = `${Math.ceil(alto * escala) + marco.offsetHeight - marco.clientHeight}px`;
+	};
+	vista.addEventListener('load', () => {
 		ajustar();
 		// La foto de arriba llega después: vuelve a medir cuando cambia.
-		new ResizeObserver(ajustar).observe(cuerpo);
+		if (vista.contentDocument?.body) new ResizeObserver(ajustar).observe(vista.contentDocument.body);
 	});
 	const aviso = h('p', { class: 'small text-muted mb-2' }, 'Preparando…');
 	const enviar = h('button', { type: 'button', class: 'btn btn-primary', disabled: true }, 'Enviar');
 	const m = modal({
 		title: 'Enviar estado de cuenta',
 		size: 'modal-lg',
-		body: [elegir, aviso, vista],
+		body: [elegir, aviso, marco],
 		footer: [h('button', { type: 'button', class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), enviar]
 	});
 	let pedido = 0;

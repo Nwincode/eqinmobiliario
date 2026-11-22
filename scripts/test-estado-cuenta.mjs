@@ -64,6 +64,18 @@ await t('los seis casos: por pagar solo lo cobrable, vencido, el mes y lo de sep
 	assert.deepEqual(c.comision, { USD: 90, GTQ: 160 });
 	assert.deepEqual(c.pagada, { USD: 20 });
 	assert.deepEqual(c.anteriores.map((x) => [x.reserva.id, x.estado]), [['d', 'vencida']]);
+	assert.deepEqual(c.proximas.map((x) => [x.reserva.id, x.estado]), [['e', 'vence 20 dic']]);
+});
+
+await t('cada monto de «Por pagar a EQ» tiene su fila: las sin pagar y cobrables de los tres bloques suman lo mismo, por moneda', async () => {
+	cargar();
+	for (const ahora of [DIA1, Date.parse('2026-11-04T07:40:00-06:00'), Date.parse('2027-01-02T07:40:00-06:00')]) {
+		const c = estadoDeCuenta(await reservasDeSocio('p1', ahora), 'p1', '2026-10', ahora);
+		const filas = [...c.reservas, ...c.anteriores, ...c.proximas].filter((x) => x.estado !== 'pagada' && x.estado !== 'por confirmar pago');
+		const suma = {};
+		for (const x of filas) suma[x.moneda] = V.r2((suma[x.moneda] || 0) + x.monto);
+		assert.deepEqual(suma, c.porPagar, new Date(ahora).toISOString());
+	}
 });
 
 await t('la del 31 sin prueba: «por confirmar pago» hasta que pasan los 3 días; con comprobante en el chat, vencida', async () => {
@@ -119,7 +131,8 @@ await t('el día 1: un correo por socio con reservas o con deuda; el que no debe
 	assert.match(ana, /Casa Lago · 31 oct – 2 nov: US\$ 40\.00 · por confirmar pago/);
 	assert.match(ana, /Casa Lago · 22 – 24 oct: Q 160\.00 · vencida/);
 	assert.match(ana, /De meses anteriores\nCasa Lago · 12 – 14 sept: US\$ 25\.00 · vencida/);
-	assert.doesNotMatch(ana, /20 – 23 dic|18 – 20 oct/, 'ni la de diciembre ni la cancelada en las filas');
+	assert.doesNotMatch(ana, /18 – 20 oct/, 'la cancelada no sale');
+	assert.match(ana, /\nPróximas\nCasa Lago · 20 – 23 dic: US\$ 50\.00 · vence 20 dic$/, 'la de diciembre, que ya suma, con su fila');
 	const luis = S.salida.find((m) => m.para === 'luis@correo.com').texto;
 	assert.match(luis, /Por pagar a EQ: US\$ 70\.00/);
 	assert.doesNotMatch(luis, /\nOctubre\n|Reservas:/, 'sin reservas en el mes, sin el bloque del mes');

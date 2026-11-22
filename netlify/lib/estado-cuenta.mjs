@@ -4,10 +4,9 @@
 import '../../js/calc-vacacional.js';
 import { consultar, donde } from './firestore.mjs';
 import { conSuChat } from './comisiones.mjs';
-import { plantilla, datos, boton, subtitulo, esc, SITE_URL } from './correo.mjs';
+import { plantilla, datos, lista, boton, subtitulo, esc, SITE_URL } from './correo.mjs';
 import { dinero, dineroPorMoneda, nNoches } from '../../admin/js/formato.js';
 import { rango } from '../../admin/js/texto-dueno.js';
-import { recortar } from '../../admin/js/seo-auto.js';
 
 const V = globalThis.EQVacacional;
 // Las confirmadas con los datos de su chat (conSuChat: el mismo que la pausa y el corte de permisos).
@@ -24,20 +23,10 @@ export const reservasDeSocio = async (propietarioId, ahora) => listas(await dond
 
 const nombreMes = (mes, opciones) => new Intl.DateTimeFormat('es-GT', { timeZone: 'UTC', ...opciones }).format(new Date(`${mes}-15T12:00:00Z`));
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-// Una reserva en un renglón: «Casa Lago · 5 – 7 oct» | «US$ 30.50 · vencida». En el correo (corto: true) caben unos 44
-// caracteres entre las dos en un celular (datos compacto, 14 px): la casa se acorta a lo que sobra y, si no sobra casi
-// nada, sale (quedan las fechas y el monto). En el texto plano va completa.
-const CABEN = 44;
-const fila = (x, anio, corto) => {
-	const fechas = rango({ desde: x.reserva.llegada, hasta: x.reserva.salida }, anio);
-	const der = [dinero(x.monto, x.moneda), x.estado].filter(Boolean).join(' · ');
-	const nombre = x.reserva.propertyTitulo || x.reserva.codigo || '';
-	const espacio = corto ? CABEN - fechas.length - der.length - 3 : Infinity;
-	// En una palabra completa (recortar); si así queda muy corta («Villa…»), en la letra («Villa Anti…»).
-	const porPalabra = corto ? recortar(nombre, espacio) : nombre;
-	const casa = espacio < 8 ? '' : nombre.length <= espacio || porPalabra.length >= espacio - 2 ? porPalabra : `${nombre.slice(0, espacio - 1).trimEnd()}…`;
-	return [casa ? `${casa} · ${fechas}` : fechas, der];
-};
+// Una reserva: la casa, sus fechas, el monto de la comisión y cómo va (lista() de correo.mjs; en el texto plano, una
+// línea: «Casa Lago · 5 – 7 oct: US$ 30.50 · vencida»).
+const fila = (x, anio) => ({ nombre: x.reserva.propertyTitulo || x.reserva.codigo || 'Reserva', detalle: rango({ desde: x.reserva.llegada, hasta: x.reserva.salida }, anio),
+	monto: dinero(x.monto, x.moneda), estado: x.estado });
 
 // El correo de un socio (cuenta: estadoDeCuenta). Devuelve { asunto, html, texto }.
 export async function correoDeCuenta(socio, cuenta) {
@@ -48,8 +37,9 @@ export async function correoDeCuenta(socio, cuenta) {
 	const delMes = cuenta.total ? [['Reservas', `${cuenta.total} · ${nNoches(cuenta.noches)}`], ['Tu parte', dineroPorMoneda(cuenta.tuParte)],
 		['Ganancia de EQ', dineroPorMoneda(cuenta.comision)], ['Ya pagaste', dineroPorMoneda(cuenta.pagada)]] : [];
 	const anio = cuenta.mes.slice(0, 4);
-	const filas = (lista, corto) => lista.map((x) => fila(x, anio, corto));
-	const [reservas, anteriores] = [filas(cuenta.reservas, true), filas(cuenta.anteriores, true)];
+	// Las filas: las del mes (si las hay), las de antes y las próximas (las que ya suman en «Por pagar a EQ»).
+	const bloques = [[mes, cuenta.reservas], ['De meses anteriores', cuenta.anteriores], ['Próximas', cuenta.proximas]]
+		.map(([t, l]) => [t, l.map((x) => fila(x, anio))]).filter(([, l]) => l.length);
 	const titulo = `Tu estado de cuenta de ${nombreMes(cuenta.mes, { month: 'long', year: 'numeric' })}`;
 	const nombre = String(socio.nombre || '').trim().split(' ')[0];
 	const intro = `Hola${nombre ? ` ${nombre}` : ''}, esto es lo que llevas con EQ.`;
@@ -57,13 +47,11 @@ export async function correoDeCuenta(socio, cuenta) {
 		titulo,
 		intro: esc(intro),
 		bloques: (c) => datos(c, resumen) + boton(c, texto, url, c.primary, { ancho: true })
-			+ (cuenta.total ? subtitulo(c, mes, { arriba: 24 }) + datos(c, delMes) + datos(c, reservas, { compacto: true }) : '')
-			+ (anteriores.length ? subtitulo(c, 'De meses anteriores', { arriba: cuenta.total ? 0 : 24 }) + datos(c, anteriores, { compacto: true }) : ''),
+			+ bloques.map(([t, l], i) => subtitulo(c, t, { arriba: i ? 0 : 24 }) + (t === mes ? datos(c, delMes) : '') + lista(c, l)).join(''),
 		pie: 'Lo recibes porque tienes casas en renta por noche con eqinmobiliario.gt.'
 	});
 	const lineas = (l) => l.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
 	const textoPlano = [titulo, '', intro, '', ...lineas(resumen), '', `${texto}: ${url}`,
-		...(cuenta.total ? ['', mes, ...lineas(delMes), '', ...lineas(filas(cuenta.reservas, false))] : []),
-		...(anteriores.length ? ['', 'De meses anteriores', ...lineas(filas(cuenta.anteriores, false))] : [])].join('\n');
+		...bloques.flatMap(([t, l]) => ['', t, ...(t === mes ? [...lineas(delMes), ''] : []), ...l.map((f) => `${f.nombre} · ${f.detalle}: ${[f.monto, f.estado].filter(Boolean).join(' · ')}`)])].join('\n');
 	return { asunto: `${titulo} · Equipo Inmobiliario`, html, texto: textoPlano };
 }

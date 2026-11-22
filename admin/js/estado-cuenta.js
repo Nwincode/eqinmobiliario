@@ -7,7 +7,8 @@
 //  - Ya vencido: de eso, lo que ya tiene atraso (V.nivelMora ≥ 1).
 //  - El mes (por llegada): reservas, noches y su parte (V.resumenReservas, la misma cuenta de Rentas), la ganancia de EQ
 //    y lo que ya pagó, y el estado de la comisión de cada una (estadoComision).
-//  - De meses anteriores: las de antes del mes sin pagar y cobrables.
+//  - De meses anteriores: las de antes del mes sin pagar y cobrables; Próximas: las de después, igual. Así cada monto de
+//    «Por pagar» tiene su fila (las del mes, las de antes o las próximas).
 // Las reservas con chat necesitan chatPagado / chatComprobante (conDatosDelChat): el servidor los pone antes (conSuChat).
 import { sumarPorMoneda, dia } from './formato.js';
 
@@ -51,7 +52,9 @@ export function estadoDeCuenta(reservas, propietarioId, mes, ahora) {
 		comision: porMoneda(lista, monto),
 		pagada: porMoneda(lista.filter((r) => r.comision?.pagada), monto),
 		reservas: lista.map(fila),
-		anteriores: debe.filter((r) => r.llegada < `${mes}-01`).map(fila)
+		anteriores: debe.filter((r) => r.llegada < `${mes}-01`).map(fila),
+		// Las que llegan después del mes y ya suman en «Por pagar» (p. ej. con «Pago recibido» antes de llegar).
+		proximas: debe.filter((r) => r.llegada.slice(0, 7) > mes).map(fila)
 	};
 }
 

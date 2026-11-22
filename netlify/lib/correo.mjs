@@ -109,18 +109,25 @@ ${whatsapp ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${
 }
 
 // Tabla corta de datos (etiqueta a la izquierda, valor en negrita a la derecha): fechas, personas, total.
-// compacto: un renglón por fila (una lista larga, p. ej. las reservas de un estado de cuenta): las dos a 14 px, el valor
-// sin negrita y sin partirse (quien llama acorta el texto para que quepa en un celular; si aun así no cabe, se parte la
-// etiqueta, nunca el valor).
-export function datos(c, filas, { compacto = false } = {}) {
+export function datos(c, filas) {
 	const celda = 'font-family:Arial,Helvetica,sans-serif;padding:8px 0;border-bottom:1px solid ' + c.linea;
 	if (!filas.some((f) => f && f[1])) return '';
-	const [izq, der] = compacto ? [';padding-right:8px', `font-size:14px;line-height:20px;white-space:nowrap;color:${c.dark}`] : ['', `font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}`];
-	const tabla = (margen, filasHtml) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${margen}px">${filasHtml}</table>`;
-	const filasHtml = filas.filter((f) => f && f[1]).map(([k, v]) =>
-		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}${izq}">${esc(k)}</td><td align="right" style="${celda};${der}">${esc(v)}</td></tr>`);
-	// Compacto: cada fila en su tabla, para que el ancho del valor de una no le quite espacio a la etiqueta de otra.
-	return compacto ? filasHtml.map((f, i) => tabla(i === filasHtml.length - 1 ? 22 : 0, f)).join('') : tabla(22, filasHtml.join(''));
+	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter((f) => f && f[1]).map(([k, v]) =>
+		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v)}</td></tr>`).join('')}</table>`;
+}
+
+// Lista de dos líneas por fila (p. ej. las reservas de un estado de cuenta): a la izquierda el nombre (14 px) y debajo
+// el detalle (13 px, gris); a la derecha el monto (14 px, negrita) y debajo su estado (13 px, gris). El monto nunca se
+// parte; el nombre, si no cabe en una línea, termina en «…». Cada fila en su tabla: el ancho de un monto no le quita
+// espacio al nombre de otra. filas: [{ nombre, detalle, monto, estado }].
+export function lista(c, filas) {
+	const fuente = 'font-family:Arial,Helvetica,sans-serif';
+	const celda = `${fuente};padding:8px 0;border-bottom:1px solid ${c.linea};vertical-align:top`;
+	const chica = `font-size:13px;line-height:18px;color:${c.ink}`;
+	return filas.map((f, i) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${i === filas.length - 1 ? 22 : 0}px;table-layout:auto"><tr>`
+		+ `<td width="100%" style="${celda};max-width:0"><div style="font-size:14px;line-height:20px;color:${c.dark};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.nombre)}</div><div style="${chica}">${esc(f.detalle)}</div></td>`
+		+ `<td align="right" style="${celda};padding-left:12px;white-space:nowrap"><div style="font-size:14px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(f.monto)}</div><div style="${chica}">${esc(f.estado)}</div></td>`
+		+ '</tr></table>').join('');
 }
 
 // Un título chico dentro del correo (el de unos pasos, el mes de un estado de cuenta).
