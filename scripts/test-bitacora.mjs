@@ -72,6 +72,8 @@ await t('quién cambió: el nombre de su usuario, no el que escribió en el reng
 	const { firma } = await import('../admin/js/bitacora.js');
 	assert.equal(firma({ quien: 'u1', nombre: 'Otro administrador' }, { u1: { nombre: 'Ana López' } }), 'Ana López');
 	assert.equal(firma({ quien: 'servidor', nombre: 'Servidor' }, {}), 'Servidor');
+	// Un usuario sin nombre (un socio con acceso sin nombre): su correo, nunca lo que escribió en el renglón.
+	assert.equal(firma({ quien: 'u2', nombre: 'Administrador' }, { u2: { nombre: '', email: 'socio@correo.com' } }), 'socio@correo.com');
 	poner('users/u1', { nombre: 'Ana López', rol: 'admin' });
 	poner('propietarios/p1', { nombre: 'Socio' });
 	poner('bitacora/b9', { tipo: 'propietario', objeto: 'p1', antes: { datosPago: 'Banco A', permisos: {} }, despues: { datosPago: 'Banco Z', permisos: {} }, quien: 'u1', nombre: 'Luis (otro admin)', cuando: new Date(S.reloj), avisado: false });

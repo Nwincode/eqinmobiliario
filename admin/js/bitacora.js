@@ -38,8 +38,11 @@ export function renglon({ tipo, objeto, casa = '', antes, despues }) {
 
 // Quién hizo el cambio, por su nombre en el panel (users/{quien}, que solo cambia el administrador). El `nombre` guardado
 // en el renglón lo escribe quien anota (las reglas no lo atan): vale solo si no hay usuario con ese id (el servidor, o
-// alguien que ya no está). usuarios: { [uid]: { nombre } }.
-export const firma = (e, usuarios = {}) => usuarios[e?.quien]?.nombre || e?.nombre || '';
+// alguien que ya no está). Un usuario sin nombre, por su correo. usuarios: { [uid]: { nombre, email } | null }.
+export const firma = (e, usuarios = {}) => {
+	const u = usuarios[e?.quien];
+	return u ? String(u.nombre || u.email || 'Sin nombre') : String(e?.nombre || '');
+};
 
 // Qué cambió, en palabras, para la lista de la ficha: [{ campo, antes, despues }] con los valores ya escritos.
 const NOMBRES = {
