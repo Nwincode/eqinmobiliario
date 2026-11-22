@@ -11,7 +11,7 @@ import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } 
 import { sinTildes } from '../cotizacion.js';
 import { abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, comisionDe, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
-import { fichaCasa, FILA_CASA, estadoExclusiva } from '../ficha-casa.js';
+import { filaCasa, estadoExclusiva } from '../ficha-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
 import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
@@ -271,7 +271,7 @@ async function renderEditor(container, id) {
 		if (await persistir()) { toast('Propietario guardado.'); location.hash = '#/propietarios'; }
 		btn.disabled = false;
 	};
-	// La casa de cada renglón: su ficha corta, que al tocarla abre el selector para elegirla o cambiarla.
+	// La casa de cada renglón: su fila (la misma de Propiedades); sin casa todavía, el botón que abre el selector.
 	// La exclusiva de cada casa, de su acuerdo (o de lo que quedó en la persona, mientras no se pase).
 	function exclusivaDe(p) {
 		const acuerdo = acuerdoDe(acuerdos[p.id], data, p.operacion);
@@ -281,9 +281,10 @@ async function renderEditor(container, id) {
 	function pintarCasa(el, item) {
 		const p = propiedades.find((x) => x.id === item.propertyId);
 		// Tocar la ficha la abre para editarla (fotos, datos, acuerdo); sin casa todavía, elige una. Quitarla: la ✕ de la esquina.
-		el.replaceChildren(h('button', { type: 'button', class: `btn btn-light border w-100 ficha-casa-boton ${FILA_CASA}`, style: 'min-width: 0',
-			title: p ? 'Editar la propiedad (datos, fotos, acuerdo)' : '', onclick: () => (p ? editarPropiedad(item) : elegirCasa(item)) },
-			p ? fichaCasa(p, exclusivaDe(p)) : [h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…']));
+		el.replaceChildren(p
+			? filaCasa(p, { marcas: [p.publicado ? null : badge('Sin publicar', 'light'), exclusivaDe(p)], alTocar: () => editarPropiedad(item) })
+			: h('button', { type: 'button', class: 'btn btn-light border w-100 text-start', onclick: () => elegirCasa(item) },
+				h('span', { class: 'icon-search', 'aria-hidden': 'true' }), ' Elegir propiedad…'));
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
 	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.
@@ -291,8 +292,8 @@ async function renderEditor(container, id) {
 		let creando = false;
 		const enOtroRenglon = new Set((form.state.propiedades || []).map((x) => x.propertyId).filter((x) => x && x !== item.propertyId));
 		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
-		const buscar = h('input', { class: 'form-control mb-2', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
-		const lista = h('div', { class: 'list-group' });
+		const buscar = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
+		const lista = h('div', { class: 'lista-casas' });
 		// Tres categorías, una a la vez: abre en la del renglón (o en la primera que esta persona ya tiene) y se cambia arriba.
 		const CATEGORIAS = [['venta', 'Venta', 'icon-home'], ['renta', 'Renta', 'icon-key'], ['vacacional', 'Por noche', 'icon-moon-o']];
 		const actual = propiedades.find((p) => p.id === item.propertyId);
@@ -304,15 +305,16 @@ async function renderEditor(container, id) {
 			pestanas.forEach((b) => { const on = b.dataset.categoria === categoria; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
 			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && p.operacion === categoria).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
 			lista.replaceChildren(
-				h('button', { type: 'button', class: 'list-group-item list-group-item-action fw-semibold', onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
-					h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), ' Nueva propiedad'),
-				...visibles.map((p) => h('button', { type: 'button', class: `list-group-item list-group-item-action ${FILA_CASA}${p.id === item.propertyId ? ' active' : ''}`, onclick: () => elegir(p.id) },
-					fichaCasa(p, p.propietarioId && p.propietarioId !== ref.id ? [' ', badge('Ya tiene dueño', 'warning')] : []))),
-				visibles.length ? null : h('div', { class: 'list-group-item text-muted small' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
+				...visibles.map((p) => filaCasa(p, { elegida: p.id === item.propertyId, alTocar: () => elegir(p.id),
+					marcas: [p.publicado ? null : badge('Sin publicar', 'light'), p.propietarioId && p.propietarioId !== ref.id ? badge('Ya tiene dueño', 'warning') : null] })),
+				visibles.length ? null : h('p', { class: 'text-muted small mb-0' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
-		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas), buscar, lista),
+		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas),
+			h('div', { class: 'd-flex gap-2 mb-2' }, buscar, h('button', { type: 'button', class: 'btn btn-outline-primary text-nowrap', title: 'Nueva propiedad', 'aria-label': 'Nueva propiedad',
+				onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
+				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-sm-inline' }, ' Nueva propiedad'))), lista),
 			onClose: () => { if (quitar && !creando && !item.propertyId) quitar(); } });
 	};
 	// Crear o corregir una casa sin salir de aquí: se abre la ficha del inmueble (la misma de Propiedades) en una

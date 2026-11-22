@@ -12,7 +12,7 @@ import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, ser
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.js';
-import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
+import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
@@ -98,10 +98,10 @@ async function lista(container) {
 	const casas = [...vivas, ...(resumen?.propiedades || []).filter((x) => !vivas.some((c) => c.id === x.id)).map(desdeResumen)]
 		.sort((a, b) => (ORDEN[a.operacion] ?? 3) - (ORDEN[b.operacion] ?? 3) || String(a.titulo).localeCompare(String(b.titulo)));
 	const porNoche = casas.some((c) => c.operacion === 'vacacional');
-	const filas = h('div', { class: 'list-group' });
+	const filas = h('div', { class: 'lista-casas' });
 	const pintar = (texto = '') => repintar(filas, casas
 		.filter((c) => `${c.titulo} ${c.codigo || ''}`.toLowerCase().includes(texto.toLowerCase()))
-		.map((c) => h('a', { class: `list-group-item list-group-item-action ${FILA_CASA} py-3`, href: `#/mis-casas/${c.id}` }, fichaCasa(c))));
+		.map((c) => filaCasa(c, { href: `#/mis-casas/${c.id}`, marcas: [c.publicado ? null : badge('Sin publicar', 'light')] })));
 	pintar();
 	const ag = resumen?.asesor || {};
 	mount(container,

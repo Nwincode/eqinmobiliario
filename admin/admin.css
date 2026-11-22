@@ -531,13 +531,13 @@ a.stat-card:hover {
 }
 /* El nombre (primera columna) no se aplasta aunque las demás columnas pidan espacio. */
 @media (min-width: 1200px) {
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child { min-width: 11rem; }
+	.table-admin > tbody > tr > :first-child { min-width: 11rem; }
 }
 /* Celular y tableta: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno
    con el título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
 @media (max-width: 1199.98px) {
-	.table-admin:not(.tabla-propiedades) > thead { display: none; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr {
+	.table-admin > thead { display: none; }
+	.table-admin > tbody > tr {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -545,21 +545,21 @@ a.stat-card:hover {
 		padding: 12px 14px;
 		border-bottom: 1px solid #edf0f3;
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr:last-child { border-bottom: 0; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr > * {
+	.table-admin > tbody > tr:last-child { border-bottom: 0; }
+	.table-admin > tbody > tr > * {
 		border: 0;
 		padding: 0;
 		min-width: 0;
 		text-align: left !important;
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
-	.table-admin:not(.tabla-propiedades) > tbody > tr > [colspan] {
+	.table-admin > tbody > tr > :first-child,
+	.table-admin > tbody > tr > [colspan] {
 		flex: 1 0 100%;
 		font-weight: 600;
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :empty,
-	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-vacia { display: none; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr > [data-label]::before {
+	.table-admin > tbody > tr > :empty,
+	.table-admin > tbody > tr > .ficha-vacia { display: none; }
+	.table-admin > tbody > tr > [data-label]::before {
 		content: attr(data-label);
 		margin-right: 5px;
 		font-size: 12px;
@@ -569,7 +569,7 @@ a.stat-card:hover {
 	/* Tabla cuyos datos ya llevan ícono: la ficha no repite el título de la columna. */
 	.table-admin.fichas-icono > tbody > tr > [data-label]::before { content: none; }
 	/* Los botones de la fila van al final, a la derecha. */
-	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-acciones { margin-left: auto; }
+	.table-admin > tbody > tr > .ficha-acciones { margin-left: auto; }
 }
 
 .table-admin {
@@ -610,21 +610,6 @@ a.stat-card:hover {
 }
 .table-hover > tbody > tr:hover > * {
 	--bs-table-accent-bg: transparent;
-}
-.thumb {
-	width: 64px;
-	height: 48px;
-	object-fit: cover;
-	border-radius: 6px;
-	background: #e9eef2;
-	display: block;
-}
-.thumb-vacia {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--adm-muted);
-	font-size: 18px;
 }
 .avatar {
 	width: 40px;
@@ -770,18 +755,17 @@ a.stat-card:hover {
 .images-grid-item.destino { outline: 2px dashed var(--adm-primary); outline-offset: 2px; }
 
 
-/* Lista sin fila de encabezado (p. ej. las casas de un propietario): la ✕ para quitar va en la esquina de la ficha. */
+/* Lista sin fila de encabezado (p. ej. las casas de un propietario): la ✕ para quitar va arriba a la derecha de la
+   fila de casa, en su columna de la derecha. */
 .list-field-item.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
-.list-sin-encabezado .list-quitar { position: absolute; top: 6px; right: 6px; z-index: 1; }
-.list-sin-encabezado .ficha-casa-boton { padding-right: 48px; }
-/* El título al lado de la foto (no debajo): la ficha ocupa menos alto. */
-.list-sin-encabezado .ficha-casa-boton > .flex-grow-1 { flex-basis: 8rem !important; }
+.list-sin-encabezado .list-quitar { position: absolute; top: 1px; right: 1px; z-index: 1; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; }
+.list-sin-encabezado .casa-fila { padding-right: 52px; }
 .list-field-item {
 	background: #f8fafb;
 	border: 1px solid var(--adm-border);
 	border-radius: 10px;
 	padding: 14px;
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 }
 
 /* Con una barra de guardar abajo, los avisos flotantes van encima de ella: ni la tapan ni quedan tapados. */
@@ -1275,76 +1259,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	flex: 1.4;
 }
 
-/* Propiedades: estado y «Visible en la página» en cada fila */
-.table-admin .celda-titulo {
-	min-width: 11rem;
-}
-.table-admin .celda-estado,
-.table-admin .celda-visible {
-	cursor: default;
-}
-/* Sin resultados: el aviso reemplaza a la caja de la tabla. */
-.prop-vacio:not([hidden]) + .card { display: none; }
-/* Compacto: la foto pesa más que el selector. */
-.estado-rapido {
-	min-height: 38px; width: 7.5rem; padding-left: .5rem; padding-right: 1.5rem;
-	background-position: right .375rem center; font-size: .8125rem; text-overflow: ellipsis;
-}
-.celda-visible .form-check {
-	display: flex;
-	align-items: center;
-	gap: .5rem;
-	min-height: 32px;
-	padding-left: 0;
-}
-.celda-visible .form-check-input {
-	float: none;
-	margin: 0;
-	width: 2.25em;
-	height: 1.25em;
-	cursor: pointer;
-}
-.celda-visible .form-check-input:checked {
-	background-color: var(--adm-primary);
-	border-color: var(--adm-primary);
-}
-.celda-visible .form-check-label {
-	font-size: .875rem;
-	cursor: pointer;
-}
-.celda-visible .form-check-input:disabled,
-.celda-visible .form-check-input:disabled ~ .form-check-label {
-	cursor: not-allowed;
-}
-.motivo-visibilidad {
-	font-weight: 500;
-	white-space: nowrap;
-	text-align: left;
-	line-height: 1.3;
-}
-/* Foco bien visible con teclado (el anillo celeste suave no llega a 3:1 sobre blanco). */
-.estado-rapido:focus-visible,
-.celda-visible .form-check-input:focus-visible {
-	outline: 2px solid var(--adm-primary);
-	outline-offset: 2px;
-}
-.table-admin tr.fila-oculta .thumb {
-	opacity: .55;
-}
-
-/* Selección en masa: casilla con área de toque de 44 px y barra de acciones fija arriba. */
-.sel-toque {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 44px;
-	min-height: 44px;
-	margin: -.5rem 0;
-	cursor: pointer;
-}
-.sel-toque .form-check-input { margin: 0; width: 1.15em; height: 1.15em; cursor: pointer; }
-.tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
-
 /* Menú ⋮ de una ficha o fila (menuMas en ui.js). */
 .menu-mas-btn { color: var(--adm-muted); border: 0; background: transparent; }
 .menu-mas-btn:hover, .menu-mas-btn[aria-expanded="true"] { color: var(--adm-text); background: var(--eq-primary-soft); }
@@ -1359,25 +1273,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .menu-mas-lista .dropdown-item:hover, .menu-mas-lista .dropdown-item:focus-visible { background: var(--eq-primary-soft); color: var(--adm-text); }
 .menu-mas-lista .dropdown-item > span { width: 1rem; text-align: center; color: var(--adm-muted); }
 .menu-mas-lista .menu-mas-peligro, .menu-mas-lista .menu-mas-peligro > span { color: var(--eq-danger); }
-/* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
-@media (min-width: 1200px) {
-	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
-	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
-	.tabla-propiedades .prop-codigo { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-titulo { min-width: 9rem; }
-	.tabla-propiedades .celda-precio { width: 1%; }
-	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .celda-visible { width: 1%; }
-	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; max-width: 9rem; }
-	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
-	.tabla-propiedades .celda-fecha { width: 1%; }
-	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
-	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: top; padding: .5rem .5rem 0 .25rem; }
-}
-@media (min-width: 1200px) and (max-width: 1699.98px) {
-	.tabla-propiedades .celda-asesor,
-	.tabla-propiedades .celda-fecha { display: none; }
-}
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);
@@ -1409,23 +1304,11 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-text);
 	font-variant-numeric: tabular-nums;
 }
-/* Etiquetas de la propiedad: en computadora van en la línea del código, que quedaba vacía. */
-.prop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-@media (min-width: 1200px) {
-	.tabla-propiedades .prop-codigo, .tabla-propiedades .prop-chips { display: inline-flex; vertical-align: middle; }
-	.tabla-propiedades .prop-codigo { margin-right: .5rem; }
-}
 .prop-dato { white-space: nowrap; }
-.prop-dato [class^="icon-"],
-.prop-zona [class^="icon-"] { color: var(--adm-muted); }
-.tabla-propiedades .motivo-obvio { display: none; } /* el interruptor ya lo dice */
+.prop-dato [class^="icon-"] { color: var(--adm-muted); }
 .btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
-@media (min-width: 1200px) {
-	.tabla-propiedades .thumb { width: 112px; height: 84px; }
-}
 
-/* En celular cada propiedad es una tarjeta: la foto manda, los datos van con ícono y los controles
-   caben en una sola fila. */
+/* Celular: filtros plegados y la barra de «Elegir varias» abajo. */
 @media (max-width: 767.98px) {
 	.btn-encabezado { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .25rem; }
 	.filtros-extra:not(.abierto) { display: none; }
@@ -1440,98 +1323,13 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	}
 	.barra-masa > *, .barra-masa-mas > * { flex: 0 0 auto; white-space: nowrap; }
 	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
-	body:has(.barra-masa:not([hidden])) .tabla-propiedades { margin-bottom: 4rem; } /* hueco solo cuando la barra está */
+	body:has(.barra-masa:not([hidden])) .lista-casas { margin-bottom: 4rem; } /* la barra fija no tapa la última casa */
 	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
 	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
 	#toasts .btn-close { pointer-events: auto; }
 	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 }
-/* Tarjetas también en tableta (de dos en dos): la tabla no cabe y nada se mueve de lado. */
-@media (max-width: 1199.98px) {
-	.tabla-propiedades thead {
-		display: none;
-	}
-	.tabla-propiedades,
-	.tabla-propiedades tbody {
-		display: block;
-	}
-	@media (min-width: 768px) {
-		.tabla-propiedades tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		.tabla-propiedades tbody tr:nth-child(odd) { border-right: 1px solid var(--adm-border); }
-	}
-	.tabla-propiedades tbody tr {
-		display: grid;
-		grid-template-columns: 124px minmax(0, 1fr) auto 44px;
-		grid-template-areas:
-			"foto titulo titulo menu"
-			"foto zona zona zona"
-			"foto datos datos datos"
-			"foto precio precio precio"
-			"foto fecha fecha fecha"
-			"chips chips chips chips"
-			"estado estado visible visible"
-			"motivo motivo motivo motivo"
-			"asesor asesor asesor asesor";
-		grid-template-rows: auto auto auto 1fr auto;
-		column-gap: .75rem;
-		padding: .75rem;
-		border-bottom: 1px solid var(--adm-border);
-	}
-	.tabla-propiedades tbody tr:last-child {
-		border-bottom: 0;
-	}
-	.table-admin.tabla-propiedades > :not(caption) > * > * {
-		display: block;
-		padding: 0;
-		border: 0;
-		min-width: 0;
-	}
-	/* Estas celdas reparten su contenido directo en la tarjeta. */
-	.table-admin.tabla-propiedades .celda-titulo,
-	.table-admin.tabla-propiedades .celda-visible { display: contents; }
-
-	/* La foto con la misma proporción en todas (una vertical no estira la tarjeta ni deja hueco junto al precio). */
-	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; align-self: start; }
-	.tabla-propiedades .thumb { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; font-size: 24px; }
-	/* El número y el código van como etiquetas sobre la foto. */
-	.table-admin.tabla-propiedades .celda-num,
-	.tabla-propiedades .prop-codigo {
-		grid-area: foto; justify-self: start; z-index: 1;
-		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
-		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
-		font-variant-numeric: tabular-nums;
-	}
-	.table-admin.tabla-propiedades .celda-num { align-self: start; }
-	.tabla-propiedades .prop-codigo { align-self: end; max-width: calc(100% - .5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	/* La casilla va en la esquina de la foto; el ⋮ arriba a la derecha. */
-	.tabla-propiedades .celda-sel { grid-area: foto; justify-self: end; align-self: start; z-index: 1; }
-	.tabla-propiedades .sel-toque { margin: 0; }
-	.tabla-propiedades .sel-toque .form-check-input { box-shadow: 0 0 0 3px var(--adm-surface); }
-	.tabla-propiedades .celda-menu { grid-area: menu; justify-self: end; margin: -.625rem -.625rem 0 0; }
-	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-	.tabla-propiedades tr:not(:has(.celda-menu)) .prop-titulo { grid-column-end: -1; } /* sin ⋮, el título usa todo el ancho */
-	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
-	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
-	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
-	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
-	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem; }
-	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; }
-	.tabla-propiedades .celda-visible .form-check {
-		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
-		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
-	}
-	/* Toda la caja de 44 px responde al toque, no solo la franja del texto. */
-	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
-	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
-	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
-	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .125rem; }
-	.table-admin.tabla-propiedades .sin-fecha,
-	.table-admin.tabla-propiedades .sin-asesor { display: none; }
-}
-
 /* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */
 .switch-fila {
 	display: flex;
@@ -3773,18 +3571,22 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .aviso-deshacer { min-height: 44px; font-weight: 600; }
 .tarjeta-avisos .avisos-filas { padding: 4px 8px 8px; }
 
-/* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
+/* ---- Fila de casa (ficha-casa.js `filaCasa`, maqueta aprobada): la misma en todo el panel ----
    Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
    y el ⋮ abajo. El texto va junto (sin huecos entre líneas) y centrado al lado de la foto.
    Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más: código, asesor y
-   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo. */
-.lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo.
+   Cada fila es una tarjeta, separada de la siguiente (8 px; 12 desde tableta), en toda lista de casas. */
+.lista-casas { display: grid; gap: 8px; }
 .casa-fila {
-	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
-	border-bottom: 1px solid var(--adm-border); cursor: pointer;
+	display: flex; gap: 8px; height: 120px; padding: 7px 12px; min-width: 0; position: relative;
+	background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius);
+	color: var(--adm-text); text-decoration: none; cursor: pointer;
 }
-.casa-fila:last-child { border-bottom: 0; padding-bottom: 8px; }
+a.casa-fila:hover { color: var(--adm-text); }
+.casa-fila:hover { border-color: color-mix(in oklab, var(--adm-primary) 40%, var(--adm-border)); }
 .casa-fila:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+.casa-elegida { border-color: var(--adm-primary); box-shadow: inset 0 0 0 1px var(--adm-primary); }
 .casa-foto { position: relative; flex: none; width: 104px; height: 104px; }
 .casa-foto img, .casa-sin-foto { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: grid; place-items: center; background: var(--adm-bg); color: var(--adm-muted); font-size: 24px; }
 .casa-oculta .casa-foto img { opacity: .55; }
@@ -3792,6 +3594,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .casa-txt { flex: 1; min-width: 0; align-self: center; display: flex; flex-direction: column; }
 .casa-txt > * { flex: none; }
 .casa-titulo { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.casa-titulo .badge { vertical-align: 2px; }
 .casa-dato { display: flex; align-items: center; gap: 4px; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
 .casa-dato > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .casa-txt .casa-datos { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 8px; font-size: 13px; line-height: 16px; margin: 0; }
@@ -3803,6 +3606,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .casa-der { width: 44px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: space-between; margin: 0 -8px 0 -4px; }
 .casa-der .menu-mas-btn, .casa-ok { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; font-size: 18px; }
 .casa-der .casa-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+.casa-der .imp-estado { color: var(--imp-c); }
 .ico-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .casa-ok { color: var(--eq-whatsapp); }
 /* «Elegir varias»: la casilla aparece sobre la foto y la fila entera la marca. */
@@ -3812,11 +3616,13 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .solo-eligiendo { display: none; }
 .lista-casas.eligiendo ~ * .solo-eligiendo, body:has(.lista-casas.eligiendo) .solo-eligiendo { display: inline-block; }
 @media (min-width: 768px) {
-	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.lista-casas .casa-fila:nth-child(odd) { border-right: 1px solid var(--adm-border); }
-	.lista-casas .casa-fila:nth-last-child(2):nth-child(odd) { border-bottom: 0; padding-bottom: 8px; }
+	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 	.casa-fila { height: 136px; gap: 12px; }
 	.casa-foto { width: 120px; height: 120px; }
+}
+/* En una ventana angosta (el selector de casas en tableta) va una por fila: dos no caben. */
+@media (max-width: 991.98px) {
+	.modal .lista-casas { grid-template-columns: minmax(0, 1fr); }
 }
 @media (min-width: 1200px) {
 	.casa-fila { height: 152px; }
