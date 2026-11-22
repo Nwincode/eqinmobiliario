@@ -37,7 +37,7 @@ export async function render(container, [codigo] = []) {
 	// El socio habla con el equipo por WhatsApp: su asesor o, si no tiene, la empresa.
 	const equipo = admin ? null : await contactoDelEquipo();
 	const mio = session.profile?.propietarioId || '-';
-	const [snap, chatsSnap, propietarios, casas, reservas, mias, congeladosSnap] = await Promise.all([
+	const [snap, chatsSnap, propietarios, casas, reservas, mias, congeladosSnap, revisionesSnap] = await Promise.all([
 		// El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen del chat.
 		admin ? getDocs(query(collection(db, 'leads'), where('reserva.codigo', '>', ''))) : { docs: [] },
 		// Chat de cada solicitud (por código): el cliente escribe desde su enlace; aquí responden el socio y el equipo.
@@ -50,10 +50,13 @@ export async function render(container, [codigo] = []) {
 		admin ? null : misCasas().then((l) => l.filter((c) => c.operacion === 'vacacional')),
 		// Los montos de cada solicitud, congelados por el servidor al llegar (montosSolicitud): la tarjeta, el diálogo y la
 		// reserva salen de ellos. Si todavía no están (o no se pueden leer), se calculan igual con la casa de hoy.
-		getDocs(admin ? collection(db, 'montosSolicitud') : query(collection(db, 'montosSolicitud'), where('propietarioId', '==', mio))).catch((err) => { console.warn('Montos de las solicitudes', err); return { docs: [] }; })]);
+		getDocs(admin ? collection(db, 'montosSolicitud') : query(collection(db, 'montosSolicitud'), where('propietarioId', '==', mio))).catch((err) => { console.warn('Montos de las solicitudes', err); return { docs: [] }; }),
+		// Lo que la IA leyó del comprobante del cliente y si cuadra con la reserva (netlify/lib/comprobantes.mjs).
+		getDocs(admin ? collection(db, 'revisionesComprobante') : query(collection(db, 'revisionesComprobante'), where('propietarioId', '==', mio))).catch(() => ({ docs: [] }))]);
 	const misIds = new Set((mias || []).map((c) => c.id));
 	const deHoy = (propertyId) => admin || misIds.has(propertyId);
 	const congelados = Object.fromEntries(congeladosSnap.docs.map((d) => [d.id, d.data()]));
+	const revisiones = Object.fromEntries(revisionesSnap.docs.map((d) => [d.id, d.data()]));
 	const casaDe = (id) => (admin ? casas : mias).find((p) => p.id === id);
 	// Chats de antes de su índice: el administrador se lo pone al abrir esta pantalla (con las reglas de antes no se puede: se salta).
 	const variosChats = admin ? await ponerIndices(snap.docs, chatsSnap.docs).catch((err) => { console.warn('Índice de chats', err); return []; }) : [];
@@ -443,6 +446,14 @@ export async function render(container, [codigo] = []) {
 			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			sinConfirmar ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), sinConfirmar) : null,
+			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
+			((rv) => (rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
+				? h('div', { class: `small ${rv.cuadra ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
+					rv.texto, h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
+				: null))(revisiones[l.id]),
+			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
+			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),
+				`El correo no llegó a ${l.email}: escríbele por WhatsApp.`) : null,
 			plazo(l, est, res),
 			// Hasta cuándo vale «No me llegó»: después, sin pago marcado, la ganancia de EQ cuenta como cobrada (V.cobrable).
 			!admin && est === 'confirmada' && res && puedeNoMeLlego(l) ? h('div', { class: 'small text-muted' }, icono('clock-o'),

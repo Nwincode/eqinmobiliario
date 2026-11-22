@@ -13,6 +13,7 @@ import { congelarMontos, cerrarSiSeCruza, cerrarLasQueSeCruzan } from '../lib/re
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { limitadorDurable, ipDe } from '../lib/limite.mjs';
+import { revisarComprobante } from '../lib/comprobantes.mjs';
 
 // Guardado en la base (lo comparten todas las instancias): quien abriera muchos chats no manda una ráfaga de correos
 // aunque Netlify reparta sus pedidos. Si la base falla, cuenta el de memoria (un aviso de verdad no se pierde por eso).
@@ -49,6 +50,12 @@ export default async (req, context) => {
 	} else if (escrituraConfigurada() && chat?.estado === 'confirmada' && chat.avisoPendiente && chat.propertyId) {
 		// Recién confirmada en el panel (su aviso todavía pendiente): las otras abiertas que se cruzan se cierran.
 		for (const t of await cerrarLasQueSeCruzan(chat.propertyId, chat.llegada, chat.salida).catch(() => [])) await enviarAvisosChat(t).catch(() => {});
+	}
+	// El cliente subió su comprobante: la IA lo lee y se compara con la reserva (netlify/lib/comprobantes.mjs), después de
+	// responder. Si no hay IA o falla, no queda nada que mostrar.
+	if (chat?.comprobanteMensaje && chat.estado === 'confirmada') {
+		const revision = revisarComprobante(token).catch((err) => console.error('Revisión del comprobante:', err.message));
+		if (context?.waitUntil) context.waitUntil(revision); else await revision;
 	}
 	if (!servicioCorreo()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	try {
