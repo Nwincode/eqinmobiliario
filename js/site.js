@@ -237,15 +237,17 @@
 	document.querySelectorAll('.lead-form').forEach(function (form) {
 		form.addEventListener('focusin', function () { if (typeof form.eqReserva === 'function' && window.EQChat) pruebaDe(form); });
 		var recordada = form.getAttribute('data-property-id') ? leerPendiente(form) : null;
-		if (recordada && window.EQChat) {
-			form.eqPendiente = recordada;
+		if (recordada) form.eqPendiente = recordada;
+		// (Cuando ya cargaron reserva-chat.js y vacacional.js.)
+		if (recordada) window.addEventListener('load', function () {
+			if (!window.EQChat) return;
 			window.EQChat.yaGuardada(recordada.lead).then(function (si) {
 				if (si !== true) return;
 				guardarPendiente(form, null);
 				try { localStorage.setItem('eq-reserva', recordada.lead.token); localStorage.setItem('eq-reserva-casa', recordada.lead.propertyId); } catch (e) { /* sin memoria */ }
 				if (typeof form.eqYaPediste === 'function') form.eqYaPediste(recordada.lead.token);
 			});
-		}
+		});
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
