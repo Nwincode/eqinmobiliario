@@ -8,10 +8,11 @@ import { renglon, diferencias } from './bitacora.js';
 
 // ¿Están publicadas las reglas con la bitácora? Con las de antes (el sitio se publica primero, las reglas en seguida), el
 // renglón se negaría y con él todo el guardado: entonces se guarda como antes, sin renglón (esas reglas no lo piden).
-// Lo dice reglas/r6, que solo las reglas nuevas dejan leer. Se pregunta una vez por sesión.
+// Lo dice reglas/r6, que solo las reglas nuevas dejan leer. El «sí» se guarda por sesión; el «no» se vuelve a preguntar en
+// cada guardado: una pestaña abierta antes de publicar las reglas nuevas guardaría sin renglón y las reglas lo negarían.
 let activa = null;
 export function bitacoraActiva() {
-	activa ||= getDoc(doc(db, 'reglas', 'r6')).then(() => true, (err) => { if (err?.code !== 'permission-denied') activa = null; return false; });
+	activa ||= getDoc(doc(db, 'reglas', 'r6')).then(() => true, () => { activa = null; return false; });
 	return activa;
 }
 
@@ -58,7 +59,7 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 		const filas = [...sens, ...textos,
 			...deAntes.map((c) => ({ cuando: ms(c.cuando), nombre: c.nombre, cambios: [{ campo: 'Datos de pago', antes: c.antes || '(vacío)', despues: c.despues || '(vacío)' }] }))
 		].sort((a, b) => b.cuando - a.cuando);
-		caja.replaceChildren(filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0' },
+		caja.replaceChildren(filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0 text-break' },
 			f.texto ? h('div', {}, f.texto) : null, (f.cambios || []).map((c) => h('div', {}, h('span', { class: 'fw-semibold' }, `${c.campo}: `), c.antes, h('span', { class: 'text-muted', 'aria-label': 'cambió a' }, ' → '), c.despues)),
 			h('div', { class: 'small text-muted' }, [f.nombre || 'Servidor', f.cuando ? formatDate(new Date(f.cuando)) : ''].filter(Boolean).join(' · ')))))
 			: emptyState('Sin cambios anotados todavía.'));

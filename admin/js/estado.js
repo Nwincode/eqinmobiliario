@@ -40,6 +40,7 @@ export async function tarjetaEstado(casas) {
 			h('div', { class: 'me-auto' },
 				h('h2', { class: 'tarjeta-pendientes-titulo', id: 'estado-titulo' }, 'Estado del sistema'),
 				h('div', { class: 'tarjeta-pendientes-ayuda' }, rotos ? 'Lo que falló y desde cuándo. Se quita solo cuando vuelve a funcionar.' : 'Nada roto. Topes anti-robots de las últimas 24 h.'))),
+		// Desde cuándo va primero: el detalle se corta a dos líneas (la fila de la campana) y un motivo largo no lo tapa.
 		h('ul', { class: 'avisos-filas' }, lista.map((x) => fila({ ...x, urgente: !x.aviso, fecha: 0,
-			detalle: [x.detalle, x.desde ? `${x.aviso ? '' : 'desde '}${hace(x.desde)}` : ''].filter(Boolean).join(' · ') }, false))));
+			detalle: [x.desde ? `${x.aviso ? '' : 'desde '}${hace(x.desde)}` : '', x.detalle].filter(Boolean).join(' · ') }, false))));
 }

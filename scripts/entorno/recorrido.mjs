@@ -700,8 +700,13 @@ paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(awai
 		const rd = (await leer(`reservas/${d.id}`)).fields || {};
 		paso('Transición: sin la cuenta de escritura (503) y con las reglas de antes, el socio confirma por el camino de antes', puestas === 200 && r7.status === 503 && rd.estado?.stringValue === 'confirmada'
 			&& (await leer(`chats/${d.token}`)).fields?.estado?.stringValue === 'confirmada' && /Confirmada/.test(await socio.p.locator('.card', { hasText: d.codigo }).first().innerText()), `${resp(r7)} · reglas ${puestas} · ${await avisos(socio.p)}`);
+		// Una pestaña del administrador abierta con las reglas de antes (la bitácora todavía no existe para ella)…
+		const bitacoraAntes = await admin.p.evaluate(async () => (await import('/admin/js/bitacora-panel.js')).bitacoraActiva());
 		// Reglas nuevas y el servidor sin cuenta: el camino de antes ya no pasa y se dice por qué (no «no cuadra»).
 		await reglas('firestore.rules');
+		// …guarda un permiso después de publicar las nuevas: va con su renglón y las reglas lo dejan pasar.
+		const permisoVieja = await admin.p.evaluate(async () => { try { await (await import('/admin/js/permisos-panel.js')).guardarPropios('colab-prueba', { fechas: true }); return 'ok'; } catch (e) { return e.code || e.message; } });
+		paso('Una pestaña abierta con las reglas de antes guarda con la bitácora en cuanto se publican las nuevas', bitacoraAntes === false && permisoVieja === 'ok', `${bitacoraAntes} · ${permisoVieja}`);
 		const hh = await sembrar('srv-h', iso(260));
 		await ir(socio.p, `#/solicitudes/${hh.codigo}`, 3500);
 		await socio.p.locator('.card', { hasText: hh.codigo }).first().locator('button', { hasText: 'No se dio' }).click();
