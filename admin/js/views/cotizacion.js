@@ -12,7 +12,7 @@ import {
 import { acuerdoDe, comisionDe, REGLAS_POR_DEFECTO } from '../acuerdo.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
-import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, cajaTabla, iconoBtn } from '../ui.js';
+import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, tablaAdmin, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { esPorcentaje } from '../formato.js';
 import {
@@ -87,20 +87,21 @@ async function lista(container) {
 			if (!await confirmDialog(`¿Eliminar la cotización ${c.numero || ''}${c.cliente?.nombre ? ` de ${c.cliente.nombre}` : ''}? No se puede deshacer.`, { okText: 'Eliminar' })) return;
 			try { await deleteDoc(doc(db, COL, c.id)); items = items.filter((x) => x.id !== c.id); pintar(); toast('Cotización eliminada.'); } catch (err) { showError(err); }
 		};
-		const acciones = (c) => h('div', { class: 'cot-acciones' },
-			iconoBtn('icon-pencil', `Abrir ${c.numero || 'cotización'}`, { href: `#/cotizaciones/${encodeURIComponent(c.id)}` }),
-			h('a', { class: 'btn btn-outline-secondary btn-sm cot-btn cot-btn-icono', href: `#/cotizaciones/duplicar/${encodeURIComponent(c.id)}`, title: 'Duplicar', 'aria-label': `Duplicar ${c.numero || 'cotización'}` }, h('span', { class: 'icon-clone', 'aria-hidden': 'true' })),
-			h('button', { type: 'button', class: 'btn btn-outline-danger btn-sm cot-btn cot-btn-icono', title: 'Eliminar', 'aria-label': `Eliminar ${c.numero || 'cotización'}`, onclick: () => borrar(c) }, h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' })));
-		cuerpo.replaceChildren(cajaTabla(
-			h('table', { class: 'table table-hover table-admin' },
-				h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Número'), h('th', { scope: 'col' }, 'Fecha'), h('th', { scope: 'col' }, 'Cliente'), h('th', { scope: 'col', class: 'text-end' }, 'Total'), h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')))),
-				h('tbody', {}, items.map((c) => h('tr', {},
-					h('td', {}, h('a', { href: `#/cotizaciones/${encodeURIComponent(c.id)}`, class: 'fw-semibold' }, c.numero || 'Sin número')),
-					h('td', {}, fechaLarga(c.fecha)),
-					h('td', {}, c.cliente?.nombre || h('span', { class: 'text-muted' }, 'Sin nombre'),
-						c.propiedad?.texto ? h('div', { class: 'small text-muted' }, c.propiedad.texto) : null),
-					h('td', { class: 'text-end text-nowrap' }, total(c)),
-					h('td', { class: 'text-end' }, acciones(c)))))), { tarjeta: true }));
+		const tabla = tablaAdmin({
+			columnas: [{ titulo: 'Número' }, { titulo: 'Fecha' }, { titulo: 'Cliente' }, { titulo: 'Total', num: true }],
+			celdas: (c) => [
+				h('span', { class: 'fw-semibold' }, c.numero || 'Sin número'),
+				fechaLarga(c.fecha),
+				[c.cliente?.nombre || h('span', { class: 'text-muted' }, 'Sin nombre'), c.propiedad?.texto ? h('div', { class: 'small text-muted' }, c.propiedad.texto) : null],
+				total(c)],
+			alTocar: (c) => { location.hash = `#/cotizaciones/${encodeURIComponent(c.id)}`; },
+			titulo: (c) => c.numero || 'la cotización',
+			acciones: (c) => [
+				{ icono: 'icon-clone', texto: 'Duplicar', href: `#/cotizaciones/duplicar/${encodeURIComponent(c.id)}` },
+				{ icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => borrar(c) }]
+		});
+		tabla.pintar(items);
+		cuerpo.replaceChildren(tabla);
 	};
 	pintar();
 }

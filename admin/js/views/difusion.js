@@ -1,6 +1,6 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection, FieldPath } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, formatPrice, tablaAdmin } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
@@ -137,6 +137,18 @@ async function renderTablero(container) {
 	const pendientes = { actualizar: 0, baja: 0, pendiente: 0 };
 	visibles.forEach((p) => portales.forEach((x) => { const e = estadoDifusion(p, x.id).id; if (e in pendientes) pendientes[e]++; }));
 
+	const tabla = tablaAdmin({
+		columnas: [{ titulo: 'Propiedad' }, ...portales.map((x) => ({ titulo: [h('span', { class: `${iconoPortal(x)} d-block mb-1`, 'aria-hidden': 'true' }), x.nombre], cls: 'text-center text-wrap' }))],
+		celdas: (p) => [
+			[h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)],
+			...portales.map((x) => {
+				const e = estadoDifusion(p, x.id);
+				return e.id === 'na' ? null : h('span', { class: ICONO[e.id], role: 'img', title: e.texto, 'aria-label': e.texto });
+			})],
+		alTocar: (p) => { location.hash = `#/difusion/${p.id}`; },
+		vacio: 'Todavía no hay propiedades publicadas.'
+	});
+	tabla.pintar(visibles);
 	mount(container,
 		pageHeader('Difusión en portales y redes'),
 		h('p', { class: 'text-muted' }, 'Dónde está publicada cada propiedad. Entra a una propiedad para copiar los textos ya adaptados a cada plataforma y descargar sus fotos.'),
@@ -145,15 +157,7 @@ async function renderTablero(container) {
 				['baja', 'De baja', 'La propiedad se vendió, rentó o se despublicó.'],
 				['pendiente', 'Faltan', 'Plataformas donde aún no está la propiedad.']]
 				.map(([k, label, ayuda]) => h('div', { class: 'col-4', title: ayuda }, statCard(ICONO[k], label, pendientes[k])))),
-		visibles.length ? cajaTabla(
-			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
-				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center text-wrap' }, h('span', { class: `${iconoPortal(x)} d-block mb-1`, 'aria-hidden': 'true' }), x.nombre)))),
-				h('tbody', {}, visibles.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/difusion/${p.id}`; } },
-					h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)),
-					portales.map((x) => {
-						const e = estadoDifusion(p, x.id);
-						return h('td', { class: 'text-center' }, e.id === 'na' ? null : h('span', { class: ICONO[e.id], role: 'img', title: e.texto, 'aria-label': e.texto }));
-					}))))), { tarjeta: true }) : emptyState('Todavía no hay propiedades publicadas.'),
+		tabla,
 		h('div', { class: 'card mt-4' }, h('div', { class: 'card-body small' },
 			h('strong', {}, 'Catálogos automáticos. '),
 			'Algunas plataformas leen las propiedades solas desde un enlace y se actualizan sin copiar nada: ',

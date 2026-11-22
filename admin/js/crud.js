@@ -1,6 +1,6 @@
 // Listado + editor genérico para colecciones simples (asesores, reseñas, páginas).
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, serverTimestamp, runTransaction } from './firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, emptyState , mount, cajaTabla } from './ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, emptyState, mount, tablaAdmin } from './ui.js';
 import { renderForm } from './form.js';
 import { markPending, porOrden, trasGuardar } from './session.js';
 import { revisar, vigilarFormulario } from './pendientes.js';
@@ -19,17 +19,18 @@ export function crudView(cfg) {
 		let items = await loadAll();
 		const soloIncompletos = cfg.pendientes && /\/incompletos$/.test(location.hash);
 		if (soloIncompletos) items = items.filter((it) => revisar(cfg.pendientes, it).length);
+		const lista = tablaAdmin({
+			columnas: cfg.columns.map(([titulo]) => ({ titulo })),
+			celdas: (it) => cfg.columns.map(([, fn]) => fn(it)),
+			alTocar: (it) => { location.hash = `#/${cfg.route}/${it.id}`; },
+			vacio: emptyState(`Aún no hay ${cfg.title.toLowerCase()}.`, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `Crear ${cfg.singular.toLowerCase()}`))
+		});
 		mount(container, 
 			pageHeader(cfg.title, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `+ ${cfg.singular}`)),
 			cfg.intro ? h('p', { class: 'text-muted' }, cfg.intro) : null,
 			soloIncompletos ? h('p', { class: 'small' }, 'Mostrando solo los que tienen datos por completar. ', h('a', { href: `#/${cfg.route}` }, 'Ver todos')) : null,
-			items.length
-				? cajaTabla(
-					h('table', { class: 'table table-hover table-admin' },
-						h('thead', {}, h('tr', {}, cfg.columns.map(([label]) => h('th', {}, label)))),
-						h('tbody', {}, items.map((it) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/${cfg.route}/${it.id}`; } },
-							cfg.columns.map(([, fn]) => h('td', {}, fn(it))))))), { tarjeta: true })
-				: emptyState(`Aún no hay ${cfg.title.toLowerCase()}.`, h('a', { href: `#/${cfg.route}/nuevo`, class: 'btn btn-primary' }, `Crear ${cfg.singular.toLowerCase()}`)));
+			lista);
+		lista.pintar(items, { filtrado: soloIncompletos });
 	}
 
 	async function editor(container, id) {

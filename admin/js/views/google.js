@@ -1,6 +1,6 @@
 // Visibilidad: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig, SITIO as SITE } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 import { diaConAnio } from '../formato.js';
@@ -38,19 +38,16 @@ function variacion(ahora, antes, invertir = false) {
 
 const kpi = (icono, label, valor, nota) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, valor, { nota }));
 
+// Las tablas de esta pantalla: la pieza común (ui.js `tablaAdmin`); las columnas de cifras van a la derecha.
+const CIFRAS = new Set(['Puntaje', 'Posición', 'Impresiones', 'Clics posibles', 'Clics', 'Impr.', 'CTR', 'Pos.', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora']);
 function tabla(cabeceras, filas, vacio = 'Sin datos en este periodo.') {
 	if (!filas.length) return h('p', { class: 'text-muted small mb-0' }, vacio);
-	return cajaTabla(h('table', { class: 'table table-sm table-admin mb-0' },
-		h('thead', {}, h('tr', {}, cabeceras.map((c, i) => h('th', { class: i ? 'text-end' : '' }, c)))),
-		h('tbody', {}, filas)));
+	const t = tablaAdmin({ tarjeta: false, cls: 'table-sm', columnas: cabeceras.map((titulo) => ({ titulo, num: CIFRAS.has(titulo) })), celdas: (f) => f });
+	t.pintar(filas);
+	return t;
 }
 
-const filaMetricas = (r) => [
-	h('td', { class: 'text-end' }, num(r.clics)),
-	h('td', { class: 'text-end' }, num(r.impresiones)),
-	h('td', { class: 'text-end' }, pct(r.ctr)),
-	h('td', { class: 'text-end' }, pos(r.posicion))
-];
+const filaMetricas = (r) => [num(r.clics), num(r.impresiones), pct(r.ctr), pos(r.posicion)];
 
 const MOTIVOS = {
 	ctr: ['Pocos clics para su posición', 'Estás arriba, pero el título o la descripción no convencen: hazlos más concretos (precio, zona, m², "con jardín").', 'warning'],
@@ -118,13 +115,13 @@ function revisionInventario(props) {
 	return card(`Revisión SEO del inventario · promedio ${promedio}/100`,
 		h('p', { class: 'small text-muted' }, 'Cada ficha se califica con lo que más pesa para posicionar propiedades. El inglés y los textos para Google se llenan solos con ',
 			h('a', { href: '#/propiedades' }, 'Propiedades → Completar SEO'), '. Un video suma, pero no baja el puntaje.'),
-		tabla(['Propiedad', 'Puntaje', 'Qué falta'], filas.slice(0, 50).map(({ p, fallas, puntaje }) => h('tr', {},
-			h('td', {}, h('a', { href: `#/propiedades/${p.id}` }, p.titulo || '(sin título)')),
-			h('td', { class: 'text-end' }, badge(`${puntaje}`, puntaje >= 80 ? 'success' : puntaje >= 55 ? 'warning' : 'danger')),
-			h('td', { class: 'text-end small' }, fallas.length ? h('ul', { class: 'mb-0 text-start ps-3' }, fallas.map(([, txt, arreglo]) => {
+		tabla(['Propiedad', 'Puntaje', 'Qué falta'], filas.slice(0, 50).map(({ p, fallas, puntaje }) => [
+			h('a', { href: `#/propiedades/${p.id}` }, p.titulo || '(sin título)'),
+			badge(`${puntaje}`, puntaje >= 80 ? 'success' : puntaje >= 55 ? 'warning' : 'danger'),
+			h('span', { class: 'small' }, fallas.length ? h('ul', { class: 'mb-0 ps-3' }, fallas.map(([, txt, arreglo]) => {
 				const [href, etiqueta] = arreglo ? arreglo(p) : [];
 				return h('li', {}, txt, href ? [' ', h('a', { href }, etiqueta)] : null);
-			})) : '✓ Completa'))),
+			})) : '✓ Completa')]),
 		'No hay propiedades publicadas.'));
 }
 
@@ -172,37 +169,35 @@ function renderDatos(cont, d, props) {
 			tabla(['Búsqueda', 'Página', 'Posición', 'Impresiones', 'Clics posibles', 'Qué hacer'], oportunidades.map((o) => {
 				const [nombre, consejo, color] = MOTIVOS[o.motivo];
 				const prop = porRuta.get(ruta(o.pagina));
-				return h('tr', {},
-					h('td', { class: 'fw-semibold' }, o.consulta),
-					h('td', { class: 'text-end small text-break' }, prop ? h('a', { href: `#/propiedades/${prop.id}` }, prop.titulo) : h('a', { href: o.pagina, target: '_blank', rel: 'noopener' }, ruta(o.pagina))),
-					h('td', { class: 'text-end' }, pos(o.posicion)),
-					h('td', { class: 'text-end' }, num(o.impresiones)),
-					h('td', { class: 'text-end fw-semibold' }, `+${num(o.clicsPotenciales)}`),
-					h('td', { class: 'text-end small' }, badge(nombre, color), h('div', { class: 'text-muted text-start mt-1' }, consejo)));
+				return [
+					h('span', { class: 'fw-semibold' }, o.consulta),
+					h('span', { class: 'small text-break' }, prop ? h('a', { href: `#/propiedades/${prop.id}` }, prop.titulo) : h('a', { href: o.pagina, target: '_blank', rel: 'noopener' }, ruta(o.pagina))),
+					pos(o.posicion),
+					num(o.impresiones),
+					h('span', { class: 'fw-semibold' }, `+${num(o.clicsPotenciales)}`),
+					h('span', { class: 'small' }, badge(nombre, color), h('div', { class: 'text-muted mt-1' }, consejo))];
 			}), 'Todavía no hay oportunidades claras. Vuelve cuando el sitio tenga algunas semanas en Google.')),
 		h('div', { class: 'row g-0' },
 			h('div', { class: 'col-12' }, card('Lo que buscan en Google',
-				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultas || []).slice(0, 25).map((r) => h('tr', {}, h('td', {}, r.claves[0]), ...filaMetricas(r)))))),
+				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultas || []).slice(0, 25).map((r) => [r.claves[0], ...filaMetricas(r)])))),
 			h('div', { class: 'col-12' }, card('Páginas que más tráfico traen',
 				tabla(['Página', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paginas || []).slice(0, 25).map((r) => {
 					const prop = porRuta.get(ruta(r.claves[0]));
-					return h('tr', {}, h('td', { class: 'text-break' }, prop ? h('a', { href: `#/propiedades/${prop.id}` }, prop.titulo) : ruta(r.claves[0])), ...filaMetricas(r));
+					return [h('span', { class: 'text-break' }, prop ? h('a', { href: `#/propiedades/${prop.id}` }, prop.titulo) : ruta(r.claves[0])), ...filaMetricas(r)];
 				}))))),
 		h('div', { class: 'row g-0' },
 			h('div', { class: 'col-12' }, card(`Estados Unidos${usa ? ` · ${num(usa.clics)} clics, ${num(usa.impresiones)} impresiones` : ''}`,
 				h('p', { class: 'small text-muted' }, 'Búsquedas desde EE. UU.: el mercado de tus anuncios. Úsalas como palabras clave en Google Ads y en el sitio en inglés.'),
-				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultasUsa || []).map((r) => h('tr', {}, h('td', {}, r.claves[0]), ...filaMetricas(r))), 'Aún no hay búsquedas desde EE. UU.'))),
+				tabla(['Búsqueda', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.consultasUsa || []).map((r) => [r.claves[0], ...filaMetricas(r)]), 'Aún no hay búsquedas desde EE. UU.'))),
 			h('div', { class: 'col-12' }, card('Países y dispositivos',
-				tabla(['País', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paises || []).map((r) => h('tr', {}, h('td', {}, r.claves[0].toUpperCase()), ...filaMetricas(r)))),
+				tabla(['País', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paises || []).map((r) => [r.claves[0].toUpperCase(), ...filaMetricas(r)])),
 				h('hr'),
-				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => h('tr', {}, h('td', {}, { MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0]), ...filaMetricas(r))))))));
+				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => [{ MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0], ...filaMetricas(r)]))))));
 }
 
 // Páginas que bajaron en el informe de cada lunes (netlify/lib/seo-semanal.mjs `bajaron`).
-const tablaBajaron = (lista, vacio) => tabla(['Página', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora'], lista.map((c) => h('tr', {},
-	h('td', { class: 'text-break' }, ruta(c.pagina)),
-	h('td', { class: 'text-end' }, num(c.antes.clics)), h('td', { class: 'text-end' }, num(c.ahora.clics)),
-	h('td', { class: 'text-end' }, pos(c.antes.posicion)), h('td', { class: 'text-end' }, pos(c.ahora.posicion)))), vacio);
+const tablaBajaron = (lista, vacio) => tabla(['Página', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora'], lista.map((c) => [
+	h('span', { class: 'text-break' }, ruta(c.pagina)), num(c.antes.clics), num(c.ahora.clics), pos(c.antes.posicion), pos(c.ahora.posicion)]), vacio);
 
 // Informe de cada lunes (netlify/functions/seo-semanal.mjs → seoSemanal/{fecha}; solo lo lee el administrador):
 // los últimos 7 días contra los 7 anteriores y la indexación de las páginas del sitemap.
@@ -219,13 +214,12 @@ async function informeSemanal() {
 		card('Bajaron esta semana', tablaBajaron(d.bajaron || [], 'Ninguna página bajó.')),
 		card(`No están en Google: ${fuera.length}`,
 			d.errorIndexacion ? h('p', { class: 'small text-muted' }, `Google cortó la revisión (${d.errorIndexacion}); sigue el lunes que viene.`) : null,
-			tabla(['Página', 'Motivo', 'Revisada'], fuera.map((x) => h('tr', {},
-				h('td', { class: 'text-break' }, h('a', { href: x.url, target: '_blank', rel: 'noopener' }, ruta(x.url))),
-				h('td', { class: 'text-end small' }, x.cobertura || x.veredicto),
-				h('td', { class: 'text-end small text-muted' }, x.cuando ? diaConAnio(x.cuando) : '—'))), 'Todas las páginas revisadas están en Google.')),
+			tabla(['Página', 'Motivo', 'Revisada'], fuera.map((x) => [
+				h('a', { class: 'text-break', href: x.url, target: '_blank', rel: 'noopener' }, ruta(x.url)),
+				h('span', { class: 'small' }, x.cobertura || x.veredicto),
+				h('span', { class: 'small text-muted' }, x.cuando ? diaConAnio(x.cuando) : '—')]), 'Todas las páginas revisadas están en Google.')),
 		card('Búsquedas nuevas esta semana',
-			tabla(['Búsqueda', 'Clics', 'Impr.', 'Pos.'], (d.nuevas || []).map((r) => h('tr', {}, h('td', {}, r.consulta),
-				h('td', { class: 'text-end' }, num(r.clics)), h('td', { class: 'text-end' }, num(r.impresiones)), h('td', { class: 'text-end' }, pos(r.posicion)))),
+			tabla(['Búsqueda', 'Clics', 'Impr.', 'Pos.'], (d.nuevas || []).map((r) => [r.consulta, num(r.clics), num(r.impresiones), pos(r.posicion)]),
 			'Sin búsquedas nuevas.')));
 }
 

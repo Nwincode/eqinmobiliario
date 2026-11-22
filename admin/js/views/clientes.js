@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -150,18 +150,23 @@ async function renderLista(container) {
 				return col;
 			})));
 		} else {
-			cuerpo.replaceChildren(cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-				h('tbody', {}, lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)).map((c) => {
+			const tabla = tablaAdmin({
+				columnas: ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((titulo) => ({ titulo })),
+				celdas: (c) => {
 					const prox = proximaActividad(actividades, c.id);
-					return h('tr', { class: 'clickable', onclick: () => { location.hash = `#/clientes/${c.id}`; } },
-						h('td', {}, h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))),
-						h('td', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
-						h('td', {}, etapaBadge(c.etapa)),
-						h('td', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
-						h('td', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
-						session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar') : null);
-				}))), { tarjeta: true }));
+					return [
+						[h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))],
+						h('span', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
+						etapaBadge(c.etapa),
+						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
+						h('span', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
+						...(session.isAdmin ? [h('span', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar')] : [])];
+				},
+				alTocar: (c) => { location.hash = `#/clientes/${c.id}`; },
+				sinCoincidencias: 'Ningún cliente coincide con la búsqueda o los filtros.'
+			});
+			tabla.pintar(lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)), { filtrado: true });
+			cuerpo.replaceChildren(tabla);
 		}
 	};
 	[buscar, fTipo, fAsesor, soloIncompletos].forEach((el) => el.addEventListener(el === soloIncompletos ? 'change' : 'input', dibujar));

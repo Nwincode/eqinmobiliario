@@ -608,6 +608,9 @@ a.stat-card:hover {
 .table-admin tr.clickable {
 	cursor: pointer;
 }
+.table-admin tr.clickable:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+/* Cifras (tablaAdmin `num`): a la derecha y con números del mismo ancho. */
+.table-admin .celda-num { font-variant-numeric: tabular-nums; }
 .table-hover > tbody > tr:hover > * {
 	--bs-table-accent-bg: transparent;
 }
@@ -1972,11 +1975,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	min-width: 44px;
 	padding-left: 0;
 	padding-right: 0;
-}
-.cot-acciones {
-	display: inline-flex;
-	gap: 6px;
-	justify-content: flex-end;
 }
 .cot-grupo .card-header {
 	background: var(--adm-surface);

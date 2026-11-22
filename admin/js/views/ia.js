@@ -3,7 +3,7 @@
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, arrayUnion
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, cajaTabla } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge } from './leads.js';
@@ -303,31 +303,35 @@ function tabClientes(cont, props, reqs) {
 		}
 	});
 
-	const cerrar = async (r, row) => {
+	let quedan = activos;
+	const tabla = tablaAdmin({
+		columnas: [{ titulo: 'Cliente' }, { titulo: 'Busca' }, { titulo: 'Guardado' }],
+		celdas: (r) => [
+			[h('div', { class: 'fw-semibold' }, r.cliente), h('div', { class: 'small text-muted' }, r.telefono || '')],
+			h('span', { class: 'small' }, r.criterios?.resumen || String(r.texto || '').slice(0, 120)),
+			h('span', { class: 'small text-muted text-nowrap' }, formatDate(r.createdAt, false))],
+		titulo: (r) => r.cliente,
+		acciones: (r) => [
+			r.telefono ? { icono: 'icon-whatsapp', texto: 'WhatsApp', href: whatsappUrl(r.telefono, `Hola ${r.cliente}, `), target: '_blank' } : null,
+			{ icono: 'icon-check', texto: 'Cerrar el requerimiento', onclick: () => cerrar(r) }],
+		vacio: 'Aún no hay clientes guardados.'
+	});
+	const cerrar = async (r) => {
 		try {
 			await updateDoc(doc(db, 'requerimientos', r.id), { estado: 'cerrado', updatedAt: serverTimestamp() });
-			row.remove();
+			quedan = quedan.filter((x) => x !== r);
+			tabla.pintar(quedan);
 			toast('Requerimiento cerrado.');
 		} catch (err) { showError(err); }
 	};
+	tabla.pintar(quedan);
 
 	mount(cont,
 		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, aquí ves a qué clientes guardados ofrecérsela y te queda cada mensaje listo.'),
 		h('div', { class: 'row g-2 align-items-center' }, h('div', { class: 'col-md-8' }, sel), h('div', { class: 'col-md-4' }, btn)),
 		out,
 		h('h2', { class: 'h6 mt-4' }, `Clientes con búsqueda activa (${activos.length})`),
-		activos.length ? cajaTabla(h('table', { class: 'table table-admin mb-0' },
-			h('thead', {}, h('tr', {}, ['Cliente', 'Busca', 'Guardado', ''].map((t) => h('th', {}, t)))),
-			h('tbody', {}, activos.map((r) => {
-				const row = h('tr', {},
-					h('td', {}, h('div', { class: 'fw-semibold' }, r.cliente), h('div', { class: 'small text-muted' }, r.telefono || '')),
-					h('td', { class: 'small' }, r.criterios?.resumen || String(r.texto || '').slice(0, 120)),
-					h('td', { class: 'small text-muted text-nowrap' }, formatDate(r.createdAt, false)),
-					h('td', { class: 'text-nowrap' },
-						r.telefono ? h('a', { class: 'btn btn-sm btn-success me-1', target: '_blank', href: whatsappUrl(r.telefono, `Hola ${r.cliente}, `) }, 'WhatsApp') : null,
-						h('button', { class: 'btn btn-sm btn-outline-secondary', type: 'button', onclick: () => cerrar(r, row) }, 'Cerrar')));
-				return row;
-			}))), { tarjeta: true }) : emptyState('Aún no hay clientes guardados.'));
+		tabla);
 }
 
 // ------------------------------------------------------------ Asistente (chat)

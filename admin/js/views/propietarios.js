@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
-import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, cajaTabla, modal, iconoBtn, hoy } from '../ui.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { correoContrasena } from '../contrasena.js';
 import { session, agentOptions, loadAgents } from '../session.js';
@@ -109,19 +109,19 @@ async function renderLista(container) {
 			ops.includes('vacacional') ? 'Por noche: margen' : ''
 		].filter(Boolean).join(' · ') || '—';
 	};
-	const fila = (p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/propietarios/${p.id}`; } },
-		h('td', {}, h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, tieneCasasPorNoche(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))),
-		h('td', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
-		h('td', {}, estadoExclusiva(masUrgente(p))),
-		h('td', { class: 'small' }, comisionTexto(p)),
-		session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—')) : null);
-	const dibujar = () => {
-		const vis = solo.checked ? lista.filter((p) => faltanDe(p).length) : lista;
-		tabla.replaceChildren(vis.length ? cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-			h('thead', {}, h('tr', {}, ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-			h('tbody', {}, vis.map(fila))), { tarjeta: true })
-			: h('p', { class: 'text-muted' }, 'Todos los propietarios tienen sus datos completos.'));
-	};
+	const tablaLista = tablaAdmin({
+		columnas: ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((titulo) => ({ titulo })),
+		celdas: (p) => [
+			[h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, tieneCasasPorNoche(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))],
+			h('span', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
+			estadoExclusiva(masUrgente(p)),
+			h('span', { class: 'small' }, comisionTexto(p)),
+			...(session.isAdmin ? [h('span', { class: 'small' }, nombreAsesor[p.agentId] || (operacionesDe(p, propiedades).some((o) => o !== 'vacacional') ? 'Sin asignar' : '—'))] : [])],
+		alTocar: (p) => { location.hash = `#/propietarios/${p.id}`; },
+		sinCoincidencias: 'Todos los propietarios tienen sus datos completos.'
+	});
+	tabla.replaceChildren(tablaLista);
+	const dibujar = () => tablaLista.pintar(solo.checked ? lista.filter((p) => faltanDe(p).length) : lista, { filtrado: true });
 	solo.addEventListener('change', dibujar);
 	dibujar();
 

@@ -1,6 +1,6 @@
 // Reportes del equipo: actividad, respuesta, visitas y cierres por asesor.
 import { db, doc, setDoc, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, cajaTabla } from '../ui.js';
+import { h, iconoBtn, statCard, pageHeader, mount, downloadCsv, toast, showError, tablaAdmin } from '../ui.js';
 import { loadAgents } from '../session.js';
 import { loadLeads } from './leads.js';
 import { loadClientes, loadActividades, vencimiento, ms, ETAPAS, loadReglas, comisionDeNegocio } from '../crm.js';
@@ -68,24 +68,28 @@ export async function render(container) {
 		const embudo = ETAPAS.map(([v, l]) => [l, clientes.filter((c) => (c.etapa || 'nuevo') === v).length]);
 		const maxE = Math.max(1, ...embudo.map(([, n]) => n));
 
+		const tablaAsesores = tablaAdmin({
+			tarjeta: false,
+			columnas: [{ titulo: 'Asesor' }, ...['Leads', 'Respuesta', 'Actividades', 'Visitas', 'En proceso', 'Cierres', 'Comisión'].map((titulo) => ({ titulo, num: true }))],
+			celdas: (f) => [
+				h('span', { class: 'fw-semibold text-nowrap' }, f.nombre),
+				[f.leads, alerta(f.sinRespuesta, 'sin atender')],
+				horas(f.respuesta),
+				[f.actividades, alerta(f.vencidas, f.vencidas === 1 ? 'vencida' : 'vencidas')],
+				f.visitas,
+				[h('div', {}, f.enProceso), renglones(dineroPorMoneda(f.pipeline))],
+				[h('div', {}, f.cierres), renglones(dineroPorMoneda(f.montoCerrado))],
+				[renglones(dineroPorMoneda(redondo(f.comision))) || '—', renglones(dineroPorMoneda(redondo(f.parteAsesor)), 'asesor ', 'text-muted')]],
+			vacio: 'Sin actividad en este periodo.'
+		});
+		tablaAsesores.pintar(filas);
 		cuerpo.replaceChildren(
 			h('div', { class: 'row g-3 mb-4' }, [
 				['icon-envelope-o', 'Leads', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
 			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
 			h('div', { class: 'card mb-4 overflow-hidden' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Por asesor'),
-				cajaTabla(h('table', { class: 'table table-admin mb-0' },
-					h('thead', {}, h('tr', {}, ['Asesor', 'Leads', 'Respuesta', 'Actividades', 'Visitas', 'En proceso', 'Cierres', 'Comisión'].map((t, i) => h('th', { class: i ? 'text-end' : '' }, t)))),
-					h('tbody', {}, filas.map((f) => h('tr', {},
-						h('td', { class: 'fw-semibold text-nowrap' }, f.nombre),
-						h('td', { class: 'text-end' }, f.leads, alerta(f.sinRespuesta, 'sin atender')),
-						h('td', { class: 'text-end' }, horas(f.respuesta)),
-						h('td', { class: 'text-end' }, f.actividades, alerta(f.vencidas, f.vencidas === 1 ? 'vencida' : 'vencidas')),
-						h('td', { class: 'text-end' }, f.visitas),
-						h('td', { class: 'text-end' }, h('div', {}, f.enProceso), renglones(dineroPorMoneda(f.pipeline))),
-						h('td', { class: 'text-end' }, h('div', {}, f.cierres), renglones(dineroPorMoneda(f.montoCerrado))),
-						h('td', { class: 'text-end' }, renglones(dineroPorMoneda(redondo(f.comision))) || '—',
-							renglones(dineroPorMoneda(redondo(f.parteAsesor)), 'asesor ', 'text-muted')))))))),
+				tablaAsesores),
 			h('div', { class: 'card' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo actual de clientes'),
 				h('div', { class: 'card-body' }, embudo.map(([l, n]) => h('div', { class: 'mb-2' },

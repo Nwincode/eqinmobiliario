@@ -3,7 +3,7 @@
 // el acuerdo (solo la fecha de la exclusiva de esta casa) y sin notas internas. Lo único que escribe el dueño es su
 // respuesta al anuncio (comentariosPropietarios), que el asesor ve en la ficha de la persona.
 import { db, addDoc, collection, serverTimestamp } from './firebase.js';
-import { h, toast, showError, badge, statCard, iconoBtn, cajaTabla, formatPrice } from './ui.js';
+import { h, toast, showError, badge, statCard, iconoBtn, tablaAdmin, formatPrice } from './ui.js';
 import { ESTADOS_PROPIEDAD, OPERACIONES } from './estados.js';
 import { whatsappUrl } from './formato.js';
 import { estadoExclusiva, datosDe } from './ficha-casa.js';
@@ -148,17 +148,24 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 				})) : h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay novedades. Tu asesor las irá agregando aquí.')))),
 		tarjeta('Clientes interesados', 'icon-users',
 			h('p', { class: 'small text-muted' }, ic('icon-lock'), 'Sin nombres ni teléfonos: cada persona tiene un número, en el orden en que nos contactó.'),
-			clientes.length ? cajaTabla(h('table', { class: 'table table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Cliente', 'Cómo llegó', 'Primer contacto', 'Visitas', 'Etapa'].map((t) => h('th', {}, t)))),
-				h('tbody', {}, clientes.map((c) => {
-					const [canal, iconoCanal] = CANAL[CANALES.includes(c.canal) ? c.canal : 'otro'];
-					const [etapa, iconoEtapa, color] = ETAPA[c.etapa] || ETAPA.interesado;
-					const nv = Number(c.visitas) || 0;
-					return h('tr', {},
-						h('td', { class: 'fw-semibold' }, `Cliente ${c.n}`),
-						h('td', {}, h('span', { class: iconoCanal, title: canal, 'aria-hidden': 'true' }), ` ${canal}`),
-						h('td', { class: 'small' }, c.desde ? fecha(c.desde, true) : '—'),
-						h('td', { class: 'small' }, [nv === 0 ? 'Sin visitas' : nv === 1 ? '1 visita' : `${nv} visitas`, c.visitaProxima ? 'visita agendada' : ''].filter(Boolean).join(' · ')),
-						h('td', {}, h('span', { class: `badge text-bg-${color}` }, h('span', { class: `${iconoEtapa} me-1`, 'aria-hidden': 'true' }), etapa)));
-				})))) : h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay clientes interesados. Los verás aquí en cuanto alguien nos contacte por tu propiedad.')));
+			(() => {
+				const t = tablaAdmin({
+					tarjeta: false,
+					columnas: ['Cliente', 'Cómo llegó', 'Primer contacto', 'Visitas', 'Etapa'].map((titulo) => ({ titulo })),
+					celdas: (c) => {
+						const [canal, iconoCanal] = CANAL[CANALES.includes(c.canal) ? c.canal : 'otro'];
+						const [etapa, iconoEtapa, color] = ETAPA[c.etapa] || ETAPA.interesado;
+						const nv = Number(c.visitas) || 0;
+						return [
+							h('span', { class: 'fw-semibold' }, `Cliente ${c.n}`),
+							[h('span', { class: iconoCanal, title: canal, 'aria-hidden': 'true' }), ` ${canal}`],
+							h('span', { class: 'small' }, c.desde ? fecha(c.desde, true) : '—'),
+							h('span', { class: 'small' }, [nv === 0 ? 'Sin visitas' : nv === 1 ? '1 visita' : `${nv} visitas`, c.visitaProxima ? 'visita agendada' : ''].filter(Boolean).join(' · ')),
+							h('span', { class: `badge text-bg-${color}` }, h('span', { class: `${iconoEtapa} me-1`, 'aria-hidden': 'true' }), etapa)];
+					},
+					vacio: h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay clientes interesados. Los verás aquí en cuanto alguien nos contacte por tu propiedad.')
+				});
+				t.pintar(clientes);
+				return t;
+			})()));
 }

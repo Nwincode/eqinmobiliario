@@ -242,6 +242,38 @@ export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
 	return tarjeta ? h('div', { class: 'card overflow-hidden' }, caja) : caja;
 }
 
+// La tabla del panel: una sola pieza para toda lista en tabla (en celular y tableta, tablas.js la vuelve fichas).
+//  columnas  [{ titulo, num, cls }]: `num` alinea a la derecha (montos, cuentas); un título vacío no se anuncia.
+//  celdas    fila → [contenido de cada columna] (texto o nodos).
+//  alTocar   fila → abre su ficha: la fila entera se toca y se abre con Enter.
+//  acciones  fila → items de `menuMas` (borrar al final, con `peligro`): van en un ⋮ al final de la fila.
+//  claseFila fila → clase extra de su renglón (p. ej. la elegida, `table-active`).
+//  vacio     lo que se ve sin ningún registro (`emptyState`); sinCoincidencias: el renglón cuando un filtro no deja nada.
+// Devuelve el contenedor; `contenedor.pintar(filas, { filtrado })` lo llena (filtrado: hay búsqueda o filtros puestos).
+export function tablaAdmin({ columnas, celdas, alTocar, acciones, vacio = 'Aún no hay nada aquí.', sinCoincidencias = 'Ninguno coincide con la búsqueda o los filtros.', tarjeta = true, cls = '', titulo = () => '', claseFila = () => '' }) {
+	const tbody = h('tbody');
+	const tabla = h('table', { class: `table table-hover table-admin mb-0${cls ? ` ${cls}` : ''}` },
+		h('thead', {}, h('tr', {}, columnas.map((c) => h('th', { scope: 'col', class: [c.num ? 'text-end' : '', c.cls || ''].join(' ').trim() || null }, c.titulo || '')),
+			acciones ? h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')) : null)),
+		tbody);
+	const caja = cajaTabla(tabla, { tarjeta });
+	const contenedor = h('div', { class: 'tabla-admin' });
+	const fila = (f) => h('tr', {
+		class: [alTocar ? 'clickable' : '', claseFila(f) || ''].join(' ').trim() || null, tabindex: alTocar ? '0' : null,
+		onclick: alTocar ? (e) => { if (!e.target.closest('a, button, input, select, label, .menu-mas')) alTocar(f, e); } : null,
+		onkeydown: alTocar ? (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) alTocar(f, e); } : null
+	},
+		celdas(f).map((c, i) => h('td', { class: [columnas[i]?.num ? 'text-end text-nowrap celda-num' : '', columnas[i]?.cls || ''].join(' ').trim() || null }, c)),
+		acciones ? h('td', { class: 'text-end' }, menuMas(`Acciones${titulo(f) ? ` de ${titulo(f)}` : ''}`, acciones(f))) : null);
+	contenedor.pintar = (filas, { filtrado = false } = {}) => {
+		if (!filas.length && !filtrado) return contenedor.replaceChildren(typeof vacio === 'string' ? emptyState(vacio) : vacio);
+		tbody.replaceChildren(...(filas.length ? filas.map(fila)
+			: [h('tr', {}, h('td', { colspan: columnas.length + (acciones ? 1 : 0), class: 'text-center text-muted py-4' }, sinCoincidencias))]));
+		if (contenedor.firstChild !== caja) contenedor.replaceChildren(caja);
+	};
+	return contenedor;
+}
+
 export function downloadCsv(filename, rows) {
 	const blob = new Blob(['﻿' + textoCsv(rows)], { type: 'text/csv;charset=utf-8' });
 	const a = h('a', { href: URL.createObjectURL(blob), download: filename });

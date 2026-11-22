@@ -3,7 +3,7 @@
 // marcar lo pagado pasan por admin/js/reservas.js (lo mismo que usa Solicitudes): la reserva la ve también su dueño.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
-import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, cajaTabla, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
+import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
 import { whatsappUrl, nNoches, dineroPorMoneda } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
@@ -186,6 +186,48 @@ export async function render(container) {
 		const filtro = estado.dueno === null ? null : grupos.get(estado.dueno);
 		const visibles = filtro ? delMes.filter((r) => (duenoDeReserva(r)?.id || '') === filtro.id) : delMes;
 
+		// Estado de cuenta: tocar un propietario filtra sus reservas abajo; mandar la cuenta y marcar pagado, en su ⋮.
+		const tablaCuentas = tablaAdmin({
+			columnas: [{ titulo: 'Propietario' }, ...['Casas', 'Reservas', 'Noches', 'Ocupación', 'Por pagar', 'Pagado'].map((titulo) => ({ titulo, num: true }))],
+			celdas: (g) => {
+				const res = V.resumenReservas(g.reservas);
+				return [g.nombre, String(g.casas), String(res.reservas), String(res.noches),
+					g.casas ? `${Math.round(res.noches * 100 / (g.casas * diasDelMes(estado.mes)))} %` : '—',
+					h('span', { class: 'fw-semibold' }, dinero(res.porMoneda, 'porPagar')),
+					h('span', { class: 'text-muted' }, dinero(res.porMoneda, 'pagado'))];
+			},
+			alTocar: (g) => { estado.dueno = filtro === g ? null : g.id; pintar(); },
+			claseFila: (g) => (filtro === g ? 'table-active' : ''),
+			vacio: 'Todavía no hay casas por noche con propietario.',
+			titulo: (g) => g.nombre,
+			acciones: (g) => {
+				const res = V.resumenReservas(g.reservas);
+				const porPagar = g.reservas.filter((r) => !r.pagadoSocio);
+				return [
+					g.telefono && g.reservas.length ? { icono: 'icon-whatsapp', texto: 'Mandar estado de cuenta', href: whatsappUrl(g.telefono, mensajeCuenta(g.nombre, g.reservas, res)), target: '_blank' } : null,
+					porPagar.length ? { icono: 'icon-check', texto: 'Marcar todo como pagado', onclick: async () => {
+						if (await confirmDialog(`¿Marcar como pagadas las ${porPagar.length} reservas de ${g.nombre} (${dinero(res.porMoneda, 'porPagar')})?`, { okText: 'Marcar pagado', danger: false })) pagar(porPagar).catch(showError);
+					} } : null];
+			}
+		});
+		const tablaReservas = tablaAdmin({
+			cls: 'fichas-icono',
+			columnas: [{ titulo: 'Casa' }, { titulo: 'Fechas' }, { titulo: 'Huésped' }, { titulo: 'Estado' }, { titulo: 'Al propietario', num: true }, { titulo: 'Ganancia', num: true }],
+			celdas: (r) => {
+				const dueno = duenoDeReserva(r)?.nombre;
+				return [
+					[r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null],
+					h('span', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
+					[dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null],
+					estadoBadge(r),
+					[dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1 text-nowrap', 'Al propietario'),
+						r.estado !== 'confirmada' ? null : r.pagadoSocio ? badge('Pagado', 'success') : badge('Por pagar', 'warning')],
+					r.ganancia ? dato('icon-money', money(r.ganancia, r.moneda), '', 'Ganancia') : '—'];
+			},
+			alTocar: (r) => editar(r).catch(showError),
+			vacio: filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'
+		});
+
 		cuerpo.replaceChildren(
 			h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
 				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body text-decoration-none fs-5', 'aria-label': 'Mes anterior', onclick: () => { estado.mes = moverMes(estado.mes, -1); pintar(); } }, '‹'),
@@ -198,41 +240,12 @@ export async function render(container) {
 				stat('icon-money', 'Ganancia', dinero(total.porMoneda, 'ganancia'))),
 
 			h('h2', { class: 'h6' }, 'Estado de cuenta por propietario'),
-			h('div', { class: 'mb-4' }, cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Propietario', 'Casas', 'Reservas', 'Noches', 'Ocupación', 'Por pagar', 'Pagado', ''].map((t, i) => h('th', { scope: 'col', class: i ? 'text-end' : '' }, t)))),
-				h('tbody', {}, filas.map((g) => {
-					const res = V.resumenReservas(g.reservas);
-					const porPagar = g.reservas.filter((r) => !r.pagadoSocio);
-					return h('tr', { class: filtro === g ? 'table-active' : '', role: 'button', onclick: () => { estado.dueno = filtro === g ? null : g.id; pintar(); } },
-						h('td', {}, g.nombre),
-						h('td', { class: 'text-end' }, String(g.casas)),
-						h('td', { class: 'text-end' }, String(res.reservas)),
-						h('td', { class: 'text-end' }, String(res.noches)),
-						h('td', { class: 'text-end' }, g.casas ? `${Math.round(res.noches * 100 / (g.casas * diasDelMes(estado.mes)))} %` : '—'),
-						h('td', { class: 'text-end fw-semibold' }, dinero(res.porMoneda, 'porPagar')),
-						h('td', { class: 'text-end text-muted' }, dinero(res.porMoneda, 'pagado')),
-						h('td', { class: 'text-end text-nowrap', onclick: (e) => e.stopPropagation() },
-							g.telefono && g.reservas.length ? iconoBtn('icon-whatsapp', `Mandar estado de cuenta a ${g.nombre}`, { href: whatsappUrl(g.telefono, mensajeCuenta(g.nombre, g.reservas, res)), target: '_blank', rel: 'noopener' }) : null,
-							porPagar.length ? iconoBtn('icon-check', `Marcar todo como pagado a ${g.nombre}`, {
-								class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-success ms-1',
-								onclick: async () => {
-									if (await confirmDialog(`¿Marcar como pagadas las ${porPagar.length} reservas de ${g.nombre} (${dinero(res.porMoneda, 'porPagar')})?`, { okText: 'Marcar pagado', danger: false })) pagar(porPagar).catch(showError);
-								}
-							}) : null));
-				}))), { tarjeta: true })),
+			h('div', { class: 'mb-4' }, tablaCuentas),
 
 			h('h2', { class: 'h6' }, filtro ? `Reservas de ${filtro.nombre}` : 'Reservas del mes'),
-			visibles.length ? cajaTabla(h('table', { class: 'table table-hover table-admin fichas-icono mb-0' },
-				h('thead', {}, h('tr', {}, ['Casa', 'Fechas', 'Huésped', 'Estado', 'Al propietario', 'Ganancia'].map((t, i) => h('th', { scope: 'col', class: i > 3 ? 'text-end' : '' }, t)))),
-				h('tbody', {}, visibles.map((r) => { const dueno = duenoDeReserva(r)?.nombre; return h('tr', { role: 'button', onclick: () => editar(r).catch(showError) },
-					h('td', {}, r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null),
-					h('td', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
-					h('td', {}, dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null),
-					h('td', {}, estadoBadge(r)),
-					h('td', { class: 'text-end' }, dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1 text-nowrap', 'Al propietario'),
-						r.estado !== 'confirmada' ? null : r.pagadoSocio ? badge('Pagado', 'success') : badge('Por pagar', 'warning')),
-					h('td', { class: 'text-end text-nowrap' }, r.ganancia ? dato('icon-money', money(r.ganancia, r.moneda), '', 'Ganancia') : '—')); }))), { tarjeta: true })
-				: emptyState(filtro ? 'Este propietario no tiene reservas este mes.' : 'Todavía no hay reservas este mes.'));
+			tablaReservas);
+		tablaCuentas.pintar(filas);
+		tablaReservas.pintar(visibles);
 	}
 
 	// Bitácora: los últimos cambios que los socios hicieron en sus casas (precios, días bloqueados, mínimos).
