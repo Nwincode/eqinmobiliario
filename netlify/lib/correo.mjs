@@ -109,17 +109,27 @@ ${whatsapp ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${
 }
 
 // Tabla corta de datos (etiqueta a la izquierda, valor en negrita a la derecha): fechas, personas, total.
-export function datos(c, filas) {
+// compacto: un renglón por fila (una lista larga, p. ej. las reservas de un estado de cuenta): las dos a 14 px, el valor
+// sin negrita y sin partirse (quien llama acorta el texto para que quepa en un celular; si aun así no cabe, se parte la
+// etiqueta, nunca el valor).
+export function datos(c, filas, { compacto = false } = {}) {
 	const celda = 'font-family:Arial,Helvetica,sans-serif;padding:8px 0;border-bottom:1px solid ' + c.linea;
 	if (!filas.some((f) => f && f[1])) return '';
-	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter((f) => f && f[1]).map(([k, v]) =>
-		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v)}</td></tr>`).join('')}</table>`;
+	const [izq, der] = compacto ? [';padding-right:8px', `font-size:14px;line-height:20px;white-space:nowrap;color:${c.dark}`] : ['', `font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}`];
+	const tabla = (margen, filasHtml) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${margen}px">${filasHtml}</table>`;
+	const filasHtml = filas.filter((f) => f && f[1]).map(([k, v]) =>
+		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}${izq}">${esc(k)}</td><td align="right" style="${celda};${der}">${esc(v)}</td></tr>`);
+	// Compacto: cada fila en su tabla, para que el ancho del valor de una no le quite espacio a la etiqueta de otra.
+	return compacto ? filasHtml.map((f, i) => tabla(i === filasHtml.length - 1 ? 22 : 0, f)).join('') : tabla(22, filasHtml.join(''));
 }
+
+// Un título chico dentro del correo (el de unos pasos, el mes de un estado de cuenta).
+export const subtitulo = (c, texto, { arriba = 0, abajo = 8 } = {}) => `<p style="margin:${arriba}px 0 ${abajo}px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(texto)}</p>`;
 
 // Pasos numerados (lo que sigue, en orden).
 export function pasos(c, titulo, lista) {
 	const fuente = 'font-family:Arial,Helvetica,sans-serif';
-	return `<p style="margin:22px 0 10px;${fuente};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(titulo)}</p>
+	return `${subtitulo(c, titulo, { arriba: 22, abajo: 10 })}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${lista.map((t, i) => `<tr><td width="32" valign="top" style="padding:0 0 10px"><span style="display:inline-block;width:22px;height:22px;border-radius:11px;background:${c.primary};color:${c.white};${fuente};font-size:12px;line-height:22px;text-align:center;font-weight:bold">${i + 1}</span></td><td valign="top" style="padding:1px 0 10px;${fuente};font-size:14px;line-height:20px;color:${c.ink}">${esc(t)}</td></tr>`).join('')}</table>`;
 }
 

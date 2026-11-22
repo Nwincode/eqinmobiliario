@@ -11,12 +11,13 @@ export const QUE_CADA = { fecha: 'cada año en estas fechas', semanaSanta: 'cada
 export const MOTIVOS_BLOQUEO = ['Otra reserva', 'Mantenimiento', 'Uso propio'];
 const CALENDARIO = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' };
 
-// Un rango de fechas corto: «16 – 20 nov», «30 nov – 2 dic 2027», «28 dic 2026 – 3 ene 2027».
-export const rango = (r) => {
+// Un rango de fechas corto: «16 – 20 nov», «30 nov – 2 dic 2027», «28 dic 2026 – 3 ene 2027». El año se omite si es
+// `delAnio` (el de hoy; el estado de cuenta pasa el de su mes).
+export const rango = (r, delAnio = hoy().slice(0, 4)) => {
 	const anio = (iso) => iso.slice(0, 4);
 	if (anio(r.desde) !== anio(r.hasta)) return `${dia(r.desde)} ${anio(r.desde)} – ${dia(r.hasta)} ${anio(r.hasta)}`;
 	const base = r.desde === r.hasta ? dia(r.desde) : `${r.desde.slice(0, 7) === r.hasta.slice(0, 7) ? Number(r.desde.slice(8)) : dia(r.desde)} – ${dia(r.hasta)}`;
-	return anio(r.hasta) === hoy().slice(0, 4) ? base : `${base} ${anio(r.hasta)}`;
+	return anio(r.hasta) === delAnio ? base : `${base} ${anio(r.hasta)}`;
 };
 
 // Un precio en el texto: «US$ 1,250» o «Q 900.50» (las dos monedas de una casa).
