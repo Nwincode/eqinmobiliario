@@ -420,7 +420,8 @@ function pageHero(ctx, title, image, crumbs) {
 function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
-	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.vacHuespedes) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+	// El mismo orden e íconos que la fila de casa del panel (admin/js/ficha-casa.js `datosDe`).
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.vacHuespedes)
 		// Construcción y terreno, los dos cuando existen (en una casa el terreno pesa tanto como lo construido).
 		+ dato('construccion', p.m2Construccion && area(p.m2Construccion, lng(p)), t.fConstruccion) + dato('terreno', p.m2Terreno && areaTerreno(p.m2Terreno, lng(p)), t.fTerreno);
 }
@@ -1597,13 +1598,12 @@ export function vipLandingPage(ctx, p) {
 	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));
 	const cta = v.ctaTexto || t.agendarPrivada;
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedadesVip, url: r.vip }, { name: p.titulo, url: propertyUrl(p) }];
-	const en = ctx.lang === 'en';
 	const facts = [
 		['icon-bed', p.habitaciones, t.fHabitaciones],
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
-		['icon-construccion', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
-		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(Math.round(p.m2Terreno * M2_A_V2))} v²`), t.fTerreno],
+		['icon-construccion', p.m2Construccion && area(p.m2Construccion, ctx.lang), t.fConstruccion],
+		['icon-terreno', p.m2Terreno && areaTerreno(p.m2Terreno, ctx.lang), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 

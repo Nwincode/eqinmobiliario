@@ -6,7 +6,8 @@ import { h, badge, formatPrice } from './ui.js';
 import { miles } from './formato.js';
 import { diasExclusiva } from './acuerdo.js';
 
-// Habitaciones, baños, parqueos, huéspedes y m², cada uno con su ícono.
+// Habitaciones, baños, parqueos, huéspedes y m², cada uno con su ícono: el mismo orden e íconos que la tarjeta del
+// sitio (scripts/lib/templates.mjs `specs`). En la fila va un solo m²: el de construcción o, sin él, el de terreno.
 export function datosDe(p) {
 	const n = (v) => Number(v) > 0;
 	return [
@@ -14,8 +15,8 @@ export function datosDe(p) {
 		n(p.banos) && ['icon-bath', p.banos, 'baños'],
 		n(p.parqueos) && ['icon-car', p.parqueos, 'parqueos'],
 		p.operacion === 'vacacional' && n(p.vacacional?.huespedesMax) && ['icon-users', p.vacacional.huespedesMax, 'huéspedes'],
-		n(p.m2Construccion) ? ['icon-home', `${miles(p.m2Construccion)} m²`, 'de construcción']
-			: n(p.m2Terreno) && ['icon-arrows-alt', `${miles(p.m2Terreno)} m²`, 'de terreno']
+		n(p.m2Construccion) ? ['icon-construccion', `${miles(p.m2Construccion)} m²`, 'de construcción']
+			: n(p.m2Terreno) && ['icon-terreno', `${miles(p.m2Terreno)} m²`, 'de terreno']
 	].filter(Boolean).map(([icono, valor, que]) => h('span', { class: 'prop-dato', title: `${valor} ${que}` },
 		h('span', { class: icono, 'aria-hidden': 'true' }), ` ${valor}`, h('span', { class: 'visually-hidden' }, ` ${que}`)));
 }
