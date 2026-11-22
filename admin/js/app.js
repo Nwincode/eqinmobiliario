@@ -179,13 +179,13 @@ document.addEventListener('publish-state', refreshPublishBadge);
 document.addEventListener('pendientes', () => actualizarInsignias(true));
 
 // El aviso de dos pasos de la pantalla abierta, puesto al día sin volver a pintarla (lo que se escribía no se pierde).
-let rutaActual = '';
+let rutaActual = '', pintando = false;
 function pintarAvisoDosPasos() {
 	const view = document.getElementById('view');
 	if (!view) return;
 	const viejo = document.getElementById('aviso-dos-pasos');
 	const nuevo = avisoDosPasos(session.dosPasosPendiente, rutaActual, { user: session.user, activar: activarDosPasos });
-	if (viejo) { if (nuevo) viejo.replaceWith(nuevo); else viejo.remove(); } else if (nuevo && !view.querySelector('.spinner-border')) view.prepend(nuevo);
+	if (viejo) { if (nuevo) viejo.replaceWith(nuevo); else viejo.remove(); } else if (nuevo && !pintando) view.prepend(nuevo);
 }
 // «Activar» del aviso: la misma pantalla que al entrar (con un secreto nuevo: el de la entrada ya pudo vencer), en una
 // ventana sobre la pantalla: se cierra con la X y lo que estaba a medias sigue ahí. Si ahora falta otra cosa, el aviso lo dice.
@@ -215,6 +215,8 @@ async function route() {
 		h('span', { class: 'admin-crumb-page' }, def.label));
 	const view = document.getElementById('view');
 	const token = ++renderToken;
+	// Mientras se pinta, el aviso de dos pasos lo pone la pantalla al terminar (con lo que diga la sesión entonces).
+	pintando = true;
 	view.replaceChildren(spinner());
 	try {
 		const mod = await def.load().catch((err) => {
@@ -236,12 +238,14 @@ async function route() {
 		await mod.render(container, rest.map(decodeURIComponent));
 		if (token !== renderToken) return;
 		rutaActual = def.path;
+		pintando = false;
 		view.replaceChildren(...[avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
 		if (!session.esSocio) actualizarInsignias();
 	} catch (err) {
 		showError(err);
+		if (token === renderToken) pintando = false;
 		view.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 	}
 }
