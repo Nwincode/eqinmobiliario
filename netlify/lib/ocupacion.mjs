@@ -41,7 +41,7 @@ const RUTA = (id) => `properties/${id}/privado/icalLeido`;
 
 // { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …], sinLeer: ['Airbnb', …] }.
 // `espera`: cuánto se espera a cada plataforma (al confirmar, poco: la función de Netlify se corta a los 10 s).
-export async function externasDe(privado, casaId = '', { espera = 8000 } = {}) {
+export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 0 } = {}) {
 	const ahora = Date.now();
 	const cals = V.CALENDARIOS.filter((c) => privado?.[c.campo]);
 	let guardado;
@@ -63,19 +63,24 @@ export async function externasDe(privado, casaId = '', { espera = 8000 } = {}) {
 			return [c, rangos];
 		}
 		const g = (await deLaBase())?.[c.campo];
-		if (g && g.url === url && ahora - (Number(g.cuando) || 0) < ULTIMO) return [c, g.rangos || []];
+		// No respondió: lo último que respondió (de menos de un día), y se dice de cuándo es.
+		if (g && g.url === url && ahora - (Number(g.cuando) || 0) < ULTIMO) return [c, g.rangos || [], Number(g.cuando)];
 		return [c, null];
 	}));
+	// Lo leído se guarda para la próxima; con `hasta` (al confirmar) no se espera más allá del plazo (si no alcanza, la
+	// próxima lectura lo guarda).
 	if (casaId && Object.keys(nuevos).length && escrituraConfigurada()) {
-		await transaccion(async (tx) => { if (await tx.leer(RUTA(casaId))) tx.cambiar(RUTA(casaId), nuevos); else tx.crear(RUTA(casaId), nuevos); })
+		const guardar = transaccion(async (tx) => { if (await tx.leer(RUTA(casaId))) tx.cambiar(RUTA(casaId), nuevos); else tx.crear(RUTA(casaId), nuevos); }, 2, hasta ? Math.max(500, hasta - Date.now()) : 7000)
 			.catch((err) => console.error('Calendarios (guardar lo leído):', err.message));
+		if (hasta) await Promise.race([guardar, new Promise((ok) => setTimeout(ok, Math.max(0, hasta - Date.now())))]); else await guardar;
 	}
-	const rangos = [], fuentes = [], sinLeer = [];
-	for (const [c, r] of leidos) {
+	const rangos = [], fuentes = [], sinLeer = [], deHace = [];
+	for (const [c, r, cuando] of leidos) {
 		if (r) { rangos.push(...r.map((x) => ({ desde: x.desde, hasta: x.hasta, fuente: c.nombre }))); fuentes.push(c.nombre.toLowerCase()); }
 		else sinLeer.push(c.nombre);
+		if (r && cuando) deHace.push({ nombre: c.nombre, horas: Math.max(1, Math.round((ahora - cuando) / 3_600_000)) });
 	}
-	return { rangos, fuentes, sinLeer };
+	return { rangos, fuentes, sinLeer, deHace };
 }
 
 export async function purgarCasa(...ids) {

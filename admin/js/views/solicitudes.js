@@ -278,13 +278,16 @@ export async function render(container, [codigo] = []) {
 		await hacer(async () => {
 			try {
 				const confirmarYa = (revisado) => confirmarSolicitud(l, { ...m, moneda: montos.moneda }, { chat: chatDe(l), pago, revisado });
-				try { await confirmarYa(false); } catch (err) {
+				let hecho;
+				try { hecho = await confirmarYa(false); } catch (err) {
 					// Un calendario de Airbnb, Booking o VRBO no se pudo leer: se confirma solo si quien confirma lo revisó allá.
 					if (!err?.faltaRevisar) throw err;
 					if (!(await confirmDialog(`${err.message} ¿Ya lo revisaste y están libres?`, { okText: `Revisé ${err.faltaRevisar.join(' y ')}`, danger: false }))) return;
-					await confirmarYa(true);
+					hecho = await confirmarYa(true);
 				}
-				toast('Reserva confirmada.');
+				// Un calendario que no respondió a tiempo se revisó con su última lectura: se dice de cuándo.
+				const viejos = (hecho?.calendarios || []).map((c) => `${c.nombre} no respondió: revisé con lo de hace ${c.horas} h.`);
+				toast(['Reserva confirmada.', ...viejos].join(' '));
 			} catch (err) {
 				if (err instanceof ChoqueDeFechas || (err?.servidor && !err.yaRespondida)) toast(err.message, 'warning');
 				else throw err;

@@ -189,10 +189,13 @@
 		var sello = cuerpo.querySelector('[data-out="estado"]');
 		// El plazo de pago, en hora de Guatemala (el mismo del correo): «vie, 20 nov, 14:00».
 		var plazo = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante).
+		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante). `estadoChat`: el de
+		// ahora, para que el aviso del filtro no prometa lo que ya no toca.
+		var estadoChat = 'Pendiente';
 		function ponerEstado(ch) {
 			var valor = ch.estado;
 			var estado = { confirmada: 'Confirmada', pagada: 'Pagada', no: 'No', cancelada: 'Cancelada' }[valor] || 'Pendiente';
+			estadoChat = estado;
 			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
 			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
 			// Qué sigue: guía al cliente en cada paso sin que nadie tenga que escribirle.
@@ -392,7 +395,11 @@
 			if (tipo) {
 				var clave = 'vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1);
 				var conCamara = adjuntar && !adjuntar.hidden && t[clave + 'Pago'];
-				return alerta(conCamara ? t[clave + 'Pago'] : t[clave] || t.vacChatBloqueo);
+				// Coordenadas: la dirección llega con el pago; pagada, ya está arriba; sin reserva, un aviso sin promesa.
+				if (tipo === 'ubicacion') clave += estadoChat === 'Pagada' ? 'Pagada' : estadoChat === 'No' || estadoChat === 'Cancelada' ? 'Sin' : '';
+				// Lo raro (letras de ancho completo, otro alfabeto): se dice qué parte, si se encuentra.
+				var raro = tipo === 'raro' ? (texto.match(/[０-９Ａ-Ｚａ-ｚ＠．。｡：／﹫]+/) || [''])[0] : '';
+				return alerta(conCamara ? t[clave + 'Pago'] : raro ? fmt(t.vacChatBloqueoRaro, { parte: raro }) : t[clave] || t.vacChatBloqueo);
 			}
 			if (enviando) return;
 			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.

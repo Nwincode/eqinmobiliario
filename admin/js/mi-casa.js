@@ -25,7 +25,7 @@ const SIN_CONTACTO = 'sin teléfonos, correos, enlaces ni páginas web';
 // «Mi casa» (aquí) y el chat del panel (views/solicitudes.js).
 export const PARECE = { telefono: 'parece un teléfono', correo: 'parece un correo', red: 'parece un usuario de red social', enlace: 'parece un enlace',
 	ubicacion: 'parecen coordenadas', raro: 'tiene letras o cifras de otro alfabeto' };
-export const sinContacto = (texto) => { const tipo = V.tipoDeContacto(texto); return tipo ? `${PARECE[tipo] || SIN_CONTACTO}: ${tipo === 'ubicacion' ? 'la ubicación exacta no se publica' : 'los contactos no se publican'}` : ''; };
+export const sinContacto = (texto) => { const tipo = V.tipoDeContacto(texto); return tipo ? `${PARECE[tipo] || SIN_CONTACTO}. ${tipo === 'ubicacion' ? 'La ubicación exacta no se publica' : 'Los contactos no se publican'}` : ''; };
 // `privado`: lo que el huésped recibe al confirmar (la dirección), junto con el contacto: ahí no se filtra.
 const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
@@ -78,7 +78,7 @@ const amenidades = (v) => {
 	const lista = [...new Set(v.map((a) => String(a ?? '').trim()).filter(Boolean))];
 	if (lista.length > 40 || lista.some((a) => a.length > 60)) return { error: 'hasta 40, de 60 letras cada una' };
 	const conContacto = lista.find((a) => sinContacto(a));
-	if (conContacto) return { error: `«${conContacto}»: ${sinContacto(conContacto)}` };
+	if (conContacto) return { error: `«${conContacto}» ${sinContacto(conContacto)}` };
 	return { valor: lista };
 };
 

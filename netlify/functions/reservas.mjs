@@ -30,15 +30,25 @@ const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 // Las noches de Airbnb, Booking y VRBO de la casa de la solicitud, leídas con la cuenta de lectura fuera de la
 // transacción (los calendarios tardan). Uno que no responde y no tiene lo último leído del día (`sinLeer`) no frena la
 // confirmación, pero el socio tiene que decir que lo revisó a mano en la plataforma (`revisado`).
-// A lo más 2,5 s por plataforma: lo que no responde se avisa («Revisé…») y la confirmación cabe en los 10 s de Netlify.
-async function nochesExternas(leadId) {
+// Lo que no termina antes de `hasta` (ms) se da por `valor` (la función no se queda esperando).
+const aTiempo = (promesa, hasta, valor) => new Promise((ok) => {
+	const t = setTimeout(() => ok(valor), Math.max(0, hasta - Date.now()));
+	Promise.resolve(promesa).then((v) => { clearTimeout(t); ok(v); }, () => { clearTimeout(t); ok(valor); });
+});
+// A lo más 2,5 s por plataforma (y nunca después de `hasta`): lo que no responde se avisa («Revisé…»), con lo último
+// leído si hay (externasDe), y la confirmación cabe en los 10 s de Netlify.
+const SIN_LEER = { rangos: [], sinLeer: ['las plataformas'] };
+async function nochesExternas(leadId, hasta) {
 	try {
-		const lead = await leerPrivado(`leads/${leadId}`);
+		const lead = await aTiempo(leerPrivado(`leads/${leadId}`), hasta, undefined);
+		if (lead === undefined) return SIN_LEER;
 		if (!ID.test(lead?.propertyId || '')) return { rangos: [], sinLeer: [] };
-		return await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`), lead.propertyId, { espera: 2500 });
+		const privado = await aTiempo(leerPrivado(`properties/${lead.propertyId}/privado/socio`), hasta, undefined);
+		if (privado === undefined) return SIN_LEER;
+		return await aTiempo(externasDe(privado, lead.propertyId, { espera: Math.min(2500, hasta - Date.now()), hasta }), hasta, SIN_LEER);
 	} catch (err) {
 		console.error('Reservas: calendarios de las plataformas', err.message);
-		return { rangos: [], sinLeer: ['las plataformas'] };
+		return SIN_LEER;
 	}
 }
 export const textoSinLeer = (sinLeer) => `No pudimos leer el calendario de ${sinLeer.join(' y ')}: revisa allá que esas noches estén libres y confirma otra vez marcando «Revisé ${sinLeer.join(' y ')}».`;
@@ -176,7 +186,10 @@ async function conReserva(tx, socio, leadId) {
 // ¿La cuenta de escritura no sirve? (Google rechaza su clave, o la base le niega el permiso: falta el rol.)
 const sinCuenta = (err) => err?.rechazo || err?.codigo === 'PERMISSION_DENIED' || err?.status === 401 || err?.status === 403;
 
+// Un solo plazo para todo el pedido, desde que entra: 8,5 s (Netlify corta a los 10). Cada espera se acota con él.
+const PLAZO_MS = 8500;
 export default async (req, context) => {
+	const hasta = Date.now() + PLAZO_MS;
 	if (req.method === 'GET') {
 		let admin = null;
 		try { admin = await staffUser(req); } catch { /* token inválido */ }
@@ -200,13 +213,12 @@ export default async (req, context) => {
 	const accion = ACCIONES[cuerpo?.accion] && Object.hasOwn(ACCIONES, cuerpo.accion) ? cuerpo.accion : '';
 	const leadId = String(cuerpo?.leadId || '');
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
-	let hecho;
+	let hecho, externas;
 	try {
-		// Todo cabe en los 10 s de una función de Netlify: calendarios (≤ 2,5 s), transacción (lo que quede hasta 7 s, al menos
-		// 3 s) y, si el commit se cortó, la revisión de si quedó escrito (≤ 1,5 s).
-		const inicio = Date.now();
-		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : undefined;
-		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(3000, 7000 - (Date.now() - inicio)));
+		// Todo dentro del plazo: calendarios (≤ 2,5 s), transacción (lo que quede menos 1,5 s, al menos 2 s) y, si el commit se
+		// cortó, la revisión de si quedó escrito (≤ 1,5 s).
+		externas = accion === 'confirmar' ? await nochesExternas(leadId, hasta - 4000) : undefined;
+		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(2000, hasta - Date.now() - 1500));
 	} catch (err) {
 		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.faltaRevisar ? { faltaRevisar: err.faltaRevisar } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
@@ -215,20 +227,23 @@ export default async (req, context) => {
 		console.error('Reservas:', err.message);
 		return json(500, { error: 'No se pudo guardar. Vuelve a intentarlo.' });
 	}
-	// Los correos (al cliente y, si el socio canceló, al equipo) salen de aquí, con lo ya guardado; si fallan, lo escrito
-	// queda. Lo guardado se responde sin esperarlos cuando Netlify deja terminar trabajo después de responder
-	// (context.waitUntil); si no, se esperan antes de responder (la función sigue aunque el panel se desconecte).
+	// Lo de después (con lo ya guardado; si algo falla, lo escrito queda): cerrar las otras abiertas que se cruzan (con su
+	// correo), la purga del CDN y la marca «por publicar», y los avisos. Con context.waitUntil sigue después de responder;
+	// si no, se espera hasta el plazo y se responde. Lo que no alcanzó lo retoma el control de cada hora: los avisos
+	// (avisoPendiente) y las cruzadas (cerrarSiSeCruza en plazos-reservas.mjs).
 	const { token, casa, ...resto } = hecho;
-	// Confirmada: las otras solicitudes abiertas de la casa que se cruzan con esas fechas se cierran (con su correo).
-	if (accion === 'confirmar' && casa) {
-		const r = await leerPrivado(`reservas/${leadId}`).catch(() => null);
-		for (const t of await cerrarLasQueSeCruzan(casa, r?.llegada, r?.salida).catch((err) => { console.error('Reservas: cruzadas', err.message); return []; })) await enviarAvisosChat(t).catch(() => {});
-	}
-	// Las fechas de la casa cambiaron (también al responder una solicitud que las apartaba).
-	if (casa) await (accion === 'no' ? purgarCasa(casa) : fechasCambiaron(casa, `Reserva por noche: ${accion}`));
-	const avisos = enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });
-	if (typeof context?.waitUntil === 'function') { context.waitUntil(avisos); return json(200, { ok: true, accion, ...resto }); }
-	return json(200, { ok: true, accion, ...resto, avisos: await avisos });
+	// Un calendario que no respondió y se revisó con su última lectura: el panel lo dice («Airbnb no respondió…»).
+	if (externas?.deHace?.length) resto.calendarios = externas.deHace;
+	const despues = (async () => {
+		if (accion === 'confirmar' && casa) {
+			const r = await leerPrivado(`reservas/${leadId}`).catch(() => null);
+			for (const t of await cerrarLasQueSeCruzan(casa, r?.llegada, r?.salida).catch((err) => { console.error('Reservas: cruzadas', err.message); return []; })) await enviarAvisosChat(t).catch(() => {});
+		}
+		if (casa) await (accion === 'no' ? purgarCasa(casa) : fechasCambiaron(casa, `Reserva por noche: ${accion}`)).catch((err) => console.error('Reservas: purga', err.message));
+		return enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });
+	})();
+	if (typeof context?.waitUntil === 'function') { context.waitUntil(despues); return json(200, { ok: true, accion, ...resto }); }
+	return json(200, { ok: true, accion, ...resto, avisos: await aTiempo(despues, hasta, 'pendientes') });
 };
 
 export const config = { path: '/api/reservas' };
