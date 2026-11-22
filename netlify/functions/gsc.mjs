@@ -20,7 +20,8 @@ export async function resumen(prop, dias) {
 		consulta(prop, { ...anterior }),
 		consulta(prop, { ...actual, dimensions: ['date'], rowLimit: 500 }),
 		consulta(prop, { ...actual, dimensions: ['query'], rowLimit: 100 }),
-		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 100 }),
+		// 1,000 páginas en los dos periodos: con menos, una que solo salió de la lista se vería con 0 clics («Páginas que bajaron»).
+		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 1000 }),
 		consulta(prop, { ...actual, dimensions: ['country'], rowLimit: 10 }),
 		consulta(prop, { ...actual, dimensions: ['device'], rowLimit: 5 }),
 		consulta(prop, { ...actual, dimensions: ['query', 'page'], rowLimit: 2000 }),
@@ -42,7 +43,7 @@ export async function resumen(prop, dias) {
 		.slice(0, 40);
 
 	// Páginas que bajaron frente al periodo anterior (la misma regla que el informe semanal).
-	const caidas = bajaron(paginas, await consulta(prop, { ...anterior, dimensions: ['page'], rowLimit: 100 }), 10);
+	const caidas = bajaron(paginas, await consulta(prop, { ...anterior, dimensions: ['page'], rowLimit: 1000 }), 10);
 
 	return { propiedad: prop, rango: actual, totales: totales[0] || fila({}), previos: previos[0] || fila({}), porDia, consultas, paginas, paises, dispositivos, oportunidades, caidas, consultasUsa };
 }

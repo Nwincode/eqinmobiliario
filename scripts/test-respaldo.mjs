@@ -29,8 +29,8 @@ await t('apagada sin REVISAR_RESPALDO=si: no anota nada', async () => {
 });
 
 process.env.REVISAR_RESPALDO = 'si';
-await t('respaldo de hace 20 h (y uno de otra base, más nuevo, que no cuenta): ok, con PITR', async () => {
-	respaldos = [{ database: BASE, state: 'READY', snapshotTime: hace(20) }, { database: 'projects/eqinmobiliariobd/databases/otra', state: 'READY', snapshotTime: hace(1) }, { database: BASE, state: 'CREATING', snapshotTime: hace(2) }];
+await t('respaldo de hace 20 h, con el número del proyecto en el nombre (y uno de otra base, más nuevo, que no cuenta): ok, con PITR', async () => {
+	respaldos = [{ database: 'projects/123456789/databases/(default)', state: 'READY', snapshotTime: hace(20) }, { database: 'projects/eqinmobiliariobd/databases/otra', state: 'READY', snapshotTime: hace(1) }, { database: BASE, state: 'CREATING', snapshotTime: hace(2) }];
 	await respaldo();
 	const e = leer('estado/respaldo');
 	assert.equal(e.ok, true);

@@ -1,7 +1,7 @@
 # Respaldo y restauración de la base
 
 La base (Firestore, proyecto `eqinmobiliariobd`) guarda casas, reservas, clientes y chats. Dos protecciones, que se
-activan una sola vez y cuestan algo de almacenamiento en Google Cloud:
+activan una sola vez y cuestan algo de almacenamiento en Google Cloud (el proyecto debe tener la facturación activa):
 
 - **Volver a cualquier minuto de los últimos 7 días** (PITR, recuperación a un punto en el tiempo).
 - **Una copia diaria** que se guarda 14 días.
@@ -20,8 +20,8 @@ No entran en estos respaldos las **fotos** (Storage) ni las **cuentas para entra
    gcloud firestore backups schedules create --database='(default)' --recurrence=daily --retention=14d
    ```
 3. Comprueba: `gcloud firestore databases describe` dice `pointInTimeRecoveryEnablement: POINT_IN_TIME_RECOVERY_ENABLED`,
-   y `gcloud firestore backups schedules list --database='(default)'` muestra la copia diaria. La primera copia sale
-   en las siguientes 24 horas (Google no deja elegir la hora).
+   y `gcloud firestore backups schedules list --database='(default)'` muestra la copia diaria. Google no deja elegir
+   la hora de la copia (que la primera salga en las siguientes 24 horas: sin comprobar).
 
 En la consola también se ve en Firestore → la base `(default)` → **Recuperación ante desastres** (nombre del menú sin
 comprobar). La copia se puede guardar hasta 14 semanas (`--retention=14w`); más días, más costo.
@@ -31,8 +31,11 @@ comprobar). La copia se puede guardar hasta 14 semanas (`--retention=14w`); más
 La función `respaldo-diario` revisa cada mañana que haya una copia de menos de 48 horas y lo anota en
 `estado/respaldo` (para «Estado del sistema»). Para prenderla:
 
-1. Dale a la cuenta de servicio de lectura (la de `GOOGLE_SA_EMAIL` en Netlify) el rol para **ver** respaldos, en
-   Cloud Shell (cambia `CORREO` por ese correo):
+1. Revisa si la cuenta de servicio de lectura (la de `GOOGLE_SA_EMAIL` en Netlify, con el rol «Cloud Datastore
+   Viewer») ya puede ver los respaldos: `gcloud iam roles describe roles/datastore.viewer | grep backups`. Si sale
+   `datastore.backups.list`, salta al paso 2 (según las búsquedas no lo incluye: sin comprobar). Si no sale, dale el
+   rol para **ver** respaldos (`roles/datastore.backupsViewer`, «Cloud Datastore Backups Viewer»: nombre sin
+   comprobar), en Cloud Shell (cambia `CORREO` por ese correo):
 
    ```
    gcloud projects add-iam-policy-binding eqinmobiliariobd --member=serviceAccount:CORREO --role=roles/datastore.backupsViewer
@@ -60,7 +63,7 @@ gcloud firestore databases restore --source-backup=NAME --destination-database=r
 gcloud firestore databases clone --source-database='projects/eqinmobiliariobd/databases/(default)' --snapshot-time=2026-11-20T15:00:00Z --destination-database=recuperada
 ```
 
-Tarda de minutos a una hora según el tamaño. Después:
+Tarda según el tamaño de la base (cuánto, sin comprobar). Después:
 
 1. **Se revisa** `recuperada` en la consola (Firestore → elegir la base `recuperada`) y se confirma que tiene lo que se
    perdió.
@@ -88,6 +91,7 @@ de Google (no se pudieron abrir desde aquí; datos tomados de sus resúmenes):
   semanal por base, hora no elegible, retención hasta 14 semanas, se restaura a una base nueva.
 - [Usar PITR](https://cloud.google.com/firestore/docs/use-pitr) y [qué es PITR](https://cloud.google.com/firestore/docs/pitr):
   7 días con PITR (1 hora sin él), al minuto, con costo de almacenamiento.
-- [Roles de Firestore](https://cloud.google.com/firestore/docs/security/iam): `roles/datastore.backupsViewer` ve las
-  copias; `roles/datastore.viewer` no las incluye.
-- [Exportar e importar](https://cloud.google.com/firestore/docs/manage-data/export-import).
+- [IAM de Firestore](https://firebase.google.com/docs/firestore/security/iam): `roles/datastore.backupsViewer` ve las
+  copias; según los resúmenes, `roles/datastore.viewer` no las incluye (sin comprobar: por eso el paso de la sección 2).
+- Exportar e importar: solo la ayuda de `gcloud firestore export --help` e `import --help`; la página de Google no se
+  consultó.

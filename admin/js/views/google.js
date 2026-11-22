@@ -279,5 +279,7 @@ export async function render(container) {
 		datos,
 		h('div', { class: 'row g-0' }, h('div', { class: 'col-12' }, inspector()), h('div', { class: 'col-12' }, revisionInventario(props))));
 	cargar();
-	if (session.isAdmin) informeSemanal().then((x) => semanal.replaceChildren(...(x ? [x] : []))).catch((err) => semanal.replaceChildren(h('div', { class: 'alert alert-warning' }, err.message)));
+	if (session.isAdmin) informeSemanal().then((x) => semanal.replaceChildren(...(x ? [x] : []))).catch((err) => semanal.replaceChildren(h('div', { class: 'alert alert-warning' },
+		// Sin las reglas nuevas publicadas en Firebase, la base no deja leer el informe.
+		err.code === 'permission-denied' ? 'El informe semanal se verá cuando se publiquen las reglas nuevas de Firestore.' : err.message)));
 }

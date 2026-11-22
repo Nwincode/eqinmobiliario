@@ -102,4 +102,30 @@ await t('Search Console falla: queda el informe con el motivo; si luego corre bi
 	assert.equal(S.docs.size, 1, 'un solo informe por día');
 });
 
+await t('una semana con error o sin sitemap no borra la indexación: se toma el último informe que la tiene', async () => {
+	const V = globalThis.EQVacacional, hoy = V.hoy();
+	const lista = [{ url: `${SITIO}/`, veredicto: 'PASS', cobertura: 'Enviada e indexada', cuando: V.sumarDias(hoy, -14) }];
+	poner(`seoSemanal/${V.sumarDias(hoy, -14)}`, { fecha: V.sumarDias(hoy, -14), indexacion: lista });
+	poner(`seoSemanal/${V.sumarDias(hoy, -7)}`, { fecha: V.sumarDias(hoy, -7), error: 'Backend Error' });
+	globalThis.fetch = async (url, op) => (String(url).endsWith('/sitemap.xml') ? new Response('', { status: 503 }) : google(url, op));
+	inspeccionadas = []; cuotaTras = Infinity;
+	await seoSemanal();
+	const d = leer(`seoSemanal/${hoy}`);
+	assert.deepEqual(d.indexacion, lista);
+	assert.equal(inspeccionadas.length, 0);
+	assert.match(d.errorIndexacion, /sitemap/);
+	globalThis.fetch = async (url, op) => google(url, op);
+});
+
+await t('«Páginas que bajaron» en vivo pide 1,000 páginas de cada periodo (con 100, una que salió de la lista se veía con 0 clics)', async () => {
+	const pedidos = [];
+	globalThis.fetch = async (url, op) => { if (String(url).includes('searchAnalytics')) pedidos.push(JSON.parse(op.body)); return google(url, op); };
+	const { resumen } = await import('../netlify/functions/gsc.mjs');
+	await resumen('sc-domain:eqinmobiliario.gt', 28);
+	const paginas = pedidos.filter((b) => (b.dimensions || []).join() === 'page');
+	assert.equal(paginas.length, 2);
+	assert.ok(paginas.every((b) => b.rowLimit === 1000));
+	globalThis.fetch = async (url, op) => google(url, op);
+});
+
 console.log(`\n${ok} pruebas del informe semanal pasan.`);

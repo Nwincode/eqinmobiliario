@@ -11,7 +11,6 @@ import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mj
 
 const PROYECTO = siteConfig.firebase.projectId;
 const ADMIN = `https://firestore.googleapis.com/v1/projects/${PROYECTO}`;
-const BASE = `projects/${PROYECTO}/databases/(default)`;
 // La copia diaria no sale a la misma hora cada día: con 48 h no hay falsas alarmas y un día sin copia sí se ve.
 export const HORAS_MAXIMAS = 48;
 
@@ -26,7 +25,8 @@ async function pedir(token, url) {
 export async function revisarRespaldo() {
 	const token = await googleToken(SCOPE_DATOS);
 	const { backups = [] } = await pedir(token, `${ADMIN}/locations/-/backups`);
-	const listos = backups.filter((b) => b.database === BASE && b.state === 'READY' && b.snapshotTime).sort((a, b) => Date.parse(b.snapshotTime) - Date.parse(a.snapshotTime));
+	// La base se reconoce por el final del nombre: Google puede responder con el número del proyecto en vez de su id.
+	const listos = backups.filter((b) => b.database?.endsWith('/databases/(default)') && b.state === 'READY' && b.snapshotTime).sort((a, b) => Date.parse(b.snapshotTime) - Date.parse(a.snapshotTime));
 	const ultimo = listos[0] ? new Date(listos[0].snapshotTime) : null;
 	const pitr = await pedir(token, `${ADMIN}/databases/(default)`).then((d) => d.pointInTimeRecoveryEnablement === 'POINT_IN_TIME_RECOVERY_ENABLED').catch(() => null);
 	const horas = ultimo ? (Date.now() - ultimo.getTime()) / 3600_000 : Infinity;

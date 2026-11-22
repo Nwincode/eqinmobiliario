@@ -15,20 +15,22 @@ import { bajaron, nuevas, porRevisar, indexacionAlDia } from '../lib/seo-semanal
 
 const V = globalThis.EQVacacional;
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
-const PLAZO_REVISION = 18_000; // lo que se dedica a la indexación; lo demás (consultas, guardar) cabe en los 30 s
+// Desde la entrada: a los 15 s no empieza otra tanda y cada tanda se corta a los 18 s; con guardar (7 s) cabe en los 30 s.
+const PLAZO_REVISION = 15_000;
+const ESPERA_TANDA = 3_000;
 const A_LA_VEZ = 5;
 const TOPE_REVISION = 400; // por semana: deja cuota de sobra al panel
 const TOPE_SITEMAP = 2000; // el informe no se acerca al límite de 1 MiB de un documento
 
-// Revisa en Google las páginas en orden, de A_LA_VEZ en A_LA_VEZ, hasta `hasta` (ms). Si Google dice que no hay cuota
-// o permiso, para y lo deja dicho en `error`.
+// Revisa en Google las páginas en orden, de A_LA_VEZ en A_LA_VEZ, hasta `hasta` (ms); la que no responde a tiempo queda
+// para la próxima. Si Google dice que no hay cuota o permiso, para y lo deja dicho en `error`.
 async function revisar(prop, urls, hasta, hoy) {
 	const revisadas = [];
 	let error = '';
 	for (let i = 0; i < urls.length && Date.now() < hasta && !error; i += A_LA_VEZ) {
 		await Promise.all(urls.slice(i, i + A_LA_VEZ).map(async (url) => {
 			try {
-				const r = await inspeccionarGSC(prop, url);
+				const r = await Promise.race([inspeccionarGSC(prop, url), new Promise((_, no) => setTimeout(() => no(new Error('tarde')), Math.max(0, hasta + ESPERA_TANDA - Date.now())).unref?.())]);
 				revisadas.push({ url, veredicto: r.veredicto || '', cobertura: r.cobertura || '', cuando: hoy });
 			} catch (err) {
 				if (err.status === 429 || err.falta) error ||= err.message;
@@ -52,13 +54,17 @@ export async function informeSemanal() {
 		consultaGSC(prop, { ...anterior, dimensions: ['query'], rowLimit: 5000 })
 	]);
 
-	// La indexación de la última vez (informes de las últimas 5 semanas: no se lista la colección entera).
-	const ultimo = (await consultar('seoSemanal', 'fecha', V.sumarDias(hoy, -35), { tope: 10 })).filter((d) => d.fecha < hoy).at(-1);
+	// La indexación del último informe que la tiene (de las últimas 5 semanas: no se lista la colección entera; uno que
+	// solo guardó un error no la borra).
+	const ultimo = (await consultar('seoSemanal', 'fecha', V.sumarDias(hoy, -35), { tope: 10 })).filter((d) => d.fecha < hoy && Array.isArray(d.indexacion)).at(-1);
 	const anteriores = ultimo?.indexacion || [];
 	const sitemap = await fetch(`${SITE_URL}/sitemap.xml`).then((r) => (r.ok ? r.text() : '')).catch(() => '');
+	// Sin sitemap no se revisa nada y queda la lista de la última vez.
 	const urls = urlsDelSitemap(sitemap, SITE_URL).slice(0, TOPE_SITEMAP);
-	const { revisadas, error } = await revisar(prop, porRevisar(urls, anteriores).slice(0, TOPE_REVISION), inicio + PLAZO_REVISION, hoy);
-	const indexacion = indexacionAlDia(urls, anteriores, revisadas);
+	const { revisadas, error } = urls.length
+		? await revisar(prop, porRevisar(urls, anteriores).slice(0, TOPE_REVISION), inicio + PLAZO_REVISION, hoy)
+		: { revisadas: [], error: 'No se pudo leer el sitemap.' };
+	const indexacion = urls.length ? indexacionAlDia(urls, anteriores, revisadas) : anteriores;
 
 	const vacio = { clics: 0, impresiones: 0, ctr: 0, posicion: 0 };
 	const sinClaves = (r) => ({ clics: r.clics, impresiones: r.impresiones, ctr: r.ctr, posicion: r.posicion });
@@ -72,8 +78,8 @@ export async function informeSemanal() {
 		nuevas: nuevas(consultas, consultasAntes),
 		indexacion,
 		revisadasHoy: revisadas.length,
-		paginasSitemap: urls.length,
-		sinRevisar: urls.length - indexacion.length,
+		paginasSitemap: urls.length || anteriores.length,
+		sinRevisar: urls.length ? urls.length - indexacion.length : 0,
 		errorIndexacion: error,
 		error: ''
 	};
