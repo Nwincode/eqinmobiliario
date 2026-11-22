@@ -45,6 +45,12 @@ await t('en la ficha: solo lo que cambió, en palabras, con el dueño por su nom
 		{ campo: 'Margen de EQ', antes: '20 %', despues: '25 %' }]);
 });
 
+await t('permisos de un socio: con el nombre de su interruptor (no «para todos») y «Devueltos hasta que pague»', () => {
+	const d = diferencias({ antes: fotoPropietario({}), despues: fotoPropietario({ permisos: { precios: false, devolver: true } }) });
+	assert.deepEqual(d, [{ campo: 'Permisos', antes: 'los de todos', despues: 'Precios y temporadas no, Devueltos hasta que pague' }]);
+	assert.equal(diferencias({ antes: fotoPropietario({ permisos: { devolver: true } }), despues: fotoPropietario({ permisos: { devolver: false } }) })[0].despues, 'los de todos');
+});
+
 await t('el servidor anota en la misma transacción, con la hora del servidor; sin cambio, nada', async () => {
 	await transaccion(async (tx) => {
 		assert.equal(anotarEnTx(tx, { tipo: 'reserva', objeto: 'r1', casa: 'c1', antes: { revisadoAMano: [] }, despues: { revisadoAMano: [] } }), null);

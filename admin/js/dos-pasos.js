@@ -11,9 +11,12 @@ import { h, errorMessage } from './ui.js';
 const ESPERA_QR = '/admin/vendor/qrcode-generator-1.4.4.js';
 const EMISOR = 'Equipo Inmobiliario';
 
-const campoCodigo = (id) => h('input', { class: 'form-control form-control-lg text-center dos-pasos-codigo', id, type: 'text', inputmode: 'numeric',
-	autocomplete: 'one-time-code', pattern: '[0-9]{6}', maxlength: 6, required: true, 'aria-describedby': `${id}-ayuda` });
 const soloCifras = (v) => String(v || '').replace(/\D/g, '').slice(0, 6);
+// Sin maxlength: un código pegado como «123 456» (así lo copian varias apps) se cortaría en «123 45»; al escribir o
+// pegar quedan solo sus 6 cifras.
+const campoCodigo = (id) => h('input', { class: 'form-control form-control-lg text-center dos-pasos-codigo', id, type: 'text', inputmode: 'numeric',
+	autocomplete: 'one-time-code', pattern: '[0-9]{6}', required: true, 'aria-describedby': `${id}-ayuda`,
+	oninput: (e) => { const v = soloCifras(e.currentTarget.value); if (v !== e.currentTarget.value) e.currentTarget.value = v; } });
 const mensajeDe = (err) => (['auth/invalid-verification-code', 'auth/totp-challenge-timeout', 'auth/missing-code'].includes(err?.code)
 	? 'Ese código no sirve o ya cambió: escribe el que muestra la app ahora.' : errorMessage(err));
 

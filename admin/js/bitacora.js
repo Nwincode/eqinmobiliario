@@ -8,6 +8,8 @@
 //  - permisos: los interruptores de todos los socios (settings/permisosSocios).
 //  - reserva: «Revisé Airbnb…» (revisadoAMano) al confirmar sin poder leer el calendario.
 // Las fotos usan los mismos valores por omisión que las reglas: si se cambia una, se cambian las dos.
+import { PERMISOS } from './permisos-socio.js';
+
 export const MARGEN_POR_OMISION = 20;
 const de = (o, k, d) => (o && o[k] !== undefined && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : d);
 
@@ -42,13 +44,16 @@ const NOMBRES = {
 	tarifas: 'Temporadas', margen: 'Margen de EQ', datosPago: 'Datos de pago', permisos: 'Permisos', precios: 'Precios y temporadas (todos)',
 	fechas: 'Bloquear fechas (todos)', casa: '«La casa» (todos)', revisadoAMano: 'Revisó a mano'
 };
+const DE_UN_SOCIO = Object.fromEntries(PERMISOS.map(([c, nombre]) => [c, nombre]));
 export function diferencias(e, { nombreDe = (x) => x, dinero = (n) => String(n), fecha = (f) => f } = {}) {
 	const texto = (k, v) => {
 		if (k === 'propietarioId') return v ? nombreDe(v) : 'sin dueño';
 		if (k === 'margen') return `${v} %`;
 		if (['limpieza', 'precioBase', 'precioFinde'].includes(k)) return Number(v) ? dinero(Number(v)) : '—';
 		if (k === 'tarifas') return Array.isArray(v) && v.length ? v.map((t) => `${fecha(t.desde)} – ${fecha(t.hasta)}: ${dinero(Number(t.precio))}`).join('; ') : 'ninguna';
-		if (k === 'permisos') return Object.entries(v || {}).filter(([, x]) => x === false || x === true).map(([c, x]) => `${NOMBRES[c] || c} ${x ? 'sí' : 'no'}`).join(', ') || 'los de todos';
+		// Los de un socio (propietarios/{id}.permisos), con los nombres de sus interruptores; «devolver» solo cuando está puesto.
+		if (k === 'permisos') return Object.entries(v || {}).filter(([c, x]) => (c === 'devolver' ? x === true : x === false || x === true))
+			.map(([c, x]) => (c === 'devolver' ? 'Devueltos hasta que pague' : `${DE_UN_SOCIO[c] || c} ${x ? 'sí' : 'no'}`)).join(', ') || 'los de todos';
 		if (k === 'revisadoAMano') return Array.isArray(v) && v.length ? v.join(' y ') : '—';
 		if (typeof v === 'boolean') return v ? 'encendido' : 'apagado';
 		return v === '' || v == null ? '(vacío)' : String(v);
