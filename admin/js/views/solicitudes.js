@@ -22,9 +22,11 @@ import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
 
 const V = window.EQVacacional;
-// Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno.
+// Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno. `vista`: la pantalla de
+// Solicitudes abierta ahora (si se salió y se volvió mientras subía, al terminar se pone al día esa, no la de antes).
 const SUBIENDO = new Set();
 const LIMITE_SUBIDA = 90_000;
+const vista = { pintar: () => {}, recargar: () => {} };
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 // Atraso de la comisión, según V.nivelComision().
 const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
@@ -236,6 +238,7 @@ export async function render(container, [codigo] = []) {
 	// Con el piso de EQ (conPisoDeEq): lo que muestra la tarjeta es lo que se registra al confirmar.
 	const montosDe = (l) => { const m = congelados[l.id] || montosCotizados(l.reserva, casaDe(l.propertyId), netos[l.propertyId]); return m && conPisoDeEq(m); };
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
+	vista.recargar = () => (container.isConnected ? recargar() : undefined);
 	// Lo que el servidor ya tenía hecho (otra pestaña, o un intento cuya respuesta se perdió): se recarga, sin error.
 	const hacer = async (tarea) => {
 		try { await tarea(); avisarAvisos(); await recargar(); } catch (err) {
@@ -326,7 +329,7 @@ export async function render(container, [codigo] = []) {
 			const foto = archivo.files[0];
 			if (!foto || SUBIENDO.has(res.id)) return;
 			SUBIENDO.add(res.id);
-			pintar();
+			vista.pintar();
 			let url;
 			try {
 				let vence;
@@ -336,11 +339,13 @@ export async function render(container, [codigo] = []) {
 				const red = err?.code === 'subida/lenta' || /^storage\/(retry-limit-exceeded|canceled|unknown)$/.test(err?.code || '') || err?.code === 'auth/network-request-failed';
 				toast(red ? 'No se pudo subir el comprobante: la conexión está lenta o se cortó. Vuelve a intentarlo.' : `No se pudo subir el comprobante: ${errorMessage(err)}`, 'warning');
 				SUBIENDO.delete(res.id);
-				return pintar();
+				return vista.pintar();
 			}
-			// Apagado hasta que la reserva lo registra; después la pantalla se repinta con lo guardado.
-			await hacer(async () => { try { await ponerComprobante(res, url); } finally { SUBIENDO.delete(res.id); } toast('Comprobante enviado.'); });
-			pintar();
+			// Apagado hasta que la reserva lo registra; después la pantalla abierta se repinta con lo guardado.
+			try { await ponerComprobante(res, url); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
+			SUBIENDO.delete(res.id);
+			vista.pintar();
+			await vista.recargar();
 		} });
 		archivo.click();
 	}
@@ -508,7 +513,7 @@ export async function render(container, [codigo] = []) {
 
 	const lista = h('div', {});
 	const filtro = { socio: '', estado: '' };
-	const pintar = () => {
+	const pintar = vista.pintar = () => {
 		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
 	};

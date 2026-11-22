@@ -90,8 +90,9 @@ async function qrDe(url) {
 }
 
 // Pantalla para inscribir el teléfono: QR (en computadora), botón que abre la app (en el teléfono) y la clave para
-// escribirla a mano; después, el código. Resuelve al quedar inscrito.
-export async function pantallaInscribir(user, secreto, mostrar) {
+// escribirla a mano; después, el código. Resuelve al quedar inscrito. `enVentana`: abierta desde el aviso, en una ventana
+// sobre la pantalla (sin su título ni «Cerrar sesión»: la ventana tiene los suyos y lo que estaba a medias no se pierde).
+export async function pantallaInscribir(user, secreto, mostrar, { enVentana = false } = {}) {
 	const url = secreto.generateQrCodeUrl(user.email || 'administrador', EMISOR);
 	const qr = await qrDe(url).catch(() => null);
 	return new Promise((listo) => {
@@ -99,7 +100,7 @@ export async function pantallaInscribir(user, secreto, mostrar) {
 		const msg = h('div', { class: 'small text-danger mt-2', role: 'alert' });
 		const btn = h('button', { class: 'btn btn-primary w-100 mt-3', type: 'submit' }, 'Activar');
 		mostrar(
-			h('h1', { class: 'h5 mb-2' }, 'Verificación en dos pasos'),
+			enVentana ? null : h('h1', { class: 'h5 mb-2' }, 'Verificación en dos pasos'),
 			h('p', { class: 'small text-muted' }, 'Tu cuenta maneja el dinero de todos: al entrar te pediremos también un código de tu teléfono.'),
 			h('ol', { class: 'small ps-3 mb-3' },
 				h('li', {}, 'Instala Google Authenticator (o la app de códigos que uses).'),
@@ -118,27 +119,31 @@ export async function pantallaInscribir(user, secreto, mostrar) {
 					listo(true);
 				} catch (err) { msg.textContent = mensajeDe(err); btn.disabled = false; codigo.select(); }
 			} }, h('label', { class: 'form-label small', for: 'codigo-inscribir' }, 'Código de la app'), codigo, h('div', { id: 'codigo-inscribir-ayuda', class: 'visually-hidden' }, '6 cifras'), btn, msg),
-			h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => signOut(auth) }, 'Cerrar sesión'));
+			enVentana ? null : h('button', { type: 'button', class: 'btn btn-link btn-sm w-100 mt-2', onclick: () => signOut(auth) }, 'Cerrar sesión'));
 	});
 }
 
 // Lo que dice el panel mientras falta: `pendiente`, lo que resulta de revisarDosPasos (pendienteDe). Lo del
 // administrador mismo va en cada pantalla; que el proyecto no lo tenga activado, solo en Inicio.
-// Sin red no se sabe: no se dice nada (en la próxima entrada se vuelve a revisar).
-export const pendienteDe = (r) => (r === 'listo' || r?.sinActivar === 'auth/network-request-failed' ? '' : r === 'verificar' || r === 'reentrar' ? r : r?.secreto ? 'inscribir' : 'activar');
+// Sin red, con demasiados intentos o un error de Firebase no se sabe: no se dice nada (en la próxima entrada se vuelve a
+// revisar). Cualquier otro rechazo se toma como «el proyecto no lo tiene encendido».
+const NO_SE_SABE = ['auth/network-request-failed', 'auth/too-many-requests', 'auth/internal-error', 'auth/timeout'];
+export const pendienteDe = (r) => (r === 'listo' || NO_SE_SABE.includes(r?.sinActivar) ? '' : r === 'verificar' || r === 'reentrar' ? r : r?.secreto ? 'inscribir' : 'activar');
 export function avisoDosPasos(pendiente, ruta, { user, activar }) {
 	if (!pendiente || (pendiente === 'activar' && ruta !== 'inicio')) return null;
-	const caja = (...hijos) => h('div', { id: 'aviso-dos-pasos', class: 'alert alert-warning small d-flex flex-wrap align-items-center gap-2', role: 'status' }, h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ...hijos);
-	if (pendiente === 'verificar') return caja(h('span', {}, `Confirma tu correo (${user.email}) para activar la verificación en dos pasos.`), botonVerificar(user));
-	if (pendiente === 'inscribir') return caja(h('span', {}, 'Activa la verificación en dos pasos: tu cuenta maneja el dinero de todos.'),
-		h('button', { type: 'button', class: 'btn btn-sm btn-warning ms-auto', onclick: (e) => { e.currentTarget.disabled = true; activar(); } }, 'Activar'));
-	if (pendiente === 'reentrar') return caja(h('span', {}, 'Para activar la verificación en dos pasos, Firebase pide que hayas entrado hace poco: cierra sesión y vuelve a entrar.'));
-	return caja(h('span', {}, 'Falta encender la verificación en dos pasos en Firebase (Identity Platform).'),
-		h('a', { class: 'btn btn-sm btn-warning ms-auto', href: `https://console.firebase.google.com/project/${encodeURIComponent(firebaseConfig.projectId || '')}/authentication/settings`, target: '_blank', rel: 'noopener' }, 'Abrir Firebase'));
+	// El candado va con el texto (en el celular no queda solo en su renglón); el botón, a la derecha o debajo.
+	const caja = (texto, boton = null) => h('div', { id: 'aviso-dos-pasos', class: 'alert alert-warning small d-flex flex-wrap align-items-center gap-2', role: 'status' },
+		h('span', { class: 'me-auto' }, h('span', { class: 'icon-lock me-1', 'aria-hidden': 'true' }), texto), boton);
+	if (pendiente === 'verificar') return caja(`Confirma tu correo (${user.email}) para activar la verificación en dos pasos.`, botonVerificar(user));
+	if (pendiente === 'inscribir') return caja('Activa la verificación en dos pasos: tu cuenta maneja el dinero de todos.',
+		h('button', { type: 'button', class: 'btn btn-sm btn-warning', onclick: (e) => { e.currentTarget.disabled = true; activar(e.currentTarget); } }, 'Activar'));
+	if (pendiente === 'reentrar') return caja('Para activar la verificación en dos pasos, Firebase pide que hayas entrado hace poco: cierra sesión y vuelve a entrar.');
+	return caja('Falta encender la verificación en dos pasos en Firebase (Identity Platform).',
+		h('a', { class: 'btn btn-sm btn-warning', href: `https://console.firebase.google.com/project/${encodeURIComponent(firebaseConfig.projectId || '')}/authentication/settings`, target: '_blank', rel: 'noopener' }, 'Abrir Firebase'));
 }
 
 // Firebase pide el correo confirmado antes del segundo paso: el botón del aviso que manda el correo para confirmarlo.
-export const botonVerificar = (user) => h('button', { type: 'button', class: 'btn btn-sm btn-warning ms-auto', onclick: async (e) => {
+export const botonVerificar = (user) => h('button', { type: 'button', class: 'btn btn-sm btn-warning', onclick: async (e) => {
 	const b = e.currentTarget;
 	b.disabled = true;
 	try { await sendEmailVerification(user); b.textContent = 'Te lo mandamos'; } catch (err) { b.disabled = false; b.textContent = errorMessage(err); }

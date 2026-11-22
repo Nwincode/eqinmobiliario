@@ -3,7 +3,7 @@ import {
 	configured, firebaseConfig, auth, db, onAuthStateChanged, signOut,
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
-import { h, toast, showError, errorMessage, spinner } from './ui.js';
+import { h, toast, showError, errorMessage, spinner, modal } from './ui.js';
 import { correoContrasena, pedirContrasena } from './contrasena.js';
 import { MIN_CLAVE, conOjo, debilidad, filtrada, revisionEnVivo } from './clave.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
@@ -178,16 +178,29 @@ async function refreshPublishBadge() {
 document.addEventListener('publish-state', refreshPublishBadge);
 document.addEventListener('pendientes', () => actualizarInsignias(true));
 
-// «Activar» del aviso: la misma pantalla que al entrar (con un secreto nuevo: el de la entrada ya pudo vencer). Al quedar
-// inscrito vuelve el panel; si ahora falta otra cosa, el aviso lo dice.
-async function activarDosPasos() {
+// El aviso de dos pasos de la pantalla abierta, puesto al día sin volver a pintarla (lo que se escribía no se pierde).
+let rutaActual = '';
+function pintarAvisoDosPasos() {
+	const view = document.getElementById('view');
+	if (!view) return;
+	const viejo = document.getElementById('aviso-dos-pasos');
+	const nuevo = avisoDosPasos(session.dosPasosPendiente, rutaActual, { user: session.user, activar: activarDosPasos });
+	if (viejo) { if (nuevo) viejo.replaceWith(nuevo); else viejo.remove(); } else if (nuevo && !view.querySelector('.spinner-border')) view.prepend(nuevo);
+}
+// «Activar» del aviso: la misma pantalla que al entrar (con un secreto nuevo: el de la entrada ya pudo vencer), en una
+// ventana sobre la pantalla: se cierra con la X y lo que estaba a medias sigue ahí. Si ahora falta otra cosa, el aviso lo dice.
+async function activarDosPasos(boton) {
 	try {
 		const r = await revisarDosPasos(session.user);
-		if (r.secreto) await pantallaInscribir(session.user, r.secreto, mostrarTarjeta);
-		session.dosPasosPendiente = r.secreto ? '' : pendienteDe(r);
-		if (r.secreto) { shell(); aplicarTema(); }
-		route();
-	} catch (err) { showError(err); route(); }
+		if (!r.secreto) { session.dosPasosPendiente = pendienteDe(r); return pintarAvisoDosPasos(); }
+		const caja = h('div', {}, spinner());
+		const m = modal({ title: 'Verificación en dos pasos', body: caja, onClose: () => { if (boton) boton.disabled = false; } });
+		await pantallaInscribir(session.user, r.secreto, (...hijos) => caja.replaceChildren(...hijos.filter(Boolean)), { enVentana: true });
+		session.dosPasosPendiente = '';
+		m.close();
+		pintarAvisoDosPasos();
+		toast('Listo: la verificación en dos pasos quedó activada.');
+	} catch (err) { showError(err); if (boton) boton.disabled = false; }
 }
 
 let renderToken = 0;
@@ -222,6 +235,7 @@ async function route() {
 		const container = h('div');
 		await mod.render(container, rest.map(decodeURIComponent));
 		if (token !== renderToken) return;
+		rutaActual = def.path;
 		view.replaceChildren(...[avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
@@ -371,17 +385,21 @@ function iniciar() {
 			}
 			// Administrador: verificación en dos pasos obligatoria (dos-pasos.js), revisada en cada entrada. Sin ella activada en
 			// el proyecto, entra e Inicio le dice dónde activarla.
+			// Justo después de la contraseña, la pantalla para inscribirla antes de pasar; con la sesión ya abierta, el panel se
+			// abre en seguida y el aviso llega cuando Firebase responde (una red lenta no deja la pantalla en «Verificando…»).
+			// Sin el correo confirmado (Firebase lo pide), sin el segundo paso activado en el proyecto o con la sesión ya
+			// abierta: entra, y el aviso le dice qué falta (con la contraseña sola se llega aquí igual: frenarlo no protege nada).
 			session.dosPasosPendiente = '';
-			if (profile.rol === 'admin') {
-				const r = await revisarDosPasos(user);
-				if (r.secreto && recienEntro) await pantallaInscribir(user, r.secreto, mostrarTarjeta);
-				// Sin el correo confirmado (Firebase lo pide), sin el segundo paso activado en el proyecto o con la sesión ya
-				// abierta: entra, y el aviso le dice qué falta (con la contraseña sola se llega aquí igual: frenarlo no protege nada).
-				session.dosPasosPendiente = r.secreto && recienEntro ? '' : pendienteDe(r);
-			}
+			const conContrasena = recienEntro;
 			recienEntro = false;
+			if (profile.rol === 'admin' && conContrasena) {
+				const r = await revisarDosPasos(user);
+				if (r.secreto) await pantallaInscribir(user, r.secreto, mostrarTarjeta);
+				session.dosPasosPendiente = r.secreto ? '' : pendienteDe(r);
+			}
 			shell();
 			route();
+			if (profile.rol === 'admin' && !conContrasena) revisarDosPasos(user).then((r) => { if (session.user === user) { session.dosPasosPendiente = pendienteDe(r); pintarAvisoDosPasos(); } });
 			aplicarTema();
 			if (!session.esSocio) revisarAutoPublicar();
 		} catch (err) {
