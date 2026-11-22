@@ -9,7 +9,7 @@
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
@@ -78,18 +78,13 @@ function faltanTemporadas(e, hoyIso) {
 const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
-const flecha = (lado, titulo, onclick, disabled) => h('button', {
-	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, onclick, disabled,
-	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-});
-
 // Casas en venta o renta que están en su resumen pero no dicen ser suyas (enlazadas solo desde su ficha): se
 // muestran con lo que trae el resumen, en la misma ficha corta.
 const desdeResumen = (x) => ({ id: x.id, titulo: x.titulo, operacion: x.operacion, precio: x.precio, moneda: x.moneda, publicado: Boolean(x.url),
 	fotos: x.foto ? [{ url: x.foto }] : [], ...(x.anuncio || {}) });
 const ORDEN = { venta: 0, renta: 1, vacacional: 2 };
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
-const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' });
+const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'btn-toque btn-icono btn btn-link text-body' });
 
 async function lista(container) {
 	const [vivas, resumen] = await Promise.all([misCasas(), cargarMiResumen()]);
@@ -326,7 +321,7 @@ async function casa(container, id) {
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
 			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
 			h('div', { class: 'd-flex flex-wrap gap-2' },
-				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
+				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
 				cerrar));
 		if (e.pide) {
 			const esPrecio = e.pide === 'precio';
@@ -361,7 +356,7 @@ async function casa(container, id) {
 				h('strong', { class: 'd-block mb-1' }, `${esPrecio ? 'Precio especial' : 'Mínimo de noches'} · ${rango(e)}`),
 				h('div', { class: 'd-flex gap-2' },
 					h('div', { class: 'input-group' }, esPrecio ? h('span', { class: 'input-group-text' }, pre.trim()) : null, campo, esPrecio ? null : h('span', { class: 'input-group-text' }, 'noches')),
-					iconoBtn('icon-check', 'Guardar', { class: 'cot-btn cot-btn-icono btn btn-primary', onclick: listo }),
+					iconoBtn('icon-check', 'Guardar', { class: 'btn-toque btn-icono btn btn-primary', onclick: listo }),
 					cerrar),
 				ve, repite);
 		}
@@ -373,7 +368,7 @@ async function casa(container, id) {
 			puedeFechas && hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
 			puedePrecios ? iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }) : null,
 			puedePrecios ? iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }) : null,
-			iconoBtn('icon-close', 'Quitar la selección', { class: 'cot-btn cot-btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
+			iconoBtn('icon-close', 'Quitar la selección', { class: 'btn-toque btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
 	}
 
 	function calendario() {

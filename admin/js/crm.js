@@ -254,7 +254,7 @@ export function proximaActividad(actividades, clienteId) {
 
 export function chipVencimiento(a) {
 	const v = vencimiento(a);
-	if (v === 'vencida') return h('span', { class: 'badge text-bg-danger' }, 'Vencida');
-	if (v === 'hoy') return h('span', { class: 'badge text-bg-warning' }, 'Hoy');
+	if (v === 'vencida') return badge('Vencida', 'danger');
+	if (v === 'hoy') return badge('Hoy', 'warning');
 	return null;
 }

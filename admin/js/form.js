@@ -437,7 +437,7 @@ export function renderForm(schema, data, options = {}) {
 						...arr.map((item, i) => field.encabezado === false
 							// Sin la fila «Elemento N ↑ ↓ Quitar»: la ficha usa todo el ancho y «Quitar» es una ✕ en su esquina.
 							? h('div', { class: 'list-field-item list-sin-encabezado' },
-								iconoBtn('icon-close', `Quitar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, { class: 'cot-btn cot-btn-icono btn btn-sm btn-light list-quitar', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }),
+								iconoBtn('icon-close', `Quitar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, { class: 'btn-toque btn-icono btn btn-sm btn-light list-quitar', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }),
 								h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))
 							: h('div', { class: 'list-field-item' },
 							h('div', { class: 'd-flex align-items-center mb-2 gap-1' },

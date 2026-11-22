@@ -158,7 +158,7 @@ export function resumenCasa(resumen, p, { responder = true } = {}) {
 							[h('span', { class: iconoCanal, title: canal, 'aria-hidden': 'true' }), ` ${canal}`],
 							h('span', { class: 'small' }, c.desde ? fecha(c.desde, true) : '—'),
 							h('span', { class: 'small' }, [nv === 0 ? 'Sin visitas' : nv === 1 ? '1 visita' : `${nv} visitas`, c.visitaProxima ? 'visita agendada' : ''].filter(Boolean).join(' · ')),
-							h('span', { class: `badge text-bg-${color}` }, h('span', { class: `${iconoEtapa} me-1`, 'aria-hidden': 'true' }), etapa)];
+							badge([h('span', { class: `${iconoEtapa} me-1`, 'aria-hidden': 'true' }), etapa], color)];
 					},
 					vacio: h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay clientes interesados. Los verás aquí en cuanto alguien nos contacte por tu propiedad.')
 				});

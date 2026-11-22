@@ -156,7 +156,7 @@ export function elegirOpcion(titulo, opciones) {
 		const m = modal({
 			title: titulo,
 			body: h('div', { class: 'd-grid gap-2' }, opciones.map((t) => h('button', {
-				type: 'button', class: 'cot-btn btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
+				type: 'button', class: 'btn-toque btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
 			}, t))),
 			onClose: () => resolve(elegida)
 		});
@@ -173,7 +173,7 @@ export function pageHeader(title, ...actions) {
 	const t = title && typeof title === 'object' && 'texto' in title ? title : { texto: title };
 	return h('div', { class: 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-4' },
 		h('div', { class: 'd-flex align-items-center gap-1', style: 'flex: 1 1 12rem; min-width: 0' },
-			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'cot-btn cot-btn-icono btn btn-link text-body' }) : null,
+			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'btn-toque btn-icono btn btn-link text-body' }) : null,
 			h('h1', { class: 'h3 mb-0' }, t.texto)),
 		h('div', { class: 'd-flex flex-wrap align-items-center gap-2' }, actions));
 }
@@ -194,8 +194,14 @@ export function statCard(icono, label, valor, { nota, href, cls = '' } = {}) {
 
 // Botón solo de ícono (44 px de toque); con `href` es un enlace.
 export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
-	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
+	type: attrs.href ? null : 'button', class: 'btn-toque btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
 }, h('span', { class: icono, 'aria-hidden': 'true' }));
+
+// Flecha fina ‹ › (la de los carruseles y calendarios, css/calendario.css): mes anterior o siguiente.
+export const flecha = (lado, titulo, onclick, disabled) => h('button', {
+	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, title: titulo, onclick, disabled,
+	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+});
 
 // Menú ⋮ de una ficha o fila: junta las acciones de cada elemento sin ocupar una fila de botones.
 // items: [{ icono, texto, onclick } | { icono, texto, href, target } | { …, peligro: true }]; los vacíos se saltan.
@@ -205,7 +211,7 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	const acciones = items.filter(Boolean);
 	if (!acciones.length) return null;
 	const btn = h('button', {
-		type: 'button', class: `cot-btn cot-btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
+		type: 'button', class: `btn-toque btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
 		'aria-expanded': 'false', 'data-bs-toggle': 'dropdown'
 	}, h('span', { class: icono, 'aria-hidden': 'true' }));
 	const menu = h('ul', { class: 'dropdown-menu dropdown-menu-end menu-mas-lista' }, acciones.map((a) => h('li', {},

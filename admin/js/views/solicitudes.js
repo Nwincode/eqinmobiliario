@@ -156,7 +156,7 @@ export async function render(container, [codigo] = []) {
 		const momento = datosChat[l.reserva.codigo]?.estado === 'pagada' ? 'pagada' : estado(l) === 'confirmada' ? 'confirmada' : 'pendiente';
 		// (d-none y no «hidden»: el d-flex de Bootstrap le gana a «hidden» y la lista quedaba siempre abierta).
 		const abrirRapidas = (si) => { rapidas.classList.toggle('d-none', !si); rayo.setAttribute('aria-expanded', String(si)); };
-		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2 d-none' }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary text-start', onclick: () => {
+		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2 d-none' }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary text-start', onclick: () => {
 			campo.value = r; abrirRapidas(false); campo.focus();
 		} }, r)));
 		const rayo = iconoBtn('icon-bolt', 'Respuestas rápidas', { 'aria-expanded': 'false', onclick: () => abrirRapidas(rapidas.classList.contains('d-none')) });
@@ -351,7 +351,7 @@ export async function render(container, [codigo] = []) {
 	}
 	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
 	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
-		? h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
+		? h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
 			h('span', { class: 'spinner-border spinner-border-sm me-1', 'aria-hidden': 'true' }), 'Subiendo…')
 		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }));
 
@@ -472,7 +472,7 @@ export async function render(container, [codigo] = []) {
 		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
 		const nivel = com ? V.nivelMora(conDatosDelChat(res, ch), Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
-		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
+		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),

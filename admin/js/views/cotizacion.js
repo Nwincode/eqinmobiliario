@@ -60,7 +60,7 @@ async function cargarLista() {
 }
 
 async function lista(container) {
-	const nueva = h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones/nueva' }, h('span', { class: 'icon-plus me-2', 'aria-hidden': 'true' }), 'Nueva cotización');
+	const nueva = h('a', { class: 'btn btn-primary btn-toque', href: '#/cotizaciones/nueva' }, h('span', { class: 'icon-plus me-2', 'aria-hidden': 'true' }), 'Nueva cotización');
 	const misDatos = iconoBtn('icon-id-card-o', 'Mis datos para facturar', { href: '#/cotizaciones/mis-datos' });
 	const empresa = session.isAdmin ? iconoBtn('icon-building-o', 'Datos de la empresa', { href: '#/cotizaciones/empresa' }) : null;
 	const cuerpo = h('div', {}, spinner());
@@ -76,7 +76,7 @@ async function lista(container) {
 	try { items = await cargarLista(); } catch (err) { showError(err); cuerpo.replaceChildren(emptyState('No se pudieron leer las cotizaciones.')); return; }
 	const pintar = () => {
 		if (!items.length) {
-			cuerpo.replaceChildren(emptyState('Aún no tienes cotizaciones guardadas.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones/nueva' }, h('span', { class: 'icon-plus me-2', 'aria-hidden': 'true' }), 'Crear la primera')));
+			cuerpo.replaceChildren(emptyState('Aún no tienes cotizaciones guardadas.', h('a', { class: 'btn btn-primary btn-toque', href: '#/cotizaciones/nueva' }, h('span', { class: 'icon-plus me-2', 'aria-hidden': 'true' }), 'Crear la primera')));
 			return;
 		}
 		const total = (c) => {
@@ -196,12 +196,12 @@ const grupoCard = (icono, titulo, ...hijos) => h('section', { class: 'card cot-g
 async function vistaMisDatos(container) {
 	container.replaceChildren(spinner());
 	const clave = claveAsesor();
-	const volver = h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones');
+	const volver = h('a', { class: 'btn btn-outline-secondary btn-toque', href: '#/cotizaciones' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones');
 	if (!clave) { container.replaceChildren(); mount(container, pageHeader('Mis datos para facturar', volver), emptyState('Tu usuario no tiene un asesor asignado. Pide al administrador que te asigne uno.')); return; }
 	const datos = await cargarAsesor(clave);
 	let sucio = false;
 	const estado = h('span', { class: 'small text-muted', 'aria-live': 'polite' });
-	const btn = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: async () => {
+	const btn = h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: async () => {
 		btn.disabled = true;
 		try { await guardarAsesor(clave, datos); sucio = false; estado.textContent = ''; toast('Tus datos para facturar se guardaron.'); } catch (err) { showError(err); } finally { btn.disabled = false; }
 	} }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar mis datos');
@@ -217,7 +217,7 @@ async function vistaMisDatos(container) {
 
 // ── Datos de la empresa (solo administrador) ───────────────────────────
 async function vistaEmpresa(container) {
-	const volver = h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Cotizaciones');
+	const volver = h('a', { class: 'btn btn-outline-secondary btn-toque', href: '#/cotizaciones' }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Cotizaciones');
 	if (!session.isAdmin) { container.replaceChildren(); mount(container, pageHeader('Datos de la empresa', volver), emptyState('Solo el administrador puede cambiar los datos de la empresa.')); return; }
 	container.replaceChildren(spinner());
 	const def = await predeterminados();
@@ -263,7 +263,7 @@ async function vistaEmpresa(container) {
 	const nuevas = grupoCard('icon-file-text-o', 'Cotizaciones nuevas',
 		fila(v, 'vigenciaDias', 'Vigencia', { tipo: 'number', sufijo: 'días', attrs: { min: '1', step: '1', inputmode: 'numeric' } }),
 		fila(v, 'condiciones', 'Condiciones de pago', { col: 'col-12', area: true }));
-	const btn = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: async () => {
+	const btn = h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: async () => {
 		const n = (x) => (x === '' || x === null || x === undefined ? NaN : Number(x));
 		const isr = n(v.isrPct), isrAlto = n(v.isrPctAlto), lim = n(v.isrLimite), tc = n(v.tipoCambio), pa = n(v.pctAsesor), vig = n(v.vigenciaDias);
 		if (![isr, isrAlto, pa].every(esPorcentaje)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
@@ -303,7 +303,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	if (id) {
 		try {
 			const s = await getDoc(doc(db, COL, id));
-			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary cot-btn', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
+			if (!s.exists()) { container.replaceChildren(emptyState('No encontramos esta cotización.', h('a', { class: 'btn btn-primary btn-toque', href: '#/cotizaciones' }, 'Ver cotizaciones'))); return; }
 			c = structuredClone(s.data());
 		} catch (err) { showError(err); container.replaceChildren(emptyState('No se pudo abrir la cotización.')); return; }
 		// El número de la copia lo pone el contador al guardarla (uno seguido, en la misma transacción).
@@ -370,7 +370,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 			h('span', {}, `Falta ${faltan.join(' y ')} de quien factura. `,
 				c.emisorTipo === 'asesor' ? 'Escríbelo arriba para que salga en la hoja.' : (session.isAdmin ? 'Complétalo en «Datos de la empresa».' : 'Pide al administrador que lo complete.')))] : []));
 	}
-	const btnAsesor = h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: async () => {
+	const btnAsesor = h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque', onclick: async () => {
 		if (!claveEmisor) { toast('Tu usuario no tiene un asesor asignado.', 'danger'); return; }
 		btnAsesor.disabled = true;
 		try { await guardarAsesor(claveEmisor, asesorDatos); asesorSucio = false; toast(session.isAdmin && claveEmisor !== session.agentId ? 'Datos del asesor guardados.' : 'Tus datos para facturar se guardaron.'); }
@@ -389,10 +389,10 @@ async function editor(container, id, { duplicar = false } = {}) {
 			e.razonSocial ? h('div', { class: 'small' }, e.razonSocial) : null,
 			h('div', { class: 'small' }, e.nit ? `NIT ${e.nit}` : h('span', { class: 'text-muted' }, 'Sin NIT'), ' · ', etqRegimen(e.regimen)),
 			h('div', { class: 'cot-emisor-pie' },
-				distinto ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm cot-btn', onclick: () => { c.emisor = { ...empresaActual }; aplicarEmisor(); pintarPanelEmisor(); pintarAvisoEmisor(); pintarLineas(); cambio(); } },
+				distinto ? h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm btn-toque', onclick: () => { c.emisor = { ...empresaActual }; aplicarEmisor(); pintarPanelEmisor(); pintarAvisoEmisor(); pintarLineas(); cambio(); } },
 					h('span', { class: 'icon-refresh me-2', 'aria-hidden': 'true' }), 'Usar los datos actuales') : null,
 				session.isAdmin
-					? h('a', { class: 'btn btn-link btn-sm cot-btn px-0', href: '#/cotizaciones/empresa', onclick: (ev) => salir(ev, '#/cotizaciones/empresa') }, h('span', { class: 'icon-pencil me-2', 'aria-hidden': 'true' }), 'Editar datos de la empresa')
+					? h('a', { class: 'btn btn-link btn-sm btn-toque px-0', href: '#/cotizaciones/empresa', onclick: (ev) => salir(ev, '#/cotizaciones/empresa') }, h('span', { class: 'icon-pencil me-2', 'aria-hidden': 'true' }), 'Editar datos de la empresa')
 					: h('span', { class: 'small text-muted cot-solo-admin' }, h('span', { class: 'icon-lock me-2', 'aria-hidden': 'true' }), 'Solo el administrador puede cambiar estos datos.'))));
 	}
 	const tipoEmisor = segmentado('cot-emisor', EMISORES, c.emisorTipo, (v) => {
@@ -437,7 +437,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		const nada = h('div', { class: 'cot-sel-nada' });
 		const panel = h('div', { class: 'cot-sel-panel', hidden: true }, lista, nada);
 		const anuncio = h('div', { class: 'visually-hidden', 'aria-live': 'polite' });
-		const cancelar = h('button', { type: 'button', class: 'btn btn-link btn-sm cot-btn px-0 cot-sel-cancelar', hidden: true, onclick: () => { buscando = false; pintar(); vista.querySelector('button')?.focus(); } }, 'Cancelar');
+		const cancelar = h('button', { type: 'button', class: 'btn btn-link btn-sm btn-toque px-0 cot-sel-cancelar', hidden: true, onclick: () => { buscando = false; pintar(); vista.querySelector('button')?.focus(); } }, 'Cancelar');
 		const buscador = h('div', { class: 'cot-sel-buscador' },
 			h('div', { class: 'cot-sel-caja' }, h('span', { class: 'icon-search cot-sel-lupa', 'aria-hidden': 'true' }), input, panel),
 			h('div', { class: 'form-text cot-sel-ayuda', id: `${idc}-ayuda` }, h('span', {}, ayuda), ' ', enlace, cancelar));
@@ -721,7 +721,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	const agregar = h('div', { class: 'cot-agregar' },
 		h('span', { class: 'cot-agregar-label', id: uid('agregar') }, 'Agregar servicio'),
 		h('div', { class: 'cot-agregar-botones', role: 'group', 'aria-labelledby': uid('agregar') },
-			SERVICIOS.map(([v, t]) => h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm cot-btn', onclick: () => {
+			SERVICIOS.map(([v, t]) => h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm btn-toque', onclick: () => {
 				const ult = c.lineas[c.lineas.length - 1];
 				c.lineas.push(lineaVacia(v, ult?.moneda || 'USD', reglas)); pintarLineas(); cambio();
 				contLineas.lastElementChild?.querySelector('input[type="number"], input:not([type])')?.focus();
@@ -784,7 +784,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		h('div', { class: 'card-body' },
 			h('p', { class: 'small text-muted cot-liq-intro' }, 'Solo la ves tú en el panel: no sale en el PDF ni en WhatsApp.'),
 			liqCuerpo, pctAsesorInput,
-			session.isAdmin ? h('a', { class: 'btn btn-link btn-sm cot-btn px-0', href: '#/cotizaciones/empresa', onclick: (ev) => salir(ev, '#/cotizaciones/empresa') },
+			session.isAdmin ? h('a', { class: 'btn btn-link btn-sm btn-toque px-0', href: '#/cotizaciones/empresa', onclick: (ev) => salir(ev, '#/cotizaciones/empresa') },
 				h('span', { class: 'icon-cog me-2', 'aria-hidden': 'true' }), 'Cambiar el ISR o el porcentaje predeterminado') : null));
 
 	// Documento (vista previa en pantalla y hoja impresa).
@@ -1007,8 +1007,8 @@ async function editor(container, id, { duplicar = false } = {}) {
 			size: 'modal-lg modal-fullscreen-md-down cot-hoja-modal',
 			body: copia,
 			footer: [
-				h('button', { type: 'button', class: 'btn btn-light cot-btn', 'data-bs-dismiss': 'modal' }, 'Cerrar'),
-				h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', onclick: () => { pdf = true; m.close(); } },
+				h('button', { type: 'button', class: 'btn btn-light btn-toque', 'data-bs-dismiss': 'modal' }, 'Cerrar'),
+				h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque', onclick: () => { pdf = true; m.close(); } },
 					h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), 'Descargar PDF')],
 			onClose: () => { origen.focus(); if (pdf) imprimir(); }
 		});
@@ -1017,27 +1017,27 @@ async function editor(container, id, { duplicar = false } = {}) {
 	async function salir(ev, destino = '#/cotizaciones') {
 		if (sucio || asesorSucio) { ev.preventDefault(); if (await confirmDialog('Tienes cambios sin guardar. ¿Salir de todos modos?', { okText: 'Salir sin guardar' })) location.hash = destino; }
 	}
-	const btnGuardar = h('button', { type: 'button', class: 'btn btn-primary cot-btn', onclick: guardar }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar');
+	const btnGuardar = h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: guardar }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar');
 	const barra = h('div', { class: 'sticky-actions cot-barra no-print' },
 		btnGuardar,
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', 'aria-label': 'Descargar PDF', title: 'Descargar PDF', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Descargar PDF')),
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn', 'aria-label': 'Copiar para WhatsApp', title: 'Copiar para WhatsApp', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Copiar para WhatsApp')),
+		h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque', 'aria-label': 'Descargar PDF', title: 'Descargar PDF', onclick: imprimir }, h('span', { class: 'icon-file-pdf-o me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Descargar PDF')),
+		h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque', 'aria-label': 'Copiar para WhatsApp', title: 'Copiar para WhatsApp', onclick: copiarWhatsApp }, h('span', { class: 'icon-whatsapp me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Copiar para WhatsApp')),
 		// En celular: ver la hoja completa sin tener que bajar hasta ella.
-		h('button', { type: 'button', class: 'btn btn-outline-primary cot-btn cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', 'aria-label': 'Ver hoja completa', title: 'Ver hoja completa', onclick: verHoja },
+		h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque cot-barra-hoja d-sm-none', 'aria-haspopup': 'dialog', 'aria-label': 'Ver hoja completa', title: 'Ver hoja completa', onclick: verHoja },
 			h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), h('span', { class: 'cot-barra-txt' }, 'Ver hoja completa')),
-		h('a', { class: 'btn btn-link cot-btn ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
+		h('a', { class: 'btn btn-link btn-toque ms-auto', href: '#/cotizaciones', onclick: salir }, 'Volver a la lista'));
 
 	const titulo = id && !duplicar ? 'Cotización' : 'Nueva cotización';
 	container.replaceChildren();
 	mount(container,
 		h('div', { class: 'no-print' }, pageHeader(titulo,
-			h('a', { class: 'btn btn-outline-secondary cot-btn', href: '#/cotizaciones', onclick: salir }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones'))),
+			h('a', { class: 'btn btn-outline-secondary btn-toque', href: '#/cotizaciones', onclick: salir }, h('span', { class: 'icon-list-alt me-2', 'aria-hidden': 'true' }), 'Mis cotizaciones'))),
 		h('div', { class: 'row g-4 cot-layout' },
 			h('div', { class: 'col-xl-5 cot-entradas no-print' }, emisor, cliente, servicios, liqCard, condiciones),
 			h('div', { class: 'col-xl-7 cot-salida' },
 				h('div', { class: 'cot-salida-cabeza no-print' },
 					h('h2', { class: 'h6 text-muted cot-salida-titulo' }, h('span', { class: 'icon-receipt me-2', 'aria-hidden': 'true' }), 'Así la verá tu cliente'),
-					h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm cot-btn cot-ver-hoja', 'aria-haspopup': 'dialog', onclick: verHoja },
+					h('button', { type: 'button', class: 'btn btn-outline-primary btn-sm btn-toque cot-ver-hoja', 'aria-haspopup': 'dialog', onclick: verHoja },
 						h('span', { class: 'icon-expand me-2', 'aria-hidden': 'true' }), 'Ver hoja completa')),
 				// En computadora la hoja tiene su propio desplazamiento: siempre se llega al total.
 				h('div', { class: 'cot-hoja-marco', tabindex: '0', role: 'region', 'aria-label': 'Hoja de la cotización' }, hoja))),

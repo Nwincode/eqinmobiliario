@@ -136,7 +136,7 @@ export async function render(container) {
 		celdas: (l) => [
 			[h('div', { class: 'fw-semibold' }, l.nombre, l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger ms-1', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null), h('div', { class: 'small text-muted' }, l.telefono)],
 			h('span', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
-			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? h('span', { class: 'badge text-bg-info ms-1' }, 'EN') : null),
+			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? [' ', badge('EN', 'info')] : null),
 			h('span', { class: 'small text-muted' }, fuenteLead(l)),
 			h('span', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
 			estadoBadge(l.estado)],

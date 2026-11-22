@@ -1960,21 +1960,23 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-text);
 }
 
-/* ===== Cotización ===== */
-/* Cotización de servicios (admin/js/views/cotizacion.js). Solo clases cot-. */
-.cot-intro {
-	max-width: 68ch;
-}
-.cot-btn {
+/* Botón con 44 px de toque (`btn-toque`) y botón solo de ícono (`btn-icono`, ui.js `iconoBtn`): de todo el panel. */
+.btn-toque {
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 }
-.cot-btn-icono {
+.btn-icono {
 	min-width: 44px;
 	padding-left: 0;
 	padding-right: 0;
+}
+
+/* ===== Cotización ===== */
+/* Cotización de servicios (admin/js/views/cotizacion.js). Solo clases cot-. */
+.cot-intro {
+	max-width: 68ch;
 }
 .cot-grupo .card-header {
 	background: var(--adm-surface);
@@ -2208,7 +2210,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	.cot-barra {
 		flex-wrap: nowrap;
 	}
-	.cot-barra .cot-btn {
+	.cot-barra .btn-toque {
 		flex: none;
 		min-width: 44px;
 		padding-left: 10px;

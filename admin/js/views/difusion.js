@@ -60,7 +60,7 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 
 	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white d-flex flex-wrap align-items-center gap-2' },
-			h('strong', { class: 'me-auto' }, portal.nombre, ' ', h('span', { class: 'badge text-bg-light' }, portal.idioma.toUpperCase())),
+			h('strong', { class: 'me-auto' }, portal.nombre, ' ', badge(portal.idioma.toUpperCase(), 'light')),
 			badge(est.texto, COLOR[est.id]),
 			reg.fecha ? h('span', { class: 'small text-muted' }, `desde ${fechaCorta(reg.fecha)}`) : null,
 			portal.url ? h('a', { href: portal.url, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-light' }, 'Abrir plataforma') : null),

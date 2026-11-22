@@ -3,7 +3,7 @@
 // marcar lo pagado pasan por admin/js/reservas.js (lo mismo que usa Solicitudes): la reserva la ve también su dueño.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
-import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, hoy, formatDate, spinner, elegirOpcion } from '../ui.js';
+import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, flecha, hoy, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
 import { whatsappUrl, nNoches, dineroPorMoneda, nombreMes, moverMes, fechasReserva } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
@@ -141,8 +141,8 @@ export async function render(container) {
 		const m = modal({
 			title: d.id ? 'Reserva' : 'Nueva reserva', body: form,
 			footer: [
-				!d.id ? null : !web ? iconoBtn('icon-trash', 'Borrar reserva', { onclick: borrar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' })
-					: d.estado === 'confirmada' ? iconoBtn('icon-ban', 'Cancelar reserva', { onclick: cancelar, class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-danger me-auto' }) : null,
+				!d.id ? null : !web ? iconoBtn('icon-trash', 'Borrar reserva', { onclick: borrar, class: 'btn-toque btn-icono btn btn-sm btn-outline-danger me-auto' })
+					: d.estado === 'confirmada' ? iconoBtn('icon-ban', 'Cancelar reserva', { onclick: cancelar, class: 'btn-toque btn-icono btn btn-sm btn-outline-danger me-auto' }) : null,
 				h('button', { type: 'button', class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar')
 			]
 		});
@@ -228,9 +228,9 @@ export async function render(container) {
 
 		cuerpo.replaceChildren(
 			h('div', { class: 'd-flex align-items-center gap-2 mb-3' },
-				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body text-decoration-none fs-5', 'aria-label': 'Mes anterior', onclick: () => { estado.mes = moverMes(estado.mes, -1); pintar(); } }, '‹'),
+				flecha('prev', 'Mes anterior', () => { estado.mes = moverMes(estado.mes, -1); pintar(); }),
 				h('strong', {}, mayuscula(nombreMes(estado.mes))),
-				h('button', { type: 'button', class: 'cot-btn cot-btn-icono btn btn-link text-body text-decoration-none fs-5', 'aria-label': 'Mes siguiente', onclick: () => { estado.mes = moverMes(estado.mes, 1); pintar(); } }, '›')),
+				flecha('next', 'Mes siguiente', () => { estado.mes = moverMes(estado.mes, 1); pintar(); })),
 			h('div', { class: 'row g-3 mb-4' },
 				stat('icon-check', 'Reservas', total.reservas),
 				stat('icon-moon-o', 'Noches', total.noches),
