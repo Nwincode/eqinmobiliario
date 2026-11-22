@@ -971,7 +971,8 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 		...(id === 'lead-correo-1' ? { reboteCorreo: { mapValue: { fields: { motivo: sv('No existe') } } } } : {}) } }) });
 	await ir(admin.p, '#/clientes/cli-correo', 3500);
 	await campo(admin.p, 'email').fill('pedro@hotmail.com');
-	await guardar(admin.p);
+	await admin.p.locator('button', { hasText: /^Guardar datos$/ }).click();
+	await espera(3500);
 	const l1 = (await leer('leads/lead-correo-1')).fields || {}, l2 = (await leer('leads/lead-correo-2')).fields || {};
 	paso('Ficha del cliente: el correo corregido pasa a sus leads y quita «El correo no llegó»', l1.email?.stringValue === 'pedro@hotmail.com' && l2.email?.stringValue === 'pedro@hotmail.com' && !l1.reboteCorreo,
 		`${l1.email?.stringValue} · ${l2.email?.stringValue} · rebote ${Boolean(l1.reboteCorreo)} · ${await avisos(admin.p)}`);

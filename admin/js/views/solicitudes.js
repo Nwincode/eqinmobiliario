@@ -517,8 +517,10 @@ export async function render(container, [codigo] = []) {
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
 				// El correo al que le llegan los avisos de su reserva; el lápiz lo corrige (lo lee el servidor de la solicitud).
-				admin ? h('span', { class: `small text-break ${l.reboteCorreo ? 'text-danger' : 'text-muted'}` }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }), l.email || 'Sin correo') : null,
-				admin ? iconoBtn('icon-pencil', 'Corregir el correo', { onclick: () => corregirElCorreo(l) }) : null,
+				// El correo y su lápiz van juntos: en el celular no se separan de fila.
+				admin ? h('span', { class: 'd-inline-flex align-items-center gap-2 mw-100' },
+					h('span', { class: `small text-break ${l.reboteCorreo ? 'text-danger' : 'text-muted'}`, style: 'min-width:0' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }), l.email || 'Sin correo'),
+					iconoBtn('icon-pencil', 'Corregir el correo', { onclick: () => corregirElCorreo(l) })) : null,
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
