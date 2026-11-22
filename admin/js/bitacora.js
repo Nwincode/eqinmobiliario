@@ -6,6 +6,7 @@
 //  - casa: moneda, dueño (propietarioId), limpieza; precios del dueño (base, fin de semana, temporadas) y margen.
 //  - propietario: datos de pago (con correo al equipo: `avisado`) y permisos del socio.
 //  - permisos: los interruptores de todos los socios (settings/permisosSocios).
+//  - permisosSocio: lo que resulta para un socio (permisosSocios/{id}: lo de todos, lo suyo y el atraso de su comisión).
 //  - reserva: «Revisé Airbnb…» (revisadoAMano) al confirmar sin poder leer el calendario.
 // Las fotos usan los mismos valores por omisión que las reglas: si se cambia una, se cambian las dos.
 import { PERMISOS } from './permisos-socio.js';
@@ -38,6 +39,14 @@ export function renglon({ tipo, objeto, casa = '', antes, despues }) {
 	return { tipo, objeto, ...(casa ? { casa } : {}), antes, despues, ...(tipo === 'propietario' && antes.datosPago !== despues.datosPago ? { avisado: false } : {}) };
 }
 
+// Quién hizo el cambio, por su nombre en el panel (users/{quien}, que solo cambia el administrador). El `nombre` guardado
+// en el renglón lo escribe quien anota (las reglas no lo atan): vale solo si no hay usuario con ese id (el servidor, o
+// alguien que ya no está). Un usuario sin nombre, por su correo. usuarios: { [uid]: { nombre, email } | null }.
+export const firma = (e, usuarios = {}) => {
+	const u = usuarios[e?.quien];
+	return u ? String(u.nombre || u.email || 'Sin nombre') : String(e?.nombre || '');
+};
+
 // Qué cambió, en palabras, para la lista de la ficha: [{ campo, antes, despues }] con los valores ya escritos.
 const NOMBRES = {
 	moneda: 'Moneda', propietarioId: 'Dueño', limpieza: 'Limpieza', precioBase: 'Precio del dueño por noche', precioFinde: 'Precio del dueño en fin de semana',
@@ -59,5 +68,5 @@ export function diferencias(e, { nombreDe = (x) => x, dinero = (n) => String(n),
 		return v === '' || v == null ? '(vacío)' : String(v);
 	};
 	return Object.keys({ ...e.antes, ...e.despues }).filter((k) => !igual(e.antes?.[k], e.despues?.[k]))
-		.map((k) => ({ campo: NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
+		.map((k) => ({ campo: e.tipo === 'permisosSocio' ? (NOMBRES[k] || k).replace(' (todos)', '') : NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
 }

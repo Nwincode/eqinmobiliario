@@ -107,6 +107,9 @@ export default conReloj('seo-semanal', async () => {
 		console.error('seo-semanal (guardar):', err.message);
 		throw err;
 	}
+	// Sin datos de Search Console el informe queda con su motivo, pero el reloj no salió bien: «Estado del sistema» lo
+	// dice (conReloj anota el fallo con este motivo).
+	if (informe.error) throw new Error(`Search Console: ${informe.error}`);
 });
 
 // Lunes 13:17 UTC (7:17 en Guatemala).

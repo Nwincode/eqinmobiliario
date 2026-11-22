@@ -74,4 +74,53 @@ await t('datos de pago: el correo al equipo sale de la bitácora y de cambiosDat
 	assert.ok(S.salida.some((m) => m.texto.includes('Banco B')));
 });
 
+await t('quién cambió: el nombre de su usuario, no el que escribió en el renglón (las reglas solo atan «quien»)', async () => {
+	const { firma } = await import('../admin/js/bitacora.js');
+	assert.equal(firma({ quien: 'u1', nombre: 'Otro administrador' }, { u1: { nombre: 'Ana López' } }), 'Ana López');
+	assert.equal(firma({ quien: 'servidor', nombre: 'Servidor' }, {}), 'Servidor');
+	// Un usuario sin nombre (un socio con acceso sin nombre): su correo, nunca lo que escribió en el renglón.
+	assert.equal(firma({ quien: 'u2', nombre: 'Administrador' }, { u2: { nombre: '', email: 'socio@correo.com' } }), 'socio@correo.com');
+	poner('users/u1', { nombre: 'Ana López', rol: 'admin' });
+	poner('propietarios/p1', { nombre: 'Socio' });
+	poner('bitacora/b9', { tipo: 'propietario', objeto: 'p1', antes: { datosPago: 'Banco A', permisos: {} }, despues: { datosPago: 'Banco Z', permisos: {} }, quien: 'u1', nombre: 'Luis (otro admin)', cuando: new Date(S.reloj), avisado: false });
+	assert.equal(await avisarCambiosDePago(), 1);
+	assert.match(S.salida[0].texto, /Cambió: Ana López/);
+	assert.doesNotMatch(S.salida[0].texto, /Luis/);
+});
+
+await t('lo que resulta para un socio (permisosSocios/{id}) cambia con su renglón, también desde el servidor', async () => {
+	const { recalcularPermisos } = await import('../netlify/lib/permisos.mjs');
+	poner('propietarios/p1', { nombre: 'Socio', porNoche: true });
+	poner('settings/permisosSocios', { precios: false });
+	assert.equal(await recalcularPermisos(S.reloj), 1);
+	const d = leer('permisosSocios/p1');
+	assert.equal(d.precios, false);
+	const r = leer(`bitacora/${d.bitacoraId}`);
+	assert.equal(r.tipo, 'permisosSocio');
+	assert.equal(r.objeto, 'p1');
+	assert.deepEqual([r.antes.precios, r.despues.precios], [true, false]);
+	// Sin cambio, ni escritura ni renglón.
+	const antes = [...S.docs.keys()].filter((k) => k.startsWith('bitacora/')).length;
+	assert.equal(await recalcularPermisos(S.reloj), 0);
+	assert.equal([...S.docs.keys()].filter((k) => k.startsWith('bitacora/')).length, antes);
+	assert.equal(diferencias(r)[0].campo, 'Precios y temporadas');
+});
+
+await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis propiedades» (las reglas tienen la misma expresión)', async () => {
+	await import('../js/calc-vacacional.js');
+	const { textoDueno: T, TEXTO_DUENO, MOTIVOS_BLOQUEO, QUE_CADA } = await import('../admin/js/texto-dueno.js');
+	const { readFileSync } = await import('node:fs');
+	assert.ok(readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8').includes(`.matches('${TEXTO_DUENO}')`), 'la misma expresión en firestore.rules');
+	const re = new RegExp(`^(?:${TEXTO_DUENO})$`);
+	const rangos = [{ desde: '2026-11-16', hasta: '2026-11-20' }, { desde: '2026-11-30', hasta: '2026-12-02' }, { desde: '2026-12-28', hasta: '2027-01-03' },
+		{ desde: '2027-09-16', hasta: '2027-09-16' }, { desde: '2027-04-01', hasta: '2027-05-31' }];
+	const textos = [T.precio('Entre semana'), T.precio('Fin de semana'), T.temporadas(2027), T.personas(12),
+		...rangos.flatMap((r) => [...MOTIVOS_BLOQUEO.map((m) => T.calendario('bloquear', r, m)), T.calendario('habilitar', r),
+			...['', ...Object.keys(QUE_CADA)].flatMap((c) => [T.calendario('precio', r, 250, c), T.calendario('minimo', r, 3, c)]),
+			T.quito('Precios especiales', r), T.quito('Mínimos de noches', r, true)])];
+	for (const x of textos) assert.match(x, re);
+	for (const x of ['cambio', 'el administrador aprobó bajar la comisión', 'bloqueó 16 – 20 nov (llámame 55551234)', 'precio entre semana, llama al 5555 1234', 'bloqueó 5555 1234'])
+		assert.doesNotMatch(x, re, x);
+});
+
 console.log(`${n} pruebas de la bitácora pasan.`);

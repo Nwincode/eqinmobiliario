@@ -18,6 +18,8 @@ import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { anotar, bitacoraActiva } from '../bitacora-panel.js';
 import { fotoCasa } from '../bitacora.js';
+// Los textos de la bitácora de la casa: solo los que dejan las reglas (texto-dueno.js).
+import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno } from '../texto-dueno.js';
 import { renderForm } from '../form.js';
 import { CAMPOS_DUENO, HORAS, valoresDueno } from '../mi-casa.js';
 import { permisosDelSocio, avisoSocio } from '../permisos-ui.js';
@@ -34,12 +36,6 @@ const PRECIO_MAX = 50000;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
 const fecha = (iso) => new Date(`${iso}T12:00:00`);
 // «10 – 12 dic»; con el año cuando no es el de hoy (las temporadas que se repiten ya tienen varios años).
-const rango = (r) => {
-	const anio = (iso) => iso.slice(0, 4);
-	if (anio(r.desde) !== anio(r.hasta)) return `${dia(r.desde)} ${anio(r.desde)} – ${dia(r.hasta)} ${anio(r.hasta)}`;
-	const base = r.desde === r.hasta ? dia(r.desde) : `${r.desde.slice(0, 7) === r.hasta.slice(0, 7) ? Number(r.desde.slice(8)) : dia(r.desde)} – ${dia(r.hasta)}`;
-	return anio(r.hasta) === hoy().slice(0, 4) ? base : `${base} ${anio(r.hasta)}`;
-};
 const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
 const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
@@ -59,7 +55,6 @@ const vigentes = (lista) => (lista || []).filter((t) => t && V.esFecha(t.desde) 
 // de una misma temporada lleva la misma `serie`. Nada se escribe solo: si a una temporada le falta el año que viene, el
 // panel lo avisa y el socio la pone con un toque (faltanTemporadas). Nunca encima de un precio o mínimo puesto aparte.
 const ANIOS_ADELANTE = 1;
-const QUE_CADA = { fecha: 'cada año en estas fechas', semanaSanta: 'cada año en Semana Santa' };
 const nuevaSerie = () => Math.random().toString(36).slice(2, 10);
 const seCruzan = (a, b) => a.desde <= b.hasta && b.desde <= a.hasta;
 // Agrega las copias de los años siguientes donde no haya otra cosa puesta; devuelve { lista, saltadas }.
@@ -264,7 +259,7 @@ async function casa(container, id) {
 						// Un cero de más (de 120 a 1200): se pregunta antes de que el cliente lo vea.
 						const antes = Number(e[campo]) || (campo === 'finde' ? Number(e.base) : 0);
 						if (antes > 0 && n > 5 * antes && !(await confirmDialog(`${plata(n)} por noche es ${Math.round(n / antes)} veces lo que tenías (${plata(antes)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) { ev.target.value = e[campo] || ''; return; }
-						guardar(`precio ${titulo.toLowerCase()}`, () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
+						guardar(textoDueno.precio(titulo), () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
 					}
 				})), ve);
 	};
@@ -303,11 +298,10 @@ async function casa(container, id) {
 			precio: (a) => ({ tarifas: poner(a.tarifas, { precio: valor }) }),
 			minimo: (a) => ({ minimos: poner(a.minimos, { noches: valor }) })
 		}[que];
-		const texto = { bloquear: 'bloqueó', habilitar: 'habilitó', precio: 'precio especial', minimo: 'mínimo de noches' }[que];
 		soltar();
 		e.guardando = true;
 		calendario();
-		guardar(`${texto} ${rango({ desde, hasta })}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`, cambio)
+		guardar(textoDueno.calendario(que, { desde, hasta }, valor, cada), cambio)
 			.then((ok) => { if (ok && saltadas.length) toast(`En ${saltadas.map((x) => rango(x)).join(', ')} ya tenías algo puesto: lo dejé como estaba.`, 'warning'); });
 	}
 
@@ -323,7 +317,7 @@ async function casa(container, id) {
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
 			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
 			h('div', { class: 'd-flex flex-wrap gap-2' },
-				['Otra reserva', 'Mantenimiento', 'Uso propio'].map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
+				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
 				cerrar));
 		if (e.pide) {
 			const esPrecio = e.pide === 'precio';
@@ -428,7 +422,7 @@ async function casa(container, id) {
 						const todos = r.cada ? (await elegirOpcion('¿Quitar solo este año o todos?', ['Solo este año', 'Todos los años'])) : 'Solo este año';
 						if (!todos) return;
 						const quita = todos === 'Todos los años' ? (x) => (r.serie && x.serie === r.serie) || mismoRango(x, r) : (x) => mismoRango(x, r);
-						guardar(`quitó ${titulo.toLowerCase()} ${rango(r)}${todos === 'Todos los años' ? ' (todos los años)' : ''}`, (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
+						guardar(textoDueno.quito(titulo, r, todos === 'Todos los años'), (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
 					}
 				})))));
 	};
@@ -452,7 +446,7 @@ async function casa(container, id) {
 		const anio = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
 		const poner = () => {
 			let saltadas = [];
-			guardar(`puso las temporadas de ${anio}`, (a) => {
+			guardar(textoDueno.temporadas(anio), (a) => {
 				const out = {};
 				saltadas = [];
 				for (const campo of ['tarifas', 'minimos']) {
@@ -496,7 +490,7 @@ async function casa(container, id) {
 				h('input', {
 					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', max: '50', value: e.huespedes || '', disabled: !puedePrecios,
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
-					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(`personas máximo ${n}`, () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
+					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(textoDueno.personas(n), () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
 				})))), listas),
 			h('div', { class: 'col-lg-7' }, cal)));
 }

@@ -1,7 +1,7 @@
 // Permisos de los socios desde el panel (solo el administrador): guardar los interruptores y recalcular lo que puede cada
 // socio (permisosSocios/{propietarioId}). La cuenta es la de admin/js/permisos-socio.js, la misma del servidor
 // (netlify/lib/permisos.mjs, cada hora): aquí se recalcula al momento para no esperar esa hora.
-import { db, doc, getDoc, getDocs, setDoc, collection, query, where, serverTimestamp, runTransaction } from './firebase.js';
+import { db, doc, getDoc, getDocs, collection, query, where, serverTimestamp, runTransaction } from './firebase.js';
 import { anotar, bitacoraActiva } from './bitacora-panel.js';
 import { fotoPropietario, fotoPermisos } from './bitacora.js';
 import { conDatosDelChat } from './reservas-calculo.js';
@@ -34,8 +34,19 @@ export async function recalcularPermisosDe(propietarioId, global = null) {
 	const permisos = permisosDe({ global: g, propio, deuda });
 	const nuevo = documentoPermisos(permisos, deuda);
 	if (limpiarDevolver(propio, deuda)) await cambiarPropios(propietarioId, { devolver: false });
-	if (!mismosPermisos(guardado.exists() ? guardado.data() : null, nuevo)) await setDoc(refPermisos(propietarioId), { ...nuevo, actualizado: serverTimestamp() });
+	if (!mismosPermisos(guardado.exists() ? guardado.data() : null, nuevo)) await guardarResultado(propietarioId, nuevo);
 	return { permisos, deuda, propio, global: g };
+}
+
+// Lo que resulta para un socio (permisosSocios/{id}): si cambia un interruptor, con su renglón en la bitácora (tipo
+// permisosSocio), en la misma transacción. Lo mismo hace el servidor cada hora (netlify/lib/permisos.mjs).
+async function guardarResultado(propietarioId, nuevo) {
+	const conBitacora = await bitacoraActiva();
+	await runTransaction(db, async (tx) => {
+		const s = await tx.get(refPermisos(propietarioId));
+		const bitacoraId = anotar(tx, { tipo: 'permisosSocio', objeto: propietarioId, antes: fotoPermisos(s.exists() ? s.data() : {}), despues: fotoPermisos(nuevo) }, conBitacora);
+		tx.set(refPermisos(propietarioId), { ...nuevo, actualizado: serverTimestamp(), ...(bitacoraId ? { bitacoraId } : {}) });
+	});
 }
 
 // Interruptores para todos: se guardan y se recalcula a cada socio (dueños de casas por noche o con permisos guardados).

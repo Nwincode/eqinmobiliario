@@ -9,7 +9,7 @@ import { deudaDe, faltaSaberSiPago, permisosDe, documentoPermisos, mismosPermiso
 import { listar } from './firestore.mjs';
 import { transaccion } from './firestore-escritura.mjs';
 import { anotarEnTx } from './bitacora.mjs';
-import { fotoPropietario } from '../../admin/js/bitacora.js';
+import { fotoPropietario, fotoPermisos, igual } from '../../admin/js/bitacora.js';
 
 // Sin documento guardado, todo está permitido: no hace falta crear uno que diga lo mismo.
 const todoPermitido = (d) => CLAVES.every((k) => d[k]) && !d.deuda && !d.motivo;
@@ -39,8 +39,13 @@ export async function recalcularPermisos(ahora = Date.now()) {
 				const bitacoraId = anotarEnTx({ crear }, { tipo: 'propietario', objeto: id, antes: fotoPropietario(prop), despues: fotoPropietario({ ...prop, permisos: { ...prop.permisos, devolver: false } }) }, { nombre: 'Servidor (pagó lo que debía)' });
 				cambiar(`propietarios/${id}`, { 'permisos.devolver': false, ...(bitacoraId ? { bitacoraId } : {}) });
 			}
-			if (guardado) cambiar(ruta, nuevo, { ahora: ['actualizado'] });
-			else crear(ruta, nuevo, { ahora: ['actualizado'] });
+			// Si se apaga o enciende un interruptor (el atraso de la comisión, el pago, o lo que el panel no alcanzó a poner): su
+			// renglón en la bitácora (quien: el servidor).
+			const antes = fotoPermisos(guardado || {}), despues = fotoPermisos(nuevo);
+			const bitacoraId = igual(antes, despues) ? null : anotarEnTx({ crear }, { tipo: 'permisosSocio', objeto: id, antes, despues }, { nombre: 'Servidor (permisos de cada hora)' });
+			const datos = { ...nuevo, ...(bitacoraId ? { bitacoraId } : {}) };
+			if (guardado) cambiar(ruta, datos, { ahora: ['actualizado'] });
+			else crear(ruta, datos, { ahora: ['actualizado'] });
 			return true;
 		});
 		if (cambio) cambiados++;

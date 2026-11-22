@@ -1,5 +1,5 @@
 import {
-	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, Timestamp, runTransaction
+	db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, Timestamp, runTransaction, writeBatch
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
@@ -224,8 +224,12 @@ export async function eliminarPropiedad(p) {
 	const pendientes = p.operacion === 'vacacional' ? await porVenir(p.id) : [];
 	if (pendientes.length) throw new Error(avisoPorVenir(pendientes, `No se puede eliminar «${p.titulo}»`));
 	for (const r of reservas) await deleteDoc(refContacto(p.id, r.id)).catch(() => {});
-	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) await deleteDoc(doc(db, 'properties', p.id, 'privado', privado)).catch(() => {});
-	await deleteDoc(doc(db, 'properties', p.id));
+	// La casa y lo privado, en un solo lote: el precio del dueño y el margen (privado/socio) solo se van con la casa
+	// (firestore.rules), y un corte no deja una casa sin su precio ni un privado suelto.
+	const lote = writeBatch(db);
+	for (const privado of ['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido']) lote.delete(doc(db, 'properties', p.id, 'privado', privado));
+	lote.delete(doc(db, 'properties', p.id));
+	await lote.commit();
 	await borrarFotos(p);
 	// Cada renglón de esa lista es { propertyId } (Propietarios no guarda más). Si no se pudo quitar, la casa ya
 	// no existe y la ficha del dueño no la muestra: se anota en la consola y el borrado sigue.
