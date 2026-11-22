@@ -570,8 +570,8 @@
 		// vaya después de «referencia».
 		['si', '(^|[^0-9])(\\+|00)?(' + CON_CODIGO + ')([^0-9]|$)', 0, 'telefono'],
 		// La única excepción antes de juntar cifras: 10 o más seguidas (sin juntar grupos) justo después de referencia,
-		// autorización, boleta o transacción (ya se revisó arriba que no sean un número con su código de país).
-		['cambia', '\\b(referencia|ref|autorizaci[oó]n|boleta|transacci[oó]n)\\b[^0-9\\n]{0,30}[0-9]{10,}([ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x '],
+		// autorización, boleta o transacción, hasta 18 (ya se revisó arriba que no sean un número con su código de país).
+		['cambia', '\\b(referencia|ref|autorizaci[oó]n|boleta|transacci[oó]n)\\b[^0-9\\n]{0,30}[0-9]{10,18}([ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x '],
 		// Un teléfono posible: se juntan las cifras de los grupos cercanos (como se marcaría) y se bloquea un celular o fijo
 		// de Guatemala (8 cifras que empiezan de 2 a 7) o uno internacional (10 o más), lleve lo que lleve delante («ref»,
 		// «vuelo», «Q», «No.»…). «Son Q2345 y Q5678» o «boleta 70012345» se bloquean: preferible a dejar pasar un teléfono
