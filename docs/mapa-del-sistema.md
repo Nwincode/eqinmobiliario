@@ -218,7 +218,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 ## 7. Cómo se prueba
 
-- Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub corre solo en cada pull request.
+- Todo junto: `npm test` (sintaxis de todo el código y `scripts/test-*.mjs`). En GitHub (`.github/workflows/pruebas.yml`), en cada pull request y en cada cambio a `main`, corren en tres trabajos `npm test`, `test:reglas` y `entorno` + `recorrido` (Playwright con Chromium, versión fija; sin secretos).
 - Reglas de Firestore y Storage: `npm run test:reglas` (`scripts/emulador/`: levanta limpios los emuladores de Firestore y Storage con firebase-tools y corre los casos).
 - Entorno de pruebas completo (`scripts/entorno/`): `npm run entorno` levanta panel, sitio y funciones contra los emuladores
   de Firebase (inicio de sesión, base con `firestore.rules`, fotos con `storage.rules`) con datos inventados y usuarios

@@ -11,7 +11,7 @@ agrega aquí en el mismo cambio que lo corrige.
 | Sintaxis de todo el código y pruebas de lógica | `npm test` |
 | Reglas de Firestore y Storage (quién lee, quién escribe, qué se bloquea) | `npm run test:reglas`, siempre que se toquen `firestore.rules`, `storage.rules`, la reserva por noche, el chat o una subida de fotos |
 | La reserva por noche de punta a punta, con cada rol entrando de verdad | `npm run entorno` y `npm run recorrido`, siempre que se toque la reserva, el chat, Solicitudes, la ficha del inmueble o las reglas |
-| Lo mismo en GitHub, en cada pull request | `.github/workflows/pruebas.yml`: se espera a que termine en verde antes de unir |
+| Lo mismo en GitHub, en cada pull request | `.github/workflows/pruebas.yml`, tres trabajos: `npm test`, `test:reglas` y el recorrido (entorno y Playwright). Se espera a que los tres terminen en verde antes de unir; si el recorrido falla, sus capturas y registros quedan en el run («Artifacts») |
 
 ## 2. Probar de verdad
 
