@@ -829,6 +829,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña pone un mínimo de noches y lo anota (control)', con('mínimo de noches 1 – 5 abr 2027: 3 noches', [vac({ minimos: [mn(3)] })]), true);
 		await espera('«Faltan tus temporadas» que solo copia mínimos de noches (control)', con('puso las temporadas de 2028', [vac({ minimos: [mn(3), { ...mn(3), desde: '2028-04-01', hasta: '2028-04-05' }] })]), true);
 		await espera('«puso las temporadas» sin copiar nada', con('puso las temporadas de 2028', [vac({ huespedesMax: 11 })]), false);
+		// Los casos más pesados con valor (el tope de 1000 revisiones es de todo el pedido): 10 precios especiales con el monto
+		// del último, y 10 mínimos con las noches del último. (Precios y mínimos juntos solo los pone «Faltan tus temporadas»,
+		// sin valores en su texto: el caso de 10 y 10 de arriba.)
+		const diezT = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-10`, hasta: `2027-${String(k + 1).padStart(2, '0')}-12`, precio: 700 + k }));
+		const diezM = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-10`, hasta: `2027-${String(k + 1).padStart(2, '0')}-12`, noches: k < 9 ? 2 : 4 }));
+		await espera('10 precios especiales, con el monto del último en el texto (control)', con('precio especial 10 – 12 oct 2027: Q 709',
+			[suyo({ tarifas: diezT }), vac({ tarifas: diezT.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 })) })]), true);
+		await espera('10 mínimos de noches, con las noches del último en el texto (control)', con('mínimo de noches 10 – 12 oct 2027: 4 noches', [vac({ minimos: diezM })]), true);
 		await espera('la dueña cuela un teléfono como precio', con('precio entre semana: Q 5555 1234', precio(1100)), false);
 		await espera('la dueña cuela un teléfono como precio con comas', con('precio entre semana: Q 5,5551,234', precio(1200)), false);
 		await espera('la dueña cuela un texto en vez del precio', con('precio entre semana: Q 1 → llámame', precio(1300)), false);
@@ -843,7 +851,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 			update: { name: `${R}/leads/${id}`, fields: { email: sv(correo) } }, updateMask: { fieldPaths: ['email', 'reboteCorreo'] },
 			updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }, ...(conHistorial ? [{ fieldPath: 'solicitud.historial', appendMissingElements: { values: [{ mapValue: { fields: { que: sv(`Correo corregido: x → ${correo}`), quien: sv(quien) } } }] } }] : [])] }] }) }).then((r) => r.status);
 		await espera('la dueña corrige el correo del huésped de su casa (no lee la solicitud)', corregir('mixto1', 'lead-correo-noche', 'ana@gmail.com'), false);
-		await espera('un anónimo corrige el correo de una solicitud', corregir(null, 'lead-correo-noche', 'otro@example.com'), false);
+		await espera('un anónimo corrige el correo de una solicitud', corregir(null, 'lead-correo-noche', 'otro@example.com', false), false);
 		await espera('un asesor corrige el correo de una solicitud sin asesor', corregir('asesor7', 'lead-correo-noche', 'otro@example.com'), false);
 		await espera('un asesor sin vincular corrige el correo de una solicitud sin asesor', corregir('asesor-sin', 'lead-correo-noche', 'otro@example.com'), false);
 		await espera('el administrador corrige el correo de una solicitud, con su historial (control)', corregir('admin1', 'lead-correo-noche', 'ana@gmail.com'), true);
