@@ -427,6 +427,33 @@ await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 await espera(1500);
 const codigo3 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();
 const llegada3 = (await leer(`chats/${(tercero.p.url().match(/#(\w+)/) || [])[1]}`)).fields?.llegada?.stringValue || '';
+// Una solicitud sin responder con «El correo no llegó»: el administrador corrige el correo en Solicitudes (crm.js
+// corregirCorreo). La marca se va, el cambio queda en el historial sin cerrar la solicitud y, al confirmar el socio por el
+// servidor, el correo de la confirmación sale al corregido.
+const token3 = (tercero.p.url().match(/#(\w+)/) || [])[1] || '';
+const leadId3 = (await leer(`chats/${token3}`)).fields?.leadId?.stringValue || '';
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	await fetch(`${FS}/leads/${leadId3}?updateMask.fieldPaths=reboteCorreo`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { reboteCorreo: { mapValue: { fields: { motivo: { stringValue: 'Mailbox does not exist' }, cuando: { timestampValue: new Date().toISOString() } } } } } }) });
+	await ir(admin.p, `#/solicitudes/${codigo3}`, 3500);
+	const t3 = () => admin.p.locator('.card', { hasText: codigo3 }).first();
+	const conRebote = await t3().innerText();
+	await t3().screenshot({ path: `${TANDA}/solicitud-rebote-antes-1280.png` });
+	await t3().locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	await admin.p.locator('.modal.show input[type=email]').fill('Marta.OK@Example.com');
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await espera(3500);
+	const sinRebote = await t3().innerText();
+	await t3().screenshot({ path: `${TANDA}/solicitud-rebote-despues-1280.png` });
+	const l3 = (await leer(`leads/${leadId3}`)).fields || {};
+	const sol3 = l3.solicitud?.mapValue?.fields || {};
+	paso('Solicitud sin responder con «El correo no llegó»: al corregir el correo, la marca se va y queda en el historial sin cerrarla',
+		/El correo no llegó/.test(conRebote) && !/El correo no llegó/.test(sinRebote) && !l3.reboteCorreo && l3.email?.stringValue === 'marta.ok@example.com' && !sol3.estado
+		&& (sol3.historial?.arrayValue?.values || []).some((x) => x.mapValue.fields.que?.stringValue === 'Correo corregido: marta@example.com → marta.ok@example.com') && /Confirmar/.test(sinRebote),
+		`${l3.email?.stringValue} · estado ${sol3.estado?.stringValue || '—'} · ${await avisos(admin.p)}`);
+}
 // La ficha de la casa queda abierta en el panel del administrador mientras el socio confirma esta reserva y cambia su
 // precio en «Mis propiedades»: al guardar la ficha, nada de eso se pierde (antes la ficha reescribía la casa entera).
 await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
@@ -438,6 +465,14 @@ await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
 const r4 = await confirmo3;
 await espera(3000);
 paso('El socio confirma una tercera reserva (por el servidor) y las fechas quedan ocupadas', porServidor(r4, 'confirmar') && Boolean(llegada3) && (await reservadas()).includes(llegada3), `${codigo3} · ${resp(r4)}`);
+{
+	const sol3 = (await leer(`leads/${leadId3}`)).fields?.solicitud?.mapValue?.fields || {};
+	const ques = (sol3.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	const conf = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((c) => (c.subject || '').includes(codigo3) && /confirmada/.test(c.subject || ''));
+	const a3 = conf.map((c) => (c.to || []).map((t) => t.email_address?.address || t).join(','));
+	paso('Con el correo corregido antes, la solicitud se confirma con sus dos renglones y la confirmación sale al correo nuevo',
+		sol3.estado?.stringValue === 'confirmada' && ques.length >= 2 && ques.some((q) => /^Correo corregido/.test(q)) && a3.includes('marta.ok@example.com') && !a3.includes('marta@example.com'), `${ques.join(' | ')} · ${a3.join(' ')}`);
+}
 {
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await socio.p.fill('#mc-base', '110');
@@ -896,7 +931,7 @@ paso('Correo al socio por la solicitud nueva', resumen.some((r) => /socio@exampl
 paso('Correo al cliente con su enlace', resumen.some((r) => /ana@example\.com ← Tu solicitud/.test(r)));
 paso('Correo al cliente con la confirmación (datos de pago)', resumen.some((r) => /ana@example\.com ← .*confirmada/.test(r)));
 paso('Correo al socio cuando el cliente adjunta su comprobante', resumen.some((r) => /socio@example\.com ← .*comprobante/.test(r)));
-paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@example\.com ← .*cancelada/.test(r)));
+paso('Correo al cliente cuando el socio cancela (al correo que corrigió el equipo)', resumen.some((r) => /marta\.ok@example\.com ← .*cancelada/.test(r)));
 paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.some((r) => /equipo@example\.com ← .*el socio canceló/.test(r)));
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
@@ -943,7 +978,11 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	paso('Solicitudes: el correo corregido queda en la solicitud (limpio, en minúsculas) con su renglón en el historial',
 		lead.email?.stringValue === 'ana.nueva@example.com' && hist.includes('Correo corregido: ana@example.com → ana.nueva@example.com') && /ana\.nueva@example\.com/.test(await admin.p.locator('.card', { hasText: codigo }).first().innerText()),
 		`${lead.email?.stringValue} · ${hist.at(-1)} · ${await avisos(admin.p)}`);
-	// El siguiente aviso al cliente (el equipo le escribe en el chat) sale al correo nuevo.
+	// El siguiente aviso al cliente (el equipo le escribe en el chat) sale al correo nuevo. Que el cliente vio el chat hace
+	// 4 min, después de los mensajes de antes (netlify/lib/avisos-chat.mjs: visto hace menos de 3 min, está conversando; un
+	// mensaje de la casa ya avisado después de «visto», no se repite): fijo, así no depende de cuánto tardó el recorrido.
+	await fetch(`${FS}/chats/${token}?updateMask.fieldPaths=vistoCliente`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vistoCliente: { timestampValue: new Date(Date.now() - 4 * 60_000).toISOString() } } }) });
 	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Chat con el cliente"]').click();
 	await espera(1500);
 	await admin.p.fill('.modal.show textarea', 'Te esperamos el día de llegada.');
@@ -1432,6 +1471,17 @@ const duenos = [];
 		lineasMixta.length === 1 && /^precio entre semana: (US\$|Q) [\d,.]+ → (US\$|Q) 95$/.test(lineasMixta[0]) && /Ya estaba así/.test(yaEstaba), `${lineasMixta.join(' | ')} · ${yaEstaba}`);
 	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
 	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
+	// Un precio de antes que no cabe en el texto (1,500,000, lo puso el equipo): la dueña lo cambia y su línea lleva el
+	// nuevo, sin el de antes (las reglas lo aceptan así; si las reglas lo negaran, el panel guardaría sin valores).
+	{
+		await fetch(`${FS}/properties/casa-noche-mixta/privado/socio?updateMask.fieldPaths=precioBase`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { precioBase: { integerValue: '1500000' } } }) });
+		await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
+		await mixta.p.fill('#mc-base', '95');
+		await mixta.p.locator('#mc-base').press('Tab');
+		await espera(3000);
+		const ultima = (await lineasBitacora('casa-noche-mixta')).at(-1);
+		paso('«Mis propiedades»: con un precio de antes de 1,500,000, la línea guarda el nuevo con su valor (sin el de antes)', ultima === 'precio entre semana: US$ 95', `${ultima} · ${await avisos(mixta.p)}`);
+	}
 	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
 	await mixta.p.setViewportSize({ width: 390, height: 844 });
 	await ir(mixta.p, '#/mis-casas', 3000);
