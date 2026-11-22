@@ -910,6 +910,73 @@ paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@e
 paso('Correo al cliente con el pago recibido (datos de llegada)', resumen.some((r) => /ana@example\.com ← .*pago recibido/.test(r)));
 paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos.some((c) => /305 555 1234|5555 0001/.test(JSON.stringify(c)) || (para(c).includes('socio@') && /ana@example/.test(JSON.stringify({ ...c, to: '' })))));
 
+// ---------------------------------------------------------------- 5b. Corregir el correo del cliente (Solicitudes y ficha del cliente)
+// Una sola pieza (admin/js/crm.js corregirCorreo): el correo queda en la solicitud, que es de donde lo leen los avisos del
+// servidor; el siguiente aviso sale al nuevo y ninguno al de antes.
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3500);
+	const tarjetaA = admin.p.locator('.card', { hasText: codigo }).first();
+	paso('Solicitudes: el administrador ve el correo del cliente con el lápiz para corregirlo', /ana@example\.com/.test(await tarjetaA.innerText()) && await tarjetaA.locator('[aria-label="Corregir el correo"]').count() === 1);
+	const lapiz = await tarjetaA.locator('[aria-label="Corregir el correo"]').boundingBox();
+	paso('Solicitudes: el lápiz del correo mide 44 px o más de alto', lapiz && lapiz.height >= 44 && lapiz.width >= 44, lapiz ? `${Math.round(lapiz.width)}×${Math.round(lapiz.height)}` : 'sin botón');
+	await tarjetaA.screenshot({ path: `${TANDA}/solicitud-correo-1280.png` });
+	await tarjetaA.locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	const campoCorreo = admin.p.locator('.modal.show input[type=email]');
+	await campoCorreo.fill('ana.nueva@gmial.com');
+	await campoCorreo.blur();
+	await espera(300);
+	const pistaC = await admin.p.locator('.modal.show .form-text:not([hidden])').innerText().catch(() => '');
+	await campoCorreo.fill('ana.nueva@');
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await espera(800);
+	const sigueAbierta = await admin.p.locator('.modal.show input[type=email]').count() === 1;
+	paso('Corregir el correo: sugiere el dominio bien escrito y no guarda uno incompleto', /gmail\.com/.test(pistaC) && sigueAbierta, pistaC);
+	await campoCorreo.fill('  Ana.Nueva@Example.com ');
+	const antesC = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await espera(3500);
+	const leadId = (await leer(`chats/${token}`)).fields?.leadId?.stringValue;
+	const lead = (await leer(`leads/${leadId}`)).fields || {};
+	const hist = (lead.solicitud?.mapValue?.fields?.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	paso('Solicitudes: el correo corregido queda en la solicitud (limpio, en minúsculas) con su renglón en el historial',
+		lead.email?.stringValue === 'ana.nueva@example.com' && hist.includes('Correo corregido: ana@example.com → ana.nueva@example.com') && /ana\.nueva@example\.com/.test(await admin.p.locator('.card', { hasText: codigo }).first().innerText()),
+		`${lead.email?.stringValue} · ${hist.at(-1)} · ${await avisos(admin.p)}`);
+	// El siguiente aviso al cliente (el equipo le escribe en el chat) sale al correo nuevo.
+	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Chat con el cliente"]').click();
+	await espera(1500);
+	await admin.p.fill('.modal.show textarea', 'Te esperamos el día de llegada.');
+	await admin.p.locator('.modal.show [aria-label=Enviar]').click();
+	await espera(4000);
+	await admin.p.locator('.modal.show .btn-close').click();
+	await espera(1500);
+	const nuevos = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l));
+	paso('Con el correo corregido, el aviso siguiente le llega al nuevo y ninguno al de antes', nuevos.some((c) => para(c) === 'ana.nueva@example.com') && !nuevos.some((c) => para(c).includes('ana@example.com')), nuevos.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió');
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3000);
+	await admin.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${TANDA}/solicitud-correo-390.png` });
+	paso('Solicitudes a 390 px: sin scroll de lado con el correo y el lápiz', await admin.p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
+	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-ventana-390.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	await espera(600);
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	// Ficha del cliente: el correo corregido pasa a sus leads (a donde escriben los avisos) y quita «El correo no llegó».
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const sv = (v) => ({ stringValue: v });
+	await fetch(`${FS}/clientes/cli-correo`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: { nombre: sv('Pedro Correo (prueba)'), email: sv('pedro@hotmial.com'), telefono: sv('+502 5555 8888'), agentId: sv(''), etapa: sv('nuevo'), tipo: sv('comprador') } }) });
+	for (const id of ['lead-correo-1', 'lead-correo-2']) await fetch(`${FS}/leads/${id}`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: { nombre: sv('Pedro'), telefono: sv('+502 5555 8888'), email: sv('pedro@hotmial.com'), clienteId: sv('cli-correo'), agentId: sv(''), estado: sv('nuevo'),
+		...(id === 'lead-correo-1' ? { reboteCorreo: { mapValue: { fields: { motivo: sv('No existe') } } } } : {}) } }) });
+	await ir(admin.p, '#/clientes/cli-correo', 3500);
+	await campo(admin.p, 'email').fill('pedro@hotmail.com');
+	await guardar(admin.p);
+	const l1 = (await leer('leads/lead-correo-1')).fields || {}, l2 = (await leer('leads/lead-correo-2')).fields || {};
+	paso('Ficha del cliente: el correo corregido pasa a sus leads y quita «El correo no llegó»', l1.email?.stringValue === 'pedro@hotmail.com' && l2.email?.stringValue === 'pedro@hotmail.com' && !l1.reboteCorreo,
+		`${l1.email?.stringValue} · ${l2.email?.stringValue} · rebote ${Boolean(l1.reboteCorreo)} · ${await avisos(admin.p)}`);
+}
+
 // ---------------------------------------------------------------- 6. El asesor (no administrador)
 const asesor = await entrar('asesor');
 await ir(asesor.p, '#/propiedades/nuevo');

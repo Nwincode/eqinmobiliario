@@ -317,8 +317,9 @@ service cloud.firestore {
       // el de ahora de su privado/socio, al medio centavo (el texto redondea a 2 decimales), en la moneda de la casa; sin el
       // de antes, solo si era 0 o no cabe en el texto (1,000,000 o más, lo puso el equipo). Personas: las de la casa (sin
       // dato, 1, como el panel; un dato de antes fuera de 1 a 50 no se compara). Días bloqueados, precios especiales y
-      // mínimos: que esa lista cambió y, con su monto o sus noches, que está en la lista nueva (las primeras 10). El texto
-      // sin valores (el de una pestaña con las reglas de antes) también tiene que nombrar algo que cambió.
+      // mínimos: que esa lista cambió y, con su monto o sus noches, que está en la lista nueva (las primeras 10); «puso las
+      // temporadas», los precios especiales o los mínimos. El texto sin valores (el de una pestaña con las reglas de antes)
+      // también tiene que nombrar algo que cambió.
       function montoDe(t) {
         return t == 'igual que entre semana' ? 0.0 : float(t.replace('^(US[$]|Q) ', '').replace(',', ''));
       }
@@ -369,6 +370,8 @@ service cloud.firestore {
           : que.matches('personas máximo.*') ? personasCuadra(que, va, vd)
           : que.matches('(bloqueó|habilitó) .*') ? va.get('bloqueos', []) != vd.get('bloqueos', [])
           : que.matches('(mínimo de noches|quitó mínimos de noches) .*') ? listaCuadra(que, va.get('minimos', []), vd.get('minimos', []), 'noches', moneda)
+          // «Faltan tus temporadas» copia precios especiales, mínimos o los dos.
+          : que.matches('puso las temporadas de .*') && va.get('minimos', []) != vd.get('minimos', []) ? true
           : listaCuadra(que, socioAntes(id).get('tarifas', []), existsAfter(socio) ? getAfter(socio).data.get('tarifas', []) : [], 'precio', moneda);
       }
       match /bitacora/{entrada} {

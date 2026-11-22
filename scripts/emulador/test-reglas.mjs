@@ -827,6 +827,8 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		const mn = (noches) => ({ desde: '2027-04-01', hasta: '2027-04-05', noches });
 		await espera('la dueña pone un mínimo de 3 noches y anota 5', con('mínimo de noches 1 – 5 abr 2027: 5 noches', [vac({ minimos: [mn(3)] })]), false);
 		await espera('la dueña pone un mínimo de noches y lo anota (control)', con('mínimo de noches 1 – 5 abr 2027: 3 noches', [vac({ minimos: [mn(3)] })]), true);
+		await espera('«Faltan tus temporadas» que solo copia mínimos de noches (control)', con('puso las temporadas de 2028', [vac({ minimos: [mn(3), { ...mn(3), desde: '2028-04-01', hasta: '2028-04-05' }] })]), true);
+		await espera('«puso las temporadas» sin copiar nada', con('puso las temporadas de 2028', [vac({ huespedesMax: 11 })]), false);
 		await espera('la dueña cuela un teléfono como precio', con('precio entre semana: Q 5555 1234', precio(1100)), false);
 		await espera('la dueña cuela un teléfono como precio con comas', con('precio entre semana: Q 5,5551,234', precio(1200)), false);
 		await espera('la dueña cuela un texto en vez del precio', con('precio entre semana: Q 1 → llámame', precio(1300)), false);
