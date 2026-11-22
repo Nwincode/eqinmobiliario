@@ -8,7 +8,7 @@ import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosClie
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
-import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
+import { CODIGOS_PAIS, enUSD, piesCuadrados } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -75,7 +75,7 @@ const tipoLabel = (p) => (lng(p) === 'en' ? TIPOS_EN[p.tipo] : TIPOS[p.tipo]) ||
 const estadoLabel = (p) => (lng(p) === 'en' ? ESTADOS_EN[p.estado] : ESTADOS[p.estado]) || p.estado;
 // Superficie: m² en español; pies cuadrados (con m²) en inglés.
 const area = (m2, lang) => (lang === 'en'
-	? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${cifra(m2)} m²)`
+	? `${piesCuadrados(m2)} (${cifra(m2)} m²)`
 	: `${cifra(m2)} m²`);
 // Terreno: en Guatemala se habla en varas cuadradas (v²); en inglés, pies cuadrados.
 const areaTerreno = (m2, lang) => (lang === 'en' ? area(m2, lang) : `${cifra(Math.round(m2 * M2_A_V2))} v² (${cifra(m2)} m²)`);

@@ -3,8 +3,9 @@ import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
-	TIPOS_ACTIVIDAD, tipoActividad, iconoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
+	TIPOS_ACTIVIDAD, tipoActividad, iconoActividad, loadActividades, loadClientes, crearActividad, vencimiento, ms
 } from '../crm.js';
+import { fechaHora } from '../formato.js';
 import { refrescarPorCliente } from '../portal.js';
 
 const GRUPOS = [
@@ -65,7 +66,7 @@ export async function render(container) {
 						h('div', { class: 'small text-muted' },
 							a.clienteId ? h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente') : null,
 							a.clienteId ? ' · ' : '',
-							a.fecha ? fechaCorta(a.fecha) : 'Sin fecha',
+							a.fecha ? fechaHora(a.fecha) : 'Sin fecha',
 							session.isAdmin && a.agentId ? ` · ${nombreAsesor[a.agentId] || ''}` : '')),
 					h('div', { class: 'd-flex align-items-center flex-shrink-0' },
 					iconoBtn('icon-check', 'Marcar como hecho', { class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }),

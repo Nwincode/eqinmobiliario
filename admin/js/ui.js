@@ -1,6 +1,6 @@
 // Utilidades de interfaz del panel.
 import '/js/calc-vacacional.js';
-import { textoCsv } from './formato.js';
+import { textoCsv, fechaCorta, fechaHora } from './formato.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -41,21 +41,9 @@ export function mount(el, ...children) {
 // Una sola: admin/js/formato.js (también la usa el generador del sitio).
 export { slugify } from './formato.js';
 
-export function toDate(v) {
-	if (!v) return null;
-	if (typeof v.toDate === 'function') return v.toDate();
-	if (v.seconds) return new Date(v.seconds * 1000);
-	const d = new Date(v);
-	return Number.isNaN(d.getTime()) ? null : d;
-}
-
-export function formatDate(v, withTime = true) {
-	const d = toDate(v);
-	if (!d) return '—';
-	return d.toLocaleString('es-GT', withTime
-		? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }
-		: { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// Fechas: una sola forma de leerlas y tres formatos, en formato.js (`aFecha`, `fechaCorta`, `fechaLarga`, `fechaHora`).
+export { aFecha as toDate } from './formato.js';
+export const formatDate = (v, withTime = true) => (withTime ? fechaHora(v) : fechaCorta(v));
 
 // Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
 // «Hoy» es el día de Guatemala, el mismo del sitio y de las funciones (una sola cuenta: js/calc-vacacional.js).

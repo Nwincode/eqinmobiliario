@@ -3,7 +3,7 @@ import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig
 import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
-import { diaConAnio } from '../formato.js';
+import { diaConAnio, fechaHora } from '../formato.js';
 import { rango } from '../texto-dueno.js';
 
 const num = (n) => Math.round(n || 0).toLocaleString('es-GT');
@@ -139,7 +139,7 @@ function inspector() {
 			out.replaceChildren(
 				h('div', { class: `alert ${indexada ? 'alert-success' : 'alert-warning'} mb-2` }, indexada ? '✓ La página está en Google.' : `La página no está indexada: ${r.cobertura || r.veredicto || 'sin información'}.`),
 				h('dl', { class: 'row mb-0' },
-					h('dt', { class: 'col-sm-4' }, 'Último rastreo'), h('dd', { class: 'col-sm-8' }, r.rastreo ? new Date(r.rastreo).toLocaleString('es-GT') : '—'),
+					h('dt', { class: 'col-sm-4' }, 'Último rastreo'), h('dd', { class: 'col-sm-8' }, fechaHora(r.rastreo)),
 					h('dt', { class: 'col-sm-4' }, 'Canónica elegida por Google'), h('dd', { class: 'col-sm-8 text-break' }, r.canonicaGoogle || '—'),
 					h('dt', { class: 'col-sm-4' }, 'Resultados enriquecidos'), h('dd', { class: 'col-sm-8' }, (r.enriquecidos || []).join(', ') || 'Ninguno detectado')),
 				r.enlace ? h('a', { href: r.enlace, target: '_blank', rel: 'noopener' }, 'Abrir en Search Console (para pedir la indexación)') : null);

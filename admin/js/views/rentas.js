@@ -3,9 +3,9 @@
 // marcar lo pagado pasan por admin/js/reservas.js (lo mismo que usa Solicitudes): la reserva la ve también su dueño.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
-import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, hoy, dia, formatDate, spinner, elegirOpcion } from '../ui.js';
+import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, hoy, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
-import { whatsappUrl, nNoches, dineroPorMoneda } from '../formato.js';
+import { whatsappUrl, nNoches, dineroPorMoneda, nombreMes, moverMes, fechasReserva } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
@@ -27,9 +27,7 @@ const dato = (icono, texto, cls = '', titulo) => h('span', { class: cls || null,
 const SIN_DUENO = 'Sin propietario asignado';
 
 // El mes "2026-11" → "noviembre de 2026".
-const nombreMes = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-const moverMes = (mes, n) => { const d = new Date(`${mes}-15T12:00:00`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
 const diasDelMes = (mes) => new Date(Number(mes.slice(0, 4)), Number(mes.slice(5)), 0).getDate();
 
 // Suma de dinero por moneda en un solo texto: "US$ 1,200.00 · Q 3,000.00" (formato.js `dineroPorMoneda`).
@@ -159,7 +157,7 @@ export async function render(container) {
 	// Estado de cuenta listo para mandarlo por WhatsApp al propietario.
 	const mensajeCuenta = (nombre, lista, res) => [
 		`Hola ${nombre.split(' ')[0]}, este es el estado de cuenta de ${nombreMes(estado.mes)}:`, '',
-		...lista.map((r) => `• ${r.propertyTitulo}: ${dia(r.llegada)} – ${dia(r.salida)} (${nNoches(r.noches)}) · ${money(r.costoSocio, r.moneda)}${r.pagadoSocio ? ' ✓ pagado' : ''}`), '',
+		...lista.map((r) => `• ${r.propertyTitulo}: ${fechasReserva(r)} (${nNoches(r.noches)}) · ${money(r.costoSocio, r.moneda)}${r.pagadoSocio ? ' ✓ pagado' : ''}`), '',
 		`Por pagar: ${dinero(res.porMoneda, 'porPagar')}`, `Pagado: ${dinero(res.porMoneda, 'pagado')}`
 	].join('\n');
 
@@ -217,7 +215,7 @@ export async function render(container) {
 				const dueno = duenoDeReserva(r)?.nombre;
 				return [
 					[r.propertyTitulo, dueno ? h('div', { class: 'small text-muted fw-normal' }, dueno) : null],
-					h('span', { class: 'text-nowrap' }, dato('icon-calendar-o', `${dia(r.llegada)} – ${dia(r.salida)}`), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
+					h('span', { class: 'text-nowrap' }, dato('icon-calendar-o', fechasReserva(r)), ' ', dato('icon-moon-o', r.noches, 'text-muted ms-1', nNoches(r.noches))),
 					[dato('icon-user', r.huesped || etiqueta(CANALES, r.canal)), r.huesped ? h('span', { class: 'small text-muted ms-1' }, etiqueta(CANALES, r.canal)) : null],
 					estadoBadge(r),
 					[dato('icon-handshake-o', money(r.costoSocio, r.moneda), 'me-1 text-nowrap', 'Al propietario'),

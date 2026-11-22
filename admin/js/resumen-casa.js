@@ -5,17 +5,14 @@
 import { db, addDoc, collection, serverTimestamp } from './firebase.js';
 import { h, toast, showError, badge, statCard, iconoBtn, tablaAdmin, formatPrice } from './ui.js';
 import { ESTADOS_PROPIEDAD, OPERACIONES } from './estados.js';
-import { whatsappUrl } from './formato.js';
+import { whatsappUrl, fechaCorta, fechaLarga } from './formato.js';
 import { estadoExclusiva, datosDe } from './ficha-casa.js';
 import { CANALES } from './portal-clientes.js';
 import { enlaceSeguro } from './duenos.js';
 
 const DIA = 86400000;
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
-const fecha = (v, corta = false) => {
-	const d = v ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00` : v) : null;
-	return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('es-GT', corta ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-};
+const fecha = (v, corta = false) => (corta ? fechaCorta(v, '') : fechaLarga(v));
 
 const COLOR_VISIBILIDAD = { visible: 'success', cerrada: 'info', oculta: 'secondary' };
 const CANAL = { web: ['Página web', 'icon-globe'], whatsapp: ['WhatsApp', 'icon-whatsapp'], portal: ['Portal de anuncios', 'icon-newspaper-o'], anuncio: ['Anuncio pagado', 'icon-bullhorn'],

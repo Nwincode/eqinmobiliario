@@ -6,6 +6,7 @@ import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
 import { portalesDe, iconoPortal, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
 import { refrescarPortalesDe } from '../portal.js';
+import { fechaCorta } from '../formato.js';
 
 const COLOR = { ok: 'success', actualizar: 'warning', baja: 'danger', pendiente: 'light', na: 'light' };
 // Ícono de cada estado en el tablero; los indicadores de arriba usan los mismos y sirven de leyenda.
@@ -61,7 +62,7 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 		h('div', { class: 'card-header bg-white d-flex flex-wrap align-items-center gap-2' },
 			h('strong', { class: 'me-auto' }, portal.nombre, ' ', h('span', { class: 'badge text-bg-light' }, portal.idioma.toUpperCase())),
 			badge(est.texto, COLOR[est.id]),
-			reg.fecha ? h('span', { class: 'small text-muted' }, `desde ${new Date(reg.fecha).toLocaleDateString('es-GT')}`) : null,
+			reg.fecha ? h('span', { class: 'small text-muted' }, `desde ${fechaCorta(reg.fecha)}`) : null,
 			portal.url ? h('a', { href: portal.url, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-light' }, 'Abrir plataforma') : null),
 		h('div', { class: 'card-body' },
 			titulo ? h('div', { class: 'mb-3' },

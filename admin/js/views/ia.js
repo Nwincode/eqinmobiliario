@@ -10,6 +10,8 @@ import { loadLeads, estadoBadge } from './leads.js';
 import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
 import { refrescarPortalesDe } from '../portal.js';
+import { campoTelefono } from '../form.js';
+import { telefonoValido } from '../formato.js';
 
 const TABS = [
 	['buscar', 'Buscar para un cliente', 'icon-search'],
@@ -46,13 +48,13 @@ function cargando(btn, texto = 'Trabajando…') {
 function mensajeBox(texto, telefono = '', titulo = 'Mensaje para el cliente') {
 	const area = h('textarea', { class: 'form-control', rows: 6 });
 	area.value = texto || '';
-	const tel = h('input', { class: 'form-control', type: 'tel', placeholder: 'WhatsApp del cliente (opcional)', value: telefono });
+	const tel = campoTelefono(telefono, { placeholder: 'WhatsApp del cliente (opcional)' });
 	return h('div', { class: 'ia-mensaje' },
 		h('div', { class: 'form-label fw-semibold' }, titulo),
 		area,
 		h('div', { class: 'd-flex flex-wrap gap-2 mt-2' },
 			h('div', { style: 'max-width:240px' }, tel),
-			h('button', { class: 'btn btn-success', type: 'button', onclick: () => window.open(whatsappUrl(tel.value, area.value), '_blank', 'noopener') }, 'Abrir en WhatsApp'),
+			h('button', { class: 'btn btn-success', type: 'button', onclick: () => window.open(whatsappUrl(tel.valor(), area.value), '_blank', 'noopener') }, 'Abrir en WhatsApp'),
 			h('button', { class: 'btn btn-outline-secondary', type: 'button', onclick: async () => toast((await copiar(area.value)) ? 'Copiado.' : 'No se pudo copiar.') }, 'Copiar')));
 }
 
@@ -115,14 +117,15 @@ function tabBuscar(cont, props) {
 
 function guardarRequerimiento(texto, criterios) {
 	const nombre = h('input', { class: 'form-control', placeholder: 'Nombre del cliente' });
-	const tel = h('input', { class: 'form-control', type: 'tel', placeholder: 'WhatsApp' });
+	const tel = campoTelefono('', { placeholder: 'WhatsApp' });
 	const btn = h('button', { class: 'btn btn-outline-primary', type: 'button' }, 'Guardar cliente');
 	btn.addEventListener('click', async () => {
 		if (!nombre.value.trim()) return toast('Escribe el nombre del cliente.', 'warning');
+		if (tel.valor() && !telefonoValido(tel.valor())) return toast('Revisa el WhatsApp: el número no está completo para ese país.', 'warning');
 		try {
 			const ref = doc(collection(db, 'requerimientos'));
 			await setDoc(ref, {
-				cliente: nombre.value.trim(), telefono: tel.value.trim(), texto, criterios: criterios || {},
+				cliente: nombre.value.trim(), telefono: tel.valor(), texto, criterios: criterios || {},
 				estado: 'activo', agentId: session.agentId || '', createdBy: session.user.uid, createdAt: serverTimestamp()
 			});
 			toast('Cliente guardado. Te avisaremos cuando entre una propiedad que le sirva (pestaña "Clientes que buscan").');

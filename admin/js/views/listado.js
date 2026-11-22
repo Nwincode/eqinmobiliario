@@ -8,7 +8,7 @@ import { TIPOS } from './properties.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { estadoDe, operacionDe, enOperacion, precioVisible, textoSinPrecio } from '../estados.js';
 import { colorTema } from '../tema-def.js';
-import { telefonoWa, whatsappUrl } from '../formato.js';
+import { telefonoWa, whatsappUrl, fechaLarga, miles } from '../formato.js';
 
 const TIPO_LABEL = Object.fromEntries(TIPOS);
 
@@ -32,7 +32,6 @@ function precioPdf(p, mostrarPrecio) {
 
 // Ficha técnica: [etiqueta, valor] solo con los datos que tiene la propiedad.
 function datos(p) {
-	const n = (v) => Number(v).toLocaleString('en-US');
 	return [
 		['Tipo', TIPO_LABEL[p.tipo] || ''],
 		['Operación', operacionDe(p)],
@@ -40,8 +39,8 @@ function datos(p) {
 		['Habitaciones', p.habitaciones],
 		['Baños', p.banos],
 		['Parqueos', p.parqueos],
-		['Construcción', p.m2Construccion && `${n(p.m2Construccion)} m²`],
-		['Terreno', p.m2Terreno && `${n(p.m2Terreno)} m²`]
+		['Construcción', p.m2Construccion && `${miles(p.m2Construccion)} m²`],
+		['Terreno', p.m2Terreno && `${miles(p.m2Terreno)} m²`]
 	].filter(([, v]) => v);
 }
 
@@ -133,7 +132,7 @@ function filaCompacta(p, opts, n) {
 }
 
 export function documento(props, opts, empresa, contacto, tema = {}) {
-	const fecha = new Date().toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
+	const fecha = fechaLarga(new Date());
 	const lineasContacto = [
 		contacto.telefono && `<a href="${esc(enlaceTelefono(contacto.telefono, opts.titulo || 'Propiedades'))}">${iconoTelefono(contacto.telefono)}${esc(contacto.telefono)}</a>`,
 		contacto.email && `<a href="mailto:${esc(contacto.email)}">${ic('envelope-o')}${esc(contacto.email)}</a>`

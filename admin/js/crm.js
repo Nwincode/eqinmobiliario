@@ -252,12 +252,6 @@ export function proximaActividad(actividades, clienteId) {
 		.sort((a, b) => ms(a.fecha) - ms(b.fecha))[0];
 }
 
-export function fechaCorta(v) {
-	const d = toDate(v);
-	if (!d) return '';
-	return d.toLocaleString('es-GT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-
 export function chipVencimiento(a) {
 	const v = vencimiento(a);
 	if (v === 'vencida') return h('span', { class: 'badge text-bg-danger' }, 'Vencida');

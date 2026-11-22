@@ -14,7 +14,7 @@ import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeCo
 	motivoParaNoConfirmar, comprobanteVigente, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, TEXTO_CONFIRMA_EQUIPO, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from '../reservas-calculo.js';
 import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
-import { whatsappUrl, nNoches } from '../formato.js';
+import { whatsappUrl, nNoches, fechasReserva } from '../formato.js';
 import { uploadImage, renderForm } from '../form.js';
 import { PARECE } from '../mi-casa.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas, corregirCorreo } from '../crm.js';
@@ -32,7 +32,7 @@ const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirm
 const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
 
 const estado = (l) => l.solicitud?.estado || 'pendiente';
-const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
+const fechas = fechasReserva;
 const alertaDe = (l, reserva, casa) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reserva, casa?.vacacional?.bloqueos, Date.now());
 
 export async function render(container, [codigo] = []) {

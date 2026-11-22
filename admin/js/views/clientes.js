@@ -4,12 +4,12 @@ import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, empt
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido, fechaHora } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
+	chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -110,7 +110,7 @@ async function renderLista(container) {
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
 			dato('icon-map-marker', c.zonas),
 			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),
-			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaCorta(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
+			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaHora(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
 				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
 			session.isAdmin ? dato('icon-id-badge', nombreAsesor[c.agentId]) : null,
 			faltan.length ? h('div', { class: 'mt-1' }, chipFaltan(faltan)) : null),
@@ -158,7 +158,7 @@ async function renderLista(container) {
 						[h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))],
 						h('span', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
 						etapaBadge(c.etapa),
-						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
+						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaHora(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
 						h('span', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
 						...(session.isAdmin ? [h('span', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar')] : [])];
 				},
@@ -358,7 +358,7 @@ async function renderFicha(container, id) {
 				pendientes.length ? tarjetaCard(`Pendientes (${pendientes.length})`,
 					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 						iconoActividad(a.tipo),
-						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaCorta(a.fecha) : 'Sin fecha')),
+						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaHora(a.fecha) : 'Sin fecha')),
 						chipVencimiento(a),
 						iconoBtn('icon-check', 'Marcar como hecha', { onclick: () => completar(a) }))))) : null,
 				tarjetaCard('Propiedades de interés', h('div', { class: 'card-body' },

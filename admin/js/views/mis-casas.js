@@ -11,7 +11,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
-import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.js';
+import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
@@ -34,10 +34,8 @@ const V = window.EQVacacional;
 // Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
 const PRECIO_MAX = 50000;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
-const fecha = (iso) => new Date(`${iso}T12:00:00`);
 // «10 – 12 dic»; con el año cuando no es el de hoy (las temporadas que se repiten ya tienen varios años).
-const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
-const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
+const mesTitulo = (mes) => { const t = nombreMes(mes); return t.charAt(0).toUpperCase() + t.slice(1); };
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
@@ -153,7 +151,6 @@ async function casa(container, id) {
 	const pre = prefijoMoneda(p.moneda || 'USD');
 	const plata = (n) => `${pre}${decimales(n)}`;
 	// En la casilla del día, el precio corto, como en el calendario del sitio (js/vacacional.js dineroCorto): el completo no cabe.
-	const enCelda = (n) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
@@ -400,14 +397,14 @@ async function casa(container, id) {
 			},
 			h('span', { class: 'vac-dia-num' }, Number(f.slice(8))),
 			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : externa ? 'icon-globe' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
-				: h('span', { class: 'vac-dia-precio' }, enCelda(V.precioNoche(f, plan())))));
+				: h('span', { class: 'vac-dia-precio' }, dineroCorto(V.precioNoche(f, plan()), p.moneda))));
 		};
 		const semanas = [];
 		for (let i = 0; i < celdas.length; i += 7) semanas.push(h('tr', {}, celdas.slice(i, i + 7).map(celda)));
 		repintar(cal,
 			h('div', { class: 'vac-cal-cabecera' },
 				flecha('prev', 'Mes anterior', () => { e.mes = moverMes(e.mes, -1); calendario(); }, e.mes <= hoy().slice(0, 7)),
-				h('h2', { class: 'vac-cal-mes' }, nombreMes(e.mes)),
+				h('h2', { class: 'vac-cal-mes' }, mesTitulo(e.mes)),
 				flecha('next', 'Mes siguiente', () => { e.mes = moverMes(e.mes, 1); calendario(); })),
 			h('table', { class: 'vac-cal-tabla' },
 				h('thead', {}, h('tr', {}, ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d) => h('th', { scope: 'col' }, d)))),
