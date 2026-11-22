@@ -13,6 +13,8 @@ assert.match(reglas, /!tieneContacto\(request\.resource\.data\.texto\)/, 'los me
 // Lo que el compilador de reglas de Firestore no acepta dentro de una clase («[(\\[]», «[\\])}>]»): fallaba al publicar
 // las reglas, y npm test no lo veía (solo el emulador). Se escribe como alternativa: «(\\(|\\[)».
 await import('../js/calc-vacacional.js');
+// Y ninguno pasa de 4096 letras con su envoltura (el compilador de reglas lo rechaza: «Regular expression too long»).
+for (const [, patron] of globalThis.EQVacacional.FILTRO_CONTACTO) assert.ok(`[\\s\\S]*(?:${patron})[\\s\\S]*`.length <= 4096, `patrón de ${patron.length} letras: ${patron.slice(0, 60)}…`);
 for (const [, patron] of globalThis.EQVacacional.FILTRO_CONTACTO) {
 	let clase = false;
 	for (let i = 0; i < patron.length; i++) {

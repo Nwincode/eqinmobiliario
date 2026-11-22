@@ -25,7 +25,8 @@ export const patronCodigos = () => CODIGOS_PAIS.map(([c]) => c).filter((c) => c.
 // año: el 1 de enero `npm test` falla hasta que se corre este guion y se publican las reglas.
 export const patronAnios = (hoy = new Date()) => Array.from({ length: 5 }, (_, i) => hoy.getFullYear() - 1 + i).join('|');
 // Dos años seguidos («2024-2025», «2019/2020», «2018, 2019»): una temporada o una lista, no un teléfono.
-export const patronSeguidos = () => Array.from({ length: 51 }, (_, i) => 1990 + i).map((y) => `${y}[ \\t]*[-/,][ \\t]*${y + 1}`).join('|');
+// (De 2010 a 2036, con un espacio a lo más: el compilador de reglas no acepta un patrón de más de 4096 letras.)
+export const patronSeguidos = () => Array.from({ length: 26 }, (_, i) => 2010 + i).map((y) => `${y} ?[-/,] ?${y + 1}`).join('|');
 export function calcAlDia(calc = readFileSync(CALC, 'utf8')) {
 	const a = calc.indexOf(I_COD), b = calc.indexOf(F_COD);
 	if (a < 0 || b < 0) throw new Error('js/calc-vacacional.js no tiene las marcas <codigos-pais>');
