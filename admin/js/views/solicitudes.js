@@ -15,9 +15,9 @@ import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeCo
 import { traducirTexto } from '../ia.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches } from '../formato.js';
-import { uploadImage } from '../form.js';
+import { uploadImage, renderForm } from '../form.js';
 import { PARECE } from '../mi-casa.js';
-import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from '../crm.js';
+import { money, ms, loadPropietarios, loadPropiedades, loadReservas, corregirCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
 
@@ -422,6 +422,24 @@ export async function render(container, [codigo] = []) {
 			h('ol', { class: 'mb-0 ps-3' }, renglones.map((x) => h('li', {}, linea(x)))));
 	}
 
+	// Corregir el correo del cliente (crm.js corregirCorreo: el mismo que usa su ficha de cliente). Con el formulario del panel:
+	// revisa el formato y sugiere «¿Quisiste decir …?».
+	function corregirElCorreo(l) {
+		const form = renderForm([{ name: 'email', label: 'Correo del cliente', type: 'email', required: true }], { email: l.email || '' });
+		const guardar = h('button', { class: 'btn btn-primary', onclick: async (e) => {
+			const boton = e.currentTarget;
+			if (!form.validate()) return;
+			boton.disabled = true;
+			try {
+				const cambio = await corregirCorreo(l, form.getData().email);
+				m.close();
+				toast(cambio ? 'Correo corregido: los próximos avisos le llegan ahí.' : 'Ya tenía ese correo.');
+				await recargar();
+			} catch (err) { showError(err); boton.disabled = false; }
+		} }, 'Guardar');
+		const m = modal({ title: `Correo · ${l.reserva.codigo}`, body: form.el, footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), guardar] });
+	}
+
 	function tarjeta(l) {
 		const r = l.reserva;
 		const sol = l.solicitud || {};
@@ -484,7 +502,7 @@ export async function render(container, [codigo] = []) {
 				: null))(revisiones[l.id]),
 			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
 			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),
-				`El correo no llegó a ${l.email}: escríbele por WhatsApp.`) : null,
+				'El correo no llegó: escríbele por WhatsApp o corrígelo.') : null,
 			plazo(l, est, res),
 			// Hasta cuándo vale «No me llegó»: después, sin pago marcado, la ganancia de EQ cuenta como cobrada (V.cobrable).
 			!admin && est === 'confirmada' && res && puedeNoMeLlego(l) ? h('div', { class: 'small text-muted' }, icono('clock-o'),
@@ -498,6 +516,9 @@ export async function render(container, [codigo] = []) {
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
+				// El correo al que le llegan los avisos de su reserva; el lápiz lo corrige (lo lee el servidor de la solicitud).
+				admin ? h('span', { class: `small text-break ${l.reboteCorreo ? 'text-danger' : 'text-muted'}` }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }), l.email || 'Sin correo') : null,
+				admin ? iconoBtn('icon-pencil', 'Corregir el correo', { onclick: () => corregirElCorreo(l) }) : null,
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,

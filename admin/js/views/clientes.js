@@ -1,15 +1,15 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
-import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
 import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl, sumarPorMoneda, dineroPorMoneda } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
+	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -258,11 +258,15 @@ async function renderFicha(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d, { merge: true });
-			// Correo corregido: sus leads cuyo correo rebotó (/api/rebote-correo) dejan de decir «El correo no llegó». Aparte:
-			// si alguno no se puede (otro asesor), el cliente queda guardado igual.
+			// Correo corregido: pasa a sus leads que este usuario puede cambiar (el administrador, todos; el asesor, los suyos),
+			// que es a donde escriben los avisos, y dejan de decir «El correo no llegó» (crm.js corregirCorreo). Un correo
+			// borrado no se pasa. Aparte: si alguno no se puede, el cliente queda guardado igual y se dice.
 			if (!nuevo && String(d.email || '').trim().toLowerCase() !== String(c.email || '').trim().toLowerCase()) {
-				await Promise.all(leads.filter((l) => l.clienteId === id && l.reboteCorreo).map((l) => updateDoc(doc(db, 'leads', l.id), { reboteCorreo: deleteField(), updatedAt: serverTimestamp() })
-					.then(() => { delete l.reboteCorreo; }, (err) => console.warn('Marca de rebote sin quitar', l.id, err))));
+				if (correoValido(d.email)) {
+					const suyos = leads.filter((l) => l.clienteId === id && (session.isAdmin || l.agentId === session.agentId));
+					const fallos = (await Promise.all(suyos.map((l) => corregirCorreo(l, d.email).then(() => false, (err) => { console.warn('Correo del lead sin corregir', l.id, err); return true; })))).filter(Boolean).length;
+					if (fallos) toast(`El correo no se pudo poner en ${fallos === 1 ? 'uno de sus formularios' : `${fallos} de sus formularios`}: revísalo en Leads.`, 'warning');
+				}
 				c.email = d.email;
 			}
 			toast('Cliente guardado.');

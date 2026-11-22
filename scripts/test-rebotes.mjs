@@ -2,7 +2,7 @@
 // leads de esa dirección; lo que no es de ningún lead va a «Estado del sistema». Base simulada.
 import './simulado/activar.mjs';
 import assert from 'node:assert/strict';
-import { limpiar, poner, leer } from './simulado/base.mjs';
+import { limpiar, poner, leer, S } from './simulado/base.mjs';
 
 process.env.REBOTE_CORREO_LLAVE = 'llave-de-prueba-larga-y-al-azar-123';
 process.env.CORREO_REMITENTE = 'Equipo <avisos@eqinmobiliario.gt>';
@@ -92,6 +92,21 @@ await t('desde el aviso del chat: el mensaje del cliente después del rebote qui
 	poner('chats/tok9/mensajes/m2', { de: 'cliente', texto: 'Sigo interesada', createdAt: new Date() });
 	await enviarAvisosChat('tok9');
 	assert.equal(leer('leads/l9').reboteCorreo, undefined);
+});
+
+await t('con el correo corregido en la solicitud (panel: crm.js corregirCorreo), el aviso siguiente sale al nuevo, no al de antes', async () => {
+	const { enviarAvisosChat } = await import('../netlify/lib/aviso-chat-envio.mjs');
+	poner('leads/l8', { email: 'ana@gmial.com', nombre: 'Ana', createdAt: reciente(), reserva: { codigo: 'R-8', llegada: diaIso(3), salida: diaIso(5) } });
+	poner('chats/tok8', { leadId: 'l8', codigo: 'R-8', propertyId: 'c8', nombre: 'Ana', llegada: diaIso(3), salida: diaIso(5), createdAt: reciente() });
+	poner('chats/tok8/mensajes/m1', { de: 'socio', tipo: 'pago', texto: 'Banco 1', createdAt: new Date(Date.now() - 60_000) });
+	await enviarAvisosChat('tok8');
+	assert.ok(S.salida.some((c) => c.para === 'ana@gmial.com'), 'antes, al que estaba');
+	S.salida.length = 0;
+	poner('leads/l8', { ...leer('leads/l8'), email: 'ana@gmail.com' });
+	poner('chats/tok8/mensajes/m2', { de: 'socio', tipo: 'llegada', texto: 'Dirección', createdAt: new Date() });
+	await enviarAvisosChat('tok8');
+	assert.ok(S.salida.some((c) => c.para === 'ana@gmail.com'), 'el nuevo');
+	assert.ok(!S.salida.some((c) => c.para.includes('gmial')), 'nada al de antes');
 });
 
 await t('cuerpo que no es JSON o demasiado grande', async () => {

@@ -1,5 +1,5 @@
-// Comparaciones de Search Console (puras, sin red): las usan el panel en vivo (netlify/functions/gsc.mjs, «Páginas que
-// bajaron») y el informe de cada semana (netlify/functions/seo-semanal.mjs). Las prueba scripts/test-seo-semanal.mjs.
+// Comparaciones de Search Console (puras, sin red): las usa el informe de cada semana (netlify/functions/seo-semanal.mjs;
+// el panel lo muestra en «Bajaron esta semana»). Las prueba scripts/test-seo-semanal.mjs.
 
 // Páginas que bajaron frente al periodo anterior: perdieron 30 % o más de sus clics (o desaparecieron) teniendo al menos
 // 3, o cayeron 3 posiciones o más teniendo al menos 20 apariciones. Las que más clics perdieron, primero.

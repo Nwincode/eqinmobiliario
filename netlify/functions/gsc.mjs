@@ -3,7 +3,6 @@
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { staffUser, json } from '../lib/auth.mjs';
 import { gsc, googleToken, googleConfigurado, propiedadValida, rangoGSC as rango, filaGSC as fila, consultaGSC as consulta, inspeccionarGSC, sitioGSC } from '../lib/google.mjs';
-import { bajaron } from '../lib/seo-semanal.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 
@@ -11,7 +10,7 @@ const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 const CTR_ESPERADO = [0, 0.28, 0.15, 0.10, 0.07, 0.05, 0.04, 0.03, 0.025, 0.02, 0.018];
 const ctrEsperado = (pos) => CTR_ESPERADO[Math.min(10, Math.max(1, Math.round(pos)))];
 
-export async function resumen(prop, dias) {
+async function resumen(prop, dias) {
 	const actual = rango(dias);
 	const anterior = rango(dias, dias);
 	const usa = { dimensionFilterGroups: [{ filters: [{ dimension: 'country', operator: 'equals', expression: 'usa' }] }] };
@@ -20,8 +19,7 @@ export async function resumen(prop, dias) {
 		consulta(prop, { ...anterior }),
 		consulta(prop, { ...actual, dimensions: ['date'], rowLimit: 500 }),
 		consulta(prop, { ...actual, dimensions: ['query'], rowLimit: 100 }),
-		// 1,000 páginas en los dos periodos: con menos, una que solo salió de la lista se vería con 0 clics («Páginas que bajaron»).
-		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 1000 }),
+		consulta(prop, { ...actual, dimensions: ['page'], rowLimit: 100 }),
 		consulta(prop, { ...actual, dimensions: ['country'], rowLimit: 10 }),
 		consulta(prop, { ...actual, dimensions: ['device'], rowLimit: 5 }),
 		consulta(prop, { ...actual, dimensions: ['query', 'page'], rowLimit: 2000 }),
@@ -42,10 +40,7 @@ export async function resumen(prop, dias) {
 		.sort((a, b) => b.clicsPotenciales - a.clicsPotenciales)
 		.slice(0, 40);
 
-	// Páginas que bajaron frente al periodo anterior (la misma regla que el informe semanal).
-	const caidas = bajaron(paginas, await consulta(prop, { ...anterior, dimensions: ['page'], rowLimit: 1000 }), 10);
-
-	return { propiedad: prop, rango: actual, totales: totales[0] || fila({}), previos: previos[0] || fila({}), porDia, consultas, paginas, paises, dispositivos, oportunidades, caidas, consultasUsa };
+	return { propiedad: prop, rango: actual, totales: totales[0] || fila({}), previos: previos[0] || fila({}), porDia, consultas, paginas, paises, dispositivos, oportunidades, consultasUsa };
 }
 
 // Verificador de la conexión: recorre los pasos en orden y dice en cuál se detiene (`falta`).

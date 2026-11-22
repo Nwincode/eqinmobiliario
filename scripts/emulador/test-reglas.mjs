@@ -34,15 +34,30 @@ const fotoCasaRaw = (p, s) => ({ mapValue: { fields: {
 	precioBase: s.precioBase || { integerValue: '0' }, precioFinde: s.precioFinde || { integerValue: '0' }, tarifas: s.tarifas || { arrayValue: {} }, margen: s.margen || { integerValue: '20' } } } });
 const crudo = async (ruta) => (await (await fetch(`${H}/${ruta}`, { headers: cab('dueño') })).json()).fields || {};
 // Además, como el panel, el texto de lo que cambió en la bitácora de la casa (properties/{id}/bitacora), en el mismo lote:
-// el tope de 1000 revisiones es de todo el pedido.
+// el tope de 1000 revisiones es de todo el pedido. Las reglas exigen que el texto nombre algo que cambió de verdad
+// (renglonCuadra): se elige por lo que el lote escribe (sin valores; los valores se prueban aparte). Un precio que solo
+// cambia en la casa (sin el suyo) no tiene renglón verdadero: va sin él y lo niega la regla de la casa.
 let nt = 0;
-const conTexto = (quien, writes) => {
-	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)$/)?.[1]).find(Boolean);
-	return casa ? [...writes, { update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/txt${++nt}`, fields: { que: svG('precio entre semana'), quien: svG(quien), nombre: svG('Dueña') } },
-		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] : writes;
+const lineaDe = (writes) => {
+	const socio = writes.find((w) => w.update?.name.endsWith('/privado/socio'))?.update.fields || {};
+	const vac = writes.find((w) => /\/properties\/[^/]+$/.test(w.update?.name || ''))?.update.fields.vacacional?.mapValue?.fields || {};
+	if ('precioBase' in socio) return 'precio entre semana';
+	if ('precioFinde' in socio) return 'precio fin de semana';
+	if ('tarifas' in socio) return 'puso las temporadas de 2027';
+	if (vac.huespedesMax?.integerValue) return `personas máximo ${vac.huespedesMax.integerValue}`;
+	if ('minimos' in vac) return 'mínimo de noches 16 nov';
+	if ('bloqueos' in vac) return 'bloqueó 16 nov (Uso propio)';
+	return '';
 };
-async function conRenglon(quien, sinTexto, { antesOtro = null } = {}) {
-	const writes = conTexto(quien, sinTexto);
+const renglonTexto = (quien, casa, que, id = `txt${++nt}`) => ({ update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/${id}`, fields: { que: svG(que), quien: svG(quien), nombre: svG('Dueña') } },
+	currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+const conTexto = (quien, writes, texto) => {
+	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)(\/privado\/socio)?$/)?.[1]).find(Boolean);
+	const que = texto ?? lineaDe(writes);
+	return casa && que ? [...writes, renglonTexto(quien, casa, que)] : writes;
+};
+async function conRenglon(quien, sinTexto, { antesOtro = null, texto } = {}) {
+	const writes = conTexto(quien, sinTexto, texto);
 	const i = writes.findIndex((w) => w.update?.name.endsWith('/privado/socio'));
 	if (i < 0) return writes;
 	const casaId = writes[i].update.name.split('/properties/')[1].split('/')[0];
@@ -764,19 +779,74 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('el asesor de la casa lee su bitácora (control)', leer('asesor7', 'properties/prueba-casa-en-venta/bitacora'), true);
 		await espera('un asesor lee la bitácora de la casa de otro asesor', leer('asesor9', 'properties/prueba-casa-en-venta/bitacora'), false);
 		await espera('un asesor escribe en la bitácora de la casa de otro asesor', entrada('asesor9', 'prueba-casa-en-venta', 'b2'), false);
-		// El dueño, solo con los textos de «Mis propiedades» (admin/js/texto-dueno.js).
-		await espera('la dueña escribe en la bitácora de su casa por noche (control)', entrada('mixto1', 'mx-noche', 'b3', 'bloqueó 16 – 20 nov (Uso propio)'), true);
-		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-noche', 'b4', 'el administrador aprobó bajar la comisión'), false);
-		await espera('la dueña cuela un teléfono en un texto de la bitácora', entrada('mixto1', 'mx-noche', 'b5', 'bloqueó 16 – 20 nov (llámame 5555-1234)'), false);
-		// Con el valor de antes y el de ahora (y el texto de antes, sin valor, de una pestaña abierta antes del cambio).
-		await espera('la dueña escribe su precio de antes y el de ahora (control)', entrada('mixto1', 'mx-noche', 'b6', 'precio entre semana: Q 900 → Q 1,000'), true);
-		await espera('la dueña escribe su precio de fin de semana sin precio propio (control)', entrada('mixto1', 'mx-noche', 'b7', 'precio fin de semana: US$ 150 → igual que entre semana'), true);
-		await espera('la dueña escribe un precio especial con su valor y unas personas máximo con el de antes (control)', entrada('mixto1', 'mx-noche', 'b8', 'precio especial 16 – 20 nov (cada año en estas fechas): US$ 12,500.5'), true);
-		await espera('la dueña escribe el texto sin valor de una pestaña de antes (control)', entrada('mixto1', 'mx-noche', 'b9', 'precio entre semana'), true);
-		await espera('la dueña escribe personas máximo de antes y de ahora (control)', entrada('mixto1', 'mx-noche', 'b10', 'personas máximo: 8 → 12'), true);
-		await espera('la dueña cuela un teléfono como precio', entrada('mixto1', 'mx-noche', 'b11', 'precio entre semana: Q 5555 1234'), false);
-		await espera('la dueña cuela un teléfono como precio con comas', entrada('mixto1', 'mx-noche', 'b12', 'precio entre semana: Q 5,5551,234'), false);
-		await espera('la dueña cuela un texto en vez del precio', entrada('mixto1', 'mx-noche', 'b13', 'precio entre semana: US$ 1 → llámame'), false);
+		// El dueño, solo con los textos de «Mis propiedades» (admin/js/texto-dueno.js), y diciendo lo que de verdad cambió en el
+		// mismo lote (renglonCuadra): una casa en quetzales con su precio (1,000), el público con el margen (1,200) y 8 personas.
+		await raw('properties/mx-texto', { titulo: sv('Casa para los textos del dueño'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('GTQ'), publicado: { booleanValue: false },
+			vacacional: { mapValue: { fields: { base: { integerValue: '1200' }, huespedesMax: { integerValue: '8' } } } } });
+		await raw('properties/mx-texto/privado/socio', { precioBase: { integerValue: '1000' }, margen: { integerValue: '20' } });
+		const C = `${R}/properties/mx-texto`;
+		const num = (x) => (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x });
+		const lista = (xs) => ({ arrayValue: { values: xs.map((o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? num(x) : sv(x)])) } })) } });
+		const vac = (o) => ({ update: { name: C, fields: { vacacional: { mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? lista(x) : num(x)])) } } } }, updateMask: { fieldPaths: Object.keys(o).map((k) => `vacacional.${k}`) } });
+		const suyo = (o) => ({ update: { name: `${C}/privado/socio`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? lista(x) : num(x)])) }, updateMask: { fieldPaths: Object.keys(o) } });
+		const con = async (texto, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: await conRenglon('mixto1', writes, { texto }) }) }).then((r) => r.status);
+		const precio = (n) => [suyo({ precioBase: n }), vac({ base: Math.round(n * 120) / 100 })];
+		await espera('la dueña escribe un renglón sin cambiar nada (solo el texto)', entrada('mixto1', 'mx-texto', 't1', 'bloqueó 16 – 20 nov (Uso propio)'), false);
+		await espera('la dueña escribe un precio que nunca existió, sin cambiar nada', entrada('mixto1', 'mx-texto', 't2', 'precio entre semana: Q 900 → Q 1,000'), false);
+		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-texto', 't3', 'el administrador aprobó bajar la comisión'), false);
+		await espera('la dueña cuela un teléfono en un texto de la bitácora', con('bloqueó 16 – 20 nov (llámame 5555-1234)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), false);
+		await espera('la dueña bloquea días y lo anota (control)', con('bloqueó 16 – 20 mar 2027 (Uso propio)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), true);
+		await espera('la dueña anota «bloqueó» cuando cambió su precio', con('bloqueó 16 – 20 mar 2027 (Uso propio)', precio(1100)), false);
+		// Precio entre semana: el de antes y el de ahora, los de verdad (privado/socio), en la moneda de la casa.
+		await espera('la dueña anota un precio de ahora que no es el que guarda', con('precio entre semana: Q 1,000 → Q 1,500', precio(1100)), false);
+		await espera('la dueña anota un precio de antes que no era', con('precio entre semana: Q 900 → Q 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio en dólares en una casa en quetzales', con('precio entre semana: US$ 1,000 → US$ 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio sin el de antes (era 1,000)', con('precio entre semana: Q 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio de antes y el de ahora, los de verdad (control)', con('precio entre semana: Q 1,000 → Q 1,100', precio(1100)), true);
+		await espera('la dueña anota su precio con decimales (control)', con('precio entre semana: Q 1,100 → Q 999.5', precio(999.5)), true);
+		await espera('la dueña anota su precio sin valores, con el cambio de verdad (las reglas de antes, control)', con('precio entre semana', precio(1000)), true);
+		await espera('la dueña anota «precio entre semana» sin valores y sin cambiarlo', con('precio entre semana', [vac({ bloqueos: [] })]), false);
+		// Fin de semana: sin precio propio es «igual que entre semana» (0).
+		await espera('la dueña pone su fin de semana y anota uno que no es', con('precio fin de semana: igual que entre semana → Q 1,300', [suyo({ precioFinde: 1250 }), vac({ finde: 1500 })]), false);
+		await espera('la dueña pone su fin de semana y lo anota (control)', con('precio fin de semana: igual que entre semana → Q 1,250', [suyo({ precioFinde: 1250 }), vac({ finde: 1500 })]), true);
+		await espera('la dueña quita su fin de semana y lo anota (control)', con('precio fin de semana: Q 1,250 → igual que entre semana', [suyo({ precioFinde: 0 }), vac({ finde: 0 })]), true);
+		// Un precio de antes de 1,000,000 o más (lo puso el equipo) no cabe en el texto: va sin él y no le impide guardar.
+		await raw('properties/mx-texto/privado/socio', { precioBase: { integerValue: '1500000' }, margen: { integerValue: '20' } });
+		await espera('con un precio de antes de 1,500,000, la dueña anota el nuevo sin el de antes (control)', con('precio entre semana: Q 1,000', precio(1000)), true);
+		// Personas: las de la casa antes y después.
+		await espera('la dueña anota otras personas de antes', con('personas máximo: 6 → 12', [vac({ huespedesMax: 12 })]), false);
+		await espera('la dueña anota otras personas de ahora', con('personas máximo: 8 → 10', [vac({ huespedesMax: 12 })]), false);
+		await espera('la dueña anota sus personas de antes y de ahora (control)', con('personas máximo: 8 → 12', [vac({ huespedesMax: 12 })]), true);
+		await espera('la dueña anota sus personas sin el de antes (las reglas de antes, control)', con('personas máximo 10', [vac({ huespedesMax: 10 })]), true);
+		// Precio especial y mínimo de noches: la lista cambió y el monto o las noches están en la nueva.
+		const tf = (precio) => ({ desde: '2027-04-01', hasta: '2027-04-05', precio });
+		await espera('la dueña pone un precio especial y anota otro monto', con('precio especial 1 – 5 abr 2027: Q 12,500.5', [suyo({ tarifas: [tf(800)] }), vac({ tarifas: [tf(960)] })]), false);
+		await espera('la dueña pone un precio especial y lo anota (control)', con('precio especial 1 – 5 abr 2027: Q 800', [suyo({ tarifas: [tf(800)] }), vac({ tarifas: [tf(960)] })]), true);
+		await espera('la dueña anota «quitó precios especiales» sin quitar nada', con('quitó precios especiales 1 – 5 abr 2027', [vac({ huespedesMax: 9 })]), false);
+		await espera('la dueña quita su precio especial y lo anota (control)', con('quitó precios especiales 1 – 5 abr 2027', [suyo({ tarifas: [] }), vac({ tarifas: [] })]), true);
+		const mn = (noches) => ({ desde: '2027-04-01', hasta: '2027-04-05', noches });
+		await espera('la dueña pone un mínimo de 3 noches y anota 5', con('mínimo de noches 1 – 5 abr 2027: 5 noches', [vac({ minimos: [mn(3)] })]), false);
+		await espera('la dueña pone un mínimo de noches y lo anota (control)', con('mínimo de noches 1 – 5 abr 2027: 3 noches', [vac({ minimos: [mn(3)] })]), true);
+		await espera('la dueña cuela un teléfono como precio', con('precio entre semana: Q 5555 1234', precio(1100)), false);
+		await espera('la dueña cuela un teléfono como precio con comas', con('precio entre semana: Q 5,5551,234', precio(1200)), false);
+		await espera('la dueña cuela un texto en vez del precio', con('precio entre semana: Q 1 → llámame', precio(1300)), false);
+	}
+	// Corregir el correo del cliente (admin/js/crm.js corregirCorreo, desde Solicitudes y la ficha del cliente): el correo, la
+	// marca del rebote y el historial de la solicitud. Solo el administrador y el asesor del lead.
+	{
+		await raw('leads/lead-correo-noche', { nombre: sv('Huésped'), telefono: sv('5555'), email: sv('ana@gmial.com'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), agentId: sv(''),
+			reboteCorreo: { mapValue: { fields: { motivo: sv('No existe') } } }, reserva: { mapValue: { fields: { codigo: sv('EQ-CO'), llegada: sv('2027-02-01'), salida: sv('2027-02-04') } } } });
+		await raw('leads/lead-correo-a7', { nombre: sv('Cliente'), telefono: sv('5555'), email: sv('luis@hotmial.com'), agentId: sv('a7') });
+		const corregir = (quien, id, correo, conHistorial = true) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{
+			update: { name: `${R}/leads/${id}`, fields: { email: sv(correo) } }, updateMask: { fieldPaths: ['email', 'reboteCorreo'] },
+			updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }, ...(conHistorial ? [{ fieldPath: 'solicitud.historial', appendMissingElements: { values: [{ mapValue: { fields: { que: sv(`Correo corregido: x → ${correo}`), quien: sv(quien) } } }] } }] : [])] }] }) }).then((r) => r.status);
+		await espera('la dueña corrige el correo del huésped de su casa (no lee la solicitud)', corregir('mixto1', 'lead-correo-noche', 'ana@gmail.com'), false);
+		await espera('un anónimo corrige el correo de una solicitud', corregir(null, 'lead-correo-noche', 'otro@example.com'), false);
+		await espera('un asesor corrige el correo de una solicitud sin asesor', corregir('asesor7', 'lead-correo-noche', 'otro@example.com'), false);
+		await espera('un asesor sin vincular corrige el correo de una solicitud sin asesor', corregir('asesor-sin', 'lead-correo-noche', 'otro@example.com'), false);
+		await espera('el administrador corrige el correo de una solicitud, con su historial (control)', corregir('admin1', 'lead-correo-noche', 'ana@gmail.com'), true);
+		await espera('otro asesor corrige el correo del lead de un asesor', corregir('asesor9', 'lead-correo-a7', 'luis@hotmail.com', false), false);
+		await espera('el asesor del lead le corrige el correo (control)', corregir('asesor7', 'lead-correo-a7', 'luis@hotmail.com', false), true);
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{

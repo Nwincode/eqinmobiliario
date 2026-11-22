@@ -123,15 +123,4 @@ await t('una semana con error o sin sitemap no borra la indexación: se toma el 
 	globalThis.fetch = async (url, op) => google(url, op);
 });
 
-await t('«Páginas que bajaron» en vivo pide 1,000 páginas de cada periodo (con 100, una que salió de la lista se veía con 0 clics)', async () => {
-	const pedidos = [];
-	globalThis.fetch = async (url, op) => { if (String(url).includes('searchAnalytics')) pedidos.push(JSON.parse(op.body)); return google(url, op); };
-	const { resumen } = await import('../netlify/functions/gsc.mjs');
-	await resumen('sc-domain:eqinmobiliario.gt', 28);
-	const paginas = pedidos.filter((b) => (b.dimensions || []).join() === 'page');
-	assert.equal(paginas.length, 2);
-	assert.ok(paginas.every((b) => b.rowLimit === 1000));
-	globalThis.fetch = async (url, op) => google(url, op);
-});
-
 console.log(`\n${ok} pruebas del informe semanal pasan.`);

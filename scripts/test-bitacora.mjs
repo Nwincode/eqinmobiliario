@@ -132,6 +132,10 @@ await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis pro
 	assert.equal(T.precio('Entre semana', 900, 1000, 'GTQ'), 'precio entre semana: Q 900 → Q 1,000');
 	assert.equal(T.precio('Fin de semana', 150, 0), 'precio fin de semana: US$ 150 → igual que entre semana');
 	assert.equal(T.calendario('minimo', rangos[0], 1), 'mínimo de noches 16 – 20 nov: 1 noche');
+	// Un precio de antes de 1,000,000 o más (lo puso el equipo) no cabe en el texto: va sin él (las reglas lo aceptan así).
+	assert.equal(T.precio('Entre semana', 1500000, 900, 'GTQ'), 'precio entre semana: Q 900');
+	assert.equal(T.precio('Fin de semana', 2000000, 0), 'precio fin de semana: igual que entre semana');
+	assert.match(T.precio('Entre semana', 1500000, 900, 'GTQ'), re);
 	for (const x of ['cambio', 'el administrador aprobó bajar la comisión', 'bloqueó 16 – 20 nov (llámame 55551234)', 'precio entre semana, llama al 5555 1234', 'bloqueó 5555 1234',
 		'precio entre semana: Q 5555 1234', 'precio entre semana: Q 5,5551,234', 'precio especial 16 – 20 nov: Q 55551234', 'precio entre semana: US$ 1 → llámame', 'personas máximo: 5555 → 1234'])
 		assert.doesNotMatch(x, re, x);

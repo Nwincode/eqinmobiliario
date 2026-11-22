@@ -22,6 +22,7 @@ export const rango = (r) => {
 // Un precio en el texto: «US$ 1,250» o «Q 900.50» (las dos monedas de una casa).
 const monto = (n, moneda) => `${moneda === 'GTQ' ? 'Q' : 'US$'} ${miles(n)}`;
 const SIN_FINDE = 'igual que entre semana';
+const TOPE_TEXTO = 1_000_000;
 
 // titulo: el de la pantalla («Entre semana», «Precios especiales»…). Con el valor de antes y el de ahora: «precio entre
 // semana: US$ 900 → US$ 1,000», «personas máximo: 8 → 12». valor: el motivo de un día bloqueado, el precio especial o
@@ -30,7 +31,9 @@ export const textoDueno = {
 	precio: (titulo, antes = 0, ahora = 0, moneda = 'USD') => {
 		const t = titulo.toLowerCase();
 		const valor = (n) => (Number(n) ? monto(Number(n), moneda) : t === 'fin de semana' ? SIN_FINDE : '');
-		const [a, b] = [valor(antes), valor(ahora)];
+		// Un precio de antes que no cabe en el texto (1,000,000 o más: lo puso el equipo; el dueño llega a PRECIO_MAX) no se
+		// escribe: las reglas aceptan el texto sin él solo si el de antes era 0 o así de alto.
+		const [a, b] = [Number(antes) >= TOPE_TEXTO ? '' : valor(antes), valor(ahora)];
 		return `precio ${t}${b ? `: ${a ? `${a} → ` : ''}${b}` : ''}`;
 	},
 	calendario: (que, r, valor = '', cada = '', moneda = 'USD') => `${CALENDARIO[que]} ${rango(r)}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`
@@ -45,7 +48,10 @@ export const textoDueno = {
 // (meta/publish lo lee todo el equipo; el precio del dueño solo el administrador y el asesor de la casa).
 export const sinValores = (t) => String(t).replace(/^personas máximo: [0-9]+ → ([0-9]+)$/, 'personas máximo $1').replace(/: .*$/, '');
 
-// Lo que dejan escribir las reglas (RE2, el texto entero; sin barras invertidas para copiarla tal cual).
+// Lo que dejan escribir las reglas (RE2, el texto entero; sin barras invertidas para copiarla tal cual). Además, las reglas
+// revisan que el texto diga lo que de verdad cambió en el mismo lote (firestore.rules renglonCuadra): el precio de antes y
+// el de ahora (privado/socio, al medio centavo), las personas, y que la lista nombrada (días bloqueados, precios especiales,
+// mínimos) cambió, con su monto o sus noches en la lista nueva. El texto sin valores también tiene que nombrar algo que cambió.
 // Un día: «16», «16 nov» o «16 nov 2027» (el año solo después del mes).
 const D = `[1-3]?[0-9]( (${MESES_CORTOS.join('|')})( 20[0-9]{2})?)?`;
 const R = `${D}( – ${D})?`;

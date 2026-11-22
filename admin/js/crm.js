@@ -1,11 +1,11 @@
 // CRM: clientes, actividades (agenda e historial) y propietarios.
 // El asesor solo consulta lo suyo (lo exigen las reglas de Firestore); el administrador, todo.
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteField, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 
 export const ETAPAS = [
@@ -144,6 +144,29 @@ export async function crearActividad(datos) {
 		await updateDoc(doc(db, 'clientes', a.clienteId), { ultimoContacto: serverTimestamp(), updatedAt: serverTimestamp() }).catch(() => {});
 	}
 	return { id: ref.id, ...a };
+}
+
+// Corrige el correo de un lead: la única forma (la ficha del cliente, en sus leads, y Solicitudes). Es el correo al que
+// escriben los avisos del servidor (aviso-chat-envio.mjs, solicitud.mjs y rebotes.mjs lo leen de leads/{id}, nunca de una
+// copia): limpio y en minúsculas, como lo guarda el sitio (los rebotes y las repetidas lo buscan tal cual). Quita «El correo
+// no llegó» y, en una solicitud de reserva, deja el renglón en su historial. Sin cambio (el mismo correo que el guardado ahora), no escribe nada.
+// Devuelve si lo cambió. Las reglas: el administrador y el asesor del lead (firestore.rules match /leads).
+export async function corregirCorreo(lead, correo) {
+	const nuevo = String(correo || '').trim().toLowerCase();
+	if (!correoValido(nuevo)) throw new Error('Revisa el correo (p. ej. nombre@correo.com).');
+	// Se lee el guardado ahora (otra pestaña pudo corregirlo ya): el «antes» del historial es el de verdad.
+	const ref = doc(db, 'leads', lead.id);
+	const cambio = await runTransaction(db, async (tx) => {
+		const l = (await tx.get(ref)).data() || {};
+		const antes = String(l.email || '').trim().toLowerCase();
+		if (nuevo === antes) return false;
+		tx.update(ref, { email: nuevo, reboteCorreo: deleteField(), updatedAt: serverTimestamp(),
+			...(l.reserva?.codigo ? { 'solicitud.historial': arrayUnion({ que: `Correo corregido: ${antes || 'sin correo'} → ${nuevo}`, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() }) } : {}) });
+		return true;
+	});
+	lead.email = nuevo;
+	delete lead.reboteCorreo;
+	return cambio;
 }
 
 // Une los leads en una ficha por persona: busca cliente por teléfono o correo; si no existe, lo crea.

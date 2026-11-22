@@ -195,11 +195,10 @@ function renderDatos(cont, d, props) {
 			h('div', { class: 'col-12' }, card('Países y dispositivos',
 				tabla(['País', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paises || []).map((r) => h('tr', {}, h('td', {}, r.claves[0].toUpperCase()), ...filaMetricas(r)))),
 				h('hr'),
-				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => h('tr', {}, h('td', {}, { MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0]), ...filaMetricas(r))))))),
-		(d.caidas || []).length ? card('Páginas que bajaron', tablaBajaron(d.caidas)) : null);
+				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => h('tr', {}, h('td', {}, { MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0]), ...filaMetricas(r))))))));
 }
 
-// Páginas que bajaron (netlify/lib/seo-semanal.mjs `bajaron`): la misma tabla en el periodo elegido y en el informe semanal.
+// Páginas que bajaron en el informe de cada lunes (netlify/lib/seo-semanal.mjs `bajaron`).
 const tablaBajaron = (lista, vacio) => tabla(['Página', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora'], lista.map((c) => h('tr', {},
 	h('td', { class: 'text-break' }, ruta(c.pagina)),
 	h('td', { class: 'text-end' }, num(c.antes.clics)), h('td', { class: 'text-end' }, num(c.ahora.clics)),
