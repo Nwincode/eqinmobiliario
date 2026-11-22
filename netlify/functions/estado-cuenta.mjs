@@ -6,7 +6,7 @@
 import '../../js/calc-vacacional.js';
 import { datosConfigurados, listar, consultar } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { servicioCorreo, enviarCorreo, plantilla, datos, boton, SITE_URL } from '../lib/correo.mjs';
+import { servicioCorreo, enviarCorreo, plantilla, datos, boton, esc, SITE_URL } from '../lib/correo.mjs';
 import { correoValido, dinero } from '../../admin/js/formato.js';
 import { estadoDeCuenta, mesAnterior } from '../../admin/js/estado-cuenta.js';
 import { conReloj } from '../lib/estado.mjs';
@@ -30,18 +30,18 @@ export async function correoDeCuenta(socio, cuenta) {
 	const filas = [['Reservas', `${cuenta.total} · ${cuenta.noches} ${cuenta.noches === 1 ? 'noche' : 'noches'}`]];
 	for (const [m, x] of Object.entries(cuenta.porMoneda)) {
 		filas.push(['Tu parte', dinero(x.tuParte, m)]);
-		if (x.comision) filas.push(['Ganancia de EQ', dinero(x.comision, m)], ['Ya pagaste a EQ', dinero(x.pagada, m)], ['Pendiente de pagar a EQ', dinero(x.pendiente, m)]);
+		if (x.comision) filas.push(['Ganancia de EQ', dinero(x.comision, m)], ['Ya pagaste a EQ', x.pagada ? dinero(x.pagada, m) : ''], ['Pendiente de pagar a EQ', x.pendiente ? dinero(x.pendiente, m) : '']);
 	}
 	const detalle = cuenta.reservas.map((r) => [`${r.codigo || 'Reserva'} · ${r.propertyTitulo || ''}`.trim(),
 		[`${dia(r.llegada)} – ${dia(r.salida)}`, Number(r.comision?.monto) ? `EQ ${dinero(r.comision.monto, r.moneda || 'USD')} ${r.comision.pagada ? 'pagada' : 'pendiente'}` : ''].filter(Boolean).join(' · ')]);
 	const mes = nombreMes(cuenta.mes);
 	const html = await plantilla({
 		titulo: `Tu estado de cuenta de ${mes}`,
-		intro: `Hola ${String(socio.nombre || '').split(' ')[0] || ''}, este es el resumen de tus reservas de ${mes}.`,
+		intro: esc(`Hola ${String(socio.nombre || '').split(' ')[0] || ''}, estas son tus reservas confirmadas del mes y lo que va de cada una.`),
 		bloques: (c) => datos(c, filas) + datos(c, detalle) + boton(c, 'Abrir mi panel', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true }),
 		pie: 'Lo recibes porque tienes casas en renta por noche con eqinmobiliario.gt.'
 	});
-	const texto = [`Tu estado de cuenta de ${mes}`, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', ...detalle.map(([k, v]) => `${k}: ${v}`), '', `${SITE_URL}/admin/#/solicitudes`].join('\n');
+	const texto = [`Tu estado de cuenta de ${mes}`, '', ...filas.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`), '', ...detalle.map(([k, v]) => `${k}: ${v}`), '', `${SITE_URL}/admin/#/solicitudes`].join('\n');
 	return { asunto: `Tu estado de cuenta de ${mes} · Equipo Inmobiliario`, html, texto };
 }
 

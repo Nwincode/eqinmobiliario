@@ -119,4 +119,33 @@ await t('correo de cada mañana: solo si algo sigue roto más de 24 h', async ()
 	assert.match(S.salida[0].asunto, /publicación/);
 });
 
+await t('calendario: si deja de responder se marca «fallo» una vez y se conserva lo último bueno; al volver, se quita', async () => {
+	const { externasDe } = await import('../netlify/lib/ocupacion.mjs');
+	const ICAL = 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;VALUE=DATE:20261201\nDTEND;VALUE=DATE:20261205\nEND:VEVENT\nEND:VCALENDAR';
+	let responde = true;
+	const fetchAntes = globalThis.fetch;
+	globalThis.fetch = async () => (responde ? new Response(ICAL, { status: 200 }) : new Response('', { status: 500 }));
+	const privado = { icalUrl: 'https://airbnb.test/cal-1.ics' };
+	poner('properties/c9', { operacion: 'vacacional' });
+	try {
+		assert.equal((await externasDe(privado, 'c9')).rangos.length, 1);
+		const bueno = leer('properties/c9/privado/icalLeido').icalUrl;
+		assert.ok(!bueno.fallo && bueno.rangos.length === 1);
+		// Pasan 11 minutos (sale de la memoria de la función) y deja de responder.
+		responde = false; S.reloj += 11 * 60_000;
+		const r = await externasDe(privado, 'c9');
+		assert.equal(r.rangos.length, 1, 'usa lo último bueno');
+		const caido = leer('properties/c9/privado/icalLeido').icalUrl;
+		assert.equal(caido.rangos.length, 1, 'no borra lo último bueno');
+		assert.equal(caido.cuando.getTime?.() ?? Number(caido.cuando), bueno.cuando.getTime?.() ?? Number(bueno.cuando));
+		const desde = Number(caido.fallo);
+		S.reloj += 11 * 60_000;
+		await externasDe(privado, 'c9');
+		assert.equal(Number(leer('properties/c9/privado/icalLeido').icalUrl.fallo), desde, 'fallo se marca una sola vez');
+		responde = true; S.reloj += 11 * 60_000;
+		await externasDe(privado, 'c9');
+		assert.ok(!leer('properties/c9/privado/icalLeido').icalUrl.fallo);
+	} finally { globalThis.fetch = fetchAntes; S.reloj = AHORA; }
+});
+
 console.log(`${n} pruebas de estado del sistema pasan.`);

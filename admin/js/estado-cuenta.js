@@ -2,6 +2,8 @@
 // EQ (la comisión que él le paga a EQ), pagada y pendiente, cada moneda por su lado (nunca se suman Q y US$). Las
 // reservas, noches y su parte salen de la misma cuenta de Rentas y de «Mis propiedades» (V.resumenReservas). Lo usa el
 // correo del día 1 (netlify/functions/estado-cuenta.mjs); lo prueba scripts/test-estado-cuenta.mjs.
+import { sumarPorMoneda } from './formato.js';
+
 const V = () => globalThis.EQVacacional;
 
 // El mes anterior al día `hoy` ('AAAA-MM-DD', el de Guatemala): 'AAAA-MM'.
@@ -15,14 +17,10 @@ export function estadoDeCuenta(reservas, propietarioId, mes) {
 	const lista = (reservas || []).filter((r) => r.propietarioId === propietarioId && V().confirmada(r) && String(r.llegada || '').startsWith(mes))
 		.sort((a, b) => String(a.llegada).localeCompare(String(b.llegada)));
 	const resumen = V().resumenReservas(lista);
+	// La ganancia de EQ de cada reserva (su comisión), pagada o no: cada moneda por su lado (sumarPorMoneda).
+	const monto = (r) => r.comision?.monto;
+	const [comision, pagada, pendiente] = [lista, lista.filter((r) => r.comision?.pagada), lista.filter((r) => !r.comision?.pagada)].map((l) => sumarPorMoneda(l, monto));
 	const porMoneda = {};
-	for (const [m, x] of Object.entries(resumen.porMoneda)) porMoneda[m] = { tuParte: x.costoSocio, comision: 0, pagada: 0, pendiente: 0 };
-	for (const r of lista) {
-		const monto = Number(r.comision?.monto) || 0;
-		if (!monto) continue;
-		const x = porMoneda[r.moneda || 'USD'];
-		x.comision = V().r2(x.comision + monto);
-		x[r.comision.pagada ? 'pagada' : 'pendiente'] = V().r2(x[r.comision.pagada ? 'pagada' : 'pendiente'] + monto);
-	}
+	for (const [m, x] of Object.entries(resumen.porMoneda)) porMoneda[m] = { tuParte: x.costoSocio, comision: V().r2(comision[m] || 0), pagada: V().r2(pagada[m] || 0), pendiente: V().r2(pendiente[m] || 0) };
 	return { mes, reservas: lista, total: resumen.reservas, noches: resumen.noches, porMoneda };
 }

@@ -58,6 +58,15 @@ await t('un mensaje que no es la foto del cliente o de otra carpeta: no se manda
 	assert.equal(veces, 0);
 });
 
+await t('si la IA falla o se corta, cuenta como fallida (no como revisada) y se reintenta; a las 3 fallidas de la misma foto, ya no', async () => {
+	preparar();
+	const mal = async () => { throw new Error('IA: tardó'); };
+	for (let i = 0; i < 3; i++) await assert.rejects(revisarComprobante(T, { leer: mal, bajar }));
+	assert.equal(leer('revisionesComprobante/l1').fallos, 3);
+	assert.equal(leer('revisionesComprobante/l1').texto, '');
+	assert.equal(await revisarComprobante(T, { leer: async () => leido(), bajar }), null);
+});
+
 await t('tope: 3 fotos por chat', async () => {
 	preparar();
 	for (let i = 1; i <= 4; i++) {

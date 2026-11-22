@@ -5,34 +5,36 @@
 // «No cuadra: …» para el socio de la casa y el equipo (firestore.rules: los mismos que leen montosSolicitud; nadie
 // escribe desde el navegador). Nunca decide ni cancela nada. Sin IA configurada o si falla, no deja nada que mostrar.
 // La foto sale del mensaje guardado (nunca de quien llama) y solo de la carpeta de ese chat; una revisión por foto y a
-// lo más 3 intentos por chat.
+// lo más 3 revisiones terminadas por chat (y 3 fallidas por foto). Si la función se corta antes de terminar (la IA tarda),
+// la retoma el control de cada 15 minutos (plazos-reservas.mjs, `revisarPendientes`).
 import '../../js/calc-vacacional.js';
-import { leerPublico, leerPrivado } from './firestore.mjs';
+import { leerPublico, leerPrivado, desde } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { client, MODEL, iaConfigurada } from './ia-cliente.mjs';
 import { dinero } from '../../admin/js/formato.js';
 
 const V = globalThis.EQVacacional;
 const MAX_FOTO = 5 * 1024 * 1024;
-const INTENTOS = 3;
+const REVISIONES = 3, FALLOS = 3;
 const EN_CURSO = 10 * 60_000;
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export const urlDelComprobante = (token, url) => new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F${token}%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+$`).test(String(url || ''));
 
+// Sin «null» ni «anyOf» (la misma forma de los esquemas que ya usa netlify/lib/tareas.mjs): lo que no se ve, 0 o ''.
 const ESQUEMA = {
 	type: 'object', additionalProperties: false,
 	required: ['esComprobante', 'monto', 'moneda', 'fecha', 'banco', 'referencia'],
 	properties: {
 		esComprobante: { type: 'boolean', description: 'true si la imagen es un comprobante de pago o transferencia' },
-		monto: { anyOf: [{ type: 'number' }, { type: 'null' }], description: 'Monto pagado, solo el número' },
-		moneda: { anyOf: [{ type: 'string', enum: ['GTQ', 'USD', 'otra'] }, { type: 'null' }], description: 'GTQ para quetzales (Q), USD para dólares (US$, $)' },
-		fecha: { anyOf: [{ type: 'string', description: 'AAAA-MM-DD' }, { type: 'null' }] },
-		banco: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-		referencia: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'Número de referencia, autorización o boleta' }
+		monto: { type: 'number', description: 'Monto pagado, solo el número; 0 si no se ve' },
+		moneda: { type: 'string', enum: ['GTQ', 'USD', 'otra', ''], description: 'GTQ para quetzales (Q), USD para dólares (US$, $); vacío si no se ve' },
+		fecha: { type: 'string', description: 'Fecha del pago, AAAA-MM-DD; vacío si no se ve' },
+		banco: { type: 'string', description: 'Banco; vacío si no se ve' },
+		referencia: { type: 'string', description: 'Número de referencia, autorización o boleta; vacío si no se ve' }
 	}
 };
-const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, null. No supongas.';
+const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, 0 o vacío. No supongas.';
 
 // Lo leído contra lo esperado. leido: lo que devolvió la IA; esperado: { total, moneda, confirmada: 'AAAA-MM-DD' }.
 // Devuelve { cuadra, texto } con el porqué en palabras (lo que ve el socio).
@@ -59,20 +61,21 @@ async function fotoEnBase64(url) {
 	return { tipo, datos: buf.toString('base64') };
 }
 
-async function leerConIA(foto) {
+async function leerConIA(foto, timeout = 25_000) {
 	const r = await client.beta.messages.create({
 		model: MODEL, max_tokens: 2000,
 		betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
 		output_config: { effort: 'low', format: { type: 'json_schema', schema: ESQUEMA } },
 		messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: foto.tipo, data: foto.datos } }, { type: 'text', text: PEDIDO }] }]
-	});
+	}, { timeout });
 	if (r.stop_reason === 'refusal' || r.stop_reason === 'max_tokens') throw new Error(`IA: ${r.stop_reason}`);
 	return JSON.parse(r.content.filter((b) => b.type === 'text').map((b) => b.text).join(''));
 }
 
 // Revisa el comprobante vigente del chat `token`, si no se ha revisado. Devuelve el resultado o null (nada que hacer).
 // `leer` (para pruebas): la lectura de la IA.
-export async function revisarComprobante(token, { leer = (foto) => leerConIA(foto), bajar = fotoEnBase64, ahora = Date.now() } = {}) {
+// `timeout`: lo más que se espera a la IA (el control de cada 15 minutos tiene poco tiempo).
+export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(foto, t), bajar = fotoEnBase64, ahora = Date.now(), timeout = 25_000 } = {}) {
 	if (!iaConfigurada() || !escrituraConfigurada()) return null;
 	const chat = await leerPublico(`chats/${token}`);
 	if (!chat?.leadId || chat.estado !== 'confirmada' || !chat.comprobanteMensaje) return null;
@@ -81,9 +84,11 @@ export async function revisarComprobante(token, { leer = (foto) => leerConIA(fot
 	// Se aparta: una revisión por foto (dos avisos a la vez no la mandan dos veces a la IA), con tope por chat.
 	const toca = await transaccion(async ({ leer: l, crear, cambiar }) => {
 		const prev = await l(ruta);
-		if (prev && prev.mensaje === mensajeId && (prev.texto || ahora - (Number(prev.apartado) || 0) < EN_CURSO)) return false;
-		if ((Number(prev?.intentos) || 0) >= INTENTOS) return false;
-		const datos = { mensaje: mensajeId, apartado: ahora, intentos: (Number(prev?.intentos) || 0) + 1, propietarioId: chat.propietarioId || '', propertyId: chat.propertyId || '', texto: '', cuadra: false };
+		const misma = prev?.mensaje === mensajeId;
+		if (misma && (prev.texto || ahora - (Number(prev.apartado) || 0) < EN_CURSO || (Number(prev.fallos) || 0) >= FALLOS)) return false;
+		if ((Number(prev?.revisiones) || 0) >= REVISIONES) return false;
+		const datos = { mensaje: mensajeId, apartado: ahora, fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0,
+			propietarioId: chat.propietarioId || '', propertyId: chat.propertyId || '', texto: '', cuadra: false };
 		if (prev) cambiar(ruta, datos); else crear(ruta, datos);
 		return true;
 	});
@@ -91,10 +96,31 @@ export async function revisarComprobante(token, { leer = (foto) => leerConIA(fot
 	const mensaje = await leerPrivado(`chats/${token}/mensajes/${mensajeId}`);
 	if (mensaje?.tipo !== 'foto' || mensaje.de !== 'cliente' || !urlDelComprobante(token, mensaje.texto)) return null;
 	const reserva = await leerPrivado(`reservas/${chat.leadId}`).catch(() => null);
-	const leido = await leer(await bajar(mensaje.texto));
+	let leido;
+	try {
+		leido = await leer(await bajar(mensaje.texto), timeout);
+	} catch (err) {
+		// No se pudo (la foto o la IA): cuenta como fallida y queda para la próxima vuelta.
+		await transaccion(async ({ leer: l, cambiar }) => cambiar(ruta, { fallos: 1 + (Number((await l(ruta))?.fallos) || 0), apartado: 0 })).catch(() => {});
+		throw err;
+	}
 	const confirmada = reserva?.createdAt instanceof Date ? V.hoy(reserva.createdAt.getTime()) : '';
 	const r = compararComprobante(leido, { total: Number(chat.total) || 0, moneda: chat.moneda || reserva?.moneda || 'USD', confirmada });
 	const limpio = (v, n) => (v == null ? '' : String(v).slice(0, n));
-	await transaccion(({ cambiar }) => cambiar(ruta, { ...r, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10), banco: limpio(leido.banco, 80), referencia: limpio(leido.referencia, 60) } }, { ahora: ['cuando'] }));
+	await transaccion(async ({ leer: l, cambiar }) => cambiar(ruta, { ...r, revisiones: (Number((await l(ruta))?.revisiones) || 0) + 1, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10), banco: limpio(leido.banco, 80), referencia: limpio(leido.referencia, 60) } }, { ahora: ['cuando'] }));
 	return r;
+}
+
+// Los comprobantes de los últimos 3 días que aún no tienen su revisión (la de /api/aviso-chat se cortó o falló): uno tras
+// otro mientras quede tiempo (`hasta`, en ms). Lo llama el control de cada 15 minutos.
+export async function revisarPendientes(hasta) {
+	if (!iaConfigurada() || !escrituraConfigurada()) return 0;
+	const chats = await desde('chats', 'comprobanteCliente', new Date(Date.now() - 3 * 86_400_000));
+	let hechos = 0;
+	for (const c of chats.filter((x) => x.estado === 'confirmada' && x.comprobanteMensaje)) {
+		const queda = hasta - Date.now();
+		if (queda < 8000) break;
+		if (await revisarComprobante(c.id, { timeout: queda - 2000 }).catch((err) => { console.error('Revisión del comprobante:', err.message); return null; })) hechos++;
+	}
+	return hechos;
 }

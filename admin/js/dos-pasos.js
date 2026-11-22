@@ -54,7 +54,7 @@ function pedirCodigo(resolver, pista, mostrar) {
 }
 
 // ¿Qué le falta a este administrador? 'listo' (tiene el segundo paso), { secreto } (a inscribir), 'verificar' (su
-// correo aún no está confirmado: Firebase lo exige), 'reentrar' o { sinActivar } (el proyecto no tiene el segundo
+// correo aún no está confirmado: Firebase lo exige) o { sinActivar } (el proyecto no tiene el segundo
 // paso activado, o el emulador no lo ofrece: se sigue sin él).
 export async function revisarDosPasos(user) {
 	if (multiFactor(user).enrolledFactors.some((f) => f.factorId === TotpMultiFactorGenerator.FACTOR_ID)) return 'listo';
@@ -62,7 +62,6 @@ export async function revisarDosPasos(user) {
 		return { secreto: await TotpMultiFactorGenerator.generateSecret(await multiFactor(user).getSession()) };
 	} catch (err) {
 		if (err?.code === 'auth/unverified-email') return 'verificar';
-		if (err?.code === 'auth/requires-recent-login') return 'reentrar';
 		console.warn('Verificación en dos pasos sin activar', err?.code || err);
 		return { sinActivar: err?.code || 'sin código' };
 	}

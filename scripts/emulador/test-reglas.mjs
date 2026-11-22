@@ -33,7 +33,16 @@ const fotoCasaRaw = (p, s) => ({ mapValue: { fields: {
 	moneda: p.moneda || svG(''), propietarioId: p.propietarioId || svG(''), limpieza: p.vacacional?.mapValue?.fields?.limpieza || { integerValue: '0' },
 	precioBase: s.precioBase || { integerValue: '0' }, precioFinde: s.precioFinde || { integerValue: '0' }, tarifas: s.tarifas || { arrayValue: {} }, margen: s.margen || { integerValue: '20' } } } });
 const crudo = async (ruta) => (await (await fetch(`${H}/${ruta}`, { headers: cab('dueño') })).json()).fields || {};
-async function conRenglon(quien, writes, { antesOtro = null } = {}) {
+// Además, como el panel, el texto de lo que cambió en la bitácora de la casa (properties/{id}/bitacora), en el mismo lote:
+// el tope de 1000 revisiones es de todo el pedido.
+let nt = 0;
+const conTexto = (quien, writes) => {
+	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)$/)?.[1]).find(Boolean);
+	return casa ? [...writes, { update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/txt${++nt}`, fields: { que: svG('precio entre semana'), quien: svG(quien), nombre: svG('Dueña') } },
+		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] : writes;
+};
+async function conRenglon(quien, sinTexto, { antesOtro = null } = {}) {
+	const writes = conTexto(quien, sinTexto);
 	const i = writes.findIndex((w) => w.update?.name.endsWith('/privado/socio'));
 	if (i < 0) return writes;
 	const casaId = writes[i].update.name.split('/properties/')[1].split('/')[0];

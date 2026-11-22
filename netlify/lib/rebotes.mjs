@@ -11,12 +11,16 @@ import { anotarFallo } from './estado.mjs';
 const CAMPOS_DESTINO = /^(email_address|address|recipient|recipients|to|email|bounced_recipient|bounce_address)$/i;
 const CAMPOS_MOTIVO = /^(reason|diagnostic_message|diagnostic|bounce_reason|description|message)$/i;
 
-// Del aviso (JSON) a { correos: [...], motivo }. Sin el remitente propio (también puede venir en el aviso).
+const CAMPOS_REMITENTE = /^(from|reply_to|sender|mail_from|return_path)$/i;
+
+// Del aviso (JSON) a { correos: [...], motivo }. Solo si es un rebote (la palabra «bounce» en el aviso) y sin lo que va
+// bajo el remitente (from, reply_to: nuestras propias direcciones, también reservas@), ni las de `propios`.
 export function leerRebote(aviso, { propios = [] } = {}) {
 	const correos = new Set(), motivos = [];
+	if (!/bounce/i.test(JSON.stringify(aviso ?? '').slice(0, 65536))) return { correos: [], motivo: '' };
 	const fuera = new Set(propios.map((x) => String(x).toLowerCase()));
 	const recorrer = (v, campo = '', prof = 0) => {
-		if (prof > 8 || v == null) return;
+		if (prof > 8 || v == null || CAMPOS_REMITENTE.test(campo)) return;
 		if (Array.isArray(v)) return v.slice(0, 50).forEach((x) => recorrer(x, campo, prof + 1));
 		if (typeof v === 'object') return Object.entries(v).slice(0, 80).forEach(([k, x]) => recorrer(x, k, prof + 1));
 		const s = String(v).trim();

@@ -20,6 +20,12 @@ await t('del aviso salen el destinatario y el motivo, sin el remitente propio', 
 	assert.equal(r.motivo, 'Mailbox does not exist');
 });
 
+await t('sin la palabra «bounce» no es un rebote; lo que va bajo «from» (reservas@ incluido) nunca se marca', () => {
+	assert.deepEqual(leerRebote({ event_name: ['open'], to: [{ email_address: { address: 'ana@correo.com' } }] }).correos, []);
+	const r = leerRebote({ event_name: ['hardbounce'], from: { address: 'reservas@eqinmobiliario.gt' }, reply_to: [{ address: 'equipo@eqinmobiliario.gt' }], to: [{ email_address: { address: 'ana@correo.com' } }] });
+	assert.deepEqual(r.correos, ['ana@correo.com']);
+});
+
 await t('sin la llave o con otra: 401 y nada se marca', async () => {
 	poner('leads/l1', { email: 'ana@correo.com' });
 	assert.equal((await rebote(pedido(aviso('ana@correo.com'), 'otra'))).status, 401);

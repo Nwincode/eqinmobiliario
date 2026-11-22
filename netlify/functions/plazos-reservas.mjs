@@ -28,6 +28,7 @@ import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePa
 	MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_SIN_CHAT, MOTIVO_EQUIPO_NO_CONFIRMO, textoCliente, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
 import { visibilidadDe } from '../../admin/js/estados.js';
 import { conReloj } from '../lib/estado.mjs';
+import { revisarPendientes } from '../lib/comprobantes.mjs';
 
 const DIA = 86400000;
 const PRESUPUESTO = 20000;
@@ -198,6 +199,8 @@ export default conReloj('plazos-reservas', async () => {
 		console.error('Plazos:', err.message);
 	} finally {
 		await alDia();
+		// Los comprobantes que /api/aviso-chat no alcanzó a revisar con la IA, con lo que quede de la vuelta.
+		if (Date.now() - inicio < 10_000) await revisarPendientes(inicio + 25_000).catch((err) => console.error('Plazos (comprobantes):', err.message));
 	}
 });
 

@@ -50,6 +50,9 @@ function authCard(...children) {
 }
 
 const mostrarTarjeta = (...hijos) => root.replaceChildren(authCard(...hijos));
+// La verificación en dos pasos del administrador se revisa justo después de entrar con la contraseña (no al recargar: una
+// sesión ya abierta la pide en la próxima entrada, y así nunca se le cierra la sesión por esto).
+let recienEntro = false;
 
 function notConfigured() {
 	root.replaceChildren(authCard(
@@ -80,6 +83,7 @@ function loginScreen() {
 			btn.disabled = true;
 			msg.textContent = '';
 			try {
+				recienEntro = true;
 				await entrar(email.value.trim(), pass.value, mostrarTarjeta);
 			} catch (err) {
 				msg.textContent = errorMessage(err);
@@ -309,6 +313,7 @@ async function pantallaContrasena(codigo) {
 				if (auth.currentUser) await signOut(auth);
 				await confirmPasswordReset(auth, codigo, clave.value);
 				quitarEnlace();
+				recienEntro = true;
 				await entrar(email, clave.value, mostrarTarjeta);
 				avisarCambio();
 				iniciar();
@@ -353,13 +358,13 @@ function iniciar() {
 			}
 			// Administrador: verificación en dos pasos obligatoria (dos-pasos.js). Sin ella activada en el proyecto, entra y
 			// Inicio le dice cómo activarla.
-			if (profile.rol === 'admin') {
+			if (profile.rol === 'admin' && recienEntro) {
+				recienEntro = false;
 				const r = await revisarDosPasos(user);
-				if (r === 'reentrar') { await signOut(auth); return toast('Por seguridad, vuelve a entrar.', 'warning'); }
 				if (r.secreto) await pantallaInscribir(user, r.secreto, mostrarTarjeta);
 				// Sin el correo confirmado (Firebase lo pide) o sin el segundo paso activado en el proyecto: entra, e Inicio le
 				// dice qué falta (con la contraseña sola se llega aquí igual: frenarlo no protege nada).
-				session.dosPasosPendiente = r === 'verificar' ? 'verificar' : r.sinActivar ? 'activar' : '';
+				session.dosPasosPendiente = r === 'verificar' ? 'verificar' : r === 'listo' || r.secreto ? '' : 'activar';
 			}
 			shell();
 			route();

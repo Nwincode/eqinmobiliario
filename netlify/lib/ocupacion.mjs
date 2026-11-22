@@ -71,7 +71,7 @@ export async function externasDe(privado, casaId = '', { espera = 8000, hasta = 
 	// Un calendario que no respondió queda con `fallo` (desde cuándo, solo al pasar de bien a mal) para «Estado del
 	// sistema»; al volver a responder se quita. Solo se escribe cuando cambia.
 	if (casaId) {
-		const g = leidos.some(([, r]) => !r) || Object.keys(nuevos).length ? await deLaBase() : null;
+		const g = leidos.some(([, r, cuando]) => !r || cuando) || Object.keys(nuevos).length ? await deLaBase() : null;
 		for (const [c, r, cuando] of leidos) {
 			const mismo = g?.[c.campo]?.url === privado[c.campo];
 			const antes = mismo ? g[c.campo].fallo : null;
