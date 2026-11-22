@@ -3842,3 +3842,8 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .perm-off { opacity: .5; pointer-events: none; }
 /* Una fila de «Estado del sistema» sin enlace (estado.js): solo se lee. */
 div.aviso-enlace:hover { background: none; }
+/* Verificación en dos pasos (dos-pasos.js): el QR a lo ancho de la tarjeta de entrada, la clave en letra fija. */
+.dos-pasos-qr { display: flex; justify-content: center; margin: 0 auto 12px; max-width: 200px; }
+.dos-pasos-qr svg { width: 100%; height: auto; }
+.dos-pasos-clave { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875rem; word-break: break-all; text-align: center; margin-bottom: 12px; }
+.dos-pasos-codigo { letter-spacing: .3em; font-variant-numeric: tabular-nums; }

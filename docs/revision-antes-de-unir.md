@@ -152,6 +152,7 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 | Si el correo del cliente no existía, nadie se enteraba. | Un aviso nuevo por correo al cliente se puede rebotar: `reboteCorreo` en su lead (`/api/rebote-correo`) y la pantalla que lo atiende lo dice con el WhatsApp al lado. |
 | La IA podía «decidir» sobre dinero. | La IA solo lee (salida con esquema); cuadra o no cuadra lo decide el código (`compararComprobante`) y nunca cambia una reserva. Lo que lee la IA sale de lo guardado, nunca de quien llama. |
 | Un correo programado que falla una vez no se repetía nunca (o salía dos veces). | Un envío programado aparta su marca antes de mandar (`estadosCuenta/…`), la suelta si falla y corre más de un día. |
+| Una contraseña robada de un administrador daba acceso a todo el dinero. | Toda entrada con contraseña pasa por `dos-pasos.js` `entrar` (pide el código si la cuenta lo tiene); una pantalla nueva que pida la contraseña no llama a `signInWithEmailAndPassword` directo. |
 
 ## 5. Diseño
 

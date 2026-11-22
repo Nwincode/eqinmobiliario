@@ -1,6 +1,6 @@
 // Arranque del panel: inicio de sesión, permisos y navegación entre secciones.
 import {
-	configured, firebaseConfig, auth, db, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+	configured, firebaseConfig, auth, db, onAuthStateChanged, signOut,
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
 import { h, toast, showError, errorMessage, spinner } from './ui.js';
@@ -10,6 +10,7 @@ import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasa
 import { aplicarTema } from './tema.js';
 import { actualizarInsignias } from './pendientes.js';
 import { campana } from './avisos.js';
+import { entrar, revisarDosPasos, pantallaInscribir } from './dos-pasos.js';
 import { vigilarTablas } from './tablas.js';
 
 const ROUTES = [
@@ -48,6 +49,8 @@ function authCard(...children) {
 			...children));
 }
 
+const mostrarTarjeta = (...hijos) => root.replaceChildren(authCard(...hijos));
+
 function notConfigured() {
 	root.replaceChildren(authCard(
 		h('h1', { class: 'h5 mb-3' }, 'Falta conectar Firebase'),
@@ -77,7 +80,7 @@ function loginScreen() {
 			btn.disabled = true;
 			msg.textContent = '';
 			try {
-				await signInWithEmailAndPassword(auth, email.value.trim(), pass.value);
+				await entrar(email.value.trim(), pass.value, mostrarTarjeta);
 			} catch (err) {
 				msg.textContent = errorMessage(err);
 				btn.disabled = false;
@@ -306,7 +309,7 @@ async function pantallaContrasena(codigo) {
 				if (auth.currentUser) await signOut(auth);
 				await confirmPasswordReset(auth, codigo, clave.value);
 				quitarEnlace();
-				await signInWithEmailAndPassword(auth, email, clave.value);
+				await entrar(email, clave.value, mostrarTarjeta);
 				avisarCambio();
 				iniciar();
 			} catch (err) {
@@ -347,6 +350,16 @@ function iniciar() {
 				const [dueno, casas] = await Promise.all([cargarMiResumen(), misCasas().catch(() => [])]);
 				session.dueno = dueno;
 				session.porNoche = casas.some((c) => c.operacion === 'vacacional');
+			}
+			// Administrador: verificación en dos pasos obligatoria (dos-pasos.js). Sin ella activada en el proyecto, entra y
+			// Inicio le dice cómo activarla.
+			if (profile.rol === 'admin') {
+				const r = await revisarDosPasos(user);
+				if (r === 'reentrar') { await signOut(auth); return toast('Por seguridad, vuelve a entrar.', 'warning'); }
+				if (r.secreto) await pantallaInscribir(user, r.secreto, mostrarTarjeta);
+				// Sin el correo confirmado (Firebase lo pide) o sin el segundo paso activado en el proyecto: entra, e Inicio le
+				// dice qué falta (con la contraseña sola se llega aquí igual: frenarlo no protege nada).
+				session.dosPasosPendiente = r === 'verificar' ? 'verificar' : r.sinActivar ? 'activar' : '';
 			}
 			shell();
 			route();

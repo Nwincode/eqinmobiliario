@@ -6,6 +6,7 @@ import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
 import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
 import { tarjetaAvisos } from '../avisos.js';
 import { tarjetaEstado } from '../estado.js';
+import { botonVerificar } from '../dos-pasos.js';
 
 const stat = (icono, label, value, href) => h('div', { class: 'col-6 col-lg-3' }, statCard(icono, label, value, { href }));
 
@@ -49,6 +50,11 @@ export async function render(container) {
 		publish.pendiente ? h('div', { class: 'alert alert-warning d-flex flex-wrap align-items-center gap-2' },
 			h('span', { class: 'me-auto' }, `Hay cambios sin publicar${publish.ultimoCambioDesc ? ` (último: ${publish.ultimoCambioDesc})` : ''}.`),
 			h('a', { href: '#/publicar', class: 'btn btn-sm btn-warning' }, 'Publicar ahora')) : null,
+		// Administrador sin la verificación en dos pasos porque el proyecto aún no la tiene activada (dos-pasos.js).
+		session.dosPasosPendiente ? h('div', { class: 'alert alert-warning small d-flex flex-wrap align-items-center gap-2' }, h('span', { class: 'icon-lock', 'aria-hidden': 'true' }),
+			session.dosPasosPendiente === 'verificar'
+				? [h('span', {}, `Confirma tu correo (${session.user.email}) para activar la verificación en dos pasos.`), botonVerificar(session.user)]
+				: h('span', {}, 'Activa la verificación en dos pasos: Firebase → Identity Platform con TOTP (pasos en docs/pasos-del-dueno.md).')) : null,
 		estado,
 		avisos,
 		pend ? tarjetaPendientes(pend) : null,

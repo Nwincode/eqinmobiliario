@@ -3,7 +3,8 @@ import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.
 import {
 	getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword, connectAuthEmulator,
-	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode
+	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode,
+	multiFactor, getMultiFactorResolver, TotpMultiFactorGenerator, sendEmailVerification
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
 	initializeFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where,
@@ -58,6 +59,7 @@ export {
 	onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword,
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode,
+	multiFactor, getMultiFactorResolver, TotpMultiFactorGenerator, sendEmailVerification,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
 	serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction,
 	ref, uploadBytes, getDownloadURL, deleteObject

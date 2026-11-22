@@ -26,3 +26,19 @@ muestra el aviso. Cada foto se manda una vez (a lo más 3 por reserva).
 ## Estado de cuenta mensual del socio
 
 Corre solo los días 1, 2 y 3 (7:40 a. m.). No hay nada que activar: usa el correo de la ficha de cada socio.
+
+## Verificación en dos pasos de los administradores
+
+Mientras no esté activada, el administrador entra como siempre y en Inicio ve «Activa la verificación en dos pasos».
+Los pasos (de la documentación de Firebase que se conoce; no se pudo abrir desde aquí para confirmarlos: sin comprobar):
+
+1. Firebase → Authentication → Configuración: pasar a **Identity Platform** (gratis hasta su cuota).
+2. Activar TOTP en el proyecto `eqinmobiliariobd`. Firebase lo activa por su API (no por un botón de la consola), p. ej.
+   con Cloud Shell:
+   `curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" -H "X-Goog-User-Project: eqinmobiliariobd" "https://identitytoolkit.googleapis.com/admin/v2/projects/eqinmobiliariobd/config?updateMask=mfa" -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":1}}]}}'`
+3. Al volver a entrar, cada administrador inscribe su teléfono (QR y código). Firebase pide el correo confirmado: si no
+   lo está, el panel manda el correo para confirmarlo.
+
+**Si un administrador pierde el teléfono:** otro administrador le quita el segundo paso en Firebase → Authentication →
+Usuarios → la cuenta → «Multifactor» (o con la API de administración). Si es el único administrador, lo hace el dueño de
+la cuenta de Google del proyecto. Por eso conviene tener **dos administradores** con el segundo paso activo.
