@@ -49,7 +49,7 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 		const uids = [...new Set([...sensibles, ...deLaCasa, ...deAntes].map((e) => e.quien).filter((x) => typeof x === 'string' && x && !x.includes('/')))];
 		const usuarios = Object.fromEntries(await Promise.all(uids.map(async (x) => [x, (await getDoc(doc(db, 'users', x)).catch(() => null))?.data() || null])));
 		const textos = deLaCasa.map((b) => ({ cuando: ms(b.cuando), quien: b.quien, nombre: firma(b, usuarios), texto: b.que }));
-		const sens = sensibles.filter((e) => casaId || e.tipo === 'propietario').map((e) => ({ cuando: ms(e.cuando), quien: e.quien, nombre: firma(e, usuarios), cambios: diferencias(e, { nombreDe, dinero: (n) => dinero(n, moneda), fecha: conAnio }) }));
+		const sens = sensibles.filter((e) => casaId || ['propietario', 'permisosSocio'].includes(e.tipo)).map((e) => ({ cuando: ms(e.cuando), quien: e.quien, nombre: firma(e, usuarios), cambios: diferencias(e, { nombreDe, dinero: (n) => dinero(n, moneda), fecha: conAnio }) }));
 		// Lo que el dueño cambió solo deja su texto y, si tocó precios, su renglón de la bitácora en la misma transacción:
 		// una sola fila (el texto arriba y el antes → después abajo), no dos.
 		for (const s of sens) {

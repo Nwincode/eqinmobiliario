@@ -92,13 +92,19 @@ await t('sin cuota: revisa lo que alcanza, lo dice, y lo demás queda con lo de 
 
 await t('Search Console falla: queda el informe con el motivo; si luego corre bien, el motivo se borra', async () => {
 	globalThis.fetch = async (url, op) => (String(url).includes('searchAnalytics') ? Response.json({ error: { message: 'Backend Error' } }, { status: 500 }) : google(url, op));
-	await seoSemanal();
+	// «Estado del sistema» lo da por fallado, con el motivo (no por bueno porque el reloj corrió).
+	await assert.rejects(seoSemanal(), /Backend Error/);
 	const hoy = globalThis.EQVacacional.hoy();
 	assert.equal(leer(`seoSemanal/${hoy}`).error, 'Backend Error');
+	const { rota } = await import('../admin/js/estado-sistema.js');
+	assert.ok(rota(leer('estado/seo-semanal')), 'el reloj queda fallado');
+	assert.match(leer('estado/seo-semanal').motivo, /Search Console: Backend Error/);
 	globalThis.fetch = async (url, op) => google(url, op);
 	inspeccionadas = []; cuotaTras = Infinity;
+	S.reloj += 60_000;
 	await seoSemanal();
 	assert.equal(leer(`seoSemanal/${hoy}`).error, '');
+	assert.ok(!rota(leer('estado/seo-semanal')), 'al correr bien, ya no');
 	assert.equal([...S.docs.keys()].filter((k) => k.startsWith('seoSemanal/')).length, 1, 'un solo informe por día');
 });
 

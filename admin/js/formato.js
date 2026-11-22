@@ -322,3 +322,8 @@ export function whatsappUrl(tel, mensaje) {
 	const text = mensaje ? `text=${encodeURIComponent(mensaje)}` : '';
 	return n ? `https://wa.me/${n}${text ? `?${text}` : ''}` : `https://wa.me/?${text}`;
 }
+
+// El día corto de una fecha 'AAAA-MM-DD' («16 nov», «16 sept»: como es-GT), con los meses escritos aquí para que salga
+// igual en todo navegador (los textos de la bitácora del dueño los revisan las reglas: admin/js/texto-dueno.js).
+export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
+export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`;

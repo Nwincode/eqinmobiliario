@@ -6,6 +6,7 @@
 //  - casa: moneda, dueño (propietarioId), limpieza; precios del dueño (base, fin de semana, temporadas) y margen.
 //  - propietario: datos de pago (con correo al equipo: `avisado`) y permisos del socio.
 //  - permisos: los interruptores de todos los socios (settings/permisosSocios).
+//  - permisosSocio: lo que resulta para un socio (permisosSocios/{id}: lo de todos, lo suyo y el atraso de su comisión).
 //  - reserva: «Revisé Airbnb…» (revisadoAMano) al confirmar sin poder leer el calendario.
 // Las fotos usan los mismos valores por omisión que las reglas: si se cambia una, se cambian las dos.
 export const MARGEN_POR_OMISION = 20;
@@ -62,5 +63,5 @@ export function diferencias(e, { nombreDe = (x) => x, dinero = (n) => String(n),
 		return v === '' || v == null ? '(vacío)' : String(v);
 	};
 	return Object.keys({ ...e.antes, ...e.despues }).filter((k) => !igual(e.antes?.[k], e.despues?.[k]))
-		.map((k) => ({ campo: NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
+		.map((k) => ({ campo: e.tipo === 'permisosSocio' ? (NOMBRES[k] || k).replace(' (todos)', '') : NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
 }

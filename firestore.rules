@@ -240,10 +240,14 @@ service cloud.firestore {
       // Borrarlo encendería todo para todos sin renglón: nadie lo borra (se apaga o enciende cada interruptor).
       allow delete: if false;
     }
-    // Lo que puede cada socio (el resultado): lo escriben el administrador y el servidor; el socio lee el suyo.
+    // Lo que puede cada socio (el resultado): lo escriben el administrador y el servidor; el socio lee el suyo. Si cambia
+    // un interruptor, con su renglón en la bitácora (tipo permisosSocio); borrarlo solo si no apaga nada (sin documento,
+    // todo está permitido).
     match /permisosSocios/{propietarioId} {
       allow read: if isAdmin() || (esSocio() && userDoc().data.get('propietarioId', '') == propietarioId);
-      allow write: if isAdmin();
+      allow create, update: if isAdmin()
+        && (fotoPermisos(request.resource.data) == fotoPermisos(resource == null ? {} : resource.data) || anotado('permisosSocio', propietarioId));
+      allow delete: if isAdmin() && fotoPermisos(resource.data) == fotoPermisos({});
     }
 
     match /settings/private {
@@ -310,18 +314,24 @@ service cloud.firestore {
       }
       match /bitacora/{entrada} {
         allow read: if deLaBitacora();
+        // El dueño escribe solo los textos de «Mis propiedades» (admin/js/texto-dueno.js TEXTO_DUENO, la misma expresión):
+        // un texto libre podría decir «el administrador aprobó…» o llevar un teléfono. Lo del servidor no pasa por aquí.
         allow create: if deLaBitacora()
           && request.resource.data.quien == request.auth.uid
-          && request.resource.data.cuando == request.time;
+          && request.resource.data.cuando == request.time
+          && (isStaff() || (request.resource.data.keys().hasOnly(['que', 'quien', 'nombre', 'cuando'])
+            && request.resource.data.que is string
+            && request.resource.data.que.matches('(precio (entre semana|fin de semana)|personas máximo [0-9]{1,2}|puso las temporadas de [0-9]{4}|(bloqueó|habilitó|precio especial|mínimo de noches) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?|quitó (precios especiales|mínimos de noches) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(]todos los años[)])?)')));
       }
 
       // Lo privado de la casa: precio del socio, margen e iCal (privado/socio), dirección y mapa (llegada), acuerdo con
       // el dueño (acuerdo) y contacto del huésped de una reserva hecha a mano (reserva-{id}). Nunca es público
       // (la propiedad sí lo es). El equipo: admin o el asesor de la propiedad.
       // Precios del dueño y margen (privado/socio) de una casa que ya existía: con su renglón en la bitácora. (La casa nueva
-      // con su privado, en un solo lote, no: nace así.)
+      // con su privado, en un solo lote, no: nace así.) Sin la casa (borrada) no cambian: su renglón pide la casa.
       function socioAnotado(id) {
-        return !exists(/databases/$(database)/documents/properties/$(id))
+        return (resource == null && !exists(/databases/$(database)/documents/properties/$(id))
+            && existsAfter(/databases/$(database)/documents/properties/$(id)))
           || !cambiaSocio(resource == null ? {} : resource.data, request.resource.data) || anotado('casa', id);
       }
       // Lo que el dueño cambia de su privado/socio: solo sus precios, con su renglón en la bitácora si cambian, y cuadrando
@@ -341,8 +351,11 @@ service cloud.firestore {
         allow create, update: if (isAdmin()
           || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId()))
           && (docId != 'socio' || socioAnotado(id));
-        allow delete: if isAdmin()
-          || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId());
+        // privado/socio (precios del dueño y margen) solo se va con la casa, en el mismo lote («Eliminar casa»): borrarlo
+        // solo dejaría el margen en 20 y los precios en 0 sin renglón.
+        allow delete: if (isAdmin()
+          || (isStaff() && getAfter(/databases/$(database)/documents/properties/$(id)).data.agentId == myAgentId()))
+          && (docId != 'socio' || !existsAfter(/databases/$(database)/documents/properties/$(id)));
         // El socio lee su privado/socio entero (sus precios, el margen y el iCal: con el margen ve lo que paga el cliente)
         // y cambia solo sus precios, siempre junto con los públicos; el margen y el iCal los pone el equipo.
         // «llegada» (dirección y mapa de una casa por noche): el socio la lee para mandarla al cliente
@@ -440,7 +453,7 @@ service cloud.firestore {
     }
     // Bitácora de cambios sensibles: solo crear, con la foto de antes y de después tal como están en la base. La lee el
     // administrador. Tipos: casa (moneda, dueño, limpieza; precios del dueño y margen), propietario (datos de pago y
-    // permisos), permisos (los de todos los socios), reserva («Revisé Airbnb…» al confirmar).
+    // permisos), permisos (los de todos los socios), permisosSocio (lo que resulta para un socio), reserva («Revisé Airbnb…» al confirmar).
     function entradaCasa(id, d) {
       let p = /databases/$(database)/documents/properties/$(d.objeto);
       let s = /databases/$(database)/documents/properties/$(d.objeto)/privado/socio;
@@ -458,9 +471,9 @@ service cloud.firestore {
         && getAfter(r).data.get('bitacoraId', '') == id
         && (d.antes.datosPago == d.despues.datosPago ? !('avisado' in d) : d.get('avisado', true) == false);
     }
-    function entradaPermisos(id, d) {
-      let r = /databases/$(database)/documents/settings/permisosSocios;
-      return isAdmin() && d.objeto == 'permisosSocios' && !('casa' in d) && !('avisado' in d)
+    // Los de todos (settings/permisosSocios, objeto «permisosSocios») o lo que resulta para un socio (permisosSocios/{id}).
+    function entradaPermisos(id, d, r) {
+      return isAdmin() && !('casa' in d) && !('avisado' in d)
         && d.antes == fotoPermisos(exists(r) ? get(r).data : {})
         && d.despues == fotoPermisos(getAfter(r).data)
         && getAfter(r).data.get('bitacoraId', '') == id;
@@ -485,7 +498,10 @@ service cloud.firestore {
         && request.resource.data.antes != request.resource.data.despues
         && ((request.resource.data.tipo == 'casa' && entradaCasa(entrada, request.resource.data))
           || (request.resource.data.tipo == 'propietario' && entradaPropietario(entrada, request.resource.data))
-          || (request.resource.data.tipo == 'permisos' && entradaPermisos(entrada, request.resource.data))
+          || (request.resource.data.tipo == 'permisos' && request.resource.data.objeto == 'permisosSocios'
+            && entradaPermisos(entrada, request.resource.data, /databases/$(database)/documents/settings/permisosSocios))
+          || (request.resource.data.tipo == 'permisosSocio'
+            && entradaPermisos(entrada, request.resource.data, /databases/$(database)/documents/permisosSocios/$(request.resource.data.objeto)))
           || (request.resource.data.tipo == 'reserva' && entradaReserva(entrada, request.resource.data)));
       allow update, delete: if false;
     }

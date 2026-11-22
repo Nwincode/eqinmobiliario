@@ -426,6 +426,19 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña lee sus permisos', leer('mixto1', 'permisosSocios/m1'), true);
 		await espera('la dueña se devuelve los permisos', parche('mixto1', 'permisosSocios/m1', ['fechas'], { fechas: { booleanValue: true } }), false);
 		await espera('otro socio lee los permisos de la dueña', leer('socio2', 'permisosSocios/m1'), false);
+		// Lo que resulta para la dueña: el administrador lo cambia solo con su renglón (tipo permisosSocio).
+		{
+			const foto = (p, f) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: f }, casa: { booleanValue: true } } } });
+			const resultado = (o, log) => ({ update: { name: `${R}/permisosSocios/m1`, fields: { precios: { booleanValue: true }, fechas: { booleanValue: true }, casa: { booleanValue: true }, ...o, ...(log ? { bitacoraId: sv(log) } : {}) } } });
+			await espera('el administrador enciende los permisos de la dueña sin renglón', soloJuntos('admin1', [resultado({})]), false);
+			await espera('el administrador cambia lo que no es un interruptor sin renglón (control)', soloJuntos('admin1', [resultado({ precios: { booleanValue: true }, fechas: { booleanValue: false }, motivo: sv('otro') })]), true);
+			await espera('el administrador enciende los permisos de la dueña con un renglón que dice otra cosa', soloJuntos('admin1', [resultado({}, 'ps1'),
+				{ update: { name: `${R}/bitacora/ps1`, fields: { tipo: sv('permisosSocio'), objeto: sv('m1'), antes: foto(true, true), despues: foto(true, false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), false);
+			await espera('el administrador borra los permisos de la dueña con algo apagado', fetch(`${H}/permisosSocios/m1`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+			await espera('el administrador enciende los permisos de la dueña con su renglón (control)', soloJuntos('admin1', [resultado({}, 'ps2'),
+				{ update: { name: `${R}/bitacora/ps2`, fields: { tipo: sv('permisosSocio'), objeto: sv('m1'), antes: foto(true, false), despues: foto(true, true), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), true);
+			await poner('permisosSocios/m1', { precios: true, fechas: false, casa: true, motivo: 'atraso' });
+		}
 		await espera('la dueña lee los permisos para todos', leer('mixto1', 'settings/permisosSocios'), false);
 		await espera('el administrador apaga un permiso para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), false);
 		{
@@ -733,12 +746,15 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('un asesor cambia el título de su casa en venta (control)', parche('asesor7', 'properties/prueba-casa-en-venta', ['titulo'], { titulo: sv('Casa en venta (prueba)') }), true);
 	// Bitácora: el administrador, el asesor de la casa y el dueño de una casa por noche.
 	{
-		const entrada = (quien, casa, id) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/properties/${casa}/bitacora/${id}`, fields: { que: sv('cambio'), quien: sv(quien) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+		const entrada = (quien, casa, id, que = 'cambio') => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${R}/properties/${casa}/bitacora/${id}`, fields: { que: sv(que), quien: sv(quien) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
 		await espera('el asesor de la casa escribe en su bitácora (control)', entrada('asesor7', 'prueba-casa-en-venta', 'b1'), true);
 		await espera('el asesor de la casa lee su bitácora (control)', leer('asesor7', 'properties/prueba-casa-en-venta/bitacora'), true);
 		await espera('un asesor lee la bitácora de la casa de otro asesor', leer('asesor9', 'properties/prueba-casa-en-venta/bitacora'), false);
 		await espera('un asesor escribe en la bitácora de la casa de otro asesor', entrada('asesor9', 'prueba-casa-en-venta', 'b2'), false);
-		await espera('la dueña escribe en la bitácora de su casa por noche (control)', entrada('mixto1', 'mx-noche', 'b3'), true);
+		// El dueño, solo con los textos de «Mis propiedades» (admin/js/texto-dueno.js).
+		await espera('la dueña escribe en la bitácora de su casa por noche (control)', entrada('mixto1', 'mx-noche', 'b3', 'bloqueó 16 – 20 nov (Uso propio)'), true);
+		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-noche', 'b4', 'el administrador aprobó bajar la comisión'), false);
+		await espera('la dueña cuela un teléfono en un texto de la bitácora', entrada('mixto1', 'mx-noche', 'b5', 'bloqueó 16 – 20 nov (llámame 5555-1234)'), false);
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{
@@ -955,6 +971,20 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await poner('reservas/res-bit3', { propertyId: 'bit-casa', estado: 'confirmada' });
 	await espera('el administrador le pone «Revisé Airbnb» a una reserva ya creada', lote('admin1', [revisado('res-bit3', ['Airbnb'])]), false);
 	await espera('el administrador le quita «Revisé Airbnb» a una reserva', lote('admin1', [revisado('res-bit2', null)]), false);
+	// Precios del dueño y margen (privado/socio): solo se van con la casa, y sin la casa no cambian.
+	{
+		const doc_ = (ruta) => `${R}/${ruta}`;
+		const margen = (casa, m, o = {}) => ({ update: { name: doc_(`properties/${casa}/privado/socio`), fields: { precioBase: { integerValue: '100' }, margen: { integerValue: String(m) } } }, ...o });
+		const casaNoche = (id) => ({ update: { name: doc_(`properties/${id}`), fields: { titulo: svG('Por noche'), operacion: svG('vacacional'), propietarioId: svG('o1'), agentId: svG('') } }, currentDocument: { exists: false } });
+		await poner('properties/bit-noche', { titulo: 'Por noche', operacion: 'vacacional', propietarioId: 'o1', agentId: '' });
+		await poner('properties/bit-noche/privado/socio', { precioBase: 100, margen: 20 });
+		await espera('el administrador borra el precio del dueño con la casa en pie', fetch(`${H}/properties/bit-noche/privado/socio`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+		await espera('el administrador borra la casa y su privado en un lote («Eliminar casa», control)', lote('admin1', [{ delete: doc_('properties/bit-noche/privado/socio') }, { delete: doc_('properties/bit-noche') }]), true);
+		await poner('properties/bit-huerfana/privado/socio', { precioBase: 100, margen: 20 });
+		await espera('el administrador cambia el margen de una casa borrada', lote('admin1', [margen('bit-huerfana', 5, { updateMask: { fieldPaths: ['margen'] } })]), false);
+		await espera('el administrador vuelve a crear la casa encima de su privado suelto con otro margen', lote('admin1', [casaNoche('bit-huerfana'), margen('bit-huerfana', 5)]), false);
+		await espera('el administrador crea una casa por noche con su privado en un lote (control)', lote('admin1', [casaNoche('bit-nueva'), margen('bit-nueva', 25, { currentDocument: { exists: false } })]), true);
+	}
 	await espera('el administrador cambia el huésped de una reserva con «Revisé Airbnb» (control)', lote('admin1', [{ update: { name: `${R}/reservas/res-bit2`, fields: { huesped: svG('Ana') } }, updateMask: { fieldPaths: ['huesped'] } }]), true);
 }
 // Revisión del comprobante con la IA: la escribe el servidor; la leen el administrador y el socio de esa casa.
