@@ -98,13 +98,14 @@
 				autoplayButtonOutput: false,
 				controlsContainer: '#property-nav',
 				// Celular: tarjetas de 272 px y la siguiente asoma, para que se note que hay más.
+				// El mismo espacio entre tarjetas que la rejilla (css/site.css `.rejilla-tarjetas`): 16 px; 24 desde tableta.
 				fixedWidth: 272,
-				gutter: 12,
+				gutter: 16,
 				responsive: {
 					700: {
 						fixedWidth: false,
 						items: 3,
-						gutter: 16
+						gutter: 24
 					},
 					1100: {
 						items: 4

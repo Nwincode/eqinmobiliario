@@ -2,8 +2,8 @@
 
 /* Los colores y medidas se definen en css/tema.css. */
 
-/* Tarjetas de propiedad (inicio, listados, similares). Sin caja ni sombra: foto, precio, título y una línea
-   con «Tipo · Zona» a la izquierda y los datos a la derecha, pegada al título (sin caja, no hace falta igualar el alto).
+/* Tarjetas de propiedad (inicio, listados, similares). Sin caja ni sombra: foto, título arriba, «Tipo · Zona»
+   y abajo el precio a la izquierda con los datos a la derecha (sin caja, no hace falta igualar el alto).
    El enlace `.img` es la tira de fotos: se desliza con el dedo o con las flechas (js/site.js, «Fotos de las tarjetas»). */
 .property-item {
 	position: relative;
@@ -49,6 +49,21 @@
 }
 .prop-etiqueta {
 	min-width: 0;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--eq-ink);
+}
+/* Rejilla de tarjetas (listados, similares, portada con pocas, blog): un solo espacio entre tarjetas.
+   Celular 16 px; desde tableta, el del listado (24 px de lado, 48 entre filas). */
+.rejilla-tarjetas {
+	--bs-gutter-x: 16px;
+	--bs-gutter-y: 16px;
+}
+@media (min-width: 768px) {
+	.rejilla-tarjetas {
+		--bs-gutter-x: 24px;
+		--bs-gutter-y: 48px;
+	}
 }
 .prop-datos {
 	display: flex;
@@ -630,15 +645,14 @@
 }
 
 /* Blog */
+/* Como la tarjeta de propiedad: sin caja ni sombra, la foto con las esquinas del tema. */
 .post-card {
-	background: #fff;
-	border-radius: 8px;
-	overflow: hidden;
 	height: 100%;
-	box-shadow: 0 10px 30px -20px rgba(0, 0, 0, .35);
 }
 .post-card-img {
 	display: block;
+	overflow: hidden;
+	border-radius: var(--eq-radius);
 }
 .post-card-img img {
 	width: 100%;
@@ -647,7 +661,7 @@
 	object-fit: cover;
 }
 .post-card-body {
-	padding: 20px 24px 24px;
+	padding-top: 8px;
 }
 .post-card h2 a {
 	color: var(--eq-dark);

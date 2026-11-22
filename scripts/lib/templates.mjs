@@ -469,10 +469,10 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 									<span class="foto-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
 								</div>
 								<div class="property-content">
-									<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
+									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
 									<div class="prop-pie">
-										<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
+										<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 										<span class="prop-datos">${specs(p)}</span>
 									</div>
 								</div>
@@ -621,7 +621,7 @@ export function homePage(ctx) {
 
 	${slider.length ? `<section class="ini-sec container ini-populares">
 		<h2>${esc(s.destacadas.titulo)}</h2>
-		${slider.length <= 3 ? `<div class="row g-3 propiedades-pocas">
+		${slider.length <= 3 ? `<div class="row rejilla-tarjetas propiedades-pocas">
 			${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { unaFoto: true })}</div>`).join('\n')}
 		</div>` : `${flechasCarrusel('property-nav', t)}
 		<div class="property-slider-wrap">
@@ -881,8 +881,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 				</label>
 			</div>`}
 
-			${list.length ? `<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
-				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 1, prioridad: !i })}</div>`).join('\n')}
+			${list.length ? `<div class="row rejilla-tarjetas" id="${vac ? 'vac-grid' : 'listing-grid'}">
+				${list.map((p, i) => `<div class="col-md-6 col-lg-4 listing-col">${propertyCard(p, { lazy: i > 1, prioridad: !i })}</div>`).join('\n')}
 			</div>
 			<p class="text-center text-black-50 py-5" id="listing-empty" hidden>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>`
@@ -1443,7 +1443,7 @@ ${esVac ? '' : lateral}
 	${related.length ? `<div class="section ficha-similares" id="similares">
 		<div class="container">
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
-			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
+			<div class="row rejilla-tarjetas">${related.map((o) => `<div class="col-md-6 col-lg-4">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}
 	${barra}`;
@@ -1507,7 +1507,7 @@ export function propertyGonePage(ctx, p) {
 	${related.length ? `<div class="section ficha-similares" id="similares">
 		<div class="container">
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
-			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
+			<div class="row rejilla-tarjetas">${related.map((o) => `<div class="col-md-6 col-lg-4">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
 	return layout(ctx, {
@@ -1841,8 +1841,8 @@ export function blogIndexPage(ctx) {
 	${pageHero(ctx, L.h1 || 'Blog', ctx.site.hero.imagenes[1] || ctx.site.hero.imagenes[0] || '/images/hero_bg_2.webp', crumbs)}
 	<div class="section">
 		<div class="container">
-			<div class="row">
-				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
+			<div class="row rejilla-tarjetas">
+				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4">
 					<article class="post-card">
 						<a href="${esc(post.url)}" class="post-card-img">${imgFoto(post.imagen || '/images/hero_bg_1.webp', { alt: post.titulo, sizes: SIZES_TARJETA, anchos: [480, 800], aspecto: [16, 9] })}</a>
 						<div class="post-card-body">
