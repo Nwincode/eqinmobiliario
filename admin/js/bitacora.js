@@ -47,7 +47,7 @@ export const firma = (e, usuarios = {}) => {
 	return u ? String(u.nombre || u.email || 'Sin nombre') : String(e?.nombre || '');
 };
 
-// Qué cambió, en palabras, para la lista de la ficha: [{ campo, antes, despues }] con los valores ya escritos.
+// Qué cambió, en palabras, para la lista de la ficha: [{ clave, campo, antes, despues }] con los valores ya escritos.
 const NOMBRES = {
 	moneda: 'Moneda', propietarioId: 'Dueño', limpieza: 'Limpieza', precioBase: 'Precio del dueño por noche', precioFinde: 'Precio del dueño en fin de semana',
 	tarifas: 'Temporadas', margen: 'Margen de EQ', datosPago: 'Datos de pago', permisos: 'Permisos', precios: 'Precios y temporadas (todos)',
@@ -68,5 +68,5 @@ export function diferencias(e, { nombreDe = (x) => x, dinero = (n) => String(n),
 		return v === '' || v == null ? '(vacío)' : String(v);
 	};
 	return Object.keys({ ...e.antes, ...e.despues }).filter((k) => !igual(e.antes?.[k], e.despues?.[k]))
-		.map((k) => ({ campo: e.tipo === 'permisosSocio' ? (NOMBRES[k] || k).replace(' (todos)', '') : NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
+		.map((k) => ({ clave: k, campo: e.tipo === 'permisosSocio' ? (NOMBRES[k] || k).replace(' (todos)', '') : NOMBRES[k] || k, antes: texto(k, e.antes?.[k]), despues: texto(k, e.despues?.[k]) }));
 }

@@ -45,8 +45,9 @@ export function armarEstado({ estados = {}, publish = {}, correos = [], pagos = 
 	}
 	for (const c of calendarios) poner({ clave: `ical-${c.casaId}-${c.plataforma}`, icono: 'icon-calendar', titulo: `${c.plataforma} no responde`, detalle: c.casa || c.casaId, desde: ms(c.desde), href: `#/propiedades/${encodeURIComponent(c.casaId)}` });
 	if (rota(e('cdn'))) poner({ clave: 'cdn', icono: 'icon-exclamation-triangle', titulo: 'Las fechas de la web tardan en ponerse al día', detalle: e('cdn').motivo, desde: ms(e('cdn').falloDesde) || ms(e('cdn').fallo) });
-	// Un rebote a una dirección que no es de ningún cliente (un dueño, el equipo): se ve una semana desde el último.
-	if (e('rebotes')?.fallo && ahora - ms(e('rebotes').fallo) < 7 * DIA) poner({ clave: 'rebotes', icono: 'icon-envelope-o', titulo: 'Un correo a un dueño o al equipo no llegó', detalle: e('rebotes').motivo, desde: ms(e('rebotes').fallo) });
+	// Un rebote a una dirección sin lead vigente (un dueño, el equipo, un cliente de antes: netlify/lib/rebotes.mjs): se ve
+	// una semana desde el último; la dirección va en el detalle.
+	if (e('rebotes')?.fallo && ahora - ms(e('rebotes').fallo) < 7 * DIA) poner({ clave: 'rebotes', icono: 'icon-envelope-o', titulo: 'Un correo no llegó', detalle: e('rebotes').motivo, desde: ms(e('rebotes').fallo) });
 	// Relojes: roto, atrasado o sin correr. Uno sin anotar solo cuenta si el servidor ya anota desde hace más que su plazo
 	// (recién publicado esto, ninguno ha corrido todavía).
 	const anota = Math.min(...Object.keys(RELOJES).map((k) => ms(e(k)?.ok) || Infinity));

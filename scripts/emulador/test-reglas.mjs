@@ -755,6 +755,15 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña escribe en la bitácora de su casa por noche (control)', entrada('mixto1', 'mx-noche', 'b3', 'bloqueó 16 – 20 nov (Uso propio)'), true);
 		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-noche', 'b4', 'el administrador aprobó bajar la comisión'), false);
 		await espera('la dueña cuela un teléfono en un texto de la bitácora', entrada('mixto1', 'mx-noche', 'b5', 'bloqueó 16 – 20 nov (llámame 5555-1234)'), false);
+		// Con el valor de antes y el de ahora (y el texto de antes, sin valor, de una pestaña abierta antes del cambio).
+		await espera('la dueña escribe su precio de antes y el de ahora (control)', entrada('mixto1', 'mx-noche', 'b6', 'precio entre semana: Q 900 → Q 1,000'), true);
+		await espera('la dueña escribe su precio de fin de semana sin precio propio (control)', entrada('mixto1', 'mx-noche', 'b7', 'precio fin de semana: US$ 150 → igual que entre semana'), true);
+		await espera('la dueña escribe un precio especial con su valor y unas personas máximo con el de antes (control)', entrada('mixto1', 'mx-noche', 'b8', 'precio especial 16 – 20 nov (cada año en estas fechas): US$ 12,500.5'), true);
+		await espera('la dueña escribe el texto sin valor de una pestaña de antes (control)', entrada('mixto1', 'mx-noche', 'b9', 'precio entre semana'), true);
+		await espera('la dueña escribe personas máximo de antes y de ahora (control)', entrada('mixto1', 'mx-noche', 'b10', 'personas máximo: 8 → 12'), true);
+		await espera('la dueña cuela un teléfono como precio', entrada('mixto1', 'mx-noche', 'b11', 'precio entre semana: Q 5555 1234'), false);
+		await espera('la dueña cuela un teléfono como precio con comas', entrada('mixto1', 'mx-noche', 'b12', 'precio entre semana: Q 5,5551,234'), false);
+		await espera('la dueña cuela un texto en vez del precio', entrada('mixto1', 'mx-noche', 'b13', 'precio entre semana: US$ 1 → llámame'), false);
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{

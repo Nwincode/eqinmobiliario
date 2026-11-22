@@ -43,7 +43,7 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
 export async function uploadImage(file, folder, procesada, opciones) {
-	if (!storage) throw new Error('Falta "storageBucket" en site.config.json: no se pueden subir imágenes.');
+	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);

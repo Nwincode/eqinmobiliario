@@ -17,7 +17,7 @@ import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
 import { anotar, bitacoraActiva } from '../bitacora-panel.js';
-import { fotoCasa } from '../bitacora.js';
+import { fotoCasa, igual } from '../bitacora.js';
 // Los textos de la bitácora de la casa: solo los que dejan las reglas (texto-dueno.js).
 import { rango, QUE_CADA, MOTIVOS_BLOQUEO, textoDueno } from '../texto-dueno.js';
 import { renderForm } from '../form.js';
@@ -172,9 +172,11 @@ async function casa(container, id) {
 	// Un cambio del dueño: `cambio(actual)` dice qué campos quedan y cómo, calculado sobre lo guardado AHORA (otra
 	// pestaña, el equipo o una reserva pudieron cambiar algo con esta pantalla abierta). Se escribe solo eso, en una
 	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
-	// casa y la bitácora. Devuelve true si quedó guardado; la pantalla se pone al día con lo que quedó.
+	// casa y la bitácora. `descripcion(antes, ahora)` da el texto de su renglón (texto-dueno.js) con los valores leídos aquí.
+	// Si no cambia nada (el mismo precio otra vez, días ya bloqueados), no se escribe nada: ni la casa ni el renglón.
+	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó.
 	async function guardar(descripcion, cambio) {
-		let sinPrecioPropio = false;
+		let sinPrecioPropio = false, texto = '';
 		try {
 			const conBitacora = await bitacoraActiva();
 			const r = await runTransaction(db, async (tx) => {
@@ -184,6 +186,8 @@ async function casa(container, id) {
 				const actual = { base: Number(sv.precioBase) || 0, finde: Number(sv.precioFinde) || 0, tarifas: sv.tarifas || [],
 					bloqueos: V.unirRangos(cv.bloqueos || []), minimos: cv.minimos || [], huespedes: huespedesMaxDe(cv.huespedesMax) };
 				const nuevo = cambio(actual);
+				// Lo de antes como lo ve el dueño (sin lo ya pasado), para saber si algo cambió.
+				const previo = { ...actual, bloqueos: actual.bloqueos.filter((b) => b.hasta > hoy()), minimos: actual.minimos.filter((m) => m.hasta >= hoy()), tarifas: vigentes(actual.tarifas) };
 				const casa = {};
 				// Lo que ya pasó no se guarda, y cada lista tiene su tope (el mismo de firestore.rules calendarioSano). Con más
 				// (de antes), solo se puede quitar: las reglas lo revisan así (más corta y con lo que ya tenía).
@@ -207,6 +211,8 @@ async function casa(container, id) {
 					soloQuita = nuevo.tarifas.length > MAX_TARIFAS;
 					if (soloQuita && !(nuevo.tarifas.every(tenia) && nuevo.tarifas.length < (sv.tarifas || []).length)) throw new Error(`Hasta ${MAX_TARIFAS} precios especiales a la vez: quita uno antes de poner otro.`);
 				}
+				// Nada cambió: se sale antes de escribir (la transacción no deja nada).
+				if (Object.keys(nuevo).every((k) => igual(nuevo[k], previo[k]))) return { ...actual, margen: sv.margen, sinCambio: true };
 				if (['base', 'finde', 'tarifas'].some((k) => k in nuevo)) {
 					const plan = { base: actual.base, finde: actual.finde, tarifas: vigentes(actual.tarifas), ...nuevo };
 					const pub = V.planPublico(plan, sv.margen);
@@ -223,13 +229,15 @@ async function casa(container, id) {
 					const bitacoraId = anotar(tx, { tipo: 'casa', objeto: id, casa: id, antes: fotoCasa(c.data(), sv), despues: fotoCasa(c.data(), { ...sv, ...socioLimpio(suyo) }) }, conBitacora);
 					await guardarPrivadoVacacional(id, suyo, null, tx, { bitacoraId });
 				}
+				texto = descripcion(previo, nuevo);
 				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
-				tx.set(doc(collection(refCasa, 'bitacora')), { que: descripcion, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
+				tx.set(doc(collection(refCasa, 'bitacora')), { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
 				return { ...actual, ...nuevo, margen: sv.margen };
 			});
 			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
 			s.margen = r.margen;
-			markPending(`${p.titulo}: ${descripcion}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
+			if (r.sinCambio) { toast('Ya estaba así: no hubo nada que guardar.'); return true; }
+			markPending(`${p.titulo}: ${texto}`).catch((err) => console.warn('Aviso de cambios sin publicar', err));
 			alDiaEnLaWeb(id);
 			toast('Guardado.');
 			return true;
@@ -259,7 +267,7 @@ async function casa(container, id) {
 						// Un cero de más (de 120 a 1200): se pregunta antes de que el cliente lo vea.
 						const antes = Number(e[campo]) || (campo === 'finde' ? Number(e.base) : 0);
 						if (antes > 0 && n > 5 * antes && !(await confirmDialog(`${plata(n)} por noche es ${Math.round(n / antes)} veces lo que tenías (${plata(antes)}). ¿Es correcto?`, { okText: 'Sí, es correcto', danger: false }))) { ev.target.value = e[campo] || ''; return; }
-						guardar(textoDueno.precio(titulo), () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
+						guardar((a, b) => textoDueno.precio(titulo, a[campo], b[campo], p.moneda), () => ({ [campo]: n })).then(() => { ev.target.value = e[campo] || ''; pinta(); });
 					}
 				})), ve);
 	};
@@ -301,7 +309,7 @@ async function casa(container, id) {
 		soltar();
 		e.guardando = true;
 		calendario();
-		guardar(textoDueno.calendario(que, { desde, hasta }, valor, cada), cambio)
+		guardar(() => textoDueno.calendario(que, { desde, hasta }, valor, cada, p.moneda), cambio)
 			.then((ok) => { if (ok && saltadas.length) toast(`En ${saltadas.map((x) => rango(x)).join(', ')} ya tenías algo puesto: lo dejé como estaba.`, 'warning'); });
 	}
 
@@ -422,7 +430,7 @@ async function casa(container, id) {
 						const todos = r.cada ? (await elegirOpcion('¿Quitar solo este año o todos?', ['Solo este año', 'Todos los años'])) : 'Solo este año';
 						if (!todos) return;
 						const quita = todos === 'Todos los años' ? (x) => (r.serie && x.serie === r.serie) || mismoRango(x, r) : (x) => mismoRango(x, r);
-						guardar(textoDueno.quito(titulo, r, todos === 'Todos los años'), (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
+						guardar(() => textoDueno.quito(titulo, r, todos === 'Todos los años'), (a) => ({ [campo]: a[campo].filter((x) => !quita(x)) }));
 					}
 				})))));
 	};
@@ -446,7 +454,7 @@ async function casa(container, id) {
 		const anio = Number(hoy().slice(0, 4)) + ANIOS_ADELANTE;
 		const poner = () => {
 			let saltadas = [];
-			guardar(textoDueno.temporadas(anio), (a) => {
+			guardar(() => textoDueno.temporadas(anio), (a) => {
 				const out = {};
 				saltadas = [];
 				for (const campo of ['tarifas', 'minimos']) {
@@ -490,7 +498,7 @@ async function casa(container, id) {
 				h('input', {
 					class: 'form-control', id: 'mc-huespedes', type: 'number', inputmode: 'numeric', min: '1', max: '50', value: e.huespedes || '', disabled: !puedePrecios,
 					// La misma regla que la ficha del inmueble: al menos 1 (vacío no es «sin límite»).
-					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar(textoDueno.personas(n), () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
+					onchange: (ev) => { const n = huespedesMaxDe(ev.target.value); guardar((a) => textoDueno.personas(n, a.huespedes), () => ({ huespedes: n })).then(() => { ev.target.value = e.huespedes; }); }
 				})))), listas),
 			h('div', { class: 'col-lg-7' }, cal)));
 }

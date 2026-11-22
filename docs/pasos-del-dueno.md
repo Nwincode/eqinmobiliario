@@ -29,7 +29,10 @@ Corre solo los días 1, 2 y 3 (7:40 a. m.). No hay nada que activar: usa el corr
 
 ## Verificación en dos pasos de los administradores
 
-Mientras no esté activada, el administrador entra como siempre y en Inicio ve «Activa la verificación en dos pasos».
+Mientras no esté activada, el administrador entra como siempre y en Inicio ve «Falta encender la verificación en dos pasos
+en Firebase», con el enlace a la consola del proyecto. Ya activada, quien no tiene su teléfono inscrito lo inscribe al
+entrar con su contraseña; si recarga esa pantalla o tiene otra pestaña, entra igual y cada pantalla le dice «Activa la
+verificación en dos pasos» con el botón «Activar», hasta inscribirlo.
 Los pasos (de la documentación de Firebase que se conoce; no se pudo abrir desde aquí para confirmarlos: sin comprobar):
 
 1. Firebase → Authentication → Configuración: pasar a **Identity Platform** (gratis hasta su cuota).

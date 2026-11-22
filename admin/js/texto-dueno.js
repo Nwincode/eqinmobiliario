@@ -3,7 +3,7 @@
 // palabras: firestore.rules no le deja escribir otra cosa (TEXTO_DUENO, la misma expresión, copiada tal cual; la prueba
 // scripts/test-bitacora.mjs revisa que sea la misma y que cada texto de aquí cuadre). Un texto libre podría decir «el
 // administrador aprobó…» o llevar un teléfono. Puro (sin pantalla): lo prueba node.
-import { dia, MESES_CORTOS } from './formato.js';
+import { dia, MESES_CORTOS, miles, nNoches } from './formato.js';
 
 const hoy = () => globalThis.EQVacacional.hoy();
 
@@ -19,19 +19,34 @@ export const rango = (r) => {
 	return anio(r.hasta) === hoy().slice(0, 4) ? base : `${base} ${anio(r.hasta)}`;
 };
 
-// titulo: el de la pantalla («Entre semana», «Precios especiales»…); motivo: el de un día bloqueado.
+// Un precio en el texto: «US$ 1,250» o «Q 900.50» (las dos monedas de una casa).
+const monto = (n, moneda) => `${moneda === 'GTQ' ? 'Q' : 'US$'} ${miles(n)}`;
+const SIN_FINDE = 'igual que entre semana';
+
+// titulo: el de la pantalla («Entre semana», «Precios especiales»…). Con el valor de antes y el de ahora: «precio entre
+// semana: US$ 900 → US$ 1,000», «personas máximo: 8 → 12». valor: el motivo de un día bloqueado, el precio especial o
+// las noches del mínimo.
 export const textoDueno = {
-	precio: (titulo) => `precio ${titulo.toLowerCase()}`,
-	calendario: (que, r, motivo = '', cada = '') => `${CALENDARIO[que]} ${rango(r)}${que === 'bloquear' ? ` (${motivo})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`,
+	precio: (titulo, antes = 0, ahora = 0, moneda = 'USD') => {
+		const t = titulo.toLowerCase();
+		const valor = (n) => (Number(n) ? monto(Number(n), moneda) : t === 'fin de semana' ? SIN_FINDE : '');
+		const [a, b] = [valor(antes), valor(ahora)];
+		return `precio ${t}${b ? `: ${a ? `${a} → ` : ''}${b}` : ''}`;
+	},
+	calendario: (que, r, valor = '', cada = '', moneda = 'USD') => `${CALENDARIO[que]} ${rango(r)}${que === 'bloquear' ? ` (${valor})` : ''}${cada ? ` (${QUE_CADA[cada]})` : ''}`
+		+ (que === 'precio' ? `: ${monto(Number(valor), moneda)}` : que === 'minimo' ? `: ${nNoches(Number(valor))}` : ''),
 	quito: (titulo, r, todos = false) => `quitó ${titulo.toLowerCase()} ${rango(r)}${todos ? ' (todos los años)' : ''}`,
 	temporadas: (anio) => `puso las temporadas de ${anio}`,
-	personas: (n) => `personas máximo ${n}`
+	personas: (n, antes) => (antes && antes !== n ? `personas máximo: ${antes} → ${n}` : `personas máximo ${n}`)
 };
 
 // Lo que dejan escribir las reglas (RE2, el texto entero; sin barras invertidas para copiarla tal cual).
 // Un día: «16», «16 nov» o «16 nov 2027» (el año solo después del mes).
 const D = `[1-3]?[0-9]( (${MESES_CORTOS.join('|')})( 20[0-9]{2})?)?`;
 const R = `${D}( – ${D})?`;
-export const TEXTO_DUENO = `(precio (entre semana|fin de semana)|personas máximo [0-9]{1,2}|puso las temporadas de [0-9]{4}`
-	+ `|(bloqueó|habilitó|precio especial|mínimo de noches) ${R}( [(](${MOTIVOS_BLOQUEO.join('|')})[)])?( [(](${Object.values(QUE_CADA).join('|')})[)])?`
+// Un monto con sus comas: hasta 999,999.99 (el panel no deja pasar de PRECIO_MAX), sin lugar para un teléfono.
+const M = '(US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?';
+const P = `(${M}|${SIN_FINDE})`;
+export const TEXTO_DUENO = `(precio (entre semana|fin de semana)(: (${P} → )?${P})?|personas máximo(: [0-9]{1,2} →)? [0-9]{1,2}|puso las temporadas de [0-9]{4}`
+	+ `|(bloqueó|habilitó|precio especial|mínimo de noches) ${R}( [(](${MOTIVOS_BLOQUEO.join('|')})[)])?( [(](${Object.values(QUE_CADA).join('|')})[)])?(: (${M}|[0-9]{1,2} noches?))?`
 	+ `|quitó (precios especiales|mínimos de noches) ${R}( [(]todos los años[)])?)`;

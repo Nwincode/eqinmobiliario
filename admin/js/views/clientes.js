@@ -1,5 +1,5 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
-import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
 import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
@@ -258,6 +258,13 @@ async function renderFicha(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d, { merge: true });
+			// Correo corregido: sus leads cuyo correo rebotó (/api/rebote-correo) dejan de decir «El correo no llegó». Aparte:
+			// si alguno no se puede (otro asesor), el cliente queda guardado igual.
+			if (!nuevo && String(d.email || '').trim().toLowerCase() !== String(c.email || '').trim().toLowerCase()) {
+				await Promise.all(leads.filter((l) => l.clienteId === id && l.reboteCorreo).map((l) => updateDoc(doc(db, 'leads', l.id), { reboteCorreo: deleteField(), updatedAt: serverTimestamp() })
+					.then(() => { delete l.reboteCorreo; }, (err) => console.warn('Marca de rebote sin quitar', l.id, err))));
+				c.email = d.email;
+			}
 			toast('Cliente guardado.');
 			avisarCambio();
 			if (nuevo) location.hash = `#/clientes/${ref.id}`;

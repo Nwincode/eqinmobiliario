@@ -40,14 +40,14 @@ await t('en la ficha: solo lo que cambió, en palabras, con el dueño por su nom
 	const d = diferencias({ antes: fotoCasa({ propietarioId: 'p1' }, { precioBase: 100 }), despues: fotoCasa({ propietarioId: 'p2' }, { precioBase: 120, margen: 25 }) },
 		{ nombreDe: (x) => ({ p1: 'Ana', p2: 'Luis' })[x], dinero: (n) => `US$ ${n}` });
 	assert.deepEqual(d, [
-		{ campo: 'Dueño', antes: 'Ana', despues: 'Luis' },
-		{ campo: 'Precio del dueño por noche', antes: 'US$ 100', despues: 'US$ 120' },
-		{ campo: 'Margen de EQ', antes: '20 %', despues: '25 %' }]);
+		{ clave: 'propietarioId', campo: 'Dueño', antes: 'Ana', despues: 'Luis' },
+		{ clave: 'precioBase', campo: 'Precio del dueño por noche', antes: 'US$ 100', despues: 'US$ 120' },
+		{ clave: 'margen', campo: 'Margen de EQ', antes: '20 %', despues: '25 %' }]);
 });
 
 await t('permisos de un socio: con el nombre de su interruptor (no «para todos») y «Devueltos hasta que pague»', () => {
 	const d = diferencias({ antes: fotoPropietario({}), despues: fotoPropietario({ permisos: { precios: false, devolver: true } }) });
-	assert.deepEqual(d, [{ campo: 'Permisos', antes: 'los de todos', despues: 'Precios y temporadas no, Devueltos hasta que pague' }]);
+	assert.deepEqual(d, [{ clave: 'permisos', campo: 'Permisos', antes: 'los de todos', despues: 'Precios y temporadas no, Devueltos hasta que pague' }]);
 	assert.equal(diferencias({ antes: fotoPropietario({ permisos: { devolver: true } }), despues: fotoPropietario({ permisos: { devolver: false } }) })[0].despues, 'los de todos');
 });
 
@@ -114,12 +114,20 @@ await t('la bitácora de la casa: el dueño solo escribe los textos de «Mis pro
 	const re = new RegExp(`^(?:${TEXTO_DUENO})$`);
 	const rangos = [{ desde: '2026-11-16', hasta: '2026-11-20' }, { desde: '2026-11-30', hasta: '2026-12-02' }, { desde: '2026-12-28', hasta: '2027-01-03' },
 		{ desde: '2027-09-16', hasta: '2027-09-16' }, { desde: '2027-04-01', hasta: '2027-05-31' }];
-	const textos = [T.precio('Entre semana'), T.precio('Fin de semana'), T.temporadas(2027), T.personas(12),
+	// Con el valor de antes y el de ahora, en las dos monedas, con decimales, hasta el tope y sin precio de fin de semana;
+	// también los textos sin valor que escribe una pestaña abierta antes de este cambio.
+	const precios = [[900, 1000, 'GTQ'], [0, 120, 'USD'], [120.5, 99.99, 'USD'], [50000, 49999.99, 'GTQ']];
+	const textos = [...precios.flatMap(([a, b, m]) => [T.precio('Entre semana', a, b, m), T.precio('Fin de semana', a, b, m), T.precio('Fin de semana', b, 0, m)]),
+		'precio entre semana', 'precio fin de semana', 'personas máximo 12', T.temporadas(2027), T.personas(12), T.personas(12, 8), T.personas(1, 50),
 		...rangos.flatMap((r) => [...MOTIVOS_BLOQUEO.map((m) => T.calendario('bloquear', r, m)), T.calendario('habilitar', r),
-			...['', ...Object.keys(QUE_CADA)].flatMap((c) => [T.calendario('precio', r, 250, c), T.calendario('minimo', r, 3, c)]),
+			...['', ...Object.keys(QUE_CADA)].flatMap((c) => [T.calendario('precio', r, 250, c), T.calendario('precio', r, 12500.5, c, 'GTQ'), T.calendario('minimo', r, 3, c), T.calendario('minimo', r, 1, c)]),
 			T.quito('Precios especiales', r), T.quito('Mínimos de noches', r, true)])];
 	for (const x of textos) assert.match(x, re);
-	for (const x of ['cambio', 'el administrador aprobó bajar la comisión', 'bloqueó 16 – 20 nov (llámame 55551234)', 'precio entre semana, llama al 5555 1234', 'bloqueó 5555 1234'])
+	assert.equal(T.precio('Entre semana', 900, 1000, 'GTQ'), 'precio entre semana: Q 900 → Q 1,000');
+	assert.equal(T.precio('Fin de semana', 150, 0), 'precio fin de semana: US$ 150 → igual que entre semana');
+	assert.equal(T.calendario('minimo', rangos[0], 1), 'mínimo de noches 16 – 20 nov: 1 noche');
+	for (const x of ['cambio', 'el administrador aprobó bajar la comisión', 'bloqueó 16 – 20 nov (llámame 55551234)', 'precio entre semana, llama al 5555 1234', 'bloqueó 5555 1234',
+		'precio entre semana: Q 5555 1234', 'precio entre semana: Q 5,5551,234', 'precio especial 16 – 20 nov: Q 55551234', 'precio entre semana: US$ 1 → llámame', 'personas máximo: 5555 → 1234'])
 		assert.doesNotMatch(x, re, x);
 });
 

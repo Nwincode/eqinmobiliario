@@ -391,7 +391,7 @@ function avisoResumenes(lista) {
 	let faltan = [];
 	const pintar = async () => {
 		const nuevas = await reglasNuevas();
-		const pasos = 'Publica las dos reglas juntas en la consola de Firebase (Firestore → Reglas y Storage → Reglas; orden completo en docs/portal-propietarios.md) y enseguida abre Solicitudes. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
+		const pasos = 'Publica las dos reglas juntas en la consola de Firebase (Firestore → Reglas y Storage → Reglas) y enseguida abre Solicitudes. Después dale acceso a los dueños de venta o renta y a los colaboradores: el botón se habilita solo.';
 		caja.hidden = nuevas && !faltan.length && !fallas.size;
 		caja.replaceChildren(
 			faltan.length ? h('div', {}, h('strong', {}, `Poniendo al día lo que ve cada dueño en su panel: faltan ${faltan.length}. `), nuevas ? 'Deja esta pantalla abierta hasta que llegue a 0.' : ['Deja esta pantalla abierta. Cuando llegue a 0: ', pasos])

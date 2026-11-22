@@ -3,6 +3,8 @@ import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig
 import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
+import { diaConAnio } from '../formato.js';
+import { rango } from '../texto-dueno.js';
 
 const num = (n) => Math.round(n || 0).toLocaleString('es-GT');
 const pct = (n) => `${((n || 0) * 100).toFixed(1)} %`;
@@ -159,7 +161,7 @@ function renderDatos(cont, d, props) {
 	const usa = (d.paises || []).find((p) => p.claves[0] === 'usa');
 	cont.replaceChildren();
 	mount(cont,
-		h('p', { class: 'small text-muted' }, `Datos de ${d.rango.startDate} a ${d.rango.endDate} · ${d.propiedad}`),
+		h('p', { class: 'small text-muted' }, `Datos del ${rango({ desde: d.rango.startDate, hasta: d.rango.endDate })} · ${d.propiedad}`),
 		h('div', { class: 'row g-3 mb-4' },
 			kpi('icon-mouse-pointer', 'Clics', num(d.totales.clics), variacion(d.totales.clics, d.previos.clics)),
 			kpi('icon-eye', 'Apariciones', num(d.totales.impresiones), variacion(d.totales.impresiones, d.previos.impresiones)),
@@ -209,11 +211,11 @@ async function informeSemanal() {
 	const snap = await getDocs(query(collection(db, 'seoSemanal'), orderBy('fecha', 'desc'), limit(1)));
 	const d = snap.docs[0]?.data();
 	if (!d) return null;
-	if (d.error) return h('div', { class: 'alert alert-warning' }, `Informe del ${d.fecha}: no se pudo consultar Search Console (${d.error}).`);
+	if (d.error) return h('div', { class: 'alert alert-warning' }, `Informe del ${diaConAnio(d.fecha)}: no se pudo consultar Search Console (${d.error}).`);
 	const fuera = (d.indexacion || []).filter((x) => x.veredicto && x.veredicto !== 'PASS');
 	const faltan = d.sinRevisar ? ` · ${num(d.sinRevisar)} sin revisar aún` : '';
 	return h('div', {},
-		h('p', { class: 'small text-muted' }, `Informe del lunes ${d.fecha} (${d.rango.startDate} a ${d.rango.endDate}) · ${num(d.totales.clics)} clics `,
+		h('p', { class: 'small text-muted' }, `Informe del lunes ${diaConAnio(d.fecha)} (${rango({ desde: d.rango.startDate, hasta: d.rango.endDate })}) · ${num(d.totales.clics)} clics `,
 			variacion(d.totales.clics, d.previos.clics), ` · ${num(d.paginasSitemap)} páginas del sitemap${faltan}`),
 		card('Bajaron esta semana', tablaBajaron(d.bajaron || [], 'Ninguna página bajó.')),
 		card(`No están en Google: ${fuera.length}`,
@@ -221,7 +223,7 @@ async function informeSemanal() {
 			tabla(['Página', 'Motivo', 'Revisada'], fuera.map((x) => h('tr', {},
 				h('td', { class: 'text-break' }, h('a', { href: x.url, target: '_blank', rel: 'noopener' }, ruta(x.url))),
 				h('td', { class: 'text-end small' }, x.cobertura || x.veredicto),
-				h('td', { class: 'text-end small text-muted' }, x.cuando))), 'Todas las páginas revisadas están en Google.')),
+				h('td', { class: 'text-end small text-muted' }, x.cuando ? diaConAnio(x.cuando) : '—'))), 'Todas las páginas revisadas están en Google.')),
 		card('Búsquedas nuevas esta semana',
 			tabla(['Búsqueda', 'Clics', 'Impr.', 'Pos.'], (d.nuevas || []).map((r) => h('tr', {}, h('td', {}, r.consulta),
 				h('td', { class: 'text-end' }, num(r.clics)), h('td', { class: 'text-end' }, num(r.impresiones)), h('td', { class: 'text-end' }, pos(r.posicion)))),

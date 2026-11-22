@@ -7,7 +7,7 @@
 // servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, collection, query, where, orderBy, serverTimestamp } from '../firebase.js';
-import { h, statCard, mount, pageHeader, emptyState, toast, showError, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion, ahoraServidor, ahoraYa } from '../ui.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, elegirOpcion, ahoraServidor, ahoraYa } from '../ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from '../session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor, ChoqueDeFechas } from '../reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
@@ -22,6 +22,9 @@ import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
 
 const V = window.EQVacacional;
+// Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno.
+const SUBIENDO = new Set();
+const LIMITE_SUBIDA = 90_000;
 const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 // Atraso de la comisión, según V.nivelComision().
 const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'danger'], ['+72 h · fuera del sitio', 'danger']];
@@ -314,15 +317,38 @@ export async function render(container, [codigo] = []) {
 		});
 	}
 
-	// El socio sube la foto de su transferencia o depósito.
+	// El socio sube la foto de su transferencia o depósito. Mientras sube, su botón se apaga y dice «Subiendo…» (otro toque
+	// o una pestaña que se repinta no suben otra: SUBIENDO, por reserva); si no termina en LIMITE_SUBIDA, se dice y se
+	// puede volver a intentar. El archivo que llegara tarde queda sin usar: la reserva guarda solo el que sí se registró.
 	function subirComprobante(res) {
-		const archivo = h('input', { type: 'file', accept: 'image/*', onchange: () => archivo.files[0] && hacer(async () => {
-			const { url } = await uploadImage(archivo.files[0], `comprobantes/${res.id}`);
-			await ponerComprobante(res, url);
-			toast('Comprobante enviado.');
-		}) });
+		if (SUBIENDO.has(res.id)) return;
+		const archivo = h('input', { type: 'file', accept: 'image/*', onchange: async () => {
+			const foto = archivo.files[0];
+			if (!foto || SUBIENDO.has(res.id)) return;
+			SUBIENDO.add(res.id);
+			pintar();
+			let url;
+			try {
+				let vence;
+				const tarde = new Promise((_, mal) => { vence = setTimeout(() => mal(Object.assign(new Error('lenta'), { code: 'subida/lenta' })), LIMITE_SUBIDA); });
+				({ url } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`), tarde]).finally(() => clearTimeout(vence)));
+			} catch (err) {
+				const red = err?.code === 'subida/lenta' || /^storage\/(retry-limit-exceeded|canceled|unknown)$/.test(err?.code || '') || err?.code === 'auth/network-request-failed';
+				toast(red ? 'No se pudo subir el comprobante: la conexión está lenta o se cortó. Vuelve a intentarlo.' : `No se pudo subir el comprobante: ${errorMessage(err)}`, 'warning');
+				SUBIENDO.delete(res.id);
+				return pintar();
+			}
+			// Apagado hasta que la reserva lo registra; después la pantalla se repinta con lo guardado.
+			await hacer(async () => { try { await ponerComprobante(res, url); } finally { SUBIENDO.delete(res.id); } toast('Comprobante enviado.'); });
+			pintar();
+		} });
 		archivo.click();
 	}
+	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
+	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
+		? h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
+			h('span', { class: 'spinner-border spinner-border-sm me-1', 'aria-hidden': 'true' }), 'Subiendo…')
+		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }));
 
 	// La alerta de cada mañana: confirmada, llegada pasada y sin «Pago recibido». Si el equipo supo que el cliente pagó,
 	// «Cobrar comisión»: desde ahí su atraso cuenta para apagarle los permisos al socio (permisos-socio.js cuentaParaCorte).
@@ -470,7 +496,7 @@ export async function render(container, [codigo] = []) {
 				est === 'pendiente' && deHoy(l.propertyId) ? [ocupada || pasada || sinConfirmar ? null : boton('Confirmar', 'btn-primary', () => confirmar(l), 'check'), boton('No se dio', ocupada || pasada || sinConfirmar ? 'btn-primary' : 'btn-outline-secondary', () => noSeDio(l, ocupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				est === 'confirmada' && chats[r.codigo] && !(datosChat[r.codigo].estado === 'pagada' && conLlegada.has(r.codigo)) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
-				com && !com.pagada && !admin ? iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }) : null,
+				com && !com.pagada && !admin ? botonComprobante(com, res) : null,
 				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
 				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada, ahoraYa()) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador

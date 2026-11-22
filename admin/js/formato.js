@@ -327,3 +327,5 @@ export function whatsappUrl(tel, mensaje) {
 // igual en todo navegador (los textos de la bitácora del dueño los revisan las reglas: admin/js/texto-dueno.js).
 export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
 export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`;
+// Con su año («16 nov 2026»): la fecha del panel cuando el año no se sobreentiende.
+export const diaConAnio = (iso) => `${dia(iso)} ${String(iso).slice(0, 4)}`;

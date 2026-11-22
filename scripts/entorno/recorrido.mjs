@@ -405,6 +405,9 @@ paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón p
 // ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
 const FS = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
 const leer = async (ruta) => (await fetch(`${FS}/${ruta}`, { headers: { Authorization: 'Bearer owner' } })).json();
+// Los textos de la bitácora de una casa (lo que el dueño cambió en «Mis propiedades»), del más viejo al más nuevo.
+const lineasBitacora = async (id) => ((await leer(`properties/${id}/bitacora?pageSize=300`)).documents || [])
+	.sort((a, b) => String(a.fields?.cuando?.timestampValue).localeCompare(String(b.fields?.cuando?.timestampValue))).map((d) => d.fields?.que?.stringValue || '');
 const reservadas = async () => JSON.stringify((await leer(`properties/${idCasa}`)).fields.vacacional.mapValue.fields.reservadas || {});
 const tercero = await persona(390);
 await tercero.p.goto(`${SITIO}${ficha}`);
@@ -437,7 +440,7 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 {
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await socio.p.fill('#mc-base', '110');
-	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await socio.p.locator('#mc-base').press('Tab');
 	await espera(2500);
 	await campo(admin.p, 'vacacional.camas').fill('4');
 	await guardar(admin.p);
@@ -1342,10 +1345,18 @@ const duenos = [];
 	// d) Su casa por noche: cambia su precio, como siempre.
 	await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
 	await mixta.p.fill('#mc-base', '95');
-	await mixta.p.locator('#mc-base').dispatchEvent('change');
+	await mixta.p.locator('#mc-base').press('Tab');
 	await espera(2500);
 	const neto = (await leer('properties/casa-noche-mixta/privado/socio')).fields?.precioBase || {};
 	paso('Cambia el precio de su casa por noche', Number(neto.doubleValue ?? neto.integerValue) === 95, await avisos(mixta.p));
+	// El mismo precio otra vez (otro Tab, otro toque): no deja otra línea; la que quedó dice de cuánto a cuánto.
+	await mixta.p.fill('#mc-base', '95');
+	await mixta.p.locator('#mc-base').press('Tab');
+	await espera(2000);
+	const yaEstaba = await avisos(mixta.p);
+	const lineasMixta = (await lineasBitacora('casa-noche-mixta')).filter((x) => /^precio entre semana/.test(x));
+	paso('«Mis propiedades»: su línea dice el precio de antes y el de ahora, y el mismo precio otra vez no deja otra línea',
+		lineasMixta.length === 1 && /^precio entre semana: (US\$|Q) [\d,.]+ → (US\$|Q) 95$/.test(lineasMixta[0]) && /Ya estaba así/.test(yaEstaba), `${lineasMixta.join(' | ')} · ${yaEstaba}`);
 	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
 	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
 	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
@@ -1495,13 +1506,34 @@ const duenos = [];
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await pon(`properties/${idCasa}`, { vacacional: mapa({ bloqueos: { arrayValue: { values: [mapa({ desde: sv(dia(40)), hasta: sv(dia(42)), motivo: sv('Otra pestaña') })] } } }) }, ['vacacional.bloqueos']);
 	await socio.p.fill('#mc-base', '115');
-	await socio.p.locator('#mc-base').dispatchEvent('change');
+	await socio.p.locator('#mc-base').press('Tab');
 	await espera(3000);
 	const num = (x) => Number(x?.doubleValue ?? x?.integerValue);
 	const v5 = (await f(`properties/${idCasa}`)).vacacional?.mapValue?.fields || {};
 	const s5 = await f(`properties/${idCasa}/privado/socio`);
 	paso('«Mis propiedades» guarda solo lo que cambió: no borra lo que otra pestaña bloqueó, y su precio y el público van juntos',
 		JSON.stringify(v5.bloqueos || {}).includes(dia(40)) && num(s5.precioBase) === 115 && num(v5.base) === 138, `${num(s5.precioBase)} → ${num(v5.base)} · ${await avisos(socio.p)}`);
+	// Las dos listas «Cambios»: cada cambio de precio una vez, con su valor. En la de la casa, el antes → después de la
+	// bitácora sin repetirlo en el texto del dueño; en la de Rentas («Cambios de los socios»), el texto con su valor.
+	const lineasSocio = (await lineasBitacora(idCasa)).filter((x) => /^precio entre semana/.test(x));
+	await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
+	await delMenu(admin.p, 'Cambios');
+	await espera(2500);
+	const deLaCasa = (await admin.p.locator('.modal.show .list-group-item').allInnerTexts()).map((x) => x.replace(/\s+/g, ' '));
+	await admin.p.screenshot({ path: `${CAPTURAS}/cambios-casa-1280.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	const al115 = deLaCasa.filter((x) => /Precio del dueño por noche: US\$ ?110\.00 → US\$ ?115\.00/.test(x));
+	await ir(admin.p, '#/rentas', 3500);
+	await admin.p.locator('button[aria-label="Cambios de los socios"]').click();
+	await espera(2500);
+	const deRentas = (await admin.p.locator('.modal.show .list-group-item').allInnerTexts()).map((x) => x.replace(/\s+/g, ' '));
+	await admin.p.screenshot({ path: `${CAPTURAS}/cambios-socios-1280.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	const repetidas = lineasSocio.filter((x, i) => lineasSocio.indexOf(x) !== i);
+	paso('«Cambios»: cada precio que cambió el socio sale una vez y con su valor (en la casa, sin repetir el texto; en Rentas, con «→»)',
+		lineasSocio.length >= 2 && !repetidas.length && lineasSocio.every((x) => / → /.test(x) || /^precio entre semana: US\$ [\d,.]+$/.test(x))
+		&& al115.length === 1 && !/precio entre semana/.test(al115[0]) && deRentas.some((x) => /precio entre semana: US\$ 110 → US\$ 115/.test(x)),
+		`${lineasSocio.join(' | ')} · casa: ${al115.join(' ; ') || deLaCasa.slice(0, 2).join(' ; ')} · rentas: ${deRentas.slice(0, 2).join(' ; ')}`);
 
 	// Usuarios: una cuenta del equipo nace con la misma pieza que la de un dueño (acceso.js), sin contraseña escrita.
 	await ir(admin.p, '#/usuarios', 3000);
@@ -1557,6 +1589,18 @@ const duenos = [];
 	await guardar(admin.p);
 	const segundo = await acuerdo();
 	paso('Un segundo «Guardar» sin recargar, después de cambiar el dueño, no borra el acuerdo recién guardado', primero === 200 && segundo === 200, `${primero} → ${segundo} · ${await avisos(admin.p)}`);
+	// «Cambios» de cada dueño: la casa que se le puso (a B) y la que se le quitó (a A), con el nombre de la casa.
+	const cambiosDe = async (id) => {
+		await ir(admin.p, `#/propietarios/${id}`, 3000);
+		await admin.p.locator('button[aria-label="Cambios"]').click();
+		await espera(2500);
+		const t = (await admin.p.locator('.modal.show .modal-body').innerText()).replace(/\s+/g, ' ');
+		await admin.p.locator('.modal.show .btn-close').click();
+		return t;
+	};
+	const deB = await cambiosDe('dueno-b-prueba'), deA = await cambiosDe('dueno-a-prueba');
+	const movida = /Casa de dos guardados \(prueba\) Dueño: Dueño A \(prueba\) → Dueño B \(prueba\)/;
+	paso('«Cambios» de un dueño: la casa que se le puso y la que se le quitó salen en los dos, con el nombre de la casa', movida.test(deB) && movida.test(deA), `B: ${deB.slice(0, 120)} · A: ${deA.slice(0, 120)}`);
 }
 
 // ---------------------------------------------------------------- Ronda 3: lo que no debe romper ni saltarse
@@ -1692,6 +1736,59 @@ const duenos = [];
 	await vis.p.context().close();
 }
 
+// ---------------------------------------------------------------- El socio sube el comprobante del pago a EQ
+// Con la red lenta: el botón se apaga y dice «Subiendo…», un segundo toque no sube otra; si Storage lo niega, se dice.
+{
+	await ir(socio.p, '#/solicitudes', 4000);
+	const subir = socio.p.locator('button[aria-label="Subir comprobante del pago a EQ"], button[aria-label="Cambiar comprobante"]').first();
+	const hay = await subir.count();
+	let subidas = 0, modo = 'lenta';
+	await socio.p.route('**/v0/b/**', async (r) => {
+		if (r.request().method() !== 'POST') return r.fallback();
+		subidas++;
+		if (modo === 'niega') return r.fulfill({ status: 403, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ error: { code: 403, message: 'Permission denied.' } }) });
+		await espera(3000);
+		return r.fallback();
+	});
+	const elegir = async () => { const [fc] = await Promise.all([socio.p.waitForEvent('filechooser', { timeout: 5000 }), subir.click()]); await fc.setFiles(png); };
+	let mientras = '', apagado = false, tras = '';
+	if (hay) {
+		await elegir();
+		await espera(800);
+		const boton = socio.p.locator('.admin-main button', { hasText: 'Subiendo…' }).first();
+		mientras = await boton.innerText().catch(() => '');
+		apagado = await boton.isDisabled().catch(() => false);
+		await boton.click({ force: true, timeout: 1000 }).catch(() => {});
+		await espera(5000);
+		tras = await avisos(socio.p);
+	}
+	await socio.p.screenshot({ path: `${CAPTURAS}/comprobante-subido-1280.png` });
+	paso('El socio sube su comprobante con la red lenta: «Subiendo…» apagado, una sola subida y «Comprobante enviado»', hay > 0 && /Subiendo/.test(mientras) && apagado && subidas === 1 && /Comprobante enviado/.test(tras), `${hay} botón · «${mientras}» · apagado ${apagado} · ${subidas} subida(s) · ${tras}`);
+	modo = 'niega';
+	let negado = '', vuelve = false;
+	if (hay) {
+		await subir.waitFor({ timeout: 8000 }).catch(() => {});
+		await elegir().catch(() => {});
+		await espera(3000);
+		negado = await avisos(socio.p);
+		vuelve = await subir.isEnabled().catch(() => false);
+	}
+	paso('Si Storage no deja subir el comprobante, se dice y el botón vuelve a servir', /No se pudo subir el comprobante/.test(negado) && vuelve, negado);
+	await socio.p.unroute('**/v0/b/**');
+}
+
+// ---------------------------------------------------------------- Dos pasos: el aviso de Inicio, sin rutas de archivos
+{
+	await ir(admin.p, '#/inicio', 3000);
+	const aviso = admin.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' });
+	const texto = await aviso.innerText().catch(() => '');
+	const enlace = await aviso.locator('a').getAttribute('href').catch(() => '');
+	await ir(admin.p, '#/propiedades', 3000);
+	const enOtra = await admin.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' }).count();
+	paso('Proyecto sin el segundo paso: Inicio lo dice en una línea con el enlace a Firebase (sin rutas de archivos) y las demás pantallas no', /Abrir Firebase/.test(texto) && !/docs\/|\.md/.test(texto)
+		&& /^https:\/\/console\.firebase\.google\.com\/project\/[\w-]+\/authentication/.test(enlace || '') && enOtra === 0, `${texto.replace(/\s+/g, ' ')} · ${enlace} · ${enOtra}`);
+}
+
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 // ---------------------------------------------------------------- Verificación en dos pasos del administrador
@@ -1717,6 +1814,18 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	const malo = await ins.p.locator('[role=alert]').innerText().catch(() => '');
 	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-inscribir-390.png`, fullPage: true });
 	paso('Dos pasos: el administrador sin inscribir ve el QR; el código pegado con espacio queda en 6 cifras y uno malo se explica', qr === 1 && pegado === '123456' && /no sirve/.test(malo), `qr ${qr} · «${pegado}» · ${malo}`);
+	// Recargó la pantalla del QR (o abrió otra pestaña): entra sin que se le cierre la sesión, y cada pantalla le avisa con
+	// «Activar», que vuelve a mostrar el QR.
+	await ins.p.reload();
+	await ins.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await ir(ins.p, '#/propiedades', 3000);
+	const avisoIns = ins.p.locator('.admin-main .alert', { hasText: 'verificación en dos pasos' });
+	const textoIns = (await avisoIns.innerText().catch(() => '')).replace(/\s+/g, ' ');
+	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-aviso-390.png`, fullPage: true });
+	await avisoIns.locator('button', { hasText: 'Activar' }).click().catch(() => {});
+	await ins.p.locator('#codigo-inscribir').waitFor({ timeout: 15000 }).catch(() => {});
+	const qrOtraVez = await ins.p.locator('.dos-pasos-qr svg').count();
+	paso('Dos pasos: al recargar entra igual, cada pantalla le avisa y «Activar» vuelve al QR', /Activar/.test(textoIns) && qrOtraVez === 1, `${textoIns} · qr ${qrOtraVez}`);
 	await ins.p.context().close();
 	const ent = await persona(390);
 	await ent.p.route('**/accounts:signInWithPassword**', responder({ localId: 'uid-falso', email: 'admin@example.com', mfaPendingCredential: 'pendiente', mfaInfo: [{ mfaEnrollmentId: 'totp-1', displayName: 'App de códigos', totpInfo: {}, enrolledAt: new Date().toISOString() }] }));
