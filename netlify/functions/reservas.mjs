@@ -202,11 +202,11 @@ export default async (req, context) => {
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
 	let hecho;
 	try {
-		// Todo cabe en los 10 s de una función de Netlify: calendarios (≤ 2,5 s), transacción (lo que quede hasta 8 s, al menos
+		// Todo cabe en los 10 s de una función de Netlify: calendarios (≤ 2,5 s), transacción (lo que quede hasta 7 s, al menos
 		// 3 s) y, si el commit se cortó, la revisión de si quedó escrito (≤ 1,5 s).
 		const inicio = Date.now();
 		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : undefined;
-		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(3000, 8000 - (Date.now() - inicio)));
+		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(3000, 7000 - (Date.now() - inicio)));
 	} catch (err) {
 		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.faltaRevisar ? { faltaRevisar: err.faltaRevisar } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.

@@ -248,7 +248,8 @@ paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (awai
 {
 	// Y dice qué parte parece contacto, en una línea (un número: que lo mande en foto si es de un pago).
 	const aviso = await escribir('Mejor llamame al 5555-1234');
-	paso('El chat bloquea un teléfono y dice que parece un teléfono (si es un pago, en foto)', /Parece un número de teléfono.*foto del comprobante/.test(aviso), aviso);
+	// Sin reserva confirmada no hay cámara: el aviso no promete la foto.
+	paso('El chat bloquea un teléfono y dice que parece un teléfono (sin prometer la foto: aún no hay cámara)', /^Parece un número de teléfono\. Por aquí no se comparten contactos\.$/.test(aviso), aviso);
 	const aviso2 = await escribir('mi ig es villa.lago');
 	paso('…y un usuario de red social, con su aviso', /Parece un usuario de red social/.test(aviso2), aviso2);
 }
@@ -326,6 +327,12 @@ await espera(2500);
 paso('El cliente ve «Reserva confirmada» y los datos de pago', /confirmada/i.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
 paso('El cliente todavía no ve la dirección', !/Calle Real 12/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
 paso('El cliente ve la fecha y hora exactas para pagar', /Paga antes del \w+, \d+ \w+, \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
+// Confirmada y con la cámara a la mano: un número de pago escrito se pide en foto.
+{
+	const aviso = await escribir('boleta 70012345');
+	paso('Confirmada: un número de pago escrito se bloquea y el aviso pide la foto del comprobante (📷)', /referencia de pago, súbela como foto del comprobante/.test(aviso) && await cliente.p.locator('.vac-chat-adjuntar').isVisible(), aviso);
+	await cliente.p.fill('.vac-chat-form textarea', '');
+}
 // Comprobante: una imagen PNG mínima.
 const png = `${CAPTURAS}/comprobante.png`;
 writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
