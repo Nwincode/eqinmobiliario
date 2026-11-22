@@ -245,7 +245,7 @@ async function casa(container, id) {
 			return true;
 		} catch (err) {
 			// Las reglas de antes (el sitio se publica primero) niegan el renglón con valores: otra vez, sin ellos.
-			if (conValores && err?.code === 'permission-denied' && texto !== sinValores(texto)) return guardar(descripcion, cambio, false);
+			if (conValores && err?.code === 'permission-denied' && texto !== sinValores(texto)) return await guardar(descripcion, cambio, false);
 			// Casa por noche sin su precio guardado todavía: con las reglas de antes el dueño no puede crearlo.
 			if (sinPrecioPropio && err?.code === 'permission-denied') toast('Esta casa todavía no tiene tu precio registrado. Pídele al administrador que lo ponga en la ficha de la casa; después ya puedes cambiarlo aquí.', 'warning');
 			else showError(err);

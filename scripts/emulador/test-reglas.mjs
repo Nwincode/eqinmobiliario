@@ -258,6 +258,19 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 		await espera(`socio borra privado/${d} de su casa por noche`, borrar('socio1', `properties/prueba-casa-playa-monterrico/privado/${d}`), false);
 		await espera(`administrador borra privado/${d} al eliminar la casa`, borrar('admin1', `properties/prueba-casa-playa-monterrico/privado/${d}`), true);
 	}
+	// «Eliminar casa» (views/properties.js eliminarPropiedad): el contacto de sus huéspedes, lo privado y la casa en un solo
+	// lote, que puede llevar cientos de borrados (las reglas tienen un tope de lecturas por pedido).
+	const R = 'projects/demo-eq/databases/(default)/documents/properties/casa-a-borrar';
+	await poner('properties/casa-a-borrar', { titulo: 'A borrar', agentId: 'ag7', operacion: 'vacacional' });
+	for (const d of ['socio', 'llegada']) await poner(`properties/casa-a-borrar/privado/${d}`, { x: 1 });
+	const contactos = Array.from({ length: 480 }, (_, i) => `${R}/privado/reserva-r${i}`);
+	for (const c of contactos.slice(0, 40)) await poner(c.slice(c.indexOf('properties/')), { telefono: '+502 5555 1234' });
+	const lote = (quien) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [...contactos,
+		...['socio', 'llegada', 'acuerdo', 'calendario', 'icalLeido'].map((d) => `${R}/privado/${d}`), R].map((d) => ({ delete: d })) }) }).then((r) => r.status);
+	// (Al asesor el emulador le responde 500, no 403: la regla falla al leer la casa que el mismo lote borra. Igual queda negado.)
+	await espera('un asesor elimina la casa con sus contactos en un lote', lote('asesor7').then((s) => (s === 200 ? 200 : 403)), false);
+	await espera('el administrador elimina la casa con 480 contactos de huéspedes en un lote (control)', lote('admin1'), true);
+	await espera('el contacto de un huésped se fue con la casa', leer('admin1', 'properties/casa-a-borrar/privado/reserva-r3').then((s) => (s === 404 ? 200 : s)), true);
 }
 await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T) }), true);
 // Con la foto, el cliente marca en el chat «adjuntó su comprobante» (hora del servidor): desde ahí el socio no cancela solo.
