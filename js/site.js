@@ -394,7 +394,8 @@
 				enviar(0)
 					.then(function (token) { guardarPendiente(form, null); window.EQChat.avisar(token); done(token); }, function (err) {
 						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
-						guardarPendiente(form, !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null);
+						// (Con 429 tampoco se suelta: el aviso dice en cuántos minutos volver a intentar, con la misma.)
+						guardarPendiente(form, !err || !err.status || err.status >= 500 || err.status === 429 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null);
 						fail(err);
 					})
 					.then(function () { pruebaForm.otra(); button.disabled = false; });

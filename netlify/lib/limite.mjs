@@ -67,10 +67,10 @@ export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', a
 // Un contador por ventana fija (la hora en curso) que no choca: cada pedido es un solo commit que suma 1
 // (limites/{huella de nombre, clave y ventana}) y lee el valor que quedó, sin transacción; una ráfaga queda contada en la
 // base aunque llegue toda a la vez. `distinto` (p. ej. el id de una solicitud): repetir el mismo no suma a la clave, pero
-// suma a sus propios reintentos (a lo más `reintentos` por ventana) y lee cómo va la clave: se frena si la clave pasó su
+// suma a sus propios reintentos (a lo más `reintentos` por ventana, 15: los automáticos de la página por un 503 caben) y lee cómo va la clave: se frena si la clave pasó su
 // tope o si ese mismo se repitió de más (reusar un id no salta el freno). Sin `distinto`, cada pedido cuenta. Si la base
 // falla, cuenta en memoria. limitadorContador(nombre, max, ventanaMs) → async (clave, distinto?) => true si ya pasó.
-export function limitadorContador(nombre, max, ventanaMs, { avisar = false, reintentos = 5 } = {}) {
+export function limitadorContador(nombre, max, ventanaMs, { avisar = false, reintentos = 15 } = {}) {
 	const enMemoria = limitador(max, ventanaMs);
 	let avisadoEn = 0;
 	const huella = (x) => createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(x).digest('hex');

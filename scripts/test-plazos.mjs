@@ -119,4 +119,16 @@ await t('sin pago a tiempo, el cliente en inglés lee la cancelación en inglés
 	assert.match(msj.at(-1).texto, /^We did not receive your payment in time/);
 });
 
+await t('«por publicar» que se perdió: una reserva confirmada después de la última publicación marca meta/publish; si ya está al día, no', async () => {
+	poner('meta/publish', { pendiente: false, ultimaPublicacion: hace(60) });
+	poner('reservas/r1', { estado: 'confirmada', propertyId: 'c1', createdAt: hace(10), updatedAt: hace(10) });
+	await plazos();
+	assert.equal(leer('meta/publish').pendiente, true);
+	limpiar();
+	poner('meta/publish', { pendiente: false, ultimaPublicacion: hace(5) });
+	poner('reservas/r1', { estado: 'confirmada', propertyId: 'c1', createdAt: hace(10), updatedAt: hace(10) });
+	await plazos();
+	assert.equal(leer('meta/publish').pendiente, false);
+});
+
 console.log(`${ok} pruebas del cron de plazos pasan.`);

@@ -233,9 +233,9 @@ await t('reintento que no es la misma (otro correo, casa, fechas o personas): no
 		assert.equal(r.status, 409, JSON.stringify(cambio));
 	}
 	assert.deepEqual([leer(`leads/${c.leadId}`).nombre, leer(`leads/${c.leadId}`).telefono, hijos('leads').length], ['Ana Morales', '+502 5555 1234', 1]);
-	// El reintento verdadero pasa por su propio límite por IP (30 por hora), no por el de las solicitudes nuevas.
+	// El reenvío de la que ya quedó pasa por su propio límite por IP (60 por hora), no por el de las preguntas ni el de las nuevas.
 	let rechazados = 0;
-	for (let i = 0; i < 32; i++) if ((await pedir({ ...c, lead: { ...c.lead, nombre: `Ana ${i}` } }, { mismaIp: true })).status === 429) rechazados++;
+	for (let i = 0; i < 62; i++) if ((await pedir({ ...c, lead: { ...c.lead, nombre: `Ana ${i}` } }, { mismaIp: true })).status === 429) rechazados++;
 	assert.ok(rechazados >= 2, String(rechazados));
 });
 
@@ -274,17 +274,34 @@ await t('montos congelados al guardar: la solicitud aparta sus fechas al instant
 });
 
 await t('freno previo por IP: 60 solicitudes distintas por hora aunque ninguna se guarde (casa que no existe), con o sin prueba; repetir la misma no suma a la IP pero tiene 5 reintentos; el GET con basura no cuenta', async () => {
-	// La misma solicitud otra vez no suma a la IP, pero tiene sus propios reintentos (5 por hora): reusar un id no salta el freno.
+	// La misma solicitud otra vez no suma a la IP, pero tiene sus propios reintentos (15 por hora, para que quepan los
+	// automáticos de la página): reusar un id no salta el freno. El 429 dice en cuántos minutos volver a intentar.
 	const misma = cuerpo(bien(), { propertyId: 'no-existe-x' });
 	const reintentos = [];
-	for (let i = 0; i < 8; i++) reintentos.push((await pedir(misma, { mismaIp: true })).status);
-	assert.deepEqual(reintentos, [409, 409, 409, 409, 409, 409, 429, 429]);
+	for (let i = 0; i < 18; i++) reintentos.push((await pedir(misma, { mismaIp: true })).status);
+	assert.deepEqual([reintentos.slice(0, 16).every((x) => x === 409), reintentos.slice(16)], [true, [429, 429]], reintentos.join(','));
+	const r429 = await (await pedir(misma, { mismaIp: true })).json();
+	assert.match(r429.error, /vuelve a intentarlo en \d+ min/);
 	const st = [];
 	for (let i = 0; i < 61; i++) st.push((await pedir(cuerpo(bien(), { propertyId: `no-existe-${i}` }), { mismaIp: true })).status);
 	assert.deepEqual([st.slice(0, 59).every((x) => x === 409), st.slice(59)], [true, [429, 429]], st.join(','));
 	const g = await solicitud({ method: 'GET', url: 'https://x/api/solicitud?lead=basura&token=x', headers: new Headers() }, { ip: '10.7.7.7' });
 	assert.deepEqual(await g.json(), { guardada: false });
 	assert.ok(hijos('limites').every((d) => d.vence instanceof Date));
+});
+
+await t('la misma persona (mismo correo, casa, fechas y personas) pide otra vez con otro id: recibe su token, no «fechas no libres»', async () => {
+	casa({ vacacional: { huespedesMax: 4 } });
+	poner('properties/c1/privado/socio', { margen: 20, precioBase: 100, precioFinde: 100 });
+	const a = cuerpo();
+	assert.equal((await pedir(a)).status, 200);
+	const otraPestana = { ...cuerpo(), lead: { ...a.lead } };
+	const [s, d] = await estado(otraPestana);
+	assert.deepEqual([s, d.token], [200, a.token]);
+	assert.equal(hijos('leads').length, 1);
+	// Otra persona, mismas fechas: 409.
+	const [s2] = await estado(cuerpo());
+	assert.equal(s2, 409);
 });
 
 console.log(`${ok} pruebas de la solicitud por el servidor pasan.`);

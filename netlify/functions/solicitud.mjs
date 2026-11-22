@@ -30,6 +30,8 @@ const porIp = limitadorDurable('solicitud-ip', 10, 60 * 60_000);
 const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000);
 // La pregunta «¿ya quedó?» y el reintento de una ya guardada: su propio límite por IP, más holgado.
 const porIpConsulta = limitadorDurable('solicitud-consulta-ip', 30, 60 * 60_000, { siFalla: 'memoria' });
+// El reenvío de una que ya quedó (la página la reintenta sola): aparte de las preguntas y más holgado.
+const porIpReenvio = limitadorDurable('solicitud-reenvio-ip', 60, 60 * 60_000, { siFalla: 'memoria' });
 // Un freno previo por IP: solicitudes distintas (por su id) en la hora, contadas antes de revisarlas, con o sin prueba de
 // Turnstile: una ráfaga que termina en 409 o 403 (casas que no existen, fechas tomadas) no se guarda, pero tampoco sigue
 // sin tope. 60, para una IP compartida (hotel, oficina, la red del celular); el reintento de la misma no cuenta. Es un
@@ -136,7 +138,12 @@ export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', 
 	const vigentes = (recientes?.lista || []).filter((r) => ahora - Number(r.creada) < RECIENTES_MS);
 	for (const r of vigentes.filter((x) => seCruzan(reserva, x))) {
 		const [otra, sus] = await Promise.all([tx.leer(`leads/${r.leadId}`), tx.leer(`montosSolicitud/${r.leadId}`)]);
-		if (otra && apartaFechas('', otra.solicitud?.estado, Number(r.creada), sus, ahora)) no(409, FECHAS_TOMADAS, { fechas: true });
+		if (otra && apartaFechas('', otra.solicitud?.estado, Number(r.creada), sus, ahora)) {
+			// La misma persona con otro id (reintentó desde otra pestaña): se responde con la suya.
+			const suya = mismaSolicitud(otra, datos) ? (await tx.leer(`chatsPorSolicitud/${r.leadId}`))?.token : '';
+			if (TOKEN.test(suya || '')) return suya;
+			no(409, FECHAS_TOMADAS, { fechas: true });
+		}
 	}
 	// Sin prueba de «no soy un robot»: el tope del sitio y los de IP y correo, contados aquí mismo.
 	if (sinPrueba) {
@@ -205,13 +212,17 @@ export default async (req, context) => {
 		}
 		const pedidoPlano = { lead: { email: String(pedido?.lead?.email || '').trim().toLowerCase(), propertyId: pedido?.lead?.propertyId }, reserva: pedido?.reserva || {} };
 		if (ya && mismaSolicitud(guardada, pedidoPlano)) {
-			if (await porIpConsulta(ip)) return muchas();
+			if (await porIpReenvio(ip)) return muchas();
 			await ponerAlDiaContacto(pedido).catch((err) => console.error('Solicitud (contacto):', err.message));
 			return json(200, { token: ya });
 		}
-		// El freno, después de reconocer el reenvío de una ya guardada y antes de revisar la nueva.
+		// El freno, después de reconocer el reenvío de una ya guardada y antes de revisar la nueva. Su ventana es la hora en
+		// curso: se dice en cuántos minutos se puede volver a intentar.
 		// (Un id sin forma de id cuenta cada vez, sin marca compartida.)
-		if (await porIpIntentos(ip, ID.test(pedido?.leadId || '') ? pedido.leadId : '')) return muchas();
+		if (await porIpIntentos(ip, ID.test(pedido?.leadId || '') ? pedido.leadId : '')) {
+			const min = 60 - new Date().getUTCMinutes();
+			return error(429, `Demasiadas solicitudes seguidas: vuelve a intentarlo en ${min} min o escríbenos por WhatsApp.`, `Too many requests in a row: try again in ${min} min or message us on WhatsApp.`, { reintentarEn: min });
+		}
 		const datos = revisarPedido(pedido);
 		const prueba = await pasaTurnstile(pedido.turnstile, ip);
 		if (prueba === 'mala') return error(403, 'No pudimos comprobar que no eres un robot. Vuelve a intentarlo.', 'We could not verify that you are not a robot. Please try again.', { turnstile: true });
@@ -223,7 +234,12 @@ export default async (req, context) => {
 		// Otra solicitud abierta ya aparta esas fechas (la misma cuenta que el calendario, ocupacion.mjs; cubre también las
 		// de antes de apartadasCasa). Si no se puede leer, sigue: la transacción revisa las recientes y lo confirmado.
 		const apartadas = await apartadasDe(datos.lead.propertyId).catch((err) => { console.error('Solicitud (apartadas):', err.message); return []; });
-		if (apartadas.some((r) => seCruzan(datos.reserva, { llegada: r.desde, salida: r.hasta }))) no(409, FECHAS_TOMADAS, { fechas: true });
+		for (const r of apartadas.filter((x) => seCruzan(datos.reserva, { llegada: x.desde, salida: x.hasta }))) {
+			// La misma persona (mismo correo, casa, fechas y personas) que pidió otra vez con otro id: es la suya, no «no libres».
+			const suya = await mismaPersona(r.leadId, datos).catch(() => '');
+			if (suya) return json(200, { token: suya });
+			no(409, FECHAS_TOMADAS, { fechas: true });
+		}
 		// Sin prueba (`sin`), los topes estrictos cuentan dentro de la transacción. Dos que crean a la vez el mismo documento
 		// (el primero de la casa o de un límite): la segunda se repite una vez y ya ve a la primera.
 		const guardar = () => transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos, { ip, sinPrueba: prueba === 'sin' }));
@@ -242,6 +258,11 @@ export default async (req, context) => {
 	}
 };
 
+// ¿La solicitud `leadId` es de la misma persona y la misma estancia que `datos`? Devuelve el token de su chat o ''.
+async function mismaPersona(leadId, datos) {
+	const [l, i] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
+	return l && mismaSolicitud(l, datos) && TOKEN.test(i?.token || '') ? i.token : '';
+}
 // ¿Ya está guardada esta solicitud con este chat? (un reintento). Devuelve el token o ''. Si la base no responde, lanza.
 async function yaGuardada(leadId, token) {
 	if (!ID.test(leadId || '') || !TOKEN.test(token || '')) return '';

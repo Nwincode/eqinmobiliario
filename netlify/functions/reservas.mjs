@@ -242,7 +242,8 @@ export default async (req, context) => {
 		if (casa) await (accion === 'no' ? purgarCasa(casa) : fechasCambiaron(casa, `Reserva por noche: ${accion}`)).catch((err) => console.error('Reservas: purga', err.message));
 		return enviarAvisosChat(token).catch((err) => { console.error('Reservas: avisos', err.message); return -1; });
 	})();
-	if (typeof context?.waitUntil === 'function') { context.waitUntil(despues); return json(200, { ok: true, accion, ...resto }); }
+	// (Con waitUntil también con tope: unos 8 s más; lo que no alcance lo retoma el control.)
+	if (typeof context?.waitUntil === 'function') { context.waitUntil(aTiempo(despues, Date.now() + 8000, 'pendientes')); return json(200, { ok: true, accion, ...resto }); }
 	return json(200, { ok: true, accion, ...resto, avisos: await aTiempo(despues, hasta, 'pendientes') });
 };
 

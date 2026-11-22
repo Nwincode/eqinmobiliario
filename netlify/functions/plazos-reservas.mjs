@@ -22,6 +22,7 @@ import { datosConfigurados, desde, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, solicitudDe, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
+import { marcarPorPublicar } from '../lib/publicar.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { yaRespondida, seCruzan, bajoElPlan, conPlazo, venceRespuesta, plazoDePago, recordarPagoDesde, cancelaSola, esDuplicada, fechaHora, MOTIVO_SIN_RESPUESTA, MOTIVO_SIN_PAGO,
 	MOTIVO_CASA_NO_DISPONIBLE, MOTIVO_SIN_CHAT, MOTIVO_EQUIPO_NO_CONFIRMO, textoCliente, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
@@ -132,7 +133,14 @@ export default async () => {
 	try {
 		// Primero lo que cancela o recuerda un pago (lo que más pesa si la vuelta se corta a los 20 s).
 		// Reservas de la web confirmadas en los últimos 30 días (se revisa cada una en su transacción).
-		const reservas = (await desde('reservas', 'createdAt', new Date(ahora - 30 * DIA)))
+		const todasLasReservas = await desde('reservas', 'createdAt', new Date(ahora - 30 * DIA));
+		// «Por publicar» que no alcanzó a marcarse (lo de después de confirmar o cancelar se cortó por el plazo de la
+		// función): una reserva que cambió después de la última publicación y meta/publish sin «pendiente» → se marca (la
+		// misma pieza que usa reservas.mjs).
+		const pub = await leerPrivado('meta/publish').catch(() => undefined);
+		if (pub !== undefined && !pub?.pendiente && todasLasReservas.some((r) => Math.max(ms(r.createdAt), ms(r.updatedAt)) > ms(pub?.ultimaPublicacion)))
+			await transaccion((tx) => marcarPorPublicar(tx, 'Reservas que cambiaron después de la última publicación', 'Reservas')).catch((err) => console.error('Plazos (por publicar):', err.message));
+		const reservas = todasLasReservas
 			.filter((r) => r.estado === 'confirmada' && r.leadId && r.chat && conPlazo(ms(r.createdAt)) && (({ desde: d, vence }) => ahora >= Math.min(vence, recordarPagoDesde(d, vence)))(plazoDePago(r, ms(r.createdAt))));
 		for (const r of reservas) {
 			if (!queda()) return;
