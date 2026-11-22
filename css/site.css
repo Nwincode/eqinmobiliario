@@ -59,10 +59,17 @@
 	--bs-gutter-x: 16px;
 	--bs-gutter-y: 16px;
 }
+/* El paginador del listado, a la misma distancia de la última fila que una fila de otra. */
+.custom-pagination:not(:empty) {
+	margin-top: 16px;
+}
 @media (min-width: 768px) {
 	.rejilla-tarjetas {
 		--bs-gutter-x: 24px;
 		--bs-gutter-y: 48px;
+	}
+	.custom-pagination:not(:empty) {
+		margin-top: 48px;
 	}
 }
 .prop-datos {
@@ -1392,11 +1399,10 @@ body.sin-barra-ficha .ficha-barra {
 .ficha-amenidades li {
 	display: flex;
 	align-items: center;
-	padding: 8px 0 8px 22px;
+	padding: 8px 0;
 	position: relative;
 	break-inside: avoid;
 	color: var(--eq-text);
-	padding-left: 0;
 }
 .ficha-amenidades li::before {
 	content: "";

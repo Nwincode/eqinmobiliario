@@ -285,7 +285,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .admin-crumb-group::after {
 	content: "/";
 	margin-left: 8px;
-	color: var(--adm-nav-text);
+	color: color-mix(in oklab, var(--eq-dark) 22%, var(--eq-white));
 }
 .admin-crumb-page {
 	font-weight: 600;

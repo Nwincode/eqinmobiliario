@@ -334,11 +334,11 @@ export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[
 export const diaConAnio = (iso) => `${dia(iso)} ${String(iso).slice(0, 4)}`;
 
 // Fechas del panel: tres formatos, los mismos en todas las pantallas (meses escritos aquí: igual en todo navegador).
-//  fechaCorta «16 nov 2026» · fechaLarga «16 de noviembre de 2026» · fechaHora «16 nov, 10:30» (con el año si no es este).
+//  fechaCorta «16 nov 2026» · fechaLarga «16 de noviembre de 2026» · fechaHora «16 nov 2026, 10:30».
 // Reciben un Timestamp de Firestore, { seconds }, Date, milisegundos o texto; 'AAAA-MM-DD' es ese día (no se corre por la zona horaria).
 export const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 export function aFecha(v) {
-	if (!v && v !== 0) return null;
+	if (!v) return null;
 	if (typeof v.toDate === 'function') return v.toDate();
 	if (v.seconds) return new Date(v.seconds * 1000);
 	const d = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00`) : new Date(v);
@@ -351,7 +351,7 @@ export function fechaHora(v, sinFecha = '—') {
 	const d = aFecha(v);
 	if (!d) return sinFecha;
 	const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-	return `${d.getFullYear() === new Date().getFullYear() ? dia(isoDe(d)) : diaConAnio(isoDe(d))}, ${hora}`;
+	return `${diaConAnio(isoDe(d))}, ${hora}`;
 }
 // Meses 'AAAA-MM': su nombre («noviembre de 2026») y el de antes o después.
 export const nombreMes = (mes) => `${MESES_LARGOS[Number(String(mes).slice(5, 7)) - 1]} de ${String(mes).slice(0, 4)}`;
