@@ -9,14 +9,14 @@
 		faltaNombre: 'Please enter your name.', faltaTelefono: 'Please enter a valid phone number.', errorFecha: 'Pick a date from today on.', faltaCorreo: 'Please enter your email: we will let you know there when they reply.', revisa: 'Please check the fields marked in red.',
 		gracias: 'Thank you! We received your request and an advisor will contact you shortly.',
 		fallo: 'We couldn\'t send the form.', escribenos: 'Message us on WhatsApp', soy: 'Hi, my name is ', visita: ' I would like to visit on ', tel: ' My phone: ',
-		ver: 'Show', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
+		ver: 'Show', enviando: 'Sending…', una: '1 property', varias: ' properties', escribe: 'Tell us what you are looking for.', buscando: 'Searching…', sinConexion: 'We couldn\'t connect. Please use the filters below.',
 		cuota: 'Estimated payment: ', alMes: ' per month', enganche: 'Down payment ', prestamo: ' · Loan '
 	} : {
 		errorCorreo: 'Revisa tu correo (p. ej. nombre@correo.com).', quisiste: '¿Quisiste decir {correo}?', usar: 'Usar ese', estaBien: 'Si el tuyo está bien, toca enviar otra vez.',
 		faltaNombre: 'Escribe tu nombre.', faltaTelefono: 'Escribe un teléfono válido (8 dígitos en Guatemala).', errorFecha: 'Elige una fecha de hoy en adelante.', faltaCorreo: 'Escribe tu correo: ahí te avisamos cuando te respondan.', revisa: 'Revisa los campos marcados en rojo.',
 		gracias: '¡Gracias! Recibimos tus datos y un asesor te contactará pronto.',
 		fallo: 'No pudimos enviar el formulario.', escribenos: 'Escríbenos por WhatsApp', soy: 'Hola, soy ', visita: ' Me gustaría visitarla el ', tel: ' Mi teléfono: ',
-		ver: 'Ver', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
+		ver: 'Ver', enviando: 'Enviando…', una: '1 propiedad', varias: ' propiedades', escribe: 'Escribe qué estás buscando.', buscando: 'Buscando…', sinConexion: 'No pudimos conectar. Usa los filtros de abajo.',
 		cuota: 'Cuota aproximada: ', alMes: ' al mes', enganche: 'Enganche ', prestamo: ' · Préstamo '
 	};
 
@@ -219,8 +219,33 @@
 		pruebas.push([form, p]);
 		return p;
 	}
+	// La solicitud de reserva que se cortó (sin respuesta o el servidor falló) se recuerda en la pestaña 30 min
+	// (sessionStorage), no solo en memoria: si el cliente recarga, el reintento va con el mismo id. Al abrir la ficha, si el
+	// servidor ya la tiene, se muestra el enlace a su solicitud (sus fechas salen ocupadas porque ya las apartó él).
+	var PENDIENTE = 'eq-pendiente';
+	function guardarPendiente(form, p) {
+		form.eqPendiente = p;
+		try { if (p) sessionStorage.setItem(PENDIENTE, JSON.stringify(p)); else sessionStorage.removeItem(PENDIENTE); } catch (e) { /* sin memoria del navegador */ }
+	}
+	function leerPendiente(form) {
+		try {
+			var p = JSON.parse(sessionStorage.getItem(PENDIENTE) || 'null');
+			if (p && p.lead && p.lead.propertyId === (form.getAttribute('data-property-id') || '') && Date.now() - p.cuando < 30 * 60000) return p;
+		} catch (e) { /* sin memoria del navegador */ }
+		return null;
+	}
 	document.querySelectorAll('.lead-form').forEach(function (form) {
 		form.addEventListener('focusin', function () { if (typeof form.eqReserva === 'function' && window.EQChat) pruebaDe(form); });
+		var recordada = form.getAttribute('data-property-id') ? leerPendiente(form) : null;
+		if (recordada && window.EQChat) {
+			form.eqPendiente = recordada;
+			window.EQChat.yaGuardada(recordada.lead).then(function (si) {
+				if (si !== true) return;
+				guardarPendiente(form, null);
+				try { localStorage.setItem('eq-reserva', recordada.lead.token); localStorage.setItem('eq-reserva-casa', recordada.lead.propertyId); } catch (e) { /* sin memoria */ }
+				if (typeof form.eqYaPediste === 'function') form.eqYaPediste(recordada.lead.token);
+			});
+		}
 		form.addEventListener('submit', function (e) {
 			e.preventDefault();
 			// Trampa para bots: un campo oculto que una persona nunca llena. Su nombre no se parece a nada que el autollenado
@@ -311,7 +336,8 @@
 			var fail = function (err) {
 				var wa = config.whatsapp ? ' <a href="' + whatsappFallback(lead) + '" target="_blank" rel="noopener">' + T.escribenos + '</a>.' : '';
 				// (El servidor lo dice en el idioma del cliente.)
-				var motivo = err && [403, 409, 429].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
+				// Un 503 que no pasó con sus reintentos: «Hay muchas solicitudes en este momento…», no el aviso de siempre.
+				var motivo = err && [403, 409, 429, 503].indexOf(err.status) > -1 && err.datos && err.datos.error ? String(err.datos.error) : '';
 				setStatus(form, (motivo ? motivo.replace(/[<>&]/g, '') + ' ' : T.fallo) + wa, false);
 			};
 
@@ -336,7 +362,7 @@
 			// se suelta: la próxima sale como una solicitud nueva, con lo que el cliente ve ahora. Si el servidor no respondió
 			// la pregunta, no se suelta: se manda la misma (mismo id) y el servidor decide.
 			var libres = pend ? window.EQChat.yaGuardada(pend.lead).then(function (si) {
-				return si !== false || revisar().then(function (ok) { if (!ok) form.eqPendiente = null; return ok; });
+				return si !== false || revisar().then(function (ok) { if (!ok) guardarPendiente(form, null); return ok; });
 			}) : revisar();
 			libres.then(function (ok) {
 				if (!ok) { button.disabled = false; return; }
@@ -348,10 +374,19 @@
 			if (reserva) {
 				if (!window.EQChat) { fail(); button.disabled = false; return; }
 				var pruebaForm = pruebaDe(form);
-				pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); })
-					.then(function (token) { form.eqPendiente = null; window.EQChat.avisar(token); done(token); }, function (err) {
+				// Un 503 (muchas solicitudes a la vez) se reintenta solo, con espera creciente (1, 2 y 4 s) y otra prueba de
+				// «no soy un robot» (cada una sirve una vez), mostrando «Enviando…»: el cliente no tiene que hacer nada.
+				var enviar = function (n) {
+					return pruebaForm.respuesta().then(function (ts) { return window.EQChat.solicitar(lead, reserva.datos, ts); }).catch(function (err) {
+						if (!err || err.status !== 503 || n >= 3) throw err;
+						setStatus(form, T.enviando, true);
+						return new Promise(function (listo) { setTimeout(listo, 1000 * Math.pow(2, n)); }).then(function () { pruebaForm.otra(); return enviar(n + 1); });
+					});
+				};
+				enviar(0)
+					.then(function (token) { guardarPendiente(form, null); window.EQChat.avisar(token); done(token); }, function (err) {
 						// Sin respuesta (red) o el servidor falló: se guarda para reintentar la misma; un «no» del servidor, no.
-						form.eqPendiente = !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null;
+						guardarPendiente(form, !err || !err.status || err.status >= 500 ? { firma: firmaForm, lead: lead, reserva: reserva, cuando: pend ? pend.cuando : Date.now() } : null);
 						fail(err);
 					})
 					.then(function () { pruebaForm.otra(); button.disabled = false; });

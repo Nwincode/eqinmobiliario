@@ -24,8 +24,12 @@ import { visibilidadDe } from '../../admin/js/estados.js';
 const V = globalThis.EQVacacional;
 // Un cliente que se equivoca y reintenta cabe; una ráfaga no. Si la base falla, cuenta el de memoria (un cliente de
 // verdad no se queda sin reservar por una falla nuestra).
-const porIp = limitadorDurable('solicitud-ip', 10, 60 * 60_000, { siFalla: 'memoria' });
-const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000, { siFalla: 'memoria' });
+// Cuentan solo lo que se guarda (dentro de la transacción del guardado): un 503 por una ráfaga, la pregunta «¿ya
+// quedó?» o el reintento de la misma solicitud no gastan el cupo del cliente.
+const porIp = limitadorDurable('solicitud-ip', 10, 60 * 60_000);
+const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000);
+// La pregunta «¿ya quedó?» y el reintento de una ya guardada: su propio límite por IP, más holgado.
+const porIpConsulta = limitadorDurable('solicitud-consulta-ip', 30, 60 * 60_000, { siFalla: 'memoria' });
 // Sin la prueba de «no soy un robot» (el navegador no la pudo hacer o Cloudflare no responde), además, uno más estricto:
 // un cliente de verdad reserva igual; un robot que la salta, muy poco.
 const porIpSinPrueba = limitadorDurable('solicitud-ip-sin-prueba', 3, 60 * 60_000, { avisar: true });
@@ -87,6 +91,7 @@ export const nombreDelChat = (nombre, idioma = 'es') => {
 	return primero && !V.tieneContacto(primero) ? primero : idioma === 'en' ? 'Guest' : 'Cliente';
 };
 
+const MUCHAS = ['Demasiadas solicitudes seguidas: espera un rato o escríbenos por WhatsApp.', 'Too many requests in a row: wait a while or message us on WhatsApp.'];
 const FECHAS_TOMADAS = ['Esas fechas ya no están libres: elige otras en el calendario.', 'Those dates are no longer available: pick others on the calendar.'];
 // ¿Es la misma solicitud? Lo que la define (correo, casa, fechas y personas) igual a lo guardado: solo así un reintento
 // cuenta como tal (y puede corregir nombre y teléfono). Lo demás se trata como una solicitud nueva.
@@ -100,9 +105,9 @@ export const mismaSolicitud = (guardado, { lead, reserva }) => Boolean(guardado)
 const RECIENTES_MS = HORAS_RESPUESTA * 3_600_000;
 
 // En la transacción: la casa manda (dueño, asesor, título, moneda y personas máximo); los montos se congelan aquí (aparta
-// sus fechas desde que nace); sin prueba de Turnstile (`sinPrueba`: { ip }), cuentan los límites estrictos. Devuelve el
-// token del chat.
-export async function guardarSolicitud(tx, leadId, token, datos, sinPrueba = null) {
+// sus fechas desde que nace); cuentan aquí el límite por IP y por correo y, sin prueba de Turnstile (`sinPrueba`), los
+// estrictos. Devuelve el token del chat.
+export async function guardarSolicitud(tx, leadId, token, datos, { ip = 'anon', sinPrueba = false } = {}) {
 	const { lead, reserva, chat } = datos;
 	// Reintento de la misma solicitud (la respuesta anterior se perdió): ya quedó, se responde lo mismo.
 	const previa = await tx.leer(`leads/${leadId}`);
@@ -132,9 +137,9 @@ export async function guardarSolicitud(tx, leadId, token, datos, sinPrueba = nul
 	if (sinPrueba) {
 		if (await sinPruebaEnElSitio.enTransaccion(tx, 'todas'))
 			no(403, ['Necesitamos comprobar que no eres un robot y no pudimos: recarga la página o escríbenos por WhatsApp.', 'We need to verify that you are not a robot and could not: reload the page or message us on WhatsApp.'], { turnstile: true });
-		if (await porIpSinPrueba.enTransaccion(tx, sinPrueba.ip) || await porCorreoSinPrueba.enTransaccion(tx, lead.email))
-			no(429, ['Demasiadas solicitudes seguidas: espera un rato o escríbenos por WhatsApp.', 'Too many requests in a row: wait a while or message us on WhatsApp.']);
+		if (await porIpSinPrueba.enTransaccion(tx, ip) || await porCorreoSinPrueba.enTransaccion(tx, lead.email)) no(429, MUCHAS);
 	}
+	if (await porIp.enTransaccion(tx, ip) || await porCorreo.enTransaccion(tx, lead.email)) no(429, MUCHAS);
 	const montos = await montosDe(tx, leadId, { ...lead, reserva }, casa);
 	const propietarioId = casa.propietarioId || '';
 	const titulo = String(casa.titulo || '').slice(0, 200);
@@ -155,8 +160,14 @@ export async function guardarSolicitud(tx, leadId, token, datos, sinPrueba = nul
 }
 
 export default async (req, context) => {
-	// GET: la llave pública de Turnstile ('' sin configurar).
-	if (req.method === 'GET') return json(200, { turnstile: llavePublica() });
+	// GET: la llave pública de Turnstile ('' sin configurar). Con ?lead=&token=: lo que preguntaban las páginas de antes
+	// (aún en caché) antes de reintentar; se responde igual que la consulta por POST, con su límite por IP.
+	if (req.method === 'GET') {
+		const q = new URL(req.url, 'http://x').searchParams;
+		if (!q.get('lead')) return json(200, { turnstile: llavePublica() });
+		if (await porIpConsulta(ipDe(req, context))) return json(429, { error: 'Demasiados pedidos seguidos' });
+		try { return json(200, { guardada: Boolean(await yaGuardada(q.get('lead'), q.get('token'))) }); } catch { return json(503, { error: 'Sin respuesta' }); }
+	}
 	if (req.method !== 'POST') return json(405, { error: 'Método no permitido' });
 	if (!escrituraConfigurada()) return json(503, { error: 'Reservas sin configurar' });
 	let pedido;
@@ -169,7 +180,7 @@ export default async (req, context) => {
 		// { consulta: true, leadId, token }: ¿ya está guardada? (la página lo pregunta antes de reintentar una que se cortó;
 		// si no está, la revisa otra vez como nueva). Con el límite por IP; el token, en el cuerpo y no en la dirección.
 		if (pedido?.consulta === true) {
-			if (await porIp(ip)) return muchas();
+			if (await porIpConsulta(ip)) return muchas();
 			try { return json(200, { guardada: Boolean(await yaGuardada(pedido.leadId, pedido.token)) }); } catch { return json(503, { error: 'Sin respuesta' }); }
 		}
 		// El mismo envío otra vez (la respuesta anterior se perdió): si es la misma solicitud (mismo correo, casa, fechas y
@@ -186,14 +197,13 @@ export default async (req, context) => {
 		}
 		const pedidoPlano = { lead: { email: String(pedido?.lead?.email || '').trim().toLowerCase(), propertyId: pedido?.lead?.propertyId }, reserva: pedido?.reserva || {} };
 		if (ya && mismaSolicitud(guardada, pedidoPlano)) {
-			if (await porIp(ip)) return muchas();
+			if (await porIpConsulta(ip)) return muchas();
 			await ponerAlDiaContacto(pedido).catch((err) => console.error('Solicitud (contacto):', err.message));
 			return json(200, { token: ya });
 		}
 		const datos = revisarPedido(pedido);
 		const prueba = await pasaTurnstile(pedido.turnstile, ip);
 		if (prueba === 'mala') return error(403, 'No pudimos comprobar que no eres un robot. Vuelve a intentarlo.', 'We could not verify that you are not a robot. Please try again.', { turnstile: true });
-		if (await porIp(ip) || await porCorreo(datos.lead.email)) return muchas();
 		// Socio con las casas fuera del sitio por su atraso (más de 72 h): no se reserva (la ficha ya lo dice). Fuera de la
 		// transacción; si no se puede leer, no frena (lo revisa otra vez la confirmación).
 		const casa = await leerPrivado(`properties/${datos.lead.propertyId}`).catch(() => null);
@@ -205,7 +215,7 @@ export default async (req, context) => {
 		if (apartadas.some((r) => seCruzan(datos.reserva, { llegada: r.desde, salida: r.hasta }))) no(409, FECHAS_TOMADAS, { fechas: true });
 		// Sin prueba (`sin`), los topes estrictos cuentan dentro de la transacción. Dos que crean a la vez el mismo documento
 		// (el primero de la casa o de un límite): la segunda se repite una vez y ya ve a la primera.
-		const guardar = () => transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos, prueba === 'sin' ? { ip } : null));
+		const guardar = () => transaccion((tx) => guardarSolicitud(tx, pedido.leadId, pedido.token, datos, { ip, sinPrueba: prueba === 'sin' }));
 		const token = await guardar().catch((err) => { if (err?.codigo === 'ALREADY_EXISTS') return guardar(); throw err; });
 		// Sus fechas quedan apartadas: el calendario guardado en el CDN se borra.
 		await purgarCasa(datos.lead.propertyId).catch(() => {});
@@ -215,7 +225,7 @@ export default async (req, context) => {
 		console.error('Solicitud:', err.message);
 		// Muchas a la vez sobre el mismo documento (una ráfaga): la base no alcanzó a ponerla en fila. La página guarda la
 		// misma para reintentar (mismo id).
-		if (err?.codigo === 'ABORTED' || /lock timeout|contention/i.test(err?.message || ''))
+		if (['ABORTED', 'DEADLINE_EXCEEDED'].includes(err?.codigo) || /lock timeout|contention/i.test(err?.message || ''))
 			return error(503, 'Hay muchas solicitudes en este momento: vuelve a intentarlo en un minuto.', 'There are many requests right now: please try again in a minute.');
 		return error(500, 'No se pudo guardar. Vuelve a intentarlo.', 'We could not save it. Please try again.');
 	}

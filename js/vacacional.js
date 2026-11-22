@@ -598,19 +598,23 @@
 		actualizar();
 		if (traia && !sirve) { estado.nota = t.vacFechasYaNo; actualizar(); }
 
-		// Volvió a la ficha después de pedir esta casa (botón «atrás», otra pestaña): el enlace a su solicitud, arriba.
+		// Volvió a la ficha después de pedir esta casa (botón «atrás», otra pestaña, o recargó con la respuesta perdida:
+		// js/site.js lo llama con `form.eqYaPediste`): el enlace a su solicitud, arriba. Una sola vez.
+		function yaPediste(miToken) {
+			if (!form || form.parentNode.querySelector('.vac-ya-pediste')) return;
+			var ya = document.createElement('p');
+			ya.className = 'vac-ya-pediste';
+			ya.textContent = t.vacYaPediste + ' ';
+			var ir = document.createElement('a');
+			ir.href = (document.documentElement.lang === 'en' ? '/en/reservation/#' : '/reserva/#') + miToken;
+			ir.textContent = t.vacChatVer;
+			ya.appendChild(ir);
+			form.parentNode.insertBefore(ya, form);
+		}
+		if (form) form.eqYaPediste = yaPediste;
 		try {
 			var miToken = localStorage.getItem('eq-reserva');
-			if (form && id && miToken && /^[A-Za-z0-9]{20,40}$/.test(miToken) && localStorage.getItem('eq-reserva-casa') === id) {
-				var ya = document.createElement('p');
-				ya.className = 'vac-ya-pediste';
-				ya.textContent = t.vacYaPediste + ' ';
-				var ir = document.createElement('a');
-				ir.href = (document.documentElement.lang === 'en' ? '/en/reservation/#' : '/reserva/#') + miToken;
-				ir.textContent = t.vacChatVer;
-				ya.appendChild(ir);
-				form.parentNode.insertBefore(ya, form);
-			}
+			if (form && id && miToken && /^[A-Za-z0-9]{20,40}$/.test(miToken) && localStorage.getItem('eq-reserva-casa') === id) yaPediste(miToken);
 		} catch (e) { /* sin memoria del navegador */ }
 	}
 

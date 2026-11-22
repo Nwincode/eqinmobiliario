@@ -233,10 +233,29 @@ await t('reintento que no es la misma (otro correo, casa, fechas o personas): no
 		assert.equal(r.status, 409, JSON.stringify(cambio));
 	}
 	assert.deepEqual([leer(`leads/${c.leadId}`).nombre, leer(`leads/${c.leadId}`).telefono, hijos('leads').length], ['Ana Morales', '+502 5555 1234', 1]);
-	// El reintento verdadero pasa por el límite por IP (10 por hora).
+	// El reintento verdadero pasa por su propio límite por IP (30 por hora), no por el de las solicitudes nuevas.
 	let rechazados = 0;
-	for (let i = 0; i < 12; i++) if ((await pedir({ ...c, lead: { ...c.lead, nombre: `Ana ${i}` } }, { mismaIp: true })).status === 429) rechazados++;
+	for (let i = 0; i < 32; i++) if ((await pedir({ ...c, lead: { ...c.lead, nombre: `Ana ${i}` } }, { mismaIp: true })).status === 429) rechazados++;
 	assert.ok(rechazados >= 2, String(rechazados));
+});
+
+await t('la pregunta «¿ya quedó?», el reintento de la misma y un choque (503) no gastan el cupo de IP ni el de correo: solo lo guardado cuenta', async () => {
+	casa();
+	const c = cuerpo();
+	// Cinco intentos que no se guardan (la base falla) y diez preguntas desde la misma IP.
+	S.escrituraFalla = true;
+	try { for (let i = 0; i < 5; i++) assert.equal((await pedir(c, { mismaIp: true })).status, 500); } finally { S.escrituraFalla = false; }
+	for (let i = 0; i < 10; i++) assert.equal((await pedir({ consulta: true, leadId: c.leadId, token: c.token }, { mismaIp: true })).status, 200);
+	assert.equal((await pedir(c, { mismaIp: true })).status, 200);
+	assert.equal((await pedir(c, { mismaIp: true })).status, 200);
+	// Y lo guardado sí: diez por IP en una hora, la undécima 429.
+	limpiar(); casa();
+	let ok = 0;
+	for (let i = 0; i < 11; i++) if ((await pedir(cuerpo(bien({ llegada: masDias(20 + 3 * i), salida: masDias(23 + 3 * i) })), { mismaIp: true })).status === 200) ok++;
+	assert.equal(ok, 10);
+	// La página de antes (en caché) pregunta por GET ?lead=&token=: responde igual.
+	const g = await solicitud({ method: 'GET', url: `https://x/api/solicitud?lead=${c.leadId}&token=${c.token}`, headers: new Headers() }, { ip: '10.9.9.9' });
+	assert.deepEqual(await g.json(), { guardada: false });
 });
 
 await t('montos congelados al guardar: la solicitud aparta sus fechas al instante (la siguiente sobre ellas, 409); por debajo del plan, le toca al equipo', async () => {

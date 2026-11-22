@@ -765,6 +765,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('el administrador lee un límite de pedidos', leer('admin1', 'limites/abc'), false);
 	await espera('alguien de afuera borra su límite de pedidos', lote(null, [{ delete: `${RAIZ}/limites/abc` }]), false);
 	await espera('el administrador escribe un límite de pedidos', lote('admin1', [docu('limites/abc', { veces: [1] })]), false);
+	// Las solicitudes recientes de cada casa (apartadasCasa/{casa}, las que ponen en fila a las de a la vez): solo el servidor.
+	await poner('apartadasCasa/casa1', { lista: [] });
+	for (const [quien, nombre] of [[null, 'sin sesión'], ['socio1', 'el socio'], ['admin1', 'el administrador']]) {
+		await espera(`${nombre} lee apartadasCasa`, leer(quien, 'apartadasCasa/casa1'), false);
+		await espera(`${nombre} lista apartadasCasa`, consulta(quien, 'apartadasCasa'), false);
+		await espera(`${nombre} crea apartadasCasa`, lote(quien, [docu('apartadasCasa/otra', { lista: [] })]), false);
+		await espera(`${nombre} cambia apartadasCasa`, lote(quien, [{ update: { name: `${RAIZ}/apartadasCasa/casa1`, fields: campos({ lista: [] }) } }]), false);
+	}
 	// Las alertas de «No se dio» con fechas ocupadas (alertas/bloqueo-{id}) también: solo el servidor, para que nadie
 	// las borre y el aviso salga otra vez, ni marque una como avisada para que no salga.
 	await espera('el administrador lee una alerta de bloqueo', leer('admin1', 'alertas/bloqueo-x'), false);
