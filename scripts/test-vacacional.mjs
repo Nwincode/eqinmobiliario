@@ -309,11 +309,15 @@ test('«1 noche», «3 noches»', () => {
 	assert.equal(nNoches(1), '1 noche');
 	assert.equal(nNoches(3), '3 noches');
 });
-const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO } = await import('./corpus-contacto.mjs');
+const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS } = await import('./corpus-contacto.mjs');
 test(`filtro de contacto: ninguna de las ${NORMALES.length} frases normales se bloquea y ninguno de los ${EVASIONES.length} intentos pasa (el mismo corpus que la regla)`, () => {
 	assert.deepEqual(NORMALES.filter((t) => V.tieneContacto(t)), []);
 	assert.deepEqual(EVASIONES.filter((t) => !V.tieneContacto(t)), []);
 	assert.deepEqual(BLOQUEADAS_A_PROPOSITO.filter((t) => !V.tieneContacto(t)), []);
+});
+test(`filtro de contacto: las ${EVASIONES_GENERADAS.length} evasiones generadas (cada teléfono y usuario en cada contexto de excepción) se bloquean`, () => {
+	const pasan = EVASIONES_GENERADAS.filter((t) => !V.tieneContacto(t));
+	assert.deepEqual(pasan.slice(0, 20), [], `${pasan.length} pasan`);
 });
 test('chat: bloquea teléfonos, correos y enlaces; deja pasar fechas, horas y montos', () => {
 	for (const t of ['mi número es 5555-1234', 'llamame al 55 55 12 34', '+502 5913 1276', '5 5 5 5 1 2 3 4', 'cinco cinco cinco cinco uno dos tres cuatro',

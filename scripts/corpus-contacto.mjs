@@ -4,7 +4,7 @@
 // las dos tienen que decir lo mismo de cada frase. Cada caso nuevo que aparezca se agrega aquí.
 export const NORMALES = [
 	// Revisiones y cacerías (pagos, horas, redes sin usuario, NIT): 
-	'Pago 2500 hoy, 2500 mañana', 'Ya transferí 1500 y 1500', 'Le transferí 2350 y 1800', 'Mandé 1250 y luego 1250 más', 'El precio es 1350 y no 1530', 'número de boleta 12345678', 'Autorización 00123456', 'Vi la casa en Instagram, se ve como muy bonita', 'La vi en facebook, como dos semanas atrás', 'La encontré en tiktok como recomendación', 'Mi presupuesto es entre 1500 y 2000 quetzales por noche', '¿El depósito es Q1500 o Q2000?', '¿Es $1500 o $2000?', 'Pagué 1500 de los 3000 quetzales', 'De los 3000 quetzales ya pagué 1500', 'Son 2500 noches? no, 2500 quetzales', 'Llegamos a las 1530 y salimos a las 1100', 'Somos doce, trece o catorce personas', 'Llegamos el quince, dieciséis o diecisiete', 'del veinte al veinticinco, somos doce', 'Pago 1500 quetzales y 1500 quetzales', 'Total 4500 quetzales, el depósito 1500', 'Lo tengo guardado en outlook', 'Te lo paso en el live de facebook', 'Somos veinte y cinco niños', 'Llegamos at 1530', 'Mañana a las 0930 te transfiero 2500', 'Q1500 y Q350 de limpieza', 'El total es 6000 quetzales, ya pagué 3000', '4 noches a 1500 cada noche, son 6000', 'Pagué 2500 + 2500 = 5000', 'Habitación 1204, piso 12', 'Hay 2000 metros de terreno y 1500 de construcción', 'treinta y cinco grados de calor, cuarenta y dos el domingo', 'Son Q1,500 por noche y Q350 de limpieza', 'La cuota es de 750 mensuales', 'Pagamos en 3 cuotas de 1250', 'Pago la mitad ahora, 2500, y la otra mitad al llegar', 'El anticipo es del 50%', 'Le hice depósito de Q2500 en Banrural', 'Transferencia a BI por 3,200', 'Deposité 2500 en el Banco Industrial', 'Total: 4500', 'Me salió en 1800 por noche', '¿Me lo deja en 1200?', '¿Lo puede dejar en 1,000?', 'El total fue 3450', 'Pagué 3450', 'Precio 1500, limpieza 350', 'La noche está en 1500 y el depósito en 500', 'Llevo 1500 en efectivo y 2000 con tarjeta', 'Q1350 x 4 = Q5400', 'Pagué con la tarjeta terminada en 4321', 'Mi boleta es la 123456', 'El número de autorización es 987654', 'La transferencia salió con número 12345678', 'Llegamos a las 2:30 pm', 'Llegamos entre 2 y 3', 'Llegamos como a las 1600', 'Salimos 11am', 'Check in 3pm check out 11am', 'Llegamos 10 y media', 'Salimos el domingo 1100 hrs', 'Our flight lands at 14:30', 'Vamos desde zona 10 por la carretera a El Salvador', 'Salimos de Antigua por la ruta a Ciudad Vieja', 'Estamos en el km 25 de la carretera a El Salvador', 'La casa queda en el kilómetro 89.5?', 'Vamos por la CA-9 hasta el km 102', 'Estamos en el condominio, ¿cuál es la casa?', 'Pasamos por Escuintla a las 2', 'Vivimos en zona 15, colonia Vista Hermosa 2', 'Desde Mixco son como 2 horas', 'Calle 4 zona 1', 'Llegamos por la 6a avenida', 'Estamos en la gasolinera del km 45', 'We are 6 adults and 4 kids, arriving Dec 20', 'Total is $1,250, right?', 'I paid $980 today', 'We paid 1400 dollars', 'Can we check in at 2pm?', 'We will be 8 people for 5 nights', 'Our dog weighs 25 lbs', 'Is it 15 minutes from the beach?', 'We land at 10:45 and drive 2 hours', 'The house is 2500 sq ft?', 'I sent the transfer for 3450, receipt attached', 'Is there a 2 night minimum?', 'Can you do 1200 per night?', 'We arrive 12/20 and leave 12/27', 'Dates: 2026-12-20 to 2026-12-27', 'Room 1 has 2 beds and room 2 has 1 bed', 'Booking ref EQ-ABC123', 'We are flying in from the US, flight AA 1234', 'Flight UA1520 arrives 14:05', 'I paid 1,500.00 USD', 'Somos 4 adultos, edades 35, 36, 60 y 62', 'Niños de 3, 5 y 8 años', 'Somos 6 adultos y 2 niños de 4 y 7', 'Mi papá tiene 85 años, ¿hay gradas?', 'Del 30/12/2026 al 02/01/2027', 'Del 29 de febrero al 3 de marzo', 'Del 24/12 al 26/12 y del 31/12 al 1/1', 'Del 20 al 27 de diciembre del 2026', 'Semana Santa 2027, del 21 al 28 de marzo', 'Para el 15 de septiembre', 'Fin de año 2026-2027', 'La casa 2 o la casa 3?', 'Vi el anuncio en Marketplace', 'Me recomendó una amiga', '¿Tienen WiFi?', '¿Cuál es la clave del wifi?', 'La contraseña del wifi no funciona', 'Hay 2 camas king, 3 queen y 4 individuales', 'Nivel 2, apartamento 4B', 'El portón tiene código', 'Mi DPI termina en 0101', 'Necesito factura con NIT 1234567-8', 'Factura a nombre de Juan Pérez, NIT CF', '¿Aceptan Visa?', 'El 50% ahora y el 50% al llegar', 'Del 1 al 5 de enero: 4 noches', 'Somos 15, ¿cabemos?', 'Somos 3 familias de 4', 'Hora de llegada: 15:30. Hora de salida: 11:00.',
+	'Pago 2500 hoy, 2500 mañana', 'Ya transferí 1500 y 1500', 'Le transferí 2350 y 1800', 'Mandé 1250 y luego 1250 más', 'El precio es 1350 y no 1530', 'número de boleta 12345678', 'Autorización 00123456', 'Vi la casa en Instagram, se ve como muy bonita', 'La vi en facebook, como dos semanas atrás', 'La encontré en tiktok como recomendación', 'Mi presupuesto es entre 1500 y 2000 quetzales por noche', '¿El depósito es Q1500 o Q2000?', '¿Es $1500 o $2000?', 'Pagué 1500 de los 3000 quetzales', 'De los 3000 quetzales ya pagué 1500', 'Son 2500 noches? no, 2500 quetzales', 'Llegamos a las 1530 y salimos a las 1100', 'Somos doce, trece o catorce personas', 'Llegamos el quince, dieciséis o diecisiete', 'del veinte al veinticinco, somos doce', 'Pago 1500 quetzales y 1500 quetzales', 'Total 4500 quetzales, el depósito 1500', 'Lo tengo guardado en outlook', 'Te lo paso en el live de facebook', 'Somos veinte y cinco niños', 'Llegamos at 1530', 'Mañana a las 0930 te transfiero 2500', 'Q1500 y Q350 de limpieza', 'El total es 6000 quetzales, ya pagué 3000', '4 noches a 1500 cada noche, son 6000', 'Habitación 1204, piso 12', 'Hay 2000 metros de terreno y 1500 de construcción', 'treinta y cinco grados de calor, cuarenta y dos el domingo', 'Son Q1,500 por noche y Q350 de limpieza', 'La cuota es de 750 mensuales', 'Pagamos en 3 cuotas de 1250', 'Pago la mitad ahora, 2500, y la otra mitad al llegar', 'El anticipo es del 50%', 'Le hice depósito de Q2500 en Banrural', 'Transferencia a BI por 3,200', 'Deposité 2500 en el Banco Industrial', 'Total: 4500', 'Me salió en 1800 por noche', '¿Me lo deja en 1200?', '¿Lo puede dejar en 1,000?', 'El total fue 3450', 'Pagué 3450', 'Precio 1500, limpieza 350', 'La noche está en 1500 y el depósito en 500', 'Llevo 1500 en efectivo y 2000 con tarjeta', 'Q1350 x 4 = Q5400', 'Pagué con la tarjeta terminada en 4321', 'Mi boleta es la 123456', 'El número de autorización es 987654', 'La transferencia salió con número 12345678', 'Llegamos a las 2:30 pm', 'Llegamos entre 2 y 3', 'Llegamos como a las 1600', 'Salimos 11am', 'Check in 3pm check out 11am', 'Llegamos 10 y media', 'Salimos el domingo 1100 hrs', 'Our flight lands at 14:30', 'Vamos desde zona 10 por la carretera a El Salvador', 'Salimos de Antigua por la ruta a Ciudad Vieja', 'Estamos en el km 25 de la carretera a El Salvador', 'La casa queda en el kilómetro 89.5?', 'Vamos por la CA-9 hasta el km 102', 'Estamos en el condominio, ¿cuál es la casa?', 'Pasamos por Escuintla a las 2', 'Vivimos en zona 15, colonia Vista Hermosa 2', 'Desde Mixco son como 2 horas', 'Calle 4 zona 1', 'Llegamos por la 6a avenida', 'Estamos en la gasolinera del km 45', 'We are 6 adults and 4 kids, arriving Dec 20', 'Total is $1,250, right?', 'I paid $980 today', 'We paid 1400 dollars', 'Can we check in at 2pm?', 'We will be 8 people for 5 nights', 'Our dog weighs 25 lbs', 'Is it 15 minutes from the beach?', 'We land at 10:45 and drive 2 hours', 'The house is 2500 sq ft?', 'I sent the transfer for 3450, receipt attached', 'Is there a 2 night minimum?', 'Can you do 1200 per night?', 'We arrive 12/20 and leave 12/27', 'Dates: 2026-12-20 to 2026-12-27', 'Room 1 has 2 beds and room 2 has 1 bed', 'Booking ref EQ-ABC123', 'We are flying in from the US, flight AA 1234', 'Flight UA1520 arrives 14:05', 'I paid 1,500.00 USD', 'Somos 4 adultos, edades 35, 36, 60 y 62', 'Niños de 3, 5 y 8 años', 'Somos 6 adultos y 2 niños de 4 y 7', 'Mi papá tiene 85 años, ¿hay gradas?', 'Del 30/12/2026 al 02/01/2027', 'Del 29 de febrero al 3 de marzo', 'Del 24/12 al 26/12 y del 31/12 al 1/1', 'Del 20 al 27 de diciembre del 2026', 'Semana Santa 2027, del 21 al 28 de marzo', 'Para el 15 de septiembre', 'Fin de año 2026-2027', 'La casa 2 o la casa 3?', 'Vi el anuncio en Marketplace', 'Me recomendó una amiga', '¿Tienen WiFi?', '¿Cuál es la clave del wifi?', 'La contraseña del wifi no funciona', 'Hay 2 camas king, 3 queen y 4 individuales', 'Nivel 2, apartamento 4B', 'El portón tiene código', 'Mi DPI termina en 0101', 'Necesito factura con NIT 1234567-8', 'Factura a nombre de Juan Pérez, NIT CF', '¿Aceptan Visa?', 'El 50% ahora y el 50% al llegar', 'Del 1 al 5 de enero: 4 noches', 'Somos 15, ¿cabemos?', 'Somos 3 familias de 4', 'Hora de llegada: 15:30. Hora de salida: 11:00.',
 	// Fechas, horas y personas.
 	'Llegamos el 16/11/2026 a las 15:00', '¿Aceptan 2 perros?', 'Somos 8 adultos y 2 niños', 'del 16 al 20 de noviembre de 2026', 'Código EQ-J2XLVP',
 	'¿La casa está a 45 min de la capital? Son 2 km de terracería', 'En el Km 98.5', 'Perfecto.Me avisas', 'Gracias.Info del parqueo', 'Llegamos a las 3.me dices',
@@ -20,8 +20,8 @@ export const NORMALES = [
 	'El total es US$ 1,122.40, ¿correcto?', 'Q 3500.00 por 4 noches', 'Mantenimiento Q 1500 y luz Q 1800', '¿El precio de 1500 por noche incluye la limpieza? En otra página vi 1200.',
 	'Ya hice la transferencia por 3450 quetzales, el número de boleta es el que sale en la foto.', 'Les depositamos 2350 hoy y mañana completamos el resto, 1800.',
 	'Pagué 1,250.00 dólares, adjunto comprobante.', 'Pagamos US 980 y el resto en efectivo al llegar.', 'The house is great, someone told us about it. We are 4 people, done paying 1400 today.',
-	'Precio especial: 1100 entre semana, 1600 fin de semana.', 'El depósito de 500 se devuelve al salir, más 350 de limpieza.', 'Son 3 noches x 450 = 1350 + 200 de limpieza = 1550 total.',
-	'Pagué 1500 + 350 de limpieza.', 'Transferí Q 2,400.00 a las 10:15', 'Son 1350 quetzales por las 3 noches', 'Precio 250000 o 300000', 'US$ 1250000', 'Q 2,500,000.00',
+	'Precio especial: 1100 entre semana, 1600 fin de semana.', 'El depósito de 500 se devuelve al salir, más 350 de limpieza.',
+	'Pagué 1500 + 350 de limpieza.', 'Transferí Q 2,400.00 a las 10:15', 'Son 1350 quetzales por las 3 noches', 'Precio 250000 o 300000', 'US$ 1250000',
 	'Q.1,500 al mes, depósito Q.3,000', 'Tel no, pero 150000 USD', 'La limpieza son 350 y el depósito 500', '¿Hacen descuento si son 7 noches?', 'Te deposité 980 dólares',
 	'El precio por noche es 1200 entre semana', 'Total 4,560.50', 'Son 2 noches a 1500 cada una', 'Pago con tarjeta o transferencia?', 'Ya pagué, adjunto la foto',
 	// Medidas y la casa.
@@ -34,16 +34,31 @@ export const NORMALES = [
 	'Vi la casa en Facebook', '¿Tienen más fotos?', 'Listo.Co mo quedamos', 'Bueno.Io no sé', 'Me encantó la vista', 'Gracias por responder tan rápido', '',
 	'Perfecto, entonces confirmamos', '¿Hay señal de celular en la casa?', '¿La cocina tiene licuadora?', 'Llevamos nuestras toallas', '¿Se puede hacer fogata?',
 	'Son 4 noches por 1500 cada una, 6000 en total', 'Mi NIT es 1234567-8', 'NIT 1234567-8', 'We arrive at 1500 and leave at 1100', '1350*4=5400', 'Precio por noche: Q 1,350.00',
-	'Llegamos el 20 a las 1500 y salimos el 23 a las 1100', 'Son 2,500.00 en total', 'Total 4500 quetzales', '6000 + 350 = 6350', 'Total 6000 más 350 de limpieza',
+	'Llegamos el 20 a las 1500 y salimos el 23 a las 1100', 'Son 2,500.00 en total', 'Total 4500 quetzales', 'Total 6000 más 350 de limpieza',
 	'Is the pool heated?', 'We arrive on the 20th around 3 pm', 'How far is the beach?', 'Thanks, see you on Saturday!', 'We are 2 adults and 3 kids',
 	'¿Aceptan mascotas de 5 kilos?', 'Somos 12 en total', 'Llegamos el 5 y nos vamos el 8', 'Es nuestro aniversario número 10', '¿El precio incluye IVA?',
 	// Revisión 5: una red seguida de una palabra cualquiera no es un usuario; los números de un pago, un vuelo, dos montos.
 	'Lo vi en facebook marketplace', 'Encontré la casa en instagram buscando lagos', 'Mi gmail funciona mal, mejor por aquí', 'Saw it on instagram yesterday, love it',
 	'Por instagram preguntamos antes', 'Vi el video en tiktok: increíble', 'Una amiga la compartió en facebook recientemente', 'Vi las fotos en instagram anteriormente',
 	'Found you on facebook marketplace', 'facebook recomendaba esta casa', 'Mi esposo vio el anuncio en facebook mientras buscábamos', 'Síguenos en Instagram para ver más fotos',
-	'Transferí Q2450 desde la cuenta terminada en 3456', 'Son Q2345 y Q5678 en total?', 'Our flight UA 2318 lands at 1450, we drive straight there',
-	'Vuelo AV 2318 aterriza a las 1450', 'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
-	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567'
+	'Referencia 2025112001', 'Referencia de la transferencia: 2025112001', 'No. de autorización 0045871236',
+	'Tengo gmail pero no lo reviso mucho, mejor por aquí', 'Transferí Q2450 desde la cuenta terminada en 3456', 'Hay 2000 m² de terreno', 'La boleta del Banrural es la 2034567',
+	// Revisión 6.
+	'TRANSACCIÓN 1234567890', 'AUTORIZACIÓN: 0045871236', 'Mi correo es CORRECTO', 'Vi la casa en INSTAGRAM, se ve como ESPECTACULAR.',
+	'Mi correo es el que puse en el formulario.', 'Mi correo es correcto.', 'Mi correo es nuevo, por si no les llega.',
+	'mi correo es otro, ¿lo cambio?', 'Mi correo es diferente al del formulario.', 'Mi gmail es nuevo.', 'mi correo es incorrecto',
+	'Mi mail es viejo, revisen spam', 'mi correo es este', 'Mi correo es personal, no de la empresa.', 'Recientemente en facebook vimos su anuncio',
+	'Literalmente en tiktok me enamoré de la casa', 'Anteriormente en instagram preguntamos por otra', 'Justamente en facebook la vi ayer',
+	'Vi la casa en Instagram, se ve como espectacular.', 'En facebook se veía como nuevecita.', 'En instagram se ve tan linda como preciosa!',
+	'La vi en tiktok y soy fanatico.', 'Por facebook me llegó, soy recomendado por Luis.', 'Vi su instagram, soy seguidora!', 'facebook marketplace',
+	'Lo vi en facebook como anuncio.', 'Boleta 00451278, depósito en BI', 'Pagué con la tarjeta terminada en 4521',
+	'Nuestro vuelo AV 2318 llega a las 3', 'Flight UA 1234 lands at 5pm', 'Son Q2500 y Q1200 de limpieza?', 'Total $1250 and $300 deposit',
+	'Llegamos 5 adultos y 3 niños, 2 perros', 'Somos 4 personas, 2 noches, llegamos el 12 a las 3 pm', 'El depósito de Q1500 y la limpieza Q350',
+	'Pagaré Q3450 en total', 'We are 2 adults and 2 kids, arriving 3:30', 'Necesito 3 camas y 2 baños', 'Llegamos en el bus de las 2 y 15',
+	'Do you allow pets? We have a 2 year old lab', 'Is the 4x4 needed for the road?', 'Habitación 2 y 3 juntas?', 'Mi esposo se llama Ignacio y yo Ana',
+	'We land at 14:30 on flight 2318', 'Check-in 3pm, check-out 11am?', 'Total: Q 4,550.00', 'Room 2 i 3?',
+	'I will pay the deposit of $500 and the balance of $1500', 'El código de mi reserva es EQ-AB12CD', 'Order no. 12345 from Amazon arrived lol',
+	'nos vemos el 24 de diciembre 2026', 'mi correo es correcto, gracias'
 ];
 
 export const EVASIONES = [
@@ -62,16 +77,55 @@ export const EVASIONES = [
 	'son 5555 noches y 1234 noches', '5555 kms y 1234 kms', 'Q5555 y Q1234', 'Q 5555 y Q 1234', '5555 quetzales y 1234 de limpieza',
 	'cinco cinco cinco cinco, doce treinta y cuatro', 'five five five five twelve thirty four', 'cincuenta y cinco cincuenta y cinco doce treinta y cuatro',
 	// Usuarios en otras plataformas.
-	'ig casalago_gt', 'gmail: juanperez', 'escríbeme al wa', 'búscame por whats', 'instagram @villalago', 'skype juan.perez', 'telegram villa_lago', 'fb casadelago',
+	'ig casalago_gt', 'gmail: juanperez', 'escríbeme al wa', 'búscame por whats', 'instagram @villalago', 'skype juan.perez', 'telegram villa_lago',
 	'en airbnb me encuentras como villalago', 'mi wsp es el mismo', 'búscame en insta como villalago', 'búscame en tiktok como villalago', 'me encuentras en ig como villa.lago',
 	'mi correo es ana.perez en hotmail', 'escribe a anaperez en el gmail', 'ana perez at gmail', 'juan dot perez at gmail', 'villalago(punto)com',
 	// Coordenadas.
 	// Revisión 5.
 	'mi insta es villalago_gt', 'mi ig es villa.lago', 'mi gmail es anaperez90', 'anaperez90 de gmail', 'anaperez gmail com', '55.55.12.34', '5555l234', '5555 I234',
 	'⁵⁵⁵⁵¹²³⁴', 'mi número es 5555 y lo que sigue 12 34', 'mi correo es anaperez90 de gmail',
+	// Revisión 6.
+	'mi no. 55551234', 'Mi no. de cel es 5555 1234', 'no. 5555-1234 escríbeme', 'ref 55551234 llámame', 'mi número de referencia: 55551234 (cel)',
+	'boleta 55551234 jaja es mi cel', 'vuelo 5555 1234', 'flight 55 551234', 'total q5555 y q1234 jaja', 'son $5555 y $1234 (mi cel)',
+	'mi correo es anaperez90', 'My email is anaperez90 at gmail', 'my insta is villalago_gt', 'my ig: villa.lago', 'find me on instagram as villalago',
+	'cel 5555l234', 'cel 5555 I234', 'ig villa_lago', 'telegram @villalago', 'tg villalago_gt', 'búscame en insta: villalago', 'mi ig es villa lago gt',
+	'five five five five one two three four', '5555 1234 (tel)', 'tel cinco cinco 5 5 12 34', 'mi correo: ana punto perez arroba gmail',
+	'tarjeta terminada en 5555 y 1234 es mi cel', 'Mi cuenta terminada en 5555, el resto 1234', 'búscame en ig: villa_lago',
+	'escríbeme por ig: villa.lago', 'en telegram: villalago_gt', 'agrégame en fb: ana.perez.90', 'desde instagram: @villalago',
+	'on instagram: villa_lago', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago', 'Ref: 5555 1234', 'referencia 5555-1234',
+	'No. 5555 1234', 'transacción 55551234', 'mi cel, ref 55551234', 'vuelo 55551234', 'vuelo AV 5555 1234', 'pago Q5555 y Q1234',
+	'precio $5555 and $1234', 'mi correo es ana.perez', 'mi correo es anaperez',
 	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
 ];
 
-// Se bloquea aunque podría ser normal (hoy, ninguna: los números de un pago pasan después de referencia, autorización,
-// boleta, transacción o «No.»).
-export const BLOQUEADAS_A_PROPOSITO = [];
+// Se bloquea aunque podría ser normal.
+export const BLOQUEADAS_A_PROPOSITO = [
+	// Juntando los grupos cercanos forman un teléfono posible (8 cifras que empiezan de 2 a 7, o 10 o más): se bloquean
+	// aunque sean un monto, una cuenta, un vuelo o una referencia corta. Es preferible a dejar pasar un teléfono.
+	'Pagué 2500 + 2500 = 5000', '6000 + 350 = 6350', 'Son 3 noches x 450 = 1350 + 200 de limpieza = 1550 total.', 'Q 2,500,000.00',
+	'Son Q2345 y Q5678 en total?', 'Our flight UA 2318 lands at 1450, we drive straight there', 'Vuelo AV 2318 aterriza a las 1450',
+	'La referencia de mi pago es 20241234, ya transferí', 'Transfer ref 778812345 done'
+];
+
+// Límites aceptados (pasan; no se prueban): sin cifras ni forma de usuario, no hay de dónde agarrarse sin bloquear frases
+// normales («facebook marketplace»).
+export const LIMITES_ACEPTADOS = ['fb casadelago', 'busca villa lago gt en facebook', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
+	'los primeros son 5555 y los últimos cuatro son 1234', 'mi whatsapp es el mismo del formulario', 'llámame al número que dejé', 'ana.perez g m a i l'];
+
+// Corpus GENERADO: cada teléfono y cada usuario conocidos envueltos en cada contexto de excepción que tiene el filtro
+// (sus palabras, con dos puntos, en mayúsculas, con y sin acentos, en dos líneas, delante y detrás, en español y en
+// inglés). Una excepción nueva que abra un hueco hace fallar `npm test` (scripts/test-vacacional.mjs) y la comparación
+// de la regla con el navegador (scripts/emulador/test-reglas.mjs, una muestra).
+const TELEFONOS = ['55551234', '5555 1234', '5555-1234', '55 55 12 34', '5555.1234', '+502 5555 1234', '2255 1234', '7777-1234', '5555 12 34', '+1 305 555 1234'];
+const PALABRAS_NUMERO = ['referencia', 'ref', 'autorización', 'autorizacion', 'boleta', 'transacción', 'transaccion', 'No.', 'número', 'tarjeta terminada en',
+	'cuenta terminada en', 'terminación', 'ending in', 'vuelo', 'flight', 'vuelo AV', 'UA', 'Q', 'Q.', '$', 'US$', 'USD', 'pago Q', 'total', 'son', 'precio', 'a las',
+	'at', 'NIT', 'nit es', 'hrs', 'quetzales', 'noches', 'personas', 'm²', 'km', 'habitación', 'código', 'order no.', 'depósito', 'limpieza', 'DPI', 'año 2026', 'el 2026-12-20'];
+const USUARIOS = ['villa_lago', 'villa.lago', 'ana.perez.90', 'villalago_gt', '@villalago', 'anaperez90'];
+const REDES = ['ig', 'insta', 'instagram', 'fb', 'facebook', 'tiktok', 'telegram', 'tg', 'gmail', 'correo', 'mail', 'email'];
+const ANTES_RED = ['', 'en ', 'por ', 'desde ', 'on ', 'in ', 'búscame en ', 'agrégame en ', 'find me on ', 'mi ', 'my '];
+const ENTRE = [' ', ': ', ' es ', ' is ', ' como ', ' as ', ':\n'];
+const variantes = (s) => [s, s.toUpperCase(), s.replace(/ /, '\n')];
+export const EVASIONES_GENERADAS = [...new Set([
+	...TELEFONOS.flatMap((t) => PALABRAS_NUMERO.flatMap((w) => [`${w} ${t}`, `${w}: ${t}`, `${t} ${w}`, `mi cel, ${w} ${t}`, `my phone, ${w} ${t}`].flatMap(variantes))),
+	...USUARIOS.flatMap((u) => REDES.flatMap((r) => ANTES_RED.flatMap((a) => ENTRE.map((e) => `${a}${r}${e}${u}`)).flatMap(variantes)))
+])];

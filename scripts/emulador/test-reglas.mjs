@@ -89,9 +89,11 @@ await espera('cliente manda su correo con la arroba de ancho completo', crear(nu
 // mismo corpus da lo mismo en los dos (scripts/corpus-contacto.mjs).
 {
 	await import('../../js/calc-vacacional.js');
-	const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO } = await import('../corpus-contacto.mjs');
+	const { NORMALES, EVASIONES, BLOQUEADAS_A_PROPOSITO, EVASIONES_GENERADAS } = await import('../corpus-contacto.mjs');
 	const distintas = [];
-	for (const texto of [...NORMALES, ...EVASIONES, ...BLOQUEADAS_A_PROPOSITO].filter(Boolean)) {
+	// De las generadas, una de cada 20 (todas corren en npm test contra el navegador; aquí, que la regla diga lo mismo).
+	const muestra = EVASIONES_GENERADAS.filter((t, i) => i % 20 === 0);
+	for (const texto of [...NORMALES, ...EVASIONES, ...BLOQUEADAS_A_PROPOSITO, ...muestra].filter(Boolean)) {
 		const s = await crear(null, msj(), m('cliente', texto));
 		const navegador = globalThis.EQVacacional.tieneContacto(texto);
 		if ((s === 200) === navegador || (s !== 200 && s !== 403)) distintas.push(`${texto} (regla ${s}, navegador ${navegador ? 'bloquea' : 'deja'})`);
@@ -102,7 +104,7 @@ await espera('cliente manda su correo con la arroba de ancho completo', crear(nu
 		if (s !== 200) distintas.push(`mensaje normal de 1000 letras (${s})`);
 	}
 	n++; if (distintas.length) fallas++;
-	console.log(`${distintas.length ? 'FALLA' : 'ok   '} igual  · el filtro de la regla y el del navegador dicen lo mismo de ${NORMALES.length + EVASIONES.length} frases${distintas.length ? `: ${distintas.join(' | ')}` : ''}`);
+	console.log(`${distintas.length ? 'FALLA' : 'ok   '} igual  · el filtro de la regla y el del navegador dicen lo mismo de ${NORMALES.length + EVASIONES.length + BLOQUEADAS_A_PROPOSITO.length + muestra.length} frases${distintas.length ? `: ${distintas.join(' | ')}` : ''}`);
 }
 await espera('cliente escribe una fecha y una hora (control)', crear(null, msj(), m('cliente', 'Llegamos el 16 a las 3')), true);
 await espera('socio manda un enlace', crear('socio1', msj(), m('socio', 'mira https://micasa.gt')), false);
