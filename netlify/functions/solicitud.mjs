@@ -12,7 +12,7 @@ import '../../js/calc-vacacional.js';
 import { json } from '../lib/auth.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { limitadorDurable, ipDe } from '../lib/limite.mjs';
+import { limitadorDurable, limitadorContador, ipDe } from '../lib/limite.mjs';
 import { moraDe } from '../lib/comisiones.mjs';
 import { apartadasDe, purgarCasa } from '../lib/ocupacion.mjs';
 import { seCruzan, apartaFechas, bajoElPlan, HORAS_RESPUESTA } from '../../admin/js/reservas-calculo.js';
@@ -30,9 +30,11 @@ const porIp = limitadorDurable('solicitud-ip', 10, 60 * 60_000);
 const porCorreo = limitadorDurable('solicitud-correo', 5, 60 * 60_000);
 // La pregunta «¿ya quedó?» y el reintento de una ya guardada: su propio límite por IP, más holgado.
 const porIpConsulta = limitadorDurable('solicitud-consulta-ip', 30, 60 * 60_000, { siFalla: 'memoria' });
-// Un freno previo de intentos por IP, contados ANTES de cualquier lectura y con o sin prueba de Turnstile: una ráfaga que
-// termina en 409 o 403 (casas que no existen, fechas tomadas) no se guarda, pero tampoco sigue sin tope.
-const porIpIntentos = limitadorDurable('solicitud-intentos-ip', 30, 60 * 60_000, { siFalla: 'memoria', avisar: true });
+// Un freno previo por IP: solicitudes distintas (por su id) en la hora, contadas antes de revisarlas, con o sin prueba de
+// Turnstile: una ráfaga que termina en 409 o 403 (casas que no existen, fechas tomadas) no se guarda, pero tampoco sigue
+// sin tope. 60, para una IP compartida (hotel, oficina, la red del celular); el reintento de la misma no cuenta. Es un
+// contador sin transacción (`limitadorContador`): una ráfaga a la vez queda contada en la base.
+const porIpIntentos = limitadorContador('solicitud-intentos-ip', 60, 60 * 60_000, { avisar: true });
 // Sin la prueba de «no soy un robot» (el navegador no la pudo hacer o Cloudflare no responde), además, uno más estricto:
 // un cliente de verdad reserva igual; un robot que la salta, muy poco.
 const porIpSinPrueba = limitadorDurable('solicitud-ip-sin-prueba', 3, 60 * 60_000, { avisar: true });
@@ -189,7 +191,6 @@ export default async (req, context) => {
 			if (await porIpConsulta(ip)) return muchas();
 			try { return json(200, { guardada: Boolean(await yaGuardada(pedido.leadId, pedido.token)) }); } catch { return json(503, { error: 'Sin respuesta' }); }
 		}
-		if (await porIpIntentos(ip)) return muchas();
 		// El mismo envío otra vez (la respuesta anterior se perdió): si es la misma solicitud (mismo correo, casa, fechas y
 		// personas), ya quedó: se responde lo mismo antes de revisar las fechas (pudo pasar la medianoche), con el límite por
 		// IP, y si el cliente corrigió su nombre o su teléfono, se pone al día. Si no es la misma, sigue como una nueva (con
@@ -208,6 +209,8 @@ export default async (req, context) => {
 			await ponerAlDiaContacto(pedido).catch((err) => console.error('Solicitud (contacto):', err.message));
 			return json(200, { token: ya });
 		}
+		// El freno, después de reconocer el reenvío de una ya guardada y antes de revisar la nueva.
+		if (await porIpIntentos(ip, ID.test(pedido?.leadId || '') ? pedido.leadId : 'sin-id')) return muchas();
 		const datos = revisarPedido(pedido);
 		const prueba = await pasaTurnstile(pedido.turnstile, ip);
 		if (prueba === 'mala') return error(403, 'No pudimos comprobar que no eres un robot. Vuelve a intentarlo.', 'We could not verify that you are not a robot. Please try again.', { turnstile: true });

@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { transaccion, escrituraConfigurada } from './firestore-escritura.mjs';
+import { transaccion, escrituraConfigurada, sumarUno } from './firestore-escritura.mjs';
 
 // Límite de pedidos por clave (IP, chat…) dentro de una ventana. `limitador` vive en la memoria de cada instancia de la
 // función (Netlify puede levantar varias y reiniciarlas): frena ráfagas, no a un atacante decidido; para eso, abajo,
@@ -62,4 +62,29 @@ export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', a
 	};
 	contar.enTransaccion = enTx;
 	return contar;
+}
+
+// Un contador por ventana fija (la hora en curso) que no choca: cada pedido es un solo commit que suma 1
+// (limites/{huella de nombre, clave y ventana}) y lee el valor que quedó, sin transacción; una ráfaga queda contada en la
+// base aunque llegue toda a la vez. `distinto`: cuenta cosas distintas (p. ej. solicitudes por su id): repetir la misma
+// no suma. Si la base falla, cuenta en memoria. limitadorContador(nombre, max, ventanaMs) → async (clave, distinto?) =>
+// true si ya pasó el límite.
+export function limitadorContador(nombre, max, ventanaMs, { avisar = false } = {}) {
+	const enMemoria = limitador(max, ventanaMs);
+	let avisadoEn = 0;
+	const huella = (x) => createHmac('sha256', process.env.GOOGLE_SA_ESCRITURA_KEY || '').update(x).digest('hex');
+	return async (clave, distinto = '') => {
+		if (!escrituraConfigurada()) return enMemoria(clave);
+		const ventana = Math.floor(Date.now() / ventanaMs);
+		try {
+			const n = await sumarUno(`limites/${huella(`${nombre}:${clave}:${ventana}`)}`, new Date((ventana + 2) * ventanaMs),
+				distinto ? `limites/${huella(`${nombre}:${clave}:${ventana}:${distinto}`)}` : '');
+			if (n === null || n <= max) return false;
+			if (avisar && Date.now() - avisadoEn > 3_600_000) { avisadoEn = Date.now(); console.warn(`Límite «${nombre}» en su tope (${max} en ${Math.round(ventanaMs / 60_000)} min).`); }
+			return true;
+		} catch (err) {
+			console.error('Límite en la base (contador):', err.message);
+			return enMemoria(clave);
+		}
+	};
 }

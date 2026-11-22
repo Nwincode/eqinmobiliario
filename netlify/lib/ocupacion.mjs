@@ -15,10 +15,10 @@ const V = globalThis.EQVacacional;
 
 export const etiquetaCasa = (id) => `casa-${id}`;
 
-async function leerIcal(url) {
+async function leerIcal(url, espera = 8000) {
 	if (!/^https:\/\//i.test(url || '')) return null;
 	const ctrl = new AbortController();
-	const t = setTimeout(() => ctrl.abort(), 8000);
+	const t = setTimeout(() => ctrl.abort(), espera);
 	try {
 		const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'text/calendar' } });
 		if (!res.ok) return null;
@@ -40,7 +40,8 @@ const FRESCO = 10 * 60_000, ULTIMO = 24 * 3600_000;
 const RUTA = (id) => `properties/${id}/privado/icalLeido`;
 
 // { rangos: [{ desde, hasta, fuente }], fuentes: ['airbnb', …], sinLeer: ['Airbnb', …] }.
-export async function externasDe(privado, casaId = '') {
+// `espera`: cuánto se espera a cada plataforma (al confirmar, poco: la función de Netlify se corta a los 10 s).
+export async function externasDe(privado, casaId = '', { espera = 8000 } = {}) {
 	const ahora = Date.now();
 	const cals = V.CALENDARIOS.filter((c) => privado?.[c.campo]);
 	let guardado;
@@ -53,7 +54,7 @@ export async function externasDe(privado, casaId = '') {
 		const url = privado[c.campo];
 		const mem = LEIDOS.get(url);
 		if (mem && ahora - mem.cuando < FRESCO) return [c, mem.rangos];
-		const rangos = await leerIcal(url);
+		const rangos = await leerIcal(url, espera);
 		if (rangos) {
 			LEIDOS.set(url, { rangos, cuando: ahora });
 			if (LEIDOS.size > 500) LEIDOS.delete(LEIDOS.keys().next().value);

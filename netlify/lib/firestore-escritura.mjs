@@ -106,15 +106,45 @@ export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
 	}
 }
 
-// ¿Quedó escrito un commit cuya respuesta se perdió? Solo se puede saber si crea documentos (sus ids son nuevos): todos
-// existen ahora. Sin documentos nuevos, no se adivina (se responde el error).
+// ¿Quedó escrito un commit cuya respuesta se perdió? Solo se puede saber si crea documentos: todos existen ahora y con
+// lo que este commit escribió en ellos (campo por campo; otro pudo crear el mismo id con otra cosa: eso es un error real).
+// Sin documentos nuevos, no se adivina (se responde el error).
+const mismoValor = (a, b) => {
+	if (!a || !b) return false;
+	if ('timestampValue' in a) return Date.parse(a.timestampValue) === Date.parse(b.timestampValue);
+	if ('integerValue' in a || 'doubleValue' in a) return Number(a.integerValue ?? a.doubleValue) === Number(b.integerValue ?? b.doubleValue);
+	if ('mapValue' in a) return mismosCampos(a.mapValue.fields || {}, b.mapValue?.fields || {});
+	if ('arrayValue' in a) { const x = a.arrayValue.values || [], y = b.arrayValue?.values || []; return x.length === y.length && x.every((v, i) => mismoValor(v, y[i])); }
+	return JSON.stringify(a) === JSON.stringify(b);
+};
+const mismosCampos = (escritos, guardados) => Object.keys(escritos).every((k) => mismoValor(escritos[k], guardados[k]));
 async function quedoEscrito(token, writes) {
-	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update.name);
+	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update);
 	if (!nuevos.length) return false;
 	try {
-		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos }, Date.now() + 1500);
-		return r.length === nuevos.length && r.every((x) => x.found);
+		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos.map((d) => d.name) }, Date.now() + 1500);
+		const porNombre = Object.fromEntries(r.filter((x) => x.found).map((x) => [x.found.name, x.found.fields || {}]));
+		return nuevos.every((d) => porNombre[d.name] && mismosCampos(d.fields || {}, porNombre[d.name]));
 	} catch { return false; }
+}
+
+// Contar sin transacción: un solo commit (no choca con otros a la vez) que suma 1 a `ruta` (campo `n`) y deja su `vence`;
+// con `marca`, también crea ese documento solo si no existe (contar cosas distintas: si ya existía, no se suma y devuelve
+// null). Devuelve el valor después de sumar. Si la base falla, lanza.
+export async function sumarUno(ruta, vence, marca = '') {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	const writes = [
+		...(marca ? [{ update: { name: `${RAIZ}/${marca}`, fields: aCampos({ vence }) }, currentDocument: { exists: false } }] : []),
+		{ update: { name: `${RAIZ}/${ruta}`, fields: aCampos({ vence }) }, updateMask: { fieldPaths: ['vence'] }, updateTransforms: [{ fieldPath: 'n', increment: { integerValue: '1' } }] }
+	];
+	try {
+		const r = await pedir(token, `${BASE}:commit`, { writes }, Date.now() + 3000);
+		const t = r.writeResults?.at(-1)?.transformResults?.[0];
+		return Number(t?.integerValue ?? t?.doubleValue ?? 0);
+	} catch (err) {
+		if (marca && err instanceof ErrorBase && err.codigo === 'ALREADY_EXISTS') return null;
+		throw err;
+	}
 }
 
 // Prueba de la cuenta de escritura (el indicador de Solicitudes): escribe la hora en un documento que solo ella toca

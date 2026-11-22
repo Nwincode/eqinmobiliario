@@ -30,11 +30,12 @@ const TOKEN = /^[A-Za-z0-9]{20,60}$/;
 // Las noches de Airbnb, Booking y VRBO de la casa de la solicitud, leídas con la cuenta de lectura fuera de la
 // transacción (los calendarios tardan). Uno que no responde y no tiene lo último leído del día (`sinLeer`) no frena la
 // confirmación, pero el socio tiene que decir que lo revisó a mano en la plataforma (`revisado`).
+// A lo más 2,5 s por plataforma: lo que no responde se avisa («Revisé…») y la confirmación cabe en los 10 s de Netlify.
 async function nochesExternas(leadId) {
 	try {
 		const lead = await leerPrivado(`leads/${leadId}`);
 		if (!ID.test(lead?.propertyId || '')) return { rangos: [], sinLeer: [] };
-		return await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`), lead.propertyId);
+		return await externasDe(await leerPrivado(`properties/${lead.propertyId}/privado/socio`), lead.propertyId, { espera: 2500 });
 	} catch (err) {
 		console.error('Reservas: calendarios de las plataformas', err.message);
 		return { rangos: [], sinLeer: ['las plataformas'] };
@@ -201,8 +202,11 @@ export default async (req, context) => {
 	if (!accion || !ID.test(leadId)) return json(400, { error: 'Solicitud inválida' });
 	let hecho;
 	try {
+		// Todo cabe en los 10 s de una función de Netlify: calendarios (≤ 2,5 s), transacción (lo que quede hasta 8 s, al menos
+		// 3 s) y, si el commit se cortó, la revisión de si quedó escrito (≤ 1,5 s).
+		const inicio = Date.now();
 		const externas = accion === 'confirmar' ? await nochesExternas(leadId) : undefined;
-		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true));
+		hecho = await transaccion((tx) => ACCIONES[accion](tx, socio, leadId, String(cuerpo.motivo || ''), externas, cuerpo.revisado === true), 5, Math.max(3000, 8000 - (Date.now() - inicio)));
 	} catch (err) {
 		if (err instanceof Respuesta) return json(err.status, { error: err.message, ...(err.caminoDeAntes ? { caminoDeAntes: true } : {}), ...(err.faltaRevisar ? { faltaRevisar: err.faltaRevisar } : {}), ...(err.message === YA ? { yaRespondida: true } : {}) });
 		// Una reserva que nació mientras tanto (otra pestaña): ya se respondió.
