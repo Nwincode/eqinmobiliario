@@ -1694,6 +1694,46 @@ const duenos = [];
 
 for (const [quien, x] of [['administrador', admin], ['socio', socio], ['cliente', cliente], ['segundo cliente', otro], ['tercer cliente', tercero], ['asesor', asesor], ['administrador en otra pestaña', otraPestana], ...duenos]) paso(`Sin errores de programa en la pantalla del ${quien}`, x.errores.length === 0, x.errores.join(' ; '));
 console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
+// ---------------------------------------------------------------- Verificación en dos pasos del administrador
+// El emulador no ofrece TOTP: se le responde como un proyecto que sí (mfaEnrollment:start / signInWithPassword con el
+// segundo paso) para ver las pantallas reales; el código pegado con espacio («123 456», como lo copian varias apps).
+{
+	const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Content-Type': 'application/json' };
+	const responder = (cuerpo, status = 200) => (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: cors }) : r.fulfill({ status, headers: cors, body: JSON.stringify(cuerpo) });
+	const codigoMalo = responder({ error: { code: 400, message: 'INVALID_CODE' } }, 400);
+	const pegar = async (p, id) => { await p.focus(id); await p.keyboard.insertText('123 456'); return p.inputValue(id); };
+	const ins = await persona(390);
+	await ins.p.route('**/mfaEnrollment:start**', responder({ totpSessionInfo: { sharedSecretKey: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', verificationCodeLength: 6, hashingAlgorithm: 'SHA1', periodSec: 30, sessionInfo: 's', finalizeEnrollmentTime: new Date(Date.now() + 6e5).toISOString() } }));
+	await ins.p.route('**/mfaEnrollment:finalize**', codigoMalo);
+	await ins.p.goto(`${SITIO}/admin/`);
+	await ins.p.fill('#login-email', 'admin@example.com');
+	await ins.p.fill('#login-pass', CLAVE);
+	await ins.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await ins.p.locator('#codigo-inscribir').waitFor({ timeout: 15000 }).catch(() => {});
+	const qr = await ins.p.locator('.dos-pasos-qr svg').count();
+	const pegado = await pegar(ins.p, '#codigo-inscribir');
+	await ins.p.locator('button[type=submit]', { hasText: 'Activar' }).click();
+	await espera(1500);
+	const malo = await ins.p.locator('[role=alert]').innerText().catch(() => '');
+	await ins.p.screenshot({ path: `${CAPTURAS}/dos-pasos-inscribir-390.png`, fullPage: true });
+	paso('Dos pasos: el administrador sin inscribir ve el QR; el código pegado con espacio queda en 6 cifras y uno malo se explica', qr === 1 && pegado === '123456' && /no sirve/.test(malo), `qr ${qr} · «${pegado}» · ${malo}`);
+	await ins.p.context().close();
+	const ent = await persona(390);
+	await ent.p.route('**/accounts:signInWithPassword**', responder({ localId: 'uid-falso', email: 'admin@example.com', mfaPendingCredential: 'pendiente', mfaInfo: [{ mfaEnrollmentId: 'totp-1', displayName: 'App de códigos', totpInfo: {}, enrolledAt: new Date().toISOString() }] }));
+	await ent.p.route('**/mfaSignIn:finalize**', codigoMalo);
+	await ent.p.goto(`${SITIO}/admin/`);
+	await ent.p.fill('#login-email', 'admin@example.com');
+	await ent.p.fill('#login-pass', CLAVE);
+	await ent.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await ent.p.locator('#codigo-entrar').waitFor({ timeout: 15000 }).catch(() => {});
+	const pegado2 = await pegar(ent.p, '#codigo-entrar').catch(() => '');
+	await ent.p.locator('button[type=submit]', { hasText: 'Entrar' }).click();
+	await espera(1500);
+	const malo2 = await ent.p.locator('[role=alert]').innerText().catch(() => '');
+	paso('Dos pasos: con la cuenta inscrita, al entrar pide el código (pegado con espacio, 6 cifras) y uno malo se explica', pegado2 === '123456' && /no sirve/.test(malo2), `«${pegado2}» · ${malo2}`);
+	await ent.p.context().close();
+}
+
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();
 process.exit(fallas ? 1 : 0);

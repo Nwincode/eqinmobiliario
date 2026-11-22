@@ -37,8 +37,11 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 	modal({ title: titulo, body: caja });
 	try {
 		const todos = async (q) => (await getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
+		// Con las reglas de antes la bitácora no se puede leer: se dice eso (no «sin permiso») y se muestra lo demás.
+		let sinReglas = false;
 		const [sensibles, deLaCasa, deAntes] = await Promise.all([
-			todos(query(collection(db, 'bitacora'), where(casaId ? 'casa' : 'objeto', '==', casaId || propietarioId))),
+			todos(query(collection(db, 'bitacora'), where(casaId ? 'casa' : 'objeto', '==', casaId || propietarioId)))
+				.catch((err) => { if (err?.code !== 'permission-denied') throw err; sinReglas = true; return []; }),
 			casaId ? todos(collection(db, 'properties', casaId, 'bitacora')).catch(() => []) : [],
 			propietarioId ? todos(query(collection(db, 'cambiosDatosPago'), where('propietarioId', '==', propietarioId))).catch(() => []) : []
 		]);
@@ -59,9 +62,10 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 		const filas = [...sens, ...textos,
 			...deAntes.map((c) => ({ cuando: ms(c.cuando), nombre: c.nombre, cambios: [{ campo: 'Datos de pago', antes: c.antes || '(vacío)', despues: c.despues || '(vacío)' }] }))
 		].sort((a, b) => b.cuando - a.cuando);
-		caja.replaceChildren(filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0 text-break' },
+		caja.replaceChildren(sinReglas ? h('p', { class: 'small text-muted' }, 'Los cambios se verán cuando se publiquen las reglas nuevas de Firestore.') : null,
+			filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0 text-break' },
 			f.texto ? h('div', {}, f.texto) : null, (f.cambios || []).map((c) => h('div', {}, h('span', { class: 'fw-semibold' }, `${c.campo}: `), c.antes, h('span', { class: 'text-muted', 'aria-label': 'cambió a' }, ' → '), c.despues)),
 			h('div', { class: 'small text-muted' }, [f.nombre || 'Servidor', f.cuando ? formatDate(new Date(f.cuando)) : ''].filter(Boolean).join(' · ')))))
-			: emptyState('Sin cambios anotados todavía.'));
+			: sinReglas ? null : emptyState('Sin cambios anotados todavía.'));
 	} catch (err) { caja.replaceChildren(); showError(err); }
 }

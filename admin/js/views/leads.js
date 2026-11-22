@@ -93,7 +93,7 @@ function openLead(lead, agents, onChange) {
 				lead.clienteId ? h('a', { href: `#/clientes/${lead.clienteId}`, class: 'btn btn-outline-primary btn-sm ms-auto', onclick: () => m.close() }, 'Ficha del cliente') : null,
 				h('a', { href: `#/ia/seguimiento/${lead.id}`, class: `btn btn-primary btn-sm${lead.clienteId ? '' : ' ms-auto'}`, onclick: () => m.close() }, '✨ Qué le escribo (IA)')),
 			// El correo rebotó (/api/rebote-correo): no le llega lo que se le mande por ahí.
-			lead.reboteCorreo ? h('p', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }), `El correo no llegó a ${lead.email}: escríbele por WhatsApp.`) : null,
+			lead.reboteCorreo ? h('p', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }), `El correo no llegó a ${lead.email}${wa ? ': escríbele por WhatsApp' : ''}.`) : null,
 			h('dl', { class: 'row small' },
 				h('dt', { class: 'col-sm-3' }, 'Recibido'), h('dd', { class: 'col-sm-9' }, formatDate(lead.createdAt)),
 				h('dt', { class: 'col-sm-3' }, 'Origen'), h('dd', { class: 'col-sm-9' }, ORIGENES[lead.origen] || lead.origen || '—', lead.pagina ? ` (${lead.pagina})` : ''),
