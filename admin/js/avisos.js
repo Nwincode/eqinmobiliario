@@ -158,14 +158,15 @@ async function marcarListo(aviso, fila, btn) {
 	avisarAvisos();
 }
 
-// Una fila: ícono, qué pasa, de qué casa y cuándo; un toque lleva a donde se resuelve.
-function fila(a, puedeListo, alIr) {
+// Una fila: ícono, qué pasa, de qué casa y cuándo; un toque lleva a donde se resuelve (sin `href`, solo se lee). La usa
+// también la tarjeta «Estado del sistema» (estado.js).
+export function fila(a, puedeListo, alIr) {
 	const li = h('li', { class: `aviso-fila${a.urgente ? ' aviso-urgente' : ''}` },
-		h('a', { href: a.href, class: 'aviso-enlace', onclick: alIr },
+		h(a.href ? 'a' : 'div', { ...(a.href ? { href: a.href, onclick: alIr } : {}), class: 'aviso-enlace' },
 			h('span', { class: `aviso-icono ${a.icono}`, 'aria-hidden': 'true' }),
 			h('span', { class: 'aviso-texto' },
 				h('span', { class: 'aviso-titulo' }, a.titulo),
-				h('span', { class: 'aviso-detalle' }, [a.detalle, a.tipo === 'exclusiva' ? '' : hace(a.fecha)].filter(Boolean).join(' · ')))),
+				h('span', { class: 'aviso-detalle' }, [a.detalle, a.tipo === 'exclusiva' || !a.fecha ? '' : hace(a.fecha)].filter(Boolean).join(' · ')))),
 		a.listo && puedeListo ? h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary aviso-listo', title: 'Ya lo atendí: dejar de avisar', onclick: (e) => marcarListo(a, li, e.currentTarget) },
 			h('span', { class: 'icon-check', 'aria-hidden': 'true' }), 'Listo') : null);
 	return li;

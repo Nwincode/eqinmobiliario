@@ -38,7 +38,8 @@ export default async (req) => {
 			// Publicar lo muestra con «Publicar aunque baje». Un freno de otra publicación no cuenta.
 			frenada = Boolean(estado.freno) && Date.now() - new Date(estado.frenoCuando || 0).getTime() < 2 * 3600_000;
 			freno = String(estado.freno || '');
-			cambiar('meta/publish', { pendiente: true, fallo: true, ultimoCambioDesc: frenada ? DESC_FRENO : DESC_FALLO }, { ahora: ['ultimoCambio'] });
+			// falloCuando: desde cuándo está fallando (solo la primera vez; «Estado del sistema» lo muestra).
+			cambiar('meta/publish', { pendiente: true, fallo: true, ultimoCambioDesc: frenada ? DESC_FRENO : DESC_FALLO }, { ahora: ['ultimoCambio', ...(estado.fallo ? [] : ['falloCuando'])] });
 			return !estado.fallo;
 		});
 	} catch (e) {

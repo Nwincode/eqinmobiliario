@@ -3840,3 +3840,5 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .perm-aviso .icon-lock { font-size: 20px; margin-top: 2px; }
 .perm-aviso .btn { grid-column: 2; justify-self: start; min-height: 44px; display: inline-flex; align-items: center; }
 .perm-off { opacity: .5; pointer-events: none; }
+/* Una fila de «Estado del sistema» sin enlace (estado.js): solo se lee. */
+div.aviso-enlace:hover { background: none; }

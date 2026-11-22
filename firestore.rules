@@ -172,6 +172,13 @@ service cloud.firestore {
       allow update: if esSocio() && soloCambia(['pendiente', 'ultimoCambio', 'ultimoCambioDesc', 'ultimoCambioPor']);
     }
 
+    // Estado del sistema (netlify/lib/estado.mjs): lo que falló y desde cuándo. Lo escribe solo el servidor, con la cuenta
+    // de escritura; lo lee el administrador (la tarjeta de Inicio).
+    match /estado/{pieza} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
