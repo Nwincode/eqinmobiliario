@@ -14,7 +14,8 @@ export const RELOJES = {
 	// Corre cada hora menos de 10 p. m. a 6 a. m. de Guatemala.
 	'solicitudes-sin-respuesta': { nombre: 'Control de cada hora', tarde: 12 * HORA },
 	'resumen-diario': { nombre: 'Resumen de cada mañana', tarde: 26 * HORA },
-	'estado-cuenta': { nombre: 'Estado de cuenta del mes', tarde: 33 * DIA }
+	'estado-cuenta': { nombre: 'Estado de cuenta del mes', tarde: 33 * DIA },
+	'seo-semanal': { nombre: 'Informe SEO semanal', tarde: 8 * DIA }
 };
 
 const ms = (v) => (v?.toMillis ? v.toMillis() : v instanceof Date ? v.getTime() : v?.seconds ? v.seconds * 1000 : typeof v === 'number' ? v : Date.parse(v || '') || 0);
@@ -54,7 +55,7 @@ export function armarEstado({ estados = {}, publish = {}, correos = [], pagos = 
 		const ok = ms(d?.ok);
 		if (rota(d)) poner({ clave: `reloj-${k}`, icono: 'icon-clock-o', titulo: `«${r.nombre}» falló`, detalle: d.motivo, desde: ms(d.falloDesde) || ms(d.fallo) });
 		else if (ok && ahora - ok > r.tarde) poner({ clave: `reloj-${k}`, icono: 'icon-clock-o', titulo: `«${r.nombre}» no corre`, detalle: 'Revisa las funciones programadas en Netlify', desde: ok });
-		else if (!ok && k !== 'estado-cuenta' && Number.isFinite(anota) && ahora - anota > r.tarde) poner({ clave: `reloj-${k}`, icono: 'icon-clock-o', titulo: `«${r.nombre}» no ha corrido`, detalle: 'Revisa las funciones programadas en Netlify', desde: 0 });
+		else if (!ok && k !== 'estado-cuenta' && k !== 'seo-semanal' && Number.isFinite(anota) && ahora - anota > r.tarde) poner({ clave: `reloj-${k}`, icono: 'icon-clock-o', titulo: `«${r.nombre}» no ha corrido`, detalle: 'Revisa las funciones programadas en Netlify', desde: 0 });
 	}
 	const resp = e('respaldo');
 	if (resp) {

@@ -75,7 +75,57 @@ export async function gsc(method, url, body) {
 				? `Sin permiso en Search Console. Agrega ${process.env.GOOGLE_SA_EMAIL} como usuario de la propiedad. (${msg})`
 				: msg);
 		err.falta = apiApagada ? 'api' : res.status === 403 ? 'permiso' : '';
+		err.status = res.status;
 		throw err;
 	}
 	return data;
+}
+
+// ---- Search Console: lo usan el panel (netlify/functions/gsc.mjs) y el informe semanal (seo-semanal.mjs).
+const SITIO = siteConfig.siteUrl.replace(/\/$/, '');
+export const sitioGSC = (prop) => `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(prop)}`;
+
+// Solo la propiedad de Search Console de ESTE sitio: la del dominio (sc-domain:) o la de su dirección, con o sin www,
+// o la de GSC_PROPERTY. La que manda el panel (Contenido → SEO) vale si es una de esas; cualquier otra (otra propiedad a
+// la que la cuenta de servicio tenga acceso) se cambia por la del sitio: un asesor no consulta datos ajenos.
+const DOMINIO = new URL(SITIO).hostname.replace(/^www\./, '').toLowerCase();
+export function propiedadValida(p) {
+	const v = String(p || '').trim();
+	const delSitio = new Set([propiedadPorDefecto(), `sc-domain:${DOMINIO}`,
+		...['https', 'http'].flatMap((esquema) => [`${esquema}://${DOMINIO}/`, `${esquema}://www.${DOMINIO}/`])]);
+	return delSitio.has(v) || delSitio.has(v.toLowerCase()) ? v : propiedadPorDefecto();
+}
+
+const dia = (d) => d.toISOString().slice(0, 10);
+// Los últimos `dias` (o los de antes, con `desplazamiento`). Search Console tarda ~2 días en consolidar los datos.
+export function rangoGSC(dias, desplazamiento = 0) {
+	const fin = new Date(Date.now() - (2 + desplazamiento) * 86400000);
+	const inicio = new Date(fin.getTime() - (dias - 1) * 86400000);
+	return { startDate: dia(inicio), endDate: dia(fin) };
+}
+
+export const filaGSC = (r) => ({ claves: r.keys || [], clics: r.clicks || 0, impresiones: r.impressions || 0, ctr: r.ctr || 0, posicion: r.position || 0 });
+
+// Búsquedas, clics, impresiones y posición (searchAnalytics/query), con los datos ya consolidados.
+export async function consultaGSC(prop, cuerpo) {
+	const data = await gsc('POST', `${sitioGSC(prop)}/searchAnalytics/query`, { dataState: 'final', ...cuerpo });
+	return (data.rows || []).map(filaGSC);
+}
+
+// ¿Está esta página en Google? (URL Inspection API: 2,000 por día y 600 por minuto por propiedad.)
+export async function inspeccionarGSC(prop, url) {
+	const r = await gsc('POST', 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', { inspectionUrl: url, siteUrl: prop, languageCode: 'es' });
+	const idx = r.inspectionResult?.indexStatusResult || {};
+	return {
+		veredicto: idx.verdict,
+		cobertura: idx.coverageState,
+		rastreo: idx.lastCrawlTime,
+		canonicaGoogle: idx.googleCanonical,
+		canonicaUsuario: idx.userCanonical,
+		robots: idx.robotsTxtState,
+		indexacion: idx.indexingState,
+		movil: r.inspectionResult?.mobileUsabilityResult?.verdict,
+		enriquecidos: (r.inspectionResult?.richResultsResult?.detectedItems || []).map((d) => d.richResultType),
+		enlace: r.inspectionResult?.inspectionResultLink
+	};
 }

@@ -196,6 +196,12 @@ service cloud.firestore {
       allow get: if true;
     }
 
+    // Informe semanal de Search Console (netlify/functions/seo-semanal.mjs). Lo escribe el servidor; solo lo lee el
+    // administrador.
+    match /seoSemanal/{fecha} {
+      allow read: if isAdmin();
+    }
+
     // Estado de publicación (cambios pendientes, última publicación).
     match /meta/publish {
       allow read, write: if isStaff();

@@ -969,6 +969,22 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('anónimo lee el estado del sistema', leer(null, 'estado/correo'), false);
 	await espera('el administrador escribe el estado del sistema', crear('admin1', 'estado/otro', { motivo: 'x' }), false);
 }
+// El informe semanal de Search Console y lo que revisan solas las funciones (el respaldo): solo el administrador lee;
+// escribe solo el servidor (su cuenta no pasa por las reglas).
+{
+	await poner('seoSemanal/2026-11-16', { fecha: '2026-11-16', propiedad: 'sc-domain:eqinmobiliario.gt' });
+	await poner('estado/respaldo', { ok: true, fecha: '2026-11-16' });
+	for (const ruta of ['seoSemanal/2026-11-16', 'estado/respaldo']) {
+		await espera(`el administrador lee ${ruta} (control)`, leer('admin1', ruta), true);
+		await espera(`un asesor lee ${ruta}`, leer('asesor7', ruta), false);
+		await espera(`un socio lee ${ruta}`, leer('socio1', ruta), false);
+		await espera(`anónimo lee ${ruta}`, leer(null, ruta), false);
+		await espera(`el administrador escribe ${ruta}`, fetch(`${H}/${ruta}`, { method: 'PATCH', headers: cab('admin1'), body: JSON.stringify({ fields: campos({ ok: false }) }) }).then((r) => r.status), false);
+	}
+	await espera('el administrador lista los informes (control)', consulta('admin1', 'seoSemanal'), true);
+	await espera('un asesor lista los informes', consulta('asesor7', 'seoSemanal'), false);
+	await espera('el administrador crea un informe', crear('admin1', 'seoSemanal/2026-11-23', { fecha: '2026-11-23' }), false);
+}
 console.log(`\n${n - fallas} de ${n} correctos`);
 if (fallas) process.exit(1);
 

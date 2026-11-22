@@ -1,5 +1,5 @@
 // Visibilidad: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
-import { db, doc, getDoc, getDocs, collection, siteConfig, SITIO as SITE } from '../firebase.js';
+import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig, SITIO as SITE } from '../firebase.js';
 import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, cajaTabla, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
@@ -194,11 +194,38 @@ function renderDatos(cont, d, props) {
 				tabla(['País', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.paises || []).map((r) => h('tr', {}, h('td', {}, r.claves[0].toUpperCase()), ...filaMetricas(r)))),
 				h('hr'),
 				tabla(['Dispositivo', 'Clics', 'Impr.', 'CTR', 'Pos.'], (d.dispositivos || []).map((r) => h('tr', {}, h('td', {}, { MOBILE: 'Celular', DESKTOP: 'Computadora', TABLET: 'Tablet' }[r.claves[0]] || r.claves[0]), ...filaMetricas(r))))))),
-		(d.caidas || []).length ? card('Páginas que están perdiendo clics',
-			tabla(['Página', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora'], d.caidas.map((c) => h('tr', {},
-				h('td', { class: 'text-break' }, ruta(c.pagina)),
-				h('td', { class: 'text-end' }, num(c.antes.clics)), h('td', { class: 'text-end' }, num(c.ahora.clics)),
-				h('td', { class: 'text-end' }, pos(c.antes.posicion)), h('td', { class: 'text-end' }, pos(c.ahora.posicion)))))) : null);
+		(d.caidas || []).length ? card('Páginas que bajaron', tablaBajaron(d.caidas)) : null);
+}
+
+// Páginas que bajaron (netlify/lib/seo-semanal.mjs `bajaron`): la misma tabla en el periodo elegido y en el informe semanal.
+const tablaBajaron = (lista, vacio) => tabla(['Página', 'Clics antes', 'Clics ahora', 'Pos. antes', 'Pos. ahora'], lista.map((c) => h('tr', {},
+	h('td', { class: 'text-break' }, ruta(c.pagina)),
+	h('td', { class: 'text-end' }, num(c.antes.clics)), h('td', { class: 'text-end' }, num(c.ahora.clics)),
+	h('td', { class: 'text-end' }, pos(c.antes.posicion)), h('td', { class: 'text-end' }, pos(c.ahora.posicion)))), vacio);
+
+// Informe de cada lunes (netlify/functions/seo-semanal.mjs → seoSemanal/{fecha}; solo lo lee el administrador):
+// los últimos 7 días contra los 7 anteriores y la indexación de las páginas del sitemap.
+async function informeSemanal() {
+	const snap = await getDocs(query(collection(db, 'seoSemanal'), orderBy('fecha', 'desc'), limit(1)));
+	const d = snap.docs[0]?.data();
+	if (!d) return null;
+	if (d.error) return h('div', { class: 'alert alert-warning' }, `Informe del ${d.fecha}: no se pudo consultar Search Console (${d.error}).`);
+	const fuera = (d.indexacion || []).filter((x) => x.veredicto && x.veredicto !== 'PASS');
+	const faltan = d.sinRevisar ? ` · ${num(d.sinRevisar)} sin revisar aún` : '';
+	return h('div', {},
+		h('p', { class: 'small text-muted' }, `Informe del lunes ${d.fecha} (${d.rango.startDate} a ${d.rango.endDate}) · ${num(d.totales.clics)} clics `,
+			variacion(d.totales.clics, d.previos.clics), ` · ${num(d.paginasSitemap)} páginas del sitemap${faltan}`),
+		card('Bajaron esta semana', tablaBajaron(d.bajaron || [], 'Ninguna página bajó.')),
+		card(`No están en Google: ${fuera.length}`,
+			d.errorIndexacion ? h('p', { class: 'small text-muted' }, `Google cortó la revisión (${d.errorIndexacion}); sigue el lunes que viene.`) : null,
+			tabla(['Página', 'Motivo', 'Revisada'], fuera.map((x) => h('tr', {},
+				h('td', { class: 'text-break' }, h('a', { href: x.url, target: '_blank', rel: 'noopener' }, ruta(x.url))),
+				h('td', { class: 'text-end small' }, x.cobertura || x.veredicto),
+				h('td', { class: 'text-end small text-muted' }, x.cuando))), 'Todas las páginas revisadas están en Google.')),
+		card('Búsquedas nuevas esta semana',
+			tabla(['Búsqueda', 'Clics', 'Impr.', 'Pos.'], (d.nuevas || []).map((r) => h('tr', {}, h('td', {}, r.consulta),
+				h('td', { class: 'text-end' }, num(r.clics)), h('td', { class: 'text-end' }, num(r.impresiones)), h('td', { class: 'text-end' }, pos(r.posicion)))),
+			'Sin búsquedas nuevas.')));
 }
 
 export async function render(container) {
@@ -211,6 +238,7 @@ export async function render(container) {
 	let dias = 28;
 	let ultimo = null;
 	const datos = h('div', {}, spinner('Consultando Search Console…'));
+	const semanal = h('div');
 	const selector = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Periodo' },
 		[[7, 'Últimos 7 días'], [28, 'Últimos 28 días'], [90, 'Últimos 3 meses']].map(([v, l]) => h('option', { value: v, selected: v === dias }, l)));
 	const exportar = iconoBtn('icon-download', 'Exportar búsquedas a Excel (CSV)', { disabled: true, onclick: () => ultimo && downloadCsv(`google-busquedas-${ultimo.rango.endDate}.csv`, [
@@ -247,7 +275,11 @@ export async function render(container) {
 	mount(container,
 		pageHeader('Visibilidad', h('div', { class: 'd-flex flex-wrap gap-2 align-items-center' }, selector, exportar, enviar)),
 		h('p', { class: 'text-muted' }, 'Cómo te encuentran en la Búsqueda de Google y qué mejorar para conseguir más visitas. Los datos vienen de Google Search Console y tienen unos 2 días de retraso.'),
+		semanal,
 		datos,
 		h('div', { class: 'row g-0' }, h('div', { class: 'col-12' }, inspector()), h('div', { class: 'col-12' }, revisionInventario(props))));
 	cargar();
+	if (session.isAdmin) informeSemanal().then((x) => semanal.replaceChildren(...(x ? [x] : []))).catch((err) => semanal.replaceChildren(h('div', { class: 'alert alert-warning' },
+		// Sin las reglas nuevas publicadas en Firebase, la base no deja leer el informe.
+		err.code === 'permission-denied' ? 'El informe semanal se verá cuando se publiquen las reglas nuevas de Firestore.' : err.message)));
 }
