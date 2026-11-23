@@ -1,9 +1,10 @@
 // POST /api/reenviar-enlace { leadId }: el panel, después de corregir el correo de una solicitud de reserva
 // (admin/js/crm.js corregirCorreo). Le manda al cliente el enlace de su reserva (netlify/lib/aviso-chat-envio.mjs
 // reenviarEnlace, la misma pieza del 409 de /api/solicitud) al correo GUARDADO, no a uno que mande quien llama: así ve lo
-// que se perdió (su reserva, cómo va y el chat). Solo el administrador o el asesor de esa solicitud (como las reglas de
-// /leads: myAgentId), solo si sigue abierta (sin responder o confirmada) y su salida no ha pasado. Un lead de contacto, sin
-// reserva, no recibe nada. Límites: los del reenvío por solicitud y correo, y 30 por hora por usuario del equipo.
+// que se perdió (su reserva, cómo va y el chat). Una solicitud de reserva (con `reserva.codigo`), solo el administrador:
+// un asesor no se manda a sí mismo el enlace (el token) de la reserva de un cliente. Lo demás, el administrador o el asesor
+// de esa solicitud (como las reglas de /leads: myAgentId). Solo si sigue abierta (sin responder o confirmada) y su salida
+// no ha pasado. Un lead de contacto, sin reserva, no recibe nada. Límites: los del reenvío por solicitud y correo, y 30 por hora por usuario del equipo.
 import '../../js/calc-vacacional.js';
 import { staffUser, json } from '../lib/auth.mjs';
 import { datosConfigurados, leerPrivado } from '../lib/firestore.mjs';
@@ -25,6 +26,7 @@ export default async (req) => {
 	const lead = await leerPrivado(`leads/${leadId}`).catch(() => null);
 	if (!lead) return json(404, { error: 'No existe' });
 	if (!usuario.admin && !(usuario.agentId && lead.agentId === usuario.agentId)) return json(403, { error: 'Esta solicitud no es tuya.' });
+	if (lead.reserva?.codigo && !usuario.admin) return json(403, { error: 'Solo el administrador reenvía el enlace de una reserva.' });
 	const estado = lead.solicitud?.estado || 'pendiente';
 	if (!lead.reserva?.codigo || !['pendiente', 'confirmada'].includes(estado) || !(String(lead.reserva.salida || '') >= V.hoy())) return json(200, { enviado: false, motivo: 'Sin reserva abierta' });
 	if (await porUsuario(usuario.uid)) return json(429, { error: 'Demasiados reenvíos seguidos.' });

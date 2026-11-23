@@ -165,7 +165,7 @@ export async function crearActividad(datos) {
 // copia): limpio y en minúsculas, como lo guarda el sitio (los rebotes y las repetidas lo buscan tal cual). Quita «El correo
 // no llegó» y, en una solicitud de reserva, deja el renglón en su historial y le pide al servidor que le mande al cliente el
 // enlace de su reserva al correo nuevo (/api/reenviar-enlace: lo que se perdió); si salió, también queda en el historial,
-// con el correo al que salió. Un lead de contacto (sin reserva) no recibe nada. Sin cambio (el mismo correo que el guardado
+// con el correo al que salió (solo el administrador: al asesor no se le reenvía). Un lead de contacto (sin reserva) no recibe nada. Sin cambio (el mismo correo que el guardado
 // ahora), no escribe nada. Devuelve { cambio, enviado: el correo al que salió el enlace ('' si no salió; null si no tocaba),
 // motivo }. Las reglas: el administrador y el asesor del lead (firestore.rules match /leads).
 export async function corregirCorreo(lead, correo) {
@@ -185,6 +185,8 @@ export async function corregirCorreo(lead, correo) {
 	lead.email = nuevo;
 	delete lead.reboteCorreo;
 	if (!cambio || !reserva) return { cambio, enviado: null, motivo: '' };
+	// El enlace de una reserva lo reenvía solo el administrador (el servidor se lo niega al asesor).
+	if (!session.isAdmin) return { cambio, enviado: '', motivo: 'Solo el administrador reenvía el enlace de una reserva.' };
 	let r = {};
 	try {
 		const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id }) });

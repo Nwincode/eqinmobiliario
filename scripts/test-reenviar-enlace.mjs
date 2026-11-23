@@ -42,7 +42,7 @@ await t('en inglés, el texto en inglés y el enlace a la página en inglés', a
 	assert.ok(S.salida[0].texto.includes(`/en/reservation/#${TOKEN}`));
 });
 
-await t('sin sesión del equipo, 403; el asesor de otra solicitud (o sin asesor), 403; el asesor de la suya, sí', async () => {
+await t('sin sesión del equipo, 403; el asesor de otra solicitud (o sin asesor), 403; el asesor de la suya, también 403 (una reserva, solo el administrador) y sin correo', async () => {
 	solicitud({ agentId: 'a7' });
 	assert.equal((await pedir('l1'))[0], 403);
 	S.staff = { uid: 'u-a9', admin: false, nombre: 'Asesor', agentId: 'a9' };
@@ -53,7 +53,17 @@ await t('sin sesión del equipo, 403; el asesor de otra solicitud (o sin asesor)
 	assert.equal((await pedir('l1'))[0], 403);
 	solicitud({ agentId: 'a7' });
 	S.staff = { uid: 'u-a7', admin: false, nombre: 'Asesor', agentId: 'a7' };
-	assert.deepEqual((await pedir('l1'))[1].enviado, true);
+	const [s, d] = await pedir('l1');
+	assert.deepEqual([s, d.error], [403, 'Solo el administrador reenvía el enlace de una reserva.']);
+	assert.equal(S.salida.length, 0);
+	// El asesor con su lead de contacto (sin reserva): como antes, no sale nada (200, sin correo).
+	solicitud({ agentId: 'a7', reserva: null });
+	assert.deepEqual(await pedir('l1'), [200, { enviado: false, motivo: 'Sin reserva abierta' }]);
+	assert.equal(S.salida.length, 0);
+	// El administrador, con la misma solicitud del asesor: sale.
+	solicitud({ agentId: 'a7' });
+	S.staff = ADMIN;
+	assert.equal((await pedir('l1'))[1].enviado, true);
 	assert.equal(S.salida.length, 1);
 });
 
