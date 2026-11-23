@@ -187,7 +187,7 @@
 		var total = EQFormato.montoPrecio(Number(c.total) || 0, c.moneda === 'GTQ' ? 'GTQ' : 'USD');
 		// Los textos del hilo (admin/js/hilo.js) en el idioma del cliente.
 		var th = { visto: t.vacChatVisto, enviando: t.vacChatEnviando, noSeEnvio: t.vacChatNoSeEnvio, responder: '', irACita: t.vacChatIrCita, comprobante: t.vacChatComprobante,
-			datosDePago: t.vacChatDatosPago, datosDeLlegada: t.vacChatLlegada, cuadra: t.vacChatCuadra, soloEquipo: '', idioma: lang };
+			datosDePago: t.vacChatDatosPago, datosDeLlegada: t.vacChatLlegada, cuadra: t.vacChatCuadra, soloEquipo: '', traduccionAuto: t.vacChatTraduccionAuto, idioma: lang };
 
 		// El esqueleto ya viene en la página (con sus íconos); aquí solo se llena.
 		var cuerpo = caja.querySelector('.vac-chat-cuerpo');

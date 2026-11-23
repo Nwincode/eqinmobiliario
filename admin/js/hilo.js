@@ -108,7 +108,8 @@ export function armarHilo(items, o) {
 		caja.append(el('span', 'hilo-txt', m.texto));
 		// La traducción al idioma de quien lee (el cliente que escribe en inglés desde la página en español: cualquiera).
 		const trad = !m.nota && lado(m.de) === 'otro' && (m.traduccion?.[idioma] || (cualquierTraduccion && Object.values(m.traduccion || {}).find(Boolean)));
-		if (trad) caja.append(el('span', 'hilo-trad', trad));
+		// Debajo, en una línea chica, que la hizo la máquina (puede no ser exacta).
+		if (trad) caja.append(el('span', 'hilo-trad', trad, el('span', 'hilo-trad-marca', t.traduccionAuto)));
 		const pie = m._estado === 'enviando' ? t.enviando : `${m.cuando ? horaChat(m.cuando, idioma) : ''}${visto && m === ultimoMio ? ` · ${t.visto}` : ''}`;
 		caja.append(el('div', 'hilo-pie', pie));
 		if (alResponder && !m._estado && !m.nota) {
@@ -215,7 +216,7 @@ export function pasosEnLinea(pasos) {
 // Textos del panel (en español; el cliente trae los suyos de scripts/lib/i18n.mjs).
 export const TEXTOS_PANEL = {
 	visto: 'Visto', enviando: 'Enviando…', noSeEnvio: 'No se envió · Reintentar', responder: 'Responder a este mensaje', irACita: 'Ir al mensaje citado',
-	comprobante: 'Comprobante de pago', datosDePago: 'Datos de pago', datosDeLlegada: 'Datos de llegada', cuadra: 'Cuadra', soloEquipo: 'Solo tú y el equipo', idioma: 'es'
+	comprobante: 'Comprobante de pago', datosDePago: 'Datos de pago', datosDeLlegada: 'Datos de llegada', cuadra: 'Cuadra', soloEquipo: 'Solo tú y el equipo', traduccionAuto: 'Traducción automática', idioma: 'es'
 };
 // El texto de un evento para el socio o el equipo (`yo`), con el primer nombre del cliente.
 export function eventoPanel(ev, yo, nombre) {

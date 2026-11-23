@@ -74,6 +74,7 @@
 .hilo-yo .hilo-cita { border-color: var(--eq-white); }
 .hilo-txt { display: block; }
 .hilo-trad { display: block; border-top: 1px solid var(--eq-line); margin-top: 4px; padding-top: 4px; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.hilo-trad-marca { display: block; font-size: 12px; line-height: 16px; opacity: .7; }
 .hilo-pie { font-size: 12px; line-height: 16px; opacity: .7; text-align: right; white-space: nowrap; }
 /* Responder: la flecha al lado del mensaje (al pasar el ratón, o al tocar el mensaje en el celular). */
 .hilo-app .hilo-resp { position: absolute; top: 50%; right: -48px; transform: translateY(-50%); width: 44px; height: 44px; display: none; place-items: center; font-size: 18px; color: var(--eq-ink); }

@@ -66,7 +66,7 @@ const ES = {
 	vacChatLlegas: 'Llegas el {dia}', vacChatDireccionAbajo: 'La dirección y cómo llegar están abajo', vacChatPagaDirecto: 'Paga directo al propietario',
 	vacChatCopiar: 'Copiar datos', vacChatCopiado: 'Datos copiados', vacChatEvPidio: 'Pediste reservar', vacChatEvConfirmo: 'El anfitrión confirmó tu reserva',
 	vacChatEvConfirmoEquipo: 'Confirmamos tu reserva', vacChatEvPagado: 'Se recibió tu pago', vacChatEnviando: 'Enviando…', vacChatNoSeEnvio: 'No se envió · Reintentar',
-	vacChatIrCita: 'Ir al mensaje citado', vacChatDatosPago: 'Datos de pago', vacChatCuadra: 'Cuadra',
+	vacChatIrCita: 'Ir al mensaje citado', vacChatDatosPago: 'Datos de pago', vacChatCuadra: 'Cuadra', vacChatTraduccionAuto: 'Traducción automática',
 	vacReglas: 'Reglas de la casa', vacReglasGenerales: '', vacCancelacion: 'Cancelación', vacCancelacionGeneral: '',
 	inicio: 'Inicio', propiedades: 'Propiedades', comprar: 'Comprar', rentar: 'Rentar', propiedadesVip: 'Propiedades VIP', verTodas: 'Ver todas', porZona: 'Buscar por zona', porZonaTipo: 'Buscar por zona y tipo',
 	// Bloque de precios de una zona (listingPage → bloquePrecios)
@@ -222,7 +222,7 @@ const EN = {
 	vacChatLlegas: 'You arrive on {dia}', vacChatDireccionAbajo: 'The address and directions are below', vacChatPagaDirecto: 'Pay the owner directly',
 	vacChatCopiar: 'Copy details', vacChatCopiado: 'Details copied', vacChatEvPidio: 'You requested to book', vacChatEvConfirmo: 'The host confirmed your booking',
 	vacChatEvConfirmoEquipo: 'We confirmed your booking', vacChatEvPagado: 'Your payment was received', vacChatEnviando: 'Sending…', vacChatNoSeEnvio: 'Not sent · Retry',
-	vacChatIrCita: 'Go to the quoted message', vacChatDatosPago: 'Payment details', vacChatCuadra: 'Matches',
+	vacChatIrCita: 'Go to the quoted message', vacChatDatosPago: 'Payment details', vacChatCuadra: 'Matches', vacChatTraduccionAuto: 'Automatic translation',
 	vacReglas: 'House rules', vacReglasGenerales: '', vacCancelacion: 'Cancellation', vacCancelacionGeneral: '',
 	inicio: 'Home', propiedades: 'Properties', comprar: 'Buy', rentar: 'Rent', propiedadesVip: 'Luxury homes', verTodas: 'View all', porZona: 'Browse by area', porZonaTipo: 'Browse by area and type',
 	preciosTitulo: 'Prices in {zona}', preciosRango: 'Price range', preciosMediana: 'Median price', preciosPorM2: 'Median price per\u00a0m²', preciosPorFt2: 'Median price per\u00a0sq\u00a0ft', preciosBase: 'Based on {n} listed prices in {moneda}.',
