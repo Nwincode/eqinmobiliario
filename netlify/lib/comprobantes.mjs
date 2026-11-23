@@ -26,9 +26,10 @@ export const urlDelComprobante = (token, url) => new RegExp(`^https://firebasest
 // Sin «null» ni «anyOf» (la misma forma de los esquemas que ya usa netlify/lib/tareas.mjs): lo que no se ve, 0 o ''.
 const ESQUEMA = {
 	type: 'object', additionalProperties: false,
-	required: ['esComprobante', 'monto', 'moneda', 'fecha', 'banco', 'referencia'],
+	required: ['esComprobante', 'contactoVisible', 'monto', 'moneda', 'fecha', 'banco', 'referencia'],
 	properties: {
 		esComprobante: { type: 'boolean', description: 'true si la imagen es un comprobante de pago o transferencia' },
+		contactoVisible: { type: 'boolean', description: 'true si en la imagen se ve un teléfono, un correo, un usuario de red social o un enlace que no es parte del comprobante bancario (los datos del banco, la cuenta y la referencia no cuentan)' },
 		monto: { type: 'number', description: 'Monto pagado, solo el número; 0 si no se ve' },
 		moneda: { type: 'string', enum: ['GTQ', 'USD', 'otra', ''], description: 'GTQ para quetzales (Q), USD para dólares (US$, $); vacío si no se ve' },
 		fecha: { type: 'string', description: 'Fecha del pago, AAAA-MM-DD; vacío si no se ve' },
@@ -36,11 +37,18 @@ const ESQUEMA = {
 		referencia: { type: 'string', description: 'Número de referencia, autorización o boleta; vacío si no se ve' }
 	}
 };
-const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, 0 o vacío. No supongas.';
+const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, 0 o vacío. No supongas. Di también si se ve algún teléfono, correo, usuario de red social o enlace que no sea parte del comprobante del banco.';
 
 // Lo leído contra lo esperado. leido: lo que devolvió la IA; esperado: { total, moneda, confirmada: 'AAAA-MM-DD' }.
-// Devuelve { cuadra, texto } con el porqué en palabras (lo que ve el socio).
-export function compararComprobante(leido, { total, moneda, confirmada }) {
+// Devuelve { cuadra, texto, oculta, motivoOculta } con el porqué en palabras (lo que ve el socio). `oculta`: la foto no
+// se le muestra al socio (no es un comprobante, o trae un dato de contacto): la ve el equipo y decide. Lo decide este
+// código con lo que leyó la IA (la IA solo lee).
+export function compararComprobante(leido, esperado) {
+	const r = compararMontos(leido, esperado);
+	const sinComprobante = !leido?.esComprobante, contacto = Boolean(leido?.contactoVisible);
+	return { ...r, oculta: sinComprobante || contacto, motivoOculta: contacto ? 'Posible dato de contacto' : sinComprobante ? 'No parece un comprobante' : '' };
+}
+function compararMontos(leido, { total, moneda, confirmada }) {
 	if (!leido?.esComprobante) return { cuadra: false, texto: 'No cuadra: la imagen no parece un comprobante de pago' };
 	const fallas = [];
 	const monto = Number(leido.monto);
@@ -94,7 +102,7 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 		const misma = prev?.mensaje === mensajeId;
 		if (misma && (prev.texto || ahora - (Number(prev.apartado) || 0) < EN_CURSO || (Number(prev.fallos) || 0) >= FALLOS)) return false;
 		if ((Number(prev?.revisiones) || 0) >= REVISIONES || (Number(prev?.intentos) || 0) >= INTENTOS) return false;
-		const datos = { mensaje: mensajeId, apartado: ahora, fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0, intentos: (Number(prev?.intentos) || 0) + 1,
+		const datos = { mensaje: mensajeId, apartado: ahora, oculta: false, motivoOculta: '', fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0, intentos: (Number(prev?.intentos) || 0) + 1,
 			propietarioId: chat.propietarioId || '', propertyId: chat.propertyId || '', texto: '', cuadra: false };
 		if (prev) cambiar(ruta, datos); else crear(ruta, datos);
 		return true;
@@ -112,7 +120,14 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	const confirmada = reserva?.createdAt instanceof Date ? V.hoy(reserva.createdAt.getTime()) : '';
 	const r = compararComprobante(leido, { total: Number(chat.total) || 0, moneda: chat.moneda || reserva?.moneda || 'USD', confirmada });
 	const limpio = (v, n) => (v == null ? '' : String(v).slice(0, n));
-	await transaccion(async ({ leer: l, cambiar }) => cambiar(ruta, { ...r, revisiones: (Number((await l(ruta))?.revisiones) || 0) + 1, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10), banco: limpio(leido.banco, 80), referencia: limpio(leido.referencia, 60) } }, { ahora: ['cuando'] }));
+	await transaccion(async ({ leer: l, cambiar }) => {
+		// Y el veredicto de esta foto por su id (`fotos.f{id}`: la «f» hace del id un nombre de campo válido aunque empiece con
+		// un número): una foto de antes sigue con el suyo cuando llega otra.
+		cambiar(ruta, { ...r, [`fotos.f${mensajeId}`]: { oculta: r.oculta, motivo: r.motivoOculta }, revisiones: (Number((await l(ruta))?.revisiones) || 0) + 1, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10), banco: limpio(leido.banco, 80), referencia: limpio(leido.referencia, 60), contactoVisible: Boolean(leido.contactoVisible) } }, { ahora: ['cuando'] });
+		// En el chat (que lee el cliente con su enlace): solo que esa foto no se aceptó, para decirle en una línea que solo
+		// se aceptan fotos del comprobante. Nada de lo leído.
+		cambiar(`chats/${token}`, { comprobanteOculto: r.oculta ? mensajeId : '' });
+	});
 	return r;
 }
 

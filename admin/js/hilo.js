@@ -149,18 +149,45 @@ export function pintarHilo(caja, nodos, alFondo = false) {
 
 // La tarjeta del comprobante: miniatura, la revisión de la IA (si la hay) y banco · referencia.
 // rv: { cuadra, texto, leido: { banco, referencia, monto, moneda } } de revisionesComprobante (solo el panel la lee).
-export function tarjetaComprobante(m, t, rv = null, monto = '') {
-	const a = el('a', 'hilo-comp-foto');
-	a.href = m.texto; a.target = '_blank'; a.rel = 'noopener';
-	const img = el('img'); img.src = m.texto; img.alt = t.comprobante; img.loading = 'lazy'; img.width = 64; img.height = 64;
-	a.append(img);
+// Con `foto` (estadoDeFoto, en el panel): `ver: false` → sin la imagen ni su enlace, con lo que dice `aviso`
+// («Foto recibida · en revisión», «El equipo está revisando esta foto»); `marca` → una línea más (lo que vio la revisión:
+// «Posible dato de contacto», «Sin revisar»); `accion` → un botón al final (el equipo: «Mostrar al socio»).
+export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, aviso = '', marca = '', accion = null } = {}) {
+	let a;
+	if (ver) {
+		a = el('a', 'hilo-comp-foto');
+		a.href = m.texto; a.target = '_blank'; a.rel = 'noopener';
+		const img = el('img'); img.src = m.texto; img.alt = t.comprobante; img.loading = 'lazy'; img.width = 64; img.height = 64;
+		a.append(img);
+	} else a = el('span', 'hilo-comp-foto hilo-comp-sin', icono('camera'));
 	const lineas = el('span', 'hilo-comp-txt', el('b', '', t.comprobante));
-	if (rv?.texto) lineas.append(el('span', `hilo-ia${rv.cuadra ? '' : ' hilo-ia-no'}`, icono(rv.cuadra ? 'check-circle' : 'exclamation-circle'), ` ${rv.cuadra ? `${t.cuadra}${monto ? `: ${monto}` : ''}` : rv.texto}`));
-	const datos = [rv?.leido?.banco, rv?.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).join(' · ');
+	if (!ver) lineas.append(el('span', 'hilo-comp-dato', aviso));
+	if (ver && rv?.texto) lineas.append(el('span', `hilo-ia${rv.cuadra ? '' : ' hilo-ia-no'}`, icono(rv.cuadra ? 'check-circle' : 'exclamation-circle'), ` ${rv.cuadra ? `${t.cuadra}${monto ? `: ${monto}` : ''}` : rv.texto}`));
+	if (marca) lineas.append(el('span', `hilo-ia${marca === 'Sin revisar' ? ' hilo-ia-gris' : ' hilo-ia-no'}`, icono(marca === 'Sin revisar' ? 'info-circle' : 'exclamation-circle'), ` ${marca}`));
+	const datos = ver ? [rv?.leido?.banco, rv?.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).join(' · ') : '';
 	if (datos) lineas.append(el('span', 'hilo-comp-dato', datos));
-	const caja = el('div', 'hilo-tarj hilo-comp', a, lineas);
+	const caja = el('div', 'hilo-tarj hilo-comp', a, lineas, accion);
 	caja.dataset.id = m.id || '';
 	return caja;
+}
+
+// ¿Se le muestra al socio la foto `m` que mandó el cliente? Lo decide la revisión del servidor (netlify/lib/comprobantes.mjs:
+// revisionesComprobante `fotos.f{id}` y el de ahora en `mensaje`/`oculta`), lo que el equipo decidió (`chat.fotosVisibles`)
+// y si hay IA (`ia`). Sin IA, o si la revisión falló o tarda más de ESPERA_REVISION: como siempre (se ve). Devuelve
+// { ver, enRevision, oculta, marca } — `marca` es lo que ve el equipo junto a la foto.
+export const ESPERA_REVISION = 20 * 60_000;
+export function estadoDeFoto(m, { chat = {}, rv = null, ia = false, ahora = Date.now() } = {}) {
+	if ((chat.fotosVisibles || []).includes(m.id)) return { ver: true, marca: '' };
+	if (!ia) return { ver: true, marca: 'Sin revisar' };
+	const suya = rv?.fotos?.[`f${m.id}`] || (rv?.mensaje === m.id && rv.texto ? { oculta: Boolean(rv.oculta), motivo: rv.motivoOculta || '' } : null);
+	if (suya) return suya.oculta ? { ver: false, oculta: true, marca: suya.motivo || 'Posible dato de contacto' } : { ver: true, marca: '' };
+	// Sin veredicto: la de ahora espera su revisión un rato; si falló (3 veces) o tarda, se ve como siempre.
+	const actual = m.id === chat.comprobanteMensaje;
+	const fallo = rv?.mensaje === m.id && Number(rv.fallos) >= 3;
+	if (actual && !fallo && ahora - ms(m.createdAt) < ESPERA_REVISION) return { ver: false, enRevision: true, marca: 'Sin revisar' };
+	if (actual) return { ver: true, marca: 'Sin revisar' };
+	// Una foto que no es el comprobante de la reserva (nadie la revisó): el equipo la ve y decide.
+	return { ver: false, oculta: true, marca: 'Sin revisar' };
 }
 
 // Los pasos de la reserva en una línea (página del cliente): [{ texto, estado: 'ok' | 'ya' | '' }].

@@ -13,10 +13,10 @@ const t = async (nombre, fn) => { limpiar(); await fn(); n++; console.log('✓',
 const T = 'TokenDePruebaLargoYAlAzar2345';
 const URL_FOTO = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T}%2Ffoto1.webp?alt=media&token=abc-123`;
 const esperado = { total: 1122.4, moneda: 'USD', confirmada: '2026-11-18' };
-const leido = (o = {}) => ({ esComprobante: true, monto: 1122.4, moneda: 'USD', fecha: '2026-11-19', banco: 'Banco Industrial', referencia: '998877', ...o });
+const leido = (o = {}) => ({ esComprobante: true, contactoVisible: false, monto: 1122.4, moneda: 'USD', fecha: '2026-11-19', banco: 'Banco Industrial', referencia: '998877', ...o });
 
 await t('cuadra: monto (con centavos de diferencia), moneda y fecha después de confirmar', () => {
-	assert.deepEqual(compararComprobante(leido({ monto: 1122 }), esperado), { cuadra: true, texto: 'El comprobante cuadra' });
+	assert.deepEqual(compararComprobante(leido({ monto: 1122 }), esperado), { cuadra: true, texto: 'El comprobante cuadra', oculta: false, motivoOculta: '' });
 });
 await t('no cuadra: dice qué y cuánto se esperaba', () => {
 	assert.equal(compararComprobante(leido({ monto: 500 }), esperado).texto, 'No cuadra: monto US$ 500.00, esperado US$ 1,122.40');
@@ -50,6 +50,22 @@ await t('revisa una vez por foto y deja el aviso para el socio y el equipo', asy
 	assert.equal(veces, 1);
 });
 
+await t('foto con un dato de contacto o que no es un comprobante: se oculta al socio (lo decide el código) y el chat lo marca para el cliente', async () => {
+	assert.deepEqual(compararComprobante(leido({ contactoVisible: true }), esperado), { cuadra: true, texto: 'El comprobante cuadra', oculta: true, motivoOculta: 'Posible dato de contacto' });
+	assert.equal(compararComprobante({ esComprobante: false, contactoVisible: false }, esperado).motivoOculta, 'No parece un comprobante');
+	preparar();
+	const r = await revisarComprobante(T, { leer: async () => leido({ contactoVisible: true }), bajar, ahora: S.reloj });
+	assert.equal(r.oculta, true);
+	assert.equal(leer('revisionesComprobante/l1').oculta, true);
+	assert.equal(leer('revisionesComprobante/l1').leido.contactoVisible, true);
+	assert.equal(leer(`chats/${T}`).comprobanteOculto, 'm1');
+	assert.deepEqual(leer('revisionesComprobante/l1').fotos.fm1, { oculta: true, motivo: 'Posible dato de contacto' });
+	// Uno que sí es comprobante y sin contacto: el chat queda sin marca.
+	limpiar(); preparar();
+	await revisarComprobante(T, { leer: async () => leido(), bajar, ahora: S.reloj });
+	assert.equal(leer(`chats/${T}`).comprobanteOculto, '');
+	assert.equal(leer('revisionesComprobante/l1').oculta, false);
+});
 await t('un mensaje que no es la foto del cliente o de otra carpeta: no se manda a la IA', async () => {
 	preparar();
 	poner(`chats/${T}/mensajes/m1`, { de: 'cliente', tipo: 'foto', texto: 'https://malo.com/x.webp' });

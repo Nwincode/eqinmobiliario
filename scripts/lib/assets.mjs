@@ -44,7 +44,7 @@ const SAFELIST = {
 		/^btn-(link|sm|outline-primary)$/, /^p-0$/, /^align-baseline$/, /^ms-2$/, // botones que arman js/site.js y js/reserva-chat.js
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
 		/^vac-/, // js/vacacional.js arma el calendario y el desglose
-		/^hilo-/, /^icon-(calendar-plus-o|check-circle|money|ban|lock|reply|exclamation-circle|camera)$/], // el hilo del chat (admin/js/hilo.js) arma sus piezas y sus íconos
+		/^hilo-/, /^icon-(calendar-plus-o|check-circle|money|ban|lock|reply|exclamation-circle|camera|info-circle)$/], // el hilo del chat (admin/js/hilo.js) arma sus piezas y sus íconos
 	deep: [/^tns-/, /^site-mobile-menu/, /^site-nav-wrap/, /^vip-lightbox/],
 	greedy: [/data-aos/, /aos-animate/, /tns/],
 	variables: [/.*/]

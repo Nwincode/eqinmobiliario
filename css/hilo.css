@@ -96,6 +96,9 @@
 .hilo-comp-txt b { font-weight: 600; }
 .hilo-ia { font-size: 12px; line-height: 16px; color: var(--eq-whatsapp); font-weight: 600; }
 .hilo-ia.hilo-ia-no { color: var(--eq-danger); }
+.hilo-ia.hilo-ia-gris { color: var(--eq-ink); font-weight: 400; }
+.hilo-comp-sin { width: 64px; height: 64px; border-radius: 8px; background: var(--eq-fondo); display: grid; place-items: center; font-size: 20px; color: var(--eq-ink); }
+.hilo-comp > .hilo-btn { margin-left: auto; }
 .hilo-comp-dato { font-size: 12px; line-height: 16px; color: var(--eq-ink); }
 
 /* Escribir: respuestas rápidas, la cita, el campo y la regla (o el aviso). */

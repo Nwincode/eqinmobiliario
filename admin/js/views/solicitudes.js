@@ -196,9 +196,13 @@ export async function render(container, [codigo] = []) {
 				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
 			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
-			((rv) => (rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
-				? h('div', { class: `small ${rv.cuadra ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
-					rv.texto, h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
+			// Una foto que la revisión ocultó (no es un comprobante o trae un contacto): el socio no ve lo leído, solo que el equipo
+			// la revisa (Mensajes); el equipo, además, por qué.
+			((rv) => (rv?.texto && rv.oculta && !admin && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje && !(ch.fotosVisibles || []).includes(rv.mensaje)
+				? h('div', { class: 'small text-muted' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'El equipo está revisando la foto del comprobante.')
+				: rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
+				? h('div', { class: `small ${rv.cuadra && !rv.oculta ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
+					rv.texto, rv.oculta && rv.motivoOculta ? ` · ${rv.motivoOculta}` : '', h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
 				: null))(revisiones[l.id]),
 			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
 			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),

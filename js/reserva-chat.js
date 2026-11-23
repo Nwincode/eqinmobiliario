@@ -262,6 +262,10 @@
 			sello.querySelector('span').textContent = t.vacChatEsperando;
 			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !(Number(ch.pagoReabierto) >= new Date(ch.comprobanteCliente).getTime());
 			var reabierto = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !conComprobante;
+			// La revisión no aceptó la foto (no era un comprobante o traía un dato de contacto: netlify/lib/comprobantes.mjs):
+			// se le dice en una línea y puede subir la foto del comprobante otra vez.
+			var noAceptada = estado === 'Confirmada' && Boolean(ch.comprobanteOculto) && ch.comprobanteOculto === ch.comprobanteMensaje;
+			if (noAceptada) conComprobante = false;
 			var vence = Number(ch.vencePago) || 0;
 			pasos.replaceChildren();
 			if (!pendiente && estado !== 'No' && estado !== 'Cancelada') {
@@ -275,7 +279,7 @@
 				if (conComprobante) { titulo = t.vacChatEnviado; detalle = t.vacChatLoRevisa; }
 				else {
 					titulo = vence > 0 ? fmt(t.vacChatVence, { cuando: cuandoVence(vence) }) : t.vacChatPagaAntes;
-					detalle = reabierto ? t.vacChatOtraVez : t.vacChatPagaYSube;
+					detalle = noAceptada ? t.vacChatSoloComprobante : reabierto ? t.vacChatOtraVez : t.vacChatPagaYSube;
 					accion = boton2(t.vacChatSubir, 'camera', function () { archivo.click(); });
 				}
 			} else if (estado === 'Pagada') {

@@ -7,13 +7,13 @@
 // Lo que se escribe pasa el mismo filtro de contacto que el del cliente y las reglas (V.tipoDeContacto), mientras se
 // escribe. Las notas internas (chats/{token}/notas) no las lee el cliente: las reglas no se las dejan leer con su enlace.
 import '/js/calc-vacacional.js';
-import { db, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp } from '../firebase.js';
+import { db, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp, arrayUnion } from '../firebase.js';
 import { h, ahoraYa, showError } from '../ui.js';
 import { session } from '../session.js';
 import { avisarChat } from '../reservas.js';
 import { comprobanteVigente, llegadaPasada } from '../reservas-calculo.js';
 import { cargarSolicitudes, estado, rapidasDe } from '../solicitudes-base.js';
-import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, eventoPanel, TEXTOS_PANEL, enMs } from '../hilo.js';
+import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, estadoDeFoto, eventoPanel, TEXTOS_PANEL, enMs } from '../hilo.js';
 import { dinero, rangoDias, diaConSemana, diaLargo, cuandoCorto, horaChat, diaDeChat, nNoches } from '../formato.js';
 import { PARECE } from '../mi-casa.js';
 import { avisarAvisos } from '../avisos.js';
@@ -64,7 +64,7 @@ export async function render(container, [codigo = ''] = []) {
 	const fila = filas.find((f) => f.cod === codigo) || null;
 	if (!memo.filtro) memo.filtro = filas.some((f) => f.sinResponder) ? 'sin' : 'todas';
 	const raiz = h('div', { class: `msj hilo-app${fila ? ' msj-en-hilo' : ''}` });
-	raiz.append(lista(S, filas, fila), ...(fila ? hiloDe(S, fila, conR7) : [h('section', { class: 'msj-hilo msj-hilo-vacio' }, h('p', { class: 'hilo-vacio' }, filas.length ? 'Elige una conversación.' : 'Todavía no hay conversaciones.'))]));
+	raiz.append(lista(S, filas, fila), ...(fila ? hiloDe(S, fila, conR7, await estadoIA()) : [h('section', { class: 'msj-hilo msj-hilo-vacio' }, h('p', { class: 'hilo-vacio' }, filas.length ? 'Elige una conversación.' : 'Todavía no hay conversaciones.'))]));
 	container.append(raiz);
 	// La lista vuelve a donde iba.
 	requestAnimationFrame(() => { const l = raiz.querySelector('.msj-filas'); if (l) l.scrollTop = memo.scroll; });
@@ -126,7 +126,7 @@ function filaEl(S, f, elegida) {
 }
 
 // ------------------------------------------------------------ El hilo de una conversación
-function hiloDe(S, f, conR7) {
+function hiloDe(S, f, conR7, iaActiva) {
 	const { l, cod } = f;
 	const token = S.chats[cod];
 	const yo = f.yo;
@@ -142,7 +142,20 @@ function hiloDe(S, f, conR7) {
 	const etiqueta = (m) => (m.de === 'cliente' ? '' : m.de === 'equipo' ? (m.nombre ? `Equipo · ${m.nombre}` : m.de === yo ? '' : 'Equipo')
 		: m.de === yo ? '' : `Socio${dueno?.nombre ? ` · ${PRIMERO(dueno.nombre)}` : ''}`);
 	const nombreDe = (de) => (de === 'cliente' ? PRIMERO(l.nombre) || 'Cliente' : de === yo ? 'Tú' : de === 'socio' ? 'Socio' : 'Equipo');
-	const tarjeta = (m) => (m.tipo === 'foto' ? tarjetaComprobante(m, t, rv(), rv()?.cuadra ? dinero(chat.total, chat.moneda) : '') : m.tipo === 'pago' || m.tipo === 'llegada' ? 'omitir' : null);
+	// La foto del cliente: el socio la ve cuando la revisión dice que es un comprobante sin datos de contacto (o sin IA, como
+	// siempre); el equipo siempre, con lo que vio la revisión y «Mostrar al socio» si está oculta (estadoDeFoto, hilo.js).
+	const tarjeta = (m) => {
+		if (m.tipo === 'pago' || m.tipo === 'llegada') return 'omitir';
+		if (m.tipo !== 'foto') return null;
+		const f = estadoDeFoto(m, { chat, rv: S.revisiones[l.id] || null, ia: iaActiva, ahora: ahoraYa() });
+		const monto = rv()?.cuadra && rv().mensaje === m.id ? dinero(chat.total, chat.moneda) : '';
+		if (!S.admin) return tarjetaComprobante(m, t, f.ver ? rv() : null, monto, { ver: f.ver, aviso: f.enRevision ? 'Foto recibida · en revisión' : 'El equipo está revisando esta foto' });
+		const mostrar = !f.ver ? h('button', { type: 'button', class: 'hilo-btn hilo-btn-sec', onclick: async (e) => {
+			e.currentTarget.disabled = true;
+			try { await updateDoc(doc(db, 'chats', token), { fotosVisibles: arrayUnion(m.id) }); } catch (err) { showError(err); e.currentTarget.disabled = false; }
+		} }, 'Mostrar al socio') : null;
+		return tarjetaComprobante(m, t, rv()?.mensaje === m.id ? rv() : null, monto, { marca: f.marca, accion: mostrar });
+	};
 	const repintar = () => {
 		const items = [...mensajes, ...notas.map((n) => ({ ...n, nota: true })), ...fallidos.values()];
 		const nodos = armarHilo(items, { yo, t, ahora: ahoraYa(), chat, vistoOtros: enMs(chat.vistoCliente), etiqueta, nombreDe, tarjeta,
@@ -276,6 +289,8 @@ function hiloDe(S, f, conR7) {
 			if (cambio) return recargarDatos();
 			repintar();
 		}, () => {}),
+		// La revisión del comprobante (lo que decide si el socio ve la foto): al llegar, se repinta.
+		l.id ? onSnapshot(doc(db, 'revisionesComprobante', l.id), (d) => { if (d.exists()) { S.revisiones[l.id] = d.data(); repintar(); } }, () => {}) : () => {},
 		conR7 ? onSnapshot(query(collection(db, 'chats', token, 'notas'), orderBy('createdAt')), { includeMetadataChanges: true }, (s) => {
 			notas = s.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }), ...(d.metadata.hasPendingWrites ? { _estado: 'enviando' } : {}) }));
 			repintar();
