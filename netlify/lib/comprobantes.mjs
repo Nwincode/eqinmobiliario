@@ -8,16 +8,17 @@
 // lo más 3 revisiones terminadas por chat (y 3 fallidas por foto). Si la función se corta antes de terminar (la IA tarda),
 // la retoma el control de cada 15 minutos (plazos-reservas.mjs, `revisarPendientes`). Tope de llamadas a la IA por chat
 // (`intentos`, se cuenta al apartar: también las cortadas y las de fotos nuevas que fallan): así una foto que siempre
-// falla, o una foto nueva tras otra, no la llama sin fin.
+// falla, o una foto nueva tras otra, no la llama sin fin. Los topes viven en admin/js/hilo.js: la foto que ya no se revisa
+// por ellos queda oculta para el socio (estadoDeFoto) hasta que el equipo decide.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { client, MODEL, iaConfigurada } from './ia-cliente.mjs';
 import { dinero } from '../../admin/js/formato.js';
+import { REVISIONES_POR_CHAT as REVISIONES, FALLOS_POR_FOTO as FALLOS, INTENTOS_POR_CHAT as INTENTOS } from '../../admin/js/hilo.js';
 
 const V = globalThis.EQVacacional;
 const MAX_FOTO = 5 * 1024 * 1024;
-const REVISIONES = 3, FALLOS = 3, INTENTOS = REVISIONES + FALLOS;
 const EN_CURSO = 10 * 60_000;
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 

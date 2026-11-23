@@ -7,6 +7,7 @@ import { S, limpiar, poner, leer } from './simulado/base.mjs';
 
 process.env.ANTHROPIC_API_KEY = 'prueba';
 const { compararComprobante, revisarComprobante, urlDelComprobante } = await import('../netlify/lib/comprobantes.mjs');
+const { estadoDeFoto } = await import('../admin/js/hilo.js');
 
 let n = 0;
 const t = async (nombre, fn) => { limpiar(); await fn(); n++; console.log('✓', nombre); };
@@ -91,6 +92,33 @@ await t('tope: 3 fotos por chat', async () => {
 		const r = await revisarComprobante(T, { leer: async () => leido(), bajar });
 		assert.equal(Boolean(r), i <= 3, `foto ${i}`);
 	}
+});
+
+await t('la cuarta foto (el tope ya se gastó con 3 cualesquiera): no se revisa y queda oculta para el socio; el equipo la ve «Sin revisar»', async () => {
+	preparar();
+	for (let i = 1; i <= 4; i++) {
+		poner(`chats/${T}`, { ...leer(`chats/${T}`), comprobanteMensaje: `m${i}` });
+		poner(`chats/${T}/mensajes/m${i}`, { de: 'cliente', tipo: 'foto', texto: URL_FOTO, createdAt: S.reloj });
+		await revisarComprobante(T, { leer: async () => leido(), bajar, ahora: S.reloj });
+	}
+	const cuarta = { id: 'm4', tipo: 'foto', de: 'cliente', createdAt: S.reloj };
+	const rv = leer('revisionesComprobante/l1'), chat = leer(`chats/${T}`);
+	assert.equal(rv.mensaje, 'm3');
+	// Al momento y pasados los 20 minutos: oculta (antes, a los 20 minutos se le mostraba al socio).
+	for (const ahora of [S.reloj + 60_000, S.reloj + 21 * 60_000]) assert.deepEqual(estadoDeFoto(cuarta, { chat, rv, ia: true, ahora }), { ver: false, oculta: true, marca: 'Sin revisar' });
+	// «Mostrar al socio» del equipo: se ve.
+	assert.equal(estadoDeFoto(cuarta, { chat: { ...chat, fotosVisibles: ['m4'] }, rv, ia: true, ahora: S.reloj }).ver, true);
+	// Sin IA configurada: como siempre.
+	assert.equal(estadoDeFoto(cuarta, { chat, rv, ia: false, ahora: S.reloj }).ver, true);
+});
+await t('la foto que falló 3 veces queda oculta para el socio (con 1 o 2 fallos sigue «en revisión», aunque pasen los 20 minutos)', async () => {
+	preparar();
+	const foto = { id: 'm1', tipo: 'foto', de: 'cliente', createdAt: S.reloj };
+	const mal = async () => { throw new Error('IA: refusal'); };
+	await assert.rejects(revisarComprobante(T, { leer: mal, bajar, ahora: S.reloj }));
+	assert.equal(estadoDeFoto(foto, { chat: leer(`chats/${T}`), rv: leer('revisionesComprobante/l1'), ia: true, ahora: S.reloj + 21 * 60_000 }).enRevision, true);
+	for (let i = 1; i < 3; i++) await assert.rejects(revisarComprobante(T, { leer: mal, bajar, ahora: S.reloj + i * 15 * 60_000 }));
+	assert.deepEqual(estadoDeFoto(foto, { chat: leer(`chats/${T}`), rv: leer('revisionesComprobante/l1'), ia: true, ahora: S.reloj + 46 * 60_000 }), { ver: false, oculta: true, marca: 'Sin revisar' });
 });
 
 await t('tope de la IA por chat: fotos nuevas que fallan (o se cortan) no la llaman sin fin', async () => {

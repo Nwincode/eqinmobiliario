@@ -16,9 +16,19 @@ t('con IA y sin veredicto todavía: «en revisión» para el socio', () => {
 	const f = estadoDeFoto(foto, { chat, rv: { mensaje: 'm1', texto: '' }, ia: true, ahora });
 	assert.equal(f.ver, false); assert.equal(f.enRevision, true);
 });
-t('la revisión tarda más de lo esperado o falló 3 veces: se ve como siempre (no se traba el pago)', () => {
+t('la revisión tarda más de lo esperado (sin fallos ni tope): se ve como siempre', () => {
 	assert.equal(estadoDeFoto({ ...foto, createdAt: ahora - ESPERA_REVISION - 1 }, { chat, rv: null, ia: true, ahora }).ver, true);
-	assert.equal(estadoDeFoto(foto, { chat, rv: { mensaje: 'm1', fallos: 3 }, ia: true, ahora }).ver, true);
+});
+t('ya no se va a revisar (falló 3 veces, o el chat llegó al tope de revisiones o de intentos): oculta, «Sin revisar» para el equipo', () => {
+	const oculta = { ver: false, oculta: true, marca: 'Sin revisar' };
+	assert.deepEqual(estadoDeFoto(foto, { chat, rv: { mensaje: 'm1', fallos: 3 }, ia: true, ahora }), oculta);
+	assert.deepEqual(estadoDeFoto(foto, { chat, rv: { mensaje: 'm0', revisiones: 3 }, ia: true, ahora }), oculta);
+	assert.deepEqual(estadoDeFoto(foto, { chat, rv: { mensaje: 'm0', intentos: 6 }, ia: true, ahora }), oculta);
+	assert.deepEqual(estadoDeFoto({ ...foto, createdAt: ahora - ESPERA_REVISION - 1 }, { chat, rv: { mensaje: 'm0', revisiones: 3 }, ia: true, ahora }), oculta);
+	// Con 1 fallo, pasados los 20 minutos: sigue «en revisión» (se reintenta), no se muestra por tiempo.
+	assert.equal(estadoDeFoto({ ...foto, createdAt: ahora - ESPERA_REVISION - 1 }, { chat, rv: { mensaje: 'm1', fallos: 1 }, ia: true, ahora }).enRevision, true);
+	// El último intento, en curso (apartada hace poco): «en revisión».
+	assert.equal(estadoDeFoto({ ...foto, createdAt: ahora - ESPERA_REVISION - 1 }, { chat, rv: { mensaje: 'm1', intentos: 6, apartado: ahora - 60_000 }, ia: true, ahora }).enRevision, true);
 });
 t('comprobante sin contacto: el socio la ve', () => {
 	assert.deepEqual(estadoDeFoto(foto, { chat, rv: { mensaje: 'm1', texto: 'El comprobante cuadra', oculta: false, fotos: { fm1: { oculta: false, motivo: '' } } }, ia: true, ahora }), { ver: true, marca: '' });

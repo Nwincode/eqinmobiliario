@@ -173,21 +173,33 @@ export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, av
 
 // ¿Se le muestra al socio la foto `m` que mandó el cliente? Lo decide la revisión del servidor (netlify/lib/comprobantes.mjs:
 // revisionesComprobante `fotos.f{id}` y el de ahora en `mensaje`/`oculta`), lo que el equipo decidió (`chat.fotosVisibles`)
-// y si hay IA (`ia`). Sin IA, o si la revisión falló o tarda más de ESPERA_REVISION: como siempre (se ve). Devuelve
-// { ver, enRevision, oculta, marca } — `marca` es lo que ve el equipo junto a la foto.
+// y si hay IA (`ia`). Sin IA: como siempre (se ve). Con IA, una foto sin veredicto que ya no se va a revisar (el chat llegó
+// al tope de revisiones o de intentos, o la foto falló FALLOS_POR_FOTO veces) queda oculta: la ve el equipo y decide
+// («Mostrar al socio»); si no, así un cliente podía subir 3 fotos cualesquiera y la cuarta, con su teléfono, ya no se
+// revisaba. Solo la que tarda (sin fallos y sin tope) se ve después de ESPERA_REVISION, como siempre. El pago no se traba:
+// el socio sigue viendo «Subió comprobante». Devuelve { ver, enRevision, oculta, marca } — `marca` es lo que ve el equipo.
+// Los topes son los del servidor (comprobantes.mjs los toma de aquí).
 export const ESPERA_REVISION = 20 * 60_000;
+export const REVISIONES_POR_CHAT = 3, FALLOS_POR_FOTO = 3, INTENTOS_POR_CHAT = REVISIONES_POR_CHAT + FALLOS_POR_FOTO;
 export function estadoDeFoto(m, { chat = {}, rv = null, ia = false, ahora = Date.now() } = {}) {
 	if ((chat.fotosVisibles || []).includes(m.id)) return { ver: true, marca: '' };
 	if (!ia) return { ver: true, marca: 'Sin revisar' };
 	const suya = rv?.fotos?.[`f${m.id}`] || (rv?.mensaje === m.id && rv.texto ? { oculta: Boolean(rv.oculta), motivo: rv.motivoOculta || '' } : null);
 	if (suya) return suya.oculta ? { ver: false, oculta: true, marca: suya.motivo || 'Posible dato de contacto' } : { ver: true, marca: '' };
-	// Sin veredicto: la de ahora espera su revisión un rato; si falló (3 veces) o tarda, se ve como siempre.
-	const actual = m.id === chat.comprobanteMensaje;
-	const fallo = rv?.mensaje === m.id && Number(rv.fallos) >= 3;
-	if (actual && !fallo && ahora - ms(m.createdAt) < ESPERA_REVISION) return { ver: false, enRevision: true, marca: 'Sin revisar' };
-	if (actual) return { ver: true, marca: 'Sin revisar' };
+	const oculta = { ver: false, oculta: true, marca: 'Sin revisar' };
 	// Una foto que no es el comprobante de la reserva (nadie la revisó): el equipo la ve y decide.
-	return { ver: false, oculta: true, marca: 'Sin revisar' };
+	if (m.id !== chat.comprobanteMensaje) return oculta;
+	const apartada = rv?.mensaje === m.id;
+	const fallos = apartada ? Number(rv.fallos) || 0 : 0;
+	const topado = (Number(rv?.revisiones) || 0) >= REVISIONES_POR_CHAT || (Number(rv?.intentos) || 0) >= INTENTOS_POR_CHAT;
+	// La de ahora espera su revisión: la que está en curso (apartada hace poco, aunque sea el último intento) dice «en revisión».
+	const enCurso = apartada && fallos < FALLOS_POR_FOTO && ahora - ms(rv.apartado) < ESPERA_REVISION;
+	if (enCurso || (!topado && fallos < FALLOS_POR_FOTO && ahora - ms(m.createdAt) < ESPERA_REVISION)) return { ver: false, enRevision: true, marca: 'Sin revisar' };
+	// Ya no se va a revisar (tope o 3 fallos): oculta. Con un fallo anotado todavía se reintenta: sigue «en revisión».
+	if (topado || fallos >= FALLOS_POR_FOTO) return oculta;
+	if (fallos) return { ver: false, enRevision: true, marca: 'Sin revisar' };
+	// Tarda (la revisión no llegó, sin fallos ni tope): como siempre, se ve.
+	return { ver: true, marca: 'Sin revisar' };
 }
 
 // Los pasos de la reserva en una línea (página del cliente): [{ texto, estado: 'ok' | 'ya' | '' }].
