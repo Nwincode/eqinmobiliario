@@ -8,7 +8,7 @@
 // escribe. Las notas internas (chats/{token}/notas) no las lee el cliente: las reglas no se las dejan leer con su enlace.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp } from '../firebase.js';
-import { h, ahoraYa } from '../ui.js';
+import { h, ahoraYa, showError } from '../ui.js';
 import { avisarChat } from '../reservas.js';
 import { comprobanteVigente, llegadaPasada } from '../reservas-calculo.js';
 import { cargarSolicitudes, estado, rapidasDe } from '../solicitudes-base.js';
@@ -16,6 +16,7 @@ import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, eventoPan
 import { dinero, rangoDias, diaConSemana, diaLargo, cuandoCorto, horaChat, diaDeChat, nNoches } from '../formato.js';
 import { PARECE } from '../mi-casa.js';
 import { avisarAvisos } from '../avisos.js';
+import { estadoIA, sugerirRespuesta } from '../ia.js';
 
 const V = window.EQVacacional;
 const t = TEXTOS_PANEL;
@@ -215,6 +216,22 @@ function hiloDe(S, f, conR7) {
 		h('button', { type: 'button', class: 'hilo-chip hilo-chip-mas', 'aria-label': 'Ver todas las respuestas rápidas', title: 'Más respuestas', 'aria-expanded': String(memo.rapidasTodas), onclick: (e) => {
 			memo.rapidasTodas = !memo.rapidasTodas; rapidas.classList.toggle('hilo-todas', memo.rapidasTodas); e.currentTarget.setAttribute('aria-expanded', String(memo.rapidasTodas));
 		} }, '⋯'));
+	// «Sugerir respuesta» (con la IA encendida): el borrador va al campo, para revisarlo y mandarlo (nunca sale solo).
+	estadoIA().then((activa) => {
+		if (!activa) return;
+		const chip = h('button', { type: 'button', class: 'hilo-chip hilo-chip-ia', title: 'Sugerir una respuesta (la revisas antes de mandarla)', onclick: async () => {
+			chip.disabled = true;
+			const antes = chip.lastChild.textContent;
+			chip.lastChild.textContent = ' Pensando…';
+			try {
+				const texto = await sugerirRespuesta(token);
+				if (texto) { campo.value = texto; memo.borradores[cod] = texto; crecer(); revisar(); campo.focus(); }
+			} catch (err) { showError(err); }
+			chip.lastChild.textContent = antes;
+			chip.disabled = false;
+		} }, h('span', { class: 'icon-bolt', 'aria-hidden': 'true' }), ' Sugerir respuesta');
+		rapidas.firstChild.prepend(chip);
+	});
 	const cerrada = ['no', 'cancelada'].includes(chat.estado || '');
 	// El socio ya no escribe en una reserva que no se dio o se canceló (las reglas tampoco lo dejan); el equipo sí.
 	const pie = !S.admin && cerrada ? h('div', { class: 'hilo-pie-chat' }, h('p', { class: 'hilo-regla m-0' }, h('span', { class: 'icon-info-circle', 'aria-hidden': 'true' }), ' Esta reserva ya terminó: aquí ya no se escribe.'))

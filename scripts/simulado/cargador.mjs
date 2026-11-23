@@ -8,7 +8,8 @@ const CAMBIOS = {
 	'netlify/lib/firestore-escritura.mjs': 'firestore-escritura.mjs',
 	'netlify/lib/auth.mjs': 'auth.mjs',
 	'netlify/lib/correo.mjs': 'correo.mjs',
-	'netlify/lib/resumen.mjs': 'resumen.mjs'
+	'netlify/lib/resumen.mjs': 'resumen.mjs',
+	'netlify/lib/ia-cliente.mjs': 'ia-cliente.mjs'
 };
 export async function resolve(especificador, contexto, siguiente) {
 	const r = await siguiente(especificador, contexto);

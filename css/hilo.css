@@ -115,7 +115,7 @@
 .hilo-escribir { display: flex; gap: 4px; align-items: flex-end; }
 .hilo-campo { flex: 1; min-width: 0; min-height: 44px; max-height: 132px; border: 1px solid var(--eq-line); border-radius: 8px; padding: 11px 12px; font: inherit; color: var(--eq-dark); background: var(--hilo-sup); resize: none; overflow-y: auto; }
 .hilo-campo:focus { outline: 2px solid var(--eq-focus); outline-offset: -1px; border-color: transparent; }
-.hilo-campo.hilo-mal { border-color: var(--eq-danger); }
+.hilo-campo.hilo-mal, .hilo-campo.hilo-mal:focus { border-color: var(--eq-danger); outline-color: var(--eq-danger); }
 .hilo-escribir.hilo-en-nota .hilo-campo { border-style: dashed; }
 .hilo-regla { font-size: 12px; line-height: 16px; color: var(--eq-ink); margin: 4px 0 0; }
 .hilo-regla.hilo-alerta { color: var(--eq-danger); font-weight: 600; }

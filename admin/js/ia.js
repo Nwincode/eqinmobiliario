@@ -54,3 +54,7 @@ export async function pedirIA(tarea, todo) {
 	if (!local) throw new Error('Esta herramienta necesita la IA, que no está activada.');
 	return local(datos);
 }
+
+// «Sugerir respuesta» en Mensajes: un borrador de la IA para el chat `token` (lo que ve la IA lo arma el servidor con lo
+// guardado: netlify/lib/sugerir-respuesta.mjs). Nunca se manda solo: va al campo y pasa el mismo aviso de contacto.
+export const sugerirRespuesta = async (token) => String((await llamarIA('respuestaChat', { chat: token })).respuesta || '').trim();
