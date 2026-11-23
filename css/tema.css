@@ -30,6 +30,37 @@
 	--eq-primary-soft: color-mix(in oklab, var(--eq-primary) 8%, var(--eq-white));
 	--eq-focus: var(--eq-cyan);
 
+	/* Panel (admin/admin.css): todo sale de los colores de arriba. */
+	--adm-primary: var(--eq-primary);
+	--adm-cyan: var(--eq-cyan);
+	--adm-dark: var(--eq-dark);
+	--adm-bg: var(--eq-mist);
+	--adm-surface: var(--eq-white);
+	--adm-border: color-mix(in oklab, var(--eq-dark) 10%, var(--eq-white));
+	--adm-text: var(--eq-text);
+	--adm-muted: var(--eq-ink);
+	--adm-radius: var(--eq-radius-card);
+	--adm-shadow: 0 1px 2px color-mix(in srgb, var(--eq-dark) 4%, transparent), 0 1px 3px color-mix(in srgb, var(--eq-dark) 6%, transparent);
+	--adm-sidebar: 256px;
+	--adm-nav-bg: var(--eq-dark);
+	--adm-nav-text: color-mix(in srgb, var(--eq-white) 72%, transparent);
+	--adm-nav-muted: color-mix(in srgb, var(--eq-white) 42%, transparent);
+	--adm-nav-hover: color-mix(in srgb, var(--eq-white) 7%, transparent);
+	--adm-nav-active: color-mix(in srgb, var(--eq-cyan) 18%, transparent);
+	/* Fondos y textos de avisos y etiquetas: un tono suave de su color y el texto oscuro del mismo color. */
+	--adm-ok-bg: color-mix(in oklab, var(--eq-whatsapp) 10%, var(--eq-white));
+	--adm-ok-line: color-mix(in oklab, var(--eq-whatsapp) 30%, var(--eq-white));
+	--adm-ok-text: color-mix(in oklab, var(--eq-whatsapp) 75%, var(--eq-dark));
+	--adm-warn-bg: color-mix(in oklab, var(--eq-warning) 14%, var(--eq-white));
+	--adm-warn-line: color-mix(in oklab, var(--eq-warning) 45%, var(--eq-white));
+	--adm-warn-text: color-mix(in oklab, var(--eq-warning) 45%, var(--eq-dark));
+	--adm-danger-bg: color-mix(in oklab, var(--eq-danger) 8%, var(--eq-white));
+	--adm-danger-line: color-mix(in oklab, var(--eq-danger) 28%, var(--eq-white));
+	--adm-danger-text: color-mix(in oklab, var(--eq-danger) 85%, var(--eq-dark));
+	--adm-info-bg: color-mix(in oklab, var(--eq-cyan) 12%, var(--eq-white));
+	--adm-info-text: color-mix(in oklab, var(--eq-primary) 85%, var(--eq-dark));
+	--adm-gris-bg: color-mix(in oklab, var(--eq-dark) 6%, var(--eq-white));
+
 	/* 3. Forma ------------------------------------------------------ */
 	--eq-radius: 8px;          /* Esquinas de botones y campos */
 	--eq-radius-card: 12px;    /* Esquinas de tarjetas y bloques */
@@ -45,6 +76,8 @@
 	--vip-ink: var(--eq-dark);
 	--vip-gold: color-mix(in oklab, var(--eq-gold) 70%, var(--eq-white));
 	--vip-gold-ink: var(--eq-gold);
+	--vip-texto: var(--eq-ink);       /* Textos de la página VIP */
+	--vip-crema: color-mix(in oklab, var(--eq-gold) 7%, var(--eq-white)); /* Fondo de sus bloques */
 	--bs-primary: var(--eq-primary);
 	--bs-body-color: var(--eq-text);
 	--bs-body-bg: var(--eq-white);

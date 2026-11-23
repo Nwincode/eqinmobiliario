@@ -1,15 +1,15 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido, fechaHora } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
+	chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -110,7 +110,7 @@ async function renderLista(container) {
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
 			dato('icon-map-marker', c.zonas),
 			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),
-			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaCorta(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
+			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaHora(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
 				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
 			session.isAdmin ? dato('icon-id-badge', nombreAsesor[c.agentId]) : null,
 			faltan.length ? h('div', { class: 'mt-1' }, chipFaltan(faltan)) : null),
@@ -150,18 +150,23 @@ async function renderLista(container) {
 				return col;
 			})));
 		} else {
-			cuerpo.replaceChildren(cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-				h('tbody', {}, lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)).map((c) => {
+			const tabla = tablaAdmin({
+				columnas: ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((titulo) => ({ titulo })),
+				celdas: (c) => {
 					const prox = proximaActividad(actividades, c.id);
-					return h('tr', { class: 'clickable', onclick: () => { location.hash = `#/clientes/${c.id}`; } },
-						h('td', {}, h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))),
-						h('td', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
-						h('td', {}, etapaBadge(c.etapa)),
-						h('td', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
-						h('td', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
-						session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar') : null);
-				}))), { tarjeta: true }));
+					return [
+						[h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))],
+						h('span', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
+						etapaBadge(c.etapa),
+						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaHora(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
+						h('span', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
+						...(session.isAdmin ? [h('span', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar')] : [])];
+				},
+				alTocar: (c) => { location.hash = `#/clientes/${c.id}`; },
+				sinCoincidencias: 'Ningún cliente coincide con la búsqueda o los filtros.'
+			});
+			tabla.pintar(lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)), { filtrado: true });
+			cuerpo.replaceChildren(tabla);
 		}
 	};
 	[buscar, fTipo, fAsesor, soloIncompletos].forEach((el) => el.addEventListener(el === soloIncompletos ? 'change' : 'input', dibujar));
@@ -342,21 +347,19 @@ async function renderFicha(container, id) {
 		try { await deleteDoc(ref); refrescarPorCliente(c); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
-	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);
-
 	mount(container,
 		pageHeader(c.nombre, etapa, contactoBotones(c),
 			iconoBtn('icon-magic', 'Buscarle propiedades con IA', { href: '#/ia/buscar' })),
 		h('div', { class: 'row g-4' },
 			h('div', { class: 'col-xl-4' },
-				tarjetaCard('Registrar o agendar', h('div', { class: 'card-body' }, formularioActividad(c, recargar))),
-				pendientes.length ? tarjetaCard(`Pendientes (${pendientes.length})`,
+				tarjeta('icon-calendar-plus-o', 'Registrar o agendar', formularioActividad(c, recargar)),
+				pendientes.length ? tarjeta('icon-clock-o', `Pendientes (${pendientes.length})`, { sinCuerpo: true },
 					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 						iconoActividad(a.tipo),
-						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaCorta(a.fecha) : 'Sin fecha')),
+						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaHora(a.fecha) : 'Sin fecha')),
 						chipVencimiento(a),
 						iconoBtn('icon-check', 'Marcar como hecha', { onclick: () => completar(a) }))))) : null,
-				tarjetaCard('Propiedades de interés', h('div', { class: 'card-body' },
+				tarjeta('icon-heart-o', 'Propiedades de interés', h('div', {},
 					interes.length ? h('ul', { class: 'list-unstyled mb-2' }, interes.map((pid) => {
 						const p = propiedades.find((x) => x.id === pid);
 						return h('li', { class: 'd-flex align-items-center gap-2' },
@@ -367,13 +370,13 @@ async function renderFicha(container, id) {
 					})) : null,
 					selProp))),
 			h('div', { class: 'col-xl-8' },
-				tarjetaCard('Datos del cliente',
-					h('div', { class: 'card-body' }, vigilarFormulario(form, 'clientes'), form.el,
+				tarjeta('icon-user', 'Datos del cliente',
+					h('div', {}, vigilarFormulario(form, 'clientes'), form.el,
 						h('div', { class: 'd-flex gap-2 mt-3' },
 							h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar datos'),
 							session.isAdmin ? iconoBtn('icon-trash-o', 'Eliminar cliente', { onclick: eliminar }) : null))),
-				tarjetaCard('Historial',
-					h('div', { class: 'card-body' }, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.'))))));
+				tarjeta('icon-history', 'Historial',
+					h('div', {}, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.'))))));
 }
 
 export async function render(container, [id]) {

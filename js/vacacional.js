@@ -35,7 +35,6 @@
 		var EN = card.getAttribute('data-lang') === 'en';
 		var locale = EN ? 'en-US' : 'es-GT';
 		var prefijo = D.moneda === 'GTQ' ? 'Q' : 'US$';
-		var corto = D.moneda === 'GTQ' ? 'Q' : '$';
 		var hoy = V.hoy();
 		var mesMin = mesDe(hoy);
 		var mesMax = sumarMeses(mesMin, 18);
@@ -71,7 +70,7 @@
 		// Precio de cada día en el calendario: con centavos, como todo precio (decisión del dueño); la letra es chica.
 		// En la casilla del calendario, sin centavos (se lee de un vistazo); el desglose y el total llevan los exactos.
 		function dineroCorto(n) {
-			return corto + Math.round(Number(n) || 0).toLocaleString('en-US');
+			return EQFormato.dineroCorto(n, D.moneda);
 		}
 		function mayus(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 		function noches(n) { return n === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: n }); }

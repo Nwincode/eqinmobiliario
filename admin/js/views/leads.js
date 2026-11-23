@@ -2,8 +2,8 @@ import {
 	db, doc, getDocs, updateDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
-	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate, hoy
-, mount, cajaTabla, iconoBtn } from '../ui.js';
+	h, toast, showError, confirmDialog, pageHeader, badge, nombreYDatos, emptyState, formatDate, modal, downloadCsv, toDate, hoy
+, mount, tablaAdmin, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { avisarAvisos } from '../avisos.js';
 import { telefonoWa, whatsappUrl, saludoLead } from '../formato.js';
@@ -24,6 +24,15 @@ export function fuenteLead(l) {
 	if (c.fbclid || /facebook|instagram|meta/i.test(c.utm_source || '')) return `Meta Ads${c.utm_campaign ? ` · ${c.utm_campaign}` : ''}`;
 	if (c.utm_source) return `${c.utm_source}${c.utm_campaign ? ` · ${c.utm_campaign}` : ''}`;
 	return 'Orgánico / directo';
+}
+
+// La fila corta de un lead: nombre y estado; abajo, qué le interesa y cuándo llegó. La usan Inicio y el Asistente.
+export function filaLead(l) {
+	return h('div', { class: 'd-flex align-items-center gap-2 text-start' },
+		h('div', { class: 'me-auto' },
+			h('div', { class: 'fw-semibold' }, l.nombre),
+			h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen || 'Contacto general', formatDate(l.createdAt)].filter(Boolean).join(' · '))),
+		estadoBadge(l.estado));
 }
 
 export function estadoBadge(estado) {
@@ -131,7 +140,18 @@ export async function render(container) {
 	const fEstado = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los estados'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
 	const fAgent = h('select', { class: 'form-select', hidden: !session.isAdmin },
 		h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
-	const tbody = h('tbody');
+	const lista = tablaAdmin({
+		columnas: ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((titulo) => ({ titulo })),
+		celdas: (l) => [
+			nombreYDatos(l.nombre, l.telefono, [l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger', role: 'img', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null, l.idioma === 'en' ? badge('EN', 'info') : null]),
+			h('span', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
+			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—'),
+			h('span', { class: 'small text-muted' }, fuenteLead(l)),
+			h('span', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
+			estadoBadge(l.estado)],
+		alTocar: (l) => openLead(l, agents, () => render(container.replaceChildren() || container)),
+		sinCoincidencias: 'Ningún lead coincide con la búsqueda o los filtros.'
+	});
 
 	const filtered = () => {
 		const q = search.value.trim().toLowerCase();
@@ -140,15 +160,7 @@ export async function render(container) {
 			&& (!fEstado.value || (l.estado || 'nuevo') === fEstado.value)
 			&& (!fAgent.value || (fAgent.value === '-' ? !l.agentId : l.agentId === fAgent.value)));
 	};
-	const draw = () => {
-		tbody.replaceChildren(...filtered().map((l) => h('tr', { class: 'clickable', onclick: () => openLead(l, agents, () => render(container.replaceChildren() || container)) },
-			h('td', {}, h('div', { class: 'fw-semibold' }, l.nombre, l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger ms-1', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null), h('div', { class: 'small text-muted' }, l.telefono)),
-			h('td', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
-			h('td', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? h('span', { class: 'badge text-bg-info ms-1' }, 'EN') : null),
-			h('td', { class: 'small text-muted' }, fuenteLead(l)),
-			h('td', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
-			h('td', {}, estadoBadge(l.estado)))));
-	};
+	const draw = () => lista.pintar(filtered(), { filtrado: true });
 	[search, fEstado, fAgent].forEach((el) => el.addEventListener('input', draw));
 	draw();
 
@@ -164,9 +176,6 @@ export async function render(container) {
 				h('div', { class: 'col-md-6' }, search),
 				h('div', { class: 'col-6 col-md-3' }, fEstado),
 				h('div', { class: 'col-6 col-md-3' }, fAgent)),
-			cajaTabla(
-				h('table', { class: 'table table-hover table-admin' },
-					h('thead', {}, h('tr', {}, ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
-					tbody), { tarjeta: true }))
+			lista)
 			: emptyState(session.isAdmin ? 'Todavía no han llegado leads. Aparecerán aquí cuando alguien llene un formulario del sitio.' : 'No tienes leads asignados todavía.'));
 }

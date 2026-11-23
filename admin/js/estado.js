@@ -34,7 +34,7 @@ export async function tarjetaEstado(casas) {
 	const lista = await leerEstado(casas);
 	if (!lista.length) return null;
 	const rotos = lista.filter((x) => !x.aviso).length;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'estado-titulo' },
+	return h('section', { class: 'card mb-3 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'estado-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-exclamation-triangle', 'aria-hidden': 'true' }),
 			h('div', { class: 'me-auto' },

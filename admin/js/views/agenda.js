@@ -3,7 +3,7 @@ import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
 import { h, toast, showError, confirmDialog, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
-	TIPOS_ACTIVIDAD, tipoActividad, iconoActividad, loadActividades, loadClientes, crearActividad, vencimiento, fechaCorta, ms
+	TIPOS_ACTIVIDAD, tipoActividad, filaActividad, loadActividades, loadClientes, crearActividad, vencimiento, ms
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -56,24 +56,17 @@ export async function render(container) {
 		const grupos = GRUPOS.map(([k, label, cls]) => {
 			const items = pend.filter((a) => vencimiento(a) === k).sort((a, b) => ms(a.fecha) - ms(b.fecha));
 			if (!items.length) return null;
-			return h('div', { class: 'card mb-4' },
+			return h('div', { class: 'card mb-3' },
 				h('div', { class: `card-header bg-white fw-semibold ${cls}` }, `${label} (${items.length})`),
-				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-					iconoActividad(a.tipo),
-					h('div', { class: 'me-auto' },
-						h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
-						h('div', { class: 'small text-muted' },
-							a.clienteId ? h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente') : null,
-							a.clienteId ? ' · ' : '',
-							a.fecha ? fechaCorta(a.fecha) : 'Sin fecha',
-							session.isAdmin && a.agentId ? ` · ${nombreAsesor[a.agentId] || ''}` : '')),
-					h('div', { class: 'd-flex align-items-center flex-shrink-0' },
-					iconoBtn('icon-check', 'Marcar como hecho', { class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }),
-					menuMas(`Más acciones: ${a.titulo || tipoActividad(a.tipo)[1]}`, [
-						{ icono: 'icon-clock-o', texto: 'Pasar a mañana', onclick: () => posponer(a, 1) },
-						{ icono: 'icon-calendar', texto: 'Pasar una semana', onclick: () => posponer(a, 7) },
-						{ icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => borrar(a) }
-					]))))));
+				h('ul', { class: 'list-group list-group-flush' }, items.map((a) => filaActividad(a, {
+					asesor: session.isAdmin && a.agentId ? nombreAsesor[a.agentId] : '',
+					der: [iconoBtn('icon-check', 'Marcar como hecho', { class: 'btn-toque btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }),
+						menuMas(`Más acciones: ${a.titulo || tipoActividad(a.tipo)[1]}`, [
+							{ icono: 'icon-clock-o', texto: 'Pasar a mañana', onclick: () => posponer(a, 1) },
+							{ icono: 'icon-calendar', texto: 'Pasar una semana', onclick: () => posponer(a, 7) },
+							{ icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => borrar(a) }
+						])]
+				}))));
 		}).filter(Boolean);
 		lista.replaceChildren(...(grupos.length ? grupos : [h('div', { class: 'card' }, h('div', { class: 'card-body text-muted' }, 'No hay pendientes. Agenda seguimientos desde la ficha de cada cliente o aquí arriba.'))]));
 	};
@@ -101,7 +94,7 @@ export async function render(container) {
 
 	mount(container,
 		pageHeader('Agenda', fAsesor),
-		h('div', { class: 'card mb-4' }, h('div', { class: 'card-body' }, form)),
+		h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' }, form)),
 		lista);
 	dibujar();
 }

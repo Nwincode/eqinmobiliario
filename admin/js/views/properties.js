@@ -18,7 +18,7 @@ import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
 import { miles, dinero, whatsappUrl } from '../formato.js';
-import { datosDe, publicUrl } from '../ficha-casa.js';
+import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
@@ -521,7 +521,6 @@ export async function render(container, [id]) {
 	const fila = (p) => {
 		const editable = canEdit(p);
 		const motivo = motivoVisibilidad(p);
-		const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
 		const nombre = p.titulo || 'la propiedad';
 		const enSitio = p.publicado && p.slug;
 		const enlaceWa = enSitio && whatsappUrl('', `${p.titulo || 'Propiedad'} — ${formatPrice(precioVisible(p), p.moneda, p.operacion)}\n${SITIO}${publicUrl(p)}`);
@@ -560,28 +559,13 @@ export async function render(container, [id]) {
 		const extra = [p.codigo ? h('code', {}, p.codigo) : null,
 			agentName[p.agentId] ? h('span', { title: 'Asesor' }, h('span', { class: 'icon-user', 'aria-hidden': 'true' }), h('span', { class: 'casa-nombre' }, agentName[p.agentId])) : null,
 			p.updatedAt ? h('span', { title: 'Última actualización' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), formatDate(p.updatedAt, false)) : null].filter(Boolean);
-		return h('article', {
-			class: `casa-fila${motivo.color === 'success' ? '' : ' casa-oculta'}`, tabindex: '0', 'aria-label': nombre,
-			onclick: (e) => {
-				if (e.target.closest('.casa-der, .casa-sel')) return;
-				if (lista.classList.contains('eligiendo')) { if (!sel.disabled) { sel.checked = !sel.checked; sel.dispatchEvent(new Event('change')); } return; }
-				location.hash = `#/propiedades/${p.id}`;
-			},
-			onkeydown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) e.currentTarget.click(); }
-		},
-			h('div', { class: 'casa-foto' },
-				p.fotos?.[0]?.url ? h('img', { src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
-				h('label', { class: 'casa-sel' }, sel)),
-			h('div', { class: 'casa-txt' },
-				h('div', { class: 'casa-titulo prop-titulo' }, p.titulo || '(sin título)'),
-				lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
-				h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
-				extra.length ? h('div', { class: 'casa-dato casa-extra' }, extra) : null,
-				h('div', { class: 'casa-precio' }, formatPrice(p.precio, p.moneda, p.operacion))),
-			h('div', { class: 'casa-der' },
-				avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })
-					: h('span', { class: 'casa-ok', role: 'img', title: 'Todo en orden', 'aria-label': 'Todo en orden' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' })),
-				menu));
+		return filaCasa(p, {
+			oculta: motivo.color !== 'success', sel, extra,
+			alTocar: () => { location.hash = `#/propiedades/${p.id}`; },
+			der: [avisos.length ? menuMas(`Pendientes de ${nombre}`, avisos, { icono: 'icon-exclamation-triangle', cls: 'casa-aviso' })
+				: h('span', { class: 'casa-ok', role: 'img', title: 'Todo en orden', 'aria-label': 'Todo en orden' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' })),
+			menu]
+		});
 	};
 
 	const draw = () => {

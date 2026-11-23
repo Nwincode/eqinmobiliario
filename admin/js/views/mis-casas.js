@@ -9,10 +9,10 @@
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
-import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.js';
-import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
+import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
+import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
@@ -34,10 +34,8 @@ const V = window.EQVacacional;
 // Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
 const PRECIO_MAX = 50000;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
-const fecha = (iso) => new Date(`${iso}T12:00:00`);
 // «10 – 12 dic»; con el año cuando no es el de hoy (las temporadas que se repiten ya tienen varios años).
-const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
-const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
+const mesTitulo = (mes) => { const t = nombreMes(mes); return t.charAt(0).toUpperCase() + t.slice(1); };
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
@@ -80,28 +78,23 @@ function faltanTemporadas(e, hoyIso) {
 const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
-const flecha = (lado, titulo, onclick, disabled) => h('button', {
-	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, onclick, disabled,
-	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-});
-
 // Casas en venta o renta que están en su resumen pero no dicen ser suyas (enlazadas solo desde su ficha): se
 // muestran con lo que trae el resumen, en la misma ficha corta.
 const desdeResumen = (x) => ({ id: x.id, titulo: x.titulo, operacion: x.operacion, precio: x.precio, moneda: x.moneda, publicado: Boolean(x.url),
 	fotos: x.foto ? [{ url: x.foto }] : [], ...(x.anuncio || {}) });
 const ORDEN = { venta: 0, renta: 1, vacacional: 2 };
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
-const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' });
+const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'btn-toque btn-icono btn btn-link text-body' });
 
 async function lista(container) {
 	const [vivas, resumen] = await Promise.all([misCasas(), cargarMiResumen()]);
 	const casas = [...vivas, ...(resumen?.propiedades || []).filter((x) => !vivas.some((c) => c.id === x.id)).map(desdeResumen)]
 		.sort((a, b) => (ORDEN[a.operacion] ?? 3) - (ORDEN[b.operacion] ?? 3) || String(a.titulo).localeCompare(String(b.titulo)));
 	const porNoche = casas.some((c) => c.operacion === 'vacacional');
-	const filas = h('div', { class: 'list-group' });
+	const filas = h('div', { class: 'lista-casas' });
 	const pintar = (texto = '') => repintar(filas, casas
 		.filter((c) => `${c.titulo} ${c.codigo || ''}`.toLowerCase().includes(texto.toLowerCase()))
-		.map((c) => h('a', { class: `list-group-item list-group-item-action ${FILA_CASA} py-3`, href: `#/mis-casas/${c.id}` }, fichaCasa(c))));
+		.map((c) => filaCasa(c, { href: `#/mis-casas/${c.id}`, marcas: [c.publicado ? null : badge('Sin publicar', 'light')] })));
 	pintar();
 	const ag = resumen?.asesor || {};
 	mount(container,
@@ -153,7 +146,6 @@ async function casa(container, id) {
 	const pre = prefijoMoneda(p.moneda || 'USD');
 	const plata = (n) => `${pre}${decimales(n)}`;
 	// En la casilla del día, el precio corto, como en el calendario del sitio (js/vacacional.js dineroCorto): el completo no cabe.
-	const enCelda = (n) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
@@ -333,7 +325,7 @@ async function casa(container, id) {
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
 			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
 			h('div', { class: 'd-flex flex-wrap gap-2' },
-				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
+				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
 				cerrar));
 		if (e.pide) {
 			const esPrecio = e.pide === 'precio';
@@ -368,7 +360,7 @@ async function casa(container, id) {
 				h('strong', { class: 'd-block mb-1' }, `${esPrecio ? 'Precio especial' : 'Mínimo de noches'} · ${rango(e)}`),
 				h('div', { class: 'd-flex gap-2' },
 					h('div', { class: 'input-group' }, esPrecio ? h('span', { class: 'input-group-text' }, pre.trim()) : null, campo, esPrecio ? null : h('span', { class: 'input-group-text' }, 'noches')),
-					iconoBtn('icon-check', 'Guardar', { class: 'cot-btn cot-btn-icono btn btn-primary', onclick: listo }),
+					iconoBtn('icon-check', 'Guardar', { class: 'btn-toque btn-icono btn btn-primary', onclick: listo }),
 					cerrar),
 				ve, repite);
 		}
@@ -380,7 +372,7 @@ async function casa(container, id) {
 			puedeFechas && hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
 			puedePrecios ? iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }) : null,
 			puedePrecios ? iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }) : null,
-			iconoBtn('icon-close', 'Quitar la selección', { class: 'cot-btn cot-btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
+			iconoBtn('icon-close', 'Quitar la selección', { class: 'btn-toque btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
 	}
 
 	function calendario() {
@@ -404,14 +396,14 @@ async function casa(container, id) {
 			},
 			h('span', { class: 'vac-dia-num' }, Number(f.slice(8))),
 			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : externa ? 'icon-globe' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
-				: h('span', { class: 'vac-dia-precio' }, enCelda(V.precioNoche(f, plan())))));
+				: h('span', { class: 'vac-dia-precio' }, dineroCorto(V.precioNoche(f, plan()), p.moneda))));
 		};
 		const semanas = [];
 		for (let i = 0; i < celdas.length; i += 7) semanas.push(h('tr', {}, celdas.slice(i, i + 7).map(celda)));
 		repintar(cal,
 			h('div', { class: 'vac-cal-cabecera' },
 				flecha('prev', 'Mes anterior', () => { e.mes = moverMes(e.mes, -1); calendario(); }, e.mes <= hoy().slice(0, 7)),
-				h('h2', { class: 'vac-cal-mes' }, nombreMes(e.mes)),
+				h('h2', { class: 'vac-cal-mes' }, mesTitulo(e.mes)),
 				flecha('next', 'Mes siguiente', () => { e.mes = moverMes(e.mes, 1); calendario(); })),
 			h('table', { class: 'vac-cal-tabla' },
 				h('thead', {}, h('tr', {}, ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d) => h('th', { scope: 'col' }, d)))),
