@@ -150,13 +150,16 @@ export async function avisarContactoPartido(token) {
 	// Chocó con otra llamada a la vez: la que ganó lo manda. Otra falla, al registro.
 	}).catch((err) => { if (err.codigo !== 'ALREADY_EXISTS') console.error('Contacto partido (apartar):', err.message); return false; });
 	if (!toca) return false;
+	// El código y la casa, de la solicitud guardada (como «Te toca confirmar»).
+	const lead = chat.leadId ? await leerPrivado(`leads/${chat.leadId}`).catch(() => null) : null;
+	const codigo = String(lead?.reserva?.codigo || chat.codigo || '');
 	const quien = hallado.de === 'cliente' ? 'El cliente' : 'El socio';
 	const intro = `${quien} escribió en ${hallado.ids.length} mensajes seguidos algo que, junto, ${PARECE[hallado.tipo] || 'parece un contacto'}. Ya se enviaron: revisa la conversación.`;
-	const url = `${SITE_URL}/admin/#/mensajes/${encodeURIComponent(chat.codigo || '')}`;
-	const filas = [['Solicitud', chat.codigo || ''], ['Casa', chat.propertyTitulo || '']].filter((f) => f[1]);
+	const url = `${SITE_URL}/admin/#/mensajes/${encodeURIComponent(codigo)}`;
+	const filas = [['Solicitud', codigo], ['Casa', lead?.propertyTitulo || '']].filter((f) => f[1]);
 	const html = await plantilla({ titulo: 'Posible contacto en el chat', intro: esc(intro), preheader: intro, lang: 'es',
 		bloques: (c) => datos(c, filas) + boton(c, 'Abrir la conversación', url, c.primary, { ancho: true }) });
-	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Posible contacto en el chat: ${chat.codigo || ''}`.trim(), html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
+	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Posible contacto en el chat: ${codigo}`.trim(), html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
 	return true;
 }
 

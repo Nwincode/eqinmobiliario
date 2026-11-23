@@ -7,11 +7,13 @@ import assert from 'node:assert/strict';
 import { S, limpiar, poner, leer } from './simulado/base.mjs';
 
 const { avisarContactoPartido, TOPE_CONTACTO } = await import('../netlify/lib/aviso-chat-envio.mjs');
+const { default: avisoChat } = await import('../netlify/functions/aviso-chat.mjs');
 let ok = 0;
 const t = async (nombre, fn) => { limpiar(); await fn(); ok++; console.log('✓', nombre); };
 const T = 'TokenDePruebaLargoYAlAzar2345';
 const msj = (id, de, texto, min) => poner(`chats/${T}/mensajes/${id}`, { de, texto, createdAt: new Date(S.reloj - min * 60_000) });
-const preparar = () => poner(`chats/${T}`, { leadId: 'l1', codigo: 'EQ-ABC123', propertyTitulo: 'Casa del lago', estado: 'confirmada' });
+const preparar = () => { poner(`chats/${T}`, { leadId: 'l1', codigo: 'EQ-ABC123', estado: 'confirmada' }); poner('leads/l1', { propertyTitulo: 'Casa del lago', reserva: { codigo: 'EQ-ABC123' } }); };
+const pedir = () => avisoChat({ method: 'POST', headers: new Headers(), json: async () => ({ chat: T }) }, {});
 
 await t('«5555» y luego «1234»: un correo al equipo con el enlace a la conversación; los mensajes siguen ahí', async () => {
 	preparar();
@@ -48,6 +50,16 @@ await t(`tope: a lo más ${TOPE_CONTACTO} avisos por chat`, async () => {
 		await avisarContactoPartido(T);
 	}
 	assert.equal(S.salida.length, TOPE_CONTACTO);
+});
+
+await t('por su entrada real (POST /api/aviso-chat): «5555» y «1234» mandan el aviso al equipo; repetido, ninguno más', async () => {
+	preparar();
+	msj('a', 'cliente', 'mi número es 5555', 2); msj('b', 'cliente', '1234', 1);
+	await pedir(); await pedir();
+	const aviso = S.salida.filter((c) => /Posible contacto/.test(c.asunto));
+	assert.equal(aviso.length, 1);
+	assert.equal(aviso[0].para, 'equipo@ejemplo.test');
+	assert.match(aviso[0].texto, /Casa: Casa del lago/);
 });
 
 console.log(`${ok} pruebas del aviso de contacto partido pasan.`);
