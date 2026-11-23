@@ -1940,7 +1940,7 @@ const duenos = [];
 			chat: token, pagoRecibido: true, comision: { monto, vence: dia(n), pagada: false }, costoSocio: monto * 3 });
 		sembrados.push(`chats/${token}`, `reservas/res-${codigo}`);
 	};
-	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=..');
+	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=ancestor::div[1]');
 	await socio.p.setViewportSize({ width: 390, height: 844 });
 	await ir(socio.p, '#/solicitudes', 4000);
 	const inicio = await aviso().innerText().catch(() => '');
