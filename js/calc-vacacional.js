@@ -484,8 +484,9 @@
 	var UNIDAD = '(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oó]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oó]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[ií]as|d[ií]a|horas|hora|hrs|hr|personas|adultos|ni[ñn]os|hu[eé]spedes|habitaciones|cuartos|camas|ba[ñn]os|parqueos|de limpieza|de dep[oó]sito|de terreno|de construcci[oó]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)';
 	var LETRA = 'a-záéíóúñü';
 	// Un usuario de otra plataforma o de un correo: con la forma de uno (lleva cifras, punto o guion bajo: «villa.lago»,
-	// «ana_88», «anaperez90»). Una palabra de diccionario no («Mi correo es obligatorio», «Mi whatsapp es lento»): por eso
-	// «mi insta es villalago» (palabra pura) pasa, un límite aceptado. LARGO: una palabra pegada y larga, que solo cuenta
+	// «ana_88», «anaperez90»). Una palabra de diccionario no («Mi correo es obligatorio», «Mi whatsapp es lento»); en una
+	// red social (REDES), una palabra pura sí cuenta donde no cabe otra cosa («mi insta es villalago», «ig juanlago»: el paso
+	// que sigue al de los usuarios). LARGO: una palabra pegada y larga, que solo cuenta
 	// donde nada más cabe (después de «búscame como», un mensaje que es solo «villalago en insta»).
 	var USUARIO = '([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)';
 	var LARGO = '[a-z]{8,}';
@@ -588,6 +589,9 @@
 		// Una secuencia de días/mes y horas se lee entera como fechas, solo si no tiene cifras ni un separador pegados delante (si
 		// no, «5555 12:34» o «5555, 12:34» pasaban) ni detrás. Lo que sigue a una palabra de teléfono ya se revisó arriba.
 		['cambia', '(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+|[^0-9 \\t.,;:/-]:[ \\t]*)' + ELEM + '(' + UNE + ELEM + '){0,11}(([.,:;!?]|\\))*[ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,:][^0-9])', ' x '],
+		// Cientos y miles también son cifras («cuatro mil ochocientos cuarenta y dos», «mil ciento veintidós»): cada uno vale
+		// una (de más, nunca de menos: así un teléfono dictado así llega a sus 8). Antes de las unidades: «ochocientos» lleva «ocho».
+		['cambia', '\\b(cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil|hundred|thousand)\\b', '5'],
 		['cambia', '\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5'],
 		['cambia', '\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa'
 			+ '|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55'],
@@ -619,6 +623,14 @@
 			+ '|\\b' + REDES + '[ \\t]*,?[ \\t]*me[ \\t]+llamo[ \\t]+@?[a-z]{4,}'
 			+ '|^[ \\t]*[a-z][a-z0-9._]{3,}[ \\t]+(en|on)[ \\t]+' + REDES + '[ \\t.!]*$'
 			+ '|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b', 0, 'red'],
+		// Un usuario sin forma de usuario (una palabra pura) solo donde no cabe otra cosa: «mi … ig es juanlago» (mi, usuario o
+		// cuenta antes de la red y «es» después), un mensaje que es solo «instagram es villalago» o «ig juanlago» (con «:» no: «fb: gracias»), y «mi ig
+		// juanlago» al final de una frase. «Lo vi en facebook marketplace» o «facebook es donde la vi» pasan; «mi instagram es
+		// privado» no (límite aceptado: BLOQUEADAS_A_PROPOSITO del corpus).
+		['si', '\\b(mi|my|usuario|user|username|cuenta|account|handle)\\b[^\\n]{0,20}\\b' + REDES + '\\b[ \\t]*:?[ \\t]*\\b(es|is)\\b[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{2,}'
+			+ '|^[ \\t]*' + REDES + '[ \\t]*:?[ \\t]*\\b(es|is)\\b[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{2,}[ \\t.!]*$'
+			+ '|^[ \\t]*((mi|my)[ \\t]+)?(ig|insta|fb|tg|tiktok|telegram)([ \\t]+@?|[ \\t]*@)[a-z][a-z0-9._]{3,}[ \\t.!]*$'
+			+ '|\\b(mi|my)[ \\t]+' + REDES + '[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{3,}[ \\t]*([.!,;]|$)', 0, 'red'],
 		// 4. Coordenadas: dos números con decimales (con «lat/lon», N/S/E/O o grados, o «14.63,-90.50»), o en grados y minutos.
 		['si', '(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{3,}[ \\t]*°?[ \\t]*[ns]?[ \\t]*[,;]?[ \\t]*(lon(g(itud)?)?|lng)?[ \\t]*[:=]?[ \\t]*[eowv]?[ \\t]*-?[0-9]{1,3}\\.[0-9]{3,}'
 			+ '|(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{2,},[ \\t]*-[0-9]{1,3}\\.[0-9]{2,}|[0-9]{1,2}[ \\t]*°[ \\t]*[0-9]{1,2}[ \\t]*[\'′]', 0, 'ubicacion'],
