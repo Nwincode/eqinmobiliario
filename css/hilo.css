@@ -89,10 +89,10 @@
 .hilo-tarj a { color: var(--eq-primary); display: inline-block; padding: 14px 0; margin: -14px 0; }
 .hilo-tarj-fila { display: flex; gap: 8px; margin-top: 8px; }
 .hilo-tarj-fila .hilo-btn { flex: 1; }
-.hilo-comp { display: flex; gap: 12px; align-items: center; }
+.hilo-comp { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .hilo-comp-foto { flex: none; }
 .hilo-comp-foto img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; display: block; }
-.hilo-comp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hilo-comp-txt { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
 .hilo-comp-txt b { font-weight: 600; }
 .hilo-ia { font-size: 12px; line-height: 16px; color: var(--eq-whatsapp); font-weight: 600; }
 .hilo-ia.hilo-ia-no { color: var(--eq-danger); }

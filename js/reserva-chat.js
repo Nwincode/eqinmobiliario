@@ -231,7 +231,7 @@
 		function cuandoVence(ms) {
 			var n = Math.round((Date.parse(diaGt(ms) + 'T00:00:00Z') - Date.parse(diaGt(Date.now()) + 'T00:00:00Z')) / 86400000);
 			var d = n === 0 ? (en ? 'today' : 'hoy') : n === 1 ? (en ? 'tomorrow' : 'mañana') : diaSemana.format(new Date(diaGt(ms) + 'T12:00:00Z'));
-			return d + ' ' + hora.format(new Date(ms));
+			return d + ' ' + hora.format(new Date(ms)).replace(/^0(\d)/, '$1');
 		}
 		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante). `estadoChat`: el de
 		// ahora, para que el aviso del filtro no prometa lo que ya no toca.
