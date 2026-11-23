@@ -86,7 +86,7 @@
 .hilo-tarj { align-self: stretch; background: var(--hilo-sup); border: 1px solid var(--eq-line); border-radius: 12px; padding: 12px; margin: 4px 0; overflow-wrap: anywhere; }
 .hilo-tarj h3 { font-size: 14px; line-height: 20px; font-weight: 600; margin: 0; }
 .hilo-tarj p { color: var(--eq-ink); margin: 0; white-space: pre-wrap; }
-.hilo-tarj a { color: var(--eq-primary); }
+.hilo-tarj a { color: var(--eq-primary); display: inline-block; padding: 14px 0; margin: -14px 0; }
 .hilo-tarj-fila { display: flex; gap: 8px; margin-top: 8px; }
 .hilo-tarj-fila .hilo-btn { flex: 1; }
 .hilo-comp { display: flex; gap: 12px; align-items: center; }

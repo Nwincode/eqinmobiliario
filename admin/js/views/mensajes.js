@@ -241,7 +241,7 @@ function hiloDe(S, f, conR7) {
 	// El socio ya no escribe en una reserva que no se dio o se canceló (las reglas tampoco lo dejan); el equipo sí.
 	const pie = !S.admin && cerrada ? h('div', { class: 'hilo-pie-chat' }, h('p', { class: 'hilo-regla m-0' }, h('span', { class: 'icon-info-circle', 'aria-hidden': 'true' }), ' Esta reserva ya terminó: aquí ya no se escribe.'))
 		: h('div', { class: 'hilo-pie-chat' }, cerrada ? null : rapidas, citandoEl, form, regla,
-			!conR7 && S.admin ? h('p', { class: 'hilo-regla' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }), ' Citar y las notas internas se activan al publicar las reglas nuevas de la base.') : null);
+			!conR7 && S.admin ? h('p', { class: 'hilo-regla' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }), ' Citar y notas: falta publicar las reglas nuevas.') : null);
 
 	const { arriba, lado } = cabeza(S, f);
 	caja.append(...arriba, lineas, pie);
