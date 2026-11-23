@@ -183,6 +183,15 @@ await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { me
 	await espera('la cita no es un mapa', conCita('socio1', 'socio', 'Hola', { stringValue: 'm1' }), false);
 	await espera('una cita en un mensaje con tipo (datos de pago)', fetch(`${H}:commit`, { method: 'POST', headers: cab('admin1'), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
 		fields: { ...campos({ de: 'equipo', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' }), responde: mapa({ id: 'm1', de: 'cliente' }) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status), false);
+	// Quién del equipo escribe: su primer nombre (el de users/{uid}); nadie firma por otro, ni el cliente ni el socio.
+	await espera('equipo firma con su primer nombre', crear('admin1', msj(), { de: 'equipo', texto: 'Hola, soy del equipo.', nombre: 'Admin' }), true);
+	await poner('users/admin2', { rol: 'admin', activo: true, nombre: 'Joaquín Pérez' });
+	await espera('otro administrador firma con su primer nombre', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), true);
+	await espera('un administrador firma con el nombre de otro', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), false);
+	await espera('un administrador firma con su nombre completo (solo va el primero)', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín Pérez' }), false);
+	await espera('el cliente pone un nombre', crear(null, msj(), { de: 'cliente', texto: 'Hola.', nombre: 'Admin' }), false);
+	await espera('el socio pone un nombre', crear('socio1', msj(), { de: 'socio', texto: 'Hola.', nombre: 'Socio' }), false);
+	await espera('nombre vacío', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: '' }), false);
 	await espera('reglas/r7 se lee (citar y notas publicadas)', leer(null, 'reglas/r7').then((s) => (s === 404 ? 200 : s)), true);
 
 	await poner('users/asesor1', { rol: 'asesor', activo: true, agentId: 'a1', nombre: 'Asesor' });

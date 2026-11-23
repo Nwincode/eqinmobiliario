@@ -58,9 +58,9 @@ export default async (req, context) => {
 		const revision = revisarComprobante(token).catch((err) => console.error('Revisión del comprobante:', err.message));
 		if (context?.waitUntil) context.waitUntil(revision); else await revision;
 	}
-	// El cliente lee en inglés: lo nuevo del chat se traduce para el otro lado (netlify/lib/traducciones.mjs), después de
-	// responder. Sin IA no se hace nada.
-	if (chat?.idioma === 'en') {
+	// Lo nuevo del chat en otro idioma se traduce para el otro lado (netlify/lib/traducciones.mjs: decide por el idioma de
+	// cada mensaje), después de responder. Sin IA no se hace nada.
+	if (chat) {
 		const traduccion = traducirChat(token).catch((err) => console.error('Traducción del chat:', err.message));
 		if (context?.waitUntil) context.waitUntil(traduccion); else await traduccion;
 	}

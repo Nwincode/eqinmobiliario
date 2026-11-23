@@ -900,8 +900,15 @@ service cloud.firestore {
             && isNonEmptyString(c.id, 40) && c.id.matches('[A-Za-z0-9_-]+') && c.de in ['cliente', 'socio', 'equipo']
             && get(/databases/$(database)/documents/chats/$(token)/mensajes/$(c.id)).data.de == c.de;
         }
-        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa', 'responde'])
+        // Quién del equipo escribe (opcional): su primer nombre, el de su users/{uid}; nadie firma por otro y ni el cliente
+        // ni el socio lo ponen. Los mensajes de antes no lo traen («Equipo»).
+        function nombreDelEquipo() {
+          return request.resource.data.de == 'equipo' && isAdmin() && isNonEmptyString(request.resource.data.nombre, 40)
+            && request.resource.data.nombre == userDoc().data.get('nombre', '').trim().split(' ')[0];
+        }
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa', 'responde', 'nombre'])
           && isNonEmptyString(request.resource.data.texto, 1000)
+          && (!('nombre' in request.resource.data) || nombreDelEquipo())
           && (!('responde' in request.resource.data) || (!('tipo' in request.resource.data) && citaValida(request.resource.data.responde)))
           && (('tipo' in request.resource.data)
             ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()

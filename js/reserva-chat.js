@@ -291,8 +291,12 @@
 					if (/^\/[^\/]/.test(c.url || '')) { accion = el('a', 'hilo-btn hilo-btn-sec', t.vacChatOtrasFechas); accion.href = c.url + '#vac-titulo'; }
 				}
 			}
-			sigue.hidden = !titulo;
+			// Sin responder: una línea con lo que pasa mientras tanto (fechas apartadas hasta 24 h; a las 2 h, que ya se avisó
+			// al equipo). La que confirma el equipo o ya venció lo dice arriba, con su título.
+			var linea = pendiente && !titulo ? (espera > 2 * 3600000 ? t.vacChatSigueTarde : t.vacChatApartadas) : '';
+			sigue.hidden = !titulo && !linea;
 			sigue.replaceChildren();
+			if (linea) sigue.appendChild(el('span', 'hilo-sigue-txt vac-chat-linea', linea));
 			if (titulo) {
 				var txt = el('span', 'hilo-sigue-txt');
 				txt.appendChild(el('b', '', titulo));
@@ -381,7 +385,7 @@
 			firma = nueva;
 			var nodos = H.armarHilo(items, { yo: 'cliente', idioma: lang, t: th, chat: chatAhora, vistoOtros: vistoOtros ? new Date(vistoOtros).getTime() : 0,
 				etiqueta: function (m) { return m.de === 'cliente' ? '' : QUIEN[m.de] || QUIEN.equipo; }, nombreDe: function (de) { return QUIEN[de] || QUIEN.equipo; },
-				textoEvento: textoEvento, tarjeta: tarjeta, alReintentar: function (m) { reintentar(m.id); } });
+				textoEvento: textoEvento, tarjeta: tarjeta, alReintentar: function (m) { reintentar(m.id); }, cualquierTraduccion: true });
 			H.pintarHilo(lista, nodos.length ? nodos : [el('p', 'hilo-vacio', t.vacChatVacio)], Boolean(forzar));
 		}
 		function cargar() {

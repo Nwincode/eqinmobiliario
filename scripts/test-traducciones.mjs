@@ -32,12 +32,24 @@ await t('se salta lo corto, lo que tiene tipo (pago, llegada, foto) y lo que ya 
 	poner(`chats/${T}`, { idioma: 'en' });
 	const corto = msj('cliente', 'Ok thanks');
 	msj('socio', 'Banco Industrial, cuenta 123', { tipo: 'pago' });
-	const ya = msj('cliente', 'Hola, ¿cómo están todos?');
-	const x = ia({ 'Hola, ¿cómo están todos?': '' });
+	const claro = msj('cliente', 'Hola, ¿cómo están todos?');
+	const ya = msj('cliente', 'Ok perfecto excelente!!');
+	const x = ia({ 'Ok perfecto excelente!!': '' });
 	assert.equal(await traducirChat(T, x), 0);
 	assert.equal(leer(`chats/${T}/mensajes/${corto}`).traduccion, undefined);
+	// Lo que claramente está en español no va a la IA; lo dudoso sí, y la IA dice que ya está en español.
+	assert.equal(leer(`chats/${T}/mensajes/${claro}`).traduccion, undefined);
 	assert.deepEqual(leer(`chats/${T}/mensajes/${ya}`).traduccion, { es: '' });
-	assert.deepEqual(x.pedidos.map((p) => p[0]), ['Hola, ¿cómo están todos?']);
+	assert.deepEqual(x.pedidos.map((p) => p[0]), ['Ok perfecto excelente!!']);
+});
+await t('reserva en español pero el cliente escribe en inglés: lo suyo al español y la respuesta del socio al inglés', async () => {
+	poner(`chats/${T}`, { idioma: 'es' });
+	const a = msj('cliente', 'Hi, what time can we check in on Saturday?');
+	const b = msj('socio', 'Pueden entrar desde las 3 de la tarde.');
+	const x = ia();
+	assert.equal(await traducirChat(T, x), 2);
+	assert.deepEqual(leer(`chats/${T}/mensajes/${a}`).traduccion, { es: '[es] Hi, what time can we check in on Saturday?' });
+	assert.deepEqual(leer(`chats/${T}/mensajes/${b}`).traduccion, { en: '[en] Pueden entrar desde las 3 de la tarde.' });
 });
 await t('cliente en español: nada se traduce (el panel ya lee español)', async () => {
 	poner(`chats/${T}`, { idioma: 'es' });

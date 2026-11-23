@@ -64,8 +64,9 @@ const corto = (texto) => String(texto || '').replace(/\s+/g, ' ').trim().slice(0
 //  textoEvento(ev): el texto de un evento; tarjeta(m): la tarjeta de un mensaje con tipo (null: burbuja; 'omitir': ya
 //  lo dice un evento)
 //  alResponder(m): si se pueden citar mensajes; alReintentar(m): «Reintentar» de uno que falló
+//  cualquierTraduccion: mostrar la traducción que haya aunque no sea al idioma de la página (la página del cliente)
 export function armarHilo(items, o) {
-	const { yo, idioma = 'es', t, ahora = Date.now(), chat = {}, vistoOtros = 0, etiqueta = () => '', nombreDe = () => '', textoEvento, tarjeta = () => null, alResponder = null, alReintentar = null } = o;
+	const { yo, idioma = 'es', t, ahora = Date.now(), chat = {}, vistoOtros = 0, etiqueta = () => '', nombreDe = () => '', textoEvento, tarjeta = () => null, alResponder = null, alReintentar = null, cualquierTraduccion = false } = o;
 	const lado = (de) => (yo === 'cliente' ? (de === 'cliente' ? 'yo' : 'otro') : de === 'cliente' ? 'otro' : de === yo ? 'yo' : 'otro');
 	const todos = [...items.map((m) => ({ ...m, cuando: ms(m.createdAt) || (m._estado ? ahora : 0) })),
 		...eventosDe(chat, items).map((e) => ({ ...e, evento: true }))]
@@ -88,12 +89,13 @@ export function armarHilo(items, o) {
 		if (propia === 'omitir') continue;
 		if (propia) { out.push(propia); antes = null; continue; }
 		const l = m.nota ? 'nota' : lado(m.de);
-		const caja = el('div', `hilo-m hilo-${l === 'yo' ? 'yo' : l === 'nota' ? 'nota' : 'otro'}${antes && (antes.de !== m.de || !!antes.nota !== !!m.nota) ? ' hilo-sep' : ''}`);
+		const caja = el('div', `hilo-m hilo-${l === 'yo' ? 'yo' : l === 'nota' ? 'nota' : 'otro'}${antes && (antes.de !== m.de || !!antes.nota !== !!m.nota || (antes.nombre || '') !== (m.nombre || '')) ? ' hilo-sep' : ''}`);
 		caja.dataset.id = m.id || '';
 		if (m.nota) caja.append(el('div', 'hilo-quien', icono('lock'), ` ${t.soloEquipo}`));
 		else {
-			const q = (!antes || antes.de !== m.de) ? etiqueta(m) : '';
-			if (q) caja.append(el('div', 'hilo-quien', q));
+			const q = etiqueta(m);
+			// Una vez por tanda: si el de arriba es el mismo autor con la misma etiqueta, no se repite.
+			if (q && !(antes && antes.de === m.de && !antes.nota && etiqueta(antes) === q)) caja.append(el('div', 'hilo-quien', q));
 		}
 		const citado = m.responde?.id && items.find((x) => x.id === m.responde.id);
 		if (citado) {
@@ -104,7 +106,8 @@ export function armarHilo(items, o) {
 			caja.append(cita);
 		}
 		caja.append(el('span', 'hilo-txt', m.texto));
-		const trad = !m.nota && lado(m.de) === 'otro' && m.traduccion?.[idioma];
+		// La traducción al idioma de quien lee (el cliente que escribe en inglés desde la página en español: cualquiera).
+		const trad = !m.nota && lado(m.de) === 'otro' && (m.traduccion?.[idioma] || (cualquierTraduccion && Object.values(m.traduccion || {}).find(Boolean)));
 		if (trad) caja.append(el('span', 'hilo-trad', trad));
 		const pie = m._estado === 'enviando' ? t.enviando : `${m.cuando ? horaChat(m.cuando, idioma) : ''}${visto && m === ultimoMio ? ` · ${t.visto}` : ''}`;
 		caja.append(el('div', 'hilo-pie', pie));

@@ -137,7 +137,10 @@ function hiloDe(S, f, conR7) {
 	const fallidos = new Map();
 	const rv = () => { const r = S.revisiones[l.id]; return r && r.mensaje === chat.comprobanteMensaje ? r : null; };
 	const dueno = S.admin ? S.propietarios.find((p) => p.id === chat.propietarioId) : null;
-	const etiqueta = (m) => (m.de === 'cliente' || m.de === yo ? '' : m.de === 'socio' ? `Socio${dueno?.nombre ? ` · ${PRIMERO(dueno.nombre)}` : ''}` : 'Equipo');
+	// Quién escribió, cuando hace falta: el cliente nunca; lo del equipo con su nombre si lo trae (también lo mío: el
+	// equipo son varias personas); lo de antes, «Equipo».
+	const etiqueta = (m) => (m.de === 'cliente' ? '' : m.de === 'equipo' ? (m.nombre ? `Equipo · ${m.nombre}` : m.de === yo ? '' : 'Equipo')
+		: m.de === yo ? '' : `Socio${dueno?.nombre ? ` · ${PRIMERO(dueno.nombre)}` : ''}`);
 	const nombreDe = (de) => (de === 'cliente' ? PRIMERO(l.nombre) || 'Cliente' : de === yo ? 'Tú' : de === 'socio' ? 'Socio' : 'Equipo');
 	const tarjeta = (m) => (m.tipo === 'foto' ? tarjetaComprobante(m, t, rv(), rv()?.cuadra ? dinero(chat.total, chat.moneda) : '') : m.tipo === 'pago' || m.tipo === 'llegada' ? 'omitir' : null);
 	const repintar = () => {
@@ -196,7 +199,9 @@ function hiloDe(S, f, conR7) {
 		const texto = campo.value.trim();
 		if (!texto || !revisar()) return;
 		const ref = doc(collection(db, 'chats', token, enNota ? 'notas' : 'mensajes'));
-		const datos = { de: yo, texto, createdAt: serverTimestamp(), ...(citando && !enNota ? { responde: citando } : {}) };
+		// El equipo firma con su primer nombre (las reglas nuevas lo exigen igual al de su usuario; con las de antes, no va).
+		const firma = yo === 'equipo' && !enNota && conR7 ? PRIMERO(String(session.profile?.nombre || '').trim()).slice(0, 40) : '';
+		const datos = { de: yo, texto, createdAt: serverTimestamp(), ...(citando && !enNota ? { responde: citando } : {}), ...(firma ? { nombre: firma } : {}) };
 		campo.value = ''; memo.borradores[cod] = ''; crecer();
 		citando = null; citandoEl.hidden = true;
 		alFondo = true;
