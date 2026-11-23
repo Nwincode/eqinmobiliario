@@ -4,6 +4,7 @@
 import { session } from './session.js';
 import { h, modal, toast, showError, hoy } from './ui.js';
 import { mesAnterior } from './estado-cuenta.js';
+import { nombreMes, moverMes } from './formato.js';
 
 async function pedir(accion, propietarioId, mes) {
 	const token = await session.user.getIdToken();
@@ -15,10 +16,9 @@ async function pedir(accion, propietarioId, mes) {
 
 // Los últimos 12 meses, del anterior hacia atrás: [['2026-10', 'octubre de 2026'], …].
 function meses() {
-	const nombre = (m) => new Intl.DateTimeFormat('es-GT', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m}-15T12:00:00Z`));
 	const lista = [mesAnterior(hoy())];
-	while (lista.length < 12) lista.push(mesAnterior(`${lista.at(-1)}-01`));
-	return lista.map((m) => [m, nombre(m)]);
+	while (lista.length < 12) lista.push(moverMes(lista.at(-1), -1));
+	return lista.map((m) => [m, nombreMes(m)]);
 }
 
 export function enviarEstadoDeCuenta(socio) {

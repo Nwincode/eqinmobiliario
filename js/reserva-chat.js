@@ -181,11 +181,9 @@
 		var lang = en ? 'en' : 'es';
 		document.documentElement.lang = lang;
 		var H = window.EQHilo;
-		var dia = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-		var diaSemana = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
-		var fecha = function (x) { return dia.format(new Date(x + 'T00:00:00Z')); };
-		var rango = String(c.llegada).slice(0, 7) === String(c.salida).slice(0, 7) && !en
-			? Number(String(c.llegada).slice(8, 10)) + ' – ' + fecha(c.salida) : fecha(c.llegada) + ' – ' + fecha(c.salida);
+		// Fechas y horas con admin/js/formato.js (window.EQFormato): las mismas del panel, en el idioma del cliente.
+		var F = window.EQFormato;
+		var rango = F.rangoDias(c.llegada, c.salida, lang);
 		var total = EQFormato.montoPrecio(Number(c.total) || 0, c.moneda === 'GTQ' ? 'GTQ' : 'USD');
 		// Los textos del hilo (admin/js/hilo.js) en el idioma del cliente.
 		var th = { visto: t.vacChatVisto, enviando: t.vacChatEnviando, noSeEnvio: t.vacChatNoSeEnvio, responder: '', irACita: t.vacChatIrCita, comprobante: t.vacChatComprobante,
@@ -226,13 +224,8 @@
 		function alerta(texto) { aviso.textContent = texto || ''; regla.hidden = Boolean(texto); campo.classList.toggle('hilo-mal', Boolean(texto)); }
 
 		// El plazo de pago, en hora de Guatemala (el mismo del correo): «mañana 16:20», «viernes 20 nov 14:00».
-		var hora = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', hour: 'numeric', minute: '2-digit', hourCycle: en ? 'h12' : 'h23' });
 		var diaGt = function (ms) { return new Date(ms - 6 * 3600000).toISOString().slice(0, 10); };
-		function cuandoVence(ms) {
-			var n = Math.round((Date.parse(diaGt(ms) + 'T00:00:00Z') - Date.parse(diaGt(Date.now()) + 'T00:00:00Z')) / 86400000);
-			var d = n === 0 ? (en ? 'today' : 'hoy') : n === 1 ? (en ? 'tomorrow' : 'mañana') : diaSemana.format(new Date(diaGt(ms) + 'T12:00:00Z'));
-			return d + ' ' + hora.format(new Date(ms)).replace(/^0(\d)/, '$1');
-		}
+		function cuandoVence(ms) { return F.diaDeChat(ms, Date.now(), lang) + ' ' + F.horaChat(ms, lang); }
 		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante). `estadoChat`: el de
 		// ahora, para que el aviso del filtro no prometa lo que ya no toca.
 		var estadoChat = 'Pendiente', camaraVisible = false;
@@ -283,7 +276,7 @@
 					accion = boton2(t.vacChatSubir, 'camera', function () { archivo.click(); });
 				}
 			} else if (estado === 'Pagada') {
-				titulo = fmt(t.vacChatLlegas, { dia: diaSemana.format(new Date(c.llegada + 'T12:00:00Z')) }); detalle = t.vacChatDireccionAbajo;
+				titulo = fmt(t.vacChatLlegas, { dia: F.diaLargo(c.llegada, lang) }); detalle = t.vacChatDireccionAbajo;
 				accion = el('span', 'hilo-pildora hilo-verde vac-chat-sello'); accion.appendChild(el('i')); accion.appendChild(el('span', '', t.vacChatEstadoPagada));
 			} else if (estado === 'No' || estado === 'Cancelada' || vencida || ch.confirmaEquipo) {
 				titulo = vencida ? t.vacChatEstadoNo : estado === 'No' ? t.vacChatEstadoNo : estado === 'Cancelada' ? t.vacChatEstadoCancelada : t.vacChatEsperando;

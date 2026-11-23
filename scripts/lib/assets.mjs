@@ -52,7 +52,7 @@ const SAFELIST = {
 
 // Los formatos de admin/js/formato.js que usa js/site.js, como window.EQFormato: la misma regla que el panel y
 // el generador (correo válido, precio de una propiedad, US$ para comparar precios), sin una segunda copia.
-export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'unirTelefono', 'montoPrecio', 'dineroCorto', 'enUSD'];
+export const FORMATO_NAVEGADOR = ['correoValido', 'sugerenciaCorreo', 'telefonoValido', 'unirTelefono', 'montoPrecio', 'dineroCorto', 'enUSD', 'rangoDias', 'diaLargo', 'diaDeChat', 'horaChat'];
 // Un módulo del panel como variable global del navegador (`globalName`), con solo lo que se exporta aquí.
 async function paraElNavegador(root, modulo, nombres, globalName) {
 	const r = await build({

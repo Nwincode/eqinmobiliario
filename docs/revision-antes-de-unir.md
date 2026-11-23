@@ -65,6 +65,7 @@ agrega aquí en el mismo cambio que lo corrige.
 
 | Error que pasó | Revisión |
 |---|---|
+| (Unión de chat-nuevo, mejoras-ad y unificar-piezas) El aviso «Debes a EQ» sumaba una reserva sin chat (el socio no la ve como solicitud) y «Ver lo que debo» no la mostraba: el total y la lista salían de dos filtros distintos (reservas y solicitudes), y «Por cobrar» del administrador de un tercero. | Un total y la lista que lo explica salen de la misma función (`debidas` en `admin/js/solicitudes-base.js`); lo que no tiene su fila de siempre se pinta con la misma tarjeta (`tarjetaReserva`). El recorrido suma la lista por moneda y la compara con el aviso. |
 | El WhatsApp del socio se podía leer sin llenar el formulario. | Para cada dato que se guarda o se devuelve: ¿quién lo puede leer? Incluye a quien no tiene sesión. |
 | Cualquiera podía listar los archivos de Storage (y con eso, las llaves de las reservas). | Leer uno y **listar** son permisos distintos: revisar los dos. |
 | El socio podía leer el teléfono del cliente aunque la pantalla no lo mostraba. | Esconder en pantalla no es proteger: lo que protege es la regla. |
@@ -206,6 +207,8 @@ Lo que toca dinero, datos de clientes o reglas de seguridad lleva además una se
 
 | Error que pasó | Revisión |
 |---|---|
+| (Unión de cuatro ramas) Cada rama trajo su forma de lo mismo: fechas con `Intl` en la página del cliente y en la ventana del estado de cuenta junto a las de `formato.js`, seis `ms` distintas para pasar una fecha a milisegundos, `mesAnterior` junto a `moverMes`, el primer nombre cortado a mano. | Al unir ramas se buscan en lo unido `Intl.DateTimeFormat`, `toLocale…`, `split(/\s+/)[0]`, `const ms =` y funciones de mes o de fecha nuevas, y se cambian por las de `formato.js` (`enMs`, `primerNombre`, `rangoDias`/`diaLargo` con idioma). |
+| Un panel abierto desde antes de publicar seguía con el código viejo y un guardado podía fallar «No tienes permiso» sin explicar nada. | El build escribe la huella del código del panel (`dist/admin/version.json`, `scripts/lib/huella-panel.mjs`); `admin/js/version.js` la compara al volver a la pestaña, al cambiar de pantalla (cada 5 min a lo más) y en seguida tras un «sin permiso», y avisa «Hay una versión nueva. Recarga la página.» sin recargar solo. |
 | Se podía borrar una casa por noche, o pasarla a venta, con huéspedes por venir; al borrarla quedaban sueltos los teléfonos de sus huéspedes. | Antes de borrar o cambiar de tipo un registro, mirar qué depende de él (`porVenir` en reservas.js) y borrar lo privado que cuelga de él. |
 | «Mis propiedades» calculaba el precio público con el margen que había al abrir la pantalla. | Lo que pone otra persona (el margen) se vuelve a leer justo antes de calcular con él. |
 | «Poner marca de agua» en lote se caía sin hacer nada y «Crear usuario» quedaba deshabilitado al fallar: leían `e.currentTarget` después de un `await` (ya es null). | El botón se guarda en una variable antes del primer `await`; buscar `currentTarget` en lo que se toque. Todo botón que se deshabilita se vuelve a habilitar si falla. |

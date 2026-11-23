@@ -8,10 +8,11 @@ import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, 
 import { h, showError } from './ui.js';
 import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
 import { bajoElPlan, conDatosDelChat } from './reservas-calculo.js';
+import { enMs, primerNombre } from './formato.js';
 
 const V = window.EQVacacional;
 const DIA = 86400000;
-const ms = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : typeof v === 'number' ? v : Date.parse(v || '') || 0);
+const ms = enMs;
 const todos = async (q) => (await getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
 const seguro = (p, vacio = []) => p.catch((err) => { console.warn('Avisos', err); return vacio; });
 
@@ -23,7 +24,7 @@ async function sinResponder(chats) {
 	const ultimos = await Promise.all(abiertos.map(async (c) => {
 		const s = await seguro(getDocs(query(collection(db, 'chats', c.id, 'mensajes'), orderBy('createdAt', 'desc'), limit(1))), null);
 		const m = s?.docs[0]?.data();
-		return m?.de === 'cliente' ? { codigo: c.codigo, nombre: String(c.nombre || '').trim().split(/\s+/)[0], casa: c.propertyTitulo, fecha: ms(m.createdAt) } : null;
+		return m?.de === 'cliente' ? { codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, fecha: ms(m.createdAt) } : null;
 	}));
 	return ultimos.filter(Boolean);
 }
@@ -60,7 +61,7 @@ async function leerFuentes() {
 		const deHoy = chats.filter((c) => suyas.has(c.propertyId));
 		return {
 			solicitudes: deHoy.filter((c) => !c.estado && String(c.llegada || '') >= hoy).map((c) => ({
-				leadId: c.leadId, codigo: c.codigo, nombre: String(c.nombre || '').trim().split(/\s+/)[0], casa: c.propertyTitulo, creado: ms(c.createdAt), estado: 'pendiente',
+				leadId: c.leadId, codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, creado: ms(c.createdAt), estado: 'pendiente',
 				alerta: V.alertaSolicitud('pendiente', ms(c.createdAt), c, null, null, ahora)
 			})),
 			mensajes: await sinResponder(deHoy),
@@ -113,7 +114,7 @@ async function leerFuentes() {
 			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
 		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
 		// Las solicitudes de reserva por noche no son leads del CRM: ya avisan como solicitud.
-		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: String(l.nombre || '').trim().split(/\s+/)[0], casa: l.propertyTitulo, creado: ms(l.createdAt) })),
+		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: primerNombre(l.nombre), casa: l.propertyTitulo, creado: ms(l.createdAt) })),
 		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length })),
 		exclusivas: exclusivasPorVencer(conCasa, acuerdos, propietarios, { dias: 30 }).map((x) => ({
 			casaId: x.casa.id, casa: x.casa.titulo, dueno: x.dueno?.nombre, fin: x.acuerdo?.exclusivaFin, dias: x.dias, agentId: x.casa.agentId || '' }))

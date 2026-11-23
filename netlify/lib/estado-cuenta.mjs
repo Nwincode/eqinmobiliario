@@ -5,7 +5,7 @@ import '../../js/calc-vacacional.js';
 import { consultar, donde } from './firestore.mjs';
 import { conSuChat } from './comisiones.mjs';
 import { plantilla, datos, lista, boton, subtitulo, esc, SITE_URL } from './correo.mjs';
-import { dinero, dineroPorMoneda, nNoches } from '../../admin/js/formato.js';
+import { dinero, dineroPorMoneda, nNoches, nombreMes, MESES_LARGOS } from '../../admin/js/formato.js';
 import { rango } from '../../admin/js/texto-dueno.js';
 
 const V = globalThis.EQVacacional;
@@ -21,7 +21,6 @@ export async function reservasParaCuentas(mes, ahora) {
 // Para uno (el envío a mano): todas las suyas.
 export const reservasDeSocio = async (propietarioId, ahora) => listas(await donde('reservas', 'propietarioId', propietarioId), ahora);
 
-const nombreMes = (mes, opciones) => new Intl.DateTimeFormat('es-GT', { timeZone: 'UTC', ...opciones }).format(new Date(`${mes}-15T12:00:00Z`));
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 // Una reserva: la casa, sus fechas, el monto de la comisión y cómo va (lista() de correo.mjs; en el texto plano, una
 // línea: «Casa Lago · 5 – 7 oct: US$ 30.50 · vencida»).
@@ -33,14 +32,14 @@ export async function correoDeCuenta(socio, cuenta) {
 	const porPagar = dineroPorMoneda(cuenta.porPagar);
 	const resumen = [['Por pagar a EQ', porPagar || 'Nada'], ['Ya vencido', dineroPorMoneda(cuenta.vencido) || 'Nada: estás al día']];
 	const [texto, url] = porPagar ? ['Subir comprobante', `${SITE_URL}/admin/#/solicitudes/cobrar`] : ['Abrir mi panel', `${SITE_URL}/admin/`];
-	const mes = mayuscula(nombreMes(cuenta.mes, { month: 'long' }));
+	const mes = mayuscula(MESES_LARGOS[Number(String(cuenta.mes).slice(5, 7)) - 1]);
 	const delMes = cuenta.total ? [['Reservas', `${cuenta.total} · ${nNoches(cuenta.noches)}`], ['Tu parte', dineroPorMoneda(cuenta.tuParte)],
 		['Ganancia de EQ', dineroPorMoneda(cuenta.comision)], ['Ya pagaste', dineroPorMoneda(cuenta.pagada)]] : [];
 	const anio = cuenta.mes.slice(0, 4);
 	// Las filas: las del mes (si las hay), las de antes y las próximas (las que ya suman en «Por pagar a EQ»).
 	const bloques = [[mes, cuenta.reservas], ['De meses anteriores', cuenta.anteriores], ['Próximas', cuenta.proximas]]
 		.map(([t, l]) => [t, l.map((x) => fila(x, anio))]).filter(([, l]) => l.length);
-	const titulo = `Tu estado de cuenta de ${nombreMes(cuenta.mes, { month: 'long', year: 'numeric' })}`;
+	const titulo = `Tu estado de cuenta de ${nombreMes(cuenta.mes)}`;
 	const nombre = String(socio.nombre || '').trim().split(' ')[0];
 	const intro = `Hola${nombre ? ` ${nombre}` : ''}, esto es lo que llevas con EQ.`;
 	const html = await plantilla({

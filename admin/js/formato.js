@@ -76,6 +76,8 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 	return `${montoPrecio(precio, moneda)}${operacion === 'renta' ? t.mes : ''}`;
 }
 // «1 noche», «3 noches».
+// El primer nombre de una persona («Ana» de «Ana María López»): lo que el socio ve del cliente y el saludo de un mensaje.
+export const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
 
 // ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
@@ -329,9 +331,13 @@ export function whatsappUrl(tel, mensaje) {
 // El día corto de una fecha 'AAAA-MM-DD' («16 nov», «16 sept»: como es-GT), con los meses escritos aquí para que salga
 // igual en todo navegador (los textos de la bitácora del dueño los revisan las reglas: admin/js/texto-dueno.js).
 export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
-export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`;
-// Un rango de días: «25 – 28 nov», o «30 nov – 2 dic» si cambia el mes.
-export const rangoDias = (a, b) => (String(a).slice(0, 7) === String(b).slice(0, 7) ? `${Number(String(a).slice(8, 10))} – ${dia(b)}` : `${dia(a)} – ${dia(b)}`);
+// En inglés («Nov 16»), para la página «Tu reserva» del cliente que escribe en inglés.
+const DIA_EN = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+export const dia = (iso, lang = 'es') => (lang === 'en' ? DIA_EN.format(new Date(`${String(iso).slice(0, 10)}T12:00:00Z`))
+	: `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`);
+// Un rango de días: «25 – 28 nov», o «30 nov – 2 dic» si cambia el mes (en inglés, «Nov 25 – Nov 28»).
+export const rangoDias = (a, b, lang = 'es') => (lang === 'en' ? `${dia(a, 'en')} – ${dia(b, 'en')}`
+	: String(a).slice(0, 7) === String(b).slice(0, 7) ? `${Number(String(a).slice(8, 10))} – ${dia(b)}` : `${dia(a)} – ${dia(b)}`);
 // Con su año («16 nov 2026»): la fecha del panel cuando el año no se sobreentiende.
 export const diaConAnio = (iso) => `${dia(iso)} ${String(iso).slice(0, 4)}`;
 
@@ -364,8 +370,9 @@ export function cuandoCorto(cuando, ahora = Date.now()) {
 	const d = partesGt(cuando), n = diasEntre(d.iso, partesGt(ahora).iso);
 	return n <= 0 ? d.hora : n === 1 ? 'ayer' : n < 7 ? DIAS_SEMANA[d.semana].slice(0, 3) : dia(d.iso);
 }
-// Un día de la reserva con su día de la semana: «sábado 12 dic» (diaLargo) o «mié 25 nov» (diaConSemana).
-export const diaLargo = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()]} ${dia(iso)}`;
+// Un día de la reserva con su día de la semana: «sábado 12 dic» (diaLargo; en inglés «Saturday, Dec 12») o «mié 25 nov» (diaConSemana).
+const DIA_LARGO_EN = new Intl.DateTimeFormat('en-US', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+export const diaLargo = (iso, lang = 'es') => (lang === 'en' ? DIA_LARGO_EN.format(new Date(`${iso}T12:00:00Z`)) : `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()]} ${dia(iso)}`);
 export const diaConSemana = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()].slice(0, 3)} ${dia(iso)}`;
 // Fechas del panel: tres formatos, los mismos en todas las pantallas (meses escritos aquí: igual en todo navegador).
 //  fechaCorta «16 nov 2026» · fechaLarga «16 de noviembre de 2026» · fechaHora «16 nov 2026, 10:30».
@@ -377,6 +384,17 @@ export function aFecha(v) {
 	if (v.seconds) return new Date(v.seconds * 1000);
 	const d = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00`) : new Date(v);
 	return Number.isNaN(d.getTime()) ? null : d;
+}
+// Una fecha en milisegundos (Timestamp de Firestore, { seconds }, Date, número o texto; 0 si no hay): la única forma en el
+// panel y en la página del cliente. Un día solo («2026-11-20») es ese día en Guatemala (a mediodía), no la medianoche UTC,
+// que en Guatemala todavía es el día anterior.
+export function enMs(v) {
+	if (!v) return 0;
+	if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return Date.parse(`${v}T12:00:00-06:00`) || 0;
+	if (typeof v.toDate === 'function') return v.toDate().getTime() || 0;
+	if (typeof v.seconds === 'number') return v.seconds * 1000;
+	const t = new Date(v).getTime();
+	return Number.isNaN(t) ? 0 : t;
 }
 const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const fechaCorta = (v, sinFecha = '—') => { const d = aFecha(v); return d ? diaConAnio(isoDe(d)) : sinFecha; };

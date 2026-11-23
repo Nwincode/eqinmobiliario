@@ -14,7 +14,7 @@ import { avisarChat } from '../reservas.js';
 import { comprobanteVigente, llegadaPasada } from '../reservas-calculo.js';
 import { cargarSolicitudes, estado, rapidasDe } from '../solicitudes-base.js';
 import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, estadoDeFoto, eventoPanel, TEXTOS_PANEL, enMs } from '../hilo.js';
-import { dinero, rangoDias, diaConSemana, diaLargo, cuandoCorto, horaChat, diaDeChat, nNoches } from '../formato.js';
+import { dinero, fechasReserva, diaConSemana, diaLargo, cuandoCorto, horaChat, diaDeChat, nNoches, primerNombre } from '../formato.js';
 import { PARECE } from '../mi-casa.js';
 import { avisarAvisos } from '../avisos.js';
 import { estadoIA, sugerirRespuesta } from '../ia.js';
@@ -23,7 +23,6 @@ const V = window.EQVacacional;
 const t = TEXTOS_PANEL;
 // La foto de la casa que guardó la solicitud (la de su ficha): https o del mismo sitio.
 const fotoValida = (u) => /^(https:\/\/|\/[^/])/.test(u || '');
-const PRIMERO = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 // Lo que se queda entre una pantalla y otra (el router vuelve a pintar en cada cambio de dirección): los datos leídos,
 // el filtro, la búsqueda y dónde iba la lista. Así elegir una conversación no relee todo ni pierde la lista.
 const memo = { S: null, leido: 0, filtro: '', busca: '', abierta: false, scroll: 0, apagar: () => {}, borradores: {}, rapidasTodas: false };
@@ -48,7 +47,8 @@ function filaDe(S, l) {
 	return { l, cod, chat, ultimo, yo, sinResponder, nuevo: ultimo?.de === 'cliente' && enMs(ultimo.createdAt) > visto, queda,
 		cuando: enMs(ultimo?.createdAt) || enMs(chat.createdAt), comprobante: chat.estado === 'confirmada' && comprobanteVigente(chat) };
 }
-const textoQueda = (q) => (q <= 0 ? 'Venció' : q < 3600000 ? `Responde en ${Math.max(1, Math.round(q / 60000))} min` : `Responde en ${Math.round(q / 3600000)} h`);
+// Lo que queda de un plazo: «Responde en 40 min» en la lista, «Quedan 3 h» en el hilo.
+const textoQueda = (q, que = 'Responde en') => (q <= 0 ? 'Venció' : q < 3600000 ? `${que} ${Math.max(1, Math.round(q / 60000))} min` : `${que} ${Math.round(q / 3600000)} h`);
 
 export async function render(container, [codigo = ''] = []) {
 	memo.apagar();
@@ -111,7 +111,7 @@ function lista(S, filas, actual) {
 
 function filaEl(S, f, elegida) {
 	const { l, chat, ultimo } = f;
-	const nombre = S.admin ? l.nombre : PRIMERO(l.nombre);
+	const nombre = S.admin ? l.nombre : primerNombre(l.nombre);
 	const mio = ultimo && ultimo.de !== 'cliente';
 	const ult = !ultimo ? '' : ultimo.tipo === 'foto' ? [h('span', { class: 'icon-camera', 'aria-hidden': 'true' }), ` ${t.comprobante}`]
 		: `${mio && !ultimo.tipo ? 'Tú: ' : ''}${resumenDe(ultimo, t)}`;
@@ -121,7 +121,7 @@ function filaEl(S, f, elegida) {
 		fotoValida(chat.foto) ? h('img', { class: 'msj-foto', src: chat.foto, alt: '', loading: 'lazy', width: 52, height: 52 }) : h('span', { class: 'msj-foto icon-home2', 'aria-hidden': 'true' }),
 		h('span', { class: 'msj-t' },
 			h('span', { class: 'msj-l1' }, h('span', { class: 'msj-nom' }, nombre), h('span', { class: 'msj-hora' }, f.cuando ? cuandoCorto(f.cuando, ahoraYa()) : '')),
-			h('span', { class: 'msj-l2' }, `${l.propertyTitulo || ''} · ${rangoDias(l.reserva.llegada, l.reserva.salida)}`),
+			h('span', { class: 'msj-l2' }, `${l.propertyTitulo || ''} · ${fechasReserva(l.reserva)}`),
 			h('span', { class: 'msj-l3' }, h('span', { class: 'msj-ult' }, ult), plazo, f.nuevo ? h('span', { class: 'msj-punto', title: 'Sin leer' }, h('span', { class: 'visually-hidden' }, 'Sin leer')) : null)));
 }
 
@@ -131,7 +131,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 	const token = S.chats[cod];
 	const yo = f.yo;
 	let chat = { ...S.datosChat[cod] };
-	const caja = h('section', { class: 'msj-hilo', 'aria-label': `Conversación con ${PRIMERO(l.nombre)}` });
+	const caja = h('section', { class: 'msj-hilo', 'aria-label': `Conversación con ${primerNombre(l.nombre)}` });
 	const lineas = h('div', { class: 'hilo', role: 'log', 'aria-live': 'polite' });
 	let mensajes = [], notas = [], citando = null, enNota = false, alFondo = false;
 	const fallidos = new Map();
@@ -140,8 +140,8 @@ function hiloDe(S, f, conR7, iaActiva) {
 	// Quién escribió, cuando hace falta: el cliente nunca; lo del equipo con su nombre si lo trae (también lo mío: el
 	// equipo son varias personas); lo de antes, «Equipo».
 	const etiqueta = (m) => (m.de === 'cliente' ? '' : m.de === 'equipo' ? (m.nombre ? `Equipo · ${m.nombre}` : m.de === yo ? '' : 'Equipo')
-		: m.de === yo ? '' : `Socio${dueno?.nombre ? ` · ${PRIMERO(dueno.nombre)}` : ''}`);
-	const nombreDe = (de) => (de === 'cliente' ? PRIMERO(l.nombre) || 'Cliente' : de === yo ? 'Tú' : de === 'socio' ? 'Socio' : 'Equipo');
+		: m.de === yo ? '' : `Socio${dueno?.nombre ? ` · ${primerNombre(dueno.nombre)}` : ''}`);
+	const nombreDe = (de) => (de === 'cliente' ? primerNombre(l.nombre) || 'Cliente' : de === yo ? 'Tú' : de === 'socio' ? 'Socio' : 'Equipo');
 	// La foto del cliente: el socio la ve cuando la revisión dice que es un comprobante sin datos de contacto (o sin IA, como
 	// siempre); el equipo siempre, con lo que vio la revisión y «Mostrar al socio» si está oculta (estadoDeFoto, hilo.js).
 	const tarjeta = (m) => {
@@ -159,7 +159,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 	const repintar = () => {
 		const items = [...mensajes, ...notas.map((n) => ({ ...n, nota: true })), ...fallidos.values()];
 		const nodos = armarHilo(items, { yo, t, ahora: ahoraYa(), chat, vistoOtros: enMs(chat.vistoCliente), etiqueta, nombreDe, tarjeta,
-			textoEvento: (ev) => eventoPanel(ev, yo, PRIMERO(l.nombre)), alResponder: conR7 ? citar : null, alReintentar: reintentar });
+			textoEvento: (ev) => eventoPanel(ev, yo, primerNombre(l.nombre)), alResponder: conR7 ? citar : null, alReintentar: reintentar });
 		pintarHilo(lineas, nodos.length ? nodos : [h('p', { class: 'hilo-vacio' }, 'Todavía no hay mensajes.')], alFondo);
 		alFondo = false;
 	};
@@ -213,7 +213,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 		if (!texto || !revisar()) return;
 		const ref = doc(collection(db, 'chats', token, enNota ? 'notas' : 'mensajes'));
 		// El equipo firma con su primer nombre (las reglas nuevas lo exigen igual al de su usuario; con las de antes, no va).
-		const firma = yo === 'equipo' && !enNota && conR7 ? PRIMERO(String(session.profile?.nombre || '').trim()).slice(0, 40) : '';
+		const firma = yo === 'equipo' && !enNota && conR7 ? primerNombre(String(session.profile?.nombre || '').trim()).slice(0, 40) : '';
 		const datos = { de: yo, texto, createdAt: serverTimestamp(), ...(citando && !enNota ? { responde: citando } : {}), ...(firma ? { nombre: firma } : {}) };
 		campo.value = ''; memo.borradores[cod] = ''; crecer();
 		citando = null; citandoEl.hidden = true;
@@ -308,15 +308,15 @@ function cabeza(S, f) {
 	const { l, chat } = f;
 	const r = l.reserva;
 	const est = estado(l);
-	const fechasR = rangoDias(r.llegada, r.salida);
+	const fechasR = fechasReserva(r);
 	const total = dinero(r.total, r.moneda || 'USD');
-	const nombre = S.admin ? l.nombre : PRIMERO(l.nombre);
+	const nombre = S.admin ? l.nombre : primerNombre(l.nombre);
 	const pendiente = est === 'pendiente' && !chat.estado;
 	const icono = (i) => h('span', { class: `icon-${i}`, 'aria-hidden': 'true' });
 	const boton = (texto, clase, onclick, i, etiqueta) => h('button', { type: 'button', class: `hilo-btn ${clase}`, onclick, ...(etiqueta ? { 'aria-label': etiqueta, title: etiqueta } : {}) }, icono(i), texto);
 	const p = S.plazoDe(l);
 	const queda = p?.vence ? p.vence - ahoraYa() : 0;
-	const quedaTxt = queda > 0 ? (queda < 3600000 ? `Quedan ${Math.max(1, Math.round(queda / 60000))} min` : `Quedan ${Math.round(queda / 3600000)} h`) : '';
+	const quedaTxt = queda > 0 ? textoQueda(queda, 'Quedan') : '';
 	const pildora = (() => {
 		const [texto, color] = chat.estado === 'pagada' ? ['Pagada', 'hilo-verde'] : chat.estado === 'confirmada' ? ['Confirmada', 'hilo-verde'] : chat.estado === 'no' ? ['No se dio', 'hilo-gris'] : chat.estado === 'cancelada' ? ['Cancelada', 'hilo-rojo'] : ['Pendiente', ''];
 		return h('span', { class: `hilo-pildora ${color}` }, h('i'), texto);

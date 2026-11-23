@@ -10,7 +10,7 @@
 //  - De meses anteriores: las de antes del mes sin pagar y cobrables; Próximas: las de después, igual. Así cada monto de
 //    «Por pagar» tiene su fila (las del mes, las de antes o las próximas).
 // Las reservas con chat necesitan chatPagado / chatComprobante (conDatosDelChat): el servidor los pone antes (conSuChat).
-import { sumarPorMoneda, dia } from './formato.js';
+import { sumarPorMoneda, dia, moverMes } from './formato.js';
 
 const V = () => globalThis.EQVacacional;
 const moneda = (r) => r.moneda || 'USD';
@@ -18,10 +18,7 @@ const monto = (r) => Number(r.comision?.monto) || 0;
 const redondo = (t) => Object.fromEntries(Object.entries(t).map(([m, n]) => [m, V().r2(n)]));
 
 // El mes anterior al día `hoy` ('AAAA-MM-DD', el de Guatemala): 'AAAA-MM'.
-export function mesAnterior(hoy) {
-	const [a, m] = String(hoy).split('-').map(Number);
-	return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
-}
+export const mesAnterior = (hoy) => moverMes(String(hoy).slice(0, 7), -1);
 
 // Cómo va la comisión de una reserva: 'pagada' · 'por confirmar pago' (aún no se sabe si el cliente pagó) · 'vencida' ·
 // 'vence 12 dic'. '' si no tiene comisión.

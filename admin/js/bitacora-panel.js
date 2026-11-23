@@ -2,7 +2,7 @@
 // mismo lote o transacción que lo hace, y la lista «Cambios» de la ficha de una casa o de un dueño.
 import { db, doc, getDoc, getDocs, collection, query, where, serverTimestamp } from './firebase.js';
 import { h, modal, spinner, emptyState, showError, formatDate } from './ui.js';
-import { dinero, diaConAnio } from './formato.js';
+import { dinero, diaConAnio, enMs } from './formato.js';
 import { session } from './session.js';
 import { renglon, diferencias, firma } from './bitacora.js';
 
@@ -26,7 +26,7 @@ export function anotar(lote, datos, activaYa) {
 	return ref.id;
 }
 
-const ms = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : 0);
+const ms = enMs;
 
 // Lista «Cambios» (solo el administrador): de una casa (casaId) o de un dueño (propietarioId). En la casa van también los
 // cambios que el dueño hace él solo (properties/{id}/bitacora: precios, días bloqueados, «La casa»); en el dueño, las

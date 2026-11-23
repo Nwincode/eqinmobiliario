@@ -7,10 +7,10 @@
 // - Lo que pasó con la reserva, en líneas finas centradas (`eventosDe`): salen del chat y de sus mensajes con tipo.
 // - El comprobante como tarjeta (foto + revisión de la IA); la cita de un mensaje dentro de la burbuja; la traducción
 //   debajo del texto; «No se envió · Reintentar» bajo la burbuja que falló.
-import { horaChat, diaDeChat } from './formato.js';
+import { horaChat, diaDeChat, enMs } from './formato.js';
 
-const ms = (v) => (v == null ? 0 : typeof v === 'number' ? v : v.toMillis ? v.toMillis() : v.seconds ? v.seconds * 1000 : v instanceof Date ? v.getTime() : Date.parse(v) || 0);
-export const enMs = ms;
+const ms = enMs;
+export { enMs };
 
 function el(tag, clase, ...hijos) {
 	const e = document.createElement(tag);
