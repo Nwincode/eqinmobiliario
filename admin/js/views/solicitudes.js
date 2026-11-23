@@ -6,17 +6,14 @@
 // Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat; lo del socio, por el
 // servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
-import { db, collection, query, orderBy, getDoc, getDocs, addDoc, updateDoc, serverTimestamp } from '../firebase.js';
 import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, ahoraYa } from '../ui.js';
 import { session } from '../session.js';
-import { comisionPagada, cobrarComision, ponerComprobante, avisarChat, estadoServidor } from '../reservas.js';
+import { comisionPagada, cobrarComision, ponerComprobante, estadoServidor } from '../reservas.js';
 import { cambioElPrecio, llegadaPasada, comprobanteVigente, conDatosDelChat, TEXTO_CONFIRMA_EQUIPO, conPlazo, venceRespuesta, TEXTO_PRECIO_CAMBIO, ultimoDelHistorial, diaQueConfirmo } from '../reservas-calculo.js';
-import { cargarSolicitudes, ESTADOS, estado, fechas, RAPIDAS, momentoDe } from '../solicitudes-base.js';
-import { traducirTexto } from '../ia.js';
+import { cargarSolicitudes, ESTADOS, estado, fechas } from '../solicitudes-base.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
 import { whatsappUrl, nNoches, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
 import { uploadImage, renderForm } from '../form.js';
-import { PARECE } from '../mi-casa.js';
 import { money, ms, corregirCorreo, limpiarCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
@@ -33,7 +30,7 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 export async function render(container, [codigo] = []) {
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	const S = await cargarSolicitudes({ recargar: () => recargar() });
-	const { admin, equipo, leads: todas, chats, datosChat, refChat, porResponder, revisiones, deHoy, reservas, propietarios, netos, variosChats,
+	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, deHoy, reservas, propietarios, netos, variosChats,
 		reservaDe, puedeCancelar, puedeNoMeLlego, debe, moraDe, porCobrar, teToca, alerta, ocupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe, pasada, sinConfirmar,
 		puedeConfirmar, puedePagoRecibido, hacer, confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar } = S;
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
@@ -42,82 +39,6 @@ export async function render(container, [codigo] = []) {
 	const leads = todas.sort((a, b) => orden(a) - orden(b) || ms(b.createdAt) - ms(a.createdAt));
 	vista.recargar = () => (container.isConnected ? recargar() : undefined);
 
-	// Conversación de la solicitud. Nadie pasa teléfonos, correos ni enlaces: todo se coordina aquí.
-	async function abrirChat(l) {
-		const QUIEN = { cliente: 'Cliente', socio: 'Socio', equipo: 'Equipo' };
-		const TIPOS = { pago: 'Datos de pago', llegada: 'Datos de llegada', foto: 'Comprobante de pago', reabierto: 'No llegó el pago' };
-		const ref = refChat(l);
-		const mensajes = collection(db, 'chats', ref.id, 'mensajes');
-		const yo = admin ? 'equipo' : 'socio';
-		const ingles = datosChat[l.reserva.codigo]?.idioma === 'en';
-		const traducidos = new Map();
-		let traducir = false;
-		// Mismas burbujas del asistente de IA (admin.css): las mías a la derecha.
-		const lista = h('div', { class: 'ia-chat-log mb-3' });
-		const cuerpo = (m) => m.tipo === 'foto' ? h('a', { href: m.texto, target: '_blank', rel: 'noopener' }, h('img', { src: m.texto, alt: 'Comprobante de pago', class: 'img-fluid rounded', loading: 'lazy' }))
-			: m.tipo === 'llegada' ? 'Se le mostraron al cliente la dirección, el mapa y cómo llegar.'
-			: [m.texto, traducir && m.de === 'cliente' && traducidos.get(m.texto) ? h('div', { class: 'small opacity-75 mt-1' }, traducidos.get(m.texto)) : null];
-		const cargar = async () => {
-			const [s, c] = await Promise.all([getDocs(query(mensajes, orderBy('createdAt'))), getDoc(ref)]);
-			const todos = s.docs.map((d) => d.data());
-			// Cliente que escribe en inglés: sus mensajes se muestran también en español.
-			if (traducir) await Promise.all(todos.filter((m) => m.de === 'cliente' && !m.tipo && !traducidos.has(m.texto)).map(async (m) => traducidos.set(m.texto, await traducirTexto(m.texto, 'en|es'))));
-			const ultimoMio = todos.filter((m) => m.de === yo).at(-1);
-			const visto = ultimoMio && ms(c.data()?.vistoCliente) >= ms(ultimoMio.createdAt) && ms(ultimoMio.createdAt) > 0;
-			// Mensajes seguidos de la misma persona van juntos y con su nombre una sola vez (como en WhatsApp).
-			lista.replaceChildren(...(todos.length ? todos.flatMap((m, i) => [h('div', { class: `ia-burbuja ${m.de === yo ? 'ia-user' : 'ia-assistant'}${todos[i - 1]?.de === m.de && !m.tipo ? ' is-seguida' : ''}` },
-				todos[i - 1]?.de === m.de && !m.tipo ? null : h('div', { class: 'small opacity-75' }, `${TIPOS[m.tipo] ? `${TIPOS[m.tipo]} · ` : ''}${QUIEN[m.de] || 'Equipo'}${ms(m.createdAt) ? ` · ${hace(ms(m.createdAt))}` : ''}`), cuerpo(m)),
-				visto && m === ultimoMio ? h('div', { class: 'small text-muted text-end' }, 'Visto') : null])
-				: [h('p', { class: 'small text-muted mb-0' }, 'Todavía no hay mensajes.')]));
-			// Lo que escribió el cliente queda visto por mí.
-			if (todos.at(-1) && todos.at(-1).de !== yo) await updateDoc(ref, { [admin ? 'vistoEquipo' : 'vistoSocio']: serverTimestamp() });
-		};
-		const mostrar = async () => { try { await cargar(); } catch (err) { showError(err); } };
-		// Una línea que crece al escribir (hasta 5); Enter envía y Mayús + Enter baja de línea, como en la página del cliente.
-		const campo = h('textarea', { class: 'form-control chat-campo', rows: 1, maxlength: 1000, required: true, placeholder: 'Escribe un mensaje…', 'aria-label': 'Mensaje',
-			oninput: (e) => { e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 132)}px`; },
-			onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } } });
-		// Uno a la vez: doble clic o Enter y clic no mandan el mismo mensaje dos veces.
-		let enviando = false;
-		const form = h('form', { class: 'd-flex align-items-end gap-2', onsubmit: async (e) => {
-			e.preventDefault();
-			let texto = campo.value.trim();
-			if (!texto || enviando) return;
-			// Qué parte parece contacto, con la misma pieza del huésped y de «Mi casa» (mi-casa.js PARECE).
-			const tipo = V.tipoDeContacto(texto);
-			if (tipo) return toast(`${(PARECE[tipo] || 'parece un contacto').replace(/^./, (l) => l.toUpperCase())}: por aquí no se comparten contactos.`, 'warning');
-			enviando = true;
-			const escrito = campo.value;
-			campo.value = ''; campo.style.height = '';
-			try {
-				// Al cliente que escribe en inglés le llega en inglés, con el original debajo.
-				if (traducir) texto = `${await traducirTexto(texto, 'es|en')}\n(${texto})`.slice(0, 1000);
-				await addDoc(mensajes, { de: yo, texto, createdAt: serverTimestamp() });
-			} catch (err) { if (!campo.value) campo.value = escrito; showError(err); return; } finally { enviando = false; }
-			// Ya quedó guardado: si volver a leer falla, no se devuelve el texto (se mandaría dos veces).
-			avisarChat(ref.id);
-			avisarAvisos();
-			await mostrar();
-		} }, campo, iconoBtn('icon-paper-plane', 'Enviar', { type: 'submit' }));
-		// Respuestas rápidas detrás del rayo: se abren al tocarlo y se cierran al elegir una.
-		const momento = momentoDe(l, datosChat[l.reserva.codigo]);
-		// (d-none y no «hidden»: el d-flex de Bootstrap le gana a «hidden» y la lista quedaba siempre abierta).
-		const abrirRapidas = (si) => { rapidas.classList.toggle('d-none', !si); rayo.setAttribute('aria-expanded', String(si)); };
-		const rapidas = h('div', { class: 'd-flex flex-wrap gap-2 mb-2 d-none' }, [...RAPIDAS[momento], ...RAPIDAS.siempre].map((r) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary text-start', onclick: () => {
-			campo.value = r; abrirRapidas(false); campo.focus();
-		} }, r)));
-		const rayo = iconoBtn('icon-bolt', 'Respuestas rápidas', { 'aria-expanded': 'false', onclick: () => abrirRapidas(rapidas.classList.contains('d-none')) });
-		form.prepend(rayo);
-		if (ingles) form.prepend(iconoBtn('icon-globe', 'Traducir: el cliente escribe en inglés', { 'aria-pressed': 'false', onclick: (e) => { traducir = !traducir; e.currentTarget.setAttribute('aria-pressed', String(traducir)); e.currentTarget.classList.toggle('active', traducir); mostrar(); } }));
-		// Mensajes nuevos cada 10 s mientras la conversación está abierta.
-		const reloj = setInterval(mostrar, 10000);
-		// Lo que cambia la reserva no se dice por mensaje: se toca el botón (así se apartan las fechas y el cliente recibe lo que sigue).
-		const est = estado(l);
-		const nota = est === 'pendiente' ? 'Disponibilidad: usa «Confirmar» o «No se dio» en la solicitud.'
-			: est === 'confirmada' ? 'Al recibir el pago, toca «Pago recibido» en la solicitud.' : '';
-		modal({ title: `Chat · ${l.reserva.codigo}`, body: h('div', {}, lista, nota ? h('p', { class: 'small text-muted mb-2' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), nota) : null, rapidas, form), onClose: () => { clearInterval(reloj); recargar(); } });
-		await mostrar();
-	}
 	// El socio sube la foto de su transferencia o depósito. Mientras sube, su botón se apaga y dice «Subiendo…» (otro toque
 	// o una pestaña que se repinta no suben otra: SUBIENDO, por reserva); si no termina en LIMITE_SUBIDA, se dice y se
 	// puede volver a intentar. El archivo que llegara tarde queda sin usar: la reserva guarda solo el que sí se registró.
@@ -294,7 +215,8 @@ export async function render(container, [codigo] = []) {
 					: est === 'no'
 					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
-				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { onclick: () => abrirChat(l) }) : null,
+				// La conversación vive en Mensajes (una sola: el hilo con sus acciones).
+				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }) : null,
 				est === 'pendiente' && deHoy(l.propertyId) ? [puedeConfirmar(l) ? boton('Confirmar', 'btn-primary', () => confirmar(l), 'check') : null, boton('No se dio', puedeConfirmar(l) ? 'btn-outline-secondary' : 'btn-primary', () => noSeDio(l, yaOcupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				puedePagoRecibido(l) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,

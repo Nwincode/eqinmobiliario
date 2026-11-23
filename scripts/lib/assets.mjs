@@ -16,7 +16,8 @@ const CSS_FILES = [
 	'css/calendario.css',
 	'css/site.css',
 	'css/vip.css',
-	'css/botones.css'
+	'css/botones.css',
+	'css/hilo.css'
 ];
 
 // El orden importa: custom.js usa tns() y AOS; site.js va al final.
@@ -42,7 +43,8 @@ const SAFELIST = {
 		/^sticky/, /^dropdown/, /^has-children$/, /^icofont-close$/, /^is-invalid$/, /^invalid-feedback$/, /^d-block$/, /^eq-aviso-breve$/, /^eq-compartir/, /^btn-success$/, /^sin-barra-ficha$/,
 		/^btn-(link|sm|outline-primary)$/, /^p-0$/, /^align-baseline$/, /^ms-2$/, // botones que arman js/site.js y js/reserva-chat.js
 		/^renta-d-/, // calc-renta-ui.js arma estas clases con «renta-d-» + tipo de fila
-		/^vac-/], // js/vacacional.js arma el calendario y el desglose
+		/^vac-/, // js/vacacional.js arma el calendario y el desglose
+		/^hilo-/, /^icon-(calendar-plus-o|check-circle|money|ban|lock|reply|exclamation-circle|camera)$/], // el hilo del chat (admin/js/hilo.js) arma sus piezas y sus íconos
 	deep: [/^tns-/, /^site-mobile-menu/, /^site-nav-wrap/, /^vip-lightbox/],
 	greedy: [/data-aos/, /aos-animate/, /tns/],
 	variables: [/.*/]
@@ -63,6 +65,9 @@ const formatoParaElNavegador = (root) => paraElNavegador(root, './admin/js/forma
 // La foto del comprobante que el huésped adjunta en el chat sale como las del panel (girada, reducida, WebP):
 // admin/js/imagen.js como window.EQImagen, solo en el paquete de renta vacacional (js/reserva-chat.js).
 const imagenParaElNavegador = (root) => paraElNavegador(root, './admin/js/imagen.js', ['procesarImagen'], 'EQImagen');
+// El hilo de la conversación (admin/js/hilo.js) como window.EQHilo: la misma pieza que Mensajes del panel, solo en el
+// paquete de renta vacacional (la página «Tu reserva»).
+const hiloParaElNavegador = (root) => paraElNavegador(root, './admin/js/hilo.js', ['armarHilo', 'pintarHilo', 'tarjetaComprobante', 'pasosEnLinea'], 'EQHilo');
 
 // Íconos (icomoon) del sitio: los códigos que pide el CSS ya depurado (`content: "\e900"`), de U+E000 a U+F8FF.
 export const codigosEnCss = (css) => [...new Set([...css.matchAll(/content\s*:\s*["']\\([0-9a-f]{4,5})/gi)]
@@ -142,7 +147,7 @@ export async function buildAssets({ root, dist }) {
 	const rentaJs = (await Promise.all(RENTA_FILES.map((f) => readFile(path.join(root, f), 'utf8')))).join(';\n');
 	const minRenta = (await transform(rentaJs, { loader: 'js', minify: true, target: 'es2017' })).code;
 
-	const vacJs = [await imagenParaElNavegador(root), ...(await Promise.all(VAC_FILES.map((f) => readFile(path.join(root, f), 'utf8'))))].join(';\n');
+	const vacJs = [await imagenParaElNavegador(root), await hiloParaElNavegador(root), ...(await Promise.all(VAC_FILES.map((f) => readFile(path.join(root, f), 'utf8'))))].join(';\n');
 	const minVac = (await transform(vacJs, { loader: 'js', minify: true, target: 'es2017' })).code;
 
 	const version = hash(minCss + minJs + minRenta + minVac);

@@ -50,7 +50,7 @@ export async function cerrarSiSeCruza(tx, leadId) {
 	if (!c || yaRespondida(c.chat.estado, '')) return null;
 	responder(tx, SISTEMA_APARTADAS, leadId, 'no', 'Esas fechas ya tienen otra reserva confirmada: se cerró sola', { 'solicitud.motivo': MOTIVO_FECHAS_APARTADAS });
 	const id = mensaje(tx, c.token, { texto: textoCliente('fechasApartadas', c.chat.idioma === 'en') }, 'equipo');
-	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
+	tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) }, alEstado('no'));
 	return c.token;
 }
 // Al confirmar una reserva en una casa: las otras solicitudes abiertas que se cruzan con sus fechas se cierran (cada una
@@ -102,6 +102,10 @@ export function mensaje(tx, token, datos, de = 'socio') {
 	return id;
 }
 export const pendiente = (id) => ({ avisoPendiente: id });
+// Cuándo pasó el chat a cada estado (estadoEn.confirmada, .pagada, .no, .cancelada), con la hora del servidor y en el
+// mismo cambio que el estado: de ahí salen las líneas «No se dio», «Reserva cancelada»… del hilo (admin/js/hilo.js
+// eventosDe). Lo escriben todos los que cambian el estado: este servidor, los controles de plazos y admin/js/reservas.js.
+export const alEstado = (estado) => ({ ahora: [`estadoEn.${estado}`] });
 export const SISTEMA = { uid: 'sistema', nombre: 'Plazo vencido' };
 const SISTEMA_APARTADAS = { uid: 'sistema', nombre: 'Fechas apartadas' };
 const TOKEN = /^[A-Za-z0-9]{20,60}$/;
@@ -162,7 +166,7 @@ export async function cerrarDuplicadas(tx, lead, leadId) {
 		responder(tx, SISTEMA, o.id, 'no', `Duplicada de ${lead.reserva.codigo}: se cerró sola`, { 'solicitud.motivo': MOTIVO_DUPLICADA });
 		if (c) {
 			mensaje(tx, c.token, { texto: textoDuplicada(lead.reserva.codigo, c.chat.idioma === 'en'), silencioso: true }, 'equipo');
-			tx.cambiar(`chats/${c.token}`, { estado: 'no' });
+			tx.cambiar(`chats/${c.token}`, { estado: 'no' }, alEstado('no'));
 		}
 		n++;
 	}

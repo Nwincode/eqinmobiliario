@@ -327,5 +327,40 @@ export function whatsappUrl(tel, mensaje) {
 // igual en todo navegador (los textos de la bitácora del dueño los revisan las reglas: admin/js/texto-dueno.js).
 export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
 export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`;
+// Un rango de días: «25 – 28 nov», o «30 nov – 2 dic» si cambia el mes.
+export const rangoDias = (a, b) => (String(a).slice(0, 7) === String(b).slice(0, 7) ? `${Number(String(a).slice(8, 10))} – ${dia(b)}` : `${dia(a)} – ${dia(b)}`);
 // Con su año («16 nov 2026»): la fecha del panel cuando el año no se sobreentiende.
 export const diaConAnio = (iso) => `${dia(iso)} ${String(iso).slice(0, 4)}`;
+
+// Fechas y horas de una conversación (Mensajes del panel y la página «Tu reserva»), siempre en hora de Guatemala.
+// `cuando` en milisegundos; `lang` 'es' o 'en'.
+const ZONA = 'America/Guatemala';
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const partesGt = (cuando) => {
+	const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+		.formatToParts(new Date(cuando)).map((x) => [x.type, x.value]));
+	return { iso: `${p.year}-${p.month}-${p.day}`, semana: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday), hora: `${Number(p.hour)}:${p.minute}` };
+};
+const diasEntre = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+// «10:42» (en inglés «10:42 AM»).
+export const horaChat = (cuando, lang = 'es') => (lang === 'en'
+	? new Intl.DateTimeFormat('en-US', { timeZone: ZONA, hour: 'numeric', minute: '2-digit' }).format(new Date(cuando)) : partesGt(cuando).hora);
+// El separador de día de una conversación: «hoy», «ayer», «sábado 21 nov» («today», «yesterday», «Saturday, Nov 21»).
+export function diaDeChat(cuando, ahora = Date.now(), lang = 'es') {
+	const d = partesGt(cuando), hoyGt = partesGt(ahora).iso, n = diasEntre(d.iso, hoyGt);
+	if (n === 0) return lang === 'en' ? 'today' : 'hoy';
+	if (n === 1) return lang === 'en' ? 'yesterday' : 'ayer';
+	if (n === -1) return lang === 'en' ? 'tomorrow' : 'mañana';
+	const otroAnio = d.iso.slice(0, 4) !== hoyGt.slice(0, 4);
+	if (lang === 'en') return new Intl.DateTimeFormat('en-US', { timeZone: ZONA, weekday: 'long', month: 'short', day: 'numeric', ...(otroAnio ? { year: 'numeric' } : {}) }).format(new Date(cuando));
+	return `${DIAS_SEMANA[d.semana]} ${otroAnio ? diaConAnio(d.iso) : dia(d.iso)}`;
+}
+// La hora de una fila de la lista de conversaciones: «10:42» hoy, «ayer», el día de la semana en la última semana
+// («lun»), si no la fecha («18 nov»).
+export function cuandoCorto(cuando, ahora = Date.now()) {
+	const d = partesGt(cuando), n = diasEntre(d.iso, partesGt(ahora).iso);
+	return n <= 0 ? d.hora : n === 1 ? 'ayer' : n < 7 ? DIAS_SEMANA[d.semana].slice(0, 3) : dia(d.iso);
+}
+// Un día de la reserva con su día de la semana: «sábado 12 dic» (diaLargo) o «mié 25 nov» (diaConSemana).
+export const diaLargo = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()]} ${dia(iso)}`;
+export const diaConSemana = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()].slice(0, 3)} ${dia(iso)}`;

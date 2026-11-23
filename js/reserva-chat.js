@@ -15,13 +15,14 @@
 	var GUARDADO = 'eq-reserva';
 
 	function str(v) { return { stringValue: String(v == null ? '' : v) }; }
-	// Documento de Firestore (REST) → objeto sencillo.
+	// Documento de Firestore (REST) → objeto sencillo (con sus mapas: la cita, la traducción y estadoEn).
+	function valorDe(v) {
+		return 'stringValue' in v ? v.stringValue : 'doubleValue' in v ? v.doubleValue : 'integerValue' in v ? Number(v.integerValue) : 'timestampValue' in v ? v.timestampValue
+			: 'booleanValue' in v ? v.booleanValue : 'mapValue' in v ? plano(v.mapValue) : '';
+	}
 	function plano(doc) {
 		var out = {}, f = (doc && doc.fields) || {};
-		Object.keys(f).forEach(function (k) {
-			var v = f[k];
-			out[k] = 'stringValue' in v ? v.stringValue : 'doubleValue' in v ? v.doubleValue : 'integerValue' in v ? Number(v.integerValue) : 'timestampValue' in v ? v.timestampValue : 'booleanValue' in v ? v.booleanValue : '';
-		});
+		Object.keys(f).forEach(function (k) { out[k] = valorDe(f[k]); });
 		return out;
 	}
 	function pedir(url, cuerpo) {
@@ -158,6 +159,7 @@
 		if (texto != null) e.textContent = texto;
 		return e;
 	}
+	function icono(nombre) { var s = el('span', 'icon-' + nombre); s.setAttribute('aria-hidden', 'true'); return s; }
 	function fmt(s, datos) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return datos[k] == null ? '' : datos[k]; }); }
 	function sinReserva() { caja.querySelector('.vac-chat-estado').textContent = t.vacChatSin; }
 	// Sin red (o la base no respondió): no es «no encontramos tu reserva»; se dice y se ofrece reintentar.
@@ -176,90 +178,130 @@
 		var c = plano(doc);
 		t = TEXTOS[c.idioma] || TEXTOS.es;
 		var en = c.idioma === 'en';
-		document.documentElement.lang = en ? 'en' : 'es';
-		var dia = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-		var hora = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+		var lang = en ? 'en' : 'es';
+		document.documentElement.lang = lang;
+		var H = window.EQHilo;
+		var dia = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+		var diaSemana = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
 		var fecha = function (x) { return dia.format(new Date(x + 'T00:00:00Z')); };
+		var rango = String(c.llegada).slice(0, 7) === String(c.salida).slice(0, 7) && !en
+			? Number(String(c.llegada).slice(8, 10)) + ' – ' + fecha(c.salida) : fecha(c.llegada) + ' – ' + fecha(c.salida);
+		var total = EQFormato.montoPrecio(Number(c.total) || 0, c.moneda === 'GTQ' ? 'GTQ' : 'USD');
+		// Los textos del hilo (admin/js/hilo.js) en el idioma del cliente.
+		var th = { visto: t.vacChatVisto, enviando: t.vacChatEnviando, noSeEnvio: t.vacChatNoSeEnvio, responder: '', irACita: t.vacChatIrCita, comprobante: t.vacChatComprobante,
+			datosDePago: t.vacChatDatosPago, datosDeLlegada: t.vacChatLlegada, cuadra: t.vacChatCuadra, soloEquipo: '', idioma: lang };
 
 		// El esqueleto ya viene en la página (con sus íconos); aquí solo se llena.
 		var cuerpo = caja.querySelector('.vac-chat-cuerpo');
 		var poner = function (k, v) { cuerpo.querySelector('[data-out="' + k + '"]').textContent = v; };
 		poner('titulo', en && c.propertyTituloEn || c.propertyTitulo);
-		// Estado de la solicitud: lo marca quien la responde en el panel.
+		poner('fechas', rango);
+		poner('noches', String(c.noches));
+		poner('huespedes', String(c.huespedes));
+		poner('total', total);
+		cuerpo.querySelector('[data-out="noches"]').parentNode.title = c.noches === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: c.noches });
+		cuerpo.querySelector('[data-out="huespedes"]').parentNode.title = c.huespedes === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: c.huespedes });
+		poner('nota', t.vacChatGuarda);
+		var resumen = cuerpo.querySelector('[data-out="resumen"]');
+		var pasos = cuerpo.querySelector('[data-out="pasos"]');
+		var sigue = cuerpo.querySelector('[data-out="sigue"]');
 		var sello = cuerpo.querySelector('[data-out="estado"]');
-		// El plazo de pago, en hora de Guatemala (el mismo del correo): «vie, 20 nov, 14:00».
-		var plazo = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+		var lista = cuerpo.querySelector('.vac-chat-mensajes');
+		var form = cuerpo.querySelector('.vac-chat-form');
+		var campo = form.querySelector('textarea');
+		var boton = form.querySelector('button[type=submit]');
+		var aviso = cuerpo.querySelector('.vac-chat-aviso');
+		var regla = cuerpo.querySelector('.vac-chat-regla');
+		var adjuntar = form.querySelector('.vac-chat-adjuntar');
+		var archivo = form.querySelector('input[type=file]');
+		campo.placeholder = t.vacChatPh;
+		campo.setAttribute('aria-label', t.vacChatPh);
+		boton.setAttribute('aria-label', t.vacChatEnviar);
+		adjuntar.setAttribute('aria-label', t.vacChatFoto);
+		adjuntar.title = t.vacChatFoto;
+		caja.querySelector('.vac-chat-estado').hidden = true;
+		cuerpo.hidden = false;
+		var FOTOS = 'https://firebasestorage.googleapis.com/v0/b/' + config.storageBucket + '/o/';
+		function alerta(texto) { aviso.textContent = texto || ''; regla.hidden = Boolean(texto); campo.classList.toggle('hilo-mal', Boolean(texto)); }
+
+		// El plazo de pago, en hora de Guatemala (el mismo del correo): «mañana 16:20», «viernes 20 nov 14:00».
+		var hora = new Intl.DateTimeFormat(en ? 'en-US' : 'es-GT', { timeZone: 'America/Guatemala', hour: 'numeric', minute: '2-digit', hourCycle: en ? 'h12' : 'h23' });
+		var diaGt = function (ms) { return new Date(ms - 6 * 3600000).toISOString().slice(0, 10); };
+		function cuandoVence(ms) {
+			var n = Math.round((Date.parse(diaGt(ms) + 'T00:00:00Z') - Date.parse(diaGt(Date.now()) + 'T00:00:00Z')) / 86400000);
+			var d = n === 0 ? (en ? 'today' : 'hoy') : n === 1 ? (en ? 'tomorrow' : 'mañana') : diaSemana.format(new Date(diaGt(ms) + 'T12:00:00Z'));
+			return d + ' ' + hora.format(new Date(ms));
+		}
 		// `ch` = el chat tal como está guardado (estado, plazo de pago y si ya mandó su comprobante). `estadoChat`: el de
 		// ahora, para que el aviso del filtro no prometa lo que ya no toca.
-		var estadoChat = 'Pendiente';
+		var estadoChat = 'Pendiente', camaraVisible = false;
+		function boton2(texto, iconoNombre, alTocar) {
+			var b = el('button', 'hilo-btn hilo-btn-pri');
+			b.type = 'button';
+			if (iconoNombre) b.appendChild(icono(iconoNombre));
+			b.appendChild(document.createTextNode(texto));
+			b.addEventListener('click', alTocar);
+			return b;
+		}
 		function ponerEstado(ch) {
 			var valor = ch.estado;
 			var estado = { confirmada: 'Confirmada', pagada: 'Pagada', no: 'No', cancelada: 'Cancelada' }[valor] || 'Pendiente';
 			estadoChat = estado;
-			sello.className = 'vac-chat-sello vac-chat-sello-' + estado.toLowerCase();
-			sello.querySelector('span:last-child').textContent = t['vacChatEstado' + estado];
-			// Qué sigue: guía al cliente en cada paso sin que nadie tenga que escribirle.
 			// Una solicitud sin respuesta pasa a «tarde» a las 2 h (ya se avisó al equipo) y vence a las 24 h (se cierra sola:
-			// netlify/functions/plazos-reservas.mjs).
+			// netlify/functions/plazos-reservas.mjs). La que confirma el equipo (se cotizó por debajo) no aparta fechas.
 			var espera = Date.now() - new Date(c.createdAt).getTime();
-			// La que confirma el equipo (se cotizó por debajo del precio de la casa) no aparta fechas: no se le promete.
-			var sigue = estado !== 'Pendiente' ? estado : espera > 24 * 3600000 ? 'Vencida' : ch.confirmaEquipo ? 'Equipo' : espera > 2 * 3600000 ? 'Tarde' : 'Pendiente';
-			var guia = cuerpo.querySelector('[data-out="sigue"]');
-			// Confirmada: el plazo exacto para pagar; con el comprobante ya enviado, que el anfitrión lo revisa.
-			// Si el anfitrión dijo que no le llegó (pagoReabierto, después del comprobante), se le pide otro: el de antes ya no cuenta
-			// (lo mismo que comprobanteVigente en admin/js/reservas-calculo.js).
+			var pendiente = estado === 'Pendiente';
+			var vencida = pendiente && espera > 24 * 3600000;
+			poner('sub', pendiente ? fmt(t.vacChatTuReserva, { codigo: c.codigo }) : fmt(t.vacChatTuReserva, { codigo: c.codigo }) + ' · ' + rango + ' · ' + total);
+			// Sin respuesta: la fila del resumen con su estado. Después: los pasos y lo que sigue.
+			resumen.hidden = !pendiente;
+			sello.querySelector('span').textContent = t.vacChatEsperando;
 			var conComprobante = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !(Number(ch.pagoReabierto) >= new Date(ch.comprobanteCliente).getTime());
-			var vence = Number(ch.vencePago) || 0;
-			// «No me llegó» del anfitrión: se le pide otro comprobante (no se cancela solo: el equipo lo revisa).
 			var reabierto = estado === 'Confirmada' && Boolean(ch.comprobanteCliente) && !conComprobante;
-			guia.textContent = conComprobante ? t.vacChatSigueComprobante
-				: reabierto ? fmt(t.vacChatSigueReabierto, { fecha: vence > 0 ? plazo.format(new Date(vence)) : '' })
-				: estado === 'Confirmada' ? (vence > 0 ? fmt(t.vacChatSigueConfirmada, { fecha: plazo.format(new Date(vence)) }) : t.vacChatSigueSinPlazo)
-				: t['vacChatSigue' + sigue];
-			// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.
-			if ((estado === 'No' || estado === 'Cancelada') && /^\/[^\/]/.test(c.url || '')) {
-				var otra = el('a', 'btn btn-outline-primary btn-sm ms-2', t.vacChatOtrasFechas);
-				otra.href = c.url + '#vac-titulo';
-				guia.appendChild(otra);
+			var vence = Number(ch.vencePago) || 0;
+			pasos.replaceChildren();
+			if (!pendiente && estado !== 'No' && estado !== 'Cancelada') {
+				var llego = estado === 'Pagada' && diaGt(Date.now()) >= c.llegada;
+				pasos.appendChild(H.pasosEnLinea([{ texto: t.vacChatPasoPedida, estado: 'ok' }, { texto: t.vacChatPasoConfirmada, estado: 'ok' },
+					{ texto: t.vacChatPasoPaga, estado: estado === 'Pagada' ? 'ok' : 'ya' }, { texto: t.vacChatPasoLlegada, estado: llego ? 'ok' : estado === 'Pagada' ? 'ya' : '' }]));
 			}
-			// La cámara (comprobante de pago) solo cuando hay a quién pagar: con la reserva confirmada.
-			var camara = cuerpo.querySelector('.vac-chat-adjuntar');
-			// (Con el comprobante ya enviado, no se pide otra vez; si el anfitrión dice que no le llegó, vuelve.)
-			if (camara) camara.hidden = estado !== 'Confirmada' || conComprobante;
+			// Lo que sigue: título, detalle y la acción del momento.
+			var titulo = '', detalle = '', accion = null;
+			if (estado === 'Confirmada') {
+				if (conComprobante) { titulo = t.vacChatEnviado; detalle = t.vacChatLoRevisa; }
+				else {
+					titulo = vence > 0 ? fmt(t.vacChatVence, { cuando: cuandoVence(vence) }) : t.vacChatPagaAntes;
+					detalle = reabierto ? t.vacChatOtraVez : t.vacChatPagaYSube;
+					accion = boton2(t.vacChatSubir, 'camera', function () { archivo.click(); });
+				}
+			} else if (estado === 'Pagada') {
+				titulo = fmt(t.vacChatLlegas, { dia: diaSemana.format(new Date(c.llegada + 'T12:00:00Z')) }); detalle = t.vacChatDireccionAbajo;
+				accion = el('span', 'hilo-pildora hilo-verde vac-chat-sello'); accion.appendChild(el('i')); accion.appendChild(el('span', '', t.vacChatEstadoPagada));
+			} else if (estado === 'No' || estado === 'Cancelada' || vencida || ch.confirmaEquipo) {
+				titulo = vencida ? t.vacChatEstadoNo : estado === 'No' ? t.vacChatEstadoNo : estado === 'Cancelada' ? t.vacChatEstadoCancelada : t.vacChatEsperando;
+				detalle = vencida ? t.vacChatSigueVencida : estado === 'No' ? t.vacChatSigueNo : estado === 'Cancelada' ? t.vacChatSigueCancelada : t.vacChatSigueEquipo;
+				// Sin reserva (no se dio o se canceló): un botón a la ficha para elegir otras fechas.
+				if (!pendiente || vencida) {
+					var sello2 = el('span', 'hilo-pildora hilo-gris vac-chat-sello'); sello2.appendChild(el('i')); sello2.appendChild(el('span', '', estado === 'Cancelada' ? t.vacChatEstadoCancelada : t.vacChatEstadoNo));
+					accion = sello2;
+					if (/^\/[^\/]/.test(c.url || '')) { accion = el('a', 'hilo-btn hilo-btn-sec', t.vacChatOtrasFechas); accion.href = c.url + '#vac-titulo'; }
+				}
+			}
+			sigue.hidden = !titulo;
+			sigue.replaceChildren();
+			if (titulo) {
+				var txt = el('span', 'hilo-sigue-txt');
+				txt.appendChild(el('b', '', titulo));
+				txt.appendChild(document.createTextNode(detalle));
+				sigue.appendChild(txt);
+				if (accion) { var acc = el('span', 'hilo-sigue-acc'); acc.appendChild(accion); sigue.appendChild(acc); }
+			}
+			// La cámara (comprobante de pago) solo cuando hay a quién pagar y todavía no se mandó.
+			camaraVisible = estado === 'Confirmada' && !conComprobante;
+			adjuntar.hidden = !camaraVisible;
+			form.classList.toggle('vac-chat-sin-camara', !camaraVisible);
 		}
 		ponerEstado(c);
-		// Foto de la casa con enlace a su ficha (solo direcciones del propio sitio y fotos por https).
-		var casa = cuerpo.querySelector('[data-out="casa"]');
-		if (/^https:\/\//.test(c.foto || '')) {
-			casa.querySelector('img').src = c.foto;
-			if (/^\/[^\/]/.test(c.url || '')) { casa.href = c.url; casa.setAttribute('aria-label', t.vacChatVerCasa); }
-			casa.hidden = false;
-		}
-		poner('codigo', c.codigo);
-		poner('fechas', fecha(c.llegada) + ' – ' + fecha(c.salida));
-		poner('noches', c.noches === 1 ? t.vacNoche1 : fmt(t.vacNochesN, { n: c.noches }));
-		poner('huespedes', c.huespedes === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: c.huespedes }));
-		// El dinero del formato único (admin/js/formato.js, por EQFormato del paquete del sitio).
-		poner('total', EQFormato.montoPrecio(Number(c.total) || 0, c.moneda === 'GTQ' ? 'GTQ' : 'USD'));
-		poner('nota', t.vacChatNota);
-		var lista = cuerpo.querySelector('.vac-chat-mensajes');
-		var form = cuerpo.querySelector('.vac-chat-form');
-		var campo = form.querySelector('textarea');
-		var boton = form.querySelector('button');
-		var aviso = cuerpo.querySelector('.vac-chat-aviso');
-		campo.placeholder = t.vacChatPh;
-		campo.setAttribute('aria-label', t.vacChatPh);
-		boton.setAttribute('aria-label', t.vacChatEnviar);
-		caja.querySelector('.vac-chat-estado').hidden = true;
-		cuerpo.hidden = false;
-
-		var QUIEN = { cliente: t.vacChatTu, socio: t.vacChatSocio, equipo: t.vacChatEquipo };
-		var adjuntar = form.querySelector('.vac-chat-adjuntar');
-		var archivo = form.querySelector('input[type=file]');
-		adjuntar.setAttribute('aria-label', t.vacChatFoto);
-		adjuntar.title = t.vacChatFoto;
-		var FOTOS = 'https://firebasestorage.googleapis.com/v0/b/' + config.storageBucket + '/o/';
-		function alerta(texto) { aviso.textContent = texto || ''; aviso.className = 'vac-chat-aviso' + (texto ? ' vac-chat-alerta' : ''); }
 
 		// El mapa se guarda como enlace, como código «Insertar mapa» o como dirección o coordenadas: siempre sale un enlace.
 		function enlaceMapa(mapa) {
@@ -267,66 +309,89 @@
 			var url = (/src=["'](https:\/\/[^"']+)["']/.exec(s) || [])[1] || (/^https:\/\/\S+$/.test(s) ? s : '');
 			return url || (s && !/[<>]/.test(s) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s) : '');
 		}
-
 		// Datos de llegada: la dirección y el mapa vienen en el mensaje (privados hasta el pago); cómo llegar y
 		// horarios, de la ficha de la casa. Nunca de un texto libre.
 		var casaDatos = null;
-		function llegada(li, m) {
+		function llegada(tarj, m) {
 			var pinta = function (p) {
 				var v = (p.vacacional && p.vacacional.mapValue && p.vacacional.mapValue.fields) || {};
 				var txt = function (x) { return (x && x.stringValue) || ''; };
 				// Mensajes anteriores a este cambio no la traen: se lee de la casa, como antes.
 				var direccion = m.direccion === undefined ? txt(p.direccion) : m.direccion;
 				var mapa = enlaceMapa(m.mapa === undefined ? txt(p.mapa) : m.mapa);
-				if (direccion) li.appendChild(el('p', '', direccion));
+				if (direccion) tarj.appendChild(el('p', '', direccion));
 				if (mapa) {
 					var a = el('a', '', t.vacChatMapa);
 					a.href = mapa; a.target = '_blank'; a.rel = 'noopener';
-					li.appendChild(a);
+					tarj.appendChild(a);
 				}
-				if (txt(v.comoLlegar)) li.appendChild(el('p', '', txt(v.comoLlegar)));
-				li.appendChild(el('p', '', fmt(t.vacChatHorario, { entrada: txt(v.checkIn) || '15:00', salida: txt(v.checkOut) || '11:00' })));
+				if (txt(v.comoLlegar)) tarj.appendChild(el('p', '', txt(v.comoLlegar)));
+				tarj.appendChild(el('p', '', fmt(t.vacChatHorario, { entrada: txt(v.checkIn) || '15:00', salida: txt(v.checkOut) || '11:00' })));
 			};
 			if (casaDatos) return pinta(casaDatos);
 			pedir(RAIZ + '/properties/' + c.propertyId).then(function (doc) { casaDatos = doc.fields || {}; pinta(casaDatos); }).catch(function () {});
 		}
+		// Las tarjetas: los datos de pago (con «Copiar datos»), los de llegada y el comprobante.
+		function tarjeta(m) {
+			if (m.tipo === 'pago') {
+				var tp = el('div', 'hilo-tarj vac-chat-pago');
+				tp.dataset.id = m.id;
+				tp.appendChild(el('h3', '', t.vacChatPagaDirecto));
+				tp.appendChild(el('p', '', m.texto + ' · ' + total));
+				var fila = el('div', 'hilo-tarj-fila');
+				var copiar = el('button', 'hilo-btn hilo-btn-sec', t.vacChatCopiar);
+				copiar.type = 'button';
+				copiar.addEventListener('click', function () {
+					var hecho = function () { copiar.textContent = t.vacChatCopiado; setTimeout(function () { copiar.textContent = t.vacChatCopiar; }, 2000); };
+					try { navigator.clipboard.writeText(m.texto + '\n' + total).then(hecho, function () {}); } catch (e) { /* sin portapapeles */ }
+				});
+				fila.appendChild(copiar);
+				tp.appendChild(fila);
+				return tp;
+			}
+			if (m.tipo === 'llegada') {
+				var tl = el('div', 'hilo-tarj vac-chat-pago');
+				tl.dataset.id = m.id;
+				tl.appendChild(el('h3', '', t.vacChatLlegada));
+				llegada(tl, m);
+				return tl;
+			}
+			if (m.tipo === 'foto') return m.texto.indexOf(FOTOS) === 0 ? H.tarjetaComprobante(m, th) : 'omitir';
+			return null;
+		}
+		var EVENTOS = { pidio: t.vacChatEvPidio, pagoRecibido: t.vacChatEvPagado, no: t.vacChatEstadoNo, cancelada: t.vacChatEstadoCancelada };
+		function textoEvento(ev) {
+			if (ev.clave === 'confirmo') return ev.por === 'equipo' ? t.vacChatEvConfirmoEquipo : t.vacChatEvConfirmo;
+			return EVENTOS[ev.clave] || '';
+		}
+		var QUIEN = { cliente: t.vacChatTu, socio: t.vacChatSocio, equipo: t.vacChatEquipo };
 
-		var firma = '';
-		function pintar(mensajes, vistoOtros) {
-			// «Visto» va bajo mi último mensaje cuando el anfitrión o el equipo ya abrieron la conversación después.
-			var ultimoMio = mensajes.filter(function (m) { return m.de === 'cliente'; }).pop();
-			var visto = Boolean(ultimoMio && vistoOtros && ultimoMio.createdAt && vistoOtros >= ultimoMio.createdAt);
-			var nueva = mensajes.length + '|' + visto;
-			if (nueva === firma) return;
+		// Lo que está saliendo o no salió (por intento: su id), sobre lo guardado.
+		var locales = {}, mensajes = [], chatAhora = c, firma = '';
+		function pintar(forzar) {
+			var vistoOtros = [chatAhora.vistoSocio, chatAhora.vistoEquipo].filter(Boolean).sort().pop() || '';
+			var items = mensajes.slice();
+			Object.keys(locales).forEach(function (k) { if (!mensajes.some(function (m) { return m.id === locales[k].id; })) items.push(locales[k]); });
+			var nueva = JSON.stringify([items.map(function (m) { return [m.id, m._estado || '', m.traduccion || '']; }), vistoOtros, chatAhora.estado || '', chatAhora.estadoEn || '']);
+			if (nueva === firma && !forzar) return;
 			firma = nueva;
-			if (!mensajes.length) { lista.replaceChildren(el('li', 'vac-chat-vacio', t.vacChatVacio)); return; }
-			var filas = [];
-			mensajes.forEach(function (m) {
-				var li = el('li', 'vac-chat-msj vac-chat-' + (m.de === 'cliente' ? 'mio' : 'otro') + (m.tipo === 'pago' || m.tipo === 'llegada' ? ' vac-chat-pago' : ''));
-				var titulo = { pago: t.vacChatPago, llegada: t.vacChatLlegada, foto: t.vacChatComprobante }[m.tipo];
-				if (titulo) li.appendChild(el('strong', '', titulo));
-				li.appendChild(el('span', 'vac-chat-quien', (QUIEN[m.de] || QUIEN.equipo) + (m.createdAt ? ' · ' + hora.format(new Date(m.createdAt)) : '')));
-				if (m.tipo === 'llegada') llegada(li, m);
-				else if (m.tipo === 'foto') {
-					if (m.texto.indexOf(FOTOS) === 0) { var img = el('img'); img.src = m.texto; img.alt = t.vacChatComprobante; img.loading = 'lazy'; li.appendChild(img); }
-				} else li.appendChild(el('p', '', m.texto));
-				filas.push(li);
-				if (visto && m === ultimoMio) filas.push(el('li', 'vac-chat-visto', t.vacChatVisto));
-			});
-			lista.replaceChildren.apply(lista, filas);
+			var nodos = H.armarHilo(items, { yo: 'cliente', idioma: lang, t: th, chat: chatAhora, vistoOtros: vistoOtros ? new Date(vistoOtros).getTime() : 0,
+				etiqueta: function (m) { return m.de === 'cliente' ? '' : QUIEN[m.de] || QUIEN.equipo; }, nombreDe: function (de) { return QUIEN[de] || QUIEN.equipo; },
+				textoEvento: textoEvento, tarjeta: tarjeta, alReintentar: function (m) { reintentar(m.id); } });
+			H.pintarHilo(lista, nodos.length ? nodos : [el('p', 'hilo-vacio', t.vacChatVacio)], Boolean(forzar));
 		}
 		function cargar() {
 			return Promise.all([
 				pedir(RAIZ + '/chats/' + token + '/mensajes?pageSize=300&orderBy=createdAt'),
 				pedir(RAIZ + '/chats/' + token)
 			]).then(function (res) {
-				var mensajes = (res[0].documents || []).map(plano), ahora = plano(res[1]);
-				ponerEstado(ahora);
-				var vistoOtros = [ahora.vistoSocio, ahora.vistoEquipo].filter(Boolean).sort().pop() || '';
-				pintar(mensajes, vistoOtros);
+				mensajes = (res[0].documents || []).map(function (d) { var m = plano(d); m.id = d.name.split('/').pop(); return m; });
+				chatAhora = plano(res[1]);
+				ponerEstado(chatAhora);
+				pintar();
 				// Marco como visto lo que me escribieron (solo si hay algo nuevo de ellos).
 				var ultimo = mensajes[mensajes.length - 1];
-				if (ultimo && ultimo.de !== 'cliente' && !document.hidden && (!ahora.vistoCliente || ahora.vistoCliente < ultimo.createdAt)) {
+				if (ultimo && ultimo.de !== 'cliente' && !document.hidden && (!chatAhora.vistoCliente || chatAhora.vistoCliente < ultimo.createdAt)) {
 					pedir(RAIZ + ':commit', { writes: [{
 						update: { name: RAIZ + '/chats/' + token, fields: {} }, updateMask: { fieldPaths: [] }, currentDocument: { exists: true },
 						updateTransforms: [{ fieldPath: 'vistoCliente', setToServerValue: 'REQUEST_TIME' }]
@@ -362,34 +427,59 @@
 			return ultimoTexto.n + ':' + texto;
 		}
 		// Uno a la vez: los envíos van en fila (un comprobante que termina de subir mientras sale un texto espera su turno).
-		// Si lo guardado no se puede volver a leer, el mensaje igual quedó: no se avisa de un error que no fue.
+		// Mientras sale, la burbuja dice «Enviando…»; si no sale (sin red), «No se envió · Reintentar» debajo, con el mismo
+		// id (nunca sale dos veces). Si lo guardado no se puede volver a leer, el mensaje igual quedó.
 		var enviando = false, fila = Promise.resolve();
 		function mandar(campos, clave) {
 			var p = pendientes[clave] = pendientes[clave] || {};
 			p.id = p.id || alAzar(20);
+			p.campos = campos;
+			var texto = campos.texto && campos.texto.stringValue;
+			if (!campos.tipo) { locales[clave] = { id: p.id, de: 'cliente', texto: texto, _estado: 'enviando' }; pintar(true); }
 			var paso = function () {
 				enviando = true;
-				boton.disabled = true; adjuntar.disabled = true;
+				adjuntar.disabled = true;
 				return guardarMensaje(campos, p.id)
-					.then(function () { delete pendientes[clave]; if (clave.charAt(0) === 't') ultimoTexto = null; alerta(''); avisar(token); return cargar().catch(function () {}); })
+					.then(function () { delete pendientes[clave]; delete locales[clave]; if (clave.charAt(0) === 't') ultimoTexto = null; alerta(''); avisar(token); return cargar().catch(function () { pintar(true); }); })
 					// La base lo rechazó (403): con un texto, es su filtro de contacto (el mismo del navegador; con el reloj del teléfono
-					// muy corrido pueden no coincidir): se dice eso, por tipo si se reconoce, no «no se pudo enviar».
+					// muy corrido pueden no coincidir): se dice eso, por tipo si se reconoce, y el texto vuelve al campo.
 					.catch(function (err) {
-						var texto = campos.texto && campos.texto.stringValue;
 						if (texto && /HTTP 403/.test(err && err.message)) {
+							delete locales[clave]; pintar(true);
+							if (!campo.value) campo.value = texto;
 							var tipo = V.tipoDeContacto(texto);
 							return alerta(t['vacChatBloqueo' + (tipo ? tipo.charAt(0).toUpperCase() + tipo.slice(1) : '')] || t.vacChatBloqueo);
 						}
-						alerta(t.vacChatFallo);
+						if (locales[clave]) { locales[clave]._estado = 'fallo'; pintar(true); } else alerta(t.vacChatFallo);
 					})
-					.then(function () { enviando = false; boton.disabled = false; adjuntar.disabled = false; });
+					.then(function () { enviando = false; adjuntar.disabled = false; });
 			};
 			// Pase lo que pase con un envío, el siguiente sale igual (la fila nunca se queda trabada).
 			fila = fila.then(paso, paso);
 			return fila;
 		}
+		function reintentar(id) {
+			Object.keys(pendientes).forEach(function (k) { if (pendientes[k].id === id) mandar(pendientes[k].campos, k); });
+		}
+		// El aviso de contacto mientras se escribe: el campo en rojo y «Enviar» apagado (lo que dice: el mismo texto de siempre).
+		function avisoDe(texto) {
+			var tipo = V.tipoDeContacto(texto);
+			if (!tipo) return '';
+			var clave = 'vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1);
+			var conCamara = camaraVisible && t[clave + 'Pago'];
+			// Coordenadas: la dirección llega con el pago; pagada, ya está arriba; sin reserva, un aviso sin promesa.
+			if (tipo === 'ubicacion') clave += estadoChat === 'Pagada' ? 'Pagada' : estadoChat === 'No' || estadoChat === 'Cancelada' ? 'Sin' : '';
+			// Lo raro (letras de ancho completo, otro alfabeto): se dice qué parte, si se encuentra.
+			var raro = tipo === 'raro' ? (texto.match(/[０-９Ａ-Ｚａ-ｚ＠．。｡：／﹫]+/) || [''])[0] : '';
+			return conCamara ? t[clave + 'Pago'] : raro ? fmt(t.vacChatBloqueoRaro, { parte: raro }) : t[clave] || t.vacChatBloqueo;
+		}
+		function revisar() { var a = avisoDe(campo.value); alerta(a); boton.disabled = Boolean(a); return !a; }
 		// Lo que se escribe a mano en el campo es otro intento (el texto que vuelve por un corte no pasa por aquí).
-		campo.addEventListener('input', function () { ultimoTexto = null; });
+		campo.addEventListener('input', function () {
+			ultimoTexto = null;
+			campo.style.height = 'auto'; campo.style.height = Math.min(campo.scrollHeight + 2, 132) + 'px';
+			revisar();
+		});
 		// Enter envía; Mayús + Enter baja de línea.
 		campo.addEventListener('keydown', function (e) {
 			if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit ? form.requestSubmit() : boton.click(); }
@@ -398,22 +488,12 @@
 			e.preventDefault();
 			var texto = campo.value.trim();
 			if (!texto) return;
-			// Teléfonos, correos y enlaces no pasan. El aviso dice qué parte parece contacto, en una línea y en su idioma; la
-			// foto del comprobante solo se ofrece si la cámara está a la mano (reserva confirmada y sin comprobante).
-			var tipo = V.tipoDeContacto(texto);
-			if (tipo) {
-				var clave = 'vacChatBloqueo' + tipo.charAt(0).toUpperCase() + tipo.slice(1);
-				var conCamara = adjuntar && !adjuntar.hidden && t[clave + 'Pago'];
-				// Coordenadas: la dirección llega con el pago; pagada, ya está arriba; sin reserva, un aviso sin promesa.
-				if (tipo === 'ubicacion') clave += estadoChat === 'Pagada' ? 'Pagada' : estadoChat === 'No' || estadoChat === 'Cancelada' ? 'Sin' : '';
-				// Lo raro (letras de ancho completo, otro alfabeto): se dice qué parte, si se encuentra.
-				var raro = tipo === 'raro' ? (texto.match(/[０-９Ａ-Ｚａ-ｚ＠．。｡：／﹫]+/) || [''])[0] : '';
-				return alerta(conCamara ? t[clave + 'Pago'] : raro ? fmt(t.vacChatBloqueoRaro, { parte: raro }) : t[clave] || t.vacChatBloqueo);
-			}
+			// Teléfonos, correos y enlaces no pasan (el aviso dice qué parte parece contacto, en su idioma).
+			if (!revisar()) return;
 			if (enviando) return;
-			// El campo se vacía de inmediato (otro Enter ya no encuentra texto); si falla, el texto vuelve.
-			campo.value = '';
-			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + intentoTexto(texto)).then(function () { if (aviso.textContent && !campo.value) campo.value = texto; });
+			// El campo se vacía de inmediato (otro Enter ya no encuentra texto).
+			campo.value = ''; campo.style.height = '';
+			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + intentoTexto(texto));
 		});
 		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
 		adjuntar.addEventListener('click', function () { archivo.click(); });
@@ -443,7 +523,7 @@
 				})
 				.catch(function (err) { alerta(err && err.foto ? t.vacChatFotoGrande : t.vacChatFallo); adjuntar.disabled = false; });
 		});
-		cargar().catch(function () { pintar([], ''); });
+		cargar().catch(function () { pintar(true); });
 		// Mensajes nuevos: se revisa cada 10 s mientras la página está a la vista.
 		setInterval(function () { if (!document.hidden) cargar().catch(function () {}); }, 10000);
 	}, function (err) { return /HTTP 404/.test(err && err.message) ? sinReserva() : sinRed(); });

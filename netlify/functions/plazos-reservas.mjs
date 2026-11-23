@@ -20,7 +20,7 @@
 import '../../js/calc-vacacional.js';
 import { datosConfigurados, desde, leerPrivado } from '../lib/firestore.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, solicitudDe, SISTEMA } from '../lib/reservas-servidor.mjs';
+import { fechasDeLaCasa, fechasCambiaron, responder, mensaje, pendiente, alEstado, chatDe, congelarMontos, cerrarDuplicadas, cerrarSiSeCruza, solicitudDe, SISTEMA } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
 import { marcarPorPublicar } from '../lib/publicar.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
@@ -72,7 +72,7 @@ async function cerrarSinRespuesta(leadId, ahora, { casaFuera = false } = {}) {
 				: [MOTIVO_SIN_RESPUESTA, 'sinRespuesta', `No respondida en ${HORAS_RESPUESTA} h: se cerró sola`];
 		responder(tx, SISTEMA, leadId, 'no', que, { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, c.token, { texto: textoCliente(clave, en), plazo: true, motivo }, 'equipo');
-		tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) });
+		tx.cambiar(`chats/${c.token}`, { estado: 'no', ...pendiente(id) }, alEstado('no'));
 		return { token: c.token, casa: lead.propertyId };
 	});
 }
@@ -98,7 +98,7 @@ async function cobrarOCancelar(reservaId, ahora) {
 			tx.cambiar(`reservas/${reservaId}`, { estado: 'cancelada', motivo: MOTIVO_SIN_PAGO }, { ahora: ['updatedAt'] });
 			responder(tx, SISTEMA, reserva.leadId, 'cancelada', 'Sin pago a tiempo: se canceló sola', { 'solicitud.motivo': MOTIVO_SIN_PAGO });
 			const id = mensaje(tx, reserva.chat, { texto: textoCliente('sinPago', chat.idioma === 'en'), plazo: true, motivo: MOTIVO_SIN_PAGO }, 'equipo');
-			tx.cambiar(`chats/${reserva.chat}`, { estado: 'cancelada', ...pendiente(id) });
+			tx.cambiar(`chats/${reserva.chat}`, { estado: 'cancelada', ...pendiente(id) }, alEstado('cancelada'));
 			return { token: reserva.chat, casa: reserva.propertyId, reserva: true };
 		}
 		if (ahora >= recordarPagoDesde(base, vence) && !chat.recordatorioPago) {
