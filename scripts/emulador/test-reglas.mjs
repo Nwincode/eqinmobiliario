@@ -874,6 +874,24 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 			await espera('la dueña nombra en la casa un id que no es el de su renglón', lote(w), false);
 		}
 		await espera('la dueña bloquea días y la casa nombra su renglón (control)', lote(await conRenglon('mixto1', bloqueo('2027-03-20'), { texto: 'bloqueó 20 – 24 mar 2027 (Uso propio)' })), true);
+		// `bitacoraTexto` es un id (letras y cifras, hasta 40) de un renglón que existe después del lote: no un texto libre en la
+		// casa pública. El renglón y la casa con el mismo id, para que solo falle lo que se prueba.
+		{
+			const conId = async (id, d) => {
+				const w = await conRenglon('mixto1', bloqueo(d), { texto: `bloqueó ${d.slice(8, 10)} – 24 mar 2027 (Uso propio)` });
+				const casa = w.find((x) => /\/properties\/mx-texto$/.test(x.update?.name || ''));
+				const r = w.find((x) => /\/bitacora\/[^/]+$/.test(x.update?.name || '') && x.update.name.includes('/properties/mx-texto/'));
+				casa.update.fields.bitacoraTexto = svG(id);
+				r.update.name = r.update.name.replace(/[^/]+$/, id);
+				return lote(w);
+			};
+			await espera('la casa nombra un renglón con un id de 41 letras', conId('a'.repeat(41), '2027-03-19'), false);
+			await espera('la casa nombra un renglón con un teléfono en el id', conId('llama 5555-1234', '2027-03-18'), false);
+			await espera('la casa nombra un renglón con un id de 40 letras y cifras (control)', conId(`A1${'b'.repeat(38)}`, '2027-03-17'), true);
+			await espera('la dueña pone en la casa un bitacoraTexto que no nombra ningún renglón (sin renglón en el lote)',
+				lote([{ update: { name: 'projects/demo-eq/databases/(default)/documents/properties/mx-texto', fields: { bitacoraTexto: svG('noExiste123') } }, updateMask: { fieldPaths: ['bitacoraTexto'] } }]), false);
+			await espera('la dueña pone en la casa un bitacoraTexto que no es texto', lote([{ update: { name: 'projects/demo-eq/databases/(default)/documents/properties/mx-texto', fields: { bitacoraTexto: { integerValue: '5' } } }, updateMask: { fieldPaths: ['bitacoraTexto'] } }]), false);
+		}
 		// Cada verbo con su valor: «bloqueó» no lleva monto (las reglas solo ven que los bloqueos cambiaron: sería inventado), el
 		// mínimo no lleva un monto y el precio especial no lleva noches.
 		await espera('la dueña bloquea días y anota un monto inventado', con('bloqueó 16 – 20 mar 2027 (Uso propio): Q 999,999.99', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-22' }] })]), false);
