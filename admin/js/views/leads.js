@@ -26,6 +26,15 @@ export function fuenteLead(l) {
 	return 'Orgánico / directo';
 }
 
+// La fila corta de un lead: nombre y estado; abajo, qué le interesa y cuándo llegó. La usan Inicio y el Asistente.
+export function filaLead(l) {
+	return h('div', { class: 'd-flex align-items-center gap-2 text-start' },
+		h('div', { class: 'me-auto' },
+			h('div', { class: 'fw-semibold' }, l.nombre),
+			h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen || 'Contacto general', formatDate(l.createdAt)].filter(Boolean).join(' · '))),
+		estadoBadge(l.estado));
+}
+
 export function estadoBadge(estado) {
 	const e = ESTADOS.find(([v]) => v === estado) || ESTADOS[0];
 	return badge(e[1], e[2]);

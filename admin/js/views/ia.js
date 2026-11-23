@@ -6,7 +6,7 @@ import {
 import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
-import { loadLeads, estadoBadge } from './leads.js';
+import { loadLeads, estadoBadge, filaLead } from './leads.js';
 import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
 import { refrescarPortalesDe } from '../portal.js';
@@ -261,9 +261,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 	};
 
 	(pendientes.length ? pendientes : leads).forEach((l) => {
-		const item = h('button', { type: 'button', class: 'list-group-item list-group-item-action' },
-			h('div', { class: 'd-flex justify-content-between' }, h('strong', {}, l.nombre), estadoBadge(l.estado)),
-			h('div', { class: 'small text-muted' }, `${l.propertyTitulo || 'Contacto general'} · ${formatDate(l.createdAt, false)}`));
+		const item = h('button', { type: 'button', class: 'list-group-item list-group-item-action' }, filaLead(l));
 		item.addEventListener('click', () => analizar(l, item));
 		lista.append(item);
 		if (l.id === idInicial) setTimeout(() => analizar(l, item));

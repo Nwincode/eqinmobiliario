@@ -62,7 +62,8 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
 ## 4. Bordes, cajas y color
 
 - La jerarquía sale del espacio, el tamaño y el peso de la letra, no de cajas.
-- Las filas y las secciones se separan con una línea fina de 1 px (el color de borde de `css/tema.css`).
+- Las fichas de una lista (una casa, una solicitud) son tarjetas separadas por espacio: 8 px, 12 desde tableta.
+  Las filas de una tabla y las secciones se separan con una línea fina de 1 px (el color de borde de `css/tema.css`).
   Nunca un recuadro dentro de otro, ni sombras, degradados o chips de adorno.
 - Un color, un significado: verde se ve, gris oculta, ámbar reservada o falta algo, rojo vendida o borrar,
   azul la acción principal. Colores solo de `css/tema.css`.

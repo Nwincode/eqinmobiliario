@@ -275,7 +275,7 @@ async function renderEditor(container, id) {
 	// La exclusiva de cada casa, de su acuerdo (o de lo que quedó en la persona, mientras no se pase).
 	function exclusivaDe(p) {
 		const acuerdo = acuerdoDe(acuerdos[p.id], data, p.operacion);
-		return [acuerdo.exclusiva ? [' ', estadoExclusiva(acuerdo)] : null, acuerdo.contrato ? [' ', badge('Con contrato', 'light')] : null];
+		return [acuerdo.exclusiva ? estadoExclusiva(acuerdo) : null, acuerdo.contrato ? badge('Con contrato', 'light') : null];
 	}
 	// (Declarada con «function»: el formulario la llama al armarse, antes de llegar a esta línea.)
 	function pintarCasa(el, item) {

@@ -26,7 +26,8 @@ export function datosDe(p) {
 //  sel      la casilla de «elegir»: va sobre la foto y se ve cuando la lista tiene `.eligiendo`; tocar la fila la marca.
 //  der      lo de la columna derecha (⚠ o ✓ y ⋮).
 //  extra    la línea de computadora (código, asesor, fecha…).
-//  marcas   etiquetas al lado del nombre (exclusiva, «Sin publicar»…).
+//  marcas   etiquetas en la línea de la ubicación, después de ella (exclusiva, «Sin publicar»…): el título nunca las
+//           corta; si no caben, la ubicación se recorta con «…».
 //  foto     otra foto (el importador la abre del archivo); precio: otro texto de precio.
 //  oculta   foto apagada (no sale en la página); elegida: la que ya está elegida en un selector.
 //  titulo   lo que dice al pasar el ratón (qué hace tocarla).
@@ -47,6 +48,7 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 	const fotoCasa = foto || (p.fotos?.[0]?.url ? h('img', { src: p.fotos[0].url, alt: '', loading: 'lazy' })
 		: h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
 	const extras = extra.filter(Boolean);
+	const conMarcas = marcas.flat(Infinity).some((m) => m && typeof m !== 'string');
 	return h(href ? 'a' : 'article', {
 		class: `casa-fila${oculta ? ' casa-oculta' : ''}${elegida ? ' casa-elegida' : ''}`, href,
 		tabindex: href ? null : '0', 'aria-label': nombre, title: titulo, 'aria-current': elegida ? 'true' : null,
@@ -55,8 +57,9 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 	},
 		h('div', { class: 'casa-foto' }, fotoCasa, sel ? h('label', { class: 'casa-sel' }, sel) : null),
 		h('div', { class: 'casa-txt' },
-			h('div', { class: 'casa-titulo' }, p.titulo || '(sin título)', marcas.filter(Boolean).length ? [' ', marcas] : null),
-			lugar ? h('div', { class: 'casa-dato' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', {}, lugar)) : null,
+			h('div', { class: 'casa-titulo' }, p.titulo || '(sin título)'),
+			lugar || conMarcas ? h('div', { class: 'casa-dato casa-lugar' }, lugar ? [h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', { class: 'casa-lugar-txt' }, lugar)] : null,
+				conMarcas ? h('span', { class: 'casa-marcas' }, marcas) : null) : null,
 			h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
 			extras.length ? h('div', { class: 'casa-dato casa-extra' }, extras) : null,
 			h('div', { class: 'casa-precio' }, precio ?? formatPrice(p.precio, p.moneda, p.operacion))),

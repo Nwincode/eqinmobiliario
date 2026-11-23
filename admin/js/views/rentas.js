@@ -11,6 +11,7 @@ import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
 import { deSolicitud, MOTIVOS_CANCELAR } from '../reservas-calculo.js';
 import { firma } from '../bitacora.js';
+import { filaBitacora } from '../bitacora-panel.js';
 
 const V = window.EQVacacional;
 const CANALES = [['directo', 'Directo'], ['web', 'Página web'], ['airbnb', 'Airbnb'], ['booking', 'Booking'], ['otro', 'Otro']];
@@ -257,9 +258,7 @@ export async function render(container) {
 			// Quién: el nombre de su usuario (firma), no el que se escribió en el renglón.
 			const uids = [...new Set(cambios.map((x) => x.quien).filter((x) => typeof x === 'string' && x && !x.includes('/')))];
 			const usuarios = Object.fromEntries(await Promise.all(uids.map(async (x) => [x, (await getDoc(doc(db, 'users', x)).catch(() => null))?.data() || null])));
-			caja.replaceChildren(cambios.length ? h('ul', { class: 'list-group list-group-flush' }, cambios.map((b) => h('li', { class: 'list-group-item px-0' },
-				h('div', {}, b.que),
-				h('div', { class: 'small text-muted' }, [b.casa, firma(b, usuarios), formatDate(b.cuando)].filter(Boolean).join(' · ')))))
+			caja.replaceChildren(cambios.length ? h('ul', { class: 'list-group list-group-flush' }, cambios.map((b) => filaBitacora({ texto: b.que, detalle: [b.casa, firma(b, usuarios), formatDate(b.cuando)] })))
 				: emptyState('Todavía ningún socio ha cambiado precios ni fechas.'));
 		} catch (err) { caja.replaceChildren(); showError(err); }
 	}

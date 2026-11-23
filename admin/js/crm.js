@@ -5,7 +5,7 @@ import {
 } from './firebase.js';
 import { h, badge, toDate } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 
 export const ETAPAS = [
@@ -29,6 +29,19 @@ export const etapaBadge = (v) => { const e = ETAPAS.find(([k]) => k === v) || ET
 export const tipoActividad = (v) => TIPOS_ACTIVIDAD.find(([k]) => k === v) || TIPOS_ACTIVIDAD[5];
 // Ícono del tipo de actividad (su nombre va en `title`).
 export const iconoActividad = (v) => { const [, label, icono] = tipoActividad(v); return h('span', { class: `${icono} crm-icono`, title: label, 'aria-hidden': 'true' }); };
+
+// La fila de una actividad (la de la Agenda): ícono, qué es y, abajo, el cliente, cuándo y el asesor; a la derecha lo que se
+// le pase (✓ hecha, su vencimiento, ⋮). La usan la Agenda, la ficha del cliente e Inicio.
+export function filaActividad(a, { cliente = true, asesor = '', der = null } = {}) {
+	const detalle = [cliente && a.clienteId ? h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente') : null,
+		a.fecha ? fechaHora(a.fecha) : 'Sin fecha', asesor || null].filter(Boolean);
+	return h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
+		iconoActividad(a.tipo),
+		h('div', { class: 'me-auto' },
+			h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
+			h('div', { class: 'small text-muted' }, detalle.map((x, i) => [i ? ' · ' : '', x]))),
+		der ? h('div', { class: 'd-flex align-items-center flex-shrink-0' }, der) : null);
+}
 
 export { telNorm };
 

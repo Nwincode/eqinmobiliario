@@ -106,12 +106,13 @@ export async function render(container) {
 	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0', onclick: () => marcarTodas(!todasMarcadas) }, 'Seleccionar todas');
 	const btnImportar = h('button', { type: 'button', class: 'btn btn-primary', disabled: true, onclick: () => importar() }, 'Importar');
 	const notaImportar = h('span', { class: 'small text-muted imp-nota' }, icono('icon-eye-slash'), ' Entran como borrador.');
-	const paso2 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
+	// Sin recuadro: las casas son tarjetas sueltas, como en Propiedades y en el listado en PDF.
+	const paso2 = h('section', { class: 'imp-paso', hidden: true },
 		h('div', { class: 'd-flex justify-content-between align-items-center gap-2 mb-3' },
 			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '2'), 'Elige qué subir'),
 			btnTodas),
 		resumen, avisos,
-		lista));
+		lista);
 	const acciones = h('div', { class: 'sticky-actions imp-acciones', hidden: true }, btnImportar, notaImportar);
 
 	// ---------- Paso 3: progreso ----------

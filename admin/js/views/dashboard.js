@@ -1,10 +1,9 @@
 import { db, getDocs, collection } from '../firebase.js';
-import { h, statCard, pageHeader, formatDate, toDate, mount, tarjeta, barras } from '../ui.js';
+import { h, statCard, pageHeader, toDate, mount, tarjeta, barras } from '../ui.js';
 import { session, getPublishState } from '../session.js';
-import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
+import { loadLeads, filaLead, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
-import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, ms } from '../crm.js';
-import { fechaHora } from '../formato.js';
+import { loadActividades, loadClientes, loadPropietarios, vencimiento, filaActividad, ms } from '../crm.js';
 import { tarjetaAvisos } from '../avisos.js';
 import { tarjetaEstado } from '../estado.js';
 
@@ -58,9 +57,7 @@ export async function render(container) {
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 					vencidas.length ? h('a', { href: '#/agenda', class: 'badge text-bg-danger text-decoration-none' }, `${vencidas.length} seguimientos vencidos`) : h('span', { class: 'badge text-bg-success' }, 'Sin seguimientos vencidos'),
 					sinSeguimiento.length ? h('a', { href: '#/clientes', class: 'badge text-bg-warning text-decoration-none' }, `${sinSeguimiento.length} clientes sin seguimiento agendado`) : null),
-				deHoy.length ? h('ul', { class: 'list-unstyled mb-0' }, deHoy.slice(0, 8).map((a) => h('li', { class: 'small mb-1' },
-					iconoActividad(a.tipo), ` ${fechaHora(a.fecha)} · ${a.titulo || tipoActividad(a.tipo)[1]}`,
-					a.clienteId ? [' · ', h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente')] : null)))
+				deHoy.length ? h('ul', { class: 'list-group list-group-flush' }, deHoy.slice(0, 8).map((a) => filaActividad(a)))
 					: h('p', { class: 'small text-muted mb-0' }, 'No hay actividades agendadas para hoy.'))) : null,
 		h('div', { class: 'row g-3 mb-4' },
 			stat('icon-home', session.isAdmin ? 'Publicadas' : 'Mis publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
@@ -70,12 +67,7 @@ export async function render(container) {
 		canSeeLeads ? h('div', { class: 'row g-3' },
 			h('div', { class: 'col-lg-7' }, h('div', { class: 'card h-100' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Leads recientes'),
-				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) =>
-					h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-						h('div', { class: 'me-auto' },
-							h('div', { class: 'fw-semibold' }, l.nombre),
-							h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen, formatDate(l.createdAt)].filter(Boolean).join(' · '))),
-						estadoBadge(l.estado))))
+				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) => h('li', { class: 'list-group-item' }, filaLead(l))))
 					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
 				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),
 			h('div', { class: 'col-lg-5' },
