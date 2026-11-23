@@ -1,6 +1,8 @@
-// Cada lunes: informe de Search Console de la semana (los últimos 7 días contra los 7 anteriores) en seoSemanal/{fecha},
-// que solo lee el administrador (firestore.rules) y se ve en el panel, en Visibilidad (admin/js/views/google.js):
-// páginas que bajaron, búsquedas nuevas y las páginas del sitemap que no están en Google con su motivo.
+// Cada lunes: informe de Search Console en seoSemanal/{fecha}, que solo lee el administrador (firestore.rules) y se ve en
+// el panel, en Visibilidad (admin/js/views/google.js): los clics de la semana (los últimos 7 días contra los 7 anteriores,
+// `rango`), búsquedas nuevas (también 7 contra 7), páginas que bajaron (28 días contra los 28 anteriores, `rangoBajaron`
+// y `rangoBajaronAntes`: con pocas visitas, una semana contra otra da falsas alarmas) y las páginas del sitemap que no
+// están en Google con su motivo. Search Console guarda 16 meses: 56 días hacia atrás caben de sobra.
 // Lee con la cuenta de Search Console (GOOGLE_SA_*) y escribe con la de escritura (GOOGLE_SA_ESCRITURA_*).
 // La indexación se revisa con la URL Inspection API (cuota: 2,000 por día por propiedad, compartida con «¿Está esta
 // página en Google?» del panel) y una función programada se corta a los 30 s: cada semana se revisan las que alcanzan
@@ -46,11 +48,12 @@ export async function informeSemanal() {
 	const hoy = V.hoy();
 	const prop = propiedadValida((await leerPublico('settings/site'))?.seo?.searchConsolePropiedad);
 	const actual = rangoGSC(7), anterior = rangoGSC(7, 7);
+	const mes = rangoGSC(28), mesAntes = rangoGSC(28, 28);
 	const [totales, previos, paginas, paginasAntes, consultas, consultasAntes] = await Promise.all([
 		consultaGSC(prop, { ...actual }),
 		consultaGSC(prop, { ...anterior }),
-		consultaGSC(prop, { ...actual, dimensions: ['page'], rowLimit: 1000 }),
-		consultaGSC(prop, { ...anterior, dimensions: ['page'], rowLimit: 1000 }),
+		consultaGSC(prop, { ...mes, dimensions: ['page'], rowLimit: 1000 }),
+		consultaGSC(prop, { ...mesAntes, dimensions: ['page'], rowLimit: 1000 }),
 		consultaGSC(prop, { ...actual, dimensions: ['query'], rowLimit: 1000 }),
 		consultaGSC(prop, { ...anterior, dimensions: ['query'], rowLimit: 5000 })
 	]);
@@ -73,6 +76,8 @@ export async function informeSemanal() {
 		fecha: hoy,
 		propiedad: prop,
 		rango: actual,
+		rangoBajaron: mes,
+		rangoBajaronAntes: mesAntes,
 		totales: sinClaves(totales[0] || vacio),
 		previos: sinClaves(previos[0] || vacio),
 		bajaron: bajaron(paginas, paginasAntes).map((x) => ({ pagina: x.pagina, antes: sinClaves(x.antes), ahora: sinClaves(x.ahora) })),

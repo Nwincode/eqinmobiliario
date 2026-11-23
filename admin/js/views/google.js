@@ -198,7 +198,8 @@ const tablaBajaron = (lista, vacio) => tabla(['Página', 'Clics antes', 'Clics a
 	h('span', { class: 'text-break' }, ruta(c.pagina)), num(c.antes.clics), num(c.ahora.clics), pos(c.antes.posicion), pos(c.ahora.posicion)]), vacio);
 
 // Informe de cada lunes (netlify/functions/seo-semanal.mjs → seoSemanal/{fecha}; solo lo lee el administrador):
-// los últimos 7 días contra los 7 anteriores y la indexación de las páginas del sitemap.
+// clics y búsquedas nuevas de los últimos 7 días contra los 7 anteriores, páginas que bajaron en 28 días contra los 28
+// anteriores y la indexación de las páginas del sitemap.
 async function informeSemanal() {
 	const snap = await getDocs(query(collection(db, 'seoSemanal'), orderBy('fecha', 'desc'), limit(1)));
 	const d = snap.docs[0]?.data();
@@ -209,7 +210,12 @@ async function informeSemanal() {
 	return h('div', {},
 		h('p', { class: 'small text-muted' }, `Informe del lunes ${diaConAnio(d.fecha)} (${rango({ desde: d.rango.startDate, hasta: d.rango.endDate })}) · ${num(d.totales.clics)} clics `,
 			variacion(d.totales.clics, d.previos.clics), ` · ${num(d.paginasSitemap)} páginas del sitemap${faltan}`),
-		card('Bajaron esta semana', tablaBajaron(d.bajaron || [], 'Ninguna página bajó.')),
+		// Los informes de antes comparaban una semana contra otra (sin rangoBajaron).
+		d.rangoBajaron
+			? card('Bajaron en los últimos 28 días',
+				h('p', { class: 'small text-muted' }, `${rango({ desde: d.rangoBajaron.startDate, hasta: d.rangoBajaron.endDate })} contra ${rango({ desde: d.rangoBajaronAntes.startDate, hasta: d.rangoBajaronAntes.endDate })}`),
+				tablaBajaron(d.bajaron || [], 'Ninguna página bajó.'))
+			: card('Bajaron esta semana', tablaBajaron(d.bajaron || [], 'Ninguna página bajó.')),
 		card(`No están en Google: ${fuera.length}`,
 			d.errorIndexacion ? h('p', { class: 'small text-muted' }, `Google cortó la revisión (${d.errorIndexacion}); sigue el lunes que viene.`) : null,
 			tabla(['Página', 'Motivo', 'Revisada'], fuera.map((x) => [

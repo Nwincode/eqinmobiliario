@@ -10,7 +10,7 @@
 //    (`reintento`) y, salga o no, lo quita.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
-import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
+import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, conUrgente, coloresCorreo, SITE_URL } from './correo.mjs';
 import { avisosChat } from './avisos-chat.mjs';
 import { quitarRebote } from './rebotes.mjs';
 import { limitadorDurable } from './limite.mjs';
@@ -57,7 +57,7 @@ export async function enviarAvisosChat(token, { repaso = false, reintento = fals
 			const en = a.lang === 'en';
 			const filas = (a.datos || []).filter((f) => f[1]);
 			const html = await plantilla({
-				titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, lang: a.lang, ayuda: a.rol === 'cliente',
+				titulo: a.titulo, intro: a.urgente ? conUrgente(await coloresCorreo(), a.intro, a.urgente) : esc(a.intro), preheader: a.intro, lang: a.lang, ayuda: a.rol === 'cliente',
 				// La foto de la casa guardada (su primera foto, por el CDN a 1200×630), nunca la del chat (la escribe el navegador).
 				foto: pasaPorCdn(casa?.fotos?.[0]?.url) ? new URL(fotoCdn(casa.fotos[0].url, 1200, '&h=630&fit=cover&fm=jpg'), SITE_URL).href : '', etiqueta: `${en ? 'Booking' : 'Solicitud'} ${chat.codigo}`,
 				pie: a.rol === 'cliente' ? (en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.')

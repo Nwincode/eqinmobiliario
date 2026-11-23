@@ -4,7 +4,7 @@ import '../../js/calc-vacacional.js';
 import { listar, leerPrivado } from './firestore.mjs';
 import { exclusivasPorVencer } from '../../admin/js/acuerdo.js';
 import { conDueno as tieneDueno } from '../../admin/js/duenos.js';
-import { enviarCorreo, destinatariosEquipo, plantilla, boton, esc, SITE_URL } from './correo.mjs';
+import { enviarCorreo, destinatariosEquipo, plantilla, boton, esc, conUrgente, SITE_URL } from './correo.mjs';
 
 const DIA = 86_400_000;
 const GT = -6 * 3_600_000; // Guatemala: UTC-6 todo el año
@@ -51,7 +51,8 @@ export async function datosResumen(ahora = Date.now()) {
 }
 
 const SECCIONES = [
-	['vencidas', 'Seguimientos atrasados', '#/agenda', (a) => `${fecha(a.fecha)} · ${a.titulo || a.tipo || 'Seguimiento'}${a.clienteNombre ? ` — ${a.clienteNombre}` : ''}`],
+	// El quinto: lo urgente de la línea (en rojo en el correo): la fecha del seguimiento atrasado.
+	['vencidas', 'Seguimientos atrasados', '#/agenda', (a) => `${fecha(a.fecha)} · ${a.titulo || a.tipo || 'Seguimiento'}${a.clienteNombre ? ` — ${a.clienteNombre}` : ''}`, (a) => fecha(a.fecha)],
 	['hoy', 'Para hoy', '#/agenda', (a) => `${hora(a.fecha)} · ${a.titulo || a.tipo || 'Seguimiento'}${a.clienteNombre ? ` — ${a.clienteNombre}` : ''}`],
 	['leads', 'Interesados sin atender', '#/leads', (l) => `${l.nombre || 'Sin nombre'}${l.propertyTitulo ? ` · ${l.propertyTitulo}` : ''}${l.createdAt ? ` (${fecha(l.createdAt)})` : ''}`],
 	['sinSeguimiento', 'Clientes sin próximo paso', '#/clientes', (c) => `${c.nombre || 'Sin nombre'}${c.ultimoContacto ? ` · último contacto ${fecha(c.ultimoContacto)}` : ' · sin contacto registrado'}`],
@@ -75,7 +76,8 @@ const CORTO = {
 };
 const cuenta = (k, n) => `${n} ${CORTO[k][n === 1 ? 0 : 1]}`;
 
-async function correoDe(nombre, secciones, ahora = Date.now()) {
+// Exportado para la prueba (scripts/test-correo.mjs).
+export async function correoDe(nombre, secciones, ahora = Date.now()) {
 	const activas = SECCIONES.filter(([k]) => secciones[k].length);
 	if (!activas.length) return null;
 	const total = activas.reduce((n, [k]) => n + secciones[k].length, 0);
@@ -89,15 +91,15 @@ async function correoDe(nombre, secciones, ahora = Date.now()) {
 		titulo,
 		intro,
 		preheader,
-		bloques: (c) => activas.map(([k, label, ruta, linea]) => {
+		// Todos los bloques iguales (sin fondo de color): lo atrasado se ve por su fecha en rojo (conUrgente).
+		bloques: (c) => activas.map(([k, label, ruta, linea, urg]) => {
 			const lista = secciones[k];
-			const alerta = k === 'vencidas';
 			const enlace = lista.length > MAX ? `Ver los ${lista.length} en el panel` : CORTO[k][2];
 			return `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;border-collapse:separate"><tr><td bgcolor="${alerta ? c.suave : c.white}" style="background:${alerta ? c.suave : c.white};border:1px solid ${c.linea};${alerta ? `border-left:4px solid ${c.primary};` : ''}border-radius:8px;padding:14px 16px 4px;font-family:Arial,Helvetica,sans-serif">
-<h2 style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;font-weight:bold;color:${alerta ? c.primary : c.dark}">${label} <span style="font-weight:normal;color:${c.ink}">(${lista.length})</span></h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;border-collapse:separate"><tr><td bgcolor="${c.white}" style="background:${c.white};border:1px solid ${c.linea};border-radius:8px;padding:14px 16px 4px;font-family:Arial,Helvetica,sans-serif">
+<h2 style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:22px;font-weight:bold;color:${c.dark}">${label} <span style="font-weight:normal;color:${c.ink}">(${lista.length})</span></h2>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:${c.dark}">
-${lista.slice(0, MAX).map((x, i) => `<tr><td style="padding:7px 0;${i ? `border-top:1px solid ${c.linea};` : ''}word-break:break-word">${esc(linea(x))}</td></tr>`).join('')}
+${lista.slice(0, MAX).map((x, i) => `<tr><td style="padding:7px 0;${i ? `border-top:1px solid ${c.linea};` : ''}word-break:break-word">${urg ? conUrgente(c, linea(x), urg(x)) : esc(linea(x))}</td></tr>`).join('')}
 </table>
 <a href="${SITE_URL}/admin/${ruta}" target="_blank" style="display:inline-block;padding:10px 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;font-weight:bold;color:${c.primary};text-decoration:underline">${enlace}</a>
 </td></tr></table>`;

@@ -11,11 +11,54 @@ let ok = 0;
 const t = async (nombre, fn) => { limpiar(); await fn(); ok++; console.log('✓', nombre); };
 const f = (clave, clics, impresiones, posicion) => ({ claves: [clave], clics, impresiones, ctr: impresiones ? clics / impresiones : 0, posicion });
 
-await t('bajaron: perdió 30 % de clics, desapareció o cayó 3 posiciones; lo demás no', () => {
-	const antes = [f('/a', 10, 100, 4), f('/b', 10, 100, 4), f('/c', 5, 50, 3), f('/d', 2, 30, 5), f('/e', 1, 10, 2)];
-	const ahora = [f('/a', 6, 90, 4), f('/b', 8, 100, 4.5), f('/d', 2, 30, 9), f('/e', 0, 10, 9)];
-	assert.deepEqual(bajaron(ahora, antes).map((x) => x.pagina), ['/c', '/a', '/d']);
+await t('bajaron: perdió 30 % de 5 clics o más y más que el azar, desapareció, o cayó 3 posiciones con 50 apariciones en los dos', () => {
+	const antes = [f('/a', 20, 400, 4), f('/b', 10, 100, 4), f('/c', 6, 60, 3), f('/d', 2, 80, 5), f('/e', 1, 10, 2), f('/f', 8, 200, 6), f('/g', 30, 30, 4), f('/h', 4, 40, 5)];
+	const ahora = [f('/a', 10, 300, 4), f('/b', 6, 90, 4), f('/d', 2, 60, 9), f('/e', 0, 10, 9), f('/f', 3, 200, 6.5), f('/g', 30, 40, 8), f('/h', 0, 40, 5)];
+	// /a: 20 → 10, pero 10 < 2·√30 ≈ 11 (azar); /b: 10 → 6, azar; /c: 6 → 0, 6 ≥ 2·√6 ≈ 4.9, bajó; /d: 4 posiciones con 80 y
+	// 60 apariciones, bajó; /e: 1 clic, poco; /f: 8 → 3, 5 < 2·√11 ≈ 6.6 (azar); /g: 4 posiciones pero 30 apariciones antes;
+	// /h: 4 clics, menos de 5.
+	assert.deepEqual(bajaron(ahora, antes).map((x) => x.pagina), ['/c', '/d']);
 	assert.equal(bajaron(ahora, antes)[0].ahora.clics, 0, 'la que desapareció, con cero');
+	assert.deepEqual(bajaron([f('/a', 8, 400, 4)], [f('/a', 20, 400, 4)]).map((x) => x.pagina), ['/a'], '20 → 8: 12 ≥ 2·√28 ≈ 10.6');
+	assert.deepEqual(bajaron([f('/a', 7, 100, 4)], [f('/a', 10, 100, 4)]), [], 'perdió el 30 % justo, pero es azar');
+});
+
+// Un sitio con pocas visitas, con semilla (siempre los mismos números): 30 páginas con 0.15 a 1.5 clics al día y la
+// posición media con su ruido. Cuántas marca un lunes sin que nada cambiara (falsas alarmas), con 28 días contra 28 (lo de
+// ahora) y con la regla de antes (7 contra 7); y cuántas de las que perdieron la mitad de sus clics encuentra: depende de
+// las visitas (con 2 clics al día, más de 8 de cada 10; con 1, más o menos la mitad; con menos, no se distingue del azar).
+await t('simulación: 28 contra 28 casi no da falsas alarmas y encuentra las que bajaron a la mitad', () => {
+	let semilla = 20261122;
+	const azar = () => { semilla = (semilla + 0x6D2B79F5) | 0; let x = Math.imul(semilla ^ (semilla >>> 15), 1 | semilla); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+	const normal = () => Math.sqrt(-2 * Math.log(1 - azar())) * Math.cos(2 * Math.PI * azar());
+	// Con muchas (las impresiones), la normal: exp(−λ) se va a cero pasado ~700.
+	const poisson = (l) => { if (l > 200) return Math.max(0, Math.round(l + normal() * Math.sqrt(l))); let k = 0, p = 1; const L = Math.exp(-l); do { k++; p *= azar(); } while (p > L); return k - 1; };
+	// Clics e impresiones de `dias` días; la posición media se mueve menos cuantas más impresiones.
+	const periodo = (pagina, porDia, dias, posicion) => {
+		const impresiones = poisson(porDia * 25 * dias), clics = poisson(porDia * dias);
+		return f(pagina, clics, impresiones, impresiones ? posicion + normal() * 6 / Math.sqrt(impresiones) : 0);
+	};
+	const RONDAS = 300;
+	// Promedio de páginas marcadas por lunes; `clicsAlDia`: todas con esos clics (si no, de 0.15 a 1.5).
+	const cuenta = (dias, regla, { mitad = false, clicsAlDia = 0 } = {}) => {
+		let marcadas = 0;
+		for (let r = 0; r < RONDAS; r++) {
+			const paginas = Array.from({ length: 30 }, (_, i) => ({ p: `/p${i}`, porDia: clicsAlDia || 0.15 + azar() * 1.35, pos: 3 + azar() * 12 }));
+			const antes = paginas.map((x) => periodo(x.p, x.porDia, dias, x.pos));
+			const ahora = paginas.map((x) => periodo(x.p, mitad ? x.porDia / 2 : x.porDia, dias, x.pos));
+			marcadas += regla(ahora, antes).length;
+		}
+		return marcadas / RONDAS;
+	};
+	// La regla de antes, para comparar: 3 clics y 30 %, o 3 posiciones con 20 apariciones antes.
+	const deAntes = (ahora, antes) => antes.filter((a, i) => (a.clics >= 3 && ahora[i].clics < a.clics * 0.7) || (a.impresiones >= 20 && ahora[i].posicion && a.posicion && ahora[i].posicion - a.posicion >= 3));
+	const falsas = cuenta(28, bajaron), falsasAntes = cuenta(7, deAntes);
+	const con2 = cuenta(28, bajaron, { mitad: true, clicsAlDia: 2 }) / 30, con1 = cuenta(28, bajaron, { mitad: true, clicsAlDia: 1 }) / 30;
+	console.log(`  falsas alarmas por lunes: ${falsas.toFixed(2)} de 30 (antes, 7 contra 7: ${falsasAntes.toFixed(2)}); de las que bajaron a la mitad encuentra el ${Math.round(con2 * 100)} % con 2 clics al día y el ${Math.round(con1 * 100)} % con 1`);
+	assert.ok(falsas < 1.5, `pocas falsas alarmas (${falsas})`);
+	assert.ok(falsasAntes > 3 * falsas, 'la regla de antes daba muchas más');
+	assert.ok(con2 > 0.75, `con 2 clics al día encuentra la mayoría (${con2})`);
+	assert.ok(con1 > 0.4, `con 1 clic al día, cerca de la mitad (${con1})`);
 });
 
 await t('búsquedas nuevas: 3 apariciones o más y ausentes la semana anterior, las que más aparecen primero', () => {
@@ -36,6 +79,7 @@ process.env.GOOGLE_SA_KEY = generateKeyPairSync('rsa', { modulusLength: 2048 }).
 const { default: seoSemanal } = await import('../netlify/functions/seo-semanal.mjs');
 const SITIO = 'https://eqinmobiliario.gt';
 let inspeccionadas = [];
+const consultas = [];
 let cuotaTras = Infinity;
 const google = (url, op = {}) => {
 	const u = String(url);
@@ -45,6 +89,7 @@ const google = (url, op = {}) => {
 		const b = JSON.parse(op.body);
 		const actual = b.endDate >= '2026-11-15';
 		const dim = (b.dimensions || [])[0];
+		consultas.push(b);
 		const filas = !dim ? [{ clicks: actual ? 20 : 30, impressions: 500, ctr: 0.04, position: 8 }]
 			: dim === 'page' ? (actual ? [{ keys: [`${SITIO}/`], clicks: 20, impressions: 400, position: 6 }] : [{ keys: [`${SITIO}/`], clicks: 22, impressions: 400, position: 6 }, { keys: [`${SITIO}/propiedad/casa-1/`], clicks: 8, impressions: 60, position: 5 }])
 				: (actual ? [{ keys: ['casa en venta zona 14'], clicks: 1, impressions: 30, position: 9 }] : []);
@@ -61,7 +106,7 @@ const google = (url, op = {}) => {
 };
 globalThis.fetch = async (url, op) => google(url, op);
 
-await t('el informe del lunes: bajó la casa 1, búsqueda nueva, la casa 2 no está en Google con su motivo', async () => {
+await t('el informe del lunes: bajó la casa 1 (28 días), búsqueda nueva, la casa 2 no está en Google con su motivo', async () => {
 	inspeccionadas = []; cuotaTras = Infinity;
 	poner('settings/site', { seo: { searchConsolePropiedad: 'sc-domain:otro-sitio.com' } });
 	await seoSemanal();
@@ -70,6 +115,13 @@ await t('el informe del lunes: bajó la casa 1, búsqueda nueva, la casa 2 no es
 	assert.equal(d.propiedad, 'sc-domain:eqinmobiliario.gt', 'solo la propiedad de este sitio');
 	assert.equal(d.error, '');
 	assert.deepEqual(d.bajaron.map((x) => x.pagina), [`${SITIO}/propiedad/casa-1/`]);
+	// Las páginas, 28 días contra los 28 anteriores; los clics y las búsquedas, la semana.
+	const dias = (r) => Math.round((Date.parse(r.endDate) - Date.parse(r.startDate)) / 86_400_000) + 1;
+	assert.deepEqual(consultas.filter((b) => b.dimensions?.[0] === 'page').map(dias), [28, 28]);
+	assert.deepEqual(consultas.filter((b) => b.dimensions?.[0] !== 'page').map(dias), [7, 7, 7, 7]);
+	assert.equal(dias(d.rangoBajaron), 28);
+	assert.equal(globalThis.EQVacacional.sumarDias(d.rangoBajaronAntes.endDate, 1), d.rangoBajaron.startDate, 'seguidos, sin hueco');
+	assert.equal(dias(d.rango), 7);
 	assert.deepEqual(d.nuevas.map((x) => x.consulta), ['casa en venta zona 14']);
 	assert.equal(d.paginasSitemap, 4);
 	assert.equal(d.revisadasHoy, 4);

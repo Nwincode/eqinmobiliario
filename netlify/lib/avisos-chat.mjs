@@ -11,6 +11,7 @@ const lado = (m) => (m.de === 'cliente' ? 'cliente' : 'casa');
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v) || 0);
 
 // chat: documento del chat (con id = token); mensajes: en orden; correos: { cliente, socio, equipo: [] }.
+// `urgente` (opcional): la parte del intro que va en rojo (conUrgente de correo.mjs).
 // Para el control de cada hora: ¿lo último lo escribió el cliente y lleva más de `plazo` sin respuesta,
 // vencido dentro de la `ventana` que se revisa? (cada caso se avisa una sola vez).
 export function sinResponder(mensajes, { ahora, plazo, ventana }) {
@@ -115,7 +116,7 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// El equipo se entera: el cliente mandó su comprobante y el anfitrión dice que no le llegó (puede haber una fuga).
 	if (ultimo.tipo === 'reabierto') return [
 		...((correos.equipo || []).filter(Boolean).length ? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio dice que no le llegó el pago`, titulo: `No le llegó el pago de ${chat.codigo}`,
-			intro: `${resumen}. El cliente mandó su comprobante y el socio dice que no le llegó: el cliente tiene un plazo nuevo para pagar. Revisa con los dos.`, boton: 'Abrir la solicitud', url: panel }] : []),
+			intro: `${resumen}. El cliente mandó su comprobante y el socio dice que no le llegó: el cliente tiene un plazo nuevo para pagar. Revisa con los dos.`, urgente: 'el socio dice que no le llegó', boton: 'Abrir la solicitud', url: panel }] : []),
 		...alCliente(en ? `Booking ${chat.codigo}: your payment has not arrived` : `Reserva ${chat.codigo}: tu pago no ha llegado`,
 			en ? 'The host has not received your payment' : 'El anfitrión no ha recibido tu pago', String(ultimo.texto || '').slice(0, 400))];
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
@@ -126,7 +127,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		// Cada cancelación del socio le llega también al equipo (con ella sale una comisión de la mora).
 		const equipo = !no && ultimo.de === 'socio' && (correos.equipo || []).filter(Boolean).length
 			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva${chat.comprobanteCliente ? ' (con comprobante del cliente)' : ''}`, titulo: `El socio canceló ${chat.codigo}`,
-				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
+				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`,
+				urgente: chat.comprobanteCliente ? 'El cliente había mandado su comprobante de pago.' : 'Revisa que el cliente no haya pagado', boton: 'Abrir la solicitud', url: panel }] : [];
 		// Lo que se cerró o canceló solo por un plazo (netlify/functions/plazos-reservas.mjs): el anfitrión también se entera.
 		// Con el motivo de verdad (lo deja el cron en el mensaje): la casa salió del sitio, la confirmaba el equipo, o nadie
 		// respondió.

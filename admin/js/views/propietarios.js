@@ -17,6 +17,7 @@ import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import { tarjetaGlobal, bloqueSocio } from '../permisos-ui.js';
 import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
+import { enviarEstadoDeCuenta } from '../estado-cuenta-enviar.js';
 import { fotoPropietario } from '../bitacora.js';
 
 // Las casas de esta ficha quedan suyas y las que salieron de ella quedan sin dueño (si eran suyas), con la única
@@ -367,6 +368,7 @@ async function renderEditor(container, id) {
 		pageHeader(nuevo ? 'Nuevo propietario' : data.nombre,
 			// Datos de pago y permisos: quién, cuándo, antes y después (bitácora de cambios sensibles).
 			!nuevo && session.isAdmin ? iconoBtn('icon-history', 'Cambios', { onclick: () => verCambios({ propietarioId: ref.id, titulo: `Cambios: ${data.nombre || 'propietario'}` }) }) : null,
+			!nuevo && session.isAdmin && tieneCasasPorNoche(data, propiedades) ? iconoBtn('icon-envelope-o', 'Enviar estado de cuenta', { onclick: () => enviarEstadoDeCuenta({ id: ref.id, ...data }) }) : null,
 			h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Volver')),
 		!nuevo ? h('div', { class: 'd-flex flex-wrap gap-2 mb-3 align-items-center' },
 			data.telefono ? h('a', { href: whatsappUrl(data.telefono, `Hola ${String(data.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
