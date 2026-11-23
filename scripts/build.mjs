@@ -23,6 +23,7 @@ import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
 import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
 import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
 import { urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
+import { huellaDelPanel } from './lib/huella-panel.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -845,6 +846,8 @@ async function main() {
 	urls.push({ path: '/calculadora-de-renta/', priority: '0.5' });
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
+	// La versión del panel (solo cambia con su código): el panel abierto la compara y avisa «Hay una versión nueva».
+	await writeFile(path.join(DIST, 'admin', 'version.json'), JSON.stringify({ v: await huellaDelPanel(ROOT) }));
 
 	if (mora) await writeFile(path.join(DIST, 'pausados.txt'), pausados(mora));
 	// Sitemap = exactamente las páginas que se indexan (lo dice su etiqueta robots). En una vista previa todo va

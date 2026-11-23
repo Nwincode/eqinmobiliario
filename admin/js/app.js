@@ -12,6 +12,7 @@ import { actualizarInsignias } from './pendientes.js';
 import { campana } from './avisos.js';
 import { entrar, revisarDosPasos, pantallaInscribir, pendienteDe, avisoDosPasos } from './dos-pasos.js';
 import { vigilarTablas } from './tablas.js';
+import { vigilarVersion, revisarVersion, avisoVersion } from './version.js';
 
 const ROUTES = [
 	{ path: 'mis-casas', label: 'Mis propiedades', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
@@ -43,6 +44,7 @@ const ROUTES = [
 ];
 
 const root = document.getElementById('app');
+vigilarVersion();
 
 function authCard(...children) {
 	return h('div', { class: 'auth-wrap' },
@@ -240,7 +242,8 @@ async function route() {
 		if (token !== renderToken) return;
 		rutaActual = def.path;
 		pintando = false;
-		view.replaceChildren(...[avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
+		view.replaceChildren(...[avisoVersion(), avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
+		revisarVersion();
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
 		if (!session.esSocio) actualizarInsignias();
