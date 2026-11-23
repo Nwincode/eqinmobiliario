@@ -14,6 +14,7 @@ import { purgarCasa } from '../lib/ocupacion.mjs';
 import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
 import { limitadorDurable, ipDe } from '../lib/limite.mjs';
 import { revisarComprobante } from '../lib/comprobantes.mjs';
+import { traducirChat } from '../lib/traducciones.mjs';
 
 // Guardado en la base (lo comparten todas las instancias): quien abriera muchos chats no manda una ráfaga de correos
 // aunque Netlify reparta sus pedidos. Si la base falla, cuenta el de memoria (un aviso de verdad no se pierde por eso).
@@ -56,6 +57,12 @@ export default async (req, context) => {
 	if (chat?.comprobanteMensaje && chat.estado === 'confirmada') {
 		const revision = revisarComprobante(token).catch((err) => console.error('Revisión del comprobante:', err.message));
 		if (context?.waitUntil) context.waitUntil(revision); else await revision;
+	}
+	// El cliente lee en inglés: lo nuevo del chat se traduce para el otro lado (netlify/lib/traducciones.mjs), después de
+	// responder. Sin IA no se hace nada.
+	if (chat?.idioma === 'en') {
+		const traduccion = traducirChat(token).catch((err) => console.error('Traducción del chat:', err.message));
+		if (context?.waitUntil) context.waitUntil(traduccion); else await traduccion;
 	}
 	if (!servicioCorreo()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	try {
