@@ -2011,6 +2011,15 @@ const duenos = [];
 
 	// Dos pestañas del administrador corrigen el mismo correo: la segunda parte del que guardó la primera (el «antes» de
 	// verdad) y cada correo nuevo recibe su enlace una vez.
+	// Una solicitud abierta propia para esto (la de Marta ya pasó por otros pasos).
+	const TOKEN_DOS = 'DosPestanas00000000000000001';
+	await escribir('leads/dos-pest', { nombre: 'Marta Dos Pestañas', email: 'marta.ok@example.com', telefono: '+502 5555 6666', idioma: 'es', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', agentId: '',
+		reserva: { codigo: 'EQ-DOSPES', llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' }, solicitud: {} });
+	await escribir(`chats/${TOKEN_DOS}`, { codigo: 'EQ-DOSPES', leadId: 'dos-pest', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', nombre: 'Marta',
+		llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' });
+	await escribir('chatsPorSolicitud/dos-pest', { token: TOKEN_DOS });
+	sembrados.push('leads/dos-pest', `chats/${TOKEN_DOS}`, 'chatsPorSolicitud/dos-pest');
+	const codigo3 = 'EQ-DOSPES', leadId3 = 'dos-pest';
 	const otra = await admin.p.context().newPage();
 	await otra.goto(admin.p.url());
 	await espera(5000);
