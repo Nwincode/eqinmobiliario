@@ -2072,6 +2072,17 @@ const duenos = [];
 	await ir(admin.p, '#/solicitudes/cobrar', 5000);
 	const elegido = await admin.p.locator('select[aria-label="Todos los estados"]').inputValue().catch(() => '');
 	paso('El administrador abre #/solicitudes/cobrar con «Ganancia de EQ por cobrar» elegido', elegido === 'cobrar', elegido);
+	// La ficha del socio lleva «Enviar estado de cuenta» (su casa por noche dice que es suyo: la ficha pasa su id) y la
+	// ventana muestra la vista previa del correo.
+	await ir(admin.p, '#/propietarios/socio-prueba', 4000);
+	const botonCuenta = admin.p.locator('.admin-main [aria-label="Enviar estado de cuenta"]');
+	const hayBoton = await botonCuenta.count();
+	if (hayBoton) { await botonCuenta.click(); await espera(5000); }
+	const vistaCuenta = await admin.p.locator('.modal.show iframe').count();
+	await admin.p.screenshot({ path: `${TANDA}/estado-cuenta-vista-1280.png` });
+	paso('Ficha del socio: «Enviar estado de cuenta» abre la ventana con la vista previa del correo', hayBoton === 1 && vistaCuenta === 1, `${hayBoton} botón · ${vistaCuenta} vista`);
+	await admin.p.keyboard.press('Escape');
+	await espera(600);
 
 	// «Confirmadas» del mes: una confirmada el mes pasado con el correo corregido hoy no cuenta en este mes, y su tarjeta
 	// sigue diciendo «Confirmó» (antes contaba y decía «Correo corregido»).

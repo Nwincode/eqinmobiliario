@@ -368,7 +368,7 @@ async function renderEditor(container, id) {
 		pageHeader(nuevo ? 'Nuevo propietario' : data.nombre,
 			// Datos de pago y permisos: quién, cuándo, antes y después (bitácora de cambios sensibles).
 			!nuevo && session.isAdmin ? iconoBtn('icon-history', 'Cambios', { onclick: () => verCambios({ propietarioId: ref.id, titulo: `Cambios: ${data.nombre || 'propietario'}` }) }) : null,
-			!nuevo && session.isAdmin && tieneCasasPorNoche(data, propiedades) ? iconoBtn('icon-envelope-o', 'Enviar estado de cuenta', { onclick: () => enviarEstadoDeCuenta({ id: ref.id, ...data }) }) : null,
+			!nuevo && session.isAdmin && tieneCasasPorNoche({ id: ref.id, ...data }, propiedades) ? iconoBtn('icon-envelope-o', 'Enviar estado de cuenta', { onclick: () => enviarEstadoDeCuenta({ id: ref.id, ...data }) }) : null,
 			h('a', { href: '#/propietarios', class: 'btn btn-light' }, 'Volver')),
 		!nuevo ? h('div', { class: 'd-flex flex-wrap gap-2 mb-3 align-items-center' },
 			data.telefono ? h('a', { href: whatsappUrl(data.telefono, `Hola ${String(data.nombre || '').split(' ')[0]}, te escribo de Equipo Inmobiliario.`), target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-success' }, 'WhatsApp') : null,
