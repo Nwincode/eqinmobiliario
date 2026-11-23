@@ -211,9 +211,10 @@ export async function render(container, [codigo] = []) {
 					datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
 					est === 'confirmada' && ch?.estado === 'confirmada' && comprobanteVigente(ch) ? badge('Cliente subió comprobante', 'info') : null,
 					est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
-					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null,
-					h('span', { class: tarde ? 'text-danger' : '' }, hace(ms(l.createdAt)))], { envuelve: true }),
-			h('div', {}, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
+					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null], { envuelve: true }),
+			// Cuándo llegó, al final de la línea de las fechas (un dato corto no va solo en su línea).
+			h('div', { class: 'd-flex gap-2' }, h('span', { class: 'flex-grow-1', style: 'min-width:0' }, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
+				h('span', { class: `small flex-shrink-0 align-self-center ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? lineaComision(com, nivel) : null,

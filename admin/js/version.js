@@ -5,7 +5,7 @@
 // cuando algo falla por permisos (ui.js showError avisa con el evento «sin-permiso»). Si cambió, arriba de la pantalla:
 // «Hay una versión nueva. Recarga la página.» con su botón. Nunca recarga sola: lo escrito no se pierde.
 // Sin el archivo (entorno sin build) o sin red, no dice nada. Lo pinta app.js `route` (como el aviso de dos pasos).
-import { h } from './ui.js';
+import { h, iconoBtn } from './ui.js';
 
 const RUTA = '/admin/version.json';
 const CADA = 5 * 60_000;
@@ -34,8 +34,8 @@ export async function revisarVersion({ ya = false } = {}) {
 export function avisoVersion() {
 	if (!hayNueva) return null;
 	return h('div', { id: 'aviso-version', class: 'alert alert-info small d-flex align-items-center gap-2 py-1', role: 'status' },
-		h('span', { class: 'icon-refresh', 'aria-hidden': 'true' }), h('span', { class: 'flex-grow-1', style: 'min-width:0' }, 'Hay una versión nueva. Recarga la página.'),
-		h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-primary flex-shrink-0', onclick: () => location.reload() }, 'Recargar'));
+		h('span', { class: 'flex-grow-1', style: 'min-width:0' }, 'Hay una versión nueva. Recarga la página.'),
+		iconoBtn('icon-refresh', 'Recargar la página', { class: 'btn-toque btn-icono btn btn-sm btn-primary flex-shrink-0', onclick: () => location.reload() }));
 }
 
 // En la pantalla abierta, sin volver a pintarla.
