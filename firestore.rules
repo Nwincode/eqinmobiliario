@@ -811,7 +811,8 @@ service cloud.firestore {
     // Nadie escribe en reglas/.
     match /reglas/{version} {
       // r6: las reglas con la bitácora de cambios sensibles (el panel pregunta por ella: admin/js/bitacora.js).
-      allow get: if version in ['r5', 'r6'];
+      // r7: citar un mensaje (`responde`) y las notas internas del chat (Mensajes: admin/js/views/mensajes.js).
+      allow get: if version in ['r5', 'r6', 'r7'];
     }
     match /chatsPorSolicitud/{leadId} {
       // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
@@ -895,8 +896,24 @@ service cloud.firestore {
         function sinLlegada() {
           return !request.resource.data.keys().hasAny(['direccion', 'mapa']);
         }
-        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa'])
+        // La cita de otro mensaje (opcional): su id y quién lo escribió, de un mensaje que existe en este chat. Sin su texto:
+        // se muestra el del mensaje citado (así no hay un segundo texto que filtrar: dos filtros de contacto en una escritura
+        // pasan el tope de 1000 expresiones de las reglas).
+        function citaValida(c) {
+          return c is map && c.keys().hasOnly(['id', 'de']) && c.keys().hasAll(['id', 'de'])
+            && isNonEmptyString(c.id, 40) && c.id.matches('[A-Za-z0-9_-]+') && c.de in ['cliente', 'socio', 'equipo']
+            && get(/databases/$(database)/documents/chats/$(token)/mensajes/$(c.id)).data.de == c.de;
+        }
+        // Quién del equipo escribe (opcional): su primer nombre, el de su users/{uid}; nadie firma por otro y ni el cliente
+        // ni el socio lo ponen. Los mensajes de antes no lo traen («Equipo»).
+        function nombreDelEquipo() {
+          return request.resource.data.de == 'equipo' && isAdmin() && isNonEmptyString(request.resource.data.nombre, 40)
+            && request.resource.data.nombre == userDoc().data.get('nombre', '').trim().split(' ')[0];
+        }
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa', 'responde', 'nombre'])
           && isNonEmptyString(request.resource.data.texto, 1000)
+          && (!('nombre' in request.resource.data) || nombreDelEquipo())
+          && (!('responde' in request.resource.data) || (!('tipo' in request.resource.data) && citaValida(request.resource.data.responde)))
           && (('tipo' in request.resource.data)
             ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()
                   && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
@@ -919,6 +936,24 @@ service cloud.firestore {
             || (request.resource.data.de == 'socio' && !('tipo' in request.resource.data)
                 && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')) && !(chat().get('estado', '') in ['no', 'cancelada'])));
         // Nada se edita ni se borra: la conversación es el registro.
+        allow update, delete: if false;
+      }
+      // Notas internas: las escriben y leen el equipo (administrador) y el socio de la casa, con su sesión. El cliente
+      // nunca: no hay ninguna puerta sin sesión aquí (el enlace del cliente no abre esta carpeta), y nada de una nota va al
+      // chat (que el enlace sí lee) ni a los correos. Sin contactos, como en el chat; nada se edita ni se borra.
+      match /notas/{id} {
+        function chatNota() {
+          return get(/databases/$(database)/documents/chats/$(token)).data;
+        }
+        function delSocio() {
+          return esSocioDe(chatNota()) && esSocioDeCasaPorNoche(chatNota().get('propertyId', ''));
+        }
+        allow read: if signedIn() && (isAdmin() || delSocio());
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt']) && request.resource.data.keys().hasAll(['de', 'texto', 'createdAt'])
+          && isNonEmptyString(request.resource.data.texto, 1000) && !tieneContacto(request.resource.data.texto)
+          && request.resource.data.createdAt == request.time
+          && ((request.resource.data.de == 'equipo' && isAdmin()) || (request.resource.data.de == 'socio' && !isAdmin() && delSocio()));
         allow update, delete: if false;
       }
     }

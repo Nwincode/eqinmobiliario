@@ -15,7 +15,7 @@
 import '../../js/calc-vacacional.js';
 import { json, socioUser, staffUser } from '../lib/auth.mjs';
 import { transaccion, escrituraConfigurada, probarEscritura } from '../lib/firestore-escritura.mjs';
-import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa, responder, mensaje, anotar, pendiente, congelarMontos, cerrarDuplicadas, solicitudDe } from '../lib/reservas-servidor.mjs';
+import { Respuesta, falla, fechasCambiaron, cerrarLasQueSeCruzan, fechasDeLaCasa, responder, mensaje, anotar, pendiente, alEstado, congelarMontos, cerrarDuplicadas, solicitudDe } from '../lib/reservas-servidor.mjs';
 import { enviarAvisosChat } from '../lib/aviso-chat-envio.mjs';
 import { limitador } from '../lib/limite.mjs';
 import { leerPrivado } from '../lib/firestore.mjs';
@@ -105,7 +105,7 @@ const ACCIONES = {
 		tx.crear(`reservas/${leadId}`, { ...datos, ...(bitacoraId ? { bitacoraId } : {}) }, { ahora: ['createdAt', 'updatedAt'] });
 		responder(tx, socio, leadId, 'confirmada', queConfirmo(revisadoAMano), { 'solicitud.reservaId': leadId, 'solicitud.costoSocio': datos.costoSocio, 'solicitud.comision': datos.ganancia });
 		const id = mensaje(tx, token, { tipo: 'pago', texto: pago });
-		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) });
+		tx.cambiar(`chats/${token}`, { estado: 'confirmada', vencePago: datos.vencePago, ...pendiente(id) }, alEstado('confirmada'));
 		await cerrarDuplicadas(tx, lead, leadId);
 		return { token, casa: casa.id, costoSocio: datos.costoSocio, ganancia: datos.ganancia, moneda: datos.moneda };
 	},
@@ -116,7 +116,7 @@ const ACCIONES = {
 		if (yaRespondida(chat.estado, lead.solicitud?.estado)) falla(409, YA);
 		responder(tx, socio, leadId, 'no', 'No se dio', { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, token, { texto: textoNo(motivo, chat.idioma === 'en') });
-		tx.cambiar(`chats/${token}`, { estado: 'no', ...pendiente(id) });
+		tx.cambiar(`chats/${token}`, { estado: 'no', ...pendiente(id) }, alEstado('no'));
 		return { token, casa: lead.propertyId };
 	},
 	// Cancela mientras el cliente no ha pagado ni llegado: las fechas quedan libres, la solicitud y el chat dicen
@@ -130,7 +130,7 @@ const ACCIONES = {
 		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo }, { ahora: ['updatedAt'] });
 		responder(tx, socio, leadId, 'cancelada', 'Canceló', { 'solicitud.motivo': motivo });
 		const id = mensaje(tx, token, { texto: textoCliente('cancelada', chat.idioma === 'en') });
-		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
+		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) }, alEstado('cancelada'));
 		return { token, casa: casa.id };
 	},
 	// «No me llegó»: el socio no recibió el pago. Antes del día de llegada (con el comprobante del cliente) se reabre el
@@ -155,7 +155,7 @@ const ACCIONES = {
 		tx.cambiar(`reservas/${leadId}`, { estado: 'cancelada', motivo: MOTIVO_NO_LLEGO }, { ahora: ['updatedAt'] });
 		responder(tx, socio, leadId, 'cancelada', 'No me llegó el pago: se canceló sin comisión', { 'solicitud.motivo': MOTIVO_NO_LLEGO });
 		const id = mensaje(tx, token, { texto: textoCliente('noLlego', chat.idioma === 'en') });
-		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) });
+		tx.cambiar(`chats/${token}`, { estado: 'cancelada', ...pendiente(id) }, alEstado('cancelada'));
 		return { token, casa: casa.id, reabierta: false };
 	},
 	// El cliente le pagó al socio: el chat dice «Pago recibido» y lleva la dirección y el mapa guardados en la casa
@@ -169,7 +169,7 @@ const ACCIONES = {
 		const ll = await tx.leer(`properties/${casa.id}/privado/llegada`);
 		if (faltaDireccion(ll)) falla(422, TEXTO_SIN_DIRECCION);
 		const id = mensaje(tx, token, { tipo: 'llegada', texto: 'llegada', direccion: ll.direccion || '', mapa: ll.mapa || '' });
-		tx.cambiar(`chats/${token}`, { estado: 'pagada', ...pendiente(id) });
+		tx.cambiar(`chats/${token}`, { estado: 'pagada', ...pendiente(id) }, alEstado('pagada'));
 		// En la reserva también: con el pago marcado, su comisión vencida sí cuenta para el corte de permisos.
 		if (await tx.leer(`reservas/${leadId}`)) tx.cambiar(`reservas/${leadId}`, { pagoRecibido: true }, { ahora: ['updatedAt'] });
 		anotar(tx, socio, leadId, 'Pago recibido');

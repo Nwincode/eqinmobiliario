@@ -28,6 +28,7 @@
 	--eq-line: color-mix(in oklab, var(--eq-dark) 12%, var(--eq-white));
 	--eq-mist: color-mix(in oklab, var(--eq-primary) 3%, var(--eq-white));
 	--eq-primary-soft: color-mix(in oklab, var(--eq-primary) 8%, var(--eq-white));
+	--eq-fondo: color-mix(in oklab, var(--eq-dark) 4%, var(--eq-mist)); /* Fondo de una conversación y del panel */
 	--eq-focus: var(--eq-cyan);
 
 	/* Panel (admin/admin.css): todo sale de los colores de arriba. */

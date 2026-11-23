@@ -1,0 +1,125 @@
+/* ================================================================
+   CONVERSACIÓN DE UNA RESERVA (admin/js/hilo.js): el mismo estilo en
+   Mensajes del panel y en la página «Tu reserva» del cliente.
+   Tres tamaños de letra (12, 14, 16), espacios de 4 en 4, toques de
+   44 px, filas separadas por líneas de 1 px. Colores de css/tema.css.
+   ================================================================ */
+.hilo-app {
+	--hilo-sup: var(--eq-white);
+	font-size: 14px;
+	line-height: 20px;
+	color: var(--eq-dark);
+	font-variant-numeric: tabular-nums;
+}
+:where(.hilo-app) button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+
+/* Botón de ícono de 44 px y botones de texto compactos (44 de alto). */
+.hilo-ib { width: 44px; height: 44px; flex: none; display: inline-grid; place-items: center; border-radius: 8px; font-size: 18px; color: var(--eq-ink); text-decoration: none; }
+.hilo-ib:hover { background: var(--eq-primary-soft); color: var(--eq-dark); }
+.hilo-app .hilo-ib-pri, .hilo-app .hilo-ib-pri:hover { background: var(--eq-primary); color: var(--eq-white); }
+.hilo-app .hilo-ib-pri:disabled { opacity: .4; cursor: default; }
+.hilo-app .hilo-btn { height: 44px; padding: 0 16px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; flex: none; text-decoration: none; }
+.hilo-app .hilo-btn-pri { background: var(--eq-primary); color: var(--eq-white); }
+.hilo-app .hilo-btn-pri:hover { background: var(--eq-primary-hover); }
+.hilo-app .hilo-btn-sec { border: 1px solid var(--eq-line); background: var(--hilo-sup); color: var(--eq-dark); }
+.hilo-app .hilo-btn:disabled { opacity: .5; cursor: default; }
+
+/* Cabecera del hilo (nombre y casa) y el resumen de la reserva. */
+.hilo-cab { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 0 8px 0 4px; background: var(--hilo-sup); border-bottom: 1px solid var(--eq-line); flex: none; }
+.hilo-cab-t { flex: 1; min-width: 0; }
+.hilo-cab-nom { margin: 0; font-weight: 600; font-size: 16px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hilo-cab-sub { font-size: 12px; line-height: 16px; color: var(--eq-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hilo-cab-sola { padding-left: 12px; }
+.hilo-resumen { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--hilo-sup); border-bottom: 1px solid var(--eq-line); flex: none; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.hilo-resumen-d { display: flex; gap: 0 12px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.hilo-resumen-d > span { white-space: nowrap; }
+.hilo-resumen-d [class^="icon-"] { margin-right: 4px; }
+.hilo-pildora { height: 24px; padding: 0 8px; border-radius: 12px; background: var(--eq-fondo); font-size: 12px; line-height: 24px; color: var(--eq-dark); display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; }
+.hilo-pildora i { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-warning); }
+.hilo-pildora.hilo-verde i { background: var(--eq-whatsapp); }
+.hilo-pildora.hilo-gris i { background: var(--eq-ink); }
+.hilo-pildora.hilo-rojo i { background: var(--eq-danger); }
+
+/* Lo que sigue: una línea de título, una de detalle y la acción del momento. */
+.hilo-sigue { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--hilo-sup); border-bottom: 1px solid var(--eq-line); flex: none; }
+.hilo-sigue-txt { flex: 1; min-width: 0; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.hilo-sigue-txt b { display: block; font-size: 14px; line-height: 20px; color: var(--eq-dark); font-weight: 600; }
+.hilo-sigue-acc { display: flex; gap: 8px; align-items: center; flex: none; }
+.hilo-plazo { font-size: 12px; line-height: 16px; color: var(--eq-danger); font-weight: 600; flex: none; white-space: nowrap; }
+.hilo-plazo-ok { color: var(--eq-ink); font-weight: 400; }
+
+/* Pasos de la reserva en una línea (cliente). */
+.hilo-pasos { display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: var(--hilo-sup); border-bottom: 1px solid var(--eq-line); font-size: 12px; line-height: 16px; color: var(--eq-ink); flex: none; }
+.hilo-pasos span { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.hilo-pasos i { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-line); }
+.hilo-pasos hr { flex: 1; border: 0; border-top: 1px solid var(--eq-line); min-width: 8px; margin: 0; opacity: 1; }
+.hilo-paso-ok i { background: var(--eq-whatsapp); }
+.hilo-paso-ya { color: var(--eq-dark); font-weight: 600; }
+.hilo-paso-ya i { background: var(--eq-warning); }
+
+/* El hilo: un solo scroll; lo último abajo. */
+.hilo { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 4px; background: var(--eq-fondo); overscroll-behavior: contain; }
+.hilo-dia { align-self: center; font-size: 12px; line-height: 16px; color: var(--eq-ink); margin: 8px 0 4px; }
+.hilo-ev { align-self: center; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; line-height: 16px; color: var(--eq-ink); margin: 4px 0; text-align: center; max-width: 100%; }
+.hilo-vacio { align-self: center; margin: auto 0; font-size: 12px; line-height: 16px; color: var(--eq-ink); text-align: center; }
+.hilo-m { max-width: min(80%, 520px); padding: 8px 12px; border-radius: 12px; background: var(--hilo-sup); border: 1px solid var(--eq-line); align-self: flex-start; position: relative; overflow-wrap: anywhere; white-space: pre-wrap; }
+.hilo-m.hilo-yo { align-self: flex-end; background: var(--eq-primary); border-color: var(--eq-primary); color: var(--eq-white); }
+.hilo-m.hilo-sep { margin-top: 8px; }
+.hilo-m.hilo-nota { align-self: center; background: transparent; border-style: dashed; color: var(--eq-ink); }
+.hilo-m.hilo-marcado { box-shadow: 0 0 0 2px var(--eq-cyan); }
+.hilo-quien { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--eq-primary); white-space: normal; }
+.hilo-yo .hilo-quien { color: var(--eq-white); opacity: .85; }
+.hilo-nota .hilo-quien { color: var(--eq-ink); }
+.hilo-app .hilo-cita { display: block; width: 100%; text-align: left; border-left: 2px solid var(--eq-cyan); padding: 0 0 0 8px; margin-bottom: 4px; font-size: 12px; line-height: 16px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hilo-yo .hilo-cita { border-color: var(--eq-white); }
+.hilo-txt { display: block; }
+.hilo-trad { display: block; border-top: 1px solid var(--eq-line); margin-top: 4px; padding-top: 4px; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.hilo-pie { font-size: 12px; line-height: 16px; opacity: .7; text-align: right; white-space: nowrap; }
+/* Responder: la flecha al lado del mensaje (al pasar el ratón, o al tocar el mensaje en el celular). */
+.hilo-app .hilo-resp { position: absolute; top: 50%; right: -48px; transform: translateY(-50%); width: 44px; height: 44px; display: none; place-items: center; font-size: 18px; color: var(--eq-ink); }
+.hilo-yo .hilo-resp { right: auto; left: -48px; }
+.hilo-m.hilo-elegido .hilo-resp { display: grid; }
+@media (hover: hover) { .hilo-m:hover .hilo-resp { display: grid; } }
+.hilo-app .hilo-noenv { align-self: flex-end; font-size: 12px; line-height: 16px; color: var(--eq-danger); font-weight: 600; min-height: 44px; margin: -12px 0 -8px; }
+
+/* Tarjetas: datos de pago, de llegada y el comprobante (nunca una caja dentro de una burbuja). */
+.hilo-tarj { align-self: stretch; background: var(--hilo-sup); border: 1px solid var(--eq-line); border-radius: 12px; padding: 12px; margin: 4px 0; overflow-wrap: anywhere; }
+.hilo-tarj h3 { font-size: 14px; line-height: 20px; font-weight: 600; margin: 0; }
+.hilo-tarj p { color: var(--eq-ink); margin: 0; white-space: pre-wrap; }
+.hilo-tarj a { color: var(--eq-primary); display: inline-block; padding: 14px 0; margin: -14px 0; }
+.hilo-tarj-fila { display: flex; gap: 8px; margin-top: 8px; }
+.hilo-tarj-fila .hilo-btn { flex: 1; }
+.hilo-comp { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.hilo-comp-foto { flex: none; }
+.hilo-comp-foto img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; display: block; }
+.hilo-comp-txt { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.hilo-comp-txt b { font-weight: 600; }
+.hilo-ia { font-size: 12px; line-height: 16px; color: var(--eq-whatsapp); font-weight: 600; }
+.hilo-ia.hilo-ia-no { color: var(--eq-danger); }
+.hilo-ia.hilo-ia-gris { color: var(--eq-ink); font-weight: 400; }
+.hilo-comp-sin { width: 64px; height: 64px; border-radius: 8px; background: var(--eq-fondo); display: grid; place-items: center; font-size: 20px; color: var(--eq-ink); }
+.hilo-comp > .hilo-btn { margin-left: auto; }
+.hilo-comp-dato { font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+
+/* Escribir: respuestas rápidas, la cita, el campo y la regla (o el aviso). */
+.hilo-pie-chat { background: var(--hilo-sup); border-top: 1px solid var(--eq-line); padding: 8px 8px 8px 12px; flex: none; }
+.hilo-rapidas { display: flex; gap: 8px; margin-bottom: 8px; }
+.hilo-rapidas-r { display: flex; gap: 8px; flex: 1; min-width: 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.hilo-rapidas.hilo-todas .hilo-rapidas-r { flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; }
+.hilo-app .hilo-chip { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 12px; line-height: 30px; border: 1px solid color-mix(in oklab, var(--eq-primary) 30%, var(--eq-white)); color: var(--eq-primary); white-space: nowrap; flex: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; position: relative; }
+/* Las fichas miden 32 a la vista; su toque llega a 44 (sin agrandar la fila). */
+.hilo-app .hilo-chip::after { content: ""; position: absolute; inset: -6px 0; }
+.hilo-app .hilo-chip-ia { background: var(--eq-primary-soft); border-color: var(--eq-primary-soft); font-weight: 600; }
+.hilo-app .hilo-chip-mas { width: 32px; padding: 0; text-align: center; }
+.hilo-app .hilo-chip-mas::after { inset: -6px; }
+.hilo-citando { display: flex; align-items: center; gap: 8px; border-left: 2px solid var(--eq-cyan); padding-left: 8px; margin-bottom: 8px; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.hilo-citando span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hilo-citando .hilo-ib { margin: -14px -8px -14px 0; font-size: 14px; }
+.hilo-escribir { display: flex; gap: 4px; align-items: flex-end; }
+.hilo-campo { flex: 1; min-width: 0; min-height: 44px; max-height: 132px; border: 1px solid var(--eq-line); border-radius: 8px; padding: 11px 12px; font: inherit; color: var(--eq-dark); background: var(--hilo-sup); resize: none; overflow-y: auto; }
+.hilo-campo:focus { outline: 2px solid var(--eq-focus); outline-offset: -1px; border-color: transparent; }
+.hilo-campo.hilo-mal, .hilo-campo.hilo-mal:focus { border-color: var(--eq-danger); outline-color: var(--eq-danger); }
+.hilo-escribir.hilo-en-nota .hilo-campo { border-style: dashed; }
+.hilo-regla { font-size: 12px; line-height: 16px; color: var(--eq-ink); margin: 4px 0 0; }
+.hilo-regla.hilo-alerta { color: var(--eq-danger); font-weight: 600; }
+.hilo-app .hilo-ib.hilo-activo { background: var(--eq-primary-soft); color: var(--eq-primary); }

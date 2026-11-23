@@ -964,12 +964,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .ia-burbuja.is-seguida {
 	margin-top: -6px;
 }
-/* Campo del chat: una línea que crece sola (sin la esquina para estirarlo); mismo alto que los botones de al lado. */
-.chat-campo {
-	min-height: 44px;
-	resize: none;
-	overflow-y: auto;
-}
 .ia-user {
 	align-self: flex-end;
 	background: var(--adm-primary);
@@ -3619,3 +3613,80 @@ div.aviso-enlace:hover { background: none; }
 .dos-pasos-qr svg { width: 100%; height: auto; }
 .dos-pasos-clave { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875rem; word-break: break-all; text-align: center; margin-bottom: 12px; }
 .dos-pasos-codigo { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+
+/* ===== Mensajes (views/mensajes.js): lista, hilo y ficha de la reserva. El hilo: /css/hilo.css ===== */
+.admin-main:has(> div > .msj) { padding: 0; max-width: none; display: flex; flex-direction: column; height: calc(100dvh - 56px); }
+.admin-main:has(> div > .msj) > div:last-child { flex: 1; min-height: 0; }
+.msj { display: grid; grid-template-columns: 1fr; height: 100%; background: var(--eq-white); }
+.msj > section, .msj > aside { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.msj-lista { background: var(--eq-white); }
+.msj-titulo { display: none; }
+.msj-filtros { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; min-height: 52px; border-bottom: 1px solid var(--eq-line); flex: none; }
+.msj-chips { display: flex; gap: 8px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.msj .msj-chip { height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; line-height: 26px; border: 1px solid var(--eq-line); color: var(--eq-ink); white-space: nowrap; flex: none; position: relative; }
+.msj .msj-chip::after { content: ""; position: absolute; inset: -8px 0; }
+.msj .msj-chip-on { background: var(--eq-dark); border-color: var(--eq-dark); color: var(--eq-white); font-weight: 600; }
+.msj-buscar { display: none; flex: 1; min-width: 0; height: 36px; border: 1px solid var(--eq-line); border-radius: 8px; padding: 0 12px; font-size: 14px; }
+.msj-buscando .msj-chips { display: none; }
+.msj-buscando .msj-buscar { display: block; }
+.msj-filas { flex: 1; min-height: 0; overflow-y: auto; }
+.msj-fila { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid var(--eq-line); min-height: 76px; color: var(--eq-dark); text-decoration: none; }
+.msj-fila:hover { background: var(--eq-mist); color: var(--eq-dark); }
+.msj-fila.msj-sel { background: var(--eq-primary-soft); }
+.msj-foto { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex: none; background: var(--eq-fondo); display: grid; place-items: center; color: var(--eq-ink); font-size: 20px; }
+.msj-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.msj-l1 { display: flex; gap: 8px; align-items: baseline; }
+.msj-nom { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msj-hora { font-size: 12px; line-height: 16px; color: var(--eq-ink); flex: none; }
+.msj-l2 { font-size: 12px; line-height: 16px; color: var(--eq-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msj-l3 { display: flex; gap: 8px; align-items: center; }
+.msj-ult { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--eq-ink); }
+.msj-nuevo .msj-ult { color: var(--eq-dark); font-weight: 600; }
+.msj-punto { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-primary); flex: none; }
+.msj-nada { margin: 24px 12px; }
+.msj-hilo { background: var(--eq-fondo); }
+.msj-hilo-vacio { display: none !important; align-items: center; justify-content: center; }
+.msj-lado { display: none !important; }
+.msj-ancho { display: none; }
+.hilo-app .msj-crece { flex: 1; }
+.msj-acciones { gap: 16px; }
+.hilo-app .msj-solo-icono { width: 52px; padding: 0; gap: 0; }
+/* Celular: o la lista o el hilo; el hilo tapa la barra de arriba (pantalla completa, con su flecha para volver). */
+@media (max-width: 991.98px) {
+	.msj.msj-en-hilo .msj-lista { display: none; }
+	.msj:not(.msj-en-hilo) .msj-hilo { display: none; }
+	body:has(.msj-en-hilo) .admin-topbar { display: none; }
+	.admin-main:has(> div > .msj-en-hilo) { height: 100dvh; }
+}
+@media (min-width: 992px) {
+	.msj { grid-template-columns: 360px 1fr; }
+	.admin-main:has(> div > .msj) { height: calc(100dvh - 60px); }
+	.msj-lista { border-right: 1px solid var(--eq-line); }
+	.msj-hilo-vacio { display: flex !important; }
+	.msj-volver { display: none !important; }
+	.msj .hilo-cab { padding-left: 16px; }
+}
+/* Con espacio para la ficha de la reserva: la lista, el hilo y la ficha (la fila de resumen y «lo que sigue» pasan a la ficha). */
+@media (min-width: 1280px) {
+	.msj { grid-template-columns: 360px 1fr 280px; }
+	.msj-lado { display: flex !important; gap: 12px; padding: 16px; overflow-y: auto; border-left: 1px solid var(--eq-line); background: var(--eq-white); }
+	.msj-angosto { display: none !important; }
+	div.msj-ancho { display: block; }
+	span.msj-ancho { display: inline-flex; }
+}
+.msj-lado-foto { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; flex: none; }
+.msj-lado h2 { font-size: 14px; line-height: 20px; font-weight: 600; margin: 0; }
+.msj-lado dl { display: grid; grid-template-columns: 20px 1fr; gap: 4px 8px; color: var(--eq-ink); margin: 0; }
+.msj-lado dd { color: var(--eq-dark); margin: 0; }
+.msj-lado dd.msj-sec { color: var(--eq-ink); }
+.msj-lado-acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.msj-lado-acc .hilo-btn { padding: 0 12px; }
+.msj-lado-acc .hilo-btn-pri { flex: 1; }
+.msj-pasos { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.msj-pasos div { display: flex; gap: 8px; align-items: center; }
+.msj-pasos i { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-line); flex: none; }
+.msj-pasos .ok { color: var(--eq-dark); }
+.msj-pasos .ok i { background: var(--eq-whatsapp); }
+.msj-pasos .ya { color: var(--eq-dark); font-weight: 600; }
+.msj-pasos .ya i { background: var(--eq-warning); }
+/* ===== Fin Mensajes ===== */

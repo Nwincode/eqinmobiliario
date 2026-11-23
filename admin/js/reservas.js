@@ -235,9 +235,12 @@ async function chatDe(r, chat) {
 const cerrarChat = (tx, chat, estado, texto) => {
 	const msj = doc(collection(chat.ref, 'mensajes'));
 	tx.set(msj, { de: quienEscribe(), texto, createdAt: serverTimestamp() });
-	tx.update(chat.ref, { estado, ...avisoPendienteDe(msj) });
+	tx.update(chat.ref, { estado, ...avisoPendienteDe(msj), ...alEstado(estado) });
 };
 const avisoPendienteDe = (msj) => (session.esSocio ? {} : { avisoPendiente: msj.id });
+// Cuándo pasó el chat a cada estado (lo mismo que escribe el servidor: alEstado en netlify/lib/reservas-servidor.mjs; de
+// ahí salen las líneas del hilo). El socio por el camino de antes no: las reglas de antes no lo aceptan.
+const alEstado = (estado) => (session.esSocio ? {} : { [`estadoEn.${estado}`]: serverTimestamp() });
 
 // La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda }) queda confirmada: nace su reserva con la
 // comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat dicen «confirmada» y el
@@ -291,7 +294,7 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.
 				const msj = doc(collection(chat.ref, 'mensajes'));
 				tx.set(msj, { de: quienEscribe(), tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
-				tx.update(chat.ref, deAntes ? { estado: 'confirmada' } : { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id });
+				tx.update(chat.ref, deAntes ? { estado: 'confirmada' } : { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id, ...alEstado('confirmada') });
 			}
 		}
 	});
@@ -371,7 +374,7 @@ export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, p
 	if (ahora !== 'pagada') await runTransaction(db, async (tx) => {
 		const s = await tx.get(chat.ref);
 		if (s.data()?.estado !== 'confirmada') throw new Error('Esta reserva cambió mientras tanto. Recarga la página.');
-		tx.update(chat.ref, { estado: 'pagada' });
+		tx.update(chat.ref, { estado: 'pagada', ...alEstado('pagada') });
 	});
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).

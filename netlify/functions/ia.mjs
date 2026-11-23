@@ -4,14 +4,17 @@
 import { client, MODEL, Anthropic } from '../lib/ia-cliente.mjs';
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { TAREAS, SISTEMA, acotado } from '../lib/tareas.mjs';
-import { staffUser, json } from '../lib/auth.mjs';
+import { staffUser, usuario as usuarioDelPanel, json } from '../lib/auth.mjs';
 import { leerPublico } from '../lib/firestore.mjs';
-import { limitador, ipDe } from '../lib/limite.mjs';
+import { limitador, limitadorDurable, ipDe } from '../lib/limite.mjs';
+import { contextoDelChat } from '../lib/sugerir-respuesta.mjs';
 
 const SITE_URL = siteConfig.siteUrl.replace(/\/$/, '');
 
 // Límite por IP para la búsqueda pública (por instancia; evita abusos obvios): 8 por minuto. Un pedido rechazado no cuenta.
 const publicRateLimited = limitador(8, 60_000);
+// «Sugerir respuesta»: 40 por hora por persona (guardado en la base: lo comparten todas las instancias).
+const porPersonaChat = limitadorDurable('ia-respuesta-chat', 40, 60 * 60_000, { siFalla: 'memoria' });
 
 const cut = (v, n) => String(v ?? '').slice(0, n);
 
@@ -105,10 +108,21 @@ export default async (req, context) => {
 	const def = TAREAS[body?.tarea];
 	if (!def) return json(400, { error: 'Tarea desconocida' });
 	if (!def.staff && crudo.length > MAX_PUBLICO) return json(413, { error: 'La búsqueda es demasiado larga.' });
-	const datos = def.staff ? body.datos || {} : datosPublicos(body.datos);
+	const datos = def.staff || def.chat ? body.datos || {} : datosPublicos(body.datos);
 
 	let usuario = null;
-	if (def.staff) {
+	let contextoChat = '';
+	if (def.chat) {
+		// El administrador o el socio de la casa del chat; lo que va a la IA lo arma el servidor con lo guardado.
+		let u = null;
+		try { u = await usuarioDelPanel(req); } catch { u = null; }
+		if (!u || !['admin', 'socio'].includes(u.rol)) return json(401, { error: 'Inicia sesión en el panel para usar la IA.' });
+		if (await porPersonaChat(u.uid)) return json(429, { error: 'Pediste muchas sugerencias seguidas. Intenta en un rato.' });
+		const ctx = await contextoDelChat(String(datos.chat || ''), u).catch((err) => { console.error('Sugerir respuesta:', err.message); return null; });
+		if (!ctx) return json(403, { error: 'Esta conversación no es tuya.' });
+		usuario = u;
+		contextoChat = ctx;
+	} else if (def.staff) {
 		try {
 			usuario = await staffUser(req);
 		} catch {
@@ -130,10 +144,10 @@ export default async (req, context) => {
 		const contexto = construirPrompt('chat', datos);
 		messages = contexto ? [{ role: 'user', content: contexto }, ...historial] : historial;
 	} else {
-		messages = [{ role: 'user', content: construirPrompt(body.tarea, datos) }];
+		messages = [{ role: 'user', content: def.chat ? contextoChat : construirPrompt(body.tarea, datos) }];
 	}
 
-	const asesor = usuario?.nombre ? `\nEl asesor que te escribe se llama ${usuario.nombre}; firma los mensajes al cliente con su nombre.` : '';
+	const asesor = usuario?.nombre && !def.chat ? `\nEl asesor que te escribe se llama ${usuario.nombre}; firma los mensajes al cliente con su nombre.` : '';
 
 	try {
 		const response = await client.beta.messages.create({

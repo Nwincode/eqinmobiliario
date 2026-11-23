@@ -245,7 +245,7 @@ await cliente.p.fill('.vac-chat-form textarea', 'Hola, ¿aceptan 2 perros peque�
 await cliente.p.keyboard.press('Enter'); await cliente.p.keyboard.press('Enter');
 await espera(1500);
 paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (await cliente.p.locator('.vac-chat-aviso').innerText()) === ''
-	&& await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
+	&& await cliente.p.locator('.hilo-m', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.hilo-m', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
 {
 	// Y dice qué parte parece contacto, en una línea (un número: que lo mande en foto si es de un pago).
 	const aviso = await escribir('Mejor llamame al 5555-1234');
@@ -276,31 +276,80 @@ const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAl
 paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
 paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
 paso('La solicitud marca «Mensaje sin responder»', /Mensaje sin responder/.test(await tarjeta.innerText()));
+// El chat vive en Mensajes: el icono de la solicitud lleva ahí (una sola conversación, sin ventana aparte).
+paso('El icono de chat de la solicitud lleva a Mensajes', await tarjeta.locator('[aria-label="Chat con el cliente"]').getAttribute('href') === `#/mensajes/${encodeURIComponent(codigo)}`);
 await tarjeta.locator('[aria-label="Chat con el cliente"]').click();
-await espera(1500);
-await socio.p.fill('.modal textarea', 'Hola Ana, sí aceptamos mascotas pequeñas.');
-await socio.p.locator('.modal [aria-label=Enviar]').dblclick();
-await espera(1500);
-paso('El socio responde con doble clic: sale una sola vez', await socio.p.locator('.modal', { hasText: 'aceptamos mascotas' }).locator('text=Hola Ana, sí aceptamos mascotas pequeñas.').count() === 1);
-await socio.p.fill('.modal textarea', 'Mi número es 5555 0001');
-await socio.p.locator('.modal [aria-label=Enviar]').click();
-await espera(800);
-paso('El panel bloquea el teléfono del socio', /no se comparten/.test(await avisos(socio.p)));
+await espera(3000);
+const hilo = socio.p.locator('.msj-hilo');
+paso('Mensajes abre el hilo de esa solicitud, con el mensaje del cliente y «Ana pidió reservar»', /aceptan 2 perros/.test(await hilo.innerText()) && /Ana pidió reservar/.test(await hilo.innerText()), (await hilo.innerText()).replace(/\s+/g, ' ').slice(0, 160));
+// Responder citando: se toca el mensaje, la flecha, y la cita queda arriba del campo; al mandar, va dentro de la burbuja.
+await hilo.locator('.hilo-otro', { hasText: 'aceptan 2 perros' }).click();
+await hilo.locator('.hilo-otro', { hasText: 'aceptan 2 perros' }).locator('.hilo-resp').click();
+const citaArriba = await hilo.locator('.hilo-citando').innerText();
+await hilo.locator('.hilo-campo').fill('Hola Ana, sí aceptamos mascotas pequeñas.');
+await hilo.locator('.hilo-escribir [aria-label=Enviar]').dblclick();
+await espera(2500);
+const respuesta = hilo.locator('.hilo-yo', { hasText: 'aceptamos mascotas' });
+paso('El socio responde desde Mensajes citando el mensaje del cliente (doble clic: sale una sola vez)', /Ana:.*aceptan 2 perros/.test(citaArriba) && await respuesta.count() === 1
+	&& /aceptan 2 perros/.test(await respuesta.locator('.hilo-cita').innerText().catch(() => '')), `${citaArriba} · ${await respuesta.count()} · ${await avisos(socio.p)}`);
+// El aviso de contacto mientras escribe: el campo en rojo, «Enviar» apagado y una línea que dice qué parece; no sale.
+await hilo.locator('.hilo-campo').fill('Mi número es 5555 0001');
+await hilo.locator('.hilo-campo').press('Enter');
+await espera(1200);
+paso('El aviso de contacto aparece al escribir y no deja mandar', await hilo.locator('.hilo-escribir [aria-label=Enviar]').isDisabled() && /Parece un teléfono: aquí no se comparten contactos/.test(await hilo.locator('.hilo-regla.hilo-alerta').innerText().catch(() => ''))
+	&& await hilo.locator('.hilo-m', { hasText: '5555 0001' }).count() === 0);
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat.png` });
-// Respuestas rápidas detrás del rayo: cerradas al abrir; al tocar una, va al campo y se cierran.
-const rapidasOcultas = await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden();
-await socio.p.locator('.modal [aria-label="Respuestas rápidas"]').click();
-await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).click();
-paso('Respuestas rápidas tras el rayo: se abren, llenan el campo y se cierran', rapidasOcultas && await socio.p.locator('.modal textarea').inputValue() === '¿Viajan con mascotas?'
-	&& await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden());
-await socio.p.fill('.modal textarea', '');
+// Respuestas rápidas del momento: a la vista en una fila; al tocar una, va al campo.
+await hilo.locator('.hilo-campo').fill('');
+await hilo.locator('.hilo-rapidas .hilo-chip', { hasText: '¿Viajan con mascotas?' }).click();
+paso('Respuestas rápidas a la vista: llenan el campo', await hilo.locator('.hilo-campo').inputValue() === '¿Viajan con mascotas?');
+await hilo.locator('.hilo-campo').fill('');
+// Nota interna: el candado; solo la ven el socio y el equipo (la página del cliente no).
+await hilo.locator('[aria-label^="Escribir una nota interna"]').click();
+await hilo.locator('.hilo-campo').fill('Nota interna: preguntar por la raza de los perros.');
+await hilo.locator('.hilo-campo').press('Enter');
+await espera(2000);
+await hilo.locator('[aria-label^="Escribir una nota interna"]').click();
+paso('El socio deja una nota interna en el hilo («Solo tú y el equipo»)', /Solo tú y el equipo/.test(await hilo.locator('.hilo-nota', { hasText: 'raza de los perros' }).innerText().catch(() => '')));
+await cliente.p.reload();
+await espera(3000);
+paso('La nota interna no está en la página del cliente (ni se lee con su enlace); la respuesta citada sí, con su cita', !/raza de los perros/.test(await cliente.p.locator('body').innerText())
+	&& (await fetch(`http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents/chats/${token}/notas`)).status === 403
+	&& /aceptan 2 perros/.test(await cliente.p.locator('.hilo-m', { hasText: 'aceptamos mascotas' }).locator('.hilo-cita').innerText().catch(() => '')));
+// Dos pestañas del socio: lo que escribe en una aparece solo en la otra (en vivo).
+{
+	const otraPestana = await socio.p.context().newPage();
+	await otraPestana.goto(socio.p.url());
+	await espera(3500);
+	await hilo.locator('.hilo-campo').fill('¿A qué hora piensan llegar?');
+	await hilo.locator('.hilo-campo').press('Enter');
+	await espera(2500);
+	paso('Dos pestañas: el mensaje de una aparece en la otra sin recargar', await otraPestana.locator('.msj-hilo .hilo-yo', { hasText: '¿A qué hora piensan llegar?' }).count() === 1);
+	await otraPestana.close();
+}
+// Un chat de antes (sin estadoEn): el hilo abre con lo que sale de sus mensajes (la confirmación por su mensaje de pago)
+// y sin la línea de «cancelada», sin errores.
+{
+	const base = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const sv = (v) => ({ stringValue: v }), hace = (h) => ({ timestampValue: new Date(Date.now() - h * 3600000).toISOString() });
+	const VIEJO = 'ChatDeAntesSinEventosLargoYAlAzar1';
+	await fetch(`${base}/chats/${VIEJO}`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { codigo: sv('EQ-VIEJO'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'),
+		nombre: sv('Rita Antigua'), llegada: sv('2026-12-20'), salida: sv('2026-12-22'), noches: { integerValue: '2' }, huespedes: { integerValue: '2' }, total: { doubleValue: 322.08 }, moneda: sv('USD'), estado: sv('cancelada'), createdAt: hace(72) } }) });
+	await fetch(`${base}/chats/${VIEJO}/mensajes/p1`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { de: sv('socio'), tipo: sv('pago'), texto: sv('Banco de prueba'), createdAt: hace(70) } }) });
+	await fetch(`${base}/chats/${VIEJO}/mensajes/p2`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { de: sv('cliente'), texto: sv('Gracias, lo reviso con mi esposo.'), createdAt: hace(69) } }) });
+	const errores = socio.errores.length;
+	await ir(socio.p, '#/mensajes/EQ-VIEJO', 3500);
+	const texto = await socio.p.locator('.msj-hilo').innerText();
+	paso('Un chat de antes sin eventos guardados abre su hilo con lo que se sabe (sin «Reserva cancelada» inventada) y sin errores',
+		/Confirmaste la reserva/.test(texto) && /lo reviso con mi esposo/.test(texto) && !/Reserva cancelada ·/.test(texto) && socio.errores.length === errores, texto.replace(/\s+/g, ' ').slice(0, 160));
+	await ir(socio.p, `#/mensajes/${codigo}`, 3000);
+}
 const tamano = socio.p.viewportSize();
 await socio.p.setViewportSize({ width: 390, height: 844 });
 await espera(400);
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat-390.png` });
 await socio.p.setViewportSize(tamano);
-await socio.p.locator('.modal .btn-close').click();
-await espera(2500);
+await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmar' }).click();
 await espera(800);
 const confirmo = delServidor(socio.p);
@@ -325,9 +374,10 @@ paso('Al confirmar, la solicitud sale de la campana', !trasConfirmar.enlaces.som
 
 await cliente.p.reload();
 await espera(2500);
-paso('El cliente ve «Reserva confirmada» y los datos de pago', /confirmada/i.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
+paso('El cliente ve «Reserva confirmada» (sus pasos) y los datos de pago', /Confirmada/.test(await cliente.p.locator('[data-out="pasos"] .hilo-paso-ok').allInnerTexts().then((x) => x.join(' ')))
+	&& /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes .vac-chat-pago').innerText()) && /anfitrión confirmó tu reserva/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
 paso('El cliente todavía no ve la dirección', !/Calle Real 12/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
-paso('El cliente ve la fecha y hora exactas para pagar', /Paga antes del \w+, \d+ \w+, \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
+paso('El cliente ve la fecha y hora exactas para pagar', /Vence (hoy|mañana|\S+ \d+ \S+) \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()) && /Subir comprobante/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
 // Confirmada y con la cámara a la mano: un número de pago escrito se pide en foto.
 {
 	const aviso = await escribir('boleta 70012345');
@@ -339,7 +389,7 @@ const png = `${CAPTURAS}/comprobante.png`;
 writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
 await cliente.p.setInputFiles('.vac-chat-form input[type=file]', png);
 await espera(3500);
-paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.locator('.vac-chat-msj img').count() === 1, await cliente.p.locator('.vac-chat-aviso').innerText());
+paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.locator('.hilo-comp img').count() === 1, await cliente.p.locator('.vac-chat-aviso').innerText());
 paso('Con el comprobante enviado, la página ya no dice «Paga…»: «Comprobante enviado, el anfitrión lo revisa» y sin la cámara',
 	/Comprobante enviado/.test(await cliente.p.locator('[data-out="sigue"]').innerText()) && await cliente.p.locator('.vac-chat-adjuntar').isHidden(), await cliente.p.locator('[data-out="sigue"]').innerText());
 await cliente.p.locator('.vac-chat').screenshot({ path: `${CAPTURAS}/cliente-comprobante-enviado-390.png` }).catch(() => {});
@@ -354,12 +404,18 @@ await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 	await socio.p.setViewportSize(t0); await espera(300);
 	paso('El socio ve «Cliente subió comprobante» y «No me llegó» en vez de «Cancelar»', /Cliente subió comprobante/.test(conComprobante) && /No me llegó/.test(conComprobante) && !/Cancelar/.test(conComprobante), conComprobante.replace(/\s+/g, ' ').slice(0, 200));
 }
-await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Pago recibido' }).click();
+// «Pago recibido» desde el hilo de Mensajes: el comprobante como tarjeta y la acción en la ficha de la reserva (1280 px).
+await ir(socio.p, `#/mensajes/${codigo}`, 3500);
+paso('En Mensajes, el comprobante es una tarjeta del hilo y la ficha dice que lo subió', await socio.p.locator('.msj-hilo .hilo-comp img').count() === 1
+	&& /subió comprobante/.test(await socio.p.locator('.msj-lado .msj-pasos').innerText()) && await socio.p.locator('.msj-lado button', { hasText: 'No me llegó' }).count() + await socio.p.locator('.msj-lado [aria-label="No me llegó"]').count() >= 1);
+await socio.p.locator('.msj-lado button', { hasText: 'Pago recibido' }).click();
 await espera(800);
 const pagoRes = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Pago recibido' }).last().click();
 const r2 = await pagoRes;
-await espera(3000);
+await espera(3500);
+paso('Tras «Pago recibido» desde el hilo, el hilo lo dice («Marcaste «Pago recibido»») y la ficha queda «Pagada»', /Marcaste «Pago recibido»/.test(await socio.p.locator('.msj-hilo').innerText()) && /Pagada/.test(await socio.p.locator('.msj-hilo .hilo-cab').innerText()), await avisos(socio.p));
+await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 const trasPago = await socio.p.locator('.card', { hasText: codigo }).first().innerText();
 paso('El socio marca «Pago recibido», por el servidor', porServidor(r2, 'pago') && /Pago recibido/.test(trasPago), `${resp(r2)} · ${await avisos(socio.p)}`);
 paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(trasPago));
@@ -367,7 +423,7 @@ paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(tra
 await cliente.p.reload();
 await espera(2500);
 const fin = await cliente.p.locator('.vac-chat-mensajes').innerText();
-paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin)
+paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('[data-out="sigue"] .vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin)
 	&& /13\.8912/.test(await cliente.p.locator('.vac-chat-mensajes a[href*="maps"]').getAttribute('href').catch(() => '')));
 paso('Sin scroll de lado en «Tu reserva» (390 px)', await cliente.p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
 await cliente.p.screenshot({ path: `${CAPTURAS}/cliente-reserva.png`, fullPage: true });
@@ -400,7 +456,7 @@ await espera(3000);
 paso('El socio responde «No se dio», por el servidor', porServidor(r3, 'no') && /No se dio/.test(await socio.p.locator('.card', { hasText: codigo2 }).first().locator('.badge').first().innerText()), `${resp(r3)} · ${await avisos(socio.p)}`);
 await otro.p.reload();
 await espera(2500);
-paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón para elegir otras fechas (sin la cámara del comprobante)', /No se concretó/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText())
+paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón para elegir otras fechas (sin la cámara del comprobante)', /No se concretó/.test(await otro.p.locator('[data-out="sigue"]').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText())
 	&& await otro.p.locator('[data-out="sigue"] a', { hasText: 'Elegir otras fechas' }).isVisible() && await otro.p.locator('.vac-chat-adjuntar').isHidden());
 
 // ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
@@ -537,7 +593,7 @@ paso('El socio cancela esa reserva (el cliente no pagó), por el servidor', porS
 paso('Las fechas canceladas vuelven a quedar libres', !(await reservadas()).includes(llegada3));
 await tercero.p.reload();
 await espera(2500);
-paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
+paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('[data-out="sigue"]').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
 
 // ---------------------------------------------------------------- 4c2. Lo del socio, solo por el servidor
 // El servidor (netlify/functions/reservas.mjs) revisa de quién es, si ya se respondió y si las fechas chocan, y no toma
@@ -882,7 +938,7 @@ await tercero.p.locator('.vac-card button[type=submit]').click();
 	await tercero.p.reload();
 	await espera(2500);
 	paso('Cancelar en Rentas una reserva de la web: fechas libres, la solicitud y el chat dicen «cancelada» y el cliente lo ve', ocupada4 && !(await reservadas()).includes(llegada4) && chat4.estado?.stringValue === 'cancelada'
-		&& lead4.solicitud?.mapValue?.fields?.estado?.stringValue === 'cancelada' && /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()), `${codigo4} ${llegada4} ${await avisos(admin.p)}`);
+		&& lead4.solicitud?.mapValue?.fields?.estado?.stringValue === 'cancelada' && /cancelada/i.test(await tercero.p.locator('[data-out="sigue"]').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()), `${codigo4} ${llegada4} ${await avisos(admin.p)}`);
 }
 
 // ---------------------------------------------------------------- 4d. El control de cada hora (lo que el socio deja sin responder)
@@ -1001,12 +1057,14 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	await fetch(`${FS}/chats/${token}?updateMask.fieldPaths=vistoCliente`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
 		body: JSON.stringify({ fields: { vistoCliente: { timestampValue: new Date(Date.now() - 4 * 60_000).toISOString() } } }) });
 	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Chat con el cliente"]').click();
-	await espera(1500);
-	await admin.p.fill('.modal.show textarea', 'Te esperamos el día de llegada.');
-	await admin.p.locator('.modal.show [aria-label=Enviar]').click();
+	await espera(3000);
+	await admin.p.locator('.msj-hilo .hilo-campo').fill('Te esperamos el día de llegada.');
+	await admin.p.locator('.msj-hilo .hilo-campo').press('Enter');
 	await espera(4000);
-	await admin.p.locator('.modal.show .btn-close').click();
-	await espera(1500);
+	// En el hilo del equipo, lo del socio lleva su nombre («Socio · …») y la nota interna del socio se ve.
+	paso('El equipo ve en Mensajes lo que escribió el socio con su etiqueta y la nota interna del socio', /Socio/.test(await admin.p.locator('.msj-hilo .hilo-otro', { hasText: 'aceptamos mascotas' }).locator('.hilo-quien').innerText().catch(() => ''))
+		&& /raza de los perros/.test(await admin.p.locator('.msj-hilo .hilo-nota').innerText().catch(() => '')));
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3000);
 	const nuevos = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l));
 	const delChat = nuevos.filter((c) => !/El enlace de tu reserva/.test(c.subject || ''));
 	paso('Con el correo corregido, el aviso siguiente le llega al nuevo y ninguno al de antes', delChat.some((c) => para(c) === 'ana.nueva@example.com') && !nuevos.some((c) => para(c).includes('ana@example.com')), nuevos.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió');
@@ -1448,8 +1506,8 @@ const duenos = [];
 	// b) Entra y ve sus dos casas.
 	duenos.push(['dueña mixta', mixta]);
 	const menu = await mixta.p.locator('.admin-nav a').allInnerTexts();
-	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades y Solicitudes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
-		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.length === 2, menu.join(', '));
+	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades, Solicitudes y Mensajes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
+		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.join('|').includes('Mensajes') && menu.length === 3, menu.join(', '));
 	await ir(mixta.p, '#/mis-casas', 3000);
 	const listaMixta = await mixta.p.locator('.admin-main').innerText();
 	paso('«Mis propiedades» muestra su casa en venta y su casa por noche, sin notas internas', /Residencial San Antonio/.test(listaMixta) && /Casa por noche de la dueña mixta/.test(listaMixta) && !/NOTA INTERNA/.test(listaMixta));
@@ -1523,9 +1581,9 @@ const duenos = [];
 		const m = await import('/admin/js/firebase.js');
 		return m.getDocs(m.query(m.collection(m.db, 'portalPropietarios'), m.where('propietarioId', '==', 'dueno-mixto'))).then(() => 'leyó', (e) => e.code);
 	});
-	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes) y no lee el resumen de otra persona',
+	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes ni Mensajes) y no lee el resumen de otra persona',
 		(await colab.p.locator('.admin-user-role').innerText()) === 'Colaborador' && /Jardines de Mirabel/.test(deColab) && !/San Antonio|dueña mixta/.test(deColab)
-		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
+		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && await colab.p.locator('.admin-nav a', { hasText: 'Mensajes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
 	// g) El asesor (no lee los usuarios) ve si entra, también después de guardar la ficha; quitar el acceso cierra la entrada.
 	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
 	await guardar(admin.p);
@@ -2031,6 +2089,9 @@ const duenos = [];
 	await abrir(otra);
 	const antesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
 	await admin.p.locator('.modal.show input[type=email]').fill('marta.uno@example.com');
+	// Si el botón no ofrece reenviar, se dice qué muestra la ventana (en vez de esperar 30 s y cortar el recorrido).
+	if (!(await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).count())) paso('La ventana del correo ofrece «Guardar y reenviar a»', false,
+		`${(await admin.p.locator('.modal.show').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)} · tarjeta: ${(await admin.p.locator('.card', { hasText: codigo3 }).first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)}`);
 	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
 	await espera(3500);
 	await otra.locator('.modal.show input[type=email]').fill('marta.dos@example.co.uk');

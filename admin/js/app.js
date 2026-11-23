@@ -16,6 +16,8 @@ import { vigilarTablas } from './tablas.js';
 const ROUTES = [
 	{ path: 'mis-casas', label: 'Mis propiedades', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
 	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/solicitudes.js') },
+	// Las conversaciones de las reservas por noche: las ven los mismos que Solicitudes.
+	{ path: 'mensajes', label: 'Mensajes', icon: 'icon-commenting-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/mensajes.js') },
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },

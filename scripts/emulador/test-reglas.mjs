@@ -176,6 +176,56 @@ await espera('equipo lista todas', consulta('admin1', 'chats'), true);
 await espera('nadie edita un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ de: 'cliente', texto: 'cambiado' }) }) }).then((r) => r.status), false);
 await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { method: 'DELETE', headers: cab(null) }).then((r) => r.status), false);
 
+// Citar un mensaje (responde: id, quién y su texto corto, con el mismo filtro de contacto) y las notas internas
+// (chats/{token}/notas: solo el administrador y el socio de la casa, con su sesión; el enlace del cliente no las abre).
+{
+	const mapa = (o) => ({ mapValue: { fields: campos(o) } });
+	const conCita = (quien, de, texto, cita) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
+		fields: { ...campos({ de, texto }), responde: cita } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	await espera('socio responde citando un mensaje del cliente', conCita('socio1', 'socio', 'Sí, se aceptan.', mapa({ id: 'm1', de: 'cliente' })), true);
+	await crear('socio1', `chats/${T}/mensajes/delSocio`, m('socio', 'Sí, se aceptan mascotas pequeñas.'));
+	await espera('cliente responde citando un mensaje del socio', conCita(null, 'cliente', 'Gracias.', mapa({ id: 'delSocio', de: 'socio' })), true);
+	let largo = ''; while (largo.length < 1000) largo += 'Hola, somos 4 adultos y 2 niños, llegamos el viernes 20 a las 3 de la tarde. ';
+	await espera('socio, mensaje de 1000 letras citando (dentro del tope de expresiones de las reglas)', conCita('socio1', 'socio', largo.slice(0, 1000), mapa({ id: 'm1', de: 'cliente' })), true);
+	await espera('la cita trae su texto (se muestra el del mensaje citado: no se guarda otro)', conCita('socio1', 'socio', 'Hola', mapa({ id: 'm1', de: 'cliente', texto: '¿Aceptan 2 perros?' })), false);
+	await espera('la cita dice otro autor que el del mensaje citado', conCita('socio1', 'socio', 'Hola', mapa({ id: 'm1', de: 'socio' })), false);
+	await espera('la cita apunta a un mensaje que no existe', conCita('socio1', 'socio', 'Hola', mapa({ id: 'noExiste', de: 'cliente' })), false);
+	await espera('la cita dice un autor que no existe', conCita('socio1', 'socio', 'Hola', mapa({ id: 'm1', de: 'otro' })), false);
+	await espera('la cita no es un mapa', conCita('socio1', 'socio', 'Hola', { stringValue: 'm1' }), false);
+	await espera('una cita en un mensaje con tipo (datos de pago)', fetch(`${H}:commit`, { method: 'POST', headers: cab('admin1'), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
+		fields: { ...campos({ de: 'equipo', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' }), responde: mapa({ id: 'm1', de: 'cliente' }) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status), false);
+	// Quién del equipo escribe: su primer nombre (el de users/{uid}); nadie firma por otro, ni el cliente ni el socio.
+	await espera('equipo firma con su primer nombre', crear('admin1', msj(), { de: 'equipo', texto: 'Hola, soy del equipo.', nombre: 'Admin' }), true);
+	await poner('users/admin2', { rol: 'admin', activo: true, nombre: 'Joaquín Pérez' });
+	await espera('otro administrador firma con su primer nombre', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), true);
+	await espera('un administrador firma con el nombre de otro', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), false);
+	await espera('un administrador firma con su nombre completo (solo va el primero)', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín Pérez' }), false);
+	await espera('el cliente pone un nombre', crear(null, msj(), { de: 'cliente', texto: 'Hola.', nombre: 'Admin' }), false);
+	await espera('el socio pone un nombre', crear('socio1', msj(), { de: 'socio', texto: 'Hola.', nombre: 'Socio' }), false);
+	await espera('nombre vacío', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: '' }), false);
+	await espera('reglas/r7 se lee (citar y notas publicadas)', leer(null, 'reglas/r7').then((s) => (s === 404 ? 200 : s)), true);
+
+	await poner('users/asesor1', { rol: 'asesor', activo: true, agentId: 'a1', nombre: 'Asesor' });
+	const nota = (quien, de, texto, id = `n${++i}`) => crear(quien, `chats/${T}/notas/${id}`, m(de, texto));
+	await espera('socio de la casa escribe una nota interna', nota('socio1', 'socio', 'Revisar si traen mascotas.', 'nota1'), true);
+	await espera('equipo escribe una nota interna', nota('admin1', 'equipo', 'El cliente ya reservó antes.', 'nota2'), true);
+	await espera('el cliente (sin sesión) lee una nota', leer(null, `chats/${T}/notas/nota1`), false);
+	await espera('el cliente (sin sesión) lista las notas', leer(null, `chats/${T}/notas`), false);
+	await espera('el cliente (sin sesión) consulta las notas de todos los chats', fetch(`${H}:runQuery`, { method: 'POST', headers: cab(null), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'notas', allDescendants: true }] } }) }).then((r) => r.status), false);
+	await espera('el cliente (sin sesión) escribe una nota', nota(null, 'cliente', 'Hola'), false);
+	await espera('el cliente (sin sesión) escribe una nota como socio', nota(null, 'socio', 'Hola'), false);
+	await espera('otro socio lee las notas', leer('socio2', `chats/${T}/notas/nota1`), false);
+	await espera('otro socio escribe una nota', nota('socio2', 'socio', 'Hola'), false);
+	await espera('un asesor lee las notas', leer('asesor1', `chats/${T}/notas/nota1`), false);
+	await espera('un asesor escribe una nota', nota('asesor1', 'equipo', 'Hola'), false);
+	await espera('socio de la casa lee las notas', leer('socio1', `chats/${T}/notas`), true);
+	await espera('equipo lee las notas', leer('admin1', `chats/${T}/notas/nota1`), true);
+	await espera('socio firma una nota como equipo', nota('socio1', 'equipo', 'Hola'), false);
+	await espera('una nota con un teléfono', nota('admin1', 'equipo', 'llámale al 5555-1234'), false);
+	await espera('nadie edita una nota', fetch(`${H}/chats/${T}/notas/nota1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ de: 'socio', texto: 'cambiada' }) }) }).then((r) => r.status), false);
+	await espera('nadie borra una nota', fetch(`${H}/chats/${T}/notas/nota1`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+}
+
 // Estado de la solicitud en el chat
 const act = (quien, o) => fetch(`${H}/chats/${T}?${Object.keys(o).map((k) => `updateMask.fieldPaths=${k}`).join('&')}`, { method: 'PATCH', headers: cab(quien), body: JSON.stringify({ fields: campos(o) }) }).then((r) => r.status);
 await espera('cliente marca su reserva como confirmada', act(null, { estado: 'confirmada' }), false);
