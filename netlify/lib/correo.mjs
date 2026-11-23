@@ -130,7 +130,7 @@ export function datos(c, filas) {
 // Lista de dos líneas por fila (p. ej. las reservas de un estado de cuenta): a la izquierda el nombre (14 px) y debajo
 // el detalle (13 px, gris); a la derecha el monto (14 px, negrita) y debajo su estado (13 px, gris). El monto nunca se
 // parte; el nombre, si no cabe en una línea, termina en «…». Cada fila en su tabla: el ancho de un monto no le quita
-// espacio al nombre de otra. filas: [{ nombre, detalle, monto, estado, alerta }]; con `alerta` (p. ej. «vencida») el estado va
+// espacio al nombre de otra (sin monto, el estado sube a la primera línea). filas: [{ nombre, detalle, monto, estado, alerta }]; con `alerta` (p. ej. «vencida») el estado va
 // en el rojo del tema (c.danger) y en seminegrita.
 export function lista(c, filas) {
 	const fuente = 'font-family:Arial,Helvetica,sans-serif';
@@ -138,7 +138,7 @@ export function lista(c, filas) {
 	const chica = `font-size:13px;line-height:18px;color:${c.ink}`;
 	return filas.map((f, i) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${i === filas.length - 1 ? 22 : 0}px;table-layout:auto"><tr>`
 		+ `<td width="100%" style="${celda};max-width:0"><div style="font-size:14px;line-height:20px;color:${c.dark};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.nombre)}</div><div style="${chica}">${esc(f.detalle)}</div></td>`
-		+ `<td align="right" style="${celda};padding-left:12px;white-space:nowrap"><div style="font-size:14px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(f.monto)}</div><div style="${chica}">${f.alerta ? urgente(c, f.estado) : esc(f.estado)}</div></td>`
+		+ `<td align="right" style="${celda};padding-left:12px;white-space:nowrap">${f.monto ? `<div style="font-size:14px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(f.monto)}</div>` : ''}<div style="${chica}">${f.alerta ? urgente(c, f.estado) : esc(f.estado)}</div></td>`
 		+ '</tr></table>').join('');
 }
 

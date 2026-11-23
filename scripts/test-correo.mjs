@@ -88,4 +88,22 @@ await test('lo urgente: solo esa parte en el rojo del tema y seminegrita; datos(
 	assert.equal(filas.split(rojo('vencida')).length, 2, 'solo el estado urgente va en rojo');
 	assert.ok(!filas.includes('600">US$'), 'el monto no');
 });
+await test('lista() sin monto: el estado sube a la primera línea («Estado del sistema»: desde cuándo, en rojo)', async () => {
+	const { lista } = await import('../netlify/lib/correo.mjs');
+	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: '#b42318' };
+	const html = lista(c, [{ nombre: 'Informe SEO semanal', detalle: 'Backend Error', monto: '', estado: 'desde 23 nov', alerta: true }]);
+	assert.ok(!html.includes('font-weight:bold;color:#0e1920"></div>'), 'sin la línea vacía del monto');
+	assert.match(html, /white-space:nowrap"><div style="font-size:13px[^"]*"><span style="color:#b42318;font-weight:600">desde 23 nov<\/span>/);
+});
+await test('resumen del equipo: sin fondo de color en «atrasados»; solo la fecha atrasada en rojo; el texto plano igual', async () => {
+	const { correoDe } = await import('../netlify/lib/resumen.mjs');
+	const vacio = { vencidas: [], hoy: [], leads: [], sinSeguimiento: [], exclusivas: [], incompletas: [] };
+	const ahora = Date.parse('2026-11-23T08:00:00-06:00');
+	const r = await correoDe('', { ...vacio, vencidas: [{ fecha: Date.parse('2026-11-20T10:00:00-06:00'), titulo: 'Llamar', clienteNombre: 'Ana' }], hoy: [{ fecha: Date.parse('2026-11-23T10:00:00-06:00'), titulo: 'Visita' }] }, ahora);
+	assert.match(r.html, /<span style="color:#[0-9a-f]{6};font-weight:600">20\/11\/2026<\/span> · Llamar — Ana/);
+	assert.equal((r.html.match(/font-weight:600">/g) || []).length, 1, 'solo esa fecha');
+	assert.doesNotMatch(r.html, /border-left:4px/, 'sin la franja');
+	assert.match(r.texto, /- 20\/11\/2026 · Llamar — Ana\n/);
+	assert.match(r.asunto, /Pendientes del equipo hoy: 2 \(1 atrasado\)/);
+});
 console.log(`${ok} pruebas del correo pasan.`);
