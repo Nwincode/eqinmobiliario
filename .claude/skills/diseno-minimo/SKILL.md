@@ -54,6 +54,9 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
   mismo padding en las piezas hermanas.
 - Una foto al lado de texto mide lo mismo que ese texto, sin hueco arriba ni abajo.
 - Un dato corto (código, fecha) nunca ocupa una línea propia: va al lado de otro.
+- El nombre va solo en su línea (dos como máximo, con «…»); las etiquetas («Sin publicar», «Colaborador», «EN», un %) van
+  al final de la línea de datos, nunca pegadas al nombre: en el celular no lo cortan. Si no caben, los datos se recortan
+  con «…», la etiqueta no. Pieza común: `nombreYDatos` (`admin/js/ui.js`).
 - Un botón o ícono no agranda su fila: su área de toque se monta sobre una línea que ya existe.
 - Cero scroll de lado. Un nombre largo usa dos líneas como máximo; después, «…».
 - Lo más importante, arriba y a la izquierda. Lo que más se toca, al alcance del pulgar (abajo a la derecha

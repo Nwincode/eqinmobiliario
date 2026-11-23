@@ -3,7 +3,7 @@
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, arrayUnion
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, nombreYDatos, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge, filaLead } from './leads.js';
@@ -244,7 +244,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 			});
 			const temp = { caliente: ['Caliente', 'danger'], tibio: ['Tibio', 'warning'], frio: ['Frío', 'info'] }[r.temperatura] || ['—', 'secondary'];
 			out.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'card-body' },
-				h('div', { class: 'd-flex align-items-center gap-2 mb-2' }, h('h2', { class: 'h5 mb-0' }, lead.nombre), badge(temp[0], temp[1]), estadoBadge(lead.estado)),
+				h('div', { class: 'mb-2' }, nombreYDatos(lead.nombre, lead.propertyTitulo || 'Contacto general', [badge(temp[0], temp[1]), estadoBadge(lead.estado)], { cls: 'h5 mb-0' })),
 				h('p', {}, r.resumen),
 				h('div', { class: 'alert alert-info' }, h('strong', {}, 'Siguiente paso: '), r.siguientePaso),
 				mensajeBox(r.mensajeWhatsApp, lead.telefono, 'Mensaje de WhatsApp'),
@@ -294,7 +294,7 @@ function tabClientes(cont, props, reqs) {
 			const r = await pedirIA('coincidencias', { propiedad: p, requerimientos: activos });
 			const byId = Object.fromEntries(activos.map((x) => [x.id, x]));
 			out.replaceChildren(...(r.coincidencias?.length ? r.coincidencias.map((c) => h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
-				h('div', { class: 'd-flex align-items-center gap-2 mb-1' }, h('strong', {}, byId[c.id]?.cliente), badge(`${c.puntaje}%`, c.puntaje >= 75 ? 'success' : 'warning')),
+				h('div', { class: 'mb-1' }, nombreYDatos(byId[c.id]?.cliente, byId[c.id]?.telefono, [badge(`${c.puntaje}%`, c.puntaje >= 75 ? 'success' : 'warning')])),
 				h('p', { class: 'small text-muted' }, c.motivo),
 				mensajeBox(c.mensajeWhatsApp, byId[c.id]?.telefono)))) : [h('div', { class: 'alert alert-secondary' }, 'Ningún cliente guardado busca algo parecido.')]));
 		} catch (err) {

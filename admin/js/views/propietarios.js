@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
-import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, modal, iconoBtn, hoy } from '../ui.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, nombreYDatos, modal, iconoBtn, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { correoContrasena } from '../contrasena.js';
 import { session, agentOptions, loadAgents } from '../session.js';
@@ -112,7 +112,8 @@ async function renderLista(container) {
 	const tablaLista = tablaAdmin({
 		columnas: ['Propietario', 'Propiedades', 'Exclusiva', 'Comisión', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((titulo) => ({ titulo })),
 		celdas: (p) => [
-			[h('div', { class: 'fw-semibold' }, p.nombre || '(sin nombre)', p.tipo === 'colaborador' ? [' ', badge('Colaborador', 'info')] : null, tieneCasasPorNoche(p) ? [' ', badge('Socio', 'primary')] : null), h('div', { class: 'small text-muted' }, [p.empresa, p.telefono || p.email].filter(Boolean).join(' · ')), chipFaltan(faltanDe(p))],
+			[nombreYDatos(p.nombre || '(sin nombre)', [p.empresa, p.telefono || p.email].filter(Boolean).join(' · '),
+				[p.tipo === 'colaborador' ? badge('Colaborador', 'info') : null, tieneCasasPorNoche(p) ? badge('Socio', 'primary') : null]), chipFaltan(faltanDe(p))],
 			h('span', { class: 'small' }, (p.propiedades || []).map((x) => tituloProp[x.propertyId]).filter(Boolean).join(', ') || '—'),
 			estadoExclusiva(masUrgente(p)),
 			h('span', { class: 'small' }, comisionTexto(p)),

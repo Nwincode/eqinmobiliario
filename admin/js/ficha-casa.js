@@ -2,7 +2,7 @@
 // si se le pasa, el ⚠ (o ✓) arriba y el ⋮ abajo. Es la única del panel: Propiedades, «Mis propiedades» del dueño,
 // las casas de un propietario y su selector, el listado en PDF y el importador. Cada fila es una tarjeta; la lista
 // que las junta es `.lista-casas`. Sin dependencias pesadas: el panel del dueño la carga sin la ficha del inmueble.
-import { h, badge, formatPrice } from './ui.js';
+import { h, badge, formatPrice, nombreYDatos } from './ui.js';
 import { miles } from './formato.js';
 import { diasExclusiva } from './acuerdo.js';
 
@@ -48,7 +48,6 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 	const fotoCasa = foto || (p.fotos?.[0]?.url ? h('img', { src: p.fotos[0].url, alt: '', loading: 'lazy' })
 		: h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
 	const extras = extra.filter(Boolean);
-	const conMarcas = marcas.flat(Infinity).some((m) => m && typeof m !== 'string');
 	return h(href ? 'a' : 'article', {
 		class: `casa-fila${oculta ? ' casa-oculta' : ''}${elegida ? ' casa-elegida' : ''}`, href,
 		tabindex: href ? null : '0', 'aria-label': nombre, title: titulo, 'aria-current': elegida ? 'true' : null,
@@ -57,9 +56,7 @@ export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], 
 	},
 		h('div', { class: 'casa-foto' }, fotoCasa, sel ? h('label', { class: 'casa-sel' }, sel) : null),
 		h('div', { class: 'casa-txt' },
-			h('div', { class: 'casa-titulo' }, p.titulo || '(sin título)'),
-			lugar || conMarcas ? h('div', { class: 'casa-dato casa-lugar' }, lugar ? [h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), h('span', { class: 'casa-lugar-txt' }, lugar)] : null,
-				conMarcas ? h('span', { class: 'casa-marcas' }, marcas) : null) : null,
+			nombreYDatos(p.titulo || '(sin título)', lugar ? [h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`] : null, marcas, { cls: 'casa-titulo', datosCls: 'casa-dato' }),
 			h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
 			extras.length ? h('div', { class: 'casa-dato casa-extra' }, extras) : null,
 			h('div', { class: 'casa-precio' }, precio ?? formatPrice(p.precio, p.moneda, p.operacion))),

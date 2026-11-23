@@ -1,6 +1,6 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection, FieldPath } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, formatPrice, tablaAdmin } from '../ui.js';
+import { h, statCard, toast, showError, pageHeader, badge, nombreYDatos, mount, formatPrice, tablaAdmin } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
@@ -60,9 +60,8 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 
 	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white d-flex flex-wrap align-items-center gap-2' },
-			h('strong', { class: 'me-auto' }, portal.nombre, ' ', badge(portal.idioma.toUpperCase(), 'light')),
-			badge(est.texto, COLOR[est.id]),
-			reg.fecha ? h('span', { class: 'small text-muted' }, `desde ${fechaCorta(reg.fecha)}`) : null,
+			h('div', { class: 'me-auto', style: 'min-width: 0' }, nombreYDatos(portal.nombre, reg.fecha ? `desde ${fechaCorta(reg.fecha)}` : null,
+				[badge(portal.idioma.toUpperCase(), 'light'), badge(est.texto, COLOR[est.id])])),
 			portal.url ? h('a', { href: portal.url, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-light' }, 'Abrir plataforma') : null),
 		h('div', { class: 'card-body' },
 			titulo ? h('div', { class: 'mb-3' },

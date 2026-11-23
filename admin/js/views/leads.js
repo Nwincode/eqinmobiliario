@@ -2,7 +2,7 @@ import {
 	db, doc, getDocs, updateDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
-	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate, hoy
+	h, toast, showError, confirmDialog, pageHeader, badge, nombreYDatos, emptyState, formatDate, modal, downloadCsv, toDate, hoy
 , mount, tablaAdmin, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { avisarAvisos } from '../avisos.js';
@@ -143,9 +143,9 @@ export async function render(container) {
 	const lista = tablaAdmin({
 		columnas: ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((titulo) => ({ titulo })),
 		celdas: (l) => [
-			[h('div', { class: 'fw-semibold' }, l.nombre, l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger ms-1', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null), h('div', { class: 'small text-muted' }, l.telefono)],
+			nombreYDatos(l.nombre, l.telefono, [l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger', role: 'img', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null, l.idioma === 'en' ? badge('EN', 'info') : null]),
 			h('span', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
-			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? [' ', badge('EN', 'info')] : null),
+			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—'),
 			h('span', { class: 'small text-muted' }, fuenteLead(l)),
 			h('span', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
 			estadoBadge(l.estado)],
