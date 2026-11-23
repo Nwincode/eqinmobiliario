@@ -66,7 +66,7 @@ function tarjeta(c, alCambiar) {
 			x.campo === 'fotos' ? fotos(x.antes, x.ahora) : antesAhora(textoValor(x.campo, x.antes), textoValor(x.campo, x.ahora))),
 		deshechos.has(x.campo) ? h('span', { class: 'small text-muted' }, 'Deshecho')
 			: iconoBtn('icon-undo', `Deshacer: ${x.etiqueta}`, { onclick: (e) => accion(e.currentTarget, deshacer([x.campo]), 'Deshecho y publicado en unos minutos.') }));
-	return h('div', { class: 'card mb-3' },
+	return h('div', { class: 'card mb-2' },
 		h('div', { class: 'card-header' },
 			h('div', { class: 'fw-semibold' }, `${c.nombre || 'El dueño'} cambió «${c.titulo || 'su casa'}»`),
 			h('div', { class: 'small text-success' }, `${c.cuando ? formatDate(new Date(c.cuando)) : ''} · ya está publicado`)),

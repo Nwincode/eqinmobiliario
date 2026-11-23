@@ -5,7 +5,7 @@ import { crearZip, descargarBlob } from './zip.js';
 import { SITIO as SITE } from './firebase.js';
 import { seOfrece, enOperacion, operacionHashtag, precioVisible, textoSinPrecio } from './estados.js';
 import { conEmojis } from './descripcion.js';
-import { precioTexto, M2_A_FT2 } from './formato.js';
+import { precioTexto, piesCuadrados } from './formato.js';
 
 
 // Plataformas por defecto. Se pueden cambiar en Contenido del sitio → Portales.
@@ -60,7 +60,7 @@ function precioDe(p, lang) {
 
 function area(m2, lang) {
 	if (!m2) return '';
-	return lang === 'en' ? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${m2} m²)` : `${m2} m²`;
+	return lang === 'en' ? `${piesCuadrados(m2)} (${m2} m²)` : `${m2} m²`;
 }
 
 // Enlace a la ficha con UTM: así cada lead queda atribuido a la plataforma de donde vino.

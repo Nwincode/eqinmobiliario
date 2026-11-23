@@ -8,7 +8,7 @@ import { TEXTOS, RUTAS, TIPOS_EN, ESTADOS_EN, M2_A_FT2, M2_A_V2, fmt, textosClie
 import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
-import { CODIGOS_PAIS, enUSD } from '../../admin/js/formato.js';
+import { CODIGOS_PAIS, enUSD, piesCuadrados } from '../../admin/js/formato.js';
 import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -75,7 +75,7 @@ const tipoLabel = (p) => (lng(p) === 'en' ? TIPOS_EN[p.tipo] : TIPOS[p.tipo]) ||
 const estadoLabel = (p) => (lng(p) === 'en' ? ESTADOS_EN[p.estado] : ESTADOS[p.estado]) || p.estado;
 // Superficie: m² en español; pies cuadrados (con m²) en inglés.
 const area = (m2, lang) => (lang === 'en'
-	? `${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft (${cifra(m2)} m²)`
+	? `${piesCuadrados(m2)} (${cifra(m2)} m²)`
 	: `${cifra(m2)} m²`);
 // Terreno: en Guatemala se habla en varas cuadradas (v²); en inglés, pies cuadrados.
 const areaTerreno = (m2, lang) => (lang === 'en' ? area(m2, lang) : `${cifra(Math.round(m2 * M2_A_V2))} v² (${cifra(m2)} m²)`);
@@ -420,7 +420,8 @@ function pageHero(ctx, title, image, crumbs) {
 function specs(p) {
 	const t = TEXTOS[lng(p)];
 	const dato = (icono, valor, nombre) => (valor ? `<span class="prop-dato">${ic(icono)}${esc(valor)}<span class="visually-hidden"> ${esc(nombre)}</span></span>` : '');
-	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.vacHuespedes) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos)
+	// El mismo orden e íconos que la fila de casa del panel (admin/js/ficha-casa.js `datosDe`).
+	return dato('bed', p.habitaciones, t.fHabitaciones) + dato('bath', p.banos, t.fBanos) + dato('car', p.parqueos, t.fParqueos) + dato('users', vacacionalVisible(p) && datosVacacional(p).huespedesMax, t.vacHuespedes)
 		// Construcción y terreno, los dos cuando existen (en una casa el terreno pesa tanto como lo construido).
 		+ dato('construccion', p.m2Construccion && area(p.m2Construccion, lng(p)), t.fConstruccion) + dato('terreno', p.m2Terreno && areaTerreno(p.m2Terreno, lng(p)), t.fTerreno);
 }
@@ -469,10 +470,10 @@ export function propertyCard(p, { lazy = true, prioridad = false, unaFoto = fals
 									<span class="foto-contador" aria-hidden="true">1 / ${fotos.length}</span>` : ''}
 								</div>
 								<div class="property-content">
-									<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 									<a href="${url}" class="prop-titulo stretched-link">${esc(p.titulo)}</a>
+									<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
 									<div class="prop-pie">
-										<span class="prop-etiqueta">${esc([tipoLabel(p), p.zona || p.ciudad].filter(Boolean).join(' · '))}</span>
+										<div class="price"><span>${esc(price(p))}</span>${precioAntes(p)}</div>
 										<span class="prop-datos">${specs(p)}</span>
 									</div>
 								</div>
@@ -621,7 +622,7 @@ export function homePage(ctx) {
 
 	${slider.length ? `<section class="ini-sec container ini-populares">
 		<h2>${esc(s.destacadas.titulo)}</h2>
-		${slider.length <= 3 ? `<div class="row g-3 propiedades-pocas">
+		${slider.length <= 3 ? `<div class="row rejilla-tarjetas propiedades-pocas">
 			${slider.map((p) => `<div class="col-md-6 col-lg-4">${propertyCard(p, { unaFoto: true })}</div>`).join('\n')}
 		</div>` : `${flechasCarrusel('property-nav', t)}
 		<div class="property-slider-wrap">
@@ -881,8 +882,8 @@ export function listingPage(ctx, { path, title, heading, description, operacion 
 				</label>
 			</div>`}
 
-			${list.length ? `<div class="row" id="${vac ? 'vac-grid' : 'listing-grid'}">
-				${list.map((p, i) => `<div class="col-md-6 col-lg-4 mb-3 mb-md-5 listing-col">${propertyCard(p, { lazy: i > 1, prioridad: !i })}</div>`).join('\n')}
+			${list.length ? `<div class="row rejilla-tarjetas" id="${vac ? 'vac-grid' : 'listing-grid'}">
+				${list.map((p, i) => `<div class="col-md-6 col-lg-4 listing-col">${propertyCard(p, { lazy: i > 1, prioridad: !i })}</div>`).join('\n')}
 			</div>
 			<p class="text-center text-black-50 py-5" id="listing-empty" hidden>${vac ? t.vlSinCasas : t.sinResultados} <a href="#contacto-listado">${t.cuentanos}</a> ${t.teAyudamos}</p>
 			<nav class="custom-pagination text-center" id="listing-pagination" aria-label="${t.paginacion}"></nav>`
@@ -1443,7 +1444,7 @@ ${esVac ? '' : lateral}
 	${related.length ? `<div class="section ficha-similares" id="similares">
 		<div class="container">
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
-			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
+			<div class="row rejilla-tarjetas">${related.map((o) => `<div class="col-md-6 col-lg-4">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}
 	${barra}`;
@@ -1507,7 +1508,7 @@ export function propertyGonePage(ctx, p) {
 	${related.length ? `<div class="section ficha-similares" id="similares">
 		<div class="container">
 			<h2 class="heading mb-5">${ic('th-large')}${t.similares}</h2>
-			<div class="row">${related.map((o) => `<div class="col-md-6 col-lg-4 mb-5">${propertyCard(o)}</div>`).join('')}</div>
+			<div class="row rejilla-tarjetas">${related.map((o) => `<div class="col-md-6 col-lg-4">${propertyCard(o)}</div>`).join('')}</div>
 		</div>
 	</div>` : ''}`;
 	return layout(ctx, {
@@ -1597,13 +1598,12 @@ export function vipLandingPage(ctx, p) {
 	const wa = whatsappLink(waNumber, fmt(t.msgWaVip, { titulo: p.titulo, url: absUrl(ctx, propertyUrl(p)) }));
 	const cta = v.ctaTexto || t.agendarPrivada;
 	const crumbs = [{ name: t.inicio, url: r.inicio }, { name: t.propiedadesVip, url: r.vip }, { name: p.titulo, url: propertyUrl(p) }];
-	const en = ctx.lang === 'en';
 	const facts = [
 		['icon-bed', p.habitaciones, t.fHabitaciones],
 		['icon-bath', p.banos, t.fBanos],
 		['icon-car', p.parqueos, t.fParqueos],
-		['icon-construccion', p.m2Construccion && (en ? `${Math.round(p.m2Construccion * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(p.m2Construccion)} m²`), t.fConstruccion],
-		['icon-terreno', p.m2Terreno && (en ? `${Math.round(p.m2Terreno * M2_A_FT2).toLocaleString('en-US')} sq ft` : `${cifra(Math.round(p.m2Terreno * M2_A_V2))} v²`), t.fTerreno],
+		['icon-construccion', p.m2Construccion && area(p.m2Construccion, ctx.lang), t.fConstruccion],
+		['icon-terreno', p.m2Terreno && areaTerreno(p.m2Terreno, ctx.lang), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
 
@@ -1841,8 +1841,8 @@ export function blogIndexPage(ctx) {
 	${pageHero(ctx, L.h1 || 'Blog', ctx.site.hero.imagenes[1] || ctx.site.hero.imagenes[0] || '/images/hero_bg_2.webp', crumbs)}
 	<div class="section">
 		<div class="container">
-			<div class="row">
-				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4 mb-5">
+			<div class="row rejilla-tarjetas">
+				${ctx.posts.length ? ctx.posts.map((post) => `<div class="col-md-6 col-lg-4">
 					<article class="post-card">
 						<a href="${esc(post.url)}" class="post-card-img">${imgFoto(post.imagen || '/images/hero_bg_1.webp', { alt: post.titulo, sizes: SIZES_TARJETA, anchos: [480, 800], aspecto: [16, 9] })}</a>
 						<div class="post-card-body">

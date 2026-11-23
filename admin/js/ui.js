@@ -1,6 +1,6 @@
 // Utilidades de interfaz del panel.
 import '/js/calc-vacacional.js';
-import { textoCsv } from './formato.js';
+import { textoCsv, fechaCorta, fechaHora } from './formato.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -41,21 +41,9 @@ export function mount(el, ...children) {
 // Una sola: admin/js/formato.js (también la usa el generador del sitio).
 export { slugify } from './formato.js';
 
-export function toDate(v) {
-	if (!v) return null;
-	if (typeof v.toDate === 'function') return v.toDate();
-	if (v.seconds) return new Date(v.seconds * 1000);
-	const d = new Date(v);
-	return Number.isNaN(d.getTime()) ? null : d;
-}
-
-export function formatDate(v, withTime = true) {
-	const d = toDate(v);
-	if (!d) return '—';
-	return d.toLocaleString('es-GT', withTime
-		? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }
-		: { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// Fechas: una sola forma de leerlas y tres formatos, en formato.js (`aFecha`, `fechaCorta`, `fechaLarga`, `fechaHora`).
+export { aFecha as toDate } from './formato.js';
+export const formatDate = (v, withTime = true) => (withTime ? fechaHora(v) : fechaCorta(v));
 
 // Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
 // «Hoy» es el día de Guatemala, el mismo del sitio y de las funciones (una sola cuenta: js/calc-vacacional.js).
@@ -168,7 +156,7 @@ export function elegirOpcion(titulo, opciones) {
 		const m = modal({
 			title: titulo,
 			body: h('div', { class: 'd-grid gap-2' }, opciones.map((t) => h('button', {
-				type: 'button', class: 'cot-btn btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
+				type: 'button', class: 'btn-toque btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
 			}, t))),
 			onClose: () => resolve(elegida)
 		});
@@ -185,7 +173,7 @@ export function pageHeader(title, ...actions) {
 	const t = title && typeof title === 'object' && 'texto' in title ? title : { texto: title };
 	return h('div', { class: 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-4' },
 		h('div', { class: 'd-flex align-items-center gap-1', style: 'flex: 1 1 12rem; min-width: 0' },
-			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'cot-btn cot-btn-icono btn btn-link text-body' }) : null,
+			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'btn-toque btn-icono btn btn-link text-body' }) : null,
 			h('h1', { class: 'h3 mb-0' }, t.texto)),
 		h('div', { class: 'd-flex flex-wrap align-items-center gap-2' }, actions));
 }
@@ -206,8 +194,14 @@ export function statCard(icono, label, valor, { nota, href, cls = '' } = {}) {
 
 // Botón solo de ícono (44 px de toque); con `href` es un enlace.
 export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
-	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
+	type: attrs.href ? null : 'button', class: 'btn-toque btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
 }, h('span', { class: icono, 'aria-hidden': 'true' }));
+
+// Flecha fina ‹ › (la de los carruseles y calendarios, css/calendario.css): mes anterior o siguiente.
+export const flecha = (lado, titulo, onclick, disabled) => h('button', {
+	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, title: titulo, onclick, disabled,
+	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+});
 
 // Menú ⋮ de una ficha o fila: junta las acciones de cada elemento sin ocupar una fila de botones.
 // items: [{ icono, texto, onclick } | { icono, texto, href, target } | { …, peligro: true }]; los vacíos se saltan.
@@ -217,7 +211,7 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	const acciones = items.filter(Boolean);
 	if (!acciones.length) return null;
 	const btn = h('button', {
-		type: 'button', class: `cot-btn cot-btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
+		type: 'button', class: `btn-toque btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
 		'aria-expanded': 'false', 'data-bs-toggle': 'dropdown'
 	}, h('span', { class: icono, 'aria-hidden': 'true' }));
 	const menu = h('ul', { class: 'dropdown-menu dropdown-menu-end menu-mas-lista' }, acciones.map((a) => h('li', {},
@@ -230,6 +224,35 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	return caja;
 };
 
+// Tarjeta con encabezado (ícono opcional y título) y su cuerpo: la única del panel para un bloque con título.
+// Si lo primero del cuerpo es { sinCuerpo: true }, el contenido va directo (una tabla o una lista que ya trae su borde).
+export function tarjeta(icono, titulo, ...cuerpo) {
+	const op = cuerpo[0] && cuerpo[0].constructor === Object ? cuerpo.shift() : {};
+	return h('section', { class: `card mb-3${op.cls ? ` ${op.cls}` : ''}` },
+		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h6 mb-0' }, icono ? h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }) : null, titulo)),
+		op.sinCuerpo ? cuerpo : h('div', { class: 'card-body' }, cuerpo));
+}
+
+// Barras de un embudo o reparto: [[etiqueta, número]], cada barra a escala de la mayor.
+export function barras(filas) {
+	const max = Math.max(1, ...filas.map(([, n]) => n));
+	return filas.map(([etiqueta, n]) => h('div', { class: 'mb-2' },
+		h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, etiqueta), h('strong', {}, n)),
+		h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` }))));
+}
+
+// Nombre y datos de un registro (una casa, un propietario, un lead…): el nombre solo en su línea (dos como máximo, con «…»)
+// y abajo la línea de datos con las marcas (etiquetas) al final; si no caben, los datos se recortan con «…», la marca no.
+// Así una etiqueta nunca corta el nombre en el celular. Devuelve las dos líneas (sin datos ni marcas, solo el nombre).
+export function nombreYDatos(nombre, datos, marcas = [], { cls = '', datosCls = '' } = {}) {
+	const conMarcas = [marcas].flat(Infinity).some((m) => m && typeof m !== 'string');
+	const conDatos = [datos].flat(Infinity).some((d) => d !== null && d !== undefined && d !== false && d !== '');
+	return [h('div', { class: `fila-nombre${cls ? ` ${cls}` : ''}` }, nombre),
+		conDatos || conMarcas ? h('div', { class: `fila-datos${datosCls ? ` ${datosCls}` : ''}` },
+			conDatos ? h('span', { class: 'fila-datos-txt' }, datos) : null,
+			conMarcas ? h('span', { class: 'fila-marcas' }, marcas) : null) : null];
+}
+
 export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }
@@ -240,6 +263,38 @@ export function emptyState(text, action) {
 export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
 	const caja = h('div', { class: cls ? `table-responsive ${cls}` : 'table-responsive' }, tabla);
 	return tarjeta ? h('div', { class: 'card overflow-hidden' }, caja) : caja;
+}
+
+// La tabla del panel: una sola pieza para toda lista en tabla (en celular y tableta, tablas.js la vuelve fichas).
+//  columnas  [{ titulo, num, cls }]: `num` alinea a la derecha (montos, cuentas); un título vacío no se anuncia.
+//  celdas    fila → [contenido de cada columna] (texto o nodos).
+//  alTocar   fila → abre su ficha: la fila entera se toca y se abre con Enter.
+//  acciones  fila → items de `menuMas` (borrar al final, con `peligro`): van en un ⋮ al final de la fila.
+//  claseFila fila → clase extra de su renglón (p. ej. la elegida, `table-active`).
+//  vacio     lo que se ve sin ningún registro (`emptyState`); sinCoincidencias: el renglón cuando un filtro no deja nada.
+// Devuelve el contenedor; `contenedor.pintar(filas, { filtrado })` lo llena (filtrado: hay búsqueda o filtros puestos).
+export function tablaAdmin({ columnas, celdas, alTocar, acciones, vacio = 'Aún no hay nada aquí.', sinCoincidencias = 'Ninguno coincide con la búsqueda o los filtros.', tarjeta = true, cls = '', titulo = () => '', claseFila = () => '' }) {
+	const tbody = h('tbody');
+	const tabla = h('table', { class: `table table-hover table-admin mb-0${cls ? ` ${cls}` : ''}` },
+		h('thead', {}, h('tr', {}, columnas.map((c) => h('th', { scope: 'col', class: [c.num ? 'text-end' : '', c.cls || ''].join(' ').trim() || null }, c.titulo || '')),
+			acciones ? h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')) : null)),
+		tbody);
+	const caja = cajaTabla(tabla, { tarjeta });
+	const contenedor = h('div', { class: 'tabla-admin' });
+	const fila = (f) => h('tr', {
+		class: [alTocar ? 'clickable' : '', claseFila(f) || ''].join(' ').trim() || null, tabindex: alTocar ? '0' : null,
+		onclick: alTocar ? (e) => { if (!e.target.closest('a, button, input, select, label, .menu-mas')) alTocar(f, e); } : null,
+		onkeydown: alTocar ? (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) alTocar(f, e); } : null
+	},
+		celdas(f).map((c, i) => h('td', { class: [columnas[i]?.num ? 'text-end text-nowrap celda-num' : '', columnas[i]?.cls || ''].join(' ').trim() || null }, c)),
+		acciones ? h('td', { class: 'text-end' }, menuMas(`Acciones${titulo(f) ? ` de ${titulo(f)}` : ''}`, acciones(f))) : null);
+	contenedor.pintar = (filas, { filtrado = false } = {}) => {
+		if (!filas.length && !filtrado) return contenedor.replaceChildren(typeof vacio === 'string' ? emptyState(vacio) : vacio);
+		tbody.replaceChildren(...(filas.length ? filas.map(fila)
+			: [h('tr', {}, h('td', { colspan: columnas.length + (acciones ? 1 : 0), class: 'text-center text-muted py-4' }, sinCoincidencias))]));
+		if (contenedor.firstChild !== caja) contenedor.replaceChildren(caja);
+	};
+	return contenedor;
 }
 
 export function downloadCsv(filename, rows) {

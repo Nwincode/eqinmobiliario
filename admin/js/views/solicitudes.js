@@ -70,7 +70,7 @@ export async function render(container, [codigo] = []) {
 	}
 	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
 	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
-		? h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
+		? h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
 			h('span', { class: 'spinner-border spinner-border-sm me-1', 'aria-hidden': 'true' }), 'Subiendo…')
 		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }));
 
@@ -172,7 +172,7 @@ export async function render(container, [codigo] = []) {
 		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
 		const nivel = com ? V.nivelMora(conDatosDelChat(res, ch), Date.now()) : 0;
 		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
-		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `cot-btn btn btn-sm ${clase}`, onclick }, icono(i), texto);
+		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
 				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
@@ -259,7 +259,8 @@ export async function render(container, [codigo] = []) {
 		const debidas = reservas.filter(debe);
 		if (!debidas.length) return null;
 		const peor = Math.max(...debidas.map(moraDe));
-		const suma = (l) => dineroPorMoneda(sumarPorMoneda(l, (r) => r.comision.monto, (r) => r.moneda || r.comision.moneda));
+		// Las monedas siempre en el mismo orden (el total y lo atrasado se leen igual).
+		const suma = (l) => dineroPorMoneda(Object.fromEntries(Object.entries(sumarPorMoneda(l, (r) => r.comision.monto, (r) => r.moneda || r.comision.moneda)).sort(([a], [b]) => b.localeCompare(a))));
 		const todo = suma(debidas), atrasado = suma(debidas.filter((r) => moraDe(r) >= 1));
 		const deuda = `Debes a EQ ${todo}${!peor ? '' : atrasado === todo ? ', con atraso' : ` (con atraso: ${atrasado})`}`;
 		const texto = peor === 3 ? `${deuda}. Con más de 72 horas de atraso, tus casas salieron del sitio hasta que EQ lo marque pagado.`
@@ -269,9 +270,12 @@ export async function render(container, [codigo] = []) {
 		const ver = filtro.estado === 'cobrar'
 			? h('a', { class: 'cot-btn btn btn-sm btn-outline-secondary', href: '#/solicitudes' }, h('span', { class: 'icon-list me-1', 'aria-hidden': 'true' }), 'Ver todas')
 			: h('a', { class: 'cot-btn btn btn-sm btn-outline-primary', href: '#/solicitudes/cobrar' }, h('span', { class: 'icon-money me-1', 'aria-hidden': 'true' }), 'Ver lo que debo');
-		const icono = h('span', { class: `${peor ? 'icon-exclamation-triangle' : 'icon-money'}`, 'aria-hidden': 'true' });
-		return h('div', { class: `d-flex flex-wrap align-items-center gap-2 ${peor >= 2 ? 'alert alert-danger' : peor ? 'alert alert-warning' : 'small text-muted mb-3'}`, role: peor ? 'alert' : null },
-			icono, h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto), ver);
+		// Sin atraso, una línea con el botón a la derecha; con atraso, el botón sigue al texto (en el celular no le quita ancho).
+		if (!peor) return h('div', { class: 'd-flex align-items-center gap-2 small text-muted mb-3' }, h('span', { class: 'icon-money', 'aria-hidden': 'true' }),
+			h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto), h('span', { class: 'flex-shrink-0' }, ver));
+		ver.classList.add('ms-1', 'align-middle');
+		return h('div', { class: `d-flex gap-2 alert ${peor >= 2 ? 'alert-danger' : 'alert-warning'}`, role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
+			h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto, ' ', ver));
 	})();
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 

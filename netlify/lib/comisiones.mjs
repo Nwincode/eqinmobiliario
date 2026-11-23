@@ -7,8 +7,9 @@ import { conDatosDelChat } from '../../admin/js/reservas-calculo.js';
 const V = globalThis.EQVacacional;
 const CHAT = /^[A-Za-z0-9]{20,60}$/;
 // Las que no traen su propia prueba de pago y ya vencieron (V.faltaLeerChat): su chat dice si se marcó el pago o hay
-// comprobante (la misma condición que el corte de permisos, admin/js/permisos-socio.js).
-async function conSuChat(reservas, ahora) {
+// comprobante (la misma condición que el corte de permisos, admin/js/permisos-socio.js). También el estado de cuenta
+// (netlify/lib/estado-cuenta.mjs).
+export async function conSuChat(reservas, ahora) {
 	return Promise.all(reservas.map(async (r) => (V.faltaLeerChat(r, ahora) && CHAT.test(r.chat || '')
 		? conDatosDelChat(r, await leerPrivado(`chats/${r.chat}`).catch(() => null)) : r)));
 }

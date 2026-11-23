@@ -73,4 +73,37 @@ await test('respuesta al lead en su idioma (aviso del lead y botón de Leads)', 
 	assert.equal(saludoLead({ nombre: 'John Smith', propertyTitulo: 'House in Zona 16', idioma: 'en' }), 'Hi John, thanks for reaching out about House in Zona 16. ');
 	assert.equal(saludoLead({ nombre: '', idioma: 'en' }), 'Hi, thanks for reaching out. ');
 });
+await test('lo urgente: solo esa parte en el rojo del tema y seminegrita; datos() con el dato urgente; lista() con el estado urgente', async () => {
+	const { urgente, conUrgente, datos, lista } = await import('../netlify/lib/correo.mjs');
+	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: '#b42318' };
+	const rojo = (t) => `<span style="color:#b42318;font-weight:600">${t}</span>`;
+	assert.equal(urgente(c, '<x>'), rojo('&lt;x&gt;'), 'escapado');
+	assert.equal(conUrgente(c, 'A <b>. Y el socio dice que no le llegó: revisa.', 'el socio dice que no le llegó'), `A &lt;b&gt;. Y ${rojo('el socio dice que no le llegó')}: revisa.`);
+	assert.equal(conUrgente(c, 'Nada urgente.', 'no está'), 'Nada urgente.', 'sin esa parte, el texto tal cual');
+	const tabla = datos(c, [['Correo', 'Falla al enviar', 'desde 3 nov'], ['Calendario', '', 'desde 1 nov'], ['Vacía', '', '']]);
+	assert.ok(tabla.includes(`Falla al enviar · ${rojo('desde 3 nov')}`));
+	assert.ok(tabla.includes(`>${rojo('desde 1 nov')}</td>`), 'sin detalle, solo el dato urgente');
+	assert.ok(!tabla.includes('Vacía'), 'la fila vacía no sale');
+	const filas = lista(c, [{ nombre: 'Casa', detalle: 'EQ-1', monto: 'US$ 50', estado: 'vencida', alerta: true }, { nombre: 'Casa', detalle: 'EQ-2', monto: 'US$ 60', estado: '' }]);
+	assert.equal(filas.split(rojo('vencida')).length, 2, 'solo el estado urgente va en rojo');
+	assert.ok(!filas.includes('600">US$'), 'el monto no');
+});
+await test('lista() sin monto: el estado sube a la primera línea («Estado del sistema»: desde cuándo, en rojo)', async () => {
+	const { lista } = await import('../netlify/lib/correo.mjs');
+	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: '#b42318' };
+	const html = lista(c, [{ nombre: 'Informe SEO semanal', detalle: 'Backend Error', monto: '', estado: 'desde 23 nov', alerta: true }]);
+	assert.ok(!html.includes('font-weight:bold;color:#0e1920"></div>'), 'sin la línea vacía del monto');
+	assert.match(html, /white-space:nowrap"><div style="font-size:13px[^"]*"><span style="color:#b42318;font-weight:600">desde 23 nov<\/span>/);
+});
+await test('resumen del equipo: sin fondo de color en «atrasados»; solo la fecha atrasada en rojo; el texto plano igual', async () => {
+	const { correoDe } = await import('../netlify/lib/resumen.mjs');
+	const vacio = { vencidas: [], hoy: [], leads: [], sinSeguimiento: [], exclusivas: [], incompletas: [] };
+	const ahora = Date.parse('2026-11-23T08:00:00-06:00');
+	const r = await correoDe('', { ...vacio, vencidas: [{ fecha: Date.parse('2026-11-20T10:00:00-06:00'), titulo: 'Llamar', clienteNombre: 'Ana' }], hoy: [{ fecha: Date.parse('2026-11-23T10:00:00-06:00'), titulo: 'Visita' }] }, ahora);
+	assert.match(r.html, /<span style="color:#[0-9a-f]{6};font-weight:600">20\/11\/2026<\/span> · Llamar — Ana/);
+	assert.equal((r.html.match(/font-weight:600">/g) || []).length, 1, 'solo esa fecha');
+	assert.doesNotMatch(r.html, /border-left:4px/, 'sin la franja');
+	assert.match(r.texto, /- 20\/11\/2026 · Llamar — Ana\n/);
+	assert.match(r.asunto, /Pendientes del equipo hoy: 2 \(1 atrasado\)/);
+});
 console.log(`${ok} pruebas del correo pasan.`);

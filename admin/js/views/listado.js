@@ -1,14 +1,14 @@
 // Listado de propiedades en PDF para enviar a un cliente: se filtra, se eligen las propiedades
 // y se abre una versión lista para imprimir; el navegador la guarda como PDF.
 import { db, doc, getDoc, getDocs, collection, SITIO } from '../firebase.js';
-import { h, esc, toast, pageHeader, emptyState, formatPrice, mount, cajaTabla } from '../ui.js';
+import { h, esc, toast, pageHeader, emptyState, formatPrice, mount } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { stripMd } from '../seo.js';
 import { TIPOS } from './properties.js';
-import { datosDe, publicUrl } from '../ficha-casa.js';
+import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { estadoDe, operacionDe, enOperacion, precioVisible, textoSinPrecio } from '../estados.js';
 import { colorTema } from '../tema-def.js';
-import { telefonoWa, whatsappUrl } from '../formato.js';
+import { telefonoWa, whatsappUrl, fechaLarga, miles } from '../formato.js';
 
 const TIPO_LABEL = Object.fromEntries(TIPOS);
 
@@ -32,7 +32,6 @@ function precioPdf(p, mostrarPrecio) {
 
 // Ficha técnica: [etiqueta, valor] solo con los datos que tiene la propiedad.
 function datos(p) {
-	const n = (v) => Number(v).toLocaleString('en-US');
 	return [
 		['Tipo', TIPO_LABEL[p.tipo] || ''],
 		['Operación', operacionDe(p)],
@@ -40,8 +39,8 @@ function datos(p) {
 		['Habitaciones', p.habitaciones],
 		['Baños', p.banos],
 		['Parqueos', p.parqueos],
-		['Construcción', p.m2Construccion && `${n(p.m2Construccion)} m²`],
-		['Terreno', p.m2Terreno && `${n(p.m2Terreno)} m²`]
+		['Construcción', p.m2Construccion && `${miles(p.m2Construccion)} m²`],
+		['Terreno', p.m2Terreno && `${miles(p.m2Terreno)} m²`]
 	].filter(([, v]) => v);
 }
 
@@ -133,7 +132,7 @@ function filaCompacta(p, opts, n) {
 }
 
 export function documento(props, opts, empresa, contacto, tema = {}) {
-	const fecha = new Date().toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
+	const fecha = fechaLarga(new Date());
 	const lineasContacto = [
 		contacto.telefono && `<a href="${esc(enlaceTelefono(contacto.telefono, opts.titulo || 'Propiedades'))}">${iconoTelefono(contacto.telefono)}${esc(contacto.telefono)}</a>`,
 		contacto.email && `<a href="mailto:${esc(contacto.email)}">${ic('envelope-o')}${esc(contacto.email)}</a>`
@@ -347,9 +346,10 @@ export async function render(container) {
 	};
 
 	const elegidas = new Set();
-	const tbody = h('tbody');
+	// Las casas con su casilla siempre a la vista (la misma fila de Propiedades): tocar la fila la marca.
+	const lista = h('div', { class: 'lista-casas eligiendo' });
 	const count = h('span', { class: 'small text-muted' });
-	const todas = h('input', { class: 'form-check-input', type: 'checkbox', 'aria-label': 'Seleccionar todas' });
+	const todas = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0' });
 	let visibles = [];
 
 	const filtrar = () => {
@@ -373,24 +373,17 @@ export async function render(container) {
 		if (reset) { elegidas.clear(); visibles.forEach((p) => elegidas.add(p.id)); }
 		const n = visibles.filter((p) => elegidas.has(p.id)).length;
 		count.textContent = `${n} de ${visibles.length} seleccionadas`;
-		todas.checked = n > 0 && n === visibles.length;
-		todas.indeterminate = n > 0 && n < visibles.length;
-		tbody.replaceChildren(...visibles.map((p) => {
+		const todasElegidas = n > 0 && n === visibles.length;
+		todas.textContent = todasElegidas ? 'Quitar todas' : 'Seleccionar todas';
+		todas.hidden = !visibles.length;
+		todas.onclick = () => { visibles.forEach((p) => (todasElegidas ? elegidas.delete(p.id) : elegidas.add(p.id))); draw(false); };
+		lista.replaceChildren(...visibles.map((p) => {
 			const check = h('input', { class: 'form-check-input', type: 'checkbox', checked: elegidas.has(p.id), 'aria-label': `Incluir ${p.titulo}` });
 			check.addEventListener('change', () => { if (check.checked) elegidas.add(p.id); else elegidas.delete(p.id); draw(false); });
-			const chips = datosDe(p);
-			return h('tr', {},
-				h('td', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, check)),
-				h('td', { class: 'celda-foto' }, p.fotos?.[0]?.url ? h('img', { class: 'thumb', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' }))),
-				h('td', { class: 'celda-titulo' },
-					h('div', { class: 'fw-semibold prop-titulo' }, p.titulo || '(sin título)'),
-					h('div', { class: 'small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${ubicacion(p)}`),
-					chips.length ? h('div', { class: 'prop-datos' }, chips) : null),
-				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(p.precio, p.moneda, p.operacion))));
+			return filaCasa(p, { sel: check });
 		}));
-		if (!visibles.length) tbody.replaceChildren(h('tr', {}, h('td', { colspan: 4, class: 'text-center text-muted py-4' }, 'Ninguna propiedad cumple con estos filtros.')));
+		if (!visibles.length) lista.replaceChildren(h('p', { class: 'text-center text-muted py-4 mb-0' }, 'Ninguna propiedad cumple con estos filtros.'));
 	};
-	todas.addEventListener('change', () => { visibles.forEach((p) => (todas.checked ? elegidas.add(p.id) : elegidas.delete(p.id))); draw(false); });
 	[fOperacion, fTipo, fZona, fMoneda, fMin, fMax, fHab, fDisponibles, fPublicadas].forEach((el) => el.addEventListener('input', () => draw(true)));
 
 	const generar = () => {
@@ -430,12 +423,10 @@ export async function render(container) {
 				h('div', { class: 'col-6 col-md-3' }, fHab),
 				h('div', { class: 'col-6 col-md-3 d-flex flex-column justify-content-center' },
 					check(fDisponibles, 'Solo disponibles'), check(fPublicadas, 'Solo publicadas')))),
-		h('div', { class: 'card overflow-hidden mb-3' },
-			h('div', { class: 'd-flex justify-content-between align-items-center p-3 pb-0' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-check-square-o me-2 text-primary', 'aria-hidden': 'true' }), '2. Elige las propiedades'), count),
-			cajaTabla(
-				h('table', { class: 'table table-admin tabla-propiedades mb-0 align-middle' },
-					h('thead', {}, h('tr', {}, h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, todas)), [['', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio']].map(([t, c]) => h('th', { class: c }, t)))),
-					tbody))),
+		h('section', { class: 'mb-3' },
+			h('div', { class: 'd-flex flex-wrap justify-content-between align-items-center gap-2 mb-2' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: 'icon-check-square-o me-2 text-primary', 'aria-hidden': 'true' }), '2. Elige las propiedades'),
+				h('span', { class: 'd-flex align-items-center gap-3' }, count, todas)),
+			lista),
 		h('div', { class: 'card p-3 mb-3' },
 			h('h2', { class: 'h6 mb-3' }, h('span', { class: 'icon-file-text-o me-2 text-primary', 'aria-hidden': 'true' }), '3. Datos del PDF'),
 			h('div', { class: 'row g-3' },

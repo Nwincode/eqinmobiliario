@@ -31,6 +31,9 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
+// Solo la casilla de un día del calendario (sitio y panel del dueño): sin centavos y con «$» o «Q» pegado («$1,250»),
+// porque el completo no cabe; el desglose y el total llevan los exactos.
+export const dineroCorto = (n, moneda) => `${moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 // Montos en monedas distintas no se suman: un total por moneda. sumarPorMoneda(lista, monto) → { USD: n, GTQ: m }
 // (sin moneda, US$); dineroPorMoneda({ USD, GTQ }) → «US$ 250,000.00 · Q 1,500,000.00» ('' si todo es cero).
 export function sumarPorMoneda(lista, monto, moneda = (x) => x.moneda) {
@@ -178,7 +181,7 @@ export function conPiesCuadrados(texto) {
 	// Sin «lookbehind» (Safari viejo no lo lee y este archivo lo usa todo el panel): el carácter de antes se captura.
 	return String(texto || '').replace(/(^|[^(\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\s?m(?:²|2\b))(?!\s*\(?[\d,.]+\s*sq\s*ft)/g, (todo, antes, entero, dec = '', unidad) => {
 		const m2 = Number(entero.replace(/,/g, '') + dec);
-		return m2 ? `${antes}${entero}${dec}${unidad} (${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft)` : todo;
+		return m2 ? `${antes}${entero}${dec}${unidad} (${piesCuadrados(m2)})` : todo;
 	});
 }
 
@@ -364,3 +367,33 @@ export function cuandoCorto(cuando, ahora = Date.now()) {
 // Un día de la reserva con su día de la semana: «sábado 12 dic» (diaLargo) o «mié 25 nov» (diaConSemana).
 export const diaLargo = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()]} ${dia(iso)}`;
 export const diaConSemana = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()].slice(0, 3)} ${dia(iso)}`;
+// Fechas del panel: tres formatos, los mismos en todas las pantallas (meses escritos aquí: igual en todo navegador).
+//  fechaCorta «16 nov 2026» · fechaLarga «16 de noviembre de 2026» · fechaHora «16 nov 2026, 10:30».
+// Reciben un Timestamp de Firestore, { seconds }, Date, milisegundos o texto; 'AAAA-MM-DD' es ese día (no se corre por la zona horaria).
+export const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+export function aFecha(v) {
+	if (!v) return null;
+	if (typeof v.toDate === 'function') return v.toDate();
+	if (v.seconds) return new Date(v.seconds * 1000);
+	const d = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00`) : new Date(v);
+	return Number.isNaN(d.getTime()) ? null : d;
+}
+const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const fechaCorta = (v, sinFecha = '—') => { const d = aFecha(v); return d ? diaConAnio(isoDe(d)) : sinFecha; };
+export const fechaLarga = (v, sinFecha = '') => { const d = aFecha(v); return d ? `${d.getDate()} de ${MESES_LARGOS[d.getMonth()]} de ${d.getFullYear()}` : sinFecha; };
+export function fechaHora(v, sinFecha = '—') {
+	const d = aFecha(v);
+	if (!d) return sinFecha;
+	const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+	return `${diaConAnio(isoDe(d))}, ${hora}`;
+}
+// Meses 'AAAA-MM': su nombre («noviembre de 2026») y el de antes o después.
+export const nombreMes = (mes) => `${MESES_LARGOS[Number(String(mes).slice(5, 7)) - 1]} de ${String(mes).slice(0, 4)}`;
+export function moverMes(mes, n) {
+	const total = Number(String(mes).slice(0, 4)) * 12 + Number(String(mes).slice(5, 7)) - 1 + n;
+	return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+// Superficie en pies cuadrados («1,604 sq ft»): la única cuenta de m² a sq ft.
+export const piesCuadrados = (m2) => `${Math.round((Number(m2) || 0) * M2_A_FT2).toLocaleString('en-US')} sq ft`;
+// Las fechas de una reserva o solicitud («16 – 18 nov»): una sola forma en Rentas, Solicitudes y Mensajes (rangoDias).
+export const fechasReserva = (r) => rangoDias(r.llegada, r.salida);

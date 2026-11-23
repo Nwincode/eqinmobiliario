@@ -9,7 +9,8 @@ export const COLORES_TEMA = [
 	{ clave: 'white', variable: '--eq-white', label: 'Fondo', defecto: '#ffffff', ayuda: 'Fondo general de las páginas y texto de los botones.' },
 	{ clave: 'ink', variable: '--eq-ink', label: 'Gris de textos secundarios', defecto: '#5b666f', ayuda: 'Descripciones, fechas y detalles.' },
 	{ clave: 'gold', variable: '--eq-gold', label: 'Dorado VIP', defecto: '#85662b', ayuda: 'Sello y botones de las propiedades VIP.' },
-	{ clave: 'whatsapp', variable: '--eq-whatsapp', label: 'Verde WhatsApp', defecto: '#1e7e4a', ayuda: 'Botones de WhatsApp.' }
+	{ clave: 'whatsapp', variable: '--eq-whatsapp', label: 'Verde WhatsApp', defecto: '#1e7e4a', ayuda: 'Botones de WhatsApp.' },
+	{ clave: 'danger', variable: '--eq-danger', label: 'Rojo de avisos', defecto: '#b42318', ayuda: 'Eliminar, errores y comisiones vencidas en los correos.' }
 ];
 
 export const RADIO_TEMA = { clave: 'radio', variable: '--eq-radius', label: 'Esquinas de botones y campos (px)', defecto: 8, min: 0, max: 28 };
@@ -60,7 +61,8 @@ export const PARES_CONTRASTE = [
 	['ink', 'white', 'Textos secundarios'],
 	['primary', 'white', 'Enlaces y precios'],
 	['white', 'gold', 'Botones VIP'],
-	['white', 'whatsapp', 'Botones de WhatsApp']
+	['white', 'whatsapp', 'Botones de WhatsApp'],
+	['danger', 'white', 'Avisos en rojo (comisión vencida)']
 ];
 
 // Combinaciones listas para elegir con un clic (todas con contraste 4.5:1 o más en los textos).

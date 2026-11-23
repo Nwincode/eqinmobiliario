@@ -1,10 +1,21 @@
-// Estado de cuenta del mes de un socio (puro): sus reservas confirmadas con llegada en ese mes, su parte y la ganancia de
-// EQ (la comisión que él le paga a EQ), pagada y pendiente, cada moneda por su lado (nunca se suman Q y US$). Las
-// reservas, noches y su parte salen de la misma cuenta de Rentas y de «Mis propiedades» (V.resumenReservas). Lo usa el
-// correo del día 1 (netlify/functions/estado-cuenta.mjs); lo prueba scripts/test-estado-cuenta.mjs.
-import { sumarPorMoneda } from './formato.js';
+// Estado de cuenta de un socio (puro): lo que le debe a EQ hoy y lo de un mes. Lo usan el correo del día 1
+// (netlify/functions/estado-cuenta.mjs) y el envío a mano del administrador (netlify/functions/estado-cuenta-panel.mjs),
+// los dos con netlify/lib/estado-cuenta.mjs; lo prueba scripts/test-estado-cuenta.mjs. Cada moneda por su lado (nunca se
+// suman Q y US$).
+//  - Por pagar: sus reservas confirmadas (de cualquier mes) con la comisión sin pagar y cobrable hoy (V.cobrable: se
+//    sabe que el cliente pagó o ya no puede decir «No me llegó»; la misma cuenta del corte de permisos y la pausa).
+//  - Ya vencido: de eso, lo que ya tiene atraso (V.nivelMora ≥ 1).
+//  - El mes (por llegada): reservas, noches y su parte (V.resumenReservas, la misma cuenta de Rentas), la ganancia de EQ
+//    y lo que ya pagó, y el estado de la comisión de cada una (estadoComision).
+//  - De meses anteriores: las de antes del mes sin pagar y cobrables; Próximas: las de después, igual. Así cada monto de
+//    «Por pagar» tiene su fila (las del mes, las de antes o las próximas).
+// Las reservas con chat necesitan chatPagado / chatComprobante (conDatosDelChat): el servidor los pone antes (conSuChat).
+import { sumarPorMoneda, dia } from './formato.js';
 
 const V = () => globalThis.EQVacacional;
+const moneda = (r) => r.moneda || 'USD';
+const monto = (r) => Number(r.comision?.monto) || 0;
+const redondo = (t) => Object.fromEntries(Object.entries(t).map(([m, n]) => [m, V().r2(n)]));
 
 // El mes anterior al día `hoy` ('AAAA-MM-DD', el de Guatemala): 'AAAA-MM'.
 export function mesAnterior(hoy) {
@@ -12,15 +23,40 @@ export function mesAnterior(hoy) {
 	return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`;
 }
 
-// reservas: las de todos (cada una con su propietarioId: quien la ganó, aunque la casa ya sea de otro).
-export function estadoDeCuenta(reservas, propietarioId, mes) {
-	const lista = (reservas || []).filter((r) => r.propietarioId === propietarioId && V().confirmada(r) && String(r.llegada || '').startsWith(mes))
-		.sort((a, b) => String(a.llegada).localeCompare(String(b.llegada)));
-	const resumen = V().resumenReservas(lista);
-	// La ganancia de EQ de cada reserva (su comisión), pagada o no: cada moneda por su lado (sumarPorMoneda).
-	const monto = (r) => r.comision?.monto;
-	const [comision, pagada, pendiente] = [lista, lista.filter((r) => r.comision?.pagada), lista.filter((r) => !r.comision?.pagada)].map((l) => sumarPorMoneda(l, monto));
-	const porMoneda = {};
-	for (const [m, x] of Object.entries(resumen.porMoneda)) porMoneda[m] = { tuParte: x.costoSocio, comision: V().r2(comision[m] || 0), pagada: V().r2(pagada[m] || 0), pendiente: V().r2(pendiente[m] || 0) };
-	return { mes, reservas: lista, total: resumen.reservas, noches: resumen.noches, porMoneda };
+// Cómo va la comisión de una reserva: 'pagada' · 'por confirmar pago' (aún no se sabe si el cliente pagó) · 'vencida' ·
+// 'vence 12 dic'. '' si no tiene comisión.
+export function estadoComision(r, ahora) {
+	if (!monto(r)) return '';
+	if (r.comision.pagada) return 'pagada';
+	if (!V().cobrable(r, ahora)) return 'por confirmar pago';
+	return V().nivelMora(r, ahora) >= 1 ? 'vencida' : `vence ${dia(r.comision.vence)}`;
 }
+
+// reservas: las del socio o de todos (cada una con su propietarioId: quien la ganó, aunque la casa ya sea de otro), con
+// los datos de su chat. ahora: la hora de la cuenta (ms).
+export function estadoDeCuenta(reservas, propietarioId, mes, ahora) {
+	const suyas = (reservas || []).filter((r) => r.propietarioId === propietarioId && V().confirmada(r))
+		.sort((a, b) => String(a.llegada).localeCompare(String(b.llegada)));
+	const debe = suyas.filter((r) => monto(r) && !r.comision.pagada && V().cobrable(r, ahora));
+	const lista = suyas.filter((r) => r.llegada.startsWith(mes));
+	const resumen = V().resumenReservas(lista);
+	const porMoneda = (l, f) => redondo(sumarPorMoneda(l, f, moneda));
+	const fila = (r) => ({ reserva: r, monto: monto(r), moneda: moneda(r), estado: estadoComision(r, ahora) });
+	return {
+		mes,
+		porPagar: porMoneda(debe, monto),
+		vencido: porMoneda(debe.filter((r) => V().nivelMora(r, ahora) >= 1), monto),
+		total: resumen.reservas,
+		noches: resumen.noches,
+		tuParte: Object.fromEntries(Object.entries(resumen.porMoneda).map(([m, x]) => [m, x.costoSocio])),
+		comision: porMoneda(lista, monto),
+		pagada: porMoneda(lista.filter((r) => r.comision?.pagada), monto),
+		reservas: lista.map(fila),
+		anteriores: debe.filter((r) => r.llegada < `${mes}-01`).map(fila),
+		// Las que llegan después del mes y ya suman en «Por pagar» (p. ej. con «Pago recibido» antes de llegar).
+		proximas: debe.filter((r) => r.llegada.slice(0, 7) > mes).map(fila)
+	};
+}
+
+// ¿Se le manda? Con reservas en el mes o algo por pagar.
+export const hayQueMandar = (cuenta) => Boolean(cuenta.total || Object.keys(cuenta.porPagar).length);

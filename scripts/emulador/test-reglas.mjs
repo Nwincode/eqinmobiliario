@@ -51,13 +51,24 @@ const lineaDe = (writes) => {
 };
 const renglonTexto = (quien, casa, que, id = `txt${++nt}`) => ({ update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/${id}`, fields: { que: svG(que), quien: svG(quien), nombre: svG('Dueña') } },
 	currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
-const conTexto = (quien, writes, texto) => {
+// Y, como el panel, la casa nombra ese renglón en `bitacoraTexto` en el mismo lote (sin un cambio a la casa en el lote, se
+// le agrega uno con solo ese campo). `nombrar: false`: sin nombrarlo (las reglas lo niegan).
+const conTexto = (quien, writes, texto, { nombrar = true } = {}) => {
 	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)(\/privado\/socio)?$/)?.[1]).find(Boolean);
 	const que = texto ?? lineaDe(writes);
-	return casa && que ? [...writes, renglonTexto(quien, casa, que)] : writes;
+	if (!casa || !que) return writes;
+	const r = renglonTexto(quien, casa, que);
+	if (!nombrar) return [...writes, r];
+	const id = r.update.name.split('/').pop();
+	const ruta = `projects/demo-eq/databases/(default)/documents/properties/${casa}`;
+	const w = structuredClone(writes);
+	const i = w.findIndex((x) => x.update?.name === ruta);
+	if (i >= 0) { w[i].update.fields.bitacoraTexto = svG(id); if (w[i].updateMask) w[i].updateMask.fieldPaths.push('bitacoraTexto'); }
+	else w.push({ update: { name: ruta, fields: { bitacoraTexto: svG(id) } }, updateMask: { fieldPaths: ['bitacoraTexto'] } });
+	return [...w, r];
 };
-async function conRenglon(quien, sinTexto, { antesOtro = null, texto } = {}) {
-	const writes = conTexto(quien, sinTexto, texto);
+async function conRenglon(quien, sinTexto, { antesOtro = null, texto, nombrar = true } = {}) {
+	const writes = conTexto(quien, sinTexto, texto, { nombrar });
 	const i = writes.findIndex((w) => w.update?.name.endsWith('/privado/socio'));
 	if (i < 0) return writes;
 	const casaId = writes[i].update.name.split('/properties/')[1].split('/')[0];
@@ -851,6 +862,18 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('la dueña cuela un teléfono en un texto de la bitácora', con('bloqueó 16 – 20 nov (llámame 5555-1234)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), false);
 		await espera('la dueña bloquea días y lo anota (control)', con('bloqueó 16 – 20 mar 2027 (Uso propio)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), true);
 		await espera('la dueña anota «bloqueó» cuando cambió su precio', con('bloqueó 16 – 20 mar 2027 (Uso propio)', precio(1100)), false);
+		// Cada guardado deja su renglón y ninguno más: la casa lo nombra en `bitacoraTexto` en el mismo lote.
+		const lote = async (writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const bloqueo = (d) => [vac({ bloqueos: [{ desde: d, hasta: '2027-03-25' }] })];
+		await espera('la dueña bloquea días sin nombrar el renglón en la casa', lote(await conRenglon('mixto1', bloqueo('2027-03-23'), { texto: 'bloqueó 23 – 24 mar 2027 (Uso propio)', nombrar: false })), false);
+		await espera('la dueña bloquea días y agrega un segundo renglón en el mismo lote', lote([...await conRenglon('mixto1', bloqueo('2027-03-22'), { texto: 'bloqueó 22 – 24 mar 2027 (Uso propio)' }),
+			renglonTexto('mixto1', 'mx-texto', 'habilitó 22 – 24 mar 2027')]), false);
+		{
+			const w = await conRenglon('mixto1', bloqueo('2027-03-21'), { texto: 'bloqueó 21 – 24 mar 2027 (Uso propio)' });
+			w.find((x) => /\/properties\/mx-texto$/.test(x.update?.name || '')).update.fields.bitacoraTexto = svG('otro-id');
+			await espera('la dueña nombra en la casa un id que no es el de su renglón', lote(w), false);
+		}
+		await espera('la dueña bloquea días y la casa nombra su renglón (control)', lote(await conRenglon('mixto1', bloqueo('2027-03-20'), { texto: 'bloqueó 20 – 24 mar 2027 (Uso propio)' })), true);
 		// Cada verbo con su valor: «bloqueó» no lleva monto (las reglas solo ven que los bloqueos cambiaron: sería inventado), el
 		// mínimo no lleva un monto y el precio especial no lleva noches.
 		await espera('la dueña bloquea días y anota un monto inventado', con('bloqueó 16 – 20 mar 2027 (Uso propio): Q 999,999.99', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-22' }] })]), false);

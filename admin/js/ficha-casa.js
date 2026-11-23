@@ -1,12 +1,13 @@
-// Ficha corta de una casa (foto, título, zona, datos con ícono y precio): la misma en el listado de Propiedades,
-// en la ficha del dueño, en su selector y en «Mis propiedades» del panel del dueño. Sin dependencias pesadas,
-// para que el panel del dueño no cargue la ficha completa del inmueble.
-import { h, badge, formatPrice } from './ui.js';
+// La fila de una casa (maqueta aprobada): foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha,
+// si se le pasa, el ⚠ (o ✓) arriba y el ⋮ abajo. Es la única del panel: Propiedades, «Mis propiedades» del dueño,
+// las casas de un propietario y su selector, el listado en PDF y el importador. Cada fila es una tarjeta; la lista
+// que las junta es `.lista-casas`. Sin dependencias pesadas: el panel del dueño la carga sin la ficha del inmueble.
+import { h, badge, formatPrice, nombreYDatos } from './ui.js';
 import { miles } from './formato.js';
-import { OPERACIONES } from './estados.js';
 import { diasExclusiva } from './acuerdo.js';
 
-// Habitaciones, baños, parqueos, huéspedes y m², cada uno con su ícono.
+// Habitaciones, baños, parqueos, huéspedes y m², cada uno con su ícono: el mismo orden e íconos que la tarjeta del
+// sitio (scripts/lib/templates.mjs `specs`). En la fila va un solo m²: el de construcción o, sin él, el de terreno.
 export function datosDe(p) {
 	const n = (v) => Number(v) > 0;
 	return [
@@ -14,26 +15,53 @@ export function datosDe(p) {
 		n(p.banos) && ['icon-bath', p.banos, 'baños'],
 		n(p.parqueos) && ['icon-car', p.parqueos, 'parqueos'],
 		p.operacion === 'vacacional' && n(p.vacacional?.huespedesMax) && ['icon-users', p.vacacional.huespedesMax, 'huéspedes'],
-		n(p.m2Construccion) ? ['icon-home', `${miles(p.m2Construccion)} m²`, 'de construcción']
-			: n(p.m2Terreno) && ['icon-arrows-alt', `${miles(p.m2Terreno)} m²`, 'de terreno']
+		n(p.m2Construccion) ? ['icon-construccion', `${miles(p.m2Construccion)} m²`, 'de construcción']
+			: n(p.m2Terreno) && ['icon-terreno', `${miles(p.m2Terreno)} m²`, 'de terreno']
 	].filter(Boolean).map(([icono, valor, que]) => h('span', { class: 'prop-dato', title: `${valor} ${que}` },
 		h('span', { class: icono, 'aria-hidden': 'true' }), ` ${valor}`, h('span', { class: 'visually-hidden' }, ` ${que}`)));
 }
 
-// Devuelve las piezas; quien la usa pone el contenedor (el botón que la elige, el enlace que la abre…).
-export function fichaCasa(p, avisos = []) {
-	const chips = datosDe(p);
-	const operacion = OPERACIONES.find(([v]) => v === p.operacion)?.[1] || '';
-	return [
-		p.fotos?.[0]?.url ? h('img', { class: 'thumb flex-shrink-0', src: p.fotos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'thumb thumb-vacia flex-shrink-0', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })),
-		// En celular el precio baja a su propia línea; el título no se aprieta.
-		h('span', { class: 'flex-grow-1', style: 'flex-basis: 12rem; min-width: 0' },
-			h('span', { class: 'd-block fw-semibold prop-titulo' }, p.titulo || '(sin título)', ' ', p.publicado ? null : badge('Sin publicar', 'light'), avisos),
-			h('span', { class: 'd-block small text-muted prop-zona' }, h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${[operacion, p.zona, p.ciudad].filter(Boolean).join(' · ')}`),
-			chips.length ? h('span', { class: 'prop-datos' }, chips) : null),
-		h('span', { class: 'text-nowrap fw-semibold ms-auto' }, formatPrice(p.precio, p.moneda, p.operacion))];
+// p: la casa. Opciones:
+//  alTocar  qué hace tocar la fila (abrir la ficha, elegirla); href la hace enlace (sin `der` adentro).
+//  sel      la casilla de «elegir»: va sobre la foto y se ve cuando la lista tiene `.eligiendo`; tocar la fila la marca.
+//  der      lo de la columna derecha (⚠ o ✓ y ⋮).
+//  extra    la línea de computadora (código, asesor, fecha…).
+//  marcas   etiquetas en la línea de la ubicación, después de ella (exclusiva, «Sin publicar»…): el título nunca las
+//           corta; si no caben, la ubicación se recorta con «…».
+//  foto     otra foto (el importador la abre del archivo); precio: otro texto de precio.
+//  oculta   foto apagada (no sale en la página); elegida: la que ya está elegida en un selector.
+//  titulo   lo que dice al pasar el ratón (qué hace tocarla).
+export function filaCasa(p, { alTocar, href, sel, der, extra = [], marcas = [], foto, precio, oculta = !p.publicado, elegida = false, titulo } = {}) {
+	const lugar = [p.zona, p.ciudad].filter(Boolean).join(', ');
+	const nombre = p.titulo || 'la propiedad';
+	const tocar = (e) => {
+		if (e.target.closest('.casa-der, .casa-sel')) return;
+		if (sel && e.currentTarget.closest('.lista-casas')?.classList.contains('eligiendo')) {
+			if (!sel.disabled) { sel.checked = !sel.checked; sel.dispatchEvent(new Event('change')); }
+			return;
+		}
+		alTocar?.(e);
+	};
+	const conTeclado = (e) => {
+		if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); e.currentTarget.click(); }
+	};
+	const fotoCasa = foto || (p.fotos?.[0]?.url ? h('img', { src: p.fotos[0].url, alt: '', loading: 'lazy' })
+		: h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, h('span', { class: 'icon-camera', 'aria-hidden': 'true' })));
+	const extras = extra.filter(Boolean);
+	return h(href ? 'a' : 'article', {
+		class: `casa-fila${oculta ? ' casa-oculta' : ''}${elegida ? ' casa-elegida' : ''}`, href,
+		tabindex: href ? null : '0', 'aria-label': nombre, title: titulo, 'aria-current': elegida ? 'true' : null,
+		dataset: { operacion: p.operacion || '' },
+		onclick: href ? null : tocar, onkeydown: href ? null : conTeclado
+	},
+		h('div', { class: 'casa-foto' }, fotoCasa, sel ? h('label', { class: 'casa-sel' }, sel) : null),
+		h('div', { class: 'casa-txt' },
+			nombreYDatos(p.titulo || '(sin título)', lugar ? [h('span', { class: 'icon-map-marker', 'aria-hidden': 'true' }), ` ${lugar}`] : null, marcas, { cls: 'casa-titulo', datosCls: 'casa-dato' }),
+			h('div', { class: 'casa-datos prop-datos' }, datosDe(p)),
+			extras.length ? h('div', { class: 'casa-dato casa-extra' }, extras) : null,
+			h('div', { class: 'casa-precio' }, precio ?? formatPrice(p.precio, p.moneda, p.operacion))),
+		der ? h('div', { class: 'casa-der' }, der) : null);
 }
-export const FILA_CASA = 'd-flex flex-wrap align-items-center gap-2 text-start';
 
 // Dirección de la casa en el sitio (la ficha VIP vive en /vip/). Una sola, para el panel y el panel del dueño.
 export function publicUrl(p) {

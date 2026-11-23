@@ -2,11 +2,14 @@
 // correo al equipo cuando algo sigue roto después de 24 h. Lo llama el resumen de cada mañana (resumen-diario.mjs).
 import '../../js/calc-vacacional.js';
 import { listar, leerPrivado, consultar, donde } from './firestore.mjs';
-import { enviarCorreo, destinatariosEquipo, servicioCorreo, plantilla, datos, boton, SITE_URL } from './correo.mjs';
+import { enviarCorreo, destinatariosEquipo, servicioCorreo, plantilla, lista, boton, SITE_URL } from './correo.mjs';
+import { dia } from '../../admin/js/formato.js';
 import { armarEstado, rotoMasDeUnDia, correosDe, calendariosDe } from '../../admin/js/estado-sistema.js';
 
 const V = globalThis.EQVacacional;
-const fecha = (v) => new Intl.DateTimeFormat('es-GT', { timeZone: 'America/Guatemala', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(v));
+// El día en Guatemala, con el formato de todo el sistema («23 nov»): lleva más de un día roto, la hora no hace falta y así
+// cabe en la fila de un celular.
+const fecha = (v) => dia(V.hoy(new Date(v).getTime()));
 const seguro = (p, vacio) => p.catch((err) => { console.error('Estado del sistema:', err.message); return vacio; });
 
 export async function leerEstado(ahora = Date.now()) {
@@ -33,12 +36,14 @@ export async function avisarSiSigueRoto(ahora = Date.now()) {
 	if (!servicioCorreo() || !destinatariosEquipo().length) return 0;
 	const rotos = rotoMasDeUnDia(await leerEstado(ahora), ahora);
 	if (!rotos.length) return 0;
-	const filas = rotos.map((x) => [x.titulo, [x.detalle, x.desde ? `desde ${fecha(x.desde)}` : ''].filter(Boolean).join(' · ')]);
+	// Desde cuándo no funciona: lo urgente de cada fila (en rojo).
+	const filas = rotos.map((x) => [x.titulo, x.detalle || '', x.desde ? `desde ${fecha(x.desde)}` : '']);
 	const html = await plantilla({
 		titulo: 'Algo sigue sin funcionar',
 		intro: 'Lleva más de un día así. En el panel, Inicio → Estado del sistema dice dónde se arregla cada uno.',
-		bloques: (c) => datos(c, filas) + boton(c, 'Abrir el panel', `${SITE_URL}/admin/#/`, c.primary, { ancho: true })
+		// Cada cosa rota: a la izquierda qué y su motivo; a la derecha, desde cuándo (en rojo).
+		bloques: (c) => lista(c, filas.map(([nombre, detalle, desde]) => ({ nombre, detalle, monto: '', estado: desde, alerta: true }))) + boton(c, 'Abrir el panel', `${SITE_URL}/admin/#/`, c.primary, { ancho: true })
 	});
-	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Estado del sistema: ${rotos.length === 1 ? rotos[0].titulo : `${rotos.length} cosas siguen sin funcionar`}`, html, texto: filas.map(([k, v]) => `${k}${v ? `: ${v}` : ''}`).join('\n') });
+	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Estado del sistema: ${rotos.length === 1 ? rotos[0].titulo : `${rotos.length} cosas siguen sin funcionar`}`, html, texto: filas.map(([k, v, u]) => { const d = [v, u].filter(Boolean).join(' · '); return `${k}${d ? `: ${d}` : ''}`; }).join('\n') });
 	return rotos.length;
 }

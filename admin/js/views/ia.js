@@ -3,13 +3,15 @@
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, arrayUnion
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, formatPrice, formatDate, emptyState, mount, spinner, cajaTabla } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, nombreYDatos, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
-import { loadLeads, estadoBadge } from './leads.js';
+import { loadLeads, estadoBadge, filaLead } from './leads.js';
 import { publicUrl } from './properties.js';
 import { seOfrece } from '../estados.js';
 import { refrescarPortalesDe } from '../portal.js';
+import { campoTelefono } from '../form.js';
+import { telefonoValido } from '../formato.js';
 
 const TABS = [
 	['buscar', 'Buscar para un cliente', 'icon-search'],
@@ -46,13 +48,13 @@ function cargando(btn, texto = 'Trabajando…') {
 function mensajeBox(texto, telefono = '', titulo = 'Mensaje para el cliente') {
 	const area = h('textarea', { class: 'form-control', rows: 6 });
 	area.value = texto || '';
-	const tel = h('input', { class: 'form-control', type: 'tel', placeholder: 'WhatsApp del cliente (opcional)', value: telefono });
+	const tel = campoTelefono(telefono, { placeholder: 'WhatsApp del cliente (opcional)' });
 	return h('div', { class: 'ia-mensaje' },
 		h('div', { class: 'form-label fw-semibold' }, titulo),
 		area,
 		h('div', { class: 'd-flex flex-wrap gap-2 mt-2' },
 			h('div', { style: 'max-width:240px' }, tel),
-			h('button', { class: 'btn btn-success', type: 'button', onclick: () => window.open(whatsappUrl(tel.value, area.value), '_blank', 'noopener') }, 'Abrir en WhatsApp'),
+			h('button', { class: 'btn btn-success', type: 'button', onclick: () => window.open(whatsappUrl(tel.valor(), area.value), '_blank', 'noopener') }, 'Abrir en WhatsApp'),
 			h('button', { class: 'btn btn-outline-secondary', type: 'button', onclick: async () => toast((await copiar(area.value)) ? 'Copiado.' : 'No se pudo copiar.') }, 'Copiar')));
 }
 
@@ -115,14 +117,15 @@ function tabBuscar(cont, props) {
 
 function guardarRequerimiento(texto, criterios) {
 	const nombre = h('input', { class: 'form-control', placeholder: 'Nombre del cliente' });
-	const tel = h('input', { class: 'form-control', type: 'tel', placeholder: 'WhatsApp' });
+	const tel = campoTelefono('', { placeholder: 'WhatsApp' });
 	const btn = h('button', { class: 'btn btn-outline-primary', type: 'button' }, 'Guardar cliente');
 	btn.addEventListener('click', async () => {
 		if (!nombre.value.trim()) return toast('Escribe el nombre del cliente.', 'warning');
+		if (tel.valor() && !telefonoValido(tel.valor())) return toast('Revisa el WhatsApp: el número no está completo para ese país.', 'warning');
 		try {
 			const ref = doc(collection(db, 'requerimientos'));
 			await setDoc(ref, {
-				cliente: nombre.value.trim(), telefono: tel.value.trim(), texto, criterios: criterios || {},
+				cliente: nombre.value.trim(), telefono: tel.valor(), texto, criterios: criterios || {},
 				estado: 'activo', agentId: session.agentId || '', createdBy: session.user.uid, createdAt: serverTimestamp()
 			});
 			toast('Cliente guardado. Te avisaremos cuando entre una propiedad que le sirva (pestaña "Clientes que buscan").');
@@ -241,7 +244,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 			});
 			const temp = { caliente: ['Caliente', 'danger'], tibio: ['Tibio', 'warning'], frio: ['Frío', 'info'] }[r.temperatura] || ['—', 'secondary'];
 			out.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'card-body' },
-				h('div', { class: 'd-flex align-items-center gap-2 mb-2' }, h('h2', { class: 'h5 mb-0' }, lead.nombre), badge(temp[0], temp[1]), estadoBadge(lead.estado)),
+				h('div', { class: 'mb-2' }, nombreYDatos(lead.nombre, lead.propertyTitulo || 'Contacto general', [badge(temp[0], temp[1]), estadoBadge(lead.estado)], { cls: 'h5 mb-0' })),
 				h('p', {}, r.resumen),
 				h('div', { class: 'alert alert-info' }, h('strong', {}, 'Siguiente paso: '), r.siguientePaso),
 				mensajeBox(r.mensajeWhatsApp, lead.telefono, 'Mensaje de WhatsApp'),
@@ -258,9 +261,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 	};
 
 	(pendientes.length ? pendientes : leads).forEach((l) => {
-		const item = h('button', { type: 'button', class: 'list-group-item list-group-item-action' },
-			h('div', { class: 'd-flex justify-content-between' }, h('strong', {}, l.nombre), estadoBadge(l.estado)),
-			h('div', { class: 'small text-muted' }, `${l.propertyTitulo || 'Contacto general'} · ${formatDate(l.createdAt, false)}`));
+		const item = h('button', { type: 'button', class: 'list-group-item list-group-item-action' }, filaLead(l));
 		item.addEventListener('click', () => analizar(l, item));
 		lista.append(item);
 		if (l.id === idInicial) setTimeout(() => analizar(l, item));
@@ -293,7 +294,7 @@ function tabClientes(cont, props, reqs) {
 			const r = await pedirIA('coincidencias', { propiedad: p, requerimientos: activos });
 			const byId = Object.fromEntries(activos.map((x) => [x.id, x]));
 			out.replaceChildren(...(r.coincidencias?.length ? r.coincidencias.map((c) => h('div', { class: 'card mb-3' }, h('div', { class: 'card-body' },
-				h('div', { class: 'd-flex align-items-center gap-2 mb-1' }, h('strong', {}, byId[c.id]?.cliente), badge(`${c.puntaje}%`, c.puntaje >= 75 ? 'success' : 'warning')),
+				h('div', { class: 'mb-1' }, nombreYDatos(byId[c.id]?.cliente, byId[c.id]?.telefono, [badge(`${c.puntaje}%`, c.puntaje >= 75 ? 'success' : 'warning')])),
 				h('p', { class: 'small text-muted' }, c.motivo),
 				mensajeBox(c.mensajeWhatsApp, byId[c.id]?.telefono)))) : [h('div', { class: 'alert alert-secondary' }, 'Ningún cliente guardado busca algo parecido.')]));
 		} catch (err) {
@@ -303,31 +304,35 @@ function tabClientes(cont, props, reqs) {
 		}
 	});
 
-	const cerrar = async (r, row) => {
+	let quedan = activos;
+	const tabla = tablaAdmin({
+		columnas: [{ titulo: 'Cliente' }, { titulo: 'Busca' }, { titulo: 'Guardado' }],
+		celdas: (r) => [
+			[h('div', { class: 'fw-semibold' }, r.cliente), h('div', { class: 'small text-muted' }, r.telefono || '')],
+			h('span', { class: 'small' }, r.criterios?.resumen || String(r.texto || '').slice(0, 120)),
+			h('span', { class: 'small text-muted text-nowrap' }, formatDate(r.createdAt, false))],
+		titulo: (r) => r.cliente,
+		acciones: (r) => [
+			r.telefono ? { icono: 'icon-whatsapp', texto: 'WhatsApp', href: whatsappUrl(r.telefono, `Hola ${r.cliente}, `), target: '_blank' } : null,
+			{ icono: 'icon-check', texto: 'Cerrar el requerimiento', onclick: () => cerrar(r) }],
+		vacio: 'Aún no hay clientes guardados.'
+	});
+	const cerrar = async (r) => {
 		try {
 			await updateDoc(doc(db, 'requerimientos', r.id), { estado: 'cerrado', updatedAt: serverTimestamp() });
-			row.remove();
+			quedan = quedan.filter((x) => x !== r);
+			tabla.pintar(quedan);
 			toast('Requerimiento cerrado.');
 		} catch (err) { showError(err); }
 	};
+	tabla.pintar(quedan);
 
 	mount(cont,
 		h('p', { class: 'text-muted' }, 'Cuando captes o publiques una propiedad, aquí ves a qué clientes guardados ofrecérsela y te queda cada mensaje listo.'),
 		h('div', { class: 'row g-2 align-items-center' }, h('div', { class: 'col-md-8' }, sel), h('div', { class: 'col-md-4' }, btn)),
 		out,
 		h('h2', { class: 'h6 mt-4' }, `Clientes con búsqueda activa (${activos.length})`),
-		activos.length ? cajaTabla(h('table', { class: 'table table-admin mb-0' },
-			h('thead', {}, h('tr', {}, ['Cliente', 'Busca', 'Guardado', ''].map((t) => h('th', {}, t)))),
-			h('tbody', {}, activos.map((r) => {
-				const row = h('tr', {},
-					h('td', {}, h('div', { class: 'fw-semibold' }, r.cliente), h('div', { class: 'small text-muted' }, r.telefono || '')),
-					h('td', { class: 'small' }, r.criterios?.resumen || String(r.texto || '').slice(0, 120)),
-					h('td', { class: 'small text-muted text-nowrap' }, formatDate(r.createdAt, false)),
-					h('td', { class: 'text-nowrap' },
-						r.telefono ? h('a', { class: 'btn btn-sm btn-success me-1', target: '_blank', href: whatsappUrl(r.telefono, `Hola ${r.cliente}, `) }, 'WhatsApp') : null,
-						h('button', { class: 'btn btn-sm btn-outline-secondary', type: 'button', onclick: () => cerrar(r, row) }, 'Cerrar')));
-				return row;
-			}))), { tarjeta: true }) : emptyState('Aún no hay clientes guardados.'));
+		tabla);
 }
 
 // ------------------------------------------------------------ Asistente (chat)

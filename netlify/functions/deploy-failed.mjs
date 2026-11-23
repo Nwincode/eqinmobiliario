@@ -8,7 +8,7 @@
 // La primera vez que falla (no en cada reintento) se avisa al equipo por correo: con el panel cerrado nadie lo vería, y
 // lo que cambian los dueños no saldría en la página.
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
-import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
+import { correoConfigurado, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, conUrgente, coloresCorreo, SITE_URL } from '../lib/correo.mjs';
 import { DESC_FALLO, DESC_FRENO } from '../lib/publicar.mjs';
 
 async function avisarEquipo(motivo, frenada) {
@@ -18,7 +18,8 @@ async function avisarEquipo(motivo, frenada) {
 		: 'La última publicación del sitio falló en Netlify. El sitio anterior sigue en línea; lo que se cambió desde entonces todavía no sale. Abre el panel y pulsa «Publicar».';
 	const html = await plantilla({
 		titulo: frenada ? 'La publicación del sitio se frenó' : 'La publicación del sitio falló',
-		intro: esc(texto),
+		// Lo urgente, en rojo: que se frenó o que falló (lo demás, como siempre).
+		intro: conUrgente(await coloresCorreo(), texto, frenada ? 'se frenó' : 'falló en Netlify'),
 		bloques: (c) => `${motivo ? `<p style="font-size:14px;margin:0 0 18px;color:${c.ink}">${frenada ? 'Motivo' : 'Motivo que dio Netlify'}: ${esc(motivo)}</p>` : ''}${boton(c, 'Abrir Publicar', `${SITE_URL}/admin/#/publicar`)}`
 	});
 	await enviarCorreo({ para: destinatariosEquipo(), asunto: `${frenada ? 'La publicación del sitio se frenó' : 'La publicación del sitio falló'} · Equipo Inmobiliario`, html, texto });

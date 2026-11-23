@@ -407,7 +407,7 @@ export async function render(container) {
 		ultimoR = r;
 		grafica.replaceChildren(svgGrafica(r));
 		// Vacíos = valor calculado; se muestra como pista dentro del campo.
-		campos.valorFiscal.placeholder = `Q ${Math.round(r.valorFiscalQ).toLocaleString('es-GT')}`;
+		campos.valorFiscal.placeholder = dinero(r.valorFiscalQ, 'GTQ');
 		campos.iusiMil.placeholder = `${r.iusiTasaMil}`;
 		campos.capSalida.placeholder = `${ne.capSalida}`;
 		tablaLargo.replaceChildren(tabla(['Año', 'Renta bruta', 'Cobrado', 'Gastos, IUSI y reserva', 'Comisión', 'Impuestos', 'Neto (caja)', 'Acumulado', 'Flujo'],

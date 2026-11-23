@@ -5,18 +5,19 @@
 // El socio no lee las solicitudes (traen el teléfono y el correo del cliente): las suyas salen de su chat.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, limit } from './firebase.js';
-import { toast, showError, confirmDialog, formatDate, dia, elegirOpcion, ahoraServidor, ahoraYa } from './ui.js';
+import { toast, showError, confirmDialog, formatDate, elegirOpcion, ahoraServidor, ahoraYa } from './ui.js';
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from './session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, ChoqueDeFechas } from './reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
 	motivoParaNoConfirmar, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from './reservas-calculo.js';
+import { fechasReserva } from './formato.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from './crm.js';
 import { avisarAvisos } from './avisos.js';
 
 const V = window.EQVacacional;
 export const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 export const estado = (l) => l.solicitud?.estado || 'pendiente';
-export const fechas = (r) => `${dia(r.llegada)} – ${dia(r.salida)}`;
+export const fechas = fechasReserva;
 
 // Respuestas de un toque según el momento de la reserva: llenan el campo y se pueden ajustar antes de enviar. Sin datos
 // de la casa que cambian de una a otra, sin contacto y sin lo que se hace con un botón: disponibilidad, datos de pago y

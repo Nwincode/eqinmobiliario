@@ -143,7 +143,7 @@ await ir(admin.p, '#/propietarios', 1500);
 	}
 }
 await ir(admin.p, '#/propietarios/socio-prueba');
-paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
+paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .casa-titulo').first().innerText().catch(() => '')));
 
 // ---------------------------------------------------------------- 2. Publicar (lo que hace el botón en producción)
 execFileSync('bash', [path.join(REPO, 'scripts/entorno/levantar.sh'), 'publicar'], { stdio: 'pipe', env: { ...process.env, ENTORNO_DIR: DIR } });
@@ -1117,7 +1117,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await m.locator('.modal-footer button', { hasText: 'Guardar' }).click();
 		await espera(7000);
 		const id = ((await leer(`propietarios/${ruta.split('/').pop()}`)).fields?.propiedades?.arrayValue?.values || []).pop()?.mapValue?.fields?.propertyId?.stringValue || '';
-		const ficha = await persona.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
+		const ficha = await persona.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '');
 		await persona.p.locator('.list-field').scrollIntoViewIfNeeded();
 		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-ficha.png` });
 		const lado2 = await persona.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -1134,14 +1134,15 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	// Es la misma ficha de Propiedades (una sola forma de crear y editar): desde aquí también se corrige y se elimina.
-	const lapiz = () => admin.p.locator('.list-field-item').last().locator('button[aria-label^="Editar la propiedad"], button[title^="Editar la propiedad"]').first();
+	// La fila de la casa (la misma de Propiedades) se toca para editarla; su title lo dice.
+	const lapiz = () => admin.p.locator('.list-field-item').last().locator('.casa-fila[title^="Editar la propiedad"]').first();
 	await lapiz().click();
 	await espera(3000);
 	const conFotos = await admin.p.locator('.modal.show [data-campo="fotos"]').count();
 	await campo(admin.p.locator('.modal.show'), 'titulo').fill('Casa del lago corregida (prueba)');
 	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Guardar' }).click();
 	await espera(7000);
-	const corregida = await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
+	const corregida = await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '');
 	paso('Desde la ficha de la persona se corrige la casa en su ficha completa (con fotos)', conFotos === 1 && /corregida/.test(corregida) && /corregida/.test((await leer(`properties/${a.id}`)).fields?.titulo?.stringValue || ''), `${conFotos} ${corregida}`);
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-en-ventana-1280.png` });
 	// Una casa creada por error se elimina desde ahí mismo: se crea otra y se borra.
@@ -1195,23 +1196,25 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const acordado = await honorario();
 	paso('Una cotización nueva empieza con la comisión general y, al elegir el inmueble, toma la acordada para él', general === '5' && acordado === '4.5', `${general} → ${acordado}`);
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
+	// La operación de cada fila de casa (la dice su data-operacion; el texto la da el precio: «/mes», «por noche»).
+	const operaciones = (sel) => admin.p.locator(sel).evaluateAll((filas) => filas.map((f) => f.dataset.operacion));
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
 		await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
 		await espera(800);
-		return admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+		return operaciones('.modal.show .casa-fila');
 	};
 	// Una sola ficha por persona: el socio ve sus casas por noche y, cambiando de pestaña, le agrego una en venta.
 	const delSocio = await abrirSelector('#/propietarios/socio-prueba');
 	await admin.p.locator('.modal.show .btn-group button', { hasText: 'Venta' }).click();
 	await espera(300);
-	const enVenta = await admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+	const enVenta = await operaciones('.modal.show .casa-fila');
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
-	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => /Venta|Renta ·/.test(x)) && enVenta.length > 0 && enVenta.every((x) => /Venta/.test(x)) && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
-	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click();
+	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => x === 'venta' || x === 'renta') && enVenta.length > 0 && enVenta.every((x) => x === 'venta') && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
+	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click();
 	await espera(600);
-	const titulos = await admin.p.locator('.list-field .prop-zona').allInnerTexts();
-	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
+	const titulos = await operaciones('.list-field .casa-fila');
+	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.includes('vacacional') && titulos.includes('venta')
 		&& await admin.p.locator('[data-campo="agentId"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
@@ -1225,12 +1228,12 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await espera(800);
 	await admin.p.locator('.modal.show input[type=search]').fill('mirabel');
 	await espera(300);
-	const halladas = await admin.p.locator('.modal.show .list-group-item .prop-titulo').allInnerTexts();
+	const halladas = await admin.p.locator('.modal.show .casa-fila .casa-titulo').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
-	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click().catch(() => {});
+	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click().catch(() => {});
 	await espera(600);
-	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.some((x) => /vacacional/i.test(x)) && halladas.length === 1
-		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
+	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
+		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '')), halladas.join(' | '));
 	// Acuerdos anotados antes en la persona: al abrir Propietarios pasan a cada inmueble, sin escribir encima ni perder nada.
 	{
 		const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
@@ -1998,7 +2001,7 @@ const duenos = [];
 			chat: token, pagoRecibido: true, comision: { monto, vence: dia(n), pagada: false }, costoSocio: monto * 3 });
 		sembrados.push(`chats/${token}`, `reservas/res-${codigo}`);
 	};
-	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=..');
+	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=ancestor::div[1]');
 	await socio.p.setViewportSize({ width: 390, height: 844 });
 	await ir(socio.p, '#/solicitudes', 4000);
 	const inicio = await aviso().innerText().catch(() => '');
@@ -2069,6 +2072,15 @@ const duenos = [];
 
 	// Dos pestañas del administrador corrigen el mismo correo: la segunda parte del que guardó la primera (el «antes» de
 	// verdad) y cada correo nuevo recibe su enlace una vez.
+	// Una solicitud abierta propia para esto (la de Marta ya pasó por otros pasos).
+	const TOKEN_DOS = 'DosPestanas00000000000000001';
+	await escribir('leads/dos-pest', { nombre: 'Marta Dos Pestañas', email: 'marta.ok@example.com', telefono: '+502 5555 6666', idioma: 'es', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', agentId: '',
+		reserva: { codigo: 'EQ-DOSPES', llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' }, solicitud: {} });
+	await escribir(`chats/${TOKEN_DOS}`, { codigo: 'EQ-DOSPES', leadId: 'dos-pest', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', nombre: 'Marta',
+		llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' });
+	await escribir('chatsPorSolicitud/dos-pest', { token: TOKEN_DOS });
+	sembrados.push('leads/dos-pest', `chats/${TOKEN_DOS}`, 'chatsPorSolicitud/dos-pest');
+	const codigo3 = 'EQ-DOSPES', leadId3 = 'dos-pest';
 	const otra = await admin.p.context().newPage();
 	await otra.goto(admin.p.url());
 	await espera(5000);

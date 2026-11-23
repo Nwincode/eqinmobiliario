@@ -229,7 +229,7 @@ export async function tarjetaAvisos() {
 	const { avisos, puedeListo } = await cargarAvisos();
 	if (!avisos.length) return null;
 	const resto = avisos.length - 5;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'avisos-titulo' },
+	return h('section', { class: 'card mb-3 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'avisos-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-bell', 'aria-hidden': 'true' }),
 			h('div', { class: 'me-auto' },
