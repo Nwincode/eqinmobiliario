@@ -88,6 +88,8 @@ export function toast(message, type = 'success') {
 
 export function errorMessage(err) {
 	const code = (err && err.code) || '';
+	// Un «sin permiso» puede ser de una pestaña con el panel de antes: admin/js/version.js lo revisa en seguida.
+	if (code === 'permission-denied') document.dispatchEvent(new CustomEvent('sin-permiso'));
 	const map = {
 		'permission-denied': 'No tienes permiso para esta acción.',
 		'auth/invalid-credential': 'Correo o contraseña incorrectos.',
@@ -244,11 +246,13 @@ export function barras(filas) {
 // Nombre y datos de un registro (una casa, un propietario, un lead…): el nombre solo en su línea (dos como máximo, con «…»)
 // y abajo la línea de datos con las marcas (etiquetas) al final; si no caben, los datos se recortan con «…», la marca no.
 // Así una etiqueta nunca corta el nombre en el celular. Devuelve las dos líneas (sin datos ni marcas, solo el nombre).
-export function nombreYDatos(nombre, datos, marcas = [], { cls = '', datosCls = '' } = {}) {
+// `envuelve`: para un registro que puede traer varias marcas largas (una solicitud): si no caben junto a los datos, bajan
+// a la línea siguiente y parten entre ellas (sin scroll de lado); los datos siguen en una línea con «…».
+export function nombreYDatos(nombre, datos, marcas = [], { cls = '', datosCls = '', envuelve = false } = {}) {
 	const conMarcas = [marcas].flat(Infinity).some((m) => m && typeof m !== 'string');
 	const conDatos = [datos].flat(Infinity).some((d) => d !== null && d !== undefined && d !== false && d !== '');
 	return [h('div', { class: `fila-nombre${cls ? ` ${cls}` : ''}` }, nombre),
-		conDatos || conMarcas ? h('div', { class: `fila-datos${datosCls ? ` ${datosCls}` : ''}` },
+		conDatos || conMarcas ? h('div', { class: `fila-datos${envuelve ? ' fila-envuelve' : ''}${datosCls ? ` ${datosCls}` : ''}` },
 			conDatos ? h('span', { class: 'fila-datos-txt' }, datos) : null,
 			conMarcas ? h('span', { class: 'fila-marcas' }, marcas) : null) : null];
 }

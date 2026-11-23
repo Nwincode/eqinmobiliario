@@ -1,6 +1,6 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
 import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, hoy } from '../ui.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, nombreYDatos, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
@@ -9,7 +9,7 @@ import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendien
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
+	chipVencimiento, filaActividad, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -155,7 +155,7 @@ async function renderLista(container) {
 				celdas: (c) => {
 					const prox = proximaActividad(actividades, c.id);
 					return [
-						[h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))],
+						nombreYDatos(c.nombre || '(sin nombre)', c.telefono || c.email || '', [chipFaltan(revisar('clientes', c))]),
 						h('span', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
 						etapaBadge(c.etapa),
 						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaHora(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
@@ -354,11 +354,9 @@ async function renderFicha(container, id) {
 			h('div', { class: 'col-xl-4' },
 				tarjeta('icon-calendar-plus-o', 'Registrar o agendar', formularioActividad(c, recargar)),
 				pendientes.length ? tarjeta('icon-clock-o', `Pendientes (${pendientes.length})`, { sinCuerpo: true },
-					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-						iconoActividad(a.tipo),
-						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaHora(a.fecha) : 'Sin fecha')),
-						chipVencimiento(a),
-						iconoBtn('icon-check', 'Marcar como hecha', { onclick: () => completar(a) }))))) : null,
+					// La misma fila de Agenda e Inicio (crm.js filaActividad), con su «Vencida» u «Hoy» al final de la línea de datos.
+					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => filaActividad(a, { cliente: false, marcas: chipVencimiento(a),
+						der: iconoBtn('icon-check', 'Marcar como hecho', { class: 'btn-toque btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }) })))) : null,
 				tarjeta('icon-heart-o', 'Propiedades de interés', h('div', {},
 					interes.length ? h('ul', { class: 'list-unstyled mb-2' }, interes.map((pid) => {
 						const p = propiedades.find((x) => x.id === pid);

@@ -1032,9 +1032,11 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	await campoCorreo.fill('  Ana.Nueva@Example.com ');
 	const botonC = (await igualC.innerText()).trim();
 	const anchoC = await admin.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	// El botón largo va en la misma fila que «Cancelar» (no baja a la suya).
+	const filaC = await admin.p.evaluate(() => { const [a, b] = [...document.querySelectorAll('.modal.show .modal-footer .btn')].map((x) => x.getBoundingClientRect()); return a && b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 99; });
 	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-confirmar-1280.png` });
-	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio; con el mismo de ahora, apagado',
-		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === true && /^Guardar$/.test(conElMismo[0].trim()) && anchoC <= 0, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]}`);
+	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio, junto a «Cancelar»; con el mismo de ahora, apagado',
+		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === true && /^Guardar$/.test(conElMismo[0].trim()) && anchoC <= 0 && filaC < 2, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]} · fila ${filaC}`);
 	const antesC = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
 	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
 	await espera(3500);
@@ -2039,10 +2041,27 @@ const duenos = [];
 		boton && boton.height >= 44 && medida.arriba < 400 && medida.lado <= 0 && tarjetas >= 25, `${boton ? Math.round(boton.height) : '—'} px · arriba ${Math.round(medida.arriba)} · ${tarjetas} tarjetas · alto ${Math.round(medida.alto)}`);
 	await socio.p.locator('.admin-main a', { hasText: 'Ver lo que debo' }).first().click();
 	await espera(5000);
-	const codigos = await socio.p.locator('.admin-main .card.mb-2 strong').allInnerTexts();
+	const codigos = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-filtro-390.png` });
 	paso('«Ver lo que debo» deja solo lo que debe, la más atrasada primero, y la dirección es #/solicitudes/cobrar',
 		socio.p.url().endsWith('#/solicitudes/cobrar') && codigos[0] === 'EQ-DEB072' && codigos.includes('EQ-DEB024') && codigos.includes('EQ-DEB0K1') && !codigos.some((c) => c.startsWith('EQ-REL')), codigos.join(', '));
+	// Una reserva sin chat (el socio no la ve como solicitud) con la ganancia de EQ vencida: suma en el aviso y sale en la
+	// lista filtrada con la tarjeta de la reserva. El total del aviso y la suma de la lista cuadran, por moneda.
+	await escribir('reservas/res-SINCHAT1', { codigo: '', leadId: '', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', estado: 'confirmada', moneda: 'USD',
+		llegada: dia(-4), salida: dia(-2), noches: 2, huesped: 'Huésped sin chat', canal: 'directo', comision: { monto: 77, vence: dia(-4), pagada: false }, costoSocio: 200, ganancia: 77 });
+	sembrados.push('reservas/res-SINCHAT1');
+	await ir(socio.p, '#/solicitudes/cobrar', 5000);
+	const avisoSC = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	// Lo que dice cada tarjeta que se le debe a EQ, sumado por moneda, contra lo que dice el aviso.
+	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Ganancia de EQ \(se la pagas\) (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
+	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a EQ ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
+	const codigosSC = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
+	const conSinChat = await socio.p.locator('.admin-main .card.mb-2', { hasText: 'Huésped sin chat' }).count();
+	const lado = await socio.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-chat-390.png`, fullPage: true });
+	paso('Una reserva sin chat que debe ganancia de EQ sale en «Ver lo que debo» con su tarjeta, y el total del aviso cuadra con la lista (US$ y Q por separado)',
+		conSinChat === 1 && codigosSC.includes('res-SINCHAT1') && Object.keys(delAviso).length > 0 && JSON.stringify(delAviso) === JSON.stringify(Object.fromEntries(Object.keys(delAviso).map((k) => [k, deLista[k]]))) && Object.keys(deLista).length === Object.keys(delAviso).length && lado <= 0,
+		`aviso ${JSON.stringify(delAviso)} · lista ${JSON.stringify(deLista)} · ${codigosSC.join(', ')}`);
 	await socio.p.locator('.admin-main a', { hasText: 'Ver todas' }).first().click();
 	await espera(5000);
 	paso('«Ver todas» vuelve a la lista completa', socio.p.url().endsWith('#/solicitudes') && await socio.p.locator('.admin-main .card.mb-2').count() >= 25);

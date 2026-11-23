@@ -3,9 +3,9 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteField, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
 } from './firebase.js';
-import { h, badge, toDate } from './ui.js';
+import { h, badge, nombreYDatos } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora, enMs } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
 import { queCorreoCorregido, queEnlaceReenviado } from './reservas-calculo.js';
 
@@ -33,15 +33,15 @@ export const iconoActividad = (v) => { const [, label, icono] = tipoActividad(v)
 
 // La fila de una actividad (la de la Agenda): ícono, qué es y, abajo, el cliente, cuándo y el asesor; a la derecha lo que se
 // le pase (✓ hecha, su vencimiento, ⋮). La usan la Agenda, la ficha del cliente e Inicio.
-export function filaActividad(a, { cliente = true, asesor = '', der = null } = {}) {
+// `marcas`: etiquetas al final de la línea de datos (nombreYDatos: «Vencida», «Hoy»); `der`: los botones de la fila.
+export function filaActividad(a, { cliente = true, asesor = '', der = null, marcas = null } = {}) {
 	const detalle = [cliente && a.clienteId ? h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente') : null,
 		a.fecha ? fechaHora(a.fecha) : 'Sin fecha', asesor || null].filter(Boolean);
 	return h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
 		iconoActividad(a.tipo),
-		h('div', { class: 'me-auto' },
-			h('div', { class: 'fw-semibold small' }, a.titulo || tipoActividad(a.tipo)[1]),
-			h('div', { class: 'small text-muted' }, detalle.map((x, i) => [i ? ' · ' : '', x]))),
-		der ? h('div', { class: 'd-flex align-items-center flex-shrink-0' }, der) : null);
+		h('div', { class: 'flex-grow-1', style: 'min-width:0' },
+			nombreYDatos(a.titulo || tipoActividad(a.tipo)[1], detalle.map((x, i) => [i ? ' · ' : '', x]), marcas ? [marcas] : [], { cls: 'small' })),
+		der ? h('div', { class: 'd-flex align-items-center gap-2 flex-shrink-0' }, der) : null);
 }
 
 export { telNorm };
@@ -81,7 +81,7 @@ export async function loadAcuerdos(casas) {
 	return Object.fromEntries(pares);
 }
 
-export const ms = (v) => toDate(v)?.getTime() || 0;
+export const ms = enMs;
 
 // Regla general de comisión (settings/crm): la de un inmueble sin comisión acordada y la de un negocio sin comisión propia.
 // La cuenta es una sola: comisionDe en admin/js/acuerdo.js.

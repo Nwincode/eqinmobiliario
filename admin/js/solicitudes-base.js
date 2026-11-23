@@ -17,7 +17,6 @@ import { avisarAvisos } from './avisos.js';
 const V = window.EQVacacional;
 export const ESTADOS = { pendiente: ['Sin responder', 'warning'], confirmada: ['Confirmada', 'success'], no: ['No se dio', 'secondary'], cancelada: ['Cancelada', 'danger'] };
 export const estado = (l) => l.solicitud?.estado || 'pendiente';
-export const fechas = fechasReserva;
 
 // Respuestas de un toque según el momento de la reserva: llenan el campo y se pueden ajustar antes de enviar. Sin datos
 // de la casa que cambian de una a otra, sin contacto y sin lo que se hace con un botón: disponibilidad, datos de pago y
@@ -104,7 +103,6 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 	const conChat = (x) => conDatosDelChat(x, datosChat[x.codigo]);
 	const debe = (x) => x?.estado === 'confirmada' && x.comision?.monto > 0 && !x.comision.pagada && (admin || V.cobrable(conChat(x), ahoraMora));
 	const moraDe = (x) => (x ? V.nivelMora(conChat(x), ahoraMora) : 0);
-	const porCobrar = (l) => estado(l) === 'confirmada' && debe(reservaDe(l));
 	// Cotizada por debajo del precio de la casa (montos congelados por el servidor): la confirma el administrador, va arriba.
 	const teToca = (l) => admin && estado(l) === 'pendiente' && bajoElPlan(congelados[l.id]) && !llegadaPasada(l.reserva.llegada, ahoraYa());
 	const alerta = (l) => V.alertaSolicitud(estado(l), ms(l.createdAt), l.reserva, reservaDe(l), casaDe(l.propertyId)?.vacacional?.bloqueos, Date.now());
@@ -122,6 +120,11 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 			subtotal: subtotalCotizado(c) },
 		solicitud: c.estado ? { estado: c.estado === 'pagada' ? 'confirmada' : c.estado } : undefined }; };
 	const leads = (admin ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : chatsSnap.docs.map(delChat)).filter((l) => l.reserva?.llegada);
+	// Lo que se debe a EQ, una sola lista para el aviso del socio, el número «Por cobrar» y el filtro «cobrar»: sale de las
+	// reservas, no de las solicitudes (una reserva sin chat, que el socio no ve como solicitud, también cuenta y se ve).
+	// La más atrasada primero; luego la que vence antes. `solicitudDe`: su solicitud, si quien mira la tiene.
+	const debidas = reservas.filter(debe).sort((a, b) => moraDe(b) - moraDe(a) || String(a.comision.vence).localeCompare(String(b.comision.vence)));
+	const solicitudDe = (res) => leads.find((l) => reservaDe(l) === res) || null;
 
 	// Posible repetida: el mismo cliente (correo o teléfono; el socio, que no los ve, por el nombre completo) con otra
 	// solicitud abierta de la misma casa en una semana. Se marca para no atenderla dos veces.
@@ -229,7 +232,7 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 		const distinto = !admin && cambioElPrecio(montos, hoyC) ? ` ${TEXTO_PRECIO_CAMBIO}: se registra lo que se le cotizó.` : '';
 		// Cotizado por debajo del precio de la casa: EQ conserva su margen completo y el socio recibe el resto (se dice).
 		if (admin && modo === 'cotizado' && bajoElPlan(montos)) nota += ' Se le cotizó menos que el precio de la casa: EQ conserva su margen completo y el socio recibe el resto.';
-		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechas(r)} quedan ocupadas en la web. ${admin ? 'Socio' : 'Tu parte'} ${money(m.costoSocio, mon)} · ganancia de EQ ${money(m.ganancia, mon)}, que se paga el día de llegada.${distinto}${nota}`, { okText: 'Confirmar reserva', danger: false }))) return;
+		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechasReserva(r)} quedan ocupadas en la web. ${admin ? 'Socio' : 'Tu parte'} ${money(m.costoSocio, mon)} · ganancia de EQ ${money(m.ganancia, mon)}, que se paga el día de llegada.${distinto}${nota}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
 				const confirmarYa = (revisado) => confirmarSolicitud(l, { ...m, moneda: montos.moneda }, { chat: chatDe(l), pago, revisado });
@@ -303,7 +306,7 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 
 	return {
 		admin, equipo, leads, chats, datosChat, refChat, chatDe, porResponder, conLlegada, ultimos, congelados, revisiones, casaDe, deHoy, reservas, propietarios, netos,
-		variosChats, reservaDe, puedeCancelar, puedeNoMeLlego, debe, moraDe, porCobrar, teToca, alerta, ocupada, yaOcupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe,
+		variosChats, reservaDe, puedeCancelar, puedeNoMeLlego, debe, debidas, solicitudDe, moraDe, teToca, alerta, ocupada, yaOcupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe,
 		pasada, sinConfirmar, puedeConfirmar, puedeNoSeDio, puedePagoRecibido, plazoDe, hacer,
 		confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar,
 		textoPlazo: (p) => (p?.sinPlazo ? 'Sin plazo automático (se confirmó a última hora): si no te paga, toca «No me llegó».' : p ? `Vence ${formatDate(new Date(p.vence))}: ${p.texto}.` : '')

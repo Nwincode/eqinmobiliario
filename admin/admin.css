@@ -1937,6 +1937,13 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-text);
 }
 
+/* Un aviso con su botón (Solicitudes, lo que debe el socio): en el celular el botón sigue al texto; desde tableta va a la
+   derecha, centrado, y no agranda una línea del texto. */
+@media (min-width: 768px) {
+	.aviso-linea { display: flex; align-items: center; gap: 8px; }
+	.aviso-linea > .btn { margin-left: auto !important; flex-shrink: 0; }
+}
+
 /* Botón con 44 px de toque (`btn-toque`) y botón solo de ícono (`btn-icono`, ui.js `iconoBtn`): de todo el panel. */
 .btn-toque {
 	min-height: 44px;
@@ -3527,7 +3534,11 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .fila-datos { display: flex; align-items: center; gap: 4px; min-width: 0; font-weight: 400; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; }
 .fila-datos-txt { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .fila-marcas { flex: none; display: inline-flex; gap: 4px; }
-.fila-marcas .badge { font-size: 11px; line-height: 14px; padding: 1px 6px; }
+.fila-marcas .badge, .fila-marcas .chip-falta { font-size: 11px; line-height: 14px; padding: 1px 6px; margin-top: 0; }
+/* `envuelve`: los datos piden 12em; si las marcas no caben al lado, bajan a la línea siguiente y parten entre ellas. */
+.fila-envuelve { flex-wrap: wrap; row-gap: 4px; }
+.fila-envuelve .fila-datos-txt { flex: 1 1 12em; }
+.fila-envuelve .fila-marcas { flex: 0 1 auto; flex-wrap: wrap; min-width: 0; align-items: center; }
 
 /* ---- Fila de casa (ficha-casa.js `filaCasa`, maqueta aprobada): la misma en todo el panel ----
    Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba

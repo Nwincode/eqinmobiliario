@@ -6,13 +6,13 @@
 // Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat; lo del socio, por el
 // servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
-import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, formatDate, hoy, dia, ahoraYa } from '../ui.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, nombreYDatos, formatDate, hoy, dia, ahoraYa } from '../ui.js';
 import { session } from '../session.js';
 import { comisionPagada, cobrarComision, ponerComprobante, estadoServidor } from '../reservas.js';
 import { cambioElPrecio, llegadaPasada, comprobanteVigente, conDatosDelChat, TEXTO_CONFIRMA_EQUIPO, conPlazo, venceRespuesta, TEXTO_PRECIO_CAMBIO, ultimoDelHistorial, diaQueConfirmo } from '../reservas-calculo.js';
-import { cargarSolicitudes, ESTADOS, estado, fechas } from '../solicitudes-base.js';
+import { cargarSolicitudes, ESTADOS, estado } from '../solicitudes-base.js';
 import { DIAS_CORTE } from '../permisos-socio.js';
-import { whatsappUrl, nNoches, sumarPorMoneda, dineroPorMoneda, correoValido } from '../formato.js';
+import { whatsappUrl, nNoches, sumarPorMoneda, dineroPorMoneda, correoValido, primerNombre, fechasReserva } from '../formato.js';
 import { uploadImage, renderForm } from '../form.js';
 import { money, ms, corregirCorreo, limpiarCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
@@ -30,8 +30,8 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 export async function render(container, [codigo] = []) {
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
 	const S = await cargarSolicitudes({ recargar: () => recargar() });
-	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, deHoy, reservas, propietarios, netos, variosChats,
-		reservaDe, puedeCancelar, puedeNoMeLlego, debe, moraDe, porCobrar, teToca, alerta, ocupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe, pasada, sinConfirmar,
+	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, deHoy, propietarios, netos, variosChats,
+		reservaDe, puedeCancelar, puedeNoMeLlego, debidas, solicitudDe, moraDe, teToca, alerta, ocupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe, pasada, sinConfirmar,
 		puedeConfirmar, puedePagoRecibido, hacer, confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar } = S;
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
 	// Cotizada por debajo del precio de la casa: la confirma el administrador, va arriba.
@@ -81,10 +81,10 @@ export async function render(container, [codigo] = []) {
 		await hacer(async () => { await cobrarComision(res); toast('Comisión por cobrar.'); });
 	}
 
-	async function pagada(l, res, nivel) {
-		if (!(await confirmDialog(`${l.reserva.codigo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
+	async function pagada(res, nivel, titulo) {
+		if (!(await confirmDialog(`${res.codigo || titulo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
-			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || l.propertyTitulo }, nivel);
+			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || titulo }, nivel);
 			toast('Ganancia de EQ pagada.');
 		});
 	}
@@ -120,7 +120,8 @@ export async function render(container, [codigo] = []) {
 		const avion = h('span', { class: 'icon-paper-plane me-1', 'aria-hidden': 'true' });
 		// Lo mismo que revisa el servidor: abierta (sin responder o confirmada) y su salida no ha pasado.
 		const reenvia = ['pendiente', 'confirmada'].includes(estado(l)) && l.reserva.salida >= hoy();
-		const guardar = h('button', { class: 'btn btn-primary text-start', onclick: async (e) => {
+		// Junto a «Cancelar», nunca en otra fila: ocupa lo que queda y la dirección parte dentro del botón (no se recorta: se lee entera).
+		const guardar = h('button', { class: 'btn btn-primary text-start', style: 'flex: 1 1 0; min-width: 0', onclick: async (e) => {
 			const boton = e.currentTarget;
 			if (!form.validate()) return;
 			boton.disabled = true;
@@ -144,6 +145,30 @@ export async function render(container, [codigo] = []) {
 		campo?.addEventListener('input', pintarBoton);
 		pintarBoton();
 		const m = modal({ title: `Correo · ${l.reserva.codigo}`, body: form.el, footer: [h('button', { class: 'btn btn-light', 'data-bs-dismiss': 'modal' }, 'Cancelar'), guardar] });
+	}
+
+	// La ganancia de EQ de una reserva: cuándo se paga y cómo va, y sus botones (ver y subir el comprobante; marcarla
+	// pagada). Lo mismo en la tarjeta de una solicitud y en la de una reserva sin solicitud (tarjetaReserva).
+	const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
+	const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
+	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
+		com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]);
+	const botonesComision = (com, res, nivel, titulo) => [
+		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
+		!com.pagada && !admin ? botonComprobante(com, res) : null,
+		!com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(res, nivel, titulo), 'money') : null];
+
+	// Una reserva que debe ganancia de EQ y no tiene solicitud que se vea (sin chat: el socio no la ve en la lista): la
+	// misma tarjeta, con lo de su ganancia y nada de lo que se responde en una solicitud.
+	function tarjetaReserva(res) {
+		const nivel = V.nivelMora(conDatosDelChat(res, datosChat[res.codigo]), Date.now());
+		return h('div', { class: 'card mb-2', dataset: { codigo: res.codigo || res.id } }, h('div', { class: 'card-body' },
+			nombreYDatos(res.huesped || 'Reserva sin chat', [res.codigo, res.propertyTitulo, admin && propietarios.find((p) => p.id === res.propietarioId)?.nombre].filter(Boolean).join(' · '),
+				[badge(...ESTADOS.confirmada)], { envuelve: true }),
+			h('div', {}, `${fechasReserva(res)} · ${nNoches(res.noches)}`),
+			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(res.comision.monto, res.moneda)}`),
+			lineaComision(res.comision, nivel),
+			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' }, botonesComision(res.comision, res, nivel, res.propertyTitulo))));
 	}
 
 	function tarjeta(l) {
@@ -171,29 +196,27 @@ export async function render(container, [codigo] = []) {
 		const com = res?.comision?.monto > 0 ? res.comision : null;
 		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
 		const nivel = com ? V.nivelMora(conDatosDelChat(res, ch), Date.now()) : 0;
-		const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
-		const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
-		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}` }, h('div', { class: 'card-body' },
-			h('div', { class: 'd-flex flex-wrap align-items-center gap-2' },
-				h('strong', {}, r.codigo), h('span', {}, admin ? l.nombre : String(l.nombre || '').trim().split(/\s+/)[0]), badge(...ESTADOS[est]),
-				evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
-				yaOcupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
-				cruce ? badge(`Se cruza con otra solicitud: ${cruce}`, 'warning') : null,
-				teToca(l) ? badge('Te toca confirmar', 'danger') : null,
-				yaPaso ? badge('La fecha de llegada ya pasó', 'warning') : null,
-				((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
-				porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
-				datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
-				est === 'confirmada' && ch?.estado === 'confirmada' && comprobanteVigente(ch) ? badge('Cliente subió comprobante', 'info') : null,
-				est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
-				cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null,
-				h('span', { class: `ms-auto small ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
-			h('div', { class: 'small text-muted' }, [l.propertyTitulo, netos[l.propertyId]?.codigoSocio && `Código del socio: ${netos[l.propertyId].codigoSocio}`, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · ')),
-			h('div', {}, `${fechas(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
+		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}`, dataset: { codigo: r.codigo } }, h('div', { class: 'card-body' },
+			// El nombre solo en su línea; el código, la casa y el socio en la de datos, con las etiquetas al final (nombreYDatos).
+			nombreYDatos((admin ? l.nombre : primerNombre(l.nombre)) || '(sin nombre)',
+				[r.codigo, l.propertyTitulo, netos[l.propertyId]?.codigoSocio && `Código del socio: ${netos[l.propertyId].codigoSocio}`, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · '),
+				[badge(...ESTADOS[est]),
+					evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
+					yaOcupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
+					cruce ? badge(`Se cruza con otra solicitud: ${cruce}`, 'warning') : null,
+					teToca(l) ? badge('Te toca confirmar', 'danger') : null,
+					yaPaso ? badge('La fecha de llegada ya pasó', 'warning') : null,
+					((x) => (x ? badge(`Posible repetida de ${x}`, 'warning') : null))(repetidaDe(l)),
+					porResponder.has(r.codigo) ? badge('Mensaje sin responder', 'info') : null,
+					datosChat[r.codigo]?.estado === 'pagada' ? badge('Pago recibido', 'success') : null,
+					est === 'confirmada' && ch?.estado === 'confirmada' && comprobanteVigente(ch) ? badge('Cliente subió comprobante', 'info') : null,
+					est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
+					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null,
+					h('span', { class: tarde ? 'text-danger' : '' }, hace(ms(l.createdAt)))], { envuelve: true }),
+			h('div', {}, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
-			com ? h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
-				com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]) : null,
+			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
 			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
 			// Una foto que la revisión ocultó (no es un comprobante o trae un contacto): el socio no ve lo leído, solo que el equipo
@@ -215,17 +238,15 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
 				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.
 				!admin ? (equipo ? iconoBtn('icon-whatsapp', `WhatsApp a ${equipo.nombre}`, { href: whatsappUrl(equipo.whatsapp,
-					`Hola, soy ${session.dueno?.nombre || session.profile?.nombre || 'el socio'}. Te escribo por la solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`), target: '_blank', rel: 'noopener' }) : null)
+					`Hola, soy ${session.dueno?.nombre || session.profile?.nombre || 'el socio'}. Te escribo por la solicitud ${r.codigo} de ${l.propertyTitulo} (${fechasReserva(r)}).`), target: '_blank', rel: 'noopener' }) : null)
 					: est === 'no'
-					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechas(r)}?`)
-					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechas(r)}).`),
+					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechasReserva(r)}?`)
+					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechasReserva(r)}).`),
 				// La conversación vive en Mensajes (una sola: el hilo con sus acciones).
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }) : null,
 				est === 'pendiente' && deHoy(l.propertyId) ? [puedeConfirmar(l) ? boton('Confirmar', 'btn-primary', () => confirmar(l), 'check') : null, boton('No se dio', puedeConfirmar(l) ? 'btn-outline-secondary' : 'btn-primary', () => noSeDio(l, yaOcupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				puedePagoRecibido(l) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
-				com?.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
-				com && !com.pagada && !admin ? botonComprobante(com, res) : null,
-				com && !com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(l, res, nivel), 'money') : null,
+				com ? botonesComision(com, res, nivel, l.propertyTitulo) : null,
 				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada, ahoraYa()) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
 				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
 				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
@@ -242,9 +263,14 @@ export async function render(container, [codigo] = []) {
 	const lista = h('div', {});
 	const filtro = { socio: '', estado: codigo === 'cobrar' ? 'cobrar' : '' };
 	const pintar = vista.pintar = () => {
-		const ver = leads.filter((l) => (!filtro.socio || l.propietarioId === filtro.socio) && (!filtro.estado || (filtro.estado === 'cobrar' ? porCobrar(l) : filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
-		// Por cobrar: primero la más atrasada; luego la que vence antes.
-		if (filtro.estado === 'cobrar') ver.sort((a, b) => moraDe(reservaDe(b)) - moraDe(reservaDe(a)) || String(reservaDe(a).comision.vence).localeCompare(String(reservaDe(b).comision.vence)));
+		const delSocio = (x) => !filtro.socio || x.propietarioId === filtro.socio;
+		// Por cobrar: las mismas reservas que suma el aviso (debidas, la más atrasada primero), cada una con su solicitud si
+		// se ve; sin ella, con la tarjeta de la reserva.
+		if (filtro.estado === 'cobrar') {
+			const deber = debidas.filter(delSocio);
+			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay ganancia de EQ por cobrar.'));
+		}
+		const ver = leads.filter((l) => delSocio(l) && (!filtro.estado || (filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
 	};
 	pintar();
@@ -253,18 +279,14 @@ export async function render(container, [codigo] = []) {
 	const elegir = (campo, titulo, opciones) => h('select', {
 		class: 'form-select form-select-sm w-auto', 'aria-label': titulo, onchange: (e) => { filtro[campo] = e.target.value; pintar(); }
 	}, h('option', { value: '' }, titulo), opciones.map(([v, t]) => h('option', { value: v, selected: filtro[campo] === v }, t)));
-	const total = {};
-	reservas.filter((r) => r.estado === 'confirmada' && r.comision && !r.comision.pagada)
-		.forEach((r) => { total[r.moneda] = (total[r.moneda] || 0) + r.comision.monto; });
+	// Lo que se debe, por moneda (nunca se suman Q y US$), siempre en el mismo orden: el aviso del socio y «Por cobrar».
+	const suma = (l) => dineroPorMoneda(Object.fromEntries(Object.entries(sumarPorMoneda(l, (r) => r.comision.monto, (r) => r.moneda || r.comision.moneda)).sort(([a], [b]) => b.localeCompare(a))));
 	// Aviso al socio: cuánto debe a EQ (por moneda: nunca se suman Q y US$), cuánto con atraso y lo que ya le pasa por eso,
 	// con el botón que deja solo esas reservas (y el que vuelve a todas). Sin atraso, una línea sin rojo.
 	const avisoDeuda = (() => {
 		if (admin) return null;
-		const debidas = reservas.filter(debe);
 		if (!debidas.length) return null;
 		const peor = Math.max(...debidas.map(moraDe));
-		// Las monedas siempre en el mismo orden (el total y lo atrasado se leen igual).
-		const suma = (l) => dineroPorMoneda(Object.fromEntries(Object.entries(sumarPorMoneda(l, (r) => r.comision.monto, (r) => r.moneda || r.comision.moneda)).sort(([a], [b]) => b.localeCompare(a))));
 		const todo = suma(debidas), atrasado = suma(debidas.filter((r) => moraDe(r) >= 1));
 		const deuda = `Debes a EQ ${todo}${!peor ? '' : atrasado === todo ? ', con atraso' : ` (con atraso: ${atrasado})`}`;
 		const texto = peor === 3 ? `${deuda}. Con más de 72 horas de atraso, tus casas salieron del sitio hasta que EQ lo marque pagado.`
@@ -272,14 +294,15 @@ export async function render(container, [codigo] = []) {
 			: peor === 1 ? `${deuda}. A las 24 horas de atraso, los clientes de tus casas le escriben a EQ.`
 			: `${deuda}: se paga el ${dia(debidas.map((r) => r.comision.vence).sort()[0])}.`;
 		const ver = filtro.estado === 'cobrar'
-			? h('a', { class: 'cot-btn btn btn-sm btn-outline-secondary', href: '#/solicitudes' }, h('span', { class: 'icon-list me-1', 'aria-hidden': 'true' }), 'Ver todas')
-			: h('a', { class: 'cot-btn btn btn-sm btn-outline-primary', href: '#/solicitudes/cobrar' }, h('span', { class: 'icon-money me-1', 'aria-hidden': 'true' }), 'Ver lo que debo');
-		// Sin atraso, una línea con el botón a la derecha; con atraso, el botón sigue al texto (en el celular no le quita ancho).
+			? h('a', { class: 'btn-toque btn btn-sm btn-outline-secondary', href: '#/solicitudes' }, h('span', { class: 'icon-list me-1', 'aria-hidden': 'true' }), 'Ver todas')
+			: h('a', { class: 'btn-toque btn btn-sm btn-outline-primary', href: '#/solicitudes/cobrar' }, h('span', { class: 'icon-money me-1', 'aria-hidden': 'true' }), 'Ver lo que debo');
+		// Sin atraso, una línea con el botón a la derecha; con atraso, en el celular el botón sigue al texto (no le quita
+		// ancho) y desde tableta va a la derecha (aviso-linea: no agranda una línea del texto).
 		if (!peor) return h('div', { class: 'd-flex align-items-center gap-2 small text-muted mb-3' }, h('span', { class: 'icon-money', 'aria-hidden': 'true' }),
 			h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto), h('span', { class: 'flex-shrink-0' }, ver));
 		ver.classList.add('ms-1', 'align-middle');
-		return h('div', { class: `d-flex gap-2 alert ${peor >= 2 ? 'alert-danger' : 'alert-warning'}`, role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1', 'aria-hidden': 'true' }),
-			h('span', { class: 'flex-grow-1', style: 'min-width:0' }, texto, ' ', ver));
+		return h('div', { class: `d-flex align-items-md-center gap-2 alert ${peor >= 2 ? 'alert-danger' : 'alert-warning'}`, role: 'alert' }, h('span', { class: 'icon-exclamation-triangle mt-1 mt-md-0', 'aria-hidden': 'true' }),
+			h('span', { class: 'aviso-linea flex-grow-1', style: 'min-width:0' }, h('span', {}, texto), ' ', ver));
 	})();
 	const conSolicitud = propietarios.filter((p) => leads.some((l) => l.propietarioId === p.id));
 
@@ -321,7 +344,7 @@ export async function render(container, [codigo] = []) {
 			h('div', { class: 'row g-2 mb-3' },
 				numero('icon-clock-o', leads.filter((l) => estado(l) === 'pendiente').length, 'Sin responder'),
 				numero('icon-check', leads.filter((l) => estado(l) === 'confirmada' && diaQueConfirmo(l.solicitud.historial).startsWith(hoy().slice(0, 7))).length, 'Confirmadas'),
-				numero('icon-money', Object.entries(total).map(([m, n]) => money(V.r2(n), m)).join(' · ') || '—', 'Por cobrar')),
+				numero('icon-money', suma(debidas) || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
 				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Ganancia de EQ por cobrar'], ['alerta', 'Con alerta']]))
