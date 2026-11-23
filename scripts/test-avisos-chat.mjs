@@ -1,7 +1,8 @@
 // Pruebas de los avisos por correo del chat de la reserva (netlify/lib/avisos-chat.mjs). Sin dependencias.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { avisosChat, sinResponder } from '../netlify/lib/avisos-chat.mjs';
+import { avisosChat, sinResponder, contactoPartido } from '../netlify/lib/avisos-chat.mjs';
+import '../js/calc-vacacional.js';
 import { puedeApartar, EN_CURSO } from '../netlify/lib/aviso-chat-envio.mjs';
 
 const AHORA = Date.parse('2026-11-13T12:00:00Z');
@@ -212,4 +213,30 @@ test('el reintento de cada hora no manda otra vez un aviso que otra llamada est�
 	assert.equal(puedeApartar({ avisoEnviado: 'm1' }, 'm1', false, t), false);
 	assert.equal(puedeApartar({ avisoEnviado: 'm0' }, 'm1', false, t), true);
 });
+// Un contacto partido en varios mensajes (contactoPartido): con el filtro de verdad (js/calc-vacacional.js).
+{
+	const V = globalThis.EQVacacional;
+	const p = (lista) => contactoPartido(lista.map(([de, texto, min, tipo], i) => ({ id: `m${i}`, de, texto, createdAt: hace(min), ...(tipo ? { tipo } : {}) })), V.tieneContacto, V.tipoDeContacto);
+	test('contacto partido: «5555» y luego «1234» del mismo autor, en 10 minutos, se avisa', () => {
+		assert.deepEqual(p([['cliente', 'mi número es 5555', 3], ['socio', '¿cómo?', 2], ['cliente', '1234', 1]]), { de: 'cliente', ids: ['m0', 'm2'], tipo: 'telefono' });
+		assert.equal(p([['socio', 'cinco cinco cinco cinco', 2], ['socio', 'zero five five five', 1]])?.tipo, 'telefono');
+		assert.equal(p([['cliente', 'mi usuario de', 3], ['cliente', 'ig es', 2], ['cliente', 'juanlago', 1]])?.tipo, 'red');
+		assert.equal(p([['cliente', 'cincuenta y cinco cincuenta y cinco', 2], ['cliente', 'cuatro mil ochocientos cuarenta y dos', 1]])?.tipo, 'telefono');
+	});
+	test('contacto partido: no se avisa con mensajes normales de una reserva, de otro autor, fuera de los 10 minutos, del equipo o con tipo', () => {
+		assert.equal(p([['cliente', 'llegamos a las 3', 3], ['cliente', 'somos 4 adultos', 2], ['cliente', 'mil gracias', 1]]), null);
+		assert.equal(p([['cliente', 'el 25 de diciembre', 3], ['cliente', 'Son Q1,500 por noche', 2], ['cliente', 'y 350 de limpieza', 1]]), null);
+		assert.equal(p([['cliente', 'Pagué 2500', 2], ['cliente', 'el resto, 1500, al llegar', 1]]), null);
+		assert.equal(p([['cliente', '5555', 3], ['socio', '1234', 1]]), null);
+		assert.equal(p([['cliente', '5555', 15], ['cliente', '1234', 1]]), null);
+		assert.equal(p([['equipo', '5555', 3], ['equipo', '1234', 1]]), null);
+		assert.equal(p([['cliente', '5555', 3], ['cliente', 'https://firebasestorage.googleapis.com/1234', 1, 'foto']]), null);
+	});
+	test('contacto partido: lo ya avisado no se vuelve a avisar con el mensaje que sigue (solo cuenta el que lo completa)', () => {
+		assert.equal(p([['cliente', '5555', 3], ['cliente', '1234', 2], ['cliente', 'gracias', 1]]), null);
+		// Solo los últimos 3: el primero ya no cuenta.
+		assert.equal(p([['cliente', '5555', 4], ['cliente', 'hola', 3], ['cliente', 'qué tal', 2], ['cliente', '1234', 1]]), null);
+	});
+}
+
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

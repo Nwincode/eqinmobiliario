@@ -21,6 +21,23 @@ export function sinResponder(mensajes, { ahora, plazo, ventana }) {
 	return vence > ahora - ventana && vence <= ahora;
 }
 
+// Un contacto partido en varios mensajes («5555» y luego «1234»): cada uno pasó el filtro (V.tieneContacto), juntos no.
+// Se juntan los últimos JUNTOS mensajes de texto del autor del último (de los JUNTOS_VENTANA anteriores a él) y se pasan por
+// el mismo filtro; solo cuenta si el último es el que lo completa (sin él no salta): así lo que ya se avisó no se vuelve a
+// avisar con cada mensaje nuevo. Nada se bloquea después: el equipo recibe un aviso y revisa. Devuelve { de, ids, tipo } o
+// null. Sin el equipo (sus mensajes no se revisan) ni mensajes con tipo (foto, pago, llegada: no son texto libre).
+export const JUNTOS = 3, JUNTOS_VENTANA = 10 * 60_000;
+export function contactoPartido(mensajes, tieneContacto, tipoDeContacto) {
+	const textos = mensajes.filter((m) => m && !m.tipo && typeof m.texto === 'string').sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
+	const ultimo = textos.at(-1);
+	if (!ultimo || ultimo.de === 'equipo') return null;
+	const suyos = textos.filter((m) => m.de === ultimo.de && ms(ultimo.createdAt) - ms(m.createdAt) <= JUNTOS_VENTANA).slice(-JUNTOS);
+	if (suyos.length < 2) return null;
+	const unido = suyos.map((m) => m.texto).join(' ');
+	if (!tieneContacto(unido) || tieneContacto(suyos.slice(0, -1).map((m) => m.texto).join(' '))) return null;
+	return { de: ultimo.de, ids: suyos.map((m) => m.id), tipo: tipoDeContacto(unido) };
+}
+
 // El título de la casa sale de la casa guardada (en inglés si el cliente escribe en inglés), nunca del chat.
 export const tituloDe = (chat, casa) => String((chat.idioma === 'en' && casa?.en?.titulo) || casa?.titulo || '').slice(0, 200);
 

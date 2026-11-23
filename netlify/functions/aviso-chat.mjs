@@ -11,7 +11,7 @@ import { datosConfigurados, leerPublico, leerPrivado } from '../lib/firestore.mj
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
 import { congelarMontos, cerrarSiSeCruza, cerrarLasQueSeCruzan } from '../lib/reservas-servidor.mjs';
 import { purgarCasa } from '../lib/ocupacion.mjs';
-import { enviarAvisosChat, avisarQueTocaConfirmar } from '../lib/aviso-chat-envio.mjs';
+import { enviarAvisosChat, avisarQueTocaConfirmar, avisarContactoPartido } from '../lib/aviso-chat-envio.mjs';
 import { limitadorDurable, ipDe } from '../lib/limite.mjs';
 import { revisarComprobante } from '../lib/comprobantes.mjs';
 import { traducirChat } from '../lib/traducciones.mjs';
@@ -63,6 +63,12 @@ export default async (req, context) => {
 	if (chat) {
 		const traduccion = traducirChat(token).catch((err) => console.error('Traducción del chat:', err.message));
 		if (context?.waitUntil) context.waitUntil(traduccion); else await traduccion;
+	}
+	// Un teléfono o un usuario partido en varios mensajes (cada uno pasó el filtro): se le avisa al equipo, después de
+	// responder (aviso-chat-envio.mjs avisarContactoPartido). Nada se bloquea después.
+	if (chat) {
+		const partido = avisarContactoPartido(token).catch((err) => console.error('Contacto partido:', err.message));
+		if (context?.waitUntil) context.waitUntil(partido); else await partido;
 	}
 	if (!servicioCorreo()) return json(200, { enviado: false, motivo: 'Correo no configurado' });
 	try {

@@ -11,11 +11,13 @@
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, conUrgente, coloresCorreo, SITE_URL } from './correo.mjs';
-import { avisosChat } from './avisos-chat.mjs';
+import '../../js/calc-vacacional.js';
+import { avisosChat, contactoPartido } from './avisos-chat.mjs';
 import { quitarRebote } from './rebotes.mjs';
 import { limitadorDurable } from './limite.mjs';
 import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
+import { PARECE } from '../../admin/js/mi-casa.js';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
 export async function enviarAvisosChat(token, { repaso = false, reintento = false } = {}) {
@@ -125,6 +127,37 @@ export async function avisarQueTocaConfirmar(token) {
 		await transaccion(async ({ cambiar }) => cambiar(`chats/${token}`, { teTocaPendiente: true })).catch(() => {});
 		throw err;
 	}
+}
+
+// Un contacto partido en varios mensajes (avisos-chat.mjs contactoPartido): un correo al equipo para que revise la
+// conversación; no se bloquea nada después. Se aparta en alertas/contacto-{token} (solo la cuenta de escritura: sin `match`
+// en las reglas) por el id del último mensaje: dos llamadas a /api/aviso-chat no lo mandan dos veces; a lo más
+// TOPE_CONTACTO por chat. Lo llama /api/aviso-chat después de responder; si falla, solo se anota en el registro.
+const V = globalThis.EQVacacional;
+export const TOPE_CONTACTO = 10;
+export async function avisarContactoPartido(token) {
+	if (!servicioCorreo() || !destinatariosEquipo().length || !escrituraConfigurada()) return false;
+	const [chat, mensajes] = await Promise.all([leerPublico(`chats/${token}`), listar(`chats/${token}/mensajes`)]);
+	const hallado = chat && contactoPartido(mensajes, V.tieneContacto, V.tipoDeContacto);
+	if (!hallado) return false;
+	const ruta = `alertas/contacto-${token}`, ultimo = hallado.ids.at(-1);
+	const toca = await transaccion(async ({ leer, crear, cambiar }) => {
+		const prev = await leer(ruta);
+		if (prev?.ultimo === ultimo || (Number(prev?.n) || 0) >= TOPE_CONTACTO) return false;
+		const datosAlerta = { ultimo, n: (Number(prev?.n) || 0) + 1, de: hallado.de, codigo: String(chat.codigo || '') };
+		if (prev) cambiar(ruta, datosAlerta, { ahora: ['cuando'] }); else crear(ruta, datosAlerta, { ahora: ['cuando'] });
+		return true;
+	// Chocó con otra llamada a la vez: la que ganó lo manda. Otra falla, al registro.
+	}).catch((err) => { if (err.codigo !== 'ALREADY_EXISTS') console.error('Contacto partido (apartar):', err.message); return false; });
+	if (!toca) return false;
+	const quien = hallado.de === 'cliente' ? 'El cliente' : 'El socio';
+	const intro = `${quien} escribió en ${hallado.ids.length} mensajes seguidos algo que, junto, ${PARECE[hallado.tipo] || 'parece un contacto'}. Ya se enviaron: revisa la conversación.`;
+	const url = `${SITE_URL}/admin/#/mensajes/${encodeURIComponent(chat.codigo || '')}`;
+	const filas = [['Solicitud', chat.codigo || ''], ['Casa', chat.propertyTitulo || '']].filter((f) => f[1]);
+	const html = await plantilla({ titulo: 'Posible contacto en el chat', intro: esc(intro), preheader: intro, lang: 'es',
+		bloques: (c) => datos(c, filas) + boton(c, 'Abrir la conversación', url, c.primary, { ancho: true }) });
+	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Posible contacto en el chat: ${chat.codigo || ''}`.trim(), html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
+	return true;
 }
 
 // El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide). Dos casos:
