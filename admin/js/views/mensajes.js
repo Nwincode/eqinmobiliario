@@ -36,7 +36,9 @@ function filaDe(S, l) {
 	const ultimo = S.ultimos[cod] || null;
 	const yo = S.admin ? 'equipo' : 'socio';
 	const visto = enMs(chat[S.admin ? 'vistoEquipo' : 'vistoSocio']);
-	const abierta = !['no', 'cancelada'].includes(chat.estado || '');
+	// Sin responder: lo último lo escribió el cliente, en una reserva abierta que no terminó hace más de 7 días (lo mismo
+	// que cuenta la campana y el número del menú: admin/js/avisos.js sinResponder).
+	const abierta = !['no', 'cancelada'].includes(chat.estado || '') && String(chat.salida || '') >= V.sumarDias(V.hoy(), -7);
 	const sinResponder = abierta && S.porResponder.has(cod);
 	// El plazo para responder, o «Subió comprobante».
 	const p = estado(l) === 'pendiente' && !chat.estado ? S.plazoDe(l) : null;

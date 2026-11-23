@@ -126,7 +126,8 @@ export function cargarAvisos(forzar = false) {
 	if (!forzar && ultimo.promesa && Date.now() - ultimo.ts < 120000) return ultimo.promesa;
 	const promesa = leerFuentes().then(async (f) => {
 		const { hechos, puede } = await atendidos(clavesPorRevisar(f));
-		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede, fallas: f.fallas || [] };
+		// Las conversaciones donde lo último lo escribió el cliente: el número de «Mensajes» en el menú (la misma lectura).
+		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede, fallas: f.fallas || [], sinResponder: (f.mensajes || []).length };
 	});
 	ultimo = { ts: Date.now(), promesa };
 	promesa.catch(() => { ultimo = { ts: 0, promesa: null }; });
@@ -174,6 +175,14 @@ export function fila(a, puedeListo, alIr) {
 
 const contar = (n) => (n === 1 ? '1 aviso' : `${n} avisos`);
 
+// El número de «Mensajes» del menú: conversaciones sin responder (lo cuenta la misma lectura de la campana).
+function numeroMensajes(n) {
+	const a = document.querySelector('.admin-nav a[data-route="mensajes"]');
+	if (!a) return;
+	a.querySelector('.nav-aviso')?.remove();
+	if (n) a.append(h('span', { class: 'nav-aviso', title: `${n} sin responder` }, h('span', { 'aria-hidden': 'true' }, String(n > 99 ? '99+' : n)), h('span', { class: 'visually-hidden' }, ` (${n} sin responder)`)));
+}
+
 // La campana en pantalla (una por sesión del panel; al volver a entrar se pinta otra y esta queda sin uso).
 let actual = null;
 window.addEventListener('hashchange', () => { actual?.menu.hide(); actual?.actualizar(false); });
@@ -201,6 +210,7 @@ export function campana() {
 		avisos.length ? h('ul', { class: 'avisos-filas' }, avisos.map((a) => fila(a, puedeListo, () => menu.hide())))
 			: fallas.length ? null : h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.')].filter(Boolean));
 	const pintar = (datos) => {
+		numeroMensajes(datos.sinResponder || 0);
 		const n = datos.avisos.length;
 		numero.hidden = !n;
 		numero.textContent = String(n > 99 ? '99+' : n);
