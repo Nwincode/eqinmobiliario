@@ -2056,7 +2056,7 @@ const duenos = [];
 	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Ganancia de EQ \(se la pagas\) (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
 	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a EQ ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
 	const codigosSC = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
-	const conSinChat = await socio.p.locator('.admin-main .card.mb-2', { hasText: 'Huésped sin chat' }).count();
+	const conSinChat = await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]', { hasText: 'Huésped' }).count();
 	const lado = await socio.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-chat-390.png`, fullPage: true });
 	paso('Una reserva sin chat que debe ganancia de EQ sale en «Ver lo que debo» con su tarjeta, y el total del aviso cuadra con la lista (US$ y Q por separado)',
