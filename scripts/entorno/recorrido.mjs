@@ -1503,8 +1503,8 @@ const duenos = [];
 	// b) Entra y ve sus dos casas.
 	duenos.push(['dueña mixta', mixta]);
 	const menu = await mixta.p.locator('.admin-nav a').allInnerTexts();
-	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades y Solicitudes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
-		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.length === 2, menu.join(', '));
+	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades, Solicitudes y Mensajes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
+		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.join('|').includes('Mensajes') && menu.length === 3, menu.join(', '));
 	await ir(mixta.p, '#/mis-casas', 3000);
 	const listaMixta = await mixta.p.locator('.admin-main').innerText();
 	paso('«Mis propiedades» muestra su casa en venta y su casa por noche, sin notas internas', /Residencial San Antonio/.test(listaMixta) && /Casa por noche de la dueña mixta/.test(listaMixta) && !/NOTA INTERNA/.test(listaMixta));
@@ -1578,9 +1578,9 @@ const duenos = [];
 		const m = await import('/admin/js/firebase.js');
 		return m.getDocs(m.query(m.collection(m.db, 'portalPropietarios'), m.where('propietarioId', '==', 'dueno-mixto'))).then(() => 'leyó', (e) => e.code);
 	});
-	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes) y no lee el resumen de otra persona',
+	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes ni Mensajes) y no lee el resumen de otra persona',
 		(await colab.p.locator('.admin-user-role').innerText()) === 'Colaborador' && /Jardines de Mirabel/.test(deColab) && !/San Antonio|dueña mixta/.test(deColab)
-		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
+		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && await colab.p.locator('.admin-nav a', { hasText: 'Mensajes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
 	// g) El asesor (no lee los usuarios) ve si entra, también después de guardar la ficha; quitar el acceso cierra la entrada.
 	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
 	await guardar(admin.p);
@@ -2077,6 +2077,9 @@ const duenos = [];
 	await abrir(otra);
 	const antesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
 	await admin.p.locator('.modal.show input[type=email]').fill('marta.uno@example.com');
+	// Si el botón no ofrece reenviar, se dice qué muestra la ventana (en vez de esperar 30 s y cortar el recorrido).
+	if (!(await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).count())) paso('La ventana del correo ofrece «Guardar y reenviar a»', false,
+		`${(await admin.p.locator('.modal.show').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)} · tarjeta: ${(await admin.p.locator('.card', { hasText: codigo3 }).first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)}`);
 	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
 	await espera(3500);
 	await otra.locator('.modal.show input[type=email]').fill('marta.dos@example.co.uk');
