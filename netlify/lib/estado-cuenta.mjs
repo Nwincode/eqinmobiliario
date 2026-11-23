@@ -26,7 +26,7 @@ const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 // Una reserva: la casa, sus fechas, el monto de la comisión y cómo va (lista() de correo.mjs; en el texto plano, una
 // línea: «Casa Lago · 5 – 7 oct: US$ 30.50 · vencida»).
 const fila = (x, anio) => ({ nombre: x.reserva.propertyTitulo || x.reserva.codigo || 'Reserva', detalle: rango({ desde: x.reserva.llegada, hasta: x.reserva.salida }, anio),
-	monto: dinero(x.monto, x.moneda), estado: x.estado });
+	monto: dinero(x.monto, x.moneda), estado: x.estado, alerta: x.estado === 'vencida' });
 
 // El correo de un socio (cuenta: estadoDeCuenta). Devuelve { asunto, html, texto }.
 export async function correoDeCuenta(socio, cuenta) {

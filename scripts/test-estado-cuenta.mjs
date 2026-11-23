@@ -157,6 +157,18 @@ await t('si el correo falla, queda suelto y sale en la vuelta del día 2', async
 	assert.equal(await mandarEstadosDeCuenta(S.reloj + 86_400_000), 1);
 });
 
+await t('«vencida» en el rojo del tema (Contenido → Colores) y en seminegrita; se lee sobre blanco', async () => {
+	// La pieza real (con «?real» el cargador de scripts/simulado no la cambia).
+	const { lista } = await import('../netlify/lib/correo.mjs?real');
+	const { colorTema, contraste } = await import('../admin/js/tema-def.js');
+	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: colorTema({}, 'danger') };
+	const html = lista(c, [{ nombre: 'Casa', detalle: '5 – 7 oct', monto: 'US$ 1.00', estado: 'vencida', alerta: true }, { nombre: 'Casa', detalle: '8 – 9 oct', monto: 'US$ 1.00', estado: 'pagada' }]);
+	assert.match(html, /color:#b42318;font-weight:600">vencida</);
+	assert.doesNotMatch(html, /#b42318;font-weight:600">pagada/);
+	assert.ok(contraste(c.danger, '#ffffff') >= 4.5, 'contraste ≥ 4.5 sobre blanco');
+	assert.equal(colorTema({ danger: '#a00000' }, 'danger'), '#a00000', 'lo toma de Contenido → Colores');
+});
+
 // ---------------------------------------------------------------- A mano, desde el panel
 const pedir = (cuerpo) => panel(new Request('https://eqinmobiliario.gt/api/estado-cuenta', { method: 'POST', body: JSON.stringify(cuerpo) }));
 const ADMIN = { uid: 'u-admin', nombre: 'Admin', admin: true };
