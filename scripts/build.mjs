@@ -631,7 +631,9 @@ async function main() {
 	};
 	const freno = await frenoDelCatalogo(data.source, deCatalogo, { produccion: isProduction });
 	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
-	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
+	// «Tu reserva» existe mientras haya alguna casa por noche, aunque ninguna se ofrezca hoy (pausa por mora, oculta): sus
+	// clientes con reserva siguen entrando a su chat.
+	const hayVacacional = todas.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
 	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');

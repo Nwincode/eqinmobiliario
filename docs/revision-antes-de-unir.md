@@ -65,6 +65,7 @@ agrega aquí en el mismo cambio que lo corrige.
 
 | Error que pasó | Revisión |
 |---|---|
+| Con todas las casas por noche fuera del sitio (el socio en mora más de 72 h, o pausadas), el build no escribía «Tu reserva» (`/reserva/`, `/en/reservation/`): los clientes con reserva veían «Página no encontrada» en su enlace. | Una página que usan quienes ya tienen algo (su reserva, su enlace) depende de que exista el registro, no de que hoy se ofrezca: `hayVacacional` cuenta todas las casas por noche (`scripts/build.mjs`). |
 | (Unión de chat-nuevo, mejoras-ad y unificar-piezas) El aviso «Debes a EQ» sumaba una reserva sin chat (el socio no la ve como solicitud) y «Ver lo que debo» no la mostraba: el total y la lista salían de dos filtros distintos (reservas y solicitudes), y «Por cobrar» del administrador de un tercero. | Un total y la lista que lo explica salen de la misma función (`debidas` en `admin/js/solicitudes-base.js`); lo que no tiene su fila de siempre se pinta con la misma tarjeta (`tarjetaReserva`). El recorrido suma la lista por moneda y la compara con el aviso. |
 | El WhatsApp del socio se podía leer sin llenar el formulario. | Para cada dato que se guarda o se devuelve: ¿quién lo puede leer? Incluye a quien no tiene sesión. |
 | Cualquiera podía listar los archivos de Storage (y con eso, las llaves de las reservas). | Leer uno y **listar** son permisos distintos: revisar los dos. |
