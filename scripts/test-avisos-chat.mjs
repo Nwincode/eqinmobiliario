@@ -171,6 +171,8 @@ test('«No me llegó» antes de la llegada: al cliente, con el plazo nuevo, y el
 	const a = avisos([m('socio', 60, 'pago'), { de: 'socio', tipo: 'reabierto', texto: 'El anfitrión todavía no ve tu pago…', createdAt: hace(0) }], { estado: 'confirmada' });
 	assert.deepEqual(a.map((x) => x.para), [['equipo@example.com'], ['ana@example.com']]);
 	assert.match(a[0].asunto, /no le llegó el pago/);
+	assert.ok(a[0].intro.includes(a[0].urgente) && a[0].urgente === 'el socio dice que no le llegó', 'lo urgente está en el texto');
+	assert.equal(a[1].urgente, undefined, 'al cliente, nada en rojo');
 	assert.match(a[1].intro, /todavía no ve tu pago/);
 });
 test('el socio cancela con el comprobante del cliente: el correo al equipo lo dice', () => {
@@ -178,6 +180,8 @@ test('el socio cancela con el comprobante del cliente: el correo al equipo lo di
 	assert.match(a[0].asunto, /con comprobante del cliente/);
 	const sin = avisos([m('socio', 60, 'pago'), { de: 'socio', texto: 'La reserva se canceló.', createdAt: hace(0) }], { estado: 'cancelada' });
 	assert.doesNotMatch(sin[0].asunto, /comprobante/);
+	assert.ok(a[0].intro.includes(a[0].urgente) && /comprobante/.test(a[0].urgente), 'con comprobante, eso va en rojo');
+	assert.ok(sin[0].intro.includes(sin[0].urgente) && /Revisa que el cliente no haya pagado/.test(sin[0].urgente));
 });
 test('una solicitud repetida se cierra sin correo (aunque alguien llame /api/aviso-chat)', () => {
 	assert.deepEqual(avisos([{ de: 'equipo', texto: 'Esta solicitud estaba repetida…', silencioso: true, createdAt: hace(0) }], { estado: 'no' }), []);

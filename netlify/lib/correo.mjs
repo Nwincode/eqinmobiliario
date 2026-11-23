@@ -108,12 +108,23 @@ ${whatsapp ? `<p style="margin:22px 0 0;padding:18px 0 0;border-top:1px solid ${
 </td></tr></table></body></html>`;
 }
 
+// Lo urgente de un correo (una comisión vencida, «no le llegó», desde cuándo algo no funciona): solo esa palabra o ese
+// dato, en el rojo del tema (c.danger, Contenido → Colores) y en seminegrita; nunca un título ni un bloque entero.
+export const urgente = (c, texto) => `<span style="color:${c.danger};font-weight:600">${esc(texto)}</span>`;
+// Un texto con una parte urgente (la primera vez que aparece); lo demás, escapado como siempre.
+export function conUrgente(c, texto, parte) {
+	const i = parte ? String(texto).indexOf(parte) : -1;
+	return i < 0 ? esc(texto) : esc(texto.slice(0, i)) + urgente(c, parte) + esc(texto.slice(i + parte.length));
+}
+
 // Tabla corta de datos (etiqueta a la izquierda, valor en negrita a la derecha): fechas, personas, total.
+// Un tercer elemento en la fila es un dato urgente que va después del valor (urgente()).
 export function datos(c, filas) {
 	const celda = 'font-family:Arial,Helvetica,sans-serif;padding:8px 0;border-bottom:1px solid ' + c.linea;
-	if (!filas.some((f) => f && f[1])) return '';
-	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter((f) => f && f[1]).map(([k, v]) =>
-		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v)}</td></tr>`).join('')}</table>`;
+	const con = (f) => f && (f[1] || f[2]);
+	if (!filas.some(con)) return '';
+	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">${filas.filter(con).map(([k, v, u]) =>
+		`<tr><td style="${celda};font-size:14px;line-height:20px;color:${c.ink}">${esc(k)}</td><td align="right" style="${celda};font-size:15px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(v || '')}${u ? `${v ? ' · ' : ''}${urgente(c, u)}` : ''}</td></tr>`).join('')}</table>`;
 }
 
 // Lista de dos líneas por fila (p. ej. las reservas de un estado de cuenta): a la izquierda el nombre (14 px) y debajo
@@ -127,7 +138,7 @@ export function lista(c, filas) {
 	const chica = `font-size:13px;line-height:18px;color:${c.ink}`;
 	return filas.map((f, i) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 ${i === filas.length - 1 ? 22 : 0}px;table-layout:auto"><tr>`
 		+ `<td width="100%" style="${celda};max-width:0"><div style="font-size:14px;line-height:20px;color:${c.dark};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.nombre)}</div><div style="${chica}">${esc(f.detalle)}</div></td>`
-		+ `<td align="right" style="${celda};padding-left:12px;white-space:nowrap"><div style="font-size:14px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(f.monto)}</div><div style="${chica}${f.alerta ? `;color:${c.danger};font-weight:600` : ''}">${esc(f.estado)}</div></td>`
+		+ `<td align="right" style="${celda};padding-left:12px;white-space:nowrap"><div style="font-size:14px;line-height:20px;font-weight:bold;color:${c.dark}">${esc(f.monto)}</div><div style="${chica}">${f.alerta ? urgente(c, f.estado) : esc(f.estado)}</div></td>`
 		+ '</tr></table>').join('');
 }
 

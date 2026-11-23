@@ -73,4 +73,19 @@ await test('respuesta al lead en su idioma (aviso del lead y botón de Leads)', 
 	assert.equal(saludoLead({ nombre: 'John Smith', propertyTitulo: 'House in Zona 16', idioma: 'en' }), 'Hi John, thanks for reaching out about House in Zona 16. ');
 	assert.equal(saludoLead({ nombre: '', idioma: 'en' }), 'Hi, thanks for reaching out. ');
 });
+await test('lo urgente: solo esa parte en el rojo del tema y seminegrita; datos() con el dato urgente; lista() con el estado urgente', async () => {
+	const { urgente, conUrgente, datos, lista } = await import('../netlify/lib/correo.mjs');
+	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: '#b42318' };
+	const rojo = (t) => `<span style="color:#b42318;font-weight:600">${t}</span>`;
+	assert.equal(urgente(c, '<x>'), rojo('&lt;x&gt;'), 'escapado');
+	assert.equal(conUrgente(c, 'A <b>. Y el socio dice que no le llegó: revisa.', 'el socio dice que no le llegó'), `A &lt;b&gt;. Y ${rojo('el socio dice que no le llegó')}: revisa.`);
+	assert.equal(conUrgente(c, 'Nada urgente.', 'no está'), 'Nada urgente.', 'sin esa parte, el texto tal cual');
+	const tabla = datos(c, [['Correo', 'Falla al enviar', 'desde 3 nov'], ['Calendario', '', 'desde 1 nov'], ['Vacía', '', '']]);
+	assert.ok(tabla.includes(`Falla al enviar · ${rojo('desde 3 nov')}`));
+	assert.ok(tabla.includes(`>${rojo('desde 1 nov')}</td>`), 'sin detalle, solo el dato urgente');
+	assert.ok(!tabla.includes('Vacía'), 'la fila vacía no sale');
+	const filas = lista(c, [{ nombre: 'Casa', detalle: 'EQ-1', monto: 'US$ 50', estado: 'vencida', alerta: true }, { nombre: 'Casa', detalle: 'EQ-2', monto: 'US$ 60', estado: '' }]);
+	assert.equal(filas.split(rojo('vencida')).length, 2, 'solo el estado urgente va en rojo');
+	assert.ok(!filas.includes('600">US$'), 'el monto no');
+});
 console.log(`${ok} pruebas del correo pasan.`);

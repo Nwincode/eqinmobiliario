@@ -12,7 +12,7 @@
 // anotada en alertas/bloqueo-{id}, que solo escribe la cuenta de escritura: las reglas no dejan a nadie más).
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
-import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
+import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, lista, esc, SITE_URL } from '../lib/correo.mjs';
 import { datosConfigurados, consultar, desde, donde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { avisarCambiosDePago } from '../lib/avisos-pago.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
@@ -187,12 +187,16 @@ async function recordarComisiones(ahora) {
 	for (const id of new Set(deHoy.map((r) => r.propietarioId))) {
 		const socio = await leerPrivado(`propietarios/${id}`).catch(() => null);
 		if (!socio?.email) continue;
-		const suyas = deHoy.filter((r) => r.propietarioId === id).map((r) => `${r.codigo || r.propertyTitulo} · ${r.propertyTitulo} · ${prefijoMoneda(r.moneda)} ${miles(r.comision.monto)}`);
+		const deEl = deHoy.filter((r) => r.propietarioId === id);
+		// El monto, el mismo de siempre (prefijo y miles); en el correo, la fila de dos líneas (lista): la casa y su código, y
+		// el monto. En el texto plano, una línea por comisión como antes.
+		const monto = (r) => `${prefijoMoneda(r.moneda)} ${miles(r.comision.monto)}`;
+		const suyas = deEl.map((r) => `${r.codigo || r.propertyTitulo} · ${r.propertyTitulo} · ${monto(r)}`);
 		const html = await plantilla({
 			titulo: 'Comisiones que se pagan hoy',
 			intro: 'Hoy llegan estos huéspedes. Paga la comisión y sube tu comprobante en Solicitudes.',
-			bloques: (c) => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">${suyas.map(esc).join('<br>')}</p>
-${boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })}`
+			bloques: (c) => lista(c, deEl.map((r) => ({ nombre: r.propertyTitulo || r.codigo || 'Reserva', detalle: r.propertyTitulo && r.codigo ? r.codigo : '', monto: monto(r), estado: '' })))
+				+ boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })
 		});
 		// Si falla el de un socio, los demás igual reciben el suyo.
 		await enviarCorreo({ responder: true, para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` })

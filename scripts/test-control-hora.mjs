@@ -45,6 +45,8 @@ await t('con 3,500 reservas de otras casas: el recordatorio de comisiones de hoy
 	poner('reservas/zz-mano', { estado: 'confirmada', propertyId: 'c9', llegada: '2026-12-10', salida: '2026-12-12' });
 	await control();
 	assert.ok(S.salida.some((c) => c.asunto === 'Comisiones de hoy: 1' && c.para.includes('socia@ejemplo.test')), S.salida.map((c) => c.asunto).join(' | '));
+	// La misma cifra que antes (prefijo y miles), en el texto plano una línea por comisión.
+	assert.match(S.salida.find((c) => c.asunto === 'Comisiones de hoy: 1').texto, /\nEQ-HOY · Casa · US\$ 50\n/);
 	assert.ok(S.salida.some((c) => /cerrada\(s\) con fechas ocupadas/.test(c.asunto)), S.salida.map((c) => c.asunto).join(' | '));
 });
 

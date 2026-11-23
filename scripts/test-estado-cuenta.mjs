@@ -163,8 +163,8 @@ await t('«vencida» en el rojo del tema (Contenido → Colores) y en seminegrit
 	const { colorTema, contraste } = await import('../admin/js/tema-def.js');
 	const c = { dark: '#0e1920', ink: '#5b666f', linea: '#dddddd', danger: colorTema({}, 'danger') };
 	const html = lista(c, [{ nombre: 'Casa', detalle: '5 – 7 oct', monto: 'US$ 1.00', estado: 'vencida', alerta: true }, { nombre: 'Casa', detalle: '8 – 9 oct', monto: 'US$ 1.00', estado: 'pagada' }]);
-	assert.match(html, /color:#b42318;font-weight:600">vencida</);
-	assert.doesNotMatch(html, /#b42318;font-weight:600">pagada/);
+	assert.match(html, /<span style="color:#b42318;font-weight:600">vencida<\/span>/);
+	assert.doesNotMatch(html, /600">pagada/);
 	assert.ok(contraste(c.danger, '#ffffff') >= 4.5, 'contraste ≥ 4.5 sobre blanco');
 	assert.equal(colorTema({ danger: '#a00000' }, 'danger'), '#a00000', 'lo toma de Contenido → Colores');
 });
