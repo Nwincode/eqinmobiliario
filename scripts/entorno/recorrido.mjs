@@ -2062,6 +2062,13 @@ const duenos = [];
 	paso('Una reserva sin chat que debe ganancia de EQ sale en «Ver lo que debo» con su tarjeta, y el total del aviso cuadra con la lista (US$ y Q por separado)',
 		conSinChat === 1 && codigosSC.includes('res-SINCHAT1') && Object.keys(delAviso).length > 0 && JSON.stringify(delAviso) === JSON.stringify(Object.fromEntries(Object.keys(delAviso).map((k) => [k, deLista[k]]))) && Object.keys(deLista).length === Object.keys(delAviso).length && lado <= 0,
 		`aviso ${JSON.stringify(delAviso)} · lista ${JSON.stringify(deLista)} · ${codigosSC.join(', ')}`);
+	// Sus botones: el socio sube el comprobante de esa ganancia desde su tarjeta.
+	const tarjetaSC = socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]');
+	const [elegirSC] = await Promise.all([socio.p.waitForEvent('filechooser'), tarjetaSC.locator('[aria-label^="Subir comprobante"]').click()]);
+	await elegirSC.setFiles(png);
+	await espera(5000);
+	const reciboSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.comprobante?.stringValue || '';
+	paso('Reserva sin chat: el socio sube el comprobante de la ganancia de EQ desde su tarjeta', /\/o\/comprobantes%2F.+alt=media&token=/.test(reciboSC), `${reciboSC.slice(0, 80)} · ${await avisos(socio.p)}`);
 	await socio.p.locator('.admin-main a', { hasText: 'Ver todas' }).first().click();
 	await espera(5000);
 	paso('«Ver todas» vuelve a la lista completa', socio.p.url().endsWith('#/solicitudes') && await socio.p.locator('.admin-main .card.mb-2').count() >= 25);
@@ -2072,6 +2079,18 @@ const duenos = [];
 	await ir(admin.p, '#/solicitudes/cobrar', 5000);
 	const elegido = await admin.p.locator('select[aria-label="Todos los estados"]').inputValue().catch(() => '');
 	paso('El administrador abre #/solicitudes/cobrar con «Ganancia de EQ por cobrar» elegido', elegido === 'cobrar', elegido);
+	// El administrador marca pagada la de la reserva sin chat: sale de la lista del socio y el aviso baja US$ 77.
+	const antesPagada = (await (async () => { await ir(socio.p, '#/solicitudes/cobrar', 5000); return (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' '); })());
+	await admin.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"] button', { hasText: 'Pagada' }).click();
+	await admin.p.locator('.modal.show button', { hasText: 'Marcar pagada' }).click();
+	await espera(3500);
+	const pagadaSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.pagada?.booleanValue === true;
+	await ir(socio.p, '#/solicitudes/cobrar', 5000);
+	const despuesPagada = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const usd = (t) => Number((t.match(/^Debes a EQ US\$ ?([\d,]+\.\d{2})/) || [0, 'NaN'])[1].replace(/,/g, ''));
+	paso('El administrador marca «Pagada» la reserva sin chat: sale de «Ver lo que debo» y el aviso del socio baja US$ 77',
+		pagadaSC && await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]').count() === 0 && Math.round((usd(antesPagada) - usd(despuesPagada)) * 100) === 7700,
+		`${antesPagada.slice(0, 60)} → ${despuesPagada.slice(0, 60)}`);
 	// La ficha del socio lleva «Enviar estado de cuenta» (su casa por noche dice que es suyo: la ficha pasa su id) y la
 	// ventana muestra la vista previa del correo.
 	await ir(admin.p, '#/propietarios/socio-prueba', 4000);
@@ -2081,8 +2100,31 @@ const duenos = [];
 	const vistaCuenta = await admin.p.locator('.modal.show iframe').count();
 	await admin.p.screenshot({ path: `${TANDA}/estado-cuenta-vista-1280.png` });
 	paso('Ficha del socio: «Enviar estado de cuenta» abre la ventana con la vista previa del correo', hayBoton === 1 && vistaCuenta === 1, `${hayBoton} botón · ${vistaCuenta} vista`);
+	// «Enviar»: sale el correo al socio y queda anotado a mano en estadosCuenta/{socio}_{mes}.
+	const antesCuenta = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	const mesCuenta = await admin.p.locator('.modal.show select').inputValue().catch(() => '');
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: /^Enviar$/ }).click().catch(() => {});
+	await espera(5000);
+	const nuevosCuenta = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesCuenta).map((x) => JSON.parse(x));
+	const anotado = (await leer(`estadosCuenta/socio-prueba_${mesCuenta}`)).fields?.manual?.arrayValue?.values?.length || 0;
+	paso('«Enviar» manda el estado de cuenta al correo del socio y lo anota como envío a mano',
+		nuevosCuenta.some((c) => JSON.stringify(c).includes('socio@example.com') && /estado de cuenta/i.test(JSON.stringify(c))) && anotado >= 1, `${mesCuenta} · ${nuevosCuenta.length} correo(s) · manual ${anotado}`);
 	await admin.p.keyboard.press('Escape');
 	await espera(600);
+	// Versión nueva del panel publicada con la pestaña abierta: tras un «sin permiso», el aviso de una línea con su botón.
+	await socio.p.setViewportSize({ width: 390, height: 844 });
+	await ir(socio.p, '#/solicitudes', 4000);
+	await socio.p.route('**/admin/version.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"v":"otra-version"}' }));
+	await socio.p.evaluate(async () => (await import('/admin/js/ui.js')).errorMessage({ code: 'permission-denied' }));
+	await espera(1500);
+	const version = await socio.p.evaluate(() => { const a = document.getElementById('aviso-version'); if (!a) return null; const t = a.querySelector('span').getBoundingClientRect(), b = a.querySelector('button').getBoundingClientRect(); return { texto: a.textContent.trim(), altoTexto: Math.round(t.height), boton: Math.round(b.height), lado: document.documentElement.scrollWidth - innerWidth }; });
+	await socio.p.screenshot({ path: `${TANDA}/version-nueva-390.png` });
+	paso('Versión nueva: «Hay una versión nueva. Recarga la página.» en una línea con su botón de 44 px, a 390 sin scroll de lado',
+		version?.texto === 'Hay una versión nueva. Recarga la página.' && version.altoTexto <= 24 && version.boton >= 44 && version.lado <= 0, JSON.stringify(version));
+	await socio.p.unroute('**/admin/version.json');
+	await socio.p.reload();
+	await socio.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await socio.p.setViewportSize({ width: 1280, height: 900 });
 
 	// «Confirmadas» del mes: una confirmada el mes pasado con el correo corregido hoy no cuenta en este mes, y su tarjeta
 	// sigue diciendo «Confirmó» (antes contaba y decía «Correo corregido»).

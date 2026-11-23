@@ -163,7 +163,7 @@ export async function render(container, [codigo] = []) {
 	function tarjetaReserva(res) {
 		const nivel = V.nivelMora(conDatosDelChat(res, datosChat[res.codigo]), Date.now());
 		return h('div', { class: 'card mb-2', dataset: { codigo: res.codigo || res.id } }, h('div', { class: 'card-body' },
-			nombreYDatos(res.huesped || 'Reserva sin chat', [res.codigo, res.propertyTitulo, admin && propietarios.find((p) => p.id === res.propietarioId)?.nombre].filter(Boolean).join(' · '),
+			nombreYDatos((admin ? res.huesped : primerNombre(res.huesped)) || 'Reserva sin chat', [res.codigo, res.propertyTitulo, admin && propietarios.find((p) => p.id === res.propietarioId)?.nombre].filter(Boolean).join(' · '),
 				[badge(...ESTADOS.confirmada)], { envuelve: true }),
 			h('div', {}, `${fechasReserva(res)} · ${nNoches(res.noches)}`),
 			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(res.comision.monto, res.moneda)}`),
@@ -197,9 +197,11 @@ export async function render(container, [codigo] = []) {
 		// El atraso que castiga (V.nivelMora): solo si se sabe que el cliente pagó (pago marcado o «Cobrar comisión»).
 		const nivel = com ? V.nivelMora(conDatosDelChat(res, ch), Date.now()) : 0;
 		return h('div', { class: `card mb-2${r.codigo === codigo ? ' border-primary' : tarde ? ' border-warning' : ''}`, dataset: { codigo: r.codigo } }, h('div', { class: 'card-body' },
-			// El nombre solo en su línea; el código, la casa y el socio en la de datos, con las etiquetas al final (nombreYDatos).
+			// El nombre solo en su línea; el código, cuándo llegó, la casa y el socio en la de datos (se recorta por el final), con
+			// las etiquetas al final (nombreYDatos).
 			nombreYDatos((admin ? l.nombre : primerNombre(l.nombre)) || '(sin nombre)',
-				[r.codigo, l.propertyTitulo, netos[l.propertyId]?.codigoSocio && `Código del socio: ${netos[l.propertyId].codigoSocio}`, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).join(' · '),
+				[`${r.codigo} · `, h('span', { class: tarde ? 'text-danger' : null }, hace(ms(l.createdAt))),
+					[l.propertyTitulo, netos[l.propertyId]?.codigoSocio && `Código del socio: ${netos[l.propertyId].codigoSocio}`, admin && propietarios.find((p) => p.id === l.propietarioId)?.nombre].filter(Boolean).map((x) => ` · ${x}`).join('')],
 				[badge(...ESTADOS[est]),
 					evasion ? badge('Revisar: fechas bloqueadas', 'danger') : null,
 					yaOcupada ? badge('Esas fechas ya tienen otra reserva', 'warning') : null,
@@ -212,9 +214,7 @@ export async function render(container, [codigo] = []) {
 					est === 'confirmada' && ch?.estado === 'confirmada' && comprobanteVigente(ch) ? badge('Cliente subió comprobante', 'info') : null,
 					est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
 					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null], { envuelve: true }),
-			// Cuándo llegó, al final de la línea de las fechas (un dato corto no va solo en su línea).
-			h('div', { class: 'd-flex gap-2' }, h('span', { class: 'flex-grow-1', style: 'min-width:0' }, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
-				h('span', { class: `small flex-shrink-0 align-self-center ${tarde ? 'text-danger' : 'text-muted'}` }, hace(ms(l.createdAt)))),
+			h('div', {}, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? lineaComision(com, nivel) : null,
@@ -266,10 +266,10 @@ export async function render(container, [codigo] = []) {
 	const pintar = vista.pintar = () => {
 		const delSocio = (x) => !filtro.socio || x.propietarioId === filtro.socio;
 		// Por cobrar: las mismas reservas que suma el aviso (debidas, la más atrasada primero), cada una con su solicitud si
-		// se ve; sin ella, con la tarjeta de la reserva.
+		// se ve y está confirmada (así lleva su ganancia y sus botones); si no, con la tarjeta de la reserva.
 		if (filtro.estado === 'cobrar') {
 			const deber = debidas.filter(delSocio);
-			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay ganancia de EQ por cobrar.'));
+			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l && estado(l) === 'confirmada' ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay ganancia de EQ por cobrar.'));
 		}
 		const ver = leads.filter((l) => delSocio(l) && (!filtro.estado || (filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		lista.replaceChildren(ver.length ? ver.map(tarjeta) : emptyState('No hay solicitudes.'));
