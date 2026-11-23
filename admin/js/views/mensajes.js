@@ -9,6 +9,7 @@
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp } from '../firebase.js';
 import { h, ahoraYa, showError } from '../ui.js';
+import { session } from '../session.js';
 import { avisarChat } from '../reservas.js';
 import { comprobanteVigente, llegadaPasada } from '../reservas-calculo.js';
 import { cargarSolicitudes, estado, rapidasDe } from '../solicitudes-base.js';
@@ -51,8 +52,12 @@ const textoQueda = (q) => (q <= 0 ? 'Venció' : q < 3600000 ? `Responde en ${Mat
 
 export async function render(container, [codigo = ''] = []) {
 	memo.apagar();
-	const fresco = memo.S && Date.now() - memo.leido < 60_000;
-	if (!fresco) { memo.S = await cargarSolicitudes({ mensajes: 'ultimo', recargar: recargarDatos }); memo.leido = Date.now(); }
+	// Lo leído vale un minuto y solo para quien lo leyó (otra sesión en la misma pestaña lee lo suyo).
+	// Una conversación que no estaba en lo leído (llegó después) se vuelve a leer.
+	const mismo = memo.uid === session.user?.uid;
+	const fresco = memo.S && mismo && Date.now() - memo.leido < 60_000 && (!codigo || memo.S.leads.some((l) => l.reserva.codigo === codigo));
+	if (!mismo) { memo.filtro = ''; memo.busca = ''; memo.scroll = 0; }
+	if (!fresco) { memo.S = await cargarSolicitudes({ mensajes: 'ultimo', recargar: recargarDatos }); memo.leido = Date.now(); memo.uid = session.user?.uid; }
 	const S = memo.S;
 	const conR7 = await reglasNuevas();
 	const filas = S.leads.filter((l) => S.chats[l.reserva.codigo]).map((l) => filaDe(S, l));

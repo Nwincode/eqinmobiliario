@@ -203,6 +203,7 @@
 		cuerpo.querySelector('[data-out="huespedes"]').parentNode.title = c.huespedes === 1 ? t.vacHuesped1 : fmt(t.vacHuespedesN, { n: c.huespedes });
 		poner('nota', t.vacChatGuarda);
 		var resumen = cuerpo.querySelector('[data-out="resumen"]');
+		var sub = cuerpo.querySelector('[data-out="sub"]');
 		var pasos = cuerpo.querySelector('[data-out="pasos"]');
 		var sigue = cuerpo.querySelector('[data-out="sigue"]');
 		var sello = cuerpo.querySelector('[data-out="estado"]');
@@ -252,7 +253,10 @@
 			var espera = Date.now() - new Date(c.createdAt).getTime();
 			var pendiente = estado === 'Pendiente';
 			var vencida = pendiente && espera > 24 * 3600000;
-			poner('sub', pendiente ? fmt(t.vacChatTuReserva, { codigo: c.codigo }) : fmt(t.vacChatTuReserva, { codigo: c.codigo }) + ' · ' + rango + ' · ' + total);
+			// «Tu reserva EQ-…» (con el código en su lugar) y, ya respondida, las fechas y el total en la misma línea.
+			var partes = t.vacChatTuReserva.split('{codigo}');
+			sub.replaceChildren(partes[0], el('span', '', c.codigo), (partes[1] || '') + (pendiente ? '' : ' · ' + rango + ' · ' + total));
+			sub.children[0].setAttribute('data-out', 'codigo');
 			// Sin respuesta: la fila del resumen con su estado. Después: los pasos y lo que sigue.
 			resumen.hidden = !pendiente;
 			sello.querySelector('span').textContent = t.vacChatEsperando;

@@ -55,6 +55,17 @@ export async function pedirIA(tarea, todo) {
 	return local(datos);
 }
 
+export { telefonoWa, whatsappUrl } from './formato.js';
+
+export async function copiar(texto) {
+	try {
+		await navigator.clipboard.writeText(texto);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 // «Sugerir respuesta» en Mensajes: un borrador de la IA para el chat `token` (lo que ve la IA lo arma el servidor con lo
 // guardado: netlify/lib/sugerir-respuesta.mjs). Nunca se manda solo: va al campo y pasa el mismo aviso de contacto.
 export const sugerirRespuesta = async (token) => String((await llamarIA('respuestaChat', { chat: token })).respuesta || '').trim();
