@@ -174,9 +174,11 @@ async function casa(container, id) {
 	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
 	// casa y la bitácora. `descripcion(antes, ahora)` da el texto de su renglón (texto-dueno.js) con los valores leídos aquí.
 	// Si no cambia nada (el mismo precio otra vez, días ya bloqueados), no se escribe nada: ni la casa ni el renglón.
-	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó. `conValores` en false:
-	// el renglón sin los valores (sinValores), el que aceptan las reglas de antes; se reintenta así una vez si lo niegan.
-	async function guardar(descripcion, cambio, conValores = true) {
+	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó. La casa nombra su
+	// renglón en `bitacoraTexto` (las reglas solo dejan ese renglón en el lote). Con las reglas de antes se reintenta:
+	// `intento` 1, sin nombrarlo (las reglas que aún no conocen el campo); 2, además sin los valores (sinValores).
+	async function guardar(descripcion, cambio, intento = 0) {
+		const conValores = intento < 2;
 		let sinPrecioPropio = false, texto = '';
 		try {
 			const conBitacora = await bitacoraActiva();
@@ -231,8 +233,9 @@ async function casa(container, id) {
 					await guardarPrivadoVacacional(id, suyo, null, tx, { bitacoraId });
 				}
 				texto = conValores ? descripcion(previo, nuevo) : sinValores(descripcion(previo, nuevo));
-				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
-				tx.set(doc(collection(refCasa, 'bitacora')), { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
+				const renglon = doc(collection(refCasa, 'bitacora'));
+				tx.update(refCasa, { ...casa, ...(intento === 0 ? { bitacoraTexto: renglon.id } : {}), updatedAt: serverTimestamp() });
+				tx.set(renglon, { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
 				return { ...actual, ...nuevo, margen: sv.margen };
 			});
 			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
@@ -245,7 +248,8 @@ async function casa(container, id) {
 			return true;
 		} catch (err) {
 			// Las reglas de antes (el sitio se publica primero) niegan el renglón con valores: otra vez, sin ellos.
-			if (conValores && err?.code === 'permission-denied' && texto !== sinValores(texto)) return await guardar(descripcion, cambio, false);
+			if (err?.code === 'permission-denied' && intento === 0) return await guardar(descripcion, cambio, 1);
+			if (err?.code === 'permission-denied' && intento === 1 && texto !== sinValores(texto)) return await guardar(descripcion, cambio, 2);
 			// Casa por noche sin su precio guardado todavía: con las reglas de antes el dueño no puede crearlo.
 			if (sinPrecioPropio && err?.code === 'permission-denied') toast('Esta casa todavía no tiene tu precio registrado. Pídele al administrador que lo ponga en la ficha de la casa; después ya puedes cambiarlo aquí.', 'warning');
 			else showError(err);
