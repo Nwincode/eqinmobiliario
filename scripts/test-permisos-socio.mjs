@@ -11,9 +11,9 @@ const H = 3600000;
 const finDe = (fecha) => Date.parse(`${fecha}T00:00:00-06:00`) + 24 * H;
 const res = (id, extra = {}, comision = {}) => ({ id, propietarioId: 's1', estado: 'confirmada', moneda: 'USD',
 	comision: { monto: 50, vence: '2026-11-09', pagada: false, ...comision }, ...extra });
-const todo = { precios: true, fechas: true, casa: true };
-const nada = { precios: false, fechas: false, casa: false };
-const solo = (p) => ({ precios: p.precios, fechas: p.fechas, casa: p.casa });
+const todo = { precios: true, fechas: true, casa: true, inmuebles: true };
+const nada = { precios: false, fechas: false, casa: false, inmuebles: false };
+const solo = (p) => ({ precios: p.precios, fechas: p.fechas, casa: p.casa, inmuebles: p.inmuebles });
 
 test('al día: puede todo y no hay deuda', () => {
 	const d = deudaDe([res('a', {}, { pagada: true })], 's1', finDe('2026-11-09') + 20 * 24 * H);
@@ -85,12 +85,22 @@ test('al pagar, «devolver» se quita solo: una deuda nueva vuelve a cortar a lo
 test('«devolver» no enciende lo que el administrador apagó a mano ni lo apagado para todos', () => {
 	const d = deudaDe([res('a')], 's1', finDe('2026-11-09') + 9 * 24 * H);
 	const p = permisosDe({ global: { casa: false }, propio: { devolver: true, precios: false }, deuda: d });
-	assert.deepEqual(solo(p), { precios: false, fechas: true, casa: false });
+	assert.deepEqual(solo(p), { precios: false, fechas: true, casa: false, inmuebles: true });
 });
 test('apagado a mano para él: sigue apagado aunque esté al día; lo demás sigue', () => {
 	const p = permisosDe({ propio: { fechas: false } });
-	assert.deepEqual(solo(p), { precios: true, fechas: false, casa: true });
+	assert.deepEqual(solo(p), { precios: true, fechas: false, casa: true, inmuebles: true });
 	assert.equal(p.motivo, 'propio');
+});
+test('«Ingresar inmuebles»: encendido por defecto, se apaga solo con el corte y se puede apagar para todos o para uno', () => {
+	assert.equal(puede(null, 'inmuebles'), true);
+	assert.equal(permisosDe({}).inmuebles, true);
+	const d = deudaDe([res('a')], 's1', finDe('2026-11-09') + 8 * 24 * H);
+	assert.equal(d.corta, true);
+	assert.equal(permisosDe({ deuda: d }).inmuebles, false);
+	assert.equal(documentoPermisos(permisosDe({ deuda: d }), d).inmuebles, false);
+	assert.equal(permisosDe({ global: { inmuebles: false } }).inmuebles, false);
+	assert.equal(permisosDe({ propio: { inmuebles: false } }).motivo, 'propio');
 });
 test('apagado para todos: gana sobre lo suyo encendido', () => {
 	const p = permisosDe({ global: { precios: false }, propio: { precios: true } });
@@ -105,7 +115,7 @@ test('sin documento guardado se puede todo (antes de publicar las reglas o sin c
 test('lo guardado con los mapas en otro orden cuenta como lo mismo (no se reescribe cada hora)', () => {
 	const d = deudaDe([res('a'), res('b', { moneda: 'GTQ' })], 's1', finDe('2026-11-09') + 9 * 24 * H);
 	const doc = documentoPermisos(permisosDe({ deuda: d }), d);
-	const leido = { deuda: { vence: doc.deuda.vence, porMoneda: { GTQ: 50, USD: 50 }, dias: doc.deuda.dias }, casa: false, motivo: 'atraso', precios: false, fechas: false, devuelto: false, actualizado: 'x' };
+	const leido = { deuda: { vence: doc.deuda.vence, porMoneda: { GTQ: 50, USD: 50 }, dias: doc.deuda.dias }, casa: false, inmuebles: false, motivo: 'atraso', precios: false, fechas: false, devuelto: false, actualizado: 'x' };
 	assert.equal(mismosPermisos(leido, doc), true);
 	assert.equal(mismosPermisos({ ...leido, precios: true }, doc), false);
 	assert.equal(mismosPermisos(null, doc), false);

@@ -77,11 +77,17 @@ service firebase.storage {
     }
     // El dueño de una casa por noche sube fotos nuevas de SU casa (admin/js/views/mis-casas.js → «La casa»). Solo
     // agrega: no reemplaza ni borra (el administrador puede deshacer su cambio y volver a las de antes).
+    // Y el socio sube las de SU casa nueva antes de que exista (la ficha en «Mis propiedades» → «Agregar casa»): solo en la
+    // carpeta que el servidor le apartó a él (casasNuevas/{casa}, netlify/functions/mi-casa-nueva.mjs), nunca en la de
+    // una casa que ya existe ni en una que nadie apartó.
     match /properties/{casa}/{archivo} {
       allow create: if resource == null && foto(10)
         && conSesion() && usuario().rol == 'socio'
-        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('operacion', '') == 'vacacional'
-        && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
+        && (firestore.exists(/databases/(default)/documents/properties/$(casa))
+          ? firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('operacion', '') == 'vacacional'
+            && firestore.get(/databases/(default)/documents/properties/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-')
+          : firestore.exists(/databases/(default)/documents/casasNuevas/$(casa))
+            && firestore.get(/databases/(default)/documents/casasNuevas/$(casa)).data.get('propietarioId', '') == usuario().get('propietarioId', '-'));
     }
   }
 }

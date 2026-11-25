@@ -95,7 +95,7 @@ export async function permisosDelSocio(propietarioId) {
 // Aviso arriba de su panel cuando algo está apagado (por atraso, o porque el administrador lo apagó).
 export function avisoSocio(p) {
 	if (!p || PERMISOS.every(([k]) => puede(p, k))) return null;
-	const apagados = PERMISOS.filter(([k]) => !puede(p, k)).map(([k]) => ({ precios: 'Precios', fechas: 'fechas', casa: '«La casa»' })[k]);
+	const apagados = PERMISOS.filter(([k]) => !puede(p, k)).map(([k]) => ({ precios: 'Precios', fechas: 'fechas', casa: '«La casa»', inmuebles: 'ingresar inmuebles' })[k]);
 	const lista = apagados.length > 1 ? `${apagados.slice(0, -1).join(', ')} y ${apagados.at(-1)}` : apagados[0];
 	const verbo = apagados.length > 1 ? 'quedan' : 'queda';
 	if (p.motivo === 'atraso' && p.deuda) {

@@ -238,6 +238,11 @@ export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'but
 	type: attrs.href ? null : 'button', class: 'btn-toque btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
 }, h('span', { class: icono, 'aria-hidden': 'true' }));
 
+// «Nueva propiedad»: el botón de la casa con «+» (en el celular solo el ícono). Uno para todo el panel: Propiedades del
+// equipo y «Agregar casa» del socio en «Mis propiedades». attrs: href u onclick.
+export const botonNuevaCasa = (texto, attrs = {}) => h(attrs.href ? 'a' : 'button', { type: attrs.href ? null : 'button', class: 'btn btn-primary btn-encabezado', title: texto, 'aria-label': texto, ...attrs,
+	html: `<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 11.5 10 5l8 6.5"/><path d="M4 10v10h7"/><path d="M16 10v2"/><path d="M18 13.5v9M13.5 18h9"/></svg><span class="d-none d-md-inline">${texto}</span>` });
+
 // Flecha fina ‹ › (la de los carruseles y calendarios, css/calendario.css): mes anterior o siguiente.
 export const flecha = (lado, titulo, onclick, disabled) => h('button', {
 	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, title: titulo, onclick, disabled,

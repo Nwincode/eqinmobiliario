@@ -66,7 +66,8 @@ export const porOrden = (a, b) => (a.orden ?? 999) - (b.orden ?? 999) || String(
 
 export async function loadAgents(force = false) {
 	if (agentsCache && !force) return agentsCache;
-	const snap = await getDocs(collection(db, 'agents'));
+	// El socio (su casa nueva: el colaborador elige el asesor) solo lee los activos (firestore.rules).
+	const snap = await getDocs(session.esSocio ? query(collection(db, 'agents'), where('activo', '==', true)) : collection(db, 'agents'));
 	agentsCache = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(porOrden);
 	return agentsCache;
 }

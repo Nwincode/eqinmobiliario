@@ -3,21 +3,22 @@ import {
 } from '../firebase.js';
 import {
 	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatPrice, formatDate, slugify, spinner
-, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion } from '../ui.js';
+, mount, downloadCsv, cajaTabla, iconoBtn, menuMas, modal, errorMessage, elegirOpcion, ocupado, fallaDelServidor, botonNuevaCasa } from '../ui.js';
 import { renderForm, borrarFotosSinUso, uploadImage, procesarImagen, getPath, clonar } from '../form.js';
-import { session, agentOptions, loadAgents, markPending, trasGuardar } from '../session.js';
+import { session, agentOptions, loadAgents, markPending, trasGuardar, misCasas } from '../session.js';
+import { datosParaServidor, revisarCasaNueva } from '../casa-nueva.js';
 import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
 import { tituloEn, tituloEnViejo } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
-import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
+import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
 import { revisar, vigilarFormulario } from '../pendientes.js';
 import { refrescarPortalesDe } from '../portal.js';
 import { generarDescripcion } from '../descripcion.js';
-import { miles, dinero, whatsappUrl } from '../formato.js';
+import { miles, dinero, whatsappUrl, slugLibre } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
@@ -26,7 +27,7 @@ import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
 import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
-import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe } from '../cambios-casa.js';
+import { cambiosEntre, aplicarCambios, historialCon, entradaEstado, huespedesMaxDe, vacacionalPublico, planSocioDe, casaBase, casaQueNace } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio, crearCasa } from '../privado-casa.js';
 import { anotar, bitacoraActiva, verCambios } from '../bitacora-panel.js';
 import { fotoCasa, igual } from '../bitacora.js';
@@ -126,7 +127,8 @@ async function marcarFotos(p, progreso) {
 	return nuevas;
 }
 
-export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
+// Los tipos viven en estados.js; se reexportan para quien ya los importa de aquí.
+export { TIPOS };
 // La lista de operaciones vive en estados.js; se reexporta para quien ya la importa de aquí.
 export { OPERACIONES };
 const esVacacional = (d) => d.operacion === 'vacacional';
@@ -142,29 +144,9 @@ const AYUDA_ICAL = {
 	Booking: 'Extranet: Tarifas y disponibilidad → Sincronizar calendarios → Exportar.',
 	VRBO: 'Calendario → Importar/Exportar → Exportar.'
 };
-const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
-export function vacacionalPublico(d) {
-	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
-	const v = d.vacacional || {};
-	// En la ficha un bloqueo se escribe por noches (primera y última, incluida); se guarda como rango { desde, hasta }
-	// con «hasta» = el día que queda libre, igual que las reservas y los calendarios.
-	const bloqueos = V.unirRangos((v.bloqueos || []).map((b) => ({ desde: b?.desde, hasta: b?.ultima ? V.sumarDias(b.ultima, 1) : b?.hasta })));
-	return {
-		precio: V.precioDesde(pub, hoyISO()) || null,
-		vacacional: {
-			base: pub.base, finde: pub.finde, tarifas: pub.tarifas,
-			nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
-			huespedesMax: huespedesMaxDe(v.huespedesMax),
-			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
-			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
-			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
-			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
-			bloqueos
-			// Los mínimos de noches (los pone el dueño) y las noches reservadas (Solicitudes y Rentas) no salen de
-			// aquí: guardarCambios los deja como están en la base.
-		}
-	};
-}
+// Los precios públicos de una casa por noche salen del costo del socio (admin/js/cambios-casa.js, puro: también lo usa el
+// servidor con la casa que sube el socio); se reexporta para quien ya lo importa de aquí.
+export { vacacionalPublico, planSocioDe };
 function desgloseVacacional(el, d) {
 	const s = d.socio || {};
 	const moneda = d.moneda || 'USD';
@@ -201,15 +183,14 @@ export const MONEDAS = [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']];
 export const MAX_TARIFAS = 10;
 
 export function datosIniciales() {
-	return { operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: session.isAdmin ? '' : session.agentId, fotos: [], amenidades: [], vipLanding: {}, seo: {} };
+	return { ...casaBase(), agentId: session.isAdmin ? '' : session.agentId };
 }
 
 // Lo que lleva toda propiedad al nacer: su historial de estado y de precio empezado y quién la creó.
-// Una sola para todo el panel: la usan la ficha (al guardar una nueva), «Duplicar» y el importador.
+// Una sola para todo el panel: la usan la ficha (al guardar una nueva), «Duplicar» y el importador. El núcleo
+// (casaQueNace, admin/js/cambios-casa.js) es el mismo que usa el servidor con la casa que sube el socio.
 export function propiedadNueva(datos) {
-	const d = { ...datosIniciales(), descripcion: '', ...datos };
-	const hist = historialCon(null, d, autor());
-	Object.assign(d, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio });
+	const d = casaQueNace({ ...datosIniciales(), ...datos }, autor());
 	d.estadoFecha = serverTimestamp();
 	d.createdAt = d.updatedAt = serverTimestamp();
 	d.createdBy = d.updatedBy = session.user.uid;
@@ -247,14 +228,8 @@ export async function eliminarPropiedad(p) {
 		await Promise.all(duenos.docs.map((x) => updateDoc(x.ref, { propiedades: arrayRemove({ propertyId: p.id }) })));
 	} catch (err) { console.warn('No se pudo quitar la casa de la lista de su dueño', err); }
 }
-// URL libre a partir del título («usados» es un Set que se va llenando).
-export function slugLibre(titulo, usados) {
-	const base = slugify(titulo) || 'propiedad';
-	let s = base, n = 2;
-	while (usados.has(s)) s = `${base}-${n++}`;
-	usados.add(s);
-	return s;
-}
+// La URL libre vive en admin/js/formato.js (la usa también el servidor); se reexporta para quien ya la importa de aquí.
+export { slugLibre };
 // Lo que se revisa antes de guardar una casa, venga de la ficha o del importador (una sola regla para los dos):
 //  - una casa por noche lleva dueño y no lleva asesor (agentId ''): sus solicitudes las atienden el administrador y
 //    su dueño, y así ningún asesor lee el teléfono de sus huéspedes; tampoco lleva VIP ni mantenimiento. Por eso
@@ -870,8 +845,7 @@ export async function render(container, [id]) {
 
 	// La misma acción principal y el mismo ⋮ en los dos tamaños: arriba con el título en pantallas anchas;
 	// en el celular, en la fila del buscador (sin repetir el título que ya dice la barra de arriba).
-	const nueva = () => h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary btn-encabezado', title: 'Nueva propiedad', 'aria-label': 'Nueva propiedad',
-		html: '<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 11.5 10 5l8 6.5"/><path d="M4 10v10h7"/><path d="M16 10v2"/><path d="M18 13.5v9M13.5 18h9"/></svg><span class="d-none d-md-inline">Nueva propiedad</span>' });
+	const nueva = () => botonNuevaCasa('Nueva propiedad', { href: '#/propiedades/nuevo' });
 	const masLista = () => menuMas('Más acciones', [
 		session.isAdmin ? { icono: 'icon-upload', texto: 'Importar desde CSV', href: '#/propiedades/importar' } : null,
 		props.length ? { icono: 'icon-download', texto: 'Exportar todas (CSV)', onclick: (e) => exportarCsv(props, agentName, e.currentTarget) } : null]);
@@ -892,7 +866,43 @@ export async function render(container, [id]) {
 			: emptyState('Aún no hay propiedades.', h('a', { href: '#/propiedades/nuevo', class: 'btn btn-primary' }, 'Crear la primera')));
 }
 
-function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
+// `paraSocio`: la misma ficha para el socio que sube su casa nueva («Mis propiedades» → «Agregar casa»): sin lo del equipo
+// (paraElSocio). { colaborador }: el colaborador elige el asesor de su casa en venta o renta.
+function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSocio = null) {
+	const campos = camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno, casaId);
+	return paraSocio ? paraElSocio(campos, paraSocio) : campos;
+}
+// Lo que el socio no ve en su casa nueva: lo pone el servidor (dueño, URL, código, estado, visible) o es del equipo
+// (orden, destacada, VIP, margen, ganancia, código del socio, calendarios, acuerdo, video, inglés y Google). Lo que es
+// obligatorio en toda casa, marcado; lo que depende de la operación (precio, dirección exacta) lo dice la revisión de
+// admin/js/casa-nueva.js al publicar (la misma del servidor), junto al campo.
+const SOLO_EQUIPO = new Set(['slug', 'codigo', 'condominioSiglas', 'estado', 'propietarioId', 'orden', 'publicado', 'destacada', 'vip', 'video',
+	'socio.codigoSocio', 'socio.margen', 'vacacional.bloqueos', ...V.CALENDARIOS.map((c) => `socio.${c.campo}`)]);
+const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
+const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de EQ (pégalo en Airbnb, Booking y VRBO)'];
+const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
+const PARA_EL_SOCIO = {
+	fotos: { marcaFija: true },
+	agentId: { label: 'Asesor de la casa', help: 'Atiende a los interesados y te avisa; tú no hablas con ellos.' },
+	mapa: { type: 'text', help: 'En Google Maps: Compartir → Copiar vínculo.' },
+	'socio.precioBase': { label: 'Tu precio por noche', help: 'Lo que recibes por noche. La página le suma la comisión y los impuestos.' },
+	'socio.precioFinde': { label: 'Tu precio en fin de semana', help: 'Noches de viernes y sábado. Vacío = el de siempre.' }
+};
+function paraElSocio(campos, { colaborador = false } = {}) {
+	let enSeccionEquipo = false;
+	return campos.map((f) => {
+		if (f.type === 'section') enSeccionEquipo = SECCIONES_EQUIPO.includes(f.label);
+		const oculto = enSeccionEquipo || SOLO_EQUIPO.has(f.name) || (f.type === 'custom' && CUSTOM_EQUIPO.includes(f.label))
+			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
+		if (oculto) return { ...f, when: () => false };
+		const g = { ...f, ...(PARA_EL_SOCIO[f.name] || {}) };
+		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = true;
+		// El asesor solo lo elige el colaborador, y solo en venta o renta (por noche no lleva).
+		if (f.name === 'agentId') Object.assign(g, { disabled: !colaborador, when: (d) => colaborador && !esVacacional(d) });
+		return g;
+	});
+}
+function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 	// La landing VIP no tiene caja de reserva: una casa por noche siempre usa su ficha normal.
 	const vip = (d) => Boolean(d.vip) && !esVacacional(d);
 	const conDueno = (d) => Boolean(d.propietarioId);
@@ -1060,10 +1070,27 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '') {
 // La ficha del inmueble: la única forma de crear o editar una propiedad en todo el panel. Se usa en su página
 // (#/propiedades/…) y, con «emb», dentro de una ventana abierta desde otra pantalla (ver abrirFicha): ahí no
 // navega; avisa con emb.alGuardar(casa) y emb.alEliminar(id) y pone sus botones en emb.pie.
+// Lo que la ficha del socio le pide al servidor (netlify/functions/mi-casa-nueva.mjs). Una revisión que no pasa (422)
+// vuelve con sus errores por campo, para marcarlos; otro error se lanza con su texto.
+async function alServidorCasaNueva(cuerpo) {
+	const res = await fetch('/api/mi-casa-nueva', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify(cuerpo) });
+	const r = await res.json().catch(() => ({}));
+	if (res.status === 422 && r.errores?.length) return r;
+	if (!res.ok) throw new Error(r.error || fallaDelServidor(res.status));
+	return r;
+}
+// La carpeta de fotos de su casa nueva: el servidor se la aparta (casasNuevas/{id}) y solo ahí le deja subir storage.rules.
+const apartarCarpeta = async () => (await alServidorCasaNueva({ accion: 'apartar' })).id;
+// El socio (propietario o colaborador) usa esta misma ficha para subir su casa nueva desde «Mis propiedades» (en una
+// ventana): sin lo del equipo (paraElSocio), con sus fotos en la carpeta que le aparta el servidor, y «Publicar» la manda
+// a netlify/functions/mi-casa-nueva.mjs, que la revisa otra vez y la publica (las reglas no le dejan crear casas).
 async function renderEditor(container, id, emb = null) {
 	const isNew = id === 'nuevo';
-	const ref = isNew ? doc(collection(db, 'properties')) : doc(db, 'properties', id);
-	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(), loadAll(), loadPropietarios()]);
+	const paraSocio = session.esSocio;
+	if (paraSocio && !isNew) return mount(container, emptyState('Tu casa se cambia desde «Mis propiedades».'));
+	const ref = !isNew ? doc(db, 'properties', id) : paraSocio ? doc(db, 'properties', await apartarCarpeta()) : doc(collection(db, 'properties'));
+	const [snap, agentOpts, all, propietarios] = await Promise.all([isNew ? null : getDoc(ref), agentOptions(),
+		paraSocio ? misCasas() : loadAll(), paraSocio ? [] : loadPropietarios()]);
 	const socioOpts = [['', 'Elegir…'], ...propietarios.map((p) => [p.id, p.tipo === 'colaborador' ? `${p.nombre} (colaborador${p.empresa ? ` · ${p.empresa}` : ''})` : tieneCasasPorNoche(p, all) ? `${p.nombre} (socio)` : p.nombre])];
 	if (!isNew && !snap.exists()) {
 		mount(container, emptyState('La propiedad no existe.', h('a', { href: '#/propiedades', class: 'btn btn-primary' }, 'Volver')));
@@ -1085,7 +1112,7 @@ async function renderEditor(container, id, emb = null) {
 			h('a', { href: publicUrl(data), target: '_blank', class: 'btn btn-outline-primary' }, 'Ver en el sitio'));
 		return;
 	}
-	if (!session.isAdmin && !session.agentId) {
+	if (!session.isAdmin && !session.agentId && !paraSocio) {
 		mount(container, h('div', { class: 'alert alert-warning' }, 'Tu usuario no está vinculado a un asesor. Pide a un administrador que lo vincule en "Usuarios".'));
 		return;
 	}
@@ -1131,9 +1158,11 @@ async function renderEditor(container, id, emb = null) {
 	const ajeno = Boolean(data.propietarioId) && !propietarios.some((p) => p.id === data.propietarioId);
 	if (ajeno) socioOpts.push([data.propietarioId, 'Asignado (lo lleva otro asesor)']);
 	let slugTouched = Boolean(data.slug);
+	// El socio: la casa es suya y, en venta o renta, la atiende su asesor (el colaborador puede elegir otro).
+	if (paraSocio) Object.assign(data, { propietarioId: session.profile.propietarioId || '', agentId: session.dueno?.agentId || '' });
 	const datosForm = { ...data, acuerdo: acuerdoInicial, socio: { margen: V.MARGEN, ...(socioGuardado || {}) }, vacacional: { nochesMin: 1, huespedesMax: 2, checkIn: '15:00', checkOut: '11:00', ...(data.vacacional || {}) } };
 	mascotasUnaVez(datosForm);
-	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id), datosForm, { folder: `properties/${ref.id}` });
+	const form = renderForm(schema(agentOpts, isNew, socioOpts, ajeno, isNew ? '' : ref.id, paraSocio ? { colaborador: session.dueno?.tipo === 'colaborador' } : null), datosForm, { folder: `properties/${ref.id}` });
 	// La ficha como estaba al abrirla (o al último «Guardar»): con eso se sabe qué cambió quien la edita y solo eso se
 	// guarda (guardarCambios). De una casa que no era por noche no hay nada por noche guardado: todo eso es nuevo.
 	const comoQuedo = (f) => {
@@ -1208,7 +1237,7 @@ async function renderEditor(container, id, emb = null) {
 	// intentadoCon: el español con que ya se tradujo aquí sin quedar completa (un texto volvió vacío); con ese mismo
 	// español no se vuelve a pedir en cada cambio de otro campo: se intenta otra vez al guardar.
 	let enAuto = data.en || {}, turnoEn = 0, enCurso = Promise.resolve(), intentadoCon = null;
-	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status' });
+	const estadoEn = h('div', { class: 'col-12 small text-muted', role: 'status', hidden: paraSocio });
 	form.el.querySelector('[data-campo="en.titulo"]').before(estadoEn);
 	// Lo que se manda a traducir: lo mismo que queda público al guardar. De una casa por noche no van la dirección
 	// ni el mapa (privados) y el precio es el que ve el cliente, no el del socio.
@@ -1241,7 +1270,8 @@ async function renderEditor(container, id, emb = null) {
 			if (turno === turnoEn) estadoEn.textContent = 'No se pudo traducir ahora; se intenta de nuevo al guardar.';
 		}
 	};
-	form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
+	// El inglés de la casa del socio lo hace el equipo al marcar «Listo» en «Cambios de los dueños».
+	if (!paraSocio) form.el.addEventListener('change', (e) => { if (!e.target.closest('[data-campo^="en."]')) enCurso = traducirEnVivo(); });
 
 	// Se vuelve a pintar en su propio contenedor (no «el primer hijo de la pantalla»: arriba puede ir un aviso, como el de
 	// la verificación en dos pasos). Solo en la página: en una ventana (emb) no hay «Traducir» y el guardado avisa a quien la abrió.
@@ -1252,6 +1282,7 @@ async function renderEditor(container, id, emb = null) {
 
 	// `forzarIngles`: vuelve a traducir aunque el inglés esté al día (el botón «Traducir al inglés» con cambios sin guardar).
 	const save = async (btn, { forzarIngles = false } = {}) => {
+		if (paraSocio) return publicarDelSocio(btn);
 		if (!form.validate()) return;
 		// Si la traducción en vivo va en camino, se espera: así no se traduce dos veces.
 		btn.disabled = true;
@@ -1489,11 +1520,24 @@ async function renderEditor(container, id, emb = null) {
 		}
 	};
 
-	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, 'Guardar');
+	// La casa nueva del socio: lo mismo que revisa el servidor, aquí, para marcar cada campo antes de mandarla; y el
+	// servidor la vuelve a revisar, la crea y la publica (netlify/functions/mi-casa-nueva.mjs).
+	const publicarDelSocio = (btn) => ocupado(btn, async () => {
+		if (!form.validate()) return;
+		const datos = datosParaServidor(form.getData());
+		const dueno = { tipo: session.dueno?.tipo, agentId: session.dueno?.agentId || '' };
+		const { errores } = revisarCasaNueva({ datos, casaId: ref.id, dueno, agentes: agentOpts.map(([v]) => v).filter(Boolean), revisarOrigen: false });
+		if (errores.length) return form.marcar(errores);
+		const r = await alServidorCasaNueva({ casa: ref.id, datos });
+		if (r.errores?.length) return form.marcar(r.errores);
+		toast(r.publicaSola ? 'Publicada. Sale en la página en unos minutos.' : 'Publicada. Sale en la página cuando el equipo publique el sitio.');
+		if (emb) emb.alGuardar({ id: ref.id, ...datos });
+	});
+	const saveBtn = h('button', { class: 'btn btn-primary', onclick: (e) => save(e.currentTarget) }, paraSocio ? 'Publicar' : 'Guardar');
 	const eliminarBtn = !isNew && session.isAdmin ? h('button', { class: 'btn btn-outline-danger ms-auto', onclick: remove }, 'Eliminar') : null;
 	const cuerpo = [
 		!isNew ? h('p', { class: 'small text-muted' }, `Última actualización: ${formatDate(data.updatedAt)}`) : null,
-		vigilarFormulario(form, 'propiedades'),
+		paraSocio ? null : vigilarFormulario(form, 'propiedades'),
 		h('div', { class: 'card' }, h('div', { class: 'card-body' }, form.el))];
 	if (emb) {
 		// Dentro de una ventana: mismos datos y mismo guardado; los botones van al pie de la ventana.

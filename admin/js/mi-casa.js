@@ -6,6 +6,8 @@
 // Google, inglés (se traduce al marcar «Listo»), precios por noche (su calendario), la limpieza (la ganancia de EQ de una
 // solicitud se calcula quitando la limpieza de hoy a lo cotizado: si el dueño la subiera antes de confirmar, la bajaría)
 // ni borrar la casa.
+// Las revisiones de cada dato (texto, numero, deLista, mapa, amenidades, fotoLimpia, fotoDeLaCasa) son las mismas para la
+// casa nueva que sube el socio (admin/js/casa-nueva.js).
 // Pruebas: scripts/test-mi-casa.mjs.
 import { estadoDe } from './estados.js';
 // El mismo filtro de contacto del chat (js/calc-vacacional.js `tieneContacto`). Ruta relativa: también corre en Node.
@@ -27,7 +29,7 @@ export const PARECE = { telefono: 'parece un teléfono', correo: 'parece un corr
 	ubicacion: 'parecen coordenadas', raro: 'tiene letras o cifras de otro alfabeto' };
 export const sinContacto = (texto) => { const tipo = V.tipoDeContacto(texto); return tipo ? `${PARECE[tipo] || SIN_CONTACTO}. ${tipo === 'ubicacion' ? 'La ubicación exacta no se publica' : 'Los contactos no se publican'}` : ''; };
 // `privado`: lo que el huésped recibe al confirmar (la dirección), junto con el contacto: ahí no se filtra.
-const texto = (max, { min = 0, privado = false } = {}) => (v) => {
+export const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	const s = String(v ?? '').replace(/\r\n/g, '\n').trim();
 	if (s.length < min) return { error: min > 1 ? `escribe al menos ${min} letras` : 'no puede quedar vacío' };
 	if (s.length > max) return { error: `hasta ${max} letras` };
@@ -36,13 +38,13 @@ const texto = (max, { min = 0, privado = false } = {}) => (v) => {
 	if (privado && /https?:|www\./i.test(s)) return { error: 'sin enlaces (el mapa va en su campo)' };
 	return { valor: s };
 };
-const numero = (max, paso = 1) => (v) => {
+export const numero = (max, paso = 1) => (v) => {
 	const n = v === '' || v === null || v === undefined ? 0 : Number(v);
 	if (!Number.isFinite(n) || n < 0 || n > max) return { error: `de 0 a ${max}` };
 	// Con centavos, redondeo a centavos (100.10, no 100.10000000000001).
 	return { valor: paso === 0.01 ? V.r2(n) : Math.round(n / paso) * paso };
 };
-const deLista = (opciones) => (v) => (opciones.includes(v ?? '') ? { valor: v ?? '' } : { error: 'elige una opción de la lista' });
+export const deLista = (opciones) => (v) => (opciones.includes(v ?? '') ? { valor: v ?? '' } : { error: 'elige una opción de la lista' });
 
 // Calendarios de otras plataformas: solo https y de su página (el servidor los descarga).
 const HOSTS_ICAL = { icalUrl: ['airbnb.com', 'airbnb.mx', 'airbnb.es', 'airbnb.com.gt'], icalBooking: ['booking.com'], icalVrbo: ['vrbo.com', 'homeaway.com'] };
@@ -57,7 +59,7 @@ const ical = (campo) => (v) => {
 };
 // Mapa de llegada: un enlace de Google Maps, o la dirección o coordenadas escritas (sin código ni otros enlaces).
 const HOSTS_MAPA = ['google.com', 'maps.google.com', 'maps.app.goo.gl', 'goo.gl'];
-const mapa = (v) => {
+export const mapa = (v) => {
 	const s = String(v ?? '').trim();
 	if (!s) return { valor: '' };
 	if (s.length > 600 || /[<>"'`]/.test(s)) return { error: 'pega el enlace de Google Maps o escribe la dirección' };
@@ -73,7 +75,7 @@ const mapa = (v) => {
 	}
 	return { valor: s };
 };
-const amenidades = (v) => {
+export const amenidades = (v) => {
 	if (!Array.isArray(v)) return { error: 'lista inválida' };
 	const lista = [...new Set(v.map((a) => String(a ?? '').trim()).filter(Boolean))];
 	if (lista.length > 40 || lista.some((a) => a.length > 60)) return { error: 'hasta 40, de 60 letras cada una' };
@@ -132,7 +134,7 @@ export function valoresDueno({ casa = {}, socio = {}, llegada = {} } = {}) {
 }
 
 // Una foto con solo lo que se guarda de ella (lo demás que traiga se descarta).
-function fotoLimpia(f = {}) {
+export function fotoLimpia(f = {}) {
 	const o = { url: String(f.url || ''), path: String(f.path || '') };
 	for (const k of ['ancho', 'alto']) if (Number.isFinite(Number(f[k])) && Number(f[k]) > 0) o[k] = Math.round(Number(f[k]));
 	if (f.marca) o.marca = true;

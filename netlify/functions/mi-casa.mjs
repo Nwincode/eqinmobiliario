@@ -8,6 +8,8 @@
 //   GET  /api/mi-casa                                → { cambios: [...] } los avisos sin atender (30 días).
 //   POST /api/mi-casa { accion: 'deshacer', id, campos? } → vuelve a poner lo de antes donde sigue lo del dueño.
 //   POST /api/mi-casa { accion: 'listo', id }        → el aviso se va (el cambio se queda).
+// Los avisos de una casa nueva que subió el socio (netlify/functions/mi-casa-nueva.mjs, `nueva: true`) salen en la misma
+// lista; no se deshacen (409): se corrigen en la ficha o se elimina la casa.
 // Errores en JSON { error }: 400, 401, 403 no es suya, 404, 409 (no se puede pausar con huéspedes por venir),
 // 422 un dato que no va, 429 (solo lo que guarda el dueño: 40 en 10 minutos), 503 sin cuenta de escritura.
 // Lo que guarda el dueño responde { ok, cambios, publicaSola } (publicaSola: el sitio se publica solo en unos minutos).
@@ -93,6 +95,8 @@ async function guardarDelDueno(tx, socio, id, pedido) {
 async function deshacer(tx, admin, avisoId, campos) {
 	const aviso = await tx.leer(`cambiosDueno/${avisoId}`);
 	if (!aviso) falla(404, 'Ese aviso ya no existe.');
+	// Una casa nueva del socio (netlify/functions/mi-casa-nueva.mjs) no tiene «lo de antes»: se corrige en su ficha o se elimina.
+	if (aviso.nueva) falla(409, 'Una casa nueva no se deshace: corrígela en su ficha o elimínala.');
 	const id = aviso.propertyId;
 	const docs = await leerCasa(tx, id);
 	if (!docs.casa) falla(404, 'La casa ya no existe.');

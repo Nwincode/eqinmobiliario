@@ -115,10 +115,12 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 			urgente: e.dias <= 7, listo, titulo: textoExclusiva(e.dias), detalle: [e.casa, e.dueno].filter(Boolean).join(' · ')
 		});
 	}
-	// Lo que un dueño cambió él solo de su casa por noche (ya publicado): se va al marcarlo «Listo» o deshacerlo.
+	// Lo que un dueño cambió él solo de su casa por noche, o la casa nueva que subió (ya publicado): se va al marcarlo
+	// «Listo», deshacerlo o eliminar la casa.
 	for (const c of cambiosDueno) out.push({
-		clave: `cambioDueno_${c.id}`, tipo: 'cambioDueno', icono: 'icon-pencil', href: `#/cambios-dueno/${encodeURIComponent(c.id)}`, fecha: c.fecha, urgente: false,
-		titulo: `${c.nombre || 'Un dueño'} cambió su casa`, detalle: [c.casa, c.cuantos ? `${c.cuantos} ${c.cuantos === 1 ? 'cambio' : 'cambios'} · ya publicado` : ''].filter(Boolean).join(' · ')
+		clave: `cambioDueno_${c.id}`, tipo: 'cambioDueno', icono: c.nueva ? 'icon-plus' : 'icon-pencil', href: `#/cambios-dueno/${encodeURIComponent(c.id)}`, fecha: c.fecha, urgente: false,
+		titulo: `${c.nombre || 'Un dueño'} ${c.nueva ? 'subió una casa' : 'cambió su casa'}`,
+		detalle: [c.casa, c.nueva ? 'ya publicada' : c.cuantos ? `${c.cuantos} ${c.cuantos === 1 ? 'cambio' : 'cambios'} · ya publicado` : ''].filter(Boolean).join(' · ')
 	});
 	// Lead nuevo de la web (formulario de contacto o de una casa): se va solo al cambiarle el estado en Leads.
 	// Después de 24 h sin atender va en rojo.
