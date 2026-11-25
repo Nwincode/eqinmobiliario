@@ -78,7 +78,7 @@ function tarjetaNueva(c, alCambiar) {
 		h('div', { class: 'card-header' },
 			h('div', { class: 'fw-semibold' }, `${c.nombre || 'El dueño'} subió «${c.titulo || 'su casa'}»`),
 			h('div', { class: 'small text-success' }, [operacionDe(c), c.cuando ? formatDate(new Date(c.cuando)) : '', 'ya está publicada'].filter(Boolean).join(' · '))),
-		fotos.length ? h('div', { class: 'card-body d-flex gap-1 flex-wrap' }, fotos.map((f) => h('img', { src: f.url, alt: '', width: 64, height: 64, class: 'rounded', style: 'object-fit: cover' }))) : null,
+		fotos.length ? h('div', { class: 'card-body d-flex gap-1 flex-wrap' }, fotos.map((f) => h('img', { src: f.url, alt: '', width: 56, height: 56, class: 'rounded', style: 'object-fit: cover' }))) : null,
 		h('div', { class: 'card-footer d-flex align-items-center gap-2' },
 			iconoBtn('icon-pencil', 'Abrir la ficha', { href: `#/propiedades/${encodeURIComponent(c.propertyId)}` }),
 			iconoBtn('icon-trash-o', 'Eliminar la casa', { class: 'btn-toque btn-icono btn btn-sm btn-outline-danger', onclick: (e) => accion(e.currentTarget, eliminar, 'Casa eliminada; sale de la página al publicarse.') }),
