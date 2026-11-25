@@ -94,7 +94,8 @@ function normalizeProperties(list) {
 	return list
 		.map((p) => {
 			let slug = slugify(p.slug || p.titulo) || p.id;
-			if (used.has(slug)) slug = `${slug}-${slugify(p.id).slice(0, 8)}`;
+			// Dos casas con la misma URL: ninguna pisa a la otra (la segunda lleva parte de su id) y se avisa.
+			if (used.has(slug)) { const otra = `${slug}-${slugify(p.id).slice(0, 8)}`; console.warn(`  ⚠ La casa «${p.id}» repite la URL /${slug}/ de otra: sale en /${otra}/. Cámbiala en el panel.`); slug = otra; }
 			used.add(slug);
 			return {
 				operacion: 'venta', tipo: 'casa', moneda: 'USD', estado: 'disponible',

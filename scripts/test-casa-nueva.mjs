@@ -24,6 +24,8 @@ t('una casa en venta completa pasa; el asesor es el que atiende al dueño', () =
 	assert.equal(r.casa.precio, 350000);
 	assert.equal(r.casa.fotos[0].alt, 'Casa con jardín en Zona 15 – foto 1');
 	assert.equal(r.casa.vacacional, undefined);
+	// La marca de agua (marca: true) no la decide quien manda.
+	assert.ok(r.casa.fotos.every((f) => !('marca' in f)));
 });
 t('el colaborador elige el asesor (de los activos); el propietario no', () => {
 	assert.equal(revisar(venta({ agentId: 'a2' }), { dueno: { tipo: 'colaborador', agentId: 'a1' } }).casa.agentId, 'a2');

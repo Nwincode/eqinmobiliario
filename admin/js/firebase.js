@@ -11,7 +11,7 @@ import {
 	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction, connectFirestoreEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
-	getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator
+	getStorage, ref, uploadBytes, getDownloadURL, getMetadata, deleteObject, connectStorageEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const res = await fetch('/site.config.json', { cache: 'no-store' });
@@ -67,5 +67,5 @@ export {
 	multiFactor, getMultiFactorResolver, TotpMultiFactorGenerator, sendEmailVerification,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
 	serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction,
-	ref, uploadBytes, getDownloadURL, deleteObject
+	ref, uploadBytes, getDownloadURL, getMetadata, deleteObject
 };

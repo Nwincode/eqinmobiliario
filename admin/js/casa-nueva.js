@@ -121,7 +121,9 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 	if (casa.tipo && casa.operacion && !tipoAplica(casa.tipo, casa.operacion)) falla('tipo', 'Tipo', 'una casa por noche es casa, apartamento o finca');
 	// Fotos: de 5 a 40, sin repetir, todas de la carpeta de esta casa. La descripción de cada una (para Google) la que
 	// escribió, sin contacto; si la dejó vacía, «Título – foto N».
-	const fotos = Array.isArray(datos.fotos) ? datos.fotos.map(fotoLimpia) : [];
+	// `marca` (ya lleva la marca de agua) no se acepta de quien manda: con ella, la acción del equipo «Poner marca de agua»
+	// se la saltaría a una foto que no la tiene. La ficha del socio siempre se la pone al subirla.
+	const fotos = Array.isArray(datos.fotos) ? datos.fotos.map((f) => { const { marca, ...limpia } = fotoLimpia(f); return limpia; }) : [];
 	if (fotos.length < MIN_FOTOS) falla('fotos', 'Fotos', `sube al menos ${MIN_FOTOS} (llevas ${fotos.length})`);
 	else if (fotos.length > MAX_FOTOS) falla('fotos', 'Fotos', `hasta ${MAX_FOTOS}`);
 	else if (new Set(fotos.map((f) => f.path)).size !== fotos.length) falla('fotos', 'Fotos', 'hay una repetida');

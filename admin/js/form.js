@@ -6,7 +6,7 @@
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
-import { storage, db, ref, uploadBytes, getDownloadURL, deleteObject, collection, getDocs } from './firebase.js';
+import { storage, db, ref, uploadBytes, getDownloadURL, getMetadata, deleteObject, collection, getDocs } from './firebase.js';
 import { procesarImagen as procesar } from './imagen.js';
 
 export function getPath(obj, path) {
@@ -43,12 +43,22 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
 // `sinEnlace`: un archivo que Storage no abre a nadie (el comprobante del pago a EQ): sin dirección de descarga, solo la ruta.
-export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false } = {}) {
+// `numerada`: el archivo se llama 1 a 40 (el primer número libre de la carpeta): la carpeta de la casa nueva del socio
+// (storage.rules no le deja más de 40 ni otro nombre).
+export const MAX_NUMERADAS = 40;
+async function numeroLibre(folder, ext) {
+	for (let n = 1; n <= MAX_NUMERADAS; n++) {
+		const path = `${folder}/${n}.${ext}`;
+		try { await getMetadata(ref(storage, path)); } catch (err) { if (err?.code === 'storage/object-not-found') return path; throw err; }
+	}
+	throw new Error(`Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.`);
+}
+export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false } = {}) {
 	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
-	const path = `${folder}/${Date.now()}-${base}.${ext}`;
+	const path = numerada ? await numeroLibre(folder, ext) : `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
 	return { url: sinEnlace ? '' : await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
@@ -489,7 +499,7 @@ export function renderForm(schema, data, options = {}) {
 					for (let n = 0; n < files.length; n++) {
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked })), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked }, { numerada: Boolean(field.numeradas) })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {

@@ -882,7 +882,8 @@ const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Landing page VIP', 'Versión
 const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de EQ (pégalo en Airbnb, Booking y VRBO)'];
 const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
 const PARA_EL_SOCIO = {
-	fotos: { marcaFija: true },
+	// Con nombre 1 a 40 (storage.rules: la carpeta de la casa nueva no admite más).
+	fotos: { marcaFija: true, numeradas: true },
 	// Sin la ayuda de enlaces del formato (los textos no los llevan).
 	descripcion: { type: 'textarea' },
 	// Su casa sale con precio (la revisión lo pide en venta y renta): sin «Déjalo vacío para mostrar Precio a consultar».

@@ -6,12 +6,18 @@ import { S, limpiar, poner, leer, hijos } from './simulado/base.mjs';
 
 const { default: casaNueva } = await import('../netlify/functions/mi-casa-nueva.mjs');
 const { default: miCasa } = await import('../netlify/functions/mi-casa.mjs');
+const { barrerCasasNuevas } = await import('../netlify/lib/casas-nuevas.mjs');
 let ok = 0;
 const t = async (nombre, fn) => { limpiar(); base(); await fn(); ok++; console.log('✓', nombre); };
 const pedido = (cuerpo) => ({ method: 'POST', headers: new Headers(), json: async () => cuerpo });
 const llamar = async (cuerpo) => { const r = await casaNueva(pedido(cuerpo)); return { status: r.status, ...(await r.json()) }; };
 const B = 'eqinmobiliariobd.firebasestorage.app';
-const foto = (casa, n) => { const path = `properties/${casa}/${n}-f.webp`; return { url: `https://firebasestorage.googleapis.com/v0/b/${B}/o/${encodeURIComponent(path)}?alt=media&token=x`, path }; };
+// Cada foto, además, subida de verdad a su carpeta (Storage simulado: S.archivos).
+const foto = (casa, n, { subida = true } = {}) => {
+	const path = `properties/${casa}/${n}.webp`;
+	if (subida) (S.archivos ||= new Map()).set(path, { tipo: 'image/webp', datos: Buffer.from('x') });
+	return { url: `https://firebasestorage.googleapis.com/v0/b/${B}/o/${encodeURIComponent(path)}?alt=media&token=x`, path, marca: true };
+};
 const fotos = (casa, n = 5) => Array.from({ length: n }, (_, i) => foto(casa, i + 1));
 const SOCIO = { uid: 'u-socio', nombre: 'Rosa', propietarioId: 'p1' };
 function base() {
@@ -129,5 +135,55 @@ await t('sin sesión de socio: 403; límite de 10 casas al día', async () => {
 	}
 	const id = await apartar();
 	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 429);
+});
+await t('una foto con una ruta inventada (no subida) no cuenta: 422; la marca de agua no la decide el socio', async () => {
+	const id = await apartar();
+	const r = await llamar({ casa: id, datos: venta(id, { fotos: [...fotos(id, 4), foto(id, 9, { subida: false })] }) });
+	assert.equal(r.status, 422);
+	assert.deepEqual(r.errores.map((e) => e.campo), ['fotos']);
+	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 200);
+	assert.ok(leer(`properties/${id}`).fotos.every((f) => !('marca' in f)));
+});
+await t('carpeta vencida (más de 7 días): 403 y se aparta otra', async () => {
+	const id = await apartar();
+	S.reloj += 8 * 86400_000;
+	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 403);
+	assert.notEqual(await apartar(), id);
+	S.reloj -= 8 * 86400_000;
+});
+await t('intentos que no pasan también tienen límite (20 en 10 min), antes de leer todas las casas', async () => {
+	S.socio = { uid: 'u-insiste', nombre: 'Rosa', propietarioId: 'p1' };
+	const id = await apartar();
+	for (let i = 0; i < 20; i++) assert.equal((await llamar({ casa: id, datos: venta(id, { titulo: 'x' }) })).status, 422, `intento ${i + 1}`);
+	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 429);
+});
+await t('la URL y el código se apartan en la misma transacción: otra con el mismo título (o una URL ya apartada) lleva la siguiente', async () => {
+	poner('urlsCasas/casa-con-jardin-en-zona-15-2', { propertyId: 'en-camino' });
+	const a = await apartar();
+	assert.equal((await llamar({ casa: a, datos: venta(a) })).status, 200);
+	S.socio = { uid: 'u-colab', nombre: 'Aliada', propietarioId: 'p2' };
+	const b = await apartar();
+	assert.equal((await llamar({ casa: b, datos: venta(b) })).status, 200);
+	const [ca, cb] = [leer(`properties/${a}`), leer(`properties/${b}`)];
+	assert.equal(ca.slug, 'casa-con-jardin-en-zona-15-3');
+	assert.equal(cb.slug, 'casa-con-jardin-en-zona-15-4');
+	assert.notEqual(ca.codigo, cb.codigo);
+	assert.equal(leer(`urlsCasas/${cb.slug}`).propertyId, b);
+	assert.equal(leer(`codigosCasas/${cb.codigo}`).propertyId, b);
+});
+await t('cada hora: las carpetas vencidas sin casa se borran con sus fotos; la de una casa publicada solo pierde su apartado', async () => {
+	const vieja = await apartar();
+	fotos(vieja, 3);
+	poner(`casasNuevas/${vieja}`, { ...leer(`casasNuevas/${vieja}`), cuando: new Date(S.reloj - 9 * 86400_000) });
+	poner('casasNuevas/con-casa', { propietarioId: 'p1', uid: 'u-socio', cuando: new Date(S.reloj - 9 * 86400_000) });
+	poner('properties/con-casa', { titulo: 'Ya publicada' });
+	fotos('con-casa', 2);
+	poner('casasNuevas/reciente', { propietarioId: 'p1', uid: 'otro', cuando: new Date(S.reloj - 86400_000) });
+	assert.equal(await barrerCasasNuevas(), 2);
+	assert.equal(leer(`casasNuevas/${vieja}`), null);
+	assert.equal([...S.archivos.keys()].filter((k) => k.startsWith(`properties/${vieja}/`)).length, 0);
+	assert.equal(leer('casasNuevas/con-casa'), null);
+	assert.equal([...S.archivos.keys()].filter((k) => k.startsWith('properties/con-casa/')).length, 2);
+	assert.ok(leer('casasNuevas/reciente'));
 });
 console.log(`${ok} pruebas de la casa nueva (servidor) correctas`);

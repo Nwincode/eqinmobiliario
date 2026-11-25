@@ -1083,19 +1083,34 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('el socio crea una casa directo en la base', crear('socio1', 'properties/del-socio', { titulo: 'Mía', operacion: 'venta', propietarioId: 'o1', agentId: '', publicado: true }), false);
 	await espera('el socio crea una casa por noche directo en la base', crear('socio1', 'properties/del-socio2', { titulo: 'Mía', operacion: 'vacacional', propietarioId: 'o1', agentId: '', publicado: true }), false);
 	await espera('el socio se aparta él mismo una carpeta', crear('socio1', 'casasNuevas/mia', { propietarioId: 'o1' }), false);
-	await poner('casasNuevas/nueva-s1', { propietarioId: 'o1', uid: 'socio1' });
+	// La carpeta apartada lleva la hora en que se apartó (`cuando`): vale 7 días.
+	const apartada = (id, propietarioId, haceDias = 0) => fetch(`${H}/casasNuevas/${id}`, { method: 'PATCH', headers: cab('dueño'),
+		body: JSON.stringify({ fields: { propietarioId: val(propietarioId), uid: val('socio1'), cuando: { timestampValue: new Date(Date.now() - haceDias * 86400000).toISOString() } } }) });
+	await apartada('nueva-s1', 'o1');
 	await espera('el socio lee las carpetas apartadas', leer('socio1', 'casasNuevas/nueva-s1'), false);
-	await espera('storage: el socio sube una foto a la carpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/f1.png'), true);
-	await espera('storage: el socio reemplaza esa foto', subir('socio1', 'properties/nueva-s1/f1.png'), false);
-	await espera('storage: el socio borra una foto de su casa nueva', borrar('socio1', 'properties/nueva-s1/f1.png'), false);
-	await espera('storage: otro socio sube a la carpeta de esa casa nueva', subir('socio2', 'properties/nueva-s1/f2.png'), false);
-	await espera('storage: el socio sube a una carpeta que nadie le apartó', subir('socio1', 'properties/sin-apartar/f1.png'), false);
-	await espera('storage: el socio sube a una subcarpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/x/f.png'), false);
-	await espera('storage: el socio sube algo que no es foto a su casa nueva', subir('socio1', 'properties/nueva-s1/n.txt', 'text/plain'), false);
+	await espera('storage: el socio sube una foto a la carpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/1.png'), true);
+	await espera('storage: el socio sube la foto 40 (control)', subir('socio1', 'properties/nueva-s1/40.webp', 'image/webp'), true);
+	await espera('storage: el socio reemplaza esa foto', subir('socio1', 'properties/nueva-s1/1.png'), false);
+	await espera('storage: el socio borra una foto de su casa nueva', borrar('socio1', 'properties/nueva-s1/1.png'), false);
+	await espera('storage: el socio sube la foto 41 (tope de 40)', subir('socio1', 'properties/nueva-s1/41.png'), false);
+	await espera('storage: el socio sube una foto con otro nombre (sin tope)', subir('socio1', 'properties/nueva-s1/1700000000-foto.png'), false);
+	await espera('storage: el socio sube un SVG a su casa nueva', subir('socio1', 'properties/nueva-s1/2.png', 'image/svg+xml'), false);
+	await espera('storage: otro socio sube a la carpeta de esa casa nueva', subir('socio2', 'properties/nueva-s1/2.png'), false);
+	await espera('storage: el socio sube a una carpeta que nadie le apartó', subir('socio1', 'properties/sin-apartar/1.png'), false);
+	await espera('storage: el socio sube a una subcarpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/x/1.png'), false);
+	await espera('storage: el socio sube algo que no es foto a su casa nueva', subir('socio1', 'properties/nueva-s1/3.png', 'text/plain'), false);
+	await apartada('vieja-s1', 'o1', 8);
+	await espera('storage: el socio sube a una carpeta apartada hace más de 7 días', subir('socio1', 'properties/vieja-s1/1.png'), false);
+	await poner('permisosSocios/o1', { precios: true, fechas: true, casa: true, inmuebles: false, motivo: 'atraso' });
+	await espera('storage: el socio con «Ingresar inmuebles» apagado sube a su carpeta', subir('socio1', 'properties/nueva-s1/2.png'), false);
+	await fetch(`${H}/permisosSocios/o1`, { method: 'DELETE', headers: cab('dueño') });
+	await espera('storage: con el permiso de vuelta, sube (control)', subir('socio1', 'properties/nueva-s1/2.png'), true);
 	await poner('casasNuevas/prueba-casa-en-venta', { propietarioId: 'o1' });
 	await espera('storage: el socio sube a una casa que ya existe con una carpeta apartada a su nombre', subir('socio1', 'properties/prueba-casa-en-venta/f9.png'), false);
 	await espera('storage: un acceso quitado sube una foto',subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
+	await espera('storage: el equipo sube un SVG (puede llevar código)', subir('admin1', 'site/logo.svg', 'image/svg+xml'), false);
+	await espera('storage: el equipo sube un JPEG (control)', subir('admin1', 'site/portada.jpg', 'image/jpeg'), true);
 	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
 	await espera('storage: la dueña sube un HEIC como comprobante (el navegador no lo muestra)', subir('mixto1', 'comprobantes/lead-res-noche/pago.heic', 'image/heic'), false);
 	// La foto del chat: en la carpeta de su solicitud (fotosChat/{solicitud}/1…10), con el enlace vigente en sus datos.
