@@ -176,6 +176,9 @@
 
 	pedir(RAIZ + '/chats/' + token).then(function (doc) {
 		var c = plano(doc);
+		// El enlace que abrió (el del correo, quizá uno nuevo: al corregir su correo el enlace cambia) es el que se recuerda
+		// para volver a /reserva/ sin él.
+		if (location.hash.slice(1) === token) { try { localStorage.setItem(GUARDADO, token); localStorage.setItem(GUARDADO + '-casa', c.propertyId || ''); localStorage.setItem(GUARDADO + '-idioma', c.idioma || 'es'); } catch (e) { /* sin memoria del navegador */ } }
 		t = TEXTOS[c.idioma] || TEXTOS.es;
 		var en = c.idioma === 'en';
 		var lang = en ? 'en' : 'es';

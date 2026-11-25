@@ -1,7 +1,7 @@
 // Pruebas de lo puro del hilo (admin/js/hilo.js): qué foto del cliente ve el socio (estadoDeFoto), los eventos que salen
 // del chat y sus mensajes (eventosDe) y lo que se guarda al citar.
 import assert from 'node:assert/strict';
-import { estadoDeFoto, fotosOcultas, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
+import { estadoDeFoto, fotosOcultas, fotoDe, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
 import { chatAbierto } from '../admin/js/reservas-calculo.js';
 
 let n = 0;
@@ -73,4 +73,21 @@ t('chatAbierto: ni cancelada ni «No se dio» esperan respuesta (Solicitudes ya 
 	assert.equal(chatAbierto({ estado: '', salida: '2000-01-01' }), false);
 	assert.equal(chatAbierto(null), false);
 });
+// fotoDe: un error que no es 403 (503, 429, sin red) no se vuelve a pedir en cada repintada.
+{
+	const real = globalThis.fetch;
+	let pedidos = 0;
+	globalThis.fetch = async () => { pedidos++; return new Response('{}', { status: 503 }); };
+	const fotos = {}, T = 'TokenDeFotoLargoYAlAzar12345', m = { id: 'm1', texto: `chats/${T}/f.webp` };
+	let repintadas = 0;
+	// Cada vez que llega, se vuelve a pintar (y a pedir la foto), como el hilo.
+	const pintar = () => { repintadas++; fotoDe(fotos, T, m, { alListo: pintar }); };
+	fotoDe(fotos, T, m, { alListo: pintar });
+	await new Promise((r) => setTimeout(r, 100));
+	assert.equal(repintadas, 1);
+	globalThis.fetch = real;
+	assert.equal(pedidos, 1);
+	assert.deepEqual(fotos[`chats/${T}/f.webp`], { fallo: true });
+	n++; console.log('✓ fotoDe: un 503 se pide una sola vez (queda { fallo } hasta que quien llama la suelta)');
+}
 console.log(`\n${n} pruebas del hilo pasan.`);

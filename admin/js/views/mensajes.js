@@ -161,8 +161,8 @@ function hiloDe(S, f, conR8, iaActiva) {
 		} }, 'Mostrar al socio') : null;
 		return tarjetaComprobante(m, t, rv()?.mensaje === m.id ? rv() : null, monto, { src: foto.src || '', marca: f.marca, accion: mostrar });
 	};
-	// Una foto que el servidor no dejó ver se vuelve a pedir cuando cambia lo que lo decide («Mostrar al socio», la revisión).
-	const soltarOcultas = () => { for (const k of Object.keys(memo.fotos)) if (memo.fotos[k].no) delete memo.fotos[k]; };
+	// Una foto que el servidor no dejó ver (o no se pudo bajar) se vuelve a pedir cuando cambia lo que lo decide («Mostrar al socio», la revisión).
+	const soltarOcultas = () => { for (const k of Object.keys(memo.fotos)) if (memo.fotos[k].no || memo.fotos[k].fallo) delete memo.fotos[k]; };
 	const repintar = () => {
 		const items = [...mensajes, ...notas.map((n) => ({ ...n, nota: true })), ...fallidos.values()];
 		const nodos = armarHilo(items, { yo, t, ahora: ahoraYa(), chat, vistoOtros: enMs(chat.vistoCliente), etiqueta, nombreDe, tarjeta,

@@ -191,7 +191,7 @@ export function rutaDeFoto(token, texto) {
 
 // Lo que se sabe de la foto del mensaje `m` del chat `token`, guardado en `fotos` (un objeto por chat, de quien llama; el
 // hilo se vuelve a pintar entero y la foto se pide una sola vez): { src } ya bajada, { no, enRevision } no se ve,
-// { cargando } en camino; null si el mensaje no trae una foto de ese chat. La pide a /api/foto (el token en el cuerpo, no
+// { cargando } en camino, { fallo } no se pudo bajar; null si el mensaje no trae una foto de ese chat. La pide a /api/foto (el token en el cuerpo, no
 // en la dirección) con la sesión del panel si la hay (`llave()`: el token de Firebase) y llama `alListo` al llegar.
 export function fotoDe(fotos, token, m, { llave = null, alListo = () => {} } = {}) {
 	const ruta = rutaDeFoto(token, m.texto);
@@ -202,8 +202,10 @@ export function fotoDe(fotos, token, m, { llave = null, alListo = () => {} } = {
 		.then(async (r) => {
 			if (r.ok) fotos[ruta] = { src: URL.createObjectURL(await r.blob()) };
 			else if (r.status === 403) fotos[ruta] = { no: true, enRevision: Boolean((await r.json().catch(() => ({}))).enRevision) };
-			else delete fotos[ruta];
-		}, () => { delete fotos[ruta]; })
+			// Otro error (sin red, 503, 429): queda sin imagen; se vuelve a pedir cuando quien llama suelta la entrada (no en
+			// cada repintada: así no se pide sin fin).
+			else fotos[ruta] = { fallo: true };
+		}, () => { fotos[ruta] = { fallo: true }; })
 		.then(() => alListo());
 	return fotos[ruta];
 }
