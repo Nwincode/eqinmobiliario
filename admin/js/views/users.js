@@ -17,8 +17,8 @@ const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'in
 
 function userForm(agents, user = {}) {
 	// Cada etiqueta con su campo (`for`/`id`): el lector de pantalla la lee y tocarla pone el cursor ahí.
-	const nombre = h('input', { class: 'form-control', id: 'u-nombre', required: true, autocomplete: 'name', maxlength: 120, value: user.nombre || '' });
-	const email = h('input', { class: 'form-control', id: 'u-email', type: 'email', required: true, autocomplete: 'email', value: user.email || '', disabled: Boolean(user.uid) });
+	const nombre = h('input', { class: 'form-control', id: 'u-nombre', required: true, autocomplete: 'off', maxlength: 120, value: user.nombre || '' });
+	const email = h('input', { class: 'form-control', id: 'u-email', type: 'email', required: true, autocomplete: 'off', value: user.email || '', disabled: Boolean(user.uid) });
 	const rol = h('select', { class: 'form-select', id: 'u-rol' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
 	rol.value = user.rol || 'asesor';
 	const agentId = h('select', { class: 'form-select', id: 'u-asesor' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));

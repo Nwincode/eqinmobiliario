@@ -3,7 +3,7 @@
 import {
 	db, doc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, arrayUnion
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, nombreYDatos, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
+import { h, toast, showError, errorMessage, pageHeader, badge, nombreYDatos, formatPrice, formatDate, emptyState, mount, spinner, tablaAdmin } from '../ui.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { pedirIA, estadoIA, whatsappUrl, copiar } from '../ia.js';
 import { loadLeads, estadoBadge, filaLead } from './leads.js';
@@ -46,9 +46,9 @@ function cargando(btn, texto = 'Trabajando…') {
 
 // Mensaje editable con acciones para enviarlo.
 function mensajeBox(texto, telefono = '', titulo = 'Mensaje para el cliente') {
-	const area = h('textarea', { class: 'form-control', rows: 6 });
+	const area = h('textarea', { class: 'form-control', rows: 6, 'aria-label': titulo });
 	area.value = texto || '';
-	const tel = campoTelefono(telefono, { placeholder: 'WhatsApp del cliente (opcional)' });
+	const tel = campoTelefono(telefono, { placeholder: 'WhatsApp del cliente (opcional)', etiqueta: 'WhatsApp del cliente' });
 	return h('div', { class: 'ia-mensaje' },
 		h('div', { class: 'form-label fw-semibold' }, titulo),
 		area,
@@ -73,7 +73,7 @@ function propiedadMini(p, extra) {
 // ------------------------------------------------------------ Buscar para un cliente
 
 function tabBuscar(cont, props) {
-	const texto = h('textarea', { class: 'form-control', rows: 5, placeholder: 'Pega aquí el mensaje del cliente o describe lo que busca.\nEj.: "Busco casa en zona 15 o 16, 3 habitaciones, que acepte mascotas, presupuesto hasta 350 mil dólares. Tengo 2 carros."' });
+	const texto = h('textarea', { class: 'form-control', rows: 5, 'aria-label': 'Pedido del cliente', placeholder: 'Pega aquí el mensaje del cliente o describe lo que busca.\nEj.: "Busco casa en zona 15 o 16, 3 habitaciones, que acepte mascotas, presupuesto hasta 350 mil dólares. Tengo 2 carros."' });
 	const out = h('div', { class: 'mt-4' });
 	const btn = h('button', { class: 'btn btn-primary mt-2', type: 'button' }, 'Buscar propiedades');
 	btn.addEventListener('click', async () => {
@@ -105,7 +105,7 @@ function tabBuscar(cont, props) {
 				h('div', { class: 'card mt-3' }, h('div', { class: 'card-body' }, mensajeBox(r.mensajeCliente))),
 				guardarRequerimiento(texto.value, c));
 		} catch (err) {
-			out.replaceChildren(h('div', { class: 'alert alert-danger' }, err.message));
+			out.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 		} finally {
 			listo();
 		}
@@ -116,12 +116,14 @@ function tabBuscar(cont, props) {
 }
 
 function guardarRequerimiento(texto, criterios) {
-	const nombre = h('input', { class: 'form-control', placeholder: 'Nombre del cliente' });
-	const tel = campoTelefono('', { placeholder: 'WhatsApp' });
+	const nombre = h('input', { class: 'form-control', placeholder: 'Nombre del cliente', 'aria-label': 'Nombre del cliente', maxlength: 120 });
+	const tel = campoTelefono('', { placeholder: 'WhatsApp', etiqueta: 'WhatsApp del cliente' });
 	const btn = h('button', { class: 'btn btn-outline-primary', type: 'button' }, 'Guardar cliente');
 	btn.addEventListener('click', async () => {
 		if (!nombre.value.trim()) return toast('Escribe el nombre del cliente.', 'warning');
 		if (tel.valor() && !telefonoValido(tel.valor())) return toast('Revisa el WhatsApp: el número no está completo para ese país.', 'warning');
+		// Apagado mientras guarda (dos toques no guardan dos) y para siempre si quedó guardado.
+		btn.disabled = true;
 		try {
 			const ref = doc(collection(db, 'requerimientos'));
 			await setDoc(ref, {
@@ -129,8 +131,7 @@ function guardarRequerimiento(texto, criterios) {
 				estado: 'activo', agentId: session.agentId || '', createdBy: session.user.uid, createdAt: serverTimestamp()
 			});
 			toast('Cliente guardado. Te avisaremos cuando entre una propiedad que le sirva (pestaña "Clientes que buscan").');
-			btn.disabled = true;
-		} catch (err) { showError(err); }
+		} catch (err) { btn.disabled = false; showError(err); }
 	});
 	return h('div', { class: 'card mt-3' }, h('div', { class: 'card-body' },
 		h('div', { class: 'fw-semibold mb-1' }, 'Guardar este requerimiento'),
@@ -203,7 +204,7 @@ function tabRedactar(cont, props, idInicial) {
 					h('h2', { class: 'h6 mb-3' }, 'Redes sociales'),
 					f.ig.el, copy('Instagram', f.ig), h('hr'), f.fb.el, copy('Facebook', f.fb))))));
 		} catch (err) {
-			out.replaceChildren(h('div', { class: 'alert alert-danger' }, err.message));
+			out.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 		} finally {
 			listo();
 		}
@@ -256,7 +257,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 					r.propiedadesSugeridas.map((s) => byId[s.id] ? propiedadMini(byId[s.id], h('div', { class: 'small' }, s.motivo)) : null)) : null,
 				h('a', { href: '#/leads', class: 'btn btn-link px-0 mt-2' }, 'Actualizar estado del lead →'))));
 		} catch (err) {
-			out.replaceChildren(h('div', { class: 'alert alert-danger' }, err.message));
+			out.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 		}
 	};
 
@@ -298,7 +299,7 @@ function tabClientes(cont, props, reqs) {
 				h('p', { class: 'small text-muted' }, c.motivo),
 				mensajeBox(c.mensajeWhatsApp, byId[c.id]?.telefono)))) : [h('div', { class: 'alert alert-secondary' }, 'Ningún cliente guardado busca algo parecido.')]));
 		} catch (err) {
-			out.replaceChildren(h('div', { class: 'alert alert-danger' }, err.message));
+			out.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 		} finally {
 			listo();
 		}
@@ -374,7 +375,7 @@ function tabChat(cont, props) {
 			espera.innerHTML = mdBasico(r.texto);
 		} catch (err) {
 			historial.pop();
-			espera.textContent = err.message;
+			espera.textContent = errorMessage(err);
 			espera.classList.add('text-danger');
 		} finally {
 			listo();

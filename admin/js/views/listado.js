@@ -308,13 +308,13 @@ export async function render(container) {
 	}
 
 	const zonas = [...new Set(props.map((p) => p.zona).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
-	const sel = (opts) => h('select', { class: 'form-select' }, opts.map(([v, l]) => h('option', { value: v }, l)));
-	const num = (placeholder) => h('input', { class: 'form-control', type: 'number', min: 0, placeholder });
+	const sel = (opts, nombre) => h('select', { class: 'form-select', 'aria-label': nombre }, opts.map(([v, l]) => h('option', { value: v }, l)));
+	const num = (placeholder) => h('input', { class: 'form-control', type: 'number', inputmode: 'numeric', min: 0, placeholder, 'aria-label': placeholder });
 
-	const fOperacion = sel([['', 'Venta y renta'], ['venta', 'Venta'], ['renta', 'Renta']]);
-	const fTipo = sel([['', 'Todos los tipos'], ...TIPOS]);
-	const fZona = sel([['', 'Todas las zonas'], ...zonas.map((z) => [z, z])]);
-	const fMoneda = sel([['', 'Cualquier moneda'], ['USD', 'US$'], ['GTQ', 'Q']]);
+	const fOperacion = sel([['', 'Venta y renta'], ['venta', 'Venta'], ['renta', 'Renta']], 'Operación');
+	const fTipo = sel([['', 'Todos los tipos'], ...TIPOS], 'Tipo');
+	const fZona = sel([['', 'Todas las zonas'], ...zonas.map((z) => [z, z])], 'Zona');
+	const fMoneda = sel([['', 'Cualquier moneda'], ['USD', 'US$'], ['GTQ', 'Q']], 'Moneda');
 	const fMin = num('Precio mínimo');
 	const fMax = num('Precio máximo');
 	const fHab = num('Habitaciones mín.');

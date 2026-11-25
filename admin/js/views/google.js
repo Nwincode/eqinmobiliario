@@ -1,6 +1,6 @@
 // Visibilidad: rendimiento en la Búsqueda (Search Console) y revisión SEO del inventario.
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit, siteConfig, SITIO as SITE } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, tarjeta, iconoBtn } from '../ui.js';
+import { h, statCard, toast, showError, errorMessage, fallaDelServidor, pageHeader, badge, mount, spinner, downloadCsv, tablaAdmin, tarjeta, iconoBtn } from '../ui.js';
 import { session } from '../session.js';
 import { publicUrl } from './properties.js';
 import { diaConAnio, fechaHora } from '../formato.js';
@@ -24,7 +24,7 @@ async function pedirGSC(accion, datos = {}) {
 	} catch {
 		// Sin JSON: la función aún no está desplegada.
 	}
-	if (!res.ok) throw new Error(res.status === 404 ? 'La conexión con Google se activa al publicar el sitio en Netlify.' : body.error || `Error ${res.status}`);
+	if (!res.ok) throw new Error(res.status === 404 ? 'La conexión con Google se activa al publicar el sitio en Netlify.' : body.error || fallaDelServidor(res.status));
 	return body;
 }
 
@@ -124,7 +124,7 @@ function revisionInventario(props) {
 }
 
 function inspector() {
-	const input = h('input', { class: 'form-control', type: 'url', placeholder: `${SITE}/propiedad/…`, value: `${SITE}/` });
+	const input = h('input', { class: 'form-control', type: 'url', placeholder: `${SITE}/propiedad/…`, value: `${SITE}/`, 'aria-label': 'Página a revisar' });
 	const out = h('div', { class: 'mt-3 small' });
 	const btn = h('button', { class: 'btn btn-outline-primary', type: 'submit' }, 'Revisar en Google');
 	const form = h('form', { class: 'input-group', onsubmit: async (e) => {
@@ -142,7 +142,7 @@ function inspector() {
 					h('dt', { class: 'col-sm-4' }, 'Resultados enriquecidos'), h('dd', { class: 'col-sm-8' }, (r.enriquecidos || []).join(', ') || 'Ninguno detectado')),
 				r.enlace ? h('a', { href: r.enlace, target: '_blank', rel: 'noopener' }, 'Abrir en Search Console (para pedir la indexación)') : null);
 		} catch (err) {
-			out.replaceChildren(h('div', { class: 'alert alert-danger mb-0' }, err.message));
+			out.replaceChildren(h('div', { class: 'alert alert-danger mb-0' }, errorMessage(err)));
 		} finally {
 			btn.disabled = false;
 		}
@@ -266,7 +266,7 @@ export async function render(container) {
 			exportar.disabled = false;
 			renderDatos(zona, ultimo, props);
 		} catch (err) {
-			zona.replaceChildren(h('div', { class: 'alert alert-warning' }, err.message));
+			zona.replaceChildren(h('div', { class: 'alert alert-warning' }, errorMessage(err)));
 		}
 	};
 	selector.addEventListener('change', () => { dias = Number(selector.value); cargar(); });
@@ -280,5 +280,5 @@ export async function render(container) {
 	cargar();
 	if (session.isAdmin) informeSemanal().then((x) => semanal.replaceChildren(...(x ? [x] : []))).catch((err) => semanal.replaceChildren(h('div', { class: 'alert alert-warning' },
 		// Sin las reglas nuevas publicadas en Firebase, la base no deja leer el informe.
-		err.code === 'permission-denied' ? 'El informe semanal se verá cuando se publiquen las reglas nuevas de Firestore.' : err.message)));
+		err.code === 'permission-denied' ? 'El informe semanal se verá cuando se publiquen las reglas nuevas de Firestore.' : errorMessage(err))));
 }

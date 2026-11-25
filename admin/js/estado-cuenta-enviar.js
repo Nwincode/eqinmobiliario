@@ -2,7 +2,7 @@
 // llegará y lo manda. El correo y los números los arma el servidor (netlify/functions/estado-cuenta-panel.mjs, el mismo
 // correo del día 1); aquí solo se pide y se muestra.
 import { session } from './session.js';
-import { h, modal, toast, showError, hoy } from './ui.js';
+import { h, modal, toast, showError, errorMessage, fallaDelServidor, hoy } from './ui.js';
 import { mesAnterior } from './estado-cuenta.js';
 import { nombreMes, moverMes } from './formato.js';
 
@@ -10,7 +10,7 @@ async function pedir(accion, propietarioId, mes) {
 	const token = await session.user.getIdToken();
 	const res = await fetch('/api/estado-cuenta', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ accion, propietarioId, mes }) });
 	const cuerpo = await res.json().catch(() => ({}));
-	if (!res.ok) throw new Error(cuerpo.error || `El servidor respondió ${res.status}.`);
+	if (!res.ok) throw new Error(cuerpo.error || fallaDelServidor(res.status));
 	return cuerpo;
 }
 
@@ -68,7 +68,7 @@ export function enviarEstadoDeCuenta(socio) {
 			vista.srcdoc = r.html;
 			enviar.disabled = false;
 		} catch (err) {
-			if (n === pedido) { aviso.textContent = err.message; vista.srcdoc = ''; }
+			if (n === pedido) { aviso.textContent = errorMessage(err); vista.srcdoc = ''; }
 		}
 	};
 	elegir.addEventListener('change', cargar);

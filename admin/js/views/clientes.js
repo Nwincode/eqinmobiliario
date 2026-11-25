@@ -78,9 +78,9 @@ async function renderLista(container) {
 	let vista = 'tablero';
 	try { vista = localStorage.getItem(VISTA_KEY) || 'tablero'; } catch { /* sin almacenamiento */ }
 
-	const buscar = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o zona…' });
-	const fTipo = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los tipos'), TIPOS_CLIENTE.map(([v, l]) => h('option', { value: v }, l)));
-	const fAsesor = h('select', { class: 'form-select', hidden: !session.isAdmin }, h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agentes.map((a) => h('option', { value: a.id }, a.nombre)));
+	const buscar = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o zona…', 'aria-label': 'Buscar clientes' });
+	const fTipo = h('select', { class: 'form-select', 'aria-label': 'Tipo de cliente' }, h('option', { value: '' }, 'Todos los tipos'), TIPOS_CLIENTE.map(([v, l]) => h('option', { value: v }, l)));
+	const fAsesor = h('select', { class: 'form-select', 'aria-label': 'Asesor', hidden: !session.isAdmin }, h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agentes.map((a) => h('option', { value: a.id }, a.nombre)));
 	const soloIncompletos = h('input', { class: 'form-check-input', type: 'checkbox', id: 'solo-incompletos', checked: location.hash.endsWith('/incompletos') });
 	const cuerpo = h('div');
 
@@ -201,11 +201,11 @@ async function renderLista(container) {
 // ---------------------------------------------------------------- Ficha
 
 function formularioActividad(c, alGuardar) {
-	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.map(([v, l]) => h('option', { value: v }, l)));
-	const titulo = h('input', { class: 'form-control', placeholder: 'Ej. Llamar para confirmar visita', maxlength: 200 });
-	const fecha = h('input', { class: 'form-control', type: 'datetime-local' });
+	const tipo = h('select', { class: 'form-select', 'aria-label': 'Tipo' }, TIPOS_ACTIVIDAD.map(([v, l]) => h('option', { value: v }, l)));
+	const titulo = h('input', { class: 'form-control', placeholder: 'Ej. Llamar para confirmar visita', 'aria-label': 'Qué hay que hacer', maxlength: 200 });
+	const fecha = h('input', { class: 'form-control', type: 'datetime-local', 'aria-label': 'Fecha y hora' });
 	const hecha = h('input', { class: 'form-check-input', type: 'checkbox', id: 'act-hecha' });
-	const detalle = h('textarea', { class: 'form-control', rows: 2, placeholder: 'Detalle o resultado (opcional)' });
+	const detalle = h('textarea', { class: 'form-control', rows: 2, maxlength: 2000, placeholder: 'Detalle o resultado (opcional)', 'aria-label': 'Detalle o resultado' });
 	const boton = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Guardar');
 	return h('form', { class: 'crm-actividad-form', onsubmit: async (e) => {
 		e.preventDefault();
@@ -317,7 +317,7 @@ async function renderFicha(container, id) {
 
 	// Propiedades de interés
 	const interes = c.interes || [];
-	const selProp = h('select', { class: 'form-select form-select-sm' }, h('option', { value: '' }, 'Agregar propiedad de interés…'),
+	const selProp = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Agregar propiedad de interés' }, h('option', { value: '' }, 'Agregar propiedad de interés…'),
 		propiedades.filter((p) => !interes.includes(p.id)).map((p) => h('option', { value: p.id }, `${p.titulo} · ${money(p.precio, p.moneda)}`)));
 	selProp.addEventListener('change', async () => {
 		if (!selProp.value) return;

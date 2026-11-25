@@ -18,7 +18,7 @@ import {
 } from './firebase.js';
 import { session, markPending } from './session.js';
 import { anotar, bitacoraActiva } from './bitacora-panel.js';
-import { dia, ahoraServidor } from './ui.js';
+import { dia, ahoraServidor, errorMessage, fallaDelServidor } from './ui.js';
 
 import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
@@ -153,7 +153,8 @@ export async function borrarReserva(r) {
 export async function contactoDe(r) {
 	let s;
 	try { s = await getDoc(refContacto(r.propertyId, r.id)); } catch (err) {
-		throw new Error(`No se pudo leer el teléfono y las notas de esta reserva (${err.code || err.message}); no se abre para no borrarlos. Vuelve a intentarlo.`);
+		console.error(err);
+		throw new Error(`No se pudo leer el teléfono y las notas de esta reserva: no se abre para no borrarlos. ${errorMessage(err)}`);
 	}
 	return s.exists() ? s.data() : { telefono: r.telefono || '', notas: r.notas || '' };
 }
@@ -195,7 +196,7 @@ export async function porServidor(accion, leadId, extra = {}) {
 	sinServidor = res.status === 503;
 	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
 	// `yaRespondida`: otra pestaña (o un intento cuya respuesta se perdió) ya lo hizo: la pantalla se recarga.
-	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida), ...(cuerpo.faltaRevisar ? { faltaRevisar: cuerpo.faltaRevisar } : {}) });
+	if (!res.ok) throw Object.assign(new Error(cuerpo.error || fallaDelServidor(res.status)), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida), ...(cuerpo.faltaRevisar ? { faltaRevisar: cuerpo.faltaRevisar } : {}) });
 	return cuerpo;
 }
 // Lo del socio que siguió por el camino de antes porque el servidor respondió 503: si las reglas ya son las nuevas, lo

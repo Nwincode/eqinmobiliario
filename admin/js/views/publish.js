@@ -1,5 +1,5 @@
 import { db, doc, getDoc, getDocs, setDoc, collection, query, limit, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount } from '../ui.js';
+import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount, fallaDelServidor } from '../ui.js';
 import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera, TIEMPO_PUBLICACION } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
@@ -26,8 +26,8 @@ async function llamarAutomatizaciones(body) {
 	});
 	let data = null;
 	try { data = await res.json(); } catch { data = null; }
-	if (!data) throw new Error(`Respuesta no válida (${res.status})`);
-	if (!res.ok && !data.error) data.error = `Error ${res.status}`;
+	if (!data) throw new Error(fallaDelServidor(res.status));
+	if (!res.ok && !data.error) data.error = fallaDelServidor(res.status);
 	return data;
 }
 
@@ -205,7 +205,7 @@ export async function render(container) {
 				? `La publicación es automática: tus cambios se publicarán en menos de ${Math.ceil(AUTO_SEGUNDOS / 60)} minutos.`
 				: 'La publicación es automática: tus cambios se publican solos poco después de guardarlos.') : null);
 
-	const hookInput = h('input', { class: 'form-control', type: 'url', value: hook, placeholder: 'https://api.netlify.com/build_hooks/…' });
+	const hookInput = h('input', { class: 'form-control', type: 'url', value: hook, placeholder: 'https://api.netlify.com/build_hooks/…', 'aria-label': 'Enlace de publicación de Netlify' });
 	const saveHook = async () => {
 		const v = hookInput.value.trim();
 		if (v && !/^https:\/\/api\.netlify\.com\/build_hooks\/[\w-]+$/.test(v)) return toast('El enlace debe tener la forma https://api.netlify.com/build_hooks/…', 'warning');

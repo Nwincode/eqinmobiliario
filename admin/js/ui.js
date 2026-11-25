@@ -102,10 +102,49 @@ export function errorMessage(err) {
 		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 2 o 3 palabras (10 caracteres o más).',
 		'auth/invalid-email': 'El correo no es válido.',
 		'auth/requires-recent-login': 'Por seguridad, cierra sesión y vuelve a entrar antes de hacer esto.',
+		'auth/missing-password': 'Escribe tu contraseña.',
+		'auth/missing-email': 'Escribe tu correo.',
+		'auth/expired-action-code': 'Este enlace ya venció: pide uno nuevo.',
+		'auth/invalid-action-code': 'Este enlace ya no sirve: pide uno nuevo.',
+		'auth/popup-closed-by-user': 'Se cerró la ventana antes de terminar. Inténtalo otra vez.',
 		'storage/unauthorized': 'No tienes permiso para subir archivos.',
+		'storage/canceled': 'Se canceló la subida.',
+		'storage/quota-exceeded': 'Se llenó el espacio para fotos. Avísale al administrador.',
+		'storage/retry-limit-exceeded': 'La subida tardó demasiado. Revisa tu internet e inténtalo otra vez.',
+		'storage/object-not-found': 'Ese archivo ya no existe.',
+		'not-found': 'Ese registro ya no existe: recarga la página.',
+		'already-exists': 'Eso ya estaba guardado.',
+		'resource-exhausted': 'Demasiados cambios seguidos. Espera un momento e inténtalo otra vez.',
+		'deadline-exceeded': 'La base de datos tardó demasiado en responder. Inténtalo otra vez.',
+		aborted: 'Alguien cambió lo mismo al mismo tiempo. Inténtalo otra vez.',
+		'failed-precondition': 'No se pudo guardar así. Recarga la página e inténtalo otra vez.',
+		unauthenticated: 'Tu sesión venció: vuelve a entrar.',
 		unavailable: 'Sin conexión con la base de datos. Revisa tu internet.'
 	};
-	return map[code] || (err && err.message) || 'Ocurrió un error inesperado.';
+	if (map[code]) return map[code];
+	const texto = String((err && err.message) || '');
+	// Sin red, fetch dice «Failed to fetch» (Chrome), «Load failed» (Safari) o «NetworkError…» (Firefox).
+	if (err instanceof TypeError && /fetch|load failed|network/i.test(texto)) return map['auth/network-request-failed'];
+	// Lo que trae Firebase viene en inglés y con su código («FirebaseError: Missing or insufficient…»): nunca se muestra
+	// tal cual (queda en la consola). Lo que el panel o las funciones escriben (en español) sí.
+	if ((err && err.name === 'FirebaseError') || /^Firebase|Missing or insufficient|\(auth\/|\(storage\//.test(texto)) return 'No se pudo completar. Inténtalo otra vez; si sigue, avísale al administrador.';
+	return texto || 'Ocurrió un error inesperado.';
+}
+
+// Lo que se dice cuando una función del sitio (/api/…) responde con error y no explica por qué: nunca el número solo.
+export function fallaDelServidor(status) {
+	if (status === 401) return 'Tu sesión venció: vuelve a entrar.';
+	if (status === 403) return 'No tienes permiso para esta acción.';
+	if (status === 404) return 'Esta función todavía no está publicada en el sitio: avísale al administrador.';
+	if (status === 429) return 'Demasiados intentos seguidos. Espera unos minutos e inténtalo otra vez.';
+	if (status === 503) return 'El servidor todavía no está listo: avísale al administrador.';
+	return 'El servidor tuvo un problema. Inténtalo otra vez en un momento; si sigue, avísale al administrador.';
+}
+
+// Apaga el botón mientras corre lo que hace (dos toques no lo hacen dos veces) y muestra el error si falla.
+export async function ocupado(btn, fn) {
+	if (btn) btn.disabled = true;
+	try { await fn(); } catch (err) { showError(err); } finally { if (btn) btn.disabled = false; }
 }
 
 export function showError(err) {

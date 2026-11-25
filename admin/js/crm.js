@@ -3,7 +3,7 @@
 import {
 	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteField, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
 } from './firebase.js';
-import { h, badge, nombreYDatos } from './ui.js';
+import { h, badge, nombreYDatos, fallaDelServidor } from './ui.js';
 import { session } from './session.js';
 import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora, enMs } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
@@ -191,7 +191,7 @@ export async function corregirCorreo(lead, correo) {
 	try {
 		const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id }) });
 		r = await res.json().catch(() => ({}));
-		if (!res.ok) r = { motivo: r.error || `El servidor respondió ${res.status}.` };
+		if (!res.ok) r = { motivo: r.error || fallaDelServidor(res.status) };
 	} catch { r = { motivo: 'Sin conexión con el servidor.' }; }
 	if (r.enviado && r.para) {
 		await updateDoc(ref, { 'solicitud.historial': arrayUnion(renglon(queEnlaceReenviado(r.para))), updatedAt: serverTimestamp() })

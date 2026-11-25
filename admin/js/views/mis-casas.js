@@ -9,7 +9,7 @@
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog, fallaDelServidor } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
@@ -564,7 +564,7 @@ async function laCasa(container, id) {
 		try {
 			const res = await fetch('/api/mi-casa', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ casa: id, cambios }) });
 			const cuerpo = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(cuerpo.error || (res.status === 503 ? 'El servidor todavía no está listo: avísale al administrador.' : `El servidor respondió ${res.status}.`));
+			if (!res.ok) throw new Error(cuerpo.error || fallaDelServidor(res.status));
 			base = d;
 			// Si el sitio no se publica solo (apagado, o la última publicación falló), lo publica el equipo.
 			toast(cuerpo.publicaSola ? 'Guardado. Sale en la página en unos minutos.' : 'Guardado. Sale en la página cuando el equipo publique el sitio.');

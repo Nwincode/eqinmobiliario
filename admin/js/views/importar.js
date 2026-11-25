@@ -146,7 +146,7 @@ export async function render(container) {
 			await revisar();
 		} catch (err) {
 			filasCsv = null;
-			estadoCsv.textContent = err.message || errorMessage(err);
+			estadoCsv.textContent = errorMessage(err);
 			estadoCsv.classList.add('text-danger');
 			paso2.hidden = true; acciones.hidden = true;
 		}
@@ -178,7 +178,7 @@ export async function render(container) {
 			await revisar();
 		} catch (err) {
 			fotos = [];
-			estadoFotos.textContent = err.message;
+			estadoFotos.textContent = errorMessage(err);
 			estadoFotos.classList.add('text-danger');
 		}
 	});
@@ -340,7 +340,7 @@ export async function render(container) {
 				hashes.add(proc.hash);
 				subidas[k] = { ...(await uploadImage(archivo, carpeta, proc)), alt: '' };
 			} catch (err) {
-				fallas.push(`${nombre}: ${err.message}`);
+				fallas.push(`${nombre}: ${errorMessage(err)}`);
 			}
 		});
 		return { fotos: subidas.filter(Boolean), fallas, repetidas };

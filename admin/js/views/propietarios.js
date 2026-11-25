@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
-import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, nombreYDatos, modal, iconoBtn, hoy } from '../ui.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, nombreYDatos, modal, iconoBtn, hoy, ocupado } from '../ui.js';
 import { renderForm } from '../form.js';
 import { correoContrasena } from '../contrasena.js';
 import { session, agentOptions, loadAgents } from '../session.js';
@@ -437,10 +437,6 @@ function seccionPortal(prop, propiedades, ficha) {
 	const listaBit = h('div', { class: 'list-group list-group-flush border rounded' });
 	const listaVis = h('div', { class: 'd-grid gap-2' });
 
-	const ocupado = async (btn, fn) => {
-		if (btn) btn.disabled = true;
-		try { await fn(); } catch (err) { showError(err); } finally { if (btn) btn.disabled = false; }
-	};
 	const refrescar = async () => {
 		if (prop.portalToken) await publicarPortal(prop);
 	};

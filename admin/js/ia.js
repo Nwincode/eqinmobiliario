@@ -1,6 +1,7 @@
 // Herramientas del asesor. Si la IA está configurada en Netlify (ANTHROPIC_API_KEY) se usa;
 // si no, o si falla, se resuelven con reglas y plantillas (admin/js/reglas.js), sin costo.
 import { session } from './session.js';
+import { fallaDelServidor } from './ui.js';
 import { REGLAS } from './reglas.js';
 import { paraIA } from './para-ia.js';
 
@@ -32,7 +33,7 @@ async function llamarIA(tarea, datos) {
 		// Respuesta sin JSON: p. ej. la función aún no está desplegada.
 	}
 	if (!res.ok) {
-		const msg = res.status === 404 ? 'La IA todavía no está publicada en el sitio (se activa al publicar en Netlify).' : body.error || `Error ${res.status}`;
+		const msg = res.status === 404 ? 'La IA todavía no está publicada en el sitio (se activa al publicar en Netlify).' : body.error || fallaDelServidor(res.status);
 		throw new Error(msg);
 	}
 	return body;

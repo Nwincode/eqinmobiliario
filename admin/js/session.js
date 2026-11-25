@@ -3,7 +3,7 @@ import {
 	db, doc, getDoc, getDocs, setDoc, collection, query, where, serverTimestamp
 } from './firebase.js';
 import { datosDelDueno, etiquetaDueno } from './duenos.js';
-import { toast } from './ui.js';
+import { toast, errorMessage, fallaDelServidor } from './ui.js';
 import { telefonoWa } from './formato.js';
 
 // El asesor de quien no tiene asesor vinculado: el mismo texto que usa firestore.rules (myAgentId) y storage.rules.
@@ -106,7 +106,7 @@ export const TIEMPO_PUBLICACION = '2 a 4 minutos';
 export async function publicarAhora({ automatica = false } = {}) {
 	const res = await fetch('/api/publicar', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ automatica }) });
 	const cuerpo = await res.json().catch(() => ({}));
-	if (!res.ok) throw new Error(cuerpo.error || `No se pudo publicar: el servidor respondió ${res.status}.`);
+	if (!res.ok) throw new Error(cuerpo.error || `No se pudo publicar. ${fallaDelServidor(res.status)}`);
 	// El servidor ya lo marcó publicado (con la cuenta de escritura); si no tiene esa cuenta, lo marca el panel.
 	if (!cuerpo.marcado) await setDoc(doc(db, 'meta', 'publish'), {
 		pendiente: false,
@@ -160,7 +160,7 @@ export async function programarAutoPublicar() {
 			toast(`Publicado automáticamente: el sitio se pone al día en ${TIEMPO_PUBLICACION}.`);
 		} catch (err) {
 			console.warn('No se pudo publicar automáticamente', err);
-			toast(`No se pudo publicar automáticamente: ${err.message}`, 'danger');
+			toast(`No se pudo publicar automáticamente: ${errorMessage(err)}`, 'danger');
 		}
 	}, AUTO_SEGUNDOS * 1000);
 }

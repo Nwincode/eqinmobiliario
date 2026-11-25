@@ -5,7 +5,7 @@ import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, orderBy, limit } from '../firebase.js';
 import { h, statCard, toast, showError, confirmDialog, pageHeader, emptyState, mount, badge, modal, tablaAdmin, iconoBtn, flecha, hoy, formatDate, spinner, elegirOpcion } from '../ui.js';
 import { campoTelefono } from '../form.js';
-import { whatsappUrl, nNoches, dineroPorMoneda, nombreMes, moverMes, fechasReserva } from '../formato.js';
+import { whatsappUrl, nNoches, dineroPorMoneda, nombreMes, moverMes, fechasReserva, telefonoValido } from '../formato.js';
 import { loadPropietarios, loadPropiedades, loadReservas, money } from '../crm.js';
 import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { guardarReserva, borrarReserva, cancelarReserva, contactoDe, pagadoAlPropietario, ponerAlDiaReservas, ChoqueDeFechas } from '../reservas.js';
@@ -64,6 +64,7 @@ export async function render(container) {
 		const conEstado = (sel) => { if (!ESTADOS.some(([k]) => k === d.estado)) sel.prepend(h('option', { value: '', selected: true, disabled: true }, 'Pendiente: elige Confirmada o Cancelada')); return sel; };
 		const resumen = h('div', { class: 'col-12 small text-muted' });
 		const telefono = campoTelefono(d.telefono);
+		const telAlAbrir = telefono.valor();
 		const form = h('form', { class: 'row g-2' },
 			campo('Casa', select('propertyId', [['', 'Elige la casa…'], ...casas.map((p) => [p.id, p.titulo])]), 12),
 			campo('Llegada', input('llegada', 'date', { required: true })),
@@ -73,8 +74,8 @@ export async function render(container) {
 			campo('Canal', select('canal', CANALES)),
 			// Una reserva de la web se cancela con su botón (avisa al cliente en su chat).
 			campo('Estado', web ? h('select', { class: 'form-select', name: 'estado', disabled: true }, h('option', { value: d.estado }, etiqueta([...ESTADOS, DE_ANTES], d.estado))) : conEstado(select('estado', ESTADOS))),
-			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any' })),
-			campo('Cobrado al huésped (sin impuestos)', input('alojamiento', 'number', { min: 0, step: 'any' })),
+			campo('Pago al propietario', input('costoSocio', 'number', { min: 0, step: 'any', inputmode: 'decimal' })),
+			campo('Cobrado al huésped (sin impuestos)', input('alojamiento', 'number', { min: 0, step: 'any', inputmode: 'decimal' })),
 			resumen,
 			h('div', { class: 'col-12' }, h('label', { class: 'form-check' },
 				h('input', { class: 'form-check-input', type: 'checkbox', name: 'pagadoSocio', checked: Boolean(d.pagadoSocio) }),
@@ -118,6 +119,7 @@ export async function render(container) {
 			if (!casa) return toast('Elige la casa.', 'warning');
 			if (!V.esFecha(v.llegada) || !V.esFecha(v.salida) || v.salida <= v.llegada) return toast('La salida debe ser después de la llegada.', 'warning');
 			if (!web && !f.estado.value) return toast('Elige si la reserva está confirmada o cancelada.', 'warning');
+			if (telefono.valor() && telefono.valor() !== telAlAbrir && !telefonoValido(telefono.valor())) return toast('Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).', 'warning');
 			btn.disabled = true;
 			try {
 				await guardarReserva(r.id ? r : null, casa, {

@@ -1,6 +1,6 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection, FieldPath } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, nombreYDatos, mount, formatPrice, tablaAdmin } from '../ui.js';
+import { h, statCard, toast, showError, errorMessage, pageHeader, badge, nombreYDatos, mount, formatPrice, tablaAdmin } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
@@ -95,7 +95,7 @@ function seccionFotos(p) {
 						const r = await descargarFotos(p, f.id, (i, total) => { estado.textContent = `Preparando foto ${i} de ${total}…`; });
 						estado.textContent = `Listo: ${r.total} fotos descargadas${r.fallidas.length ? `; no se pudieron descargar las fotos ${r.fallidas.join(', ')}` : ''}.`;
 					} catch (err) {
-						estado.textContent = err.message;
+						estado.textContent = errorMessage(err);
 					} finally {
 						b.disabled = false;
 					}

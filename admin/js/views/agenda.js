@@ -1,6 +1,6 @@
 // Agenda: seguimientos, visitas y tareas por fecha (vencidas, hoy, próximos días).
 import { db, doc, updateDoc, deleteDoc, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, confirmDialog, pageHeader, mount, menuMas, iconoBtn } from '../ui.js';
+import { h, toast, showError, confirmDialog, pageHeader, mount, menuMas, iconoBtn, ocupado } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import {
 	TIPOS_ACTIVIDAD, tipoActividad, filaActividad, loadActividades, loadClientes, crearActividad, vencimiento, ms
@@ -17,7 +17,7 @@ const GRUPOS = [
 export async function render(container) {
 	const [actividades, clientes, agentes] = await Promise.all([loadActividades(), loadClientes(), loadAgents()]);
 	const nombreAsesor = Object.fromEntries(agentes.map((a) => [a.id, a.nombre]));
-	const fAsesor = h('select', { class: 'form-select form-select-sm w-auto', hidden: !session.isAdmin },
+	const fAsesor = h('select', { class: 'form-select form-select-sm w-auto', 'aria-label': 'Asesor', hidden: !session.isAdmin },
 		h('option', { value: '' }, 'Todo el equipo'), agentes.map((a) => h('option', { value: a.id, selected: a.id === session.agentId }, a.nombre)));
 	const lista = h('div');
 
@@ -73,21 +73,22 @@ export async function render(container) {
 	fAsesor.addEventListener('input', dibujar);
 
 	// Agendar rápido
-	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.filter(([v]) => v !== 'nota').map(([v, l]) => h('option', { value: v }, l)));
-	const titulo = h('input', { class: 'form-control', placeholder: '¿Qué hay que hacer?', required: true, maxlength: 200 });
-	const fecha = h('input', { class: 'form-control', type: 'datetime-local', required: true });
-	const cliente = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Sin cliente'), clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))).map((c) => h('option', { value: c.id }, c.nombre)));
+	const tipo = h('select', { class: 'form-select', 'aria-label': 'Tipo' }, TIPOS_ACTIVIDAD.filter(([v]) => v !== 'nota').map(([v, l]) => h('option', { value: v }, l)));
+	const titulo = h('input', { class: 'form-control', placeholder: '¿Qué hay que hacer?', 'aria-label': '¿Qué hay que hacer?', required: true, maxlength: 200 });
+	const fecha = h('input', { class: 'form-control', type: 'datetime-local', 'aria-label': 'Fecha y hora', required: true });
+	const cliente = h('select', { class: 'form-select', 'aria-label': 'Cliente' }, h('option', { value: '' }, 'Sin cliente'), clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre))).map((c) => h('option', { value: c.id }, c.nombre)));
 	const form = h('form', { class: 'row g-2 align-items-center', onsubmit: async (e) => {
 		e.preventDefault();
 		const c = clientes.find((x) => x.id === cliente.value);
-		try {
+		// Dos toques en «Agendar» no crean dos pendientes.
+		await ocupado(e.currentTarget.querySelector('[type=submit]'), async () => {
 			const a = await crearActividad({ tipo: tipo.value, titulo: titulo.value.trim(), fecha: new Date(fecha.value), clienteId: c ? c.id : '', clienteNombre: c ? c.nombre : '', agentId: c ? c.agentId : session.agentId });
 			actividades.push({ ...a, fecha: { toDate: () => new Date(fecha.value), seconds: new Date(fecha.value).getTime() / 1000 } });
 			if (a.tipo === 'visita' && c) refrescarPorCliente(c);
 			titulo.value = '';
 			toast('Agendado.');
 			dibujar();
-		} catch (err) { showError(err); }
+		});
 	} },
 	h('div', { class: 'col-md-6 col-xl-2' }, tipo), h('div', { class: 'col-md-6 col-xl-3' }, titulo), h('div', { class: 'col-md-5 col-xl-3' }, fecha), h('div', { class: 'col-md-4 col-xl-2' }, cliente),
 	h('div', { class: 'col-md-3 col-xl-2 d-grid' }, h('button', { class: 'btn btn-primary', type: 'submit' }, 'Agendar')));

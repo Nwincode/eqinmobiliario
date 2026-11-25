@@ -3,7 +3,7 @@
 // antes donde sigue lo del dueño), se abre la ficha para corregir o se marca «Listo». Llega desde la campana.
 // Al marcar «Listo» (o deshacer) con textos cambiados, el inglés se rehace con el traductor del panel.
 import { db, doc, getDoc } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, formatDate, spinner } from '../ui.js';
+import { h, toast, showError, errorMessage, fallaDelServidor, pageHeader, emptyState, mount, iconoBtn, formatDate, spinner } from '../ui.js';
 import { session } from '../session.js';
 import { textoValor } from '../mi-casa.js';
 import { avisarAvisos } from '../avisos.js';
@@ -16,7 +16,7 @@ async function api(metodo, cuerpo) {
 		...(cuerpo ? { body: JSON.stringify(cuerpo) } : {})
 	});
 	const datos = await res.json().catch(() => ({}));
-	if (!res.ok) throw new Error(datos.error || `El servidor respondió ${res.status}.`);
+	if (!res.ok) throw new Error(datos.error || fallaDelServidor(res.status));
 	return datos;
 }
 
@@ -93,7 +93,7 @@ export async function render(container, [id] = []) {
 					: emptyState(id ? 'Este cambio ya se atendió.' : 'No hay cambios de los dueños por revisar.', id ? h('a', { class: 'btn btn-primary', href: '#/cambios-dueno' }, ic('icon-list'), 'Ver los demás') : null));
 		} catch (err) {
 			container.replaceChildren();
-			mount(container, pageHeader('Cambios de los dueños'), emptyState(`No se pudieron leer: ${err.message}`));
+			mount(container, pageHeader('Cambios de los dueños'), emptyState(`No se pudieron leer: ${errorMessage(err)}`));
 		}
 	};
 	await pintar();
