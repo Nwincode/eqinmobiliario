@@ -1193,13 +1193,15 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 				return ['.vac-chat-form textarea', '.vac-chat-form button[type=submit]'].some((s) => { const x = document.querySelector(s)?.getBoundingClientRect(); return x && r.left < x.right && r.right > x.left && r.top < x.bottom && r.bottom > x.top; });
 			});
 			const ahora = await cruce();
+			// Y la barra (fija, con el aviso dentro) no tapa el título de la reserva.
+			const tapaTitulo = await c.p.evaluate(() => document.querySelector('.vac-chat-cuerpo .hilo-cab').getBoundingClientRect().top < document.querySelector('.site-nav').getBoundingClientRect().bottom - 1);
 			const scrollLado = await c.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
 			await c.p.screenshot({ path: `${SEG}/aviso-ingles-chat-${ancho}.png` });
 			await c.p.addStyleTag({ content: '.pagina-chat .aviso-idioma { position: fixed; transform: translateX(-50%); margin: 0; bottom: 16px; left: 50%; }' });
 			await espera(300);
 			const antes = await cruce();
-			paso(`Chat del cliente (${ancho} px, teléfono en inglés): «View this site in English» no tapa el campo ni «Enviar»${ancho < 600 ? ' (con el estilo de antes, sí lo tapaba)' : ''}`,
-				ahora === false && scrollLado <= 0 && (ancho >= 600 || antes === true), `ahora ${ahora} · antes ${antes} · lado ${scrollLado}`);
+			paso(`Chat del cliente (${ancho} px, teléfono en inglés): «View this site in English» no tapa el campo, «Enviar» ni el título${ancho < 600 ? ' (con el estilo de antes, sí lo tapaba)' : ''}`,
+				ahora === false && !tapaTitulo && scrollLado <= 0 && (ancho >= 600 || antes === true), `ahora ${ahora} · antes ${antes} · título tapado ${tapaTitulo} · lado ${scrollLado}`);
 			await c.p.context().close();
 		}
 	}

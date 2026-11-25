@@ -106,7 +106,7 @@ async function renderLista(container) {
 		const prox = proximaActividad(actividades, c.id);
 		const faltan = revisar('clientes', c);
 		const card = h('div', { class: 'crm-card', draggable: 'true', dataset: { id: c.id } }, h('div', { class: 'crm-card-datos' },
-			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre || '(sin nombre)'),
+			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre enlace-toque' }, c.nombre || '(sin nombre)'),
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
 			dato('icon-map-marker', c.zonas),
 			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),

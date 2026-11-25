@@ -853,7 +853,9 @@ h2.heading::after,
 }
 .site-nav .site-navigation .site-menu > li > a {
 	position: relative;
-	padding: 8px 12px;
+	/* Se ve igual que con 8 px arriba y abajo, y se toca en 44 px: el relleno de más lo devuelve el margen. */
+	padding: 11px 12px;
+	margin: -3px 0;
 	font-size: 14.5px;
 	font-weight: 400;
 	color: rgba(255, 255, 255, .78);
@@ -871,7 +873,7 @@ h2.heading::after,
 	position: absolute;
 	left: 12px;
 	right: 12px;
-	bottom: 2px;
+	bottom: 5px;
 	height: 2px;
 	border-radius: 2px;
 	background: var(--eq-cyan);
@@ -956,6 +958,9 @@ h2.heading::after,
 	border-radius: 999px;
 	transition: background-color .2s ease, transform .2s ease;
 }
+/* La píldora de contacto no cambia: se toca en 44 px con un área invisible arriba y abajo. */
+.site-nav .site-navigation .site-menu > li.nav-cta > a { margin: 0; }
+.site-nav .site-navigation .site-menu > li.nav-cta > a::before { content: ''; position: absolute; inset: -3px 0; }
 .site-nav .site-navigation .site-menu > li.nav-cta > a:hover {
 	background: var(--eq-white);
 	color: var(--eq-dark);
@@ -974,7 +979,7 @@ h2.heading::after,
 /* Pantallas medianas: menos aire para que todo quepa en una fila */
 @media (max-width: 1199.98px) {
 	.nav-brand span { font-size: 16px; }
-	.site-nav .site-navigation .site-menu > li > a { padding: 8px 9px; font-size: 14px; }
+	.site-nav .site-navigation .site-menu > li > a { padding: 11px 9px; font-size: 14px; }
 	.site-nav .site-navigation .site-menu > li.has-children > a::after { right: 22px; }
 }
 @media (max-width: 991.98px) {
@@ -1130,7 +1135,7 @@ h2.heading::after,
    Ficha de propiedad: galería a todo el ancho y datos sobrios
    ================================================================ */
 .pagina-ficha {
-	padding-top: 96px;
+	padding-top: calc(96px + var(--alto-aviso-idioma, 0px));
 }
 .pagina-ficha .site-nav .menu-bg-wrap {
 	background: var(--eq-dark);
@@ -1541,7 +1546,7 @@ body.sin-barra-ficha .ficha-barra {
 
 @media (max-width: 991.98px) {
 	.pagina-ficha {
-		padding-top: 76px;
+		padding-top: calc(76px + var(--alto-aviso-idioma, 0px));
 	}
 	.ficha-contacto {
 		position: static;
@@ -1724,7 +1729,7 @@ body.sin-barra-ficha .ficha-barra {
 		font-size: 16px;
 	}
 	.pagina-ficha {
-		padding-top: 64px;
+		padding-top: calc(64px + var(--alto-aviso-idioma, 0px));
 	}
 
 	/* Botón de menú: área táctil de 44×44 y tres líneas que pasan a ✕ */
@@ -3207,6 +3212,20 @@ a:hover > .eq-ic-fin,
 	body.sin-barra-ficha .aviso-idioma {
 		bottom: calc(16px + env(safe-area-inset-bottom));
 	}
+}
+/* En «Tu reserva» (la conversación llena la pantalla y el campo para escribir va abajo): flotando abajo lo tapaba; aquí va
+   arriba, dentro de la barra, como una línea más (la conversación se acorta y nada queda debajo). */
+.pagina-chat .aviso-idioma {
+	position: static;
+	transform: none;
+	box-shadow: none;
+	width: max-content;
+	max-width: calc(100% - 32px);
+	margin: 8px auto 0;
+}
+/* La barra es fija: la página baja lo que mide el aviso (44 + 8 px) mientras se ve. */
+.pagina-chat:has(.aviso-idioma:not([hidden])) {
+	--alto-aviso-idioma: 52px;
 }
 .aviso-idioma a {
 	color: var(--eq-primary);

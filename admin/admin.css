@@ -25,6 +25,17 @@ body {
 @media (max-width: 767.98px) {
 	.btn, .btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
 }
+/* En la computadora el pequeño se ve de 32 px y se toca en 44: un área invisible arriba y abajo (no cambia su fila).
+   `:where`: cualquier otra regla que lo posicione manda. */
+@media (min-width: 768px) {
+	:where(.btn-sm) { position: relative; }
+	/* Solo lo que le falta para 44 (uno que ya mide 44, como los de ícono, no crece ni pisa al de al lado). */
+	.btn-sm::before { content: ''; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
+}
+/* Un enlace dentro de una línea de texto (un código, un nombre): se toca en 44 px de alto sin mover la línea (un área
+   invisible arriba y abajo, encima de lo que haya: lo de al lado no es tocable). */
+.enlace-toque { position: relative; }
+.enlace-toque::before { content: ''; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
 .btn-light {
 	background-color: var(--adm-surface);
 	border-color: var(--adm-border);
