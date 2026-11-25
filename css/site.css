@@ -3897,3 +3897,139 @@ a:hover > .eq-ic-fin,
 		line-height: 20px;
 	}
 }
+
+/* Inicio en computadora (aprobado por el usuario, nov 2026): la portada llena la pantalla y al bajar están las
+   fichas; 3 fichas grandes (js/custom.js, carrusel desde 1100 px); más aire entre secciones y letra más grande. En
+   celular no cambia nada. */
+@media (min-width: 992px) {
+	.ini-hero {
+		min-height: 100vh;
+		min-height: 100svh;
+		padding: 80px 0 0;
+		align-items: center;
+	}
+	.ini-hero .container {
+		gap: 32px;
+	}
+	.ini-hero h1 {
+		max-width: 900px;
+		font-size: 56px;
+		line-height: 64px;
+	}
+	.ini-buscar {
+		width: 680px;
+		height: 60px;
+	}
+	.ini-buscar .form-control,
+	.ini-buscar .btn {
+		height: 60px;
+		font-size: 16px;
+	}
+	.ini-buscar .btn {
+		padding: 0 32px;
+	}
+	.ini-sec,
+	.ini-exterior {
+		font-size: 16px;
+		line-height: 24px;
+	}
+	.ini-sec {
+		padding-top: 112px;
+	}
+	.ini-sec.ini-populares {
+		padding-top: 64px;
+	}
+	.ini-sec h2 {
+		margin-bottom: 32px;
+		font-size: 36px;
+		line-height: 44px;
+	}
+	.ini-sec h3 {
+		font-size: 16px;
+		line-height: 24px;
+	}
+	.ini-populares {
+		row-gap: 32px;
+	}
+	.ini-populares h2 {
+		margin: 0;
+	}
+	.ini-populares .property-item img {
+		height: 280px;
+		object-fit: cover;
+	}
+	.ini-populares .property-content {
+		gap: 4px;
+		padding-top: 16px;
+	}
+	.ini-populares .price {
+		font-size: 20px;
+		line-height: 28px;
+	}
+	.ini-populares .prop-titulo {
+		font-size: 18px;
+		line-height: 24px;
+	}
+	.ini-populares .prop-etiqueta,
+	.ini-populares .prop-datos {
+		font-size: 14px;
+		line-height: 20px;
+	}
+	.testimonial blockquote {
+		font-size: 16px;
+		line-height: 28px;
+	}
+	.testimonial-slider-wrap:not(.gr-mixto) .testimonial {
+		gap: 16px;
+		padding-left: 20px;
+	}
+	.ini-firma span {
+		font-size: 14px;
+		line-height: 20px;
+	}
+	.ini-ayuda {
+		gap: 48px;
+	}
+	.ini-cifras {
+		margin-top: 64px;
+		padding-top: 48px;
+	}
+	.ini-cifras dd {
+		font-size: 48px;
+		line-height: 56px;
+	}
+	.ini-cifras dt {
+		font-size: 14px;
+		line-height: 20px;
+	}
+	.ini-asesores {
+		column-gap: 48px;
+	}
+	.ini-asesores img {
+		width: 80px;
+		height: 80px;
+	}
+	.ini-asesores h3 {
+		font-size: 16px;
+	}
+	.ini-exterior {
+		margin-top: 112px;
+		padding: 112px 0;
+	}
+	.ini-exterior h2 {
+		font-size: 36px;
+		line-height: 44px;
+	}
+	.ini-exterior p,
+	.ini-exterior li {
+		font-size: 16px;
+		line-height: 28px;
+	}
+	.ini-exterior + .section {
+		padding-top: 112px !important;
+	}
+	.ini-contacto {
+		gap: 96px;
+		padding-bottom: 112px;
+	}
+}

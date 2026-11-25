@@ -107,8 +107,10 @@
 						items: 3,
 						gutter: 24
 					},
+					// Computadora: 3 fichas grandes (aprobado por el usuario), con 32 px entre ellas.
 					1100: {
-						items: 4
+						items: 3,
+						gutter: 32
 					}
 				}
 			});
