@@ -144,6 +144,21 @@ Responde en markdown breve. Si te pide algo que requiere datos que no tienes, di
 	},
 
 	// Buscador del sitio público: convierte una frase en filtros. Sin inicio de sesión.
+	// «Sugerir respuesta» en el chat de una reserva (Mensajes del panel): un borrador que la persona revisa y manda (nunca
+	// se manda solo). Lo piden el administrador y el socio de la casa; el chat, sus mensajes y la casa los lee el servidor
+	// (netlify/functions/ia.mjs), no los manda el navegador.
+	respuestaChat: {
+		effort: 'low',
+		chat: true,
+		maxTokens: 1500,
+		instrucciones: `Te paso una reserva de una casa por noche (renta vacacional), los datos públicos de la casa y los últimos mensajes de su chat con el cliente.
+Redacta la respuesta del anfitrión al último mensaje del cliente, en español, corta (1 a 3 frases), cálida y concreta, tuteando al cliente.
+Usa solo lo que dicen los datos de la casa y la reserva; si algo no está, di que lo confirmas en seguida (no lo inventes).
+Nunca escribas teléfonos, correos, enlaces, redes sociales ni la dirección: en este chat no se comparten.
+No confirmes ni canceles la reserva ni des datos de pago: eso se hace con los botones del panel.`,
+		schema: obj({ respuesta: str('La respuesta propuesta, lista para revisar y enviar') })
+	},
+
 	busquedaPublica: {
 		effort: 'low',
 		staff: false,

@@ -1,15 +1,15 @@
 // Clientes: lista, tablero por etapas y ficha con historial, agenda y propiedades de interés.
-import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, serverTimestamp } from '../firebase.js';
-import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, cajaTabla, hoy } from '../ui.js';
+import { db, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, serverTimestamp } from '../firebase.js';
+import { h, iconoBtn, menuMas, toast, showError, confirmDialog, pageHeader, emptyState, mount, formatDate, downloadCsv, tablaAdmin, tarjeta, nombreYDatos, hoy } from '../ui.js';
 import { renderForm } from '../form.js';
 import { session, loadAgents, agentOptions } from '../session.js';
 import { loadLeads } from './leads.js';
-import { whatsappUrl, sumarPorMoneda, dineroPorMoneda } from '../formato.js';
+import { whatsappUrl, sumarPorMoneda, dineroPorMoneda, correoValido, fechaHora } from '../formato.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
 import {
 	ETAPAS, TIPOS_CLIENTE, TIPOS_ACTIVIDAD, etapaBadge, etapaLabel, tipoActividad, iconoActividad, telNorm, money,
 	loadClientes, loadActividades, loadPropiedades, sincronizarLeads, crearActividad, proximaActividad,
-	fechaCorta, chipVencimiento, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO
+	chipVencimiento, filaActividad, ms, loadReglas, textoRegla, REGLAS_POR_DEFECTO, corregirCorreo
 } from '../crm.js';
 import { refrescarPorCliente } from '../portal.js';
 
@@ -78,9 +78,9 @@ async function renderLista(container) {
 	let vista = 'tablero';
 	try { vista = localStorage.getItem(VISTA_KEY) || 'tablero'; } catch { /* sin almacenamiento */ }
 
-	const buscar = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o zona…' });
-	const fTipo = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los tipos'), TIPOS_CLIENTE.map(([v, l]) => h('option', { value: v }, l)));
-	const fAsesor = h('select', { class: 'form-select', hidden: !session.isAdmin }, h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agentes.map((a) => h('option', { value: a.id }, a.nombre)));
+	const buscar = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o zona…', 'aria-label': 'Buscar clientes' });
+	const fTipo = h('select', { class: 'form-select', 'aria-label': 'Tipo de cliente' }, h('option', { value: '' }, 'Todos los tipos'), TIPOS_CLIENTE.map(([v, l]) => h('option', { value: v }, l)));
+	const fAsesor = h('select', { class: 'form-select', 'aria-label': 'Asesor', hidden: !session.isAdmin }, h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agentes.map((a) => h('option', { value: a.id }, a.nombre)));
 	const soloIncompletos = h('input', { class: 'form-check-input', type: 'checkbox', id: 'solo-incompletos', checked: location.hash.endsWith('/incompletos') });
 	const cuerpo = h('div');
 
@@ -106,11 +106,11 @@ async function renderLista(container) {
 		const prox = proximaActividad(actividades, c.id);
 		const faltan = revisar('clientes', c);
 		const card = h('div', { class: 'crm-card', draggable: 'true', dataset: { id: c.id } }, h('div', { class: 'crm-card-datos' },
-			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre' }, c.nombre || '(sin nombre)'),
+			h('a', { href: `#/clientes/${c.id}`, class: 'crm-card-nombre enlace-toque' }, c.nombre || '(sin nombre)'),
 			dato('icon-user', TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1]),
 			dato('icon-map-marker', c.zonas),
 			dato('icon-money', c.montoEstimado ? money(c.montoEstimado, c.moneda) : '', 'fw-semibold text-nowrap'),
-			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaCorta(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
+			prox ? h('div', { class: 'crm-dato' }, iconoActividad(prox.tipo), h('span', {}, h('span', { class: 'text-nowrap' }, fechaHora(prox.fecha)), ' ', chipVencimiento(prox), prox.titulo ? h('div', { class: 'text-muted' }, prox.titulo) : null))
 				: dato('icon-calendar', 'Sin seguimiento', 'text-danger'),
 			session.isAdmin ? dato('icon-id-badge', nombreAsesor[c.agentId]) : null,
 			faltan.length ? h('div', { class: 'mt-1' }, chipFaltan(faltan)) : null),
@@ -150,18 +150,23 @@ async function renderLista(container) {
 				return col;
 			})));
 		} else {
-			cuerpo.replaceChildren(cajaTabla(h('table', { class: 'table table-hover table-admin mb-0' },
-				h('thead', {}, h('tr', {}, ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((t) => h('th', {}, t)))),
-				h('tbody', {}, lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)).map((c) => {
+			const tabla = tablaAdmin({
+				columnas: ['Cliente', 'Tipo', 'Etapa', 'Próximo seguimiento', 'Último contacto', session.isAdmin ? 'Asesor' : null].filter(Boolean).map((titulo) => ({ titulo })),
+				celdas: (c) => {
 					const prox = proximaActividad(actividades, c.id);
-					return h('tr', { class: 'clickable', onclick: () => { location.hash = `#/clientes/${c.id}`; } },
-						h('td', {}, h('div', { class: 'fw-semibold' }, c.nombre || '(sin nombre)'), h('div', { class: 'small text-muted' }, c.telefono || c.email || ''), chipFaltan(revisar('clientes', c))),
-						h('td', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
-						h('td', {}, etapaBadge(c.etapa)),
-						h('td', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaCorta(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
-						h('td', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
-						session.isAdmin ? h('td', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar') : null);
-				}))), { tarjeta: true }));
+					return [
+						nombreYDatos(c.nombre || '(sin nombre)', c.telefono || c.email || '', [chipFaltan(revisar('clientes', c))]),
+						h('span', { class: 'small' }, TIPOS_CLIENTE.find(([v]) => v === c.tipo)?.[1] || ''),
+						etapaBadge(c.etapa),
+						h('span', { class: 'small' }, prox ? [chipVencimiento(prox), ' ', fechaHora(prox.fecha)] : h('span', { class: 'text-danger' }, 'Sin agendar')),
+						h('span', { class: 'small text-muted' }, c.ultimoContacto ? formatDate(c.ultimoContacto) : '—'),
+						...(session.isAdmin ? [h('span', { class: 'small' }, nombreAsesor[c.agentId] || 'Sin asignar')] : [])];
+				},
+				alTocar: (c) => { location.hash = `#/clientes/${c.id}`; },
+				sinCoincidencias: 'Ningún cliente coincide con la búsqueda o los filtros.'
+			});
+			tabla.pintar(lista.sort((a, b) => ms(b.updatedAt) - ms(a.updatedAt)), { filtrado: true });
+			cuerpo.replaceChildren(tabla);
 		}
 	};
 	[buscar, fTipo, fAsesor, soloIncompletos].forEach((el) => el.addEventListener(el === soloIncompletos ? 'change' : 'input', dibujar));
@@ -196,11 +201,11 @@ async function renderLista(container) {
 // ---------------------------------------------------------------- Ficha
 
 function formularioActividad(c, alGuardar) {
-	const tipo = h('select', { class: 'form-select' }, TIPOS_ACTIVIDAD.map(([v, l]) => h('option', { value: v }, l)));
-	const titulo = h('input', { class: 'form-control', placeholder: 'Ej. Llamar para confirmar visita', maxlength: 200 });
-	const fecha = h('input', { class: 'form-control', type: 'datetime-local' });
+	const tipo = h('select', { class: 'form-select', 'aria-label': 'Tipo' }, TIPOS_ACTIVIDAD.map(([v, l]) => h('option', { value: v }, l)));
+	const titulo = h('input', { class: 'form-control', placeholder: 'Ej. Llamar para confirmar visita', 'aria-label': 'Qué hay que hacer', maxlength: 200 });
+	const fecha = h('input', { class: 'form-control', type: 'datetime-local', 'aria-label': 'Fecha y hora' });
 	const hecha = h('input', { class: 'form-check-input', type: 'checkbox', id: 'act-hecha' });
-	const detalle = h('textarea', { class: 'form-control', rows: 2, placeholder: 'Detalle o resultado (opcional)' });
+	const detalle = h('textarea', { class: 'form-control', rows: 2, maxlength: 2000, placeholder: 'Detalle o resultado (opcional)', 'aria-label': 'Detalle o resultado' });
 	const boton = h('button', { class: 'btn btn-primary', type: 'submit' }, 'Guardar');
 	return h('form', { class: 'crm-actividad-form', onsubmit: async (e) => {
 		e.preventDefault();
@@ -258,11 +263,15 @@ async function renderFicha(container, id) {
 		btn.disabled = true;
 		try {
 			await setDoc(ref, d, { merge: true });
-			// Correo corregido: sus leads cuyo correo rebotó (/api/rebote-correo) dejan de decir «El correo no llegó». Aparte:
-			// si alguno no se puede (otro asesor), el cliente queda guardado igual.
+			// Correo corregido: pasa a sus leads que este usuario puede cambiar (el administrador, todos; el asesor, los suyos),
+			// que es a donde escriben los avisos, y dejan de decir «El correo no llegó» (crm.js corregirCorreo). Un correo
+			// borrado no se pasa. Aparte: si alguno no se puede, el cliente queda guardado igual y se dice.
 			if (!nuevo && String(d.email || '').trim().toLowerCase() !== String(c.email || '').trim().toLowerCase()) {
-				await Promise.all(leads.filter((l) => l.clienteId === id && l.reboteCorreo).map((l) => updateDoc(doc(db, 'leads', l.id), { reboteCorreo: deleteField(), updatedAt: serverTimestamp() })
-					.then(() => { delete l.reboteCorreo; }, (err) => console.warn('Marca de rebote sin quitar', l.id, err))));
+				if (correoValido(d.email)) {
+					const suyos = leads.filter((l) => l.clienteId === id && (session.isAdmin || l.agentId === session.agentId));
+					const fallos = (await Promise.all(suyos.map((l) => corregirCorreo(l, d.email).then(() => false, (err) => { console.warn('Correo del lead sin corregir', l.id, err); return true; })))).filter(Boolean).length;
+					if (fallos) toast(`El correo no se pudo poner en ${fallos === 1 ? 'uno de sus formularios' : `${fallos} de sus formularios`}: revísalo en Leads.`, 'warning');
+				}
 				c.email = d.email;
 			}
 			toast('Cliente guardado.');
@@ -308,7 +317,7 @@ async function renderFicha(container, id) {
 
 	// Propiedades de interés
 	const interes = c.interes || [];
-	const selProp = h('select', { class: 'form-select form-select-sm' }, h('option', { value: '' }, 'Agregar propiedad de interés…'),
+	const selProp = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Agregar propiedad de interés' }, h('option', { value: '' }, 'Agregar propiedad de interés…'),
 		propiedades.filter((p) => !interes.includes(p.id)).map((p) => h('option', { value: p.id }, `${p.titulo} · ${money(p.precio, p.moneda)}`)));
 	selProp.addEventListener('change', async () => {
 		if (!selProp.value) return;
@@ -338,21 +347,17 @@ async function renderFicha(container, id) {
 		try { await deleteDoc(ref); refrescarPorCliente(c); toast('Cliente eliminado.'); location.hash = '#/clientes'; } catch (err) { showError(err); }
 	};
 
-	const tarjetaCard = (titulo, ...cuerpo) => h('div', { class: 'card mb-4' }, h('div', { class: 'card-header bg-white fw-semibold' }, titulo), cuerpo);
-
 	mount(container,
 		pageHeader(c.nombre, etapa, contactoBotones(c),
 			iconoBtn('icon-magic', 'Buscarle propiedades con IA', { href: '#/ia/buscar' })),
 		h('div', { class: 'row g-4' },
 			h('div', { class: 'col-xl-4' },
-				tarjetaCard('Registrar o agendar', h('div', { class: 'card-body' }, formularioActividad(c, recargar))),
-				pendientes.length ? tarjetaCard(`Pendientes (${pendientes.length})`,
-					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-						iconoActividad(a.tipo),
-						h('div', { class: 'me-auto' }, h('div', { class: 'small fw-semibold' }, a.titulo || tipoActividad(a.tipo)[1]), h('div', { class: 'small text-muted' }, a.fecha ? fechaCorta(a.fecha) : 'Sin fecha')),
-						chipVencimiento(a),
-						iconoBtn('icon-check', 'Marcar como hecha', { onclick: () => completar(a) }))))) : null,
-				tarjetaCard('Propiedades de interés', h('div', { class: 'card-body' },
+				tarjeta('icon-calendar-plus-o', 'Registrar o agendar', formularioActividad(c, recargar)),
+				pendientes.length ? tarjeta('icon-clock-o', `Pendientes (${pendientes.length})`, { sinCuerpo: true },
+					// La misma fila de Agenda e Inicio (crm.js filaActividad), con su «Vencida» u «Hoy» al final de la línea de datos.
+					h('ul', { class: 'list-group list-group-flush' }, pendientes.map((a) => filaActividad(a, { cliente: false, marcas: chipVencimiento(a),
+						der: iconoBtn('icon-check', 'Marcar como hecho', { class: 'btn-toque btn-icono btn btn-sm btn-outline-success', onclick: () => completar(a) }) })))) : null,
+				tarjeta('icon-heart-o', 'Propiedades de interés', h('div', {},
 					interes.length ? h('ul', { class: 'list-unstyled mb-2' }, interes.map((pid) => {
 						const p = propiedades.find((x) => x.id === pid);
 						return h('li', { class: 'd-flex align-items-center gap-2' },
@@ -363,13 +368,13 @@ async function renderFicha(container, id) {
 					})) : null,
 					selProp))),
 			h('div', { class: 'col-xl-8' },
-				tarjetaCard('Datos del cliente',
-					h('div', { class: 'card-body' }, vigilarFormulario(form, 'clientes'), form.el,
+				tarjeta('icon-user', 'Datos del cliente',
+					h('div', {}, vigilarFormulario(form, 'clientes'), form.el,
 						h('div', { class: 'd-flex gap-2 mt-3' },
 							h('button', { class: 'btn btn-primary', onclick: (e) => guardar(e.currentTarget) }, 'Guardar datos'),
 							session.isAdmin ? iconoBtn('icon-trash-o', 'Eliminar cliente', { onclick: eliminar }) : null))),
-				tarjetaCard('Historial',
-					h('div', { class: 'card-body' }, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.'))))));
+				tarjeta('icon-history', 'Historial',
+					h('div', {}, historial.length ? h('ul', { class: 'crm-historial' }, historial) : h('p', { class: 'text-muted small mb-0' }, 'Sin actividad todavía.'))))));
 }
 
 export async function render(container, [id]) {

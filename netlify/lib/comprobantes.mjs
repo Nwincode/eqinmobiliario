@@ -4,31 +4,32 @@
 // confirmación) EN EL CÓDIGO (la IA solo lee) y deja en revisionesComprobante/{solicitud} «El comprobante cuadra» o
 // «No cuadra: …» para el socio de la casa y el equipo (firestore.rules: los mismos que leen montosSolicitud; nadie
 // escribe desde el navegador). Nunca decide ni cancela nada. Sin IA configurada o si falla, no deja nada que mostrar.
-// La foto sale del mensaje guardado (nunca de quien llama) y solo de la carpeta de ese chat; una revisión por foto y a
+// La foto sale del mensaje guardado (nunca de quien llama) y solo de la carpeta de ese chat, leída con la cuenta de servicio; una revisión por foto y a
 // lo más 3 revisiones terminadas por chat (y 3 fallidas por foto). Si la función se corta antes de terminar (la IA tarda),
 // la retoma el control de cada 15 minutos (plazos-reservas.mjs, `revisarPendientes`). Tope de llamadas a la IA por chat
 // (`intentos`, se cuenta al apartar: también las cortadas y las de fotos nuevas que fallan): así una foto que siempre
-// falla, o una foto nueva tras otra, no la llama sin fin.
+// falla, o una foto nueva tras otra, no la llama sin fin. Los topes viven en admin/js/hilo.js: la foto que ya no se revisa
+// por ellos queda oculta para el socio (estadoDeFoto) hasta que el equipo decide.
 import '../../js/calc-vacacional.js';
 import { leerPublico, leerPrivado, desde } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
 import { client, MODEL, iaConfigurada } from './ia-cliente.mjs';
 import { dinero } from '../../admin/js/formato.js';
+import { REVISIONES_POR_CHAT as REVISIONES, FALLOS_POR_FOTO as FALLOS, INTENTOS_POR_CHAT as INTENTOS, rutaDeFoto } from '../../admin/js/hilo.js';
+import { bajar as bajarDeStorage } from './storage.mjs';
 
 const V = globalThis.EQVacacional;
 const MAX_FOTO = 5 * 1024 * 1024;
-const REVISIONES = 3, FALLOS = 3, INTENTOS = REVISIONES + FALLOS;
 const EN_CURSO = 10 * 60_000;
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-
-export const urlDelComprobante = (token, url) => new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F${token}%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+$`).test(String(url || ''));
 
 // Sin «null» ni «anyOf» (la misma forma de los esquemas que ya usa netlify/lib/tareas.mjs): lo que no se ve, 0 o ''.
 const ESQUEMA = {
 	type: 'object', additionalProperties: false,
-	required: ['esComprobante', 'monto', 'moneda', 'fecha', 'banco', 'referencia'],
+	required: ['esComprobante', 'contactoVisible', 'monto', 'moneda', 'fecha', 'banco', 'referencia'],
 	properties: {
 		esComprobante: { type: 'boolean', description: 'true si la imagen es un comprobante de pago o transferencia' },
+		contactoVisible: { type: 'boolean', description: 'true si en la imagen se ve un teléfono, un correo, un usuario de red social o un enlace que no es parte del comprobante bancario (los datos del banco, la cuenta y la referencia no cuentan)' },
 		monto: { type: 'number', description: 'Monto pagado, solo el número; 0 si no se ve' },
 		moneda: { type: 'string', enum: ['GTQ', 'USD', 'otra', ''], description: 'GTQ para quetzales (Q), USD para dólares (US$, $); vacío si no se ve' },
 		fecha: { type: 'string', description: 'Fecha del pago, AAAA-MM-DD; vacío si no se ve' },
@@ -36,11 +37,18 @@ const ESQUEMA = {
 		referencia: { type: 'string', description: 'Número de referencia, autorización o boleta; vacío si no se ve' }
 	}
 };
-const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, 0 o vacío. No supongas.';
+const PEDIDO = 'Lee este comprobante de pago. Devuelve solo lo que se ve en la imagen; si un dato no se ve, 0 o vacío. No supongas. Di también si se ve algún teléfono, correo, usuario de red social o enlace que no sea parte del comprobante del banco.';
 
 // Lo leído contra lo esperado. leido: lo que devolvió la IA; esperado: { total, moneda, confirmada: 'AAAA-MM-DD' }.
-// Devuelve { cuadra, texto } con el porqué en palabras (lo que ve el socio).
-export function compararComprobante(leido, { total, moneda, confirmada }) {
+// Devuelve { cuadra, texto, oculta, motivoOculta } con el porqué en palabras (lo que ve el socio). `oculta`: la foto no
+// se le muestra al socio (no es un comprobante, o trae un dato de contacto): la ve el equipo y decide. Lo decide este
+// código con lo que leyó la IA (la IA solo lee).
+export function compararComprobante(leido, esperado) {
+	const r = compararMontos(leido, esperado);
+	const sinComprobante = !leido?.esComprobante, contacto = Boolean(leido?.contactoVisible);
+	return { ...r, oculta: sinComprobante || contacto, motivoOculta: contacto ? 'Posible dato de contacto' : sinComprobante ? 'No parece un comprobante' : '' };
+}
+function compararMontos(leido, { total, moneda, confirmada }) {
 	if (!leido?.esComprobante) return { cuadra: false, texto: 'No cuadra: la imagen no parece un comprobante de pago' };
 	const fallas = [];
 	const monto = Number(leido.monto);
@@ -55,14 +63,11 @@ export function compararComprobante(leido, { total, moneda, confirmada }) {
 	return fallas.length ? { cuadra: false, texto: `No cuadra: ${fallas.join('; ')}` } : { cuadra: true, texto: 'El comprobante cuadra' };
 }
 
-async function fotoEnBase64(url) {
-	const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-	if (!res.ok) throw new Error(`Foto: ${res.status}`);
-	const tipo = String(res.headers.get('content-type') || '').split(';')[0].trim();
+// La foto, leída con la cuenta de servicio (Storage no la abre a nadie más: storage.rules).
+async function fotoEnBase64(ruta) {
+	const { tipo, datos } = await bajarDeStorage(ruta, { max: MAX_FOTO });
 	if (!TIPOS.includes(tipo)) throw new Error(`Foto: tipo ${tipo}`);
-	const buf = Buffer.from(await res.arrayBuffer());
-	if (buf.length > MAX_FOTO) throw new Error('Foto: demasiado grande');
-	return { tipo, datos: buf.toString('base64') };
+	return { tipo, datos: datos.toString('base64') };
 }
 
 async function leerConIA(foto, timeout = 25_000) {
@@ -87,14 +92,15 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	const mensajeId = String(chat.comprobanteMensaje);
 	// Solo la foto del cliente, de la carpeta de su chat: lo demás ni se aparta.
 	const mensaje = await leerPrivado(`chats/${token}/mensajes/${mensajeId}`);
-	if (mensaje?.tipo !== 'foto' || mensaje.de !== 'cliente' || !urlDelComprobante(token, mensaje.texto)) return null;
+	const rutaFoto = mensaje?.tipo === 'foto' && mensaje.de === 'cliente' ? rutaDeFoto({ token, leadId: chat.leadId }, mensaje.texto) : '';
+	if (!rutaFoto) return null;
 	// Se aparta: una revisión por foto (dos avisos a la vez no la mandan dos veces a la IA), con tope por chat.
 	const toca = await transaccion(async ({ leer: l, crear, cambiar }) => {
 		const prev = await l(ruta);
 		const misma = prev?.mensaje === mensajeId;
 		if (misma && (prev.texto || ahora - (Number(prev.apartado) || 0) < EN_CURSO || (Number(prev.fallos) || 0) >= FALLOS)) return false;
 		if ((Number(prev?.revisiones) || 0) >= REVISIONES || (Number(prev?.intentos) || 0) >= INTENTOS) return false;
-		const datos = { mensaje: mensajeId, apartado: ahora, fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0, intentos: (Number(prev?.intentos) || 0) + 1,
+		const datos = { mensaje: mensajeId, apartado: ahora, oculta: false, motivoOculta: '', fallos: misma ? Number(prev.fallos) || 0 : 0, revisiones: Number(prev?.revisiones) || 0, intentos: (Number(prev?.intentos) || 0) + 1,
 			propietarioId: chat.propietarioId || '', propertyId: chat.propertyId || '', texto: '', cuadra: false };
 		if (prev) cambiar(ruta, datos); else crear(ruta, datos);
 		return true;
@@ -103,7 +109,7 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	const reserva = await leerPrivado(`reservas/${chat.leadId}`).catch(() => null);
 	let leido;
 	try {
-		leido = await leer(await bajar(mensaje.texto), timeout);
+		leido = await leer(await bajar(rutaFoto), timeout);
 	} catch (err) {
 		// No se pudo (la foto o la IA): cuenta como fallida y queda para la próxima vuelta.
 		await transaccion(async ({ leer: l, cambiar }) => cambiar(ruta, { fallos: 1 + (Number((await l(ruta))?.fallos) || 0), apartado: 0 })).catch(() => {});
@@ -112,7 +118,16 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	const confirmada = reserva?.createdAt instanceof Date ? V.hoy(reserva.createdAt.getTime()) : '';
 	const r = compararComprobante(leido, { total: Number(chat.total) || 0, moneda: chat.moneda || reserva?.moneda || 'USD', confirmada });
 	const limpio = (v, n) => (v == null ? '' : String(v).slice(0, n));
-	await transaccion(async ({ leer: l, cambiar }) => cambiar(ruta, { ...r, revisiones: (Number((await l(ruta))?.revisiones) || 0) + 1, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10), banco: limpio(leido.banco, 80), referencia: limpio(leido.referencia, 60) } }, { ahora: ['cuando'] }));
+	await transaccion(async ({ leer: l, cambiar }) => {
+		// Y el veredicto de esta foto por su id (`fotos.f{id}`: la «f» hace del id un nombre de campo válido aunque empiece con
+		// un número): una foto de antes sigue con el suyo cuando llega otra.
+		// De una foto oculta no se guardan banco ni referencia: el socio lee esta revisión, y ahí podría ir el contacto.
+		cambiar(ruta, { ...r, [`fotos.f${mensajeId}`]: { oculta: r.oculta, motivo: r.motivoOculta }, revisiones: (Number((await l(ruta))?.revisiones) || 0) + 1, leido: { monto: Number(leido.monto) || 0, moneda: limpio(leido.moneda, 5), fecha: limpio(leido.fecha, 10),
+			banco: r.oculta ? '' : limpio(leido.banco, 80), referencia: r.oculta ? '' : limpio(leido.referencia, 60), contactoVisible: Boolean(leido.contactoVisible) } }, { ahora: ['cuando'] });
+		// En el chat (que lee el cliente con su enlace): solo que esa foto no se aceptó, para decirle en una línea que solo
+		// se aceptan fotos del comprobante. Nada de lo leído.
+		cambiar(`chats/${token}`, { comprobanteOculto: r.oculta ? mensajeId : '' });
+	});
 	return r;
 }
 

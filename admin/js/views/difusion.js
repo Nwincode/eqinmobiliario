@@ -1,11 +1,12 @@
 // Difusión: dónde está publicada cada propiedad y kit con textos y fotos para cada plataforma.
 import { db, doc, getDoc, getDocs, updateDoc, collection, FieldPath } from '../firebase.js';
-import { h, statCard, toast, showError, pageHeader, badge, mount, emptyState, formatPrice, cajaTabla } from '../ui.js';
+import { h, statCard, toast, showError, errorMessage, pageHeader, badge, nombreYDatos, mount, formatPrice, tablaAdmin } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { copiar } from '../ia.js';
 import { estadoDe } from '../estados.js';
 import { portalesDe, iconoPortal, textoPara, descargarFotos, estadoDifusion, FORMATOS, codigo } from '../difusion.js';
 import { refrescarPortalesDe } from '../portal.js';
+import { fechaCorta } from '../formato.js';
 
 const COLOR = { ok: 'success', actualizar: 'warning', baja: 'danger', pendiente: 'light', na: 'light' };
 // Ícono de cada estado en el tablero; los indicadores de arriba usan los mismos y sirven de leyenda.
@@ -59,9 +60,8 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 
 	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white d-flex flex-wrap align-items-center gap-2' },
-			h('strong', { class: 'me-auto' }, portal.nombre, ' ', h('span', { class: 'badge text-bg-light' }, portal.idioma.toUpperCase())),
-			badge(est.texto, COLOR[est.id]),
-			reg.fecha ? h('span', { class: 'small text-muted' }, `desde ${new Date(reg.fecha).toLocaleDateString('es-GT')}`) : null,
+			h('div', { class: 'me-auto', style: 'min-width: 0' }, nombreYDatos(portal.nombre, reg.fecha ? `desde ${fechaCorta(reg.fecha)}` : null,
+				[badge(portal.idioma.toUpperCase(), 'light'), badge(est.texto, COLOR[est.id])])),
 			portal.url ? h('a', { href: portal.url, target: '_blank', rel: 'noopener', class: 'btn btn-sm btn-light' }, 'Abrir plataforma') : null),
 		h('div', { class: 'card-body' },
 			titulo ? h('div', { class: 'mb-3' },
@@ -83,7 +83,7 @@ function tarjetaPortal(p, portal, opciones, redibujar) {
 function seccionFotos(p) {
 	const estado = h('div', { class: 'small text-muted mt-2', 'aria-live': 'polite' });
 	const n = (p.fotos || []).length;
-	return h('div', { class: 'card mb-4' },
+	return h('div', { class: 'card mb-3' },
 		h('div', { class: 'card-header bg-white fw-semibold' }, `Fotos (${n})`),
 		h('div', { class: 'card-body' },
 			n ? null : h('p', { class: 'text-muted mb-2' }, 'Esta propiedad no tiene fotos.'),
@@ -95,7 +95,7 @@ function seccionFotos(p) {
 						const r = await descargarFotos(p, f.id, (i, total) => { estado.textContent = `Preparando foto ${i} de ${total}…`; });
 						estado.textContent = `Listo: ${r.total} fotos descargadas${r.fallidas.length ? `; no se pudieron descargar las fotos ${r.fallidas.join(', ')}` : ''}.`;
 					} catch (err) {
-						estado.textContent = err.message;
+						estado.textContent = errorMessage(err);
 					} finally {
 						b.disabled = false;
 					}
@@ -137,6 +137,18 @@ async function renderTablero(container) {
 	const pendientes = { actualizar: 0, baja: 0, pendiente: 0 };
 	visibles.forEach((p) => portales.forEach((x) => { const e = estadoDifusion(p, x.id).id; if (e in pendientes) pendientes[e]++; }));
 
+	const tabla = tablaAdmin({
+		columnas: [{ titulo: 'Propiedad' }, ...portales.map((x) => ({ titulo: [h('span', { class: `${iconoPortal(x)} d-block mb-1`, 'aria-hidden': 'true' }), x.nombre], cls: 'text-center text-wrap' }))],
+		celdas: (p) => [
+			[h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)],
+			...portales.map((x) => {
+				const e = estadoDifusion(p, x.id);
+				return e.id === 'na' ? null : h('span', { class: ICONO[e.id], role: 'img', title: e.texto, 'aria-label': e.texto });
+			})],
+		alTocar: (p) => { location.hash = `#/difusion/${p.id}`; },
+		vacio: 'Todavía no hay propiedades publicadas.'
+	});
+	tabla.pintar(visibles);
 	mount(container,
 		pageHeader('Difusión en portales y redes'),
 		h('p', { class: 'text-muted' }, 'Dónde está publicada cada propiedad. Entra a una propiedad para copiar los textos ya adaptados a cada plataforma y descargar sus fotos.'),
@@ -145,15 +157,7 @@ async function renderTablero(container) {
 				['baja', 'De baja', 'La propiedad se vendió, rentó o se despublicó.'],
 				['pendiente', 'Faltan', 'Plataformas donde aún no está la propiedad.']]
 				.map(([k, label, ayuda]) => h('div', { class: 'col-4', title: ayuda }, statCard(ICONO[k], label, pendientes[k])))),
-		visibles.length ? cajaTabla(
-			h('table', { class: 'table table-hover table-admin mb-0 align-middle' },
-				h('thead', {}, h('tr', {}, h('th', {}, 'Propiedad'), portales.map((x) => h('th', { class: 'text-center text-wrap' }, h('span', { class: `${iconoPortal(x)} d-block mb-1`, 'aria-hidden': 'true' }), x.nombre)))),
-				h('tbody', {}, visibles.map((p) => h('tr', { class: 'clickable', onclick: () => { location.hash = `#/difusion/${p.id}`; } },
-					h('td', {}, h('div', { class: 'fw-semibold' }, p.titulo), h('div', { class: 'small text-muted' }, `${codigo(p)} · ${estadoDe(p).label}`)),
-					portales.map((x) => {
-						const e = estadoDifusion(p, x.id);
-						return h('td', { class: 'text-center' }, e.id === 'na' ? null : h('span', { class: ICONO[e.id], role: 'img', title: e.texto, 'aria-label': e.texto }));
-					}))))), { tarjeta: true }) : emptyState('Todavía no hay propiedades publicadas.'),
+		tabla,
 		h('div', { class: 'card mt-4' }, h('div', { class: 'card-body small' },
 			h('strong', {}, 'Catálogos automáticos. '),
 			'Algunas plataformas leen las propiedades solas desde un enlace y se actualizan sin copiar nada: ',

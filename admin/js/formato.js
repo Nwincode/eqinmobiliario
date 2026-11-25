@@ -31,6 +31,9 @@ export const miles = (n) => Number(n).toLocaleString('en-US', { maximumFractionD
 // Dinero: siempre con 2 decimales (1,250.00), con o sin el prefijo de la moneda.
 export const decimales = (n) => (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dinero = (n, moneda) => `${prefijoMoneda(moneda)} ${decimales(n)}`;
+// Solo la casilla de un día del calendario (sitio y panel del dueño): sin centavos y con «$» o «Q» pegado («$1,250»),
+// porque el completo no cabe; el desglose y el total llevan los exactos.
+export const dineroCorto = (n, moneda) => `${moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 // Montos en monedas distintas no se suman: un total por moneda. sumarPorMoneda(lista, monto) → { USD: n, GTQ: m }
 // (sin moneda, US$); dineroPorMoneda({ USD, GTQ }) → «US$ 250,000.00 · Q 1,500,000.00» ('' si todo es cero).
 export function sumarPorMoneda(lista, monto, moneda = (x) => x.moneda) {
@@ -54,6 +57,15 @@ export function slugify(text) {
 		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 }
+// URL libre a partir del título («usados» es un Set que se va llenando). La usan la ficha («Duplicar»), el importador y la
+// casa que sube el socio (netlify/functions/mi-casa-nueva.mjs).
+export function slugLibre(titulo, usados) {
+	const base = slugify(titulo) || 'propiedad';
+	let s = base, n = 2;
+	while (usados.has(s)) s = `${base}-${n++}`;
+	usados.add(s);
+	return s;
+}
 // Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
 // («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
 // Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.
@@ -73,7 +85,11 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 	return `${montoPrecio(precio, moneda)}${operacion === 'renta' ? t.mes : ''}`;
 }
 // «1 noche», «3 noches».
-export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
+// El primer nombre de una persona («Ana» de «Ana María López»): lo que el socio ve del cliente y el saludo de un mensaje.
+export const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
+// «1 casa», «2 casas»: el número y la palabra que le toca. Una sola en todo el sistema (panel y sitio, por util.mjs).
+export const plural = (n, uno, varios) => `${n} ${Number(n) === 1 ? uno : varios}`;
+export const nNoches = (n) => plural(n, 'noche', 'noches');
 
 // ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
 // («ana@», «ana@correo», «.ana@gmail.com», «ana..x@gmail.com» o «ana@-gmail.com» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
@@ -178,7 +194,7 @@ export function conPiesCuadrados(texto) {
 	// Sin «lookbehind» (Safari viejo no lo lee y este archivo lo usa todo el panel): el carácter de antes se captura.
 	return String(texto || '').replace(/(^|[^(\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\s?m(?:²|2\b))(?!\s*\(?[\d,.]+\s*sq\s*ft)/g, (todo, antes, entero, dec = '', unidad) => {
 		const m2 = Number(entero.replace(/,/g, '') + dec);
-		return m2 ? `${antes}${entero}${dec}${unidad} (${Math.round(m2 * M2_A_FT2).toLocaleString('en-US')} sq ft)` : todo;
+		return m2 ? `${antes}${entero}${dec}${unidad} (${piesCuadrados(m2)})` : todo;
 	});
 }
 
@@ -280,6 +296,16 @@ function sinTroncal(t) {
 	const sinParentesis = t.replace(new RegExp(`${pre}[\\s.-]*\\(\\s*0\\s*\\)[\\s.-]*`), '$1 ');
 	return sinParentesis !== t ? sinParentesis : t.replace(new RegExp(`${pre}(\\D*)0`), '$1$2');
 }
+// Un teléfono para mostrarlo o imprimirlo, con el formato único «+código número»: uno guardado sin código (como antes)
+// se toma de Guatemala (partirTelefono). Si así no queda un número válido (un texto como «PBX 2222-3333 ext. 5»), se
+// muestra tal como se guardó: no se le inventa un código. Uno que ya trae «+» sale tal cual.
+export function telefonoTexto(tel) {
+	const t = String(tel || '').trim();
+	if (!t || t.startsWith('+') || !/^[\d\s().\/-]+$/.test(t)) return t;
+	const { codigo, numero } = partirTelefono(t);
+	const unido = unirTelefono(codigo, numero);
+	return telefonoValido(unido) ? unido : t;
+}
 // ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
 // dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con
 // otro código, entre 7 y 15 dígitos en total. Sin «+», 8 dígitos (Guatemala, como antes) o de 7 a 15 con el código pegado.
@@ -326,6 +352,87 @@ export function whatsappUrl(tel, mensaje) {
 // El día corto de una fecha 'AAAA-MM-DD' («16 nov», «16 sept»: como es-GT), con los meses escritos aquí para que salga
 // igual en todo navegador (los textos de la bitácora del dueño los revisan las reglas: admin/js/texto-dueno.js).
 export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
-export const dia = (iso) => `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`;
+// En inglés («Nov 16»), para la página «Tu reserva» del cliente que escribe en inglés.
+const DIA_EN = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+export const dia = (iso, lang = 'es') => (lang === 'en' ? DIA_EN.format(new Date(`${String(iso).slice(0, 10)}T12:00:00Z`))
+	: `${Number(String(iso).slice(8, 10))} ${MESES_CORTOS[Number(String(iso).slice(5, 7)) - 1]}`);
+// Un rango de días: «25 – 28 nov», o «30 nov – 2 dic» si cambia el mes (en inglés, «Nov 25 – Nov 28»).
+export const rangoDias = (a, b, lang = 'es') => (lang === 'en' ? `${dia(a, 'en')} – ${dia(b, 'en')}`
+	: String(a).slice(0, 7) === String(b).slice(0, 7) ? `${Number(String(a).slice(8, 10))} – ${dia(b)}` : `${dia(a)} – ${dia(b)}`);
 // Con su año («16 nov 2026»): la fecha del panel cuando el año no se sobreentiende.
 export const diaConAnio = (iso) => `${dia(iso)} ${String(iso).slice(0, 4)}`;
+
+// Fechas y horas de una conversación (Mensajes del panel y la página «Tu reserva»), siempre en hora de Guatemala.
+// `cuando` en milisegundos; `lang` 'es' o 'en'.
+const ZONA = 'America/Guatemala';
+const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const partesGt = (cuando) => {
+	const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+		.formatToParts(new Date(cuando)).map((x) => [x.type, x.value]));
+	return { iso: `${p.year}-${p.month}-${p.day}`, semana: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday), hora: `${Number(p.hour)}:${p.minute}` };
+};
+const diasEntre = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+// «10:42» (en inglés «10:42 AM»).
+export const horaChat = (cuando, lang = 'es') => (lang === 'en'
+	? new Intl.DateTimeFormat('en-US', { timeZone: ZONA, hour: 'numeric', minute: '2-digit' }).format(new Date(cuando)) : partesGt(cuando).hora);
+// El separador de día de una conversación: «hoy», «ayer», «sábado 21 nov» («today», «yesterday», «Saturday, Nov 21»).
+export function diaDeChat(cuando, ahora = Date.now(), lang = 'es') {
+	const d = partesGt(cuando), hoyGt = partesGt(ahora).iso, n = diasEntre(d.iso, hoyGt);
+	if (n === 0) return lang === 'en' ? 'today' : 'hoy';
+	if (n === 1) return lang === 'en' ? 'yesterday' : 'ayer';
+	if (n === -1) return lang === 'en' ? 'tomorrow' : 'mañana';
+	const otroAnio = d.iso.slice(0, 4) !== hoyGt.slice(0, 4);
+	if (lang === 'en') return new Intl.DateTimeFormat('en-US', { timeZone: ZONA, weekday: 'long', month: 'short', day: 'numeric', ...(otroAnio ? { year: 'numeric' } : {}) }).format(new Date(cuando));
+	return `${DIAS_SEMANA[d.semana]} ${otroAnio ? diaConAnio(d.iso) : dia(d.iso)}`;
+}
+// La hora de una fila de la lista de conversaciones: «10:42» hoy, «ayer», el día de la semana en la última semana
+// («lun»), si no la fecha («18 nov»).
+export function cuandoCorto(cuando, ahora = Date.now()) {
+	const d = partesGt(cuando), n = diasEntre(d.iso, partesGt(ahora).iso);
+	return n <= 0 ? d.hora : n === 1 ? 'ayer' : n < 7 ? DIAS_SEMANA[d.semana].slice(0, 3) : dia(d.iso);
+}
+// Un día de la reserva con su día de la semana: «sábado 12 dic» (diaLargo; en inglés «Saturday, Dec 12») o «mié 25 nov» (diaConSemana).
+const DIA_LARGO_EN = new Intl.DateTimeFormat('en-US', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+export const diaLargo = (iso, lang = 'es') => (lang === 'en' ? DIA_LARGO_EN.format(new Date(`${iso}T12:00:00Z`)) : `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()]} ${dia(iso)}`);
+export const diaConSemana = (iso) => `${DIAS_SEMANA[new Date(`${iso}T12:00:00Z`).getUTCDay()].slice(0, 3)} ${dia(iso)}`;
+// Fechas del panel: tres formatos, los mismos en todas las pantallas (meses escritos aquí: igual en todo navegador).
+//  fechaCorta «16 nov 2026» · fechaLarga «16 de noviembre de 2026» · fechaHora «16 nov 2026, 10:30».
+// Reciben un Timestamp de Firestore, { seconds }, Date, milisegundos o texto; 'AAAA-MM-DD' es ese día (no se corre por la zona horaria).
+export const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+export function aFecha(v) {
+	if (!v) return null;
+	if (typeof v.toDate === 'function') return v.toDate();
+	if (v.seconds) return new Date(v.seconds * 1000);
+	const d = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T12:00:00`) : new Date(v);
+	return Number.isNaN(d.getTime()) ? null : d;
+}
+// Una fecha en milisegundos (Timestamp de Firestore, { seconds }, Date, número o texto; 0 si no hay): la única forma en el
+// panel y en la página del cliente. Un día solo («2026-11-20») es ese día en Guatemala (a mediodía), no la medianoche UTC,
+// que en Guatemala todavía es el día anterior.
+export function enMs(v) {
+	if (!v) return 0;
+	if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return Date.parse(`${v}T12:00:00-06:00`) || 0;
+	if (typeof v.toDate === 'function') return v.toDate().getTime() || 0;
+	if (typeof v.seconds === 'number') return v.seconds * 1000;
+	const t = new Date(v).getTime();
+	return Number.isNaN(t) ? 0 : t;
+}
+const isoDe = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const fechaCorta = (v, sinFecha = '—') => { const d = aFecha(v); return d ? diaConAnio(isoDe(d)) : sinFecha; };
+export const fechaLarga = (v, sinFecha = '') => { const d = aFecha(v); return d ? `${d.getDate()} de ${MESES_LARGOS[d.getMonth()]} de ${d.getFullYear()}` : sinFecha; };
+export function fechaHora(v, sinFecha = '—') {
+	const d = aFecha(v);
+	if (!d) return sinFecha;
+	const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+	return `${diaConAnio(isoDe(d))}, ${hora}`;
+}
+// Meses 'AAAA-MM': su nombre («noviembre de 2026») y el de antes o después.
+export const nombreMes = (mes) => `${MESES_LARGOS[Number(String(mes).slice(5, 7)) - 1]} de ${String(mes).slice(0, 4)}`;
+export function moverMes(mes, n) {
+	const total = Number(String(mes).slice(0, 4)) * 12 + Number(String(mes).slice(5, 7)) - 1 + n;
+	return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+// Superficie en pies cuadrados («1,604 sq ft»): la única cuenta de m² a sq ft.
+export const piesCuadrados = (m2) => `${Math.round((Number(m2) || 0) * M2_A_FT2).toLocaleString('en-US')} sq ft`;
+// Las fechas de una reserva o solicitud («16 – 18 nov»): una sola forma en Rentas, Solicitudes y Mensajes (rangoDias).
+export const fechasReserva = (r) => rangoDias(r.llegada, r.salida);

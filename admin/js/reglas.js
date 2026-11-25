@@ -1,6 +1,6 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
-import { M2_A_FT2, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD } from './formato.js';
+import { piesCuadrados, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD, plural } from './formato.js';
 import { enOperacion, operacionHashtag, amenidadesEn, precioVisible } from './estados.js';
 import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
@@ -25,7 +25,6 @@ const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 // El precio con su operación («/mes», «por noche»): el formato único de formato.js.
 const precioDe = (p) => precioTexto(precioVisible(p), p.moneda, p.operacion);
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
-const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
 const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');
 const url = (p) => (p.slug ? `${location.origin}/propiedad/${p.slug}/` : location.origin);
 
@@ -304,15 +303,14 @@ function amenidadesDe(texto) {
 // ------------------------------------------------------------ Versión en inglés
 
 const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const sqft = (m2) => Math.round(n(m2) * M2_A_FT2).toLocaleString('en-US');
 
 function datosEn(p) {
 	const d = [];
 	if (n(p.habitaciones)) d.push(`${n(p.habitaciones)} bedroom${n(p.habitaciones) === 1 ? '' : 's'}`);
 	if (n(p.banos)) d.push(`${n(p.banos)} bathroom${n(p.banos) === 1 ? '' : 's'}`);
 	if (n(p.parqueos)) d.push(`${n(p.parqueos)} parking space${n(p.parqueos) === 1 ? '' : 's'}`);
-	if (n(p.m2Construccion)) d.push(`${n(p.m2Construccion)} m² (${sqft(p.m2Construccion)} sq ft) of living space`);
-	if (n(p.m2Terreno)) d.push(`a ${n(p.m2Terreno)} m² (${sqft(p.m2Terreno)} sq ft) lot`);
+	if (n(p.m2Construccion)) d.push(`${n(p.m2Construccion)} m² (${piesCuadrados(n(p.m2Construccion))}) of living space`);
+	if (n(p.m2Terreno)) d.push(`a ${n(p.m2Terreno)} m² (${piesCuadrados(n(p.m2Terreno))}) lot`);
 	return d;
 }
 const unirEn = (arr) => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} and ${arr[arr.length - 1]}`);

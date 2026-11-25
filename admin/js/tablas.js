@@ -13,7 +13,7 @@ const SELECTOR = '.table-responsive';
 const MINIMO = 0.5; // parte de la pantalla que debe quedarle a la tabla; con menos, baja la página
 const ANCHO_MOVIL = 1200; // el mismo corte de admin.css: debajo, las filas son fichas
 
-const TABLAS = 'table.table-admin:not(.tabla-propiedades)';
+const TABLAS = 'table.table-admin';
 
 function etiquetar(main) {
 	for (const tabla of main.querySelectorAll(TABLAS)) {

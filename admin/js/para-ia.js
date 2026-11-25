@@ -3,6 +3,7 @@
 // correo. Lo aplica pedirIA (admin/js/ia.js) a todo lo que manda, así ninguna pantalla se lo salta.
 // Solo depende de estados.js (puro): lo prueba scripts/test-para-ia.mjs.
 import { precioOculto } from './estados.js';
+import { primerNombre } from './formato.js';
 
 // Lista de lo permitido (lo que no está aquí no sale: socio, acuerdo, privado, historial, difusión, dueño, asesor, uid…).
 // «id» es el de la propiedad: con él vuelven los resultados de la búsqueda.
@@ -39,7 +40,6 @@ export function sinContacto(texto) {
 		.replace(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/gi, '[correo]')
 		.replace(/\+?\d[\d\s().-]{5,}\d/g, (x) => (/^\d{4}-\d{2}-\d{2}$/.test(x) || esMonto(x) || x.replace(/\D/g, '').length < 8 ? x : '[teléfono]'));
 }
-const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 
 // Un lead: la IA necesita su contexto (qué pidió, cuándo, en qué va), no su contacto.
 export function leadParaIA(l) {

@@ -9,9 +9,18 @@ export async function transaccion(trabajo) {
 		leer: async (ruta) => leer(ruta),
 		consultar: async (col, campo, valor, padre = '') => hijos(padre ? `${padre}/${col}` : col).filter((d) => d[campo] === valor),
 		crear: (ruta, datos, t) => ops.push([ruta, datos, t, true]),
-		cambiar: (ruta, datos, t) => ops.push([ruta, datos, t, false])
+		cambiar: (ruta, datos, t) => ops.push([ruta, datos, t, false]),
+		// «crudo»: el documento tal cual (aquí, el objeto guardado).
+		leerCrudo: async (ruta) => (S.docs.has(ruta) ? { id: ruta.split('/').pop(), crudo: structuredClone(S.docs.get(ruta)) } : null),
+		listarCrudo: async (padre, col) => hijos(`${padre}/${col}`).map(({ id }) => ({ id, crudo: structuredClone(S.docs.get(`${padre}/${col}/${id}`)) })),
+		crearCrudo: (ruta, crudo, cambios = {}) => ops.push([ruta, { ...crudo, ...cambios }, undefined, true]),
+		borrar: (ruta) => ops.push([ruta, null, undefined, 'borrar'])
 	});
-	for (const [ruta, datos, t, crear] of ops) escribir(ruta, datos, t, crear);
+	// Para probar fallas: `S.fallarSi(ruta)` hace fallar el commit que escribe esa ruta; `S.perderRespuestaSi(ruta)` lo
+	// escribe y después falla (la respuesta se perdió).
+	if (S.fallarSi && ops.some(([ruta]) => S.fallarSi(ruta))) throw new Error('Error 503 al escribir');
+	for (const [ruta, datos, t, crear] of ops) { if (crear === 'borrar') S.docs.delete(ruta); else escribir(ruta, datos, t, crear); }
+	if (S.perderRespuestaSi && ops.some(([ruta]) => S.perderRespuestaSi(ruta))) throw new Error('DEADLINE_EXCEEDED');
 	return r;
 }
 export const probarEscritura = async () => true;
@@ -20,4 +29,10 @@ export async function sumar(sumas, vence, marca = '') {
 	if (S.escrituraFalla) throw new Error('Error 503 al escribir');
 	if (marca) { if (S.docs.has(marca)) return null; S.docs.set(marca, { vence }); }
 	return sumas.map(({ ruta, n }) => { const d = S.docs.get(ruta) || {}; S.docs.set(ruta, { ...d, vence, n: (d.n || 0) + n }); return S.docs.get(ruta).n; });
+}
+// Mover documentos tal cual fuera de una transacción (como el real).
+export const listarCrudo = async (padre, col) => hijos(`${padre}/${col}`).map(({ id }) => ({ id, crudo: structuredClone(S.docs.get(`${padre}/${col}/${id}`)) }));
+export async function escribirLote(ops) {
+	if (S.escrituraFalla || (S.fallarSi && ops.some((o) => S.fallarSi(o.borrar || o.poner)))) throw new Error('Error 503 al escribir');
+	for (const o of ops) { if (o.borrar) S.docs.delete(o.borrar); else S.docs.set(o.poner, { ...structuredClone(o.crudo), ...(o.cambios || {}) }); }
 }

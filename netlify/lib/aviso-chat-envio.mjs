@@ -10,12 +10,14 @@
 //    (`reintento`) y, salga o no, lo quita.
 import { leerPublico, leerPrivado, listar, datosConfigurados } from './firestore.mjs';
 import { escrituraConfigurada, transaccion } from './firestore-escritura.mjs';
-import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, SITE_URL } from './correo.mjs';
-import { avisosChat } from './avisos-chat.mjs';
+import { enviarCorreo, servicioCorreo, destinatariosEquipo, plantilla, boton, datos, pasos, esc, conUrgente, coloresCorreo, SITE_URL } from './correo.mjs';
+import '../../js/calc-vacacional.js';
+import { avisosChat, contactoPartido } from './avisos-chat.mjs';
 import { quitarRebote } from './rebotes.mjs';
 import { limitadorDurable } from './limite.mjs';
 import { bajoElPlan, TEXTO_CONFIRMA_EQUIPO } from '../../admin/js/reservas-calculo.js';
 import { prefijoMoneda, miles } from '../../admin/js/formato.js';
+import { PARECE } from '../../admin/js/mi-casa.js';
 import { fotoCdn, pasaPorCdn } from '../../scripts/lib/foto-cdn.mjs';
 
 export async function enviarAvisosChat(token, { repaso = false, reintento = false } = {}) {
@@ -57,7 +59,7 @@ export async function enviarAvisosChat(token, { repaso = false, reintento = fals
 			const en = a.lang === 'en';
 			const filas = (a.datos || []).filter((f) => f[1]);
 			const html = await plantilla({
-				titulo: a.titulo, intro: esc(a.intro), preheader: a.intro, lang: a.lang, ayuda: a.rol === 'cliente',
+				titulo: a.titulo, intro: a.urgente ? conUrgente(await coloresCorreo(), a.intro, a.urgente) : esc(a.intro), preheader: a.intro, lang: a.lang, ayuda: a.rol === 'cliente',
 				// La foto de la casa guardada (su primera foto, por el CDN a 1200×630), nunca la del chat (la escribe el navegador).
 				foto: pasaPorCdn(casa?.fotos?.[0]?.url) ? new URL(fotoCdn(casa.fotos[0].url, 1200, '&h=630&fit=cover&fm=jpg'), SITE_URL).href : '', etiqueta: `${en ? 'Booking' : 'Solicitud'} ${chat.codigo}`,
 				pie: a.rol === 'cliente' ? (en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.')
@@ -127,24 +129,76 @@ export async function avisarQueTocaConfirmar(token) {
 	}
 }
 
-// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide): para quien pide las
-// mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el token: el correo, la casa y
-// las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud. Devuelve si salió.
-const reenvioCorto = limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000);
-const reenvioDia = limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000);
-export async function reenviarEnlace(leadId) {
+// Un contacto partido en varios mensajes (avisos-chat.mjs contactoPartido): un correo al equipo para que revise la
+// conversación; no se bloquea nada después. Se aparta en alertas/contacto-{token} (solo la cuenta de escritura: sin `match`
+// en las reglas) por el id del último mensaje: dos llamadas a /api/aviso-chat no lo mandan dos veces; a lo más
+// TOPE_CONTACTO por chat. Lo llama /api/aviso-chat después de responder; si falla, solo se anota en el registro.
+const V = globalThis.EQVacacional;
+export const TOPE_CONTACTO = 10;
+export async function avisarContactoPartido(token) {
+	if (!servicioCorreo() || !destinatariosEquipo().length || !escrituraConfigurada()) return false;
+	const [chat, mensajes] = await Promise.all([leerPublico(`chats/${token}`), listar(`chats/${token}/mensajes`)]);
+	const hallado = chat && contactoPartido(mensajes, V.tieneContacto, V.tipoDeContacto);
+	if (!hallado) return false;
+	const ruta = `alertas/contacto-${token}`, ultimo = hallado.ids.at(-1);
+	const toca = await transaccion(async ({ leer, crear, cambiar }) => {
+		const prev = await leer(ruta);
+		if (prev?.ultimo === ultimo || (Number(prev?.n) || 0) >= TOPE_CONTACTO) return false;
+		const datosAlerta = { ultimo, n: (Number(prev?.n) || 0) + 1, de: hallado.de, codigo: String(chat.codigo || '') };
+		if (prev) cambiar(ruta, datosAlerta, { ahora: ['cuando'] }); else crear(ruta, datosAlerta, { ahora: ['cuando'] });
+		return true;
+	// Chocó con otra llamada a la vez: la que ganó lo manda. Otra falla, al registro.
+	}).catch((err) => { if (err.codigo !== 'ALREADY_EXISTS') console.error('Contacto partido (apartar):', err.message); return false; });
+	if (!toca) return false;
+	// El código y la casa, de la solicitud guardada (como «Te toca confirmar»).
+	const lead = chat.leadId ? await leerPrivado(`leads/${chat.leadId}`).catch(() => null) : null;
+	const codigo = String(lead?.reserva?.codigo || chat.codigo || '');
+	const quien = hallado.de === 'cliente' ? 'El cliente' : 'El socio';
+	const intro = `${quien} escribió en ${hallado.ids.length} mensajes seguidos algo que, junto, ${PARECE[hallado.tipo] || 'parece un contacto'}. Ya se enviaron: revisa la conversación.`;
+	const url = `${SITE_URL}/admin/#/mensajes/${encodeURIComponent(codigo)}`;
+	const filas = [['Solicitud', codigo], ['Casa', lead?.propertyTitulo || '']].filter((f) => f[1]);
+	const html = await plantilla({ titulo: 'Posible contacto en el chat', intro: esc(intro), preheader: intro, lang: 'es',
+		bloques: (c) => datos(c, filas) + boton(c, 'Abrir la conversación', url, c.primary, { ancho: true }) });
+	await enviarCorreo({ para: destinatariosEquipo(), asunto: `Posible contacto en el chat: ${codigo}`.trim(), html, texto: [intro, '', ...filas.map(([k, v]) => `${k}: ${v}`), '', url].join('\n') });
+	return true;
+}
+
+// El enlace de su reserva, otra vez, al correo GUARDADO en la solicitud (nunca a quien lo pide). Dos casos:
+//  - 'repetida': quien pide las mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el
+//    token: el correo, la casa y las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud.
+//  - 'correo': el equipo corrigió su correo (/api/reenviar-enlace, desde admin/js/crm.js corregirCorreo): le llega lo que
+//    se perdió (su reserva, su estado y el chat), con el enlace nuevo (el servidor lo cambia antes: rotar-enlace.mjs). Su
+//    límite va por solicitud, correo y enlace (1 cada 10 min: cada enlace nuevo sale) y 6 al día por solicitud.
+// Devuelve el correo al que salió ('' si no salió).
+const LIMITES = {
+	repetida: [limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000), limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000)],
+	correo: [limitadorDurable('enlace-correo-10min', 1, 10 * 60_000), limitadorDurable('enlace-correo-dia', 6, 24 * 3_600_000)]
+};
+const INTRO = {
+	repetida: ['Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.',
+		'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'],
+	correo: ['Corregimos tu correo: por eso no te llegaban nuestros avisos. Aquí ves tu reserva, cómo va y el chat.',
+		'We corrected your email address, so our updates had not reached you. Here you can see your booking, its status and the chat.']
+};
+// 'correo': los límites solo se miran antes y se cuentan cuando el correo salió (un reintento tras un error no queda
+// frenado por el intento que no salió).
+export async function reenviarEnlace(leadId, { motivo = 'repetida' } = {}) {
 	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
 	const token = indice?.token;
-	if (!lead?.email || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return false;
-	if (await reenvioCorto(leadId) || await reenvioDia(leadId)) return false;
+	const para = String(lead?.email || '').trim().toLowerCase();
+	if (!para || !LIMITES[motivo] || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return '';
+	const [corto, dia] = LIMITES[motivo];
+	// Con el enlace en la clave: cada enlace nuevo (al corregir el correo) sale aunque el de antes haya salido hace poco.
+	const claveCorta = motivo === 'correo' ? `${leadId}:${para}:${token}` : leadId;
+	if (motivo === 'correo' ? await corto.lleno(claveCorta) || await dia.lleno(leadId) : await corto(claveCorta) || await dia(leadId)) return '';
 	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
 	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
 	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
-	const intro = en ? 'Someone (probably you) asked again for the same dates with this email. This is your booking: you do not need to request it again.'
-		: 'Alguien (seguramente tú) volvió a pedir las mismas fechas con este correo. Esta es tu reserva: no hace falta pedirla otra vez.';
+	const intro = INTRO[motivo][en ? 1 : 0];
 	const html = await plantilla({ titulo, intro: esc(intro), preheader: intro, lang: en ? 'en' : 'es', ayuda: true, etiqueta: `${en ? 'Booking' : 'Solicitud'} ${codigo}`,
 		pie: en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.',
 		bloques: (c) => boton(c, en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url, c.primary, { ancho: true }) });
-	await enviarCorreo({ para: [lead.email], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
-	return true;
+	await enviarCorreo({ para: [para], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
+	if (motivo === 'correo') { await corto(claveCorta); await dia(leadId); }
+	return para;
 }

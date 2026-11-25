@@ -3,7 +3,7 @@ import {
 	configured, firebaseConfig, auth, db, onAuthStateChanged, signOut,
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode, doc, getDoc
 } from './firebase.js';
-import { h, toast, showError, errorMessage, spinner, modal } from './ui.js';
+import { h, toast, showError, errorMessage, spinner, modal, iconoBtn } from './ui.js';
 import { correoContrasena, pedirContrasena } from './contrasena.js';
 import { MIN_CLAVE, conOjo, debilidad, filtrada, revisionEnVivo } from './clave.js';
 import { session, getPublishState, revisarAutoPublicar, cargarMiResumen, misCasas } from './session.js';
@@ -12,10 +12,13 @@ import { actualizarInsignias } from './pendientes.js';
 import { campana } from './avisos.js';
 import { entrar, revisarDosPasos, pantallaInscribir, pendienteDe, avisoDosPasos } from './dos-pasos.js';
 import { vigilarTablas } from './tablas.js';
+import { vigilarVersion, revisarVersion, avisoVersion } from './version.js';
 
 const ROUTES = [
 	{ path: 'mis-casas', label: 'Mis propiedades', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
 	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/solicitudes.js') },
+	// Las conversaciones de las reservas por noche: las ven los mismos que Solicitudes.
+	{ path: 'mensajes', label: 'Mensajes', icon: 'icon-commenting-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/mensajes.js') },
 	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
@@ -41,6 +44,7 @@ const ROUTES = [
 ];
 
 const root = document.getElementById('app');
+vigilarVersion();
 
 function authCard(...children) {
 	return h('div', { class: 'auth-wrap' },
@@ -143,13 +147,12 @@ function shell() {
 				h('div', { class: 'admin-user-name' }, nombre),
 				h('div', { class: 'admin-user-role' }, session.rolVisible)),
 			// Cambiar la contraseña estando adentro: el mismo correo con el botón (así se comprueba que es la dueña del correo).
-			h('button', { class: 'admin-logout', title: 'Cambiar mi contraseña', 'aria-label': 'Cambiar mi contraseña', onclick: (e) => mandarmeCorreo(e.currentTarget, session.user.email) },
-				h('span', { class: 'icon-lock', 'aria-hidden': 'true' })),
-			h('button', { class: 'admin-logout', title: 'Cerrar sesión', 'aria-label': 'Cerrar sesión', onclick: () => signOut(auth) }, h('span', { class: 'icon-sign-out', 'aria-hidden': 'true' }))));
+			iconoBtn('icon-lock', 'Cambiar mi contraseña', { class: 'admin-logout', onclick: (e) => mandarmeCorreo(e.currentTarget, session.user.email) }),
+			iconoBtn('icon-sign-out', 'Cerrar sesión', { class: 'admin-logout', onclick: () => signOut(auth) })));
 	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
 	const topbar = h('header', { class: 'admin-topbar' },
 		// Celular y tableta: menú (el botón más importante, con color), logo y dónde estoy.
-		h('button', { class: 'admin-menu-btn d-lg-none', 'aria-label': 'Menú', title: 'Menú', onclick: () => sidebar.classList.toggle('open') }, h('span', { class: 'icon-bars', 'aria-hidden': 'true' })),
+		iconoBtn('icon-bars', 'Menú', { class: 'admin-menu-btn d-lg-none', onclick: () => sidebar.classList.toggle('open') }),
 		h('img', { class: 'admin-topbar-logo d-lg-none', src: '/docs/marca/logo/imagotipo-azul.svg', alt: '', width: 32, height: 32 }),
 		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
 		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
@@ -239,7 +242,8 @@ async function route() {
 		if (token !== renderToken) return;
 		rutaActual = def.path;
 		pintando = false;
-		view.replaceChildren(...[avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
+		view.replaceChildren(...[avisoVersion(), avisoDosPasos(session.dosPasosPendiente, def.path, { user: session.user, activar: activarDosPasos }), container].filter(Boolean));
+		revisarVersion();
 		document.title = `${def.label} · Panel Equipo Inmobiliario`;
 		window.scrollTo(0, 0);
 		if (!session.esSocio) actualizarInsignias();

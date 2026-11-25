@@ -7,7 +7,7 @@
 //  - pequeño contribuyente (5 %): no se cobra IVA aparte; el emisor paga el 5 % del total a la SAT.
 //      · «Todo incluido»: total = honorario ÷ 0.95, así el emisor sigue recibiendo el honorario.
 //      · «Honorario + IVA»: el honorario es el precio final (el 5 % sale de ahí).
-import { miles, dinero as dineroFormato } from './formato.js';
+import { miles, dinero as dineroFormato, fechaLarga } from './formato.js';
 import { OPERACIONES, enOperacion } from './estados.js';
 import { REGLAS_POR_DEFECTO, montoComision, comisionDe } from './acuerdo.js';
 
@@ -293,12 +293,8 @@ export function fechaISO(fecha = new Date()) {
 	return `${fecha.getFullYear()}-${p(fecha.getMonth() + 1)}-${p(fecha.getDate())}`;
 }
 
-export function fechaLarga(iso) {
-	if (!iso) return '';
-	const [y, m, d] = String(iso).split('-').map(Number);
-	if (!y) return String(iso);
-	return new Date(y, m - 1, d).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' });
-}
+// La fecha larga es la de todo el panel (formato.js).
+export { fechaLarga };
 
 // Fecha en que vence la cotización (ISO) a partir de la fecha y los días de vigencia.
 export function venceEl(iso, dias) {

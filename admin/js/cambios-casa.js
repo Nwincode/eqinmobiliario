@@ -4,6 +4,10 @@
 // scripts/test-cambios-casa.mjs. Lo usan la ficha (admin/js/views/properties.js `guardarCambios`), el importador y
 // las pantallas simples (`guardarSobre` en admin/js/crud.js).
 import { estadoDe } from './estados.js';
+// Ruta relativa: también corre en Node (el servidor arma la casa que sube el socio: netlify/functions/mi-casa-nueva.mjs).
+import '../../js/calc-vacacional.js';
+
+const V = globalThis.EQVacacional;
 
 // Igualdad por contenido (el orden de las llaves no cuenta).
 const ordenado = (v) => (Array.isArray(v) ? v.map(ordenado)
@@ -72,3 +76,41 @@ export function historialCon(antes, despues, quien) {
 // Personas máximo: un entero de 1 a 50 (lo mismo que deja firestore.rules al dueño).
 export const HUESPEDES_MAX = 50;
 export const huespedesMaxDe = (n) => Math.min(HUESPEDES_MAX, Math.max(1, Math.floor(Number(n) || 1)));
+
+// Lo que trae toda propiedad nueva (la ficha le pone el asesor de quien la crea). Nueva cada vez: sus listas no se comparten.
+export const casaBase = () => ({ operacion: 'venta', tipo: 'casa', estado: 'disponible', moneda: 'USD', ciudad: 'Guatemala', publicado: false, agentId: '', fotos: [], amenidades: [], vipLanding: {}, seo: {} });
+// Una propiedad al nacer: lo de siempre, lo que trae y su historial de estado y de precio empezado («quien»: { fecha, por,
+// porUid }). La usan la ficha (propiedadNueva en admin/js/views/properties.js, con quién y cuándo la creó) y el servidor
+// (la casa que sube el socio).
+export function casaQueNace(datos, quien) {
+	const d = { ...casaBase(), descripcion: '', ...datos };
+	const hist = historialCon(null, d, quien);
+	return Object.assign(d, { estado: hist.estado, historialEstado: hist.historialEstado, historialPrecio: hist.historialPrecio });
+}
+
+// Precios públicos de una casa por noche: los del socio (privado/socio) más el margen, y lo demás de la estancia con su
+// forma. Puro: lo usan la ficha, el importador y el servidor (la casa que sube el socio).
+// El plan de precios del socio (privado/socio) en la forma de V.planPublico.
+export const planSocioDe = (s = {}) => ({ base: s.precioBase, finde: s.precioFinde, tarifas: s.tarifas || [] });
+export function vacacionalPublico(d) {
+	const pub = V.planPublico(planSocioDe(d.socio), d.socio?.margen);
+	const v = d.vacacional || {};
+	// En la ficha un bloqueo se escribe por noches (primera y última, incluida); se guarda como rango { desde, hasta }
+	// con «hasta» = el día que queda libre, igual que las reservas y los calendarios.
+	const bloqueos = V.unirRangos((v.bloqueos || []).map((b) => ({ desde: b?.desde, hasta: b?.ultima ? V.sumarDias(b.ultima, 1) : b?.hasta })));
+	return {
+		precio: V.precioDesde(pub, V.hoy()) || null,
+		vacacional: {
+			base: pub.base, finde: pub.finde, tarifas: pub.tarifas,
+			nochesMin: Math.max(1, Math.floor(Number(v.nochesMin) || 1)),
+			huespedesMax: huespedesMaxDe(v.huespedesMax),
+			limpieza: V.r2(Number(v.limpieza) || 0), deposito: V.r2(Number(v.deposito) || 0),
+			checkIn: v.checkIn || '15:00', checkOut: v.checkOut || '11:00',
+			camas: Math.max(0, Math.floor(Number(v.camas) || 0)), mascotas: v.mascotas || '',
+			comoLlegar: v.comoLlegar || '', reglas: v.reglas || '', cancelacion: v.cancelacion || '',
+			bloqueos
+			// Los mínimos de noches (los pone el dueño) y las noches reservadas (Solicitudes y Rentas) no salen de
+			// aquí: guardarCambios los deja como están en la base.
+		}
+	};
+}

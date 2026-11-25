@@ -7,12 +7,14 @@
 //    sus calendarios y pausarla): lo guarda el servidor (netlify/functions/mi-casa.mjs), se publica solo y el
 //    administrador recibe el aviso y lo puede deshacer (admin/js/mi-casa.js);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
+// «Agregar casa» (con el permiso «Ingresar inmuebles»): sube una casa nueva de cualquier tipo con la ficha del inmueble
+// (admin/js/views/properties.js en modo socio); la publica el servidor (netlify/functions/mi-casa-nueva.mjs).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, dia, badge, formatPrice, elegirOpcion, confirmDialog } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog, fallaDelServidor, botonNuevaCasa } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
-import { prefijoMoneda, decimales, nNoches, dineroPorMoneda } from '../formato.js';
-import { fichaCasa, FILA_CASA, publicUrl } from '../ficha-casa.js';
+import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
+import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { resumenCasa, cabeceraCasa, estadoCasa } from '../resumen-casa.js';
 import { huespedesMaxDe } from '../cambios-casa.js';
 import { guardarPrivadoVacacional, socioLimpio } from '../privado-casa.js';
@@ -34,10 +36,8 @@ const V = window.EQVacacional;
 // Precio por noche más alto que se acepta (en quetzales cabe una casa grande; arriba es un cero de más).
 const PRECIO_MAX = 50000;
 const hoy = V.hoy; // la fecha de Guatemala, la misma del sitio y de las funciones
-const fecha = (iso) => new Date(`${iso}T12:00:00`);
 // «10 – 12 dic»; con el año cuando no es el de hoy (las temporadas que se repiten ya tienen varios años).
-const nombreMes = (mes) => { const t = fecha(`${mes}-15`).toLocaleDateString('es-GT', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
-const moverMes = (mes, n) => { const d = fecha(`${mes}-15`); d.setMonth(d.getMonth() + n); return d.toLocaleDateString('en-CA').slice(0, 7); };
+const mesTitulo = (mes) => { const t = nombreMes(mes); return t.charAt(0).toUpperCase() + t.slice(1); };
 // Vuelve a pintar una caja: la vacía y le pone lo nuevo.
 const repintar = (caja, ...hijos) => { caja.replaceChildren(); mount(caja, ...hijos); };
 const porFecha = (a, b) => a.desde.localeCompare(b.desde);
@@ -80,38 +80,41 @@ function faltanTemporadas(e, hoyIso) {
 const mismoRango = (a, b) => a.desde === b.desde && a.hasta === b.hasta;
 const enRango = (f, lista) => lista.some((r) => f >= r.desde && f < r.hasta);
 
-const flecha = (lado, titulo, onclick, disabled) => h('button', {
-	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, onclick, disabled,
-	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-});
-
 // Casas en venta o renta que están en su resumen pero no dicen ser suyas (enlazadas solo desde su ficha): se
 // muestran con lo que trae el resumen, en la misma ficha corta.
 const desdeResumen = (x) => ({ id: x.id, titulo: x.titulo, operacion: x.operacion, precio: x.precio, moneda: x.moneda, publicado: Boolean(x.url),
 	fotos: x.foto ? [{ url: x.foto }] : [], ...(x.anuncio || {}) });
 const ORDEN = { venta: 0, renta: 1, vacacional: 2 };
 const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' });
-const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'cot-btn cot-btn-icono btn btn-link text-body' });
+const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'btn-toque btn-icono btn btn-link text-body' });
 
 async function lista(container) {
-	const [vivas, resumen] = await Promise.all([misCasas(), cargarMiResumen()]);
+	const [vivas, resumen, perm] = await Promise.all([misCasas(), cargarMiResumen(), permisosDelSocio(session.profile.propietarioId)]);
 	const casas = [...vivas, ...(resumen?.propiedades || []).filter((x) => !vivas.some((c) => c.id === x.id)).map(desdeResumen)]
 		.sort((a, b) => (ORDEN[a.operacion] ?? 3) - (ORDEN[b.operacion] ?? 3) || String(a.titulo).localeCompare(String(b.titulo)));
 	const porNoche = casas.some((c) => c.operacion === 'vacacional');
-	const filas = h('div', { class: 'list-group' });
+	const filas = h('div', { class: 'lista-casas' });
 	const pintar = (texto = '') => repintar(filas, casas
 		.filter((c) => `${c.titulo} ${c.codigo || ''}`.toLowerCase().includes(texto.toLowerCase()))
-		.map((c) => h('a', { class: `list-group-item list-group-item-action ${FILA_CASA} py-3`, href: `#/mis-casas/${c.id}` }, fichaCasa(c))));
+		.map((c) => filaCasa(c, { href: `#/mis-casas/${c.id}`, marcas: [c.publicado ? null : badge('Sin publicar', 'light')] })));
 	pintar();
 	const ag = resumen?.asesor || {};
+	// «Agregar casa»: la misma ficha del inmueble (admin/js/views/properties.js en modo socio), se publica al momento.
+	const puedeAgregar = puede(perm, 'inmuebles');
+	const agregar = puedeAgregar ? botonNuevaCasa('Agregar casa', { onclick: async () => {
+		const { abrirFicha } = await import('./properties.js');
+		abrirFicha('nuevo', { titulo: 'Agregar casa', alGuardar: () => { container.replaceChildren(); lista(container).catch(showError); } });
+	} }) : null;
 	mount(container,
-		pageHeader('Mis propiedades'),
+		pageHeader('Mis propiedades', agregar),
+		// Si algo está en pausa (p. ej. «Ingresar inmuebles» por atraso), por qué no está el botón.
+		avisoSocio(perm),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
 			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')
 			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar reservas. Pídele al administrador que los guarde en tu ficha.')) : null,
 		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
-		!casas.length ? emptyState('Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
+		!casas.length ? emptyState(puedeAgregar ? 'Todavía no tienes propiedades. Sube la primera con «Agregar casa».' : 'Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
 			casas.length > 8 ? h('input', { class: 'form-control mb-3', type: 'search', placeholder: 'Buscar propiedad', 'aria-label': 'Buscar propiedad', oninput: (e) => pintar(e.target.value) }) : null,
 			filas]);
 }
@@ -153,7 +156,6 @@ async function casa(container, id) {
 	const pre = prefijoMoneda(p.moneda || 'USD');
 	const plata = (n) => `${pre}${decimales(n)}`;
 	// En la casilla del día, el precio corto, como en el calendario del sitio (js/vacacional.js dineroCorto): el completo no cabe.
-	const enCelda = (n) => `${p.moneda === 'GTQ' ? 'Q' : '$'}${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 	const e = {
 		base: Number(s.precioBase) || 0, finde: Number(s.precioFinde) || 0, tarifas: [...(s.tarifas || [])],
 		bloqueos: V.unirRangos(v.bloqueos || []), minimos: [...(v.minimos || [])], reservadas: V.unirRangos(v.reservadas || []),
@@ -174,9 +176,11 @@ async function casa(container, id) {
 	// transacción: su precio (privado/socio), el público (con el margen vigente, que pone el equipo), lo demás de la
 	// casa y la bitácora. `descripcion(antes, ahora)` da el texto de su renglón (texto-dueno.js) con los valores leídos aquí.
 	// Si no cambia nada (el mismo precio otra vez, días ya bloqueados), no se escribe nada: ni la casa ni el renglón.
-	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó. `conValores` en false:
-	// el renglón sin los valores (sinValores), el que aceptan las reglas de antes; se reintenta así una vez si lo niegan.
-	async function guardar(descripcion, cambio, conValores = true) {
+	// Devuelve true si quedó guardado (o ya estaba así); la pantalla se pone al día con lo que quedó. La casa nombra su
+	// renglón en `bitacoraTexto` (las reglas solo dejan ese renglón en el lote). Con las reglas de antes se reintenta:
+	// `intento` 1, sin nombrarlo (las reglas que aún no conocen el campo); 2, además sin los valores (sinValores).
+	async function guardar(descripcion, cambio, intento = 0) {
+		const conValores = intento < 2;
 		let sinPrecioPropio = false, texto = '';
 		try {
 			const conBitacora = await bitacoraActiva();
@@ -231,8 +235,9 @@ async function casa(container, id) {
 					await guardarPrivadoVacacional(id, suyo, null, tx, { bitacoraId });
 				}
 				texto = conValores ? descripcion(previo, nuevo) : sinValores(descripcion(previo, nuevo));
-				tx.update(refCasa, { ...casa, updatedAt: serverTimestamp() });
-				tx.set(doc(collection(refCasa, 'bitacora')), { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
+				const renglon = doc(collection(refCasa, 'bitacora'));
+				tx.update(refCasa, { ...casa, ...(intento === 0 ? { bitacoraTexto: renglon.id } : {}), updatedAt: serverTimestamp() });
+				tx.set(renglon, { que: texto, quien: session.user.uid, nombre: session.profile.nombre || '', cuando: serverTimestamp() });
 				return { ...actual, ...nuevo, margen: sv.margen };
 			});
 			Object.assign(e, { base: r.base, finde: r.finde, tarifas: [...r.tarifas], bloqueos: r.bloqueos, minimos: [...r.minimos], huespedes: r.huespedes });
@@ -245,7 +250,8 @@ async function casa(container, id) {
 			return true;
 		} catch (err) {
 			// Las reglas de antes (el sitio se publica primero) niegan el renglón con valores: otra vez, sin ellos.
-			if (conValores && err?.code === 'permission-denied' && texto !== sinValores(texto)) return await guardar(descripcion, cambio, false);
+			if (err?.code === 'permission-denied' && intento === 0) return await guardar(descripcion, cambio, 1);
+			if (err?.code === 'permission-denied' && intento === 1 && texto !== sinValores(texto)) return await guardar(descripcion, cambio, 2);
 			// Casa por noche sin su precio guardado todavía: con las reglas de antes el dueño no puede crearlo.
 			if (sinPrecioPropio && err?.code === 'permission-denied') toast('Esta casa todavía no tiene tu precio registrado. Pídele al administrador que lo ponga en la ficha de la casa; después ya puedes cambiarlo aquí.', 'warning');
 			else showError(err);
@@ -329,7 +335,7 @@ async function casa(container, id) {
 			h('strong', { class: 'd-block mb-1' }, `Bloquear · ${rango(e)}`),
 			pedida ? h('p', { class: 'small text-danger mb-1' }, ic('icon-clock-o'), `${pedida.codigo || 'Una solicitud'} pidió estos días y sigue sin respuesta: respóndela en Solicitudes.`) : null,
 			h('div', { class: 'd-flex flex-wrap gap-2' },
-				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'cot-btn btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
+				MOTIVOS_BLOQUEO.map((t) => h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', onclick: () => aplicar('bloquear', t) }, t)),
 				cerrar));
 		if (e.pide) {
 			const esPrecio = e.pide === 'precio';
@@ -364,7 +370,7 @@ async function casa(container, id) {
 				h('strong', { class: 'd-block mb-1' }, `${esPrecio ? 'Precio especial' : 'Mínimo de noches'} · ${rango(e)}`),
 				h('div', { class: 'd-flex gap-2' },
 					h('div', { class: 'input-group' }, esPrecio ? h('span', { class: 'input-group-text' }, pre.trim()) : null, campo, esPrecio ? null : h('span', { class: 'input-group-text' }, 'noches')),
-					iconoBtn('icon-check', 'Guardar', { class: 'cot-btn cot-btn-icono btn btn-primary', onclick: listo }),
+					iconoBtn('icon-check', 'Guardar', { class: 'btn-toque btn-icono btn btn-primary', onclick: listo }),
 					cerrar),
 				ve, repite);
 		}
@@ -376,7 +382,7 @@ async function casa(container, id) {
 			puedeFechas && hayBloqueo ? iconoBtn('icon-unlock', 'Habilitar estos días', { onclick: () => aplicar('habilitar') }) : null,
 			puedePrecios ? iconoBtn('icon-tag', 'Precio especial', { onclick: () => { e.pide = 'precio'; calendario(); } }) : null,
 			puedePrecios ? iconoBtn('icon-moon-o', 'Mínimo de noches', { onclick: () => { e.pide = 'minimo'; calendario(); } }) : null,
-			iconoBtn('icon-close', 'Quitar la selección', { class: 'cot-btn cot-btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
+			iconoBtn('icon-close', 'Quitar la selección', { class: 'btn-toque btn-icono btn btn-link text-body', onclick: () => { soltar(); calendario(); } }));
 	}
 
 	function calendario() {
@@ -400,14 +406,14 @@ async function casa(container, id) {
 			},
 			h('span', { class: 'vac-dia-num' }, Number(f.slice(8))),
 			estado || pedida ? h('span', { class: `vac-dia-precio ${reservada ? 'icon-bed' : bloqueado ? 'icon-lock' : externa ? 'icon-globe' : 'icon-clock-o'}`, 'aria-hidden': 'true' })
-				: h('span', { class: 'vac-dia-precio' }, enCelda(V.precioNoche(f, plan())))));
+				: h('span', { class: 'vac-dia-precio' }, dineroCorto(V.precioNoche(f, plan()), p.moneda))));
 		};
 		const semanas = [];
 		for (let i = 0; i < celdas.length; i += 7) semanas.push(h('tr', {}, celdas.slice(i, i + 7).map(celda)));
 		repintar(cal,
 			h('div', { class: 'vac-cal-cabecera' },
 				flecha('prev', 'Mes anterior', () => { e.mes = moverMes(e.mes, -1); calendario(); }, e.mes <= hoy().slice(0, 7)),
-				h('h2', { class: 'vac-cal-mes' }, nombreMes(e.mes)),
+				h('h2', { class: 'vac-cal-mes' }, mesTitulo(e.mes)),
 				flecha('next', 'Mes siguiente', () => { e.mes = moverMes(e.mes, 1); calendario(); })),
 			h('table', { class: 'vac-cal-tabla' },
 				h('thead', {}, h('tr', {}, ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d) => h('th', { scope: 'col' }, d)))),
@@ -568,7 +574,7 @@ async function laCasa(container, id) {
 		try {
 			const res = await fetch('/api/mi-casa', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ casa: id, cambios }) });
 			const cuerpo = await res.json().catch(() => ({}));
-			if (!res.ok) throw new Error(cuerpo.error || (res.status === 503 ? 'El servidor todavía no está listo: avísale al administrador.' : `El servidor respondió ${res.status}.`));
+			if (!res.ok) throw new Error(cuerpo.error || fallaDelServidor(res.status));
 			base = d;
 			// Si el sitio no se publica solo (apagado, o la última publicación falló), lo publica el equipo.
 			toast(cuerpo.publicaSola ? 'Guardado. Sale en la página en unos minutos.' : 'Guardado. Sale en la página cuando el equipo publique el sitio.');

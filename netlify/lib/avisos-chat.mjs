@@ -11,6 +11,7 @@ const lado = (m) => (m.de === 'cliente' ? 'cliente' : 'casa');
 const ms = (v) => (v instanceof Date ? v.getTime() : Date.parse(v) || 0);
 
 // chat: documento del chat (con id = token); mensajes: en orden; correos: { cliente, socio, equipo: [] }.
+// `urgente` (opcional): la parte del intro que va en rojo (conUrgente de correo.mjs).
 // Para el control de cada hora: ¿lo último lo escribió el cliente y lleva más de `plazo` sin respuesta,
 // vencido dentro de la `ventana` que se revisa? (cada caso se avisa una sola vez).
 export function sinResponder(mensajes, { ahora, plazo, ventana }) {
@@ -18,6 +19,23 @@ export function sinResponder(mensajes, { ahora, plazo, ventana }) {
 	if (!ultimo || ultimo.de !== 'cliente') return false;
 	const vence = ms(ultimo.createdAt) + plazo;
 	return vence > ahora - ventana && vence <= ahora;
+}
+
+// Un contacto partido en varios mensajes («5555» y luego «1234»): cada uno pasó el filtro (V.tieneContacto), juntos no.
+// Se juntan los últimos JUNTOS mensajes de texto del autor del último (de los JUNTOS_VENTANA anteriores a él) y se pasan por
+// el mismo filtro; solo cuenta si el último es el que lo completa (sin él no salta): así lo que ya se avisó no se vuelve a
+// avisar con cada mensaje nuevo. Nada se bloquea después: el equipo recibe un aviso y revisa. Devuelve { de, ids, tipo } o
+// null. Sin el equipo (sus mensajes no se revisan) ni mensajes con tipo (foto, pago, llegada: no son texto libre).
+export const JUNTOS = 3, JUNTOS_VENTANA = 10 * 60_000;
+export function contactoPartido(mensajes, tieneContacto, tipoDeContacto) {
+	const textos = mensajes.filter((m) => m && !m.tipo && typeof m.texto === 'string').sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
+	const ultimo = textos.at(-1);
+	if (!ultimo || ultimo.de === 'equipo') return null;
+	const suyos = textos.filter((m) => m.de === ultimo.de && ms(ultimo.createdAt) - ms(m.createdAt) <= JUNTOS_VENTANA).slice(-JUNTOS);
+	if (suyos.length < 2) return null;
+	const unido = suyos.map((m) => m.texto).join(' ');
+	if (!tieneContacto(unido) || tieneContacto(suyos.slice(0, -1).map((m) => m.texto).join(' '))) return null;
+	return { de: ultimo.de, ids: suyos.map((m) => m.id), tipo: tipoDeContacto(unido) };
 }
 
 // El título de la casa sale de la casa guardada (en inglés si el cliente escribe en inglés), nunca del chat.
@@ -115,7 +133,7 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 	// El equipo se entera: el cliente mandó su comprobante y el anfitrión dice que no le llegó (puede haber una fuga).
 	if (ultimo.tipo === 'reabierto') return [
 		...((correos.equipo || []).filter(Boolean).length ? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio dice que no le llegó el pago`, titulo: `No le llegó el pago de ${chat.codigo}`,
-			intro: `${resumen}. El cliente mandó su comprobante y el socio dice que no le llegó: el cliente tiene un plazo nuevo para pagar. Revisa con los dos.`, boton: 'Abrir la solicitud', url: panel }] : []),
+			intro: `${resumen}. El cliente mandó su comprobante y el socio dice que no le llegó: el cliente tiene un plazo nuevo para pagar. Revisa con los dos.`, urgente: 'el socio dice que no le llegó', boton: 'Abrir la solicitud', url: panel }] : []),
 		...alCliente(en ? `Booking ${chat.codigo}: your payment has not arrived` : `Reserva ${chat.codigo}: tu pago no ha llegado`,
 			en ? 'The host has not received your payment' : 'El anfitrión no ha recibido tu pago', String(ultimo.texto || '').slice(0, 400))];
 	if (ultimo.tipo === 'llegada') return alCliente(en ? `Booking ${chat.codigo}: payment received` : `Reserva ${chat.codigo}: pago recibido`,
@@ -126,7 +144,8 @@ export function avisosChat({ chat, casa = null, mensajes, correos, sitio, ahora 
 		// Cada cancelación del socio le llega también al equipo (con ella sale una comisión de la mora).
 		const equipo = !no && ultimo.de === 'socio' && (correos.equipo || []).filter(Boolean).length
 			? [{ para: correos.equipo.filter(Boolean), asunto: `${chat.codigo}: el socio canceló la reserva${chat.comprobanteCliente ? ' (con comprobante del cliente)' : ''}`, titulo: `El socio canceló ${chat.codigo}`,
-				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`, boton: 'Abrir la solicitud', url: panel }] : [];
+				intro: `${resumen}.${chat.comprobanteCliente ? ' El cliente había mandado su comprobante de pago.' : ''} Revisa que el cliente no haya pagado: con la reserva cancelada su comisión ya no cuenta.`,
+				urgente: chat.comprobanteCliente ? 'El cliente había mandado su comprobante de pago.' : 'Revisa que el cliente no haya pagado', boton: 'Abrir la solicitud', url: panel }] : [];
 		// Lo que se cerró o canceló solo por un plazo (netlify/functions/plazos-reservas.mjs): el anfitrión también se entera.
 		// Con el motivo de verdad (lo deja el cron en el mensaje): la casa salió del sitio, la confirmaba el equipo, o nadie
 		// respondió.

@@ -6,17 +6,20 @@ import assert from 'node:assert/strict';
 import { S, limpiar, poner, leer } from './simulado/base.mjs';
 
 process.env.ANTHROPIC_API_KEY = 'prueba';
-const { compararComprobante, revisarComprobante, urlDelComprobante } = await import('../netlify/lib/comprobantes.mjs');
+const { compararComprobante, revisarComprobante } = await import('../netlify/lib/comprobantes.mjs');
+const { estadoDeFoto, rutaDeFoto } = await import('../admin/js/hilo.js');
 
 let n = 0;
 const t = async (nombre, fn) => { limpiar(); await fn(); n++; console.log('✓', nombre); };
 const T = 'TokenDePruebaLargoYAlAzar2345';
-const URL_FOTO = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T}%2Ffoto1.webp?alt=media&token=abc-123`;
+// El mensaje guarda la ruta (sin el token de descarga); uno de antes, la dirección con el token: se leen igual.
+const URL_FOTO = `chats/${T}/foto1.webp`;
+const URL_VIEJA = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T}%2Ffoto1.webp?alt=media&token=abc-123`;
 const esperado = { total: 1122.4, moneda: 'USD', confirmada: '2026-11-18' };
-const leido = (o = {}) => ({ esComprobante: true, monto: 1122.4, moneda: 'USD', fecha: '2026-11-19', banco: 'Banco Industrial', referencia: '998877', ...o });
+const leido = (o = {}) => ({ esComprobante: true, contactoVisible: false, monto: 1122.4, moneda: 'USD', fecha: '2026-11-19', banco: 'Banco Industrial', referencia: '998877', ...o });
 
 await t('cuadra: monto (con centavos de diferencia), moneda y fecha después de confirmar', () => {
-	assert.deepEqual(compararComprobante(leido({ monto: 1122 }), esperado), { cuadra: true, texto: 'El comprobante cuadra' });
+	assert.deepEqual(compararComprobante(leido({ monto: 1122 }), esperado), { cuadra: true, texto: 'El comprobante cuadra', oculta: false, motivoOculta: '' });
 });
 await t('no cuadra: dice qué y cuánto se esperaba', () => {
 	assert.equal(compararComprobante(leido({ monto: 500 }), esperado).texto, 'No cuadra: monto US$ 500.00, esperado US$ 1,122.40');
@@ -26,9 +29,17 @@ await t('no cuadra: dice qué y cuánto se esperaba', () => {
 	assert.match(compararComprobante({ esComprobante: false }, esperado).texto, /no parece un comprobante/);
 });
 await t('la foto solo puede ser de la carpeta de ese chat', () => {
-	assert.ok(urlDelComprobante(T, URL_FOTO));
-	assert.ok(!urlDelComprobante('OtroToken1234567890123', URL_FOTO));
-	assert.ok(!urlDelComprobante(T, 'https://malo.com/x.webp'));
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_FOTO), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_VIEJA), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_FOTO), '');
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_VIEJA), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/../otro/x.webp`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/.oculto`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'https://malo.com/x.webp'), '');
+	// La de hoy: en la carpeta de su solicitud.
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/3'), 'fotosChat/l1/3');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l2/3'), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/../x'), '');
 });
 
 const preparar = () => {
@@ -50,6 +61,35 @@ await t('revisa una vez por foto y deja el aviso para el socio y el equipo', asy
 	assert.equal(veces, 1);
 });
 
+await t('la foto se lee de Storage con la cuenta de servicio, por la ruta del mensaje (también la de antes, con su dirección)', async () => {
+	for (const texto of [URL_FOTO, URL_VIEJA]) {
+		limpiar(); preparar();
+		poner(`chats/${T}/mensajes/m1`, { de: 'cliente', tipo: 'foto', texto });
+		(S.archivos ||= new Map()).set(URL_FOTO, { tipo: 'image/webp', datos: Buffer.from('foto'), llave: '' });
+		let vista = null;
+		await revisarComprobante(T, { leer: async (foto) => { vista = foto; return leido(); }, ahora: S.reloj });
+		assert.deepEqual(vista, { tipo: 'image/webp', datos: Buffer.from('foto').toString('base64') });
+	}
+});
+
+await t('foto con un dato de contacto o que no es un comprobante: se oculta al socio (lo decide el código) y el chat lo marca para el cliente', async () => {
+	assert.deepEqual(compararComprobante(leido({ contactoVisible: true }), esperado), { cuadra: true, texto: 'El comprobante cuadra', oculta: true, motivoOculta: 'Posible dato de contacto' });
+	assert.equal(compararComprobante({ esComprobante: false, contactoVisible: false }, esperado).motivoOculta, 'No parece un comprobante');
+	preparar();
+	const r = await revisarComprobante(T, { leer: async () => leido({ contactoVisible: true }), bajar, ahora: S.reloj });
+	assert.equal(r.oculta, true);
+	assert.equal(leer('revisionesComprobante/l1').oculta, true);
+	assert.equal(leer('revisionesComprobante/l1').leido.contactoVisible, true);
+	// De la foto oculta no quedan banco ni referencia (el socio lee la revisión; ahí podría ir el contacto).
+	assert.deepEqual([leer('revisionesComprobante/l1').leido.banco, leer('revisionesComprobante/l1').leido.referencia], ['', '']);
+	assert.equal(leer(`chats/${T}`).comprobanteOculto, 'm1');
+	assert.deepEqual(leer('revisionesComprobante/l1').fotos.fm1, { oculta: true, motivo: 'Posible dato de contacto' });
+	// Uno que sí es comprobante y sin contacto: el chat queda sin marca.
+	limpiar(); preparar();
+	await revisarComprobante(T, { leer: async () => leido(), bajar, ahora: S.reloj });
+	assert.equal(leer(`chats/${T}`).comprobanteOculto, '');
+	assert.equal(leer('revisionesComprobante/l1').oculta, false);
+});
 await t('un mensaje que no es la foto del cliente o de otra carpeta: no se manda a la IA', async () => {
 	preparar();
 	poner(`chats/${T}/mensajes/m1`, { de: 'cliente', tipo: 'foto', texto: 'https://malo.com/x.webp' });
@@ -75,6 +115,33 @@ await t('tope: 3 fotos por chat', async () => {
 		const r = await revisarComprobante(T, { leer: async () => leido(), bajar });
 		assert.equal(Boolean(r), i <= 3, `foto ${i}`);
 	}
+});
+
+await t('la cuarta foto (el tope ya se gastó con 3 cualesquiera): no se revisa y queda oculta para el socio; el equipo la ve «Sin revisar»', async () => {
+	preparar();
+	for (let i = 1; i <= 4; i++) {
+		poner(`chats/${T}`, { ...leer(`chats/${T}`), comprobanteMensaje: `m${i}` });
+		poner(`chats/${T}/mensajes/m${i}`, { de: 'cliente', tipo: 'foto', texto: URL_FOTO, createdAt: S.reloj });
+		await revisarComprobante(T, { leer: async () => leido(), bajar, ahora: S.reloj });
+	}
+	const cuarta = { id: 'm4', tipo: 'foto', de: 'cliente', createdAt: S.reloj };
+	const rv = leer('revisionesComprobante/l1'), chat = leer(`chats/${T}`);
+	assert.equal(rv.mensaje, 'm3');
+	// Al momento y pasados los 20 minutos: oculta (antes, a los 20 minutos se le mostraba al socio).
+	for (const ahora of [S.reloj + 60_000, S.reloj + 21 * 60_000]) assert.deepEqual(estadoDeFoto(cuarta, { chat, rv, ia: true, ahora }), { ver: false, oculta: true, marca: 'Sin revisar' });
+	// «Mostrar al socio» del equipo: se ve.
+	assert.equal(estadoDeFoto(cuarta, { chat: { ...chat, fotosVisibles: ['m4'] }, rv, ia: true, ahora: S.reloj }).ver, true);
+	// Sin IA configurada: como siempre.
+	assert.equal(estadoDeFoto(cuarta, { chat, rv, ia: false, ahora: S.reloj }).ver, true);
+});
+await t('la foto que falló 3 veces queda oculta para el socio (con 1 o 2 fallos sigue «en revisión», aunque pasen los 20 minutos)', async () => {
+	preparar();
+	const foto = { id: 'm1', tipo: 'foto', de: 'cliente', createdAt: S.reloj };
+	const mal = async () => { throw new Error('IA: refusal'); };
+	await assert.rejects(revisarComprobante(T, { leer: mal, bajar, ahora: S.reloj }));
+	assert.equal(estadoDeFoto(foto, { chat: leer(`chats/${T}`), rv: leer('revisionesComprobante/l1'), ia: true, ahora: S.reloj + 21 * 60_000 }).enRevision, true);
+	for (let i = 1; i < 3; i++) await assert.rejects(revisarComprobante(T, { leer: mal, bajar, ahora: S.reloj + i * 15 * 60_000 }));
+	assert.deepEqual(estadoDeFoto(foto, { chat: leer(`chats/${T}`), rv: leer('revisionesComprobante/l1'), ia: true, ahora: S.reloj + 46 * 60_000 }), { ver: false, oculta: true, marca: 'Sin revisar' });
 });
 
 await t('tope de la IA por chat: fotos nuevas que fallan (o se cortan) no la llaman sin fin', async () => {

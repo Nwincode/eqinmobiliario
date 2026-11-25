@@ -1,11 +1,12 @@
 // Importación masiva de propiedades desde un CSV con sus fotos (carpeta o .zip). Solo administradores.
 // Ruta: #/propiedades/importar. Nada se guarda hasta pulsar «Importar N propiedades».
 import { db, doc, getDoc, collection } from '../firebase.js';
-import { h, mount, pageHeader, toast, errorMessage, downloadCsv, cajaTabla, badge, formatPrice } from '../ui.js';
+import { h, mount, pageHeader, toast, errorMessage, downloadCsv, badge, formatPrice, menuMas } from '../ui.js';
 import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia, textosConPrecioOculto } from '../estados.js';
-import { datosDe } from '../ficha-casa.js';
+import { filaCasa } from '../ficha-casa.js';
+import { plural } from '../formato.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, crearCasa, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, avisoCambioDeDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
@@ -17,7 +18,6 @@ import {
 const FOTO_MINIMA = 800; // px del lado mayor
 const FOTOS_EN_PARALELO = 3;
 
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 const icono = (cls) => h('span', { class: cls, 'aria-hidden': 'true' });
 
 // Ejecuta fn sobre cada elemento con un máximo de n a la vez.
@@ -95,27 +95,24 @@ export async function render(container) {
 	// ---------- Paso 3: revisión ----------
 	const resumen = h('div', { class: 'imp-resumen' });
 	const avisos = h('div');
-	const tbody = h('tbody');
+	// Las filas del CSV con la misma fila de casa de Propiedades, con su casilla siempre a la vista.
+	const lista = h('div', { class: 'lista-casas eligiendo' });
 	// Qué filas se suben: fila → sí/no. Sin elegir, todas menos las que parecen repetidas.
 	const eleccion = new Map();
 	const marcada = (it) => eleccion.get(it.fila) ?? !it.parecida;
 	const seImporta = (it) => !it.errores.length && marcada(it);
 	const marcarTodas = (si) => { for (const it of plan) if (!it.errores.length) eleccion.set(it.fila, si); dibujar(); };
-	const selTodas = h('input', { class: 'form-check-input', type: 'checkbox', 'aria-label': 'Subir todas', onchange: (e) => marcarTodas(e.target.checked) });
-	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link d-md-none p-0', onclick: () => marcarTodas(!selTodas.checked) }, 'Seleccionar todas');
+	let todasMarcadas = false;
+	const btnTodas = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0', onclick: () => marcarTodas(!todasMarcadas) }, 'Seleccionar todas');
 	const btnImportar = h('button', { type: 'button', class: 'btn btn-primary', disabled: true, onclick: () => importar() }, 'Importar');
 	const notaImportar = h('span', { class: 'small text-muted imp-nota' }, icono('icon-eye-slash'), ' Entran como borrador.');
-	const paso2 = h('section', { class: 'card imp-paso', hidden: true }, h('div', { class: 'card-body' },
+	// Sin recuadro: las casas son tarjetas sueltas, como en Propiedades y en el listado en PDF.
+	const paso2 = h('section', { class: 'imp-paso', hidden: true },
 		h('div', { class: 'd-flex justify-content-between align-items-center gap-2 mb-3' },
 			h('h2', { class: 'imp-paso-titulo mb-0' }, h('span', { class: 'imp-num' }, '2'), 'Elige qué subir'),
 			btnTodas),
 		resumen, avisos,
-		cajaTabla(
-			h('table', { class: 'table table-admin align-middle tabla-propiedades mb-0' },
-				h('thead', {}, h('tr', {},
-					h('th', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, selTodas)),
-					[['Fila', 'celda-num'], ['Fotos', 'celda-foto'], ['Propiedad', 'celda-titulo'], ['Precio', 'celda-precio']].map(([t, c]) => h('th', { scope: 'col', class: c }, t)))),
-				tbody), { tarjeta: true })));
+		lista);
 	const acciones = h('div', { class: 'sticky-actions imp-acciones', hidden: true }, btnImportar, notaImportar);
 
 	// ---------- Paso 3: progreso ----------
@@ -149,7 +146,7 @@ export async function render(container) {
 			await revisar();
 		} catch (err) {
 			filasCsv = null;
-			estadoCsv.textContent = err.message || errorMessage(err);
+			estadoCsv.textContent = errorMessage(err);
 			estadoCsv.classList.add('text-danger');
 			paso2.hidden = true; acciones.hidden = true;
 		}
@@ -181,7 +178,7 @@ export async function render(container) {
 			await revisar();
 		} catch (err) {
 			fotos = [];
-			estadoFotos.textContent = err.message;
+			estadoFotos.textContent = errorMessage(err);
 			estadoFotos.classList.add('text-danger');
 		}
 	});
@@ -261,8 +258,8 @@ export async function render(container) {
 	const repetidaDe = (it) => (it.parecida._fila ? `Igual a la fila ${it.parecida._fila}` : `Ya está en el panel${it.parecida.codigo ? ` como ${it.parecida.codigo}` : ''}`);
 	// La primera foto de la fila, tal como quedará de portada. Se abre una sola vez por archivo.
 	function miniatura(f) {
-		if (!f) return h('span', { class: 'thumb thumb-vacia', title: 'Sin fotos' }, icono('icon-camera'));
-		const img = h('img', { class: 'thumb', alt: '' });
+		if (!f) return h('span', { class: 'casa-sin-foto', title: 'Sin fotos' }, icono('icon-camera'));
+		const img = h('img', { alt: '' });
 		f.vista ??= f.abrir().then((b) => URL.createObjectURL(b), () => null); // si no abre, la subida lo avisa
 		f.vista.then((url) => { if (url) img.src = url; });
 		return img;
@@ -300,33 +297,28 @@ export async function render(container) {
 		if (grupos.ignorados) avisosLista.push(['secondary', `${plural(grupos.ignorados, 'archivo no es imagen', 'archivos no son imágenes')}.`]);
 		avisos.replaceChildren(...avisosLista.map(([c, t]) => h('div', { class: `alert alert-${c} imp-aviso` }, t)));
 
-		tbody.replaceChildren(...plan.map((it) => {
+		lista.replaceChildren(...plan.map((it) => {
 			const [color, ic, texto, detalle] = estadoDeFila(it);
 			const d = it.existente ? { ...it.existente, ...it.datos } : it.datos; // al actualizar, lo que no trae el CSV se queda
-			const lugar = [d.zona, d.ciudad].filter(Boolean).join(', ');
-			const datos = datosDe(d);
-			return h('tr', {},
-				h('td', { class: 'celda-sel' }, h('label', { class: 'sel-toque' }, h('input', {
-					class: 'form-check-input', type: 'checkbox', checked: seImporta(it), disabled: !!it.errores.length || importando,
-					'aria-label': `Subir ${d.titulo || `la fila ${it.fila}`}`,
-					onchange: (e) => { eleccion.set(it.fila, e.target.checked); dibujar(); }
-				}))),
-				h('td', { class: 'celda-num' }, it.fila),
-				h('td', { class: 'celda-foto' }, miniatura(it.fotos[0])),
-				h('td', { class: 'celda-titulo' },
-					d.codigo ? h('div', { class: 'prop-codigo' }, d.codigo) : null,
-					h('div', { class: 'prop-chips' },
-						chip(color, ic, texto), it.fotos.length ? chip('secondary', 'icon-picture-o', it.fotos.length) : null, detalle ? h('span', { class: `small ${color === 'danger' ? 'text-danger' : 'text-muted'}` }, detalle) : null),
-					h('div', { class: 'fw-semibold prop-titulo' }, d.titulo || '(sin título)'),
-					lugar ? h('div', { class: 'small text-muted prop-zona' }, icono('icon-map-marker'), ` ${lugar}`) : null,
-					datos.length ? h('div', { class: 'prop-datos' }, datos) : null),
-				h('td', { class: 'text-nowrap celda-precio' }, h('div', {}, formatPrice(precioDeFila(it, d), d.moneda, d.operacion))));
+			const sel = h('input', {
+				class: 'form-check-input', type: 'checkbox', checked: seImporta(it), disabled: !!it.errores.length || importando,
+				'aria-label': `Subir ${d.titulo || `la fila ${it.fila}`}`,
+				onchange: (e) => { eleccion.set(it.fila, e.target.checked); dibujar(); }
+			});
+			// A la derecha, como el ⚠ de Propiedades: ✓ si entra nueva; si no, el ícono de su estado y, al tocarlo, el porqué.
+			const estado = `${texto} · fila ${it.fila}`;
+			const der = color === 'success' ? h('span', { class: 'casa-ok', role: 'img', title: estado, 'aria-label': estado }, icono(ic))
+				: menuMas(estado, [{ icono: ic, texto: detalle ? `${texto}: ${detalle}` : texto }], { icono: ic, cls: `imp-estado imp-tono-${color}` });
+			return filaCasa(d, {
+				sel, der, oculta: !seImporta(it), foto: miniatura(it.fotos[0]), precio: formatPrice(precioDeFila(it, d), d.moneda, d.operacion),
+				extra: [h('span', {}, `Fila ${it.fila}`), d.codigo ? h('code', {}, d.codigo) : null,
+					it.fotos.length ? h('span', { title: 'Fotos' }, icono('icon-picture-o'), plural(it.fotos.length, 'foto', 'fotos')) : null]
+			});
 		}));
 		const total = n(seImporta);
-		selTodas.checked = !!validas.length && total === validas.length;
-		selTodas.indeterminate = !!total && total < validas.length;
-		selTodas.disabled = !validas.length || importando;
-		btnTodas.textContent = selTodas.checked ? 'Quitar todas' : 'Seleccionar todas';
+		todasMarcadas = !!validas.length && total === validas.length;
+		btnTodas.disabled = !validas.length || importando;
+		btnTodas.textContent = todasMarcadas ? 'Quitar todas' : 'Seleccionar todas';
 		btnImportar.disabled = !total || importando;
 		btnImportar.replaceChildren(icono('icon-cloud-upload'), ` Importar ${total}`);
 	}
@@ -348,7 +340,7 @@ export async function render(container) {
 				hashes.add(proc.hash);
 				subidas[k] = { ...(await uploadImage(archivo, carpeta, proc)), alt: '' };
 			} catch (err) {
-				fallas.push(`${nombre}: ${err.message}`);
+				fallas.push(`${nombre}: ${errorMessage(err)}`);
 			}
 		});
 		return { fotos: subidas.filter(Boolean), fallas, repetidas };

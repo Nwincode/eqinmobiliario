@@ -2,8 +2,8 @@ import {
 	db, doc, getDocs, updateDoc, deleteDoc, collection, query, where, serverTimestamp, arrayUnion, Timestamp
 } from '../firebase.js';
 import {
-	h, toast, showError, confirmDialog, pageHeader, badge, emptyState, formatDate, modal, downloadCsv, toDate, hoy
-, mount, cajaTabla, iconoBtn } from '../ui.js';
+	h, toast, confirmDialog, pageHeader, badge, nombreYDatos, emptyState, formatDate, modal, downloadCsv, toDate, hoy
+, mount, tablaAdmin, iconoBtn, ocupado } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { avisarAvisos } from '../avisos.js';
 import { telefonoWa, whatsappUrl, saludoLead } from '../formato.js';
@@ -26,6 +26,15 @@ export function fuenteLead(l) {
 	return 'Orgánico / directo';
 }
 
+// La fila corta de un lead: nombre y estado; abajo, qué le interesa y cuándo llegó. La usan Inicio y el Asistente.
+export function filaLead(l) {
+	return h('div', { class: 'd-flex align-items-center gap-2 text-start' },
+		h('div', { class: 'me-auto' },
+			h('div', { class: 'fw-semibold' }, l.nombre),
+			h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen || 'Contacto general', formatDate(l.createdAt)].filter(Boolean).join(' · '))),
+		estadoBadge(l.estado));
+}
+
 export function estadoBadge(estado) {
 	const e = ESTADOS.find(([v]) => v === estado) || ESTADOS[0];
 	return badge(e[1], e[2]);
@@ -46,40 +55,40 @@ function waLink(lead) {
 }
 
 function openLead(lead, agents, onChange) {
-	const estado = h('select', { class: 'form-select' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+	const estado = h('select', { class: 'form-select', id: 'lead-estado' }, ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
 	estado.value = lead.estado || 'nuevo';
-	const agent = h('select', { class: 'form-select', disabled: !session.isAdmin },
+	const agent = h('select', { class: 'form-select', id: 'lead-asesor', disabled: !session.isAdmin },
 		h('option', { value: '' }, 'Sin asignar'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
 	agent.value = lead.agentId || '';
-	const nota = h('textarea', { class: 'form-control', rows: 2, placeholder: 'Agregar nota de seguimiento…' });
+	const nota = h('textarea', { class: 'form-control', id: 'lead-nota', rows: 2, maxlength: 2000, placeholder: 'Agregar nota de seguimiento…' });
 	const notes = h('div', {}, (lead.notas || []).slice().reverse().map((n) => h('div', { class: 'lead-note' },
 		h('div', {}, n.texto),
 		h('div', { class: 'small text-muted' }, `${n.autor || ''} · ${formatDate(n.fecha)}`))));
 	const wa = waLink(lead);
 
-	const save = async () => {
+	// Dos toques no guardan la nota dos veces: el botón se apaga mientras guarda (ocupado).
+	const save = (e) => ocupado(e.currentTarget, async () => {
 		const patch = { estado: estado.value, updatedAt: serverTimestamp() };
 		if (session.isAdmin) patch.agentId = agent.value;
 		if (nota.value.trim()) {
 			patch.notas = arrayUnion({ texto: nota.value.trim(), autor: session.profile.nombre || session.user.email, fecha: Timestamp.now() });
 		}
-		try {
-			await updateDoc(doc(db, 'leads', lead.id), patch);
-			avisarAvisos(); // la campana baja en seguida (el lead deja de estar «nuevo»)
-			toast('Lead actualizado.');
-			m.close();
-			onChange();
-		} catch (err) { showError(err); }
-	};
-	const remove = async () => {
+		await updateDoc(doc(db, 'leads', lead.id), patch);
+		avisarAvisos(); // la campana baja en seguida (el lead deja de estar «nuevo»)
+		toast('Lead actualizado.');
+		m.close();
+		onChange();
+	});
+	const remove = async (e) => {
+		const btn = e.currentTarget;
 		if (!(await confirmDialog(`¿Eliminar el lead de ${lead.nombre}?`, { okText: 'Eliminar' }))) return;
-		try {
+		await ocupado(btn, async () => {
 			await deleteDoc(doc(db, 'leads', lead.id));
 			avisarAvisos(); // la campana baja en seguida (el lead deja de estar «nuevo»)
 			toast('Lead eliminado.');
 			m.close();
 			onChange();
-		} catch (err) { showError(err); }
+		});
 	};
 
 	const m = modal({
@@ -105,9 +114,9 @@ function openLead(lead, agents, onChange) {
 					[lead.campana.gclid ? 'Google Ads' : lead.campana.fbclid ? 'Meta Ads' : '', lead.campana.utm_source, lead.campana.utm_campaign, lead.campana.utm_term].filter(Boolean).join(' · ') || '—')] : null,
 				h('dt', { class: 'col-sm-3' }, 'Mensaje'), h('dd', { class: 'col-sm-9', style: 'white-space:pre-wrap' }, lead.mensaje || '—')),
 			h('div', { class: 'row g-3 mb-3' },
-				h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Estado'), estado),
-				h('div', { class: 'col-md-6' }, h('label', { class: 'form-label' }, 'Asesor asignado'), agent)),
-			h('label', { class: 'form-label' }, 'Seguimiento'), nota,
+				h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'lead-estado' }, 'Estado'), estado),
+				h('div', { class: 'col-md-6' }, h('label', { class: 'form-label', for: 'lead-asesor' }, 'Asesor asignado'), agent)),
+			h('label', { class: 'form-label', for: 'lead-nota' }, 'Seguimiento'), nota,
 			h('div', { class: 'mt-3' }, notes)),
 		footer: [
 			session.isAdmin ? h('button', { class: 'btn btn-outline-danger me-auto', onclick: remove }, 'Eliminar') : null,
@@ -127,11 +136,22 @@ export async function render(container) {
 	const leads = todos.filter((l) => !window.EQVacacional.esSolicitudReserva(l));
 	const agentName = Object.fromEntries(agents.map((a) => [a.id, a.nombre]));
 
-	const search = h('input', { class: 'form-control', type: 'search', placeholder: 'Buscar por nombre, teléfono, correo o propiedad…' });
-	const fEstado = h('select', { class: 'form-select' }, h('option', { value: '' }, 'Todos los estados'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
-	const fAgent = h('select', { class: 'form-select', hidden: !session.isAdmin },
+	const search = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar leads', placeholder: 'Buscar por nombre, teléfono, correo o propiedad…' });
+	const fEstado = h('select', { class: 'form-select', 'aria-label': 'Estado' }, h('option', { value: '' }, 'Todos los estados'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+	const fAgent = h('select', { class: 'form-select', 'aria-label': 'Asesor', hidden: !session.isAdmin },
 		h('option', { value: '' }, 'Todos los asesores'), h('option', { value: '-' }, 'Sin asignar'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
-	const tbody = h('tbody');
+	const lista = tablaAdmin({
+		columnas: ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((titulo) => ({ titulo })),
+		celdas: (l) => [
+			nombreYDatos(l.nombre, l.telefono, [l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger', role: 'img', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null, l.idioma === 'en' ? badge('EN', 'info') : null]),
+			h('span', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
+			h('span', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—'),
+			h('span', { class: 'small text-muted' }, fuenteLead(l)),
+			h('span', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
+			estadoBadge(l.estado)],
+		alTocar: (l) => openLead(l, agents, () => render(container.replaceChildren() || container)),
+		sinCoincidencias: 'Ningún lead coincide con la búsqueda o los filtros.'
+	});
 
 	const filtered = () => {
 		const q = search.value.trim().toLowerCase();
@@ -140,15 +160,7 @@ export async function render(container) {
 			&& (!fEstado.value || (l.estado || 'nuevo') === fEstado.value)
 			&& (!fAgent.value || (fAgent.value === '-' ? !l.agentId : l.agentId === fAgent.value)));
 	};
-	const draw = () => {
-		tbody.replaceChildren(...filtered().map((l) => h('tr', { class: 'clickable', onclick: () => openLead(l, agents, () => render(container.replaceChildren() || container)) },
-			h('td', {}, h('div', { class: 'fw-semibold' }, l.nombre, l.reboteCorreo ? h('span', { class: 'icon-envelope-o text-danger ms-1', title: 'El correo no llegó', 'aria-label': 'El correo no llegó' }) : null), h('div', { class: 'small text-muted' }, l.telefono)),
-			h('td', { class: 'small text-muted text-nowrap' }, formatDate(l.createdAt)),
-			h('td', { class: 'small' }, l.propertyTitulo || ORIGENES[l.origen] || l.origen || '—', l.idioma === 'en' ? h('span', { class: 'badge text-bg-info ms-1' }, 'EN') : null),
-			h('td', { class: 'small text-muted' }, fuenteLead(l)),
-			h('td', { class: 'small' }, agentName[l.agentId] || h('span', { class: 'text-muted' }, 'Sin asignar')),
-			h('td', {}, estadoBadge(l.estado)))));
-	};
+	const draw = () => lista.pintar(filtered(), { filtrado: true });
 	[search, fEstado, fAgent].forEach((el) => el.addEventListener('input', draw));
 	draw();
 
@@ -164,9 +176,6 @@ export async function render(container) {
 				h('div', { class: 'col-md-6' }, search),
 				h('div', { class: 'col-6 col-md-3' }, fEstado),
 				h('div', { class: 'col-6 col-md-3' }, fAgent)),
-			cajaTabla(
-				h('table', { class: 'table table-hover table-admin' },
-					h('thead', {}, h('tr', {}, ['Contacto', 'Fecha', 'Interés', 'Fuente', 'Asesor', 'Estado'].map((t) => h('th', {}, t)))),
-					tbody), { tarjeta: true }))
+			lista)
 			: emptyState(session.isAdmin ? 'Todavía no han llegado leads. Aparecerán aquí cuando alguien llene un formulario del sitio.' : 'No tienes leads asignados todavía.'));
 }

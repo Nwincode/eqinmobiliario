@@ -14,24 +14,37 @@ const DIR = process.env.ENTORNO_DIR || `${process.env.TMPDIR || '/tmp'}/eq-entor
 const SITIO = `http://localhost:${process.env.PORT || 8090}`;
 const CLAVE = 'Pruebas.del.panel-2026';
 const CAPTURAS = `${DIR}/capturas`;
+// Capturas de la foto oculta, la campana, el cliente tras el cambio de correo y el aviso del inglés (a 390 y 1280).
+const SEG = process.env.CAPTURAS_SEG || `${CAPTURAS}/seguridad`;
 // Capturas del panel del dueño (lista y casa en venta, a 390 y 1280 px), para mirarlas.
 const PANEL = process.env.PANEL_DIR || `${CAPTURAS}/panel`;
 mkdirSync(CAPTURAS, { recursive: true });
 mkdirSync(PANEL, { recursive: true });
+mkdirSync(SEG, { recursive: true });
 
 let fallas = 0, n = 0;
+// Lo que la regla de seguridad (CSP de netlify.toml, que el servidor de pruebas aplica) bloqueó en cualquier página.
+const bloqueados = [];
 const paso = (nombre, bien, detalle = '') => { n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${nombre}${detalle ? ` · ${detalle}` : ''}`); };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+// Los últimos días del mes, el mes que abre el calendario de la casa ya no tiene las noches libres que eligen las
+// solicitudes del recorrido (el 25 de noviembre quedaban 6 y la primera pide la 7.ª): todas empiezan un mes después, con
+// las mismas distancias entre ellas.
+const HOY_GT = new Date(Date.now() - 6 * 3600_000);
+const FIN_DE_MES = new Date(Date.UTC(HOY_GT.getUTCFullYear(), HOY_GT.getUTCMonth() + 1, 0)).getUTCDate() - HOY_GT.getUTCDate() < 10;
+const saltarFinDeMes = async (p) => { if (FIN_DE_MES) { await p.locator('.vac-cal-next').first().click(); await espera(400); } };
 
 const navegador = await chromium.launch();
 // Una persona = un contexto. El SDK de Firebase del panel se sirve desde npm (misma versión) y las llamadas
 // del sitio a Google van a los emuladores; todo lo demás de fuera se corta.
 // { reglasViejas: true }: la base responde como con las reglas de antes a la prueba de reglasNuevas() (404).
-async function persona(ancho = 1280, { reglasViejas = false } = {}) {
-	const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 } });
+// { escala: 2 }: capturas nítidas (deviceScaleFactor).
+async function persona(ancho = 1280, { reglasViejas = false, escala = 1, idioma = '' } = {}) {
+	const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, deviceScaleFactor: escala, ...(idioma ? { locale: idioma } : {}) });
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
+	p.on('console', (m) => { if (/Content Security Policy/.test(m.text())) bloqueados.push(`${p.url().replace(SITIO, '')}: ${m.text().slice(0, 240)}`); });
 	// En el contexto (no en la página): una segunda pestaña de la misma persona va por el mismo camino.
 	await ctx.route('**/*', async (r) => {
 		const u = r.request().url();
@@ -68,6 +81,118 @@ const resp = (x) => `servidor ${x.status}${x.error ? ` ${x.error}` : ''}`;
 // ---------------------------------------------------------------- 1. El administrador ingresa la casa
 const admin = await entrar('admin');
 paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role').innerText()) === 'Administrador');
+// La migración de los chats de antes (netlify/lib/migrar-chats.mjs) sobre lo que sembró sembrar.mjs con la forma de
+// antes: primero la función (/api/migrar-chats: solo el administrador, el simulacro no escribe, por tandas), después el
+// botón de Publicar como lo usa el administrador (simulacro, «Aplicar», «Listo») y al final un caso más, aplicado por
+// tandas y repetido (no cambia nada).
+{
+	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { headers: { Authorization: 'Bearer owner' } };
+	const T0 = 'ChatDeAntesParaMigrarLargo12';
+	const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=pruebas';
+	const tokenDe = async (rol) => (await (await fetch(AUTH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${rol}@example.com`, password: CLAVE, returnSecureToken: true }) })).json()).idToken;
+	const migrar = (token, cuerpo) => fetch(`${SITIO}/api/migrar-chats`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(cuerpo) });
+	const textoDe = async (ruta) => (await (await fetch(`${fs}/${ruta}`, ow)).json()).fields?.texto?.stringValue;
+	const tokenAdmin = await tokenDe('admin');
+	// Todas las tandas de una pasada: { total, pedidos, estados }.
+	const pasada = async (cuerpo) => {
+		const total = {}, estados = [];
+		let cursor = null, pedidos = 0;
+		do {
+			const r = await migrar(tokenAdmin, { ...cuerpo, cursor });
+			estados.push(r.status);
+			const d = await r.json().catch(() => ({}));
+			if (!r.ok) break;
+			for (const [k, v] of Object.entries(d.cuenta)) total[k] = (total[k] || 0) + v;
+			cursor = d.cursor;
+			pedidos++;
+		} while (cursor && pedidos < 200);
+		return { total, pedidos, estados, terminó: !cursor };
+	};
+	const nadie = await Promise.all([migrar('', {}), migrar(await tokenDe('asesor'), {}), migrar(await tokenDe('socio'), {}), migrar(tokenAdmin, { cursor: { fase: 9, desde: '' } })]);
+	paso('Pasar datos al formato nuevo: sin sesión, el asesor y el socio no pueden (403); un cursor inventado, 400', nadie.map((r) => r.status).join(',') === '403,403,403,400', nadie.map((r) => r.status).join(','));
+	const antesFoto = await textoDe(`chats/${T0}/mensajes/foto1`);
+	const sim = await pasada({ aplicar: false, porTanda: 1 });
+	const sigueFoto = await textoDe(`chats/${T0}/mensajes/foto1`), sigueNota = (await fetch(`${fs}/chats/${T0}/notas/nota1`, ow)).status;
+	paso('Pasar datos al formato nuevo: el simulacro va por tandas, termina y no escribe nada',
+		sim.terminó && sim.pedidos > 3 && sim.total.archivos === 1 && sim.total.fotos === 1 && sim.total.notas === 1 && sim.total.indices === 1 && sim.total.comprobantes === 1 && sim.total.revisiones === 1 && sim.total.llaves === 1
+		&& /^https:/.test(sigueFoto) && sigueFoto === antesFoto && sigueNota === 200, `${sim.pedidos} tandas · ${JSON.stringify(sim.total)} · foto ${sigueFoto === antesFoto ? 'igual' : 'cambió'} · nota ${sigueNota}`);
+
+	// Aplicar con un cursor que no salió de una pasada guardada (p. ej. la última fase inventada): 409 y no queda «hecha».
+	// Un cuerpo `null` es un simulacro (no un 500).
+	const inventado = await migrar(tokenAdmin, { aplicar: true, cursor: { fase: 4, desde: '' } });
+	const nulo = await fetch(`${SITIO}/api/migrar-chats`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenAdmin}` }, body: 'null' });
+	const sinMarca = (await fetch(`${fs}/estado/migracion-chats`, ow)).status;
+	paso('Pasar datos al formato nuevo: aplicar con un cursor que el servidor no guardó da 409 y no marca «hecha»; un cuerpo null no da 500',
+		inventado.status === 409 && nulo.status === 200 && sinMarca === 404, `${inventado.status} · null ${nulo.status} · marca ${sinMarca}`);
+
+	// El botón, como lo usa el administrador (capturas a 1280 y 390 px, escala 2).
+	const MIGRAR = process.env.MIGRAR_DIR || `${CAPTURAS}/migrar`;
+	mkdirSync(MIGRAR, { recursive: true });
+	const adm2 = await entrar('admin', { escala: 2 });
+	await ir(adm2.p, '#/publicar');
+	const tarjeta = adm2.p.locator('#migrar-chats');
+	await tarjeta.locator('button', { hasText: 'Pasar datos al formato nuevo' }).click();
+	await tarjeta.locator('text=Por pasar:').waitFor({ timeout: 30000 }).catch(() => {});
+	const simTexto = (await tarjeta.innerText()).replace(/\s+/g, ' ');
+	const foto = async (nombre, ancho) => { await adm2.p.setViewportSize({ width: ancho, height: 900 }); await espera(300); await tarjeta.scrollIntoViewIfNeeded(); await adm2.p.screenshot({ path: `${MIGRAR}/${nombre}-${ancho}.png` }); };
+	await foto('simulacro', 1280);
+	await foto('simulacro', 390);
+	paso('Pasar datos al formato nuevo: el botón muestra en una línea lo que cambiaría y ofrece «Aplicar»',
+		/Por pasar: 1 foto a su carpeta, 1 mensaje con foto, 1 nota del equipo, 1 archivo con enlace abierto, 1 comprobante de comisión, 1 chat sin índice, 1 revisión oculta\./.test(simTexto) && await tarjeta.locator('button', { hasText: 'Aplicar' }).count() === 1, simTexto.slice(0, 220));
+	await tarjeta.locator('button', { hasText: 'Aplicar' }).click();
+	await tarjeta.locator('text=Listo:').waitFor({ timeout: 60000 }).catch(() => {});
+	const listoTexto = (await tarjeta.innerText()).replace(/\s+/g, ' ');
+	await foto('listo', 390);
+	await foto('listo', 1280);
+	paso('Pasar datos al formato nuevo: «Aplicar» termina con «Listo» y las mismas cifras', /Listo: 1 foto a su carpeta, 1 mensaje con foto, 1 nota del equipo, 1 archivo con enlace abierto, 1 comprobante de comisión, 1 chat sin índice, 1 revisión oculta\./.test(listoTexto)
+		&& !adm2.errores.length, `${listoTexto.slice(0, 200)}${adm2.errores.length ? ` · ${adm2.errores.join(' | ')}` : ''}`);
+
+	const llave = readFileSync(`${DIR}/llave-de-antes.txt`, 'utf8').trim(), llaveRecibo = readFileSync(`${DIR}/llave-recibo-de-antes.txt`, 'utf8').trim();
+	const fotoNueva = await textoDe(`chats/${T0}/mensajes/foto1`);
+	const viejaUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T0}%2Fvieja.png?alt=media&token=${llave}`);
+	const enCarpeta = await fetch(`http://127.0.0.1:9199/storage/v1/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent('fotosChat/lead-de-antes/vieja.png')}`, ow);
+	const reciboUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2Fres-de-antes%2Frecibo.png?alt=media&token=${llaveRecibo}`);
+	const recibo = (await (await fetch(`${fs}/reservas/res-de-antes`, ow)).json()).fields?.comision?.mapValue?.fields?.comprobante?.stringValue;
+	const [notaNueva, notaVieja] = await Promise.all([fetch(`${fs}/notasEquipo/${T0}/notas/nota1`, ow), fetch(`${fs}/chats/${T0}/notas/nota1`, ow)]);
+	const leido = (await (await fetch(`${fs}/revisionesComprobante/lead-de-antes`, ow)).json()).fields?.leido?.mapValue?.fields || {};
+	const otraVez = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
+	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo, el chat recibe su índice y la revisión oculta pierde banco y referencia; repetirla (el script) no cambia nada',
+		fotoNueva === 'fotosChat/lead-de-antes/vieja.png' && enCarpeta.status === 200 && Boolean(llave) && viejaUrl.status !== 200 && reciboUrl.status !== 200 && recibo === 'comprobantes/res-de-antes/recibo.png'
+		&& notaNueva.status === 200 && notaVieja.status === 404
+		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes`, ow)).json()).fields?.token?.stringValue === T0
+		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos de antes a la carpeta de su solicitud, 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 índices de chats de antes, 0 comprobantes de la comisión a su ruta, 0 revisiones/.test(otraVez),
+		`${fotoNueva} · carpeta ${enCarpeta.status} · vieja ${viejaUrl.status} · recibo ${recibo} ${reciboUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
+
+	// Un caso más con la forma de antes (otro chat sin índice, con su nota, y otra revisión oculta), aplicado por tandas.
+	const T1 = 'ChatDeAntesSegundoLargo3456';
+	const sv = (v) => ({ stringValue: v });
+	const ponerCrudo = (ruta, fields) => fetch(`${fs}/${ruta}`, { method: 'PATCH', headers: { ...ow.headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	await ponerCrudo(`chats/${T1}`, { codigo: sv('EQ-ANTES3'), leadId: sv('lead-de-antes-3'), propertyId: sv('casa-de-antes'), propietarioId: sv('dueno-de-antes'), nombre: sv('Otro cliente de antes'), estado: sv('confirmada') });
+	await ponerCrudo(`chats/${T1}/notas/nota1`, { de: sv('equipo'), texto: sv('Otra nota de antes') });
+	// Y una nota que quedó bajo un chat que ya no existe (listar('chats') no lo ve): pasa a notasEquipo de ese token.
+	const T2 = 'ChatQueYaNoExisteLargo7890';
+	await ponerCrudo(`chats/${T2}/notas/nota1`, { de: sv('socio'), texto: sv('Nota suelta de antes') });
+	await ponerCrudo('revisionesComprobante/lead-de-antes-3', { oculta: { booleanValue: true }, propietarioId: sv('dueno-de-antes'), leido: { mapValue: { fields: { banco: sv('Otro banco'), referencia: sv('9999') } } } });
+	const apl = await pasada({ aplicar: true, porTanda: 1 });
+	const repetida = await pasada({ aplicar: true });
+	const marca = (await (await fetch(`${fs}/estado/migracion-chats`, ow)).json()).fields?.hecha?.timestampValue;
+	const ceros = Object.values(repetida.total).every((v) => v === 0);
+	paso('Pasar datos al formato nuevo: aplicar por tandas termina (índice, notas —también la de un chat que ya no existe— y revisión del caso nuevo) y repetirlo no cambia nada',
+		apl.terminó && apl.pedidos > 3 && apl.total.indices === 1 && apl.total.notas === 2 && apl.total.revisiones === 1 && apl.total.fotos === 0
+		&& (await fetch(`${fs}/notasEquipo/${T1}/notas/nota1`, ow)).status === 200 && (await fetch(`${fs}/chats/${T1}/notas/nota1`, ow)).status === 404
+		&& (await fetch(`${fs}/notasEquipo/${T2}/notas/nota1`, ow)).status === 200 && (await fetch(`${fs}/chats/${T2}/notas/nota1`, ow)).status === 404
+		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes-3`, ow)).json()).fields?.token?.stringValue === T1
+		&& repetida.terminó && ceros && Boolean(marca), `${apl.pedidos} tandas · ${JSON.stringify(apl.total)} · otra vez ${JSON.stringify(repetida.total)} · marca ${marca || 'no'}`);
+	// El script deja la misma marca (la misma pieza común).
+	const porScript = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs', '--aplicar'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
+	const marcaScript = (await (await fetch(`${fs}/estado/migracion-chats`, ow)).json()).fields || {};
+	paso('Pasar datos al formato nuevo: el script con --aplicar deja la marca igual que el botón', /^Migrado: 0 fotos/.test(porScript) && marcaScript.por?.stringValue === 'script' && marcaScript.hecha?.timestampValue > marca,
+		`${porScript.slice(0, 60)} · ${marcaScript.por?.stringValue} ${marcaScript.hecha?.timestampValue}`);
+	await ir(adm2.p, '#/publicar');
+	const despues = (await adm2.p.locator('#migrar-chats').innerText()).replace(/\s+/g, ' ');
+	paso('Pasar datos al formato nuevo: ya hecho, la tarjeta lo dice en una línea y no ofrece el botón', /Todo está en el formato nuevo desde el/.test(despues) && await adm2.p.locator('#migrar-chats button').count() === 0, despues.slice(0, 120));
+	await adm2.p.context().close();
+}
 await ir(admin.p, '#/propiedades/nuevo');
 await campo(admin.p, 'titulo').fill('Casa de prueba Monterrico');
 await campo(admin.p, 'operacion').selectOption('vacacional');
@@ -143,7 +268,7 @@ await ir(admin.p, '#/propietarios', 1500);
 	}
 }
 await ir(admin.p, '#/propietarios/socio-prueba');
-paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .prop-titulo').first().innerText().catch(() => '')));
+paso('La casa queda enlazada en la ficha del socio, sin ir a agregarla', /Casa de prueba Monterrico/.test(await admin.p.locator('.list-field .casa-titulo').first().innerText().catch(() => '')));
 
 // ---------------------------------------------------------------- 2. Publicar (lo que hace el botón en producción)
 execFileSync('bash', [path.join(REPO, 'scripts/entorno/levantar.sh'), 'publicar'], { stdio: 'pipe', env: { ...process.env, ENTORNO_DIR: DIR } });
@@ -184,7 +309,10 @@ paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle R
 	await fetch(`${base}/properties/casa-heredada/privado/llegada`, { method: 'DELETE', headers: dueno });
 	await fetch(`${base}/properties/casa-heredada`, { method: 'DELETE', headers: dueno });
 }
+await saltarFinDeMes(cliente.p);
 const dias = () => cliente.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
+// A fin de mes quedan pocos días libres: se pasa al mes siguiente (el séptimo libre tiene que existir).
+if (await dias().count() < 7) { await cliente.p.locator('.vac-cal-next').click(); await espera(300); }
 await dias().nth(3).click();
 await dias().nth(6).click();
 await cliente.p.fill('.vac-card [name=nombre]', 'Ana Prueba');
@@ -213,7 +341,8 @@ await beto.p.goto(`${SITIO}${ficha}${fechasAna}`);
 await espera(1200);
 await cliente.p.locator('.vac-card button[type=submit]').click();
 await cliente.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
-const token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
+// `let`: al corregir el correo del cliente (5b) el enlace cambia y sigue con el nuevo.
+let token = (cliente.p.url().match(/reserva\/#(\w+)/) || [])[1];
 {
 	const idCasaPub = await beto.p.locator('.vac-card').getAttribute('data-id');
 	const q = new URLSearchParams(fechasAna);
@@ -245,7 +374,7 @@ await cliente.p.fill('.vac-chat-form textarea', 'Hola, ¿aceptan 2 perros peque�
 await cliente.p.keyboard.press('Enter'); await cliente.p.keyboard.press('Enter');
 await espera(1500);
 paso('El cliente escribe en el chat (Enter dos veces: sale una sola vez)', (await cliente.p.locator('.vac-chat-aviso').innerText()) === ''
-	&& await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.vac-chat-msj', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
+	&& await cliente.p.locator('.hilo-m', { hasText: 'aceptan 2 perros' }).count() === 1, `${await cliente.p.locator('.hilo-m', { hasText: 'aceptan 2 perros' }).count()} mensajes`);
 {
 	// Y dice qué parte parece contacto, en una línea (un número: que lo mande en foto si es de un pago).
 	const aviso = await escribir('Mejor llamame al 5555-1234');
@@ -276,31 +405,91 @@ const waSocio = await socio.p.locator('.admin-main a[href*="wa.me"]').evaluateAl
 paso('El socio no ve teléfono, correo ni WhatsApp del cliente', !/305\s?555|555 1234|ana@example/.test(await socio.p.locator('body').innerText()) && waSocio.every((u) => !/5551234/.test(u)));
 paso('El socio le escribe al equipo por WhatsApp con el código de la solicitud', waSocio.some((u) => u.includes('50259131276') && u.includes(codigo)), waSocio.join(' | ').slice(0, 200));
 paso('La solicitud marca «Mensaje sin responder»', /Mensaje sin responder/.test(await tarjeta.innerText()));
+// El chat vive en Mensajes: el icono de la solicitud lleva ahí (una sola conversación, sin ventana aparte).
+paso('El icono de chat de la solicitud lleva a Mensajes', await tarjeta.locator('[aria-label="Chat con el cliente"]').getAttribute('href') === `#/mensajes/${encodeURIComponent(codigo)}`);
 await tarjeta.locator('[aria-label="Chat con el cliente"]').click();
-await espera(1500);
-await socio.p.fill('.modal textarea', 'Hola Ana, sí aceptamos mascotas pequeñas.');
-await socio.p.locator('.modal [aria-label=Enviar]').dblclick();
-await espera(1500);
-paso('El socio responde con doble clic: sale una sola vez', await socio.p.locator('.modal', { hasText: 'aceptamos mascotas' }).locator('text=Hola Ana, sí aceptamos mascotas pequeñas.').count() === 1);
-await socio.p.fill('.modal textarea', 'Mi número es 5555 0001');
-await socio.p.locator('.modal [aria-label=Enviar]').click();
-await espera(800);
-paso('El panel bloquea el teléfono del socio', /no se comparten/.test(await avisos(socio.p)));
+await espera(3000);
+const hilo = socio.p.locator('.msj-hilo');
+paso('Mensajes abre el hilo de esa solicitud, con el mensaje del cliente y «Ana pidió reservar»', /aceptan 2 perros/.test(await hilo.innerText()) && /Ana pidió reservar/.test(await hilo.innerText()), (await hilo.innerText()).replace(/\s+/g, ' ').slice(0, 160));
+// Responder citando: se toca el mensaje, la flecha, y la cita queda arriba del campo; al mandar, va dentro de la burbuja.
+await hilo.locator('.hilo-otro', { hasText: 'aceptan 2 perros' }).click();
+await hilo.locator('.hilo-otro', { hasText: 'aceptan 2 perros' }).locator('.hilo-resp').click();
+const citaArriba = await hilo.locator('.hilo-citando').innerText();
+await hilo.locator('.hilo-campo').fill('Hola Ana, sí aceptamos mascotas pequeñas.');
+await hilo.locator('.hilo-escribir [aria-label=Enviar]').dblclick();
+await espera(2500);
+const respuesta = hilo.locator('.hilo-yo', { hasText: 'aceptamos mascotas' });
+paso('El socio responde desde Mensajes citando el mensaje del cliente (doble clic: sale una sola vez)', /Ana:.*aceptan 2 perros/.test(citaArriba) && await respuesta.count() === 1
+	&& /aceptan 2 perros/.test(await respuesta.locator('.hilo-cita').innerText().catch(() => '')), `${citaArriba} · ${await respuesta.count()} · ${await avisos(socio.p)}`);
+// El aviso de contacto mientras escribe: el campo en rojo, «Enviar» apagado y una línea que dice qué parece; no sale.
+await hilo.locator('.hilo-campo').fill('Mi número es 5555 0001');
+await hilo.locator('.hilo-campo').press('Enter');
+await espera(1200);
+paso('El aviso de contacto aparece al escribir y no deja mandar', await hilo.locator('.hilo-escribir [aria-label=Enviar]').isDisabled() && /Parece un teléfono: aquí no se comparten contactos/.test(await hilo.locator('.hilo-regla.hilo-alerta').innerText().catch(() => ''))
+	&& await hilo.locator('.hilo-m', { hasText: '5555 0001' }).count() === 0);
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat.png` });
-// Respuestas rápidas detrás del rayo: cerradas al abrir; al tocar una, va al campo y se cierran.
-const rapidasOcultas = await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden();
-await socio.p.locator('.modal [aria-label="Respuestas rápidas"]').click();
-await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).click();
-paso('Respuestas rápidas tras el rayo: se abren, llenan el campo y se cierran', rapidasOcultas && await socio.p.locator('.modal textarea').inputValue() === '¿Viajan con mascotas?'
-	&& await socio.p.locator('.modal button', { hasText: '¿Viajan con mascotas?' }).isHidden());
-await socio.p.fill('.modal textarea', '');
+// Respuestas rápidas del momento: a la vista en una fila; al tocar una, va al campo.
+await hilo.locator('.hilo-campo').fill('');
+await hilo.locator('.hilo-rapidas .hilo-chip', { hasText: '¿Viajan con mascotas?' }).click();
+paso('Respuestas rápidas a la vista: llenan el campo', await hilo.locator('.hilo-campo').inputValue() === '¿Viajan con mascotas?');
+await hilo.locator('.hilo-campo').fill('');
+// Nota interna: el candado, solo del equipo (notasEquipo/): el socio no lo tiene ni lee las notas; la página del cliente tampoco.
+paso('El socio no tiene el candado de la nota interna (las notas son solo del equipo)', await hilo.locator('[aria-label^="Escribir una nota interna"]').count() === 0);
+{
+	await ir(admin.p, `#/mensajes/${codigo}`, 3500);
+	const hiloA = admin.p.locator('.msj-hilo');
+	await hiloA.locator('[aria-label^="Escribir una nota interna"]').click();
+	await hiloA.locator('.hilo-campo').fill('Nota interna: preguntar por la raza de los perros.');
+	await hiloA.locator('.hilo-campo').press('Enter');
+	await espera(2000);
+	await hiloA.locator('[aria-label^="Escribir una nota interna"]').click();
+	paso('El equipo deja una nota interna en el hilo («Solo el equipo»)', /Solo el equipo/.test(await hiloA.locator('.hilo-nota', { hasText: 'raza de los perros' }).innerText().catch(() => '')));
+	await socio.p.reload();
+	await espera(4000);
+	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents';
+	const idSocio = await socio.p.evaluate(async () => (await import('/admin/js/session.js')).session.user.getIdToken());
+	const conSocio = await fetch(`${fs}/notasEquipo/${token}/notas`, { headers: { Authorization: `Bearer ${idSocio}` } });
+	paso('El socio no ve la nota del equipo en su hilo ni la lee en la base (notasEquipo, con su sesión)', !/raza de los perros/.test(await socio.p.locator('.msj-hilo').innerText().catch(() => '')) && conSocio.status === 403, `${conSocio.status}`);
+}
+await cliente.p.reload();
+await espera(3000);
+paso('La nota interna no está en la página del cliente (ni se lee con su enlace); la respuesta citada sí, con su cita', !/raza de los perros/.test(await cliente.p.locator('body').innerText())
+	&& (await fetch(`http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents/notasEquipo/${token}/notas`)).status === 403
+	&& /aceptan 2 perros/.test(await cliente.p.locator('.hilo-m', { hasText: 'aceptamos mascotas' }).locator('.hilo-cita').innerText().catch(() => '')));
+// Dos pestañas del socio: lo que escribe en una aparece solo en la otra (en vivo).
+{
+	const otraPestana = await socio.p.context().newPage();
+	await otraPestana.goto(socio.p.url());
+	await espera(3500);
+	await hilo.locator('.hilo-campo').fill('¿A qué hora piensan llegar?');
+	await hilo.locator('.hilo-campo').press('Enter');
+	await espera(2500);
+	paso('Dos pestañas: el mensaje de una aparece en la otra sin recargar', await otraPestana.locator('.msj-hilo .hilo-yo', { hasText: '¿A qué hora piensan llegar?' }).count() === 1);
+	await otraPestana.close();
+}
+// Un chat de antes (sin estadoEn): el hilo abre con lo que sale de sus mensajes (la confirmación por su mensaje de pago)
+// y sin la línea de «cancelada», sin errores.
+{
+	const base = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const sv = (v) => ({ stringValue: v }), hace = (h) => ({ timestampValue: new Date(Date.now() - h * 3600000).toISOString() });
+	const VIEJO = 'ChatDeAntesSinEventosLargoYAlAzar1';
+	await fetch(`${base}/chats/${VIEJO}`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { codigo: sv('EQ-VIEJO'), propertyId: sv(idCasa), propertyTitulo: sv('Casa de prueba Monterrico'), propietarioId: sv('socio-prueba'),
+		nombre: sv('Rita Antigua'), llegada: sv('2026-12-20'), salida: sv('2026-12-22'), noches: { integerValue: '2' }, huespedes: { integerValue: '2' }, total: { doubleValue: 322.08 }, moneda: sv('USD'), estado: sv('cancelada'), createdAt: hace(72) } }) });
+	await fetch(`${base}/chats/${VIEJO}/mensajes/p1`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { de: sv('socio'), tipo: sv('pago'), texto: sv('Banco de prueba'), createdAt: hace(70) } }) });
+	await fetch(`${base}/chats/${VIEJO}/mensajes/p2`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { de: sv('cliente'), texto: sv('Gracias, lo reviso con mi esposo.'), createdAt: hace(69) } }) });
+	const errores = socio.errores.length;
+	await ir(socio.p, '#/mensajes/EQ-VIEJO', 3500);
+	const texto = await socio.p.locator('.msj-hilo').innerText();
+	paso('Un chat de antes sin eventos guardados abre su hilo con lo que se sabe (sin «Reserva cancelada» inventada) y sin errores',
+		/Confirmaste la reserva/.test(texto) && /lo reviso con mi esposo/.test(texto) && !/Reserva cancelada ·/.test(texto) && socio.errores.length === errores, texto.replace(/\s+/g, ' ').slice(0, 160));
+	await ir(socio.p, `#/mensajes/${codigo}`, 3000);
+}
 const tamano = socio.p.viewportSize();
 await socio.p.setViewportSize({ width: 390, height: 844 });
 await espera(400);
 await socio.p.screenshot({ path: `${CAPTURAS}/socio-chat-390.png` });
 await socio.p.setViewportSize(tamano);
-await socio.p.locator('.modal .btn-close').click();
-await espera(2500);
+await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Confirmar' }).click();
 await espera(800);
 const confirmo = delServidor(socio.p);
@@ -325,9 +514,10 @@ paso('Al confirmar, la solicitud sale de la campana', !trasConfirmar.enlaces.som
 
 await cliente.p.reload();
 await espera(2500);
-paso('El cliente ve «Reserva confirmada» y los datos de pago', /confirmada/i.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
+paso('El cliente ve «Reserva confirmada» (sus pasos) y los datos de pago', /Confirmada/.test(await cliente.p.locator('[data-out="pasos"] .hilo-paso-ok').allInnerTexts().then((x) => x.join(' ')))
+	&& /123-456789-0/.test(await cliente.p.locator('.vac-chat-mensajes .vac-chat-pago').innerText()) && /anfitrión confirmó tu reserva/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
 paso('El cliente todavía no ve la dirección', !/Calle Real 12/.test(await cliente.p.locator('.vac-chat-mensajes').innerText()));
-paso('El cliente ve la fecha y hora exactas para pagar', /Paga antes del \w+, \d+ \w+, \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
+paso('El cliente ve la fecha y hora exactas para pagar', /Vence (hoy|mañana|\S+ \d+ \S+) \d+:\d\d/.test(await cliente.p.locator('[data-out="sigue"]').innerText()) && /Subir comprobante/.test(await cliente.p.locator('[data-out="sigue"]').innerText()), await cliente.p.locator('[data-out="sigue"]').innerText());
 // Confirmada y con la cámara a la mano: un número de pago escrito se pide en foto.
 {
 	const aviso = await escribir('boleta 70012345');
@@ -339,7 +529,7 @@ const png = `${CAPTURAS}/comprobante.png`;
 writeFileSync(png, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
 await cliente.p.setInputFiles('.vac-chat-form input[type=file]', png);
 await espera(3500);
-paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.locator('.vac-chat-msj img').count() === 1, await cliente.p.locator('.vac-chat-aviso').innerText());
+paso('El cliente adjunta la foto de su comprobante (Storage)', await cliente.p.locator('.hilo-comp img').count() === 1, await cliente.p.locator('.vac-chat-aviso').innerText());
 paso('Con el comprobante enviado, la página ya no dice «Paga…»: «Comprobante enviado, el anfitrión lo revisa» y sin la cámara',
 	/Comprobante enviado/.test(await cliente.p.locator('[data-out="sigue"]').innerText()) && await cliente.p.locator('.vac-chat-adjuntar').isHidden(), await cliente.p.locator('[data-out="sigue"]').innerText());
 await cliente.p.locator('.vac-chat').screenshot({ path: `${CAPTURAS}/cliente-comprobante-enviado-390.png` }).catch(() => {});
@@ -354,12 +544,86 @@ await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 	await socio.p.setViewportSize(t0); await espera(300);
 	paso('El socio ve «Cliente subió comprobante» y «No me llegó» en vez de «Cancelar»', /Cliente subió comprobante/.test(conComprobante) && /No me llegó/.test(conComprobante) && !/Cancelar/.test(conComprobante), conComprobante.replace(/\s+/g, ' ').slice(0, 200));
 }
-await socio.p.locator('.card', { hasText: codigo }).first().locator('button', { hasText: 'Pago recibido' }).click();
+// ---------------------------------------------------------------- La foto del cliente la sirve el servidor (/api/foto)
+// El mensaje guarda solo la ruta; Storage no abre chats/ a nadie; /api/foto decide por quién la pide y la revisión. Una
+// foto que la revisión oculta: el socio y el enlace no la ven; el equipo la ve, con el aviso en Solicitudes y la campana
+// que lleva al chat, donde «Mostrar al socio» la deja ver.
+{
+	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const ch = (await (await fetch(`${fs}/chats/${token}`, { headers: ow })).json()).fields || {};
+	const idFoto = ch.comprobanteMensaje?.stringValue || '', leadId = ch.leadId?.stringValue || '';
+	const ruta = (await (await fetch(`${fs}/chats/${token}/mensajes/${idFoto}`, { headers: ow })).json()).fields?.texto?.stringValue || '';
+	const st = `http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(ruta)}`;
+	const [abre, datos] = (await Promise.all([fetch(`${st}?alt=media`), fetch(st)])).map((r) => r.status);
+	paso('La foto del comprobante se guarda por su ruta en la carpeta de su solicitud (sin el token de descarga: fotosChat/{solicitud}/1) y Storage no la abre a nadie, ni sus datos', ruta === `fotosChat/${leadId}/1` && abre === 403 && datos === 403, `${ruta.slice(0, 70)} · ${abre}/${datos}`);
+	const idDe = (p) => p.evaluate(async () => (await import('/admin/js/session.js')).session.user.getIdToken());
+	const pedirFoto = async (auth) => (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify({ token, mensaje: idFoto }) })).status;
+	const idSocio = await idDe(socio.p), idAdmin = await idDe(admin.p);
+	paso('/api/foto: sin revisión (IA apagada) la ven el socio, el enlace y el equipo', await pedirFoto(idSocio) === 200 && await pedirFoto('') === 200 && await pedirFoto(idAdmin) === 200);
+	// La revisión la oculta (trae un contacto): lo que escribe netlify/lib/comprobantes.mjs.
+	const mapa = (o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'boolean' ? { booleanValue: v } : typeof v === 'string' ? { stringValue: v } : v])) } });
+	await fetch(`${fs}/revisionesComprobante/${leadId}`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { mensaje: { stringValue: idFoto }, texto: { stringValue: 'El comprobante cuadra' }, cuadra: { booleanValue: true },
+		oculta: { booleanValue: true }, motivoOculta: { stringValue: 'Posible dato de contacto' }, propietarioId: { stringValue: 'socio-prueba' }, leido: mapa({ banco: '', referencia: '' }),
+		fotos: { mapValue: { fields: { [`f${idFoto}`]: mapa({ oculta: true, motivo: 'Posible dato de contacto' }) } } } } }) });
+	await fetch(`${fs}/chats/${token}?updateMask.fieldPaths=comprobanteOculto`, { method: 'PATCH', headers: ow, body: JSON.stringify({ fields: { comprobanteOculto: { stringValue: idFoto } } }) });
+	paso('/api/foto: con la foto oculta, el socio (con su sesión) y el enlace del chat (sin sesión) reciben 403; el equipo, la foto', await pedirFoto(idSocio) === 403 && await pedirFoto('') === 403 && await pedirFoto(idAdmin) === 200);
+	await cliente.p.reload();
+	await espera(3500);
+	paso('El cliente, al volver a abrir su enlace, ve la tarjeta sin la foto y que solo se aceptan comprobantes', await cliente.p.locator('.hilo-comp img').count() === 0 && /Solo se aceptan fotos del comprobante/.test(await cliente.p.locator('.hilo-comp').innerText().catch(() => '')));
+	await ir(socio.p, `#/mensajes/${codigo}`, 3500);
+	paso('El socio ve el comprobante sin la imagen («El equipo está revisando esta foto»)', await socio.p.locator('.msj-hilo .hilo-comp img').count() === 0 && /El equipo está revisando esta foto/.test(await socio.p.locator('.msj-hilo .hilo-comp').innerText().catch(() => '')));
+	await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
+	paso('En Solicitudes, el socio ve que el equipo revisa la foto (sin lo leído)', /El equipo está revisando la foto del comprobante/.test(await socio.p.locator('.card', { hasText: codigo }).first().innerText()));
+	// El equipo: la línea en Solicitudes y el aviso en la campana, que llevan al chat.
+	const eq = await entrar('admin', { escala: 2 });
+	await ir(eq.p, `#/solicitudes/${codigo}`, 4000);
+	const tarjetaEq = eq.p.locator('.card', { hasText: codigo }).first();
+	const lineaEq = await tarjetaEq.innerText();
+	const enlaceEq = await tarjetaEq.locator('a', { hasText: 'Revisar en el chat' }).getAttribute('href').catch(() => '');
+	await tarjetaEq.screenshot({ path: `${SEG}/foto-oculta-solicitudes-1280.png` });
+	const campanaEq = async () => {
+		await eq.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos')));
+		await espera(3000);
+		await eq.p.locator('.avisos-btn').click();
+		await espera(600);
+		return eq.p.locator('.avisos-lista .aviso-fila', { hasText: 'oculta al socio' }).first();
+	};
+	let filaEq = await campanaEq();
+	const textoAviso = await filaEq.innerText().catch(() => '');
+	const hrefAviso = await filaEq.locator('.aviso-enlace').getAttribute('href').catch(() => '');
+	await eq.p.locator('.avisos-lista').screenshot({ path: `${SEG}/foto-oculta-campana-1280.png` });
+	await eq.p.keyboard.press('Escape');
+	paso('Solicitudes (equipo): «Foto oculta al socio: Posible dato de contacto» con el enlace al chat', /Foto oculta al socio: Posible dato de contacto/.test(lineaEq) && enlaceEq === `#/mensajes/${encodeURIComponent(codigo)}`, lineaEq.replace(/\s+/g, ' ').slice(0, 160));
+	paso('La campana del equipo avisa la foto oculta y lleva al chat', /Foto de Ana oculta al socio/.test(textoAviso) && /Posible dato de contacto/.test(textoAviso) && hrefAviso === `#/mensajes/${encodeURIComponent(codigo)}`, `${textoAviso.replace(/\s+/g, ' ')} · ${hrefAviso}`);
+	await eq.p.setViewportSize({ width: 390, height: 844 });
+	await ir(eq.p, `#/solicitudes/${codigo}`, 4000);
+	await eq.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${SEG}/foto-oculta-solicitudes-390.png` });
+	filaEq = await campanaEq();
+	await eq.p.locator('.avisos-lista').screenshot({ path: `${SEG}/foto-oculta-campana-390.png` });
+	await filaEq.locator('.aviso-enlace').click();
+	await espera(3500);
+	const hiloEq = eq.p.locator('.msj-hilo');
+	paso('Desde el aviso, el equipo llega al chat: ve la foto y «Mostrar al socio»', /#\/mensajes\//.test(eq.p.url()) && await hiloEq.locator('.hilo-comp img').count() === 1 && await hiloEq.locator('button', { hasText: 'Mostrar al socio' }).count() === 1);
+	await hiloEq.locator('.hilo-comp').screenshot({ path: `${SEG}/foto-oculta-chat-equipo-390.png` });
+	await hiloEq.locator('button', { hasText: 'Mostrar al socio' }).click();
+	await espera(2500);
+	await ir(socio.p, `#/mensajes/${codigo}`, 3500);
+	paso('Con «Mostrar al socio», el socio ve la foto (por /api/foto) y el aviso de la campana se va', await socio.p.locator('.msj-hilo .hilo-comp img').count() === 1 && await pedirFoto(idSocio) === 200
+		&& await (async () => { await eq.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos'))); await espera(3000); return eq.p.locator('.avisos-lista .aviso-fila', { hasText: 'oculta al socio' }).count(); })() === 0);
+	await eq.p.context().close();
+}
+// «Pago recibido» desde el hilo de Mensajes: el comprobante como tarjeta y la acción en la ficha de la reserva (1280 px).
+await ir(socio.p, `#/mensajes/${codigo}`, 3500);
+paso('En Mensajes, el comprobante es una tarjeta del hilo y la ficha dice que lo subió', await socio.p.locator('.msj-hilo .hilo-comp img').count() === 1
+	&& /subió comprobante/.test(await socio.p.locator('.msj-lado .msj-pasos').innerText()) && await socio.p.locator('.msj-lado button', { hasText: 'No me llegó' }).count() + await socio.p.locator('.msj-lado [aria-label="No me llegó"]').count() >= 1);
+await socio.p.locator('.msj-lado button', { hasText: 'Pago recibido' }).click();
 await espera(800);
 const pagoRes = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Pago recibido' }).last().click();
 const r2 = await pagoRes;
-await espera(3000);
+await espera(3500);
+paso('Tras «Pago recibido» desde el hilo, el hilo lo dice («Marcaste «Pago recibido»») y la ficha queda «Pagada»', /Marcaste «Pago recibido»/.test(await socio.p.locator('.msj-hilo').innerText()) && /Pagada/.test(await socio.p.locator('.msj-hilo .hilo-cab').innerText()), await avisos(socio.p));
+await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 const trasPago = await socio.p.locator('.card', { hasText: codigo }).first().innerText();
 paso('El socio marca «Pago recibido», por el servidor', porServidor(r2, 'pago') && /Pago recibido/.test(trasPago), `${resp(r2)} · ${await avisos(socio.p)}`);
 paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(trasPago));
@@ -367,7 +631,7 @@ paso('Con el pago recibido, el socio ya no puede cancelar', !/Cancelar/.test(tra
 await cliente.p.reload();
 await espera(2500);
 const fin = await cliente.p.locator('.vac-chat-mensajes').innerText();
-paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('.vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin)
+paso('El cliente ve «Pago recibido» y los datos de llegada', /Pago recibido|Payment received/.test(await cliente.p.locator('[data-out="sigue"] .vac-chat-sello').innerText()) && /Calle Real 12/.test(fin) && /terracería/.test(fin)
 	&& /13\.8912/.test(await cliente.p.locator('.vac-chat-mensajes a[href*="maps"]').getAttribute('href').catch(() => '')));
 paso('Sin scroll de lado en «Tu reserva» (390 px)', await cliente.p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
 await cliente.p.screenshot({ path: `${CAPTURAS}/cliente-reserva.png`, fullPage: true });
@@ -378,6 +642,7 @@ await otro.p.goto(`${SITIO}${ficha}`);
 await espera(1500);
 await otro.p.locator('.vac-cal-next').click();
 await espera(400);
+await saltarFinDeMes(otro.p);
 const libres = () => otro.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await libres().nth(3).click();
 await libres().nth(5).click();
@@ -400,7 +665,7 @@ await espera(3000);
 paso('El socio responde «No se dio», por el servidor', porServidor(r3, 'no') && /No se dio/.test(await socio.p.locator('.card', { hasText: codigo2 }).first().locator('.badge').first().innerText()), `${resp(r3)} · ${await avisos(socio.p)}`);
 await otro.p.reload();
 await espera(2500);
-paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón para elegir otras fechas (sin la cámara del comprobante)', /No se concretó/.test(await otro.p.locator('.vac-chat-sello').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText())
+paso('Ese cliente ve «No se concretó», el mensaje con el motivo y un botón para elegir otras fechas (sin la cámara del comprobante)', /No se concretó/.test(await otro.p.locator('[data-out="sigue"]').innerText()) && /no está disponible/.test(await otro.p.locator('.vac-chat-mensajes').innerText())
 	&& await otro.p.locator('[data-out="sigue"] a', { hasText: 'Elegir otras fechas' }).isVisible() && await otro.p.locator('.vac-chat-adjuntar').isHidden());
 
 // ---------------------------------------------------------------- 4c. Una confirmada que el socio cancela (el cliente no pagó)
@@ -415,6 +680,7 @@ await tercero.p.goto(`${SITIO}${ficha}`);
 await espera(1500);
 await tercero.p.locator('.vac-cal-next').click();
 await espera(400);
+await saltarFinDeMes(tercero.p);
 const libres3 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await libres3().nth(12).click();
 await libres3().nth(14).click();
@@ -427,6 +693,39 @@ await tercero.p.waitForURL(/\/reserva\/#/, { timeout: 15000 }).catch(() => {});
 await espera(1500);
 const codigo3 = (await tercero.p.locator('[data-out="codigo"]').innerText().catch(() => '')).trim();
 const llegada3 = (await leer(`chats/${(tercero.p.url().match(/#(\w+)/) || [])[1]}`)).fields?.llegada?.stringValue || '';
+// Una solicitud sin responder con «El correo no llegó»: el administrador corrige el correo en Solicitudes (crm.js
+// corregirCorreo). La marca se va, el cambio queda en el historial sin cerrar la solicitud y, al confirmar el socio por el
+// servidor, el correo de la confirmación sale al corregido.
+const token3 = (tercero.p.url().match(/#(\w+)/) || [])[1] || '';
+const leadId3 = (await leer(`chats/${token3}`)).fields?.leadId?.stringValue || '';
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	await fetch(`${FS}/leads/${leadId3}?updateMask.fieldPaths=reboteCorreo`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { reboteCorreo: { mapValue: { fields: { motivo: { stringValue: 'Mailbox does not exist' }, cuando: { timestampValue: new Date().toISOString() } } } } } }) });
+	await ir(admin.p, `#/solicitudes/${codigo3}`, 3500);
+	const t3 = () => admin.p.locator('.card', { hasText: codigo3 }).first();
+	const conRebote = await t3().innerText();
+	await t3().screenshot({ path: `${TANDA}/solicitud-rebote-antes-1280.png` });
+	await t3().locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	await admin.p.locator('.modal.show input[type=email]').fill('Marta.OK@Example.com');
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a marta\.ok@example\.com$/ }).click();
+	await espera(3500);
+	// El enlace cambió (rotar-enlace.mjs): Marta sigue con el nuevo, el que le llegó al correo corregido.
+	const nuevo3 = (await leer(`chatsPorSolicitud/${leadId3}`)).fields?.token?.stringValue || '';
+	paso('Al corregir el correo de Marta, su enlace cambia', Boolean(nuevo3) && nuevo3 !== token3 && (await fetch(`${FS}/chats/${token3}`)).status === 404, `${token3.slice(0, 6)}… → ${nuevo3.slice(0, 6)}…`);
+	await tercero.p.goto(`${SITIO}/reserva/#${nuevo3}`);
+	await tercero.p.reload();
+	await espera(2000);
+	const sinRebote = await t3().innerText();
+	await t3().screenshot({ path: `${TANDA}/solicitud-rebote-despues-1280.png` });
+	const l3 = (await leer(`leads/${leadId3}`)).fields || {};
+	const sol3 = l3.solicitud?.mapValue?.fields || {};
+	paso('Solicitud sin responder con «El correo no llegó»: al corregir el correo, la marca se va y queda en el historial sin cerrarla',
+		/El correo no llegó/.test(conRebote) && !/El correo no llegó/.test(sinRebote) && !l3.reboteCorreo && l3.email?.stringValue === 'marta.ok@example.com' && !sol3.estado
+		&& (sol3.historial?.arrayValue?.values || []).some((x) => x.mapValue.fields.que?.stringValue === 'Correo corregido: marta@example.com → marta.ok@example.com') && /Confirmar/.test(sinRebote),
+		`${l3.email?.stringValue} · estado ${sol3.estado?.stringValue || '—'} · ${await avisos(admin.p)}`);
+}
 // La ficha de la casa queda abierta en el panel del administrador mientras el socio confirma esta reserva y cambia su
 // precio en «Mis propiedades»: al guardar la ficha, nada de eso se pierde (antes la ficha reescribía la casa entera).
 await ir(admin.p, `#/propiedades/${idCasa}`, 3500);
@@ -438,6 +737,14 @@ await socio.p.locator('.modal button', { hasText: /Confirmar/ }).last().click();
 const r4 = await confirmo3;
 await espera(3000);
 paso('El socio confirma una tercera reserva (por el servidor) y las fechas quedan ocupadas', porServidor(r4, 'confirmar') && Boolean(llegada3) && (await reservadas()).includes(llegada3), `${codigo3} · ${resp(r4)}`);
+{
+	const sol3 = (await leer(`leads/${leadId3}`)).fields?.solicitud?.mapValue?.fields || {};
+	const ques = (sol3.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	const conf = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((c) => (c.subject || '').includes(codigo3) && /confirmada/.test(c.subject || ''));
+	const a3 = conf.map((c) => (c.to || []).map((t) => t.email_address?.address || t).join(','));
+	paso('Con el correo corregido antes, la solicitud se confirma con sus dos renglones y la confirmación sale al correo nuevo',
+		sol3.estado?.stringValue === 'confirmada' && ques.length >= 2 && ques.some((q) => /^Correo corregido/.test(q)) && a3.includes('marta.ok@example.com') && !a3.includes('marta@example.com'), `${ques.join(' | ')} · ${a3.join(' ')}`);
+}
 {
 	await ir(socio.p, `#/mis-casas/${idCasa}`, 3500);
 	await socio.p.fill('#mc-base', '110');
@@ -502,7 +809,7 @@ paso('El socio cancela esa reserva (el cliente no pagó), por el servidor', porS
 paso('Las fechas canceladas vuelven a quedar libres', !(await reservadas()).includes(llegada3));
 await tercero.p.reload();
 await espera(2500);
-paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
+paso('Ese cliente ve «Reserva cancelada» y el mensaje', /cancelada/i.test(await tercero.p.locator('[data-out="sigue"]').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()));
 
 // ---------------------------------------------------------------- 4c2. Lo del socio, solo por el servidor
 // El servidor (netlify/functions/reservas.mjs) revisa de quién es, si ya se respondió y si las fechas chocan, y no toma
@@ -813,6 +1120,7 @@ let otraPestana = null;
 	await tercero.p.goto(`${SITIO}${ficha}`);
 	await espera(1500);
 	for (let i = 0; i < 3; i++) { await tercero.p.locator('.vac-cal-next').click(); await espera(300); }
+	await saltarFinDeMes(tercero.p);
 	const libres4 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 	await libres4().nth(5).click();
 	await libres4().nth(7).click();
@@ -847,7 +1155,7 @@ await tercero.p.locator('.vac-card button[type=submit]').click();
 	await tercero.p.reload();
 	await espera(2500);
 	paso('Cancelar en Rentas una reserva de la web: fechas libres, la solicitud y el chat dicen «cancelada» y el cliente lo ve', ocupada4 && !(await reservadas()).includes(llegada4) && chat4.estado?.stringValue === 'cancelada'
-		&& lead4.solicitud?.mapValue?.fields?.estado?.stringValue === 'cancelada' && /cancelada/i.test(await tercero.p.locator('.vac-chat-sello').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()), `${codigo4} ${llegada4} ${await avisos(admin.p)}`);
+		&& lead4.solicitud?.mapValue?.fields?.estado?.stringValue === 'cancelada' && /cancelada/i.test(await tercero.p.locator('[data-out="sigue"]').innerText()) && /se canceló/.test(await tercero.p.locator('.vac-chat-mensajes').innerText()), `${codigo4} ${llegada4} ${await avisos(admin.p)}`);
 }
 
 // ---------------------------------------------------------------- 4d. El control de cada hora (lo que el socio deja sin responder)
@@ -896,7 +1204,7 @@ paso('Correo al socio por la solicitud nueva', resumen.some((r) => /socio@exampl
 paso('Correo al cliente con su enlace', resumen.some((r) => /ana@example\.com ← Tu solicitud/.test(r)));
 paso('Correo al cliente con la confirmación (datos de pago)', resumen.some((r) => /ana@example\.com ← .*confirmada/.test(r)));
 paso('Correo al socio cuando el cliente adjunta su comprobante', resumen.some((r) => /socio@example\.com ← .*comprobante/.test(r)));
-paso('Correo al cliente cuando el socio cancela', resumen.some((r) => /marta@example\.com ← .*cancelada/.test(r)));
+paso('Correo al cliente cuando el socio cancela (al correo que corrigió el equipo)', resumen.some((r) => /marta\.ok@example\.com ← .*cancelada/.test(r)));
 paso('Correo al equipo cuando el socio cancela (sale del servidor)', resumen.some((r) => /equipo@example\.com ← .*el socio canceló/.test(r)));
 const alerta = correos.find((c) => /^Reservas:/.test(c.subject || ''));
 paso('Control de cada hora: correo al equipo con lo que el socio dejó sin responder', Boolean(alerta) && para(alerta) === 'equipo@example.com' && /EQ-VIEJA/.test(JSON.stringify(alerta)) && /EQ-MUDO/.test(JSON.stringify(alerta)), alerta?.subject || 'no salió');
@@ -909,6 +1217,158 @@ paso('Ese correo lleva al panel, no al WhatsApp del cliente', Boolean(alerta) &&
 paso('Correo al cliente cuando la reserva no se da', resumen.some((r) => /luis@example\.com ← .*no se concretó/.test(r)));
 paso('Correo al cliente con el pago recibido (datos de llegada)', resumen.some((r) => /ana@example\.com ← .*pago recibido/.test(r)));
 paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos.some((c) => /305 555 1234|5555 0001/.test(JSON.stringify(c)) || (para(c).includes('socio@') && /ana@example/.test(JSON.stringify({ ...c, to: '' })))));
+
+// ---------------------------------------------------------------- 5b. Corregir el correo del cliente (Solicitudes y ficha del cliente)
+// Una sola pieza (admin/js/crm.js corregirCorreo): el correo queda en la solicitud, que es de donde lo leen los avisos del
+// servidor; el siguiente aviso sale al nuevo y ninguno al de antes.
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3500);
+	const tarjetaA = admin.p.locator('.card', { hasText: codigo }).first();
+	paso('Solicitudes: el administrador ve el correo del cliente con el lápiz para corregirlo', /ana@example\.com/.test(await tarjetaA.innerText()) && await tarjetaA.locator('[aria-label="Corregir el correo"]').count() === 1);
+	const lapiz = await tarjetaA.locator('[aria-label="Corregir el correo"]').boundingBox();
+	paso('Solicitudes: el lápiz del correo mide 44 px o más de alto', lapiz && lapiz.height >= 44 && lapiz.width >= 44, lapiz ? `${Math.round(lapiz.width)}×${Math.round(lapiz.height)}` : 'sin botón');
+	await tarjetaA.screenshot({ path: `${TANDA}/solicitud-correo-1280.png` });
+	await tarjetaA.locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	const campoCorreo = admin.p.locator('.modal.show input[type=email]');
+	await campoCorreo.fill('ana.nueva@gmial.com');
+	await campoCorreo.blur();
+	await espera(300);
+	const pistaC = await admin.p.locator('.modal.show .form-text:not([hidden])').innerText().catch(() => '');
+	await campoCorreo.fill('ana.nueva@');
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar$/ }).click();
+	await espera(800);
+	const sigueAbierta = await admin.p.locator('.modal.show input[type=email]').count() === 1;
+	paso('Corregir el correo: sugiere el dominio bien escrito y no guarda uno incompleto', /gmail\.com/.test(pistaC) && sigueAbierta, pistaC);
+	// Antes de guardar, el botón dice a qué correo se reenvía su reserva, tal como se guarda (sin espacios y en minúsculas);
+	// con el mismo correo de ahora, no guarda.
+	await campoCorreo.fill('ANA@example.com ');
+	const igualC = admin.p.locator('.modal.show .modal-footer .btn-primary');
+	const conElMismo = [await igualC.innerText(), await igualC.isDisabled()];
+	await campoCorreo.fill('  Ana.Nueva@Example.com ');
+	const botonC = (await igualC.innerText()).trim();
+	const anchoC = await admin.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	// El botón largo va en la misma fila que «Cancelar» (no baja a la suya).
+	const filaC = await admin.p.evaluate(() => { const [a, b] = [...document.querySelectorAll('.modal.show .modal-footer .btn')].map((x) => x.getBoundingClientRect()); return a && b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 99; });
+	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-confirmar-1280.png` });
+	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio, junto a «Cancelar»; con el mismo de ahora, «Reenviar a …» (otro enlace nuevo)',
+		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === false && /^Reenviar a ana@example\.com$/.test(conElMismo[0].trim()) && anchoC <= 0 && filaC < 2, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]} · fila ${filaC}`);
+	const antesC = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	const leadId = (await leer(`chats/${token}`)).fields?.leadId?.stringValue;
+	const tokenViejo = token;
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
+	await espera(4500);
+	const reenvio = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l)).filter((c) => /El enlace de tu reserva/.test(c.subject || ''));
+	// El enlace cambia (el viejo pudo llegar a otra persona): todo pasa al token nuevo y el viejo deja de servir.
+	token = (await leer(`chatsPorSolicitud/${leadId}`)).fields?.token?.stringValue || '';
+	{
+		const enlace = (JSON.stringify(reenvio[0] || {}).match(/\/reserva\/#([A-Za-z0-9]+)/) || [])[1] || '';
+		const viejoChat = await fetch(`${FS}/chats/${tokenViejo}`);
+		const viejoMsj = await fetch(`${FS}/chats/${tokenViejo}/mensajes?pageSize=5`).then((r) => r.json());
+		const commit = `${FS}`.replace(/\/documents$/, '/documents:commit');
+		const escribeViejo = await fetch(commit, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ writes: [{ update: { name: `projects/demo-eq/databases/(default)/documents/chats/${tokenViejo}/mensajes/viejo1`,
+			fields: { de: { stringValue: 'cliente' }, texto: { stringValue: 'Hola' } } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) });
+		const nuevos = (await fetch(`${FS}/chats/${token}/mensajes?pageSize=300`).then((r) => r.json())).documents || [];
+		const fotoNueva = nuevos.map((d) => d.fields).find((f) => f.tipo?.stringValue === 'foto')?.texto?.stringValue || '';
+		const conVieja = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o?prefix=${encodeURIComponent(`chats/${tokenViejo}/`)}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
+		const notaNueva = ((await leer(`notasEquipo/${token}/notas`)).documents || []).some((d) => /raza de los perros/.test(d.fields?.texto?.stringValue || ''));
+		paso('Al corregir el correo, el enlace cambia: el correo lleva el nuevo; con el viejo no hay chat, ni mensajes, ni se puede escribir; los mensajes y la nota pasan al nuevo y la foto sigue en la carpeta de su solicitud (no se mueve)',
+			token && token !== tokenViejo && enlace === token && viejoChat.status === 404 && !(viejoMsj.documents || []).length && escribeViejo.status === 403
+			&& nuevos.length >= 3 && fotoNueva === `fotosChat/${leadId}/1` && !(conVieja.items || []).length && notaNueva,
+			`${tokenViejo.slice(0, 6)}… → ${token.slice(0, 6)}… · correo ${enlace.slice(0, 6)}… · viejo ${viejoChat.status}/${escribeViejo.status} · ${nuevos.length} mensajes · foto ${fotoNueva.slice(0, 40)} · nota ${notaNueva}`);
+		// El cliente con el enlace viejo ya no entra; con el nuevo ve su reserva, el chat y la foto (390 y 1280).
+		for (const ancho of [390, 1280]) {
+			const c = await persona(ancho, { escala: 2 });
+			await c.p.goto(`${SITIO}/reserva/#${tokenViejo}`);
+			await espera(2500);
+			const conViejo = await c.p.locator('.vac-chat-estado').innerText().catch(() => '');
+			await c.p.goto(`${SITIO}/reserva/#${token}`);
+			await c.p.reload();
+			await espera(4000);
+			await c.p.screenshot({ path: `${SEG}/cliente-tras-cambio-de-correo-${ancho}.png`, fullPage: true });
+			paso(`Cliente tras el cambio de correo (${ancho} px): el enlace viejo no abre la reserva; el nuevo abre su reserva con el chat y la foto`,
+				/no encontramos|not find|no existe/i.test(conViejo) && /aceptan 2 perros/.test(await c.p.locator('.vac-chat-mensajes').innerText().catch(() => '')) && await c.p.locator('.hilo-comp img').count() === 1,
+				`«${conViejo.slice(0, 60)}» · ${await c.p.locator('.hilo-comp img').count()} foto`);
+			await c.p.context().close();
+		}
+		// Con el teléfono en inglés, «View this site in English» no tapa el campo para escribir ni «Enviar» (antes flotaba abajo,
+		// encima de ellos: se reproduce con el estilo de antes).
+		for (const ancho of [390, 1280]) {
+			const c = await persona(ancho, { escala: 2, idioma: 'en-US' });
+			await c.p.goto(`${SITIO}/reserva/#${token}`);
+			await espera(4000);
+			const cruce = () => c.p.evaluate(() => {
+				const a = document.querySelector('.aviso-idioma');
+				if (!a || a.hidden) return null;
+				const r = a.getBoundingClientRect();
+				return ['.vac-chat-form textarea', '.vac-chat-form button[type=submit]'].some((s) => { const x = document.querySelector(s)?.getBoundingClientRect(); return x && r.left < x.right && r.right > x.left && r.top < x.bottom && r.bottom > x.top; });
+			});
+			const ahora = await cruce();
+			// Y la barra (fija, con el aviso dentro) no tapa el título de la reserva.
+			const tapaTitulo = await c.p.evaluate(() => document.querySelector('.vac-chat-cuerpo .hilo-cab').getBoundingClientRect().top < document.querySelector('.site-nav').getBoundingClientRect().bottom - 1);
+			const scrollLado = await c.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+			await c.p.screenshot({ path: `${SEG}/aviso-ingles-chat-${ancho}.png` });
+			await c.p.addStyleTag({ content: '.pagina-chat .aviso-idioma { position: fixed; transform: translateX(-50%); margin: 0; bottom: 16px; left: 50%; }' });
+			await espera(300);
+			const antes = await cruce();
+			paso(`Chat del cliente (${ancho} px, teléfono en inglés): «View this site in English» no tapa el campo, «Enviar» ni el título${ancho < 600 ? ' (con el estilo de antes, sí lo tapaba)' : ''}`,
+				ahora === false && !tapaTitulo && scrollLado <= 0 && (ancho >= 600 || antes === true), `ahora ${ahora} · antes ${antes} · título tapado ${tapaTitulo} · lado ${scrollLado}`);
+			await c.p.context().close();
+		}
+	}
+	const lead = (await leer(`leads/${leadId}`)).fields || {};
+	const hist = (lead.solicitud?.mapValue?.fields?.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	paso('Solicitudes: el correo corregido queda en la solicitud (limpio, en minúsculas) con su renglón en el historial',
+		lead.email?.stringValue === 'ana.nueva@example.com' && hist.includes('Correo corregido: ana@example.com → ana.nueva@example.com') && /ana\.nueva@example\.com/.test(await admin.p.locator('.card', { hasText: codigo }).first().innerText()),
+		`${lead.email?.stringValue} · ${hist.at(-1)} · ${await avisos(admin.p)}`);
+	// Al guardar, el servidor le reenvía al cliente el enlace de su reserva (el aviso que se perdió), solo al correo nuevo, y
+	// queda en el historial. La tarjeta sigue diciendo lo último que pasó (no la corrección).
+	const resumenC = await admin.p.locator('.card', { hasText: codigo }).first().locator('details summary').first().innerText().catch(() => '');
+	paso('Con el correo corregido, le llega el enlace de su reserva al nuevo (uno solo), queda «Se reenvió el enlace a …» y la tarjeta sigue con lo último que pasó',
+		reenvio.length === 1 && para(reenvio[0]) === 'ana.nueva@example.com' && hist.includes('Se reenvió el enlace a ana.nueva@example.com') && Boolean(resumenC) && !/^(Correo corregido|Se reenvió)/.test(resumenC.trim()),
+		`${reenvio.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió'} · ${hist.slice(-2).join(' | ')} · resumen: ${resumenC.slice(0, 80)}`);
+	// El siguiente aviso al cliente (el equipo le escribe en el chat) sale al correo nuevo. Que el cliente vio el chat hace
+	// 4 min, después de los mensajes de antes (netlify/lib/avisos-chat.mjs: visto hace menos de 3 min, está conversando; un
+	// mensaje de la casa ya avisado después de «visto», no se repite): fijo, así no depende de cuánto tardó el recorrido.
+	await fetch(`${FS}/chats/${token}?updateMask.fieldPaths=vistoCliente`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ fields: { vistoCliente: { timestampValue: new Date(Date.now() - 4 * 60_000).toISOString() } } }) });
+	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Chat con el cliente"]').click();
+	await espera(3000);
+	await admin.p.locator('.msj-hilo .hilo-campo').fill('Te esperamos el día de llegada.');
+	await admin.p.locator('.msj-hilo .hilo-campo').press('Enter');
+	await espera(4000);
+	// En el hilo del equipo, lo del socio lleva su nombre («Socio · …») y la nota interna del equipo se ve (pasó al enlace nuevo).
+	paso('El equipo ve en Mensajes lo que escribió el socio con su etiqueta y la nota interna del equipo', /Socio/.test(await admin.p.locator('.msj-hilo .hilo-otro', { hasText: 'aceptamos mascotas' }).locator('.hilo-quien').innerText().catch(() => ''))
+		&& /raza de los perros/.test(await admin.p.locator('.msj-hilo .hilo-nota').innerText().catch(() => '')));
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3000);
+	const nuevos = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesC).map((l) => JSON.parse(l));
+	const delChat = nuevos.filter((c) => !/El enlace de tu reserva/.test(c.subject || ''));
+	paso('Con el correo corregido, el aviso siguiente le llega al nuevo y ninguno al de antes', delChat.some((c) => para(c) === 'ana.nueva@example.com') && !nuevos.some((c) => para(c).includes('ana@example.com')), nuevos.map((c) => `${para(c)} ← ${c.subject}`).join(' | ') || 'no salió');
+	await admin.p.setViewportSize({ width: 390, height: 844 });
+	await ir(admin.p, `#/solicitudes/${codigo}`, 3000);
+	await admin.p.locator('.card', { hasText: codigo }).first().screenshot({ path: `${TANDA}/solicitud-correo-390.png` });
+	paso('Solicitudes a 390 px: sin scroll de lado con el correo y el lápiz', await admin.p.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
+	await admin.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Corregir el correo"]').click();
+	await espera(800);
+	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-ventana-390.png` });
+	await admin.p.locator('.modal.show .btn-close').click();
+	await espera(600);
+	await admin.p.setViewportSize({ width: 1280, height: 900 });
+	// Ficha del cliente: el correo corregido pasa a sus leads (a donde escriben los avisos) y quita «El correo no llegó».
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const sv = (v) => ({ stringValue: v });
+	await fetch(`${FS}/clientes/cli-correo`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: { nombre: sv('Pedro Correo (prueba)'), email: sv('pedro@hotmial.com'), telefono: sv('+502 5555 8888'), agentId: sv(''), etapa: sv('nuevo'), tipo: sv('comprador') } }) });
+	for (const id of ['lead-correo-1', 'lead-correo-2']) await fetch(`${FS}/leads/${id}`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: { nombre: sv('Pedro'), telefono: sv('+502 5555 8888'), email: sv('pedro@hotmial.com'), clienteId: sv('cli-correo'), agentId: sv(''), estado: sv('nuevo'),
+		...(id === 'lead-correo-1' ? { reboteCorreo: { mapValue: { fields: { motivo: sv('No existe') } } } } : {}) } }) });
+	await ir(admin.p, '#/clientes/cli-correo', 3500);
+	await campo(admin.p, 'email').fill('pedro@hotmail.com');
+	await admin.p.locator('button', { hasText: /^Guardar datos$/ }).click();
+	await espera(3500);
+	const l1 = (await leer('leads/lead-correo-1')).fields || {}, l2 = (await leer('leads/lead-correo-2')).fields || {};
+	paso('Ficha del cliente: el correo corregido pasa a sus leads y quita «El correo no llegó»', l1.email?.stringValue === 'pedro@hotmail.com' && l2.email?.stringValue === 'pedro@hotmail.com' && !l1.reboteCorreo,
+		`${l1.email?.stringValue} · ${l2.email?.stringValue} · rebote ${Boolean(l1.reboteCorreo)} · ${await avisos(admin.p)}`);
+}
 
 // ---------------------------------------------------------------- 6. El asesor (no administrador)
 const asesor = await entrar('asesor');
@@ -934,7 +1394,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 		await m.locator('.modal-footer button', { hasText: 'Guardar' }).click();
 		await espera(7000);
 		const id = ((await leer(`propietarios/${ruta.split('/').pop()}`)).fields?.propiedades?.arrayValue?.values || []).pop()?.mapValue?.fields?.propertyId?.stringValue || '';
-		const ficha = await persona.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
+		const ficha = await persona.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '');
 		await persona.p.locator('.list-field').scrollIntoViewIfNeeded();
 		await persona.p.screenshot({ path: `${CAPTURAS}/${archivo}-ficha.png` });
 		const lado2 = await persona.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -951,14 +1411,15 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	paso('Sin scroll de lado en la ventana «Nueva propiedad» (390 px)', a.lado <= 0);
 	paso('La casa elegida se ve en su ficha corta', /Casa del lago/.test(a.ficha), a.ficha);
 	// Es la misma ficha de Propiedades (una sola forma de crear y editar): desde aquí también se corrige y se elimina.
-	const lapiz = () => admin.p.locator('.list-field-item').last().locator('button[aria-label^="Editar la propiedad"], button[title^="Editar la propiedad"]').first();
+	// La fila de la casa (la misma de Propiedades) se toca para editarla; su title lo dice.
+	const lapiz = () => admin.p.locator('.list-field-item').last().locator('.casa-fila[title^="Editar la propiedad"]').first();
 	await lapiz().click();
 	await espera(3000);
 	const conFotos = await admin.p.locator('.modal.show [data-campo="fotos"]').count();
 	await campo(admin.p.locator('.modal.show'), 'titulo').fill('Casa del lago corregida (prueba)');
 	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Guardar' }).click();
 	await espera(7000);
-	const corregida = await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '');
+	const corregida = await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '');
 	paso('Desde la ficha de la persona se corrige la casa en su ficha completa (con fotos)', conFotos === 1 && /corregida/.test(corregida) && /corregida/.test((await leer(`properties/${a.id}`)).fields?.titulo?.stringValue || ''), `${conFotos} ${corregida}`);
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-en-ventana-1280.png` });
 	// Una casa creada por error se elimina desde ahí mismo: se crea otra y se borra.
@@ -1012,23 +1473,25 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const acordado = await honorario();
 	paso('Una cotización nueva empieza con la comisión general y, al elegir el inmueble, toma la acordada para él', general === '5' && acordado === '4.5', `${general} → ${acordado}`);
 	// El selector muestra solo la categoría del dueño, con una ficha por inmueble, y el buscador encuentra.
+	// La operación de cada fila de casa (la dice su data-operacion; el texto la da el precio: «/mes», «por noche»).
+	const operaciones = (sel) => admin.p.locator(sel).evaluateAll((filas) => filas.map((f) => f.dataset.operacion));
 	const abrirSelector = async (ruta) => {
 		await ir(admin.p, ruta);
 		await admin.p.locator('button', { hasText: 'Agregar propiedad' }).click();
 		await espera(800);
-		return admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+		return operaciones('.modal.show .casa-fila');
 	};
 	// Una sola ficha por persona: el socio ve sus casas por noche y, cambiando de pestaña, le agrego una en venta.
 	const delSocio = await abrirSelector('#/propietarios/socio-prueba');
 	await admin.p.locator('.modal.show .btn-group button', { hasText: 'Venta' }).click();
 	await espera(300);
-	const enVenta = await admin.p.locator('.modal.show .list-group-item .prop-zona').allInnerTexts();
+	const enVenta = await operaciones('.modal.show .casa-fila');
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
-	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => /Venta|Renta ·/.test(x)) && enVenta.length > 0 && enVenta.every((x) => /Venta/.test(x)) && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
-	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click();
+	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => x === 'venta' || x === 'renta') && enVenta.length > 0 && enVenta.every((x) => x === 'venta') && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
+	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click();
 	await espera(600);
-	const titulos = await admin.p.locator('.list-field .prop-zona').allInnerTexts();
-	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.some((x) => /vacacional/i.test(x)) && titulos.some((x) => /Venta/.test(x))
+	const titulos = await operaciones('.list-field .casa-fila');
+	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.includes('vacacional') && titulos.includes('venta')
 		&& await admin.p.locator('[data-campo="agentId"]').isVisible() && await admin.p.locator('[data-campo="datosPago"]').isVisible(), titulos.join(' | '));
 	await admin.p.locator('.list-field').scrollIntoViewIfNeeded();
 	await admin.p.screenshot({ path: `${CAPTURAS}/ficha-dos-categorias-1280.png` });
@@ -1042,12 +1505,12 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await espera(800);
 	await admin.p.locator('.modal.show input[type=search]').fill('mirabel');
 	await espera(300);
-	const halladas = await admin.p.locator('.modal.show .list-group-item .prop-titulo').allInnerTexts();
+	const halladas = await admin.p.locator('.modal.show .casa-fila .casa-titulo').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
-	await admin.p.locator('.modal.show .list-group-item', { hasText: 'Mirabel' }).first().click().catch(() => {});
+	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click().catch(() => {});
 	await espera(600);
-	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.some((x) => /vacacional/i.test(x)) && halladas.length === 1
-		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.prop-titulo').innerText().catch(() => '')), halladas.join(' | '));
+	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
+		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '')), halladas.join(' | '));
 	// Acuerdos anotados antes en la persona: al abrir Propietarios pasan a cada inmueble, sin escribir encima ni perder nada.
 	{
 		const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
@@ -1320,8 +1783,8 @@ const duenos = [];
 	// b) Entra y ve sus dos casas.
 	duenos.push(['dueña mixta', mixta]);
 	const menu = await mixta.p.locator('.admin-nav a').allInnerTexts();
-	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades y Solicitudes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
-		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.length === 2, menu.join(', '));
+	paso('La dueña mixta entra con su contraseña como «Propietario» y ve Mis propiedades, Solicitudes y Mensajes (tiene una casa por noche)', (await mixta.p.locator('.admin-user-role').innerText()) === 'Propietario'
+		&& menu.join('|').includes('Mis propiedades') && menu.join('|').includes('Solicitudes') && menu.join('|').includes('Mensajes') && menu.length === 3, menu.join(', '));
 	await ir(mixta.p, '#/mis-casas', 3000);
 	const listaMixta = await mixta.p.locator('.admin-main').innerText();
 	paso('«Mis propiedades» muestra su casa en venta y su casa por noche, sin notas internas', /Residencial San Antonio/.test(listaMixta) && /Casa por noche de la dueña mixta/.test(listaMixta) && !/NOTA INTERNA/.test(listaMixta));
@@ -1364,6 +1827,17 @@ const duenos = [];
 		lineasMixta.length === 1 && /^precio entre semana: (US\$|Q) [\d,.]+ → (US\$|Q) 95$/.test(lineasMixta[0]) && /Ya estaba así/.test(yaEstaba), `${lineasMixta.join(' | ')} · ${yaEstaba}`);
 	const cabeza = await mixta.p.locator('.admin-main .h4').nth(1).innerText().catch(() => '');
 	paso('La cabecera de su casa por noche muestra al momento lo que verá el cliente con su precio nuevo', /US\$ 114\.00/.test(cabeza), cabeza);
+	// Un precio de antes que no cabe en el texto (1,500,000, lo puso el equipo): la dueña lo cambia y su línea lleva el
+	// nuevo, sin el de antes (las reglas lo aceptan así; si las reglas lo negaran, el panel guardaría sin valores).
+	{
+		await fetch(`${FS}/properties/casa-noche-mixta/privado/socio?updateMask.fieldPaths=precioBase`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { precioBase: { integerValue: '1500000' } } }) });
+		await ir(mixta.p, '#/mis-casas/casa-noche-mixta', 3500);
+		await mixta.p.fill('#mc-base', '95');
+		await mixta.p.locator('#mc-base').press('Tab');
+		await espera(3000);
+		const ultima = (await lineasBitacora('casa-noche-mixta')).at(-1);
+		paso('«Mis propiedades»: con un precio de antes de 1,500,000, la línea guarda el nuevo con su valor (sin el de antes)', ultima === 'precio entre semana: US$ 95', `${ultima} · ${await avisos(mixta.p)}`);
+	}
 	// e) Celular: sin scroll de lado en la lista ni en la casa en venta.
 	await mixta.p.setViewportSize({ width: 390, height: 844 });
 	await ir(mixta.p, '#/mis-casas', 3000);
@@ -1384,9 +1858,9 @@ const duenos = [];
 		const m = await import('/admin/js/firebase.js');
 		return m.getDocs(m.query(m.collection(m.db, 'portalPropietarios'), m.where('propietarioId', '==', 'dueno-mixto'))).then(() => 'leyó', (e) => e.code);
 	});
-	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes) y no lee el resumen de otra persona',
+	paso('El colaborador entra como «Colaborador», ve solo la casa enlazada a él (sin Solicitudes ni Mensajes) y no lee el resumen de otra persona',
 		(await colab.p.locator('.admin-user-role').innerText()) === 'Colaborador' && /Jardines de Mirabel/.test(deColab) && !/San Antonio|dueña mixta/.test(deColab)
-		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
+		&& await colab.p.locator('.admin-nav a', { hasText: 'Solicitudes' }).count() === 0 && await colab.p.locator('.admin-nav a', { hasText: 'Mensajes' }).count() === 0 && ajeno === 'permission-denied', ajeno);
 	// g) El asesor (no lee los usuarios) ve si entra, también después de guardar la ficha; quitar el acceso cierra la entrada.
 	await ir(admin.p, '#/propietarios/dueno-mixto', 3000);
 	await guardar(admin.p);
@@ -1644,7 +2118,21 @@ const duenos = [];
 		const res = (await fb.getDocs(fb.query(fb.collection(fb.db, 'reservas'), fb.where('propietarioId', '==', session.profile.propietarioId)))).docs;
 		return res.map((d) => d.data().comision?.comprobante || '').find(Boolean) || '';
 	});
-	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /\/o\/comprobantes%2F.+alt=media&token=/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /^comprobantes\/[^/]+\/[\w.-]+$/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	// Storage no lo abre (ni a quien lo subió): lo sirve /api/foto { reserva } al socio de la reserva y al administrador.
+	{
+		const reservaId = recibo.split('/')[1];
+		const conSesion = async (p) => p.evaluate(async (id) => { const { session } = await import('/admin/js/session.js'); return (await fetch('/api/foto', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ reserva: id }) })).status; }, reservaId);
+		const sinSesion = (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserva: reservaId }) })).status;
+		const storage = (await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(recibo)}?alt=media`)).status;
+		const [delSocio, delEquipo] = [await conSesion(socio.p), await conSesion(admin.p)];
+		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), socio.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Ver comprobante del pago a EQ"]').click()]);
+		await espera(2000);
+		const abre = pestana ? /^blob:/.test(pestana.url()) : false;
+		await pestana?.close();
+		paso('El comprobante de la comisión: Storage no lo abre; /api/foto se lo da al socio de la reserva y al equipo, no sin sesión; «Ver comprobante» lo abre', storage === 403 && delSocio === 200 && delEquipo === 200 && sinSesion === 403 && abre,
+			`storage ${storage} · socio ${delSocio} · equipo ${delEquipo} · sin sesión ${sinSesion} · pestaña ${pestana?.url().slice(0, 20)}`);
+	}
 	// El chat lleva el subtotal cotizado (el de su solicitud) y la reserva confirmada registra al menos lo cotizado.
 	const q = await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
 		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'chats' }], where: { fieldFilter: { field: { fieldPath: 'codigo' }, op: 'EQUAL', value: { stringValue: codigo } } } } }) }).then((r) => r.json());
@@ -1697,6 +2185,7 @@ const duenos = [];
 	await vis.p.goto(`${SITIO}${ficha}?m=3`);
 	await espera(3000);
 	for (let i = 0; i < 2; i++) { await vis.p.locator('.vac-cal-next').first().click(); await espera(150); }
+	await saltarFinDeMes(vis.p);
 	await vis.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])').nth(8).click();
 	const llegadaM = await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha');
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
@@ -1782,6 +2271,206 @@ const duenos = [];
 	await socio.p.unroute('**/v0/b/**');
 }
 
+// ---------------------------------------------------------------- Lo que el socio debe a EQ, a la vista (Solicitudes)
+// El aviso dice cuánto debe y cuánto con atraso, por moneda (nunca Q + US$), con «Ver lo que debo» (#/solicitudes/cobrar,
+// el filtro «cobrar» del administrador; la dirección sirve para el correo del mes) y «Ver todas». Sin atraso, una línea
+// sin rojo. Con 25 solicitudes más, para ver que no hay que bajar a buscar. Y «Confirmadas» cuenta por el «Confirmó».
+{
+	const TANDA = process.env.CAPTURAS_TANDA || CAPTURAS;
+	const dueno = { Authorization: 'Bearer owner', 'Content-Type': 'application/json' };
+	const valor = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : typeof v === 'boolean' ? { booleanValue: v }
+		: Array.isArray(v) ? { arrayValue: { values: v.map(valor) } } : v && typeof v === 'object' ? { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, valor(x)])) } } : { stringValue: String(v) });
+	const escribir = (ruta, o) => fetch(`${FS}/${ruta}`, { method: 'PATCH', headers: dueno, body: JSON.stringify({ fields: valor(o).mapValue.fields }) });
+	const borrar = (ruta) => fetch(`${FS}/${ruta}`, { method: 'DELETE', headers: dueno });
+	const dia = (n) => new Date(Date.now() - 6 * 3600e3 + n * 864e5).toISOString().slice(0, 10);
+	const sembrados = [];
+	// Una reserva confirmada del socio con su chat (el cliente ya pagó: «Pago recibido», cuenta como cobrada).
+	const deuda = async (codigo, n, moneda, monto) => {
+		const token = `Deuda${codigo.replace(/\W/g, '')}000000000000000`.slice(0, 28);
+		await escribir(`chats/${token}`, { codigo, leadId: `lead-${codigo}`, propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', nombre: 'Cliente Deuda',
+			llegada: dia(n), salida: dia(n + 2), noches: 2, huespedes: 2, total: monto * 4, moneda, estado: 'pagada' });
+		await escribir(`reservas/res-${codigo}`, { codigo, leadId: `lead-${codigo}`, propertyId: idCasa, propietarioId: 'socio-prueba', estado: 'confirmada', moneda, llegada: dia(n), salida: dia(n + 2),
+			chat: token, pagoRecibido: true, comision: { monto, vence: dia(n), pagada: false }, costoSocio: monto * 3 });
+		sembrados.push(`chats/${token}`, `reservas/res-${codigo}`);
+	};
+	const aviso = () => socio.p.locator('.admin-main').locator('a', { hasText: /Ver lo que debo|Ver todas/ }).first().locator('xpath=ancestor::div[1]');
+	await socio.p.setViewportSize({ width: 390, height: 844 });
+	await ir(socio.p, '#/solicitudes', 4000);
+	const inicio = await aviso().innerText().catch(() => '');
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-inicio-390.png` });
+	paso('Socio: antes de sembrar deudas, el aviso dice lo que ya debe (o no hay aviso)', !inicio || /^Debes a EQ/.test(inicio.trim()), inicio.replace(/\s+/g, ' ').slice(0, 140) || 'sin aviso');
+
+	// Debe sin atraso (la comisión se paga en 3 días): una línea sin rojo con el monto y el botón.
+	await deuda('EQ-DEB0K1', 3, 'USD', 30);
+	await ir(socio.p, '#/solicitudes', 4000);
+	const neutro = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const rojo0 = await socio.p.locator('.admin-main .alert-danger').count();
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-atraso-390.png` });
+	paso('Socio con una deuda sin atraso: una línea sin rojo con el monto, cuándo se paga y «Ver lo que debo»', /Debes a EQ US\$ ?\d/.test(neutro) && /se paga el/.test(neutro) && rojo0 === 0, neutro);
+
+	// Con atraso en dos monedas (US$ más de 72 h, Q más de 24 h) y 25 solicitudes más del socio.
+	await deuda('EQ-DEB072', -5, 'USD', 44);
+	await deuda('EQ-DEB024', -2, 'GTQ', 300);
+	for (let i = 0; i < 25; i++) {
+		const token = `Relleno${String(i).padStart(21, '0')}`;
+		await escribir(`chats/${token}`, { codigo: `EQ-REL${String(i).padStart(3, '0')}`, leadId: `lead-rel-${i}`, propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba',
+			nombre: `Cliente ${i}`, llegada: dia(60 + i * 3), salida: dia(62 + i * 3), noches: 2, huespedes: 2, total: 400, moneda: 'USD' });
+		sembrados.push(`chats/${token}`);
+	}
+	await ir(socio.p, '#/solicitudes', 6000);
+	const banda = aviso();
+	const textoRojo = (await banda.innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const boton = await socio.p.locator('.admin-main a', { hasText: 'Ver lo que debo' }).first().boundingBox();
+	const tarjetas = await socio.p.locator('.admin-main .card.mb-2').count();
+	const medida = await banda.evaluate((el) => ({ alto: el.getBoundingClientRect().height, arriba: el.getBoundingClientRect().top, lado: document.documentElement.scrollWidth - innerWidth })).catch(() => ({}));
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-390.png` });
+	paso('Socio con atraso en dos monedas: el aviso rojo dice cuánto debe y cuánto con atraso, en US$ y en Q por separado, y qué le pasa',
+		(await banda.getAttribute('class').catch(() => '')).includes('alert-danger') && /Debes a EQ .*US\$.*Q /.test(textoRojo) && /con atraso/.test(textoRojo) && /72 horas/.test(textoRojo) && !/US\$ ?3[0-9]{2}/.test(textoRojo),
+		textoRojo);
+	paso('Socio: «Ver lo que debo» mide 44 px o más, arriba de la lista (sin bajar entre 25+ tarjetas) y sin scroll de lado',
+		boton && boton.height >= 44 && medida.arriba < 400 && medida.lado <= 0 && tarjetas >= 25, `${boton ? Math.round(boton.height) : '—'} px · arriba ${Math.round(medida.arriba)} · ${tarjetas} tarjetas · alto ${Math.round(medida.alto)}`);
+	await socio.p.locator('.admin-main a', { hasText: 'Ver lo que debo' }).first().click();
+	await espera(5000);
+	const codigos = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-filtro-390.png` });
+	paso('«Ver lo que debo» deja solo lo que debe, la más atrasada primero, y la dirección es #/solicitudes/cobrar',
+		socio.p.url().endsWith('#/solicitudes/cobrar') && codigos[0] === 'EQ-DEB072' && codigos.includes('EQ-DEB024') && codigos.includes('EQ-DEB0K1') && !codigos.some((c) => c.startsWith('EQ-REL')), codigos.join(', '));
+	// Una reserva sin chat (el socio no la ve como solicitud) con la ganancia de EQ vencida: suma en el aviso y sale en la
+	// lista filtrada con la tarjeta de la reserva. El total del aviso y la suma de la lista cuadran, por moneda.
+	await escribir('reservas/res-SINCHAT1', { codigo: '', leadId: '', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', estado: 'confirmada', moneda: 'USD',
+		llegada: dia(-4), salida: dia(-2), noches: 2, huesped: 'Huésped sin chat', canal: 'directo', comision: { monto: 77, vence: dia(-4), pagada: false }, costoSocio: 200, ganancia: 77 });
+	sembrados.push('reservas/res-SINCHAT1');
+	await ir(socio.p, '#/solicitudes/cobrar', 5000);
+	const avisoSC = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	// Lo que dice cada tarjeta que se le debe a EQ, sumado por moneda, contra lo que dice el aviso.
+	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Ganancia de EQ \(se la pagas\) (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
+	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a EQ ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
+	const codigosSC = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
+	const conSinChat = await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]', { hasText: 'Huésped' }).count();
+	const lado = await socio.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-chat-390.png`, fullPage: true });
+	paso('Una reserva sin chat que debe ganancia de EQ sale en «Ver lo que debo» con su tarjeta, y el total del aviso cuadra con la lista (US$ y Q por separado)',
+		conSinChat === 1 && codigosSC.includes('res-SINCHAT1') && Object.keys(delAviso).length > 0 && JSON.stringify(delAviso) === JSON.stringify(Object.fromEntries(Object.keys(delAviso).map((k) => [k, deLista[k]]))) && Object.keys(deLista).length === Object.keys(delAviso).length && lado <= 0,
+		`aviso ${JSON.stringify(delAviso)} · lista ${JSON.stringify(deLista)} · ${codigosSC.join(', ')}`);
+	// Sus botones: el socio sube el comprobante de esa ganancia desde su tarjeta.
+	const tarjetaSC = socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]');
+	const [elegirSC] = await Promise.all([socio.p.waitForEvent('filechooser'), tarjetaSC.locator('[aria-label^="Subir comprobante"]').click()]);
+	await elegirSC.setFiles(png);
+	await espera(5000);
+	const reciboSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.comprobante?.stringValue || '';
+	paso('Reserva sin chat: el socio sube el comprobante de la ganancia de EQ desde su tarjeta', /^comprobantes\/[^/]+\/[\w.-]+$/.test(reciboSC), `${reciboSC.slice(0, 80)} · ${await avisos(socio.p)}`);
+	await socio.p.locator('.admin-main a', { hasText: 'Ver todas' }).first().click();
+	await espera(5000);
+	paso('«Ver todas» vuelve a la lista completa', socio.p.url().endsWith('#/solicitudes') && await socio.p.locator('.admin-main .card.mb-2').count() >= 25);
+	await socio.p.setViewportSize({ width: 1280, height: 900 });
+	await ir(socio.p, '#/solicitudes', 5000);
+	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-1280.png` });
+	// El administrador llega por la misma dirección: su filtro «Ganancia de EQ por cobrar» ya elegido.
+	await ir(admin.p, '#/solicitudes/cobrar', 5000);
+	const elegido = await admin.p.locator('select[aria-label="Todos los estados"]').inputValue().catch(() => '');
+	paso('El administrador abre #/solicitudes/cobrar con «Ganancia de EQ por cobrar» elegido', elegido === 'cobrar', elegido);
+	// El administrador marca pagada la de la reserva sin chat: sale de la lista del socio y el aviso baja US$ 77.
+	const antesPagada = (await (async () => { await ir(socio.p, '#/solicitudes/cobrar', 5000); return (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' '); })());
+	await admin.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"] button', { hasText: 'Pagada' }).click();
+	await admin.p.locator('.modal.show button', { hasText: 'Marcar pagada' }).click();
+	await espera(3500);
+	const pagadaSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.pagada?.booleanValue === true;
+	await ir(socio.p, '#/solicitudes/cobrar', 5000);
+	const despuesPagada = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
+	const usd = (t) => Number((t.match(/^Debes a EQ US\$ ?([\d,]+\.\d{2})/) || [0, 'NaN'])[1].replace(/,/g, ''));
+	paso('El administrador marca «Pagada» la reserva sin chat: sale de «Ver lo que debo» y el aviso del socio baja US$ 77',
+		pagadaSC && await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]').count() === 0 && Math.round((usd(antesPagada) - usd(despuesPagada)) * 100) === 7700,
+		`${antesPagada.slice(0, 60)} → ${despuesPagada.slice(0, 60)}`);
+	// La ficha del socio lleva «Enviar estado de cuenta» (su casa por noche dice que es suyo: la ficha pasa su id) y la
+	// ventana muestra la vista previa del correo.
+	await ir(admin.p, '#/propietarios/socio-prueba', 4000);
+	const botonCuenta = admin.p.locator('.admin-main [aria-label="Enviar estado de cuenta"]');
+	const hayBoton = await botonCuenta.count();
+	if (hayBoton) { await botonCuenta.click(); await espera(5000); }
+	const vistaCuenta = await admin.p.locator('.modal.show iframe').count();
+	await admin.p.screenshot({ path: `${TANDA}/estado-cuenta-vista-1280.png` });
+	paso('Ficha del socio: «Enviar estado de cuenta» abre la ventana con la vista previa del correo', hayBoton === 1 && vistaCuenta === 1, `${hayBoton} botón · ${vistaCuenta} vista`);
+	// «Enviar»: sale el correo al socio y queda anotado a mano en estadosCuenta/{socio}_{mes}.
+	const antesCuenta = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	const mesCuenta = await admin.p.locator('.modal.show select').inputValue().catch(() => '');
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: /^Enviar$/ }).click().catch(() => {});
+	await espera(5000);
+	const nuevosCuenta = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesCuenta).map((x) => JSON.parse(x));
+	const anotado = (await leer(`estadosCuenta/socio-prueba_${mesCuenta}`)).fields?.manual?.arrayValue?.values?.length || 0;
+	paso('«Enviar» manda el estado de cuenta al correo del socio y lo anota como envío a mano',
+		nuevosCuenta.some((c) => JSON.stringify(c).includes('socio@example.com') && /estado de cuenta/i.test(JSON.stringify(c))) && anotado >= 1, `${mesCuenta} · ${nuevosCuenta.length} correo(s) · manual ${anotado}`);
+	await admin.p.keyboard.press('Escape');
+	await espera(600);
+	// Versión nueva del panel publicada con la pestaña abierta: tras un «sin permiso», el aviso de una línea con su botón.
+	await socio.p.setViewportSize({ width: 390, height: 844 });
+	await ir(socio.p, '#/solicitudes', 4000);
+	await socio.p.route('**/admin/version.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"v":"otra-version"}' }));
+	await socio.p.evaluate(async () => (await import('/admin/js/ui.js')).errorMessage({ code: 'permission-denied' }));
+	await espera(1500);
+	const version = await socio.p.evaluate(() => { const a = document.getElementById('aviso-version'); if (!a) return null; const t = a.querySelector('span').getBoundingClientRect(), b = a.querySelector('button').getBoundingClientRect(); return { texto: a.textContent.trim(), altoTexto: Math.round(t.height), boton: Math.round(b.height), lado: document.documentElement.scrollWidth - innerWidth }; });
+	await socio.p.screenshot({ path: `${TANDA}/version-nueva-390.png` });
+	paso('Versión nueva: «Hay una versión nueva. Recarga la página.» en una línea con su botón de 44 px, a 390 sin scroll de lado',
+		version?.texto === 'Hay una versión nueva. Recarga la página.' && version.altoTexto <= 24 && version.boton >= 44 && version.lado <= 0, JSON.stringify(version));
+	await socio.p.unroute('**/admin/version.json');
+	await socio.p.reload();
+	await socio.p.locator('.admin-user-role').waitFor({ timeout: 15000 }).catch(() => {});
+	await socio.p.setViewportSize({ width: 1280, height: 900 });
+
+	// «Confirmadas» del mes: una confirmada el mes pasado con el correo corregido hoy no cuenta en este mes, y su tarjeta
+	// sigue diciendo «Confirmó» (antes contaba y decía «Correo corregido»).
+	const confirmadas = async () => Number((await admin.p.locator('.stat-card', { hasText: 'Confirmadas' }).locator('.stat-value').innerText()).trim());
+	await ir(admin.p, '#/solicitudes', 5000);
+	const antesN = await confirmadas();
+	const mesPasado = new Date(Date.now() - 40 * 864e5).toISOString();
+	await escribir('leads/conf-vieja', { nombre: 'Cliente Vieja', email: 'vieja@example.com', telefono: '+502 5555 7777', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', agentId: '',
+		reserva: { codigo: 'EQ-VIEJA1', llegada: dia(20), salida: dia(22), noches: 2, huespedes: 2, total: 400, moneda: 'USD' },
+		solicitud: { estado: 'confirmada', historial: [{ que: 'Confirmó', nombre: 'Socio', quien: 'x', cuando: mesPasado }, { que: 'Correo corregido: vieja@exmaple.com → vieja@example.com', nombre: 'Admin', quien: 'y', cuando: new Date().toISOString() }] } });
+	sembrados.push('leads/conf-vieja');
+	await ir(admin.p, '#/solicitudes', 5000);
+	const despuesN = await confirmadas();
+	const resumenV = await admin.p.locator('.card', { hasText: 'EQ-VIEJA1' }).first().locator('details summary').innerText().catch(() => '');
+	paso('«Confirmadas» cuenta por el día del «Confirmó» (una corrección de hoy no la trae a este mes) y la tarjeta dice «Confirmó»',
+		despuesN === antesN && /^Confirmó/.test(resumenV.trim()), `${antesN} → ${despuesN} · ${resumenV}`);
+
+	// Dos pestañas del administrador corrigen el mismo correo: la segunda parte del que guardó la primera (el «antes» de
+	// verdad) y cada correo nuevo recibe su enlace una vez.
+	// Una solicitud abierta propia para esto (la de Marta ya pasó por otros pasos).
+	const TOKEN_DOS = 'DosPestanas00000000000000001';
+	await escribir('leads/dos-pest', { nombre: 'Marta Dos Pestañas', email: 'marta.ok@example.com', telefono: '+502 5555 6666', idioma: 'es', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', agentId: '',
+		reserva: { codigo: 'EQ-DOSPES', llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' }, solicitud: {} });
+	await escribir(`chats/${TOKEN_DOS}`, { codigo: 'EQ-DOSPES', leadId: 'dos-pest', propertyId: idCasa, propertyTitulo: 'Casa de prueba Monterrico', propietarioId: 'socio-prueba', nombre: 'Marta',
+		llegada: dia(30), salida: dia(32), noches: 2, huespedes: 2, total: 400, moneda: 'USD' });
+	await escribir('chatsPorSolicitud/dos-pest', { token: TOKEN_DOS });
+	sembrados.push('leads/dos-pest', `chats/${TOKEN_DOS}`, 'chatsPorSolicitud/dos-pest');
+	const codigo3 = 'EQ-DOSPES', leadId3 = 'dos-pest';
+	const otra = await admin.p.context().newPage();
+	await otra.goto(admin.p.url());
+	await espera(5000);
+	const abrir = async (p) => { await ir(p, `#/solicitudes/${codigo3}`, 4000); await p.locator('.card', { hasText: codigo3 }).first().locator('[aria-label="Corregir el correo"]').click(); await espera(800); };
+	await abrir(admin.p);
+	await abrir(otra);
+	const antesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('.modal.show input[type=email]').fill('marta.uno@example.com');
+	// Si el botón no ofrece reenviar, se dice qué muestra la ventana (en vez de esperar 30 s y cortar el recorrido).
+	if (!(await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).count())) paso('La ventana del correo ofrece «Guardar y reenviar a»', false,
+		`${(await admin.p.locator('.modal.show').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)} · tarjeta: ${(await admin.p.locator('.card', { hasText: codigo3 }).first().innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)}`);
+	await admin.p.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
+	await espera(3500);
+	await otra.locator('.modal.show input[type=email]').fill('marta.dos@example.co.uk');
+	await otra.locator('.modal.show button', { hasText: /^Guardar y reenviar a / }).click();
+	await espera(3500);
+	const histT = ((await leer(`leads/${leadId3}`)).fields?.solicitud?.mapValue?.fields?.historial?.arrayValue?.values || []).map((x) => x.mapValue.fields.que?.stringValue);
+	const enlacesT = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(antesT).map((l) => JSON.parse(l)).filter((c) => /El enlace de tu reserva/.test(c.subject || '')).map(para);
+	paso('Dos pestañas corrigen el mismo correo: la segunda anota el «antes» de verdad y cada correo nuevo recibe su enlace una vez (también uno .co.uk)',
+		histT.includes('Correo corregido: marta.ok@example.com → marta.uno@example.com') && histT.includes('Correo corregido: marta.uno@example.com → marta.dos@example.co.uk')
+		&& enlacesT.join() === 'marta.uno@example.com,marta.dos@example.co.uk' && histT.includes('Se reenvió el enlace a marta.dos@example.co.uk'), `${histT.slice(-4).join(' | ')} · ${enlacesT.join(', ')}`);
+	await otra.close();
+	// El chat quedó con el enlace nuevo (cada corrección lo cambia): también se borra.
+	sembrados.unshift(`chats/${(await leer('chatsPorSolicitud/dos-pest')).fields?.token?.stringValue}`);
+
+	for (const r of sembrados) await borrar(r);
+}
+
 // ---------------------------------------------------------------- Dos pasos: los avisos, sin rutas de archivos
 // El emulador pide el correo confirmado antes del segundo paso: «Confirma tu correo» en cada pantalla. Un proyecto sin el
 // segundo paso encendido (se le responde así): solo Inicio, con el enlace a Firebase.
@@ -1862,6 +2551,180 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	await ent.p.context().close();
 }
 
+// Cotizaciones: el teléfono y el correo de «Datos de la empresa» y «Mis datos para facturar» se revisan al guardar
+// (campoTelefono / campoCorreo de form.js) y se guardan con su código de país.
+{
+	const cot = await entrar('admin');
+	const empresaGuardada = async () => (await (await fetch(`${FS}/settings/cotizacion`, { headers: { Authorization: 'Bearer owner' } })).json()).fields?.empresa?.mapValue?.fields?.telefono?.stringValue || '';
+	await ir(cot.p, '#/cotizaciones/empresa', 3000);
+	const antesTel = await empresaGuardada();
+	await cot.p.fill('#emp-telefono', '2222');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar' }).click();
+	await espera(1500);
+	const marcado = await cot.p.locator('#emp-telefono.is-invalid').count();
+	paso('Datos de la empresa: un teléfono incompleto se marca y no se guarda', marcado === 1 && await empresaGuardada() === antesTel, `marcado ${marcado} · guardado «${await empresaGuardada()}»`);
+	await cot.p.fill('#emp-telefono', '5555 1234');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar' }).click();
+	await espera(2500);
+	paso('Datos de la empresa: el teléfono se guarda con su código de país', await empresaGuardada() === '+502 5555 1234', await empresaGuardada());
+	await ir(cot.p, '#/cotizaciones/mis-datos', 3000);
+	await cot.p.fill('#mis-email', 'yo@gmial');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar mis datos' }).click();
+	await espera(1500);
+	const aviso = await avisos(cot.p);
+	paso('Mis datos para facturar: un correo mal escrito se marca y no se guarda', await cot.p.locator('#mis-email.is-invalid').count() === 1 && !/se guardaron/.test(aviso), aviso);
+	await cot.p.context().close();
+}
+// ---------------------------------------------------------------- El socio sube sus casas («Agregar casa» en «Mis propiedades»)
+// La misma ficha del inmueble, sin lo del equipo; «Publicar» la manda a /api/mi-casa-nueva, que la revisa y la publica al
+// momento. El colaborador sube una en venta y elige su asesor; el socio, una por noche (sin asesor). Salen en la página y
+// el equipo las ve en «Cambios de los dueños» y en la campana. Capturas (escala 2) en $CAPTURAS_SOCIO.
+{
+	const SUBE = process.env.CAPTURAS_SOCIO || `${CAPTURAS}/socio-sube`;
+	mkdirSync(SUBE, { recursive: true });
+	// Cinco fotos de verdad (una por color) para la galería.
+	const lienzo = await persona(640);
+	const fotosPng = [];
+	for (const [i, color] of ['#7a8f6a', '#c9b79c', '#5d7891', '#a9746e', '#8a8a8a'].entries()) {
+		await lienzo.p.setContent(`<body style="margin:0;height:100vh;background:${color}"></body>`);
+		fotosPng.push({ name: `foto-${i + 1}.png`, mimeType: 'image/png', buffer: await lienzo.p.screenshot() });
+	}
+	await lienzo.p.context().close();
+	const subirFotos = async (m, archivos, total) => {
+		await m.locator('[data-campo="fotos"] input[type=file]').first().setInputFiles(archivos);
+		for (let i = 0; i < 60 && await m.locator('[data-campo="fotos"] img').count() < total; i++) await espera(500);
+		return m.locator('[data-campo="fotos"] img').count();
+	};
+	const publicar = async (p, m) => {
+		const r = p.waitForResponse((x) => x.url().endsWith('/api/mi-casa-nueva') && (x.request().postData() || '').includes('"datos"'), { timeout: 30000 })
+			.then(async (x) => ({ status: x.status(), ...(await x.json().catch(() => ({}))) })).catch(() => ({ status: 0 }));
+		await m.locator('.modal-footer button', { hasText: 'Publicar' }).click();
+		return r;
+	};
+	const abrirAgregar = async (p) => {
+		await p.locator('button[aria-label="Agregar casa"]').first().click();
+		await p.locator('.modal.show [data-campo="titulo"] input').waitFor({ timeout: 20000 });
+		await espera(800);
+		return p.locator('.modal.show');
+	};
+	const lleno = async (m, datos) => { for (const [k, v] of Object.entries(datos)) await campo(m, k).fill(v); };
+	const sinLado = (p) => p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+
+	// a) El colaborador (celular, 390): casa en venta, elige su asesor.
+	const col = await entrar('colab', { escala: 2 });
+	await col.p.setViewportSize({ width: 390, height: 844 });
+	await ir(col.p, '#/mis-casas', 3000);
+	const boton = await col.p.locator('button[aria-label="Agregar casa"]').count();
+	await col.p.screenshot({ path: `${SUBE}/mis-propiedades-390.png`, fullPage: true });
+	const m1 = await abrirAgregar(col.p);
+	const ocultos = await m1.evaluate((el) => ['codigo', 'slug', 'publicado', 'propietarioId', 'acuerdo.comisionPct', 'socio.margen', 'en.titulo', 'seo.titulo', 'video', 'destacada', 'estado', 'orden']
+		.filter((k) => { const c = el.querySelector(`[data-campo="${k}"]`); return c && !c.closest('[hidden]'); }));
+	const asesores = await campo(m1, 'agentId', 'select').locator('option').allInnerTexts();
+	await lleno(m1, { titulo: 'Casa con jardín del colaborador', precio: '250000', zona: 'Zona 15', habitaciones: '3', descripcion: 'Casa amplia con jardín, tres habitaciones y terraza. Escríbeme al 5512 3456.' });
+	await campo(m1, 'agentId', 'select').selectOption('asesora-sin-orden');
+	const nFotos1 = await subirFotos(m1, fotosPng.slice(0, 4), 4);
+	// Con 4 fotos y un teléfono en la descripción: no se manda y cada campo dice qué falta.
+	await m1.locator('.modal-footer button', { hasText: 'Publicar' }).click();
+	await espera(1500);
+	const marcados = await m1.locator('.is-invalid').evaluateAll((l) => l.map((x) => x.closest('[data-campo]')?.dataset.campo));
+	await col.p.screenshot({ path: `${SUBE}/ficha-con-errores-390.png` });
+	paso('Socio: «Agregar casa» en «Mis propiedades» abre la misma ficha sin lo del equipo (código, URL, visible, dueño, acuerdo, margen, inglés, Google, video)',
+		boton === 1 && !ocultos.length && asesores.some((t) => /Asesora sin orden/.test(t)), `botón ${boton} · se ven: ${ocultos.join(', ') || 'nada'} · asesores ${asesores.length}`);
+	paso('Socio: con 4 fotos y un teléfono en la descripción no se publica; los dos campos quedan marcados', nFotos1 === 4 && marcados.includes('fotos') && marcados.includes('descripcion'), marcados.join(', '));
+	await campo(m1, 'descripcion').fill('Casa amplia con jardín, tres habitaciones, terraza y estudio. A cinco minutos de colegios.');
+	const nFotos = await subirFotos(m1, fotosPng.slice(4), 5);
+	await m1.locator('.modal-body').evaluate((el) => { el.scrollTop = 0; });
+	await col.p.screenshot({ path: `${SUBE}/ficha-390.png` });
+	const lado1 = await sinLado(col.p);
+	const r1 = await publicar(col.p, m1);
+	await espera(3000);
+	const venta = r1.id ? (await leer(`properties/${r1.id}`)).fields || {} : {};
+	paso('Socio: el colaborador publica su casa en venta al momento, con el asesor que eligió y él como dueño', r1.status === 200 && venta.publicado?.booleanValue === true
+		&& venta.agentId?.stringValue === 'asesora-sin-orden' && venta.propietarioId?.stringValue === 'colab-prueba' && (venta.fotos?.arrayValue?.values || []).length === 5 && nFotos === 5,
+		`${r1.status} ${r1.error || ''} · ${venta.agentId?.stringValue} · ${(venta.fotos?.arrayValue?.values || []).length} fotos`);
+	const filaNueva = await col.p.locator('.lista-casas', { hasText: 'Casa con jardín del colaborador' }).count();
+	await col.p.screenshot({ path: `${SUBE}/mis-propiedades-con-la-nueva-390.png`, fullPage: true });
+	paso('Socio: la casa nueva sale en su lista, sin scroll de lado en la ficha (390 px)', filaNueva === 1 && lado1 <= 0, `fila ${filaNueva} · lado ${lado1}`);
+
+	// b) El socio (computadora, 1280): casa por noche, sin asesor.
+	const so = await entrar('socio', { escala: 2 });
+	await ir(so.p, '#/mis-casas', 3000);
+	await so.p.screenshot({ path: `${SUBE}/mis-propiedades-1280.png`, fullPage: true });
+	const m2 = await abrirAgregar(so.p);
+	await campo(m2, 'operacion', 'select').selectOption('vacacional');
+	await espera(500);
+	const conAsesor = await m2.locator('[data-campo="agentId"]').isVisible();
+	await lleno(m2, { titulo: 'Casa del volcán por noche', zona: 'Antigua', ciudad: 'Sacatepéquez', 'socio.precioBase': '90', 'vacacional.huespedesMax': '6',
+		direccion: 'Calle del Arco 5, Antigua', descripcion: 'Casa con vista al volcán, chimenea, jardín y desayuno típico los domingos.' });
+	await subirFotos(m2, fotosPng, 5);
+	await m2.locator('.modal-body').evaluate((el) => { el.scrollTop = 0; });
+	await so.p.screenshot({ path: `${SUBE}/ficha-1280.png` });
+	const r2 = await publicar(so.p, m2);
+	await espera(3000);
+	const noche = r2.id ? (await leer(`properties/${r2.id}`)).fields || {} : {};
+	const llegada = r2.id ? (await leer(`properties/${r2.id}/privado/llegada`)).fields || {} : {};
+	const base = noche.vacacional?.mapValue?.fields?.base;
+	paso('Socio: publica su casa por noche sin asesor; su dirección queda privada y su precio con el margen de siempre', r2.status === 200 && !conAsesor && noche.agentId?.stringValue === ''
+		&& !noche.direccion?.stringValue && llegada.direccion?.stringValue === 'Calle del Arco 5, Antigua' && Number(base?.doubleValue ?? base?.integerValue) === 108,
+		`${r2.status} ${r2.error || ''} · asesor visible ${conAsesor} · base ${JSON.stringify(base)}`);
+	await so.p.screenshot({ path: `${SUBE}/mis-propiedades-con-la-nueva-1280.png`, fullPage: true });
+
+	// c) Publicar el sitio (lo que hace el botón): las dos salen en la página y en el sitemap, sin datos privados del socio.
+	execFileSync('bash', [path.join(REPO, 'scripts/entorno/levantar.sh'), 'publicar'], { stdio: 'pipe', env: { ...process.env, ENTORNO_DIR: DIR } });
+	await espera(1500);
+	const paginas = [];
+	for (const [nombre, f] of [['venta', venta], ['noche', noche]]) {
+		const url = `${SITIO}/propiedad/${f.slug?.stringValue}/`;
+		const html = await (await fetch(url)).text();
+		paginas.push({ nombre, url, ok: /<h1/.test(html) && html.includes(f.titulo?.stringValue || 'x'), privado: /colab-prueba|socio-prueba|colab@example|socio@example|5555 000|Calle del Arco/.test(html) });
+	}
+	const sitemap = await (await fetch(`${SITIO}/sitemap.xml`)).text();
+	paso('Socio: las dos casas salen en la página y en el sitemap, sin datos privados del socio (dueño, correo, teléfono, dirección exacta)',
+		paginas.every((x) => x.ok && !x.privado) && paginas.every((x) => sitemap.includes(new URL(x.url).pathname)), JSON.stringify(paginas.map((x) => [x.nombre, x.ok, x.privado, sitemap.includes(new URL(x.url).pathname)])));
+	for (const [ancho, x] of [[390, paginas[0]], [1280, paginas[0]], [390, paginas[1]], [1280, paginas[1]]]) {
+		const vis = await persona(ancho, { escala: 2 });
+		await vis.p.goto(x.url);
+		await espera(1500);
+		await vis.p.screenshot({ path: `${SUBE}/casa-${x.nombre}-en-la-pagina-${ancho}.png` });
+		await vis.p.context().close();
+	}
+
+	// d) El equipo las ve en «Cambios de los dueños» y en la campana.
+	const eq = await entrar('admin', { escala: 2 });
+	await eq.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos')));
+	await espera(3000);
+	const campana = await eq.p.locator('.avisos-lista').innerText().catch(() => '');
+	await ir(eq.p, '#/cambios-dueno', 3500);
+	const tarjetas = await eq.p.locator('.admin-main .card', { hasText: 'subió' }).allInnerTexts();
+	await eq.p.screenshot({ path: `${SUBE}/cambios-de-los-duenos-1280.png`, fullPage: true });
+	await eq.p.setViewportSize({ width: 390, height: 844 });
+	await ir(eq.p, '#/cambios-dueno', 3000);
+	await eq.p.screenshot({ path: `${SUBE}/cambios-de-los-duenos-390.png`, fullPage: true });
+	paso('Equipo: «Cambios de los dueños» y la campana dicen quién subió cada casa (ya publicada), con abrir la ficha y eliminar',
+		tarjetas.some((t) => /subió «Casa con jardín del colaborador»/.test(t)) && tarjetas.some((t) => /subió «Casa del volcán por noche»/.test(t))
+		&& /subió una casa/.test(campana) && await eq.p.locator('.admin-main .card [aria-label="Eliminar la casa"]').count() >= 2,
+		`${tarjetas.length} tarjetas · campana: ${/subió una casa/.test(campana)}`);
+	// e) El equipo elimina la casa por noche (casa y aviso se van) y marca «Listo» en la de venta (queda publicada, con su
+	// versión en inglés, y el aviso se va).
+	await eq.p.setViewportSize({ width: 1280, height: 900 });
+	await eq.p.locator('.admin-main .card', { hasText: 'Casa del volcán por noche' }).locator('[aria-label="Eliminar la casa"]').click();
+	await eq.p.locator('.modal.show button', { hasText: 'Eliminar' }).last().click();
+	await espera(4000);
+	await eq.p.locator('.admin-main .card', { hasText: 'Casa con jardín del colaborador' }).locator('button', { hasText: 'Listo' }).click();
+	await espera(6000);
+	const borrada = await fetch(`${FS}/properties/${r2.id}`, { headers: { Authorization: 'Bearer owner' } });
+	const ventaLista = (await leer(`properties/${r1.id}`)).fields || {};
+	const quedan = await eq.p.locator('.admin-main .card', { hasText: 'subió' }).count();
+	paso('Equipo: «Eliminar la casa» la borra con su aviso; «Listo» deja la de venta publicada con su inglés y quita el aviso',
+		borrada.status === 404 && ventaLista.publicado?.booleanValue === true && Boolean(ventaLista.en?.mapValue?.fields?.titulo?.stringValue) && quedan === 0,
+		`borrada ${borrada.status} · inglés «${ventaLista.en?.mapValue?.fields?.titulo?.stringValue || ''}» · tarjetas ${quedan} · ${await avisos(eq.p)}`);
+	for (const x of [col, so, eq]) await x.p.context().close();
+}
+{
+	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';
+	paso('La regla de seguridad del panel (CSP) se aplicó y no bloqueó nada en todo el recorrido', /script-src 'self'/.test(csp) && !bloqueados.length,
+		bloqueados.length ? [...new Set(bloqueados)].slice(0, 3).join(' ; ') : csp ? '' : 'el servidor no mandó la regla');
+}
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();
 process.exit(fallas ? 1 : 0);

@@ -68,6 +68,8 @@ export const AMENIDADES_COMUNES = [
 // terreno, una oficina, un local o una bodega.
 const ESTADOS_FUERA = { venta: ['rentada'], renta: ['vendida'], vacacional: ['reservada', 'vendida', 'rentada'] };
 export const estadosPara = (operacion) => ESTADOS_PROPIEDAD.filter((e) => !(ESTADOS_FUERA[operacion] || []).includes(e.valor));
+// Tipos de inmueble (la ficha, el importador, el listado y la casa que sube el socio: admin/js/casa-nueva.js).
+export const TIPOS = [['casa', 'Casa'], ['apartamento', 'Apartamento'], ['terreno', 'Terreno'], ['oficina', 'Oficina'], ['local', 'Local comercial'], ['bodega', 'Bodega'], ['finca', 'Finca']];
 const TIPOS_POR_NOCHE = ['casa', 'apartamento', 'finca'];
 export const tipoAplica = (tipo, operacion) => operacion !== 'vacacional' || TIPOS_POR_NOCHE.includes(tipo);
 // Qué no cuadra entre la operación, el estado y el tipo de una casa ('' si todo cuadra). Lo usan el formulario

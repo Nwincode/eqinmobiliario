@@ -1,6 +1,6 @@
 // Pruebas del formato único de teléfonos (admin/js/formato.js). Sin dependencias.
 import assert from 'node:assert/strict';
-import { partirTelefono, unirTelefono, telefonoValido, telefonoWa, sugerenciaCorreo, correoValido, CODIGOS_PAIS } from '../admin/js/formato.js';
+import { partirTelefono, unirTelefono, telefonoValido, telefonoWa, telefonoTexto, sugerenciaCorreo, correoValido, CODIGOS_PAIS } from '../admin/js/formato.js';
 
 let ok = 0;
 function test(nombre, fn) {
@@ -122,6 +122,17 @@ test('0 de larga distancia (países de libphonenumber con prefijo nacional 0): n
 	assert.equal(unirTelefono('502', '++502 5555 1234'), '+502 5555 1234');
 	assert.equal(telefonoValido('++502 5555 1234'), false);
 	assert.equal(telefonoValido(unirTelefono('502', '++502 5555 1234')), true);
+});
+
+test('Para mostrar (la hoja de la cotización): «+código número»; uno de antes sin código es de Guatemala; un texto no se toca', () => {
+	assert.equal(telefonoTexto('2222 3333'), '+502 2222 3333');
+	assert.equal(telefonoTexto('+502 2222 3333'), '+502 2222 3333');
+	assert.equal(telefonoTexto('+1 305 555 1234'), '+1 305 555 1234');
+	assert.equal(telefonoTexto('50222223333'), '+502 22223333');
+	assert.equal(telefonoTexto('PBX 2222-3333 ext. 5'), 'PBX 2222-3333 ext. 5');
+	assert.equal(telefonoTexto('2222'), '2222');
+	assert.equal(telefonoTexto(''), '');
+	assert.equal(telefonoTexto(undefined), '');
 });
 
 console.log(`\n${ok} pruebas correctas${process.exitCode ? ' (con fallas)' : ''}.`);

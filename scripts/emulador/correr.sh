@@ -17,5 +17,8 @@ cat > "$CONF/firebase.json" <<JSON
 JSON
 # Sin las variables de proxy: los emuladores se hablan entre sí por 127.0.0.1 (la regla de Storage consulta Firestore).
 cd "$CONF"
-env -u JAVA_TOOL_OPTIONS -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+# Su propia carpeta temporal (el emulador de Storage guarda y borra sus archivos en $TMPDIR/firebase): otro emulador que se
+# apague a la vez no le borra los suyos.
+mkdir -p "$CONF/tmp"
+env -u JAVA_TOOL_OPTIONS -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy TMPDIR="$CONF/tmp" \
 	"$HERR/node_modules/.bin/firebase" emulators:exec --only firestore,storage --project demo-eq "node $REPO/scripts/emulador/test-reglas.mjs"

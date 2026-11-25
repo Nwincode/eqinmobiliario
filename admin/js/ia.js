@@ -1,7 +1,8 @@
 // Herramientas del asesor. Si la IA está configurada en Netlify (ANTHROPIC_API_KEY) se usa;
 // si no, o si falla, se resuelven con reglas y plantillas (admin/js/reglas.js), sin costo.
 import { session } from './session.js';
-import { REGLAS, traductorLibre } from './reglas.js';
+import { fallaDelServidor } from './ui.js';
+import { REGLAS } from './reglas.js';
 import { paraIA } from './para-ia.js';
 
 let iaActiva = null;
@@ -32,7 +33,7 @@ async function llamarIA(tarea, datos) {
 		// Respuesta sin JSON: p. ej. la función aún no está desplegada.
 	}
 	if (!res.ok) {
-		const msg = res.status === 404 ? 'La IA todavía no está publicada en el sitio (se activa al publicar en Netlify).' : body.error || `Error ${res.status}`;
+		const msg = res.status === 404 ? 'La IA todavía no está publicada en el sitio (se activa al publicar en Netlify).' : body.error || fallaDelServidor(res.status);
 		throw new Error(msg);
 	}
 	return body;
@@ -55,10 +56,6 @@ export async function pedirIA(tarea, todo) {
 	return local(datos);
 }
 
-// Un texto suelto al traductor gratuito (el chat de Solicitudes): la misma salida y la misma limpieza (paraIA: sin
-// teléfonos ni correos), aunque el chat ya los filtra.
-export const traducirTexto = (texto, par) => traductorLibre(paraIA({ texto }).texto, par);
-
 export { telefonoWa, whatsappUrl } from './formato.js';
 
 export async function copiar(texto) {
@@ -69,3 +66,7 @@ export async function copiar(texto) {
 		return false;
 	}
 }
+
+// «Sugerir respuesta» en Mensajes: un borrador de la IA para el chat `token` (lo que ve la IA lo arma el servidor con lo
+// guardado: netlify/lib/sugerir-respuesta.mjs). Nunca se manda solo: va al campo y pasa el mismo aviso de contacto.
+export const sugerirRespuesta = async (token) => String((await llamarIA('respuestaChat', { chat: token })).respuesta || '').trim();

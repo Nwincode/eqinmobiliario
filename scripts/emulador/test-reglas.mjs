@@ -34,15 +34,41 @@ const fotoCasaRaw = (p, s) => ({ mapValue: { fields: {
 	precioBase: s.precioBase || { integerValue: '0' }, precioFinde: s.precioFinde || { integerValue: '0' }, tarifas: s.tarifas || { arrayValue: {} }, margen: s.margen || { integerValue: '20' } } } });
 const crudo = async (ruta) => (await (await fetch(`${H}/${ruta}`, { headers: cab('dueño') })).json()).fields || {};
 // Además, como el panel, el texto de lo que cambió en la bitácora de la casa (properties/{id}/bitacora), en el mismo lote:
-// el tope de 1000 revisiones es de todo el pedido.
+// el tope de 1000 revisiones es de todo el pedido. Las reglas exigen que el texto nombre algo que cambió de verdad
+// (renglonCuadra): se elige por lo que el lote escribe (sin valores; los valores se prueban aparte). Un precio que solo
+// cambia en la casa (sin el suyo) no tiene renglón verdadero: va sin él y lo niega la regla de la casa.
 let nt = 0;
-const conTexto = (quien, writes) => {
-	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)$/)?.[1]).find(Boolean);
-	return casa ? [...writes, { update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/txt${++nt}`, fields: { que: svG('precio entre semana'), quien: svG(quien), nombre: svG('Dueña') } },
-		currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }] : writes;
+const lineaDe = (writes) => {
+	const socio = writes.find((w) => w.update?.name.endsWith('/privado/socio'))?.update.fields || {};
+	const vac = writes.find((w) => /\/properties\/[^/]+$/.test(w.update?.name || ''))?.update.fields.vacacional?.mapValue?.fields || {};
+	if ('precioBase' in socio) return 'precio entre semana';
+	if ('precioFinde' in socio) return 'precio fin de semana';
+	if ('tarifas' in socio) return 'puso las temporadas de 2027';
+	if (vac.huespedesMax?.integerValue) return `personas máximo ${vac.huespedesMax.integerValue}`;
+	if ('minimos' in vac) return 'mínimo de noches 16 nov';
+	if ('bloqueos' in vac) return 'bloqueó 16 nov (Uso propio)';
+	return '';
 };
-async function conRenglon(quien, sinTexto, { antesOtro = null } = {}) {
-	const writes = conTexto(quien, sinTexto);
+const renglonTexto = (quien, casa, que, id = `txt${++nt}`) => ({ update: { name: `projects/demo-eq/databases/(default)/documents/properties/${casa}/bitacora/${id}`, fields: { que: svG(que), quien: svG(quien), nombre: svG('Dueña') } },
+	currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] });
+// Y, como el panel, la casa nombra ese renglón en `bitacoraTexto` en el mismo lote (sin un cambio a la casa en el lote, se
+// le agrega uno con solo ese campo). `nombrar: false`: sin nombrarlo (las reglas lo niegan).
+const conTexto = (quien, writes, texto, { nombrar = true } = {}) => {
+	const casa = writes.map((w) => w.update?.name.match(/\/properties\/([^/]+)(\/privado\/socio)?$/)?.[1]).find(Boolean);
+	const que = texto ?? lineaDe(writes);
+	if (!casa || !que) return writes;
+	const r = renglonTexto(quien, casa, que);
+	if (!nombrar) return [...writes, r];
+	const id = r.update.name.split('/').pop();
+	const ruta = `projects/demo-eq/databases/(default)/documents/properties/${casa}`;
+	const w = structuredClone(writes);
+	const i = w.findIndex((x) => x.update?.name === ruta);
+	if (i >= 0) { w[i].update.fields.bitacoraTexto = svG(id); if (w[i].updateMask) w[i].updateMask.fieldPaths.push('bitacoraTexto'); }
+	else w.push({ update: { name: ruta, fields: { bitacoraTexto: svG(id) } }, updateMask: { fieldPaths: ['bitacoraTexto'] } });
+	return [...w, r];
+};
+async function conRenglon(quien, sinTexto, { antesOtro = null, texto, nombrar = true } = {}) {
+	const writes = conTexto(quien, sinTexto, texto, { nombrar });
 	const i = writes.findIndex((w) => w.update?.name.endsWith('/privado/socio'));
 	if (i < 0) return writes;
 	const casaId = writes[i].update.name.split('/properties/')[1].split('/')[0];
@@ -60,7 +86,8 @@ const loteConRenglon = async (quien, writes) => fetch(`${H}:commit`, { method: '
 let fallas = 0, n = 0;
 const espera = async (nombre, promesa, ok) => { const s = await promesa; const bien = ok ? s === 200 : s === 403; n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${ok ? 'permite' : 'niega  '} · ${nombre} (${s})`); };
 const m = (de, texto) => ({ de, texto });
-let i = 0; const msj = () => `chats/${T}/mensajes/m${++i}`;
+// El id de un mensaje del cliente es c1 … c200 (firestore.rules: el tope por chat).
+let i = 0; const msj = () => `chats/${T}/mensajes/c${++i}`;
 
 // El chat y su índice chatsPorSolicitud/{solicitud} los crea el servidor junto con la solicitud
 // (netlify/functions/solicitud.mjs, scripts/test-solicitud.mjs); desde el navegador, nadie.
@@ -125,8 +152,14 @@ await espera('cliente manda su correo con la arroba de ancho completo', crear(nu
 	const distintas = [];
 	// De las generadas, una de cada 20 (todas corren en npm test contra el navegador; aquí, que la regla diga lo mismo).
 	const muestra = EVASIONES_GENERADAS.filter((t, i) => i % 20 === 0);
+	// Cada chat admite 200 mensajes del cliente (c1 … c200): el corpus va repartido en chats de prueba.
+	let nc = 0, chatCorpus = '';
+	const msjCorpus = async () => {
+		if (nc % 200 === 0) { chatCorpus = `ChatDelCorpus${String(nc / 200).padStart(4, '0')}LargoYAlAzar1`; await poner(`chats/${chatCorpus}`, chat); }
+		return `chats/${chatCorpus}/mensajes/c${(nc++ % 200) + 1}`;
+	};
 	for (const texto of [...NORMALES, ...EVASIONES, ...BLOQUEADAS_A_PROPOSITO, ...muestra].filter(Boolean)) {
-		const s = await crear(null, msj(), m('cliente', texto));
+		const s = await crear(null, await msjCorpus(), m('cliente', texto));
 		const navegador = globalThis.EQVacacional.tieneContacto(texto);
 		if ((s === 200) === navegador || (s !== 200 && s !== 403)) distintas.push(`${texto} (regla ${s}, navegador ${navegador ? 'bloquea' : 'deja'})`);
 	}
@@ -147,8 +180,72 @@ await espera('otro socio lee mensajes ajenos', leer('socio2', `chats/${T}/mensaj
 await espera('otro socio escribe en chat ajeno', crear('socio2', msj(), m('socio', 'Hola')), false);
 await espera('equipo responde', crear('admin1', msj(), m('equipo', 'Confirmamos tu reserva.')), true);
 await espera('equipo lista todas', consulta('admin1', 'chats'), true);
-await espera('nadie edita un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ de: 'cliente', texto: 'cambiado' }) }) }).then((r) => r.status), false);
-await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { method: 'DELETE', headers: cab(null) }).then((r) => r.status), false);
+await espera('nadie edita un mensaje', fetch(`${H}/chats/${T}/mensajes/c1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ de: 'cliente', texto: 'cambiado' }) }) }).then((r) => r.status), false);
+await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/c1`, { method: 'DELETE', headers: cab(null) }).then((r) => r.status), false);
+// Un enlace que ya cambió (el chat ya no existe): sus mensajes que quedaran no se leen con él.
+await poner('chats/EnlaceViejoSinChatLargoYAlAzar1/mensajes/v1', { de: 'cliente', texto: 'Hola' });
+await espera('con un enlace viejo (sin chat) se leen los mensajes que quedaron', leer(null, 'chats/EnlaceViejoSinChatLargoYAlAzar1/mensajes/v1'), false);
+await espera('con un enlace viejo (sin chat) se listan los mensajes', leer(null, 'chats/EnlaceViejoSinChatLargoYAlAzar1/mensajes'), false);
+
+// Citar un mensaje (responde: id, quién y su texto corto, con el mismo filtro de contacto) y las notas internas
+// (notasEquipo/{token}/notas: solo el equipo, con su sesión; ni el socio ni el enlace del cliente las abren).
+{
+	const mapa = (o) => ({ mapValue: { fields: campos(o) } });
+	const conCita = (quien, de, texto, cita) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
+		fields: { ...campos({ de, texto }), responde: cita } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status);
+	await espera('socio responde citando un mensaje del cliente', conCita('socio1', 'socio', 'Sí, se aceptan.', mapa({ id: 'c1', de: 'cliente' })), true);
+	await crear('socio1', `chats/${T}/mensajes/delSocio`, m('socio', 'Sí, se aceptan mascotas pequeñas.'));
+	await espera('cliente responde citando un mensaje del socio', conCita(null, 'cliente', 'Gracias.', mapa({ id: 'delSocio', de: 'socio' })), true);
+	let largo = ''; while (largo.length < 1000) largo += 'Hola, somos 4 adultos y 2 niños, llegamos el viernes 20 a las 3 de la tarde. ';
+	await espera('socio, mensaje de 1000 letras citando (dentro del tope de expresiones de las reglas)', conCita('socio1', 'socio', largo.slice(0, 1000), mapa({ id: 'c1', de: 'cliente' })), true);
+	await espera('la cita trae su texto (se muestra el del mensaje citado: no se guarda otro)', conCita('socio1', 'socio', 'Hola', mapa({ id: 'c1', de: 'cliente', texto: '¿Aceptan 2 perros?' })), false);
+	await espera('la cita dice otro autor que el del mensaje citado', conCita('socio1', 'socio', 'Hola', mapa({ id: 'c1', de: 'socio' })), false);
+	await espera('la cita apunta a un mensaje que no existe', conCita('socio1', 'socio', 'Hola', mapa({ id: 'noExiste', de: 'cliente' })), false);
+	await espera('la cita dice un autor que no existe', conCita('socio1', 'socio', 'Hola', mapa({ id: 'c1', de: 'otro' })), false);
+	await espera('la cita no es un mapa', conCita('socio1', 'socio', 'Hola', { stringValue: 'c1' }), false);
+	await espera('una cita en un mensaje con tipo (datos de pago)', fetch(`${H}:commit`, { method: 'POST', headers: cab('admin1'), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
+		fields: { ...campos({ de: 'equipo', tipo: 'pago', texto: 'Banco Industrial, cuenta monetaria 123-456789-0, a nombre de Socio Uno' }), responde: mapa({ id: 'c1', de: 'cliente' }) } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] }] }) }).then((r) => r.status), false);
+	// Quién del equipo escribe: su primer nombre (el de users/{uid}); nadie firma por otro, ni el cliente ni el socio.
+	await espera('equipo firma con su primer nombre', crear('admin1', msj(), { de: 'equipo', texto: 'Hola, soy del equipo.', nombre: 'Admin' }), true);
+	await poner('users/admin2', { rol: 'admin', activo: true, nombre: 'Joaquín Pérez' });
+	await espera('otro administrador firma con su primer nombre', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), true);
+	await espera('un administrador firma con el nombre de otro', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín' }), false);
+	await espera('un administrador firma con su nombre completo (solo va el primero)', crear('admin2', msj(), { de: 'equipo', texto: 'Hola.', nombre: 'Joaquín Pérez' }), false);
+	await espera('el cliente pone un nombre', crear(null, msj(), { de: 'cliente', texto: 'Hola.', nombre: 'Admin' }), false);
+	await espera('el socio pone un nombre', crear('socio1', msj(), { de: 'socio', texto: 'Hola.', nombre: 'Socio' }), false);
+	await espera('nombre vacío', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: '' }), false);
+	await espera('reglas/r7 se lee (citar y notas publicadas)', leer(null, 'reglas/r7').then((s) => (s === 404 ? 200 : s)), true);
+
+	await espera('reglas/r8 se lee (notas del equipo y la foto por su ruta publicadas)', leer(null, 'reglas/r8').then((s) => (s === 404 ? 200 : s)), true);
+
+	// Notas internas: solo el equipo (notasEquipo/{token}/notas). El socio de la casa ya no las lee ni escribe.
+	await poner('users/asesor1', { rol: 'asesor', activo: true, agentId: 'a1', nombre: 'Asesor' });
+	const nota = (quien, de, texto, id = `n${++i}`, token = T) => crear(quien, `notasEquipo/${token}/notas/${id}`, m(de, texto));
+	await espera('equipo escribe una nota interna', nota('admin1', 'equipo', 'El cliente ya reservó antes.', 'nota2'), true);
+	await espera('equipo lee las notas', leer('admin1', `notasEquipo/${T}/notas/nota2`), true);
+	await espera('equipo lista las notas', leer('admin1', `notasEquipo/${T}/notas`), true);
+	await espera('socio de la casa escribe una nota interna', nota('socio1', 'socio', 'Revisar si traen mascotas.', 'nota1'), false);
+	await espera('socio de la casa escribe una nota como equipo', nota('socio1', 'equipo', 'Hola'), false);
+	await espera('socio de la casa lee una nota del equipo', leer('socio1', `notasEquipo/${T}/notas/nota2`), false);
+	await espera('socio de la casa lista las notas del equipo', leer('socio1', `notasEquipo/${T}/notas`), false);
+	await espera('socio consulta las notas de todos los chats', fetch(`${H}:runQuery`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'notas', allDescendants: true }] } }) }).then((r) => r.status), false);
+	await espera('el cliente (sin sesión) lee una nota', leer(null, `notasEquipo/${T}/notas/nota2`), false);
+	await espera('el cliente (sin sesión) lista las notas', leer(null, `notasEquipo/${T}/notas`), false);
+	await espera('el cliente (sin sesión) consulta las notas de todos los chats', fetch(`${H}:runQuery`, { method: 'POST', headers: cab(null), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'notas', allDescendants: true }] } }) }).then((r) => r.status), false);
+	await espera('el cliente (sin sesión) escribe una nota', nota(null, 'equipo', 'Hola'), false);
+	await espera('otro socio lee las notas', leer('socio2', `notasEquipo/${T}/notas/nota2`), false);
+	await espera('un asesor lee las notas', leer('asesor1', `notasEquipo/${T}/notas/nota2`), false);
+	await espera('un asesor escribe una nota', nota('asesor1', 'equipo', 'Hola'), false);
+	await espera('equipo firma una nota como socio', nota('admin1', 'socio', 'Hola'), false);
+	await espera('equipo escribe una nota de un chat que no existe', nota('admin1', 'equipo', 'Hola', 'nx', 'NoExisteEsteChatLargoYAlAzar12'), false);
+	await espera('una nota con un teléfono', nota('admin1', 'equipo', 'llámale al 5555-1234'), false);
+	await espera('nadie edita una nota', fetch(`${H}/notasEquipo/${T}/notas/nota2`, { method: 'PATCH', headers: cab('admin1'), body: JSON.stringify({ fields: campos({ de: 'equipo', texto: 'cambiada' }) }) }).then((r) => r.status), false);
+	await espera('nadie borra una nota', fetch(`${H}/notasEquipo/${T}/notas/nota2`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+	// La carpeta de antes (chats/{token}/notas) ya no se abre para nadie.
+	await espera('socio de la casa escribe en la carpeta de notas de antes', crear('socio1', `chats/${T}/notas/vieja1`, m('socio', 'Hola')), false);
+	await espera('equipo escribe en la carpeta de notas de antes', crear('admin1', `chats/${T}/notas/vieja2`, m('equipo', 'Hola')), false);
+	await espera('socio de la casa lee la carpeta de notas de antes', leer('socio1', `chats/${T}/notas`), false);
+}
 
 // Estado de la solicitud en el chat
 const act = (quien, o) => fetch(`${H}/chats/${T}?${Object.keys(o).map((k) => `updateMask.fieldPaths=${k}`).join('&')}`, { method: 'PATCH', headers: cab(quien), body: JSON.stringify({ fields: campos(o) }) }).then((r) => r.status);
@@ -207,7 +304,9 @@ await espera('socio regresa una pagada a confirmada', act('socio1', { estado: 'c
 await espera('socio manda los datos de llegada directo (los manda el servidor)', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'llegada' }), false);
 await espera('socio mete su teléfono en «llegada»', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'Llamame 5555 0001' }), false);
 await espera('cliente manda «llegada»', crear(null, msj(), { de: 'cliente', tipo: 'llegada', texto: 'llegada' }), false);
-const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${t}%2Fabc123.jpeg?alt=media&token=1a2b-3c4d`;
+// La foto del chat se guarda por su ruta en la carpeta de su solicitud (sin el token de descarga: la sirve /api/foto).
+const foto = (lead = 'lead1', n = 1) => `fotosChat/${lead}/${n}`;
+const fotoConLlave = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${t}%2Fabc123.jpeg?alt=media&token=1a2b-3c4d`;
 // Dirección y mapa de la casa: privados (properties/{id}/privado/llegada); viajan en el mensaje, idénticos a lo guardado
 {
 	const PRIV = 'properties/prueba-casa-playa-monterrico/privado/llegada';
@@ -220,7 +319,7 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await poner('users/asesor9', { rol: 'asesor', activo: true, agentId: 'a9', nombre: 'Asesor de otra casa' });
 	await espera('asesor de otra casa lee la dirección privada', leer('asesor9', PRIV), false);
 	await espera('equipo manda «llegada» con otra dirección', crear('admin1', msj(), llegada('equipo', { ...dir, direccion: 'Otra calle 5' })), false);
-	await espera('cliente adjunta una foto con una dirección', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T), direccion: 'x' }), false);
+	await espera('cliente adjunta una foto con una dirección', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(), direccion: 'x' }), false);
 	await espera('socio dueño lee la dirección privada de su casa', leer('socio1', PRIV), true);
 	await espera('socio dueño cambia la dirección privada', escribir('socio1', PRIV, { ...dir, direccion: 'Llamame 5555 0001' }), false);
 	await espera('socio manda «llegada» sin la dirección guardada', crear('socio1', msj(), llegada('socio')), false);
@@ -272,22 +371,22 @@ const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariob
 	await espera('el administrador elimina la casa con 480 contactos de huéspedes en un lote (control)', lote('admin1'), true);
 	await espera('el contacto de un huésped se fue con la casa', leer('admin1', 'properties/casa-a-borrar/privado/reserva-r3').then((s) => (s === 404 ? 200 : s)), true);
 }
-await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto(T) }), true);
+await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto() }), true);
 // Con la foto, el cliente marca en el chat «adjuntó su comprobante» (hora del servidor): desde ahí el socio no cancela solo.
 {
 	// La marca nombra la foto (comprobanteMensaje), que nace en el mismo lote (js/reserva-chat.js guardarMensaje).
 	const B = 'projects/demo-eq/databases/(default)/documents';
-	const fotoMsj = (id, de = 'cliente') => ({ update: { name: `${B}/chats/${T}/mensajes/${id}`, fields: campos({ de, tipo: 'foto', texto: foto(T) }) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] });
+	const fotoMsj = (id, de = 'cliente') => ({ update: { name: `${B}/chats/${T}/mensajes/${id}`, fields: campos({ de, tipo: 'foto', texto: foto() }) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] });
 	const marca = (id, extra = {}) => ({ update: { name: `${B}/chats/${T}`, fields: campos({ comprobanteMensaje: id }) }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true }, updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }], ...extra });
 	const lote = (quien, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes }) }).then((r) => r.status);
 	// El comprobante se manda con la reserva confirmada (antes del pago recibido): el chat vuelve a ese estado y después a «pagada».
 	const estadoDeT = (estado) => fetch(`${H}/chats/${T}?updateMask.fieldPaths=estado`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: campos({ estado }) }) });
 	await estadoDeT('confirmada');
 	await espera('cliente marca su comprobante sin mandar la foto', lote(null, [marca('no-existe')]), false);
-	await espera('cliente marca su comprobante con una foto de antes', lote(null, [marca('m1')]), false);
-	await espera('socio marca el comprobante del cliente', lote('socio1', [fotoMsj('fs1', 'socio'), marca('fs1')]), false);
-	await espera('cliente pone el comprobante con una fecha vieja (para borrarlo)', lote(null, [fotoMsj('fc0'), { update: { name: `${B}/chats/${T}`, fields: { comprobanteMensaje: val('fc0'), comprobanteCliente: { timestampValue: '2000-01-01T00:00:00Z' } } }, updateMask: { fieldPaths: ['comprobanteMensaje', 'comprobanteCliente'] } }]), false);
-	await espera('cliente manda su foto y marca su comprobante en el mismo lote (control)', lote(null, [fotoMsj('fc1'), marca('fc1')]), true);
+	await espera('cliente marca su comprobante con una foto de antes', lote(null, [marca('c1')]), false);
+	await espera('socio marca el comprobante del cliente', lote('socio1', [fotoMsj('c190', 'socio'), marca('c190')]), false);
+	await espera('cliente pone el comprobante con una fecha vieja (para borrarlo)', lote(null, [fotoMsj('c191'), { update: { name: `${B}/chats/${T}`, fields: { comprobanteMensaje: val('c191'), comprobanteCliente: { timestampValue: '2000-01-01T00:00:00Z' } } }, updateMask: { fieldPaths: ['comprobanteMensaje', 'comprobanteCliente'] } }]), false);
+	await espera('cliente manda su foto y marca su comprobante en el mismo lote (control)', lote(null, [fotoMsj('c192'), marca('c192')]), true);
 	await estadoDeT('pagada');
 }
 // El comprobante del cliente solo con la reserva confirmada: con el chat pendiente, la marca apagaría la cancelación
@@ -298,17 +397,39 @@ await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { d
 	const conEstado = async (TP, estado) => {
 		await poner(`chats/${TP}`, { ...chat, leadId: 'lead-cp', codigo: 'EQ-CP', ...(estado ? { estado } : {}) });
 		return lote([
-			{ update: { name: `${B}/chats/${TP}/mensajes/fp1`, fields: campos({ de: 'cliente', tipo: 'foto', texto: foto(TP) }) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
-			{ update: { name: `${B}/chats/${TP}`, fields: campos({ comprobanteMensaje: 'fp1' }) }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true }, updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] }]);
+			{ update: { name: `${B}/chats/${TP}/mensajes/c1`, fields: campos({ de: 'cliente', tipo: 'foto', texto: foto('lead-cp') }) }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'createdAt', setToServerValue: 'REQUEST_TIME' }] },
+			{ update: { name: `${B}/chats/${TP}`, fields: campos({ comprobanteMensaje: 'c1' }) }, updateMask: { fieldPaths: ['comprobanteMensaje'] }, currentDocument: { exists: true }, updateTransforms: [{ fieldPath: 'comprobanteCliente', setToServerValue: 'REQUEST_TIME' }] }]);
 	};
 	await espera('cliente marca su comprobante con la solicitud sin responder', conEstado('TokenComprobantePendienteLargo1', ''), false);
 	await espera('cliente marca su comprobante en una solicitud que no se dio', conEstado('TokenComprobanteNoSeDioLargo12', 'no'), false);
 	await espera('cliente marca su comprobante con el pago ya recibido', conEstado('TokenComprobanteYaPagadaLargo12', 'pagada'), false);
 	await espera('cliente marca su comprobante con la reserva confirmada (control)', conEstado('TokenComprobanteConfirmadaLarg1', 'confirmada'), true);
 }
+await espera('cliente guarda la foto con su dirección y el token de descarga (el socio la abriría)', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: fotoConLlave(T) }), false);
+await espera('cliente guarda como foto una ruta que sale de la carpeta de su solicitud', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: `fotosChat/lead1/../otra/1` }), false);
+await espera('cliente guarda la foto en la carpeta de antes (chats/{token})', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: `chats/${T}/abc.jpeg` }), false);
+await espera('cliente guarda una foto con un número fuera del tope (11)', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('lead1', 11) }), false);
+// Tope de mensajes del cliente por chat: su id es c1 … c200.
+await espera('cliente escribe con un id que no es c1 … c200', crear(null, `chats/${T}/mensajes/otroId123`, { de: 'cliente', texto: 'Hola' }), false);
+await espera('cliente escribe con el id c201 (pasa el tope)', crear(null, `chats/${T}/mensajes/c201`, { de: 'cliente', texto: 'Hola' }), false);
+await espera('cliente escribe con el id c200 (control)', crear(null, `chats/${T}/mensajes/c200`, { de: 'cliente', texto: 'Hola' }), true);
+{
+	// Con el enlace nuevo (gen 3), la cuenta del cliente vuelve a empezar: c3-1 … c3-200.
+	const TG = 'TokenGeneracionLargoYAlAzar123';
+	await poner(`chats/${TG}`, { ...chat, leadId: 'lead-gen', codigo: 'EQ-GEN' });
+	await fetch(`${H}/chats/${TG}?updateMask.fieldPaths=gen`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { gen: { integerValue: '3' } } }) });
+	await espera('cliente con el enlace nuevo escribe c3-1 (control)', crear(null, `chats/${TG}/mensajes/c3-1`, { de: 'cliente', texto: 'Hola' }), true);
+	await espera('cliente con el enlace nuevo escribe con un id de antes (c7)', crear(null, `chats/${TG}/mensajes/c7`, { de: 'cliente', texto: 'Hola' }), false);
+	await espera('cliente con el enlace nuevo escribe c3-201', crear(null, `chats/${TG}/mensajes/c3-201`, { de: 'cliente', texto: 'Hola' }), false);
+	await espera('cliente con el enlace nuevo guarda la foto 3-1 (control)', crear(null, `chats/${TG}/mensajes/c3-2`, { de: 'cliente', tipo: 'foto', texto: 'fotosChat/lead-gen/3-1' }), true);
+	await espera('cliente con el enlace nuevo guarda una foto con número de antes', crear(null, `chats/${TG}/mensajes/c3-3`, { de: 'cliente', tipo: 'foto', texto: 'fotosChat/lead-gen/1' }), false);
+}
+await espera('cliente reemplaza un mensaje (c200)', crear(null, `chats/${T}/mensajes/c200`, { de: 'cliente', texto: 'Otro' }).then((s) => (s === 409 ? 403 : s)), false);
+await espera('cliente escribe en un chat que no existe (un enlace que ya cambió)', crear(null, 'chats/NoExisteEsteChatLargoYAlAzar12/mensajes/c1', { de: 'cliente', texto: 'Hola' }), false);
+await espera('el equipo escribe en un chat que no existe (un enlace que ya cambió)', crear('admin1', 'chats/NoExisteEsteChatLargoYAlAzar12/mensajes/e1', { de: 'equipo', texto: 'Hola' }), false);
 await espera('cliente manda como foto un enlace de otro sitio', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: 'https://ejemplo.com/foto.jpg' }), false);
-await espera('cliente manda una foto de otra reserva', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('OtroTokenLargoYAlAzar23456789') }), false);
-await espera('socio manda una foto', crear('socio1', msj(), { de: 'socio', tipo: 'foto', texto: foto(T) }), false);
+await espera('cliente manda una foto de otra reserva', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('otra-solicitud') }), false);
+await espera('socio manda una foto', crear('socio1', msj(), { de: 'socio', tipo: 'foto', texto: foto() }), false);
 // Reserva cancelada por el administrador: el socio ya no escribe ni la revive
 await espera('administrador cancela', act('admin1', { estado: 'cancelada' }), true);
 await espera('socio escribe en una reserva cancelada', crear('socio1', msj(), m('socio', 'La casa queda en Calle Real 12')), false);
@@ -411,7 +532,11 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('dueña pone 11 mínimos de noches', juntos('mixto1', [casa({ minimos: minimos(11) })]), false);
 		await espera('dueña pone 10 mínimos de 30 noches (control)', juntos('mixto1', [casa({ minimos: minimos(10, 30) })]), true);
 		// «Faltan tus temporadas» pone precios y mínimos de un toque: el caso más grande junto (10 y 10) cabe en las reglas.
-		await espera('dueña pone 10 precios por fechas y 10 mínimos en un solo cambio (control)', juntos('mixto1', [suyo({ tarifas: diez }), casa({ tarifas: conMargen(diez), minimos: minimos(10, 3) })]), true);
+		// Como el lote de verdad de «Mis propiedades»: también el precio de los listados, updatedAt y updatedBy.
+		const sello = (w, quien) => { w.update.fields.updatedAt = { timestampValue: new Date().toISOString() }; w.updateMask.fieldPaths.push('updatedAt');
+			if (quien) { w.update.fields.updatedBy = sv(quien); w.updateMask.fieldPaths.push('updatedBy'); } return w; };
+		await espera('dueña pone 10 precios por fechas y 10 mínimos en un solo cambio, con el lote completo del panel (control)', juntos('mixto1', [sello(suyo({ tarifas: diez }), 'mixto1'),
+			sello(casa({ tarifas: conMargen(diez), minimos: minimos(10, 3) }, { precio: num(120) }))]), true);
 		await espera('dueña bloquea hasta dentro de 5 años', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-01-01', hasta: `${new Date().getUTCFullYear() + 5}-01-01` }] })]), false);
 		await espera('dueña bloquea con la salida antes de la llegada', juntos('mixto1', [casa({ bloqueos: [{ desde: '2027-02-10', hasta: '2027-02-01' }] })]), false);
 		await espera('dueña bloquea con una fecha mal escrita', juntos('mixto1', [casa({ bloqueos: [{ desde: 'mañana', hasta: '2027-02-01' }] })]), false);
@@ -441,7 +566,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('otro socio lee los permisos de la dueña', leer('socio2', 'permisosSocios/m1'), false);
 		// Lo que resulta para la dueña: el administrador lo cambia solo con su renglón (tipo permisosSocio).
 		{
-			const foto = (p, f) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: f }, casa: { booleanValue: true } } } });
+			const foto = (p, f) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: f }, casa: { booleanValue: true }, inmuebles: { booleanValue: true } } } });
 			const resultado = (o, log) => ({ update: { name: `${R}/permisosSocios/m1`, fields: { precios: { booleanValue: true }, fechas: { booleanValue: true }, casa: { booleanValue: true }, ...o, ...(log ? { bitacoraId: sv(log) } : {}) } } });
 			await espera('el administrador enciende los permisos de la dueña sin renglón', soloJuntos('admin1', [resultado({})]), false);
 			await espera('el administrador cambia lo que no es un interruptor sin renglón (control)', soloJuntos('admin1', [resultado({ precios: { booleanValue: true }, fechas: { booleanValue: false }, motivo: sv('otro') })]), true);
@@ -454,8 +579,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		}
 		await espera('la dueña lee los permisos para todos', leer('mixto1', 'settings/permisosSocios'), false);
 		await espera('el administrador apaga un permiso para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), false);
+		await espera('el administrador apaga «Ingresar inmuebles» para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['inmuebles'], { inmuebles: { booleanValue: false } }), false);
 		{
-			const foto = (p) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: true }, casa: { booleanValue: true } } } });
+			const foto = (p) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: true }, casa: { booleanValue: true }, inmuebles: { booleanValue: true } } } });
 			await espera('el administrador apaga un permiso para todos, con su renglón (control)', soloJuntos('admin1', [
 				{ update: { name: `${R}/settings/permisosSocios`, fields: { precios: { booleanValue: false }, bitacoraId: sv('glob1') } }, updateMask: { fieldPaths: ['precios', 'bitacoraId'] } },
 				{ update: { name: `${R}/bitacora/glob1`, fields: { tipo: sv('permisos'), objeto: sv('permisosSocios'), antes: foto(true), despues: foto(false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), true);
@@ -698,13 +824,16 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('un asesor borra una reserva con su agentId', fetch(`${H}/reservas/r-del-asesor`, { method: 'DELETE', headers: cab('asesor7') }).then((r) => r.status), false);
 	// Comprobante de la comisión: lo pone quien ganó la reserva aunque la casa ya no sea suya, y es una foto de su carpeta.
 	{
-		const url = (id) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2F${id}%2F1731600000000-pago.jpg?alt=media&token=1a2b-3c4d`;
+		// Por su ruta (Storage no abre comprobantes/: lo sirve /api/foto a quien corresponde).
+		const url = (id) => `comprobantes/${id}/1731600000000-pago.jpg`;
+		const conLlave = (id) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2F${id}%2F1731600000000-pago.jpg?alt=media&token=1a2b-3c4d`;
 		const comprobante = (quien, id, texto) => parche(quien, `reservas/${id}`, ['comision.comprobante'], { comision: { mapValue: { fields: { comprobante: sv(texto) } } } });
 		await raw('reservas/r-recibo', { propertyId: sv('prueba-casa-playa-monterrico'), propietarioId: sv('m1'), estado: sv('confirmada'), comision: { mapValue: { fields: { monto: { doubleValue: 10 }, pagada: { booleanValue: false } } } } });
 		await espera('el dueño anterior pone el comprobante de su reserva pasada (la casa ya es de otro)', comprobante('mixto1', 'r-recibo', url('r-recibo')), true);
 		await espera('comprobante con un texto cualquiera', comprobante('mixto1', 'r-recibo', 'Te pagué, llámame al 5555 0001'), false);
 		await espera('comprobante de la carpeta de otra reserva', comprobante('mixto1', 'r-recibo', url('lead-res-noche')), false);
-		await espera('comprobante alojado en el almacenamiento de otro proyecto (podría llevar a una página falsa)', comprobante('mixto1', 'r-recibo', url('r-recibo').replace('eqinmobiliariobd.firebasestorage.app', 'atacante.firebasestorage.app')), false);
+		await espera('comprobante como dirección con el token de descarga (la de antes)', comprobante('mixto1', 'r-recibo', conLlave('r-recibo')), false);
+		await espera('comprobante con una ruta que sale de su carpeta', comprobante('mixto1', 'r-recibo', 'comprobantes/r-recibo/../otra/x.jpg'), false);
 		await espera('otro dueño pone el comprobante', comprobante('socio2', 'r-recibo', url('r-recibo')), false);
 		const CA = 'ChatDeUnaCasaQueYaNoEsSuyaLargo12';
 		await raw(`chats/${CA}`, { propietarioId: sv('m1'), propertyId: sv('prueba-casa-playa-monterrico'), codigo: sv('EQ-ANT'), estado: sv('confirmada') });
@@ -764,19 +893,131 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('el asesor de la casa lee su bitácora (control)', leer('asesor7', 'properties/prueba-casa-en-venta/bitacora'), true);
 		await espera('un asesor lee la bitácora de la casa de otro asesor', leer('asesor9', 'properties/prueba-casa-en-venta/bitacora'), false);
 		await espera('un asesor escribe en la bitácora de la casa de otro asesor', entrada('asesor9', 'prueba-casa-en-venta', 'b2'), false);
-		// El dueño, solo con los textos de «Mis propiedades» (admin/js/texto-dueno.js).
-		await espera('la dueña escribe en la bitácora de su casa por noche (control)', entrada('mixto1', 'mx-noche', 'b3', 'bloqueó 16 – 20 nov (Uso propio)'), true);
-		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-noche', 'b4', 'el administrador aprobó bajar la comisión'), false);
-		await espera('la dueña cuela un teléfono en un texto de la bitácora', entrada('mixto1', 'mx-noche', 'b5', 'bloqueó 16 – 20 nov (llámame 5555-1234)'), false);
-		// Con el valor de antes y el de ahora (y el texto de antes, sin valor, de una pestaña abierta antes del cambio).
-		await espera('la dueña escribe su precio de antes y el de ahora (control)', entrada('mixto1', 'mx-noche', 'b6', 'precio entre semana: Q 900 → Q 1,000'), true);
-		await espera('la dueña escribe su precio de fin de semana sin precio propio (control)', entrada('mixto1', 'mx-noche', 'b7', 'precio fin de semana: US$ 150 → igual que entre semana'), true);
-		await espera('la dueña escribe un precio especial con su valor y unas personas máximo con el de antes (control)', entrada('mixto1', 'mx-noche', 'b8', 'precio especial 16 – 20 nov (cada año en estas fechas): US$ 12,500.5'), true);
-		await espera('la dueña escribe el texto sin valor de una pestaña de antes (control)', entrada('mixto1', 'mx-noche', 'b9', 'precio entre semana'), true);
-		await espera('la dueña escribe personas máximo de antes y de ahora (control)', entrada('mixto1', 'mx-noche', 'b10', 'personas máximo: 8 → 12'), true);
-		await espera('la dueña cuela un teléfono como precio', entrada('mixto1', 'mx-noche', 'b11', 'precio entre semana: Q 5555 1234'), false);
-		await espera('la dueña cuela un teléfono como precio con comas', entrada('mixto1', 'mx-noche', 'b12', 'precio entre semana: Q 5,5551,234'), false);
-		await espera('la dueña cuela un texto en vez del precio', entrada('mixto1', 'mx-noche', 'b13', 'precio entre semana: US$ 1 → llámame'), false);
+		// El dueño, solo con los textos de «Mis propiedades» (admin/js/texto-dueno.js), y diciendo lo que de verdad cambió en el
+		// mismo lote (renglonCuadra): una casa en quetzales con su precio (1,000), el público con el margen (1,200) y 8 personas.
+		await raw('properties/mx-texto', { titulo: sv('Casa para los textos del dueño'), operacion: sv('vacacional'), propietarioId: sv('m1'), moneda: sv('GTQ'), publicado: { booleanValue: false },
+			vacacional: { mapValue: { fields: { base: { integerValue: '1200' }, huespedesMax: { integerValue: '8' } } } } });
+		await raw('properties/mx-texto/privado/socio', { precioBase: { integerValue: '1000' }, margen: { integerValue: '20' } });
+		const C = `${R}/properties/mx-texto`;
+		const num = (x) => (Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x });
+		const lista = (xs) => ({ arrayValue: { values: xs.map((o) => ({ mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, typeof x === 'number' ? num(x) : sv(x)])) } })) } });
+		const vac = (o) => ({ update: { name: C, fields: { vacacional: { mapValue: { fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? lista(x) : num(x)])) } } } }, updateMask: { fieldPaths: Object.keys(o).map((k) => `vacacional.${k}`) } });
+		const suyo = (o) => ({ update: { name: `${C}/privado/socio`, fields: Object.fromEntries(Object.entries(o).map(([k, x]) => [k, Array.isArray(x) ? lista(x) : num(x)])) }, updateMask: { fieldPaths: Object.keys(o) } });
+		const con = async (texto, writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes: await conRenglon('mixto1', writes, { texto }) }) }).then((r) => r.status);
+		const precio = (n) => [suyo({ precioBase: n }), vac({ base: Math.round(n * 120) / 100 })];
+		await espera('la dueña escribe un renglón sin cambiar nada (solo el texto)', entrada('mixto1', 'mx-texto', 't1', 'bloqueó 16 – 20 nov (Uso propio)'), false);
+		await espera('la dueña escribe un precio que nunca existió, sin cambiar nada', entrada('mixto1', 'mx-texto', 't2', 'precio entre semana: Q 900 → Q 1,000'), false);
+		await espera('la dueña escribe un texto libre en la bitácora de su casa', entrada('mixto1', 'mx-texto', 't3', 'el administrador aprobó bajar la comisión'), false);
+		await espera('la dueña cuela un teléfono en un texto de la bitácora', con('bloqueó 16 – 20 nov (llámame 5555-1234)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), false);
+		await espera('la dueña bloquea días y lo anota (control)', con('bloqueó 16 – 20 mar 2027 (Uso propio)', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-21' }] })]), true);
+		await espera('la dueña anota «bloqueó» cuando cambió su precio', con('bloqueó 16 – 20 mar 2027 (Uso propio)', precio(1100)), false);
+		// Cada guardado deja su renglón y ninguno más: la casa lo nombra en `bitacoraTexto` en el mismo lote.
+		const lote = async (writes) => fetch(`${H}:commit`, { method: 'POST', headers: cab('mixto1'), body: JSON.stringify({ writes }) }).then((r) => r.status);
+		const bloqueo = (d) => [vac({ bloqueos: [{ desde: d, hasta: '2027-03-25' }] })];
+		await espera('la dueña bloquea días sin nombrar el renglón en la casa', lote(await conRenglon('mixto1', bloqueo('2027-03-23'), { texto: 'bloqueó 23 – 24 mar 2027 (Uso propio)', nombrar: false })), false);
+		await espera('la dueña bloquea días y agrega un segundo renglón en el mismo lote', lote([...await conRenglon('mixto1', bloqueo('2027-03-22'), { texto: 'bloqueó 22 – 24 mar 2027 (Uso propio)' }),
+			renglonTexto('mixto1', 'mx-texto', 'habilitó 22 – 24 mar 2027')]), false);
+		{
+			const w = await conRenglon('mixto1', bloqueo('2027-03-21'), { texto: 'bloqueó 21 – 24 mar 2027 (Uso propio)' });
+			w.find((x) => /\/properties\/mx-texto$/.test(x.update?.name || '')).update.fields.bitacoraTexto = svG('otro-id');
+			await espera('la dueña nombra en la casa un id que no es el de su renglón', lote(w), false);
+		}
+		await espera('la dueña bloquea días y la casa nombra su renglón (control)', lote(await conRenglon('mixto1', bloqueo('2027-03-20'), { texto: 'bloqueó 20 – 24 mar 2027 (Uso propio)' })), true);
+		// `bitacoraTexto` es un id (letras y cifras, hasta 40) de un renglón que existe después del lote: no un texto libre en la
+		// casa pública. El renglón y la casa con el mismo id, para que solo falle lo que se prueba.
+		{
+			const conId = async (id, d) => {
+				const w = await conRenglon('mixto1', bloqueo(d), { texto: `bloqueó ${d.slice(8, 10)} – 24 mar 2027 (Uso propio)` });
+				const casa = w.find((x) => /\/properties\/mx-texto$/.test(x.update?.name || ''));
+				const r = w.find((x) => /\/bitacora\/[^/]+$/.test(x.update?.name || '') && x.update.name.includes('/properties/mx-texto/'));
+				casa.update.fields.bitacoraTexto = svG(id);
+				r.update.name = r.update.name.replace(/[^/]+$/, id);
+				return lote(w);
+			};
+			await espera('la casa nombra un renglón con un id de 41 letras', conId('a'.repeat(41), '2027-03-19'), false);
+			await espera('la casa nombra un renglón con un teléfono en el id', conId('llama 5555-1234', '2027-03-18'), false);
+			await espera('la casa nombra un renglón con un id de 40 letras y cifras (control)', conId(`A1${'b'.repeat(38)}`, '2027-03-17'), true);
+			await espera('la dueña pone en la casa un bitacoraTexto que no nombra ningún renglón (sin renglón en el lote)',
+				lote([{ update: { name: 'projects/demo-eq/databases/(default)/documents/properties/mx-texto', fields: { bitacoraTexto: svG('noExiste123') } }, updateMask: { fieldPaths: ['bitacoraTexto'] } }]), false);
+			await espera('la dueña pone en la casa un bitacoraTexto que no es texto', lote([{ update: { name: 'projects/demo-eq/databases/(default)/documents/properties/mx-texto', fields: { bitacoraTexto: { integerValue: '5' } } }, updateMask: { fieldPaths: ['bitacoraTexto'] } }]), false);
+		}
+		// Cada verbo con su valor: «bloqueó» no lleva monto (las reglas solo ven que los bloqueos cambiaron: sería inventado), el
+		// mínimo no lleva un monto y el precio especial no lleva noches.
+		await espera('la dueña bloquea días y anota un monto inventado', con('bloqueó 16 – 20 mar 2027 (Uso propio): Q 999,999.99', [vac({ bloqueos: [{ desde: '2027-03-16', hasta: '2027-03-22' }] })]), false);
+		await espera('la dueña habilita días y anota unas noches', con('habilitó 16 – 20 mar 2027: 3 noches', [vac({ bloqueos: [] })]), false);
+		// Precio entre semana: el de antes y el de ahora, los de verdad (privado/socio), en la moneda de la casa.
+		await espera('la dueña anota un precio de ahora que no es el que guarda', con('precio entre semana: Q 1,000 → Q 1,500', precio(1100)), false);
+		await espera('la dueña anota un precio de antes que no era', con('precio entre semana: Q 900 → Q 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio en dólares en una casa en quetzales', con('precio entre semana: US$ 1,000 → US$ 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio sin el de antes (era 1,000)', con('precio entre semana: Q 1,100', precio(1100)), false);
+		await espera('la dueña anota su precio de antes y el de ahora, los de verdad (control)', con('precio entre semana: Q 1,000 → Q 1,100', precio(1100)), true);
+		await espera('la dueña anota su precio con decimales (control)', con('precio entre semana: Q 1,100 → Q 999.5', precio(999.5)), true);
+		await espera('la dueña anota su precio sin valores, con el cambio de verdad (las reglas de antes, control)', con('precio entre semana', precio(1000)), true);
+		await espera('la dueña anota «precio entre semana» sin valores y sin cambiarlo', con('precio entre semana', [vac({ bloqueos: [] })]), false);
+		// Fin de semana: sin precio propio es «igual que entre semana» (0).
+		await espera('la dueña pone su fin de semana y anota uno que no es', con('precio fin de semana: igual que entre semana → Q 1,300', [suyo({ precioFinde: 1250 }), vac({ finde: 1500 })]), false);
+		await espera('la dueña pone su fin de semana y lo anota (control)', con('precio fin de semana: igual que entre semana → Q 1,250', [suyo({ precioFinde: 1250 }), vac({ finde: 1500 })]), true);
+		await espera('la dueña quita su fin de semana y lo anota (control)', con('precio fin de semana: Q 1,250 → igual que entre semana', [suyo({ precioFinde: 0 }), vac({ finde: 0 })]), true);
+		// Un precio de antes de 1,000,000 o más (lo puso el equipo) no cabe en el texto: va sin él y no le impide guardar.
+		await raw('properties/mx-texto/privado/socio', { precioBase: { integerValue: '1500000' }, margen: { integerValue: '20' } });
+		await espera('con un precio de antes de 1,500,000, la dueña anota el nuevo sin el de antes (control)', con('precio entre semana: Q 1,000', precio(1000)), true);
+		// Personas: las de la casa antes y después.
+		await espera('la dueña anota otras personas de antes', con('personas máximo: 6 → 12', [vac({ huespedesMax: 12 })]), false);
+		await espera('la dueña anota otras personas de ahora', con('personas máximo: 8 → 10', [vac({ huespedesMax: 12 })]), false);
+		await espera('la dueña anota sus personas de antes y de ahora (control)', con('personas máximo: 8 → 12', [vac({ huespedesMax: 12 })]), true);
+		await espera('la dueña anota sus personas sin el de antes (las reglas de antes, control)', con('personas máximo 10', [vac({ huespedesMax: 10 })]), true);
+		// Precio especial y mínimo de noches: la lista cambió y el monto o las noches están en la nueva.
+		const tf = (precio) => ({ desde: '2027-04-01', hasta: '2027-04-05', precio });
+		await espera('la dueña pone un precio especial y anota otro monto', con('precio especial 1 – 5 abr 2027: Q 12,500.5', [suyo({ tarifas: [tf(800)] }), vac({ tarifas: [tf(960)] })]), false);
+		await espera('la dueña pone un precio especial y lo anota (control)', con('precio especial 1 – 5 abr 2027: Q 800', [suyo({ tarifas: [tf(800)] }), vac({ tarifas: [tf(960)] })]), true);
+		await espera('la dueña anota «quitó precios especiales» sin quitar nada', con('quitó precios especiales 1 – 5 abr 2027', [vac({ huespedesMax: 9 })]), false);
+		await espera('la dueña quita su precio especial y lo anota (control)', con('quitó precios especiales 1 – 5 abr 2027', [suyo({ tarifas: [] }), vac({ tarifas: [] })]), true);
+		const mn = (noches) => ({ desde: '2027-04-01', hasta: '2027-04-05', noches });
+		await espera('la dueña pone un mínimo de 3 noches y anota 5', con('mínimo de noches 1 – 5 abr 2027: 5 noches', [vac({ minimos: [mn(3)] })]), false);
+		await espera('la dueña pone un mínimo de noches y lo anota (control)', con('mínimo de noches 1 – 5 abr 2027: 3 noches', [vac({ minimos: [mn(3)] })]), true);
+		await espera('la dueña pone un mínimo de noches y lo anota con un monto', con('mínimo de noches 1 – 5 abr 2027: Q 5', [vac({ minimos: [mn(4)] })]), false);
+		await espera('la dueña pone un precio especial y lo anota con noches', con('precio especial 1 – 5 abr 2027: 3 noches', [suyo({ tarifas: [tf(810)] }), vac({ tarifas: [tf(972)] })]), false);
+		await espera('«Faltan tus temporadas» que solo copia mínimos de noches (control)', con('puso las temporadas de 2028', [vac({ minimos: [mn(3), { ...mn(3), desde: '2028-04-01', hasta: '2028-04-05' }] })]), true);
+		await espera('«puso las temporadas» sin copiar nada', con('puso las temporadas de 2028', [vac({ huespedesMax: 11 })]), false);
+		// Los casos más pesados con valor (el tope de 1000 revisiones es de todo el pedido): 10 precios especiales con el monto
+		// del último, y 10 mínimos con las noches del último. (Precios y mínimos juntos solo los pone «Faltan tus temporadas»,
+		// sin valores en su texto: el caso de 10 y 10 de arriba.)
+		const diezT = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-10`, hasta: `2027-${String(k + 1).padStart(2, '0')}-12`, precio: 700 + k }));
+		const diezM = Array.from({ length: 10 }, (_, k) => ({ desde: `2027-${String(k + 1).padStart(2, '0')}-10`, hasta: `2027-${String(k + 1).padStart(2, '0')}-12`, noches: k < 9 ? 2 : 4 }));
+		await espera('10 precios especiales, con el monto del último en el texto (control)', con('precio especial 10 – 12 oct 2027: Q 709',
+			[suyo({ tarifas: diezT }), vac({ tarifas: diezT.map((x) => ({ ...x, precio: Math.round(x.precio * 120) / 100 })) })]), true);
+		await espera('10 mínimos de noches, con las noches del último en el texto (control)', con('mínimo de noches 10 – 12 oct 2027: 4 noches', [vac({ minimos: diezM })]), true);
+		await espera('la dueña cuela un teléfono como precio', con('precio entre semana: Q 5555 1234', precio(1100)), false);
+		await espera('la dueña cuela un teléfono como precio con comas', con('precio entre semana: Q 5,5551,234', precio(1200)), false);
+		await espera('la dueña cuela un texto en vez del precio', con('precio entre semana: Q 1 → llámame', precio(1300)), false);
+	}
+	// Corregir el correo del cliente (admin/js/crm.js corregirCorreo, desde Solicitudes y la ficha del cliente): el correo, la
+	// marca del rebote y el historial de la solicitud. Solo el administrador y el asesor del lead.
+	{
+		await raw('leads/lead-correo-noche', { nombre: sv('Huésped'), telefono: sv('5555'), email: sv('ana@gmial.com'), propertyId: sv('mx-noche'), propietarioId: sv('m1'), agentId: sv(''),
+			reboteCorreo: { mapValue: { fields: { motivo: sv('No existe') } } }, reserva: { mapValue: { fields: { codigo: sv('EQ-CO'), llegada: sv('2027-02-01'), salida: sv('2027-02-04') } } } });
+		await raw('leads/lead-correo-a7', { nombre: sv('Cliente'), telefono: sv('5555'), email: sv('luis@hotmial.com'), agentId: sv('a7') });
+		const corregir = (quien, id, correo, conHistorial = true) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{
+			update: { name: `${R}/leads/${id}`, fields: { email: sv(correo) } }, updateMask: { fieldPaths: ['email', 'reboteCorreo'] },
+			updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }, ...(conHistorial ? [{ fieldPath: 'solicitud.historial', appendMissingElements: { values: [{ mapValue: { fields: { que: sv(`Correo corregido: x → ${correo}`), quien: sv(quien) } } }] } }] : [])] }] }) }).then((r) => r.status);
+		await espera('la dueña corrige el correo del huésped de su casa (no lee la solicitud)', corregir('mixto1', 'lead-correo-noche', 'ana@gmail.com'), false);
+		await espera('un anónimo corrige el correo de una solicitud', corregir(null, 'lead-correo-noche', 'otro@example.com', false), false);
+		await espera('un asesor corrige el correo de una solicitud sin asesor', corregir('asesor7', 'lead-correo-noche', 'otro@example.com'), false);
+		await espera('un asesor sin vincular corrige el correo de una solicitud sin asesor', corregir('asesor-sin', 'lead-correo-noche', 'otro@example.com'), false);
+		// El correo de una solicitud de reserva lo cambia solo el servidor (/api/reenviar-enlace), junto con el enlace nuevo.
+		await espera('el administrador corrige el correo de una solicitud de reserva desde el navegador (sin cambiar el enlace)', corregir('admin1', 'lead-correo-noche', 'ana@gmail.com'), false);
+		await espera('el administrador cambia otra cosa de la solicitud de reserva, sin el correo (control)', fetch(`${H}/leads/lead-correo-noche?updateMask.fieldPaths=nombre`, { method: 'PATCH', headers: cab('admin1'), body: JSON.stringify({ fields: { nombre: sv('Huésped Dos') } }) }).then((r) => r.status), true);
+		await espera('otro asesor corrige el correo del lead de un asesor', corregir('asesor9', 'lead-correo-a7', 'luis@hotmail.com', false), false);
+		await espera('el asesor del lead de contacto le corrige el correo (control)', corregir('asesor7', 'lead-correo-a7', 'luis@hotmail.com', false), true);
+		await espera('el administrador corrige el correo de un lead de contacto (control)', corregir('admin1', 'lead-correo-a7', 'luis2@hotmail.com', false), true);
+		// Nadie cambia `reserva` desde el navegador: vaciarla, cambiar el correo y volverla a poner no salta el cambio de enlace.
+		await raw('leads/lead-res-a7', { nombre: sv('Cliente'), telefono: sv('5555'), email: sv('rita@hotmial.com'), agentId: sv('a7'), reserva: { mapValue: { fields: { codigo: sv('EQ-A7'), llegada: sv('2027-02-01'), salida: sv('2027-02-04') } } } });
+		const reservaDe = (quien, id, valor) => fetch(`${H}/leads/${id}?updateMask.fieldPaths=reserva`, { method: 'PATCH', headers: cab(quien), body: JSON.stringify({ fields: { reserva: valor } }) }).then((r) => r.status);
+		await espera('el asesor vacía la reserva de su lead (paso 1 para cambiar el correo sin el enlace)', reservaDe('asesor7', 'lead-res-a7', { mapValue: { fields: {} } }), false);
+		await espera('el asesor quita la reserva de su lead', fetch(`${H}/leads/lead-res-a7?updateMask.fieldPaths=reserva`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: {} }) }).then((r) => r.status), false);
+		await espera('el asesor cambia el correo de su solicitud de reserva (paso 2)', corregir('asesor7', 'lead-res-a7', 'rita@hotmail.com', false), false);
+		await espera('el asesor le pone una reserva a un lead de contacto (paso 3)', reservaDe('asesor7', 'lead-correo-a7', { mapValue: { fields: { codigo: sv('EQ-A7') } } }), false);
+		await espera('el administrador vacía la reserva de una solicitud', reservaDe('admin1', 'lead-res-a7', { mapValue: { fields: {} } }), false);
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{
@@ -837,19 +1078,92 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el dueño sube una foto a una casa en venta', subir('socio1', 'properties/prueba-casa-en-venta/nueva3.png'), false);
 	await espera('storage: el dueño sube algo que no es foto a su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/nota.txt', 'text/plain'), false);
 	await espera('storage: el dueño sube a una subcarpeta de su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/x/y.png'), false);
+	// La casa nueva del socio («Agregar casa»): la crea solo el servidor (netlify/functions/mi-casa-nueva.mjs); las fotos van
+	// antes, solo a la carpeta que el servidor le apartó a él (casasNuevas/{id}, sin regla en Firestore).
+	await espera('el socio crea una casa directo en la base', crear('socio1', 'properties/del-socio', { titulo: 'Mía', operacion: 'venta', propietarioId: 'o1', agentId: '', publicado: true }), false);
+	await espera('el socio crea una casa por noche directo en la base', crear('socio1', 'properties/del-socio2', { titulo: 'Mía', operacion: 'vacacional', propietarioId: 'o1', agentId: '', publicado: true }), false);
+	await espera('el socio se aparta él mismo una carpeta', crear('socio1', 'casasNuevas/mia', { propietarioId: 'o1' }), false);
+	// La carpeta apartada lleva la hora en que se apartó (`cuando`): vale 7 días.
+	const apartada = (id, propietarioId, haceDias = 0) => fetch(`${H}/casasNuevas/${id}`, { method: 'PATCH', headers: cab('dueño'),
+		body: JSON.stringify({ fields: { propietarioId: val(propietarioId), uid: val('socio1'), cuando: { timestampValue: new Date(Date.now() - haceDias * 86400000).toISOString() } } }) });
+	await apartada('nueva-s1', 'o1');
+	await espera('el socio lee las carpetas apartadas', leer('socio1', 'casasNuevas/nueva-s1'), false);
+	await espera('storage: el socio sube una foto a la carpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/1.png'), true);
+	await espera('storage: el socio sube la foto 40 (control)', subir('socio1', 'properties/nueva-s1/40.webp', 'image/webp'), true);
+	await espera('storage: el socio reemplaza esa foto', subir('socio1', 'properties/nueva-s1/1.png'), false);
+	await espera('storage: el socio borra una foto de su casa nueva', borrar('socio1', 'properties/nueva-s1/1.png'), false);
+	await espera('storage: el socio sube la foto 41 (tope de 40)', subir('socio1', 'properties/nueva-s1/41.png'), false);
+	await espera('storage: el socio sube una foto con otro nombre (sin tope)', subir('socio1', 'properties/nueva-s1/1700000000-foto.png'), false);
+	await espera('storage: el socio sube un SVG a su casa nueva', subir('socio1', 'properties/nueva-s1/2.png', 'image/svg+xml'), false);
+	await espera('storage: otro socio sube a la carpeta de esa casa nueva', subir('socio2', 'properties/nueva-s1/2.png'), false);
+	await espera('storage: el socio sube a una carpeta que nadie le apartó', subir('socio1', 'properties/sin-apartar/1.png'), false);
+	await espera('storage: el socio sube a una subcarpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/x/1.png'), false);
+	await espera('storage: el socio sube algo que no es foto a su casa nueva', subir('socio1', 'properties/nueva-s1/3.png', 'text/plain'), false);
+	await apartada('vieja-s1', 'o1', 8);
+	await espera('storage: el socio sube a una carpeta apartada hace más de 7 días', subir('socio1', 'properties/vieja-s1/1.png'), false);
+	await poner('permisosSocios/o1', { precios: true, fechas: true, casa: true, inmuebles: false, motivo: 'atraso' });
+	await espera('storage: el socio con «Ingresar inmuebles» apagado sube a su carpeta', subir('socio1', 'properties/nueva-s1/2.png'), false);
+	await fetch(`${H}/permisosSocios/o1`, { method: 'DELETE', headers: cab('dueño') });
+	await espera('storage: con el permiso de vuelta, sube (control)', subir('socio1', 'properties/nueva-s1/2.png'), true);
+	await poner('casasNuevas/prueba-casa-en-venta', { propietarioId: 'o1' });
+	await espera('storage: el socio sube a una casa que ya existe con una carpeta apartada a su nombre', subir('socio1', 'properties/prueba-casa-en-venta/f9.png'), false);
 	await espera('storage: un acceso quitado sube una foto',subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
+	await espera('storage: el equipo sube un SVG (puede llevar código)', subir('admin1', 'site/logo.svg', 'image/svg+xml'), false);
+	await espera('storage: el equipo sube un JPEG (control)', subir('admin1', 'site/portada.jpg', 'image/jpeg'), true);
 	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
-	await espera('storage: el cliente sube el comprobante de su reserva', subir(null, `chats/${T}/comprobante1.png`), true);
-	await espera('storage: el cliente reemplaza su comprobante', subir(null, `chats/${T}/comprobante1.png`), false);
+	await espera('storage: la dueña sube un HEIC como comprobante (el navegador no lo muestra)', subir('mixto1', 'comprobantes/lead-res-noche/pago.heic', 'image/heic'), false);
+	// La foto del chat: en la carpeta de su solicitud (fotosChat/{solicitud}/1…10), con el enlace vigente en sus datos.
+	const TF = 'TokenFotosChatLargoYAlAzar12345';
+	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'confirmada' });
+	await poner('chatsPorSolicitud/lead-fotos', { token: TF });
+	const subirFoto = (ruta, token = TF, tipo = 'image/png') => {
+		const corte = 'eqcorte';
+		const cuerpo = Buffer.concat([Buffer.from(`--${corte}\r\nContent-Type: application/json; charset=utf-8\r\n\r\n${JSON.stringify({ name: ruta, contentType: tipo, ...(token ? { metadata: { token } } : {}) })}\r\n--${corte}\r\nContent-Type: ${tipo}\r\n\r\n`), png, Buffer.from(`\r\n--${corte}--`)]);
+		return fetch(`${B}?uploadType=multipart&name=${encodeURIComponent(ruta)}`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${corte}`, 'X-Goog-Upload-Protocol': 'multipart' }, body: cuerpo }).then((r) => r.status);
+	};
+	await espera('storage: el cliente sube la foto 1 de su solicitud, con su enlace (control)', subirFoto('fotosChat/lead-fotos/1'), true);
+	await espera('storage: el cliente reemplaza la foto 1', subirFoto('fotosChat/lead-fotos/1'), false);
+	await espera('storage: el cliente sube la foto 10 (el tope)', subirFoto('fotosChat/lead-fotos/10'), true);
+	await espera('storage: el cliente sube la foto 11 (pasa el tope)', subirFoto('fotosChat/lead-fotos/11'), false);
+	await espera('storage: el cliente sube con otro nombre', subirFoto('fotosChat/lead-fotos/x.png'), false);
+	await espera('storage: sube sin el enlace en sus datos', subirFoto('fotosChat/lead-fotos/2', ''), false);
+	await espera('storage: sube con un enlace que no es el vigente (uno viejo o de otra reserva)', subirFoto('fotosChat/lead-fotos/2', T), false);
+	await espera('storage: sube algo que no es foto', subirFoto('fotosChat/lead-fotos/3', TF, 'text/plain'), false);
+	// Con el enlace nuevo (gen 2) la cuenta de fotos vuelve a empezar: 2-1 … 2-10; los números de antes ya no.
+	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'confirmada' });
+	await fetch(`${H}/chats/${TF}?updateMask.fieldPaths=gen`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { gen: { integerValue: '2' } } }) });
+	await espera('storage: con el enlace nuevo, la foto 2-1 (control)', subirFoto('fotosChat/lead-fotos/2-1'), true);
+	await espera('storage: con el enlace nuevo, un número de antes (5)', subirFoto('fotosChat/lead-fotos/5'), false);
+	await espera('storage: con el enlace nuevo, la foto 2-11 (pasa el tope)', subirFoto('fotosChat/lead-fotos/2-11'), false);
+	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'pagada' });
+	await espera('storage: sube con la reserva ya pagada (no hay a quién pagar)', subirFoto('fotosChat/lead-fotos/4'), false);
+	await espera('storage: el cliente sube a la carpeta de antes (chats/{token})', subir(null, `chats/${T}/comprobante1.png`), false);
 	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);
-	await espera('storage: nadie borra el comprobante del cliente (ni el equipo)', borrar('admin1', `chats/${T}/comprobante1.png`), false);
+	// La foto del chat no la abre nadie por Storage (ni sus datos, que traen el token de descarga): la sirve /api/foto.
+	const datos = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { headers: auth(quien) }).then((r) => r.status);
+	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
+	await subir('dueño', `chats/${T}/de-antes.png`);
+	for (const [quien, nombre] of [[null, 'sin sesión (con el enlace del chat)'], ['socio1', 'el socio de la casa'], ['admin1', 'el administrador'], ['asesor9', 'un asesor']]) {
+		for (const ruta of ['fotosChat/lead-fotos/1', `chats/${T}/de-antes.png`]) {
+			await espera(`storage: ${nombre} abre la foto del comprobante del cliente (${ruta.split('/')[0]})`, bajarCon(quien, ruta), false);
+			await espera(`storage: ${nombre} lee los datos (y el token) de la foto (${ruta.split('/')[0]})`, datos(quien, ruta), false);
+		}
+	}
+	await espera('storage: la cuenta de servicio abre la foto del comprobante (control: /api/foto)', bajarCon('dueño', 'fotosChat/lead-fotos/1'), true);
+	await espera('storage: una foto en la raíz se abre por su dirección (control)', subir('dueño', 'logo.png').then(() => bajar('logo.png')), true);
+	await espera('storage: nadie borra el comprobante del cliente (ni el equipo)', borrar('admin1', 'fotosChat/lead-fotos/1'), false);
 	await espera('storage: la dueña sube el comprobante de la comisión de su reserva', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), true);
 	await espera('storage: la dueña reemplaza ese comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
 	await espera('storage: otro dueño sube un comprobante a esa reserva', subir('socio2', 'comprobantes/lead-res-noche/pago2.png'), false);
 	await espera('storage: la dueña sube un comprobante a una reserva que no existe', subir('mixto1', 'comprobantes/no-existe/pago.png'), false);
 	await espera('storage: el equipo reemplaza el comprobante de la comisión', subir('admin1', 'comprobantes/lead-res-noche/pago1.png'), false);
 	await espera('storage: la dueña borra el comprobante de la comisión', borrar('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
+	// El comprobante de la comisión tampoco se abre por Storage (ni quien lo subió): lo sirve /api/foto.
+	for (const quien of [null, 'mixto1', 'admin1', 'socio2']) {
+		await espera(`storage: ${quien || 'sin sesión'} abre el comprobante de la comisión`, bajarCon(quien, 'comprobantes/lead-res-noche/pago1.png'), false);
+		await espera(`storage: ${quien || 'sin sesión'} lee los datos del comprobante de la comisión`, datos(quien, 'comprobantes/lead-res-noche/pago1.png'), false);
+	}
 	await espera('storage: el dueño anterior sube el comprobante de su reserva pasada (como en la base)', subir('mixto1', 'comprobantes/r-recibo/pago1.png'), true);
 }
 // Nadie se hace administrador solo: el arranque «primer administrador» se cerró (aunque meta/bootstrap faltara, como
@@ -908,6 +1222,15 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor marca «Listo» un «No se dio» con fechas ocupadas', listo('asesor7', 'robo_lead1', { ...robo, agentId: 'a7', por: 'asesor7' }), false);
 	await espera('administrador marca «Listo» un «No se dio» de una solicitud que no existe', listo('admin1', 'robo_noExiste', { ...robo, objeto: 'noExiste', por: 'admin1' }), false);
 	await espera('administrador marca «Listo» un «No se dio» con fechas ocupadas (control)', listo('admin1', 'robo_lead1', { ...robo, por: 'admin1' }), true);
+	// Una foto del cliente que el equipo deja oculta al socio: «Listo» por solicitud y foto, solo el administrador.
+	const fotoListo = (por, objeto = 'lead1', fin = 'm1') => ({ tipo: 'foto', objeto, fin, agentId: '', por });
+	await poner('leads/lead-con_guion-y_raya', { nombre: 'x', reserva: { codigo: 'EQ-GUION' } });
+	await espera('administrador marca «Listo» una foto oculta (control)', listo('admin1', 'foto_lead1_m1', fotoListo('admin1')), true);
+	await espera('administrador marca «Listo» una foto de una solicitud con guiones en su id (control)', listo('admin1', 'foto_lead-con_guion-y_raya_m1', fotoListo('admin1', 'lead-con_guion-y_raya')), true);
+	await espera('asesor marca «Listo» una foto oculta', listo('asesor7', 'foto_lead1_m2', { ...fotoListo('asesor7', 'lead1', 'm2'), agentId: 'a7' }), false);
+	await espera('administrador marca «Listo» una foto de una solicitud que no existe', listo('admin1', 'foto_noExiste_m1', fotoListo('admin1', 'noExiste')), false);
+	await espera('administrador marca «Listo» una foto con otra clave', listo('admin1', 'foto_lead1_otra', fotoListo('admin1', 'lead1', 'm3')), false);
+	await espera('administrador marca «Listo» una foto sin el mensaje', listo('admin1', 'foto_lead1_', fotoListo('admin1', 'lead1', '')), false);
 	const exc = (por, agentId = 'a7', fin = '2026-12-01') => ({ tipo: 'exclusiva', objeto: 'casa-a7', fin, agentId, por });
 	await espera('asesor marca «Listo» la exclusiva de una casa de otro asesor', listo('asesor9', 'exclusiva_casa-a7_2026-12-01', exc('asesor9', 'a9')), false);
 	await espera('asesor marca «Listo» una exclusiva con otra fecha en la clave', listo('asesor7', 'exclusiva_casa-a7_2027-01-01', exc('asesor7')), false);

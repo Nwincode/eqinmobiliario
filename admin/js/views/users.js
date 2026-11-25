@@ -1,7 +1,7 @@
 import {
 	db, doc, getDocs, updateDoc, collection, serverTimestamp
 } from '../firebase.js';
-import { h, toast, showError, pageHeader, badge, modal, formatDate , mount, cajaTabla } from '../ui.js';
+import { h, toast, showError, pageHeader, badge, modal, formatDate, mount, tablaAdmin } from '../ui.js';
 import { session, loadAgents } from '../session.js';
 import { loadPropietarios } from '../crm.js';
 import { etiquetaDueno, tieneCasasPorNoche } from '../duenos.js';
@@ -17,8 +17,8 @@ const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'in
 
 function userForm(agents, user = {}) {
 	// Cada etiqueta con su campo (`for`/`id`): el lector de pantalla la lee y tocarla pone el cursor ahí.
-	const nombre = h('input', { class: 'form-control', id: 'u-nombre', required: true, autocomplete: 'name', maxlength: 120, value: user.nombre || '' });
-	const email = h('input', { class: 'form-control', id: 'u-email', type: 'email', required: true, autocomplete: 'email', value: user.email || '', disabled: Boolean(user.uid) });
+	const nombre = h('input', { class: 'form-control', id: 'u-nombre', required: true, autocomplete: 'off', maxlength: 120, value: user.nombre || '' });
+	const email = h('input', { class: 'form-control', id: 'u-email', type: 'email', required: true, autocomplete: 'off', value: user.email || '', disabled: Boolean(user.uid) });
 	const rol = h('select', { class: 'form-select', id: 'u-rol' }, ROLES.map(([v, l]) => h('option', { value: v }, l)));
 	rol.value = user.rol || 'asesor';
 	const agentId = h('select', { class: 'form-select', id: 'u-asesor' }, h('option', { value: '' }, 'Ninguno'), agents.map((a) => h('option', { value: a.id }, a.nombre)));
@@ -156,17 +156,20 @@ export async function render(container) {
 		});
 	};
 
+	const tabla = tablaAdmin({
+		columnas: ['Nombre', 'Correo', 'Rol', 'Asesor o propietario', 'Estado', 'Alta'].map((titulo) => ({ titulo })),
+		celdas: (u) => [
+			h('span', { class: 'fw-semibold' }, u.nombre || '—', u.uid === session.user.uid ? h('span', { class: 'text-muted small fw-normal' }, ' (tú)') : null),
+			u.email,
+			badge(...rolDe(u)),
+			h('span', { class: 'small' }, u.rol === 'socio' && fichaDe(u) ? h('a', { href: `#/propietarios/${u.propietarioId}` }, fichaDe(u).nombre) : agentName[u.agentId] || '—'),
+			u.activo ? badge('Activo', 'success') : badge('Desactivado', 'secondary'),
+			h('span', { class: 'small text-muted' }, formatDate(u.createdAt, false))],
+		alTocar: (u) => edit(u)
+	});
 	mount(container, 
 		pageHeader('Usuarios', h('button', { class: 'btn btn-primary', onclick: create }, '+ Nuevo usuario')),
 		h('p', { class: 'text-muted' }, 'Los administradores gestionan todo el sitio. Los asesores solo ven y editan sus propiedades y sus leads. Propietarios y colaboradores ven solo lo suyo: su acceso se da y se quita en su ficha (Propietarios). Para quitar el acceso a alguien del equipo, desactívalo.'),
-		cajaTabla(
-			h('table', { class: 'table table-hover table-admin' },
-				h('thead', {}, h('tr', {}, ['Nombre', 'Correo', 'Rol', 'Asesor o propietario', 'Estado', 'Alta'].map((t) => h('th', {}, t)))),
-				h('tbody', {}, users.map((u) => h('tr', { class: 'clickable', onclick: () => edit(u) },
-					h('td', { class: 'fw-semibold' }, u.nombre || '—', u.uid === session.user.uid ? h('span', { class: 'text-muted small' }, ' (tú)') : null),
-					h('td', {}, u.email),
-					h('td', {}, badge(...rolDe(u))),
-					h('td', { class: 'small' }, u.rol === 'socio' && fichaDe(u) ? h('a', { href: `#/propietarios/${u.propietarioId}`, onclick: (e) => e.stopPropagation() }, fichaDe(u).nombre) : agentName[u.agentId] || '—'),
-					h('td', {}, u.activo ? badge('Activo', 'success') : badge('Desactivado', 'secondary')),
-					h('td', { class: 'small text-muted' }, formatDate(u.createdAt, false)))))), { tarjeta: true }));
+		tabla);
+	tabla.pintar(users);
 }

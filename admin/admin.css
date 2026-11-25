@@ -1,22 +1,4 @@
-:root {
-	/* Los colores de marca vienen de /css/tema.css (los mismos del sitio). */
-	--adm-primary: var(--eq-primary);
-	--adm-cyan: var(--eq-cyan);
-	--adm-dark: var(--eq-dark);
-	--adm-bg: color-mix(in oklab, var(--eq-primary) 3%, #f5f7f9);
-	--adm-surface: #fff;
-	--adm-border: #e2e7ec;
-	--adm-text: #1d2a33;
-	--adm-muted: #66737e;
-	--adm-radius: 12px;
-	--adm-shadow: 0 1px 2px rgba(16, 24, 32, .04), 0 1px 3px rgba(16, 24, 32, .06);
-	--adm-sidebar: 256px;
-	--adm-nav-bg: var(--eq-dark);
-	--adm-nav-text: color-mix(in srgb, #fff 72%, transparent);
-	--adm-nav-muted: color-mix(in srgb, #fff 42%, transparent);
-	--adm-nav-hover: color-mix(in srgb, #fff 7%, transparent);
-	--adm-nav-active: color-mix(in srgb, var(--eq-cyan) 18%, transparent);
-}
+/* Los colores del panel (--adm-*) y de marca vienen de /css/tema.css (los mismos del sitio). */
 
 body {
 	font-family: 'Work Sans', system-ui, sans-serif;
@@ -43,6 +25,17 @@ body {
 @media (max-width: 767.98px) {
 	.btn, .btn-sm { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
 }
+/* En la computadora el pequeño se ve de 32 px y se toca en 44: un área invisible arriba y abajo (no cambia su fila).
+   `:where`: cualquier otra regla que lo posicione manda. */
+@media (min-width: 768px) {
+	:where(.btn-sm) { position: relative; }
+	/* Solo lo que le falta para 44 (uno que ya mide 44, como los de ícono, no crece ni pisa al de al lado). */
+	.btn-sm::before { content: ''; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
+}
+/* Un enlace dentro de una línea de texto (un código, un nombre): se toca en 44 px de alto sin mover la línea (un área
+   invisible arriba y abajo, encima de lo que haya: lo de al lado no es tocable). */
+.enlace-toque { position: relative; }
+.enlace-toque::before { content: ''; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
 .btn-light {
 	background-color: var(--adm-surface);
 	border-color: var(--adm-border);
@@ -52,7 +45,7 @@ body {
 .btn-light:focus,
 .btn-light:active {
 	background-color: var(--adm-bg);
-	border-color: #c6ced5;
+	border-color: color-mix(in oklab, var(--eq-dark) 20%, var(--eq-white));
 	color: var(--eq-dark);
 }
 a {
@@ -78,7 +71,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 		var(--adm-dark);
 }
 .auth-card {
-	background: #fff;
+	background: var(--eq-white);
 	border-radius: 16px;
 	padding: 36px 32px;
 	width: 100%;
@@ -129,12 +122,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	align-items: center;
 	gap: 12px;
 	padding: 20px 20px 18px;
-	color: #fff;
+	color: var(--eq-white);
 	text-decoration: none;
-	border-bottom: 1px solid color-mix(in srgb, #fff 8%, transparent);
+	border-bottom: 1px solid color-mix(in srgb, var(--eq-white) 8%, transparent);
 }
 .admin-brand:hover {
-	color: #fff;
+	color: var(--eq-white);
 }
 .admin-brand img {
 	width: 36px;
@@ -158,7 +151,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	flex: 1;
 	overflow-y: auto;
 	scrollbar-width: thin;
-	scrollbar-color: color-mix(in srgb, #fff 20%, transparent) transparent;
+	scrollbar-color: color-mix(in srgb, var(--eq-white) 20%, transparent) transparent;
 }
 .admin-nav-group + .admin-nav-group {
 	margin-top: 14px;
@@ -193,14 +186,14 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .admin-nav a:hover {
 	background: var(--adm-nav-hover);
-	color: #fff;
+	color: var(--eq-white);
 }
 .admin-nav a:hover span {
-	color: #fff;
+	color: var(--eq-white);
 }
 .admin-nav a.active {
 	background: var(--adm-nav-active);
-	color: #fff;
+	color: var(--eq-white);
 }
 .admin-nav a.active::before {
 	content: "";
@@ -226,7 +219,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	align-items: center;
 	gap: 10px;
 	padding: 14px 16px;
-	border-top: 1px solid color-mix(in srgb, #fff 8%, transparent);
+	border-top: 1px solid color-mix(in srgb, var(--eq-white) 8%, transparent);
 }
 .admin-avatar {
 	width: 36px;
@@ -246,7 +239,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	flex: 1;
 }
 .admin-user-name {
-	color: #fff;
+	color: var(--eq-white);
 	font-size: .85rem;
 	font-weight: 600;
 	white-space: nowrap;
@@ -269,7 +262,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .admin-logout:hover {
 	background: var(--adm-nav-hover);
-	color: #fff;
+	color: var(--eq-white);
 }
 .admin-content {
 	flex: 1;
@@ -282,7 +275,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	align-items: center;
 	gap: 12px;
 	padding: 0 32px;
-	background: color-mix(in srgb, #fff 88%, transparent);
+	background: color-mix(in srgb, var(--eq-white) 88%, transparent);
 	backdrop-filter: blur(8px);
 	border-bottom: 1px solid var(--adm-border);
 	position: sticky;
@@ -303,7 +296,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 .admin-crumb-group::after {
 	content: "/";
 	margin-left: 8px;
-	color: #c3cbd2;
+	color: color-mix(in oklab, var(--eq-dark) 22%, var(--eq-white));
 }
 .admin-crumb-page {
 	font-weight: 600;
@@ -316,7 +309,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	width: 44px;
 	height: 44px;
 	flex: none;
-	border: 1px solid color-mix(in oklab, var(--eq-primary) 35%, #fff);
+	border: 1px solid color-mix(in oklab, var(--eq-primary) 35%, var(--eq-white));
 	border-radius: 8px;
 	background: var(--eq-primary-soft);
 	color: var(--eq-primary);
@@ -331,17 +324,17 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	height: 32px;
 	padding: 0 12px;
 	border-radius: 999px;
-	background: #fff6dc;
-	border: 1px solid #f3dc97;
-	color: #7a5600;
+	background: var(--adm-warn-bg);
+	border: 1px solid var(--adm-warn-line);
+	color: var(--adm-warn-text);
 	font-size: .8125rem;
 	font-weight: 600;
 	text-decoration: none;
 	white-space: nowrap;
 }
 .publish-pill:hover {
-	background: #ffefbf;
-	color: #5f4300;
+	background: var(--adm-warn-line);
+	color: var(--adm-warn-text);
 }
 .publish-dot {
 	width: 8px;
@@ -486,24 +479,24 @@ a.stat-card:hover {
 	padding: 12px 16px;
 }
 .alert-warning {
-	background: #fff8e3;
-	border-color: #f3dc97;
-	color: #6b4d00;
+	background: var(--adm-warn-bg);
+	border-color: var(--adm-warn-line);
+	color: var(--adm-warn-text);
 }
 .alert-info {
 	background: var(--eq-primary-soft);
-	border-color: color-mix(in srgb, var(--adm-primary) 20%, #fff);
+	border-color: color-mix(in srgb, var(--adm-primary) 20%, var(--eq-white));
 	color: color-mix(in oklab, var(--adm-primary) 75%, var(--adm-dark));
 }
 .alert-success {
-	background: #ecf8f1;
-	border-color: #bfe5cf;
-	color: #17603a;
+	background: var(--adm-ok-bg);
+	border-color: var(--adm-ok-line);
+	color: var(--adm-ok-text);
 }
 .alert-danger {
-	background: #fdf0ef;
-	border-color: #f2c5c1;
-	color: #8a1c13;
+	background: var(--adm-danger-bg);
+	border-color: var(--adm-danger-line);
+	color: var(--adm-danger-text);
 }
 
 /* Tablas: un solo scroll por pantalla. --tabla-alto lo pone admin/js/tablas.js (la caja la
@@ -531,35 +524,35 @@ a.stat-card:hover {
 }
 /* El nombre (primera columna) no se aplasta aunque las demás columnas pidan espacio. */
 @media (min-width: 1200px) {
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child { min-width: 11rem; }
+	.table-admin > tbody > tr > :first-child { min-width: 11rem; }
 }
 /* Celular y tableta: cada fila es una ficha. El nombre arriba y los demás datos seguidos, cada uno
    con el título de su columna (lo pone tablas.js en data-label). Nada se mueve de lado. */
 @media (max-width: 1199.98px) {
-	.table-admin:not(.tabla-propiedades) > thead { display: none; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr {
+	.table-admin > thead { display: none; }
+	.table-admin > tbody > tr {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 4px 14px;
 		padding: 12px 14px;
-		border-bottom: 1px solid #edf0f3;
+		border-bottom: 1px solid var(--adm-border);
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr:last-child { border-bottom: 0; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr > * {
+	.table-admin > tbody > tr:last-child { border-bottom: 0; }
+	.table-admin > tbody > tr > * {
 		border: 0;
 		padding: 0;
 		min-width: 0;
 		text-align: left !important;
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :first-child,
-	.table-admin:not(.tabla-propiedades) > tbody > tr > [colspan] {
+	.table-admin > tbody > tr > :first-child,
+	.table-admin > tbody > tr > [colspan] {
 		flex: 1 0 100%;
 		font-weight: 600;
 	}
-	.table-admin:not(.tabla-propiedades) > tbody > tr > :empty,
-	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-vacia { display: none; }
-	.table-admin:not(.tabla-propiedades) > tbody > tr > [data-label]::before {
+	.table-admin > tbody > tr > :empty,
+	.table-admin > tbody > tr > .ficha-vacia { display: none; }
+	.table-admin > tbody > tr > [data-label]::before {
 		content: attr(data-label);
 		margin-right: 5px;
 		font-size: 12px;
@@ -569,17 +562,17 @@ a.stat-card:hover {
 	/* Tabla cuyos datos ya llevan ícono: la ficha no repite el título de la columna. */
 	.table-admin.fichas-icono > tbody > tr > [data-label]::before { content: none; }
 	/* Los botones de la fila van al final, a la derecha. */
-	.table-admin:not(.tabla-propiedades) > tbody > tr > .ficha-acciones { margin-left: auto; }
+	.table-admin > tbody > tr > .ficha-acciones { margin-left: auto; }
 }
 
 .table-admin {
-	background: #fff;
+	background: var(--adm-surface);
 	margin-bottom: 0;
 	font-size: .9rem;
 }
 .table-admin > :not(caption) > * > * {
 	padding: 12px 14px;
-	border-bottom-color: #edf0f3;
+	border-bottom-color: var(--adm-border);
 }
 .table-admin th {
 	font-size: 11.5px;
@@ -590,7 +583,7 @@ a.stat-card:hover {
 	white-space: nowrap;
 }
 .table-admin thead th {
-	background: #f8fafb;
+	background: var(--adm-bg);
 	border-bottom: 1px solid var(--adm-border);
 }
 .table-admin td {
@@ -603,35 +596,23 @@ a.stat-card:hover {
 	transition: background-color .12s ease;
 }
 .table-admin tbody tr:hover {
-	background: #f6f9fb;
+	background: var(--adm-bg);
 }
 .table-admin tr.clickable {
 	cursor: pointer;
 }
+.table-admin tr.clickable:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+/* Cifras (tablaAdmin `num`): a la derecha y con números del mismo ancho. */
+.table-admin .celda-num { font-variant-numeric: tabular-nums; }
 .table-hover > tbody > tr:hover > * {
 	--bs-table-accent-bg: transparent;
-}
-.thumb {
-	width: 64px;
-	height: 48px;
-	object-fit: cover;
-	border-radius: 6px;
-	background: #e9eef2;
-	display: block;
-}
-.thumb-vacia {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--adm-muted);
-	font-size: 18px;
 }
 .avatar {
 	width: 40px;
 	height: 40px;
 	object-fit: cover;
 	border-radius: 50%;
-	background: #e9eef2;
+	background: var(--adm-gris-bg);
 }
 
 /* Etiquetas: tonos suaves en vez de colores fuertes.
@@ -643,28 +624,29 @@ a.stat-card:hover {
 	padding: .38em .65em;
 	border-radius: 999px;
 }
-.text-bg-primary { color: color-mix(in oklab, var(--adm-primary) 85%, #000) !important; background-color: var(--eq-primary-soft) !important; }
-.text-bg-secondary { color: #4a5661 !important; background-color: #eef1f4 !important; }
-.text-bg-success { color: #17603a !important; background-color: #e3f5ea !important; }
-.text-bg-info { color: #0b5d79 !important; background-color: #e2f5fb !important; }
-.text-bg-warning { color: #7a5200 !important; background-color: #fff1cc !important; }
-.text-bg-danger { color: #9b1c12 !important; background-color: #fde7e5 !important; }
-.text-bg-light { color: #3b4752 !important; background-color: #f3f5f7 !important; }
-.text-bg-dark { color: #fff !important; background-color: var(--adm-dark) !important; }
+.text-bg-primary { color: var(--adm-info-text) !important; background-color: var(--eq-primary-soft) !important; }
+.text-bg-secondary { color: var(--adm-muted) !important; background-color: var(--adm-gris-bg) !important; }
+.text-bg-success { color: var(--adm-ok-text) !important; background-color: var(--adm-ok-bg) !important; }
+.text-bg-info { color: var(--adm-info-text) !important; background-color: var(--adm-info-bg) !important; }
+.text-bg-warning { color: var(--adm-warn-text) !important; background-color: var(--adm-warn-bg) !important; }
+.text-bg-danger { color: var(--adm-danger-text) !important; background-color: var(--adm-danger-bg) !important; }
+.text-bg-light { color: var(--adm-text) !important; background-color: var(--adm-bg) !important; }
+.text-bg-dark { color: var(--eq-white) !important; background-color: var(--adm-dark) !important; }
 
 /* Campos */
 .form-label {
 	font-size: .85rem;
 	font-weight: 500;
-	color: #34414b;
+	color: var(--adm-text);
 	margin-bottom: .35rem;
 }
 .form-control,
 .form-select {
-	border-color: #d5dce2;
+	border-color: color-mix(in oklab, var(--eq-dark) 16%, var(--eq-white));
 	border-radius: 8px;
 	font-size: .9rem;
-	min-height: 40px;
+	/* 44 px: el área de toque mínima (un campo no admite un área invisible como los botones). */
+	min-height: 44px;
 	color: var(--adm-text);
 }
 .form-select-sm {
@@ -718,7 +700,7 @@ a.stat-card:hover {
 }
 .images-grid-item {
 	position: relative;
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	border-radius: 10px;
 	padding: 8px;
@@ -770,18 +752,18 @@ a.stat-card:hover {
 .images-grid-item.destino { outline: 2px dashed var(--adm-primary); outline-offset: 2px; }
 
 
-/* Lista sin fila de encabezado (p. ej. las casas de un propietario): la ✕ para quitar va en la esquina de la ficha. */
+/* Lista sin fila de encabezado (p. ej. las casas de un propietario): la ✕ para quitar va arriba a la derecha de la
+   fila de casa, en su columna de la derecha. */
 .list-field-item.list-sin-encabezado { position: relative; padding: 0; background: none; border: 0; }
-.list-sin-encabezado .list-quitar { position: absolute; top: 6px; right: 6px; z-index: 1; }
-.list-sin-encabezado .ficha-casa-boton { padding-right: 48px; }
-/* El título al lado de la foto (no debajo): la ficha ocupa menos alto. */
-.list-sin-encabezado .ficha-casa-boton > .flex-grow-1 { flex-basis: 8rem !important; }
+.list-sin-encabezado .list-quitar { position: absolute; top: 1px; right: 1px; z-index: 1; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; }
+.list-sin-encabezado .casa-fila { padding-right: 52px; }
+@media (min-width: 768px) { .list-field-item.list-sin-encabezado { margin-bottom: 12px; } } /* el mismo espacio que .lista-casas */
 .list-field-item {
-	background: #f8fafb;
+	background: var(--adm-bg);
 	border: 1px solid var(--adm-border);
 	border-radius: 10px;
 	padding: 14px;
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 }
 
 /* Con una barra de guardar abajo, los avisos flotantes van encima de ella: ni la tapan ni quedan tapados. */
@@ -789,7 +771,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .sticky-actions {
 	position: sticky;
 	bottom: 12px;
-	background: color-mix(in srgb, #fff 94%, transparent);
+	background: color-mix(in srgb, var(--eq-white) 94%, transparent);
 	backdrop-filter: blur(8px);
 	border: 1px solid var(--adm-border);
 	border-radius: var(--adm-radius);
@@ -811,7 +793,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 
 .bar {
 	height: 8px;
-	background: #edf1f4;
+	background: var(--adm-gris-bg);
 	border-radius: 4px;
 	overflow: hidden;
 }
@@ -826,12 +808,12 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .text-center.text-muted.py-5.border.rounded.bg-white {
 	border-radius: var(--adm-radius) !important;
 	border-style: dashed !important;
-	border-color: #cfd7de !important;
+	border-color: color-mix(in oklab, var(--eq-dark) 18%, var(--eq-white)) !important;
 }
 
 /* Pestañas: control segmentado */
 .nav-pills {
-	background: #e8edf1;
+	background: var(--adm-gris-bg);
 	padding: 4px;
 	border-radius: 10px;
 	display: inline-flex;
@@ -840,7 +822,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .nav-pills .nav-link {
 	border: 0;
 	background: transparent;
-	color: #4a5661;
+	color: var(--adm-muted);
 	font-weight: 500;
 	font-size: .875rem;
 	padding: 6px 14px;
@@ -851,7 +833,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-dark);
 }
 .nav-pills .nav-link.active {
-	background: #fff;
+	background: var(--eq-white);
 	color: var(--adm-dark);
 	box-shadow: 0 1px 2px rgba(16, 24, 32, .12);
 }
@@ -870,7 +852,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	gap: 2px;
 	position: sticky;
 	top: 76px;
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	border-radius: var(--adm-radius);
 	box-shadow: var(--adm-shadow);
@@ -883,7 +865,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	text-align: left;
 	border: 0;
 	background: transparent;
-	color: #4a5661;
+	color: var(--adm-muted);
 	font-size: .875rem;
 	font-weight: 500;
 	padding: 8px 12px;
@@ -891,7 +873,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	border-radius: 8px;
 }
 .subnav .nav-link:hover {
-	background: #f3f6f8;
+	background: var(--adm-bg);
 	color: var(--adm-dark);
 }
 .subnav .nav-link.active {
@@ -920,7 +902,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 
 /* Vista previa de Google */
 .serp {
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	border-radius: 8px;
 	padding: 14px 16px;
@@ -954,7 +936,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--eq-whatsapp);
 }
 .seo-checks .warn {
-	color: #a35d00;
+	color: var(--adm-warn-text);
 }
 
 /* Asistente IA */
@@ -962,7 +944,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	display: flex;
 	gap: 12px;
 	align-items: flex-start;
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	border-radius: 8px;
 	padding: 10px;
@@ -973,7 +955,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	height: 66px;
 	object-fit: cover;
 	border-radius: 6px;
-	background: #e9ecef;
+	background: var(--adm-gris-bg);
 	flex-shrink: 0;
 }
 .ia-chat-log {
@@ -994,16 +976,10 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .ia-burbuja.is-seguida {
 	margin-top: -6px;
 }
-/* Campo del chat: una línea que crece sola (sin la esquina para estirarlo); mismo alto que los botones de al lado. */
-.chat-campo {
-	min-height: 44px;
-	resize: none;
-	overflow-y: auto;
-}
 .ia-user {
 	align-self: flex-end;
 	background: var(--adm-primary);
-	color: #fff;
+	color: var(--eq-white);
 	white-space: pre-wrap;
 }
 .ia-assistant {
@@ -1049,7 +1025,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	font-size: 14px;
 }
 .crm-card {
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	border-radius: 8px;
 	padding: 8px 10px;
@@ -1106,7 +1082,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	width: 32px;
 	height: 32px;
 	border-radius: 50%;
-	background: #fff;
+	background: var(--eq-white);
 	border: 1px solid var(--adm-border);
 	display: flex;
 	align-items: center;
@@ -1243,7 +1219,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	padding: .75rem;
 	border: 1px solid var(--adm-border);
 	border-radius: var(--eq-radius-card);
-	background: #fff;
+	background: var(--eq-white);
 	text-align: left;
 	font: inherit;
 	color: var(--adm-dark);
@@ -1275,76 +1251,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	flex: 1.4;
 }
 
-/* Propiedades: estado y «Visible en la página» en cada fila */
-.table-admin .celda-titulo {
-	min-width: 11rem;
-}
-.table-admin .celda-estado,
-.table-admin .celda-visible {
-	cursor: default;
-}
-/* Sin resultados: el aviso reemplaza a la caja de la tabla. */
-.prop-vacio:not([hidden]) + .card { display: none; }
-/* Compacto: la foto pesa más que el selector. */
-.estado-rapido {
-	min-height: 38px; width: 7.5rem; padding-left: .5rem; padding-right: 1.5rem;
-	background-position: right .375rem center; font-size: .8125rem; text-overflow: ellipsis;
-}
-.celda-visible .form-check {
-	display: flex;
-	align-items: center;
-	gap: .5rem;
-	min-height: 32px;
-	padding-left: 0;
-}
-.celda-visible .form-check-input {
-	float: none;
-	margin: 0;
-	width: 2.25em;
-	height: 1.25em;
-	cursor: pointer;
-}
-.celda-visible .form-check-input:checked {
-	background-color: var(--adm-primary);
-	border-color: var(--adm-primary);
-}
-.celda-visible .form-check-label {
-	font-size: .875rem;
-	cursor: pointer;
-}
-.celda-visible .form-check-input:disabled,
-.celda-visible .form-check-input:disabled ~ .form-check-label {
-	cursor: not-allowed;
-}
-.motivo-visibilidad {
-	font-weight: 500;
-	white-space: nowrap;
-	text-align: left;
-	line-height: 1.3;
-}
-/* Foco bien visible con teclado (el anillo celeste suave no llega a 3:1 sobre blanco). */
-.estado-rapido:focus-visible,
-.celda-visible .form-check-input:focus-visible {
-	outline: 2px solid var(--adm-primary);
-	outline-offset: 2px;
-}
-.table-admin tr.fila-oculta .thumb {
-	opacity: .55;
-}
-
-/* Selección en masa: casilla con área de toque de 44 px y barra de acciones fija arriba. */
-.sel-toque {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 44px;
-	min-height: 44px;
-	margin: -.5rem 0;
-	cursor: pointer;
-}
-.sel-toque .form-check-input { margin: 0; width: 1.15em; height: 1.15em; cursor: pointer; }
-.tabla-propiedades .celda-sel { width: 44px; padding-left: .25rem; padding-right: 0; }
-
 /* Menú ⋮ de una ficha o fila (menuMas en ui.js). */
 .menu-mas-btn { color: var(--adm-muted); border: 0; background: transparent; }
 .menu-mas-btn:hover, .menu-mas-btn[aria-expanded="true"] { color: var(--adm-text); background: var(--eq-primary-soft); }
@@ -1359,25 +1265,6 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .menu-mas-lista .dropdown-item:hover, .menu-mas-lista .dropdown-item:focus-visible { background: var(--eq-primary-soft); color: var(--adm-text); }
 .menu-mas-lista .dropdown-item > span { width: 1rem; text-align: center; color: var(--adm-muted); }
 .menu-mas-lista .menu-mas-peligro, .menu-mas-lista .menu-mas-peligro > span { color: var(--eq-danger); }
-/* Columnas: las fijas se ajustan a su contenido y la propiedad toma el espacio que sobra. */
-@media (min-width: 1200px) {
-	.tabla-propiedades .celda-num { width: 1%; padding-left: .25rem; padding-right: .25rem; text-align: right; color: var(--adm-muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
-	.tabla-propiedades .celda-foto { width: 1%; padding-right: .25rem; }
-	.tabla-propiedades .prop-codigo { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-titulo { min-width: 9rem; }
-	.tabla-propiedades .celda-precio { width: 1%; }
-	.tabla-propiedades .celda-estado { width: 1%; }
-	.tabla-propiedades .celda-visible { width: 1%; }
-	.tabla-propiedades .motivo-visibilidad { white-space: normal; text-align: left; max-width: 9rem; }
-	.tabla-propiedades .celda-asesor { width: 1%; min-width: 6.5rem; }
-	.tabla-propiedades .celda-fecha { width: 1%; }
-	/* ⋮ arriba a la derecha de la fila, con aire hacia el borde. */
-	.table-admin.tabla-propiedades td.celda-menu { width: 1%; vertical-align: top; padding: .5rem .5rem 0 .25rem; }
-}
-@media (min-width: 1200px) and (max-width: 1699.98px) {
-	.tabla-propiedades .celda-asesor,
-	.tabla-propiedades .celda-fecha { display: none; }
-}
 .barra-masa {
 	position: sticky;
 	top: calc(60px + .5rem);
@@ -1409,23 +1296,11 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-text);
 	font-variant-numeric: tabular-nums;
 }
-/* Etiquetas de la propiedad: en computadora van en la línea del código, que quedaba vacía. */
-.prop-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
-@media (min-width: 1200px) {
-	.tabla-propiedades .prop-codigo, .tabla-propiedades .prop-chips { display: inline-flex; vertical-align: middle; }
-	.tabla-propiedades .prop-codigo { margin-right: .5rem; }
-}
 .prop-dato { white-space: nowrap; }
-.prop-dato [class^="icon-"],
-.prop-zona [class^="icon-"] { color: var(--adm-muted); }
-.tabla-propiedades .motivo-obvio { display: none; } /* el interruptor ya lo dice */
+.prop-dato [class^="icon-"] { color: var(--adm-muted); }
 .btn-filtros.con-filtros { border-color: var(--adm-primary); background: var(--adm-primary); color: var(--adm-surface); }
-@media (min-width: 1200px) {
-	.tabla-propiedades .thumb { width: 112px; height: 84px; }
-}
 
-/* En celular cada propiedad es una tarjeta: la foto manda, los datos van con ícono y los controles
-   caben en una sola fila. */
+/* Celular: filtros plegados y la barra de «Elegir varias» abajo. */
 @media (max-width: 767.98px) {
 	.btn-encabezado { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .25rem; }
 	.filtros-extra:not(.abierto) { display: none; }
@@ -1440,98 +1315,13 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	}
 	.barra-masa > *, .barra-masa-mas > * { flex: 0 0 auto; white-space: nowrap; }
 	.barra-masa-n { position: sticky; left: 0; z-index: 1; align-self: stretch; margin: 0; padding: 0 .375rem 0 .25rem; background: var(--adm-surface); }
-	body:has(.barra-masa:not([hidden])) .tabla-propiedades { margin-bottom: 4rem; } /* hueco solo cuando la barra está */
+	body:has(.barra-masa:not([hidden])) .lista-casas { margin-bottom: 4rem; } /* la barra fija no tapa la última casa */
 	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
 	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
 	#toasts .btn-close { pointer-events: auto; }
 	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 }
-/* Tarjetas también en tableta (de dos en dos): la tabla no cabe y nada se mueve de lado. */
-@media (max-width: 1199.98px) {
-	.tabla-propiedades thead {
-		display: none;
-	}
-	.tabla-propiedades,
-	.tabla-propiedades tbody {
-		display: block;
-	}
-	@media (min-width: 768px) {
-		.tabla-propiedades tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		.tabla-propiedades tbody tr:nth-child(odd) { border-right: 1px solid var(--adm-border); }
-	}
-	.tabla-propiedades tbody tr {
-		display: grid;
-		grid-template-columns: 124px minmax(0, 1fr) auto 44px;
-		grid-template-areas:
-			"foto titulo titulo menu"
-			"foto zona zona zona"
-			"foto datos datos datos"
-			"foto precio precio precio"
-			"foto fecha fecha fecha"
-			"chips chips chips chips"
-			"estado estado visible visible"
-			"motivo motivo motivo motivo"
-			"asesor asesor asesor asesor";
-		grid-template-rows: auto auto auto 1fr auto;
-		column-gap: .75rem;
-		padding: .75rem;
-		border-bottom: 1px solid var(--adm-border);
-	}
-	.tabla-propiedades tbody tr:last-child {
-		border-bottom: 0;
-	}
-	.table-admin.tabla-propiedades > :not(caption) > * > * {
-		display: block;
-		padding: 0;
-		border: 0;
-		min-width: 0;
-	}
-	/* Estas celdas reparten su contenido directo en la tarjeta. */
-	.table-admin.tabla-propiedades .celda-titulo,
-	.table-admin.tabla-propiedades .celda-visible { display: contents; }
-
-	/* La foto con la misma proporción en todas (una vertical no estira la tarjeta ni deja hueco junto al precio). */
-	.tabla-propiedades .celda-foto { grid-area: foto; position: relative; align-self: start; }
-	.tabla-propiedades .thumb { width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; font-size: 24px; }
-	/* El número y el código van como etiquetas sobre la foto. */
-	.table-admin.tabla-propiedades .celda-num,
-	.tabla-propiedades .prop-codigo {
-		grid-area: foto; justify-self: start; z-index: 1;
-		margin: .25rem; padding: 0 .375rem; border-radius: 999px;
-		background: var(--adm-surface); color: var(--adm-text); font-size: .75rem; font-weight: 600; line-height: 1.5;
-		font-variant-numeric: tabular-nums;
-	}
-	.table-admin.tabla-propiedades .celda-num { align-self: start; }
-	.tabla-propiedades .prop-codigo { align-self: end; max-width: calc(100% - .5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	/* La casilla va en la esquina de la foto; el ⋮ arriba a la derecha. */
-	.tabla-propiedades .celda-sel { grid-area: foto; justify-self: end; align-self: start; z-index: 1; }
-	.tabla-propiedades .sel-toque { margin: 0; }
-	.tabla-propiedades .sel-toque .form-check-input { box-shadow: 0 0 0 3px var(--adm-surface); }
-	.tabla-propiedades .celda-menu { grid-area: menu; justify-self: end; margin: -.625rem -.625rem 0 0; }
-	.tabla-propiedades .prop-titulo { grid-area: titulo; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-	.tabla-propiedades tr:not(:has(.celda-menu)) .prop-titulo { grid-column-end: -1; } /* sin ⋮, el título usa todo el ancho */
-	.tabla-propiedades .prop-zona { grid-area: zona; margin-top: .125rem; }
-	.tabla-propiedades .prop-datos { grid-area: datos; margin-top: .25rem; }
-	.tabla-propiedades .celda-precio { grid-area: precio; align-self: end; display: flex !important; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; margin-top: .25rem; white-space: normal !important; }
-	.tabla-propiedades .celda-precio > :first-child { font-weight: 700; font-size: .9375rem; white-space: nowrap; }
-	.tabla-propiedades .prop-chips { grid-area: chips; margin-top: .5rem; }
-	.tabla-propiedades .celda-estado { grid-area: estado; margin-top: .5rem; }
-	.tabla-propiedades .estado-rapido { min-height: 44px; }
-	.tabla-propiedades .celda-visible .form-check {
-		grid-area: visible; align-self: center; margin: .5rem 0 0 !important;
-		display: flex; align-items: center; gap: .375rem; min-height: 44px; padding-left: 0; position: relative;
-	}
-	/* Toda la caja de 44 px responde al toque, no solo la franja del texto. */
-	.tabla-propiedades .celda-visible .form-check-label::before { content: ''; position: absolute; inset: 0; }
-	.table-admin.tabla-propiedades .celda-visible .form-check-input { float: none; margin: 0; flex: none; }
-	.tabla-propiedades .motivo-visibilidad { grid-area: motivo; justify-self: start; margin-top: .375rem; white-space: normal; }
-	.tabla-propiedades .celda-asesor { grid-area: asesor; margin-top: .375rem; color: var(--adm-muted); }
-	.tabla-propiedades .celda-fecha { grid-area: fecha; margin-top: .125rem; }
-	.table-admin.tabla-propiedades .sin-fecha,
-	.table-admin.tabla-propiedades .sin-asesor { display: none; }
-}
-
 /* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */
 .switch-fila {
 	display: flex;
@@ -2159,26 +1949,30 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	color: var(--adm-text);
 }
 
-/* ===== Cotización ===== */
-/* Cotización de servicios (admin/js/views/cotizacion.js). Solo clases cot-. */
-.cot-intro {
-	max-width: 68ch;
+/* Un aviso con su botón (Solicitudes, lo que debe el socio): en el celular el botón sigue al texto; desde tableta va a la
+   derecha, centrado, y no agranda una línea del texto. */
+@media (min-width: 768px) {
+	.aviso-linea { display: flex; align-items: center; gap: 8px; }
+	.aviso-linea > .btn { margin-left: auto !important; flex-shrink: 0; }
 }
-.cot-btn {
+
+/* Botón con 44 px de toque (`btn-toque`) y botón solo de ícono (`btn-icono`, ui.js `iconoBtn`): de todo el panel. */
+.btn-toque {
 	min-height: 44px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 }
-.cot-btn-icono {
+.btn-icono {
 	min-width: 44px;
 	padding-left: 0;
 	padding-right: 0;
 }
-.cot-acciones {
-	display: inline-flex;
-	gap: 6px;
-	justify-content: flex-end;
+
+/* ===== Cotización ===== */
+/* Cotización de servicios (admin/js/views/cotizacion.js). Solo clases cot-. */
+.cot-intro {
+	max-width: 68ch;
 }
 .cot-grupo .card-header {
 	background: var(--adm-surface);
@@ -2405,14 +2199,12 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 /* Cotización: en celular la barra ocupa menos (la lista sigue en «Mis cotizaciones», arriba) */
 @media (max-width: 575.98px) {
-	.cot-barra {
-		padding: 8px 10px;
-	}
 	/* Una sola fila: «Guardar» con texto y lo demás de ícono (el nombre va en aria-label). */
 	.cot-barra {
+		padding: 8px 10px;
 		flex-wrap: nowrap;
 	}
-	.cot-barra .cot-btn {
+	.cot-barra .btn-toque {
 		flex: none;
 		min-width: 44px;
 		padding-left: 10px;
@@ -3102,12 +2894,10 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 }
 .cot-doc-serv {
 	width: 34%;
+	font-weight: 600;
 }
 .is-separado .cot-doc-serv {
 	width: 28%;
-}
-.cot-doc-serv {
-	font-weight: 600;
 }
 .cot-doc-serv-ico {
 	display: inline-flex;
@@ -3689,33 +3479,10 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .pendientes-ver:hover,
 .pendientes-mas:hover { background: var(--eq-primary-soft); color: var(--adm-primary); }
 .pendientes-mas { margin: 0 10px 0 10px; }
-.pendientes-filas { list-style: none; margin: 0; padding: 0 8px; }
-.pendientes-fila {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	min-height: 56px;
-	padding: 8px 10px;
-	border-radius: 8px;
-	color: var(--adm-text);
-	text-decoration: none;
-	transition: background-color .15s ease;
-}
-.pendientes-filas li + li { border-top: 1px solid var(--adm-border); }
-.pendientes-fila:hover { background: var(--adm-bg); color: var(--adm-text); }
-.pendientes-fila:hover .pendientes-fila-flecha { color: var(--adm-primary); transform: translateX(2px); }
-.pendientes-fila:focus-visible,
 .pendientes-ver:focus-visible,
 .pendientes-mas:focus-visible { outline: 2px solid var(--adm-primary); outline-offset: -2px; }
-.pendientes-fila-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.pendientes-fila-nombre { font-weight: 600; color: var(--adm-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pendientes-fila-falta { font-size: .8rem; color: var(--adm-muted); margin-top: 2px; }
-@media (max-width: 991.98px) {
-	.pendientes-fila-falta { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-}
 /* Enlace «Ver …» dentro del encabezado de otras tarjetas de Inicio (p. ej. «Para hoy»). */
 .card-header .card-header-ver { margin: -10px -8px -10px auto; }
-.pendientes-fila-flecha { flex: none; color: var(--adm-muted); transition: color .15s ease, transform .15s ease; }
 
 /* Mis propiedades (dueño): foto principal de una casa en venta o renta (resumen-casa.js). */
 .mc-foto {
@@ -3773,18 +3540,34 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .aviso-deshacer { min-height: 44px; font-weight: 600; }
 .tarjeta-avisos .avisos-filas { padding: 4px 8px 8px; }
 
-/* ---- Lista de propiedades: una casa por fila, en todos los tamaños (maqueta aprobada) ----
+/* ---- Nombre y datos (ui.js `nombreYDatos`): el nombre solo en su línea, dos como máximo con «…»; abajo los datos
+   con las marcas al final. Los datos ceden su ancho y se recortan con «…»; la marca no. ---- */
+.fila-nombre { font-weight: 600; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fila-datos { display: flex; align-items: center; gap: 4px; min-width: 0; font-weight: 400; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; }
+.fila-datos-txt { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fila-marcas { flex: none; display: inline-flex; gap: 4px; }
+.fila-marcas .badge, .fila-marcas .chip-falta { font-size: 11px; line-height: 14px; padding: 1px 6px; margin-top: 0; }
+/* `envuelve`: los datos piden 12em; si las marcas no caben al lado, bajan a la línea siguiente y parten entre ellas. */
+.fila-envuelve { flex-wrap: wrap; row-gap: 4px; }
+.fila-envuelve .fila-datos-txt { flex: 1 1 12em; }
+.fila-envuelve .fila-marcas { flex: 0 1 auto; flex-wrap: wrap; min-width: 0; align-items: center; }
+
+/* ---- Fila de casa (ficha-casa.js `filaCasa`, maqueta aprobada): la misma en todo el panel ----
    Foto cuadrada; al lado nombre, ubicación, datos y precio; a la derecha el ⚠ de pendientes (o ✓) arriba
    y el ⋮ abajo. El texto va junto (sin huecos entre líneas) y centrado al lado de la foto.
    Alto fijo por tamaño: 120 (celular), 136 (tableta), 152 (computadora, con una línea más: código, asesor y
-   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo. */
-.lista-casas { display: grid; background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+   fecha). Es la maqueta aprobada: no se le agregan ni quitan líneas sin pedirlo.
+   Cada fila es una tarjeta, separada de la siguiente (8 px; 12 desde tableta), en toda lista de casas. */
+.lista-casas { display: grid; gap: 8px; }
 .casa-fila {
-	display: flex; gap: 8px; height: 120px; padding: 8px 12px 7px; min-width: 0; position: relative;
-	border-bottom: 1px solid var(--adm-border); cursor: pointer;
+	display: flex; gap: 8px; height: 120px; padding: 7px 12px; min-width: 0; position: relative;
+	background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius);
+	color: var(--adm-text); text-decoration: none; cursor: pointer;
 }
-.casa-fila:last-child { border-bottom: 0; padding-bottom: 8px; }
+a.casa-fila:hover { color: var(--adm-text); }
+.casa-fila:hover { border-color: color-mix(in oklab, var(--adm-primary) 40%, var(--adm-border)); }
 .casa-fila:focus-visible { outline: 2px solid var(--eq-focus); outline-offset: -2px; }
+.casa-elegida { border-color: var(--adm-primary); box-shadow: inset 0 0 0 1px var(--adm-primary); }
 .casa-foto { position: relative; flex: none; width: 104px; height: 104px; }
 .casa-foto img, .casa-sin-foto { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: grid; place-items: center; background: var(--adm-bg); color: var(--adm-muted); font-size: 24px; }
 .casa-oculta .casa-foto img { opacity: .55; }
@@ -3794,6 +3577,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .casa-titulo { font-weight: 600; font-size: 15px; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .casa-dato { display: flex; align-items: center; gap: 4px; font-size: 13px; line-height: 16px; color: var(--adm-muted); white-space: nowrap; overflow: hidden; min-width: 0; }
 .casa-dato > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+
 .casa-txt .casa-datos { display: flex; flex-wrap: nowrap; overflow: hidden; gap: 0 8px; font-size: 13px; line-height: 16px; margin: 0; }
 .casa-precio { font-weight: 700; font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .casa-extra { display: none; gap: 12px; }
@@ -3803,20 +3587,25 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .casa-der { width: 44px; flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: space-between; margin: 0 -8px 0 -4px; }
 .casa-der .menu-mas-btn, .casa-ok { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; font-size: 18px; }
 .casa-der .casa-aviso { color: color-mix(in oklab, var(--eq-warning) 70%, var(--eq-dark)); }
+.casa-der .imp-estado { color: var(--imp-c); }
 .ico-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .casa-ok { color: var(--eq-whatsapp); }
 /* «Elegir varias»: la casilla aparece sobre la foto y la fila entera la marca. */
 .casa-sel { display: none; position: absolute; top: 0; left: 0; width: 44px; height: 44px; place-items: center; margin: 0; }
-.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; background-color: #fff; }
+.casa-sel .form-check-input { margin: 0; width: 22px; height: 22px; }
+/* Sin marcar, blanca sobre la foto; marcada, la de Bootstrap (azul con ✓): un fondo fijo tapaba la marca. */
+.casa-sel .form-check-input:not(:checked) { background-color: var(--adm-surface); }
 .lista-casas.eligiendo .casa-sel { display: grid; }
 .solo-eligiendo { display: none; }
 .lista-casas.eligiendo ~ * .solo-eligiendo, body:has(.lista-casas.eligiendo) .solo-eligiendo { display: inline-block; }
 @media (min-width: 768px) {
-	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.lista-casas .casa-fila:nth-child(odd) { border-right: 1px solid var(--adm-border); }
-	.lista-casas .casa-fila:nth-last-child(2):nth-child(odd) { border-bottom: 0; padding-bottom: 8px; }
+	.lista-casas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 	.casa-fila { height: 136px; gap: 12px; }
 	.casa-foto { width: 120px; height: 120px; }
+}
+/* En una ventana angosta (el selector de casas en tableta) va una por fila: dos no caben. */
+@media (max-width: 991.98px) {
+	.modal .lista-casas { grid-template-columns: minmax(0, 1fr); }
 }
 @media (min-width: 1200px) {
 	.casa-fila { height: 152px; }
@@ -3828,7 +3617,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 
 /* Permisos del socio (admin/js/permisos-ui.js) */
 .perm-global .card-body { display: grid; gap: 4px; }
-.perm-bloque { border-top: 1px solid var(--bs-border-color, #dee2e6); margin-top: 12px; padding-top: 12px; display: grid; gap: 4px; }
+.perm-bloque { border-top: 1px solid var(--adm-border); margin-top: 12px; padding-top: 12px; display: grid; gap: 4px; }
 .perm-tit { display: flex; gap: 8px; align-items: center; }
 .perm-fila { display: flex; flex-wrap: wrap; gap: 0 20px; }
 .perm-sw { display: flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; }
@@ -3847,3 +3636,80 @@ div.aviso-enlace:hover { background: none; }
 .dos-pasos-qr svg { width: 100%; height: auto; }
 .dos-pasos-clave { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .875rem; word-break: break-all; text-align: center; margin-bottom: 12px; }
 .dos-pasos-codigo { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+
+/* ===== Mensajes (views/mensajes.js): lista, hilo y ficha de la reserva. El hilo: /css/hilo.css ===== */
+.admin-main:has(> div > .msj) { padding: 0; max-width: none; display: flex; flex-direction: column; height: calc(100dvh - 56px); }
+.admin-main:has(> div > .msj) > div:last-child { flex: 1; min-height: 0; }
+.msj { display: grid; grid-template-columns: 1fr; height: 100%; background: var(--eq-white); }
+.msj > section, .msj > aside { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.msj-lista { background: var(--eq-white); }
+.msj-titulo { display: none; }
+.msj-filtros { display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px; min-height: 52px; border-bottom: 1px solid var(--eq-line); flex: none; }
+.msj-chips { display: flex; gap: 8px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.msj .msj-chip { height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; line-height: 26px; border: 1px solid var(--eq-line); color: var(--eq-ink); white-space: nowrap; flex: none; position: relative; }
+.msj .msj-chip::after { content: ""; position: absolute; inset: -8px 0; }
+.msj .msj-chip-on { background: var(--eq-dark); border-color: var(--eq-dark); color: var(--eq-white); font-weight: 600; }
+.msj-buscar { display: none; flex: 1; min-width: 0; height: 36px; border: 1px solid var(--eq-line); border-radius: 8px; padding: 0 12px; font-size: 14px; }
+.msj-buscando .msj-chips { display: none; }
+.msj-buscando .msj-buscar { display: block; }
+.msj-filas { flex: 1; min-height: 0; overflow-y: auto; }
+.msj-fila { display: flex; gap: 12px; padding: 12px; border-bottom: 1px solid var(--eq-line); min-height: 76px; color: var(--eq-dark); text-decoration: none; }
+.msj-fila:hover { background: var(--eq-mist); color: var(--eq-dark); }
+.msj-fila.msj-sel { background: var(--eq-primary-soft); }
+.msj-foto { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex: none; background: var(--eq-fondo); display: grid; place-items: center; color: var(--eq-ink); font-size: 20px; }
+.msj-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.msj-l1 { display: flex; gap: 8px; align-items: baseline; }
+.msj-nom { font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msj-hora { font-size: 12px; line-height: 16px; color: var(--eq-ink); flex: none; }
+.msj-l2 { font-size: 12px; line-height: 16px; color: var(--eq-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msj-l3 { display: flex; gap: 8px; align-items: center; }
+.msj-ult { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--eq-ink); }
+.msj-nuevo .msj-ult { color: var(--eq-dark); font-weight: 600; }
+.msj-punto { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-primary); flex: none; }
+.msj-nada { margin: 24px 12px; }
+.msj-hilo { background: var(--eq-fondo); }
+.msj-hilo-vacio { display: none !important; align-items: center; justify-content: center; }
+.msj-lado { display: none !important; }
+.msj-ancho { display: none; }
+.hilo-app .msj-crece { flex: 1; }
+.msj-acciones { gap: 16px; }
+.hilo-app .msj-solo-icono { width: 52px; padding: 0; gap: 0; }
+/* Celular: o la lista o el hilo; el hilo tapa la barra de arriba (pantalla completa, con su flecha para volver). */
+@media (max-width: 991.98px) {
+	.msj.msj-en-hilo .msj-lista { display: none; }
+	.msj:not(.msj-en-hilo) .msj-hilo { display: none; }
+	body:has(.msj-en-hilo) .admin-topbar { display: none; }
+	.admin-main:has(> div > .msj-en-hilo) { height: 100dvh; }
+}
+@media (min-width: 992px) {
+	.msj { grid-template-columns: 360px 1fr; }
+	.admin-main:has(> div > .msj) { height: calc(100dvh - 60px); }
+	.msj-lista { border-right: 1px solid var(--eq-line); }
+	.msj-hilo-vacio { display: flex !important; }
+	.msj-volver { display: none !important; }
+	.msj .hilo-cab { padding-left: 16px; }
+}
+/* Con espacio para la ficha de la reserva: la lista, el hilo y la ficha (la fila de resumen y «lo que sigue» pasan a la ficha). */
+@media (min-width: 1280px) {
+	.msj { grid-template-columns: 360px 1fr 280px; }
+	.msj-lado { display: flex !important; gap: 12px; padding: 16px; overflow-y: auto; border-left: 1px solid var(--eq-line); background: var(--eq-white); }
+	.msj-angosto { display: none !important; }
+	div.msj-ancho { display: block; }
+	span.msj-ancho { display: inline-flex; }
+}
+.msj-lado-foto { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; flex: none; }
+.msj-lado h2 { font-size: 14px; line-height: 20px; font-weight: 600; margin: 0; }
+.msj-lado dl { display: grid; grid-template-columns: 20px 1fr; gap: 4px 8px; color: var(--eq-ink); margin: 0; }
+.msj-lado dd { color: var(--eq-dark); margin: 0; }
+.msj-lado dd.msj-sec { color: var(--eq-ink); }
+.msj-lado-acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.msj-lado-acc .hilo-btn { padding: 0 12px; }
+.msj-lado-acc .hilo-btn-pri { flex: 1; }
+.msj-pasos { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 16px; color: var(--eq-ink); }
+.msj-pasos div { display: flex; gap: 8px; align-items: center; }
+.msj-pasos i { width: 8px; height: 8px; border-radius: 4px; background: var(--eq-line); flex: none; }
+.msj-pasos .ok { color: var(--eq-dark); }
+.msj-pasos .ok i { background: var(--eq-whatsapp); }
+.msj-pasos .ya { color: var(--eq-dark); font-weight: 600; }
+.msj-pasos .ya i { background: var(--eq-warning); }
+/* ===== Fin Mensajes ===== */

@@ -1,6 +1,6 @@
 // Utilidades de interfaz del panel.
 import '/js/calc-vacacional.js';
-import { textoCsv } from './formato.js';
+import { textoCsv, fechaCorta, fechaHora } from './formato.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -41,21 +41,9 @@ export function mount(el, ...children) {
 // Una sola: admin/js/formato.js (también la usa el generador del sitio).
 export { slugify } from './formato.js';
 
-export function toDate(v) {
-	if (!v) return null;
-	if (typeof v.toDate === 'function') return v.toDate();
-	if (v.seconds) return new Date(v.seconds * 1000);
-	const d = new Date(v);
-	return Number.isNaN(d.getTime()) ? null : d;
-}
-
-export function formatDate(v, withTime = true) {
-	const d = toDate(v);
-	if (!d) return '—';
-	return d.toLocaleString('es-GT', withTime
-		? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }
-		: { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// Fechas: una sola forma de leerlas y tres formatos, en formato.js (`aFecha`, `fechaCorta`, `fechaLarga`, `fechaHora`).
+export { aFecha as toDate } from './formato.js';
+export const formatDate = (v, withTime = true) => (withTime ? fechaHora(v) : fechaCorta(v));
 
 // Fechas "AAAA-MM-DD": la de hoy y su texto corto ("14 nov").
 // «Hoy» es el día de Guatemala, el mismo del sitio y de las funciones (una sola cuenta: js/calc-vacacional.js).
@@ -100,6 +88,8 @@ export function toast(message, type = 'success') {
 
 export function errorMessage(err) {
 	const code = (err && err.code) || '';
+	// Un «sin permiso» puede ser de una pestaña con el panel de antes: admin/js/version.js lo revisa en seguida.
+	if (code === 'permission-denied') document.dispatchEvent(new CustomEvent('sin-permiso'));
 	const map = {
 		'permission-denied': 'No tienes permiso para esta acción.',
 		'auth/invalid-credential': 'Correo o contraseña incorrectos.',
@@ -112,10 +102,49 @@ export function errorMessage(err) {
 		'auth/weak-password': 'Esa contraseña es muy débil: usa una frase de 2 o 3 palabras (10 caracteres o más).',
 		'auth/invalid-email': 'El correo no es válido.',
 		'auth/requires-recent-login': 'Por seguridad, cierra sesión y vuelve a entrar antes de hacer esto.',
+		'auth/missing-password': 'Escribe tu contraseña.',
+		'auth/missing-email': 'Escribe tu correo.',
+		'auth/expired-action-code': 'Este enlace ya venció: pide uno nuevo.',
+		'auth/invalid-action-code': 'Este enlace ya no sirve: pide uno nuevo.',
+		'auth/popup-closed-by-user': 'Se cerró la ventana antes de terminar. Inténtalo otra vez.',
 		'storage/unauthorized': 'No tienes permiso para subir archivos.',
+		'storage/canceled': 'Se canceló la subida.',
+		'storage/quota-exceeded': 'Se llenó el espacio para fotos. Avísale al administrador.',
+		'storage/retry-limit-exceeded': 'La subida tardó demasiado. Revisa tu internet e inténtalo otra vez.',
+		'storage/object-not-found': 'Ese archivo ya no existe.',
+		'not-found': 'Ese registro ya no existe: recarga la página.',
+		'already-exists': 'Eso ya estaba guardado.',
+		'resource-exhausted': 'Demasiados cambios seguidos. Espera un momento e inténtalo otra vez.',
+		'deadline-exceeded': 'La base de datos tardó demasiado en responder. Inténtalo otra vez.',
+		aborted: 'Alguien cambió lo mismo al mismo tiempo. Inténtalo otra vez.',
+		'failed-precondition': 'No se pudo guardar así. Recarga la página e inténtalo otra vez.',
+		unauthenticated: 'Tu sesión venció: vuelve a entrar.',
 		unavailable: 'Sin conexión con la base de datos. Revisa tu internet.'
 	};
-	return map[code] || (err && err.message) || 'Ocurrió un error inesperado.';
+	if (map[code]) return map[code];
+	const texto = String((err && err.message) || '');
+	// Sin red, fetch dice «Failed to fetch» (Chrome), «Load failed» (Safari) o «NetworkError…» (Firefox).
+	if (err instanceof TypeError && /fetch|load failed|network/i.test(texto)) return map['auth/network-request-failed'];
+	// Lo que trae Firebase viene en inglés y con su código («FirebaseError: Missing or insufficient…»): nunca se muestra
+	// tal cual (queda en la consola). Lo que el panel o las funciones escriben (en español) sí.
+	if ((err && err.name === 'FirebaseError') || /^Firebase|Missing or insufficient|\(auth\/|\(storage\//.test(texto)) return 'No se pudo completar. Inténtalo otra vez; si sigue, avísale al administrador.';
+	return texto || 'Ocurrió un error inesperado.';
+}
+
+// Lo que se dice cuando una función del sitio (/api/…) responde con error y no explica por qué: nunca el número solo.
+export function fallaDelServidor(status) {
+	if (status === 401) return 'Tu sesión venció: vuelve a entrar.';
+	if (status === 403) return 'No tienes permiso para esta acción.';
+	if (status === 404) return 'Esta función todavía no está publicada en el sitio: avísale al administrador.';
+	if (status === 429) return 'Demasiados intentos seguidos. Espera unos minutos e inténtalo otra vez.';
+	if (status === 503) return 'El servidor todavía no está listo: avísale al administrador.';
+	return 'El servidor tuvo un problema. Inténtalo otra vez en un momento; si sigue, avísale al administrador.';
+}
+
+// Apaga el botón mientras corre lo que hace (dos toques no lo hacen dos veces) y muestra el error si falla.
+export async function ocupado(btn, fn) {
+	if (btn) btn.disabled = true;
+	try { await fn(); } catch (err) { showError(err); } finally { if (btn) btn.disabled = false; }
 }
 
 export function showError(err) {
@@ -168,7 +197,7 @@ export function elegirOpcion(titulo, opciones) {
 		const m = modal({
 			title: titulo,
 			body: h('div', { class: 'd-grid gap-2' }, opciones.map((t) => h('button', {
-				type: 'button', class: 'cot-btn btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
+				type: 'button', class: 'btn-toque btn btn-outline-secondary', onclick: () => { elegida = t; m.close(); }
 			}, t))),
 			onClose: () => resolve(elegida)
 		});
@@ -185,7 +214,7 @@ export function pageHeader(title, ...actions) {
 	const t = title && typeof title === 'object' && 'texto' in title ? title : { texto: title };
 	return h('div', { class: 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-4' },
 		h('div', { class: 'd-flex align-items-center gap-1', style: 'flex: 1 1 12rem; min-width: 0' },
-			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'cot-btn cot-btn-icono btn btn-link text-body' }) : null,
+			t.volver ? iconoBtn('icon-arrow-left', t.volverTexto || 'Volver', { href: t.volver, class: 'btn-toque btn-icono btn btn-link text-body' }) : null,
 			h('h1', { class: 'h3 mb-0' }, t.texto)),
 		h('div', { class: 'd-flex flex-wrap align-items-center gap-2' }, actions));
 }
@@ -206,8 +235,19 @@ export function statCard(icono, label, valor, { nota, href, cls = '' } = {}) {
 
 // Botón solo de ícono (44 px de toque); con `href` es un enlace.
 export const iconoBtn = (icono, titulo, attrs = {}) => h(attrs.href ? 'a' : 'button', {
-	type: attrs.href ? null : 'button', class: 'cot-btn cot-btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
+	type: attrs.href ? null : 'button', class: 'btn-toque btn-icono btn btn-sm btn-outline-secondary', title: titulo, 'aria-label': titulo, ...attrs
 }, h('span', { class: icono, 'aria-hidden': 'true' }));
+
+// «Nueva propiedad»: el botón de la casa con «+» (en el celular solo el ícono). Uno para todo el panel: Propiedades del
+// equipo y «Agregar casa» del socio en «Mis propiedades». attrs: href u onclick.
+export const botonNuevaCasa = (texto, attrs = {}) => h(attrs.href ? 'a' : 'button', { type: attrs.href ? null : 'button', class: 'btn btn-primary btn-encabezado', title: texto, 'aria-label': texto, ...attrs,
+	html: `<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 11.5 10 5l8 6.5"/><path d="M4 10v10h7"/><path d="M16 10v2"/><path d="M18 13.5v9M13.5 18h9"/></svg><span class="d-none d-md-inline">${texto}</span>` });
+
+// Flecha fina ‹ › (la de los carruseles y calendarios, css/calendario.css): mes anterior o siguiente.
+export const flecha = (lado, titulo, onclick, disabled) => h('button', {
+	type: 'button', class: `eq-flecha vac-cal-${lado}`, 'aria-label': titulo, title: titulo, onclick, disabled,
+	html: `<svg class="eq-flecha-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${lado === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5'}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+});
 
 // Menú ⋮ de una ficha o fila: junta las acciones de cada elemento sin ocupar una fila de botones.
 // items: [{ icono, texto, onclick } | { icono, texto, href, target } | { …, peligro: true }]; los vacíos se saltan.
@@ -217,7 +257,7 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	const acciones = items.filter(Boolean);
 	if (!acciones.length) return null;
 	const btn = h('button', {
-		type: 'button', class: `cot-btn cot-btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
+		type: 'button', class: `btn-toque btn-icono btn btn-sm menu-mas-btn${cls ? ` ${cls}` : ''}`, title: titulo, 'aria-label': titulo,
 		'aria-expanded': 'false', 'data-bs-toggle': 'dropdown'
 	}, h('span', { class: icono, 'aria-hidden': 'true' }));
 	const menu = h('ul', { class: 'dropdown-menu dropdown-menu-end menu-mas-lista' }, acciones.map((a) => h('li', {},
@@ -230,6 +270,37 @@ export const menuMas = (titulo, items, { icono = 'icon-ellipsis-v', cls = '' } =
 	return caja;
 };
 
+// Tarjeta con encabezado (ícono opcional y título) y su cuerpo: la única del panel para un bloque con título.
+// Si lo primero del cuerpo es { sinCuerpo: true }, el contenido va directo (una tabla o una lista que ya trae su borde).
+export function tarjeta(icono, titulo, ...cuerpo) {
+	const op = cuerpo[0] && cuerpo[0].constructor === Object ? cuerpo.shift() : {};
+	return h('section', { class: `card mb-3${op.cls ? ` ${op.cls}` : ''}` },
+		h('div', { class: 'card-header bg-white' }, h('h2', { class: 'h6 mb-0' }, icono ? h('span', { class: `${icono} me-1`, 'aria-hidden': 'true' }) : null, titulo)),
+		op.sinCuerpo ? cuerpo : h('div', { class: 'card-body' }, cuerpo));
+}
+
+// Barras de un embudo o reparto: [[etiqueta, número]], cada barra a escala de la mayor.
+export function barras(filas) {
+	const max = Math.max(1, ...filas.map(([, n]) => n));
+	return filas.map(([etiqueta, n]) => h('div', { class: 'mb-2' },
+		h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, etiqueta), h('strong', {}, n)),
+		h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` }))));
+}
+
+// Nombre y datos de un registro (una casa, un propietario, un lead…): el nombre solo en su línea (dos como máximo, con «…»)
+// y abajo la línea de datos con las marcas (etiquetas) al final; si no caben, los datos se recortan con «…», la marca no.
+// Así una etiqueta nunca corta el nombre en el celular. Devuelve las dos líneas (sin datos ni marcas, solo el nombre).
+// `envuelve`: para un registro que puede traer varias marcas largas (una solicitud): si no caben junto a los datos, bajan
+// a la línea siguiente y parten entre ellas (sin scroll de lado); los datos siguen en una línea con «…».
+export function nombreYDatos(nombre, datos, marcas = [], { cls = '', datosCls = '', envuelve = false } = {}) {
+	const conMarcas = [marcas].flat(Infinity).some((m) => m && typeof m !== 'string');
+	const conDatos = [datos].flat(Infinity).some((d) => d !== null && d !== undefined && d !== false && d !== '');
+	return [h('div', { class: `fila-nombre${cls ? ` ${cls}` : ''}` }, nombre),
+		conDatos || conMarcas ? h('div', { class: `fila-datos${envuelve ? ' fila-envuelve' : ''}${datosCls ? ` ${datosCls}` : ''}` },
+			conDatos ? h('span', { class: 'fila-datos-txt' }, datos) : null,
+			conMarcas ? h('span', { class: 'fila-marcas' }, marcas) : null) : null];
+}
+
 export function emptyState(text, action) {
 	return h('div', { class: 'text-center text-muted py-5 border rounded bg-white' }, h('p', {}, text), action || null);
 }
@@ -240,6 +311,38 @@ export function emptyState(text, action) {
 export function cajaTabla(tabla, { tarjeta = false, cls = '' } = {}) {
 	const caja = h('div', { class: cls ? `table-responsive ${cls}` : 'table-responsive' }, tabla);
 	return tarjeta ? h('div', { class: 'card overflow-hidden' }, caja) : caja;
+}
+
+// La tabla del panel: una sola pieza para toda lista en tabla (en celular y tableta, tablas.js la vuelve fichas).
+//  columnas  [{ titulo, num, cls }]: `num` alinea a la derecha (montos, cuentas); un título vacío no se anuncia.
+//  celdas    fila → [contenido de cada columna] (texto o nodos).
+//  alTocar   fila → abre su ficha: la fila entera se toca y se abre con Enter.
+//  acciones  fila → items de `menuMas` (borrar al final, con `peligro`): van en un ⋮ al final de la fila.
+//  claseFila fila → clase extra de su renglón (p. ej. la elegida, `table-active`).
+//  vacio     lo que se ve sin ningún registro (`emptyState`); sinCoincidencias: el renglón cuando un filtro no deja nada.
+// Devuelve el contenedor; `contenedor.pintar(filas, { filtrado })` lo llena (filtrado: hay búsqueda o filtros puestos).
+export function tablaAdmin({ columnas, celdas, alTocar, acciones, vacio = 'Aún no hay nada aquí.', sinCoincidencias = 'Ninguno coincide con la búsqueda o los filtros.', tarjeta = true, cls = '', titulo = () => '', claseFila = () => '' }) {
+	const tbody = h('tbody');
+	const tabla = h('table', { class: `table table-hover table-admin mb-0${cls ? ` ${cls}` : ''}` },
+		h('thead', {}, h('tr', {}, columnas.map((c) => h('th', { scope: 'col', class: [c.num ? 'text-end' : '', c.cls || ''].join(' ').trim() || null }, c.titulo || '')),
+			acciones ? h('th', { scope: 'col' }, h('span', { class: 'visually-hidden' }, 'Acciones')) : null)),
+		tbody);
+	const caja = cajaTabla(tabla, { tarjeta });
+	const contenedor = h('div', { class: 'tabla-admin' });
+	const fila = (f) => h('tr', {
+		class: [alTocar ? 'clickable' : '', claseFila(f) || ''].join(' ').trim() || null, tabindex: alTocar ? '0' : null,
+		onclick: alTocar ? (e) => { if (!e.target.closest('a, button, input, select, label, .menu-mas')) alTocar(f, e); } : null,
+		onkeydown: alTocar ? (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) alTocar(f, e); } : null
+	},
+		celdas(f).map((c, i) => h('td', { class: [columnas[i]?.num ? 'text-end text-nowrap celda-num' : '', columnas[i]?.cls || ''].join(' ').trim() || null }, c)),
+		acciones ? h('td', { class: 'text-end' }, menuMas(`Acciones${titulo(f) ? ` de ${titulo(f)}` : ''}`, acciones(f))) : null);
+	contenedor.pintar = (filas, { filtrado = false } = {}) => {
+		if (!filas.length && !filtrado) return contenedor.replaceChildren(typeof vacio === 'string' ? emptyState(vacio) : vacio);
+		tbody.replaceChildren(...(filas.length ? filas.map(fila)
+			: [h('tr', {}, h('td', { colspan: columnas.length + (acciones ? 1 : 0), class: 'text-center text-muted py-4' }, sinCoincidencias))]));
+		if (contenedor.firstChild !== caja) contenedor.replaceChildren(caja);
+	};
+	return contenedor;
 }
 
 export function downloadCsv(filename, rows) {

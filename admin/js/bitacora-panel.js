@@ -2,7 +2,7 @@
 // mismo lote o transacción que lo hace, y la lista «Cambios» de la ficha de una casa o de un dueño.
 import { db, doc, getDoc, getDocs, collection, query, where, serverTimestamp } from './firebase.js';
 import { h, modal, spinner, emptyState, showError, formatDate } from './ui.js';
-import { dinero, diaConAnio } from './formato.js';
+import { dinero, diaConAnio, enMs } from './formato.js';
 import { session } from './session.js';
 import { renglon, diferencias, firma } from './bitacora.js';
 
@@ -26,12 +26,20 @@ export function anotar(lote, datos, activaYa) {
 	return ref.id;
 }
 
-const ms = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : 0);
+const ms = enMs;
 
 // Lista «Cambios» (solo el administrador): de una casa (casaId) o de un dueño (propietarioId). En la casa van también los
 // cambios que el dueño hace él solo (properties/{id}/bitacora: precios, días bloqueados, «La casa»); en el dueño, las
 // casas que se le pusieron o se le quitaron (los renglones de casa donde su id está antes o después, con el nombre de
 // la casa y solo el cambio de dueño) y los datos de pago de antes de la bitácora (cambiosDatosPago). Lo más nuevo arriba.
+// Un renglón de la bitácora: qué cambió (texto y/o «campo: antes → después») y, abajo, de quién, de qué casa y cuándo.
+export function filaBitacora({ texto, cambios = [], detalle = [] }) {
+	return h('li', { class: 'list-group-item px-0 text-break' },
+		texto ? h('div', {}, texto) : null,
+		cambios.map((c) => h('div', {}, h('span', { class: 'fw-semibold' }, `${c.campo}: `), c.antes, h('span', { class: 'text-muted', 'aria-label': 'cambió a' }, ' → '), c.despues)),
+		h('div', { class: 'small text-muted' }, detalle.filter(Boolean).join(' · ')));
+}
+
 export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Cambios', moneda = 'USD' }) {
 	const caja = h('div', {}, spinner());
 	modal({ title: titulo, body: caja });
@@ -78,9 +86,7 @@ export async function verCambios({ casaId = '', propietarioId = '', titulo = 'Ca
 			...deAntes.map((c) => ({ cuando: ms(c.cuando), nombre: firma(c, usuarios), cambios: [{ campo: 'Datos de pago', antes: c.antes || '(vacío)', despues: c.despues || '(vacío)' }] }))
 		].sort((a, b) => b.cuando - a.cuando);
 		caja.replaceChildren(sinReglas ? h('p', { class: 'small text-muted' }, 'Los cambios se verán cuando se publiquen las reglas nuevas de Firestore.') : null,
-			filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => h('li', { class: 'list-group-item px-0 text-break' },
-			f.texto ? h('div', {}, f.texto) : null, (f.cambios || []).map((c) => h('div', {}, h('span', { class: 'fw-semibold' }, `${c.campo}: `), c.antes, h('span', { class: 'text-muted', 'aria-label': 'cambió a' }, ' → '), c.despues)),
-			h('div', { class: 'small text-muted' }, [f.nombre || 'Servidor', f.cuando ? formatDate(new Date(f.cuando)) : ''].filter(Boolean).join(' · ')))))
+			filas.length ? h('ul', { class: 'list-group list-group-flush' }, filas.map((f) => filaBitacora({ ...f, detalle: [f.nombre || 'Servidor', f.cuando ? formatDate(new Date(f.cuando)) : ''] })))
 			: sinReglas ? null : emptyState('Sin cambios anotados todavía.'));
 	} catch (err) { caja.replaceChildren(); showError(err); }
 }

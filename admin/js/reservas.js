@@ -18,7 +18,7 @@ import {
 } from './firebase.js';
 import { session, markPending } from './session.js';
 import { anotar, bitacoraActiva } from './bitacora-panel.js';
-import { dia, ahoraServidor } from './ui.js';
+import { dia, ahoraServidor, errorMessage, fallaDelServidor } from './ui.js';
 
 import { choqueExterno, deSolicitud, nuevaReserva, comisionDeReserva, reservaDeSolicitud, queConfirmo, yaRespondida, motivoParaNoConfirmar, faltaDireccion, textoNo, textoCliente, TEXTO_SIN_DIRECCION } from './reservas-calculo.js';
 
@@ -153,7 +153,8 @@ export async function borrarReserva(r) {
 export async function contactoDe(r) {
 	let s;
 	try { s = await getDoc(refContacto(r.propertyId, r.id)); } catch (err) {
-		throw new Error(`No se pudo leer el teléfono y las notas de esta reserva (${err.code || err.message}); no se abre para no borrarlos. Vuelve a intentarlo.`);
+		console.error(err);
+		throw new Error(`No se pudo leer el teléfono y las notas de esta reserva: no se abre para no borrarlos. ${errorMessage(err)}`);
 	}
 	return s.exists() ? s.data() : { telefono: r.telefono || '', notas: r.notas || '' };
 }
@@ -195,7 +196,7 @@ export async function porServidor(accion, leadId, extra = {}) {
 	sinServidor = res.status === 503;
 	if (res.status === 503 || cuerpo.caminoDeAntes) return null;
 	// `yaRespondida`: otra pestaña (o un intento cuya respuesta se perdió) ya lo hizo: la pantalla se recarga.
-	if (!res.ok) throw Object.assign(new Error(cuerpo.error || `El servidor respondió ${res.status}.`), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida), ...(cuerpo.faltaRevisar ? { faltaRevisar: cuerpo.faltaRevisar } : {}) });
+	if (!res.ok) throw Object.assign(new Error(cuerpo.error || fallaDelServidor(res.status)), { servidor: res.status, yaRespondida: Boolean(cuerpo.yaRespondida), ...(cuerpo.faltaRevisar ? { faltaRevisar: cuerpo.faltaRevisar } : {}) });
 	return cuerpo;
 }
 // Lo del socio que siguió por el camino de antes porque el servidor respondió 503: si las reglas ya son las nuevas, lo
@@ -235,9 +236,12 @@ async function chatDe(r, chat) {
 const cerrarChat = (tx, chat, estado, texto) => {
 	const msj = doc(collection(chat.ref, 'mensajes'));
 	tx.set(msj, { de: quienEscribe(), texto, createdAt: serverTimestamp() });
-	tx.update(chat.ref, { estado, ...avisoPendienteDe(msj) });
+	tx.update(chat.ref, { estado, ...avisoPendienteDe(msj), ...alEstado(estado) });
 };
 const avisoPendienteDe = (msj) => (session.esSocio ? {} : { avisoPendiente: msj.id });
+// Cuándo pasó el chat a cada estado (lo mismo que escribe el servidor: alEstado en netlify/lib/reservas-servidor.mjs; de
+// ahí salen las líneas del hilo). El socio por el camino de antes no: las reglas de antes no lo aceptan.
+const alEstado = (estado) => (session.esSocio ? {} : { [`estadoEn.${estado}`]: serverTimestamp() });
 
 // La solicitud `l` (con l.reserva { codigo, llegada, salida, moneda }) queda confirmada: nace su reserva con la
 // comisión (la ganancia, se paga el día de llegada) y su plazo de pago, la solicitud y el chat dicen «confirmada» y el
@@ -291,7 +295,7 @@ export const confirmarSolicitud = conCaminoDeAntes(async function confirmarSolic
 				// Los datos de pago viajan con la confirmación: sin reserva registrada no hay a dónde pagar.
 				const msj = doc(collection(chat.ref, 'mensajes'));
 				tx.set(msj, { de: quienEscribe(), tipo: 'pago', texto: pago, createdAt: serverTimestamp() });
-				tx.update(chat.ref, deAntes ? { estado: 'confirmada' } : { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id });
+				tx.update(chat.ref, deAntes ? { estado: 'confirmada' } : { estado: 'confirmada', vencePago: datos.vencePago, avisoPendiente: msj.id, ...alEstado('confirmada') });
 			}
 		}
 	});
@@ -371,7 +375,7 @@ export const pagoRecibido = conCaminoDeAntes(async function pagoRecibido(chat, p
 	if (ahora !== 'pagada') await runTransaction(db, async (tx) => {
 		const s = await tx.get(chat.ref);
 		if (s.data()?.estado !== 'confirmada') throw new Error('Esta reserva cambió mientras tanto. Recarga la página.');
-		tx.update(chat.ref, { estado: 'pagada' });
+		tx.update(chat.ref, { estado: 'pagada', ...alEstado('pagada') });
 	});
 	chat.estado = 'pagada';
 	// La dirección y el mapa viajan en el mensaje, copiados de lo privado de la casa (las reglas exigen que sean iguales).
@@ -398,8 +402,8 @@ export async function noMeLlego(leadId) {
 	return hecho;
 }
 
-// El socio subió la foto de su transferencia de la comisión.
-export const ponerComprobante = (res, url) => updateDoc(refReserva(res.id), { 'comision.comprobante': url, updatedAt: serverTimestamp() });
+// El socio subió la foto de su transferencia de la comisión: su ruta en comprobantes/{reserva}/ (la sirve /api/foto).
+export const ponerComprobante = (res, ruta) => updateDoc(refReserva(res.id), { 'comision.comprobante': ruta, updatedAt: serverTimestamp() });
 
 // El socio le pagó la comisión a EQ (solo el administrador lo marca). Si sus casas estaban fuera del sitio, vuelven al publicar.
 export async function comisionPagada(res, nivel) {

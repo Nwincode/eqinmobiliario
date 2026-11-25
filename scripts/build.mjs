@@ -23,6 +23,7 @@ import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
 import { separarCasas, casaReparada, ajustesSanos, fichasEnSitemap, revisarCatalogo, FORZAR } from './lib/antes-de-publicar.mjs';
 import { escrituraConfigurada, transaccion } from '../netlify/lib/firestore-escritura.mjs';
 import { urlPagina, redireccionesPaginas } from '../admin/js/rutas.js';
+import { huellaDelPanel } from './lib/huella-panel.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // DIST_DIR: otra carpeta de salida (las pruebas generan un sitio de ejemplo sin tocar dist/).
@@ -93,7 +94,8 @@ function normalizeProperties(list) {
 	return list
 		.map((p) => {
 			let slug = slugify(p.slug || p.titulo) || p.id;
-			if (used.has(slug)) slug = `${slug}-${slugify(p.id).slice(0, 8)}`;
+			// Dos casas con la misma URL: ninguna pisa a la otra (la segunda lleva parte de su id) y se avisa.
+			if (used.has(slug)) { const otra = `${slug}-${slugify(p.id).slice(0, 8)}`; console.warn(`  ⚠ La casa «${p.id}» repite la URL /${slug}/ de otra: sale en /${otra}/. Cámbiala en el panel.`); slug = otra; }
 			used.add(slug);
 			return {
 				operacion: 'venta', tipo: 'casa', moneda: 'USD', estado: 'disponible',
@@ -630,7 +632,9 @@ async function main() {
 	};
 	const freno = await frenoDelCatalogo(data.source, deCatalogo, { produccion: isProduction });
 	if (freno) throw new Error(`${freno} El sitio anterior sigue en línea. Si es a propósito: en el panel, Publicar → «Publicar aunque baje».`);
-	const hayVacacional = properties.some((p) => p.operacion === 'vacacional');
+	// «Tu reserva» existe mientras haya alguna casa por noche, aunque ninguna se ofrezca hoy (pausa por mora, oculta): sus
+	// clientes con reserva siguen entrando a su chat.
+	const hayVacacional = todas.some((p) => p.operacion === 'vacacional');
 	const fueraDeListados = todas.filter((p) => !seOfrece(p));
 	// Las páginas y artículos con idioma "en" van al sitio en inglés.
 	data.pagesEn = data.pages.filter((p) => p.idioma === 'en');
@@ -845,6 +849,8 @@ async function main() {
 	urls.push({ path: '/calculadora-de-renta/', priority: '0.5' });
 	const assets = await buildAssets({ root: ROOT, dist: DIST });
 	await writeFile(path.join(DIST, 'admin', 'textos.json'), JSON.stringify(textosOriginales));
+	// La versión del panel (solo cambia con su código): el panel abierto la compara y avisa «Hay una versión nueva».
+	await writeFile(path.join(DIST, 'admin', 'version.json'), JSON.stringify({ v: await huellaDelPanel(ROOT) }));
 
 	if (mora) await writeFile(path.join(DIST, 'pausados.txt'), pausados(mora));
 	// Sitemap = exactamente las páginas que se indexan (lo dice su etiqueta robots). En una vista previa todo va

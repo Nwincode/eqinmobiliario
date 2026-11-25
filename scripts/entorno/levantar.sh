@@ -45,11 +45,17 @@ JSON
 		# La salida va al archivo desde el subproceso mismo: si heredara la de este guion, quien lo llamó se quedaría esperando.
 		# Sin las variables de proxy del sistema: los emuladores se hablan entre sí por 127.0.0.1 (la regla de Storage
 		# consulta Firestore) y un proxy en medio les corta esa llamada.
-		(cd "$DIR" && exec env -u JAVA_TOOL_OPTIONS -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy \
+		# Su propia carpeta temporal: el emulador de Storage guarda los archivos en $TMPDIR/firebase/storage y la borra al
+		# apagarse; con /tmp compartida, otro emulador que se apaga (otra prueba, otro entorno) le borraba los archivos a
+		# este en medio del recorrido (una subida fallaba con ENOENT).
+		mkdir -p "$DIR/tmp"
+		(cd "$DIR" && exec env -u JAVA_TOOL_OPTIONS -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy TMPDIR="$DIR/tmp" \
 			nohup npx firebase emulators:start --only auth,firestore,storage --project demo-eq) >> "$DIR/emuladores.log" 2>&1 < /dev/null &
 		for _ in $(seq 1 120); do grep -q "All emulators ready" "$DIR/emuladores.log" && break; sleep 1; done
 		grep -q "All emulators ready" "$DIR/emuladores.log" || { echo "Los emuladores no arrancaron:"; tail -20 "$DIR/emuladores.log"; exit 1; }
 		copiar
+		# Lo siembra con la forma de antes (fotos con su token, notas en el chat): lo pasa al formato nuevo el botón de
+		# Publicar en el recorrido, como en producción.
 		(cd "$DIR/sitio" && node scripts/entorno/sembrar.mjs)
 		publicar ;;
 	*) echo "Uso: levantar.sh [levantar|publicar|apagar]"; exit 1 ;;

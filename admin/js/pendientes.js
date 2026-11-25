@@ -1,6 +1,8 @@
 // Avisos de «Datos por completar»: reglas por tipo de registro, conteo para el menú,
 // tarjeta de Inicio y marcas en los formularios. Las reglas están en pendientes-reglas.js.
 import { h } from './ui.js';
+import { fila } from './avisos.js';
+import { plural } from './formato.js';
 
 import { REGLAS, revisar, incompletos } from './pendientes-reglas.js';
 
@@ -123,8 +125,7 @@ export function tarjetaPendientes(pend) {
 	const grupos = Object.entries(pend).filter(([, l]) => l.length);
 	const total = grupos.reduce((n, [, l]) => n + l.length, 0);
 	if (!total) return null;
-	const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes', 'aria-labelledby': 'pend-titulo' },
+	return h('section', { class: 'card mb-3 tarjeta-pendientes', 'aria-labelledby': 'pend-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-exclamation-triangle', 'aria-hidden': 'true' }),
 			h('div', { class: 'me-auto' },
@@ -144,12 +145,10 @@ export function tarjetaPendientes(pend) {
 					h('a', { href: `#/${r.ruta}/incompletos`, class: 'pendientes-ver ms-auto' },
 						'Ver todos', h('span', { class: 'visually-hidden' }, ` (${r.etiqueta.toLowerCase()})`),
 						h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
-				h('ul', { class: 'pendientes-filas' }, lista.slice(0, POR_GRUPO).map((x) => h('li', {},
-					h('a', { href: enlaceRevisar(tipo, x.id), class: 'pendientes-fila' },
-						h('span', { class: 'pendientes-fila-texto' },
-							h('span', { class: 'pendientes-fila-nombre' }, x.nombre),
-							h('span', { class: 'pendientes-fila-falta', title: `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}` }, `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}`)),
-						h('span', { class: 'pendientes-fila-flecha icon-angle-right', 'aria-hidden': 'true' }))))),
+				// La misma fila de la campana y de «Avisos» (avisos.js `fila`).
+				h('ul', { class: 'avisos-filas' }, lista.slice(0, POR_GRUPO).map((x) => fila({
+					icono: r.icono, titulo: x.nombre, href: enlaceRevisar(tipo, x.id),
+					detalle: `Falta: ${x.faltan.map((f) => f.etiqueta).join(', ')}` }))),
 				resto > 0 ? h('a', { href: `#/${r.ruta}/incompletos`, class: 'pendientes-mas' },
 					`Ver ${resto} más`, h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' })) : null);
 		})));

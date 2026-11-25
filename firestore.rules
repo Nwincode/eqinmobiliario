@@ -86,7 +86,14 @@ service cloud.firestore {
       return { 'datosPago': d.get('datosPago', ''), 'permisos': d.get('permisos', {}) };
     }
     function fotoPermisos(d) {
-      return { 'precios': d.get('precios', true), 'fechas': d.get('fechas', true), 'casa': d.get('casa', true) };
+      return { 'precios': d.get('precios', true), 'fechas': d.get('fechas', true), 'casa': d.get('casa', true), 'inmuebles': d.get('inmuebles', true) };
+    }
+    // El renglón de la bitácora de la casa `id` que nombra `bitacoraTexto`: un id (letras y cifras, hasta 40) que existe
+    // después del lote.
+    function renglonDeLaCasa(id) {
+      let b = request.resource.data.get('bitacoraTexto', null);
+      return b is string && b.size() <= 40 && b.matches('[A-Za-z0-9]+')
+        && existsAfter(/databases/$(database)/documents/properties/$(id)/bitacora/$(b));
     }
     // El documento que cambia nombra un renglón nuevo de la bitácora, de su tipo y de este objeto, creado en el mismo lote.
     function anotado(tipo, objeto) {
@@ -231,7 +238,7 @@ service cloud.firestore {
     }
 
     // Datos internos (p. ej. el build hook de Netlify): solo el equipo.
-    // Permisos de los socios para todos { precios, fechas, casa }: los cambia el administrador (Propietarios).
+    // Permisos de los socios para todos { precios, fechas, casa, inmuebles }: los cambia el administrador (Propietarios).
     match /settings/permisosSocios {
       allow get: if isAdmin();
       // Con su renglón en la bitácora si cambia un interruptor.
@@ -276,6 +283,9 @@ service cloud.firestore {
       allow get: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       allow list: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       // Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche (solo el administrador).
+      // El socio no crea casas aquí: la suya la crea el servidor (netlify/functions/mi-casa-nueva.mjs), que la revisa.
+      // La carpeta de fotos que le aparta (casasNuevas/{id}) no tiene regla: solo la escribe el servidor y la lee
+      // storage.rules.
       allow create: if isAdmin()
         || (isStaff() && request.resource.data.agentId == myAgentId() && request.resource.data.get('operacion', '') != 'vacacional');
       // Moneda, dueño y limpieza (cambiaCasa) van con su renglón en la bitácora (anotado). El socio no los toca (su rama
@@ -286,7 +296,10 @@ service cloud.firestore {
         // El socio solo toca precios, personas, días bloqueados y mínimos de noches de sus casas por noche (las noches
         // reservadas las escriben el administrador y el servidor: netlify/functions/reservas.mjs).
         || (esSocioPorNoche(resource.data) && request.resource.data.get('operacion', '') == 'vacacional'
-            && soloCambia(['vacacional', 'precio', 'updatedAt'])
+            && soloCambia(['vacacional', 'precio', 'updatedAt', 'bitacoraTexto'])
+            // `bitacoraTexto` nombra el renglón de la bitácora de la casa que nace en el mismo lote (un id corto, sin
+            // texto libre: no lleva un teléfono a la casa pública).
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['bitacoraTexto']) || renglonDeLaCasa(id))
             && request.resource.data.vacacional.diff(resource.data.vacacional).affectedKeys()
                  .hasOnly(['base', 'finde', 'tarifas', 'bloqueos', 'minimos', 'huespedesMax'])
             // Lo que el administrador le apagó (o se apagó por atraso en la comisión) no lo cambia.
@@ -312,16 +325,84 @@ service cloud.firestore {
         let casa = get(/databases/$(database)/documents/properties/$(id)).data;
         return isAdmin() || (isStaff() && casa.get('agentId', '') == myAgentId()) || esSocioPorNoche(casa);
       }
+      // El renglón del dueño dice lo que de verdad cambió en el mismo lote (antes: get; después: getAfter), no solo con la
+      // forma de TEXTO_DUENO: así no anota montos que nunca existieron. Precio entre semana o de fin de semana: el de antes y
+      // el de ahora de su privado/socio, al medio centavo (el texto redondea a 2 decimales), en la moneda de la casa; sin el
+      // de antes, solo si era 0 o no cabe en el texto (1,000,000 o más, lo puso el equipo). Personas: las de la casa (sin
+      // dato, 1, como el panel; un dato de antes fuera de 1 a 50 no se compara). Días bloqueados, precios especiales y
+      // mínimos: que esa lista cambió y, con su monto o sus noches, que está en la lista nueva (las primeras 10); «puso las
+      // temporadas», los precios especiales o los mínimos. El texto sin valores (el de una pestaña con las reglas de antes)
+      // también tiene que nombrar algo que cambió.
+      function montoDe(t) {
+        return t == 'igual que entre semana' ? 0.0 : float(t.replace('^(US[$]|Q) ', '').replace(',', ''));
+      }
+      function enMoneda(t, moneda) {
+        return t == 'igual que entre semana' || t.matches(moneda == 'GTQ' ? 'Q [0-9].*' : 'US[$] [0-9].*');
+      }
+      function cerca(a, b) {
+        return (a is int || a is float) && (b is int || b is float) && math.abs(a - b) <= 0.0051;
+      }
+      function precioCuadra(que, campo, antes, despues, moneda) {
+        let a = antes.get(campo, 0);
+        let d = despues.get(campo, 0);
+        let v = que.split(': ').size() > 1 ? que.split(': ')[1].split(' → ') : [];
+        return a != d && (v.size() == 0
+          || (v.size() == 1 && enMoneda(v[0], moneda) && cerca(montoDe(v[0]), d) && (a == 0 || ((a is int || a is float) && a >= 1000000)))
+          || (v.size() == 2 && enMoneda(v[0], moneda) && enMoneda(v[1], moneda) && cerca(montoDe(v[0]), a) && cerca(montoDe(v[1]), d)));
+      }
+      function personasCuadra(que, antes, despues) {
+        let a = antes.get('huespedesMax', 1);
+        let d = despues.get('huespedesMax', 1);
+        let p = que.split(' ');
+        return a != d && int(p[p.size() - 1]) == d
+          && (p.size() == 3 || int(p[2]) == a || !(a is int && a >= 1 && a <= 50));
+      }
+      function enLista(l, campo, v) {
+        let n = l.size();
+        return (n > 0 && cerca(l[0].get(campo, -1), v)) || (n > 1 && cerca(l[1].get(campo, -1), v))
+          || (n > 2 && cerca(l[2].get(campo, -1), v)) || (n > 3 && cerca(l[3].get(campo, -1), v))
+          || (n > 4 && cerca(l[4].get(campo, -1), v)) || (n > 5 && cerca(l[5].get(campo, -1), v))
+          || (n > 6 && cerca(l[6].get(campo, -1), v)) || (n > 7 && cerca(l[7].get(campo, -1), v))
+          || (n > 8 && cerca(l[8].get(campo, -1), v)) || (n > 9 && cerca(l[9].get(campo, -1), v));
+      }
+      function listaCuadra(que, antes, despues, campo, moneda) {
+        let v = que.split(': ');
+        return antes != despues && (v.size() == 1
+          || (campo == 'precio' ? enMoneda(v[1], moneda) && enLista(despues, 'precio', montoDe(v[1]))
+            : enLista(despues, 'noches', int(v[1].split(' ')[0]))));
+      }
+      function renglonCuadra(que) {
+        let casa = /databases/$(database)/documents/properties/$(id);
+        let socio = /databases/$(database)/documents/properties/$(id)/privado/socio;
+        let va = get(casa).data.get('vacacional', {});
+        let vd = getAfter(casa).data.get('vacacional', {});
+        let moneda = getAfter(casa).data.get('moneda', '');
+        return que.matches('precio (entre semana|fin de semana).*')
+            ? precioCuadra(que, que.matches('precio entre semana.*') ? 'precioBase' : 'precioFinde', socioAntes(id),
+                existsAfter(socio) ? getAfter(socio).data : {}, moneda)
+          : que.matches('personas máximo.*') ? personasCuadra(que, va, vd)
+          : que.matches('(bloqueó|habilitó) .*') ? va.get('bloqueos', []) != vd.get('bloqueos', [])
+          : que.matches('(mínimo de noches|quitó mínimos de noches) .*') ? listaCuadra(que, va.get('minimos', []), vd.get('minimos', []), 'noches', moneda)
+          // «Faltan tus temporadas» copia precios especiales, mínimos o los dos.
+          : que.matches('puso las temporadas de .*') && va.get('minimos', []) != vd.get('minimos', []) ? true
+          : listaCuadra(que, socioAntes(id).get('tarifas', []), existsAfter(socio) ? getAfter(socio).data.get('tarifas', []) : [], 'precio', moneda);
+      }
       match /bitacora/{entrada} {
         allow read: if deLaBitacora();
         // El dueño escribe solo los textos de «Mis propiedades» (admin/js/texto-dueno.js TEXTO_DUENO, la misma expresión):
-        // un texto libre podría decir «el administrador aprobó…» o llevar un teléfono. Lo del servidor no pasa por aquí.
+        // un texto libre podría decir «el administrador aprobó…» o llevar un teléfono; y el texto dice lo que cambió en el
+        // mismo lote (renglonCuadra). Cada guardado deja su renglón y ninguno más: la casa lo nombra en `bitacoraTexto` en
+        // el mismo lote (un id nuevo: el de antes no vale), como `bitacoraId` con la bitácora global. Lo del servidor no
+        // pasa por aquí.
         allow create: if deLaBitacora()
           && request.resource.data.quien == request.auth.uid
           && request.resource.data.cuando == request.time
           && (isStaff() || (request.resource.data.keys().hasOnly(['que', 'quien', 'nombre', 'cuando'])
             && request.resource.data.que is string
-            && request.resource.data.que.matches('(precio (entre semana|fin de semana)(: (((US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?|igual que entre semana) → )?((US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?|igual que entre semana))?|personas máximo(: [0-9]{1,2} →)? [0-9]{1,2}|puso las temporadas de [0-9]{4}|(bloqueó|habilitó|precio especial|mínimo de noches) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?(: ((US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?|[0-9]{1,2} noches?))?|quitó (precios especiales|mínimos de noches) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(]todos los años[)])?)')));
+            && request.resource.data.que.matches('(precio (entre semana|fin de semana)(: (((US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?|igual que entre semana) → )?((US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?|igual que entre semana))?|personas máximo(: [0-9]{1,2} →)? [0-9]{1,2}|puso las temporadas de [0-9]{4}|(bloqueó|habilitó) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?|precio especial [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?(: (US[$]|Q) [0-9]{1,3}(,[0-9]{3})?([.][0-9]{1,2})?)?|mínimo de noches [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(](Otra reserva|Mantenimiento|Uso propio)[)])?( [(](cada año en estas fechas|cada año en Semana Santa)[)])?(: [0-9]{1,2} noches?)?|quitó (precios especiales|mínimos de noches) [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?( – [1-3]?[0-9]( (ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)( 20[0-9]{2})?)?)?( [(]todos los años[)])?)')
+            && getAfter(/databases/$(database)/documents/properties/$(id)).data.get('bitacoraTexto', '') == entrada
+            && get(/databases/$(database)/documents/properties/$(id)).data.get('bitacoraTexto', '') != entrada
+            && renglonCuadra(request.resource.data.que)));
       }
 
       // Lo privado de la casa: precio del socio, margen e iCal (privado/socio), dirección y mapa (llegada), acuerdo con
@@ -508,10 +589,9 @@ service cloud.firestore {
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
     // almacenamiento de la empresa (las pruebas usan ese mismo nombre en el emulador): una foto alojada en otro proyecto
     // podría llevar a una página falsa.
-    function comprobanteValido(url, reservaId) {
-      return url is string && url.size() <= 600
-        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/comprobantes%2F'
-             + reservaId + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+');
+    function comprobanteValido(ruta, reservaId) {
+      // La ruta del archivo en la carpeta de esa reserva (sin token de descarga: lo sirve /api/foto a quien corresponde).
+      return ruta is string && ruta.size() <= 200 && ruta.matches('comprobantes/' + reservaId + '/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119}');
     }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
     // Del equipo, solo el administrador las crea y cambia (Rentas y Solicitudes son suyas; una casa por noche no lleva asesor).
@@ -649,6 +729,7 @@ service cloud.firestore {
     // «Listo» de la campana de avisos (admin/js/avisos.js): alguien del equipo ya atendió un aviso que no se resuelve
     // solo. La clave dice cuál (avisos-reglas.js claveListo); el documento, quién y cuándo. Sin datos de clientes.
     //  - robo_{solicitud}: «No se dio» con fechas ocupadas (solo el administrador);
+    //  - foto_{solicitud}_{mensaje}: la foto del cliente que el equipo deja oculta al socio (solo el administrador; el mensaje en `fin`);
     //  - cambios_{comentario}: un dueño pidió cambios (el administrador o el asesor de ese dueño);
     //  - exclusiva_{casa}_{fin}: la exclusiva de una casa por vencer (el administrador o el asesor de la casa).
     // Solo crear y deshacer (borrar el suyo); nadie lo cambia después.
@@ -656,6 +737,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return (d.tipo == 'robo' && isAdmin() && clave == 'robo_' + d.objeto && d.agentId == ''
             && !('fin' in d) && exists(/databases/$(database)/documents/leads/$(d.objeto)))
+        || (d.tipo == 'foto' && isAdmin() && d.agentId == '' && d.get('fin', '') is string && d.get('fin', '').matches('[A-Za-z0-9]{1,40}')
+            && clave == 'foto_' + d.objeto + '_' + d.fin && exists(/databases/$(database)/documents/leads/$(d.objeto)))
         || (d.tipo == 'cambios' && clave == 'cambios_' + d.objeto && !('fin' in d)
             && exists(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto))
             && d.agentId == get(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto)).data.agentId)
@@ -726,9 +809,14 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
       // La respuesta del socio la escribe el servidor (netlify/functions/reservas.mjs): él no la toca.
-      allow update: if isAdmin()
+      // El correo de una solicitud de reserva lo cambia solo el servidor (/api/reenviar-enlace), junto con el enlace nuevo.
+      // `reserva` no cambia desde el navegador para nadie (el panel no la escribe): así nadie la vacía, cambia el correo
+      // sin cambiar el enlace y la vuelve a poner.
+      allow update: if (isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
-            && request.resource.data.agentId == resource.data.agentId);
+            && request.resource.data.agentId == resource.data.agentId))
+        && request.resource.data.get('reserva', null) == resource.data.get('reserva', null)
+        && (resource.data.get('reserva', {}).get('codigo', '') == '' || request.resource.data.get('email', '') == resource.data.get('email', ''));
       // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
       // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
       allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
@@ -743,7 +831,10 @@ service cloud.firestore {
     // Nadie escribe en reglas/.
     match /reglas/{version} {
       // r6: las reglas con la bitácora de cambios sensibles (el panel pregunta por ella: admin/js/bitacora.js).
-      allow get: if version in ['r5', 'r6'];
+      // r7: citar un mensaje (`responde`) y las notas internas del chat (Mensajes: admin/js/views/mensajes.js).
+      // r8: las notas internas solo del equipo (notasEquipo/), la foto del chat por su ruta (/api/foto) y «Listo» de una foto.
+      // r9: la foto del chat en fotosChat/{solicitud}/, el tope de mensajes del cliente (id c1 … c200) y el comprobante de la comisión por ruta.
+      allow get: if version in ['r5', 'r6', 'r7', 'r8', 'r9'];
     }
     match /chatsPorSolicitud/{leadId} {
       // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
@@ -762,7 +853,7 @@ service cloud.firestore {
       let y = request.time.year();
       let anios = string(y - 2) + '|' + string(y - 1) + '|' + string(y) + '|' + string(y + 1) + '|' + string(y + 2) + '|' + string(y + 3) + '|' + string(y + 4) + '|' + string(y + 5);
       let t1 = texto.lower().replace('[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯︀-️﻿\\p{M}]', '').replace('[\\p{Z}\\t\\r\\n]+', ' ').replace('[аαАΑ]', 'a').replace('[еεёЕΕЁ]', 'e').replace('[оοσОΟ]', 'o').replace('[рρРΡ]', 'p').replace('[сС]', 'c').replace('[уγУ]', 'y').replace('[хχХΧ]', 'x').replace('[іιӏІΙӀİ]', 'i').replace('[јЈ]', 'j').replace('[ѕЅ]', 's').replace('[кκКΚ]', 'k').replace('[тτТΤ]', 't').replace('[νΝ]', 'v').replace('[мМΜ]', 'm').replace('[нНΗ]', 'h').replace('[вВΒ]', 'b').replace('[ԁ]', 'd').replace('[ɡ]', 'g').replace('[ΖZ]', 'z').replace('🔟', '55').replace('[0-9]o[0-9]', '555').replace('[0-9]o[0-9]', '555').replace('[0-9][ \\t]?[li][0-9]', '555').replace('[0-9][ \\t]?[li][0-9]', '555').replace('[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55').replace('[0-9⁰⁴-⁹₀-₉][¹²³]|[¹²³][0-9⁰⁴-⁹¹²³₀-₉]', '55').replace('[^\\P{N}0-9²³¹]', '5');
-      let t2 = t1.replace('\\b((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)\\b', ' x ').replace('(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+|[^0-9 \\t.,;:/-]:[ \\t]*)((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])([ \\t]*(,|y|e|o|or|a las|a|al|at|-|–|and|to|hasta)[ \\t]*((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])){0,11}(([.,:;!?]|\\))*[ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,:][^0-9])', ' x ').replace('\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5').replace('\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55').replace('cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '5').replace('\\ba[ \\t]r[ \\t]r[ \\t]o[ \\t]b[ \\t]a\\b|\\b4rr0b4\\b|\\b4rr5b4\\b', ' arroba ');
+      let t2 = t1.replace('\\b((' + anios + ')-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(0?[1-9]|[12][0-9]|3[01])[/.-](0?[1-9]|[12][0-9]|3[01])[/.-](' + anios + ')|2010 ?[-/,] ?2011|2011 ?[-/,] ?2012|2012 ?[-/,] ?2013|2013 ?[-/,] ?2014|2014 ?[-/,] ?2015|2015 ?[-/,] ?2016|2016 ?[-/,] ?2017|2017 ?[-/,] ?2018|2018 ?[-/,] ?2019|2019 ?[-/,] ?2020|2020 ?[-/,] ?2021|2021 ?[-/,] ?2022|2022 ?[-/,] ?2023|2023 ?[-/,] ?2024|2024 ?[-/,] ?2025|2025 ?[-/,] ?2026|2026 ?[-/,] ?2027|2027 ?[-/,] ?2028|2028 ?[-/,] ?2029|2029 ?[-/,] ?2030|2030 ?[-/,] ?2031|2031 ?[-/,] ?2032|2032 ?[-/,] ?2033|2033 ?[-/,] ?2034|2034 ?[-/,] ?2035|2035 ?[-/,] ?2036)\\b', ' x ').replace('(^|[^0-9 \\t.,;:/-]|[^0-9 \\t.,;:/-][ \\t]+|[^0-9 \\t.,;:/-]:[ \\t]*)((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])([ \\t]*(,|y|e|o|or|a las|a|al|at|-|–|and|to|hasta)[ \\t]*((0?[1-9]|[12][0-9]|3[01])/(0?[1-9]|[12][0-9]|3[01])([ \\t]+([01]?[0-9]|2[0-3]):[0-5][0-9])?|([01]?[0-9]|2[0-3]):[0-5][0-9])){0,11}(([.,:;!?]|\\))*[ \\t]*$|[ \\t]*[^0-9 \\t.:/-]|[.,:][^0-9])', ' x ').replace('\\b(cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil|hundred|thousand)\\b', '5').replace('\\b(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)[ \\t]+y[ \\t]+', '5').replace('\\b(diez|once|doce|trece|catorce|quince|dieci[a-z]+|veinte|veinti[a-z]+|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\\b', '55').replace('cero|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|zero|one|two|three|four|five|six|seven|eight|nine', '5').replace('\\ba[ \\t]r[ \\t]r[ \\t]o[ \\t]b[ \\t]a\\b|\\b4rr0b4\\b|\\b4rr5b4\\b', ' arroba ');
       let t3 = t2.replace('\\b(referencia|ref|autorizaci[oóÓ]n|boleta|transacci[oóÓ]n|reference|transaction|authorization|confirmation|receipt)\\b[^0-9+\\n]{0,30}[0-9]{10,18}([.,]?[ \\t]*$|[ \\t]*[^0-9 \\t.,/+-]|[.,/+-][^0-9])', ' x ').replace('[ \\t]x[ \\t]', ' * ');
       let t4 = t3.replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[a-záÁéÉíÍóÓúÚñÑüÜ]|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}$|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{4})', ' x ').replace('(^[^0-9]{0,2}|[^0-9]{3})(19|20)[0-9]{2}([^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}[a-záÁéÉíÍóÓúÚñÑüÜ]|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{0,3}$|[^0-9a-záÁéÉíÍóÓúÚñÑüÜ]{4})', ' x ').replace('\\b[0-9]+([.,][0-9]+)?[ \\t]*m(²|2\\b)', ' x ').replace(',[ \\t]*[2-7][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #R# ').replace(',[ \\t]*[2-7][0-9]{3}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #A# ').replace(',[ \\t]*[0189][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #C# ').replace(',[ \\t]*[0-9]{4}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ', #B# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[2-7][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #R# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[2-7][0-9]{3}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #A# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[0189][0-9](00|50)[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #C# ').replace('(^|[^0-9# \\t.+-])[ \\t]*[0-9]{4}[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)\\b', ' #B# ').replace('(^|[^0-9# \\t.,+-])[ \\t]*[0-9]{1,6}([.,][0-9]+)*[ \\t]*(pies|pie|ft|varas|vara|metros|metro|mts|km|kms|kil[oóÓ]metros|kilos|kilo|kg|kgs|lbs|libras|quetzales|d[oóÓ]lares|usd|gtq|noches|noche|semanas|semana|meses|mes|d[iíÍ]as|d[iíÍ]a|horas|hora|hrs|hr|personas|adultos|ni[ñÑn]os|hu[eéÉ]spedes|habitaciones|cuartos|camas|ba[ñÑn]os|parqueos|de limpieza|de dep[oóÓ]sito|de terreno|de construcci[oóÓ]n|entre semana|fin de semana|la noche|por noche|cada una|cada uno|cada noche|al mes|en total|total)([^a-záÁéÉíÍóÓúÚñÑüÜ]|$)', ' x ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[2-7][0-9](00|50)\\b', ' #R# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[2-7][0-9]{3}\\b', ' #A# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0189][0-9](00|50)\\b', ' #C# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]{4}\\b', ' #B# ').replace('(\\bq\\.?|\\bus\\$|\\$|\\busd)[ \\t]?[0-9]+([.,][0-9]+)*([ ,.-]+[^0-9 ,.-]|[^0-9a-z ,.-]|[ ,.-]*$)', ' x ').replace('\\b(las|at)[ \\t]+2[0-3](00|30)\\b', ' #R# ').replace('\\b(las|at)[ \\t]+2[0-3][0-5][0-9]\\b', ' #A# ').replace('\\b(las|at)[ \\t]+[01][0-9](00|30)\\b', ' #C# ').replace('\\b(las|at)[ \\t]+[01][0-9][0-5][0-9]\\b', ' #B# ').replace('\\b(las|at)[ \\t]+[0-9][0-5][0-9]([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x ').replace('\\b([0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?|[0-9]{1,2}:[0-9]{2}|[0-9]{1,3}(,[0-9]{3})+(\\.[0-9]+)?|[0-9]+\\.[0-9]{2})\\b', ' x ').replace('(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])[0-9]{3}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{4}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])[0-9]{3,4}[ \\t]*([=×*+]|[ \\t]x)[ \\t]*[0-9]{3}([^0-9]|$)', ' x    x ').replace('(^|[^0-9])([2-7][0-9]|[0189][0-9])(00|50)[ \\t]*[+=][ \\t]*([2-7][0-9]|[0189][0-9])(00|50)([^0-9]|$)', ' x    x ').replace('(^|[^0-9])([2-7][0-9]|[0189][0-9])(00|50)[ \\t]*[+=][ \\t]*([2-7][0-9]|[0189][0-9])(00|50)([^0-9]|$)', ' x    x ').replace('(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x ').replace('(^|[^0-9 \\t])[ \\t]*([0-9]{1,4}[ \\t]*[×*=][ \\t]*[0-9]{1,3}|[0-9]{1,3}[ \\t]*[×*=][ \\t]*[0-9]{4})([^0-9 \\t]|[ \\t]+[^0-9 \\t]|[ \\t]*$)', ' x    x ').replace('\\bnit([ \\t:.]+es)?[ \\t:.]*([0-9]{1,6}-[0-9k]|[0189][0-9]{6}-[0-9]|[0-9]{7}-k)\\b', ' x ');
       return texto.matches('[\\s\\S]*(?:[０-９Ａ-Ｚａ-ｚ＠．。｡：／﹫])[\\s\\S]*')
@@ -773,6 +864,7 @@ service cloud.firestore {
         || t2.matches('[\\s\\S]*(?:\\b(at|arroba)\\b[^\\n]{1,30}\\b(dot|punto)\\b|(\\[|\\(|<|\\{)(at|dot|punto|arroba|\\.)(\\]|\\)|>|\\})|[a-z0-9-]{3,},(com|net|org)\\b|\\bat[ \\t]+(gmail|hotmail|outlook|yahoo|icloud)\\b|\\b(gmail|hotmail|outlook|yahoo|icloud)[ \\t,]+(punto|dot|com)\\b|\\b([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)[ \\t]*(\\(|\\[)?[ \\t]*((en|del|de)[ \\t]+(el[ \\t]+)?)?(gmail|hotmail|outlook|yahoo|icloud)\\b|(^|\\b(a|al|es|is)\\b|:)[ \\t]*[a-z]{8,}[ \\t]+(en|del)[ \\t]+(el[ \\t]+)?(gmail|hotmail|outlook|yahoo|icloud)\\b)[\\s\\S]*')
         || t2.matches('[\\s\\S]*(?:wa\\.me|\\bw[ \\t]*a[ \\t]*\\.[ \\t]*m[ \\t]*e\\b|\\]\\(|\\bbit[ \\t.]*ly\\b|\\bwhatsapp[ \\t.]+com\\b|\\b(tinyurl|linktr|shorturl|cutt[ \\t.]*ly|rebrand[ \\t.]*ly)\\b|(^|[^a-z0-9_.@-])[a-z0-9-]+([ \\t]?\\.[ \\t]?[a-z0-9-]+)*[ \\t]?\\.[ \\t]?([a-z]{2}|link|page|app|info|biz|xyz|site|online)[ \\t]?/[ \\t]?[a-z0-9]|(^|[^a-z0-9_.@-])[a-z0-9-]+(\\.[a-z0-9-]+)*\\.(me|co|io|ly|ee|gd|gy|cc|to|info|biz|gl|page|link|app)[ \\t]*$)[\\s\\S]*')
         || t2.matches('[\\s\\S]*(?:\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[ \\t]*([:,=>-]+[ \\t]*|\\b(es|is)\\b[ \\t]*)?@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[^\\n]{0,20}\\b(handle|account|username|user|usuario|cuenta|id|nick)\\b[ \\t]*(:|\\b(es|is)\\b)?[ \\t]*@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\bdiscord\\b[ \\t:]*@?[a-z0-9._]+#[0-9]{4}|\\bline[ \\t]*(:|\\bid\\b)[ \\t:]*@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)[ \\t]+(en|on)[ \\t]+(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)\\b|\\b(gmail|hotmail|outlook|yahoo|icloud|correo|mail|email|e-mail|skype|ig|fb|insta|instagram|facebook|telegram|tg|signal|tiktok|whatsapp|wa|snap|snapchat|wechat|discord|viber|threads|twitter)\\b[^\\n]{0,25}\\b(como|as|llamo|soy)[ \\t]+@?([a-z][a-z0-9]*([._][a-z0-9]|[0-9])[a-z0-9._]*)|\\b(b[uúÚ]sca(me|nos)|encu[eéÉ]ntra(me|nos)|encuentras|find me|look me up|search)\\b[^\\n]{0,30}\\b(como|as)[ \\t]+@?[a-z][a-z0-9._]{3,}|\\b(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t]*,?[ \\t]*me[ \\t]+llamo[ \\t]+@?[a-z]{4,}|^[ \\t]*[a-z][a-z0-9._]{3,}[ \\t]+(en|on)[ \\t]+(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t.!]*$|\\b(al|por|mi)[ \\t](wa|whats|wsp|wasap)\\b|\\b(airbnb|booking|vrbo)\\b[^\\n]{0,20}\\bcomo\\b)[\\s\\S]*')
+        || t2.matches('[\\s\\S]*(?:\\b(mi|my|usuario|user|username|cuenta|account|handle)\\b[^\\n]{0,20}\\b(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)\\b[ \\t]*:?[ \\t]*\\b(es|is)\\b[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{2,}|^[ \\t]*(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t]*:?[ \\t]*\\b(es|is)\\b[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{2,}[ \\t.!]*$|^[ \\t]*((mi|my)[ \\t]+)?(ig|insta|fb|tg|tiktok|telegram)([ \\t]+@?|[ \\t]*@)[a-z][a-z0-9._]{3,}[ \\t.!]*$|\\b(mi|my)[ \\t]+(ig|insta|instagram|tiktok|facebook|fb|telegram|tg)[ \\t]*:?[ \\t]*@?[a-z][a-z0-9._]{3,}[ \\t]*([.!,;]|$))[\\s\\S]*')
         || t2.matches('[\\s\\S]*(?:(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{3,}[ \\t]*°?[ \\t]*[ns]?[ \\t]*[,;]?[ \\t]*(lon(g(itud)?)?|lng)?[ \\t]*[:=]?[ \\t]*[eowv]?[ \\t]*-?[0-9]{1,3}\\.[0-9]{3,}|(^|[^0-9.,])-?[0-9]{1,2}\\.[0-9]{2,},[ \\t]*-[0-9]{1,3}\\.[0-9]{2,}|[0-9]{1,2}[ \\t]*°[ \\t]*[0-9]{1,2}[ \\t]*[\'′])[\\s\\S]*')
         || t2.matches('[\\s\\S]*(?:\\b(plus|m[aáÁ]s)[ \\t]+(5[ \\t,]*5[ \\t,]*5|5[ \\t,]*0[ \\t,]*[0-9])\\b)[\\s\\S]*')
         || t2.matches('[\\s\\S]*(?:(^|[^0-9.,])[2-7][0-9](\\.[0-9]{2}){3}([^0-9.]|$)|(^|[^0-9.,])[2-7][0-9]{3}\\.[0-9]{2}\\.[0-9]{2}([^0-9.]|$)|(^|[^0-9.,])[2-7][0-9]\\.[0-9]{2}\\.[0-9]{4}([^0-9.]|$))[\\s\\S]*')
@@ -811,14 +903,20 @@ service cloud.firestore {
         function chat() {
           return get(/databases/$(database)/documents/chats/$(token)).data;
         }
+        // '' con el primer enlace; '{gen}-' después de cada cambio de enlace (netlify/lib/rotar-enlace.mjs).
+        function generacion() {
+          return chat().get('gen', 0) == 0 ? '' : string(chat().get('gen', 0)) + '-';
+        }
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
-        allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
+        // Con el enlace, solo mientras el chat exista (el de un enlace que ya cambió no abre nada).
+        allow read: if (!signedIn() && exists(/databases/$(database)/documents/chats/$(token))) || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
         // Sin teléfonos, correos ni enlaces: el mismo filtro del navegador (tieneContacto, arriba).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
         //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
         //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
-        //  - foto: el comprobante del cliente, subido a la carpeta de su reserva.
+        //  - foto: el comprobante del cliente, subido a la carpeta de su reserva. Guarda solo la ruta (sin el token de
+        //    descarga, que abriría el archivo a quien lee el chat): la foto la sirve /api/foto según quién la pide.
         // Pago y llegada los manda el administrador; los del socio, el servidor (netlify/functions/reservas.mjs). El socio
         // aquí solo escribe texto.
         function llegadaDe() {
@@ -827,8 +925,24 @@ service cloud.firestore {
         function sinLlegada() {
           return !request.resource.data.keys().hasAny(['direccion', 'mapa']);
         }
-        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa'])
+        // La cita de otro mensaje (opcional): su id y quién lo escribió, de un mensaje que existe en este chat. Sin su texto:
+        // se muestra el del mensaje citado (así no hay un segundo texto que filtrar: dos filtros de contacto en una escritura
+        // pasan el tope de 1000 expresiones de las reglas).
+        function citaValida(c) {
+          return c is map && c.keys().hasOnly(['id', 'de']) && c.keys().hasAll(['id', 'de'])
+            && isNonEmptyString(c.id, 40) && c.id.matches('[A-Za-z0-9_-]+') && c.de in ['cliente', 'socio', 'equipo']
+            && get(/databases/$(database)/documents/chats/$(token)/mensajes/$(c.id)).data.de == c.de;
+        }
+        // Quién del equipo escribe (opcional): su primer nombre, el de su users/{uid}; nadie firma por otro y ni el cliente
+        // ni el socio lo ponen. Los mensajes de antes no lo traen («Equipo»).
+        function nombreDelEquipo() {
+          return request.resource.data.de == 'equipo' && isAdmin() && isNonEmptyString(request.resource.data.nombre, 40)
+            && request.resource.data.nombre == userDoc().data.get('nombre', '').trim().split(' ')[0];
+        }
+        allow create: if request.resource.data.keys().hasOnly(['de', 'texto', 'tipo', 'createdAt', 'direccion', 'mapa', 'responde', 'nombre'])
           && isNonEmptyString(request.resource.data.texto, 1000)
+          && (!('nombre' in request.resource.data) || nombreDelEquipo())
+          && (!('responde' in request.resource.data) || (!('tipo' in request.resource.data) && citaValida(request.resource.data.responde)))
           && (('tipo' in request.resource.data)
             ? ((request.resource.data.tipo == 'pago' && request.resource.data.de != 'cliente' && sinLlegada()
                   && request.resource.data.texto == get(/databases/$(database)/documents/propietarios/$(chat().propietarioId)).data.datosPago)
@@ -841,18 +955,36 @@ service cloud.firestore {
                         && request.resource.data.direccion == get(llegadaDe()).data.get('direccion', '')
                         && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
+                // La foto, por su ruta en la carpeta de su solicitud (no cambia con el enlace; storage.rules: 1 a 10).
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
+                  && request.resource.data.texto.matches('fotosChat/' + chat().get('leadId', '-') + '/' + generacion() + '(10|[1-9])')))
                 : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
-          && ((request.resource.data.de == 'cliente' && !signedIn())
-            || (request.resource.data.de == 'equipo' && isAdmin())
+          // El cliente, en una conversación que existe (la de un enlace que ya cambió, al corregir su correo, no recibe nada).
+          // A lo más 200 por enlace: el id del mensaje del cliente es c1 … c200 (js/reserva-chat.js toma el siguiente libre;
+          // nada se reemplaza). Así un enlace filtrado no llena el chat y el cambio de enlace siempre alcanza a moverlo. Con
+          // cada enlace nuevo (`gen`) la cuenta vuelve a empezar: c{gen}-1 … (lo que gastó el enlace viejo no cuenta).
+          && ((request.resource.data.de == 'cliente' && !signedIn() && id.matches('c' + generacion() + '([1-9]|[1-9][0-9]|1[0-9][0-9]|200)')
+              && exists(/databases/$(database)/documents/chats/$(token)))
+            || (request.resource.data.de == 'equipo' && isAdmin() && exists(/databases/$(database)/documents/chats/$(token)))
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
             || (request.resource.data.de == 'socio' && !('tipo' in request.resource.data)
                 && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')) && !(chat().get('estado', '') in ['no', 'cancelada'])));
         // Nada se edita ni se borra: la conversación es el registro.
         allow update, delete: if false;
       }
+    }
+    // Notas internas de una conversación: solo del equipo (el administrador, el único del equipo que entra a los chats),
+    // con su sesión. Aparte del chat a propósito: el socio de la casa y el enlace del cliente leen chats/{token}/…, esto
+    // no. Nada de una nota va al chat ni a los correos. Sin contactos, como en el chat; nada se edita ni se borra.
+    match /notasEquipo/{token}/notas/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && exists(/databases/$(database)/documents/chats/$(token))
+        && request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt']) && request.resource.data.keys().hasAll(['de', 'texto', 'createdAt'])
+        && request.resource.data.de == 'equipo'
+        && isNonEmptyString(request.resource.data.texto, 1000) && !tieneContacto(request.resource.data.texto)
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
   }
 }

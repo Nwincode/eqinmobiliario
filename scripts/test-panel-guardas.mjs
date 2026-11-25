@@ -1,7 +1,7 @@
 // Guardas del panel que viven en pantallas con Firebase (no se pueden correr en Node): se revisa que sigan en su lugar.
 // Lo que sí se puede correr está en sus pruebas (test-funciones, test-reportes…); esto evita que un cambio las quite.
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import '../js/calc-vacacional.js';
 
 let ok = 0;
@@ -52,7 +52,7 @@ t('el token de la sesión para «publicar al cerrar» (sendBeacon) vive solo en 
 t('comprobante del huésped: se prepara con la misma pieza que las fotos del panel (admin/js/imagen.js) antes de subirse', () => {
 	const chat = readFileSync(new URL('../js/reserva-chat.js', import.meta.url), 'utf8');
 	assert.match(chat, /window\.EQImagen\.procesarImagen\(f\)/);
-	assert.match(chat, /body: p\.blob/);
+	assert.match(chat, /new Blob\(\[[^\]]*p\.blob/);
 	assert.match(fuente('form.js'), /import \{ procesarImagen as procesar \} from '\.\/imagen\.js';/);
 	assert.doesNotMatch(fuente('form.js'), /createImageBitmap/, 'una sola pieza: form.js no tiene su propia copia');
 	assert.match(readFileSync(new URL('./lib/assets.mjs', import.meta.url), 'utf8'), /'\.\/admin\/js\/imagen\.js', \['procesarImagen'\], 'EQImagen'/);
@@ -61,9 +61,13 @@ t('comprobante del huésped: se prepara con la misma pieza que las fotos del pan
 t('confirmar y lo que depende del día de llegada usan la hora del servidor, no la del dispositivo (un reloj adelantado no da por pasado el día de llegada)', () => {
 	assert.match(fuente('ui.js'), /export async function ahoraServidor\(\)[\s\S]*headers\.get\('date'\)/);
 	assert.match(fuente('reservas.js'), /const ahora = await ahoraServidor\(\);\n\tconst no = motivoParaNoConfirmar\(l, p, montos\?\.moneda \? montos : null, ahora\);/);
-	const sol = fuente('views/solicitudes.js');
-	assert.doesNotMatch(sol, /llegadaPasada\([^)]*\.llegada\)/, 'toda llegadaPasada de Solicitudes lleva la hora del servidor');
-	assert.match(sol, /await ahoraServidor\(\);/);
+	// Solicitudes y Mensajes: lo que calculan sale de solicitudes-base.js (una sola pieza).
+	for (const f of ['views/solicitudes.js', 'solicitudes-base.js', 'views/mensajes.js']) {
+		if (!existsSync(new URL(`../admin/js/${f}`, import.meta.url))) continue;
+		assert.doesNotMatch(fuente(f), /llegadaPasada\([^)]*\.llegada\)/, `toda llegadaPasada de ${f} lleva la hora del servidor`);
+	}
+	assert.match(fuente('solicitudes-base.js'), /await ahoraServidor\(\);/);
+	assert.match(fuente('views/solicitudes.js'), /await (Promise\.all\(\[)?cargarSolicitudes\(/);
 });
 
 t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago si no cambiaron (el asesor recibía 403 con datosPago vacío guardado)', () => {

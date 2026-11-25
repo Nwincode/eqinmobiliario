@@ -12,7 +12,7 @@
 // anotada en alertas/bloqueo-{id}, que solo escribe la cuenta de escritura: las reglas no dejan a nadie más).
 // Es lo único de una reserva que llega al equipo: lo demás lo resuelven el cliente y el socio en la plataforma.
 // Además, a las 7 a. m. le recuerda a cada socio las comisiones que se pagan ese día.
-import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, esc, SITE_URL } from '../lib/correo.mjs';
+import { servicioCorreo, destinatariosEquipo, enviarCorreo, plantilla, boton, lista, esc, SITE_URL } from '../lib/correo.mjs';
 import { datosConfigurados, consultar, desde, donde, leerPrivado, listar } from '../lib/firestore.mjs';
 import { avisarCambiosDePago } from '../lib/avisos-pago.mjs';
 import { escrituraConfigurada, transaccion } from '../lib/firestore-escritura.mjs';
@@ -22,6 +22,7 @@ import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, MOTIVO_SIN_CHAT, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 import { conReloj } from '../lib/estado.mjs';
+import { terminarRotaciones } from '../lib/rotar-enlace.mjs';
 
 const V = globalThis.EQVacacional;
 
@@ -40,6 +41,8 @@ export default conReloj('solicitudes-sin-respuesta', async () => {
 		const ventana = sonLas7 ? 10 * HORA : HORA;
 		// Cambios de datos de pago de un socio cuyo correo al equipo no salió al guardar.
 		await avisarCambiosDePago().catch((err) => console.error('Datos de pago:', err.message));
+		// Cambios de enlace que no se terminaron (netlify/lib/rotar-enlace.mjs: lo que quedó en el chat viejo).
+		if (escrituraConfigurada()) await terminarRotaciones().catch((err) => console.error('Enlaces nuevos pendientes:', err.message));
 		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
 		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;
@@ -187,12 +190,16 @@ async function recordarComisiones(ahora) {
 	for (const id of new Set(deHoy.map((r) => r.propietarioId))) {
 		const socio = await leerPrivado(`propietarios/${id}`).catch(() => null);
 		if (!socio?.email) continue;
-		const suyas = deHoy.filter((r) => r.propietarioId === id).map((r) => `${r.codigo || r.propertyTitulo} · ${r.propertyTitulo} · ${prefijoMoneda(r.moneda)} ${miles(r.comision.monto)}`);
+		const deEl = deHoy.filter((r) => r.propietarioId === id);
+		// El monto, el mismo de siempre (prefijo y miles); en el correo, la fila de dos líneas (lista): la casa y su código, y
+		// el monto. En el texto plano, una línea por comisión como antes.
+		const monto = (r) => `${prefijoMoneda(r.moneda)} ${miles(r.comision.monto)}`;
+		const suyas = deEl.map((r) => `${r.codigo || r.propertyTitulo} · ${r.propertyTitulo} · ${monto(r)}`);
 		const html = await plantilla({
 			titulo: 'Comisiones que se pagan hoy',
 			intro: 'Hoy llegan estos huéspedes. Paga la comisión y sube tu comprobante en Solicitudes.',
-			bloques: (c) => `<p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;color:${c.dark}">${suyas.map(esc).join('<br>')}</p>
-${boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })}`
+			bloques: (c) => lista(c, deEl.map((r) => ({ nombre: r.propertyTitulo || r.codigo || 'Reserva', detalle: r.propertyTitulo && r.codigo ? r.codigo : '', monto: monto(r), estado: '' })))
+				+ boton(c, 'Abrir Solicitudes', `${SITE_URL}/admin/#/solicitudes`, c.primary, { ancho: true })
 		});
 		// Si falla el de un socio, los demás igual reciben el suyo.
 		await enviarCorreo({ responder: true, para: [socio.email], asunto: `Comisiones de hoy: ${suyas.length}`, html, texto: `Comisiones que se pagan hoy:\n${suyas.join('\n')}\n\n${SITE_URL}/admin/#/solicitudes` })

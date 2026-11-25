@@ -177,7 +177,13 @@ export const NORMALES = (() => [
 	'Do you allow pets? We have a 2 year old lab', 'Is the 4x4 needed for the road?', 'Habitación 2 y 3 juntas?', 'Mi esposo se llama Ignacio y yo Ana',
 	'We land at 14:30 on flight 2318', 'Check-in 3pm, check-out 11am?', 'Total: Q 4,550.00', 'Room 2 i 3?',
 	'I will pay the deposit of $500 and the balance of $1500', 'El código de mi reserva es EQ-AB12CD', 'Order no. 12345 from Amazon arrived lol',
-	'nos vemos el 24 de diciembre 2026', 'mi correo es correcto, gracias'
+	'nos vemos el 24 de diciembre 2026', 'mi correo es correcto, gracias',
+	// Revisión de seguridad (B4): frases de reserva con números en palabras y redes sin usuario.
+	'llegamos a las 3', 'somos 4 adultos', 'mil gracias', 'Mil gracias, llegamos a las 3, somos 4 adultos', 'el 25 de diciembre', 'Llegamos el veinticinco de diciembre a las tres',
+	'Son dos mil quinientos quetzales por noche, y mil quinientos de depósito', 'Pagamos cuatro mil ochocientos cuarenta y dos quetzales', 'cuatro mil ochocientos cuarenta y dos',
+	'La casa tiene ciento veinte metros y está a quinientos metros del lago', 'Somos cien por ciento puntuales', 'A thousand thanks!', 'It is two hundred dollars more?',
+	'Somos cuatro adultos y dos niños, llegamos el doce y salimos el quince', 'facebook es donde la vi', 'Instagram genial', 'mi facebook está caído', 'mi ig no carga las fotos',
+	'Lo vi en instagram es muy bonita, ¿tiene piscina?', 'Por instagram vi que tiene muelle', 'fb: gracias'
 ].map(alAnio))();
 
 export const EVASIONES = (() => [
@@ -274,11 +280,19 @@ export const EVASIONES = (() => [
 	'on instagram: villa_lago', 'Ref: 5555 1234', 'referencia 5555-1234',
 	'No. 5555 1234', 'transacción 55551234', 'mi cel, ref 55551234', 'vuelo 55551234', 'vuelo AV 5555 1234', 'pago Q5555 y Q1234',
 	'precio $5555 and $1234', 'mi correo es ana.perez',
-	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069'
+	'coordenadas 14.5586, -90.7295', '14.5586 -90.7295', 'lat 14.6349 lon -90.5069', 'N14.6349 W90.5069', '14.63,-90.50', "14°38'N 90°30'W", '14.6349, -90.5069',
+	// Revisión de seguridad (B4): un usuario de red sin forma de usuario donde no cabe otra cosa, y los números con cientos y miles.
+	'mi usuario de ig es juanlago', 'mi usuario de ig es x123', 'instagram es villalago', 'mi insta es villalago', 'My IG is juanlago', 'ig juanlago', 'IG juanlago!', 'fb casadelago',
+	'tiktok villalago', 'telegram juanlago', 'mi ig juanlago.', 'mi cuenta de facebook es juanlago', 'mi ig es villalago', 'mi ig es villa lago gt', 'telegrаm villalago',
+	'cincuenta y cinco cincuenta y cinco cuatro mil ochocientos cuarenta y dos', 'cincuenta y cinco cincuenta y cinco mil ciento veintidós', '5555 cuatro mil ochocientos cuarenta y dos',
+	'mi número es cinco cinco cinco cinco, mil ciento veintidós', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
+	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'five five five five zero five five five', 'fifty five fifty five four thousand eight hundred forty two'
 ].map(alAnio))();
 
 // Se bloquea aunque podría ser normal.
 export const BLOQUEADAS_A_PROPOSITO = (() => [
+	// Una palabra pura después de «mi … red es» se lee como usuario: «mi instagram es privado» también (revisión de seguridad B4).
+	'mi instagram es privado', 'My insta is private',
 	'Hice la transferencia, número de boleta 70012345',
 	// Juntando los grupos cercanos forman un teléfono posible (8 cifras que empiezan de 2 a 7, o 10 o más): se bloquean
 	// aunque sean un monto, una cuenta, un vuelo o una referencia corta. Es preferible a dejar pasar un teléfono.
@@ -303,15 +317,14 @@ export const LIMITES_ACEPTADOS = [
 	// teléfono (prima la referencia), una fecha válida de un año cercano sin código ni palabra de teléfono, una hora sin
 	// código («22:00-06:00» junto a «llámame»).
 	'30/11/2025 y 30/11/2026', 'llámame', '9 8765 4321', '987654321', 'referencia 4155551234', 'autorización 3055551234 gracias', 'ref 0412345678',
-	'referencia 9876543210', 'referencia 6123456789', 'referencia 0115512345678', '55 51 23 4', 'mi ig es villalago', 'búscame en insta: villa lago',
+	'referencia 9876543210', 'referencia 6123456789', 'referencia 0115512345678', '55 51 23 4', 'búscame en insta: villa lago',
 	'gmail: villa', '912 345 678', 'referencia 5512345678', 'escríbeme al 23-12-2025', 'Silencio 22:00-06:00 llámame',
-'mi correo\u2028es anaperez', 'fb casadelago', 'busca villa lago gt en facebook', 'cinco mil quinientos cincuenta y cinco mil doscientos treinta y cuatro',
-	'los primeros son 5555 y los últimos cuatro son 1234', 'mi whatsapp es el mismo del formulario', 'llámame al número que dejé', 'ana.perez g m a i l',
-	// Una palabra pura después de «red:» o «red es» (sin cifra, punto, guion bajo ni @): pasa, para que pasen «Mi correo es
-	// obligatorio», «Mi whatsapp es lento». Y las cifras repartidas en varios mensajes o en partes sueltas.
-	'gmail: juanperez', 'búscame en insta: villalago', 'mi ig es villa lago gt', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago',
-	'mi correo es anaperez', '🔟', 'i​g: villalago', 'telegrаm villalago', 'ig: villalago', 'ig:\tvillalago', 'mi correo es anaperez',
-	'cinco mil quinientos cincuenta y cinco, mil doscientos treinta y cuatro', 'mi número: cinco cinco cinco cinco', 'termina en 1234', '55-55',
+'mi correo\u2028es anaperez', 'busca villa lago gt en facebook', 	'los primeros son 5555 y los últimos cuatro son 1234', 'mi whatsapp es el mismo del formulario', 'llámame al número que dejé', 'ana.perez g m a i l',
+	// Una palabra pura después de «red:» (sin cifra, punto, guion bajo ni @) o de «correo es»: pasa, para que pasen «Mi correo
+	// es obligatorio», «Mi whatsapp es lento», «fb: gracias». Y las cifras repartidas en varios mensajes o en partes sueltas.
+	'gmail: juanperez', 'búscame en insta: villalago', 'en instagram: villalago', 'por telegram: villalago', 'ig: villalago',
+	'mi correo es anaperez', '🔟', 'i​g: villalago', 'ig: villalago', 'ig:\tvillalago', 'mi correo es anaperez',
+	'mi número: cinco cinco cinco cinco', 'termina en 1234', '55-55',
 	'12-34', 'IV IV', 'whatsapp 5555'];
 
 // Corpus GENERADO: cada teléfono y cada usuario conocidos envueltos en cada contexto de excepción que tiene el filtro

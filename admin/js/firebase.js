@@ -1,7 +1,7 @@
 // Inicializa Firebase con la configuración pública de /site.config.json.
 import { initializeApp, deleteApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-	getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
+	initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
 	createUserWithEmailAndPassword, connectAuthEmulator,
 	verifyPasswordResetCode, confirmPasswordReset, checkActionCode, applyActionCode,
 	multiFactor, getMultiFactorResolver, TotpMultiFactorGenerator, sendEmailVerification
@@ -11,7 +11,7 @@ import {
 	orderBy, limit, serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction, connectFirestoreEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
-	getStorage, ref, uploadBytes, getDownloadURL, deleteObject, connectStorageEmulator
+	getStorage, ref, uploadBytes, getDownloadURL, getMetadata, deleteObject, connectStorageEmulator
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const res = await fetch('/site.config.json', { cache: 'no-store' });
@@ -22,7 +22,12 @@ export const firebaseConfig = siteConfig.firebase || {};
 export const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
 export const app = configured ? initializeApp(firebaseConfig) : null;
-export const auth = app ? getAuth(app) : null;
+// Como getAuth, pero sin lo de entrar con ventana de Google (popup/redirect), que el panel no usa: getAuth lo prepara solo
+// en el celular y en Safari, cargando apis.google.com y un iframe de firebaseapp.com, que la regla de seguridad del
+// panel (CSP, netlify.toml) no deja. La sesión se guarda igual que con getAuth.
+const PERSISTENCIA = [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence];
+const iniciarAuth = (a) => initializeAuth(a, { persistence: PERSISTENCIA });
+export const auth = app ? iniciarAuth(app) : null;
 // Los correos de Firebase (poner o cambiar la contraseña) en español, como el panel: sin esto llegan en inglés.
 if (auth) auth.languageCode = 'es';
 // ignoreUndefinedProperties: un campo sin valor no hace fallar el guardado.
@@ -45,7 +50,7 @@ if (app && emuladores) {
 export async function createAccount(email, password) {
 	const secondary = initializeApp(firebaseConfig, `alta-${Date.now()}`);
 	try {
-		const secAuth = getAuth(secondary);
+		const secAuth = iniciarAuth(secondary);
 		if (emuladores) conAuthLocal(secAuth);
 		const cred = await createUserWithEmailAndPassword(secAuth, email, password);
 		await signOut(secAuth);
@@ -62,5 +67,5 @@ export {
 	multiFactor, getMultiFactorResolver, TotpMultiFactorGenerator, sendEmailVerification,
 	doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit,
 	serverTimestamp, writeBatch, arrayUnion, arrayRemove, deleteField, FieldPath, Timestamp, onSnapshot, runTransaction,
-	ref, uploadBytes, getDownloadURL, deleteObject
+	ref, uploadBytes, getDownloadURL, getMetadata, deleteObject
 };

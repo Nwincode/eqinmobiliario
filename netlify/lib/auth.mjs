@@ -33,7 +33,7 @@ export async function usuario(req) {
 	if (!res.ok) return null;
 	const f = (await res.json()).fields || {};
 	if (!f.activo?.booleanValue) return null;
-	return { uid: payload.sub, nombre: f.nombre?.stringValue || '', rol: f.rol?.stringValue || '', propietarioId: f.propietarioId?.stringValue || '' };
+	return { uid: payload.sub, nombre: f.nombre?.stringValue || '', rol: f.rol?.stringValue || '', propietarioId: f.propietarioId?.stringValue || '', agentId: f.agentId?.stringValue || '' };
 }
 
 // Quien llama según su token (sin mirar users/): uid, correo y cuándo entró. null sin token; un token inválido lanza.
@@ -47,7 +47,8 @@ export async function sesionDe(req) {
 export async function staffUser(req) {
 	const u = await usuario(req);
 	if (!u || (u.rol !== 'admin' && u.rol !== 'asesor')) return null;
-	return { uid: u.uid, nombre: u.nombre, admin: u.rol === 'admin' };
+	// agentId: el asesor que es (las reglas lo llaman myAgentId()); '' si no tiene ninguno.
+	return { uid: u.uid, nombre: u.nombre, admin: u.rol === 'admin', agentId: u.agentId };
 }
 
 export async function socioUser(req) {
@@ -55,6 +56,11 @@ export async function socioUser(req) {
 	if (!u || u.rol !== 'socio' || !u.propietarioId) return null;
 	return { uid: u.uid, nombre: u.nombre, propietarioId: u.propietarioId };
 }
+
+// ¿`u` (de usuario()) es el socio de la casa del chat, hoy? Lo mismo que esSocioDeCasaPorNoche de las reglas: el chat es
+// de su ficha y la casa sigue siendo suya y por noche. Lo usan /api/foto y «Sugerir respuesta» (sugerir-respuesta.mjs).
+export const esSocioDelChat = (u, chat, casa) => u?.rol === 'socio' && Boolean(u.propietarioId) && chat?.propietarioId === u.propietarioId
+	&& casa?.propietarioId === u.propietarioId && casa?.operacion === 'vacacional';
 
 export function json(status, body) {
 	return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });

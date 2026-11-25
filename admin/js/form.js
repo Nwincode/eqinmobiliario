@@ -6,7 +6,7 @@
 // when(data) para mostrar el campo solo en ciertos casos.
 import { h, toast, showError, iconoBtn } from './ui.js';
 import { CODIGOS_PAIS, partirTelefono, unirTelefono, correoValido, telefonoValido, sugerenciaCorreo } from './formato.js';
-import { storage, db, ref, uploadBytes, getDownloadURL, deleteObject, collection, getDocs } from './firebase.js';
+import { storage, db, ref, uploadBytes, getDownloadURL, getMetadata, deleteObject, collection, getDocs } from './firebase.js';
 import { procesarImagen as procesar } from './imagen.js';
 
 export function getPath(obj, path) {
@@ -42,15 +42,26 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 }
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
-export async function uploadImage(file, folder, procesada, opciones) {
+// `sinEnlace`: un archivo que Storage no abre a nadie (el comprobante del pago a EQ): sin dirección de descarga, solo la ruta.
+// `numerada`: el archivo se llama 1 a 40 (el primer número libre de la carpeta): la carpeta de la casa nueva del socio
+// (storage.rules no le deja más de 40 ni otro nombre).
+export const MAX_NUMERADAS = 40;
+async function numeroLibre(folder, ext) {
+	for (let n = 1; n <= MAX_NUMERADAS; n++) {
+		const path = `${folder}/${n}.${ext}`;
+		try { await getMetadata(ref(storage, path)); } catch (err) { if (err?.code === 'storage/object-not-found') return path; throw err; }
+	}
+	throw new Error(`Ya subiste ${MAX_NUMERADAS} fotos a esta casa: quita las que no vayan y publica con esas.`);
+}
+export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false, numerada = false } = {}) {
 	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
 	const base = (file.name || 'foto').replace(/\.[^.]+$/, '').normalize('NFD').replace(/[^\w-]+/g, '-').slice(0, 40);
-	const path = `${folder}/${Date.now()}-${base}.${ext}`;
+	const path = numerada ? await numeroLibre(folder, ext) : `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
-	return { url: await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
+	return { url: sinEnlace ? '' : await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
 }
 
 // Orden natural de nombres de archivo ("foto2" antes que "foto10").
@@ -99,23 +110,77 @@ function fileInput(multiple, onFiles) {
 
 // Teléfono con su código de país, para cualquier formulario del panel. Se guarda como «+código número» (formato.js).
 // Devuelve el grupo (código + número); `.valor()` da el teléfono listo para guardar.
-export function campoTelefono(valor, { onChange, required = false, placeholder, disabled = false } = {}) {
+// En el panel casi siempre es el teléfono de otra persona (cliente, dueño, huésped): sin autollenado, para que el navegador
+// no ponga el del asesor. `etiqueta`: el nombre del número cuando no hay <label> que lo apunte; `id`: el del número, para
+// un <label for>. `revisar`: en un formulario armado a mano (sin renderForm), la misma revisión al salir del campo;
+// `revisarCampos` la repite al guardar.
+export function campoTelefono(valor, { onChange, required = false, placeholder, disabled = false, etiqueta, autocomplete = 'off', id, revisar = false } = {}) {
 	const { codigo, numero } = partirTelefono(valor);
 	const sel = h('select', { class: 'form-select campo-codigo', 'aria-label': 'Código de país' },
 		CODIGOS_PAIS.map(([c, pais]) => h('option', { value: c }, `+${c} ${pais}`)), codigo ? null : h('option', { value: '' }, 'Otro'));
 	sel.value = codigo;
-	const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required, placeholder });
+	const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required, placeholder, autocomplete, id, 'aria-label': etiqueta });
 	num.value = numero;
 	const grupo = h('div', { class: 'input-group' }, sel, num);
 	grupo.valor = () => unirTelefono(sel.value, num.value);
 	if (onChange) { sel.addEventListener('change', () => onChange(grupo.valor())); num.addEventListener('input', () => onChange(grupo.valor())); }
 	if (disabled) { sel.disabled = true; num.disabled = true; }
+	if (revisar) conRevision(grupo, telefonoValido, MSG_TELEFONO);
 	return grupo;
+}
+
+// Correo para un formulario armado a mano: la misma pieza que el correo de renderForm (tipo, teclado, revisión al salir
+// del campo y «¿Quisiste decir …?»). Devuelve la caja; `.valor()` da el correo y `revisarCampos` lo repite al guardar.
+// Sin autollenado por defecto (casi siempre es el correo de otra persona); lo propio pasa `autocomplete: 'email'`.
+export function campoCorreo(valor, { onChange, id, autocomplete = 'off', required = false } = {}) {
+	const input = h('input', { class: 'form-control', type: 'email', inputmode: 'email', autocomplete, id, required });
+	input.value = valor ?? '';
+	if (onChange) input.addEventListener('input', () => onChange(input.value));
+	const caja = conPistaCorreo(input);
+	caja.valor = () => input.value.trim();
+	conRevision(caja, correoValido, MSG_CORREO);
+	return caja;
+}
+
+const MSG_TELEFONO = 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).';
+const MSG_CORREO = 'Revisa el correo (p. ej. nombre@correo.com).';
+// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
+function conPistaCorreo(input) {
+	const pista = h('div', { class: 'form-text', hidden: true });
+	input.addEventListener('blur', () => {
+		const otro = sugerenciaCorreo(input.value);
+		pista.hidden = !otro;
+		pista.replaceChildren(...(otro ? [h('span', { class: 'icon-exclamation-circle me-1', 'aria-hidden': 'true' }), `¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
+	});
+	input.addEventListener('input', () => { pista.hidden = true; });
+	return h('div', {}, input, pista);
+}
+// Lo que tiene mal un campo armado a mano: solo lo que se escribió ahora (lo guardado que nadie tocó no se marca).
+function conRevision(control, ok, msg) {
+	const inicial = control.valor();
+	control.problema = () => { const v = control.valor(); return !v || v === inicial || ok(v) ? '' : msg; };
+	alSalir(control, control.problema);
+}
+// Al guardar un formulario armado a mano: marca en rojo cada campo con problema (campoTelefono con `revisar`,
+// campoCorreo), va al primero y lo dice. Devuelve true si todo está bien.
+export function revisarCampos(controles) {
+	return avisarErrores(controles.filter(Boolean).map((control) => ({ control, msg: control.problema?.() || '' })).filter((e) => e.msg));
+}
+// Todos los errores juntos: cada campo en rojo con su mensaje debajo, la página va al primero y un solo aviso.
+function avisarErrores(errores) {
+	if (!errores.length) return true;
+	errores.forEach((e) => { const input = entrada(e.control); if (input?.classList) quitarMarca(input); marcar(e); });
+	const primero = entrada(errores[0].control);
+	primero?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+	primero?.focus?.({ preventScroll: true });
+	toast(errores.length === 1 ? errores[0].msg : `Revisa los ${errores.length} campos marcados en rojo.`, 'warning');
+	return false;
 }
 
 // Lo que se marca en rojo de un control (en el teléfono, el número; en un campo con pista, su input).
 const entrada = (control) => (control?.matches?.('input, select, textarea') ? control : control?.querySelector?.('input:not([type=file])') || control?.querySelector?.('select, textarea')) || control;
 function quitarMarca(input) {
+	delete input.dataset.alSalir;
 	input.classList.remove('is-invalid');
 	input.removeAttribute('aria-invalid');
 	const id = input.getAttribute('data-error');
@@ -136,6 +201,31 @@ function marcar({ control, msg }) {
 	// Se quita al corregirlo: al escribir (en un campo de texto, «change» llega al salir del campo y borraría la marca
 	// recién puesta) o al elegir otra opción en un selector.
 	input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => quitarMarca(input), { once: true });
+}
+
+const vacio = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
+function fueraDeLimites(field, v) {
+	if (!((field.min != null && Number(v) < field.min) || (field.max != null && Number(v) > field.max))) return '';
+	const rango = field.min != null && field.max != null ? `va de ${field.min} a ${field.max}` : field.min != null ? `debe ser ${field.min} o más` : `llega hasta ${field.max}`;
+	return `«${field.label}» ${rango}.`;
+}
+// Lo que tiene mal un correo o un teléfono recién escrito (lo guardado que nadie tocó no se marca).
+const formatoMal = ({ field, target, inicial, ok, msg }) => () => {
+	const v = getPath(target, field.name);
+	return vacio(v) || v === inicial || ok(v) ? '' : msg;
+};
+// Se revisa al salir del campo (no solo al guardar): el aviso queda debajo, en rojo, y se va al corregirlo. En el teléfono
+// cuenta también cambiar el código de país.
+function alSalir(control, problema) {
+	const input = entrada(control);
+	const revisar = () => {
+		const msg = problema();
+		// Solo quita la marca que puso él (la de «Completa …» de validate() se queda hasta que se escriba).
+		if (!msg) { if (input.dataset.alSalir) { quitarMarca(input); delete input.dataset.alSalir; } return; }
+		if (!input.classList.contains('is-invalid')) { marcar({ control, msg }); input.dataset.alSalir = '1'; }
+	};
+	input.addEventListener('blur', revisar);
+	if (input !== control) control.querySelector?.('select')?.addEventListener('change', revisar);
 }
 
 export function renderForm(schema, data, options = {}) {
@@ -250,9 +340,9 @@ export function renderForm(schema, data, options = {}) {
 			}
 
 			case 'number':
-				control = h('input', { class: 'form-control', type: 'number', step: field.step || 'any', min: field.min, max: field.max, placeholder: field.placeholder });
-				// Con mínimo o máximo, se revisa al guardar (validate): un número fuera de lo normal no pasa sin aviso.
-				if (field.min != null || field.max != null) conLimites.push({ field, target, control });
+				control = h('input', { class: 'form-control', type: 'number', inputmode: 'decimal', step: field.step || 'any', min: field.min, max: field.max, placeholder: field.placeholder });
+				// Con mínimo o máximo, se revisa al salir del campo y al guardar (validate): un número fuera de lo normal no pasa sin aviso.
+				if (field.min != null || field.max != null) { conLimites.push({ field, target, control }); alSalir(control, () => { const v = get(); return vacio(v) ? '' : fueraDeLimites(field, v); }); }
 				control.value = get() ?? '';
 				control.addEventListener('input', () => set(control.value === '' ? null : Number(control.value)));
 				break;
@@ -277,7 +367,7 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'tags': {
 				const list = h('div', { class: 'd-flex flex-wrap gap-2 mb-2' });
-				const input = h('input', { class: 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter' });
+				const input = h('input', { class: 'form-control', placeholder: field.placeholder || 'Escribe y presiona Enter', 'aria-label': `${field.label}: agregar` });
 				const sugeridas = h('div', { class: 'd-flex flex-wrap gap-1 mt-2' });
 				const draw = () => {
 					const puestas = (get() || []).map((t) => t.toLowerCase());
@@ -304,7 +394,7 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'image': {
 				const preview = h('img', { class: 'img-preview', alt: '' });
-				const urlInput = h('input', { class: 'form-control form-control-sm', placeholder: 'o pega la URL de una imagen' });
+				const urlInput = h('input', { class: 'form-control form-control-sm', inputmode: 'url', placeholder: 'o pega la URL de una imagen', 'aria-label': `${field.label || 'Imagen'}: enlace de la imagen` });
 				const status = h('span', { class: 'small text-muted' });
 				const draw = () => {
 					const v = get();
@@ -409,7 +499,7 @@ export function renderForm(schema, data, options = {}) {
 					for (let n = 0; n < files.length; n++) {
 						status.textContent = `Subiendo ${n + 1} de ${files.length}…`;
 						try {
-							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked })), alt: '' });
+							arr.push({ ...(await uploadImage(files[n], field.folder || folder, null, { marca: Boolean(field.marcaFija) || !!marcaChk?.checked }, { numerada: Boolean(field.numeradas) })), alt: '' });
 							set(arr);
 							draw();
 						} catch (err) {
@@ -437,14 +527,14 @@ export function renderForm(schema, data, options = {}) {
 						...arr.map((item, i) => field.encabezado === false
 							// Sin la fila «Elemento N ↑ ↓ Quitar»: la ficha usa todo el ancho y «Quitar» es una ✕ en su esquina.
 							? h('div', { class: 'list-field-item list-sin-encabezado' },
-								iconoBtn('icon-close', `Quitar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, { class: 'cot-btn cot-btn-icono btn btn-sm btn-light list-quitar', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }),
+								iconoBtn('icon-close', `Quitar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, { class: 'btn-toque btn-icono btn btn-sm btn-light list-quitar', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }),
 								h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))
 							: h('div', { class: 'list-field-item' },
 							h('div', { class: 'd-flex align-items-center mb-2 gap-1' },
 								h('strong', { class: 'small text-muted me-auto' }, `${field.itemLabel || 'Elemento'} ${i + 1}`),
 								// Una lista de fechas no se ordena a mano (ordenar: false): el orden lo dan las fechas.
-								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === 0, title: 'Subir', onclick: () => { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; set(arr); draw(); } }, '↑'),
-								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === arr.length - 1, title: 'Bajar', onclick: () => { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; set(arr); draw(); } }, '↓'),
+								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === 0, title: 'Subir', 'aria-label': `Subir ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, onclick: () => { [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; set(arr); draw(); } }, '↑'),
+								field.ordenar === false ? null : h('button', { type: 'button', class: 'btn btn-sm btn-light', disabled: i === arr.length - 1, title: 'Bajar', 'aria-label': `Bajar ${String(field.itemLabel || 'elemento').toLowerCase()} ${i + 1}`, onclick: () => { [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; set(arr); draw(); } }, '↓'),
 								h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', onclick: () => { arr.splice(i, 1); set(arr); draw(); } }, 'Quitar')),
 							h('div', { class: 'row g-2' }, field.fields.map((f) => renderField(f, item))))),
 						field.max && arr.length >= field.max ? null : h('button', {
@@ -465,14 +555,17 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
-				conFormato.push({ field, target, control, inicial: get(), ok: telefonoValido, msg: 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).' });
+				conFormato.push({ field, target, control, inicial: get(), ok: telefonoValido, msg: MSG_TELEFONO });
+				alSalir(control, formatoMal(conFormato.at(-1)));
 				// Uno guardado antes que no cumple el formato no frena el guardado (no lo cambió quien edita): se avisa aquí.
 				if (get() && !telefonoValido(get())) control = h('div', {}, control, h('div', { class: 'form-text text-warning' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), 'Este teléfono guardado no parece completo para ese país: revísalo cuando puedas.'));
 				break;
 
 			default: {
 				// `input` (const): los manejadores leen siempre el campo, aunque `control` pase a ser la caja con la pista.
-				const input = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required });
+				const input = h('input', { class: 'form-control', type: field.type || 'text', placeholder: field.placeholder, maxlength: field.maxlength, required: field.required,
+					// El correo de un cliente o un dueño: sin autollenado (el navegador pondría el del asesor).
+					...(field.type === 'email' ? { autocomplete: 'off', inputmode: 'email' } : {}) });
 				input.value = get() ?? '';
 				if (field.disabled) input.disabled = true;
 				input.addEventListener('input', () => set(input.value));
@@ -480,16 +573,9 @@ export function renderForm(schema, data, options = {}) {
 				if (field.onInput) input.addEventListener('input', () => field.onInput(input.value, state));
 				control = input;
 				if (field.type === 'email') {
-					conFormato.push({ field, target, control: input, inicial: get(), ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
-					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
-					const pista = h('div', { class: 'form-text', hidden: true });
-					input.addEventListener('blur', () => {
-						const otro = sugerenciaCorreo(input.value);
-						pista.hidden = !otro;
-						pista.replaceChildren(...(otro ? [h('span', { class: 'icon-exclamation-circle me-1', 'aria-hidden': 'true' }), `¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
-					});
-					input.addEventListener('input', () => { pista.hidden = true; });
-					control = h('div', {}, input, pista);
+					conFormato.push({ field, target, control: input, inicial: get(), ok: correoValido, msg: MSG_CORREO });
+					alSalir(input, formatoMal(conFormato.at(-1)));
+					control = conPistaCorreo(input);
 				}
 			}
 		}
@@ -521,17 +607,13 @@ export function renderForm(schema, data, options = {}) {
 		validate() {
 			el.querySelectorAll('.is-invalid').forEach(quitarMarca);
 			const errores = [];
-			const vacio = (v) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
 			for (const { field, target, control } of required) {
 				if (vacio(getPath(target, field.name))) errores.push({ control, msg: `Completa «${field.label}».` });
 			}
 			for (const { field, target, control } of conLimites) {
 				const v = getPath(target, field.name);
-				if (vacio(v)) continue;
-				if ((field.min != null && Number(v) < field.min) || (field.max != null && Number(v) > field.max)) {
-					const rango = field.min != null && field.max != null ? `va de ${field.min} a ${field.max}` : field.min != null ? `debe ser ${field.min} o más` : `llega hasta ${field.max}`;
-					errores.push({ control, msg: `«${field.label}» ${rango}.` });
-				}
+				const msg = vacio(v) ? '' : fueraDeLimites(field, v);
+				if (msg) errores.push({ control, msg });
 			}
 			for (const { field, target, control, ok, msg, inicial } of conFormato) {
 				const v = getPath(target, field.name);
@@ -540,13 +622,15 @@ export function renderForm(schema, data, options = {}) {
 				if (v === inicial) continue;
 				if (!vacio(v) && !ok(v) && !control.closest?.('[hidden]') && !errores.some((e) => e.control === control)) errores.push({ control, msg });
 			}
-			if (!errores.length) return true;
-			errores.forEach(marcar);
-			const primero = entrada(errores[0].control);
-			primero?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-			primero?.focus?.({ preventScroll: true });
-			toast(errores.length === 1 ? errores[0].msg : `Revisa los ${errores.length} campos marcados en rojo.`, 'warning');
-			return false;
+			return avisarErrores(errores);
+		},
+		// Errores que llegan de fuera (la revisión de la casa nueva, en la ficha o en el servidor): [{ campo, msg }] con el
+		// nombre del campo. Igual que validate: cada uno en rojo con su mensaje, la página va al primero y un solo aviso.
+		marcar(lista) {
+			el.querySelectorAll('.is-invalid').forEach(quitarMarca);
+			const errores = lista.map((e) => ({ control: el.querySelector(`[data-campo="${e.campo}"]`), msg: e.msg })).filter((e) => e.control && !e.control.closest('[hidden]'));
+			if (!errores.length && lista.length) toast(lista.map((e) => e.msg).join(' '), 'warning');
+			return avisarErrores(errores);
 		},
 		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.

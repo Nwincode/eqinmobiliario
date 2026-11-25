@@ -1,29 +1,30 @@
 // Campana de avisos (barra de arriba) y tarjeta «Avisos» de Inicio: lo que espera a quien está en el panel, cada uno
 // con un enlace a donde se resuelve. Lo arma avisos-reglas.js (puro) con lo que ya está guardado; aquí solo se lee la
 // base (cada fuente por su lado: una que falle no deja la campana vacía) y se pinta.
-// Quién ve qué: el administrador, todo; el asesor, los cambios que piden sus dueños y sus exclusivas (no lee
+// Quién ve qué: el administrador, todo (también las fotos del cliente que el socio no ve); el asesor, los cambios que piden sus dueños y sus exclusivas (no lee
 // solicitudes ni chats); el socio, sus solicitudes sin responder, los mensajes de sus clientes y su pago a EQ.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from './firebase.js';
 import { h, showError } from './ui.js';
 import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
-import { bajoElPlan, conDatosDelChat } from './reservas-calculo.js';
+import { bajoElPlan, conDatosDelChat, chatAbierto } from './reservas-calculo.js';
+import { enMs, primerNombre } from './formato.js';
+import { fotosOcultas } from './hilo.js';
 
 const V = window.EQVacacional;
 const DIA = 86400000;
-const ms = (v) => (v?.toMillis ? v.toMillis() : v?.seconds ? v.seconds * 1000 : typeof v === 'number' ? v : Date.parse(v || '') || 0);
+const ms = enMs;
 const todos = async (q) => (await getDocs(q)).docs.map((d) => ({ id: d.id, ...d.data() }));
 const seguro = (p, vacio = []) => p.catch((err) => { console.warn('Avisos', err); return vacio; });
 
 // El último mensaje de cada chat abierto (uno por chat): si es del cliente, falta responderle.
-// Abierto = no cancelado ni «No se dio», y con la salida hace menos de 7 días.
+// Abierto: chatAbierto (admin/js/reservas-calculo.js).
 async function sinResponder(chats) {
-	const desde = V.sumarDias(V.hoy(), -7);
-	const abiertos = chats.filter((c) => !['no', 'cancelada'].includes(c.estado) && String(c.salida || '') >= desde);
+	const abiertos = chats.filter((c) => chatAbierto(c));
 	const ultimos = await Promise.all(abiertos.map(async (c) => {
 		const s = await seguro(getDocs(query(collection(db, 'chats', c.id, 'mensajes'), orderBy('createdAt', 'desc'), limit(1))), null);
 		const m = s?.docs[0]?.data();
-		return m?.de === 'cliente' ? { codigo: c.codigo, nombre: String(c.nombre || '').trim().split(/\s+/)[0], casa: c.propertyTitulo, fecha: ms(m.createdAt) } : null;
+		return m?.de === 'cliente' ? { codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, fecha: ms(m.createdAt) } : null;
 	}));
 	return ultimos.filter(Boolean);
 }
@@ -60,7 +61,7 @@ async function leerFuentes() {
 		const deHoy = chats.filter((c) => suyas.has(c.propertyId));
 		return {
 			solicitudes: deHoy.filter((c) => !c.estado && String(c.llegada || '') >= hoy).map((c) => ({
-				leadId: c.leadId, codigo: c.codigo, nombre: String(c.nombre || '').trim().split(/\s+/)[0], casa: c.propertyTitulo, creado: ms(c.createdAt), estado: 'pendiente',
+				leadId: c.leadId, codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, creado: ms(c.createdAt), estado: 'pendiente',
 				alerta: V.alertaSolicitud('pendiente', ms(c.createdAt), c, null, null, ahora)
 			})),
 			mensajes: await sinResponder(deHoy),
@@ -88,6 +89,15 @@ async function leerFuentes() {
 		// Montos congelados: una cotizada por debajo del precio de la casa la confirma el administrador (bajoElPlan).
 		admin ? seguro(todos(collection(db, 'montosSolicitud'))) : []]);
 	const montos = Object.fromEntries(congelados.map((m) => [m.id, m]));
+	// Fotos del cliente que el socio no ve (fotosOcultas de hilo.js: lo mismo que decide /api/foto): las de los chats que
+	// esperan el pago y ya recibieron una foto, cada uno por su lado.
+	const conFoto = chats.filter((c) => c.estado === 'confirmada' && c.comprobanteCliente && c.leadId);
+	const [revisiones, iaActiva] = conFoto.length ? await Promise.all([seguro(todos(collection(db, 'revisionesComprobante'))), import('./ia.js').then((m) => m.estadoIA())]) : [[], false];
+	const revision = Object.fromEntries(revisiones.map((r) => [r.id, r]));
+	const fotos = (await Promise.all(conFoto.map(async (c) => {
+		const ocultas = fotosOcultas(await seguro(todos(query(collection(db, 'chats', c.id, 'mensajes'), where('tipo', '==', 'foto')))), { chat: c, rv: revision[c.leadId] || null, ia: iaActiva, ahora });
+		return ocultas.length ? { leadId: c.leadId, codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, mensaje: ocultas[0].m.id, fecha: ms(ocultas[0].m.createdAt), marca: ocultas[0].marca, n: ocultas.length } : null;
+	}))).filter(Boolean);
 	const chatDe = Object.fromEntries(chats.map((c) => [c.codigo, c]));
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
@@ -109,12 +119,13 @@ async function leerFuentes() {
 			};
 		}),
 		mensajes: await sinResponder(chats),
+		fotos,
 		comprobantes: reservas.filter((r) => r.codigo && r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
 			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
 		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
 		// Las solicitudes de reserva por noche no son leads del CRM: ya avisan como solicitud.
-		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: String(l.nombre || '').trim().split(/\s+/)[0], casa: l.propertyTitulo, creado: ms(l.createdAt) })),
-		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length })),
+		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: primerNombre(l.nombre), casa: l.propertyTitulo, creado: ms(l.createdAt) })),
+		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length, nueva: Boolean(c.nueva) })),
 		exclusivas: exclusivasPorVencer(conCasa, acuerdos, propietarios, { dias: 30 }).map((x) => ({
 			casaId: x.casa.id, casa: x.casa.titulo, dueno: x.dueno?.nombre, fin: x.acuerdo?.exclusivaFin, dias: x.dias, agentId: x.casa.agentId || '' }))
 	};
@@ -126,7 +137,8 @@ export function cargarAvisos(forzar = false) {
 	if (!forzar && ultimo.promesa && Date.now() - ultimo.ts < 120000) return ultimo.promesa;
 	const promesa = leerFuentes().then(async (f) => {
 		const { hechos, puede } = await atendidos(clavesPorRevisar(f));
-		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede, fallas: f.fallas || [] };
+		// Las conversaciones donde lo último lo escribió el cliente: el número de «Mensajes» en el menú (la misma lectura).
+		return { avisos: armarAvisos({ ...f, atendidos: hechos }), puedeListo: puede, fallas: f.fallas || [], sinResponder: (f.mensajes || []).length };
 	});
 	ultimo = { ts: Date.now(), promesa };
 	promesa.catch(() => { ultimo = { ts: 0, promesa: null }; });
@@ -174,6 +186,14 @@ export function fila(a, puedeListo, alIr) {
 
 const contar = (n) => (n === 1 ? '1 aviso' : `${n} avisos`);
 
+// El número de «Mensajes» del menú: conversaciones sin responder (lo cuenta la misma lectura de la campana).
+function numeroMensajes(n) {
+	const a = document.querySelector('.admin-nav a[data-route="mensajes"]');
+	if (!a) return;
+	a.querySelector('.nav-aviso')?.remove();
+	if (n) a.append(h('span', { class: 'nav-aviso', title: `${n} sin responder` }, h('span', { 'aria-hidden': 'true' }, String(n > 99 ? '99+' : n)), h('span', { class: 'visually-hidden' }, ` (${n} sin responder)`)));
+}
+
 // La campana en pantalla (una por sesión del panel; al volver a entrar se pinta otra y esta queda sin uso).
 let actual = null;
 window.addEventListener('hashchange', () => { actual?.menu.hide(); actual?.actualizar(false); });
@@ -201,6 +221,7 @@ export function campana() {
 		avisos.length ? h('ul', { class: 'avisos-filas' }, avisos.map((a) => fila(a, puedeListo, () => menu.hide())))
 			: fallas.length ? null : h('p', { class: 'avisos-vacio' }, h('span', { class: 'icon-check-circle', 'aria-hidden': 'true' }), 'Nada por atender. Aquí te aviso cuando llegue algo.')].filter(Boolean));
 	const pintar = (datos) => {
+		numeroMensajes(datos.sinResponder || 0);
 		const n = datos.avisos.length;
 		numero.hidden = !n;
 		numero.textContent = String(n > 99 ? '99+' : n);
@@ -219,7 +240,7 @@ export async function tarjetaAvisos() {
 	const { avisos, puedeListo } = await cargarAvisos();
 	if (!avisos.length) return null;
 	const resto = avisos.length - 5;
-	return h('section', { class: 'card mb-4 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'avisos-titulo' },
+	return h('section', { class: 'card mb-3 tarjeta-pendientes tarjeta-avisos', 'aria-labelledby': 'avisos-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-bell', 'aria-hidden': 'true' }),
 			h('div', { class: 'me-auto' },

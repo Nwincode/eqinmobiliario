@@ -1,12 +1,13 @@
 // CRM: clientes, actividades (agenda e historial) y propietarios.
 // El asesor solo consulta lo suyo (lo exigen las reglas de Firestore); el administrador, todo.
 import {
-	db, doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
+	db, doc, getDoc, getDocs, setDoc, updateDoc, deleteField, collection, query, where, serverTimestamp, Timestamp, runTransaction, arrayUnion
 } from './firebase.js';
-import { h, badge, toDate } from './ui.js';
+import { h, badge, nombreYDatos, fallaDelServidor } from './ui.js';
 import { session } from './session.js';
-import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto } from './formato.js';
+import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora, enMs } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
+import { queCorreoCorregido } from './reservas-calculo.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -29,6 +30,19 @@ export const etapaBadge = (v) => { const e = ETAPAS.find(([k]) => k === v) || ET
 export const tipoActividad = (v) => TIPOS_ACTIVIDAD.find(([k]) => k === v) || TIPOS_ACTIVIDAD[5];
 // Ícono del tipo de actividad (su nombre va en `title`).
 export const iconoActividad = (v) => { const [, label, icono] = tipoActividad(v); return h('span', { class: `${icono} crm-icono`, title: label, 'aria-hidden': 'true' }); };
+
+// La fila de una actividad (la de la Agenda): ícono, qué es y, abajo, el cliente, cuándo y el asesor; a la derecha lo que se
+// le pase (✓ hecha, su vencimiento, ⋮). La usan la Agenda, la ficha del cliente e Inicio.
+// `marcas`: etiquetas al final de la línea de datos (nombreYDatos: «Vencida», «Hoy»); `der`: los botones de la fila.
+export function filaActividad(a, { cliente = true, asesor = '', der = null, marcas = null } = {}) {
+	const detalle = [cliente && a.clienteId ? h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente') : null,
+		a.fecha ? fechaHora(a.fecha) : 'Sin fecha', asesor || null].filter(Boolean);
+	return h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
+		iconoActividad(a.tipo),
+		h('div', { class: 'flex-grow-1', style: 'min-width:0' },
+			nombreYDatos(a.titulo || tipoActividad(a.tipo)[1], detalle.map((x, i) => [i ? ' · ' : '', x]), marcas ? [marcas] : [], { cls: 'small' })),
+		der ? h('div', { class: 'd-flex align-items-center gap-2 flex-shrink-0' }, der) : null);
+}
 
 export { telNorm };
 
@@ -67,7 +81,7 @@ export async function loadAcuerdos(casas) {
 	return Object.fromEntries(pares);
 }
 
-export const ms = (v) => toDate(v)?.getTime() || 0;
+export const ms = enMs;
 
 // Regla general de comisión (settings/crm): la de un inmueble sin comisión acordada y la de un negocio sin comisión propia.
 // La cuenta es una sola: comisionDe en admin/js/acuerdo.js.
@@ -145,6 +159,49 @@ export async function crearActividad(datos) {
 	}
 	return { id: ref.id, ...a };
 }
+
+// Corrige el correo de un lead: la única forma (la ficha del cliente, en sus leads, y Solicitudes). Es el correo al que
+// escriben los avisos del servidor (aviso-chat-envio.mjs, solicitud.mjs y rebotes.mjs lo leen de leads/{id}, nunca de una
+// copia): limpio y en minúsculas, como lo guarda el sitio (los rebotes y las repetidas lo buscan tal cual). Quita «El correo
+// no llegó». Una solicitud de reserva la corrige el servidor (/api/reenviar-enlace, solo el administrador): deja los
+// renglones del historial y, abierta, le cambia el enlace y se lo manda al correo nuevo. Un lead de contacto (sin reserva)
+// no recibe nada. Sin cambio (el mismo correo que el guardado ahora), no escribe nada. Devuelve { cambio, enviado: el correo
+// al que salió el enlace ('' si no salió; null si no tocaba), motivo }. Las reglas: el administrador y el asesor del lead
+// (firestore.rules match /leads).
+export async function corregirCorreo(lead, correo) {
+	const nuevo = limpiarCorreo(correo);
+	if (!correoValido(nuevo)) throw new Error('Revisa el correo (p. ej. nombre@correo.com).');
+	// Una solicitud de reserva: lo guarda el servidor (/api/reenviar-enlace; las reglas no lo dejan desde aquí), que le
+	// cambia el enlace en la misma transacción (el viejo pudo llegar a otra persona) y, abierta, le manda el nuevo. Con el
+	// mismo correo de ahora también va (otro enlace y otro correo: el reintento si el anterior no salió). Solo el administrador.
+	if (lead.reserva?.codigo) {
+		if (!session.isAdmin) throw new Error('El correo de una reserva lo corrige el administrador.');
+		let r = {};
+		try {
+			const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id, correo: nuevo }) });
+			r = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(r.error || fallaDelServidor(res.status));
+		} catch (err) { throw err instanceof TypeError ? new Error('Sin conexión con el servidor: el correo no se cambió.') : err; }
+		if (r.cambio) { lead.email = nuevo; delete lead.reboteCorreo; }
+		return { cambio: Boolean(r.cambio), rotado: Boolean(r.rotado), enviado: r.enviado ? r.para || '' : '', motivo: r.motivo || '' };
+	}
+	// Se lee el guardado ahora (otra pestaña pudo corregirlo ya): el «antes» del historial es el de verdad.
+	const ref = doc(db, 'leads', lead.id);
+	const renglon = (que) => ({ que, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() });
+	const { cambio } = await runTransaction(db, async (tx) => {
+		const l = (await tx.get(ref)).data() || {};
+		const antes = limpiarCorreo(l.email);
+		if (nuevo === antes) return { cambio: false };
+		tx.update(ref, { email: nuevo, reboteCorreo: deleteField(), updatedAt: serverTimestamp(),
+			...(l.reserva?.codigo ? { 'solicitud.historial': arrayUnion(renglon(queCorreoCorregido(antes, nuevo))) } : {}) });
+		return { cambio: true };
+	});
+	lead.email = nuevo;
+	delete lead.reboteCorreo;
+	return { cambio, enviado: null, motivo: '' };
+}
+// Un correo como lo guarda el sitio: sin espacios y en minúsculas (lo que muestra el botón es lo que se guarda).
+export const limpiarCorreo = (correo) => String(correo || '').trim().toLowerCase();
 
 // Une los leads en una ficha por persona: busca cliente por teléfono o correo; si no existe, lo crea.
 // Devuelve cuántos leads se vincularon y cuántos clientes nuevos se crearon.
@@ -229,15 +286,9 @@ export function proximaActividad(actividades, clienteId) {
 		.sort((a, b) => ms(a.fecha) - ms(b.fecha))[0];
 }
 
-export function fechaCorta(v) {
-	const d = toDate(v);
-	if (!d) return '';
-	return d.toLocaleString('es-GT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-
 export function chipVencimiento(a) {
 	const v = vencimiento(a);
-	if (v === 'vencida') return h('span', { class: 'badge text-bg-danger' }, 'Vencida');
-	if (v === 'hoy') return h('span', { class: 'badge text-bg-warning' }, 'Hoy');
+	if (v === 'vencida') return badge('Vencida', 'danger');
+	if (v === 'hoy') return badge('Hoy', 'warning');
 	return null;
 }

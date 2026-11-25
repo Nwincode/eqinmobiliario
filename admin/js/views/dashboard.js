@@ -1,9 +1,9 @@
 import { db, getDocs, collection } from '../firebase.js';
-import { h, statCard, pageHeader, formatDate, toDate , mount } from '../ui.js';
+import { h, statCard, pageHeader, toDate, mount, tarjeta, barras } from '../ui.js';
 import { session, getPublishState } from '../session.js';
-import { loadLeads, estadoBadge, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
+import { loadLeads, filaLead, ESTADOS, ORIGENES, fuenteLead } from './leads.js';
 import { cargarPendientes, tarjetaPendientes } from '../pendientes.js';
-import { loadActividades, loadClientes, loadPropietarios, vencimiento, tipoActividad, iconoActividad, fechaCorta, ms } from '../crm.js';
+import { loadActividades, loadClientes, loadPropietarios, vencimiento, filaActividad, ms } from '../crm.js';
 import { tarjetaAvisos } from '../avisos.js';
 import { tarjetaEstado } from '../estado.js';
 
@@ -41,7 +41,6 @@ export async function render(container) {
 	const nuevos = interesados.filter((l) => (l.estado || 'nuevo') === 'nuevo');
 	const byEstado = ESTADOS.map(([v, l]) => [l, interesados.filter((x) => (x.estado || 'nuevo') === v).length]);
 	const byOrigen = Object.entries(last30.reduce((acc, l) => { const k = fuenteLead(l).split(' · ')[0]; acc[k] = (acc[k] || 0) + 1; return acc; }, {}));
-	const max = Math.max(1, ...byEstado.map(([, n]) => n));
 
 	mount(container, 
 		pageHeader(`Hola, ${(session.profile.nombre || '').split(' ')[0] || 'bienvenido'}`,
@@ -52,15 +51,13 @@ export async function render(container) {
 		estado,
 		avisos,
 		pend ? tarjetaPendientes(pend) : null,
-		canSeeLeads ? h('div', { class: 'card mb-4' },
+		canSeeLeads ? h('div', { class: 'card mb-3' },
 			h('div', { class: 'card-header bg-white fw-semibold d-flex align-items-center' }, h('span', { class: 'me-auto' }, 'Para hoy'), h('a', { href: '#/agenda', class: 'pendientes-ver card-header-ver' }, 'Abrir agenda', h('span', { class: 'icon-angle-right', 'aria-hidden': 'true' }))),
 			h('div', { class: 'card-body' },
 				h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 					vencidas.length ? h('a', { href: '#/agenda', class: 'badge text-bg-danger text-decoration-none' }, `${vencidas.length} seguimientos vencidos`) : h('span', { class: 'badge text-bg-success' }, 'Sin seguimientos vencidos'),
 					sinSeguimiento.length ? h('a', { href: '#/clientes', class: 'badge text-bg-warning text-decoration-none' }, `${sinSeguimiento.length} clientes sin seguimiento agendado`) : null),
-				deHoy.length ? h('ul', { class: 'list-unstyled mb-0' }, deHoy.slice(0, 8).map((a) => h('li', { class: 'small mb-1' },
-					iconoActividad(a.tipo), ` ${fechaCorta(a.fecha)} · ${a.titulo || tipoActividad(a.tipo)[1]}`,
-					a.clienteId ? [' · ', h('a', { href: `#/clientes/${a.clienteId}` }, a.clienteNombre || 'Cliente')] : null)))
+				deHoy.length ? h('ul', { class: 'list-group list-group-flush' }, deHoy.slice(0, 8).map((a) => filaActividad(a)))
 					: h('p', { class: 'small text-muted mb-0' }, 'No hay actividades agendadas para hoy.'))) : null,
 		h('div', { class: 'row g-3 mb-4' },
 			stat('icon-home', session.isAdmin ? 'Publicadas' : 'Mis publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
@@ -70,20 +67,11 @@ export async function render(container) {
 		canSeeLeads ? h('div', { class: 'row g-3' },
 			h('div', { class: 'col-lg-7' }, h('div', { class: 'card h-100' },
 				h('div', { class: 'card-header bg-white fw-semibold' }, 'Leads recientes'),
-				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) =>
-					h('li', { class: 'list-group-item d-flex align-items-center gap-2' },
-						h('div', { class: 'me-auto' },
-							h('div', { class: 'fw-semibold' }, l.nombre),
-							h('div', { class: 'small text-muted' }, [l.propertyTitulo || ORIGENES[l.origen] || l.origen, formatDate(l.createdAt)].filter(Boolean).join(' · '))),
-						estadoBadge(l.estado))))
+				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) => h('li', { class: 'list-group-item' }, filaLead(l))))
 					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
 				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),
 			h('div', { class: 'col-lg-5' },
-				h('div', { class: 'card mb-3' },
-					h('div', { class: 'card-header bg-white fw-semibold' }, 'Embudo de leads'),
-					h('div', { class: 'card-body' }, byEstado.map(([label, n]) => h('div', { class: 'mb-2' },
-						h('div', { class: 'd-flex justify-content-between small' }, h('span', {}, label), h('strong', {}, n)),
-						h('div', { class: 'bar' }, h('span', { style: `width:${(n / max) * 100}%` })))))),
+				tarjeta('icon-filter', 'Embudo de leads', barras(byEstado)),
 				h('div', { class: 'card' },
 					h('div', { class: 'card-header bg-white fw-semibold' }, 'Fuente de leads (30 días)'),
 					h('div', { class: 'card-body' }, byOrigen.length
