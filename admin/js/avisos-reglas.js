@@ -1,7 +1,7 @@
 // Avisos de la campana (admin/js/avisos.js): lo que espera a alguien, armado con lo que ya está guardado. Puro (sin
 // base ni pantalla): lo prueba scripts/test-avisos.mjs. Cada aviso se va solo cuando se resuelve donde lleva su enlace
 // (se responde, se confirma, se paga, se renueva). Los que no tienen cómo resolverse solos (un dueño pidió cambios,
-// «No se dio» con fechas ocupadas, una exclusiva) llevan «Listo»: queda en avisosAtendidos/{clave} (firestore.rules).
+// «No se dio» con fechas ocupadas, una exclusiva, una foto que el equipo deja oculta) llevan «Listo»: queda en avisosAtendidos/{clave} (firestore.rules).
 
 // Pedidos de cambio de los dueños: los de los últimos 30 días (los de antes ya no se cuentan como «por atender»).
 export const DIAS_COMENTARIO = 30;
@@ -33,6 +33,7 @@ function textoExclusiva(dias) {
 // Entradas (cada lista ya trae solo lo que esa persona puede ver):
 //  solicitudes: [{ leadId, codigo, nombre, casa, creado, estado, alerta, equipo }]   alerta: '' | 'tarde' | 'mora' | 'bloqueada'; equipo: la confirma el administrador
 //  mensajes:    [{ codigo, nombre, casa, fecha }]                           chats cuyo último mensaje es del cliente
+//  fotos:       [{ leadId, codigo, nombre, casa, mensaje, fecha, marca, n }] fotos del cliente ocultas al socio (la más nueva)
 //  comprobantes:[{ codigo, socio, casa, fecha }]                            pago a EQ subido, sin marcar pagado
 //  comisiones:  [{ codigo, casa, nivel, vence }]                            del socio: su pago a EQ vencido, sin comprobante
 //  comentarios: [{ id, propietarioId, dueno, casa, texto, fecha, agentId }] tipo «cambios»
@@ -40,7 +41,7 @@ function textoExclusiva(dias) {
 //  leads:       [{ id, nombre, casa, creado }]                              de la web, sin atender (estado «nuevo»)
 //  atendidos:   Set de claves con «Listo».
 // Devuelve [{ clave, tipo, icono, titulo, detalle, fecha, href, urgente, listo }], lo urgente primero y después lo más nuevo.
-export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], leads = [], cambiosDueno = [], atendidos = new Set(), ahora = Date.now() } = {}) {
+export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], comprobantes = [], comisiones = [], comentarios = [], exclusivas = [], leads = [], cambiosDueno = [], atendidos = new Set(), ahora = Date.now() } = {}) {
 	const out = [];
 	const conMensaje = new Set(mensajes.map((m) => m.codigo));
 	const conSolicitud = new Set();
@@ -72,6 +73,18 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 		clave: `mensaje_${m.codigo}`, tipo: 'mensaje', icono: 'icon-commenting-o', href: enlaceSolicitud(m.codigo), fecha: m.fecha, urgente: false,
 		titulo: `${m.nombre || 'El cliente'} te escribió`, detalle: [m.codigo, m.casa].filter(Boolean).join(' · ')
 	});
+	// Una foto del cliente que el socio no ve (la revisión la ocultó o ya no se revisa): el equipo la mira en el chat y decide
+	// («Mostrar al socio» la quita). Si decide dejarla oculta, «Listo» (la clave lleva la foto: otra nueva vuelve a avisar).
+	for (const f of fotos) {
+		const listo = { tipo: 'foto', objeto: `${f.leadId}_${f.mensaje}`, agentId: '' };
+		const clave = claveListo(listo);
+		if (atendidos.has(clave)) continue;
+		out.push({
+			clave, tipo: 'foto', icono: 'icon-eye-slash', href: `#/mensajes/${encodeURIComponent(f.codigo)}`, fecha: f.fecha, urgente: false, listo,
+			titulo: f.n > 1 ? `${f.n} fotos de ${f.nombre || 'un cliente'} ocultas al socio` : `Foto de ${f.nombre || 'un cliente'} oculta al socio`,
+			detalle: [f.codigo, f.casa, f.marca].filter(Boolean).join(' · ')
+		});
+	}
 	for (const c of comprobantes) out.push({
 		clave: `comprobante_${c.codigo}`, tipo: 'comprobante', icono: 'icon-money', href: enlaceSolicitud(c.codigo), fecha: c.fecha, urgente: false,
 		titulo: `${c.socio || 'El socio'} subió el pago de la ganancia de EQ`, detalle: [c.codigo, c.casa, 'revísalo y márcalo pagado'].filter(Boolean).join(' · ')
@@ -117,9 +130,10 @@ export function armarAvisos({ solicitudes = [], mensajes = [], comprobantes = []
 
 // Los «Listo» que hay que buscar en la base para saber qué avisos ya se atendieron (antes de armarlos).
 // Solo los que pueden salir (las mismas ventanas que armarAvisos): una lectura por clave.
-export function clavesPorRevisar({ solicitudes = [], comentarios = [], exclusivas = [], ahora = Date.now() } = {}) {
+export function clavesPorRevisar({ solicitudes = [], fotos = [], comentarios = [], exclusivas = [], ahora = Date.now() } = {}) {
 	return [
 		...solicitudes.filter((s) => s.alerta === 'bloqueada' && s.leadId).map((s) => claveListo({ tipo: 'robo', objeto: s.leadId })),
+		...fotos.map((f) => claveListo({ tipo: 'foto', objeto: `${f.leadId}_${f.mensaje}` })),
 		...comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
 		...exclusivas.filter((e) => e.fin && enVentana(e.dias)).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
 	];

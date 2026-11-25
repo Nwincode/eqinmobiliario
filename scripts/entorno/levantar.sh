@@ -51,6 +51,8 @@ JSON
 		grep -q "All emulators ready" "$DIR/emuladores.log" || { echo "Los emuladores no arrancaron:"; tail -20 "$DIR/emuladores.log"; exit 1; }
 		copiar
 		(cd "$DIR/sitio" && node scripts/entorno/sembrar.mjs)
+		# Lo de antes (fotos con su token, notas en el chat) a la forma nueva: la misma migración que se corre en producción.
+		(cd "$DIR/sitio" && node --import ./scripts/entorno/red-local.mjs scripts/migrar-chats.mjs --aplicar)
 		publicar ;;
 	*) echo "Uso: levantar.sh [levantar|publicar|apagar]"; exit 1 ;;
 esac

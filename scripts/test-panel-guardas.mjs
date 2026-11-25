@@ -67,7 +67,7 @@ t('confirmar y lo que depende del día de llegada usan la hora del servidor, no 
 		assert.doesNotMatch(fuente(f), /llegadaPasada\([^)]*\.llegada\)/, `toda llegadaPasada de ${f} lleva la hora del servidor`);
 	}
 	assert.match(fuente('solicitudes-base.js'), /await ahoraServidor\(\);/);
-	assert.match(fuente('views/solicitudes.js'), /await cargarSolicitudes\(/);
+	assert.match(fuente('views/solicitudes.js'), /await (Promise\.all\(\[)?cargarSolicitudes\(/);
 });
 
 t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago si no cambiaron (el asesor recibía 403 con datosPago vacío guardado)', () => {

@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Fotos públicas (cada una por su dirección). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
+// Fotos públicas (cada una por su dirección), menos los comprobantes del chat (chats/: solo el servidor). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
 // o asesor activo; un dueño con acceso al panel no es del equipo; las de una propiedad, el administrador o su asesor);
 // listar, solo el administrador. Los comprobantes tienen su regla:
 // se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los del cliente).
@@ -41,10 +41,16 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/reservas/$(reservaId)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
     }
 
-    match /{allPaths=**} {
-      // Cada foto se abre con su dirección; la lista de archivos solo la ve el administrador
-      // (los nombres de las carpetas de los chats son la llave de cada reserva; el panel no lista).
+    // Cada foto se abre con su dirección, menos las de los chats: el comprobante del cliente lo sirve solo el servidor
+    // (/api/foto, netlify/functions/foto.mjs), según quién lo pide y lo que vio la revisión; aquí nadie lo abre ni ve sus
+    // datos (que traen el token de descarga). La lista de archivos solo la ve el administrador (los nombres de las carpetas
+    // de los chats son la llave de cada reserva; el panel no lista).
+    match /{archivo} {
       allow get: if true;
+      allow list: if conSesion() && usuario().rol == 'admin';
+    }
+    match /{carpeta}/{resto=**} {
+      allow get: if carpeta != 'chats';
       allow list: if conSesion() && usuario().rol == 'admin';
     }
     // Las fotos del sitio (contenido, asesores…), cada una en su carpeta: el equipo.

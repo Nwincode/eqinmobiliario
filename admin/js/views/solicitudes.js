@@ -17,6 +17,8 @@ import { uploadImage, renderForm } from '../form.js';
 import { money, ms, corregirCorreo, limpiarCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
+import { fotosOcultas } from '../hilo.js';
+import { estadoIA } from '../ia.js';
 
 const V = window.EQVacacional;
 // Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno. `vista`: la pantalla de
@@ -29,8 +31,8 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 
 export async function render(container, [codigo] = []) {
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
-	const S = await cargarSolicitudes({ recargar: () => recargar() });
-	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, deHoy, propietarios, netos, variosChats,
+	const [S, iaActiva] = await Promise.all([cargarSolicitudes({ recargar: () => recargar() }), estadoIA()]);
+	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, fotos, deHoy, propietarios, netos, variosChats,
 		reservaDe, puedeCancelar, puedeNoMeLlego, debidas, solicitudDe, moraDe, teToca, alerta, ocupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe, pasada, sinConfirmar,
 		puedeConfirmar, puedePagoRecibido, hacer, confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar } = S;
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
@@ -111,7 +113,8 @@ export async function render(container, [codigo] = []) {
 	}
 
 	// Corregir el correo del cliente (crm.js corregirCorreo: el mismo que usa su ficha de cliente). Con el formulario del panel:
-	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le reenvía el enlace de su reserva: el botón dice a qué
+	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le manda un enlace nuevo de su reserva (el viejo deja de
+	// servir: pudo llegar a otra persona; /api/reenviar-enlace): el botón dice a qué
 	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, no se guarda.
 	function corregirElCorreo(l) {
 		const form = renderForm([{ name: 'email', label: 'Correo del cliente', type: 'email', required: true }], { email: l.email || '' });
@@ -129,7 +132,7 @@ export async function render(container, [codigo] = []) {
 				const r = await corregirCorreo(l, form.getData().email);
 				m.close();
 				if (!r.cambio) toast('Ya tenía ese correo.');
-				else if (r.enviado) toast(`Correo corregido: le reenviamos el enlace de su reserva a ${r.enviado}.`);
+				else if (r.enviado) toast(`Correo corregido: le mandamos el enlace nuevo de su reserva a ${r.enviado} (el de antes ya no sirve).`);
 				else if (r.enviado === '' && reenvia) toast(`Correo corregido, pero el enlace no se reenvió${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}: los próximos avisos sí le llegan ahí.`, 'warning');
 				else toast('Correo corregido: los próximos avisos le llegan ahí.');
 				await recargar();
@@ -219,15 +222,22 @@ export async function render(container, [codigo] = []) {
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
-			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
-			// Una foto que la revisión ocultó (no es un comprobante o trae un contacto): el socio no ve lo leído, solo que el equipo
-			// la revisa (Mensajes); el equipo, además, por qué.
-			((rv) => (rv?.texto && rv.oculta && !admin && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje && !(ch.fotosVisibles || []).includes(rv.mensaje)
-				? h('div', { class: 'small text-muted' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'El equipo está revisando la foto del comprobante.')
-				: rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
-				? h('div', { class: `small ${rv.cuadra && !rv.oculta ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
-					rv.texto, rv.oculta && rv.motivoOculta ? ` · ${rv.motivoOculta}` : '', h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
-				: null))(revisiones[l.id]),
+			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente. Lo que el socio
+			// no ve lo dice estadoDeFoto (hilo.js), lo mismo que decide /api/foto: al socio, que el equipo la revisa; al equipo, por
+			// qué y el enlace al chat, donde está «Mostrar al socio».
+			((rv) => {
+				if (est !== 'confirmada' || ch?.estado !== 'confirmada') return null;
+				const ocultas = fotosOcultas(fotos[r.codigo] || [], { chat: ch, rv, ia: iaActiva, ahora: ahoraYa() });
+				const vigente = comprobanteVigente(ch);
+				const oculta = vigente && ocultas.some((o) => o.m.id === ch.comprobanteMensaje);
+				const leida = vigente && rv?.texto && rv.mensaje === ch.comprobanteMensaje && !(!admin && oculta)
+					? h('div', { class: `small ${rv.cuadra && !rv.oculta ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
+						rv.texto, h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join(''))) : null;
+				if (!admin) return oculta ? h('div', { class: 'small text-muted' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'El equipo está revisando la foto del comprobante.') : leida;
+				return [leida, ocultas.length ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-eye-slash me-1', 'aria-hidden': 'true' }),
+					ocultas.length === 1 ? `Foto oculta al socio: ${ocultas[0].marca}` : `${ocultas.length} fotos ocultas al socio`, ' · ',
+					h('a', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }, 'Revisar en el chat')) : null];
+			})(revisiones[l.id]),
 			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
 			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),
 				'El correo no llegó: escríbele por WhatsApp o corrígelo.') : null,
@@ -332,7 +342,7 @@ export async function render(container, [codigo] = []) {
 	const suyas = leads.filter(teToca);
 	const porHacer = suyas.length ? h('div', { class: 'alert alert-danger d-flex align-items-baseline gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
 		h('span', { class: 'flex-grow-1' }, `Te toca confirmar (${TEXTO_CONFIRMA_EQUIPO.toLowerCase()}): `,
-			suyas.map((l, i) => [i ? ', ' : '', h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
+			suyas.map((l, i) => [i ? ', ' : '', h('a', { class: 'enlace-toque', href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
 				conPlazo(ms(l.createdAt)) ? ` (vence ${formatDate(new Date(venceRespuesta(ms(l.createdAt))))})` : '']))) : null;
 	mount(container,
 		pageHeader('Solicitudes'),

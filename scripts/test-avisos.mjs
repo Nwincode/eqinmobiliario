@@ -112,4 +112,18 @@ prueba('cotizada por debajo del precio: «Te toca confirmar», urgente, en un so
 	assert.match(a[0].detalle, /menos que el precio/);
 });
 
+prueba('una foto del cliente oculta al socio: aviso al equipo que lleva al chat («Mostrar al socio»), con «Listo» por foto', () => {
+	const f = { leadId: 'l1', codigo: 'EQ-9', nombre: 'Ana', casa: 'Casa Playa', mensaje: 'm7', fecha: AHORA - H, marca: 'Posible dato de contacto', n: 1 };
+	const [a] = armarAvisos({ ahora: AHORA, fotos: [f] });
+	assert.equal(a.tipo, 'foto');
+	assert.equal(a.href, '#/mensajes/EQ-9');
+	assert.match(a.titulo, /Foto de Ana oculta al socio/);
+	assert.match(a.detalle, /EQ-9 · Casa Playa · Posible dato de contacto/);
+	assert.equal(a.clave, 'foto_l1_m7');
+	assert.deepEqual(clavesPorRevisar({ fotos: [f] }), ['foto_l1_m7']);
+	assert.equal(armarAvisos({ ahora: AHORA, fotos: [f], atendidos: new Set(['foto_l1_m7']) }).length, 0);
+	// Otra foto nueva vuelve a avisar.
+	assert.equal(armarAvisos({ ahora: AHORA, fotos: [{ ...f, mensaje: 'm8', n: 2 }], atendidos: new Set(['foto_l1_m7']) })[0].titulo, '2 fotos de Ana ocultas al socio');
+});
+
 console.log(`\n${n} pruebas de avisos bien.`);

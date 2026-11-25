@@ -85,9 +85,17 @@ export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
 		const crear = (ruta, datos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(datos) }, currentDocument: { exists: false }, updateTransforms: transformaciones(transforma) });
 		const cambiar = (ruta, campos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(anidar(campos)) }, updateMask: { fieldPaths: Object.keys(campos) },
 			currentDocument: { exists: true }, updateTransforms: transformaciones(transforma) });
+		// Para mover documentos tal cual (el enlace nuevo de un chat: netlify/lib/rotar-enlace.mjs): leer los campos como
+		// los guarda la base (`crudo`, sin pasar por JavaScript: ni un tipo cambia), los de una subcolección entera, crear
+		// con ellos y borrar.
+		const leerCrudo = async (ruta) => { const [r] = await pedir(token, `${BASE}:batchGet`, { transaction, documents: [`${RAIZ}/${ruta}`] }, hasta); return r?.found ? { id: ruta.split('/').pop(), crudo: r.found.fields || {} } : null; };
+		const listarCrudo = async (padre, coleccion) => (await pedir(token, `${BASE}/${padre}:runQuery`, { transaction, structuredQuery: { from: [{ collectionId: coleccion }] } }, hasta))
+			.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), crudo: r.document.fields || {} }));
+		const crearCrudo = (ruta, crudo, cambios = {}) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: { ...crudo, ...aCampos(cambios) } }, currentDocument: { exists: false } });
+		const borrar = (ruta) => writes.push({ delete: `${RAIZ}/${ruta}` });
 		let resultado, enCommit = false;
 		try {
-			resultado = await trabajo({ leer, consultar, crear, cambiar });
+			resultado = await trabajo({ leer, consultar, crear, cambiar, leerCrudo, listarCrudo, crearCrudo, borrar });
 			enCommit = true;
 			await pedir(token, `${BASE}:commit`, { transaction, writes }, hasta);
 			return resultado;
@@ -119,7 +127,7 @@ const mismoValor = (a, b) => {
 };
 const mismosCampos = (escritos, guardados) => Object.keys(escritos).every((k) => mismoValor(escritos[k], guardados[k]));
 async function quedoEscrito(token, writes) {
-	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update);
+	const nuevos = writes.filter((w) => w.update && w.currentDocument?.exists === false).map((w) => w.update);
 	if (!nuevos.length) return false;
 	try {
 		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos.map((d) => d.name) }, Date.now() + 1500);

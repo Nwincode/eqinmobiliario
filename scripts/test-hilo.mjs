@@ -1,7 +1,8 @@
 // Pruebas de lo puro del hilo (admin/js/hilo.js): qué foto del cliente ve el socio (estadoDeFoto), los eventos que salen
 // del chat y sus mensajes (eventosDe) y lo que se guarda al citar.
 import assert from 'node:assert/strict';
-import { estadoDeFoto, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
+import { estadoDeFoto, fotosOcultas, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
+import { chatAbierto } from '../admin/js/reservas-calculo.js';
 
 let n = 0;
 const t = (nombre, fn) => { fn(); n++; console.log('✓', nombre); };
@@ -53,5 +54,23 @@ t('eventos: pidió, confirmó y datos de pago por el mensaje de pago; «No se di
 });
 t('citar guarda solo el id y quién (el texto sale del mensaje citado)', () => {
 	assert.deepEqual(citaDe({ id: 'm9', de: 'cliente', texto: 'Hola' }), { id: 'm9', de: 'cliente' });
+});
+t('sin IA, una foto con veredicto «oculta» sigue oculta (la IA se apagó después)', () => {
+	assert.equal(estadoDeFoto(foto, { chat, rv: { fotos: { fm1: { oculta: true, motivo: 'Posible dato de contacto' } } }, ia: false, ahora }).ver, false);
+});
+t('fotosOcultas: las del cliente que el socio no ve, la más nueva primero, solo esperando el pago', () => {
+	const c = { ...chat, estado: 'confirmada' };
+	const rv = { fotos: { fm1: { oculta: true, motivo: 'Posible dato de contacto' }, fm2: { oculta: false } } };
+	const fotos = [foto, { ...foto, id: 'm2' }, { ...foto, id: 'm3', createdAt: ahora - 30_000 }, { ...foto, id: 'm4', de: 'socio' }];
+	assert.deepEqual(fotosOcultas(fotos, { chat: c, rv, ia: true, ahora }).map((x) => [x.m.id, x.marca]), [['m3', 'Sin revisar'], ['m1', 'Posible dato de contacto']]);
+	assert.deepEqual(fotosOcultas(fotos, { chat: { ...c, fotosVisibles: ['m1', 'm3'] }, rv, ia: true, ahora }), []);
+	assert.deepEqual(fotosOcultas(fotos, { chat: { ...c, estado: 'pagada' }, rv, ia: true, ahora }), []);
+});
+t('chatAbierto: ni cancelada ni «No se dio» esperan respuesta (Solicitudes ya no dice «Mensaje sin responder»)', () => {
+	assert.equal(chatAbierto({ estado: 'cancelada', salida: '2099-01-01' }), false);
+	assert.equal(chatAbierto({ estado: 'no', salida: '2099-01-01' }), false);
+	assert.equal(chatAbierto({ estado: 'confirmada', salida: '2099-01-01' }), true);
+	assert.equal(chatAbierto({ estado: '', salida: '2000-01-01' }), false);
+	assert.equal(chatAbierto(null), false);
 });
 console.log(`\n${n} pruebas del hilo pasan.`);

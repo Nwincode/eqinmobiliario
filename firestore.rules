@@ -727,6 +727,7 @@ service cloud.firestore {
     // «Listo» de la campana de avisos (admin/js/avisos.js): alguien del equipo ya atendió un aviso que no se resuelve
     // solo. La clave dice cuál (avisos-reglas.js claveListo); el documento, quién y cuándo. Sin datos de clientes.
     //  - robo_{solicitud}: «No se dio» con fechas ocupadas (solo el administrador);
+    //  - foto_{solicitud}_{mensaje}: la foto del cliente que el equipo deja oculta al socio (solo el administrador);
     //  - cambios_{comentario}: un dueño pidió cambios (el administrador o el asesor de ese dueño);
     //  - exclusiva_{casa}_{fin}: la exclusiva de una casa por vencer (el administrador o el asesor de la casa).
     // Solo crear y deshacer (borrar el suyo); nadie lo cambia después.
@@ -734,6 +735,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return (d.tipo == 'robo' && isAdmin() && clave == 'robo_' + d.objeto && d.agentId == ''
             && !('fin' in d) && exists(/databases/$(database)/documents/leads/$(d.objeto)))
+        || (d.tipo == 'foto' && isAdmin() && clave == 'foto_' + d.objeto && d.agentId == '' && !('fin' in d)
+            && d.objeto.matches('[A-Za-z0-9]{1,40}_[A-Za-z0-9_-]{1,40}') && exists(/databases/$(database)/documents/leads/$(d.objeto.split('_')[0])))
         || (d.tipo == 'cambios' && clave == 'cambios_' + d.objeto && !('fin' in d)
             && exists(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto))
             && d.agentId == get(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto)).data.agentId)
@@ -822,7 +825,8 @@ service cloud.firestore {
     match /reglas/{version} {
       // r6: las reglas con la bitácora de cambios sensibles (el panel pregunta por ella: admin/js/bitacora.js).
       // r7: citar un mensaje (`responde`) y las notas internas del chat (Mensajes: admin/js/views/mensajes.js).
-      allow get: if version in ['r5', 'r6', 'r7'];
+      // r8: las notas internas solo del equipo (notasEquipo/), la foto del chat por su ruta (/api/foto) y «Listo» de una foto.
+      allow get: if version in ['r5', 'r6', 'r7', 'r8'];
     }
     match /chatsPorSolicitud/{leadId} {
       // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
@@ -898,7 +902,8 @@ service cloud.firestore {
         // Mensajes con «tipo» (sin texto libre de quien los manda):
         //  - pago: los datos de pago del socio tal como los guardó el administrador (al confirmar la reserva);
         //  - llegada: lleva la dirección y el mapa tal como están guardados en privado en la casa (al recibir el pago);
-        //  - foto: el comprobante del cliente, subido a la carpeta de su reserva.
+        //  - foto: el comprobante del cliente, subido a la carpeta de su reserva. Guarda solo la ruta (sin el token de
+        //    descarga, que abriría el archivo a quien lee el chat): la foto la sirve /api/foto según quién la pide.
         // Pago y llegada los manda el administrador; los del socio, el servidor (netlify/functions/reservas.mjs). El socio
         // aquí solo escribe texto.
         function llegadaDe() {
@@ -938,10 +943,11 @@ service cloud.firestore {
                         && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('https://firebasestorage[.]googleapis[.]com/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/chats%2F' + token + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+')))
+                  && request.resource.data.texto.matches('chats/' + token + '/[A-Za-z0-9_-][A-Za-z0-9._-]{0,79}')))
                 : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
-          && ((request.resource.data.de == 'cliente' && !signedIn())
+          // El cliente, en una conversación que existe (la de un enlace que ya cambió, al corregir su correo, no recibe nada).
+          && ((request.resource.data.de == 'cliente' && !signedIn() && exists(/databases/$(database)/documents/chats/$(token)))
             || (request.resource.data.de == 'equipo' && isAdmin())
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
             || (request.resource.data.de == 'socio' && !('tipo' in request.resource.data)
@@ -949,24 +955,18 @@ service cloud.firestore {
         // Nada se edita ni se borra: la conversación es el registro.
         allow update, delete: if false;
       }
-      // Notas internas: las escriben y leen el equipo (administrador) y el socio de la casa, con su sesión. El cliente
-      // nunca: no hay ninguna puerta sin sesión aquí (el enlace del cliente no abre esta carpeta), y nada de una nota va al
-      // chat (que el enlace sí lee) ni a los correos. Sin contactos, como en el chat; nada se edita ni se borra.
-      match /notas/{id} {
-        function chatNota() {
-          return get(/databases/$(database)/documents/chats/$(token)).data;
-        }
-        function delSocio() {
-          return esSocioDe(chatNota()) && esSocioDeCasaPorNoche(chatNota().get('propertyId', ''));
-        }
-        allow read: if signedIn() && (isAdmin() || delSocio());
-        allow create: if signedIn()
-          && request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt']) && request.resource.data.keys().hasAll(['de', 'texto', 'createdAt'])
-          && isNonEmptyString(request.resource.data.texto, 1000) && !tieneContacto(request.resource.data.texto)
-          && request.resource.data.createdAt == request.time
-          && ((request.resource.data.de == 'equipo' && isAdmin()) || (request.resource.data.de == 'socio' && !isAdmin() && delSocio()));
-        allow update, delete: if false;
-      }
+    }
+    // Notas internas de una conversación: solo del equipo (el administrador, el único del equipo que entra a los chats),
+    // con su sesión. Aparte del chat a propósito: el socio de la casa y el enlace del cliente leen chats/{token}/…, esto
+    // no. Nada de una nota va al chat ni a los correos. Sin contactos, como en el chat; nada se edita ni se borra.
+    match /notasEquipo/{token}/notas/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && exists(/databases/$(database)/documents/chats/$(token))
+        && request.resource.data.keys().hasOnly(['de', 'texto', 'createdAt']) && request.resource.data.keys().hasAll(['de', 'texto', 'createdAt'])
+        && request.resource.data.de == 'equipo'
+        && isNonEmptyString(request.resource.data.texto, 1000) && !tieneContacto(request.resource.data.texto)
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
   }
 }

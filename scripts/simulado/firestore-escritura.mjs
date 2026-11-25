@@ -9,9 +9,14 @@ export async function transaccion(trabajo) {
 		leer: async (ruta) => leer(ruta),
 		consultar: async (col, campo, valor, padre = '') => hijos(padre ? `${padre}/${col}` : col).filter((d) => d[campo] === valor),
 		crear: (ruta, datos, t) => ops.push([ruta, datos, t, true]),
-		cambiar: (ruta, datos, t) => ops.push([ruta, datos, t, false])
+		cambiar: (ruta, datos, t) => ops.push([ruta, datos, t, false]),
+		// «crudo»: el documento tal cual (aquí, el objeto guardado).
+		leerCrudo: async (ruta) => (S.docs.has(ruta) ? { id: ruta.split('/').pop(), crudo: structuredClone(S.docs.get(ruta)) } : null),
+		listarCrudo: async (padre, col) => hijos(`${padre}/${col}`).map(({ id }) => ({ id, crudo: structuredClone(S.docs.get(`${padre}/${col}/${id}`)) })),
+		crearCrudo: (ruta, crudo, cambios = {}) => ops.push([ruta, { ...crudo, ...cambios }, undefined, true]),
+		borrar: (ruta) => ops.push([ruta, null, undefined, 'borrar'])
 	});
-	for (const [ruta, datos, t, crear] of ops) escribir(ruta, datos, t, crear);
+	for (const [ruta, datos, t, crear] of ops) { if (crear === 'borrar') S.docs.delete(ruta); else escribir(ruta, datos, t, crear); }
 	return r;
 }
 export const probarEscritura = async () => true;

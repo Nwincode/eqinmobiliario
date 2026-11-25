@@ -7,7 +7,7 @@ import { h, badge, nombreYDatos } from './ui.js';
 import { session } from './session.js';
 import { telefonoWa as telNorm, dinero, esPorcentaje, idClientePorContacto, correoValido, fechaHora, enMs } from './formato.js';
 import { REGLAS_POR_DEFECTO, comisionDe, montoComision, textoComision } from './acuerdo.js';
-import { queCorreoCorregido, queEnlaceReenviado } from './reservas-calculo.js';
+import { queCorreoCorregido } from './reservas-calculo.js';
 
 export const ETAPAS = [
 	['nuevo', 'Nuevo', 'secondary'],
@@ -163,14 +163,27 @@ export async function crearActividad(datos) {
 // Corrige el correo de un lead: la única forma (la ficha del cliente, en sus leads, y Solicitudes). Es el correo al que
 // escriben los avisos del servidor (aviso-chat-envio.mjs, solicitud.mjs y rebotes.mjs lo leen de leads/{id}, nunca de una
 // copia): limpio y en minúsculas, como lo guarda el sitio (los rebotes y las repetidas lo buscan tal cual). Quita «El correo
-// no llegó» y, en una solicitud de reserva, deja el renglón en su historial y le pide al servidor que le mande al cliente el
-// enlace de su reserva al correo nuevo (/api/reenviar-enlace: lo que se perdió); si salió, también queda en el historial,
-// con el correo al que salió (solo el administrador: al asesor no se le reenvía). Un lead de contacto (sin reserva) no recibe nada. Sin cambio (el mismo correo que el guardado
-// ahora), no escribe nada. Devuelve { cambio, enviado: el correo al que salió el enlace ('' si no salió; null si no tocaba),
-// motivo }. Las reglas: el administrador y el asesor del lead (firestore.rules match /leads).
+// no llegó». Una solicitud de reserva la corrige el servidor (/api/reenviar-enlace, solo el administrador): deja los
+// renglones del historial y, abierta, le cambia el enlace y se lo manda al correo nuevo. Un lead de contacto (sin reserva)
+// no recibe nada. Sin cambio (el mismo correo que el guardado ahora), no escribe nada. Devuelve { cambio, enviado: el correo
+// al que salió el enlace ('' si no salió; null si no tocaba), motivo }. Las reglas: el administrador y el asesor del lead
+// (firestore.rules match /leads).
 export async function corregirCorreo(lead, correo) {
 	const nuevo = limpiarCorreo(correo);
 	if (!correoValido(nuevo)) throw new Error('Revisa el correo (p. ej. nombre@correo.com).');
+	// Una solicitud de reserva y el administrador: lo guarda el servidor (/api/reenviar-enlace), que en una reserva abierta
+	// le cambia el enlace en la misma transacción (el viejo pudo llegar a otra persona) y le manda el nuevo al corregido.
+	if (lead.reserva?.codigo && session.isAdmin) {
+		let r = {};
+		try {
+			const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id, correo: nuevo }) });
+			r = await res.json().catch(() => ({}));
+			if (!res.ok && !r.cambio) throw new Error(r.error || `El servidor respondió ${res.status}.`);
+			if (!res.ok) r = { cambio: true, motivo: r.error };
+		} catch (err) { throw err instanceof TypeError ? new Error('Sin conexión con el servidor: el correo no se cambió.') : err; }
+		if (r.cambio) { lead.email = nuevo; delete lead.reboteCorreo; }
+		return { cambio: Boolean(r.cambio), enviado: r.enviado ? r.para || '' : '', motivo: r.motivo || '' };
+	}
 	// Se lee el guardado ahora (otra pestaña pudo corregirlo ya): el «antes» del historial es el de verdad.
 	const ref = doc(db, 'leads', lead.id);
 	const renglon = (que) => ({ que, quien: session.user.uid, nombre: session.profile?.nombre || '', cuando: new Date().toISOString() });
@@ -184,20 +197,8 @@ export async function corregirCorreo(lead, correo) {
 	});
 	lead.email = nuevo;
 	delete lead.reboteCorreo;
-	if (!cambio || !reserva) return { cambio, enviado: null, motivo: '' };
 	// El enlace de una reserva lo reenvía solo el administrador (el servidor se lo niega al asesor).
-	if (!session.isAdmin) return { cambio, enviado: '', motivo: 'Solo el administrador reenvía el enlace de una reserva.' };
-	let r = {};
-	try {
-		const res = await fetch('/api/reenviar-enlace', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ leadId: lead.id }) });
-		r = await res.json().catch(() => ({}));
-		if (!res.ok) r = { motivo: r.error || `El servidor respondió ${res.status}.` };
-	} catch { r = { motivo: 'Sin conexión con el servidor.' }; }
-	if (r.enviado && r.para) {
-		await updateDoc(ref, { 'solicitud.historial': arrayUnion(renglon(queEnlaceReenviado(r.para))), updatedAt: serverTimestamp() })
-			.catch((err) => console.warn('Historial del reenvío', err));
-	}
-	return { cambio, enviado: r.enviado ? r.para || '' : '', motivo: r.motivo || '' };
+	return { cambio, enviado: cambio && reserva ? '' : null, motivo: cambio && reserva ? 'Solo el administrador reenvía el enlace de una reserva.' : '' };
 }
 // Un correo como lo guarda el sitio: sin espacios y en minúsculas (lo que muestra el botón es lo que se guarda).
 export const limpiarCorreo = (correo) => String(correo || '').trim().toLowerCase();

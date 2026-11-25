@@ -361,8 +361,17 @@
 				llegada(tl, m);
 				return tl;
 			}
-			if (m.tipo === 'foto') return m.texto.indexOf(FOTOS) === 0 ? H.tarjetaComprobante(m, th) : 'omitir';
+			if (m.tipo === 'foto') return tarjetaFoto(m);
 			return null;
+		}
+		// La foto del comprobante: el mensaje trae solo su ruta; la imagen la da /api/foto (H.fotoDe), que decide si se ve (la
+		// que la revisión ocultó o sigue revisando, no: con este enlace se sirve lo mismo que al anfitrión). La que se acaba
+		// de subir desde este teléfono se ve de una vez (`fotos` la guarda al subirla).
+		var fotos = {};
+		function tarjetaFoto(m) {
+			var f = H.fotoDe(fotos, token, m, { alListo: function () { pintar(true); } });
+			if (!f) return 'omitir';
+			return H.tarjetaComprobante(m, th, null, '', { ver: !f.no, src: f.src || '', aviso: f.enRevision ? t.vacChatEnviado : t.vacChatSoloComprobante });
 		}
 		var EVENTOS = { pidio: t.vacChatEvPidio, pagoRecibido: t.vacChatEvPagado, no: t.vacChatEstadoNo, cancelada: t.vacChatEstadoCancelada };
 		function textoEvento(ev) {
@@ -500,7 +509,7 @@
 			campo.value = ''; campo.style.height = '';
 			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + intentoTexto(texto));
 		});
-		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
+		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje (con su ruta).
 		adjuntar.addEventListener('click', function () { archivo.click(); });
 		archivo.addEventListener('change', function () {
 			var f = archivo.files[0];
@@ -518,8 +527,9 @@
 				if (!/^image\/(jpeg|png|webp)$/.test(p.blob.type) || p.blob.size >= 5 * 1024 * 1024) throw Object.assign(new Error('foto'), { foto: true });
 				var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + (p.blob.type === 'image/webp' ? 'webp' : p.blob.type.split('/')[1]);
 				return fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': p.blob.type }, body: p.blob })
-					.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-					.then(function (r) { return { url: FOTOS + encodeURIComponent(nombre) + '?alt=media&token=' + r.downloadTokens }; });
+					.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); })
+					// El mensaje guarda solo la ruta (sin el token de descarga); aquí se ve la foto tal como se subió.
+					.then(function () { fotos[nombre] = { src: URL.createObjectURL(p.blob) }; return { url: nombre }; });
 			}, function () { throw Object.assign(new Error('foto'), { foto: true }); })
 				.then(function (r) {
 					pendientes[clave] = pendientes[clave] || {};

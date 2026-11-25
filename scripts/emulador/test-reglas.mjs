@@ -177,7 +177,7 @@ await espera('nadie edita un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { me
 await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { method: 'DELETE', headers: cab(null) }).then((r) => r.status), false);
 
 // Citar un mensaje (responde: id, quién y su texto corto, con el mismo filtro de contacto) y las notas internas
-// (chats/{token}/notas: solo el administrador y el socio de la casa, con su sesión; el enlace del cliente no las abre).
+// (notasEquipo/{token}/notas: solo el equipo, con su sesión; ni el socio ni el enlace del cliente las abren).
 {
 	const mapa = (o) => ({ mapValue: { fields: campos(o) } });
 	const conCita = (quien, de, texto, cita) => fetch(`${H}:commit`, { method: 'POST', headers: cab(quien), body: JSON.stringify({ writes: [{ update: { name: `${RAIZ}/${msj()}`,
@@ -205,25 +205,35 @@ await espera('nadie borra un mensaje', fetch(`${H}/chats/${T}/mensajes/m1`, { me
 	await espera('nombre vacío', crear('admin1', msj(), { de: 'equipo', texto: 'Hola.', nombre: '' }), false);
 	await espera('reglas/r7 se lee (citar y notas publicadas)', leer(null, 'reglas/r7').then((s) => (s === 404 ? 200 : s)), true);
 
+	await espera('reglas/r8 se lee (notas del equipo y la foto por su ruta publicadas)', leer(null, 'reglas/r8').then((s) => (s === 404 ? 200 : s)), true);
+
+	// Notas internas: solo el equipo (notasEquipo/{token}/notas). El socio de la casa ya no las lee ni escribe.
 	await poner('users/asesor1', { rol: 'asesor', activo: true, agentId: 'a1', nombre: 'Asesor' });
-	const nota = (quien, de, texto, id = `n${++i}`) => crear(quien, `chats/${T}/notas/${id}`, m(de, texto));
-	await espera('socio de la casa escribe una nota interna', nota('socio1', 'socio', 'Revisar si traen mascotas.', 'nota1'), true);
+	const nota = (quien, de, texto, id = `n${++i}`, token = T) => crear(quien, `notasEquipo/${token}/notas/${id}`, m(de, texto));
 	await espera('equipo escribe una nota interna', nota('admin1', 'equipo', 'El cliente ya reservó antes.', 'nota2'), true);
-	await espera('el cliente (sin sesión) lee una nota', leer(null, `chats/${T}/notas/nota1`), false);
-	await espera('el cliente (sin sesión) lista las notas', leer(null, `chats/${T}/notas`), false);
+	await espera('equipo lee las notas', leer('admin1', `notasEquipo/${T}/notas/nota2`), true);
+	await espera('equipo lista las notas', leer('admin1', `notasEquipo/${T}/notas`), true);
+	await espera('socio de la casa escribe una nota interna', nota('socio1', 'socio', 'Revisar si traen mascotas.', 'nota1'), false);
+	await espera('socio de la casa escribe una nota como equipo', nota('socio1', 'equipo', 'Hola'), false);
+	await espera('socio de la casa lee una nota del equipo', leer('socio1', `notasEquipo/${T}/notas/nota2`), false);
+	await espera('socio de la casa lista las notas del equipo', leer('socio1', `notasEquipo/${T}/notas`), false);
+	await espera('socio consulta las notas de todos los chats', fetch(`${H}:runQuery`, { method: 'POST', headers: cab('socio1'), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'notas', allDescendants: true }] } }) }).then((r) => r.status), false);
+	await espera('el cliente (sin sesión) lee una nota', leer(null, `notasEquipo/${T}/notas/nota2`), false);
+	await espera('el cliente (sin sesión) lista las notas', leer(null, `notasEquipo/${T}/notas`), false);
 	await espera('el cliente (sin sesión) consulta las notas de todos los chats', fetch(`${H}:runQuery`, { method: 'POST', headers: cab(null), body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'notas', allDescendants: true }] } }) }).then((r) => r.status), false);
-	await espera('el cliente (sin sesión) escribe una nota', nota(null, 'cliente', 'Hola'), false);
-	await espera('el cliente (sin sesión) escribe una nota como socio', nota(null, 'socio', 'Hola'), false);
-	await espera('otro socio lee las notas', leer('socio2', `chats/${T}/notas/nota1`), false);
-	await espera('otro socio escribe una nota', nota('socio2', 'socio', 'Hola'), false);
-	await espera('un asesor lee las notas', leer('asesor1', `chats/${T}/notas/nota1`), false);
+	await espera('el cliente (sin sesión) escribe una nota', nota(null, 'equipo', 'Hola'), false);
+	await espera('otro socio lee las notas', leer('socio2', `notasEquipo/${T}/notas/nota2`), false);
+	await espera('un asesor lee las notas', leer('asesor1', `notasEquipo/${T}/notas/nota2`), false);
 	await espera('un asesor escribe una nota', nota('asesor1', 'equipo', 'Hola'), false);
-	await espera('socio de la casa lee las notas', leer('socio1', `chats/${T}/notas`), true);
-	await espera('equipo lee las notas', leer('admin1', `chats/${T}/notas/nota1`), true);
-	await espera('socio firma una nota como equipo', nota('socio1', 'equipo', 'Hola'), false);
+	await espera('equipo firma una nota como socio', nota('admin1', 'socio', 'Hola'), false);
+	await espera('equipo escribe una nota de un chat que no existe', nota('admin1', 'equipo', 'Hola', 'nx', 'NoExisteEsteChatLargoYAlAzar12'), false);
 	await espera('una nota con un teléfono', nota('admin1', 'equipo', 'llámale al 5555-1234'), false);
-	await espera('nadie edita una nota', fetch(`${H}/chats/${T}/notas/nota1`, { method: 'PATCH', headers: cab('socio1'), body: JSON.stringify({ fields: campos({ de: 'socio', texto: 'cambiada' }) }) }).then((r) => r.status), false);
-	await espera('nadie borra una nota', fetch(`${H}/chats/${T}/notas/nota1`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+	await espera('nadie edita una nota', fetch(`${H}/notasEquipo/${T}/notas/nota2`, { method: 'PATCH', headers: cab('admin1'), body: JSON.stringify({ fields: campos({ de: 'equipo', texto: 'cambiada' }) }) }).then((r) => r.status), false);
+	await espera('nadie borra una nota', fetch(`${H}/notasEquipo/${T}/notas/nota2`, { method: 'DELETE', headers: cab('admin1') }).then((r) => r.status), false);
+	// La carpeta de antes (chats/{token}/notas) ya no se abre para nadie.
+	await espera('socio de la casa escribe en la carpeta de notas de antes', crear('socio1', `chats/${T}/notas/vieja1`, m('socio', 'Hola')), false);
+	await espera('equipo escribe en la carpeta de notas de antes', crear('admin1', `chats/${T}/notas/vieja2`, m('equipo', 'Hola')), false);
+	await espera('socio de la casa lee la carpeta de notas de antes', leer('socio1', `chats/${T}/notas`), false);
 }
 
 // Estado de la solicitud en el chat
@@ -283,7 +293,9 @@ await espera('socio regresa una pagada a confirmada', act('socio1', { estado: 'c
 await espera('socio manda los datos de llegada directo (los manda el servidor)', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'llegada' }), false);
 await espera('socio mete su teléfono en «llegada»', crear('socio1', msj(), { de: 'socio', tipo: 'llegada', texto: 'Llamame 5555 0001' }), false);
 await espera('cliente manda «llegada»', crear(null, msj(), { de: 'cliente', tipo: 'llegada', texto: 'llegada' }), false);
-const foto = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${t}%2Fabc123.jpeg?alt=media&token=1a2b-3c4d`;
+// La foto del chat se guarda por su ruta (sin el token de descarga: la sirve /api/foto).
+const foto = (t) => `chats/${t}/abc123.jpeg`;
+const fotoConLlave = (t) => `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${t}%2Fabc123.jpeg?alt=media&token=1a2b-3c4d`;
 // Dirección y mapa de la casa: privados (properties/{id}/privado/llegada); viajan en el mensaje, idénticos a lo guardado
 {
 	const PRIV = 'properties/prueba-casa-playa-monterrico/privado/llegada';
@@ -382,6 +394,9 @@ await espera('cliente adjunta la foto de su comprobante', crear(null, msj(), { d
 	await espera('cliente marca su comprobante con el pago ya recibido', conEstado('TokenComprobanteYaPagadaLargo12', 'pagada'), false);
 	await espera('cliente marca su comprobante con la reserva confirmada (control)', conEstado('TokenComprobanteConfirmadaLarg1', 'confirmada'), true);
 }
+await espera('cliente guarda la foto con su dirección y el token de descarga (el socio la abriría)', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: fotoConLlave(T) }), false);
+await espera('cliente guarda como foto una ruta que sale de la carpeta del chat', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: `chats/${T}/../OtroTokenLargoYAlAzar23456789/x.jpg` }), false);
+await espera('cliente escribe en un chat que no existe (un enlace que ya cambió)', crear(null, 'chats/NoExisteEsteChatLargoYAlAzar12/mensajes/x1', { de: 'cliente', texto: 'Hola' }), false);
 await espera('cliente manda como foto un enlace de otro sitio', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: 'https://ejemplo.com/foto.jpg' }), false);
 await espera('cliente manda una foto de otra reserva', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('OtroTokenLargoYAlAzar23456789') }), false);
 await espera('socio manda una foto', crear('socio1', msj(), { de: 'socio', tipo: 'foto', texto: foto(T) }), false);
@@ -1024,6 +1039,15 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el cliente sube el comprobante de su reserva', subir(null, `chats/${T}/comprobante1.png`), true);
 	await espera('storage: el cliente reemplaza su comprobante', subir(null, `chats/${T}/comprobante1.png`), false);
 	await espera('storage: el cliente sube a un chat que no existe', subir(null, 'chats/NoExisteEsteChatLargoYAlAzar12/x.png'), false);
+	// La foto del chat no la abre nadie por Storage (ni sus datos, que traen el token de descarga): la sirve /api/foto.
+	const datos = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}`, { headers: auth(quien) }).then((r) => r.status);
+	const bajarCon = (quien, ruta) => fetch(`${B}/${encodeURIComponent(ruta)}?alt=media`, { headers: auth(quien) }).then((r) => r.status);
+	for (const [quien, nombre] of [[null, 'sin sesión (con el enlace del chat)'], ['socio1', 'el socio de la casa'], ['admin1', 'el administrador'], ['asesor9', 'un asesor']]) {
+		await espera(`storage: ${nombre} abre la foto del comprobante del cliente`, bajarCon(quien, `chats/${T}/comprobante1.png`), false);
+		await espera(`storage: ${nombre} lee los datos (y el token) de la foto del comprobante`, datos(quien, `chats/${T}/comprobante1.png`), false);
+	}
+	await espera('storage: la cuenta de servicio abre la foto del comprobante (control: /api/foto)', bajarCon('dueño', `chats/${T}/comprobante1.png`), true);
+	await espera('storage: una foto en la raíz se abre por su dirección (control)', subir('dueño', 'logo.png').then(() => bajar('logo.png')), true);
 	await espera('storage: nadie borra el comprobante del cliente (ni el equipo)', borrar('admin1', `chats/${T}/comprobante1.png`), false);
 	await espera('storage: la dueña sube el comprobante de la comisión de su reserva', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), true);
 	await espera('storage: la dueña reemplaza ese comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago1.png'), false);
@@ -1089,6 +1113,13 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('asesor marca «Listo» un «No se dio» con fechas ocupadas', listo('asesor7', 'robo_lead1', { ...robo, agentId: 'a7', por: 'asesor7' }), false);
 	await espera('administrador marca «Listo» un «No se dio» de una solicitud que no existe', listo('admin1', 'robo_noExiste', { ...robo, objeto: 'noExiste', por: 'admin1' }), false);
 	await espera('administrador marca «Listo» un «No se dio» con fechas ocupadas (control)', listo('admin1', 'robo_lead1', { ...robo, por: 'admin1' }), true);
+	// Una foto del cliente que el equipo deja oculta al socio: «Listo» por solicitud y foto, solo el administrador.
+	const fotoListo = (por, objeto = 'lead1_m1') => ({ tipo: 'foto', objeto, agentId: '', por });
+	await espera('administrador marca «Listo» una foto oculta (control)', listo('admin1', 'foto_lead1_m1', fotoListo('admin1')), true);
+	await espera('asesor marca «Listo» una foto oculta', listo('asesor7', 'foto_lead1_m2', { ...fotoListo('asesor7', 'lead1_m2'), agentId: 'a7' }), false);
+	await espera('administrador marca «Listo» una foto de una solicitud que no existe', listo('admin1', 'foto_noExiste_m1', fotoListo('admin1', 'noExiste_m1')), false);
+	await espera('administrador marca «Listo» una foto con otra clave', listo('admin1', 'foto_lead1_otra', fotoListo('admin1', 'lead1_m3')), false);
+	await espera('administrador marca «Listo» una foto sin el mensaje en la clave', listo('admin1', 'foto_lead1', fotoListo('admin1', 'lead1')), false);
 	const exc = (por, agentId = 'a7', fin = '2026-12-01') => ({ tipo: 'exclusiva', objeto: 'casa-a7', fin, agentId, por });
 	await espera('asesor marca «Listo» la exclusiva de una casa de otro asesor', listo('asesor9', 'exclusiva_casa-a7_2026-12-01', exc('asesor9', 'a9')), false);
 	await espera('asesor marca «Listo» una exclusiva con otra fecha en la clave', listo('asesor7', 'exclusiva_casa-a7_2027-01-01', exc('asesor7')), false);

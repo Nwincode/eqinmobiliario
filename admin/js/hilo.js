@@ -1,12 +1,15 @@
 // El hilo de una conversación de reserva: una sola pieza para Mensajes del panel (admin/js/views/mensajes.js) y la página
 // «Tu reserva» del cliente (js/reserva-chat.js, que la recibe como window.EQHilo: scripts/lib/assets.mjs). Recibe los
-// datos y los textos y devuelve el DOM; no lee ni escribe la base ni sabe quién entró (eso lo dice quien la llama).
+// datos y los textos y devuelve el DOM; no lee ni escribe la base ni sabe quién entró (eso lo dice quien la llama). Lo
+// único que pide afuera es la foto del comprobante (fotoDe → /api/foto).
 // Su estilo vive en css/hilo.css (el mismo en los dos lados).
 // - Separadores de día («hoy», «ayer», «sábado 21 nov»: admin/js/formato.js).
 // - Burbujas: las mías a la derecha; el autor solo cuando cambia y hace falta (`etiqueta`); hora y «Visto».
 // - Lo que pasó con la reserva, en líneas finas centradas (`eventosDe`): salen del chat y de sus mensajes con tipo.
 // - El comprobante como tarjeta (foto + revisión de la IA); la cita de un mensaje dentro de la burbuja; la traducción
 //   debajo del texto; «No se envió · Reintentar» bajo la burbuja que falló.
+// - La foto del cliente la sirve el servidor (/api/foto, netlify/functions/foto.mjs) según quién la pide y el veredicto
+//   (estadoDeFoto): el mensaje guarda solo su ruta (rutaDeFoto).
 import { horaChat, diaDeChat, enMs } from './formato.js';
 
 const ms = enMs;
@@ -150,19 +153,21 @@ export function pintarHilo(caja, nodos, alFondo = false) {
 
 // La tarjeta del comprobante: miniatura, la revisión de la IA (si la hay) y banco · referencia.
 // rv: { cuadra, texto, leido: { banco, referencia, monto, moneda } } de revisionesComprobante (solo el panel la lee).
-// Con `foto` (estadoDeFoto, en el panel): `ver: false` → sin la imagen ni su enlace, con lo que dice `aviso`
-// («Foto recibida · en revisión», «El equipo está revisando esta foto»); `marca` → una línea más (lo que vio la revisión:
-// «Posible dato de contacto», «Sin revisar»); `accion` → un botón al final (el equipo: «Mostrar al socio»).
-export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, aviso = '', marca = '', accion = null } = {}) {
+// La imagen no viene en el mensaje (guarda solo la ruta: rutaDeFoto): quien llama la pide a /api/foto y pasa `src` (la
+// dirección local de lo que bajó). Con `ver` y sin `src` todavía, el cuadro de la cámara mientras llega. Con `ver: false`
+// → sin la imagen ni su enlace, con lo que dice `aviso` («Foto recibida · en revisión», «El equipo está revisando esta
+// foto»); `marca` → una línea más (lo que vio la revisión: «Posible dato de contacto», «Sin revisar»); `accion` → un
+// botón al final (el equipo: «Mostrar al socio»).
+export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, src = '', aviso = '', marca = '', accion = null } = {}) {
 	let a;
-	if (ver) {
+	if (ver && src) {
 		a = el('a', 'hilo-comp-foto');
-		a.href = m.texto; a.target = '_blank'; a.rel = 'noopener';
-		const img = el('img'); img.src = m.texto; img.alt = t.comprobante; img.loading = 'lazy'; img.width = 64; img.height = 64;
+		a.href = src; a.target = '_blank'; a.rel = 'noopener';
+		const img = el('img'); img.src = src; img.alt = t.comprobante; img.width = 64; img.height = 64;
 		a.append(img);
 	} else a = el('span', 'hilo-comp-foto hilo-comp-sin', icono('camera'));
 	const lineas = el('span', 'hilo-comp-txt', el('b', '', t.comprobante));
-	if (!ver) lineas.append(el('span', 'hilo-comp-dato', aviso));
+	if (!ver && aviso) lineas.append(el('span', 'hilo-comp-dato', aviso));
 	if (ver && rv?.texto) lineas.append(el('span', `hilo-ia${rv.cuadra ? '' : ' hilo-ia-no'}`, icono(rv.cuadra ? 'check-circle' : 'exclamation-circle'), ` ${rv.cuadra ? `${t.cuadra}${monto ? `: ${monto}` : ''}` : rv.texto}`));
 	if (marca) lineas.append(el('span', `hilo-ia${marca === 'Sin revisar' ? ' hilo-ia-gris' : ' hilo-ia-no'}`, icono(marca === 'Sin revisar' ? 'info-circle' : 'exclamation-circle'), ` ${marca}`));
 	const datos = ver ? [rv?.leido?.banco, rv?.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).join(' · ') : '';
@@ -172,9 +177,40 @@ export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, av
 	return caja;
 }
 
+// La ruta en Storage de la foto de un mensaje (`chats/{token}/{archivo}`), o '' si no es una foto de la carpeta de ese
+// chat. El mensaje guarda solo la ruta (firestore.rules); los de antes, la dirección con el token de descarga
+// (`…/o/chats%2F{token}%2F{archivo}?alt=media&token=…`), que se lee igual (la migración, scripts/migrar-chats.mjs, los
+// pasa a ruta). La usan el servidor (/api/foto, la revisión con la IA), el panel y la página del cliente.
+export function rutaDeFoto(token, texto) {
+	const s = String(texto || '');
+	if (!/^[A-Za-z0-9]{20,40}$/.test(String(token || ''))) return '';
+	const archivo = s.startsWith(`chats/${token}/`) ? s.slice(token.length + 7)
+		: (new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F${token}%2F([A-Za-z0-9._-]+)[?]alt=media(&token=[a-z0-9-]+)?$`).exec(s) || [])[1] || '';
+	return /^[A-Za-z0-9._-]{1,80}$/.test(archivo) && !archivo.startsWith('.') ? `chats/${token}/${archivo}` : '';
+}
+
+// Lo que se sabe de la foto del mensaje `m` del chat `token`, guardado en `fotos` (un objeto por chat, de quien llama; el
+// hilo se vuelve a pintar entero y la foto se pide una sola vez): { src } ya bajada, { no, enRevision } no se ve,
+// { cargando } en camino; null si el mensaje no trae una foto de ese chat. La pide a /api/foto (el token en el cuerpo, no
+// en la dirección) con la sesión del panel si la hay (`llave()`: el token de Firebase) y llama `alListo` al llegar.
+export function fotoDe(fotos, token, m, { llave = null, alListo = () => {} } = {}) {
+	const ruta = rutaDeFoto(token, m.texto);
+	if (!ruta) return null;
+	if (fotos[ruta]) return fotos[ruta];
+	fotos[ruta] = { cargando: true };
+	Promise.resolve(llave ? llave() : '').then((t) => fetch('/api/foto', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: JSON.stringify({ token, mensaje: m.id }) }))
+		.then(async (r) => {
+			if (r.ok) fotos[ruta] = { src: URL.createObjectURL(await r.blob()) };
+			else if (r.status === 403) fotos[ruta] = { no: true, enRevision: Boolean((await r.json().catch(() => ({}))).enRevision) };
+			else delete fotos[ruta];
+		}, () => { delete fotos[ruta]; })
+		.then(() => alListo());
+	return fotos[ruta];
+}
+
 // ¿Se le muestra al socio la foto `m` que mandó el cliente? Lo decide la revisión del servidor (netlify/lib/comprobantes.mjs:
 // revisionesComprobante `fotos.f{id}` y el de ahora en `mensaje`/`oculta`), lo que el equipo decidió (`chat.fotosVisibles`)
-// y si hay IA (`ia`). Sin IA: como siempre (se ve). Con IA, una foto sin veredicto que ya no se va a revisar (el chat llegó
+// y si hay IA (`ia`). Sin IA y sin veredicto: como siempre (se ve). Con IA, una foto sin veredicto que ya no se va a revisar (el chat llegó
 // al tope de revisiones o de intentos, o la foto falló FALLOS_POR_FOTO veces) queda oculta: la ve el equipo y decide
 // («Mostrar al socio»); si no, así un cliente podía subir 3 fotos cualesquiera y la cuarta, con su teléfono, ya no se
 // revisaba. Solo la que tarda (sin fallos y sin tope) se ve después de ESPERA_REVISION, como siempre. El pago no se traba:
@@ -184,9 +220,10 @@ export const ESPERA_REVISION = 20 * 60_000;
 export const REVISIONES_POR_CHAT = 3, FALLOS_POR_FOTO = 3, INTENTOS_POR_CHAT = REVISIONES_POR_CHAT + FALLOS_POR_FOTO;
 export function estadoDeFoto(m, { chat = {}, rv = null, ia = false, ahora = Date.now() } = {}) {
 	if ((chat.fotosVisibles || []).includes(m.id)) return { ver: true, marca: '' };
-	if (!ia) return { ver: true, marca: 'Sin revisar' };
+	// El veredicto que ya hay manda aunque la IA se haya apagado después (una foto con un teléfono sigue oculta).
 	const suya = rv?.fotos?.[`f${m.id}`] || (rv?.mensaje === m.id && rv.texto ? { oculta: Boolean(rv.oculta), motivo: rv.motivoOculta || '' } : null);
 	if (suya) return suya.oculta ? { ver: false, oculta: true, marca: suya.motivo || 'Posible dato de contacto' } : { ver: true, marca: '' };
+	if (!ia) return { ver: true, marca: 'Sin revisar' };
 	const oculta = { ver: false, oculta: true, marca: 'Sin revisar' };
 	// Una foto que no es el comprobante de la reserva (nadie la revisó): el equipo la ve y decide.
 	if (m.id !== chat.comprobanteMensaje) return oculta;
@@ -203,6 +240,16 @@ export function estadoDeFoto(m, { chat = {}, rv = null, ia = false, ahora = Date
 	return { ver: true, marca: 'Sin revisar' };
 }
 
+// Las fotos del cliente que el socio no ve (estadoDeFoto `oculta`: la revisión las ocultó o ya no se revisan), de la más
+// nueva a la más vieja: [{ m, marca }]. Solo las del cliente y mientras se espera el pago (chat «confirmada»: después ya no
+// hay comprobante que revisar). Lo usan Solicitudes (la línea de la tarjeta) y la campana (el aviso al equipo, con el
+// enlace al chat donde está «Mostrar al socio»).
+export function fotosOcultas(fotos, { chat = {}, rv = null, ia = false, ahora = Date.now() } = {}) {
+	if (chat.estado !== 'confirmada') return [];
+	return fotos.filter((m) => m.tipo === 'foto' && m.de === 'cliente').map((m) => ({ m, f: estadoDeFoto(m, { chat, rv, ia, ahora }) }))
+		.filter((x) => x.f.oculta).map((x) => ({ m: x.m, marca: x.f.marca })).sort((a, b) => ms(b.m.createdAt) - ms(a.m.createdAt));
+}
+
 // Los pasos de la reserva en una línea (página del cliente): [{ texto, estado: 'ok' | 'ya' | '' }].
 export function pasosEnLinea(pasos) {
 	const caja = el('div', 'hilo-pasos');
@@ -216,7 +263,7 @@ export function pasosEnLinea(pasos) {
 // Textos del panel (en español; el cliente trae los suyos de scripts/lib/i18n.mjs).
 export const TEXTOS_PANEL = {
 	visto: 'Visto', enviando: 'Enviando…', noSeEnvio: 'No se envió · Reintentar', responder: 'Responder a este mensaje', irACita: 'Ir al mensaje citado',
-	comprobante: 'Comprobante de pago', datosDePago: 'Datos de pago', datosDeLlegada: 'Datos de llegada', cuadra: 'Cuadra', soloEquipo: 'Solo tú y el equipo', traduccionAuto: 'Traducción automática', idioma: 'es'
+	comprobante: 'Comprobante de pago', datosDePago: 'Datos de pago', datosDeLlegada: 'Datos de llegada', cuadra: 'Cuadra', soloEquipo: 'Solo el equipo', traduccionAuto: 'Traducción automática', idioma: 'es'
 };
 // El texto de un evento para el socio o el equipo (`yo`), con el primer nombre del cliente.
 export function eventoPanel(ev, yo, nombre) {

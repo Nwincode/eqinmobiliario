@@ -2,7 +2,7 @@
 //  - El contenido inicial del sitio (data/seed.json), igual que «Importar datos iniciales» del panel.
 //  - Usuarios para entrar al panel: administrador, asesor, socio y colaborador. La contraseña es la misma para
 //    todos y solo existe aquí. A la dueña mixta (una casa en venta y otra por noche) le da acceso el recorrido.
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
 const PROYECTO = 'demo-eq';
 const FS = `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}/v1/projects/${PROYECTO}/databases/(default)/documents`;
@@ -63,5 +63,24 @@ for (const u of Object.values(USUARIOS)) {
 	const cuerpo = await r.json();
 	if (!r.ok && cuerpo.error?.message !== 'EMAIL_EXISTS') throw new Error(`No se pudo crear ${u.email}: ${JSON.stringify(cuerpo)}`);
 	if (cuerpo.localId) await poner(`users/${cuerpo.localId}`, { ...u.perfil, email: u.email });
+}
+// Un chat con la forma de antes, para la migración (scripts/migrar-chats.mjs, que levantar.sh corre después): la foto
+// guardada como dirección con el token de descarga, una nota en chats/{token}/notas y una revisión oculta con banco y
+// referencia. El recorrido revisa que quedó con la forma nueva.
+const CHAT_DE_ANTES = 'ChatDeAntesParaMigrarLargo12';
+{
+	const ST = `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}/v0/b/eqinmobiliariobd.firebasestorage.app/o`;
+	const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+	await poner(`chats/${CHAT_DE_ANTES}`, { codigo: 'EQ-ANTES1', leadId: 'lead-de-antes', propertyId: 'casa-de-antes', propietarioId: 'dueno-de-antes', nombre: 'Cliente de antes', estado: 'confirmada',
+		llegada: '2026-01-10', salida: '2026-01-12', noches: 2, huespedes: 2, total: 200, moneda: 'USD', comprobanteMensaje: 'foto1' });
+	const subida = await fetch(`${ST}?uploadType=media&name=${encodeURIComponent(`chats/${CHAT_DE_ANTES}/vieja.png`)}`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'image/png' }, body: png });
+	const llave = (await subida.json()).downloadTokens;
+	if (!subida.ok || !llave) throw new Error(`No se pudo subir la foto de antes: ${subida.status}`);
+	// La dirección de antes, para que el recorrido pruebe que deja de abrir la foto (junto a la carpeta del sitio).
+	await writeFile(new URL('../../../llave-de-antes.txt', import.meta.url), llave);
+	await poner(`chats/${CHAT_DE_ANTES}/mensajes/foto1`, { de: 'cliente', tipo: 'foto', texto: `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${CHAT_DE_ANTES}%2Fvieja.png?alt=media&token=${llave}` });
+	await poner(`chats/${CHAT_DE_ANTES}/notas/nota1`, { de: 'socio', texto: 'Nota de antes del socio' });
+	await poner('revisionesComprobante/lead-de-antes', { mensaje: 'foto1', oculta: true, motivoOculta: 'Posible dato de contacto', texto: 'El comprobante cuadra', propietarioId: 'dueno-de-antes',
+		leido: { monto: 200, moneda: 'USD', banco: 'Banco de antes', referencia: '5555 1234' } });
 }
 console.log(`Datos inventados listos: ${seed.properties.length + 1} propiedades y ${Object.keys(USUARIOS).length} usuarios (${Object.keys(USUARIOS).join(', ')}).`);

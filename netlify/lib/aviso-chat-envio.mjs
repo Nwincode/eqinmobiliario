@@ -180,13 +180,17 @@ const INTRO = {
 	correo: ['Corregimos tu correo: por eso no te llegaban nuestros avisos. Aquí ves tu reserva, cómo va y el chat.',
 		'We corrected your email address, so our updates had not reached you. Here you can see your booking, its status and the chat.']
 };
-export async function reenviarEnlace(leadId, { motivo = 'repetida' } = {}) {
+// `para`: el correo que queda guardado con `antes` (el corregido, que se guarda en esa misma transacción). `antes(token)`:
+// lo que se hace pasados los límites y antes de mandar; devuelve el token del enlace que sale (/api/reenviar-enlace: el
+// nuevo, netlify/lib/rotar-enlace.mjs). Si lanza, no sale nada.
+export async function reenviarEnlace(leadId, { motivo = 'repetida', para: corregido = '', antes = null } = {}) {
 	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
-	const token = indice?.token;
-	const para = String(lead?.email || '').trim().toLowerCase();
+	let token = indice?.token;
+	const para = String(corregido || lead?.email || '').trim().toLowerCase();
 	if (!para || !LIMITES[motivo] || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return '';
 	const [corto, dia] = LIMITES[motivo];
 	if (await corto(motivo === 'correo' ? `${leadId}:${para}` : leadId) || await dia(leadId)) return '';
+	if (antes) token = (await antes(token)) || token;
 	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
 	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
 	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
