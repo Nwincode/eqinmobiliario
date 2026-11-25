@@ -27,6 +27,12 @@ let fallas = 0, n = 0;
 const bloqueados = [];
 const paso = (nombre, bien, detalle = '') => { n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${nombre}${detalle ? ` · ${detalle}` : ''}`); };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+// Los últimos días del mes, el mes que abre el calendario de la casa ya no tiene las noches libres que eligen las
+// solicitudes del recorrido (el 25 de noviembre quedaban 6 y la primera pide la 7.ª): todas empiezan un mes después, con
+// las mismas distancias entre ellas.
+const HOY_GT = new Date(Date.now() - 6 * 3600_000);
+const FIN_DE_MES = new Date(Date.UTC(HOY_GT.getUTCFullYear(), HOY_GT.getUTCMonth() + 1, 0)).getUTCDate() - HOY_GT.getUTCDate() < 10;
+const saltarFinDeMes = async (p) => { if (FIN_DE_MES) { await p.locator('.vac-cal-next').first().click(); await espera(400); } };
 
 const navegador = await chromium.launch();
 // Una persona = un contexto. El SDK de Firebase del panel se sirve desde npm (misma versión) y las llamadas
@@ -210,6 +216,7 @@ paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle R
 	await fetch(`${base}/properties/casa-heredada/privado/llegada`, { method: 'DELETE', headers: dueno });
 	await fetch(`${base}/properties/casa-heredada`, { method: 'DELETE', headers: dueno });
 }
+await saltarFinDeMes(cliente.p);
 const dias = () => cliente.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await dias().nth(3).click();
 await dias().nth(6).click();
@@ -540,6 +547,7 @@ await otro.p.goto(`${SITIO}${ficha}`);
 await espera(1500);
 await otro.p.locator('.vac-cal-next').click();
 await espera(400);
+await saltarFinDeMes(otro.p);
 const libres = () => otro.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await libres().nth(3).click();
 await libres().nth(5).click();
@@ -577,6 +585,7 @@ await tercero.p.goto(`${SITIO}${ficha}`);
 await espera(1500);
 await tercero.p.locator('.vac-cal-next').click();
 await espera(400);
+await saltarFinDeMes(tercero.p);
 const libres3 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 await libres3().nth(12).click();
 await libres3().nth(14).click();
@@ -1016,6 +1025,7 @@ let otraPestana = null;
 	await tercero.p.goto(`${SITIO}${ficha}`);
 	await espera(1500);
 	for (let i = 0; i < 3; i++) { await tercero.p.locator('.vac-cal-next').click(); await espera(300); }
+	await saltarFinDeMes(tercero.p);
 	const libres4 = () => tercero.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
 	await libres4().nth(5).click();
 	await libres4().nth(7).click();
@@ -2080,6 +2090,7 @@ const duenos = [];
 	await vis.p.goto(`${SITIO}${ficha}?m=3`);
 	await espera(3000);
 	for (let i = 0; i < 2; i++) { await vis.p.locator('.vac-cal-next').first().click(); await espera(150); }
+	await saltarFinDeMes(vis.p);
 	await vis.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])').nth(8).click();
 	const llegadaM = await vis.p.locator('.vac-dia.is-llegada').getAttribute('data-fecha');
 	const dentro = await vis.p.locator('.vac-dia.is-minimo').first().getAttribute('data-fecha').catch(() => '');
@@ -2468,6 +2479,137 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	const aviso = await avisos(cot.p);
 	paso('Mis datos para facturar: un correo mal escrito se marca y no se guarda', await cot.p.locator('#mis-email.is-invalid').count() === 1 && !/se guardaron/.test(aviso), aviso);
 	await cot.p.context().close();
+}
+// ---------------------------------------------------------------- El socio sube sus casas («Agregar casa» en «Mis propiedades»)
+// La misma ficha del inmueble, sin lo del equipo; «Publicar» la manda a /api/mi-casa-nueva, que la revisa y la publica al
+// momento. El colaborador sube una en venta y elige su asesor; el socio, una por noche (sin asesor). Salen en la página y
+// el equipo las ve en «Cambios de los dueños» y en la campana. Capturas (escala 2) en $CAPTURAS_SOCIO.
+{
+	const SUBE = process.env.CAPTURAS_SOCIO || `${CAPTURAS}/socio-sube`;
+	mkdirSync(SUBE, { recursive: true });
+	// Cinco fotos de verdad (una por color) para la galería.
+	const lienzo = await persona(640);
+	const fotosPng = [];
+	for (const [i, color] of ['#7a8f6a', '#c9b79c', '#5d7891', '#a9746e', '#8a8a8a'].entries()) {
+		await lienzo.p.setContent(`<body style="margin:0;height:100vh;background:${color}"></body>`);
+		fotosPng.push({ name: `foto-${i + 1}.png`, mimeType: 'image/png', buffer: await lienzo.p.screenshot() });
+	}
+	await lienzo.p.context().close();
+	const subirFotos = async (m, archivos, total) => {
+		await m.locator('[data-campo="fotos"] input[type=file]').first().setInputFiles(archivos);
+		for (let i = 0; i < 60 && await m.locator('[data-campo="fotos"] img').count() < total; i++) await espera(500);
+		return m.locator('[data-campo="fotos"] img').count();
+	};
+	const publicar = async (p, m) => {
+		const r = p.waitForResponse((x) => x.url().endsWith('/api/mi-casa-nueva') && (x.request().postData() || '').includes('"datos"'), { timeout: 30000 })
+			.then(async (x) => ({ status: x.status(), ...(await x.json().catch(() => ({}))) })).catch(() => ({ status: 0 }));
+		await m.locator('.modal-footer button', { hasText: 'Publicar' }).click();
+		return r;
+	};
+	const abrirAgregar = async (p) => {
+		await p.locator('button[aria-label="Agregar casa"]').first().click();
+		await p.locator('.modal.show [data-campo="titulo"] input').waitFor({ timeout: 20000 });
+		await espera(800);
+		return p.locator('.modal.show');
+	};
+	const lleno = async (m, datos) => { for (const [k, v] of Object.entries(datos)) await campo(m, k).fill(v); };
+	const sinLado = (p) => p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+
+	// a) El colaborador (celular, 390): casa en venta, elige su asesor.
+	const col = await entrar('colab', { escala: 2 });
+	await col.p.setViewportSize({ width: 390, height: 844 });
+	await ir(col.p, '#/mis-casas', 3000);
+	const boton = await col.p.locator('button[aria-label="Agregar casa"]').count();
+	await col.p.screenshot({ path: `${SUBE}/mis-propiedades-390.png`, fullPage: true });
+	const m1 = await abrirAgregar(col.p);
+	const ocultos = await m1.evaluate((el) => ['codigo', 'slug', 'publicado', 'propietarioId', 'acuerdo.comisionPct', 'socio.margen', 'en.titulo', 'seo.titulo', 'video', 'destacada', 'estado', 'orden']
+		.filter((k) => { const c = el.querySelector(`[data-campo="${k}"]`); return c && !c.closest('[hidden]'); }));
+	const asesores = await campo(m1, 'agentId', 'select').locator('option').allInnerTexts();
+	await lleno(m1, { titulo: 'Casa con jardín del colaborador', precio: '250000', zona: 'Zona 15', habitaciones: '3', descripcion: 'Casa amplia con jardín, tres habitaciones y terraza. Escríbeme al 5512 3456.' });
+	await campo(m1, 'agentId', 'select').selectOption('asesora-sin-orden');
+	const nFotos1 = await subirFotos(m1, fotosPng.slice(0, 4), 4);
+	// Con 4 fotos y un teléfono en la descripción: no se manda y cada campo dice qué falta.
+	await m1.locator('.modal-footer button', { hasText: 'Publicar' }).click();
+	await espera(1500);
+	const marcados = await m1.locator('.is-invalid').evaluateAll((l) => l.map((x) => x.closest('[data-campo]')?.dataset.campo));
+	await col.p.screenshot({ path: `${SUBE}/ficha-con-errores-390.png` });
+	paso('Socio: «Agregar casa» en «Mis propiedades» abre la misma ficha sin lo del equipo (código, URL, visible, dueño, acuerdo, margen, inglés, Google, video)',
+		boton === 1 && !ocultos.length && asesores.some((t) => /Asesora sin orden/.test(t)), `botón ${boton} · se ven: ${ocultos.join(', ') || 'nada'} · asesores ${asesores.length}`);
+	paso('Socio: con 4 fotos y un teléfono en la descripción no se publica; los dos campos quedan marcados', nFotos1 === 4 && marcados.includes('fotos') && marcados.includes('descripcion'), marcados.join(', '));
+	await campo(m1, 'descripcion').fill('Casa amplia con jardín, tres habitaciones, terraza y estudio. A cinco minutos de colegios.');
+	const nFotos = await subirFotos(m1, fotosPng.slice(4), 5);
+	await m1.locator('.modal-body').evaluate((el) => { el.scrollTop = 0; });
+	await col.p.screenshot({ path: `${SUBE}/ficha-390.png` });
+	const lado1 = await sinLado(col.p);
+	const r1 = await publicar(col.p, m1);
+	await espera(3000);
+	const venta = r1.id ? (await leer(`properties/${r1.id}`)).fields || {} : {};
+	paso('Socio: el colaborador publica su casa en venta al momento, con el asesor que eligió y él como dueño', r1.status === 200 && venta.publicado?.booleanValue === true
+		&& venta.agentId?.stringValue === 'asesora-sin-orden' && venta.propietarioId?.stringValue === 'colab-prueba' && (venta.fotos?.arrayValue?.values || []).length === 5 && nFotos === 5,
+		`${r1.status} ${r1.error || ''} · ${venta.agentId?.stringValue} · ${(venta.fotos?.arrayValue?.values || []).length} fotos`);
+	const filaNueva = await col.p.locator('.lista-casas', { hasText: 'Casa con jardín del colaborador' }).count();
+	await col.p.screenshot({ path: `${SUBE}/mis-propiedades-con-la-nueva-390.png`, fullPage: true });
+	paso('Socio: la casa nueva sale en su lista, sin scroll de lado en la ficha (390 px)', filaNueva === 1 && lado1 <= 0, `fila ${filaNueva} · lado ${lado1}`);
+
+	// b) El socio (computadora, 1280): casa por noche, sin asesor.
+	const so = await entrar('socio', { escala: 2 });
+	await ir(so.p, '#/mis-casas', 3000);
+	await so.p.screenshot({ path: `${SUBE}/mis-propiedades-1280.png`, fullPage: true });
+	const m2 = await abrirAgregar(so.p);
+	await campo(m2, 'operacion', 'select').selectOption('vacacional');
+	await espera(500);
+	const conAsesor = await m2.locator('[data-campo="agentId"]').isVisible();
+	await lleno(m2, { titulo: 'Casa del volcán por noche', zona: 'Antigua', ciudad: 'Sacatepéquez', 'socio.precioBase': '90', 'vacacional.huespedesMax': '6',
+		direccion: 'Calle del Arco 5, Antigua', descripcion: 'Casa con vista al volcán, chimenea, jardín y desayuno típico los domingos.' });
+	await subirFotos(m2, fotosPng, 5);
+	await m2.locator('.modal-body').evaluate((el) => { el.scrollTop = 0; });
+	await so.p.screenshot({ path: `${SUBE}/ficha-1280.png` });
+	const r2 = await publicar(so.p, m2);
+	await espera(3000);
+	const noche = r2.id ? (await leer(`properties/${r2.id}`)).fields || {} : {};
+	const llegada = r2.id ? (await leer(`properties/${r2.id}/privado/llegada`)).fields || {} : {};
+	const base = noche.vacacional?.mapValue?.fields?.base;
+	paso('Socio: publica su casa por noche sin asesor; su dirección queda privada y su precio con el margen de siempre', r2.status === 200 && !conAsesor && noche.agentId?.stringValue === ''
+		&& !noche.direccion?.stringValue && llegada.direccion?.stringValue === 'Calle del Arco 5, Antigua' && Number(base?.doubleValue ?? base?.integerValue) === 108,
+		`${r2.status} ${r2.error || ''} · asesor visible ${conAsesor} · base ${JSON.stringify(base)}`);
+	await so.p.screenshot({ path: `${SUBE}/mis-propiedades-con-la-nueva-1280.png`, fullPage: true });
+
+	// c) Publicar el sitio (lo que hace el botón): las dos salen en la página y en el sitemap, sin datos privados del socio.
+	execFileSync('bash', [path.join(REPO, 'scripts/entorno/levantar.sh'), 'publicar'], { stdio: 'pipe', env: { ...process.env, ENTORNO_DIR: DIR } });
+	await espera(1500);
+	const paginas = [];
+	for (const [nombre, f] of [['venta', venta], ['noche', noche]]) {
+		const url = `${SITIO}/propiedad/${f.slug?.stringValue}/`;
+		const html = await (await fetch(url)).text();
+		paginas.push({ nombre, url, ok: /<h1/.test(html) && html.includes(f.titulo?.stringValue || 'x'), privado: /colab-prueba|socio-prueba|colab@example|socio@example|5555 000|Calle del Arco/.test(html) });
+	}
+	const sitemap = await (await fetch(`${SITIO}/sitemap.xml`)).text();
+	paso('Socio: las dos casas salen en la página y en el sitemap, sin datos privados del socio (dueño, correo, teléfono, dirección exacta)',
+		paginas.every((x) => x.ok && !x.privado) && paginas.every((x) => sitemap.includes(new URL(x.url).pathname)), JSON.stringify(paginas.map((x) => [x.nombre, x.ok, x.privado, sitemap.includes(new URL(x.url).pathname)])));
+	for (const [ancho, x] of [[390, paginas[0]], [1280, paginas[0]], [390, paginas[1]], [1280, paginas[1]]]) {
+		const vis = await persona(ancho, { escala: 2 });
+		await vis.p.goto(x.url);
+		await espera(1500);
+		await vis.p.screenshot({ path: `${SUBE}/casa-${x.nombre}-en-la-pagina-${ancho}.png` });
+		await vis.p.context().close();
+	}
+
+	// d) El equipo las ve en «Cambios de los dueños» y en la campana.
+	const eq = await entrar('admin', { escala: 2 });
+	await eq.p.evaluate(() => document.dispatchEvent(new CustomEvent('avisos')));
+	await espera(3000);
+	const campana = await eq.p.locator('.avisos-lista').innerText().catch(() => '');
+	await ir(eq.p, '#/cambios-dueno', 3500);
+	const tarjetas = await eq.p.locator('.admin-main .card', { hasText: 'subió' }).allInnerTexts();
+	await eq.p.screenshot({ path: `${SUBE}/cambios-de-los-duenos-1280.png`, fullPage: true });
+	await eq.p.setViewportSize({ width: 390, height: 844 });
+	await ir(eq.p, '#/cambios-dueno', 3000);
+	await eq.p.screenshot({ path: `${SUBE}/cambios-de-los-duenos-390.png`, fullPage: true });
+	paso('Equipo: «Cambios de los dueños» y la campana dicen quién subió cada casa (ya publicada), con abrir la ficha y eliminar',
+		tarjetas.some((t) => /subió «Casa con jardín del colaborador»/.test(t)) && tarjetas.some((t) => /subió «Casa del volcán por noche»/.test(t))
+		&& /subió una casa/.test(campana) && await eq.p.locator('.admin-main .card [aria-label="Eliminar la casa"]').count() >= 2,
+		`${tarjetas.length} tarjetas · campana: ${/subió una casa/.test(campana)}`);
+	for (const x of [col, so, eq]) await x.p.context().close();
 }
 {
 	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';

@@ -553,7 +553,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('otro socio lee los permisos de la dueña', leer('socio2', 'permisosSocios/m1'), false);
 		// Lo que resulta para la dueña: el administrador lo cambia solo con su renglón (tipo permisosSocio).
 		{
-			const foto = (p, f) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: f }, casa: { booleanValue: true } } } });
+			const foto = (p, f) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: f }, casa: { booleanValue: true }, inmuebles: { booleanValue: true } } } });
 			const resultado = (o, log) => ({ update: { name: `${R}/permisosSocios/m1`, fields: { precios: { booleanValue: true }, fechas: { booleanValue: true }, casa: { booleanValue: true }, ...o, ...(log ? { bitacoraId: sv(log) } : {}) } } });
 			await espera('el administrador enciende los permisos de la dueña sin renglón', soloJuntos('admin1', [resultado({})]), false);
 			await espera('el administrador cambia lo que no es un interruptor sin renglón (control)', soloJuntos('admin1', [resultado({ precios: { booleanValue: true }, fechas: { booleanValue: false }, motivo: sv('otro') })]), true);
@@ -566,8 +566,9 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		}
 		await espera('la dueña lee los permisos para todos', leer('mixto1', 'settings/permisosSocios'), false);
 		await espera('el administrador apaga un permiso para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['precios'], { precios: { booleanValue: false } }), false);
+		await espera('el administrador apaga «Ingresar inmuebles» para todos sin su renglón', parche('admin1', 'settings/permisosSocios', ['inmuebles'], { inmuebles: { booleanValue: false } }), false);
 		{
-			const foto = (p) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: true }, casa: { booleanValue: true } } } });
+			const foto = (p) => ({ mapValue: { fields: { precios: { booleanValue: p }, fechas: { booleanValue: true }, casa: { booleanValue: true }, inmuebles: { booleanValue: true } } } });
 			await espera('el administrador apaga un permiso para todos, con su renglón (control)', soloJuntos('admin1', [
 				{ update: { name: `${R}/settings/permisosSocios`, fields: { precios: { booleanValue: false }, bitacoraId: sv('glob1') } }, updateMask: { fieldPaths: ['precios', 'bitacoraId'] } },
 				{ update: { name: `${R}/bitacora/glob1`, fields: { tipo: sv('permisos'), objeto: sv('permisosSocios'), antes: foto(true), despues: foto(false), quien: sv('admin1'), nombre: sv('Admin') } }, currentDocument: { exists: false }, updateTransforms: [{ fieldPath: 'cuando', setToServerValue: 'REQUEST_TIME' }] }]), true);
@@ -1056,6 +1057,22 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: el dueño sube una foto a una casa en venta', subir('socio1', 'properties/prueba-casa-en-venta/nueva3.png'), false);
 	await espera('storage: el dueño sube algo que no es foto a su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/nota.txt', 'text/plain'), false);
 	await espera('storage: el dueño sube a una subcarpeta de su casa', subir('socio1', 'properties/prueba-casa-playa-monterrico/x/y.png'), false);
+	// La casa nueva del socio («Agregar casa»): la crea solo el servidor (netlify/functions/mi-casa-nueva.mjs); las fotos van
+	// antes, solo a la carpeta que el servidor le apartó a él (casasNuevas/{id}, sin regla en Firestore).
+	await espera('el socio crea una casa directo en la base', crear('socio1', 'properties/del-socio', { titulo: 'Mía', operacion: 'venta', propietarioId: 'o1', agentId: '', publicado: true }), false);
+	await espera('el socio crea una casa por noche directo en la base', crear('socio1', 'properties/del-socio2', { titulo: 'Mía', operacion: 'vacacional', propietarioId: 'o1', agentId: '', publicado: true }), false);
+	await espera('el socio se aparta él mismo una carpeta', crear('socio1', 'casasNuevas/mia', { propietarioId: 'o1' }), false);
+	await poner('casasNuevas/nueva-s1', { propietarioId: 'o1', uid: 'socio1' });
+	await espera('el socio lee las carpetas apartadas', leer('socio1', 'casasNuevas/nueva-s1'), false);
+	await espera('storage: el socio sube una foto a la carpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/f1.png'), true);
+	await espera('storage: el socio reemplaza esa foto', subir('socio1', 'properties/nueva-s1/f1.png'), false);
+	await espera('storage: el socio borra una foto de su casa nueva', borrar('socio1', 'properties/nueva-s1/f1.png'), false);
+	await espera('storage: otro socio sube a la carpeta de esa casa nueva', subir('socio2', 'properties/nueva-s1/f2.png'), false);
+	await espera('storage: el socio sube a una carpeta que nadie le apartó', subir('socio1', 'properties/sin-apartar/f1.png'), false);
+	await espera('storage: el socio sube a una subcarpeta de su casa nueva', subir('socio1', 'properties/nueva-s1/x/f.png'), false);
+	await espera('storage: el socio sube algo que no es foto a su casa nueva', subir('socio1', 'properties/nueva-s1/n.txt', 'text/plain'), false);
+	await poner('casasNuevas/prueba-casa-en-venta', { propietarioId: 'o1' });
+	await espera('storage: el socio sube a una casa que ya existe con una carpeta apartada a su nombre', subir('socio1', 'properties/prueba-casa-en-venta/f9.png'), false);
 	await espera('storage: un acceso quitado sube una foto',subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
 	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
