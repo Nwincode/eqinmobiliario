@@ -19,7 +19,7 @@ export const fotoCasa = (p = {}, s = {}) => ({
 	precioBase: de(s, 'precioBase', 0), precioFinde: de(s, 'precioFinde', 0), tarifas: de(s, 'tarifas', []), margen: de(s, 'margen', MARGEN_POR_OMISION)
 });
 export const fotoPropietario = (d = {}) => ({ datosPago: de(d, 'datosPago', ''), permisos: de(d, 'permisos', {}) });
-export const fotoPermisos = (d = {}) => ({ precios: de(d, 'precios', true), fechas: de(d, 'fechas', true), casa: de(d, 'casa', true) });
+export const fotoPermisos = (d = {}) => ({ precios: de(d, 'precios', true), fechas: de(d, 'fechas', true), casa: de(d, 'casa', true), inmuebles: de(d, 'inmuebles', true) });
 
 // Igualdad de valores como la de las reglas (mapas sin importar el orden de sus llaves; 5 y 5.0 iguales).
 export function igual(a, b) {
@@ -51,7 +51,7 @@ export const firma = (e, usuarios = {}) => {
 const NOMBRES = {
 	moneda: 'Moneda', propietarioId: 'Dueño', limpieza: 'Limpieza', precioBase: 'Precio del dueño por noche', precioFinde: 'Precio del dueño en fin de semana',
 	tarifas: 'Temporadas', margen: 'Margen de EQ', datosPago: 'Datos de pago', permisos: 'Permisos', precios: 'Precios y temporadas (todos)',
-	fechas: 'Bloquear fechas (todos)', casa: '«La casa» (todos)', revisadoAMano: 'Revisó a mano'
+	fechas: 'Bloquear fechas (todos)', casa: '«La casa» (todos)', inmuebles: 'Ingresar inmuebles (todos)', revisadoAMano: 'Revisó a mano'
 };
 const DE_UN_SOCIO = Object.fromEntries(PERMISOS.map(([c, nombre]) => [c, nombre]));
 export function diferencias(e, { nombreDe = (x) => x, dinero = (n) => String(n), fecha = (f) => f } = {}) {

@@ -7,9 +7,11 @@
 //    sus calendarios y pausarla): lo guarda el servidor (netlify/functions/mi-casa.mjs), se publica solo y el
 //    administrador recibe el aviso y lo puede deshacer (admin/js/mi-casa.js);
 //  - en venta o renta: cómo va, solo lectura, desde su resumen (admin/js/resumen-casa.js).
+// «Agregar casa» (con el permiso «Ingresar inmuebles»): sube una casa nueva de cualquier tipo con la ficha del inmueble
+// (admin/js/views/properties.js en modo socio); la publica el servidor (netlify/functions/mi-casa-nueva.mjs).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, collection, query, where, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog, fallaDelServidor } from '../ui.js';
+import { h, toast, showError, pageHeader, emptyState, mount, iconoBtn, flecha, dia, badge, formatPrice, elegirOpcion, confirmDialog, fallaDelServidor, botonNuevaCasa } from '../ui.js';
 import { session, markPending, cargarMiResumen, misCasas } from '../session.js';
 import { prefijoMoneda, decimales, nNoches, dineroPorMoneda, nombreMes, moverMes, dineroCorto } from '../formato.js';
 import { filaCasa, publicUrl } from '../ficha-casa.js';
@@ -87,7 +89,7 @@ const ic = (clase) => h('span', { class: `${clase} me-1`, 'aria-hidden': 'true' 
 const volver = (texto) => iconoBtn('icon-arrow-left', texto, { href: '#/mis-casas', class: 'btn-toque btn-icono btn btn-link text-body' });
 
 async function lista(container) {
-	const [vivas, resumen] = await Promise.all([misCasas(), cargarMiResumen()]);
+	const [vivas, resumen, perm] = await Promise.all([misCasas(), cargarMiResumen(), permisosDelSocio(session.profile.propietarioId)]);
 	const casas = [...vivas, ...(resumen?.propiedades || []).filter((x) => !vivas.some((c) => c.id === x.id)).map(desdeResumen)]
 		.sort((a, b) => (ORDEN[a.operacion] ?? 3) - (ORDEN[b.operacion] ?? 3) || String(a.titulo).localeCompare(String(b.titulo)));
 	const porNoche = casas.some((c) => c.operacion === 'vacacional');
@@ -97,14 +99,22 @@ async function lista(container) {
 		.map((c) => filaCasa(c, { href: `#/mis-casas/${c.id}`, marcas: [c.publicado ? null : badge('Sin publicar', 'light')] })));
 	pintar();
 	const ag = resumen?.asesor || {};
+	// «Agregar casa»: la misma ficha del inmueble (admin/js/views/properties.js en modo socio), se publica al momento.
+	const puedeAgregar = puede(perm, 'inmuebles');
+	const agregar = puedeAgregar ? botonNuevaCasa('Agregar casa', { onclick: async () => {
+		const { abrirFicha } = await import('./properties.js');
+		abrirFicha('nuevo', { titulo: 'Agregar casa', alGuardar: () => { container.replaceChildren(); lista(container).catch(showError); } });
+	} }) : null;
 	mount(container,
-		pageHeader('Mis propiedades'),
+		pageHeader('Mis propiedades', agregar),
+		// Si algo está en pausa (p. ej. «Ingresar inmuebles» por atraso), por qué no está el botón.
+		avisoSocio(perm),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
 			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')
 			: h('div', { class: 'alert alert-warning small' }, 'Faltan tus datos de pago: sin ellos no puedes confirmar reservas. Pídele al administrador que los guarde en tu ficha.')) : null,
 		casas.some((c) => c.operacion !== 'vacacional') && ag.nombre ? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-user me-1', 'aria-hidden': 'true' }), 'Tu asesor: ', h('strong', { class: 'text-body' }, ag.nombre)) : null,
-		!casas.length ? emptyState('Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
+		!casas.length ? emptyState(puedeAgregar ? 'Todavía no tienes propiedades. Sube la primera con «Agregar casa».' : 'Todavía no tienes propiedades asignadas. Escríbele a tu asesor y las activamos.') : [
 			casas.length > 8 ? h('input', { class: 'form-control mb-3', type: 'search', placeholder: 'Buscar propiedad', 'aria-label': 'Buscar propiedad', oninput: (e) => pintar(e.target.value) }) : null,
 			filas]);
 }

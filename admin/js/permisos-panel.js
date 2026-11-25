@@ -64,7 +64,8 @@ export async function guardarGlobal(cambios) {
 	try { [global, socios, guardados] = await Promise.all([leerGlobal(), getDocs(collection(db, 'propietarios')), getDocs(collection(db, 'permisosSocios'))]); }
 	catch (err) { console.warn('Permisos sin recalcular (se recalculan en la próxima hora)', err); return 1; }
 	const conDoc = new Set(guardados.docs.map((d) => d.id));
-	const ids = socios.docs.filter((d) => d.data().porNoche || d.data().tipo === 'socio' || conDoc.has(d.id)).map((d) => d.id);
+	// También quien tiene interruptores propios (p. ej. «Ingresar inmuebles» apagado a un colaborador de venta y renta).
+	const ids = socios.docs.filter((d) => d.data().porNoche || d.data().tipo === 'socio' || d.data().permisos || conDoc.has(d.id)).map((d) => d.id);
 	const r = await Promise.allSettled(ids.map((id) => recalcularPermisosDe(id, global)));
 	return r.filter((x) => x.status === 'rejected').length;
 }

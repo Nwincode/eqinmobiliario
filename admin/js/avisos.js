@@ -125,7 +125,7 @@ async function leerFuentes() {
 		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),
 		// Las solicitudes de reserva por noche no son leads del CRM: ya avisan como solicitud.
 		leads: nuevos.filter((l) => !V.esSolicitudReserva(l)).map((l) => ({ id: l.id, nombre: primerNombre(l.nombre), casa: l.propertyTitulo, creado: ms(l.createdAt) })),
-		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length })),
+		cambiosDueno: cambiosDueno.map((c) => ({ id: c.id, nombre: c.nombre, casa: c.titulo, fecha: c.cuando || ahora, cuantos: (c.cambios || []).length, nueva: Boolean(c.nueva) })),
 		exclusivas: exclusivasPorVencer(conCasa, acuerdos, propietarios, { dias: 30 }).map((x) => ({
 			casaId: x.casa.id, casa: x.casa.titulo, dueno: x.dueno?.nombre, fin: x.acuerdo?.exclusivaFin, dias: x.dias, agentId: x.casa.agentId || '' }))
 	};

@@ -14,7 +14,8 @@ import { fotoPropietario, fotoPermisos, igual } from '../../admin/js/bitacora.js
 // Sin documento guardado, todo está permitido: no hace falta crear uno que diga lo mismo.
 const todoPermitido = (d) => CLAVES.every((k) => d[k]) && !d.deuda && !d.motivo;
 // A quién se le revisa: dueños de casas por noche, o quien ya tiene un documento de permisos.
-const esSocio = (p) => Boolean(p.porNoche) || p.tipo === 'socio';
+// (o quien tiene interruptores propios: «Ingresar inmuebles» de un colaborador de venta y renta).
+const esSocio = (p) => Boolean(p.porNoche) || p.tipo === 'socio' || Boolean(p.permisos);
 
 export async function recalcularPermisos(ahora = Date.now()) {
 	// Una lectura que falla no es «nadie debe»: si falla, se lanza y no se escribe nada.

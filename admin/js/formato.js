@@ -57,6 +57,15 @@ export function slugify(text) {
 		.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 		.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 }
+// URL libre a partir del título («usados» es un Set que se va llenando). La usan la ficha («Duplicar»), el importador y la
+// casa que sube el socio (netlify/functions/mi-casa-nueva.mjs).
+export function slugLibre(titulo, usados) {
+	const base = slugify(titulo) || 'propiedad';
+	let s = base, n = 2;
+	while (usados.has(s)) s = `${base}-${n++}`;
+	usados.add(s);
+	return s;
+}
 // Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
 // («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
 // Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.

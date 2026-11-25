@@ -86,7 +86,7 @@ service cloud.firestore {
       return { 'datosPago': d.get('datosPago', ''), 'permisos': d.get('permisos', {}) };
     }
     function fotoPermisos(d) {
-      return { 'precios': d.get('precios', true), 'fechas': d.get('fechas', true), 'casa': d.get('casa', true) };
+      return { 'precios': d.get('precios', true), 'fechas': d.get('fechas', true), 'casa': d.get('casa', true), 'inmuebles': d.get('inmuebles', true) };
     }
     // El renglón de la bitácora de la casa `id` que nombra `bitacoraTexto`: un id (letras y cifras, hasta 40) que existe
     // después del lote.
@@ -238,7 +238,7 @@ service cloud.firestore {
     }
 
     // Datos internos (p. ej. el build hook de Netlify): solo el equipo.
-    // Permisos de los socios para todos { precios, fechas, casa }: los cambia el administrador (Propietarios).
+    // Permisos de los socios para todos { precios, fechas, casa, inmuebles }: los cambia el administrador (Propietarios).
     match /settings/permisosSocios {
       allow get: if isAdmin();
       // Con su renglón en la bitácora si cambia un interruptor.
@@ -283,6 +283,9 @@ service cloud.firestore {
       allow get: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       allow list: if resource.data.publicado == true || isStaff() || esSocioDe(resource.data);
       // Una casa por noche no lleva asesor: el asesor no crea una ni pasa la suya a por noche (solo el administrador).
+      // El socio no crea casas aquí: la suya la crea el servidor (netlify/functions/mi-casa-nueva.mjs), que la revisa.
+      // La carpeta de fotos que le aparta (casasNuevas/{id}) no tiene regla: solo la escribe el servidor y la lee
+      // storage.rules.
       allow create: if isAdmin()
         || (isStaff() && request.resource.data.agentId == myAgentId() && request.resource.data.get('operacion', '') != 'vacacional');
       // Moneda, dueño y limpieza (cambiaCasa) van con su renglón en la bitácora (anotado). El socio no los toca (su rama

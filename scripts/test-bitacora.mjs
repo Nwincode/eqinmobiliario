@@ -17,7 +17,7 @@ await t('las fotos llevan los valores por omisión de las reglas (sin privado/so
 	assert.deepEqual(fotoCasa({ moneda: 'USD' }), { moneda: 'USD', propietarioId: '', limpieza: 0, precioBase: 0, precioFinde: 0, tarifas: [], margen: 20 });
 	assert.deepEqual(fotoCasa({ vacacional: { limpieza: 35 } }, { precioBase: 100, margen: 25 }).limpieza, 35);
 	assert.deepEqual(fotoPropietario({}), { datosPago: '', permisos: {} });
-	assert.deepEqual(fotoPermisos({ precios: false }), { precios: false, fechas: true, casa: true });
+	assert.deepEqual(fotoPermisos({ precios: false }), { precios: false, fechas: true, casa: true, inmuebles: true });
 	// Un campo guardado vacío (null) no es lo mismo que uno que no está (las reglas: get devuelve el null).
 	assert.equal(fotoCasa({ moneda: null }).moneda, null);
 });

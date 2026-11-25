@@ -1,9 +1,11 @@
-// Permisos del socio (dueño de casas por noche): qué puede cambiar él solo en su panel. Puro: lo usan el panel
+// Permisos del socio (propietario o colaborador): qué puede cambiar él solo en su panel. Puro: lo usan el panel
 // (Propietarios, Mis propiedades, al marcar una comisión pagada) y el servidor (netlify/functions/comisiones-vencidas.mjs).
-//   - Para todos: settings/permisosSocios { precios, fechas, casa } (false = apagado para todos).
-//   - Para uno: propietarios/{id}.permisos { precios, fechas, casa, devolver } (devolver = «Devolver permisos hasta que pague»).
+//   - Para todos: settings/permisosSocios { precios, fechas, casa, inmuebles } (false = apagado para todos).
+//   - Para uno: propietarios/{id}.permisos { precios, fechas, casa, inmuebles, devolver } (devolver = «Devolver permisos
+//     hasta que pague»).
 //   - Corte automático: si debe a Equipo Inmobiliario una comisión con DIAS_CORTE días o más de atraso (contados como
-//     nivelComision: desde el fin del día de llegada, hora de Guatemala), se apagan los tres; al pagar vuelven solos.
+//     nivelComision: desde el fin del día de llegada, hora de Guatemala), se apagan todos; al pagar vuelven solos.
+//   - «inmuebles»: subir casas nuevas desde «Mis propiedades» (netlify/functions/mi-casa-nueva.mjs).
 // Lo que resulta se guarda en permisosSocios/{propietarioId} (lo leen las reglas, mi-casa.mjs y la pantalla del socio).
 // Sin ese documento todo está permitido: así funciona igual antes y después de publicar las reglas.
 // Responder solicitudes, el chat y subir el comprobante nunca se apagan.
@@ -14,7 +16,8 @@ const V = () => globalThis.EQVacacional;
 export const PERMISOS = [
 	['precios', 'Precios y temporadas', 'icon-usd'],
 	['fechas', 'Bloquear fechas', 'icon-calendar'],
-	['casa', 'La casa (fotos y textos)', 'icon-home2']
+	['casa', 'La casa (fotos y textos)', 'icon-home2'],
+	['inmuebles', 'Ingresar inmuebles', 'icon-plus']
 ];
 export const CLAVES = PERMISOS.map(([k]) => k);
 export const DIAS_CORTE = 7;
@@ -66,7 +69,7 @@ export const limpiarDevolver = (propio, deuda) => Boolean(propio?.devolver) && !
 
 // El documento que se guarda en permisosSocios/{id} (sin la hora: así se compara con lo guardado).
 export function documentoPermisos(permisos, deuda) {
-	return { precios: permisos.precios, fechas: permisos.fechas, casa: permisos.casa, motivo: permisos.motivo, devuelto: permisos.devuelto,
+	return { ...Object.fromEntries(CLAVES.map((k) => [k, permisos[k]])), motivo: permisos.motivo, devuelto: permisos.devuelto,
 		deuda: deuda ? { porMoneda: deuda.porMoneda, vence: deuda.vence, dias: deuda.dias } : null };
 }
 // ¿Lo guardado ya es esto? (para no escribir de más: el servidor lo revisa cada hora).

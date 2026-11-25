@@ -614,6 +614,14 @@ export function renderForm(schema, data, options = {}) {
 			}
 			return avisarErrores(errores);
 		},
+		// Errores que llegan de fuera (la revisión de la casa nueva, en la ficha o en el servidor): [{ campo, msg }] con el
+		// nombre del campo. Igual que validate: cada uno en rojo con su mensaje, la página va al primero y un solo aviso.
+		marcar(lista) {
+			el.querySelectorAll('.is-invalid').forEach(quitarMarca);
+			const errores = lista.map((e) => ({ control: el.querySelector(`[data-campo="${e.campo}"]`), msg: e.msg })).filter((e) => e.control && !e.control.closest('[hidden]'));
+			if (!errores.length && lista.length) toast(lista.map((e) => e.msg).join(' '), 'warning');
+			return avisarErrores(errores);
+		},
 		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.
 		async flushDeletes() {
