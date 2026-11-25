@@ -57,12 +57,12 @@ export async function leerPrivado(ruta) {
 	return documento(await res.json());
 }
 
-// Todos los documentos de una colección interna (hasta 3,000).
-export async function listar(coleccion) {
+// Todos los documentos de una colección interna (hasta `tope`, 3,000; la migración pide todos).
+export async function listar(coleccion, { tope = 3000 } = {}) {
 	const token = await googleToken(SCOPE_DATOS);
 	const docs = [];
 	let pagina = '';
-	for (let i = 0; i < 10; i++) {
+	for (let i = 0; i * 300 < tope; i++) {
 		const url = `${BASE}/${coleccion}?pageSize=300${pagina ? `&pageToken=${encodeURIComponent(pagina)}` : ''}`;
 		const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
 		const body = await res.json().catch(() => ({}));

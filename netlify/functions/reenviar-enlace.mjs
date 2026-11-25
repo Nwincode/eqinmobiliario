@@ -57,7 +57,8 @@ export default async (req) => {
 		console.error('Enlace nuevo:', err.message);
 		return json(502, { error: 'No se pudo cambiar el enlace: el correo sigue como estaba. Vuelve a intentarlo.' });
 	}
-	// 2. El correo con el enlace nuevo, si la reserva sigue abierta y por venir.
+	// 2. El correo con el enlace nuevo, si la reserva sigue abierta y por venir (y tiene chat: sin él no hay enlace).
+	if (!rotado) return json(200, { cambio: cambia, rotado, enviado: false, motivo: 'La reserva no tiene chat' });
 	const estado = lead.solicitud?.estado || 'pendiente';
 	if (!['pendiente', 'confirmada'].includes(estado) || !(String(lead.reserva.salida || '') >= V.hoy())) return json(200, { cambio: cambia, rotado, enviado: false, motivo: 'Sin reserva abierta' });
 	let para = '';

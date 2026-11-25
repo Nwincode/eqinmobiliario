@@ -88,10 +88,11 @@ paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role
 	const [notaNueva, notaVieja] = await Promise.all([fetch(`${fs}/notasEquipo/${T0}/notas/nota1`, ow), fetch(`${fs}/chats/${T0}/notas/nota1`, ow)]);
 	const leido = (await (await fetch(`${fs}/revisionesComprobante/lead-de-antes`, ow)).json()).fields?.leido?.mapValue?.fields || {};
 	const otraVez = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
-	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo y la revisión oculta pierde banco y referencia; repetirla no cambia nada',
+	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo, el chat recibe su índice y la revisión oculta pierde banco y referencia; repetirla no cambia nada',
 		foto === 'fotosChat/lead-de-antes/vieja.png' && enCarpeta.status === 200 && Boolean(llave) && viejaUrl.status !== 200 && reciboUrl.status !== 200 && recibo === 'comprobantes/res-de-antes/recibo.png'
 		&& notaNueva.status === 200 && notaVieja.status === 404
-		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos de antes a la carpeta de su solicitud, 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 comprobantes de la comisión a su ruta, 0 revisiones/.test(otraVez),
+		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes`, ow)).json()).fields?.token?.stringValue === T0
+		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos de antes a la carpeta de su solicitud, 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 índices de chats de antes, 0 comprobantes de la comisión a su ruta, 0 revisiones/.test(otraVez),
 		`${foto} · carpeta ${enCarpeta.status} · vieja ${viejaUrl.status} · recibo ${recibo} ${reciboUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
 }
 await ir(admin.p, '#/propiedades/nuevo');
@@ -211,6 +212,8 @@ paso('La ficha pública no muestra dirección exacta, mapa ni asesor', !/Calle R
 	await fetch(`${base}/properties/casa-heredada`, { method: 'DELETE', headers: dueno });
 }
 const dias = () => cliente.p.locator('.vac-cal-cuerpo button:not([aria-disabled=true])');
+// A fin de mes quedan pocos días libres: se pasa al mes siguiente (el séptimo libre tiene que existir).
+if (await dias().count() < 7) { await cliente.p.locator('.vac-cal-next').click(); await espera(300); }
 await dias().nth(3).click();
 await dias().nth(6).click();
 await cliente.p.fill('.vac-card [name=nombre]', 'Ana Prueba');

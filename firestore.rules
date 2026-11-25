@@ -807,9 +807,12 @@ service cloud.firestore {
         || (isStaff() && resource.data.agentId == myAgentId());
       // La respuesta del socio la escribe el servidor (netlify/functions/reservas.mjs): él no la toca.
       // El correo de una solicitud de reserva lo cambia solo el servidor (/api/reenviar-enlace), junto con el enlace nuevo.
+      // `reserva` no cambia desde el navegador para nadie (el panel no la escribe): así nadie la vacía, cambia el correo
+      // sin cambiar el enlace y la vuelve a poner.
       allow update: if (isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
             && request.resource.data.agentId == resource.data.agentId))
+        && request.resource.data.get('reserva', null) == resource.data.get('reserva', null)
         && (resource.data.get('reserva', {}).get('codigo', '') == '' || request.resource.data.get('email', '') == resource.data.get('email', ''));
       // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
       // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
@@ -897,6 +900,10 @@ service cloud.firestore {
         function chat() {
           return get(/databases/$(database)/documents/chats/$(token)).data;
         }
+        // '' con el primer enlace; '{gen}-' después de cada cambio de enlace (netlify/lib/rotar-enlace.mjs).
+        function generacion() {
+          return chat().get('gen', 0) == 0 ? '' : string(chat().get('gen', 0)) + '-';
+        }
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
         // Con el enlace, solo mientras el chat exista (el de un enlace que ya cambió no abre nada).
         allow read: if (!signedIn() && exists(/databases/$(database)/documents/chats/$(token))) || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
@@ -947,15 +954,16 @@ service cloud.firestore {
                     : sinLlegada()))
                 // La foto, por su ruta en la carpeta de su solicitud (no cambia con el enlace; storage.rules: 1 a 10).
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('fotosChat/' + chat().get('leadId', '-') + '/(10|[1-9])')))
+                  && request.resource.data.texto.matches('fotosChat/' + chat().get('leadId', '-') + '/' + generacion() + '(10|[1-9])')))
                 : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
           // El cliente, en una conversación que existe (la de un enlace que ya cambió, al corregir su correo, no recibe nada).
-          // A lo más 200 por chat: el id del mensaje del cliente es c1 … c200 (js/reserva-chat.js toma el siguiente libre;
-          // nada se reemplaza). Así un enlace filtrado no llena el chat y el cambio de enlace siempre alcanza a moverlo.
-          && ((request.resource.data.de == 'cliente' && !signedIn() && id.matches('c([1-9]|[1-9][0-9]|1[0-9][0-9]|200)')
+          // A lo más 200 por enlace: el id del mensaje del cliente es c1 … c200 (js/reserva-chat.js toma el siguiente libre;
+          // nada se reemplaza). Así un enlace filtrado no llena el chat y el cambio de enlace siempre alcanza a moverlo. Con
+          // cada enlace nuevo (`gen`) la cuenta vuelve a empezar: c{gen}-1 … (lo que gastó el enlace viejo no cuenta).
+          && ((request.resource.data.de == 'cliente' && !signedIn() && id.matches('c' + generacion() + '([1-9]|[1-9][0-9]|1[0-9][0-9]|200)')
               && exists(/databases/$(database)/documents/chats/$(token)))
-            || (request.resource.data.de == 'equipo' && isAdmin())
+            || (request.resource.data.de == 'equipo' && isAdmin() && exists(/databases/$(database)/documents/chats/$(token)))
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
             || (request.resource.data.de == 'socio' && !('tipo' in request.resource.data)
                 && esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')) && !(chat().get('estado', '') in ['no', 'cancelada'])));

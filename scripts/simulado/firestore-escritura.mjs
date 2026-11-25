@@ -16,7 +16,11 @@ export async function transaccion(trabajo) {
 		crearCrudo: (ruta, crudo, cambios = {}) => ops.push([ruta, { ...crudo, ...cambios }, undefined, true]),
 		borrar: (ruta) => ops.push([ruta, null, undefined, 'borrar'])
 	});
+	// Para probar fallas: `S.fallarSi(ruta)` hace fallar el commit que escribe esa ruta; `S.perderRespuestaSi(ruta)` lo
+	// escribe y después falla (la respuesta se perdió).
+	if (S.fallarSi && ops.some(([ruta]) => S.fallarSi(ruta))) throw new Error('Error 503 al escribir');
 	for (const [ruta, datos, t, crear] of ops) { if (crear === 'borrar') S.docs.delete(ruta); else escribir(ruta, datos, t, crear); }
+	if (S.perderRespuestaSi && ops.some(([ruta]) => S.perderRespuestaSi(ruta))) throw new Error('DEADLINE_EXCEEDED');
 	return r;
 }
 export const probarEscritura = async () => true;
@@ -29,6 +33,6 @@ export async function sumar(sumas, vence, marca = '') {
 // Mover documentos tal cual fuera de una transacción (como el real).
 export const listarCrudo = async (padre, col) => hijos(`${padre}/${col}`).map(({ id }) => ({ id, crudo: structuredClone(S.docs.get(`${padre}/${col}/${id}`)) }));
 export async function escribirLote(ops) {
-	if (S.escrituraFalla) throw new Error('Error 503 al escribir');
+	if (S.escrituraFalla || (S.fallarSi && ops.some((o) => S.fallarSi(o.borrar || o.poner)))) throw new Error('Error 503 al escribir');
 	for (const o of ops) { if (o.borrar) S.docs.delete(o.borrar); else S.docs.set(o.poner, { ...structuredClone(o.crudo), ...(o.cambios || {}) }); }
 }

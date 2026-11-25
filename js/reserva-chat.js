@@ -449,17 +449,22 @@
 		// id (nunca sale dos veces). Si lo guardado no se puede volver a leer, el mensaje igual quedó.
 		var enviando = false, fila = Promise.resolve();
 		// El id de un mensaje del cliente es c1, c2, … hasta c200 (firestore.rules: el tope de cada chat): el siguiente libre.
+		// Con cada enlace nuevo (`gen` del chat: netlify/lib/rotar-enlace.mjs) la cuenta vuelve a empezar: c{gen}-1, c{gen}-2…
+		// (lo que gastó quien tenía el enlace viejo no le quita mensajes al cliente).
+		function prefijoId() { var g = Number(chatAhora.gen) || 0; return g ? 'c' + g + '-' : 'c'; }
 		function siguienteId() {
-			var mayor = 0;
+			var mayor = 0, pre = prefijoId();
 			mensajes.concat(Object.keys(pendientes).map(function (k) { return { id: pendientes[k].id }; })).forEach(function (m) {
-				var n = /^c(\d+)$/.exec(m.id || ''); if (n) mayor = Math.max(mayor, Number(n[1]));
+				var id = m.id || '';
+				if (id.indexOf(pre) === 0 && /^\d+$/.test(id.slice(pre.length))) mayor = Math.max(mayor, Number(id.slice(pre.length)));
 			});
-			return 'c' + (mayor + 1);
+			return pre + (mayor + 1);
 		}
+		var numeroDe = function (id) { return Number(String(id).slice(prefijoId().length)); };
 		function mandar(campos, clave) {
 			var p = pendientes[clave] = pendientes[clave] || {};
 			p.id = p.id || siguienteId();
-			if (Number(p.id.slice(1)) > 200) { delete pendientes[clave]; alerta(t.vacChatTope); return Promise.resolve(); }
+			if (numeroDe(p.id) > 200) { delete pendientes[clave]; alerta(t.vacChatTope); return Promise.resolve(); }
 			p.campos = campos;
 			var texto = campos.texto && campos.texto.stringValue;
 			if (!campos.tipo) { locales[clave] = { id: p.id, de: 'cliente', texto: texto, _estado: 'enviando' }; pintar(true); }
@@ -477,7 +482,7 @@
 							return cargar().catch(function () {}).then(function () {
 								p.id = siguienteId();
 								if (locales[clave]) locales[clave].id = p.id;
-								if (Number(p.id.slice(1)) > 200) { delete pendientes[clave]; delete locales[clave]; pintar(true); return alerta(t.vacChatTope); }
+								if (numeroDe(p.id) > 200) { delete pendientes[clave]; delete locales[clave]; pintar(true); return alerta(t.vacChatTope); }
 								return paso();
 							});
 						}
@@ -551,10 +556,12 @@
 				// En la carpeta de su solicitud, que no cambia con el enlace (fotosChat/{solicitud}/1, 2, …, a lo más
 				// H.FOTOS_POR_CHAT: storage.rules no deja reemplazar ni pasar del tope), con el token del enlace en sus datos (con él
 				// las reglas saben que la sube quien tiene el enlace). Si un número ya está tomado, el siguiente.
-				var desde = mensajes.filter(function (m) { return m.tipo === 'foto' && m.de === 'cliente'; }).length + 1;
+				// Con cada enlace nuevo la cuenta de fotos vuelve a empezar: {gen}-1, {gen}-2…
+				var g = Number(chatAhora.gen) || 0, base = H.carpetaFotos(c.leadId) + (g ? g + '-' : '');
+				var desde = mensajes.filter(function (m) { return m.tipo === 'foto' && m.de === 'cliente' && String(m.texto || '').indexOf(base) === 0 && /^\d+$/.test(String(m.texto).slice(base.length)); }).length + 1;
 				var subir = function (n) {
 					if (n > H.FOTOS_POR_CHAT) return Promise.reject(Object.assign(new Error('tope'), { tope: true }));
-					var nombre = H.carpetaFotos(c.leadId) + n;
+					var nombre = base + n;
 					var corte = 'eq' + alAzar(16);
 					var datos = JSON.stringify({ name: nombre, contentType: p.blob.type, metadata: { token: token } });
 					var cuerpo = new Blob(['--' + corte + '\r\nContent-Type: application/json; charset=utf-8\r\n\r\n' + datos + '\r\n--' + corte + '\r\nContent-Type: ' + p.blob.type + '\r\n\r\n', p.blob, '\r\n--' + corte + '--']);

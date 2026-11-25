@@ -3,7 +3,7 @@ rules_version = '2';
 // Fotos públicas (cada una por su dirección), menos los comprobantes (fotosChat/, chats/ y comprobantes/: solo el servidor). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
 // o asesor activo; un dueño con acceso al panel no es del equipo; las de una propiedad, el administrador o su asesor);
 // listar, solo el administrador. Los comprobantes tienen su regla:
-// se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los del cliente).
+// se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los comprobantes).
 service firebase.storage {
   match /b/{bucket}/o {
     function usuario() {
@@ -23,12 +23,14 @@ service firebase.storage {
     }
 
     // Comprobante de pago que el cliente adjunta en el chat de su reserva: en la carpeta de su solicitud (no cambia cuando
-    // cambia el enlace: netlify/lib/rotar-enlace.mjs no mueve archivos), con nombre 1 a 10 (a lo más diez por solicitud,
+    // cambia el enlace: netlify/lib/rotar-enlace.mjs no mueve archivos), con nombre 1 a 10 (a lo más diez por enlace; con
+    // cada enlace nuevo, `gen` del chat, la cuenta vuelve a empezar: {gen}-1 … {gen}-10,
     // sin reemplazar ni borrar), solo fotos de hasta 5 MB, con la reserva confirmada (hay a quién pagar) y con el enlace
     // vigente de esa solicitud en sus datos (`token`): solo lo sube quien tiene el enlace de hoy.
     match /fotosChat/{leadId}/{archivo} {
       allow create: if resource == null
-        && archivo.matches('(10|[1-9])')
+        && archivo.matches((firestore.get(/databases/(default)/documents/chats/$(request.resource.metadata.get('token', '-'))).data.get('gen', 0) == 0 ? ''
+            : string(firestore.get(/databases/(default)/documents/chats/$(request.resource.metadata.get('token', '-'))).data.get('gen', 0)) + '-') + '(10|[1-9])')
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)')
         && request.resource.metadata.get('token', '') is string && request.resource.metadata.get('token', '').size() >= 20
@@ -41,8 +43,9 @@ service firebase.storage {
     // (admin/js/views/solicitudes.js). Solo se agrega: nadie lo reemplaza ni lo borra.
     match /comprobantes/{reservaId}/{archivo} {
       allow create: if resource == null
-        && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif)')
+        // Como lo prepara el panel (admin/js/imagen.js: JPG, PNG o WebP) y lo que /api/foto sirve (5 MB).
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)')
         && conSesion() && usuario().rol == 'socio'
         && firestore.get(/databases/(default)/documents/reservas/$(reservaId)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
     }

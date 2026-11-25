@@ -22,6 +22,7 @@ import { prefijoMoneda, miles } from '../../admin/js/formato.js';
 import { MOTIVO_SIN_PAGO, MOTIVO_NO_LLEGO, MOTIVO_DUPLICADA, MOTIVO_FECHAS_APARTADAS, MOTIVO_SIN_CHAT, conPlazo, comprobanteVigente } from '../../admin/js/reservas-calculo.js';
 import '../../js/calc-vacacional.js';
 import { conReloj } from '../lib/estado.mjs';
+import { terminarRotaciones } from '../lib/rotar-enlace.mjs';
 
 const V = globalThis.EQVacacional;
 
@@ -40,6 +41,8 @@ export default conReloj('solicitudes-sin-respuesta', async () => {
 		const ventana = sonLas7 ? 10 * HORA : HORA;
 		// Cambios de datos de pago de un socio cuyo correo al equipo no salió al guardar.
 		await avisarCambiosDePago().catch((err) => console.error('Datos de pago:', err.message));
+		// Cambios de enlace que no se terminaron (netlify/lib/rotar-enlace.mjs: lo que quedó en el chat viejo).
+		if (escrituraConfigurada()) await terminarRotaciones().catch((err) => console.error('Enlaces nuevos pendientes:', err.message));
 		// Lo nuevo va aparte: si falla, no se pierde la alerta de siempre (cada caso se avisa una sola vez).
 		if (sonLas7) await recordarComisiones(ahora).catch((err) => console.error('Recordatorio de comisiones:', err.message));
 		const enVentana = (t) => t > ahora - ventana && t <= ahora;

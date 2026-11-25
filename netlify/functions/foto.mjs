@@ -23,7 +23,8 @@ import { estadoDeFoto, rutaDeFoto } from '../../admin/js/hilo.js';
 
 const TOKEN = /^[A-Za-z0-9]{20,40}$/;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
-const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'];
+// Lo que un navegador muestra (las fotos se preparan en JPG, PNG o WebP antes de subirse).
+const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const porIp = limitador(300, 10 * 60_000);
 
 // Lo que se decide para quien pide: { ruta } (se sirve), { estado: 403, ver: false, enRevision } o { estado: 404 }.

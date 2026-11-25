@@ -413,7 +413,20 @@ await espera('cliente guarda una foto con un número fuera del tope (11)', crear
 await espera('cliente escribe con un id que no es c1 … c200', crear(null, `chats/${T}/mensajes/otroId123`, { de: 'cliente', texto: 'Hola' }), false);
 await espera('cliente escribe con el id c201 (pasa el tope)', crear(null, `chats/${T}/mensajes/c201`, { de: 'cliente', texto: 'Hola' }), false);
 await espera('cliente escribe con el id c200 (control)', crear(null, `chats/${T}/mensajes/c200`, { de: 'cliente', texto: 'Hola' }), true);
+{
+	// Con el enlace nuevo (gen 3), la cuenta del cliente vuelve a empezar: c3-1 … c3-200.
+	const TG = 'TokenGeneracionLargoYAlAzar123';
+	await poner(`chats/${TG}`, { ...chat, leadId: 'lead-gen', codigo: 'EQ-GEN' });
+	await fetch(`${H}/chats/${TG}?updateMask.fieldPaths=gen`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { gen: { integerValue: '3' } } }) });
+	await espera('cliente con el enlace nuevo escribe c3-1 (control)', crear(null, `chats/${TG}/mensajes/c3-1`, { de: 'cliente', texto: 'Hola' }), true);
+	await espera('cliente con el enlace nuevo escribe con un id de antes (c7)', crear(null, `chats/${TG}/mensajes/c7`, { de: 'cliente', texto: 'Hola' }), false);
+	await espera('cliente con el enlace nuevo escribe c3-201', crear(null, `chats/${TG}/mensajes/c3-201`, { de: 'cliente', texto: 'Hola' }), false);
+	await espera('cliente con el enlace nuevo guarda la foto 3-1 (control)', crear(null, `chats/${TG}/mensajes/c3-2`, { de: 'cliente', tipo: 'foto', texto: 'fotosChat/lead-gen/3-1' }), true);
+	await espera('cliente con el enlace nuevo guarda una foto con número de antes', crear(null, `chats/${TG}/mensajes/c3-3`, { de: 'cliente', tipo: 'foto', texto: 'fotosChat/lead-gen/1' }), false);
+}
 await espera('cliente reemplaza un mensaje (c200)', crear(null, `chats/${T}/mensajes/c200`, { de: 'cliente', texto: 'Otro' }).then((s) => (s === 409 ? 403 : s)), false);
+await espera('cliente escribe en un chat que no existe (un enlace que ya cambió)', crear(null, 'chats/NoExisteEsteChatLargoYAlAzar12/mensajes/c1', { de: 'cliente', texto: 'Hola' }), false);
+await espera('el equipo escribe en un chat que no existe (un enlace que ya cambió)', crear('admin1', 'chats/NoExisteEsteChatLargoYAlAzar12/mensajes/e1', { de: 'equipo', texto: 'Hola' }), false);
 await espera('cliente manda como foto un enlace de otro sitio', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: 'https://ejemplo.com/foto.jpg' }), false);
 await espera('cliente manda una foto de otra reserva', crear(null, msj(), { de: 'cliente', tipo: 'foto', texto: foto('otra-solicitud') }), false);
 await espera('socio manda una foto', crear('socio1', msj(), { de: 'socio', tipo: 'foto', texto: foto() }), false);
@@ -996,6 +1009,14 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 		await espera('otro asesor corrige el correo del lead de un asesor', corregir('asesor9', 'lead-correo-a7', 'luis@hotmail.com', false), false);
 		await espera('el asesor del lead de contacto le corrige el correo (control)', corregir('asesor7', 'lead-correo-a7', 'luis@hotmail.com', false), true);
 		await espera('el administrador corrige el correo de un lead de contacto (control)', corregir('admin1', 'lead-correo-a7', 'luis2@hotmail.com', false), true);
+		// Nadie cambia `reserva` desde el navegador: vaciarla, cambiar el correo y volverla a poner no salta el cambio de enlace.
+		await raw('leads/lead-res-a7', { nombre: sv('Cliente'), telefono: sv('5555'), email: sv('rita@hotmial.com'), agentId: sv('a7'), reserva: { mapValue: { fields: { codigo: sv('EQ-A7'), llegada: sv('2027-02-01'), salida: sv('2027-02-04') } } } });
+		const reservaDe = (quien, id, valor) => fetch(`${H}/leads/${id}?updateMask.fieldPaths=reserva`, { method: 'PATCH', headers: cab(quien), body: JSON.stringify({ fields: { reserva: valor } }) }).then((r) => r.status);
+		await espera('el asesor vacía la reserva de su lead (paso 1 para cambiar el correo sin el enlace)', reservaDe('asesor7', 'lead-res-a7', { mapValue: { fields: {} } }), false);
+		await espera('el asesor quita la reserva de su lead', fetch(`${H}/leads/lead-res-a7?updateMask.fieldPaths=reserva`, { method: 'PATCH', headers: cab('asesor7'), body: JSON.stringify({ fields: {} }) }).then((r) => r.status), false);
+		await espera('el asesor cambia el correo de su solicitud de reserva (paso 2)', corregir('asesor7', 'lead-res-a7', 'rita@hotmail.com', false), false);
+		await espera('el asesor le pone una reserva a un lead de contacto (paso 3)', reservaDe('asesor7', 'lead-correo-a7', { mapValue: { fields: { codigo: sv('EQ-A7') } } }), false);
+		await espera('el administrador vacía la reserva de una solicitud', reservaDe('admin1', 'lead-res-a7', { mapValue: { fields: {} } }), false);
 	}
 	// Resumen del dueño: el asesor lo arma solo para las personas que atiende.
 	{
@@ -1059,6 +1080,7 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: un acceso quitado sube una foto',subir('apagado1', 'properties/casa1/foto3.png'), false);
 	await espera('storage: el equipo sube algo que no es foto', subir('admin1', 'properties/casa1/nota.txt', 'text/plain'), false);
 	await espera('storage: la dueña sube un SVG como comprobante', subir('mixto1', 'comprobantes/lead-res-noche/pago.svg', 'image/svg+xml'), false);
+	await espera('storage: la dueña sube un HEIC como comprobante (el navegador no lo muestra)', subir('mixto1', 'comprobantes/lead-res-noche/pago.heic', 'image/heic'), false);
 	// La foto del chat: en la carpeta de su solicitud (fotosChat/{solicitud}/1…10), con el enlace vigente en sus datos.
 	const TF = 'TokenFotosChatLargoYAlAzar12345';
 	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'confirmada' });
@@ -1076,6 +1098,12 @@ await espera('equipo sí escribe en una cancelada', crear('admin1', msj(), m('eq
 	await espera('storage: sube sin el enlace en sus datos', subirFoto('fotosChat/lead-fotos/2', ''), false);
 	await espera('storage: sube con un enlace que no es el vigente (uno viejo o de otra reserva)', subirFoto('fotosChat/lead-fotos/2', T), false);
 	await espera('storage: sube algo que no es foto', subirFoto('fotosChat/lead-fotos/3', TF, 'text/plain'), false);
+	// Con el enlace nuevo (gen 2) la cuenta de fotos vuelve a empezar: 2-1 … 2-10; los números de antes ya no.
+	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'confirmada' });
+	await fetch(`${H}/chats/${TF}?updateMask.fieldPaths=gen`, { method: 'PATCH', headers: cab('dueño'), body: JSON.stringify({ fields: { gen: { integerValue: '2' } } }) });
+	await espera('storage: con el enlace nuevo, la foto 2-1 (control)', subirFoto('fotosChat/lead-fotos/2-1'), true);
+	await espera('storage: con el enlace nuevo, un número de antes (5)', subirFoto('fotosChat/lead-fotos/5'), false);
+	await espera('storage: con el enlace nuevo, la foto 2-11 (pasa el tope)', subirFoto('fotosChat/lead-fotos/2-11'), false);
 	await poner(`chats/${TF}`, { ...chat, leadId: 'lead-fotos', codigo: 'EQ-FOTOS', estado: 'pagada' });
 	await espera('storage: sube con la reserva ya pagada (no hay a quién pagar)', subirFoto('fotosChat/lead-fotos/4'), false);
 	await espera('storage: el cliente sube a la carpeta de antes (chats/{token})', subir(null, `chats/${T}/comprobante1.png`), false);

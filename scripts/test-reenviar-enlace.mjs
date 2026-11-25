@@ -158,17 +158,56 @@ await t('con el correo corregido: el servidor lo guarda (minúsculas, sin la mar
 	assert.notEqual(tokenDe(), TOKEN);
 });
 
-await t('si no se puede cambiar el enlace, el correo tampoco cambia (los dos juntos) y el enlace de antes sigue', async () => {
+await t('si no se puede cambiar el enlace, el correo tampoco cambia (los dos juntos), el enlace de antes sigue y no queda nada con el nuevo', async () => {
 	S.staff = ADMIN;
 	solicitud({ email: 'ana@exmaple.com' }, { estado: 'confirmada' });
-	// La transacción del enlace falla (aquí: el chat ya no está donde dice el índice).
-	S.docs.delete(`chats/${TOKEN}`);
-	const [s, d] = await pedir('l1', 'ana@example.com');
-	assert.equal(s, 502);
-	assert.match(d.error, /el correo sigue como estaba/);
+	poner(`chats/${TOKEN}/mensajes/c1`, { de: 'cliente', texto: 'Hola' });
+	S.fallarSi = (ruta) => ruta === 'chatsPorSolicitud/l1';
+	try {
+		const [s, d] = await pedir('l1', 'ana@example.com');
+		assert.equal(s, 502);
+		assert.match(d.error, /el correo sigue como estaba/);
+	} finally { S.fallarSi = null; }
 	assert.equal(leer('leads/l1').email, 'ana@exmaple.com');
 	assert.equal(tokenDe(), TOKEN);
+	assert.deepEqual([...S.docs.keys()].filter((k) => k.startsWith('chats/') && !k.startsWith(`chats/${TOKEN}`)), []);
 	assert.equal(S.salida.length, 0);
+});
+
+await t('si el cambio llegó pero su respuesta se perdió, se sigue con el enlace nuevo (no se borra lo copiado)', async () => {
+	S.staff = ADMIN;
+	solicitud({}, { estado: 'confirmada' });
+	poner(`chats/${TOKEN}/mensajes/c1`, { de: 'cliente', texto: 'Hola' });
+	S.perderRespuestaSi = (ruta) => ruta === 'chatsPorSolicitud/l1';
+	try { assert.equal((await pedir('l1'))[1].enviado, true); } finally { S.perderRespuestaSi = null; }
+	assert.equal(leer(`chats/${tokenDe()}/mensajes/c1`).texto, 'Hola');
+	assert.equal(leer(`chats/${TOKEN}/mensajes/c1`), null);
+});
+
+await t('un índice que apunta a un chat que ya no existe: se guarda el correo y se dice, sin error que se repita', async () => {
+	S.staff = ADMIN;
+	solicitud({ email: 'ana@exmaple.com' }, { estado: 'confirmada' });
+	S.docs.delete(`chats/${TOKEN}`);
+	assert.deepEqual(await pedir('l1', 'ana@example.com'), [200, { cambio: true, rotado: false, enviado: false, motivo: 'La reserva no tiene chat' }]);
+	assert.equal(leer('leads/l1').email, 'ana@example.com');
+});
+
+await t('el enlace nuevo vuelve a empezar los topes del cliente (gen); si no se pudo terminar, queda anotado y el control de cada hora lo termina', async () => {
+	const { rotarEnlace, terminarRotaciones } = await import('../netlify/lib/rotar-enlace.mjs');
+	solicitud({}, { estado: 'confirmada' });
+	poner(`chats/${TOKEN}`, { leadId: 'l1', estado: 'confirmada', gen: 2 });
+	poner(`chats/${TOKEN}/mensajes/c2-1`, { de: 'cliente', texto: 'Hola' });
+	// El borrado de lo viejo falla: queda en rotaciones/{viejo}.
+	S.fallarSi = (ruta) => ruta === `chats/${TOKEN}/mensajes/c2-1`;
+	const nuevo = await rotarEnlace('l1', { nuevo: 'TokenNuevoDePruebaLargo12345' });
+	S.fallarSi = null;
+	assert.equal(leer(`chats/${nuevo}`).gen, 3);
+	assert.ok(leer(`rotaciones/${TOKEN}`));
+	assert.ok(leer(`chats/${TOKEN}/mensajes/c2-1`));
+	assert.equal(await terminarRotaciones(), 1);
+	assert.equal(leer(`rotaciones/${TOKEN}`), null);
+	assert.equal(leer(`chats/${TOKEN}/mensajes/c2-1`), null);
+	assert.equal(leer(`chats/${nuevo}/mensajes/c2-1`).texto, 'Hola');
 });
 
 await t('reserva cerrada: se guarda el correo y el enlace cambia igual, sin correo; con el tope del día lleno, el enlace cambia y el correo no sale', async () => {
@@ -195,6 +234,7 @@ await t('el límite cuenta solo lo que salió: si el correo falla, el reintento 
 });
 
 await t('rotarEnlace: un chat con 200 mensajes del cliente y 250 más se mueve entero (por lotes); si el cambio falla, no queda nada con el token nuevo', async () => {
+	S.fallarSi = null;
 	const { rotarEnlace } = await import('../netlify/lib/rotar-enlace.mjs');
 	solicitud({}, { estado: 'confirmada' });
 	for (let i = 1; i <= 200; i++) poner(`chats/${TOKEN}/mensajes/c${i}`, { de: 'cliente', texto: `m${i}` });
@@ -206,9 +246,8 @@ await t('rotarEnlace: un chat con 200 mensajes del cliente y 250 más se mueve e
 	// Falla el cambio (otro ya cambió el índice): lo copiado se borra.
 	limpiar(); solicitud({}, { estado: 'confirmada' });
 	poner(`chats/${TOKEN}/mensajes/c1`, { de: 'cliente', texto: 'Hola' });
-	poner('chatsPorSolicitud/l1', { token: TOKEN });
-	S.docs.delete(`chats/${TOKEN}`);
-	await assert.rejects(rotarEnlace('l1', { nuevo: 'TokenNuevoDePruebaLargo12345' }));
+	S.fallarSi = (ruta) => ruta === 'chatsPorSolicitud/l1';
+	try { await assert.rejects(rotarEnlace('l1', { nuevo: 'TokenNuevoDePruebaLargo12345' })); } finally { S.fallarSi = null; }
 	assert.deepEqual([cuenta('TokenNuevoDePruebaLargo12345'), cuenta(TOKEN)], [0, 1]);
 });
 
