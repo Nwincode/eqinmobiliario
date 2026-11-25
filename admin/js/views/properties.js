@@ -885,6 +885,8 @@ const PARA_EL_SOCIO = {
 	fotos: { marcaFija: true },
 	// Sin la ayuda de enlaces del formato (los textos no los llevan).
 	descripcion: { type: 'textarea' },
+	// Su casa sale con precio (la revisión lo pide en venta y renta): sin «Déjalo vacío para mostrar Precio a consultar».
+	precio: { help: 'En venta, el total; en renta, al mes.' },
 	agentId: { label: 'Asesor de la casa', help: 'Atiende a los interesados y te avisa; tú no hablas con ellos.' },
 	mapa: { type: 'text', help: 'En Google Maps: Compartir → Copiar vínculo.' },
 	'socio.precioBase': { label: 'Tu precio por noche', help: 'Lo que recibes por noche. La página le suma la comisión y los impuestos.' },
