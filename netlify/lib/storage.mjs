@@ -2,7 +2,7 @@
 // - bajar(ruta): la foto (lo usan /api/foto y la revisión del comprobante con la IA). Cuenta de lectura (GOOGLE_SA_*),
 //   que necesita el rol «Storage Object Viewer» del bucket.
 // - copiar, borrar, listar, quitarLlave: cuenta de escritura (GOOGLE_SA_ESCRITURA_*), con «Storage Object Admin». Las usan
-//   el cambio de enlace al corregir el correo (netlify/lib/rotar-enlace.mjs) y la migración (scripts/migrar-chats.mjs).
+//   el cambio de enlace al corregir el correo (netlify/lib/rotar-enlace.mjs) y la migración (netlify/lib/migrar-chats.mjs).
 // En el entorno local, scripts/entorno/red-local.mjs manda storage.googleapis.com al emulador («Bearer owner»).
 import siteConfig from '../../site.config.json' with { type: 'json' };
 import { googleToken, cuentaLectura, cuentaEscritura } from './google.mjs';

@@ -81,12 +81,66 @@ const resp = (x) => `servidor ${x.status}${x.error ? ` ${x.error}` : ''}`;
 // ---------------------------------------------------------------- 1. El administrador ingresa la casa
 const admin = await entrar('admin');
 paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role').innerText()) === 'Administrador');
-// La migración de los chats de antes (scripts/migrar-chats.mjs, la corrió levantar.sh sobre lo que sembró sembrar.mjs).
+// La migración de los chats de antes (netlify/lib/migrar-chats.mjs) sobre lo que sembró sembrar.mjs con la forma de
+// antes: primero la función (/api/migrar-chats: solo el administrador, el simulacro no escribe, por tandas), después el
+// botón de Publicar como lo usa el administrador (simulacro, «Aplicar», «Listo») y al final un caso más, aplicado por
+// tandas y repetido (no cambia nada).
 {
 	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { headers: { Authorization: 'Bearer owner' } };
 	const T0 = 'ChatDeAntesParaMigrarLargo12';
+	const AUTH = 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=pruebas';
+	const tokenDe = async (rol) => (await (await fetch(AUTH, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${rol}@example.com`, password: CLAVE, returnSecureToken: true }) })).json()).idToken;
+	const migrar = (token, cuerpo) => fetch(`${SITIO}/api/migrar-chats`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(cuerpo) });
+	const textoDe = async (ruta) => (await (await fetch(`${fs}/${ruta}`, ow)).json()).fields?.texto?.stringValue;
+	const tokenAdmin = await tokenDe('admin');
+	// Todas las tandas de una pasada: { total, pedidos, estados }.
+	const pasada = async (cuerpo) => {
+		const total = {}, estados = [];
+		let cursor = null, pedidos = 0;
+		do {
+			const r = await migrar(tokenAdmin, { ...cuerpo, cursor });
+			estados.push(r.status);
+			const d = await r.json().catch(() => ({}));
+			if (!r.ok) break;
+			for (const [k, v] of Object.entries(d.cuenta)) total[k] = (total[k] || 0) + v;
+			cursor = d.cursor;
+			pedidos++;
+		} while (cursor && pedidos < 200);
+		return { total, pedidos, estados, terminó: !cursor };
+	};
+	const nadie = await Promise.all([migrar('', {}), migrar(await tokenDe('asesor'), {}), migrar(await tokenDe('socio'), {}), migrar(tokenAdmin, { cursor: { fase: 9, desde: '' } })]);
+	paso('Pasar datos al formato nuevo: sin sesión, el asesor y el socio no pueden (403); un cursor inventado, 400', nadie.map((r) => r.status).join(',') === '403,403,403,400', nadie.map((r) => r.status).join(','));
+	const antesFoto = await textoDe(`chats/${T0}/mensajes/foto1`);
+	const sim = await pasada({ aplicar: false, porTanda: 1 });
+	const sigueFoto = await textoDe(`chats/${T0}/mensajes/foto1`), sigueNota = (await fetch(`${fs}/chats/${T0}/notas/nota1`, ow)).status;
+	paso('Pasar datos al formato nuevo: el simulacro va por tandas, termina y no escribe nada',
+		sim.terminó && sim.pedidos > 3 && sim.total.archivos === 1 && sim.total.fotos === 1 && sim.total.notas === 1 && sim.total.indices === 1 && sim.total.comprobantes === 1 && sim.total.revisiones === 1 && sim.total.llaves === 1
+		&& /^https:/.test(sigueFoto) && sigueFoto === antesFoto && sigueNota === 200, `${sim.pedidos} tandas · ${JSON.stringify(sim.total)} · foto ${sigueFoto === antesFoto ? 'igual' : 'cambió'} · nota ${sigueNota}`);
+
+	// El botón, como lo usa el administrador (capturas a 1280 y 390 px, escala 2).
+	const MIGRAR = process.env.MIGRAR_DIR || `${CAPTURAS}/migrar`;
+	mkdirSync(MIGRAR, { recursive: true });
+	const adm2 = await entrar('admin', { escala: 2 });
+	await ir(adm2.p, '#/publicar');
+	const tarjeta = adm2.p.locator('#migrar-chats');
+	await tarjeta.locator('button', { hasText: 'Pasar datos al formato nuevo' }).click();
+	await tarjeta.locator('text=Por pasar:').waitFor({ timeout: 30000 }).catch(() => {});
+	const simTexto = (await tarjeta.innerText()).replace(/\s+/g, ' ');
+	const foto = async (nombre, ancho) => { await adm2.p.setViewportSize({ width: ancho, height: 900 }); await espera(300); await tarjeta.scrollIntoViewIfNeeded(); await adm2.p.screenshot({ path: `${MIGRAR}/${nombre}-${ancho}.png` }); };
+	await foto('simulacro', 1280);
+	await foto('simulacro', 390);
+	paso('Pasar datos al formato nuevo: el botón muestra en una línea lo que cambiaría y ofrece «Aplicar»',
+		/Por pasar: 1 foto a su carpeta, 1 mensaje con foto, 1 nota del equipo, 1 archivo con enlace abierto, 1 comprobante de comisión, 1 chat sin índice, 1 revisión oculta\./.test(simTexto) && await tarjeta.locator('button', { hasText: 'Aplicar' }).count() === 1, simTexto.slice(0, 220));
+	await tarjeta.locator('button', { hasText: 'Aplicar' }).click();
+	await tarjeta.locator('text=Listo:').waitFor({ timeout: 60000 }).catch(() => {});
+	const listoTexto = (await tarjeta.innerText()).replace(/\s+/g, ' ');
+	await foto('listo', 390);
+	await foto('listo', 1280);
+	paso('Pasar datos al formato nuevo: «Aplicar» termina con «Listo» y las mismas cifras', /Listo: 1 foto a su carpeta, 1 mensaje con foto, 1 nota del equipo, 1 archivo con enlace abierto, 1 comprobante de comisión, 1 chat sin índice, 1 revisión oculta\./.test(listoTexto)
+		&& !adm2.errores.length, `${listoTexto.slice(0, 200)}${adm2.errores.length ? ` · ${adm2.errores.join(' | ')}` : ''}`);
+
 	const llave = readFileSync(`${DIR}/llave-de-antes.txt`, 'utf8').trim(), llaveRecibo = readFileSync(`${DIR}/llave-recibo-de-antes.txt`, 'utf8').trim();
-	const foto = (await (await fetch(`${fs}/chats/${T0}/mensajes/foto1`, ow)).json()).fields?.texto?.stringValue;
+	const fotoNueva = await textoDe(`chats/${T0}/mensajes/foto1`);
 	const viejaUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T0}%2Fvieja.png?alt=media&token=${llave}`);
 	const enCarpeta = await fetch(`http://127.0.0.1:9199/storage/v1/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent('fotosChat/lead-de-antes/vieja.png')}`, ow);
 	const reciboUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2Fres-de-antes%2Frecibo.png?alt=media&token=${llaveRecibo}`);
@@ -94,12 +148,33 @@ paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role
 	const [notaNueva, notaVieja] = await Promise.all([fetch(`${fs}/notasEquipo/${T0}/notas/nota1`, ow), fetch(`${fs}/chats/${T0}/notas/nota1`, ow)]);
 	const leido = (await (await fetch(`${fs}/revisionesComprobante/lead-de-antes`, ow)).json()).fields?.leido?.mapValue?.fields || {};
 	const otraVez = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
-	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo, el chat recibe su índice y la revisión oculta pierde banco y referencia; repetirla no cambia nada',
-		foto === 'fotosChat/lead-de-antes/vieja.png' && enCarpeta.status === 200 && Boolean(llave) && viejaUrl.status !== 200 && reciboUrl.status !== 200 && recibo === 'comprobantes/res-de-antes/recibo.png'
+	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo, el chat recibe su índice y la revisión oculta pierde banco y referencia; repetirla (el script) no cambia nada',
+		fotoNueva === 'fotosChat/lead-de-antes/vieja.png' && enCarpeta.status === 200 && Boolean(llave) && viejaUrl.status !== 200 && reciboUrl.status !== 200 && recibo === 'comprobantes/res-de-antes/recibo.png'
 		&& notaNueva.status === 200 && notaVieja.status === 404
 		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes`, ow)).json()).fields?.token?.stringValue === T0
 		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos de antes a la carpeta de su solicitud, 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 índices de chats de antes, 0 comprobantes de la comisión a su ruta, 0 revisiones/.test(otraVez),
-		`${foto} · carpeta ${enCarpeta.status} · vieja ${viejaUrl.status} · recibo ${recibo} ${reciboUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
+		`${fotoNueva} · carpeta ${enCarpeta.status} · vieja ${viejaUrl.status} · recibo ${recibo} ${reciboUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
+
+	// Un caso más con la forma de antes (otro chat sin índice, con su nota, y otra revisión oculta), aplicado por tandas.
+	const T1 = 'ChatDeAntesSegundoLargo3456';
+	const sv = (v) => ({ stringValue: v });
+	const ponerCrudo = (ruta, fields) => fetch(`${fs}/${ruta}`, { method: 'PATCH', headers: { ...ow.headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+	await ponerCrudo(`chats/${T1}`, { codigo: sv('EQ-ANTES3'), leadId: sv('lead-de-antes-3'), propertyId: sv('casa-de-antes'), propietarioId: sv('dueno-de-antes'), nombre: sv('Otro cliente de antes'), estado: sv('confirmada') });
+	await ponerCrudo(`chats/${T1}/notas/nota1`, { de: sv('equipo'), texto: sv('Otra nota de antes') });
+	await ponerCrudo('revisionesComprobante/lead-de-antes-3', { oculta: { booleanValue: true }, propietarioId: sv('dueno-de-antes'), leido: { mapValue: { fields: { banco: sv('Otro banco'), referencia: sv('9999') } } } });
+	const apl = await pasada({ aplicar: true, porTanda: 1 });
+	const repetida = await pasada({ aplicar: true });
+	const marca = (await (await fetch(`${fs}/estado/migracion-chats`, ow)).json()).fields?.hecha?.timestampValue;
+	const ceros = Object.values(repetida.total).every((v) => v === 0);
+	paso('Pasar datos al formato nuevo: aplicar por tandas termina (índice, nota y revisión del caso nuevo) y repetirlo no cambia nada',
+		apl.terminó && apl.pedidos > 3 && apl.total.indices === 1 && apl.total.notas === 1 && apl.total.revisiones === 1 && apl.total.fotos === 0
+		&& (await fetch(`${fs}/notasEquipo/${T1}/notas/nota1`, ow)).status === 200 && (await fetch(`${fs}/chats/${T1}/notas/nota1`, ow)).status === 404
+		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes-3`, ow)).json()).fields?.token?.stringValue === T1
+		&& repetida.terminó && ceros && Boolean(marca), `${apl.pedidos} tandas · ${JSON.stringify(apl.total)} · otra vez ${JSON.stringify(repetida.total)} · marca ${marca || 'no'}`);
+	await ir(adm2.p, '#/publicar');
+	const despues = (await adm2.p.locator('#migrar-chats').innerText()).replace(/\s+/g, ' ');
+	paso('Pasar datos al formato nuevo: ya hecho, la tarjeta lo dice en una línea y no ofrece el botón', /Todo está en el formato nuevo desde el/.test(despues) && await adm2.p.locator('#migrar-chats button').count() === 0, despues.slice(0, 120));
+	await adm2.p.context().close();
 }
 await ir(admin.p, '#/propiedades/nuevo');
 await campo(admin.p, 'titulo').fill('Casa de prueba Monterrico');

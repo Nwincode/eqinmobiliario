@@ -64,9 +64,9 @@ for (const u of Object.values(USUARIOS)) {
 	if (!r.ok && cuerpo.error?.message !== 'EMAIL_EXISTS') throw new Error(`No se pudo crear ${u.email}: ${JSON.stringify(cuerpo)}`);
 	if (cuerpo.localId) await poner(`users/${cuerpo.localId}`, { ...u.perfil, email: u.email });
 }
-// Un chat con la forma de antes, para la migración (scripts/migrar-chats.mjs, que levantar.sh corre después): la foto
-// guardada como dirección con el token de descarga, una nota en chats/{token}/notas y una revisión oculta con banco y
-// referencia. El recorrido revisa que quedó con la forma nueva.
+// Un chat con la forma de antes, para la migración (netlify/lib/migrar-chats.mjs: la aplica el botón de Publicar en el
+// recorrido): la foto guardada como dirección con el token de descarga, una nota en chats/{token}/notas y una revisión
+// oculta con banco y referencia. El recorrido revisa que quedó con la forma nueva.
 const CHAT_DE_ANTES = 'ChatDeAntesParaMigrarLargo12';
 {
 	const ST = `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}/v0/b/eqinmobiliariobd.firebasestorage.app/o`;

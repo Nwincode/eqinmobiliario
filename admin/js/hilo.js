@@ -184,7 +184,7 @@ export const FOTOS_POR_CHAT = 10;
 export const carpetaFotos = (leadId) => `fotosChat/${leadId}/`;
 // La ruta en Storage de la foto de un mensaje del chat `{ token, leadId }`, o '' si no es una foto de ese chat. La de
 // ahora: `fotosChat/{leadId}/{archivo}`. Las de antes: `chats/{token}/{archivo}` o la dirección con el token de descarga
-// (`…/o/chats%2F{token}%2F{archivo}?alt=media&token=…`), que se leen igual (la migración, scripts/migrar-chats.mjs, las
+// (`…/o/chats%2F{token}%2F{archivo}?alt=media&token=…`), que se leen igual (la migración, netlify/lib/migrar-chats.mjs, las
 // pasa a la carpeta nueva). La usan el servidor (/api/foto, la revisión con la IA, el cambio de enlace), el panel y la
 // página del cliente.
 export function rutaDeFoto({ token = '', leadId = '' } = {}, texto) {
@@ -199,6 +199,14 @@ export function rutaDeFoto({ token = '', leadId = '' } = {}, texto) {
 		: (new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F${token}%2F([A-Za-z0-9._-]+)[?]alt=media(&token=[a-z0-9-]+)?$`).exec(s) || [])[1] || '';
 	return sano(archivo) ? `chats/${token}/${archivo}` : '';
 }
+// La ruta del comprobante del pago a EQ de una reserva (`comision.comprobante`; la de antes, con su dirección, se lee
+// igual), o ''. La usan /api/foto y la migración (netlify/lib/migrar-chats.mjs).
+export const rutaDeComprobante = (reservaId, texto) => {
+	const s = String(texto || '');
+	const a = s.startsWith(`comprobantes/${reservaId}/`) ? s.slice(reservaId.length + 14)
+		: (new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/comprobantes%2F${reservaId}%2F([A-Za-z0-9._-]+)[?]alt=media(&token=[a-z0-9-]+)?$`).exec(s) || [])[1] || '';
+	return /^[A-Za-z0-9._-]{1,120}$/.test(a) && !a.startsWith('.') ? `comprobantes/${reservaId}/${a}` : '';
+};
 
 // Lo que se sabe de la foto del mensaje `m` del chat `{ token, leadId }`, guardado en `fotos` (un objeto por chat, de quien llama; el
 // hilo se vuelve a pintar entero y la foto se pide una sola vez): { src } ya bajada, { no, enRevision } no se ve,

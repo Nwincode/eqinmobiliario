@@ -33,7 +33,7 @@ export async function revisarVersion({ ya = false } = {}) {
 
 export function avisoVersion() {
 	if (!hayNueva) return null;
-	return h('div', { id: 'aviso-version', class: 'alert alert-info small d-flex align-items-center gap-2 py-1', role: 'status' },
+	return h('div', { id: 'aviso-version', class: 'alert alert-info small d-flex align-items-center gap-2 py-1 px-2', role: 'status' },
 		h('span', { class: 'flex-grow-1', style: 'min-width:0' }, 'Hay una versión nueva. Recarga la página.'),
 		iconoBtn('icon-refresh', 'Recargar la página', { class: 'btn-toque btn-icono btn btn-sm btn-primary flex-shrink-0', onclick: () => location.reload() }));
 }

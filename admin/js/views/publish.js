@@ -1,5 +1,6 @@
 import { db, doc, getDoc, getDocs, setDoc, collection, query, limit, runTransaction, serverTimestamp } from '../firebase.js';
-import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount, fallaDelServidor } from '../ui.js';
+import { h, toast, showError, pageHeader, formatDate, confirmDialog, mount, fallaDelServidor, errorMessage } from '../ui.js';
+import { plural } from '../formato.js';
 import { session, getPublishState, publicarAhora, olvidarConfigPublicacion, AUTO_SEGUNDOS, autoPublicacionEnEspera, TIEMPO_PUBLICACION } from '../session.js';
 import { cargarDemos, borrarDemos } from '../demo.js';
 
@@ -103,6 +104,54 @@ function tarjetaAvisos() {
 	return card;
 }
 
+// ------------------------------------------------------------ Datos de antes al formato nuevo
+// La migración de los chats de antes (netlify/lib/migrar-chats.mjs) por /api/migrar-chats, de tanda en tanda hasta que
+// el servidor dice que terminó: primero lo que cambiaría, después «Aplicar». Un fallo deja seguir donde quedó.
+const NOMBRES_MIGRACION = [['archivos', 'foto a su carpeta', 'fotos a su carpeta'], ['fotos', 'mensaje con foto', 'mensajes con foto'],
+	['notas', 'nota del equipo', 'notas del equipo'], ['llaves', 'archivo con enlace abierto', 'archivos con enlace abierto'],
+	['comprobantes', 'comprobante de comisión', 'comprobantes de comisión'], ['indices', 'chat sin índice', 'chats sin índice'],
+	['revisiones', 'revisión oculta', 'revisiones ocultas']];
+const cifrasMigracion = (c) => NOMBRES_MIGRACION.filter(([k]) => c[k] > 0).map(([k, uno, varios]) => plural(c[k], uno, varios)).join(', ');
+
+function tarjetaMigracion(hecha) {
+	const cuerpo = h('div', { 'aria-live': 'polite' });
+	// La última línea de la tarjeta va sin margen (el de la tarjeta basta); antes de un botón, 8 px.
+	const linea = (...hijos) => h('p', { class: 'small mb-2' }, ...hijos);
+	const final = (...hijos) => h('p', { class: 'small mb-0' }, h('span', { class: 'icon-check-circle text-success me-1', 'aria-hidden': 'true' }), ...hijos);
+	const tanda = { aplicar: false, cursor: null, total: {} };
+	const correr = async (btn) => {
+		btn.disabled = true;
+		const avance = (fase, fases) => cuerpo.replaceChildren(h('div', { class: 'd-flex align-items-center gap-2 text-muted small py-2', role: 'status' },
+			h('div', { class: 'spinner-border spinner-border-sm', 'aria-hidden': 'true' }), `${tanda.aplicar ? 'Pasando' : 'Revisando'}…${fases ? ` ${fase} de ${fases}` : ''}`));
+		avance();
+		try {
+			do {
+				const res = await fetch('/api/migrar-chats', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}`, 'Content-Type': 'application/json' },
+					body: JSON.stringify({ aplicar: tanda.aplicar, cursor: tanda.cursor }) });
+				const r = await res.json().catch(() => null);
+				if (!res.ok || !r?.ok) throw new Error(r?.error || fallaDelServidor(res.status));
+				for (const [k, v] of Object.entries(r.cuenta)) tanda.total[k] = (tanda.total[k] || 0) + v;
+				tanda.cursor = r.cursor;
+				avance(r.fase, r.fases);
+			} while (tanda.cursor);
+		} catch (err) {
+			cuerpo.replaceChildren(linea(h('span', { class: 'icon-exclamation-circle text-danger me-1', 'aria-hidden': 'true' }), errorMessage(err)),
+				boton(tanda.aplicar ? 'Seguir' : 'Volver a revisar', 'icon-refresh', correr));
+			return;
+		}
+		const cifras = cifrasMigracion(tanda.total);
+		if (tanda.aplicar) return cuerpo.replaceChildren(final(`Listo: ${cifras || 'no había nada que pasar'}.`));
+		if (!cifras) return cuerpo.replaceChildren(final('Ya está todo en el formato nuevo.'));
+		cuerpo.replaceChildren(linea(`Por pasar: ${cifras}.`), boton('Aplicar', 'icon-check', (b) => { Object.assign(tanda, { aplicar: true, cursor: null, total: {} }); return correr(b); }, 'btn-primary'));
+	};
+	const boton = (texto, icono, fn, cls = 'btn-outline-primary') => h('button', { type: 'button', class: `btn ${cls}`, onclick: (e) => fn(e.currentTarget) },
+		h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), texto);
+	if (hecha) cuerpo.append(final(`Todo está en el formato nuevo desde el ${formatDate(hecha.hecha, false)}.`));
+	else cuerpo.append(h('p', { class: 'small text-muted' }, 'Fotos, notas y comprobantes de los chats de antes. Primero dice qué cambiaría.'),
+		boton('Pasar datos al formato nuevo', 'icon-exchange', correr));
+	return h('div', { class: 'card mb-3', id: 'migrar-chats' }, h('div', { class: 'card-body' }, h('h2', { class: 'h6' }, 'Datos de antes'), cuerpo));
+}
+
 // La base está vacía de verdad: sin settings/site y sin ninguna propiedad. Con casas guardadas, importar el ejemplo
 // las mezclaría con datos de muestra que la publicación automática pondría en línea.
 const hayPropiedades = async () => !(await getDocs(query(collection(db, 'properties'), limit(1)))).empty;
@@ -139,12 +188,14 @@ async function importSeed(btn) {
 }
 
 export async function render(container) {
-	const [state, priv, site, omitidas] = await Promise.all([
+	const [state, priv, site, omitidas, migracion] = await Promise.all([
 		getPublishState(),
 		getDoc(doc(db, 'settings', 'private')).then((s) => (s.exists() ? s.data() : {})).catch(() => ({})),
 		getDoc(doc(db, 'settings', 'site')),
 		// Casas que el último build dejó fuera por un dato roto (scripts/build.mjs).
-		fetch('/feeds/omitidas.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.casas || []).catch(() => [])
+		fetch('/feeds/omitidas.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : {})).then((d) => d.casas || []).catch(() => []),
+		// La migración de los chats de antes ya se aplicó (lo anota /api/migrar-chats al terminar).
+		session.isAdmin ? getDoc(doc(db, 'estado', 'migracion-chats')).then((s) => (s.exists() ? s.data() : null)).catch(() => null) : null
 	]);
 	const baseVacia = session.isAdmin && !site.exists() && !(await hayPropiedades().catch(() => true));
 	const hook = priv.netlifyBuildHook || '';
@@ -255,6 +306,7 @@ export async function render(container) {
 			h('p', { class: 'small text-muted' }, 'En Netlify: Site configuration → Build & deploy → Build hooks → Add build hook (nombre "Panel", rama de producción). Copia el enlace y pégalo aquí.'),
 			h('div', { class: 'input-group' }, hookInput, h('button', { class: 'btn btn-outline-primary', onclick: saveHook }, 'Guardar')))) : null,
 		session.isAdmin ? tarjetaAvisos() : null,
+		session.isAdmin ? tarjetaMigracion(migracion) : null,
 		baseVacia ? h('div', { class: 'card border-info' }, h('div', { class: 'card-body' },
 			h('h2', { class: 'h6' }, 'Importar los datos actuales del sitio'),
 			h('p', { class: 'small text-muted' }, 'La base de datos está vacía. Importa los textos, propiedades, asesores y reseñas que ya tiene el sitio para empezar a editarlos desde aquí.'),

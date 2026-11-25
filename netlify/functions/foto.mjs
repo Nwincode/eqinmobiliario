@@ -19,7 +19,7 @@ import { datosConfigurados, leerPrivado } from '../lib/firestore.mjs';
 import { iaConfigurada } from '../lib/ia-cliente.mjs';
 import { bajar } from '../lib/storage.mjs';
 import { limitador, ipDe } from '../lib/limite.mjs';
-import { estadoDeFoto, rutaDeFoto } from '../../admin/js/hilo.js';
+import { estadoDeFoto, rutaDeFoto, rutaDeComprobante } from '../../admin/js/hilo.js';
 
 const TOKEN = /^[A-Za-z0-9]{20,40}$/;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -39,13 +39,6 @@ export async function decidirFoto(token, mensajeId, u, { ahora = Date.now() } = 
 	return f.ver ? { ruta } : { estado: 403, ver: false, enRevision: Boolean(f.enRevision) };
 }
 
-// La ruta del comprobante de la comisión de una reserva (la de antes, con su dirección, se lee igual), o ''.
-export const rutaDeComprobante = (reservaId, texto) => {
-	const s = String(texto || '');
-	const a = s.startsWith(`comprobantes/${reservaId}/`) ? s.slice(reservaId.length + 14)
-		: (new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/comprobantes%2F${reservaId}%2F([A-Za-z0-9._-]+)[?]alt=media(&token=[a-z0-9-]+)?$`).exec(s) || [])[1] || '';
-	return /^[A-Za-z0-9._-]{1,120}$/.test(a) && !a.startsWith('.') ? `comprobantes/${reservaId}/${a}` : '';
-};
 export async function decidirComprobante(reservaId, u) {
 	const r = await leerPrivado(`reservas/${reservaId}`);
 	const ruta = r ? rutaDeComprobante(reservaId, r.comision?.comprobante) : '';
