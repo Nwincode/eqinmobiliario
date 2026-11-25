@@ -107,6 +107,8 @@ async function lista(container) {
 	} }) : null;
 	mount(container,
 		pageHeader('Mis propiedades', agregar),
+		// Si algo está en pausa (p. ej. «Ingresar inmuebles» por atraso), por qué no está el botón.
+		avisoSocio(perm),
 		// Con casas por noche, sus datos de pago: se le mandan al cliente al confirmar una reserva.
 		porNoche ? (resumen?.datosPago
 			? h('p', { class: 'small text-muted' }, h('span', { class: 'icon-credit-card me-1', 'aria-hidden': 'true' }), 'Tus datos de pago (le llegan al cliente al confirmar): ', h('span', { class: 'text-body', style: 'white-space: pre-line' }, resumen.datosPago), '. ¿Cambiaron? Avísale al administrador.')

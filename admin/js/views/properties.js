@@ -883,6 +883,8 @@ const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google
 const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
 const PARA_EL_SOCIO = {
 	fotos: { marcaFija: true },
+	// Sin la ayuda de enlaces del formato (los textos no los llevan).
+	descripcion: { type: 'textarea' },
 	agentId: { label: 'Asesor de la casa', help: 'Atiende a los interesados y te avisa; tú no hablas con ellos.' },
 	mapa: { type: 'text', help: 'En Google Maps: Compartir → Copiar vínculo.' },
 	'socio.precioBase': { label: 'Tu precio por noche', help: 'Lo que recibes por noche. La página le suma la comisión y los impuestos.' },
@@ -895,6 +897,7 @@ function paraElSocio(campos, { colaborador = false } = {}) {
 		const oculto = enSeccionEquipo || SOLO_EQUIPO.has(f.name) || (f.type === 'custom' && CUSTOM_EQUIPO.includes(f.label))
 			|| String(f.name || '').startsWith('acuerdo.') || String(f.name || '').startsWith('en.') || String(f.name || '').startsWith('vipLanding.');
 		if (oculto) return { ...f, when: () => false };
+		if (f.type === 'section' && f.label === 'Fotos') return { ...f, help: 'Al menos 5 (hasta 40). La primera es la portada.' };
 		const g = { ...f, ...(PARA_EL_SOCIO[f.name] || {}) };
 		if (OBLIGATORIOS_SOCIO.has(f.name)) g.required = true;
 		// El asesor solo lo elige el colaborador, y solo en venta o renta (por noche no lleva).
@@ -1574,7 +1577,8 @@ export function abrirFicha(id, { inicial, titulo, alGuardar, alEliminar } = {}) 
 		inicial, pie,
 		alGuardar: (casa) => { ventana.close(); if (alGuardar) alGuardar(casa); },
 		alEliminar: (casaId) => { ventana.close(); if (alEliminar) alEliminar(casaId); }
-	}).catch(showError);
+	// Si no abre (p. ej. el servidor no le aparta la carpeta al socio), la ventana se cierra y dice por qué.
+	}).catch((err) => { ventana.close(); showError(err); });
 }
 
 export { spinner };

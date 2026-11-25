@@ -6,7 +6,7 @@
 // Cada dato se revisa con la misma pieza que «La casa» (admin/js/mi-casa.js): textos sin teléfonos, correos, enlaces ni
 // redes (V.tieneContacto, el filtro del chat), fotos solo de la carpeta de esta casa en nuestro almacenamiento.
 // Pruebas: scripts/test-casa-nueva.mjs.
-import { texto, numero, deLista, mapa, amenidades, fotoLimpia, fotoDeLaCasa, HORAS, MAX_FOTOS } from './mi-casa.js';
+import { texto, numero, deLista, mapa, amenidades, fotoLimpia, fotoDeLaCasa, sinContacto, HORAS, MAX_FOTOS } from './mi-casa.js';
 import { TIPOS, OPERACIONES, tipoAplica } from './estados.js';
 import { vacacionalPublico } from './cambios-casa.js';
 import '../../js/calc-vacacional.js';
@@ -119,14 +119,17 @@ export function revisarCasaNueva({ datos = {}, casaId, bucket, origenes, dueno =
 		poner(destino, def.ruta || def.campo, r.valor);
 	}
 	if (casa.tipo && casa.operacion && !tipoAplica(casa.tipo, casa.operacion)) falla('tipo', 'Tipo', 'una casa por noche es casa, apartamento o finca');
-	// Fotos: de 5 a 40, sin repetir, todas de la carpeta de esta casa; la descripción de cada una la pone el sistema.
+	// Fotos: de 5 a 40, sin repetir, todas de la carpeta de esta casa. La descripción de cada una (para Google) la que
+	// escribió, sin contacto; si la dejó vacía, «Título – foto N».
 	const fotos = Array.isArray(datos.fotos) ? datos.fotos.map(fotoLimpia) : [];
 	if (fotos.length < MIN_FOTOS) falla('fotos', 'Fotos', `sube al menos ${MIN_FOTOS} (llevas ${fotos.length})`);
 	else if (fotos.length > MAX_FOTOS) falla('fotos', 'Fotos', `hasta ${MAX_FOTOS}`);
 	else if (new Set(fotos.map((f) => f.path)).size !== fotos.length) falla('fotos', 'Fotos', 'hay una repetida');
 	else if (revisarOrigen && fotos.some((f) => !fotoDeLaCasa(f, casaId, bucket, origenes))) falla('fotos', 'Fotos', 'una de las fotos no es de esta casa: súbela de nuevo');
 	const titulo = casa.titulo || '';
-	casa.fotos = fotos.map((f, i) => ({ ...f, alt: `${titulo} – foto ${i + 1}` }));
+	const conContacto = fotos.find((f) => f.alt && sinContacto(f.alt));
+	if (conContacto) falla('fotos', 'Descripción de una foto', `«${conContacto.alt}» ${sinContacto(conContacto.alt)}`);
+	casa.fotos = fotos.map((f, i) => ({ ...f, alt: String(f.alt || '').trim() || `${titulo} – foto ${i + 1}` }));
 	// El asesor: el que elige el colaborador (de los activos) o el que atiende al dueño. Por noche, ninguno.
 	const elegido = String(datos.agentId || '');
 	if (vac) casa.agentId = '';

@@ -44,8 +44,15 @@ const sinCuenta = (err) => err?.rechazo || err?.codigo === 'PERMISSION_DENIED' |
 const SIN_PERMISO = 'Por ahora no puedes ingresar inmuebles: está en pausa. Escríbenos y lo vemos. Las solicitudes y el chat siguen igual.';
 const fecha = (d) => (d instanceof Date ? d.getTime() : Date.parse(d) || 0);
 
+// «Ingresar inmuebles»: lo que resulta para él (permisosSocios, con el corte por atraso) y, por si todavía no se calculó
+// (quien no tiene casas por noche no tiene ese documento), lo apagado para todos y lo apagado solo para él.
+async function puedeIngresar(tx, propietarioId, dueno) {
+	const [resultado, global] = await Promise.all([tx.leer(`permisosSocios/${propietarioId}`), tx.leer('settings/permisosSocios')]);
+	return puede(resultado, 'inmuebles') && puede(global, 'inmuebles') && puede(dueno?.permisos, 'inmuebles');
+}
+
 async function apartar(tx, socio) {
-	if (!puede(await tx.leer(`permisosSocios/${socio.propietarioId}`), 'inmuebles')) falla(403, SIN_PERMISO);
+	if (!(await puedeIngresar(tx, socio.propietarioId, await tx.leer(`propietarios/${socio.propietarioId}`)))) falla(403, SIN_PERMISO);
 	const ahora = Date.now();
 	const suyas = (await tx.consultar('casasNuevas', 'propietarioId', socio.propietarioId)).filter((x) => x.uid === socio.uid);
 	const vigente = suyas.filter((x) => ahora - fecha(x.cuando) < VIGENCIA).sort((a, b) => fecha(b.cuando) - fecha(a.cuando))[0];
@@ -59,11 +66,10 @@ async function apartar(tx, socio) {
 
 async function crear(tx, socio, id, datos, { slugs, codigos }) {
 	if (await porCrear.enTransaccion(tx, socio.uid)) falla(429, 'Ya subiste muchas casas hoy: sigue mañana o escríbenos.');
-	const [apartada, existe, permisos, dueno] = await Promise.all([tx.leer(`casasNuevas/${id}`), tx.leer(`properties/${id}`),
-		tx.leer(`permisosSocios/${socio.propietarioId}`), tx.leer(`propietarios/${socio.propietarioId}`)]);
+	const [apartada, existe, dueno] = await Promise.all([tx.leer(`casasNuevas/${id}`), tx.leer(`properties/${id}`), tx.leer(`propietarios/${socio.propietarioId}`)]);
 	if (existe) falla(409, 'Esa casa ya está publicada.');
 	if (!apartada || apartada.propietarioId !== socio.propietarioId) falla(403, 'Esta casa nueva no es tuya: vuelve a abrir «Agregar casa».');
-	if (!puede(permisos, 'inmuebles')) falla(403, SIN_PERMISO);
+	if (!(await puedeIngresar(tx, socio.propietarioId, dueno))) falla(403, SIN_PERMISO);
 	if (!dueno) falla(403, 'Tu ficha no está lista: escríbele al equipo.');
 	const activos = await tx.consultar('agents', 'activo', true);
 	const agentes = activos.map((a) => a.id);

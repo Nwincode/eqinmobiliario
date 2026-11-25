@@ -477,8 +477,9 @@ function seccionPortal(prop, propiedades, ficha) {
 				activo ? 'toca «Quitar acceso» y después «Dar acceso», que crea su entrada con el correo nuevo (la de antes queda apagada).'
 					: `«Dar acceso» crea su entrada con ${correoFicha} (la de ${estado.email} queda apagada). Si ${correoFicha} ya tuviera una cuenta, el panel te dice cuál borrar en Firebase → Authentication.`) : null,
 			session.isAdmin ? null : h('p', { class: 'small text-muted mb-0' }, 'Para darle acceso al panel o quitárselo, pídeselo al administrador.'),
-			// Qué puede cambiar él solo en su panel (solo el administrador; solo un socio: dueño de casas por noche).
-			session.isAdmin && porNoche ? bloqueSocio(prop) : null);
+			// Qué puede cambiar él solo en su panel (solo el administrador). Quien no tiene casas por noche solo tiene
+			// «Ingresar inmuebles» (subir casas desde «Mis propiedades»).
+			session.isAdmin && (porNoche || u) ? bloqueSocio(prop, { solo: porNoche ? null : ['inmuebles'] }) : null);
 	}
 
 

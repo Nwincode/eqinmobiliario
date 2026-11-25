@@ -2609,6 +2609,20 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 		tarjetas.some((t) => /subió «Casa con jardín del colaborador»/.test(t)) && tarjetas.some((t) => /subió «Casa del volcán por noche»/.test(t))
 		&& /subió una casa/.test(campana) && await eq.p.locator('.admin-main .card [aria-label="Eliminar la casa"]').count() >= 2,
 		`${tarjetas.length} tarjetas · campana: ${/subió una casa/.test(campana)}`);
+	// e) El equipo elimina la casa por noche (casa y aviso se van) y marca «Listo» en la de venta (queda publicada, con su
+	// versión en inglés, y el aviso se va).
+	await eq.p.setViewportSize({ width: 1280, height: 900 });
+	await eq.p.locator('.admin-main .card', { hasText: 'Casa del volcán por noche' }).locator('[aria-label="Eliminar la casa"]').click();
+	await eq.p.locator('.modal.show button', { hasText: 'Eliminar' }).last().click();
+	await espera(4000);
+	await eq.p.locator('.admin-main .card', { hasText: 'Casa con jardín del colaborador' }).locator('button', { hasText: 'Listo' }).click();
+	await espera(6000);
+	const borrada = await fetch(`${FS}/properties/${r2.id}`, { headers: { Authorization: 'Bearer owner' } });
+	const ventaLista = (await leer(`properties/${r1.id}`)).fields || {};
+	const quedan = await eq.p.locator('.admin-main .card', { hasText: 'subió' }).count();
+	paso('Equipo: «Eliminar la casa» la borra con su aviso; «Listo» deja la de venta publicada con su inglés y quita el aviso',
+		borrada.status === 404 && ventaLista.publicado?.booleanValue === true && Boolean(ventaLista.en?.mapValue?.fields?.titulo?.stringValue) && quedan === 0,
+		`borrada ${borrada.status} · inglés «${ventaLista.en?.mapValue?.fields?.titulo?.stringValue || ''}» · tarjetas ${quedan} · ${await avisos(eq.p)}`);
 	for (const x of [col, so, eq]) await x.p.context().close();
 }
 {

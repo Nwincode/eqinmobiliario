@@ -43,6 +43,11 @@ t(`mínimo ${MIN_FOTOS} fotos, sin repetir y de la carpeta de esta casa`, () => 
 	assert.match(revisar(venta({ fotos: fotos('c1', 4) })).errores[0].msg, /al menos 5 \(llevas 4\)/);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('otra', 9)] }))), ['fotos']);
 	assert.deepEqual(campos(revisar(venta({ fotos: [...fotos('c1', 4), foto('c1', 1)] }))), ['fotos']);
+	// La descripción de cada foto: la suya si la escribió (sin contacto); si no, la del título.
+	const conAlt = revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Fachada con jardín' }, ...fotos('c1', 5).slice(1)] }));
+	assert.equal(conAlt.casa.fotos[0].alt, 'Fachada con jardín');
+	assert.equal(conAlt.casa.fotos[1].alt, 'Casa con jardín en Zona 15 – foto 2');
+	assert.deepEqual(campos(revisar(venta({ fotos: [{ ...foto('c1', 1), alt: 'Llama al 5512 3456' }, ...fotos('c1', 5).slice(1)] }))), ['fotos']);
 	// En la ficha el origen no se revisa (lo revisa el servidor).
 	assert.deepEqual(revisar(venta({ fotos: [...fotos('c1', 4), { ...foto('c1', 9), url: 'http://127.0.0.1:9199/x' }] }), { revisarOrigen: false }).errores, []);
 });
@@ -51,6 +56,12 @@ t('textos sin teléfonos, correos, enlaces ni redes (el filtro del chat), todos 
 	assert.deepEqual(campos(r).sort(), ['amenidades', 'descripcion', 'titulo']);
 	assert.match(r.errores.find((e) => e.campo === 'descripcion').msg, /parece un teléfono/);
 	assert.deepEqual(campos(revisar(noche({ vacacional: { ...noche().vacacional, reglas: 'Escríbeme por insta @casaplaya' } }))), ['vacacional.reglas']);
+});
+t('datos reales de venta y renta no se toman por contacto (direcciones, montos, medidas)', () => {
+	const r = revisar(venta({ direccion: '13 calle 8-44 zona 10, nivel 5', zona: 'Zona 10', descripcion: 'Apartamento de 480 m², mantenimiento Q1,500 al mes. Precio Q 1,250,000. Km 14.5 carretera a El Salvador, 2 parqueos.',
+		amenidades: ['Área social', 'Gimnasio 24/7'], m2Construccion: 480, mantenimiento: 1500 }));
+	assert.deepEqual(r.errores, []);
+	assert.deepEqual(revisar(venta({ operacion: 'renta', precio: 1500, titulo: 'Apartamento en renta, edificio Torre 5, nivel 12' })).errores, []);
 });
 t('lo obligatorio de cada operación: precio en venta; precio por noche y dirección por noche', () => {
 	assert.deepEqual(campos(revisar(venta({ precio: '' }))), ['precio']);

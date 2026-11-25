@@ -98,6 +98,17 @@ await t('sin el permiso «Ingresar inmuebles» (apagado o por atraso): 403 al ap
 	assert.match(r.error, /ingresar inmuebles/);
 	assert.equal(leer(`properties/${id}`), null);
 });
+await t('apagado para todos, o solo para él, aunque todavía no tenga su documento de permisos (sin casas por noche): 403', async () => {
+	S.socio = { uid: 'u-colab', nombre: 'Aliada', propietarioId: 'p2' };
+	const id = await apartar();
+	poner('settings/permisosSocios', { inmuebles: false });
+	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 403);
+	assert.equal((await llamar({ accion: 'apartar' })).status, 403);
+	poner('settings/permisosSocios', { inmuebles: true });
+	poner('propietarios/p2', { tipo: 'colaborador', nombre: 'Aliada', agentId: 'a1', propiedades: [], permisos: { inmuebles: false } });
+	assert.equal((await llamar({ casa: id, datos: venta(id) })).status, 403);
+	assert.equal(leer(`properties/${id}`), null);
+});
 await t('un texto con teléfono, menos de 5 fotos o una foto de otra carpeta: 422 con cada campo, y no se crea nada', async () => {
 	const id = await apartar();
 	const r = await llamar({ casa: id, datos: venta(id, { descripcion: 'Casa amplia con jardín. Llámame al 5512 3456 para verla.', fotos: fotos(id, 4) }) });

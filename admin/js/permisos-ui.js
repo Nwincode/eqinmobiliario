@@ -45,7 +45,9 @@ export function tarjetaGlobal() {
 }
 
 // 2. Solo para un socio (en su ficha).
-export function bloqueSocio(prop) {
+// `solo`: las claves que se muestran (quien no tiene casas por noche: solo «Ingresar inmuebles»).
+export function bloqueSocio(prop, { solo = null } = {}) {
+	const lista = PERMISOS.filter(([k]) => !solo || solo.includes(k));
 	const caja = h('div', { class: 'perm-bloque' });
 	const pintar = (r) => {
 		if (!r) return caja.replaceChildren();
@@ -68,7 +70,7 @@ export function bloqueSocio(prop) {
 			: `Si debe a ${EMPRESA} más de ${DIAS_CORTE} días, se apagan solos y se encienden al pagar. Solicitudes y chat siempre siguen activos.`;
 		caja.replaceChildren(
 			h('div', { class: 'perm-tit' }, h('strong', {}, 'Qué puede cambiar'), etiqueta),
-			h('div', { class: 'perm-fila' }, PERMISOS.map(([k, texto, icono]) => interruptor(icono, paraTodos(k) ? `${texto} (apagado para todos)` : texto,
+			h('div', { class: 'perm-fila' }, lista.map(([k, texto, icono]) => interruptor(icono, paraTodos(k) ? `${texto} (apagado para todos)` : texto,
 				cortado || paraTodos(k) ? false : propio[k] !== false, { disabled: cortado || paraTodos(k), onchange: cambiar(k) }))),
 			h('p', { class: 'perm-nota' }, h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ` ${nota}`),
 			cortado ? h('div', {}, h('button', {
@@ -96,7 +98,8 @@ export async function permisosDelSocio(propietarioId) {
 export function avisoSocio(p) {
 	if (!p || PERMISOS.every(([k]) => puede(p, k))) return null;
 	const apagados = PERMISOS.filter(([k]) => !puede(p, k)).map(([k]) => ({ precios: 'Precios', fechas: 'fechas', casa: '«La casa»', inmuebles: 'ingresar inmuebles' })[k]);
-	const lista = apagados.length > 1 ? `${apagados.slice(0, -1).join(', ')} y ${apagados.at(-1)}` : apagados[0];
+	// «y», o «e» antes de «i» («fechas e ingresar inmuebles»).
+	const lista = apagados.length > 1 ? `${apagados.slice(0, -1).join(', ')} ${/^i/i.test(apagados.at(-1)) ? 'e' : 'y'} ${apagados.at(-1)}` : apagados[0];
 	const verbo = apagados.length > 1 ? 'quedan' : 'queda';
 	if (p.motivo === 'atraso' && p.deuda) {
 		return h('div', { class: 'alert alert-danger perm-aviso', role: 'alert' },
