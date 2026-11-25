@@ -2262,6 +2262,30 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	await ent.p.context().close();
 }
 
+// Cotizaciones: el teléfono y el correo de «Datos de la empresa» y «Mis datos para facturar» se revisan al guardar
+// (campoTelefono / campoCorreo de form.js) y se guardan con su código de país.
+{
+	const cot = await entrar('admin');
+	const empresaGuardada = async () => (await (await fetch(`${FS}/settings/cotizacion`, { headers: { Authorization: 'Bearer owner' } })).json()).fields?.empresa?.mapValue?.fields?.telefono?.stringValue || '';
+	await ir(cot.p, '#/cotizaciones/empresa', 3000);
+	const antesTel = await empresaGuardada();
+	await cot.p.fill('#emp-telefono', '2222');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar' }).click();
+	await espera(1500);
+	const marcado = await cot.p.locator('#emp-telefono.is-invalid').count();
+	paso('Datos de la empresa: un teléfono incompleto se marca y no se guarda', marcado === 1 && await empresaGuardada() === antesTel, `marcado ${marcado} · guardado «${await empresaGuardada()}»`);
+	await cot.p.fill('#emp-telefono', '5555 1234');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar' }).click();
+	await espera(2500);
+	paso('Datos de la empresa: el teléfono se guarda con su código de país', await empresaGuardada() === '+502 5555 1234', await empresaGuardada());
+	await ir(cot.p, '#/cotizaciones/mis-datos', 3000);
+	await cot.p.fill('#mis-email', 'yo@gmial');
+	await cot.p.locator('.cot-barra button', { hasText: 'Guardar mis datos' }).click();
+	await espera(1500);
+	const aviso = await avisos(cot.p);
+	paso('Mis datos para facturar: un correo mal escrito se marca y no se guarda', await cot.p.locator('#mis-email.is-invalid').count() === 1 && !/se guardaron/.test(aviso), aviso);
+	await cot.p.context().close();
+}
 {
 	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';
 	paso('La regla de seguridad del panel (CSP) se aplicó y no bloqueó nada en todo el recorrido', /script-src 'self'/.test(csp) && !bloqueados.length,
