@@ -79,6 +79,31 @@ export async function listar(coleccion, { tope = 3000 } = {}) {
 	return docs;
 }
 
+// Las rutas (sin campos) de todos los documentos de las subcolecciones llamadas `coleccion`, estén donde estén (consulta
+// de grupo), de 300 en 300. La usa la migración de los chats (netlify/lib/migrar-chats.mjs): notas que quedaron bajo un
+// chat que ya no existe, que listar('chats') no ve.
+export async function rutasDeGrupo(coleccion) {
+	const token = await googleToken(SCOPE_DATOS);
+	const out = [];
+	let despues = null;
+	for (;;) {
+		const res = await fetch(`${BASE}:runQuery`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ structuredQuery: {
+				from: [{ collectionId: coleccion, allDescendants: true }], select: { fields: [{ fieldPath: '__name__' }] },
+				orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+				...(despues ? { startAt: { values: [{ referenceValue: despues }], before: false } } : {}), limit: 300
+			} })
+		});
+		if (!res.ok) throw new Error(`Error ${res.status} al consultar ${coleccion}`);
+		const nombres = (await res.json()).filter((r) => r.document).map((r) => r.document.name);
+		out.push(...nombres.map((n) => n.slice(n.indexOf('/documents/') + 11)));
+		if (nombres.length < 300) return out;
+		despues = nombres.at(-1);
+	}
+}
+
 // Documentos de una colección con `campo` desde `valor` (incluido; un texto, como una fecha 'AAAA-MM-DD', o un número), del menor
 // al mayor, de 300 en 300 hasta `tope`. Un solo filtro de rango: usa el índice que Firestore crea solo para cada campo.
 export async function consultar(coleccion, campo, valor, { tope = 3000 } = {}) {

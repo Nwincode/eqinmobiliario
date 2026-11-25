@@ -129,6 +129,8 @@ function tarjetaMigracion(hecha) {
 				const res = await fetch('/api/migrar-chats', { method: 'POST', headers: { Authorization: `Bearer ${await session.user.getIdToken()}`, 'Content-Type': 'application/json' },
 					body: JSON.stringify({ aplicar: tanda.aplicar, cursor: tanda.cursor }) });
 				const r = await res.json().catch(() => null);
+				// 409: el avance guardado en el servidor es otro (otra pasada a la vez): «Seguir» empieza otra vez, sin riesgo.
+				if (res.status === 409) tanda.cursor = null;
 				if (!res.ok || !r?.ok) throw new Error(r?.error || fallaDelServidor(res.status));
 				for (const [k, v] of Object.entries(r.cuenta)) tanda.total[k] = (tanda.total[k] || 0) + v;
 				tanda.cursor = r.cursor;

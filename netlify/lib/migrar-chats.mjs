@@ -16,7 +16,7 @@
 // chat se hace entero (copiar, cambiar los mensajes y después borrar), así una tanda cortada a la mitad se repite sin
 // perder nada. Necesita las dos cuentas de servicio (GOOGLE_SA_* de lectura y GOOGLE_SA_ESCRITURA_*, esta con «Storage
 // Object Admin»).
-import { listar } from './firestore.mjs';
+import { listar, leerPrivado, rutasDeGrupo } from './firestore.mjs';
 import { transaccion, listarCrudo, escribirLote } from './firestore-escritura.mjs';
 import { listar as archivosDe, quitarLlave, copiar, borrar } from './storage.mjs';
 import { rutaDeFoto, carpetaFotos, rutaDeComprobante } from '../../admin/js/hilo.js';
@@ -41,7 +41,14 @@ const FASES = [
 		}
 	},
 	{
-		piezas: async () => (await listar('chats', TODOS)).map((c) => ({ clave: c.id, leadId: c.leadId || '' })),
+		// Cada chat, y también las notas que quedaron bajo un chat que ya no existe (listar('chats') no lo ve): van a
+		// notasEquipo/{ese token}, solo del equipo.
+		async piezas() {
+			const chats = (await listar('chats', TODOS)).map((c) => ({ clave: c.id, leadId: c.leadId || '' }));
+			const hay = new Set(chats.map((c) => c.clave));
+			const sueltas = new Set((await rutasDeGrupo('notas')).map((r) => (/^chats\/([^/]+)\/notas\/[^/]+$/.exec(r) || [])[1]).filter((t) => t && !hay.has(t)));
+			return [...chats, ...[...sueltas].map((t) => ({ clave: t, leadId: '' }))];
+		},
 		async hacer({ clave: t, leadId }, aplicar, cuenta) {
 			// Las fotos de antes (chats/{token}/…) pasan a la carpeta de su solicitud, sin token de descarga (copiar las
 			// escribe sin él). Primero se copian todas, después se cambian los mensajes y al final se borra lo de antes.
@@ -60,8 +67,9 @@ const FASES = [
 				await Promise.all(cambios.map(([id, texto]) => transaccion(({ cambiar }) => cambiar(`chats/${t}/mensajes/${id}`, { texto }))));
 				await Promise.all(deAntes.map((a) => borrar(a.ruta)));
 			}
-			// Las notas, por lotes (copiar otra vez da lo mismo; primero se copian todas y después se borran).
-			const notas = await listarCrudo(`chats/${t}`, 'notas').catch(() => []);
+			// Las notas, por lotes (copiar otra vez da lo mismo; primero se copian todas y después se borran). Si no se pueden
+			// leer, el error sube: el chat no cuenta como hecho y la tanda se repite desde él.
+			const notas = await listarCrudo(`chats/${t}`, 'notas');
 			cuenta.notas += notas.length;
 			if (aplicar && notas.length) {
 				await escribirLote(notas.map((n) => ({ poner: `notasEquipo/${t}/notas/${n.id}`, crudo: n.crudo })));
@@ -130,11 +138,27 @@ export async function tanda({ aplicar = false, cursor = null, hasta = Infinity, 
 
 export const sumarCuenta = (a, b) => Object.fromEntries(Object.keys(cuentaVacia()).map((k) => [k, (a[k] || 0) + (b[k] || 0)]));
 
-// Todo de una vez, tanda tras tanda (el script y el entorno local). Devuelve la cuenta total.
-export async function migrarChats({ aplicar = false, log = console.log } = {}) {
+// Aplicar, con el avance guardado en el servidor (estado/migracion-chats { avance, hecha, por }): una pasada empieza con
+// cursor null y cada tanda siguiente tiene que traer el avance guardado; solo una pasada completa desde el principio deja
+// `hecha` (el panel ya no ofrece el botón). Un cursor que no es el guardado lanza (codigo 'AVANCE'): se empieza otra vez,
+// sin riesgo (lo ya pasado no se vuelve a tocar). La usan /api/migrar-chats y el script.
+const ESTADO = 'estado/migracion-chats';
+export async function tandaAplicando({ cursor = null, hasta = Infinity, porTanda = Infinity, por = '' } = {}) {
+	if (cursor) {
+		const avance = (await leerPrivado(ESTADO))?.avance;
+		if (!avance || avance.fase !== cursor.fase || avance.desde !== cursor.desde) throw Object.assign(new Error('El avance guardado no coincide: empieza otra vez.'), { codigo: 'AVANCE' });
+	}
+	const r = await tanda({ aplicar: true, cursor, hasta, porTanda });
+	const datos = r.cursor ? { avance: r.cursor } : { avance: null, hecha: new Date(), por };
+	await transaccion(async ({ leer, crear, cambiar }) => { if (await leer(ESTADO)) cambiar(ESTADO, datos); else crear(ESTADO, datos); });
+	return r;
+}
+
+// Todo de una vez, tanda tras tanda (el script). Devuelve la cuenta total.
+export async function migrarChats({ aplicar = false, log = console.log, por = 'script' } = {}) {
 	let total = cuentaVacia(), cursor = null;
 	do {
-		const r = await tanda({ aplicar, cursor });
+		const r = aplicar ? await tandaAplicando({ cursor, por }) : await tanda({ cursor });
 		total = sumarCuenta(total, r.cuenta);
 		cursor = r.cursor;
 	} while (cursor);

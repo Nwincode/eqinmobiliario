@@ -108,7 +108,7 @@ await t('a lo más 6 al día por solicitud (aunque cada vez sea otro correo)', a
 	assert.equal(S.salida.length, 6);
 });
 
-await t('el enlace nuevo se lleva todo lo del chat: mensajes, notas del equipo, reserva, traducciones y aviso de contacto; la foto de hoy no se mueve (carpeta de la solicitud) y las de antes pasan a ella; lo viejo ya no existe', async () => {
+await t('el enlace nuevo se lleva todo lo del chat: mensajes, notas del equipo (también las de antes, aún en el chat), reserva, traducciones y aviso de contacto; la foto de hoy no se mueve (carpeta de la solicitud) y las de antes pasan a ella; lo viejo ya no existe', async () => {
 	S.staff = ADMIN;
 	solicitud({}, { estado: 'confirmada' });
 	const vieja = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${TOKEN}%2Fa1.webp?alt=media&token=abc-1`;
@@ -117,6 +117,7 @@ await t('el enlace nuevo se lleva todo lo del chat: mensajes, notas del equipo, 
 	poner(`chats/${TOKEN}/mensajes/m3`, { de: 'cliente', tipo: 'foto', texto: `chats/${TOKEN}/b2.webp` });
 	poner(`chats/${TOKEN}/mensajes/c4`, { de: 'cliente', tipo: 'foto', texto: 'fotosChat/l1/1' });
 	poner(`notasEquipo/${TOKEN}/notas/n1`, { de: 'equipo', texto: 'Nota del equipo' });
+	poner(`chats/${TOKEN}/notas/n0`, { de: 'socio', texto: 'Nota de antes, sin migrar' });
 	poner(`traduccionesChat/${TOKEN}`, { n: 3 });
 	poner(`alertas/contacto-${TOKEN}`, { ultimo: 'm1', n: 1 });
 	poner('reservas/l1', { chat: TOKEN, estado: 'confirmada' });
@@ -130,10 +131,11 @@ await t('el enlace nuevo se lleva todo lo del chat: mensajes, notas del equipo, 
 	assert.equal(leer(`chats/${nuevo}/mensajes/m3`).texto, 'fotosChat/l1/b2.webp');
 	assert.equal(leer(`chats/${nuevo}/mensajes/c4`).texto, 'fotosChat/l1/1');
 	assert.equal(leer(`notasEquipo/${nuevo}/notas/n1`).texto, 'Nota del equipo');
+	assert.equal(leer(`notasEquipo/${nuevo}/notas/n0`).texto, 'Nota de antes, sin migrar');
 	assert.equal(leer(`traduccionesChat/${nuevo}`).n, 3);
 	assert.equal(leer(`alertas/contacto-${nuevo}`).ultimo, 'm1');
 	assert.equal(leer('reservas/l1').chat, nuevo);
-	for (const r of [`chats/${TOKEN}`, `chats/${TOKEN}/mensajes/m1`, `chats/${TOKEN}/mensajes/m2`, `notasEquipo/${TOKEN}/notas/n1`, `traduccionesChat/${TOKEN}`, `alertas/contacto-${TOKEN}`]) assert.equal(leer(r), null, r);
+	for (const r of [`chats/${TOKEN}`, `chats/${TOKEN}/mensajes/m1`, `chats/${TOKEN}/mensajes/m2`, `notasEquipo/${TOKEN}/notas/n1`, `chats/${TOKEN}/notas/n0`, `traduccionesChat/${TOKEN}`, `alertas/contacto-${TOKEN}`]) assert.equal(leer(r), null, r);
 	assert.deepEqual([...S.archivos.keys()].sort(), ['fotosChat/l1/1', 'fotosChat/l1/a1.webp', 'fotosChat/l1/b2.webp']);
 	// La copia no lleva el token de descarga de antes (solo la abre la cuenta de servicio: /api/foto).
 	assert.equal(S.archivos.get('fotosChat/l1/a1.webp').llave, '');

@@ -117,6 +117,14 @@ paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role
 		sim.terminó && sim.pedidos > 3 && sim.total.archivos === 1 && sim.total.fotos === 1 && sim.total.notas === 1 && sim.total.indices === 1 && sim.total.comprobantes === 1 && sim.total.revisiones === 1 && sim.total.llaves === 1
 		&& /^https:/.test(sigueFoto) && sigueFoto === antesFoto && sigueNota === 200, `${sim.pedidos} tandas · ${JSON.stringify(sim.total)} · foto ${sigueFoto === antesFoto ? 'igual' : 'cambió'} · nota ${sigueNota}`);
 
+	// Aplicar con un cursor que no salió de una pasada guardada (p. ej. la última fase inventada): 409 y no queda «hecha».
+	// Un cuerpo `null` es un simulacro (no un 500).
+	const inventado = await migrar(tokenAdmin, { aplicar: true, cursor: { fase: 4, desde: '' } });
+	const nulo = await fetch(`${SITIO}/api/migrar-chats`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenAdmin}` }, body: 'null' });
+	const sinMarca = (await fetch(`${fs}/estado/migracion-chats`, ow)).status;
+	paso('Pasar datos al formato nuevo: aplicar con un cursor que el servidor no guardó da 409 y no marca «hecha»; un cuerpo null no da 500',
+		inventado.status === 409 && nulo.status === 200 && sinMarca === 404, `${inventado.status} · null ${nulo.status} · marca ${sinMarca}`);
+
 	// El botón, como lo usa el administrador (capturas a 1280 y 390 px, escala 2).
 	const MIGRAR = process.env.MIGRAR_DIR || `${CAPTURAS}/migrar`;
 	mkdirSync(MIGRAR, { recursive: true });
@@ -161,16 +169,25 @@ paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role
 	const ponerCrudo = (ruta, fields) => fetch(`${fs}/${ruta}`, { method: 'PATCH', headers: { ...ow.headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
 	await ponerCrudo(`chats/${T1}`, { codigo: sv('EQ-ANTES3'), leadId: sv('lead-de-antes-3'), propertyId: sv('casa-de-antes'), propietarioId: sv('dueno-de-antes'), nombre: sv('Otro cliente de antes'), estado: sv('confirmada') });
 	await ponerCrudo(`chats/${T1}/notas/nota1`, { de: sv('equipo'), texto: sv('Otra nota de antes') });
+	// Y una nota que quedó bajo un chat que ya no existe (listar('chats') no lo ve): pasa a notasEquipo de ese token.
+	const T2 = 'ChatQueYaNoExisteLargo7890';
+	await ponerCrudo(`chats/${T2}/notas/nota1`, { de: sv('socio'), texto: sv('Nota suelta de antes') });
 	await ponerCrudo('revisionesComprobante/lead-de-antes-3', { oculta: { booleanValue: true }, propietarioId: sv('dueno-de-antes'), leido: { mapValue: { fields: { banco: sv('Otro banco'), referencia: sv('9999') } } } });
 	const apl = await pasada({ aplicar: true, porTanda: 1 });
 	const repetida = await pasada({ aplicar: true });
 	const marca = (await (await fetch(`${fs}/estado/migracion-chats`, ow)).json()).fields?.hecha?.timestampValue;
 	const ceros = Object.values(repetida.total).every((v) => v === 0);
-	paso('Pasar datos al formato nuevo: aplicar por tandas termina (índice, nota y revisión del caso nuevo) y repetirlo no cambia nada',
-		apl.terminó && apl.pedidos > 3 && apl.total.indices === 1 && apl.total.notas === 1 && apl.total.revisiones === 1 && apl.total.fotos === 0
+	paso('Pasar datos al formato nuevo: aplicar por tandas termina (índice, notas —también la de un chat que ya no existe— y revisión del caso nuevo) y repetirlo no cambia nada',
+		apl.terminó && apl.pedidos > 3 && apl.total.indices === 1 && apl.total.notas === 2 && apl.total.revisiones === 1 && apl.total.fotos === 0
 		&& (await fetch(`${fs}/notasEquipo/${T1}/notas/nota1`, ow)).status === 200 && (await fetch(`${fs}/chats/${T1}/notas/nota1`, ow)).status === 404
+		&& (await fetch(`${fs}/notasEquipo/${T2}/notas/nota1`, ow)).status === 200 && (await fetch(`${fs}/chats/${T2}/notas/nota1`, ow)).status === 404
 		&& (await (await fetch(`${fs}/chatsPorSolicitud/lead-de-antes-3`, ow)).json()).fields?.token?.stringValue === T1
 		&& repetida.terminó && ceros && Boolean(marca), `${apl.pedidos} tandas · ${JSON.stringify(apl.total)} · otra vez ${JSON.stringify(repetida.total)} · marca ${marca || 'no'}`);
+	// El script deja la misma marca (la misma pieza común).
+	const porScript = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs', '--aplicar'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
+	const marcaScript = (await (await fetch(`${fs}/estado/migracion-chats`, ow)).json()).fields || {};
+	paso('Pasar datos al formato nuevo: el script con --aplicar deja la marca igual que el botón', /^Migrado: 0 fotos/.test(porScript) && marcaScript.por?.stringValue === 'script' && marcaScript.hecha?.timestampValue > marca,
+		`${porScript.slice(0, 60)} · ${marcaScript.por?.stringValue} ${marcaScript.hecha?.timestampValue}`);
 	await ir(adm2.p, '#/publicar');
 	const despues = (await adm2.p.locator('#migrar-chats').innerText()).replace(/\s+/g, ' ');
 	paso('Pasar datos al formato nuevo: ya hecho, la tarjeta lo dice en una línea y no ofrece el botón', /Todo está en el formato nuevo desde el/.test(despues) && await adm2.p.locator('#migrar-chats button').count() === 0, despues.slice(0, 120));

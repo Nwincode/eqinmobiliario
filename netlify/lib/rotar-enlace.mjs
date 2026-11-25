@@ -5,7 +5,7 @@
 // chats/{viejo}/, que ya nadie puede agregar, pasan a esa carpeta). El chat tiene un tope de mensajes del cliente
 // (firestore.rules, `nCliente`), así que esto siempre alcanza:
 //  1. Las fotos de antes (si quedan) se copian a fotosChat/{solicitud}/ (copiar otra vez da lo mismo).
-//  2. Los mensajes y las notas del equipo se copian al token nuevo, de 400 en 400, fuera de la transacción (el chat nuevo
+//  2. Los mensajes y las notas del equipo (también las de antes, de chats/{viejo}/notas) se copian al token nuevo, de 400 en 400, fuera de la transacción (el chat nuevo
 //     todavía no existe: nadie los ve ni los puede tocar).
 //  3. Una transacción cambia el enlace de una vez: crea el chat nuevo, mueve el índice (chatsPorSolicitud), la reserva
 //     (`chat`), las traducciones (traduccionesChat) y el aviso de contacto (alertas/contacto-…), borra el chat viejo y
@@ -62,7 +62,7 @@ export async function rotarEnlace(leadId, { nuevo = tokenNuevo(), junto = null }
 		const ahora = await leerPrivado(`chatsPorSolicitud/${leadId}`).catch(() => null);
 		if (ahora?.token !== nuevo) {
 			// Lo copiado no lo nombra ningún chat: se borra (si esto también falla, queda sin uso: nadie conoce ese token).
-			await escribirLote([...primera.mensajes.map((m) => ({ borrar: `chats/${nuevo}/mensajes/${m.id}` })), ...primera.notas.map((n) => ({ borrar: `notasEquipo/${nuevo}/notas/${n.id}` }))]).catch(() => {});
+			await escribirLote([...primera.mensajes.map((m) => ({ borrar: `chats/${nuevo}/mensajes/${m.id}` })), ...[...primera.notasDeAntes, ...primera.notas].map((n) => ({ borrar: `notasEquipo/${nuevo}/notas/${n.id}` }))]).catch(() => {});
 			throw err;
 		}
 	}
@@ -81,19 +81,22 @@ export async function rotarEnlace(leadId, { nuevo = tokenNuevo(), junto = null }
 async function copiarAlNuevo(viejo, nuevo, leadId) {
 	const chatVar = { token: viejo, leadId };
 	const aCarpeta = (ruta) => `${carpetaFotos(leadId)}${ruta.slice(`chats/${viejo}/`.length)}`;
-	const [mensajes, notas] = await Promise.all([listarCrudo(`chats/${viejo}`, 'mensajes'), listarCrudo(`notasEquipo/${viejo}`, 'notas')]);
+	// Las notas de antes que la migración todavía no pasó (chats/{viejo}/notas) también van a notasEquipo/{nuevo}: si se
+	// quedaran, al borrar el chat viejo nadie las vería.
+	const [mensajes, notas, notasDeAntes] = await Promise.all([listarCrudo(`chats/${viejo}`, 'mensajes'), listarCrudo(`notasEquipo/${viejo}`, 'notas'), listarCrudo(`chats/${viejo}`, 'notas')]);
 	await escribirLote([...mensajes.map((m) => {
 		const ruta = texto(m.crudo.tipo) === 'foto' ? rutaDeFoto(chatVar, texto(m.crudo.texto)) : '';
 		return { poner: `chats/${nuevo}/mensajes/${m.id}`, crudo: m.crudo, cambios: ruta.startsWith('chats/') ? { texto: aCarpeta(ruta) } : {} };
-	}), ...notas.map((n) => ({ poner: `notasEquipo/${nuevo}/notas/${n.id}`, crudo: n.crudo }))]);
-	return { mensajes, notas };
+	}), ...[...notasDeAntes, ...notas].map((n) => ({ poner: `notasEquipo/${nuevo}/notas/${n.id}`, crudo: n.crudo }))]);
+	return { mensajes, notas, notasDeAntes };
 }
 
 // Termina un cambio de enlace ya hecho: copia otra vez todo lo del viejo al nuevo (lo que llegó en medio y lo que cambió
 // después de la primera copia) y lo borra; borra las fotos de antes ya copiadas. Se puede repetir.
 export async function terminarRotacion(viejo, nuevo, leadId) {
 	const copia = await copiarAlNuevo(viejo, nuevo, leadId);
-	await escribirLote([...copia.mensajes.map((m) => ({ borrar: `chats/${viejo}/mensajes/${m.id}` })), ...copia.notas.map((n) => ({ borrar: `notasEquipo/${viejo}/notas/${n.id}` }))]);
+	await escribirLote([...copia.mensajes.map((m) => ({ borrar: `chats/${viejo}/mensajes/${m.id}` })), ...copia.notas.map((n) => ({ borrar: `notasEquipo/${viejo}/notas/${n.id}` })),
+		...copia.notasDeAntes.map((n) => ({ borrar: `chats/${viejo}/notas/${n.id}` }))]);
 	for (const f of await listar(`chats/${viejo}/`)) await borrar(f.ruta).catch((err) => console.warn('Foto vieja del chat:', err.message));
 }
 
