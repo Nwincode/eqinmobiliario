@@ -1,14 +1,15 @@
 // Campana de avisos (barra de arriba) y tarjeta «Avisos» de Inicio: lo que espera a quien está en el panel, cada uno
 // con un enlace a donde se resuelve. Lo arma avisos-reglas.js (puro) con lo que ya está guardado; aquí solo se lee la
 // base (cada fuente por su lado: una que falle no deja la campana vacía) y se pinta.
-// Quién ve qué: el administrador, todo; el asesor, los cambios que piden sus dueños y sus exclusivas (no lee
+// Quién ve qué: el administrador, todo (también las fotos del cliente que el socio no ve); el asesor, los cambios que piden sus dueños y sus exclusivas (no lee
 // solicitudes ni chats); el socio, sus solicitudes sin responder, los mensajes de sus clientes y su pago a EQ.
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, serverTimestamp } from './firebase.js';
 import { h, showError } from './ui.js';
 import { armarAvisos, clavesPorRevisar, claveListo, hace } from './avisos-reglas.js';
-import { bajoElPlan, conDatosDelChat } from './reservas-calculo.js';
+import { bajoElPlan, conDatosDelChat, chatAbierto } from './reservas-calculo.js';
 import { enMs, primerNombre } from './formato.js';
+import { fotosOcultas } from './hilo.js';
 
 const V = window.EQVacacional;
 const DIA = 86400000;
@@ -17,10 +18,9 @@ const todos = async (q) => (await getDocs(q)).docs.map((d) => ({ id: d.id, ...d.
 const seguro = (p, vacio = []) => p.catch((err) => { console.warn('Avisos', err); return vacio; });
 
 // El último mensaje de cada chat abierto (uno por chat): si es del cliente, falta responderle.
-// Abierto = no cancelado ni «No se dio», y con la salida hace menos de 7 días.
+// Abierto: chatAbierto (admin/js/reservas-calculo.js).
 async function sinResponder(chats) {
-	const desde = V.sumarDias(V.hoy(), -7);
-	const abiertos = chats.filter((c) => !['no', 'cancelada'].includes(c.estado) && String(c.salida || '') >= desde);
+	const abiertos = chats.filter((c) => chatAbierto(c));
 	const ultimos = await Promise.all(abiertos.map(async (c) => {
 		const s = await seguro(getDocs(query(collection(db, 'chats', c.id, 'mensajes'), orderBy('createdAt', 'desc'), limit(1))), null);
 		const m = s?.docs[0]?.data();
@@ -89,6 +89,15 @@ async function leerFuentes() {
 		// Montos congelados: una cotizada por debajo del precio de la casa la confirma el administrador (bajoElPlan).
 		admin ? seguro(todos(collection(db, 'montosSolicitud'))) : []]);
 	const montos = Object.fromEntries(congelados.map((m) => [m.id, m]));
+	// Fotos del cliente que el socio no ve (fotosOcultas de hilo.js: lo mismo que decide /api/foto): las de los chats que
+	// esperan el pago y ya recibieron una foto, cada uno por su lado.
+	const conFoto = chats.filter((c) => c.estado === 'confirmada' && c.comprobanteCliente && c.leadId);
+	const [revisiones, iaActiva] = conFoto.length ? await Promise.all([seguro(todos(collection(db, 'revisionesComprobante'))), import('./ia.js').then((m) => m.estadoIA())]) : [[], false];
+	const revision = Object.fromEntries(revisiones.map((r) => [r.id, r]));
+	const fotos = (await Promise.all(conFoto.map(async (c) => {
+		const ocultas = fotosOcultas(await seguro(todos(query(collection(db, 'chats', c.id, 'mensajes'), where('tipo', '==', 'foto')))), { chat: c, rv: revision[c.leadId] || null, ia: iaActiva, ahora });
+		return ocultas.length ? { leadId: c.leadId, codigo: c.codigo, nombre: primerNombre(c.nombre), casa: c.propertyTitulo, mensaje: ocultas[0].m.id, fecha: ms(ocultas[0].m.createdAt), marca: ocultas[0].marca, n: ocultas.length } : null;
+	}))).filter(Boolean);
 	const chatDe = Object.fromEntries(chats.map((c) => [c.codigo, c]));
 	const casa = Object.fromEntries(casas.map((c) => [c.id, c]));
 	const dueno = Object.fromEntries(propietarios.map((p) => [p.id, p]));
@@ -110,6 +119,7 @@ async function leerFuentes() {
 			};
 		}),
 		mensajes: await sinResponder(chats),
+		fotos,
 		comprobantes: reservas.filter((r) => r.codigo && r.estado === 'confirmada' && r.comision?.comprobante && !r.comision.pagada).map((r) => ({
 			codigo: r.codigo, socio: dueno[r.propietarioId]?.nombre, casa: r.propertyTitulo, fecha: ms(r.updatedAt) || ahora })),
 		comentarios: comentarios.filter((c) => c.tipo === 'cambios' && !comentarios.some((x) => x.tipo === 'aprobado' && x.propiedadId === c.propiedadId && ms(x.fecha) > ms(c.fecha))).map((c) => ({ id: c.id, propietarioId: c.propietarioId, dueno: dueno[c.propietarioId]?.nombre, casa: casa[c.propiedadId]?.titulo, texto: c.texto, fecha: ms(c.fecha), agentId: c.agentId })),

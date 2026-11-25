@@ -6,13 +6,15 @@ import assert from 'node:assert/strict';
 import { S, limpiar, poner, leer } from './simulado/base.mjs';
 
 process.env.ANTHROPIC_API_KEY = 'prueba';
-const { compararComprobante, revisarComprobante, urlDelComprobante } = await import('../netlify/lib/comprobantes.mjs');
-const { estadoDeFoto } = await import('../admin/js/hilo.js');
+const { compararComprobante, revisarComprobante } = await import('../netlify/lib/comprobantes.mjs');
+const { estadoDeFoto, rutaDeFoto } = await import('../admin/js/hilo.js');
 
 let n = 0;
 const t = async (nombre, fn) => { limpiar(); await fn(); n++; console.log('✓', nombre); };
 const T = 'TokenDePruebaLargoYAlAzar2345';
-const URL_FOTO = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T}%2Ffoto1.webp?alt=media&token=abc-123`;
+// El mensaje guarda la ruta (sin el token de descarga); uno de antes, la dirección con el token: se leen igual.
+const URL_FOTO = `chats/${T}/foto1.webp`;
+const URL_VIEJA = `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T}%2Ffoto1.webp?alt=media&token=abc-123`;
 const esperado = { total: 1122.4, moneda: 'USD', confirmada: '2026-11-18' };
 const leido = (o = {}) => ({ esComprobante: true, contactoVisible: false, monto: 1122.4, moneda: 'USD', fecha: '2026-11-19', banco: 'Banco Industrial', referencia: '998877', ...o });
 
@@ -27,9 +29,17 @@ await t('no cuadra: dice qué y cuánto se esperaba', () => {
 	assert.match(compararComprobante({ esComprobante: false }, esperado).texto, /no parece un comprobante/);
 });
 await t('la foto solo puede ser de la carpeta de ese chat', () => {
-	assert.ok(urlDelComprobante(T, URL_FOTO));
-	assert.ok(!urlDelComprobante('OtroToken1234567890123', URL_FOTO));
-	assert.ok(!urlDelComprobante(T, 'https://malo.com/x.webp'));
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_FOTO), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_VIEJA), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_FOTO), '');
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_VIEJA), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/../otro/x.webp`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/.oculto`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'https://malo.com/x.webp'), '');
+	// La de hoy: en la carpeta de su solicitud.
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/3'), 'fotosChat/l1/3');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l2/3'), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/../x'), '');
 });
 
 const preparar = () => {
@@ -51,6 +61,17 @@ await t('revisa una vez por foto y deja el aviso para el socio y el equipo', asy
 	assert.equal(veces, 1);
 });
 
+await t('la foto se lee de Storage con la cuenta de servicio, por la ruta del mensaje (también la de antes, con su dirección)', async () => {
+	for (const texto of [URL_FOTO, URL_VIEJA]) {
+		limpiar(); preparar();
+		poner(`chats/${T}/mensajes/m1`, { de: 'cliente', tipo: 'foto', texto });
+		(S.archivos ||= new Map()).set(URL_FOTO, { tipo: 'image/webp', datos: Buffer.from('foto'), llave: '' });
+		let vista = null;
+		await revisarComprobante(T, { leer: async (foto) => { vista = foto; return leido(); }, ahora: S.reloj });
+		assert.deepEqual(vista, { tipo: 'image/webp', datos: Buffer.from('foto').toString('base64') });
+	}
+});
+
 await t('foto con un dato de contacto o que no es un comprobante: se oculta al socio (lo decide el código) y el chat lo marca para el cliente', async () => {
 	assert.deepEqual(compararComprobante(leido({ contactoVisible: true }), esperado), { cuadra: true, texto: 'El comprobante cuadra', oculta: true, motivoOculta: 'Posible dato de contacto' });
 	assert.equal(compararComprobante({ esComprobante: false, contactoVisible: false }, esperado).motivoOculta, 'No parece un comprobante');
@@ -59,6 +80,8 @@ await t('foto con un dato de contacto o que no es un comprobante: se oculta al s
 	assert.equal(r.oculta, true);
 	assert.equal(leer('revisionesComprobante/l1').oculta, true);
 	assert.equal(leer('revisionesComprobante/l1').leido.contactoVisible, true);
+	// De la foto oculta no quedan banco ni referencia (el socio lee la revisión; ahí podría ir el contacto).
+	assert.deepEqual([leer('revisionesComprobante/l1').leido.banco, leer('revisionesComprobante/l1').leido.referencia], ['', '']);
 	assert.equal(leer(`chats/${T}`).comprobanteOculto, 'm1');
 	assert.deepEqual(leer('revisionesComprobante/l1').fotos.fm1, { oculta: true, motivo: 'Posible dato de contacto' });
 	// Uno que sí es comprobante y sin contacto: el chat queda sin marca.

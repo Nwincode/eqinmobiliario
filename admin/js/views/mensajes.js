@@ -5,7 +5,7 @@
 // Celular: la lista y, al tocar una, el hilo a pantalla completa con su flecha para volver. Computadora (≥ 992 px): la
 // lista y el hilo lado a lado; con espacio (≥ 1280 px), además la ficha de la reserva a la derecha.
 // Lo que se escribe pasa el mismo filtro de contacto que el del cliente y las reglas (V.tipoDeContacto), mientras se
-// escribe. Las notas internas (chats/{token}/notas) no las lee el cliente: las reglas no se las dejan leer con su enlace.
+// escribe. Las notas internas son solo del equipo (notasEquipo/{token}/notas: ni el socio ni el enlace del cliente las leen).
 import '/js/calc-vacacional.js';
 import { db, doc, getDoc, setDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp, arrayUnion } from '../firebase.js';
 import { h, ahoraYa, showError } from '../ui.js';
@@ -13,7 +13,7 @@ import { session } from '../session.js';
 import { avisarChat } from '../reservas.js';
 import { comprobanteVigente, llegadaPasada } from '../reservas-calculo.js';
 import { cargarSolicitudes, estado, rapidasDe } from '../solicitudes-base.js';
-import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, estadoDeFoto, eventoPanel, TEXTOS_PANEL, enMs } from '../hilo.js';
+import { armarHilo, pintarHilo, citaDe, resumenDe, tarjetaComprobante, estadoDeFoto, fotoDe, eventoPanel, TEXTOS_PANEL, enMs } from '../hilo.js';
 import { dinero, fechasReserva, diaConSemana, diaLargo, cuandoCorto, horaChat, diaDeChat, nNoches, primerNombre } from '../formato.js';
 import { PARECE } from '../mi-casa.js';
 import { avisarAvisos } from '../avisos.js';
@@ -25,10 +25,11 @@ const t = TEXTOS_PANEL;
 const fotoValida = (u) => /^(https:\/\/|\/[^/])/.test(u || '');
 // Lo que se queda entre una pantalla y otra (el router vuelve a pintar en cada cambio de dirección): los datos leídos,
 // el filtro, la búsqueda y dónde iba la lista. Así elegir una conversación no relee todo ni pierde la lista.
-const memo = { S: null, leido: 0, filtro: '', busca: '', abierta: false, scroll: 0, apagar: () => {}, borradores: {}, rapidasTodas: false };
-// ¿Las reglas publicadas ya conocen citar y las notas? (reglas/r7 solo lo dejan leer las nuevas).
-let reglasR7 = null;
-const reglasNuevas = () => (reglasR7 ||= getDoc(doc(db, 'reglas', 'r7')).then(() => true, () => { reglasR7 = null; return false; }));
+// `fotos`: las del comprobante ya bajadas de /api/foto (por ruta; hilo.js fotoDe).
+const memo = { S: null, leido: 0, filtro: '', busca: '', abierta: false, scroll: 0, apagar: () => {}, borradores: {}, rapidasTodas: false, fotos: {} };
+// ¿Las reglas publicadas ya conocen citar y las notas del equipo? (reglas/r8 solo lo dejan leer las nuevas).
+let reglasR8 = null;
+const reglasNuevas = () => (reglasR8 ||= getDoc(doc(db, 'reglas', 'r8')).then(() => true, () => { reglasR8 = null; return false; }));
 
 // Una conversación de la lista: la solicitud (l), su chat y su último mensaje.
 function filaDe(S, l) {
@@ -37,10 +38,9 @@ function filaDe(S, l) {
 	const ultimo = S.ultimos[cod] || null;
 	const yo = S.admin ? 'equipo' : 'socio';
 	const visto = enMs(chat[S.admin ? 'vistoEquipo' : 'vistoSocio']);
-	// Sin responder: lo último lo escribió el cliente, en una reserva abierta que no terminó hace más de 7 días (lo mismo
-	// que cuenta la campana y el número del menú: admin/js/avisos.js sinResponder).
-	const abierta = !['no', 'cancelada'].includes(chat.estado || '') && String(chat.salida || '') >= V.sumarDias(V.hoy(), -7);
-	const sinResponder = abierta && S.porResponder.has(cod);
+	// Sin responder: lo último lo escribió el cliente, en una conversación abierta (porResponder ya lo dice: chatAbierto, lo
+	// mismo que cuenta la campana y el número del menú).
+	const sinResponder = S.porResponder.has(cod);
 	// El plazo para responder, o «Subió comprobante».
 	const p = estado(l) === 'pendiente' && !chat.estado ? S.plazoDe(l) : null;
 	const queda = p?.vence ? p.vence - ahoraYa() : Infinity;
@@ -56,15 +56,15 @@ export async function render(container, [codigo = ''] = []) {
 	// Una conversación que no estaba en lo leído (llegó después) se vuelve a leer.
 	const mismo = memo.uid === session.user?.uid;
 	const fresco = memo.S && mismo && Date.now() - memo.leido < 60_000 && (!codigo || memo.S.leads.some((l) => l.reserva.codigo === codigo));
-	if (!mismo) { memo.filtro = ''; memo.busca = ''; memo.scroll = 0; }
+	if (!mismo) { memo.filtro = ''; memo.busca = ''; memo.scroll = 0; memo.fotos = {}; }
 	if (!fresco) { memo.S = await cargarSolicitudes({ mensajes: 'ultimo', recargar: recargarDatos }); memo.leido = Date.now(); memo.uid = session.user?.uid; }
 	const S = memo.S;
-	const conR7 = await reglasNuevas();
+	const conR8 = await reglasNuevas();
 	const filas = S.leads.filter((l) => S.chats[l.reserva.codigo]).map((l) => filaDe(S, l));
 	const fila = filas.find((f) => f.cod === codigo) || null;
 	if (!memo.filtro) memo.filtro = filas.some((f) => f.sinResponder) ? 'sin' : 'todas';
 	const raiz = h('div', { class: `msj hilo-app${fila ? ' msj-en-hilo' : ''}` });
-	raiz.append(lista(S, filas, fila), ...(fila ? hiloDe(S, fila, conR7, await estadoIA()) : [h('section', { class: 'msj-hilo msj-hilo-vacio' }, h('p', { class: 'hilo-vacio' }, filas.length ? 'Elige una conversación.' : 'Todavía no hay conversaciones.'))]));
+	raiz.append(lista(S, filas, fila), ...(fila ? hiloDe(S, fila, conR8, await estadoIA()) : [h('section', { class: 'msj-hilo msj-hilo-vacio' }, h('p', { class: 'hilo-vacio' }, filas.length ? 'Elige una conversación.' : 'Todavía no hay conversaciones.'))]));
 	container.append(raiz);
 	// La lista vuelve a donde iba.
 	requestAnimationFrame(() => { const l = raiz.querySelector('.msj-filas'); if (l) l.scrollTop = memo.scroll; });
@@ -126,7 +126,9 @@ function filaEl(S, f, elegida) {
 }
 
 // ------------------------------------------------------------ El hilo de una conversación
-function hiloDe(S, f, conR7, iaActiva) {
+function hiloDe(S, f, conR8, iaActiva) {
+	// Notas internas: solo el equipo (el administrador), con las reglas nuevas.
+	const conNotas = conR8 && S.admin;
 	const { l, cod } = f;
 	const token = S.chats[cod];
 	const yo = f.yo;
@@ -149,17 +151,22 @@ function hiloDe(S, f, conR7, iaActiva) {
 		if (m.tipo !== 'foto') return null;
 		const f = estadoDeFoto(m, { chat, rv: S.revisiones[l.id] || null, ia: iaActiva, ahora: ahoraYa() });
 		const monto = rv()?.cuadra && rv().mensaje === m.id ? dinero(chat.total, chat.moneda) : '';
-		if (!S.admin) return tarjetaComprobante(m, t, f.ver ? rv() : null, monto, { ver: f.ver, aviso: f.enRevision ? 'Foto recibida · en revisión' : 'El equipo está revisando esta foto' });
+		// La imagen la sirve /api/foto con la sesión (al socio, solo si la revisión la deja ver: lo decide el servidor).
+		const foto = fotoDe(memo.fotos, { token, leadId: chat.leadId }, m, { llave: () => session.user.getIdToken(), alListo: repintar }) || {};
+		const ver = f.ver && !foto.no;
+		if (!S.admin) return tarjetaComprobante(m, t, ver ? rv() : null, monto, { ver, src: foto.src || '', aviso: f.enRevision || foto.enRevision ? 'Foto recibida · en revisión' : 'El equipo está revisando esta foto' });
 		const mostrar = !f.ver ? h('button', { type: 'button', class: 'hilo-btn hilo-btn-sec', onclick: async (e) => {
 			e.currentTarget.disabled = true;
 			try { await updateDoc(doc(db, 'chats', token), { fotosVisibles: arrayUnion(m.id) }); } catch (err) { showError(err); e.currentTarget.disabled = false; }
 		} }, 'Mostrar al socio') : null;
-		return tarjetaComprobante(m, t, rv()?.mensaje === m.id ? rv() : null, monto, { marca: f.marca, accion: mostrar });
+		return tarjetaComprobante(m, t, rv()?.mensaje === m.id ? rv() : null, monto, { src: foto.src || '', marca: f.marca, accion: mostrar });
 	};
+	// Una foto que el servidor no dejó ver (o no se pudo bajar) se vuelve a pedir cuando cambia lo que lo decide («Mostrar al socio», la revisión).
+	const soltarOcultas = () => { for (const k of Object.keys(memo.fotos)) if (memo.fotos[k].no || memo.fotos[k].fallo) delete memo.fotos[k]; };
 	const repintar = () => {
 		const items = [...mensajes, ...notas.map((n) => ({ ...n, nota: true })), ...fallidos.values()];
 		const nodos = armarHilo(items, { yo, t, ahora: ahoraYa(), chat, vistoOtros: enMs(chat.vistoCliente), etiqueta, nombreDe, tarjeta,
-			textoEvento: (ev) => eventoPanel(ev, yo, primerNombre(l.nombre)), alResponder: conR7 ? citar : null, alReintentar: reintentar });
+			textoEvento: (ev) => eventoPanel(ev, yo, primerNombre(l.nombre)), alResponder: conR8 ? citar : null, alReintentar: reintentar });
 		pintarHilo(lineas, nodos.length ? nodos : [h('p', { class: 'hilo-vacio' }, 'Todavía no hay mensajes.')], alFondo);
 		alFondo = false;
 	};
@@ -177,7 +184,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 		campo.classList.toggle('hilo-mal', Boolean(tipo));
 		enviar.disabled = Boolean(tipo);
 		if (tipo) decir(`${(PARECE[tipo] || 'parece un contacto').replace(/^./, (x) => x.toUpperCase())}: aquí no se comparten contactos.`, true);
-		else decir(enNota ? 'Nota interna: el cliente no la ve.' : REGLA);
+		else decir(enNota ? 'Nota interna: solo la ve el equipo.' : REGLA);
 		return !tipo;
 	};
 	const crecer = () => { campo.style.height = 'auto'; campo.style.height = `${Math.min(campo.scrollHeight + 2, 132)}px`; };
@@ -211,9 +218,9 @@ function hiloDe(S, f, conR7, iaActiva) {
 		e.preventDefault();
 		const texto = campo.value.trim();
 		if (!texto || !revisar()) return;
-		const ref = doc(collection(db, 'chats', token, enNota ? 'notas' : 'mensajes'));
+		const ref = doc(enNota ? collection(db, 'notasEquipo', token, 'notas') : collection(db, 'chats', token, 'mensajes'));
 		// El equipo firma con su primer nombre (las reglas nuevas lo exigen igual al de su usuario; con las de antes, no va).
-		const firma = yo === 'equipo' && !enNota && conR7 ? primerNombre(String(session.profile?.nombre || '').trim()).slice(0, 40) : '';
+		const firma = yo === 'equipo' && !enNota && conR8 ? primerNombre(String(session.profile?.nombre || '').trim()).slice(0, 40) : '';
 		const datos = { de: yo, texto, createdAt: serverTimestamp(), ...(citando && !enNota ? { responde: citando } : {}), ...(firma ? { nombre: firma } : {}) };
 		campo.value = ''; memo.borradores[cod] = ''; crecer();
 		citando = null; citandoEl.hidden = true;
@@ -221,18 +228,18 @@ function hiloDe(S, f, conR7, iaActiva) {
 		revisar();
 		mandar(ref, datos, (err) => { if (err?.code === 'permission-denied' && V.tipoDeContacto(texto)) decir('Parece un contacto: aquí no se comparten contactos.', true); });
 	} }, campo, enviar);
-	// Nota interna: el botón del candado cambia el campo a nota (el cliente no la ve).
-	const candado = h('button', { type: 'button', class: 'hilo-ib', 'aria-pressed': 'false', 'aria-label': 'Escribir una nota interna (el cliente no la ve)', title: 'Nota interna', onclick: () => {
+	// Nota interna: el botón del candado cambia el campo a nota (solo la ve el equipo: ni el socio ni el cliente).
+	const candado = h('button', { type: 'button', class: 'hilo-ib', 'aria-pressed': 'false', 'aria-label': 'Escribir una nota interna (solo la ve el equipo)', title: 'Nota interna', onclick: () => {
 		enNota = !enNota;
 		if (enNota) { citando = null; citandoEl.hidden = true; }
 		candado.classList.toggle('hilo-activo', enNota);
 		candado.setAttribute('aria-pressed', String(enNota));
 		form.classList.toggle('hilo-en-nota', enNota);
-		campo.placeholder = enNota ? 'Nota para ti y el equipo…' : 'Escribe un mensaje…';
+		campo.placeholder = enNota ? 'Nota para el equipo…' : 'Escribe un mensaje…';
 		revisar();
 		campo.focus();
 	} }, h('span', { class: 'icon-lock', 'aria-hidden': 'true' }));
-	if (conR7) form.prepend(candado);
+	if (conNotas) form.prepend(candado);
 	// Respuestas rápidas del momento: una fila; «⋯» muestra todas.
 	const rapidas = h('div', { class: `hilo-rapidas${memo.rapidasTodas ? ' hilo-todas' : ''}` },
 		h('span', { class: 'hilo-rapidas-r' }, rapidasDe(l, chat).map((r) => h('button', { type: 'button', class: 'hilo-chip', title: r, onclick: () => { campo.value = r; memo.borradores[cod] = r; crecer(); revisar(); campo.focus(); } }, r))),
@@ -259,7 +266,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 	// El socio ya no escribe en una reserva que no se dio o se canceló (las reglas tampoco lo dejan); el equipo sí.
 	const pie = !S.admin && cerrada ? h('div', { class: 'hilo-pie-chat' }, h('p', { class: 'hilo-regla m-0' }, h('span', { class: 'icon-info-circle', 'aria-hidden': 'true' }), ' Esta reserva ya terminó: aquí ya no se escribe.'))
 		: h('div', { class: 'hilo-pie-chat' }, cerrada ? null : rapidas, citandoEl, form, regla,
-			!conR7 && S.admin ? h('p', { class: 'hilo-regla' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }), ' Citar y notas: falta publicar las reglas nuevas.') : null);
+			!conR8 && S.admin ? h('p', { class: 'hilo-regla' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }), ' Citar y notas: falta publicar las reglas nuevas.') : null);
 
 	const { arriba, lado } = cabeza(S, f);
 	caja.append(...arriba, lineas, pie);
@@ -283,6 +290,7 @@ function hiloDe(S, f, conR7, iaActiva) {
 		onSnapshot(doc(db, 'chats', token), (s) => {
 			const nuevo = { ...s.data(), id: s.id };
 			const cambio = (nuevo.estado || '') !== (chat.estado || '') || enMs(nuevo.comprobanteCliente) !== enMs(chat.comprobanteCliente) || Number(nuevo.pagoReabierto || 0) !== Number(chat.pagoReabierto || 0);
+			if (String(nuevo.fotosVisibles || '') !== String(chat.fotosVisibles || '')) soltarOcultas();
 			chat = nuevo;
 			S.datosChat[cod] = nuevo;
 			// Otra pestaña (u otra persona) cambió la reserva: se vuelve a leer todo para que los botones digan lo de ahora.
@@ -290,8 +298,8 @@ function hiloDe(S, f, conR7, iaActiva) {
 			repintar();
 		}, () => {}),
 		// La revisión del comprobante (lo que decide si el socio ve la foto): al llegar, se repinta.
-		l.id ? onSnapshot(doc(db, 'revisionesComprobante', l.id), (d) => { if (d.exists()) { S.revisiones[l.id] = d.data(); repintar(); } }, () => {}) : () => {},
-		conR7 ? onSnapshot(query(collection(db, 'chats', token, 'notas'), orderBy('createdAt')), { includeMetadataChanges: true }, (s) => {
+		l.id ? onSnapshot(doc(db, 'revisionesComprobante', l.id), (d) => { if (d.exists()) { S.revisiones[l.id] = d.data(); soltarOcultas(); repintar(); } }, () => {}) : () => {},
+		conNotas ? onSnapshot(query(collection(db, 'notasEquipo', token, 'notas'), orderBy('createdAt')), { includeMetadataChanges: true }, (s) => {
 			notas = s.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }), ...(d.metadata.hasPendingWrites ? { _estado: 'enviando' } : {}) }));
 			repintar();
 		}, (err) => console.warn('Notas', err)) : () => {}

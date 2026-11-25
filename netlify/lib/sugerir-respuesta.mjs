@@ -5,6 +5,7 @@
 // (los de tipo pago, llegada o foto, solo por su nombre: ni datos de pago ni dirección).
 import { leerPublico, listar } from './firestore.mjs';
 import { acotado } from './tareas.mjs';
+import { esSocioDelChat } from './auth.mjs';
 
 const TOKEN = /^[A-Za-z0-9]{20,40}$/;
 const NOMBRE_TIPO = { pago: '(se le mostraron los datos de pago)', llegada: '(se le mostraron la dirección y cómo llegar)', foto: '(subió la foto de su comprobante de pago)', reabierto: '(se le pidió otro comprobante)' };
@@ -16,8 +17,7 @@ export async function contextoDelChat(token, u) {
 	const chat = await leerPublico(`chats/${token}`);
 	if (!chat?.propertyId) return null;
 	const casa = await leerPublico(`properties/${chat.propertyId}`);
-	const esDelSocio = u.rol === 'socio' && u.propietarioId && chat.propietarioId === u.propietarioId && casa?.propietarioId === u.propietarioId && casa?.operacion === 'vacacional';
-	if (u.rol !== 'admin' && !esDelSocio) return null;
+	if (u.rol !== 'admin' && !esSocioDelChat(u, chat, casa)) return null;
 	const mensajes = (await listar(`chats/${token}/mensajes`)).sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt)).slice(-12)
 		.map((m) => `${QUIEN[m.de] || 'Equipo Inmobiliario'}: ${m.tipo ? NOMBRE_TIPO[m.tipo] || '' : String(m.texto || '').slice(0, 1000)}`);
 	const v = casa?.vacacional || {};

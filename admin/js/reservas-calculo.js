@@ -313,6 +313,10 @@ export const DIAS_NO_LLEGO = globalThis.EQVacacional.DIAS_NO_LLEGO;
 const enMs = (v) => (typeof v === 'number' ? v : v?.toMillis?.() ?? (v instanceof Date ? v.getTime() : Date.parse(v || '') || 0));
 // ¿El cliente mandó un comprobante que sigue en pie? El de antes de «No me llegó» (pagoReabierto) queda guardado como
 // historia (el cron no cancela a quien mandó uno), pero ya no cuenta como enviado: se le pide otro.
+// ¿La conversación sigue abierta para responder? No cancelada ni «No se dio», y su salida fue hace menos de 7 días. Un
+// mensaje del cliente sin respuesta solo cuenta en una abierta: la misma regla para la campana, el número de Mensajes,
+// su lista y la etiqueta «Mensaje sin responder» de Solicitudes (admin/js/avisos.js, views/mensajes.js, solicitudes-base.js).
+export const chatAbierto = (chat, hoy = V().hoy()) => Boolean(chat) && !['no', 'cancelada'].includes(chat.estado || '') && String(chat.salida || '') >= V().sumarDias(hoy, -7);
 export const comprobanteVigente = (chat) => Boolean(chat?.comprobanteCliente) && !(Number(chat.pagoReabierto) >= enMs(chat.comprobanteCliente));
 // ¿«No me llegó» reabre el pago (antes de la llegada) o cierra la reserva (desde el día de llegada)?
 export const noLlegoReabre = (reserva, ahora = Date.now()) => antesDeLlegar(reserva.llegada, ahora);

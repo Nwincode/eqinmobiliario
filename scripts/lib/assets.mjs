@@ -67,7 +67,7 @@ const formatoParaElNavegador = (root) => paraElNavegador(root, './admin/js/forma
 const imagenParaElNavegador = (root) => paraElNavegador(root, './admin/js/imagen.js', ['procesarImagen'], 'EQImagen');
 // El hilo de la conversación (admin/js/hilo.js) como window.EQHilo: la misma pieza que Mensajes del panel, solo en el
 // paquete de renta vacacional (la página «Tu reserva»).
-const hiloParaElNavegador = (root) => paraElNavegador(root, './admin/js/hilo.js', ['armarHilo', 'pintarHilo', 'tarjetaComprobante', 'pasosEnLinea'], 'EQHilo');
+const hiloParaElNavegador = (root) => paraElNavegador(root, './admin/js/hilo.js', ['armarHilo', 'pintarHilo', 'tarjetaComprobante', 'pasosEnLinea', 'fotoDe', 'carpetaFotos', 'FOTOS_POR_CHAT'], 'EQHilo');
 
 // Íconos (icomoon) del sitio: los códigos que pide el CSS ya depurado (`content: "\e900"`), de U+E000 a U+F8FF.
 export const codigosEnCss = (css) => [...new Set([...css.matchAll(/content\s*:\s*["']\\([0-9a-f]{4,5})/gi)]

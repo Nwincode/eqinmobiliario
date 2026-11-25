@@ -52,7 +52,7 @@ t('el token de la sesión para «publicar al cerrar» (sendBeacon) vive solo en 
 t('comprobante del huésped: se prepara con la misma pieza que las fotos del panel (admin/js/imagen.js) antes de subirse', () => {
 	const chat = readFileSync(new URL('../js/reserva-chat.js', import.meta.url), 'utf8');
 	assert.match(chat, /window\.EQImagen\.procesarImagen\(f\)/);
-	assert.match(chat, /body: p\.blob/);
+	assert.match(chat, /new Blob\(\[[^\]]*p\.blob/);
 	assert.match(fuente('form.js'), /import \{ procesarImagen as procesar \} from '\.\/imagen\.js';/);
 	assert.doesNotMatch(fuente('form.js'), /createImageBitmap/, 'una sola pieza: form.js no tiene su propia copia');
 	assert.match(readFileSync(new URL('./lib/assets.mjs', import.meta.url), 'utf8'), /'\.\/admin\/js\/imagen\.js', \['procesarImagen'\], 'EQImagen'/);
@@ -67,7 +67,7 @@ t('confirmar y lo que depende del día de llegada usan la hora del servidor, no 
 		assert.doesNotMatch(fuente(f), /llegadaPasada\([^)]*\.llegada\)/, `toda llegadaPasada de ${f} lleva la hora del servidor`);
 	}
 	assert.match(fuente('solicitudes-base.js'), /await ahoraServidor\(\);/);
-	assert.match(fuente('views/solicitudes.js'), /await cargarSolicitudes\(/);
+	assert.match(fuente('views/solicitudes.js'), /await (Promise\.all\(\[)?cargarSolicitudes\(/);
 });
 
 t('Propietarios: guardar la ficha no quita ni pone la llave de los datos de pago si no cambiaron (el asesor recibía 403 con datosPago vacío guardado)', () => {

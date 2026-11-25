@@ -402,8 +402,8 @@ export async function noMeLlego(leadId) {
 	return hecho;
 }
 
-// El socio subió la foto de su transferencia de la comisión.
-export const ponerComprobante = (res, url) => updateDoc(refReserva(res.id), { 'comision.comprobante': url, updatedAt: serverTimestamp() });
+// El socio subió la foto de su transferencia de la comisión: su ruta en comprobantes/{reserva}/ (la sirve /api/foto).
+export const ponerComprobante = (res, ruta) => updateDoc(refReserva(res.id), { 'comision.comprobante': ruta, updatedAt: serverTimestamp() });
 
 // El socio le pagó la comisión a EQ (solo el administrador lo marca). Si sus casas estaban fuera del sitio, vuelven al publicar.
 export async function comisionPagada(res, nivel) {

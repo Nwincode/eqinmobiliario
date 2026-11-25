@@ -1,7 +1,8 @@
 // Pruebas de lo puro del hilo (admin/js/hilo.js): qué foto del cliente ve el socio (estadoDeFoto), los eventos que salen
 // del chat y sus mensajes (eventosDe) y lo que se guarda al citar.
 import assert from 'node:assert/strict';
-import { estadoDeFoto, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
+import { estadoDeFoto, fotosOcultas, fotoDe, eventosDe, citaDe, ESPERA_REVISION } from '../admin/js/hilo.js';
+import { chatAbierto } from '../admin/js/reservas-calculo.js';
 
 let n = 0;
 const t = (nombre, fn) => { fn(); n++; console.log('✓', nombre); };
@@ -54,4 +55,39 @@ t('eventos: pidió, confirmó y datos de pago por el mensaje de pago; «No se di
 t('citar guarda solo el id y quién (el texto sale del mensaje citado)', () => {
 	assert.deepEqual(citaDe({ id: 'm9', de: 'cliente', texto: 'Hola' }), { id: 'm9', de: 'cliente' });
 });
+t('sin IA, una foto con veredicto «oculta» sigue oculta (la IA se apagó después)', () => {
+	assert.equal(estadoDeFoto(foto, { chat, rv: { fotos: { fm1: { oculta: true, motivo: 'Posible dato de contacto' } } }, ia: false, ahora }).ver, false);
+});
+t('fotosOcultas: las del cliente que el socio no ve, la más nueva primero, solo esperando el pago', () => {
+	const c = { ...chat, estado: 'confirmada' };
+	const rv = { fotos: { fm1: { oculta: true, motivo: 'Posible dato de contacto' }, fm2: { oculta: false } } };
+	const fotos = [foto, { ...foto, id: 'm2' }, { ...foto, id: 'm3', createdAt: ahora - 30_000 }, { ...foto, id: 'm4', de: 'socio' }];
+	assert.deepEqual(fotosOcultas(fotos, { chat: c, rv, ia: true, ahora }).map((x) => [x.m.id, x.marca]), [['m3', 'Sin revisar'], ['m1', 'Posible dato de contacto']]);
+	assert.deepEqual(fotosOcultas(fotos, { chat: { ...c, fotosVisibles: ['m1', 'm3'] }, rv, ia: true, ahora }), []);
+	assert.deepEqual(fotosOcultas(fotos, { chat: { ...c, estado: 'pagada' }, rv, ia: true, ahora }), []);
+});
+t('chatAbierto: ni cancelada ni «No se dio» esperan respuesta (Solicitudes ya no dice «Mensaje sin responder»)', () => {
+	assert.equal(chatAbierto({ estado: 'cancelada', salida: '2099-01-01' }), false);
+	assert.equal(chatAbierto({ estado: 'no', salida: '2099-01-01' }), false);
+	assert.equal(chatAbierto({ estado: 'confirmada', salida: '2099-01-01' }), true);
+	assert.equal(chatAbierto({ estado: '', salida: '2000-01-01' }), false);
+	assert.equal(chatAbierto(null), false);
+});
+// fotoDe: un error que no es 403 (503, 429, sin red) no se vuelve a pedir en cada repintada.
+{
+	const real = globalThis.fetch;
+	let pedidos = 0;
+	globalThis.fetch = async () => { pedidos++; return new Response('{}', { status: 503 }); };
+	const fotos = {}, T = 'TokenDeFotoLargoYAlAzar12345', m = { id: 'm1', texto: 'fotosChat/l1/1' }, chat = { token: T, leadId: 'l1' };
+	let repintadas = 0;
+	// Cada vez que llega, se vuelve a pintar (y a pedir la foto), como el hilo.
+	const pintar = () => { repintadas++; fotoDe(fotos, chat, m, { alListo: pintar }); };
+	fotoDe(fotos, chat, m, { alListo: pintar });
+	await new Promise((r) => setTimeout(r, 100));
+	assert.equal(repintadas, 1);
+	globalThis.fetch = real;
+	assert.equal(pedidos, 1);
+	assert.deepEqual(fotos['fotosChat/l1/1'], { fallo: true });
+	n++; console.log('✓ fotoDe: un 503 se pide una sola vez (queda { fallo } hasta que quien llama la suelta)');
+}
 console.log(`\n${n} pruebas del hilo pasan.`);

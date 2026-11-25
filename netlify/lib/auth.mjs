@@ -57,6 +57,11 @@ export async function socioUser(req) {
 	return { uid: u.uid, nombre: u.nombre, propietarioId: u.propietarioId };
 }
 
+// ¿`u` (de usuario()) es el socio de la casa del chat, hoy? Lo mismo que esSocioDeCasaPorNoche de las reglas: el chat es
+// de su ficha y la casa sigue siendo suya y por noche. Lo usan /api/foto y «Sugerir respuesta» (sugerir-respuesta.mjs).
+export const esSocioDelChat = (u, chat, casa) => u?.rol === 'socio' && Boolean(u.propietarioId) && chat?.propietarioId === u.propietarioId
+	&& casa?.propietarioId === u.propietarioId && casa?.operacion === 'vacacional';
+
 export function json(status, body) {
 	return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 }

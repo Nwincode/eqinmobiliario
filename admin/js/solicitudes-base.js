@@ -9,7 +9,7 @@ import { toast, showError, confirmDialog, formatDate, elegirOpcion, ahoraServido
 import { session, cargarMiResumen, misCasas, contactoDelEquipo } from './session.js';
 import { confirmarSolicitud, cancelarReserva, noSeDio as noSeDioReserva, pagoRecibido as marcarPagoRecibido, noMeLlego as marcarNoMeLlego, ChoqueDeFechas } from './reservas.js';
 import { cuentaDe, subtotalCotizado, montosCotizados, cambioElPrecio, montosDeConfirmacion, difierenMontos, motivoParaNoCancelar, motivoParaNoMeLlego, noLlegoReabre, llegadaPasada,
-	motivoParaNoConfirmar, conDatosDelChat, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from './reservas-calculo.js';
+	motivoParaNoConfirmar, conDatosDelChat, chatAbierto, motivoSocioNoConfirma, bajoElPlan, conPisoDeEq, seCruzan, MOTIVOS_CANCELAR, MOTIVOS_NO, conPlazo, venceRespuesta, plazoDePago, TEXTO_PRECIO_CAMBIO, SIN_GANANCIA_NEGATIVA } from './reservas-calculo.js';
 import { fechasReserva } from './formato.js';
 import { money, ms, loadPropietarios, loadPropiedades, loadReservas } from './crm.js';
 import { avisarAvisos } from './avisos.js';
@@ -78,6 +78,7 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 	const conLlegada = new Set();
 	// El último mensaje de cada chat (Mensajes: la lista).
 	const ultimos = {};
+	const fotos = {};
 	// Cada chat por su lado: uno que no se pudo leer no deja sin pantalla a los demás.
 	await Promise.all(Object.entries(chats).map(async ([cod, id]) => {
 		try {
@@ -85,7 +86,10 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 			const todos = (await getDocs(mensajes === 'todos' ? query(ref, orderBy('createdAt')) : query(ref, orderBy('createdAt', 'desc'), limit(1)))).docs.map((d) => ({ id: d.id, ...d.data() }));
 			const ultimo = todos.at(-1);
 			ultimos[cod] = ultimo || null;
-			if (ultimo?.de === 'cliente') porResponder.add(cod);
+			// Solo en una conversación abierta: la cancelada o la que no se dio ya no espera respuesta (chatAbierto).
+			if (ultimo?.de === 'cliente' && chatAbierto(datosChat[cod])) porResponder.add(cod);
+			// Las fotos que subió el cliente (Solicitudes: la que la revisión ocultó al socio, fotosOcultas de hilo.js).
+			if (mensajes === 'todos') fotos[cod] = todos.filter((m) => m.tipo === 'foto' && m.de === 'cliente');
 			// Con solo el último (Mensajes), «pagada» ya dice que salieron los datos de llegada; el hilo lo corrige al abrirse.
 			if (mensajes === 'todos' ? todos.some((m) => m.tipo === 'llegada') : datosChat[cod]?.estado === 'pagada') conLlegada.add(cod);
 		} catch (err) { console.warn(`No se pudieron leer los mensajes de ${cod}`, err); }
@@ -305,7 +309,7 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 	}
 
 	return {
-		admin, equipo, leads, chats, datosChat, refChat, chatDe, porResponder, conLlegada, ultimos, congelados, revisiones, casaDe, deHoy, reservas, propietarios, netos,
+		admin, equipo, leads, chats, datosChat, refChat, chatDe, porResponder, conLlegada, ultimos, fotos, congelados, revisiones, casaDe, deHoy, reservas, propietarios, netos,
 		variosChats, reservaDe, puedeCancelar, puedeNoMeLlego, debe, debidas, solicitudDe, moraDe, teToca, alerta, ocupada, yaOcupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe,
 		pasada, sinConfirmar, puedeConfirmar, puedeNoSeDio, puedePagoRecibido, plazoDe, hacer,
 		confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar,

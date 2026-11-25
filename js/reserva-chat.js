@@ -176,6 +176,9 @@
 
 	pedir(RAIZ + '/chats/' + token).then(function (doc) {
 		var c = plano(doc);
+		// El enlace que abrió (el del correo, quizá uno nuevo: al corregir su correo el enlace cambia) es el que se recuerda
+		// para volver a /reserva/ sin él.
+		if (location.hash.slice(1) === token) { try { localStorage.setItem(GUARDADO, token); localStorage.setItem(GUARDADO + '-casa', c.propertyId || ''); localStorage.setItem(GUARDADO + '-idioma', c.idioma || 'es'); } catch (e) { /* sin memoria del navegador */ } }
 		t = TEXTOS[c.idioma] || TEXTOS.es;
 		var en = c.idioma === 'en';
 		var lang = en ? 'en' : 'es';
@@ -361,8 +364,17 @@
 				llegada(tl, m);
 				return tl;
 			}
-			if (m.tipo === 'foto') return m.texto.indexOf(FOTOS) === 0 ? H.tarjetaComprobante(m, th) : 'omitir';
+			if (m.tipo === 'foto') return tarjetaFoto(m);
 			return null;
+		}
+		// La foto del comprobante: el mensaje trae solo su ruta; la imagen la da /api/foto (H.fotoDe), que decide si se ve (la
+		// que la revisión ocultó o sigue revisando, no: con este enlace se sirve lo mismo que al anfitrión). La que se acaba
+		// de subir desde este teléfono se ve de una vez (`fotos` la guarda al subirla).
+		var fotos = {};
+		function tarjetaFoto(m) {
+			var f = H.fotoDe(fotos, { token: token, leadId: c.leadId }, m, { alListo: function () { pintar(true); } });
+			if (!f) return 'omitir';
+			return H.tarjetaComprobante(m, th, null, '', { ver: !f.no, src: f.src || '', aviso: f.enRevision ? t.vacChatEnviado : t.vacChatSoloComprobante });
 		}
 		var EVENTOS = { pidio: t.vacChatEvPidio, pagoRecibido: t.vacChatEvPagado, no: t.vacChatEstadoNo, cancelada: t.vacChatEstadoCancelada };
 		function textoEvento(ev) {
@@ -419,7 +431,8 @@
 				return pedir(RAIZ + '/chats/' + token + '/mensajes/' + id).then(function (doc) {
 					var f = (doc && doc.fields) || {};
 					var igual = ['de', 'texto', 'url'].every(function (k) { return (f[k] && f[k].stringValue) === (campos[k] && campos[k].stringValue); });
-					if (!igual) throw err;
+					// Otro mensaje ya tiene ese número (otra pestaña): se manda con el siguiente.
+					if (!igual) throw doc && doc.fields ? Object.assign(new Error('ocupado'), { ocupado: true }) : err;
 				}, function () { throw err; });
 			});
 		}
@@ -435,9 +448,18 @@
 		// Mientras sale, la burbuja dice «Enviando…»; si no sale (sin red), «No se envió · Reintentar» debajo, con el mismo
 		// id (nunca sale dos veces). Si lo guardado no se puede volver a leer, el mensaje igual quedó.
 		var enviando = false, fila = Promise.resolve();
+		// El id de un mensaje del cliente es c1, c2, … hasta c200 (firestore.rules: el tope de cada chat): el siguiente libre.
+		function siguienteId() {
+			var mayor = 0;
+			mensajes.concat(Object.keys(pendientes).map(function (k) { return { id: pendientes[k].id }; })).forEach(function (m) {
+				var n = /^c(\d+)$/.exec(m.id || ''); if (n) mayor = Math.max(mayor, Number(n[1]));
+			});
+			return 'c' + (mayor + 1);
+		}
 		function mandar(campos, clave) {
 			var p = pendientes[clave] = pendientes[clave] || {};
-			p.id = p.id || alAzar(20);
+			p.id = p.id || siguienteId();
+			if (Number(p.id.slice(1)) > 200) { delete pendientes[clave]; alerta(t.vacChatTope); return Promise.resolve(); }
 			p.campos = campos;
 			var texto = campos.texto && campos.texto.stringValue;
 			if (!campos.tipo) { locales[clave] = { id: p.id, de: 'cliente', texto: texto, _estado: 'enviando' }; pintar(true); }
@@ -449,6 +471,16 @@
 					// La base lo rechazó (403): con un texto, es su filtro de contacto (el mismo del navegador; con el reloj del teléfono
 					// muy corrido pueden no coincidir): se dice eso, por tipo si se reconoce, y el texto vuelve al campo.
 					.catch(function (err) {
+						// El número lo tomó otra pestaña: otra vez con el siguiente.
+						if (err && err.ocupado) {
+							p.id = '';
+							return cargar().catch(function () {}).then(function () {
+								p.id = siguienteId();
+								if (locales[clave]) locales[clave].id = p.id;
+								if (Number(p.id.slice(1)) > 200) { delete pendientes[clave]; delete locales[clave]; pintar(true); return alerta(t.vacChatTope); }
+								return paso();
+							});
+						}
 						if (texto && /HTTP 403/.test(err && err.message)) {
 							delete locales[clave]; pintar(true);
 							if (!campo.value) campo.value = texto;
@@ -500,7 +532,7 @@
 			campo.value = ''; campo.style.height = '';
 			mandar({ de: str('cliente'), texto: str(texto) }, 't:' + intentoTexto(texto));
 		});
-		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje.
+		// Foto del comprobante: se sube a la carpeta de esta reserva y queda como un mensaje (con su ruta).
 		adjuntar.addEventListener('click', function () { archivo.click(); });
 		archivo.addEventListener('change', function () {
 			var f = archivo.files[0];
@@ -516,17 +548,29 @@
 			procesar.then(function (p) {
 				if (ya) return { url: ya };
 				if (!/^image\/(jpeg|png|webp)$/.test(p.blob.type) || p.blob.size >= 5 * 1024 * 1024) throw Object.assign(new Error('foto'), { foto: true });
-				var nombre = 'chats/' + token + '/' + alAzar(16) + '.' + (p.blob.type === 'image/webp' ? 'webp' : p.blob.type.split('/')[1]);
-				return fetch(FOTOS.slice(0, -1) + '?uploadType=media&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': p.blob.type }, body: p.blob })
-					.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-					.then(function (r) { return { url: FOTOS + encodeURIComponent(nombre) + '?alt=media&token=' + r.downloadTokens }; });
+				// En la carpeta de su solicitud, que no cambia con el enlace (fotosChat/{solicitud}/1, 2, …, a lo más
+				// H.FOTOS_POR_CHAT: storage.rules no deja reemplazar ni pasar del tope), con el token del enlace en sus datos (con él
+				// las reglas saben que la sube quien tiene el enlace). Si un número ya está tomado, el siguiente.
+				var desde = mensajes.filter(function (m) { return m.tipo === 'foto' && m.de === 'cliente'; }).length + 1;
+				var subir = function (n) {
+					if (n > H.FOTOS_POR_CHAT) return Promise.reject(Object.assign(new Error('tope'), { tope: true }));
+					var nombre = H.carpetaFotos(c.leadId) + n;
+					var corte = 'eq' + alAzar(16);
+					var datos = JSON.stringify({ name: nombre, contentType: p.blob.type, metadata: { token: token } });
+					var cuerpo = new Blob(['--' + corte + '\r\nContent-Type: application/json; charset=utf-8\r\n\r\n' + datos + '\r\n--' + corte + '\r\nContent-Type: ' + p.blob.type + '\r\n\r\n', p.blob, '\r\n--' + corte + '--']);
+					return fetch(FOTOS.slice(0, -1) + '?uploadType=multipart&name=' + encodeURIComponent(nombre), { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + corte, 'X-Goog-Upload-Protocol': 'multipart' }, body: cuerpo })
+						.then(function (r) { if (r.status === 403 && n < H.FOTOS_POR_CHAT) return subir(n + 1); if (!r.ok) throw new Error('HTTP ' + r.status); return nombre; });
+				};
+				return subir(desde)
+					// El mensaje guarda solo la ruta (sin el token de descarga); aquí se ve la foto tal como se subió.
+					.then(function (nombre) { fotos[nombre] = { src: URL.createObjectURL(p.blob) }; return { url: nombre }; });
 			}, function () { throw Object.assign(new Error('foto'), { foto: true }); })
 				.then(function (r) {
 					pendientes[clave] = pendientes[clave] || {};
 					pendientes[clave].url = r.url;
 					return mandar({ de: str('cliente'), tipo: str('foto'), texto: str(r.url) }, clave);
 				})
-				.catch(function (err) { alerta(err && err.foto ? t.vacChatFotoGrande : t.vacChatFallo); adjuntar.disabled = false; });
+				.catch(function (err) { alerta(err && err.foto ? t.vacChatFotoGrande : err && err.tope ? t.vacChatFotoTope : t.vacChatFallo); adjuntar.disabled = false; });
 		});
 		cargar().catch(function () { pintar(true); });
 		// Mensajes nuevos: se revisa cada 10 s mientras la página está a la vista.

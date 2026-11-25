@@ -8,6 +8,8 @@ import { generateKeyPairSync } from 'node:crypto';
 const DESTINOS = [
 	['https://firestore.googleapis.com', `http://${process.env.EMU_FIRESTORE || '127.0.0.1:8085'}`],
 	['https://firebasestorage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`],
+	// La API de Cloud Storage con la cuenta de servicio (netlify/lib/storage.mjs): el mismo emulador la atiende.
+	['https://storage.googleapis.com', `http://${process.env.EMU_STORAGE || '127.0.0.1:9199'}`],
 	// Los enlaces para poner la contraseña (netlify/functions/contrasena.mjs) los da el emulador de inicio de sesión.
 	['https://identitytoolkit.googleapis.com', `http://${process.env.EMU_AUTH || '127.0.0.1:9099'}/identitytoolkit.googleapis.com`]
 ];

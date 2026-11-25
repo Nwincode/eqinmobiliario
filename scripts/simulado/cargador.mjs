@@ -9,7 +9,8 @@ const CAMBIOS = {
 	'netlify/lib/auth.mjs': 'auth.mjs',
 	'netlify/lib/correo.mjs': 'correo.mjs',
 	'netlify/lib/resumen.mjs': 'resumen.mjs',
-	'netlify/lib/ia-cliente.mjs': 'ia-cliente.mjs'
+	'netlify/lib/ia-cliente.mjs': 'ia-cliente.mjs',
+	'netlify/lib/storage.mjs': 'storage.mjs'
 };
 export async function resolve(especificador, contexto, siguiente) {
 	const r = await siguiente(especificador, contexto);

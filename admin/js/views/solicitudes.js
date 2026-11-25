@@ -17,6 +17,8 @@ import { uploadImage, renderForm } from '../form.js';
 import { money, ms, corregirCorreo, limpiarCorreo } from '../crm.js';
 import { hace } from '../avisos-reglas.js';
 import { avisarAvisos } from '../avisos.js';
+import { fotosOcultas } from '../hilo.js';
+import { estadoIA } from '../ia.js';
 
 const V = window.EQVacacional;
 // Comprobantes del pago a EQ subiendo ahora (por reserva) y cuánto se espera cada uno. `vista`: la pantalla de
@@ -29,8 +31,8 @@ const ATRASO = [['Al día', 'secondary'], ['Vencida', 'warning'], ['+24 h', 'dan
 
 export async function render(container, [codigo] = []) {
 	const recargar = () => { container.replaceChildren(); return render(container, [codigo]); };
-	const S = await cargarSolicitudes({ recargar: () => recargar() });
-	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, deHoy, propietarios, netos, variosChats,
+	const [S, iaActiva] = await Promise.all([cargarSolicitudes({ recargar: () => recargar() }), estadoIA()]);
+	const { admin, equipo, leads: todas, chats, datosChat, porResponder, revisiones, fotos, deHoy, propietarios, netos, variosChats,
 		reservaDe, puedeCancelar, puedeNoMeLlego, debidas, solicitudDe, moraDe, teToca, alerta, ocupada, repetidaDe, seCruzaCon, cuenta, montosDe, plataDe, pasada, sinConfirmar,
 		puedeConfirmar, puedePagoRecibido, hacer, confirmar, pagoRecibido, noMeLlego, noSeDio, cancelar } = S;
 	// Primero la que se abrió por enlace, luego las que tienen un mensaje del cliente sin responder y las pendientes.
@@ -49,11 +51,12 @@ export async function render(container, [codigo] = []) {
 			if (!foto || SUBIENDO.has(res.id)) return;
 			SUBIENDO.add(res.id);
 			vista.pintar();
-			let url;
+			let path;
 			try {
 				let vence;
 				const tarde = new Promise((_, mal) => { vence = setTimeout(() => mal(Object.assign(new Error('lenta'), { code: 'subida/lenta' })), LIMITE_SUBIDA); });
-				({ url } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`), tarde]).finally(() => clearTimeout(vence)));
+				// Solo la ruta: Storage no abre comprobantes/ a nadie; lo sirve /api/foto (verComprobante).
+				({ path } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`, null, undefined, { sinEnlace: true }), tarde]).finally(() => clearTimeout(vence)));
 			} catch (err) {
 				const red = err?.code === 'subida/lenta' || /^storage\/(retry-limit-exceeded|canceled|unknown)$/.test(err?.code || '') || err?.code === 'auth/network-request-failed';
 				toast(red ? 'No se pudo subir el comprobante: la conexión está lenta o se cortó. Vuelve a intentarlo.' : `No se pudo subir el comprobante: ${errorMessage(err)}`, 'warning');
@@ -61,12 +64,23 @@ export async function render(container, [codigo] = []) {
 				return vista.pintar();
 			}
 			// Apagado hasta que la reserva lo registra; después la pantalla abierta se repinta con lo guardado.
-			try { await ponerComprobante(res, url); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
+			try { await ponerComprobante(res, path); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
 			SUBIENDO.delete(res.id);
 			vista.pintar();
 			await vista.recargar();
 		} });
 		archivo.click();
+	}
+	// El comprobante del pago a EQ lo sirve el servidor (/api/foto { reserva }: el administrador y el socio de la reserva).
+	// La pestaña se abre al tocar (si no, el navegador la bloquea) y recibe la foto cuando llega.
+	async function verComprobante(res) {
+		const ventana = window.open('', '_blank');
+		try {
+			const r = await fetch('/api/foto', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ reserva: res.id }) });
+			if (!r.ok) throw new Error(r.status === 403 ? 'Este comprobante no es de tus reservas.' : `No se pudo abrir el comprobante (${r.status}).`);
+			const url = URL.createObjectURL(await r.blob());
+			if (ventana) ventana.location.href = url; else window.open(url, '_blank');
+		} catch (err) { ventana?.close(); showError(err); }
 	}
 	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
 	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
@@ -111,8 +125,9 @@ export async function render(container, [codigo] = []) {
 	}
 
 	// Corregir el correo del cliente (crm.js corregirCorreo: el mismo que usa su ficha de cliente). Con el formulario del panel:
-	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le reenvía el enlace de su reserva: el botón dice a qué
-	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, no se guarda.
+	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le manda un enlace nuevo de su reserva (el viejo deja de
+	// servir: pudo llegar a otra persona; /api/reenviar-enlace): el botón dice a qué
+	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, «Reenviar a …».
 	function corregirElCorreo(l) {
 		const form = renderForm([{ name: 'email', label: 'Correo del cliente', type: 'email', required: true }], { email: l.email || '' });
 		const campo = form.el.querySelector('input[type=email]');
@@ -128,19 +143,21 @@ export async function render(container, [codigo] = []) {
 			try {
 				const r = await corregirCorreo(l, form.getData().email);
 				m.close();
-				if (!r.cambio) toast('Ya tenía ese correo.');
-				else if (r.enviado) toast(`Correo corregido: le reenviamos el enlace de su reserva a ${r.enviado}.`);
-				else if (r.enviado === '' && reenvia) toast(`Correo corregido, pero el enlace no se reenvió${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}: los próximos avisos sí le llegan ahí.`, 'warning');
-				else toast('Correo corregido: los próximos avisos le llegan ahí.');
+				const nuevo = r.rotado ? ' (el enlace de antes ya no sirve)' : '';
+				if (r.enviado) toast(`${r.cambio ? 'Correo corregido: l' : 'L'}e mandamos el enlace nuevo de su reserva a ${r.enviado}${nuevo}.`);
+				else if (reenvia) toast(`${r.cambio ? 'Correo corregido, pero el' : 'El'} enlace nuevo no se le mandó${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}${nuevo}: vuelve a intentarlo con el mismo correo.`, 'warning');
+				else if (!r.cambio) toast('Ya tenía ese correo.');
+				else toast(`Correo corregido: los próximos avisos le llegan ahí${nuevo}.`);
 				await recargar();
 			} catch (err) { showError(err); boton.disabled = false; }
 		} }, avion, texto);
 		const pintarBoton = () => {
 			const nuevo = limpiarCorreo(campo?.value);
 			const igual = nuevo === limpiarCorreo(l.email);
-			texto.textContent = igual || !correoValido(nuevo) ? 'Guardar' : reenvia ? `Guardar y reenviar a ${nuevo}` : `Guardar ${nuevo}`;
-			guardar.disabled = igual;
-			avion.hidden = !(reenvia && !igual && correoValido(nuevo));
+			// Con el mismo correo de ahora, en una reserva abierta: «Reenviar a …» (otro enlace nuevo, si el anterior no salió).
+			texto.textContent = !correoValido(nuevo) ? 'Guardar' : igual ? (reenvia ? `Reenviar a ${nuevo}` : 'Guardar') : reenvia ? `Guardar y reenviar a ${nuevo}` : `Guardar ${nuevo}`;
+			guardar.disabled = igual && !reenvia;
+			avion.hidden = !(reenvia && correoValido(nuevo));
 		};
 		campo?.addEventListener('input', pintarBoton);
 		pintarBoton();
@@ -154,7 +171,7 @@ export async function render(container, [codigo] = []) {
 	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 		com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]);
 	const botonesComision = (com, res, nivel, titulo) => [
-		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
+		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { onclick: () => verComprobante(res) }) : null,
 		!com.pagada && !admin ? botonComprobante(com, res) : null,
 		!com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(res, nivel, titulo), 'money') : null];
 
@@ -219,15 +236,22 @@ export async function render(container, [codigo] = []) {
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
-			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente.
-			// Una foto que la revisión ocultó (no es un comprobante o trae un contacto): el socio no ve lo leído, solo que el equipo
-			// la revisa (Mensajes); el equipo, además, por qué.
-			((rv) => (rv?.texto && rv.oculta && !admin && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje && !(ch.fotosVisibles || []).includes(rv.mensaje)
-				? h('div', { class: 'small text-muted' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'El equipo está revisando la foto del comprobante.')
-				: rv?.texto && est === 'confirmada' && ch && comprobanteVigente(ch) && rv.mensaje === ch.comprobanteMensaje
-				? h('div', { class: `small ${rv.cuadra && !rv.oculta ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
-					rv.texto, rv.oculta && rv.motivoOculta ? ` · ${rv.motivoOculta}` : '', h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join('')))
-				: null))(revisiones[l.id]),
+			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente. Lo que el socio
+			// no ve lo dice estadoDeFoto (hilo.js), lo mismo que decide /api/foto: al socio, que el equipo la revisa; al equipo, por
+			// qué y el enlace al chat, donde está «Mostrar al socio».
+			((rv) => {
+				if (est !== 'confirmada' || ch?.estado !== 'confirmada') return null;
+				const ocultas = fotosOcultas(fotos[r.codigo] || [], { chat: ch, rv, ia: iaActiva, ahora: ahoraYa() });
+				const vigente = comprobanteVigente(ch);
+				const oculta = vigente && ocultas.some((o) => o.m.id === ch.comprobanteMensaje);
+				const leida = vigente && rv?.texto && rv.mensaje === ch.comprobanteMensaje && !(!admin && oculta)
+					? h('div', { class: `small ${rv.cuadra && !rv.oculta ? 'text-success' : 'text-danger'}` }, h('span', { class: `icon-${rv.cuadra ? 'check-circle' : 'exclamation-triangle'} me-1`, 'aria-hidden': 'true' }),
+						rv.texto, h('span', { class: 'text-muted' }, [rv.leido?.banco, rv.leido?.referencia && `ref. ${rv.leido.referencia}`].filter(Boolean).map((x) => ` · ${x}`).join(''))) : null;
+				if (!admin) return oculta ? h('div', { class: 'small text-muted' }, h('span', { class: 'icon-info-circle me-1', 'aria-hidden': 'true' }), 'El equipo está revisando la foto del comprobante.') : leida;
+				return [leida, ocultas.length ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-eye-slash me-1', 'aria-hidden': 'true' }),
+					ocultas.length === 1 ? `Foto oculta al socio: ${ocultas[0].marca}` : `${ocultas.length} fotos ocultas al socio`, ' · ',
+					h('a', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }, 'Revisar en el chat')) : null];
+			})(revisiones[l.id]),
 			// El correo del cliente rebotó (/api/rebote-correo): no recibe los avisos de su reserva; se le escribe por WhatsApp.
 			admin && l.reboteCorreo ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-envelope-o me-1', 'aria-hidden': 'true' }),
 				'El correo no llegó: escríbele por WhatsApp o corrígelo.') : null,
@@ -332,7 +356,7 @@ export async function render(container, [codigo] = []) {
 	const suyas = leads.filter(teToca);
 	const porHacer = suyas.length ? h('div', { class: 'alert alert-danger d-flex align-items-baseline gap-2', role: 'alert' }, h('span', { class: 'icon-exclamation-triangle', 'aria-hidden': 'true' }),
 		h('span', { class: 'flex-grow-1' }, `Te toca confirmar (${TEXTO_CONFIRMA_EQUIPO.toLowerCase()}): `,
-			suyas.map((l, i) => [i ? ', ' : '', h('a', { href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
+			suyas.map((l, i) => [i ? ', ' : '', h('a', { class: 'enlace-toque', href: `#/solicitudes/${encodeURIComponent(l.reserva.codigo)}` }, l.reserva.codigo),
 				conPlazo(ms(l.createdAt)) ? ` (vence ${formatDate(new Date(venceRespuesta(ms(l.createdAt))))})` : '']))) : null;
 	mount(container,
 		pageHeader('Solicitudes'),

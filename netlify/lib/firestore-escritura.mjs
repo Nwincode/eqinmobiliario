@@ -85,9 +85,17 @@ export async function transaccion(trabajo, intentos = 5, plazoMs = 7000) {
 		const crear = (ruta, datos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(datos) }, currentDocument: { exists: false }, updateTransforms: transformaciones(transforma) });
 		const cambiar = (ruta, campos, transforma) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: aCampos(anidar(campos)) }, updateMask: { fieldPaths: Object.keys(campos) },
 			currentDocument: { exists: true }, updateTransforms: transformaciones(transforma) });
+		// Para mover documentos tal cual (el enlace nuevo de un chat: netlify/lib/rotar-enlace.mjs): leer los campos como
+		// los guarda la base (`crudo`, sin pasar por JavaScript: ni un tipo cambia), los de una subcolección entera, crear
+		// con ellos y borrar.
+		const leerCrudo = async (ruta) => { const [r] = await pedir(token, `${BASE}:batchGet`, { transaction, documents: [`${RAIZ}/${ruta}`] }, hasta); return r?.found ? { id: ruta.split('/').pop(), crudo: r.found.fields || {} } : null; };
+		const listarCrudo = async (padre, coleccion) => (await pedir(token, `${BASE}/${padre}:runQuery`, { transaction, structuredQuery: { from: [{ collectionId: coleccion }] } }, hasta))
+			.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), crudo: r.document.fields || {} }));
+		const crearCrudo = (ruta, crudo, cambios = {}) => writes.push({ update: { name: `${RAIZ}/${ruta}`, fields: { ...crudo, ...aCampos(cambios) } }, currentDocument: { exists: false } });
+		const borrar = (ruta) => writes.push({ delete: `${RAIZ}/${ruta}` });
 		let resultado, enCommit = false;
 		try {
-			resultado = await trabajo({ leer, consultar, crear, cambiar });
+			resultado = await trabajo({ leer, consultar, crear, cambiar, leerCrudo, listarCrudo, crearCrudo, borrar });
 			enCommit = true;
 			await pedir(token, `${BASE}:commit`, { transaction, writes }, hasta);
 			return resultado;
@@ -119,13 +127,29 @@ const mismoValor = (a, b) => {
 };
 const mismosCampos = (escritos, guardados) => Object.keys(escritos).every((k) => mismoValor(escritos[k], guardados[k]));
 async function quedoEscrito(token, writes) {
-	const nuevos = writes.filter((w) => w.currentDocument?.exists === false).map((w) => w.update);
+	const nuevos = writes.filter((w) => w.update && w.currentDocument?.exists === false).map((w) => w.update);
 	if (!nuevos.length) return false;
 	try {
 		const r = await pedir(token, `${BASE}:batchGet`, { documents: nuevos.map((d) => d.name) }, Date.now() + 1500);
 		const porNombre = Object.fromEntries(r.filter((x) => x.found).map((x) => [x.found.name, x.found.fields || {}]));
 		return nuevos.every((d) => porNombre[d.name] && mismosCampos(d.fields || {}, porNombre[d.name]));
 	} catch { return false; }
+}
+
+// Mover muchos documentos tal cual, fuera de una transacción (el cambio de enlace: netlify/lib/rotar-enlace.mjs).
+// listarCrudo(padre, coleccion): todos, con sus campos como los guarda la base. escribirLote(ops): de 400 en 400 commits;
+// ops = [{ poner: ruta, crudo, cambios }] (crea o reemplaza: repetirlo da lo mismo) o [{ borrar: ruta }].
+export async function listarCrudo(padre, coleccion) {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	return (await pedir(token, `${BASE}/${padre}:runQuery`, { structuredQuery: { from: [{ collectionId: coleccion }] } }, Date.now() + 5000))
+		.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), crudo: r.document.fields || {} }));
+}
+export async function escribirLote(ops) {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	for (let i = 0; i < ops.length; i += 400) {
+		const writes = ops.slice(i, i + 400).map((o) => (o.borrar ? { delete: `${RAIZ}/${o.borrar}` } : { update: { name: `${RAIZ}/${o.poner}`, fields: { ...o.crudo, ...aCampos(o.cambios || {}) } } }));
+		await pedir(token, `${BASE}:commit`, { writes }, Date.now() + 5000);
+	}
 }
 
 // Contar sin transacción: un solo commit (no choca con otros a la vez) que suma a cada contador de `sumas` ({ ruta, n };
