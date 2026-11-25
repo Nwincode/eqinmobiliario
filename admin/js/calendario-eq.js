@@ -17,16 +17,21 @@ export function campoCalendarioEq(casaId, { when } = {}) {
 				try { await navigator.clipboard.writeText(campo.value); toast('Enlace copiado.'); } catch { campo.select(); }
 			} });
 			copiar.disabled = true;
-			el.replaceChildren(h('div', { class: 'd-flex gap-2 align-items-center' }, campo, copiar),
-				h('div', { class: 'form-text' }, 'Las plataformas leen de aquí las reservas confirmadas de EQ, sin datos del huésped. Es privado: no lo compartas.'));
+			const ayuda = h('div', { class: 'form-text' }, 'Las plataformas leen de aquí las reservas confirmadas de EQ, sin datos del huésped. Es privado: no lo compartas.');
+			el.replaceChildren(h('div', { class: 'd-flex gap-2 align-items-center' }, campo, copiar), ayuda);
 			(async () => {
 				const token = await session.user.getIdToken();
 				const r = await fetch(`/api/calendario?casa=${encodeURIComponent(casaId)}`, { headers: { Authorization: `Bearer ${token}` } });
 				const b = await r.json().catch(() => ({}));
-				if (!r.ok || !b.url) throw new Error(b.error || 'No se pudo pedir el enlace.');
+				if (!r.ok || !b.url) throw new Error(b.error || 'No se pudo pedir el enlace. Inténtalo más tarde.');
 				campo.value = b.url;
 				copiar.disabled = false;
-			})().catch((err) => { campo.value = errorMessage(err); });
+			})().catch((err) => {
+				// El aviso va debajo del campo (el mismo de un campo con error), no dentro: en el celular se cortaba.
+				campo.value = '';
+				campo.placeholder = 'Sin enlace por ahora';
+				ayuda.replaceWith(h('div', { class: 'invalid-feedback d-block', role: 'alert' }, errorMessage(err)));
+			});
 		}
 	};
 }

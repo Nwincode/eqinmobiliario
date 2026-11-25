@@ -20,6 +20,8 @@ mkdirSync(CAPTURAS, { recursive: true });
 mkdirSync(PANEL, { recursive: true });
 
 let fallas = 0, n = 0;
+// Lo que la regla de seguridad (CSP de netlify.toml, que el servidor de pruebas aplica) bloqueó en cualquier página.
+const bloqueados = [];
 const paso = (nombre, bien, detalle = '') => { n++; if (!bien) fallas++; console.log(`${bien ? 'ok   ' : 'FALLA'} ${nombre}${detalle ? ` · ${detalle}` : ''}`); };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -32,6 +34,7 @@ async function persona(ancho = 1280, { reglasViejas = false } = {}) {
 	const p = await ctx.newPage();
 	const errores = [];
 	p.on('pageerror', (e) => errores.push(e.message.slice(0, 200)));
+	p.on('console', (m) => { if (/Content Security Policy/.test(m.text())) bloqueados.push(`${p.url().replace(SITIO, '')}: ${m.text().slice(0, 240)}`); });
 	// En el contexto (no en la página): una segunda pestaña de la misma persona va por el mismo camino.
 	await ctx.route('**/*', async (r) => {
 		const u = r.request().url();
@@ -2259,6 +2262,11 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 	await ent.p.context().close();
 }
 
+{
+	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';
+	paso('La regla de seguridad del panel (CSP) se aplicó y no bloqueó nada en todo el recorrido', /script-src 'self'/.test(csp) && !bloqueados.length,
+		bloqueados.length ? [...new Set(bloqueados)].slice(0, 3).join(' ; ') : csp ? '' : 'el servidor no mandó la regla');
+}
 console.log(`\n${n - fallas} de ${n} pasos correctos. Capturas en ${CAPTURAS}`);
 await navegador.close();
 process.exit(fallas ? 1 : 0);

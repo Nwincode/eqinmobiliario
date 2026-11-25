@@ -1,6 +1,6 @@
 // Herramientas del asesor que funcionan sin IA: reglas, plantillas y un diccionario.
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
-import { piesCuadrados, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD } from './formato.js';
+import { piesCuadrados, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD, plural } from './formato.js';
 import { enOperacion, operacionHashtag, amenidadesEn, precioVisible } from './estados.js';
 import { sinRepetir, autoSeoTitle } from './seo-auto.js';
 
@@ -25,7 +25,6 @@ const fmt = (v, moneda) => dinero(n(v), moneda === 'GTQ' ? 'GTQ' : 'USD');
 // El precio con su operación («/mes», «por noche»): el formato único de formato.js.
 const precioDe = (p) => precioTexto(precioVisible(p), p.moneda, p.operacion);
 const unir = (arr, y = 'y') => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${y} ${arr[arr.length - 1]}`);
-const plural = (c, uno, varios) => `${c} ${c === 1 ? uno : varios}`;
 const lugar = (p) => sinRepetir([p.direccion, p.zona, p.ciudad]).join(', ');
 const url = (p) => (p.slug ? `${location.origin}/propiedad/${p.slug}/` : location.origin);
 

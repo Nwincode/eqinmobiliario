@@ -2,12 +2,12 @@ import { h, badge, elegirOpcion, toast, confirmDialog } from '../ui.js';
 import { crudView } from '../crud.js';
 import { invalidateAgents, markPending } from '../session.js';
 import { db, collection, getDocs, query, where, writeBatch, doc } from '../firebase.js';
+import { plural } from '../formato.js';
 
 // Un asesor que se elimina no deja casas ni leads sin nadie: los leads de sus casas seguirían llegando con su agentId y
 // «Sin asignar» no los mostraría. Antes, todo lo que lleva su agentId pasa a otro asesor («Reasignar»). Ocultarlo solo
 // lo quita del sitio: su trabajo se queda con él.
 const CON_ASESOR = ['properties', 'leads', 'clientes', 'requerimientos', 'actividades', 'propietarios', 'cotizaciones', 'reservas'];
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 // Sus usuarios del panel (entran como este asesor).
 const usuariosDe = async (id) => (await getDocs(query(collection(db, 'users'), where('agentId', '==', id)))).docs.map((u) => u.data().email || u.id);
 async function reasignarAntesDeEliminar(asesor, id) {

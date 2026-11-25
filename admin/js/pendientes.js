@@ -2,6 +2,7 @@
 // tarjeta de Inicio y marcas en los formularios. Las reglas están en pendientes-reglas.js.
 import { h } from './ui.js';
 import { fila } from './avisos.js';
+import { plural } from './formato.js';
 
 import { REGLAS, revisar, incompletos } from './pendientes-reglas.js';
 
@@ -124,7 +125,6 @@ export function tarjetaPendientes(pend) {
 	const grupos = Object.entries(pend).filter(([, l]) => l.length);
 	const total = grupos.reduce((n, [, l]) => n + l.length, 0);
 	if (!total) return null;
-	const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 	return h('section', { class: 'card mb-3 tarjeta-pendientes', 'aria-labelledby': 'pend-titulo' },
 		h('div', { class: 'card-header tarjeta-pendientes-cab' },
 			h('span', { class: 'tarjeta-pendientes-icono icon-exclamation-triangle', 'aria-hidden': 'true' }),

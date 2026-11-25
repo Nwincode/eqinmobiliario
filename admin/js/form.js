@@ -100,19 +100,70 @@ function fileInput(multiple, onFiles) {
 // Teléfono con su código de país, para cualquier formulario del panel. Se guarda como «+código número» (formato.js).
 // Devuelve el grupo (código + número); `.valor()` da el teléfono listo para guardar.
 // En el panel casi siempre es el teléfono de otra persona (cliente, dueño, huésped): sin autollenado, para que el navegador
-// no ponga el del asesor. `etiqueta`: el nombre del número cuando no hay <label> que lo apunte.
-export function campoTelefono(valor, { onChange, required = false, placeholder, disabled = false, etiqueta, autocomplete = 'off' } = {}) {
+// no ponga el del asesor. `etiqueta`: el nombre del número cuando no hay <label> que lo apunte; `id`: el del número, para
+// un <label for>. `revisar`: en un formulario armado a mano (sin renderForm), la misma revisión al salir del campo;
+// `revisarCampos` la repite al guardar.
+export function campoTelefono(valor, { onChange, required = false, placeholder, disabled = false, etiqueta, autocomplete = 'off', id, revisar = false } = {}) {
 	const { codigo, numero } = partirTelefono(valor);
 	const sel = h('select', { class: 'form-select campo-codigo', 'aria-label': 'Código de país' },
 		CODIGOS_PAIS.map(([c, pais]) => h('option', { value: c }, `+${c} ${pais}`)), codigo ? null : h('option', { value: '' }, 'Otro'));
 	sel.value = codigo;
-	const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required, placeholder, autocomplete, 'aria-label': etiqueta });
+	const num = h('input', { class: 'form-control', type: 'tel', inputmode: 'tel', maxlength: 24, required, placeholder, autocomplete, id, 'aria-label': etiqueta });
 	num.value = numero;
 	const grupo = h('div', { class: 'input-group' }, sel, num);
 	grupo.valor = () => unirTelefono(sel.value, num.value);
 	if (onChange) { sel.addEventListener('change', () => onChange(grupo.valor())); num.addEventListener('input', () => onChange(grupo.valor())); }
 	if (disabled) { sel.disabled = true; num.disabled = true; }
+	if (revisar) conRevision(grupo, telefonoValido, MSG_TELEFONO);
 	return grupo;
+}
+
+// Correo para un formulario armado a mano: la misma pieza que el correo de renderForm (tipo, teclado, revisión al salir
+// del campo y «¿Quisiste decir …?»). Devuelve la caja; `.valor()` da el correo y `revisarCampos` lo repite al guardar.
+// Sin autollenado por defecto (casi siempre es el correo de otra persona); lo propio pasa `autocomplete: 'email'`.
+export function campoCorreo(valor, { onChange, id, autocomplete = 'off', required = false } = {}) {
+	const input = h('input', { class: 'form-control', type: 'email', inputmode: 'email', autocomplete, id, required });
+	input.value = valor ?? '';
+	if (onChange) input.addEventListener('input', () => onChange(input.value));
+	const caja = conPistaCorreo(input);
+	caja.valor = () => input.value.trim();
+	conRevision(caja, correoValido, MSG_CORREO);
+	return caja;
+}
+
+const MSG_TELEFONO = 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).';
+const MSG_CORREO = 'Revisa el correo (p. ej. nombre@correo.com).';
+// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
+function conPistaCorreo(input) {
+	const pista = h('div', { class: 'form-text', hidden: true });
+	input.addEventListener('blur', () => {
+		const otro = sugerenciaCorreo(input.value);
+		pista.hidden = !otro;
+		pista.replaceChildren(...(otro ? [h('span', { class: 'icon-exclamation-circle me-1', 'aria-hidden': 'true' }), `¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
+	});
+	input.addEventListener('input', () => { pista.hidden = true; });
+	return h('div', {}, input, pista);
+}
+// Lo que tiene mal un campo armado a mano: solo lo que se escribió ahora (lo guardado que nadie tocó no se marca).
+function conRevision(control, ok, msg) {
+	const inicial = control.valor();
+	control.problema = () => { const v = control.valor(); return !v || v === inicial || ok(v) ? '' : msg; };
+	alSalir(control, control.problema);
+}
+// Al guardar un formulario armado a mano: marca en rojo cada campo con problema (campoTelefono con `revisar`,
+// campoCorreo), va al primero y lo dice. Devuelve true si todo está bien.
+export function revisarCampos(controles) {
+	return avisarErrores(controles.filter(Boolean).map((control) => ({ control, msg: control.problema?.() || '' })).filter((e) => e.msg));
+}
+// Todos los errores juntos: cada campo en rojo con su mensaje debajo, la página va al primero y un solo aviso.
+function avisarErrores(errores) {
+	if (!errores.length) return true;
+	errores.forEach((e) => { const input = entrada(e.control); if (input?.classList) quitarMarca(input); marcar(e); });
+	const primero = entrada(errores[0].control);
+	primero?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+	primero?.focus?.({ preventScroll: true });
+	toast(errores.length === 1 ? errores[0].msg : `Revisa los ${errores.length} campos marcados en rojo.`, 'warning');
+	return false;
 }
 
 // Lo que se marca en rojo de un control (en el teléfono, el número; en un campo con pista, su input).
@@ -493,7 +544,7 @@ export function renderForm(schema, data, options = {}) {
 
 			case 'telefono':
 				control = campoTelefono(get(), { onChange: set, required: field.required, placeholder: field.placeholder, disabled: field.disabled });
-				conFormato.push({ field, target, control, inicial: get(), ok: telefonoValido, msg: 'Revisa el teléfono: no tiene los dígitos de un número de ese país (en Guatemala, 8).' });
+				conFormato.push({ field, target, control, inicial: get(), ok: telefonoValido, msg: MSG_TELEFONO });
 				alSalir(control, formatoMal(conFormato.at(-1)));
 				// Uno guardado antes que no cumple el formato no frena el guardado (no lo cambió quien edita): se avisa aquí.
 				if (get() && !telefonoValido(get())) control = h('div', {}, control, h('div', { class: 'form-text text-warning' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), 'Este teléfono guardado no parece completo para ese país: revísalo cuando puedas.'));
@@ -511,17 +562,9 @@ export function renderForm(schema, data, options = {}) {
 				if (field.onInput) input.addEventListener('input', () => field.onInput(input.value, state));
 				control = input;
 				if (field.type === 'email') {
-					conFormato.push({ field, target, control: input, inicial: get(), ok: correoValido, msg: 'Revisa el correo (p. ej. nombre@correo.com).' });
+					conFormato.push({ field, target, control: input, inicial: get(), ok: correoValido, msg: MSG_CORREO });
 					alSalir(input, formatoMal(conFormato.at(-1)));
-					// «¿Quisiste decir …@gmail.com?» al salir del campo, con un toque para ponerlo. No impide guardar.
-					const pista = h('div', { class: 'form-text', hidden: true });
-					input.addEventListener('blur', () => {
-						const otro = sugerenciaCorreo(input.value);
-						pista.hidden = !otro;
-						pista.replaceChildren(...(otro ? [h('span', { class: 'icon-exclamation-circle me-1', 'aria-hidden': 'true' }), `¿Quisiste decir ${otro}? `, h('button', { type: 'button', class: 'btn btn-link btn-sm p-0 align-baseline', onclick: () => { input.value = otro; set(otro); pista.hidden = true; input.dispatchEvent(new Event('input')); } }, 'Usar ese')] : []));
-					});
-					input.addEventListener('input', () => { pista.hidden = true; });
-					control = h('div', {}, input, pista);
+					control = conPistaCorreo(input);
 				}
 			}
 		}
@@ -568,13 +611,7 @@ export function renderForm(schema, data, options = {}) {
 				if (v === inicial) continue;
 				if (!vacio(v) && !ok(v) && !control.closest?.('[hidden]') && !errores.some((e) => e.control === control)) errores.push({ control, msg });
 			}
-			if (!errores.length) return true;
-			errores.forEach(marcar);
-			const primero = entrada(errores[0].control);
-			primero?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-			primero?.focus?.({ preventScroll: true });
-			toast(errores.length === 1 ? errores[0].msg : `Revisa los ${errores.length} campos marcados en rojo.`, 'warning');
-			return false;
+			return avisarErrores(errores);
 		},
 		getData: () => clonar(state),
 		// Borra del almacenamiento las fotos quitadas; llamar después de guardar.

@@ -6,6 +6,7 @@ import { uploadImage, procesarImagen, deleteImage } from '../form.js';
 import { session, loadAgents, markPending } from '../session.js';
 import { incoherencia, textosConPrecioOculto } from '../estados.js';
 import { filaCasa } from '../ficha-casa.js';
+import { plural } from '../formato.js';
 import { OPERACIONES, TIPOS, ESTADOS, MONEDAS, datosIniciales, loadAll, vacacionalPublico, faltaIngles, traducirEn, propiedadNueva, slugLibre, crearCasa, guardarCambios, revisarCasa } from './properties.js';
 import { loadPropietarios } from '../crm.js';
 import { asignarDueno, avisoCambioDeDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
@@ -17,7 +18,6 @@ import {
 const FOTO_MINIMA = 800; // px del lado mayor
 const FOTOS_EN_PARALELO = 3;
 
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 const icono = (cls) => h('span', { class: cls, 'aria-hidden': 'true' });
 
 // Ejecuta fn sobre cada elemento con un máximo de n a la vez.

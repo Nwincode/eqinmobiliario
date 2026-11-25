@@ -78,7 +78,9 @@ export function precioTexto(precio, moneda = 'USD', operacion = 'venta', lang = 
 // «1 noche», «3 noches».
 // El primer nombre de una persona («Ana» de «Ana María López»): lo que el socio ve del cliente y el saludo de un mensaje.
 export const primerNombre = (n) => String(n || '').trim().split(/\s+/)[0] || '';
-export const nNoches = (n) => `${n} ${n === 1 ? 'noche' : 'noches'}`;
+// «1 casa», «2 casas»: el número y la palabra que le toca. Una sola en todo el sistema (panel y sitio, por util.mjs).
+export const plural = (n, uno, varios) => `${n} ${Number(n) === 1 ? uno : varios}`;
+export const nNoches = (n) => plural(n, 'noche', 'noches');
 
 // ¿Es un correo que puede recibir mensajes? Algo@dominio.ext, sin espacios y con una extensión de 2 letras o más
 // («ana@», «ana@correo», «.ana@gmail.com», «ana..x@gmail.com» o «ana@-gmail.com» no pasan). La usan los formularios del sitio (js/site.js, por el paquete de assets.mjs)
@@ -284,6 +286,16 @@ function sinTroncal(t) {
 	const pre = `^(\\+\\D*${codigo.split('').join('\\D*')})`;
 	const sinParentesis = t.replace(new RegExp(`${pre}[\\s.-]*\\(\\s*0\\s*\\)[\\s.-]*`), '$1 ');
 	return sinParentesis !== t ? sinParentesis : t.replace(new RegExp(`${pre}(\\D*)0`), '$1$2');
+}
+// Un teléfono para mostrarlo o imprimirlo, con el formato único «+código número»: uno guardado sin código (como antes)
+// se toma de Guatemala (partirTelefono). Si así no queda un número válido (un texto como «PBX 2222-3333 ext. 5»), se
+// muestra tal como se guardó: no se le inventa un código. Uno que ya trae «+» sale tal cual.
+export function telefonoTexto(tel) {
+	const t = String(tel || '').trim();
+	if (!t || t.startsWith('+') || !/^[\d\s().\/-]+$/.test(t)) return t;
+	const { codigo, numero } = partirTelefono(t);
+	const unido = unirTelefono(codigo, numero);
+	return telefonoValido(unido) ? unido : t;
 }
 // ¿Es un teléfono que se puede marcar? Con un código de la lista, el número va según el plan de ese país («+502» 8
 // dígitos o un 1-800, «+1» 10, …), sin contar una extensión, el 0 de larga distancia ni el «1» viejo de México; con

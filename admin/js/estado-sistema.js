@@ -2,7 +2,7 @@
 // usan la tarjeta de Inicio del administrador (views/dashboard.js) y el correo de cada mañana (netlify/lib/resumen.mjs,
 // solo lo que sigue roto después de 24 h). Lo prueba scripts/test-estado.mjs. Lo anota el servidor en estado/{pieza}
 // (netlify/lib/estado.mjs): { ok, fallo, falloDesde, motivo }.
-import { enMs } from './formato.js';
+import { enMs, plural } from './formato.js';
 
 const MIN = 60_000, HORA = 60 * MIN, DIA = 24 * HORA;
 export const ROTO_CORREO = DIA;
@@ -21,7 +21,6 @@ export const RELOJES = {
 
 const ms = enMs;
 export const rota = (d) => Boolean(d) && ms(d.fallo) > 0 && ms(d.ok) < ms(d.fallo);
-const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 
 // Entradas:
 //  estados:     { [pieza]: { ok, fallo, falloDesde, motivo } } (la colección estado; `limites` y `respaldo` incluidos)

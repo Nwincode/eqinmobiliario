@@ -17,7 +17,8 @@ antes de unir.
 - Lo que ya está guardado no se vuelve a pedir: se rellena o se sugiere.
 - Se revisa mientras se escribe o al salir del campo, no solo al guardar; el mensaje dice qué falta y cómo
   arreglarlo, junto al campo. `renderForm` lo hace solo con el correo, el teléfono (también al cambiar el código de
-  país) y los números con mínimo o máximo; un formulario armado a mano usa las mismas reglas de `formato.js`.
+  país) y los números con mínimo o máximo; un formulario armado a mano usa las mismas piezas (`campoTelefono` con
+  `revisar`, `campoCorreo` y `revisarCampos` al guardar, de `admin/js/form.js`).
 - Cada dato con su formato único (`admin/js/formato.js`): teléfono «+código número» (`telefonoValido`: 8 dígitos después del +502), correo (`correoValido`, y `sugerenciaCorreo` para «¿Quisiste decir …@gmail.com?»), fecha, monto.
 - Montos con `min` y `max`; un precio de más de 5 veces el de siempre se pregunta antes de guardar.
 - Al guardar, todos los errores juntos: cada campo en rojo con su mensaje debajo y la página va al primero.

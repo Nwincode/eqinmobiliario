@@ -14,7 +14,8 @@ import { duenoDe as duenoDeCasa } from '../duenos.js';
 import { SIN_REGLAS_NUEVAS, faltanReglas } from '../reglas-publicadas.js';
 import { h, mount, toast, showError, confirmDialog, emptyState, spinner, pageHeader, modal, tablaAdmin, iconoBtn } from '../ui.js';
 import { session, loadAgents } from '../session.js';
-import { esPorcentaje } from '../formato.js';
+import { esPorcentaje, telefonoTexto } from '../formato.js';
+import { campoTelefono, campoCorreo, revisarCampos } from '../form.js';
 import {
 	REGIMENES, MODOS, SERVICIOS, MONEDAS, CONDICIONES_DEF, NOTA_PEQUENO, VIGENCIA_DEF,
 	EMISORES, TIPOS_ADMIN, ISR_DEF, ISR_ALTO_DEF, ISR_LIMITE_DEF, TC_DEF, FUENTE_ISR, PCT_ASESOR_DEF,
@@ -167,8 +168,11 @@ async function guardarAsesor(clave, datos) {
 	await setDoc(doc(db, COL_ASESOR, clave), { ...limpio, updatedAt: serverTimestamp() }, { merge: true });
 }
 
-// Campos del asesor (editor y «Mis datos para facturar»). onCambio(campo) avisa cada cambio.
-function camposAsesor(datos, onCambio, pre = 'cot-asesor') {
+// Campos del asesor (editor y «Mis datos para facturar»). onCambio(campo) avisa cada cambio. `propios`: son los datos de
+// quien escribe (el navegador puede llenarlos); los de otro asesor van sin autollenado.
+// Devuelve { cols, revisar }: revisar() marca un teléfono o correo mal escrito antes de guardar (true si está bien).
+function camposAsesor(datos, onCambio, pre = 'cot-asesor', { propios = true } = {}) {
+	const auto = (v) => (propios ? v : 'off');
 	const fila = (k, label, { tipo = 'text', col = 'col-sm-6', attrs = {}, ayuda } = {}) => {
 		const idc = `${pre}-${k}`;
 		return h('div', { class: col }, h('label', { class: 'form-label', for: idc }, label),
@@ -177,15 +181,18 @@ function camposAsesor(datos, onCambio, pre = 'cot-asesor') {
 			ayuda ? h('div', { class: 'form-text', id: `${idc}-ayuda` }, ayuda) : null);
 	};
 	const idr = `${pre}-regimen`;
-	return [
-		fila('nombre', 'Nombre como aparece en tu factura', { col: 'col-12', attrs: { autocomplete: 'name' } }),
+	const tel = campoTelefono(datos.telefono, { id: `${pre}-telefono`, autocomplete: auto('tel'), revisar: true, onChange: (v) => { datos.telefono = v; onCambio('telefono'); } });
+	const correo = campoCorreo(datos.email, { id: `${pre}-email`, autocomplete: auto('email'), onChange: (v) => { datos.email = v; onCambio('email'); } });
+	const cols = [
+		fila('nombre', 'Nombre como aparece en tu factura', { col: 'col-12', attrs: { autocomplete: auto('name') } }),
 		fila('nit', 'NIT', { attrs: { autocomplete: 'off' } }),
 		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: idr }, 'Régimen de IVA'),
 			h('select', { class: 'form-select', id: idr, onchange: (e) => { datos.regimen = e.target.value; onCambio('regimen'); } },
 				REGIMENES.map(([v, t]) => h('option', { value: v, selected: regimenValido(datos.regimen) === v }, t)))),
-		fila('telefono', 'Teléfono', { tipo: 'tel', attrs: { autocomplete: 'tel' } }),
-		fila('email', 'Correo', { tipo: 'email', attrs: { autocomplete: 'email' } })
+		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: `${pre}-telefono` }, 'Teléfono'), tel),
+		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: `${pre}-email` }, 'Correo'), correo)
 	];
+	return { cols, revisar: () => revisarCampos([tel, correo]) };
 }
 
 const grupoCard = (icono, titulo, ...hijos) => h('section', { class: 'card cot-grupo mb-3' },
@@ -201,7 +208,9 @@ async function vistaMisDatos(container) {
 	const datos = await cargarAsesor(clave);
 	let sucio = false;
 	const estado = h('span', { class: 'small text-muted', 'aria-live': 'polite' });
+	const campos = camposAsesor(datos, () => { sucio = true; estado.textContent = 'Cambios sin guardar'; }, 'mis');
 	const btn = h('button', { type: 'button', class: 'btn btn-primary btn-toque', onclick: async () => {
+		if (!campos.revisar()) return;
 		btn.disabled = true;
 		try { await guardarAsesor(clave, datos); sucio = false; estado.textContent = ''; toast('Tus datos para facturar se guardaron.'); } catch (err) { showError(err); } finally { btn.disabled = false; }
 	} }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), 'Guardar mis datos');
@@ -210,7 +219,7 @@ async function vistaMisDatos(container) {
 		pageHeader('Mis datos para facturar', volver),
 		h('div', { class: 'cot-ajustes' },
 			h('p', { class: 'text-muted cot-intro' }, 'Se usan cuando eliges «El asesor» en «¿Quién factura?». Se llenan solos en cada cotización nueva.'),
-			grupoCard('icon-id-card-o', 'Tus datos como emisor', camposAsesor(datos, () => { sucio = true; estado.textContent = 'Cambios sin guardar'; }, 'mis')),
+			grupoCard('icon-id-card-o', 'Tus datos como emisor', campos.cols),
 			h('div', { class: 'sticky-actions cot-barra' }, btn, estado)));
 	window.addEventListener('hashchange', function aviso() { window.removeEventListener('hashchange', aviso); if (sucio) toast('Saliste sin guardar tus datos para facturar.', 'warning'); });
 }
@@ -239,6 +248,9 @@ async function vistaEmpresa(container) {
 			h('input', { class: 'form-check-input', type: 'checkbox', id: 'emp-logo', checked: emp.usarLogo !== false, onchange: (e) => { emp.usarLogo = e.target.checked; marca(); } }),
 			h('label', { class: 'form-check-label', for: 'emp-logo' }, 'Mostrar el logotipo en la cotización')),
 		h('img', { src: LOGO, alt: '', class: 'cot-logo-muestra' }));
+	// Teléfono con su código de país y correo revisado, como en el resto del panel (admin/js/form.js).
+	const telEmp = campoTelefono(emp.telefono, { id: 'emp-telefono', revisar: true, onChange: (t) => { emp.telefono = t; marca(); } });
+	const correoEmp = campoCorreo(emp.email, { id: 'emp-email', onChange: (t) => { emp.email = t; marca(); } });
 	const datos = grupoCard('icon-building-o', 'Datos de la empresa',
 		fila(emp, 'razonSocial', 'Razón social', { col: 'col-12', attrs: { placeholder: 'Por ejemplo: Equipo Inmobiliario, Sociedad Anónima' } }),
 		fila(emp, 'nombreComercial', 'Nombre comercial', { col: 'col-12', ayuda: 'Es el nombre grande de la hoja; la razón social va debajo.' }),
@@ -247,8 +259,8 @@ async function vistaEmpresa(container) {
 			h('select', { class: 'form-select', id: 'emp-regimen', onchange: (e) => { emp.regimen = e.target.value; marca(); } },
 				REGIMENES.map(([r, t]) => h('option', { value: r, selected: emp.regimen === r }, t)))),
 		fila(emp, 'direccion', 'Dirección', { col: 'col-12' }),
-		fila(emp, 'telefono', 'Teléfono', { tipo: 'tel' }),
-		fila(emp, 'email', 'Correo', { tipo: 'email' }),
+		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: 'emp-telefono' }, 'Teléfono'), telEmp),
+		h('div', { class: 'col-sm-6' }, h('label', { class: 'form-label', for: 'emp-email' }, 'Correo'), correoEmp),
 		logo);
 	const liq = grupoCard('icon-calculator', 'Liquidación para el asesor',
 		h('p', { class: 'col-12 small text-muted mb-0' }, 'Cuando factura la empresa, cada cotización muestra (solo dentro del panel) cuánto le queda al asesor después de impuestos.'),
@@ -269,6 +281,7 @@ async function vistaEmpresa(container) {
 		if (![isr, isrAlto, pa].every(esPorcentaje)) { toast('Los porcentajes de ISR y para el asesor van de 0 a 100.', 'danger'); return; }
 		if (!(lim >= 0) || !(tc > 0)) { toast('Revisa el límite y el tipo de cambio.', 'danger'); return; }
 		if (!(vig >= 1)) { toast('La vigencia debe ser de al menos 1 día.', 'danger'); return; }
+		if (!revisarCampos([telEmp, correoEmp])) return;
 		const empresa = Object.fromEntries(['razonSocial', 'nombreComercial', 'nit', 'direccion', 'telefono', 'email'].map((k) => [k, String(emp[k] ?? '').trim()]));
 		empresa.regimen = regimenValido(emp.regimen);
 		empresa.usarLogo = emp.usarLogo !== false;
@@ -370,14 +383,17 @@ async function editor(container, id, { duplicar = false } = {}) {
 			h('span', {}, `Falta ${faltan.join(' y ')} de quien factura. `,
 				c.emisorTipo === 'asesor' ? 'Escríbelo arriba para que salga en la hoja.' : (session.isAdmin ? 'Complétalo en «Datos de la empresa».' : 'Pide al administrador que lo complete.')))] : []));
 	}
+	const camposAs = camposAsesor(asesorDatos, () => { asesorSucio = true; const antes = c.regimen; aplicarEmisor(); pintarAvisoEmisor(); if (antes !== c.regimen) pintarLineas(); cambio(); },
+		'cot-asesor', { propios: claveEmisor === claveAsesor() });
 	const btnAsesor = h('button', { type: 'button', class: 'btn btn-outline-primary btn-toque', onclick: async () => {
 		if (!claveEmisor) { toast('Tu usuario no tiene un asesor asignado.', 'danger'); return; }
+		if (!camposAs.revisar()) return;
 		btnAsesor.disabled = true;
 		try { await guardarAsesor(claveEmisor, asesorDatos); asesorSucio = false; toast(session.isAdmin && claveEmisor !== session.agentId ? 'Datos del asesor guardados.' : 'Tus datos para facturar se guardaron.'); }
 		catch (err) { showError(err); } finally { btnAsesor.disabled = false; }
 	} }, h('span', { class: 'icon-floppy-o me-2', 'aria-hidden': 'true' }), session.isAdmin && claveEmisor && claveEmisor !== session.agentId ? 'Guardar datos del asesor' : 'Guardar mis datos');
 	const camposDelAsesor = h('div', { class: 'row g-3' },
-		camposAsesor(asesorDatos, () => { asesorSucio = true; const antes = c.regimen; aplicarEmisor(); pintarAvisoEmisor(); if (antes !== c.regimen) pintarLineas(); cambio(); }),
+		camposAs.cols,
 		h('div', { class: 'col-12 cot-acciones-campo' }, btnAsesor,
 			h('span', { class: 'form-text m-0' }, 'Se guardan para tus próximas cotizaciones (también al guardar esta).')));
 	function pintarPanelEmisor() {
@@ -512,11 +528,11 @@ async function editor(container, id, { duplicar = false } = {}) {
 		ayuda: '¿No está?', enlace: enlaceA('icon-user-plus', 'Agrégalo en Clientes', '#/clientes/nuevo'),
 		campos: ['nombre', 'telefono', 'email', 'nit'],
 		opcion: (x) => h('span', { class: 'cot-sel-op-txt' }, h('span', { class: 'cot-sel-op-nombre' }, x.nombre || 'Sin nombre'),
-			h('span', { class: 'cot-sel-op-sub' }, [x.telefono, x.email].filter(Boolean).join(' · ') || 'Sin teléfono ni correo')),
+			h('span', { class: 'cot-sel-op-sub' }, [telefonoTexto(x.telefono), x.email].filter(Boolean).join(' · ') || 'Sin teléfono ni correo')),
 		tarjeta: () => {
 			const cl = c.cliente;
 			if (!cl.id && !cl.nombre) return null;
-			const datos = [`NIT ${cl.nit || 'CF'}`, cl.telefono, cl.email].filter(Boolean).join(' · ');
+			const datos = [`NIT ${cl.nit || 'CF'}`, telefonoTexto(cl.telefono), cl.email].filter(Boolean).join(' · ');
 			return { anterior: !cl.id,
 				titulo: h('div', { class: 'cot-sel-nombre' }, cl.nombre || 'Sin nombre'),
 				sub: [h('div', { class: 'cot-sel-sub' }, datos),
@@ -805,7 +821,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 
 		// Encabezado: marca a la izquierda; datos fiscales y de contacto debajo, en letra pequeña.
 		const fiscal = [e.razonSocial, e.nit ? `NIT ${e.nit}` : null, etqRegimen(e.regimen)].filter(Boolean).join(' · ');
-		const contacto = [e.direccion, e.telefono, e.email].filter(Boolean);
+		const contacto = [e.direccion, telefonoTexto(e.telefono), e.email].filter(Boolean);
 		const vence = venceEl(c.fecha, c.vigenciaDias);
 		const meta = (etq, v, clase = '') => h('div', { class: `cot-doc-meta-item ${clase}` }, h('dt', {}, etq), h('dd', {}, v));
 		const cabecera = h('header', { class: 'cot-doc-head' },
@@ -823,7 +839,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 				meta('Vigente hasta', fechaLarga(vence) || '—')));
 
 		// Cliente e inmueble lado a lado (con la foto del inmueble), tomados de la copia guardada.
-		const datoCl = [`NIT ${cl.nit || 'CF'}`, cl.telefono, cl.email].filter(Boolean);
+		const datoCl = [`NIT ${cl.nit || 'CF'}`, telefonoTexto(cl.telefono), cl.email].filter(Boolean);
 		const pr = c.propiedad || {};
 		const dp = pr.id || pr.texto ? datosPropiedad(pr) : null;
 		const fotoDoc = pr.foto?.url
@@ -890,7 +906,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 		// Cierre: asesor con su contacto y línea de aceptación del cliente.
 		const ca = c.asesorContacto || (c.asesor && (mismoNombre(c.asesor, asesorDatos.nombre) || mismoNombre(c.asesor, nombreSesion)) ? asesorDatos : null);
 		const contactoAsesor = ca
-			? [ca.telefono ? h('div', {}, ico('icon-phone'), nb(ca.telefono)) : null,
+			? [ca.telefono ? h('div', {}, ico('icon-phone'), nb(telefonoTexto(ca.telefono))) : null,
 				ca.email ? h('div', {}, ico('icon-envelope-o'), ca.email) : null]
 			: [];
 		const cierre = h('section', { class: 'cot-doc-cierre' },
@@ -925,6 +941,7 @@ async function editor(container, id, { duplicar = false } = {}) {
 	async function guardar() {
 		if (!session.isAdmin && !session.agentId) { toast('Tu usuario no tiene un asesor asignado; no se puede guardar.', 'danger'); return; }
 		if (!revisarPendientes('guardar')) return;
+		if (c.emisorTipo === 'asesor' && !camposAs.revisar()) return;
 		aplicarEmisor();
 		const r = calcularCotizacion(c, reglas);
 		const pctA = Number(c.liquidacion.pctAsesor);

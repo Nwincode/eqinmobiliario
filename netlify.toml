@@ -38,6 +38,13 @@
     X-Robots-Tag = "noindex, nofollow"
     # no-store: el navegador no guarda en disco las páginas del panel (ni la dirección con la que se abrieron).
     Cache-Control = "no-store"
+    # CSP estricta del panel: solo corren los scripts del propio sitio y el SDK de Firebase (gstatic, por su ruta); nada
+    # en línea (ni <script> ni onclick). Se conecta solo a Firebase (base, fotos, inicio de sesión y su renovación) y a
+    # las dos revisiones que el panel pide de fuera (contraseñas filtradas y traducción). 'unsafe-eval' y worker blob:
+    # los pide heic2any (fotos HEIC): sin ellos la conversión se queda esperando. Estilos en línea: el panel los pone
+    # con h(…, { style }). img-src https: porque una imagen se puede pegar por su enlace. La prueba es
+    # scripts/test-csp.mjs; el entorno de pruebas (scripts/entorno/servidor.mjs) la aplica igual que Netlify.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com/firebasejs/; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://firestore.googleapis.com https://firebasestorage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.pwnedpasswords.com https://api.mymemory.translated.net; worker-src 'self' blob:; frame-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 
 # Página de propietarios y colaboradores (antes el portal con enlace privado): lleva al panel y queda fuera de Google.
 [[headers]]

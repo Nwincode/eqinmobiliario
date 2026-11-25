@@ -104,9 +104,8 @@ export function departamentoDe(p) {
 	return '';
 }
 
-export function plural(n, uno, varios) {
-	return `${n} ${Number(n) === 1 ? uno : varios}`;
-}
+// Una sola: admin/js/formato.js (también la usa el panel).
+export { plural } from '../../admin/js/formato.js';
 
 export function truncate(text, max = 160) {
 	const clean = String(text || '').replace(/\s+/g, ' ').trim();

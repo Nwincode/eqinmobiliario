@@ -254,7 +254,7 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 <link href="${esc(absUrl('/fonts/icomoon/style.css'))}" rel="stylesheet">
 <style>${css}</style></head>
 <body>
-<div class="aviso">En la ventana de impresión elige «Guardar como PDF». <button onclick="print()">${ic('file-pdf-o')}Guardar PDF</button></div>
+<div class="aviso">En la ventana de impresión elige «Guardar como PDF». <button type="button">${ic('file-pdf-o')}Guardar PDF</button></div>
 <main>
 	<section class="portada">
 		<div class="portada-banda">
@@ -282,13 +282,17 @@ export function documento(props, opts, empresa, contacto, tema = {}) {
 		${tarjetaContacto}
 	</section>` : ''}
 </main>
-<script>
-	// Abre la ventana de impresión cuando las fotos y los íconos cargaron (o a los 12 s, si algo tarda).
-	const listo = Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })))
-		.then(() => Promise.all([document.fonts.load('1em icomoon'), document.fonts.ready]).catch(() => {}));
-	Promise.race([listo, new Promise((r) => setTimeout(r, 12000))]).then(() => setTimeout(() => print(), 300));
-</script>
 </body></html>`;
+}
+
+// La ventana nueva hereda la regla de seguridad del panel (CSP: nada de código en el HTML), así que el botón y la
+// impresión se manejan desde aquí. Abre la ventana de impresión cuando las fotos y los íconos cargaron (o a los 12 s).
+function imprimirCuandoCargue(win) {
+	const d = win.document;
+	d.querySelector('.aviso button')?.addEventListener('click', () => win.print());
+	const listo = Promise.all([...d.images].map((i) => (i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; }))))
+		.then(() => Promise.all([d.fonts.load('1em icomoon'), d.fonts.ready]).catch(() => {}));
+	Promise.race([listo, new Promise((r) => setTimeout(r, 12000))]).then(() => setTimeout(() => win.print(), 300));
 }
 
 export async function render(container) {
@@ -402,6 +406,7 @@ export async function render(container) {
 			formato: formato.value, mostrarPrecio: mostrarPrecio.checked, enlaces: enlaces.checked
 		}, empresa, contacto, site.tema || {}));
 		win.document.close();
+		imprimirCuandoCargue(win);
 	};
 
 	const check = (input, label) => h('div', { class: 'form-check' }, input, h('label', { class: 'form-check-label', for: input.id }, label));
