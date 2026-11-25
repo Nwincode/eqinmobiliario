@@ -77,6 +77,16 @@ export function limitadorDurable(nombre, max, ventanaMs, { siFalla = 'frenar', a
 		}
 	};
 	contar.enTransaccion = enTx;
+	// ¿Ya está en su tope? Solo mira (no cuenta). Para contar después, cuando de verdad pasó (el correo salió).
+	contar.lleno = async (clave) => {
+		if (!escrituraConfigurada()) return false;
+		try {
+			return await transaccion(async ({ leer }) => ((await leer(ruta(clave)))?.veces || []).map(Number).filter((t) => Date.now() - t < ventanaMs).length >= max);
+		} catch (err) {
+			console.error('Límite en la base:', err.message);
+			return siFalla !== 'memoria';
+		}
+	};
 	return contar;
 }
 

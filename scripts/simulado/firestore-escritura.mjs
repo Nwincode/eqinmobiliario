@@ -26,3 +26,9 @@ export async function sumar(sumas, vence, marca = '') {
 	if (marca) { if (S.docs.has(marca)) return null; S.docs.set(marca, { vence }); }
 	return sumas.map(({ ruta, n }) => { const d = S.docs.get(ruta) || {}; S.docs.set(ruta, { ...d, vence, n: (d.n || 0) + n }); return S.docs.get(ruta).n; });
 }
+// Mover documentos tal cual fuera de una transacción (como el real).
+export const listarCrudo = async (padre, col) => hijos(`${padre}/${col}`).map(({ id }) => ({ id, crudo: structuredClone(S.docs.get(`${padre}/${col}/${id}`)) }));
+export async function escribirLote(ops) {
+	if (S.escrituraFalla) throw new Error('Error 503 al escribir');
+	for (const o of ops) { if (o.borrar) S.docs.delete(o.borrar); else S.docs.set(o.poner, { ...structuredClone(o.crudo), ...(o.cambios || {}) }); }
+}

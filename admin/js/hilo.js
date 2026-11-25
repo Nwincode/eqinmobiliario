@@ -177,24 +177,36 @@ export function tarjetaComprobante(m, t, rv = null, monto = '', { ver = true, sr
 	return caja;
 }
 
-// La ruta en Storage de la foto de un mensaje (`chats/{token}/{archivo}`), o '' si no es una foto de la carpeta de ese
-// chat. El mensaje guarda solo la ruta (firestore.rules); los de antes, la dirección con el token de descarga
-// (`…/o/chats%2F{token}%2F{archivo}?alt=media&token=…`), que se lee igual (la migración, scripts/migrar-chats.mjs, los
-// pasa a ruta). La usan el servidor (/api/foto, la revisión con la IA), el panel y la página del cliente.
-export function rutaDeFoto(token, texto) {
+// Las fotos del chat viven en una carpeta que no cambia con el enlace: la de su solicitud (`fotosChat/{leadId}/`). Así,
+// cambiar el enlace (netlify/lib/rotar-enlace.mjs) no mueve archivos. El cliente sube a lo más FOTOS_POR_CHAT, con nombre
+// 1, 2, … (storage.rules: uno de cada número, sin reemplazar).
+export const FOTOS_POR_CHAT = 10;
+export const carpetaFotos = (leadId) => `fotosChat/${leadId}/`;
+// La ruta en Storage de la foto de un mensaje del chat `{ token, leadId }`, o '' si no es una foto de ese chat. La de
+// ahora: `fotosChat/{leadId}/{archivo}`. Las de antes: `chats/{token}/{archivo}` o la dirección con el token de descarga
+// (`…/o/chats%2F{token}%2F{archivo}?alt=media&token=…`), que se leen igual (la migración, scripts/migrar-chats.mjs, las
+// pasa a la carpeta nueva). La usan el servidor (/api/foto, la revisión con la IA, el cambio de enlace), el panel y la
+// página del cliente.
+export function rutaDeFoto({ token = '', leadId = '' } = {}, texto) {
 	const s = String(texto || '');
-	if (!/^[A-Za-z0-9]{20,40}$/.test(String(token || ''))) return '';
+	const sano = (a) => /^[A-Za-z0-9._-]{1,80}$/.test(a) && !a.startsWith('.');
+	if (/^[A-Za-z0-9_-]{1,64}$/.test(String(leadId)) && s.startsWith(carpetaFotos(leadId))) {
+		const a = s.slice(carpetaFotos(leadId).length);
+		return sano(a) ? s : '';
+	}
+	if (!/^[A-Za-z0-9]{20,40}$/.test(String(token))) return '';
 	const archivo = s.startsWith(`chats/${token}/`) ? s.slice(token.length + 7)
 		: (new RegExp(`^https://firebasestorage[.]googleapis[.]com/v0/b/[a-z0-9.-]+/o/chats%2F${token}%2F([A-Za-z0-9._-]+)[?]alt=media(&token=[a-z0-9-]+)?$`).exec(s) || [])[1] || '';
-	return /^[A-Za-z0-9._-]{1,80}$/.test(archivo) && !archivo.startsWith('.') ? `chats/${token}/${archivo}` : '';
+	return sano(archivo) ? `chats/${token}/${archivo}` : '';
 }
 
-// Lo que se sabe de la foto del mensaje `m` del chat `token`, guardado en `fotos` (un objeto por chat, de quien llama; el
+// Lo que se sabe de la foto del mensaje `m` del chat `{ token, leadId }`, guardado en `fotos` (un objeto por chat, de quien llama; el
 // hilo se vuelve a pintar entero y la foto se pide una sola vez): { src } ya bajada, { no, enRevision } no se ve,
 // { cargando } en camino, { fallo } no se pudo bajar; null si el mensaje no trae una foto de ese chat. La pide a /api/foto (el token en el cuerpo, no
 // en la dirección) con la sesión del panel si la hay (`llave()`: el token de Firebase) y llama `alListo` al llegar.
-export function fotoDe(fotos, token, m, { llave = null, alListo = () => {} } = {}) {
-	const ruta = rutaDeFoto(token, m.texto);
+export function fotoDe(fotos, chat, m, { llave = null, alListo = () => {} } = {}) {
+	const ruta = rutaDeFoto(chat, m.texto);
+	const token = chat.token;
 	if (!ruta) return null;
 	if (fotos[ruta]) return fotos[ruta];
 	fotos[ruta] = { cargando: true };

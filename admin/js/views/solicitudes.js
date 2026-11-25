@@ -51,11 +51,12 @@ export async function render(container, [codigo] = []) {
 			if (!foto || SUBIENDO.has(res.id)) return;
 			SUBIENDO.add(res.id);
 			vista.pintar();
-			let url;
+			let path;
 			try {
 				let vence;
 				const tarde = new Promise((_, mal) => { vence = setTimeout(() => mal(Object.assign(new Error('lenta'), { code: 'subida/lenta' })), LIMITE_SUBIDA); });
-				({ url } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`), tarde]).finally(() => clearTimeout(vence)));
+				// Solo la ruta: Storage no abre comprobantes/ a nadie; lo sirve /api/foto (verComprobante).
+				({ path } = await Promise.race([uploadImage(foto, `comprobantes/${res.id}`, null, undefined, { sinEnlace: true }), tarde]).finally(() => clearTimeout(vence)));
 			} catch (err) {
 				const red = err?.code === 'subida/lenta' || /^storage\/(retry-limit-exceeded|canceled|unknown)$/.test(err?.code || '') || err?.code === 'auth/network-request-failed';
 				toast(red ? 'No se pudo subir el comprobante: la conexión está lenta o se cortó. Vuelve a intentarlo.' : `No se pudo subir el comprobante: ${errorMessage(err)}`, 'warning');
@@ -63,12 +64,23 @@ export async function render(container, [codigo] = []) {
 				return vista.pintar();
 			}
 			// Apagado hasta que la reserva lo registra; después la pantalla abierta se repinta con lo guardado.
-			try { await ponerComprobante(res, url); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
+			try { await ponerComprobante(res, path); toast('Comprobante enviado.'); avisarAvisos(); } catch (err) { showError(err); }
 			SUBIENDO.delete(res.id);
 			vista.pintar();
 			await vista.recargar();
 		} });
 		archivo.click();
+	}
+	// El comprobante del pago a EQ lo sirve el servidor (/api/foto { reserva }: el administrador y el socio de la reserva).
+	// La pestaña se abre al tocar (si no, el navegador la bloquea) y recibe la foto cuando llega.
+	async function verComprobante(res) {
+		const ventana = window.open('', '_blank');
+		try {
+			const r = await fetch('/api/foto', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ reserva: res.id }) });
+			if (!r.ok) throw new Error(r.status === 403 ? 'Este comprobante no es de tus reservas.' : `No se pudo abrir el comprobante (${r.status}).`);
+			const url = URL.createObjectURL(await r.blob());
+			if (ventana) ventana.location.href = url; else window.open(url, '_blank');
+		} catch (err) { ventana?.close(); showError(err); }
 	}
 	// El botón del comprobante: mientras sube, apagado y con «Subiendo…».
 	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
@@ -115,7 +127,7 @@ export async function render(container, [codigo] = []) {
 	// Corregir el correo del cliente (crm.js corregirCorreo: el mismo que usa su ficha de cliente). Con el formulario del panel:
 	// revisa el formato y sugiere «¿Quisiste decir …?». Al guardar se le manda un enlace nuevo de su reserva (el viejo deja de
 	// servir: pudo llegar a otra persona; /api/reenviar-enlace): el botón dice a qué
-	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, no se guarda.
+	// correo, tal como se guarda (un error de dedo mandaría su reserva a otra persona); con el mismo correo, «Reenviar a …».
 	function corregirElCorreo(l) {
 		const form = renderForm([{ name: 'email', label: 'Correo del cliente', type: 'email', required: true }], { email: l.email || '' });
 		const campo = form.el.querySelector('input[type=email]');
@@ -131,19 +143,21 @@ export async function render(container, [codigo] = []) {
 			try {
 				const r = await corregirCorreo(l, form.getData().email);
 				m.close();
-				if (!r.cambio) toast('Ya tenía ese correo.');
-				else if (r.enviado) toast(`Correo corregido: le mandamos el enlace nuevo de su reserva a ${r.enviado} (el de antes ya no sirve).`);
-				else if (r.enviado === '' && reenvia) toast(`Correo corregido, pero el enlace no se reenvió${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}: los próximos avisos sí le llegan ahí.`, 'warning');
-				else toast('Correo corregido: los próximos avisos le llegan ahí.');
+				const nuevo = r.rotado ? ' (el enlace de antes ya no sirve)' : '';
+				if (r.enviado) toast(`${r.cambio ? 'Correo corregido: l' : 'L'}e mandamos el enlace nuevo de su reserva a ${r.enviado}${nuevo}.`);
+				else if (reenvia) toast(`${r.cambio ? 'Correo corregido, pero el' : 'El'} enlace nuevo no se le mandó${r.motivo ? ` (${r.motivo.replace(/\.$/, '')})` : ''}${nuevo}: vuelve a intentarlo con el mismo correo.`, 'warning');
+				else if (!r.cambio) toast('Ya tenía ese correo.');
+				else toast(`Correo corregido: los próximos avisos le llegan ahí${nuevo}.`);
 				await recargar();
 			} catch (err) { showError(err); boton.disabled = false; }
 		} }, avion, texto);
 		const pintarBoton = () => {
 			const nuevo = limpiarCorreo(campo?.value);
 			const igual = nuevo === limpiarCorreo(l.email);
-			texto.textContent = igual || !correoValido(nuevo) ? 'Guardar' : reenvia ? `Guardar y reenviar a ${nuevo}` : `Guardar ${nuevo}`;
-			guardar.disabled = igual;
-			avion.hidden = !(reenvia && !igual && correoValido(nuevo));
+			// Con el mismo correo de ahora, en una reserva abierta: «Reenviar a …» (otro enlace nuevo, si el anterior no salió).
+			texto.textContent = !correoValido(nuevo) ? 'Guardar' : igual ? (reenvia ? `Reenviar a ${nuevo}` : 'Guardar') : reenvia ? `Guardar y reenviar a ${nuevo}` : `Guardar ${nuevo}`;
+			guardar.disabled = igual && !reenvia;
+			avion.hidden = !(reenvia && correoValido(nuevo));
 		};
 		campo?.addEventListener('input', pintarBoton);
 		pintarBoton();
@@ -157,7 +171,7 @@ export async function render(container, [codigo] = []) {
 	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 		com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]);
 	const botonesComision = (com, res, nivel, titulo) => [
-		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { href: com.comprobante, target: '_blank', rel: 'noopener' }) : null,
+		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { onclick: () => verComprobante(res) }) : null,
 		!com.pagada && !admin ? botonComprobante(com, res) : null,
 		!com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(res, nivel, titulo), 'money') : null];
 

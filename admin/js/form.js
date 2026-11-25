@@ -42,7 +42,8 @@ export function procesarImagen(file, maxSize, quality, { marca = false } = {}) {
 }
 
 // Sube una foto ya procesada (o la procesa). Devuelve { url, path, ancho, alto, hash }.
-export async function uploadImage(file, folder, procesada, opciones) {
+// `sinEnlace`: un archivo que Storage no abre a nadie (el comprobante del pago a EQ): sin dirección de descarga, solo la ruta.
+export async function uploadImage(file, folder, procesada, opciones, { sinEnlace = false } = {}) {
 	if (!storage) throw new Error('No se pueden subir imágenes: al sitio le falta la configuración de las fotos de Firebase. Avísale a quien lo programa.');
 	const { blob, ancho, alto, hash, marca } = procesada || await procesarImagen(file, undefined, undefined, opciones);
 	const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
@@ -50,7 +51,7 @@ export async function uploadImage(file, folder, procesada, opciones) {
 	const path = `${folder}/${Date.now()}-${base}.${ext}`;
 	const r = ref(storage, path);
 	await uploadBytes(r, blob, { contentType: blob.type, cacheControl: 'public, max-age=31536000' });
-	return { url: await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
+	return { url: sinEnlace ? '' : await getDownloadURL(r), path, ancho, alto, hash, ...(marca ? { marca: true } : {}) };
 }
 
 // Orden natural de nombres de archivo ("foto2" antes que "foto10").

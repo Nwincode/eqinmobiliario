@@ -76,16 +76,20 @@ paso('El administrador entra al panel', (await admin.p.locator('.admin-user-role
 {
 	const fs = 'http://127.0.0.1:8085/v1/projects/demo-eq/databases/(default)/documents', ow = { headers: { Authorization: 'Bearer owner' } };
 	const T0 = 'ChatDeAntesParaMigrarLargo12';
-	const llave = readFileSync(`${DIR}/llave-de-antes.txt`, 'utf8').trim();
+	const llave = readFileSync(`${DIR}/llave-de-antes.txt`, 'utf8').trim(), llaveRecibo = readFileSync(`${DIR}/llave-recibo-de-antes.txt`, 'utf8').trim();
 	const foto = (await (await fetch(`${fs}/chats/${T0}/mensajes/foto1`, ow)).json()).fields?.texto?.stringValue;
 	const viejaUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${T0}%2Fvieja.png?alt=media&token=${llave}`);
+	const enCarpeta = await fetch(`http://127.0.0.1:9199/storage/v1/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent('fotosChat/lead-de-antes/vieja.png')}`, ow);
+	const reciboUrl = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2Fres-de-antes%2Frecibo.png?alt=media&token=${llaveRecibo}`);
+	const recibo = (await (await fetch(`${fs}/reservas/res-de-antes`, ow)).json()).fields?.comision?.mapValue?.fields?.comprobante?.stringValue;
 	const [notaNueva, notaVieja] = await Promise.all([fetch(`${fs}/notasEquipo/${T0}/notas/nota1`, ow), fetch(`${fs}/chats/${T0}/notas/nota1`, ow)]);
 	const leido = (await (await fetch(`${fs}/revisionesComprobante/lead-de-antes`, ow)).json()).fields?.leido?.mapValue?.fields || {};
 	const otraVez = execFileSync(process.execPath, ['--import', './scripts/entorno/red-local.mjs', 'scripts/migrar-chats.mjs'], { cwd: `${DIR}/sitio`, encoding: 'utf8' }).trim();
-	paso('Migración de los chats de antes: la foto queda por su ruta, la dirección vieja con el token ya no la abre, la nota pasa a notasEquipo y la revisión oculta pierde banco y referencia; repetirla no cambia nada',
-		foto === `chats/${T0}/vieja.png` && Boolean(llave) && viejaUrl.status !== 200 && notaNueva.status === 200 && notaVieja.status === 404
-		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 revisiones/.test(otraVez),
-		`${foto} · vieja ${viejaUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
+	paso('Migración de lo de antes: la foto pasa a la carpeta de su solicitud (por su ruta) y su dirección vieja con el token ya no la abre; el comprobante de la comisión, igual; la nota pasa a notasEquipo y la revisión oculta pierde banco y referencia; repetirla no cambia nada',
+		foto === 'fotosChat/lead-de-antes/vieja.png' && enCarpeta.status === 200 && Boolean(llave) && viejaUrl.status !== 200 && reciboUrl.status !== 200 && recibo === 'comprobantes/res-de-antes/recibo.png'
+		&& notaNueva.status === 200 && notaVieja.status === 404
+		&& leido.banco?.stringValue === '' && leido.referencia?.stringValue === '' && Number(leido.monto?.integerValue) === 200 && /: 0 fotos de antes a la carpeta de su solicitud, 0 fotos a su ruta, 0 tokens de descarga quitados, 0 notas a notasEquipo, 0 comprobantes de la comisión a su ruta, 0 revisiones/.test(otraVez),
+		`${foto} · carpeta ${enCarpeta.status} · vieja ${viejaUrl.status} · recibo ${recibo} ${reciboUrl.status} · nota ${notaNueva.status}/${notaVieja.status} · ${otraVez}`);
 }
 await ir(admin.p, '#/propiedades/nuevo');
 await campo(admin.p, 'titulo').fill('Casa de prueba Monterrico');
@@ -446,7 +450,7 @@ await ir(socio.p, `#/solicitudes/${codigo}`, 3500);
 	const ruta = (await (await fetch(`${fs}/chats/${token}/mensajes/${idFoto}`, { headers: ow })).json()).fields?.texto?.stringValue || '';
 	const st = `http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(ruta)}`;
 	const [abre, datos] = (await Promise.all([fetch(`${st}?alt=media`), fetch(st)])).map((r) => r.status);
-	paso('La foto del comprobante se guarda por su ruta (sin el token de descarga) y Storage no la abre a nadie, ni sus datos', new RegExp(`^chats/${token}/[\\w.-]+$`).test(ruta) && abre === 403 && datos === 403, `${ruta.slice(0, 70)} · ${abre}/${datos}`);
+	paso('La foto del comprobante se guarda por su ruta en la carpeta de su solicitud (sin el token de descarga: fotosChat/{solicitud}/1) y Storage no la abre a nadie, ni sus datos', ruta === `fotosChat/${leadId}/1` && abre === 403 && datos === 403, `${ruta.slice(0, 70)} · ${abre}/${datos}`);
 	const idDe = (p) => p.evaluate(async () => (await import('/admin/js/session.js')).session.user.getIdToken());
 	const pedirFoto = async (auth) => (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify({ token, mensaje: idFoto }) })).status;
 	const idSocio = await idDe(socio.p), idAdmin = await idDe(admin.p);
@@ -1140,8 +1144,8 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 	// El botón largo va en la misma fila que «Cancelar» (no baja a la suya).
 	const filaC = await admin.p.evaluate(() => { const [a, b] = [...document.querySelectorAll('.modal.show .modal-footer .btn')].map((x) => x.getBoundingClientRect()); return a && b ? Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) : 99; });
 	await admin.p.screenshot({ path: `${TANDA}/solicitud-correo-confirmar-1280.png` });
-	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio, junto a «Cancelar»; con el mismo de ahora, apagado',
-		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === true && /^Guardar$/.test(conElMismo[0].trim()) && anchoC <= 0 && filaC < 2, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]} · fila ${filaC}`);
+	paso('Corregir el correo: el botón dice «Guardar y reenviar a» el correo limpio, junto a «Cancelar»; con el mismo de ahora, «Reenviar a …» (otro enlace nuevo)',
+		botonC === 'Guardar y reenviar a ana.nueva@example.com' && conElMismo[1] === false && /^Reenviar a ana@example\.com$/.test(conElMismo[0].trim()) && anchoC <= 0 && filaC < 2, `«${botonC}» · mismo: «${conElMismo[0].trim()}» ${conElMismo[1]} · fila ${filaC}`);
 	const antesC = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
 	const leadId = (await leer(`chats/${token}`)).fields?.leadId?.stringValue;
 	const tokenViejo = token;
@@ -1161,9 +1165,9 @@ paso('Ningún correo lleva el teléfono ni el correo de la otra parte', !correos
 		const fotoNueva = nuevos.map((d) => d.fields).find((f) => f.tipo?.stringValue === 'foto')?.texto?.stringValue || '';
 		const conVieja = await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o?prefix=${encodeURIComponent(`chats/${tokenViejo}/`)}`, { headers: { Authorization: 'Bearer owner' } }).then((r) => r.json());
 		const notaNueva = ((await leer(`notasEquipo/${token}/notas`)).documents || []).some((d) => /raza de los perros/.test(d.fields?.texto?.stringValue || ''));
-		paso('Al corregir el correo, el enlace cambia: el correo lleva el nuevo; con el viejo no hay chat, ni mensajes, ni se puede escribir; los mensajes, la foto (su ruta y su archivo) y la nota pasan al nuevo',
+		paso('Al corregir el correo, el enlace cambia: el correo lleva el nuevo; con el viejo no hay chat, ni mensajes, ni se puede escribir; los mensajes y la nota pasan al nuevo y la foto sigue en la carpeta de su solicitud (no se mueve)',
 			token && token !== tokenViejo && enlace === token && viejoChat.status === 404 && !(viejoMsj.documents || []).length && escribeViejo.status === 403
-			&& nuevos.length >= 3 && fotoNueva.startsWith(`chats/${token}/`) && !(conVieja.items || []).length && notaNueva,
+			&& nuevos.length >= 3 && fotoNueva === `fotosChat/${leadId}/1` && !(conVieja.items || []).length && notaNueva,
 			`${tokenViejo.slice(0, 6)}… → ${token.slice(0, 6)}… · correo ${enlace.slice(0, 6)}… · viejo ${viejoChat.status}/${escribeViejo.status} · ${nuevos.length} mensajes · foto ${fotoNueva.slice(0, 40)} · nota ${notaNueva}`);
 		// El cliente con el enlace viejo ya no entra; con el nuevo ve su reserva, el chat y la foto (390 y 1280).
 		for (const ancho of [390, 1280]) {
@@ -2006,7 +2010,21 @@ const duenos = [];
 		const res = (await fb.getDocs(fb.query(fb.collection(fb.db, 'reservas'), fb.where('propietarioId', '==', session.profile.propietarioId)))).docs;
 		return res.map((d) => d.data().comision?.comprobante || '').find(Boolean) || '';
 	});
-	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /\/o\/comprobantes%2F.+alt=media&token=/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	paso('El socio sube el comprobante de la comisión con el botón y queda en su reserva', /^comprobantes\/[^/]+\/[\w.-]+$/.test(recibo), `${recibo.slice(0, 90)} · ${await avisos(socio.p)}`);
+	// Storage no lo abre (ni a quien lo subió): lo sirve /api/foto { reserva } al socio de la reserva y al administrador.
+	{
+		const reservaId = recibo.split('/')[1];
+		const conSesion = async (p) => p.evaluate(async (id) => { const { session } = await import('/admin/js/session.js'); return (await fetch('/api/foto', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await session.user.getIdToken()}` }, body: JSON.stringify({ reserva: id }) })).status; }, reservaId);
+		const sinSesion = (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserva: reservaId }) })).status;
+		const storage = (await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(recibo)}?alt=media`)).status;
+		const [delSocio, delEquipo] = [await conSesion(socio.p), await conSesion(admin.p)];
+		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), socio.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Ver comprobante del pago a EQ"]').click()]);
+		await espera(2000);
+		const abre = pestana ? /^blob:/.test(pestana.url()) : false;
+		await pestana?.close();
+		paso('El comprobante de la comisión: Storage no lo abre; /api/foto se lo da al socio de la reserva y al equipo, no sin sesión; «Ver comprobante» lo abre', storage === 403 && delSocio === 200 && delEquipo === 200 && sinSesion === 403 && abre,
+			`storage ${storage} · socio ${delSocio} · equipo ${delEquipo} · sin sesión ${sinSesion} · pestaña ${pestana?.url().slice(0, 20)}`);
+	}
 	// El chat lleva el subtotal cotizado (el de su solicitud) y la reserva confirmada registra al menos lo cotizado.
 	const q = await fetch(`${FS}:runQuery`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
 		body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'chats' }], where: { fieldFilter: { field: { fieldPath: 'codigo' }, op: 'EQUAL', value: { stringValue: codigo } } } } }) }).then((r) => r.json());
@@ -2231,7 +2249,7 @@ const duenos = [];
 	await elegirSC.setFiles(png);
 	await espera(5000);
 	const reciboSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.comprobante?.stringValue || '';
-	paso('Reserva sin chat: el socio sube el comprobante de la ganancia de EQ desde su tarjeta', /\/o\/comprobantes%2F.+alt=media&token=/.test(reciboSC), `${reciboSC.slice(0, 80)} · ${await avisos(socio.p)}`);
+	paso('Reserva sin chat: el socio sube el comprobante de la ganancia de EQ desde su tarjeta', /^comprobantes\/[^/]+\/[\w.-]+$/.test(reciboSC), `${reciboSC.slice(0, 80)} · ${await avisos(socio.p)}`);
 	await socio.p.locator('.admin-main a', { hasText: 'Ver todas' }).first().click();
 	await espera(5000);
 	paso('«Ver todas» vuelve a la lista completa', socio.p.url().endsWith('#/solicitudes') && await socio.p.locator('.admin-main .card.mb-2').count() >= 25);

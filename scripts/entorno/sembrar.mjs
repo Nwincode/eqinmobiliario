@@ -80,6 +80,12 @@ const CHAT_DE_ANTES = 'ChatDeAntesParaMigrarLargo12';
 	await writeFile(new URL('../../../llave-de-antes.txt', import.meta.url), llave);
 	await poner(`chats/${CHAT_DE_ANTES}/mensajes/foto1`, { de: 'cliente', tipo: 'foto', texto: `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/chats%2F${CHAT_DE_ANTES}%2Fvieja.png?alt=media&token=${llave}` });
 	await poner(`chats/${CHAT_DE_ANTES}/notas/nota1`, { de: 'socio', texto: 'Nota de antes del socio' });
+	// El comprobante del pago a EQ de una reserva de antes: guardado como dirección con su token.
+	const recibo = await fetch(`${ST}?uploadType=media&name=${encodeURIComponent('comprobantes/res-de-antes/recibo.png')}`, { method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'image/png' }, body: png });
+	const llaveRecibo = (await recibo.json()).downloadTokens;
+	await poner('reservas/res-de-antes', { propertyId: 'casa-de-antes', propietarioId: 'dueno-de-antes', estado: 'confirmada', codigo: 'EQ-ANTES2',
+		comision: { monto: 20, pagada: false, comprobante: `https://firebasestorage.googleapis.com/v0/b/eqinmobiliariobd.firebasestorage.app/o/comprobantes%2Fres-de-antes%2Frecibo.png?alt=media&token=${llaveRecibo}` } });
+	await writeFile(new URL('../../../llave-recibo-de-antes.txt', import.meta.url), llaveRecibo);
 	await poner('revisionesComprobante/lead-de-antes', { mensaje: 'foto1', oculta: true, motivoOculta: 'Posible dato de contacto', texto: 'El comprobante cuadra', propietarioId: 'dueno-de-antes',
 		leido: { monto: 200, moneda: 'USD', banco: 'Banco de antes', referencia: '5555 1234' } });
 }

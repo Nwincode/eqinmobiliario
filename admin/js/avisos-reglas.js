@@ -18,7 +18,8 @@ export function hace(desde, ahora = Date.now()) {
 
 // La clave de un «Listo»: la misma que exigen las reglas (tipo, el registro y, en la exclusiva, su fecha de fin; con
 // otra fecha de fin, la exclusiva renovada vuelve a avisar).
-export const claveListo = ({ tipo, objeto, fin }) => (tipo === 'exclusiva' ? `${tipo}_${objeto}_${fin}` : `${tipo}_${objeto}`);
+// La foto: `fin` es el mensaje (otra foto nueva vuelve a avisar).
+export const claveListo = ({ tipo, objeto, fin }) => (tipo === 'exclusiva' || tipo === 'foto' ? `${tipo}_${objeto}_${fin}` : `${tipo}_${objeto}`);
 
 const recorta = (t, n) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
 const enlaceSolicitud = (codigo) => `#/solicitudes/${encodeURIComponent(codigo)}`;
@@ -76,7 +77,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 	// Una foto del cliente que el socio no ve (la revisión la ocultó o ya no se revisa): el equipo la mira en el chat y decide
 	// («Mostrar al socio» la quita). Si decide dejarla oculta, «Listo» (la clave lleva la foto: otra nueva vuelve a avisar).
 	for (const f of fotos) {
-		const listo = { tipo: 'foto', objeto: `${f.leadId}_${f.mensaje}`, agentId: '' };
+		const listo = { tipo: 'foto', objeto: f.leadId, fin: f.mensaje, agentId: '' };
 		const clave = claveListo(listo);
 		if (atendidos.has(clave)) continue;
 		out.push({
@@ -133,7 +134,7 @@ export function armarAvisos({ solicitudes = [], mensajes = [], fotos = [], compr
 export function clavesPorRevisar({ solicitudes = [], fotos = [], comentarios = [], exclusivas = [], ahora = Date.now() } = {}) {
 	return [
 		...solicitudes.filter((s) => s.alerta === 'bloqueada' && s.leadId).map((s) => claveListo({ tipo: 'robo', objeto: s.leadId })),
-		...fotos.map((f) => claveListo({ tipo: 'foto', objeto: `${f.leadId}_${f.mensaje}` })),
+		...fotos.map((f) => claveListo({ tipo: 'foto', objeto: f.leadId, fin: f.mensaje })),
 		...comentarios.filter((c) => c.fecha && ahora - c.fecha <= DIAS_COMENTARIO * DIA).map((c) => claveListo({ tipo: 'cambios', objeto: c.id })),
 		...exclusivas.filter((e) => e.fin && enVentana(e.dias)).map((e) => claveListo({ tipo: 'exclusiva', objeto: e.casaId, fin: e.fin }))
 	];

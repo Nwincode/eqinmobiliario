@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Fotos públicas (cada una por su dirección), menos los comprobantes del chat (chats/: solo el servidor). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
+// Fotos públicas (cada una por su dirección), menos los comprobantes (fotosChat/, chats/ y comprobantes/: solo el servidor). Subir, cambiar o borrar las fotos del sitio: solo el equipo (administrador
 // o asesor activo; un dueño con acceso al panel no es del equipo; las de una propiedad, el administrador o su asesor);
 // listar, solo el administrador. Los comprobantes tienen su regla:
 // se suben una vez y nadie los cambia ni los borra desde el panel. Máx. 10 MB por foto (5 MB los del cliente).
@@ -22,14 +22,20 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    // Comprobante de pago que el cliente adjunta en el chat de su reserva: solo fotos, hasta 5 MB,
-    // en la carpeta de una conversación que existe, y sin reemplazar ni borrar las que ya subió.
-    match /chats/{token}/{archivo} {
+    // Comprobante de pago que el cliente adjunta en el chat de su reserva: en la carpeta de su solicitud (no cambia cuando
+    // cambia el enlace: netlify/lib/rotar-enlace.mjs no mueve archivos), con nombre 1 a 10 (a lo más diez por solicitud,
+    // sin reemplazar ni borrar), solo fotos de hasta 5 MB, con la reserva confirmada (hay a quién pagar) y con el enlace
+    // vigente de esa solicitud en sus datos (`token`): solo lo sube quien tiene el enlace de hoy.
+    match /fotosChat/{leadId}/{archivo} {
       allow create: if resource == null
+        && archivo.matches('(10|[1-9])')
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp)')
-        && firestore.exists(/databases/(default)/documents/chats/$(token));
+        && request.resource.metadata.get('token', '') is string && request.resource.metadata.get('token', '').size() >= 20
+        && firestore.get(/databases/(default)/documents/chatsPorSolicitud/$(leadId)).data.token == request.resource.metadata.token
+        && firestore.get(/databases/(default)/documents/chats/$(request.resource.metadata.token)).data.get('estado', '') == 'confirmada';
     }
+    // La carpeta de antes (chats/{token}/): ya nadie sube ahí; lo que queda lo pasa la migración (scripts/migrar-chats.mjs).
 
     // Comprobante de la comisión que el dueño (socio) le paga a EQ, en la carpeta de SU reserva
     // (admin/js/views/solicitudes.js). Solo se agrega: nadie lo reemplaza ni lo borra.
@@ -41,7 +47,7 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/reservas/$(reservaId)).data.get('propietarioId', '') == usuario().get('propietarioId', '-');
     }
 
-    // Cada foto se abre con su dirección, menos las de los chats: el comprobante del cliente lo sirve solo el servidor
+    // Cada foto se abre con su dirección, menos los comprobantes (del chat y de la comisión): los sirve solo el servidor
     // (/api/foto, netlify/functions/foto.mjs), según quién lo pide y lo que vio la revisión; aquí nadie lo abre ni ve sus
     // datos (que traen el token de descarga). La lista de archivos solo la ve el administrador (los nombres de las carpetas
     // de los chats son la llave de cada reserva; el panel no lista).
@@ -50,13 +56,13 @@ service firebase.storage {
       allow list: if conSesion() && usuario().rol == 'admin';
     }
     match /{carpeta}/{resto=**} {
-      allow get: if carpeta != 'chats';
+      allow get: if !(carpeta in ['chats', 'fotosChat', 'comprobantes']);
       allow list: if conSesion() && usuario().rol == 'admin';
     }
     // Las fotos del sitio (contenido, asesores…), cada una en su carpeta: el equipo.
     // Las de una propiedad y los comprobantes (chats, comprobantes), solo con su regla.
     match /{carpeta}/{resto=**} {
-      allow write: if isStaff() && !(carpeta in ['chats', 'comprobantes', 'properties'])
+      allow write: if isStaff() && !(carpeta in ['chats', 'fotosChat', 'comprobantes', 'properties'])
         && (request.resource == null || foto(10));
     }
     // Fotos de una propiedad: el administrador o el asesor de esa casa. La ficha sube las fotos de una casa nueva antes

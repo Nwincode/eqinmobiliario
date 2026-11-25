@@ -78,16 +78,16 @@ t('chatAbierto: ni cancelada ni «No se dio» esperan respuesta (Solicitudes ya 
 	const real = globalThis.fetch;
 	let pedidos = 0;
 	globalThis.fetch = async () => { pedidos++; return new Response('{}', { status: 503 }); };
-	const fotos = {}, T = 'TokenDeFotoLargoYAlAzar12345', m = { id: 'm1', texto: `chats/${T}/f.webp` };
+	const fotos = {}, T = 'TokenDeFotoLargoYAlAzar12345', m = { id: 'm1', texto: 'fotosChat/l1/1' }, chat = { token: T, leadId: 'l1' };
 	let repintadas = 0;
 	// Cada vez que llega, se vuelve a pintar (y a pedir la foto), como el hilo.
-	const pintar = () => { repintadas++; fotoDe(fotos, T, m, { alListo: pintar }); };
-	fotoDe(fotos, T, m, { alListo: pintar });
+	const pintar = () => { repintadas++; fotoDe(fotos, chat, m, { alListo: pintar }); };
+	fotoDe(fotos, chat, m, { alListo: pintar });
 	await new Promise((r) => setTimeout(r, 100));
 	assert.equal(repintadas, 1);
 	globalThis.fetch = real;
 	assert.equal(pedidos, 1);
-	assert.deepEqual(fotos[`chats/${T}/f.webp`], { fallo: true });
+	assert.deepEqual(fotos['fotosChat/l1/1'], { fallo: true });
 	n++; console.log('✓ fotoDe: un 503 se pide una sola vez (queda { fallo } hasta que quien llama la suelta)');
 }
 console.log(`\n${n} pruebas del hilo pasan.`);

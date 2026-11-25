@@ -122,6 +122,8 @@ prueba('una foto del cliente oculta al socio: aviso al equipo que lleva al chat 
 	assert.equal(a.clave, 'foto_l1_m7');
 	assert.deepEqual(clavesPorRevisar({ fotos: [f] }), ['foto_l1_m7']);
 	assert.equal(armarAvisos({ ahora: AHORA, fotos: [f], atendidos: new Set(['foto_l1_m7']) }).length, 0);
+	// Un id de solicitud con guiones o rayas: la clave lleva el mensaje en `fin`.
+	assert.equal(armarAvisos({ ahora: AHORA, fotos: [{ ...f, leadId: 'lead-con_raya' }] })[0].clave, 'foto_lead-con_raya_m7');
 	// Otra foto nueva vuelve a avisar.
 	assert.equal(armarAvisos({ ahora: AHORA, fotos: [{ ...f, mensaje: 'm8', n: 2 }], atendidos: new Set(['foto_l1_m7']) })[0].titulo, '2 fotos de Ana ocultas al socio');
 });

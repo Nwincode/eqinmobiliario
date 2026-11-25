@@ -152,7 +152,7 @@ function hiloDe(S, f, conR8, iaActiva) {
 		const f = estadoDeFoto(m, { chat, rv: S.revisiones[l.id] || null, ia: iaActiva, ahora: ahoraYa() });
 		const monto = rv()?.cuadra && rv().mensaje === m.id ? dinero(chat.total, chat.moneda) : '';
 		// La imagen la sirve /api/foto con la sesión (al socio, solo si la revisión la deja ver: lo decide el servidor).
-		const foto = fotoDe(memo.fotos, token, m, { llave: () => session.user.getIdToken(), alListo: repintar }) || {};
+		const foto = fotoDe(memo.fotos, { token, leadId: chat.leadId }, m, { llave: () => session.user.getIdToken(), alListo: repintar }) || {};
 		const ver = f.ver && !foto.no;
 		if (!S.admin) return tarjetaComprobante(m, t, ver ? rv() : null, monto, { ver, src: foto.src || '', aviso: f.enRevision || foto.enRevision ? 'Foto recibida · en revisión' : 'El equipo está revisando esta foto' });
 		const mostrar = !f.ver ? h('button', { type: 'button', class: 'hilo-btn hilo-btn-sec', onclick: async (e) => {

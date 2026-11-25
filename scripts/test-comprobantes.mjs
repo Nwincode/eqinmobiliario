@@ -29,13 +29,17 @@ await t('no cuadra: dice qué y cuánto se esperaba', () => {
 	assert.match(compararComprobante({ esComprobante: false }, esperado).texto, /no parece un comprobante/);
 });
 await t('la foto solo puede ser de la carpeta de ese chat', () => {
-	assert.equal(rutaDeFoto(T, URL_FOTO), URL_FOTO);
-	assert.equal(rutaDeFoto(T, URL_VIEJA), URL_FOTO);
-	assert.equal(rutaDeFoto('OtroToken1234567890123', URL_FOTO), '');
-	assert.equal(rutaDeFoto('OtroToken1234567890123', URL_VIEJA), '');
-	assert.equal(rutaDeFoto(T, `chats/${T}/../otro/x.webp`), '');
-	assert.equal(rutaDeFoto(T, `chats/${T}/.oculto`), '');
-	assert.equal(rutaDeFoto(T, 'https://malo.com/x.webp'), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_FOTO), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, URL_VIEJA), URL_FOTO);
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_FOTO), '');
+	assert.equal(rutaDeFoto({ token: 'OtroToken1234567890123', leadId: 'l2' }, URL_VIEJA), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/../otro/x.webp`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, `chats/${T}/.oculto`), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'https://malo.com/x.webp'), '');
+	// La de hoy: en la carpeta de su solicitud.
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/3'), 'fotosChat/l1/3');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l2/3'), '');
+	assert.equal(rutaDeFoto({ token: T, leadId: 'l1' }, 'fotosChat/l1/../x'), '');
 });
 
 const preparar = () => {

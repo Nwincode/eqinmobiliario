@@ -586,10 +586,9 @@ service cloud.firestore {
     // Comprobante de la comisión: la foto subida a la carpeta de esa reserva (admin/js/views/solicitudes.js). Solo del
     // almacenamiento de la empresa (las pruebas usan ese mismo nombre en el emulador): una foto alojada en otro proyecto
     // podría llevar a una página falsa.
-    function comprobanteValido(url, reservaId) {
-      return url is string && url.size() <= 600
-        && url.matches('(https://firebasestorage[.]googleapis[.]com|http://127[.]0[.]0[.]1:9199)/v0/b/eqinmobiliariobd[.]firebasestorage[.]app/o/comprobantes%2F'
-             + reservaId + '%2F[A-Za-z0-9._-]+[?]alt=media&token=[a-z0-9-]+');
+    function comprobanteValido(ruta, reservaId) {
+      // La ruta del archivo en la carpeta de esa reserva (sin token de descarga: lo sirve /api/foto a quien corresponde).
+      return ruta is string && ruta.size() <= 200 && ruta.matches('comprobantes/' + reservaId + '/[A-Za-z0-9_-][A-Za-z0-9._-]{0,119}');
     }
     // Reservas de rentas vacacionales: fechas, huésped y lo que toca al propietario.
     // Del equipo, solo el administrador las crea y cambia (Rentas y Solicitudes son suyas; una casa por noche no lleva asesor).
@@ -727,7 +726,7 @@ service cloud.firestore {
     // «Listo» de la campana de avisos (admin/js/avisos.js): alguien del equipo ya atendió un aviso que no se resuelve
     // solo. La clave dice cuál (avisos-reglas.js claveListo); el documento, quién y cuándo. Sin datos de clientes.
     //  - robo_{solicitud}: «No se dio» con fechas ocupadas (solo el administrador);
-    //  - foto_{solicitud}_{mensaje}: la foto del cliente que el equipo deja oculta al socio (solo el administrador);
+    //  - foto_{solicitud}_{mensaje}: la foto del cliente que el equipo deja oculta al socio (solo el administrador; el mensaje en `fin`);
     //  - cambios_{comentario}: un dueño pidió cambios (el administrador o el asesor de ese dueño);
     //  - exclusiva_{casa}_{fin}: la exclusiva de una casa por vencer (el administrador o el asesor de la casa).
     // Solo crear y deshacer (borrar el suyo); nadie lo cambia después.
@@ -735,8 +734,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return (d.tipo == 'robo' && isAdmin() && clave == 'robo_' + d.objeto && d.agentId == ''
             && !('fin' in d) && exists(/databases/$(database)/documents/leads/$(d.objeto)))
-        || (d.tipo == 'foto' && isAdmin() && clave == 'foto_' + d.objeto && d.agentId == '' && !('fin' in d)
-            && d.objeto.matches('[A-Za-z0-9]{1,40}_[A-Za-z0-9_-]{1,40}') && exists(/databases/$(database)/documents/leads/$(d.objeto.split('_')[0])))
+        || (d.tipo == 'foto' && isAdmin() && d.agentId == '' && d.get('fin', '') is string && d.get('fin', '').matches('[A-Za-z0-9]{1,40}')
+            && clave == 'foto_' + d.objeto + '_' + d.fin && exists(/databases/$(database)/documents/leads/$(d.objeto)))
         || (d.tipo == 'cambios' && clave == 'cambios_' + d.objeto && !('fin' in d)
             && exists(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto))
             && d.agentId == get(/databases/$(database)/documents/comentariosPropietarios/$(d.objeto)).data.agentId)
@@ -807,9 +806,11 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId());
       // La respuesta del socio la escribe el servidor (netlify/functions/reservas.mjs): él no la toca.
-      allow update: if isAdmin()
+      // El correo de una solicitud de reserva lo cambia solo el servidor (/api/reenviar-enlace), junto con el enlace nuevo.
+      allow update: if (isAdmin()
         || (isStaff() && resource.data.agentId == myAgentId()
-            && request.resource.data.agentId == resource.data.agentId);
+            && request.resource.data.agentId == resource.data.agentId))
+        && (resource.data.get('reserva', {}).get('codigo', '') == '' || request.resource.data.get('email', '') == resource.data.get('email', ''));
       // Una solicitud de reserva no se borra (ni el administrador): su reserva, su chat, sus plazos y sus correos la
       // buscan. Se cierra con «No se dio» o se cancela. Un lead de contacto, sí.
       allow delete: if isAdmin() && resource.data.get('reserva', {}).get('codigo', '') == '';
@@ -826,7 +827,8 @@ service cloud.firestore {
       // r6: las reglas con la bitácora de cambios sensibles (el panel pregunta por ella: admin/js/bitacora.js).
       // r7: citar un mensaje (`responde`) y las notas internas del chat (Mensajes: admin/js/views/mensajes.js).
       // r8: las notas internas solo del equipo (notasEquipo/), la foto del chat por su ruta (/api/foto) y «Listo» de una foto.
-      allow get: if version in ['r5', 'r6', 'r7', 'r8'];
+      // r9: la foto del chat en fotosChat/{solicitud}/, el tope de mensajes del cliente (id c1 … c200) y el comprobante de la comisión por ruta.
+      allow get: if version in ['r5', 'r6', 'r7', 'r8', 'r9'];
     }
     match /chatsPorSolicitud/{leadId} {
       // Lo crea el servidor junto con su solicitud y su chat (netlify/functions/solicitud.mjs). El administrador se lo pone a
@@ -896,7 +898,8 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/chats/$(token)).data;
         }
         // Quien tiene el enlace lee la conversación; el socio, solo la de sus casas.
-        allow read: if !signedIn() || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
+        // Con el enlace, solo mientras el chat exista (el de un enlace que ya cambió no abre nada).
+        allow read: if (!signedIn() && exists(/databases/$(database)/documents/chats/$(token))) || isAdmin() || (esSocioDe(chat()) && esSocioDeCasaPorNoche(chat().get('propertyId', '')));
         // Cada quien firma como lo que es: sin sesión es el cliente; el socio, solo en sus casas.
         // Sin teléfonos, correos ni enlaces: el mismo filtro del navegador (tieneContacto, arriba).
         // Mensajes con «tipo» (sin texto libre de quien los manda):
@@ -942,12 +945,16 @@ service cloud.firestore {
                         && request.resource.data.direccion == get(llegadaDe()).data.get('direccion', '')
                         && request.resource.data.mapa == get(llegadaDe()).data.get('mapa', ''))
                     : sinLlegada()))
+                // La foto, por su ruta en la carpeta de su solicitud (no cambia con el enlace; storage.rules: 1 a 10).
                 || (request.resource.data.tipo == 'foto' && request.resource.data.de == 'cliente' && sinLlegada()
-                  && request.resource.data.texto.matches('chats/' + token + '/[A-Za-z0-9_-][A-Za-z0-9._-]{0,79}')))
+                  && request.resource.data.texto.matches('fotosChat/' + chat().get('leadId', '-') + '/(10|[1-9])')))
                 : (sinLlegada() && !tieneContacto(request.resource.data.texto)))
           && request.resource.data.createdAt == request.time
           // El cliente, en una conversación que existe (la de un enlace que ya cambió, al corregir su correo, no recibe nada).
-          && ((request.resource.data.de == 'cliente' && !signedIn() && exists(/databases/$(database)/documents/chats/$(token)))
+          // A lo más 200 por chat: el id del mensaje del cliente es c1 … c200 (js/reserva-chat.js toma el siguiente libre;
+          // nada se reemplaza). Así un enlace filtrado no llena el chat y el cambio de enlace siempre alcanza a moverlo.
+          && ((request.resource.data.de == 'cliente' && !signedIn() && id.matches('c([1-9]|[1-9][0-9]|1[0-9][0-9]|200)')
+              && exists(/databases/$(database)/documents/chats/$(token)))
             || (request.resource.data.de == 'equipo' && isAdmin())
             // En una reserva que no se dio o se canceló, el socio ya no escribe (el equipo sí).
             || (request.resource.data.de == 'socio' && !('tipo' in request.resource.data)

@@ -167,8 +167,8 @@ export async function avisarContactoPartido(token) {
 //  - 'repetida': quien pide las mismas fechas con el mismo correo desde otro navegador (/api/solicitud no le devuelve el
 //    token: el correo, la casa y las fechas los puede conocer otra persona). A lo más 1 cada 10 min y 3 al día por solicitud.
 //  - 'correo': el equipo corrigió su correo (/api/reenviar-enlace, desde admin/js/crm.js corregirCorreo): le llega lo que
-//    se perdió (su reserva, su estado y el chat). Su límite va por solicitud y correo (1 cada 10 min a cada correo): si se
-//    corrige un error de dedo un minuto después, el correo bueno también lo recibe; y 6 al día por solicitud.
+//    se perdió (su reserva, su estado y el chat), con el enlace nuevo (el servidor lo cambia antes: rotar-enlace.mjs). Su
+//    límite va por solicitud, correo y enlace (1 cada 10 min: cada enlace nuevo sale) y 6 al día por solicitud.
 // Devuelve el correo al que salió ('' si no salió).
 const LIMITES = {
 	repetida: [limitadorDurable('enlace-reserva-10min', 1, 10 * 60_000), limitadorDurable('enlace-reserva-dia', 3, 24 * 3_600_000)],
@@ -180,17 +180,17 @@ const INTRO = {
 	correo: ['Corregimos tu correo: por eso no te llegaban nuestros avisos. Aquí ves tu reserva, cómo va y el chat.',
 		'We corrected your email address, so our updates had not reached you. Here you can see your booking, its status and the chat.']
 };
-// `para`: el correo que queda guardado con `antes` (el corregido, que se guarda en esa misma transacción). `antes(token)`:
-// lo que se hace pasados los límites y antes de mandar; devuelve el token del enlace que sale (/api/reenviar-enlace: el
-// nuevo, netlify/lib/rotar-enlace.mjs). Si lanza, no sale nada.
-export async function reenviarEnlace(leadId, { motivo = 'repetida', para: corregido = '', antes = null } = {}) {
+// 'correo': los límites solo se miran antes y se cuentan cuando el correo salió (un reintento tras un error no queda
+// frenado por el intento que no salió).
+export async function reenviarEnlace(leadId, { motivo = 'repetida' } = {}) {
 	const [lead, indice] = await Promise.all([leerPrivado(`leads/${leadId}`), leerPrivado(`chatsPorSolicitud/${leadId}`)]);
-	let token = indice?.token;
-	const para = String(corregido || lead?.email || '').trim().toLowerCase();
+	const token = indice?.token;
+	const para = String(lead?.email || '').trim().toLowerCase();
 	if (!para || !LIMITES[motivo] || !/^[A-Za-z0-9]{20,40}$/.test(token || '') || !servicioCorreo()) return '';
 	const [corto, dia] = LIMITES[motivo];
-	if (await corto(motivo === 'correo' ? `${leadId}:${para}` : leadId) || await dia(leadId)) return '';
-	if (antes) token = (await antes(token)) || token;
+	// Con el enlace en la clave: cada enlace nuevo (al corregir el correo) sale aunque el de antes haya salido hace poco.
+	const claveCorta = motivo === 'correo' ? `${leadId}:${para}:${token}` : leadId;
+	if (motivo === 'correo' ? await corto.lleno(claveCorta) || await dia.lleno(leadId) : await corto(claveCorta) || await dia(leadId)) return '';
 	const en = lead.idioma === 'en', codigo = lead.reserva?.codigo || '';
 	const url = `${SITE_URL}${en ? '/en/reservation/' : '/reserva/'}#${token}`;
 	const titulo = en ? 'The link to your booking' : 'El enlace de tu reserva';
@@ -199,5 +199,6 @@ export async function reenviarEnlace(leadId, { motivo = 'repetida', para: correg
 		pie: en ? 'You get this because you requested a booking on eqinmobiliario.gt.' : 'Lo recibes porque pediste una reserva en eqinmobiliario.gt.',
 		bloques: (c) => boton(c, en ? 'See my booking and chat' : 'Ver mi reserva y el chat', url, c.primary, { ancho: true }) });
 	await enviarCorreo({ para: [para], asunto: `${titulo} ${codigo}`.trim(), html, texto: [titulo, intro, '', url].join('\n') });
+	if (motivo === 'correo') { await corto(claveCorta); await dia(leadId); }
 	return para;
 }

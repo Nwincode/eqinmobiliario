@@ -92,7 +92,7 @@ export async function revisarComprobante(token, { leer = (foto, t) => leerConIA(
 	const mensajeId = String(chat.comprobanteMensaje);
 	// Solo la foto del cliente, de la carpeta de su chat: lo demás ni se aparta.
 	const mensaje = await leerPrivado(`chats/${token}/mensajes/${mensajeId}`);
-	const rutaFoto = mensaje?.tipo === 'foto' && mensaje.de === 'cliente' ? rutaDeFoto(token, mensaje.texto) : '';
+	const rutaFoto = mensaje?.tipo === 'foto' && mensaje.de === 'cliente' ? rutaDeFoto({ token, leadId: chat.leadId }, mensaje.texto) : '';
 	if (!rutaFoto) return null;
 	// Se aparta: una revisión por foto (dos avisos a la vez no la mandan dos veces a la IA), con tope por chat.
 	const toca = await transaccion(async ({ leer: l, crear, cambiar }) => {

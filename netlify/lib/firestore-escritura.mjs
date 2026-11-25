@@ -136,6 +136,22 @@ async function quedoEscrito(token, writes) {
 	} catch { return false; }
 }
 
+// Mover muchos documentos tal cual, fuera de una transacción (el cambio de enlace: netlify/lib/rotar-enlace.mjs).
+// listarCrudo(padre, coleccion): todos, con sus campos como los guarda la base. escribirLote(ops): de 400 en 400 commits;
+// ops = [{ poner: ruta, crudo, cambios }] (crea o reemplaza: repetirlo da lo mismo) o [{ borrar: ruta }].
+export async function listarCrudo(padre, coleccion) {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	return (await pedir(token, `${BASE}/${padre}:runQuery`, { structuredQuery: { from: [{ collectionId: coleccion }] } }, Date.now() + 5000))
+		.filter((r) => r.document).map((r) => ({ id: r.document.name.split('/').pop(), crudo: r.document.fields || {} }));
+}
+export async function escribirLote(ops) {
+	const token = await googleToken(SCOPE_DATOS, cuentaEscritura());
+	for (let i = 0; i < ops.length; i += 400) {
+		const writes = ops.slice(i, i + 400).map((o) => (o.borrar ? { delete: `${RAIZ}/${o.borrar}` } : { update: { name: `${RAIZ}/${o.poner}`, fields: { ...o.crudo, ...aCampos(o.cambios || {}) } } }));
+		await pedir(token, `${BASE}:commit`, { writes }, Date.now() + 5000);
+	}
+}
+
 // Contar sin transacción: un solo commit (no choca con otros a la vez) que suma a cada contador de `sumas` ({ ruta, n };
 // n = 0 solo lee) y deja su `vence` (fecha: la política de vida de Firestore borra el documento después); con `marca`,
 // también crea ese documento solo si no existe (contar cosas distintas: si ya existía, no se suma nada y devuelve null).
