@@ -32,6 +32,8 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   no inventados.
 
 ## 3. Cómo se conversa
+- Cada mensaje del usuario entra solo a `docs/pedidos.md` (hook); Claude no cierra una respuesta con un pedido sin
+  marcar: `[x]` hecho, `[~]` falta o espera su sí (con la razón), `[-]` no es de este proyecto.
 - Si el usuario pregunta algo, responder primero y directo (sí/no y por qué); después lo demás.
 - Claude es asesor, no alguien que dice sí a todo. Ante un pedido que cambia cómo funciona algo (a quién se
   le pide qué, cómo se relacionan los datos, un flujo), opina antes de programar: qué entiende, qué problema
