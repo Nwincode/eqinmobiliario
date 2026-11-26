@@ -1954,6 +1954,22 @@ const duenos = [];
 	paso('Eliminar a la dueña de una casa por noche con huéspedes por venir se detiene y lo dice; su ficha y la casa siguen como estaban',
 		/no puede quedar sin dueño/.test(aviso3) && sigue.status === 200 && txt((await f('properties/r2-noche')).propietarioId) === 'r2-dueno', aviso3);
 
+	// Un toque rápido (antes de que la ventana termine de aparecer) en «Sí» o «Cancelar» cierra la ventana igual: antes quedaba
+	// abierta y tapaba la pantalla (así falló una vez este recorrido en CI, en «Guardar» del cambio de dueño).
+	const rapido = await admin.p.evaluate(async () => {
+		const ui = await import('/admin/js/ui.js');
+		const out = [];
+		for (const boton of ['.btn-danger', '.btn-light']) {
+			const r = ui.confirmDialog('¿Prueba?', { okText: 'Sí' });
+			document.querySelector('.modal:last-of-type ' + boton).click();
+			out.push(await r);
+			await new Promise((ok) => setTimeout(ok, 1200));
+			out.push(document.querySelectorAll('.modal').length);
+		}
+		return out.join(',');
+	});
+	paso('Una confirmación tocada antes de terminar de aparecer se cierra igual (Sí y Cancelar)', rapido === 'true,0,false,0', rapido);
+
 	// Cambio de dueño desde la ficha de la casa: sus reservas, solicitudes y chats por venir pasan al nuevo; lo pasado no.
 	await ir(admin.p, '#/propiedades/r2-noche', 4000);
 	await campo(admin.p, 'propietarioId').selectOption('r2-nuevo');
