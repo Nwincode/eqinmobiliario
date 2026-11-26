@@ -15,7 +15,7 @@ async function reasignarAntesDeEliminar(asesor, id) {
 	const casas = snaps[0].size, leads = snaps[1].size, total = snaps.reduce((n, s) => n + s.size, 0);
 	if (!total) return true;
 	const otros = (await getDocs(collection(db, 'agents'))).docs.map((d) => ({ id: d.id, ...d.data() })).filter((a) => a.id !== id && a.activo !== false);
-	const tiene = [casas && plural(casas, 'casa', 'casas'), leads && plural(leads, 'lead', 'leads'), total - casas - leads && plural(total - casas - leads, 'registro más', 'registros más')].filter(Boolean).join(', ');
+	const tiene = [casas && plural(casas, 'casa', 'casas'), leads && plural(leads, 'interesado', 'interesados'), total - casas - leads && plural(total - casas - leads, 'registro más', 'registros más')].filter(Boolean).join(', ');
 	if (!otros.length) {
 		toast(`${asesor.nombre || 'Este asesor'} tiene ${tiene}. Crea o muestra otro asesor para pasárselos antes de eliminarlo.`, 'warning');
 		return false;

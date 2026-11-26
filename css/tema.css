@@ -45,7 +45,7 @@
 	--adm-sidebar: 256px;
 	--adm-nav-bg: var(--eq-dark);
 	--adm-nav-text: color-mix(in srgb, var(--eq-white) 72%, transparent);
-	--adm-nav-muted: color-mix(in srgb, var(--eq-white) 42%, transparent);
+	--adm-nav-muted: color-mix(in srgb, var(--eq-white) 56%, transparent); /* 4.5:1 o más sobre el fondo del menú */
 	--adm-nav-hover: color-mix(in srgb, var(--eq-white) 7%, transparent);
 	--adm-nav-active: color-mix(in srgb, var(--eq-cyan) 18%, transparent);
 	/* Fondos y textos de avisos y etiquetas: un tono suave de su color y el texto oscuro del mismo color. */

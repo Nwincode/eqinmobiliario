@@ -69,7 +69,7 @@ export async function render(container) {
 
 		const tablaAsesores = tablaAdmin({
 			tarjeta: false,
-			columnas: [{ titulo: 'Asesor' }, ...['Leads', 'Respuesta', 'Actividades', 'Visitas', 'En proceso', 'Cierres', 'Comisión'].map((titulo) => ({ titulo, num: true }))],
+			columnas: [{ titulo: 'Asesor' }, ...['Interesados', 'Respuesta', 'Actividades', 'Visitas', 'En proceso', 'Cierres', 'Comisión'].map((titulo) => ({ titulo, num: true }))],
 			celdas: (f) => [
 				h('span', { class: 'fw-semibold text-nowrap' }, f.nombre),
 				[f.leads, alerta(f.sinRespuesta, 'sin atender')],
@@ -84,7 +84,7 @@ export async function render(container) {
 		tablaAsesores.pintar(filas);
 		cuerpo.replaceChildren(
 			h('div', { class: 'row g-3 mb-4' }, [
-				['icon-envelope-o', 'Leads', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
+				['icon-envelope-o', 'Interesados', tot('leads')], ['icon-check', 'Actividades', tot('actividades')], ['icon-key', 'Visitas', tot('visitas')], ['icon-handshake-o', 'Cierres', tot('cierres')]
 			].map(([i, l, v]) => h('div', { class: 'col-6 col-lg-3' }, statCard(i, l, v)))),
 			tarjeta('icon-users', 'Por asesor', { sinCuerpo: true, cls: 'overflow-hidden' }, tablaAsesores),
 			tarjeta('icon-filter', 'Embudo actual de clientes', barras(embudo)),
@@ -95,7 +95,7 @@ export async function render(container) {
 	calcular();
 
 	const exportar = iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: () => downloadCsv(`reporte-equipo-${dias}d.csv`, [
-		['Asesor', 'Leads', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres',
+		['Asesor', 'Interesados', 'Sin atender', 'Respuesta (h)', 'Actividades', 'Visitas', 'Vencidas', 'En proceso', 'Cierres',
 			...['Monto cerrado', 'Comisión', 'Parte asesor'].flatMap((t) => MONEDAS_CSV.map(([, p]) => `${t} ${p}`))],
 		...cuerpo._filas.map((f) => [f.nombre, f.leads, f.sinRespuesta, Number.isFinite(f.respuesta) ? (f.respuesta / 3600000).toFixed(1) : '', f.actividades, f.visitas, f.vencidas, f.enProceso, f.cierres,
 			...[f.montoCerrado, redondo(f.comision), redondo(f.parteAsesor)].flatMap((t) => MONEDAS_CSV.map(([m]) => t[m] || 0))])

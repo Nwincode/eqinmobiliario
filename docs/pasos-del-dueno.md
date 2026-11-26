@@ -15,7 +15,7 @@ panel guarda como antes (sin bitácora): lo sabe preguntando por `reglas/r6`.
 3. Usar «Probar» de ZeptoMail: el registro de la función dice «ok». (La forma del aviso no se pudo leer de la
    documentación de ZeptoMail desde aquí: si en la prueba no se marca nada, mandar a Claude el ejemplo que muestra ZeptoMail.)
 
-Un correo de cliente que rebota sale en Solicitudes y en Leads: «El correo no llegó», con el WhatsApp al lado. Uno de un
+Un correo de cliente que rebota sale en Solicitudes y en Interesados: «El correo no llegó», con el WhatsApp al lado. Uno de un
 dueño o del equipo sale en Inicio → Estado del sistema.
 
 ## Revisión de comprobantes con la IA

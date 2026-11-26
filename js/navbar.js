@@ -26,8 +26,12 @@
 				
 				var refEl = hasChild.querySelector('a');
 
-				var newElSpan = document.createElement('span');
+				// La flecha es un botón (se alcanza con el teclado y dice si está abierto).
+				var newElSpan = document.createElement('button');
+				newElSpan.setAttribute('type', 'button');
 				newElSpan.setAttribute('class', 'arrow-collapse collapsed');
+				newElSpan.setAttribute('aria-expanded', 'false');
+				newElSpan.setAttribute('aria-label', refEl.textContent.trim());
 
 				// prepend equivalent to jquery
 				hasChild.insertBefore(newElSpan, refEl);
@@ -39,6 +43,9 @@
 				var dropdown = hasChild.querySelector('.dropdown');
 				dropdown.setAttribute('class', 'collapse');
 				dropdown.setAttribute('id', 'collapseItem' + counter);
+				arrowCollapse.setAttribute('aria-controls', 'collapseItem' + counter);
+				dropdown.addEventListener('shown.bs.collapse', function () { arrowCollapse.setAttribute('aria-expanded', 'true'); });
+				dropdown.addEventListener('hidden.bs.collapse', function () { arrowCollapse.setAttribute('aria-expanded', 'false'); });
 
 				counter++;
 			});
@@ -49,12 +56,29 @@
 		// Abrir y cerrar: un solo lugar cambia la clase del body y el estado de los botones.
 		var menuToggle = document.querySelectorAll(".js-menu-toggle");
 		var menu = document.querySelector(".site-mobile-menu");
+		// Abierto, el menú y la barra de arriba (la ✕ y ES/EN) son lo único que se recorre con el teclado: el foco entra al
+		// primer enlace y el resto de la página queda inerte; al cerrarlo, vuelve al botón.
 		var poner = function (abrir) {
+			var estaba = document.body.classList.contains('offcanvas-menu');
 			document.body.classList.toggle('offcanvas-menu', abrir);
 			menuToggle.forEach(function (t) {
 				t.classList.toggle('active', abrir);
 				t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
 			});
+			if (!menu) return;
+			menu.setAttribute('aria-hidden', abrir ? 'false' : 'true');
+			menu.inert = !abrir;
+			// Inerte todo lo que no es el menú ni la barra de arriba (ni lo que los contiene), nivel por nivel.
+			var dejar = [menu, document.querySelector('.site-nav')].filter(Boolean);
+			var marcar = function (padre) {
+				Array.prototype.forEach.call(padre.children, function (el) {
+					if (el.tagName === 'SCRIPT' || dejar.indexOf(el) >= 0) return;
+					if (dejar.some(function (d) { return el.contains(d); })) marcar(el); else el.inert = abrir;
+				});
+			};
+			marcar(document.body);
+			if (abrir && !estaba) { var primero = menu.querySelector('.site-nav-wrap a'); if (primero) primero.focus(); }
+			if (!abrir && estaba && menu.contains(document.activeElement)) { var b = document.querySelector('.burger.js-menu-toggle'); if (b) b.focus(); }
 		};
 		var abierto = function () { return document.body.classList.contains('offcanvas-menu'); };
 		poner(false);
@@ -66,8 +90,6 @@
 		document.addEventListener('keydown', function (e) {
 			if (e.key !== 'Escape' || !abierto()) return;
 			poner(false);
-			var burger = document.querySelector('.burger.js-menu-toggle');
-			if (burger) burger.focus();
 		});
 
 		// Se cierra al tocar fuera o al elegir un enlace: así la página puede bajar a la sección (#contacto, #servicios).

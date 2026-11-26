@@ -62,18 +62,18 @@ export async function render(container) {
 		h('div', { class: 'row g-3 mb-4' },
 			stat('icon-home', session.isAdmin ? 'Publicadas' : 'Mis publicadas', props.filter((p) => p.publicado).length, '#/propiedades'),
 			stat('icon-star', 'VIP', props.filter((p) => p.vip && p.publicado).length, '#/propiedades'),
-			stat('icon-envelope-o', 'Leads sin atender', nuevos.length, '#/leads'),
-			stat('icon-calendar', 'Leads en 30 días', last30.length, '#/leads')),
+			stat('icon-envelope-o', 'Interesados sin atender', nuevos.length, '#/leads'),
+			stat('icon-calendar', 'Interesados en 30 días', last30.length, '#/leads')),
 		canSeeLeads ? h('div', { class: 'row g-3' },
 			h('div', { class: 'col-lg-7' }, h('div', { class: 'card h-100' },
-				h('div', { class: 'card-header bg-white fw-semibold' }, 'Leads recientes'),
+				h('div', { class: 'card-header bg-white fw-semibold' }, 'Interesados recientes'),
 				interesados.length ? h('ul', { class: 'list-group list-group-flush' }, interesados.slice(0, 8).map((l) => h('li', { class: 'list-group-item' }, filaLead(l))))
-					: h('div', { class: 'card-body text-muted' }, 'Aún no hay leads.'),
-				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los leads →')))),
+					: h('div', { class: 'card-body text-muted' }, 'Aún no hay interesados.'),
+				h('div', { class: 'card-footer bg-white' }, h('a', { href: '#/leads' }, 'Ver todos los interesados →')))),
 			h('div', { class: 'col-lg-5' },
-				tarjeta('icon-filter', 'Embudo de leads', barras(byEstado)),
+				tarjeta('icon-filter', 'Embudo de interesados', barras(byEstado)),
 				h('div', { class: 'card' },
-					h('div', { class: 'card-header bg-white fw-semibold' }, 'Fuente de leads (30 días)'),
+					h('div', { class: 'card-header bg-white fw-semibold' }, 'De dónde llegan los interesados (30 días)'),
 					h('div', { class: 'card-body' }, byOrigen.length
 						? byOrigen.map(([o, n]) => h('div', { class: 'd-flex justify-content-between small mb-1' }, h('span', {}, ORIGENES[o] || o), h('strong', {}, n)))
 						: h('span', { class: 'text-muted small' }, 'Sin datos todavía.'))))) : null);

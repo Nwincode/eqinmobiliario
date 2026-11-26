@@ -4033,3 +4033,6 @@ a:hover > .eq-ic-fin,
 		padding-bottom: 112px;
 	}
 }
+
+/* El submenú de Propiedades también se abre al llegar con el teclado (Tab), no solo al pasar el mouse. */
+.site-nav .site-navigation .site-menu .has-children:focus-within > .dropdown { visibility: visible; opacity: 1; margin-top: 0; transition-delay: 0s; }

@@ -15,20 +15,20 @@ import { vigilarTablas } from './tablas.js';
 import { vigilarVersion, revisarVersion, avisoVersion } from './version.js';
 
 const ROUTES = [
+	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'mis-casas', label: 'Mis propiedades', icon: 'icon-home2', group: 'Principal', socio: true, load: () => import('./views/mis-casas.js') },
 	{ path: 'solicitudes', label: 'Solicitudes', icon: 'icon-clock-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/solicitudes.js') },
 	// Las conversaciones de las reservas por noche: las ven los mismos que Solicitudes.
 	{ path: 'mensajes', label: 'Mensajes', icon: 'icon-commenting-o', group: 'Principal', socio: true, porNoche: true, admin: true, load: () => import('./views/mensajes.js') },
-	{ path: 'inicio', label: 'Inicio', icon: 'icon-tachometer', group: 'Principal', load: () => import('./views/dashboard.js') },
 	{ path: 'propiedades', label: 'Propiedades', icon: 'icon-home2', group: 'Inventario', load: () => import('./views/properties.js') },
 	{ path: 'listado', label: 'Listado en PDF', icon: 'icon-file-pdf-o', group: 'Inventario', load: () => import('./views/listado.js') },
 	{ path: 'difusion', label: 'Difusión', icon: 'icon-bullhorn', group: 'Inventario', load: () => import('./views/difusion.js') },
-	{ path: 'leads', label: 'Leads', icon: 'icon-address-card', group: 'Clientes', load: () => import('./views/leads.js') },
-	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Clientes', load: () => import('./views/clientes.js') },
-	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Clientes', load: () => import('./views/agenda.js') },
-	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Clientes', load: () => import('./views/propietarios.js') },
-	{ path: 'cambios-dueno', label: 'Cambios de los dueños', icon: 'icon-pencil', group: 'Clientes', admin: true, oculta: true, load: () => import('./views/cambios-dueno.js') },
-	{ path: 'rentas', label: 'Rentas vacacionales', icon: 'icon-calendar-check-o', group: 'Clientes', admin: true, load: () => import('./views/rentas.js') },
+	{ path: 'leads', label: 'Interesados', icon: 'icon-address-card', group: 'Personas', load: () => import('./views/leads.js') },
+	{ path: 'clientes', label: 'Clientes', icon: 'icon-users', group: 'Personas', load: () => import('./views/clientes.js') },
+	{ path: 'agenda', label: 'Agenda', icon: 'icon-calendar', group: 'Personas', load: () => import('./views/agenda.js') },
+	{ path: 'propietarios', label: 'Propietarios', icon: 'icon-key', group: 'Personas', load: () => import('./views/propietarios.js') },
+	{ path: 'cambios-dueno', label: 'Cambios de los dueños', icon: 'icon-pencil', group: 'Personas', admin: true, oculta: true, load: () => import('./views/cambios-dueno.js') },
+	{ path: 'rentas', label: 'Rentas vacacionales', icon: 'icon-calendar-check-o', group: 'Personas', admin: true, load: () => import('./views/rentas.js') },
 	{ path: 'calculadora', label: 'Calculadora de renta', icon: 'icon-calculator', group: 'Herramientas', load: () => import('./views/calculadora.js') },
 	{ path: 'cotizaciones', label: 'Cotización de servicios', icon: 'icon-receipt', group: 'Herramientas', load: () => import('./views/cotizacion.js') },
 	{ path: 'ia', label: 'Asistente', icon: 'icon-star2', group: 'Herramientas', load: () => import('./views/ia.js') },
@@ -36,7 +36,7 @@ const ROUTES = [
 	{ path: 'reportes', label: 'Reportes', icon: 'icon-bar-chart', group: 'Herramientas', load: () => import('./views/reportes.js'), admin: true },
 	{ path: 'contenido', label: 'Contenido del sitio', icon: 'icon-sitemap', group: 'Sitio web', load: () => import('./views/content.js'), admin: true },
 	{ path: 'asesores', label: 'Asesores', icon: 'icon-id-card', group: 'Sitio web', load: () => import('./views/agents.js'), admin: true },
-	{ path: 'resenas', label: 'Reseñas', icon: 'icon-star', group: 'Sitio web', load: () => import('./views/testimonials.js'), admin: true },
+	{ path: 'resenas', label: 'Reseñas', icon: 'icon-comments', group: 'Sitio web', load: () => import('./views/testimonials.js'), admin: true },
 	{ path: 'paginas', label: 'Páginas', icon: 'icon-pencil-square-o', group: 'Sitio web', load: () => import('./views/pages.js'), admin: true },
 	{ path: 'blog', label: 'Blog', icon: 'icon-rss-square', group: 'Sitio web', load: () => import('./views/blog.js'), admin: true },
 	{ path: 'usuarios', label: 'Usuarios', icon: 'icon-vcard', group: 'Administración', load: () => import('./views/users.js'), admin: true },
@@ -122,24 +122,56 @@ function noAccess(reason) {
 // demás (y el admin, además, lo de admin). Una ruta marcada para dueño y admin la ven los dos.
 const rutas = () => ROUTES.filter((r) => (session.esSocio ? r.socio && (!r.porNoche || session.porNoche) : (!r.socio || r.admin) && (!r.admin || session.isAdmin)));
 
+// Computadora: el menú siempre a la vista. Celular y tableta: se abre con el botón «Menú».
+const pantallaAncha = window.matchMedia('(min-width: 992px)');
+// Abre o pliega un grupo del menú; lo que la persona abre o cierra se recuerda mientras la pestaña siga abierta.
+function abrirGrupo(titulo, abrir, recordar = true) {
+	titulo.setAttribute('aria-expanded', String(abrir));
+	document.getElementById(titulo.getAttribute('aria-controls')).hidden = !abrir;
+	if (!recordar) return;
+	try {
+		const abiertos = new Set(JSON.parse(sessionStorage.getItem('eq-menu-abiertos') || '[]'));
+		if (abrir) abiertos.add(titulo.textContent); else abiertos.delete(titulo.textContent);
+		sessionStorage.setItem('eq-menu-abiertos', JSON.stringify([...abiertos]));
+	} catch { /* sin almacenamiento: solo no se recuerda */ }
+}
+
 function shell() {
 	// Menú agrupado por tema (Inventario, Clientes, Sitio web…) para que no sea una lista larga.
 	// Las rutas «ocultas» se abren desde un aviso, no desde el menú.
 	const visibles = rutas().filter((r) => !r.oculta);
 	const grupos = [...new Set(visibles.map((r) => r.group))];
+	// Cada grupo se pliega con un toque (así todo cabe sin un scroll propio); el de la pantalla abierta se abre solo
+	// (route). Un grupo plegado con avisos lo dice con un punto en su título.
 	const nav = h('nav', { class: 'admin-nav', 'aria-label': 'Secciones' },
-		grupos.map((g) => h('div', { class: 'admin-nav-group' },
-			g === 'Principal' ? null : h('div', { class: 'admin-nav-title' }, g),
-			visibles.filter((r) => r.group === g).map((r) =>
-				h('a', { href: `#/${r.path}`, dataset: { route: r.path } }, h('span', { class: r.icon, 'aria-hidden': 'true' }), r.label)))));
+		grupos.map((g, i) => {
+			const lista = h('div', { class: 'admin-nav-links', id: `nav-grupo-${i}` },
+				visibles.filter((r) => r.group === g).map((r) =>
+					h('a', { href: `#/${r.path}`, dataset: { route: r.path } }, h('span', { class: r.icon, 'aria-hidden': 'true' }), r.label)));
+			if (g === 'Principal') return h('div', { class: 'admin-nav-group' }, lista);
+			const titulo = h('button', { type: 'button', class: 'admin-nav-title', 'aria-expanded': 'false', 'aria-controls': lista.id,
+				onclick: () => abrirGrupo(titulo, titulo.getAttribute('aria-expanded') !== 'true') }, g, h('span', { class: 'icon-angle-down', 'aria-hidden': 'true' }));
+			lista.hidden = true;
+			return h('div', { class: 'admin-nav-group plegable' }, titulo, lista);
+		}));
+	// En celular y tableta el menú es una ventana: con su X, se cierra con Escape y, cerrado, el teclado no entra en él.
+	const abrirMenu = (abrir) => {
+		sidebar.classList.toggle('open', abrir);
+		sidebar.inert = !abrir && !pantallaAncha.matches;
+		menuBtn.setAttribute('aria-expanded', String(abrir));
+		if (abrir) (nav.querySelector('a.active') || nav.querySelector('a'))?.focus();
+		else if (sidebar.contains(document.activeElement)) menuBtn.focus();
+	};
 	const publishBadge = h('a', { href: '#/publicar', class: 'publish-pill d-none', id: 'publish-pending' }, h('span', { class: 'publish-dot' }), 'Cambios sin publicar');
 	const main = h('main', { class: 'admin-main', id: 'view' });
 	const nombre = session.profile.nombre || session.user.email;
 	const iniciales = nombre.split(/[\s@]+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
 	const sidebar = h('aside', { class: 'admin-sidebar', id: 'sidebar' },
-		h('a', { href: '#/', class: 'admin-brand', 'aria-label': 'Panel de administración' },
-			h('img', { src: '/docs/marca/logo/imagotipo-blanco.svg', alt: '' }),
-			h('span', {}, h('strong', {}, 'Equipo Inmobiliario'), h('small', {}, 'Panel de administración'))),
+		h('div', { class: 'admin-brand-fila' },
+			h('a', { href: '#/', class: 'admin-brand', 'aria-label': 'Panel de administración' },
+				h('img', { src: '/docs/marca/logo/imagotipo-blanco.svg', alt: '' }),
+				h('span', {}, h('strong', {}, 'Equipo Inmobiliario'), h('small', {}, 'Panel de administración'))),
+			iconoBtn('icon-close', 'Cerrar menú', { class: 'admin-logout admin-menu-cerrar d-lg-none', onclick: () => abrirMenu(false) })),
 		nav,
 		h('div', { class: 'admin-user' },
 			h('span', { class: 'admin-avatar', 'aria-hidden': 'true' }, iniciales),
@@ -149,10 +181,11 @@ function shell() {
 			// Cambiar la contraseña estando adentro: el mismo correo con el botón (así se comprueba que es la dueña del correo).
 			iconoBtn('icon-lock', 'Cambiar mi contraseña', { class: 'admin-logout', onclick: (e) => mandarmeCorreo(e.currentTarget, session.user.email) }),
 			iconoBtn('icon-sign-out', 'Cerrar sesión', { class: 'admin-logout', onclick: () => signOut(auth) })));
-	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => sidebar.classList.remove('open') });
+	const backdrop = h('div', { class: 'admin-backdrop', onclick: () => abrirMenu(false) });
+	const menuBtn = iconoBtn('icon-bars', 'Menú', { class: 'admin-menu-btn d-lg-none', 'aria-expanded': 'false', 'aria-controls': 'sidebar', onclick: () => abrirMenu(!sidebar.classList.contains('open')) });
 	const topbar = h('header', { class: 'admin-topbar' },
 		// Celular y tableta: menú (el botón más importante, con color), logo y dónde estoy.
-		iconoBtn('icon-bars', 'Menú', { class: 'admin-menu-btn d-lg-none', onclick: () => sidebar.classList.toggle('open') }),
+		menuBtn,
 		h('img', { class: 'admin-topbar-logo d-lg-none', src: '/docs/marca/logo/imagotipo-azul.svg', alt: '', width: 32, height: 32 }),
 		h('div', { class: 'admin-crumbs', id: 'crumbs' }),
 		h('div', { class: 'ms-auto d-flex align-items-center gap-2' },
@@ -161,7 +194,11 @@ function shell() {
 			// En el celular solo el ícono (con su leyenda); en pantallas anchas, también el texto.
 			h('a', { href: '/', target: '_blank', class: 'btn btn-sm btn-light btn-ver-sitio', title: 'Ver sitio', 'aria-label': 'Ver sitio' }, h('span', { class: 'icon-external-link', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-md-inline ms-1' }, 'Ver sitio'))));
 	root.replaceChildren(h('div', { class: 'admin-layout' }, sidebar, backdrop, h('div', { class: 'admin-content' }, topbar, main)));
-	nav.addEventListener('click', () => sidebar.classList.remove('open'));
+	nav.addEventListener('click', (e) => { if (e.target.closest('a')) abrirMenu(false); });
+	sidebar.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sidebar.classList.contains('open')) abrirMenu(false); });
+	const alCambiarAncho = () => { sidebar.inert = !pantallaAncha.matches && !sidebar.classList.contains('open'); };
+	pantallaAncha.addEventListener('change', alCambiarAncho);
+	alCambiarAncho();
 	vigilarTablas(main);
 	if (session.esSocio) return;
 	refreshPublishBadge();
@@ -211,7 +248,18 @@ async function route() {
 	if (!session.profile) return;
 	const [, section = 'inicio', ...rest] = location.hash.replace(/^#/, '').split('/');
 	const def = rutas().find((r) => r.path === section) || rutas()[0];
-	document.querySelectorAll('.admin-nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === def.path));
+	let abiertos = [];
+	try { abiertos = JSON.parse(sessionStorage.getItem('eq-menu-abiertos') || '[]'); } catch { /* sin almacenamiento */ }
+	document.querySelectorAll('.admin-nav a').forEach((a) => {
+		const activa = a.dataset.route === def.path;
+		a.classList.toggle('active', activa);
+		if (activa) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+	});
+	// El grupo de la pantalla abierta, abierto; los demás, como la persona los dejó.
+	document.querySelectorAll('.admin-nav-group.plegable').forEach((g) => {
+		const titulo = g.querySelector('.admin-nav-title');
+		abrirGrupo(titulo, Boolean(g.querySelector('a.active')) || abiertos.includes(titulo.textContent), false);
+	});
 	const crumbs = document.getElementById('crumbs');
 	if (crumbs) crumbs.replaceChildren(
 		...(def.group !== 'Principal' && def.group !== def.label ? [h('span', { class: 'admin-crumb-group' }, def.group)] : []),

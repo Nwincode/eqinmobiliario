@@ -269,8 +269,8 @@ async function renderFicha(container, id) {
 			if (!nuevo && String(d.email || '').trim().toLowerCase() !== String(c.email || '').trim().toLowerCase()) {
 				if (correoValido(d.email)) {
 					const suyos = leads.filter((l) => l.clienteId === id && (session.isAdmin || l.agentId === session.agentId));
-					const fallos = (await Promise.all(suyos.map((l) => corregirCorreo(l, d.email).then(() => false, (err) => { console.warn('Correo del lead sin corregir', l.id, err); return true; })))).filter(Boolean).length;
-					if (fallos) toast(`El correo no se pudo poner en ${fallos === 1 ? 'uno de sus formularios' : `${fallos} de sus formularios`}: revísalo en Leads.`, 'warning');
+					const fallos = (await Promise.all(suyos.map((l) => corregirCorreo(l, d.email).then(() => false, (err) => { console.warn('Correo del interesado sin corregir', l.id, err); return true; })))).filter(Boolean).length;
+					if (fallos) toast(`El correo no se pudo poner en ${fallos === 1 ? 'uno de sus formularios' : `${fallos} de sus formularios`}: revísalo en Interesados.`, 'warning');
 				}
 				c.email = d.email;
 			}

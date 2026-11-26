@@ -24,12 +24,12 @@
 - [x] 2026-11-26 «ahora» → le pedí la captura de la respuesta y el paso 3.
 - [x] 2026-11-26 Respuesta de Cloud Shell: mfa ENABLED → dos pasos encendido; falta inscribir su teléfono (paso 3).
 - [x] 2026-11-26 «Confirma tu correo (su correo) para activar la verificación en dos pasos.» → explicado: botón del aviso manda el correo; abrir enlace y volver a entrar.
-- [~] 2026-11-26 «ese enlace se ve feo puedes mejorarlo?» → correo «Confirma tu correo» con el diseño de la empresa; en pruebas y segunda revisión.
-- [~] 2026-11-26 «lo que madnas en el email» → mismo pedido: el correo de confirmación con el diseño de la empresa.
-- [~] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → aprobado («según el diseño»): asignar propietario en «Más» y marcar varias con «Agregar (n)»; programado, en pruebas.
-- [~] 2026-11-26 «por que tineen diferente tamaño y diseño diferente texto con boton sin texto. como activo skill para esto=» → barra de seleccionadas toda con íconos del mismo tamaño (skill diseno-minimo); en pruebas.
+- [x] 2026-11-26 «ese enlace se ve feo puedes mejorarlo?» → publicado (PR #156).
+- [x] 2026-11-26 «lo que madnas en el email» → publicado (PR #156).
+- [x] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → publicado (PR #156).
+- [x] 2026-11-26 «por que tineen diferente tamaño y diseño diferente texto con boton sin texto. como activo skill para esto=» → publicado (PR #156).
 - [x] 2026-11-26 «que toras skills de diseño tenemos?» → lista de skills de diseño dada.
-- [~] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → la Calculadora usa la ventana común «Elegir propiedad» (elegir-casa.js); en pruebas. Pendiente avisado: la Cotización tiene su propio buscador.
+- [x] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → publicado (PR #156).
 - [x] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → revisado con Fable: /frontend-design no es para esto; se usa diseno-minimo y la pieza común.
 - [x] 2026-11-26 «hay 2 ojitos en el menu de inicio! quita uno» → se oculta el ojo propio de Edge; queda el del panel.
 - [x] 2026-11-26 «terminaste ?» → no: falta la prueba completa y unir; informe de estado dado.
@@ -37,3 +37,7 @@
 - [-] 2026-11-26 «oye no es posible cambiar la foto de la flota?» → parece de ptg (flota de carros); eqinmobiliario no tiene carros. Preguntado.
 - [x] 2026-11-26 «perdona!» → sin problema.
 - [x] 2026-11-26 «me equivoque» → sin problema.
+- [~] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Programado aparte; falta probar y publicar.
+- [x] 2026-11-26 «es momento del /compact» → sí: todo guardado y subido.
+- [x] 2026-11-26 «tienes pendientes?» → sí: menús (PR #157) en prueba; cotización a elegirCasas; tus dos pasos; cola 5–25.
+- [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
