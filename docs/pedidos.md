@@ -42,3 +42,4 @@
 - [x] 2026-11-26 «tienes pendientes?» → sí: menús (PR #157) en prueba; cotización a elegirCasas; tus dos pasos; cola 5–25.
 - [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
 - [x] 2026-11-26 «que mas pendientes tienes?» → lista completa enviada.
+- [x] 2026-11-26 «ponle orden de prioridad! debo de tener el panel de socios y propietarios listo sin fallos.» → orden nuevo: primero el panel de socios y propietarios sin fallos (1–10), después lo demás.
