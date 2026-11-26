@@ -2263,7 +2263,12 @@ const duenos = [];
 	// «Subir» o «Cambiar» comprobante, en el ⋮ de la primera tarjeta que lo tenga.
 	const tarjetaSube = socio.p.locator('.admin-main .card.mb-2').filter({ has: socio.p.locator('.dropdown-item', { hasText: /Subir comprobante|Cambiar comprobante/ }) }).first();
 	const hay = await tarjetaSube.count();
-	const subir = { click: () => delMas(tarjetaSube, /Subir comprobante|Cambiar comprobante/) };
+	const subir = {
+		click: () => delMas(tarjetaSube, /Subir comprobante|Cambiar comprobante/),
+		waitFor: (o) => tarjetaSube.waitFor(o),
+		// «Vuelve a servir»: la opción está otra vez en el ⋮ y ya no hay un «Subiendo…» apagado.
+		isEnabled: async () => (await tarjetaSube.count()) > 0 && (await socio.p.locator('.admin-main button', { hasText: 'Subiendo…' }).count()) === 0
+	};
 	let subidas = 0, modo = 'lenta';
 	await socio.p.route('**/v0/b/**', async (r) => {
 		if (r.request().method() !== 'POST') return r.fallback();
