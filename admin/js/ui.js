@@ -172,8 +172,15 @@ export function modal({ title, size = '', body, footer, onClose } = {}) {
 		el.remove();
 		if (onClose) onClose();
 	});
+	// Bootstrap ignora hide() mientras la ventana todavía está apareciendo: un toque rápido en «Eliminar» o «Confirmar»
+	// hacía la acción pero dejaba la ventana abierta tapando todo. Si se cierra antes de terminar de aparecer, se cierra
+	// en cuanto termina.
+	let mostrada = false, cerrarAlMostrar = false;
+	el.addEventListener('shown.bs.modal', () => { mostrada = true; if (cerrarAlMostrar) instance.hide(); });
+	// Lo mismo con «Cancelar» y la ✕ (Bootstrap también las ignora mientras aparece).
+	el.addEventListener('click', (e) => { if (!mostrada && e.target.closest('[data-bs-dismiss="modal"]')) cerrarAlMostrar = true; });
 	instance.show();
-	return { el, body: bodyEl, footer: footerEl, close: () => instance.hide() };
+	return { el, body: bodyEl, footer: footerEl, close: () => { if (mostrada) instance.hide(); else cerrarAlMostrar = true; } };
 }
 
 export function confirmDialog(message, { okText = 'Confirmar', danger = true } = {}) {

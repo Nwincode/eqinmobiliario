@@ -1284,6 +1284,8 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 /* Menú ⋮ de una ficha o fila (menuMas en ui.js). */
 .menu-mas-btn { color: var(--adm-muted); border: 0; background: transparent; }
 .menu-mas-btn:hover, .menu-mas-btn[aria-expanded="true"] { color: var(--adm-text); background: var(--eq-primary-soft); }
+/* Pedido con borde (cls 'btn-outline-secondary'): igual que los íconos de su fila. */
+.menu-mas-btn.btn-outline-secondary { border: 1px solid var(--eq-line); }
 .menu-mas-lista {
 	min-width: 13rem; padding: .25rem; z-index: 1060;
 	background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); box-shadow: var(--adm-shadow);

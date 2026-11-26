@@ -383,9 +383,9 @@ function cabeza(S, f) {
 		h('dl', {},
 			h('dt', {}, icono('calendar')), h('dd', {}, `${diaConSemana(r.llegada)} – ${diaConSemana(r.salida)} · ${nNoches(r.noches)}`),
 			h('dt', {}, icono('users')), h('dd', {}, `${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
-			h('dt', {}, icono('money')), h('dd', {}, `Cliente paga ${total}`),
+			h('dt', {}, icono('money')), h('dd', {}, `Cliente paga ${total} con impuestos`),
 			plata ? [h('dt', {}), h('dd', { class: 'msj-sec' }, `${S.admin ? 'Socio' : 'Tu parte'} ${dinero(plata.costoSocio, mon)}`),
-				h('dt', {}), h('dd', { class: 'msj-sec' }, `${S.admin ? 'EQ' : 'Ganancia de EQ (se la pagas)'} ${dinero(plata.ganancia, mon)}`)] : null),
+				h('dt', {}), h('dd', { class: 'msj-sec' }, `${S.admin ? 'EQ' : 'Le pagas a EQ'} ${dinero(plata.ganancia, mon)}`)] : null),
 		acciones(false).length ? h('div', { class: 'msj-lado-acc' }, acciones(false)) : null,
 		h('div', { class: 'msj-pasos' }, pasos.map((x) => h('div', { class: x.ok ? 'ok' : x.ya ? 'ya' : '' }, h('i'), x.texto))));
 	return { arriba: [cab, ...angosto], lado };

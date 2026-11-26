@@ -37,7 +37,12 @@
 - [-] 2026-11-26 «oye no es posible cambiar la foto de la flota?» → parece de ptg (flota de carros); eqinmobiliario no tiene carros. Preguntado.
 - [x] 2026-11-26 «perdona!» → sin problema.
 - [x] 2026-11-26 «me equivoque» → sin problema.
-- [~] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Programado aparte; falta probar y publicar.
+- [x] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Publicado (PR #157).
 - [x] 2026-11-26 «es momento del /compact» → sí: todo guardado y subido.
 - [x] 2026-11-26 «tienes pendientes?» → sí: menús (PR #157) en prueba; cotización a elegirCasas; tus dos pasos; cola 5–25.
 - [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
+- [x] 2026-11-26 «que mas pendientes tienes?» → lista completa enviada.
+- [x] 2026-11-26 «ponle orden de prioridad! debo de tener el panel de socios y propietarios listo sin fallos.» → orden nuevo: primero el panel de socios y propietarios sin fallos (1–10), después lo demás.
+- [~] 2026-11-26 «ve en orden.» → en curso: 1 (Guardar tapado al cambiar de dueño).
+- [x] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; aprobó el ⋮ y quedó programado.
+- [x] 2026-11-26 «hay skills de diseño para instalar que haga eso?» → sí: tarjeta de «UI Design Review»; ya hay ux-ui-audit, design-critique y diseno-minimo.
