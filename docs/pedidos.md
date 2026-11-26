@@ -12,3 +12,4 @@
 - [x] 2026-11-25 «dame las instrucciones y las reglas.» → enviados los 2 archivos y los pasos.
 - [x] 2026-11-26 «no puedo abrir las rules dame el codigo de ambas» → página con las 2 reglas y botón Copiar.
 - [x] 2026-11-26 «reglas publicadas» → anotado; le pasé la tarea 3.
+- [~] 2026-11-26 «La cuenta de servicio no tiene permiso para las fotos o la base (roles de Storage en Google Cloud).» → el aviso ahora dice cuenta y rol (PR); falta que el usuario dé el rol en Google Cloud.

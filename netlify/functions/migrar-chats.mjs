@@ -42,10 +42,24 @@ export default async (req) => {
 	} catch (err) {
 		if (err.codigo === 'AVANCE') return json(409, { error: 'Otra pasada cambió el avance. Toca «Seguir»: empieza otra vez, sin repetir lo ya pasado.' });
 		console.error('migrar-chats:', err.message);
-		const permiso = err.status === 401 || err.status === 403 || /permiso/i.test(err.message);
-		return json(502, { error: permiso ? 'La cuenta de servicio no tiene permiso para las fotos o la base (roles de Storage en Google Cloud).' : 'No se pudo terminar. Vuelve a intentarlo: sigue donde quedó.' });
+		const falta = rolQueFalta(err);
+		return json(502, { error: falta ? `Falta un permiso en Google Cloud (IAM): a la cuenta ${falta.cuenta || '(sin correo en Netlify)'} dale el rol «${falta.rol}». Luego espera 5 minutos y vuelve a tocar el botón.` : 'No se pudo terminar. Vuelve a intentarlo: sigue donde quedó.' });
 	}
 	return json(200, { ok: true, cuenta: r.cuenta, cursor: r.cursor, fase: r.cursor ? r.cursor.fase + 1 : FASES_TOTAL, fases: FASES_TOTAL });
 };
+
+// Qué cuenta y qué rol faltan, según dónde falló: bajar una foto (lectura), lo demás de Storage (escritura), leer la base
+// (lectura) o escribirla (escritura). null si no fue un permiso.
+export function rolQueFalta(err) {
+	const msg = String(err?.message || '');
+	const sinPermiso = err?.status === 401 || err?.status === 403 || /\b40[13]\b|permiso|PERMISSION_DENIED/i.test(msg);
+	if (!sinPermiso) return null;
+	const lectura = process.env.GOOGLE_SA_EMAIL || '';
+	const escritura = process.env.GOOGLE_SA_ESCRITURA_EMAIL || '';
+	if (/^Storage .* al bajar/.test(msg)) return { cuenta: lectura, rol: 'Storage Object Viewer' };
+	if (/^Storage /.test(msg)) return { cuenta: escritura, rol: 'Storage Object Admin' };
+	if (/leer la base|al leer|al consultar/.test(msg)) return { cuenta: lectura, rol: 'Cloud Datastore Viewer' };
+	return { cuenta: escritura, rol: 'Cloud Datastore User' };
+}
 
 export const config = { path: '/api/migrar-chats' };
