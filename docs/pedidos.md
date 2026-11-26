@@ -29,6 +29,6 @@
 - [~] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → aprobado («según el diseño»): asignar propietario en «Más» y marcar varias con «Agregar (n)»; programado, en pruebas.
 - [~] 2026-11-26 «por que tineen diferente tamaño y diseño diferente texto con boton sin texto. como activo skill para esto=» → barra de seleccionadas toda con íconos del mismo tamaño (skill diseno-minimo); en pruebas.
 - [x] 2026-11-26 «que toras skills de diseño tenemos?» → lista de skills de diseño dada.
-- [~] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → en curso (calculadora: usar el selector común de propiedades; skill revisada).
-- [~] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → en curso (calculadora: usar el selector común de propiedades; skill revisada).
+- [~] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → la Calculadora usa la ventana común «Elegir propiedad» (elegir-casa.js); en pruebas. Pendiente avisado: la Cotización tiene su propio buscador.
+- [x] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → revisado con Fable: /frontend-design no es para esto; se usa diseno-minimo y la pieza común.
 - [x] 2026-11-26 «hay 2 ojitos en el menu de inicio! quita uno» → se oculta el ojo propio de Edge; queda el del panel.

@@ -2736,6 +2736,19 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 		`borrada ${borrada.status} · inglés «${ventaLista.en?.mapValue?.fields?.titulo?.stringValue || ''}» · tarjetas ${quedan} · ${await avisos(eq.p)}`);
 	for (const x of [col, so, eq]) await x.p.context().close();
 }
+// Calculadora de renta: la propiedad se elige con la misma ventana «Elegir propiedad» (con foto) y llena el precio.
+{
+	await ir(admin.p, '#/calculadora', 3500);
+	await admin.p.locator('#calc-prop button', { hasText: 'Elegir propiedad' }).click();
+	await admin.p.locator('.modal.show .casa-fila').first().waitFor({ timeout: 8000 }).catch(() => {});
+	const fichas = await admin.p.locator('.modal.show .casa-fila').count();
+	await admin.p.locator('.modal.show .casa-fila').first().click().catch(() => {});
+	await espera(800);
+	const precio = await admin.p.locator('#calc-precio').inputValue().catch(() => '');
+	const elegida = await admin.p.locator('#calc-prop .casa-fila').count();
+	await admin.p.screenshot({ path: `${CAPTURAS}/calculadora-propiedad-1280.png` });
+	paso('Calculadora: «Elegir propiedad» abre la ventana común con fichas, y al tocar una queda su ficha y se llena el precio', fichas > 0 && elegida === 1 && Number(precio) > 0, `${fichas} fichas · precio ${precio}`);
+}
 {
 	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';
 	paso('La regla de seguridad del panel (CSP) se aplicó y no bloqueó nada en todo el recorrido', /script-src 'self'/.test(csp) && !bloqueados.length,

@@ -1,6 +1,6 @@
 // Propietarios: dueños de los inmuebles, exclusivas con vencimiento y comisión acordada.
 import { db, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, serverTimestamp, arrayUnion, arrayRemove, runTransaction, writeBatch } from '../firebase.js';
-import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, nombreYDatos, modal, iconoBtn, hoy, ocupado } from '../ui.js';
+import { h, toast, showError, errorMessage, confirmDialog, pageHeader, emptyState, mount, badge, formatDate, tablaAdmin, nombreYDatos, iconoBtn, hoy, ocupado } from '../ui.js';
 import { renderForm } from '../form.js';
 import { correoContrasena } from '../contrasena.js';
 import { session, agentOptions, loadAgents } from '../session.js';
@@ -8,10 +8,10 @@ import { whatsappUrl } from '../ia.js';
 import { publicarPortal, borrarCopia, visitasDe, escucharComentarios, VERSION_RESUMEN, TIPOS_BITACORA } from '../portal.js';
 import { correoDe, accesosDe, accesoDe, ponerAcceso, darAcceso, reglasNuevas, motivoParaNoAbrir } from '../acceso.js';
 import { loadPropietarios, loadPropiedades, loadAcuerdos, telNorm, loadReglas } from '../crm.js';
-import { sinTildes } from '../cotizacion.js';
 import { abrirFicha } from './properties.js';
 import { CAMPOS_ACUERDO, comisionDe, acuerdoDe, acuerdoHeredado, diasExclusiva, exclusivasPorVencer, legadoSobrante } from '../acuerdo.js';
 import { filaCasa, estadoExclusiva } from '../ficha-casa.js';
+import { elegirCasas } from '../elegir-casa.js';
 import { tieneCasasPorNoche, casasDe, etiquetaDueno } from '../duenos.js';
 import { asignarDueno, revisarSinDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
 import { revisar, chipFaltan, vigilarFormulario, avisarCambio } from '../pendientes.js';
@@ -290,49 +290,22 @@ async function renderEditor(container, id) {
 	}
 	// Selector: buscador y una ficha por inmueble, para ver qué se elige. Arriba, «Nueva propiedad».
 	// Desde «Agregar propiedad» llega «quitar»: si se cierra sin elegir, el renglón vacío no se queda.
-	const elegirCasa = (item, quitar) => {
-		let creando = false;
+	const elegirCasa = async (item, quitar) => {
 		const enOtroRenglon = new Set((form.state.propiedades || []).map((x) => x.propertyId).filter((x) => x && x !== item.propertyId));
-		// Se marcan varias (en cualquiera de las tres categorías) y «Agregar» las suma de una vez: la primera queda en
-		// este renglón y las demás en renglones nuevos.
-		const marcadas = new Set(item.propertyId ? [item.propertyId] : []);
-		const agregar = h('button', { type: 'button', class: 'btn btn-primary', disabled: !marcadas.size, onclick: () => {
-			const [primera, ...resto] = [...marcadas];
-			item.propertyId = primera || '';
-			form.state.propiedades = [...(form.state.propiedades || []), ...resto.map((propertyId) => ({ propertyId }))];
-			form.refresh();
-			ventana.close();
-		} });
-		const pintarAgregar = () => {
-			agregar.disabled = !marcadas.size;
-			agregar.textContent = marcadas.size > 1 ? `Agregar ${marcadas.size}` : 'Agregar';
-		};
-		const elegir = (casaId) => { if (!marcadas.delete(casaId)) marcadas.add(casaId); pintarAgregar(); dibujar(); };
-		const buscar = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
-		const lista = h('div', { class: 'lista-casas' });
-		// Tres categorías, una a la vez: abre en la del renglón (o en la primera que esta persona ya tiene) y se cambia arriba.
-		const CATEGORIAS = [['venta', 'Venta', 'icon-home'], ['renta', 'Renta', 'icon-key'], ['vacacional', 'Por noche', 'icon-moon-o']];
 		const actual = propiedades.find((p) => p.id === item.propertyId);
 		const tiene = operacionesDe(form.state, propiedades);
-		let categoria = actual?.operacion || CATEGORIAS.map(([v]) => v).find((v) => tiene.includes(v)) || 'venta';
-		const pestanas = CATEGORIAS.map(([valor, texto, icono]) => h('button', { type: 'button', class: 'btn btn-outline-primary', dataset: { categoria: valor }, onclick: () => { categoria = valor; dibujar(); } }, h('span', { class: icono, 'aria-hidden': 'true' }), ` ${texto}`));
-		const dibujar = () => {
-			const q = sinTildes(buscar.value.trim());
-			pestanas.forEach((b) => { const on = b.dataset.categoria === categoria; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
-			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && p.operacion === categoria).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
-			lista.replaceChildren(
-				...visibles.map((p) => filaCasa(p, { elegida: marcadas.has(p.id), alTocar: () => elegir(p.id),
-					marcas: [p.publicado ? null : badge('Sin publicar', 'light'), p.propietarioId && p.propietarioId !== ref.id ? badge('Ya tiene dueño', 'warning') : null] })),
-				visibles.length ? null : h('p', { class: 'text-muted small mb-0' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
-		};
-		buscar.addEventListener('input', dibujar);
-		dibujar();
-		pintarAgregar();
-		const ventana = modal({ title: 'Elegir propiedades', footer: agregar, size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas),
-			h('div', { class: 'd-flex gap-2 mb-2' }, buscar, h('button', { type: 'button', class: 'btn btn-outline-primary text-nowrap', title: 'Nueva propiedad', 'aria-label': 'Nueva propiedad',
-				onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
-				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-sm-inline' }, ' Nueva propiedad'))), lista),
-			onClose: () => { if (quitar && !creando && !item.propertyId) quitar(); } });
+		// Se marcan varias (en cualquiera de las tres categorías) y «Agregar» las suma de una vez: la primera queda en
+		// este renglón y las demás en renglones nuevos. Abre en la categoría del renglón o en la primera que ya tiene.
+		const ids = await elegirCasas(propiedades, { titulo: 'Elegir propiedades', varias: true, excluir: enOtroRenglon,
+			marcadas: item.propertyId ? [item.propertyId] : [], categoria: actual?.operacion || ['venta', 'renta', 'vacacional'].find((v) => tiene.includes(v)),
+			marcas: (p) => [p.propietarioId && p.propietarioId !== ref.id ? badge('Ya tiene dueño', 'warning') : null],
+			nueva: (categoria) => crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }) });
+		if (ids === null) return; // fue a «Nueva propiedad»
+		if (!ids.length) { if (quitar && !item.propertyId) quitar(); return; }
+		const [primera, ...resto] = ids;
+		item.propertyId = primera;
+		form.state.propiedades = [...(form.state.propiedades || []), ...resto.map((propertyId) => ({ propertyId }))];
+		form.refresh();
 	};
 	// Crear o corregir una casa sin salir de aquí: se abre la ficha del inmueble (la misma de Propiedades) en una
 	// ventana. La ficha de la persona se guarda antes y después, para que la casa nunca apunte a un dueño sin
