@@ -232,7 +232,7 @@ export async function render(container, [codigo] = []) {
 					est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
 					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null], { envuelve: true }),
 			h('div', {}, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
-			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)}`,
+			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)} con impuestos`,
 				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
 			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
