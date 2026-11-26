@@ -44,5 +44,5 @@
 - [x] 2026-11-26 «que mas pendientes tienes?» → lista completa enviada.
 - [x] 2026-11-26 «ponle orden de prioridad! debo de tener el panel de socios y propietarios listo sin fallos.» → orden nuevo: primero el panel de socios y propietarios sin fallos (1–10), después lo demás.
 - [~] 2026-11-26 «ve en orden.» → en curso: 1 (Guardar tapado al cambiar de dueño).
-- [~] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; espera su sí: acciones secundarias de la tarjeta en un ⋮.
-- [ ] 2026-11-26 «hay skills de diseño para instalar que haga eso?»
+- [x] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; aprobó el ⋮ y quedó programado.
+- [x] 2026-11-26 «hay skills de diseño para instalar que haga eso?» → sí: tarjeta de «UI Design Review»; ya hay ux-ui-audit, design-critique y diseno-minimo.
