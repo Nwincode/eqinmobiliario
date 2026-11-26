@@ -183,7 +183,7 @@ export async function render(container, [codigo] = []) {
 			nombreYDatos((admin ? res.huesped : primerNombre(res.huesped)) || 'Reserva sin chat', [res.codigo, res.propertyTitulo, admin && propietarios.find((p) => p.id === res.propietarioId)?.nombre].filter(Boolean).join(' · '),
 				[badge(...ESTADOS.confirmada)], { envuelve: true }),
 			h('div', {}, `${fechasReserva(res)} · ${nNoches(res.noches)}`),
-			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(res.comision.monto, res.moneda)}`),
+			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Le pagas a EQ'} ${money(res.comision.monto, res.moneda)}`),
 			lineaComision(res.comision, nivel),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' }, botonesComision(res.comision, res, nivel, res.propertyTitulo))));
 	}
@@ -232,8 +232,10 @@ export async function render(container, [codigo] = []) {
 					est === 'confirmada' && ch?.estado === 'confirmada' && ch.pagoReabierto && !comprobanteVigente(ch) ? badge('Se le pidió otro comprobante', 'warning') : null,
 					cambio ? badge(TEXTO_PRECIO_CAMBIO, 'warning') : null], { envuelve: true }),
 			h('div', {}, `${fechasReserva(r)} · ${nNoches(r.noches)} · ${r.huespedes} ${r.huespedes === 1 ? 'persona' : 'personas'}`),
+			// Con impuestos: por eso la parte del socio y la de EQ no suman ese total. En el celular, lo que se reparte baja a
+			// su propia línea (sin que un monto quede solo en otra); en la computadora, todo en una.
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)} con impuestos`,
-				c ? ` · ${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Ganancia de EQ (se la pagas)'} ${money(c.ganancia, mon)}` : ''),
+				c ? h('span', { class: 'd-block d-md-inline' }, h('span', { class: 'd-none d-md-inline' }, ' · '), `${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Le pagas a EQ'} ${money(c.ganancia, mon)}`) : null),
 			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
 			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente. Lo que el socio
@@ -269,13 +271,14 @@ export async function render(container, [codigo] = []) {
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechasReserva(r)}).`),
 				// La conversación vive en Mensajes (una sola: el hilo con sus acciones).
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }) : null,
-				est === 'pendiente' && deHoy(l.propertyId) ? [puedeConfirmar(l) ? boton('Confirmar', 'btn-primary', () => confirmar(l), 'check') : null, boton('No se dio', puedeConfirmar(l) ? 'btn-outline-secondary' : 'btn-primary', () => noSeDio(l, yaOcupada ? 'Fechas no disponibles' : ''), 'close')] : null,
+				// Si el socio no puede confirmarla (la confirma el equipo), ninguna acción va en azul: «No se dio» queda gris.
+				est === 'pendiente' && deHoy(l.propertyId) ? [puedeConfirmar(l) ? boton('Confirmar', 'btn-primary', () => confirmar(l), 'check') : null, boton('No se dio', puedeConfirmar(l) || !admin ? 'btn-outline-secondary' : 'btn-primary', () => noSeDio(l, yaOcupada ? 'Fechas no disponibles' : ''), 'close')] : null,
 				puedePagoRecibido(l) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com ? botonesComision(com, res, nivel, l.propertyTitulo) : null,
 				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada, ahoraYa()) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
-				// Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
+				// Ícono rojo en la fila (no una fila entera para él en el celular). Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
 				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
-				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? boton('Cancelar', 'btn-outline-danger', () => cancelar(l), 'ban') : null,
+				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? iconoBtn('icon-ban', 'Cancelar reserva', { class: 'btn-toque btn-icono btn btn-sm btn-outline-danger', onclick: () => cancelar(l) }) : null,
 				// Con el comprobante del cliente, o desde el día de llegada sin el pago: en vez de «Cancelar».
 				!admin && est === 'confirmada' && puedeNoMeLlego(l) ? boton('No me llegó', 'btn-outline-danger', () => noMeLlego(l), 'ban') : null,
 				// El correo al que le llegan los avisos de su reserva y su lápiz (lo lee el servidor de la solicitud), juntos y al

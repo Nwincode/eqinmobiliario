@@ -799,7 +799,7 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 		/Monterrico/.test(salidas) && !/Calle Real|13\.8912|socio-prueba|historialEstado|precioBase|porUid/.test(salidas), salidas.slice(0, 160));
 	await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
 }
-await socio.p.locator('.card', { hasText: codigo3 }).first().locator('button', { hasText: 'Cancelar' }).click();
+await socio.p.locator('.card', { hasText: codigo3 }).first().locator('[aria-label="Cancelar reserva"]').click();
 await espera(800);
 const cancelo = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Cliente canceló' }).click();
@@ -2367,7 +2367,7 @@ const duenos = [];
 	await ir(socio.p, '#/solicitudes/cobrar', 5000);
 	const avisoSC = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
 	// Lo que dice cada tarjeta que se le debe a EQ, sumado por moneda, contra lo que dice el aviso.
-	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Ganancia de EQ \(se la pagas\) (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
+	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Le pagas a EQ (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
 	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a EQ ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
 	const codigosSC = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
 	const conSinChat = await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]', { hasText: 'Huésped' }).count();
