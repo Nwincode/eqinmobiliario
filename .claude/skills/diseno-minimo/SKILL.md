@@ -59,6 +59,8 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
   con «…», la etiqueta no. Pieza común: `nombreYDatos` (`admin/js/ui.js`).
 - Un botón o ícono no agranda su fila: su área de toque se monta sobre una línea que ya existe.
 - Cero scroll de lado. Un nombre largo usa dos líneas como máximo; después, «…».
+- Una lista que crece con el tiempo (reservas, solicitudes, mensajes) muestra arriba solo lo que sigue activo y
+  pliega lo terminado en una fila «Anteriores (N)» que se abre al tocarla. Nunca una caja con scroll propio.
 - Lo más importante, arriba y a la izquierda. Lo que más se toca, al alcance del pulgar (abajo a la derecha
   en celular).
 
