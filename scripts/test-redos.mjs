@@ -16,10 +16,12 @@ const PIEZAS = ['1/1', '12/31', '1:11', '23:59', '5', '55', '5555', ' ', '-', ',
 for (const a of PIEZAS) for (const b of PIEZAS) for (const pre of ['', 'cel ', 'llámame ', 'mi correo es ']) casos.push(pre + rep(a + b));
 V.tipoDeContacto('calentar');
 const lentos = [];
+// Lo que se mide es el mejor de hasta 3 intentos: una pausa de la máquina (otra prueba, la limpieza de memoria) dura una
+// vez; un patrón que se traba tarda siempre (segundos, no milisegundos).
+const medir = (s) => { const t = performance.now(); V.tipoDeContacto(s); return performance.now() - t; };
 for (const s of casos) {
-	const t = performance.now();
-	V.tipoDeContacto(s);
-	const ms = performance.now() - t;
+	let ms = medir(s);
+	for (let i = 0; i < 2 && ms > TOPE; i++) ms = Math.min(ms, medir(s));
 	if (ms > TOPE) lentos.push(`${ms.toFixed(0)} ms · ${JSON.stringify(s.slice(0, 40))}…`);
 }
 if (lentos.length) { console.error(`Filtro de contacto lento (más de ${TOPE} ms con ${LARGO} letras):\n${lentos.join('\n')}`); process.exit(1); }
