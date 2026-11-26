@@ -1,1 +1,6 @@
-{}
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/anotar-pedido.mjs\"" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/revisar-pedidos.mjs\"" }] }]
+  }
+}
