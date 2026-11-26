@@ -21,3 +21,4 @@
 - [x] 2026-11-26 «que prosigue?» → tarea 4: el código ya existe; faltan 2 pasos del dueño en Google Cloud (espera su sí).
 - [x] 2026-11-26 «curl -X PATCH esto es lo que pego?» → sí, la línea completa; se la reenvié.
 - [x] 2026-11-26 «exactamente esto pegaré: curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" -H "X-Goog-User-Project: eqinmobiliariobd" "https://identitytoolkit.googleapis.com/admin/v2/projects/eqinmobiliariobd/config?updateMask=mfa" -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":1}}]}}'» → confirmado: la línea es correcta.
+- [x] 2026-11-26 «ahora» → le pedí la captura de la respuesta y el paso 3.
