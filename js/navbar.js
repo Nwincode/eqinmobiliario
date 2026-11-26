@@ -68,7 +68,15 @@
 			if (!menu) return;
 			menu.setAttribute('aria-hidden', abrir ? 'false' : 'true');
 			menu.inert = !abrir;
-			Array.prototype.forEach.call(document.body.children, function (el) { if (el !== menu && el.tagName !== 'SCRIPT' && !el.querySelector('.burger')) el.inert = abrir; });
+			// Inerte todo lo que no es el menú ni la barra de arriba (ni lo que los contiene), nivel por nivel.
+			var dejar = [menu, document.querySelector('.site-nav')].filter(Boolean);
+			var marcar = function (padre) {
+				Array.prototype.forEach.call(padre.children, function (el) {
+					if (el.tagName === 'SCRIPT' || dejar.indexOf(el) >= 0) return;
+					if (dejar.some(function (d) { return el.contains(d); })) marcar(el); else el.inert = abrir;
+				});
+			};
+			marcar(document.body);
 			if (abrir && !estaba) { var primero = menu.querySelector('.site-nav-wrap a'); if (primero) primero.focus(); }
 			if (!abrir && estaba && menu.contains(document.activeElement)) { var b = document.querySelector('.burger.js-menu-toggle'); if (b) b.focus(); }
 		};

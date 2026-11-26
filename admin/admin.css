@@ -124,7 +124,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 20px 20px 18px;
+	padding: 12px 20px;
 	color: var(--eq-white);
 	text-decoration: none;
 	border-bottom: 1px solid color-mix(in srgb, var(--eq-white) 8%, transparent);
@@ -150,20 +150,19 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	letter-spacing: .02em;
 }
 .admin-nav {
-	padding: 8px 12px 16px;
+	padding: 4px 12px 8px;
 	flex: 1;
 	overflow-y: auto;
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--eq-white) 20%, transparent) transparent;
 }
 .admin-nav-group + .admin-nav-group {
-	margin-top: 4px;
+	margin-top: 0;
 }
 /* Título de grupo: un botón que pliega el grupo (44 px de toque, letra de 12). */
 .admin-nav-title {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	width: 100%;
 	min-height: 44px;
 	padding: 0 12px;
@@ -180,7 +179,8 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .admin-nav-title:hover { background: var(--adm-nav-hover); color: var(--eq-white); }
 .admin-nav-title:focus-visible { outline: 2px solid var(--adm-cyan); outline-offset: 2px; }
-.admin-nav-title [class^="icon-"] { font-size: 1rem; transition: transform .15s ease; }
+.admin-nav-title [class^="icon-"] { order: 2; margin-left: auto; font-size: 1rem; transition: transform .15s ease; }
+.admin-nav-title:has(+ [hidden] .nav-aviso) [class^="icon-"] { margin-left: 8px; }
 .admin-nav-title[aria-expanded="true"] [class^="icon-"] { transform: rotate(180deg); }
 /* Grupo plegado con algo por atender: un punto en su título. */
 .admin-nav-title:has(+ [hidden] .nav-aviso)::before {
@@ -248,7 +248,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	padding: 14px 16px;
+	padding: 8px 16px;
 	border-top: 1px solid color-mix(in srgb, var(--eq-white) 8%, transparent);
 }
 .admin-avatar {
@@ -3748,3 +3748,11 @@ div.aviso-enlace:hover { background: none; }
 /* El ojo propio del navegador (Edge) se oculta: el panel ya pone el suyo junto a la contraseña. */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear { display: none; }
+/* Celular y tableta: con la ✕ al lado, el nombre va en una línea y sin «Panel de administración». */
+@media (max-width: 991.98px) {
+	.admin-sidebar { width: min(288px, 85vw); }
+	.admin-brand-fila .admin-brand { padding-right: 8px; }
+	.admin-brand-fila .admin-brand > span { min-width: 0; }
+	.admin-brand-fila .admin-brand strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.admin-brand-fila .admin-brand small { display: none; }
+}
