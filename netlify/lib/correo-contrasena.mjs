@@ -7,9 +7,21 @@
 import { esc, coloresCorreo, whatsappEmpresa, redesEmpresa, SITE_URL } from './correo.mjs';
 
 export const ASUNTO_CONTRASENA = 'Crea o cambia tu contraseña';
+export const ASUNTO_VERIFICAR = 'Confirma tu correo';
 
-// link: el enlace de Google (un solo uso, vence en 1 hora); email: el usuario.
-export async function correoContrasena({ link, email }) {
+// Los textos que cambian según para qué es el enlace; el resto del correo es el mismo (una sola pieza).
+const TEXTOS = {
+	contrasena: { asunto: ASUNTO_CONTRASENA, preheader: 'Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.', titulo: 'Crea o cambia tu contraseña',
+		intro: 'Toca el botón y elige la contraseña con la que entrarás al panel.', boton: 'Crear mi contraseña',
+		nota: 'Sirve una sola vez y vence en <strong style="color:{dark}">1 hora</strong>.', notaTexto: 'sirve una sola vez y vence en 1 hora' },
+	verificar: { asunto: ASUNTO_VERIFICAR, preheader: 'Un toque para confirmar tu correo y activar la verificación en dos pasos.', titulo: 'Confirma tu correo',
+		intro: 'Toca el botón para confirmar que este correo es tuyo. Después activas la verificación en dos pasos al entrar al panel.', boton: 'Confirmar mi correo',
+		nota: 'Sirve una sola vez.', notaTexto: 'sirve una sola vez' }
+};
+
+// link: el enlace de Google (un solo uso); email: el usuario; tipo: 'contrasena' (vence en 1 hora) o 'verificar'.
+export async function correoContrasena({ link, email, tipo = 'contrasena' }) {
+	const x = TEXTOS[tipo] || TEXTOS.contrasena;
 	const base = await coloresCorreo();
 	// Los tonos claros, con su nombre y su valor exacto del diseño aprobado (correo.mjs `TONOS_CORREO`).
 	const t = base.tonos;
@@ -19,7 +31,7 @@ export async function correoContrasena({ link, email }) {
 	const enlace = esc(link);
 	const correo = esc(email);
 	const correoUrl = encodeURIComponent(String(email || ''));
-	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.suave}">Elige tu contraseña para entrar al panel. El enlace vence en 1 hora.</div>
+	const html = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.suave}">${x.preheader}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${c.suave}" style="background:${c.suave}"><tr><td align="center" style="padding:28px 12px;font-family:Arial,Helvetica,sans-serif">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
@@ -33,8 +45,8 @@ export async function correoContrasena({ link, email }) {
 <tr><td bgcolor="${c.cyan}" style="background:${c.cyan};height:4px;line-height:4px;font-size:4px">&nbsp;</td></tr>
 
 <tr><td bgcolor="${c.white}" style="background:${c.white};padding:36px 28px 30px;font-family:Arial,Helvetica,sans-serif">
-  <h1 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;font-weight:bold;color:${c.dark}">Crea o cambia tu contraseña</h1>
-  <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${c.ink}">Toca el botón y elige la contraseña con la que entrarás al panel.</p>
+  <h1 style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;font-weight:bold;color:${c.dark}">${x.titulo}</h1>
+  <p style="margin:0 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:24px;color:${c.ink}">${x.intro}</p>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border-collapse:separate"><tr>
     <td bgcolor="${c.usuario}" style="background:${c.usuario};border:1px solid ${c.usuarioBorde};border-radius:8px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif">
@@ -45,10 +57,10 @@ export async function correoContrasena({ link, email }) {
 
   <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 14px;border-collapse:separate"><tr>
     <td align="center" bgcolor="${c.primary}" style="background:${c.primary};border:2px solid ${c.primary};border-radius:8px;mso-padding-alt:16px 40px">
-      <a href="${enlace}" target="_blank" style="display:block;padding:16px 40px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:22px;font-weight:bold;color:${c.white};text-decoration:none;border-radius:8px">Crear mi contraseña</a>
+      <a href="${enlace}" target="_blank" style="display:block;padding:16px 40px;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:22px;font-weight:bold;color:${c.white};text-decoration:none;border-radius:8px">${x.boton}</a>
     </td>
   </tr></table>
-  <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:${c.ink}">Sirve una sola vez y vence en <strong style="color:${c.dark}">1 hora</strong>.<br>¿El botón no abre? <a href="${enlace}" target="_blank" style="color:${c.primary};text-decoration:underline">Usa este enlace</a>.</p>
+  <p style="margin:0;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:${c.ink}">${x.nota.replace('{dark}', c.dark)}<br>¿El botón no abre? <a href="${enlace}" target="_blank" style="color:${c.primary};text-decoration:underline">Usa este enlace</a>.</p>
 ${ayuda ? `  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;border-top:1px solid ${c.linea}"><tr>
     <td align="center" style="padding:22px 0 0;font-family:Arial,Helvetica,sans-serif">
       <p style="margin:0 0 12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:${c.ink}">¿Necesitas ayuda? Escríbenos y te atendemos.</p>
@@ -97,6 +109,6 @@ ${ayuda ? `  <table role="presentation" width="100%" cellpadding="0" cellspacing
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table>`;
-	const texto = `Crea o cambia tu contraseña del panel de Equipo Inmobiliario.\n\nTu usuario: ${email}\n\nAbre este enlace (sirve una sola vez y vence en 1 hora):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
-	return { asunto: ASUNTO_CONTRASENA, html, texto };
+	const texto = `${x.titulo} (panel de Equipo Inmobiliario).\n\n${x.intro}\n\nTu usuario: ${email}\n\nAbre este enlace (${x.notaTexto}):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
+	return { asunto: x.asunto, html, texto };
 }

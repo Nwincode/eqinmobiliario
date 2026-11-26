@@ -24,3 +24,5 @@
 - [x] 2026-11-26 «ahora» → le pedí la captura de la respuesta y el paso 3.
 - [x] 2026-11-26 Respuesta de Cloud Shell: mfa ENABLED → dos pasos encendido; falta inscribir su teléfono (paso 3).
 - [x] 2026-11-26 «Confirma tu correo (jarriola@eqinmobiliario.gt) para activar la verificación en dos pasos.» → explicado: botón del aviso manda el correo; abrir enlace y volver a entrar.
+- [~] 2026-11-26 «ese enlace se ve feo puedes mejorarlo?» → correo «Confirma tu correo» con el diseño de la empresa; en pruebas y segunda revisión.
+- [~] 2026-11-26 «lo que madnas en el email» → mismo pedido: el correo de confirmación con el diseño de la empresa.

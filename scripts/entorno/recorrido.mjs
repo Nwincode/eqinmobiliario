@@ -1773,6 +1773,12 @@ const duenos = [];
 	const r8 = await api({ aviso: 'cambiada' }, { Authorization: `Bearer ${intruso.idToken}` });
 	paso('Una cuenta creada por fuera del panel no recibe el correo de la empresa ni puede pedir el aviso de cambio (la respuesta no lo delata)',
 		r7.status === 200 && [200, 401].includes(r8.status) && !todos().slice(antes2).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), `${r7.status} ${r8.status}`);
+	// «Confirma tu correo» (paso previo a los dos pasos): con el diseño de la empresa, solo a la propia cuenta del panel.
+	const v1 = await api({ verificar: true });
+	const antes3 = todos().length;
+	const v2 = await api({ verificar: true }, { Authorization: `Bearer ${intruso.idToken}` });
+	paso('«Confirma tu correo» sin sesión da 401 y una cuenta de fuera del panel no recibe nada (404)',
+		v1.status === 401 && v2.status === 404 && !todos().slice(antes3).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), `${v1.status} ${v2.status}`);
 	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
 	const seguidos = [];
 	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
@@ -2478,6 +2484,14 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades', 3000);
 	const verificar = (await admin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
 	paso('Dos pasos: sin el correo confirmado, cada pantalla lo dice con el botón para mandarlo', /Confirma tu correo/.test(verificar) && /Mandarme el correo/.test(verificar), verificar);
+	// El botón manda el correo con el diseño de la empresa (/api/contrasena { verificar }), no el de Firebase.
+	const correosAntes = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('#aviso-dos-pasos button', { hasText: 'Mandarme el correo' }).click();
+	await admin.p.locator('#aviso-dos-pasos button', { hasText: 'Te lo mandamos' }).waitFor({ timeout: 10000 }).catch(() => {});
+	const confirma = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(correosAntes).map((l) => JSON.parse(l))
+		.filter((c) => JSON.stringify(c.to || '').includes('admin@example.com') && c.subject === 'Confirma tu correo').pop();
+	paso('«Mandarme el correo» manda «Confirma tu correo» con el diseño de la empresa y el enlace al panel',
+		Boolean(confirma) && /Confirmar mi correo/.test(confirma.htmlbody) && /admin\/#mode=verifyEmail&amp;oobCode=/.test(confirma.htmlbody), confirma ? confirma.subject : 'no salió');
 	const sin = await persona(1280);
 	await sin.p.route('**/mfaEnrollment:start**', (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } })
 		: r.fulfill({ status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }, body: JSON.stringify({ error: { code: 400, message: 'OPERATION_NOT_ALLOWED' } }) }));

@@ -67,6 +67,15 @@ await test('contraseña: el diseño aprobado, con los colores del tema y el What
 	assert.doesNotMatch(fuente, /#[0-9a-f]{6}|wa\.me\/\d/i, 'sin colores ni números escritos a mano');
 	assert.match(texto, /https:\/\/x\.test\/a\?b=1&c=2/);
 });
+await test('confirmar correo: el mismo diseño, con su título, su botón y sin decir «1 hora»', async () => {
+	const { correoContrasena } = await import('../netlify/lib/correo-contrasena.mjs');
+	const { asunto, html, texto } = await correoContrasena({ link: 'https://x.test/v?oobCode=1', email: 'ana@ejemplo.gt', tipo: 'verificar' });
+	assert.equal(asunto, 'Confirma tu correo');
+	assert.match(html, /Confirmar mi correo/);
+	assert.match(html, /CUIDA TU CUENTA/);
+	assert.doesNotMatch(html + texto, /1 hora|Crear mi contraseña/);
+	assert.match(texto, /https:\/\/x\.test\/v\?oobCode=1/);
+});
 await test('respuesta al lead en su idioma (aviso del lead y botón de Leads)', async () => {
 	const { saludoLead } = await import('../admin/js/formato.js');
 	assert.equal(saludoLead({ nombre: 'Ana Pérez', propertyTitulo: 'Casa en zona 16' }), 'Hola Ana, gracias por escribirnos por Casa en zona 16. ');

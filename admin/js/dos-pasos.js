@@ -146,5 +146,14 @@ export function avisoDosPasos(pendiente, ruta, { user, activar }) {
 export const botonVerificar = (user) => h('button', { type: 'button', class: 'btn btn-sm btn-warning', onclick: async (e) => {
 	const b = e.currentTarget;
 	b.disabled = true;
-	try { await sendEmailVerification(user); b.textContent = 'Te lo mandamos'; } catch (err) { b.disabled = false; b.textContent = errorMessage(err); }
+	try {
+		// Con el diseño de la empresa (/api/contrasena { verificar }); el de Firebase solo si el servidor no está configurado o no hay red.
+		let res = null;
+		try {
+			res = await fetch('/api/contrasena', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}` }, body: JSON.stringify({ verificar: true }) });
+		} catch { /* sin red hacia la función */ }
+		if (res && res.status !== 503 && !res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo enviar el correo.');
+		if (!res?.ok) await sendEmailVerification(user);
+		b.textContent = 'Te lo mandamos';
+	} catch (err) { b.disabled = false; b.textContent = errorMessage(err); }
 } }, 'Mandarme el correo');

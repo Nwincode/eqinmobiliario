@@ -1,4 +1,5 @@
 // POST /api/contrasena { email }: el correo «Crea o cambia tu contraseña» con el diseño de la empresa
+// ({ verificar: true }, con sesión: el mismo correo para «Confirma tu correo», el paso previo a la verificación en dos pasos)
 // (netlify/lib/correo-contrasena.mjs), enviado con el servicio de correo de la empresa (Zoho CPaaS / ZeptoMail).
 // Lo usan «Dar acceso», «Reenviar correo», Usuarios, «¿Olvidaste tu contraseña?», «Este enlace ya no sirve» y «Cambiar mi
 // contraseña» (admin/js/contrasena.js).
@@ -30,6 +31,7 @@ const ALCANCE = 'https://www.googleapis.com/auth/cloud-platform';
 const porIp = limitadorDurable('contrasena-ip', 10, 10 * 60_000);
 const porCorreo = limitadorDurable('contrasena-correo', 3, 60 * 60_000);
 const avisosPorCuenta = limitadorDurable('contrasena-aviso', 3, 60 * 60_000);
+const verificarPorCuenta = limitadorDurable('contrasena-verificar', 3, 60 * 60_000);
 
 // Aviso «Tu contraseña cambió» a la cuenta que acaba de cambiarla: si no fue la persona, se entera y avisa.
 async function avisoCambio(email) {
@@ -68,9 +70,10 @@ async function conAcceso(email) {
 	return delPanel(cuenta.localId, email);
 }
 
-// El enlace de Google para poner la contraseña de esa cuenta; null si Google no lo da para ese correo.
-async function enlaceDe(email) {
-	const r = await google('accounts:sendOobCode', { requestType: 'PASSWORD_RESET', email, returnOobLink: true });
+// El enlace de Google para poner la contraseña de esa cuenta (o, con VERIFY_EMAIL, para confirmar su correo); null si
+// Google no lo da para ese correo.
+async function enlaceDe(email, tipo = 'PASSWORD_RESET') {
+	const r = await google('accounts:sendOobCode', { requestType: tipo, email, returnOobLink: true });
 	if (!r.ok) {
 		if (/EMAIL_NOT_FOUND|USER_NOT_FOUND|USER_DISABLED/.test(r.motivo)) return null;
 		throw new Error(`Google no dio el enlace: ${r.motivo}`);
@@ -81,7 +84,7 @@ async function enlaceDe(email) {
 	const codigo = new URL(r.body.oobLink).searchParams.get('oobCode');
 	if (!codigo) return null;
 	// Después de «#»: esa parte de la dirección no llega a ningún servidor ni registro (la lee el panel y la borra).
-	return `${SITE_URL}/admin/#mode=resetPassword&oobCode=${encodeURIComponent(codigo)}`;
+	return `${SITE_URL}/admin/#mode=${tipo === 'VERIFY_EMAIL' ? 'verifyEmail' : 'resetPassword'}&oobCode=${encodeURIComponent(codigo)}`;
 }
 
 export default async (req, context) => {
@@ -108,6 +111,28 @@ export default async (req, context) => {
 			await avisoCambio(correo);
 			return json(200, { ok: true });
 		} catch (err) { console.error('Aviso de contraseña:', err.message); return json(503, { error: 'No se pudo enviar' }); }
+	}
+	// { verificar: true }: «Mandarme el correo» del aviso de dos pasos (admin/js/dos-pasos.js). Con la sesión de la persona;
+	// el correo va a su propia cuenta (la que tiene Google), solo si aún no está confirmado y la cuenta entra al panel.
+	if (cuerpo?.verificar === true) {
+		// Sin límite por IP (pide sesión): el de la cuenta basta y no frena a una oficina que comparte la conexión.
+		let s = null;
+		try { s = await sesionDe(req); } catch { /* token inválido */ }
+		if (!s?.uid) return json(401, { error: 'Sesión inválida' });
+		try {
+			const r = await google('accounts:lookup', { localId: [s.uid] });
+			const cuenta = r.ok ? r.body.users?.[0] : null;
+			if (!cuenta?.email || cuenta.disabled) return json(401, { error: 'Sesión inválida' });
+			if (cuenta.emailVerified) return json(200, { ok: true, yaConfirmado: true });
+			const correo = String(cuenta.email).toLowerCase();
+			if (!(await delPanel(s.uid, correo))) return json(404, { error: 'Esta cuenta no tiene acceso al panel.' });
+			if (await verificarPorCuenta(s.uid)) return json(429, { error: 'Ya te mandamos varios: revisa tu correo (y el spam) o espera una hora.' });
+			const link = await enlaceDe(correo, 'VERIFY_EMAIL');
+			if (!link) return json(503, { error: 'No se pudo enviar' });
+			const { asunto, html, texto } = await correoContrasena({ link, email: correo, tipo: 'verificar' });
+			await enviarCorreo({ para: correo, asunto, html, texto });
+			return json(200, { ok: true });
+		} catch (err) { console.error('Confirmar correo:', err.message); return json(503, { error: 'No se pudo enviar' }); }
 	}
 	const email = String(cuerpo?.email || '').trim().toLowerCase();
 	if (!correoValido(email) || !/^[\x21-\x7e]+$/.test(email)) return json(400, { error: 'Correo inválido' });
