@@ -33,7 +33,7 @@ export function encabezadosPara(ruta, reglas = leerEncabezados()) {
 	const fuera = {};
 	for (const { para, valores } of reglas) {
 		if (!coincide(para, ruta)) continue;
-		for (const [k, v] of Object.entries(valores)) fuera[k] = fuera[k] ? `${fuera[k]}, ${v}` : v;
+		for (const [k, v] of Object.entries(valores)) fuera[k] = v; // Como Netlify: el mismo encabezado en dos reglas, gana la de abajo.
 	}
 	return fuera;
 }
