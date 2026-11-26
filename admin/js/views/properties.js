@@ -23,7 +23,7 @@ import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
+import { asignarDueno, confirmarCambioDeDueno, revisarSinDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
 import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
@@ -656,7 +656,13 @@ export async function render(container, [id]) {
 		if (!v) return;
 		const nuevo = v === '=ninguno' ? '' : v;
 		const nombre = nuevo ? (duenos.find((d) => d.id === nuevo)?.nombre || 'su propietario') : 'sin propietario';
-		const lista = elegidas().filter((p) => (p.propietarioId || '') !== nuevo);
+		// Con «Sin propietario» también las de antes que no dicen su dueño pero están en la lista de alguien.
+		const enLista = (p) => duenos.some((d) => (d.propiedades || []).some((x) => x.propertyId === p.id));
+		const lista = elegidas().filter((p) => (p.propietarioId || '') !== nuevo || (!nuevo && enLista(p)));
+		// Antes de escribir nada: si alguna casa por noche tiene huéspedes por venir, no se suelta ninguna.
+		if (!nuevo && lista.length) {
+			try { await revisarSinDueno(lista); } catch (err) { toast(err.message, 'danger'); selMasaDueno.value = ''; return; }
+		}
 		// Quitarles el dueño a varias borra sus acuerdos: se pregunta siempre, con cuántas son.
 		const seguir = !lista.length ? false : nuevo
 			? await confirmarCambioDeDueno(lista.map((casa) => ({ casa, a: nuevo })), duenos)
@@ -809,7 +815,7 @@ export async function render(container, [id]) {
 		{ icono: 'icon-globe', texto: 'Traducir al inglés', onclick: () => btnTraducir.click() },
 		{ icono: 'icon-image', texto: 'Poner marca de agua', onclick: () => btnMarca.click() },
 		session.isAdmin ? { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => eliminar() } : null
-	], { icono: 'icon-ellipsis-v' });
+	], { icono: 'icon-ellipsis-v', cls: 'btn-outline-secondary' });
 	barra.append(
 		h('span', { class: 'barra-masa-n' },
 			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
