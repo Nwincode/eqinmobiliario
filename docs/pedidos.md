@@ -33,3 +33,4 @@
 - [x] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → revisado con Fable: /frontend-design no es para esto; se usa diseno-minimo y la pieza común.
 - [x] 2026-11-26 «hay 2 ojitos en el menu de inicio! quita uno» → se oculta el ojo propio de Edge; queda el del panel.
 - [x] 2026-11-26 «terminaste ?» → no: falta la prueba completa y unir; informe de estado dado.
+- [x] 2026-11-26 «no te ando apresurando solo quiero saber como vas» → avance dado.
