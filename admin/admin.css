@@ -3712,3 +3712,7 @@ div.aviso-enlace:hover { background: none; }
 .msj-pasos .ya { color: var(--eq-dark); font-weight: 600; }
 .msj-pasos .ya i { background: var(--eq-warning); }
 /* ===== Fin Mensajes ===== */
+
+/* El ojo propio del navegador (Edge) se oculta: el panel ya pone el suyo junto a la contraseña. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }

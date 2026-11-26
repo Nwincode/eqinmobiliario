@@ -7,6 +7,10 @@ on:
   pull_request:
   push:
     branches: [main]
+# Un cambio nuevo en el mismo pull request cancela las pruebas que seguían corriendo del anterior (en main no).
+concurrency:
+  group: pruebas-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
