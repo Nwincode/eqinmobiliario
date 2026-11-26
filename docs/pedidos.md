@@ -46,3 +46,6 @@
 - [~] 2026-11-26 «ve en orden.» → 1 hecho y publicado (PR #158); 2 sin cifras distintas; 3 en curso (recorrido como socio).
 - [x] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; aprobó el ⋮ y quedó programado.
 - [x] 2026-11-26 «hay skills de diseño para instalar que haga eso?» → sí: tarjeta de «UI Design Review»; ya hay ux-ui-audit, design-critique y diseno-minimo.
+- [~] 2026-11-26 «puedes crear una presentacion de la web para nuestros propietarios socios colaboradores una para cada uno y asi cumplir la funcion que cada uno amerita, a los propietarios apra mostrarles el producto, explicarles como es el manejo de la platarforma y ya sabes como fucniona todo.» → en pausa: primero la de propietarios (con capturas del panel de prueba) y se muestra antes de hacer las otras dos.
+- [~] 2026-11-26 «socio-1280-__solicitudes.png la tabla no deberia de sobrepasar la pantalla, aplica colocar un scroll.» → eligió «Plegar lo pasado» (no caja con scroll: rompe un solo scroll); espera su sí tras la explicación.
+- [x] 2026-11-26 «cómo asi plegar lo apsaro ? explica.» → explicado: arriba lo por hacer y próximas; abajo «Anteriores (N)» plegada.
