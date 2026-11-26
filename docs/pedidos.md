@@ -10,3 +10,4 @@
 - [~] 2026-11-25 Tarea 3 del usuario: Publicar → «Datos de antes» → «Aplicar» → espera que la haga.
 - [~] 2026-11-25 Cola 4 a 25 (contador) → falta, en orden.
 - [x] 2026-11-25 «dame las instrucciones y las reglas.» → enviados los 2 archivos y los pasos.
+- [x] 2026-11-26 «no puedo abrir las rules dame el codigo de ambas» → página con las 2 reglas y botón Copiar.
