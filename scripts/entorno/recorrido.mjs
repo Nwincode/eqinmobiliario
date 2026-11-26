@@ -69,6 +69,8 @@ async function entrar(rol, opciones) {
 const ir = async (p, ruta, ms = 2500) => { await p.evaluate((r) => { location.hash = '#/inicio'; setTimeout(() => { location.hash = r; }, 80); }, ruta); await espera(ms); };
 const campo = (p, nombre, que = 'input, select, textarea') => p.locator(`[data-campo="${nombre}"]`).locator(que).last();
 const guardar = async (p) => { await p.locator('button', { hasText: /^Guardar$/ }).last().click(); await espera(3500); };
+// Acciones secundarias de una tarjeta (Solicitudes): las del ⋮ de esa tarjeta.
+const delMas = async (tarjeta, texto) => { await tarjeta.locator('.menu-mas-btn').last().click(); await tarjeta.locator('.menu-mas-lista.show .dropdown-item', { hasText: texto }).first().click(); };
 // Acciones de la ficha que van en el menú ⋮ del encabezado (Duplicar, Eliminar, Traducir…).
 const delMenu = async (p, texto) => { await p.locator('.admin-main .menu-mas-btn').first().click(); await p.locator('.menu-mas-lista .dropdown-item', { hasText: texto }).first().click(); };
 const avisos = async (p) => (await p.locator('.toast').allInnerTexts()).join(' | ').replace(/\s+/g, ' ').slice(0, 160);
@@ -799,7 +801,7 @@ paso('El socio confirma una tercera reserva (por el servidor) y las fechas queda
 		/Monterrico/.test(salidas) && !/Calle Real|13\.8912|socio-prueba|historialEstado|precioBase|porUid/.test(salidas), salidas.slice(0, 160));
 	await ir(socio.p, `#/solicitudes/${codigo3}`, 3500);
 }
-await socio.p.locator('.card', { hasText: codigo3 }).first().locator('[aria-label="Cancelar reserva"]').click();
+await delMas(socio.p.locator('.card', { hasText: codigo3 }).first(), 'Cancelar reserva');
 await espera(800);
 const cancelo = delServidor(socio.p);
 await socio.p.locator('.modal button', { hasText: 'Cliente canceló' }).click();
@@ -2133,7 +2135,7 @@ const duenos = [];
 	const sinChat = await ajena.locator('[aria-label="Chat con el cliente"]').count() === 0 && await ajena.locator('button', { hasText: /Cancelar|Pago recibido|Confirmada/ }).count() === 0;
 	paso('Las Solicitudes del socio cargan aunque una de sus casas haya cambiado de dueño (esa se ve, sin chat ni botones)', pantalla.includes(codigo3) && pantalla.includes('EQ-AJENA') && sinChat && socio.errores.length === antes, `${pantalla.includes(codigo3)} ${pantalla.includes('EQ-AJENA')} ${sinChat} · ${pantalla.slice(0, 200).replace(/\s+/g, ' ')}`);
 	// El comprobante de la comisión por el botón real (la dirección que da getDownloadURL pasa la regla del comprobante).
-	const [elegir] = await Promise.all([socio.p.waitForEvent('filechooser'), socio.p.locator('.card', { hasText: codigo }).first().locator('[aria-label^="Subir comprobante"]').click()]);
+	const [elegir] = await Promise.all([socio.p.waitForEvent('filechooser'), delMas(socio.p.locator('.card', { hasText: codigo }).first(), 'Subir comprobante')]);
 	await elegir.setFiles(png);
 	await espera(4000);
 	const recibo = await socio.p.evaluate(async () => {
@@ -2150,7 +2152,7 @@ const duenos = [];
 		const sinSesion = (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserva: reservaId }) })).status;
 		const storage = (await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(recibo)}?alt=media`)).status;
 		const [delSocio, delEquipo] = [await conSesion(socio.p), await conSesion(admin.p)];
-		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), socio.p.locator('.card', { hasText: codigo }).first().locator('[aria-label="Ver comprobante del pago a EQ"]').click()]);
+		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), delMas(socio.p.locator('.card', { hasText: codigo }).first(), 'Ver comprobante del pago a EQ')]);
 		await espera(2000);
 		const abre = pestana ? /^blob:/.test(pestana.url()) : false;
 		await pestana?.close();
@@ -2258,8 +2260,10 @@ const duenos = [];
 // Con la red lenta: el botón se apaga y dice «Subiendo…», un segundo toque no sube otra; si Storage lo niega, se dice.
 {
 	await ir(socio.p, '#/solicitudes', 4000);
-	const subir = socio.p.locator('button[aria-label="Subir comprobante del pago a EQ"], button[aria-label="Cambiar comprobante"]').first();
-	const hay = await subir.count();
+	// «Subir» o «Cambiar» comprobante, en el ⋮ de la primera tarjeta que lo tenga.
+	const tarjetaSube = socio.p.locator('.admin-main .card.mb-2').filter({ has: socio.p.locator('.dropdown-item', { hasText: /Subir comprobante|Cambiar comprobante/ }) }).first();
+	const hay = await tarjetaSube.count();
+	const subir = { click: () => delMas(tarjetaSube, /Subir comprobante|Cambiar comprobante/) };
 	let subidas = 0, modo = 'lenta';
 	await socio.p.route('**/v0/b/**', async (r) => {
 		if (r.request().method() !== 'POST') return r.fallback();
@@ -2378,7 +2382,7 @@ const duenos = [];
 		`aviso ${JSON.stringify(delAviso)} · lista ${JSON.stringify(deLista)} · ${codigosSC.join(', ')}`);
 	// Sus botones: el socio sube el comprobante de esa ganancia desde su tarjeta.
 	const tarjetaSC = socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]');
-	const [elegirSC] = await Promise.all([socio.p.waitForEvent('filechooser'), tarjetaSC.locator('[aria-label^="Subir comprobante"]').click()]);
+	const [elegirSC] = await Promise.all([socio.p.waitForEvent('filechooser'), delMas(tarjetaSC, 'Subir comprobante')]);
 	await elegirSC.setFiles(png);
 	await espera(5000);
 	const reciboSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.comprobante?.stringValue || '';

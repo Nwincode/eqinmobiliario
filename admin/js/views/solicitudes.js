@@ -6,7 +6,7 @@
 // Rentas vacacionales): allí se escriben la reserva, sus fechas en la casa, la solicitud y el chat; lo del socio, por el
 // servidor (/api/reservas). Los montos salen de admin/js/reservas-calculo.js, lo mismo que usa el servidor.
 import '/js/calc-vacacional.js';
-import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, nombreYDatos, formatDate, hoy, dia, ahoraYa } from '../ui.js';
+import { h, statCard, mount, pageHeader, emptyState, toast, showError, errorMessage, modal, confirmDialog, badge, iconoBtn, menuMas, nombreYDatos, formatDate, hoy, dia, ahoraYa } from '../ui.js';
 import { session } from '../session.js';
 import { comisionPagada, cobrarComision, ponerComprobante, estadoServidor } from '../reservas.js';
 import { cambioElPrecio, llegadaPasada, comprobanteVigente, conDatosDelChat, TEXTO_CONFIRMA_EQUIPO, conPlazo, venceRespuesta, TEXTO_PRECIO_CAMBIO, ultimoDelHistorial, diaQueConfirmo } from '../reservas-calculo.js';
@@ -170,10 +170,16 @@ export async function render(container, [codigo] = []) {
 	const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
 	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
 		com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]);
+	// A la vista, lo que se hace con la ganancia de EQ: «Pagada» (equipo) y, mientras sube, «Subiendo…» apagado (un segundo
+	// toque no sube otra). Ver y subir el comprobante van en el ⋮ de la tarjeta (masComision).
 	const botonesComision = (com, res, nivel, titulo) => [
-		com.comprobante ? iconoBtn('icon-file-image-o', 'Ver comprobante del pago a EQ', { onclick: () => verComprobante(res) }) : null,
-		!com.pagada && !admin ? botonComprobante(com, res) : null,
+		!com.pagada && !admin && SUBIENDO.has(res.id) ? botonComprobante(com, res) : null,
 		!com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(res, nivel, titulo), 'money') : null];
+	const masComision = (com, res) => [
+		com.comprobante ? { icono: 'icon-file-image-o', texto: 'Ver comprobante del pago a EQ', onclick: () => verComprobante(res) } : null,
+		!com.pagada && !admin && !SUBIENDO.has(res.id) ? { icono: 'icon-upload', texto: com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', onclick: () => subirComprobante(res) } : null];
+	// Una sola fila de botones: lo secundario en un ⋮ al final (borrar o anular, al final y en rojo).
+	const mas = (titulo, items) => menuMas(`Más acciones: ${titulo}`, items, { cls: 'btn-outline-secondary' });
 
 	// Una reserva que debe ganancia de EQ y no tiene solicitud que se vea (sin chat: el socio no la ve en la lista): la
 	// misma tarjeta, con lo de su ganancia y nada de lo que se responde en una solicitud.
@@ -185,7 +191,7 @@ export async function render(container, [codigo] = []) {
 			h('div', {}, `${fechasReserva(res)} · ${nNoches(res.noches)}`),
 			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Le pagas a EQ'} ${money(res.comision.monto, res.moneda)}`),
 			lineaComision(res.comision, nivel),
-			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' }, botonesComision(res.comision, res, nivel, res.propertyTitulo))));
+			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' }, botonesComision(res.comision, res, nivel, res.propertyTitulo), mas(res.codigo || res.propertyTitulo, masComision(res.comision, res)))));
 	}
 
 	function tarjeta(l) {
@@ -276,11 +282,14 @@ export async function render(container, [codigo] = []) {
 				puedePagoRecibido(l) ? boton('Pago recibido', 'btn-primary', () => pagoRecibido(l), 'money') : null,
 				com ? botonesComision(com, res, nivel, l.propertyTitulo) : null,
 				com && !com.pagada && !com.cobrar && !res.pagoRecibido && session.isAdmin && llegadaPasada(r.llegada, ahoraYa()) && ch?.estado === 'confirmada' ? boton('Cobrar comisión', 'btn-outline-primary', () => cobrar(l, res), 'check') : null,
-				// Ícono rojo en la fila (no una fila entera para él en el celular). Con el pago recibido o el día de llegada ya empezado, cancelar anularía la comisión: solo el administrador
-				// (el servidor lo exige: motivoParaNoCancelar en admin/js/reservas-calculo.js).
-				est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? iconoBtn('icon-ban', 'Cancelar reserva', { class: 'btn-toque btn-icono btn btn-sm btn-outline-danger', onclick: () => cancelar(l) }) : null,
-				// Con el comprobante del cliente, o desde el día de llegada sin el pago: en vez de «Cancelar».
-				!admin && est === 'confirmada' && puedeNoMeLlego(l) ? boton('No me llegó', 'btn-outline-danger', () => noMeLlego(l), 'ban') : null,
+				// En el ⋮: el comprobante de la ganancia de EQ y, al final y en rojo, «Cancelar reserva» o, en su lugar, «No me llegó»
+				// (con el comprobante del cliente, o desde el día de llegada sin el pago). Con el pago recibido o el día de llegada ya
+				// empezado, cancelar anularía la comisión: solo el administrador (el servidor lo exige: motivoParaNoCancelar en
+				// admin/js/reservas-calculo.js).
+				mas(r.codigo, [
+					...(com ? masComision(com, res) : []),
+					est === 'confirmada' && (session.isAdmin ? r.salida > hoy() : puedeCancelar(l)) ? { icono: 'icon-ban', texto: 'Cancelar reserva', peligro: true, onclick: () => cancelar(l) } : null,
+					!admin && est === 'confirmada' && puedeNoMeLlego(l) ? { icono: 'icon-ban', texto: 'No me llegó', peligro: true, onclick: () => noMeLlego(l) } : null]),
 				// El correo al que le llegan los avisos de su reserva y su lápiz (lo lee el servidor de la solicitud), juntos y al
 				// final: las respuestas van primero; en el celular no se separan de fila.
 				admin ? h('span', { class: 'd-inline-flex align-items-center gap-2 mw-100 ms-auto' },
