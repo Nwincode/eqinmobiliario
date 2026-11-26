@@ -23,3 +23,4 @@
 - [x] 2026-11-26 «exactamente esto pegaré: curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" -H "X-Goog-User-Project: eqinmobiliariobd" "https://identitytoolkit.googleapis.com/admin/v2/projects/eqinmobiliariobd/config?updateMask=mfa" -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":1}}]}}'» → confirmado: la línea es correcta.
 - [x] 2026-11-26 «ahora» → le pedí la captura de la respuesta y el paso 3.
 - [x] 2026-11-26 Respuesta de Cloud Shell: mfa ENABLED → dos pasos encendido; falta inscribir su teléfono (paso 3).
+- [x] 2026-11-26 «Confirma tu correo (jarriola@eqinmobiliario.gt) para activar la verificación en dos pasos.» → explicado: botón del aviso manda el correo; abrir enlace y volver a entrar.
