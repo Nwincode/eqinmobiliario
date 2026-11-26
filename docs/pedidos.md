@@ -41,3 +41,4 @@
 - [x] 2026-11-26 «es momento del /compact» → sí: todo guardado y subido.
 - [x] 2026-11-26 «tienes pendientes?» → sí: menús (PR #157) en prueba; cotización a elegirCasas; tus dos pasos; cola 5–25.
 - [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
+- [x] 2026-11-26 «que mas pendientes tienes?» → lista completa enviada.
