@@ -35,3 +35,4 @@
 - [x] 2026-11-26 «terminaste ?» → no: falta la prueba completa y unir; informe de estado dado.
 - [x] 2026-11-26 «no te ando apresurando solo quiero saber como vas» → avance dado.
 - [-] 2026-11-26 «oye no es posible cambiar la foto de la flota?» → parece de ptg (flota de carros); eqinmobiliario no tiene carros. Preguntado.
+- [x] 2026-11-26 «perdona!» → sin problema.
