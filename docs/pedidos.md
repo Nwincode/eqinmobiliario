@@ -8,7 +8,7 @@
 - [x] 2026-11-25 «una skill que haga que se cumpla lo que pido» → no existe; se agregó este control (hook).
 - [x] 2026-11-25 Tarea 2 del usuario: publicar las reglas en Firebase → «reglas publicadas» (26-nov).
 - [x] 2026-11-25 Tarea 3 del usuario: migración → «ya funcionó» (26-nov), tras dar los roles de Storage.
-- [~] 2026-11-25 Cola 4 a 25 (contador) → falta, en orden.
+- [~] 2026-11-25 Cola 4 a 25 (contador) → 4 (dos pasos): el código existe; espera que el usuario lo encienda en Cloud Shell.
 - [x] 2026-11-25 «dame las instrucciones y las reglas.» → enviados los 2 archivos y los pasos.
 - [x] 2026-11-26 «no puedo abrir las rules dame el codigo de ambas» → página con las 2 reglas y botón Copiar.
 - [x] 2026-11-26 «reglas publicadas» → anotado; le pasé la tarea 3.
@@ -19,3 +19,4 @@
 - [x] 2026-11-26 «ya funciono» → anotado; pedí confirmar que la tarjeta diga «Listo».
 - [x] 2026-11-26 «Datos de antes Ya está todo en el formato nuevo.» → migración confirmada completa.
 - [x] 2026-11-26 «que prosigue?» → tarea 4: el código ya existe; faltan 2 pasos del dueño en Google Cloud (espera su sí).
+- [x] 2026-11-26 «curl -X PATCH esto es lo que pego?» → sí, la línea completa; se la reenvié.
