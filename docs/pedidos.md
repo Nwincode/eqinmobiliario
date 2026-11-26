@@ -37,7 +37,7 @@
 - [-] 2026-11-26 «oye no es posible cambiar la foto de la flota?» → parece de ptg (flota de carros); eqinmobiliario no tiene carros. Preguntado.
 - [x] 2026-11-26 «perdona!» → sin problema.
 - [x] 2026-11-26 «me equivoque» → sin problema.
-- [~] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Programado aparte; falta probar y publicar.
+- [x] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Publicado (PR #157).
 - [x] 2026-11-26 «es momento del /compact» → sí: todo guardado y subido.
 - [x] 2026-11-26 «tienes pendientes?» → sí: menús (PR #157) en prueba; cotización a elegirCasas; tus dos pasos; cola 5–25.
 - [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
