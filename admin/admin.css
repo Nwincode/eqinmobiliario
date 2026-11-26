@@ -1283,8 +1283,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .barra-masa[hidden] { display: none; }
 .barra-masa-mas:not([hidden]) { display: contents; }
 .barra-masa-n { display: inline-flex; align-items: center; gap: .25rem; color: var(--adm-text); font-weight: 600; margin-right: .25rem; }
-.barra-masa-estado { min-width: 11rem; }
-.barra-masa .btn { min-height: 36px; }
+.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 
 /* Datos del inmueble con ícono (habitaciones, baños, parqueos, m²). */
 .prop-datos {

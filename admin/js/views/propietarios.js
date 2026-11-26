@@ -293,7 +293,21 @@ async function renderEditor(container, id) {
 	const elegirCasa = (item, quitar) => {
 		let creando = false;
 		const enOtroRenglon = new Set((form.state.propiedades || []).map((x) => x.propertyId).filter((x) => x && x !== item.propertyId));
-		const elegir = (casaId) => { item.propertyId = casaId; form.refresh(); ventana.close(); };
+		// Se marcan varias (en cualquiera de las tres categorías) y «Agregar» las suma de una vez: la primera queda en
+		// este renglón y las demás en renglones nuevos.
+		const marcadas = new Set(item.propertyId ? [item.propertyId] : []);
+		const agregar = h('button', { type: 'button', class: 'btn btn-primary', disabled: !marcadas.size, onclick: () => {
+			const [primera, ...resto] = [...marcadas];
+			item.propertyId = primera || '';
+			form.state.propiedades = [...(form.state.propiedades || []), ...resto.map((propertyId) => ({ propertyId }))];
+			form.refresh();
+			ventana.close();
+		} });
+		const pintarAgregar = () => {
+			agregar.disabled = !marcadas.size;
+			agregar.textContent = marcadas.size > 1 ? `Agregar ${marcadas.size}` : 'Agregar';
+		};
+		const elegir = (casaId) => { if (!marcadas.delete(casaId)) marcadas.add(casaId); pintarAgregar(); dibujar(); };
 		const buscar = h('input', { class: 'form-control', type: 'search', 'aria-label': 'Buscar propiedad', placeholder: 'Buscar título, código o zona…' });
 		const lista = h('div', { class: 'lista-casas' });
 		// Tres categorías, una a la vez: abre en la del renglón (o en la primera que esta persona ya tiene) y se cambia arriba.
@@ -307,13 +321,14 @@ async function renderEditor(container, id) {
 			pestanas.forEach((b) => { const on = b.dataset.categoria === categoria; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
 			const visibles = propiedades.filter((p) => !enOtroRenglon.has(p.id) && p.operacion === categoria).filter((p) => !q || sinTildes(`${p.titulo} ${p.codigo || ''} ${p.zona || ''} ${p.ciudad || ''}`).includes(q));
 			lista.replaceChildren(
-				...visibles.map((p) => filaCasa(p, { elegida: p.id === item.propertyId, alTocar: () => elegir(p.id),
+				...visibles.map((p) => filaCasa(p, { elegida: marcadas.has(p.id), alTocar: () => elegir(p.id),
 					marcas: [p.publicado ? null : badge('Sin publicar', 'light'), p.propietarioId && p.propietarioId !== ref.id ? badge('Ya tiene dueño', 'warning') : null] })),
 				visibles.length ? null : h('p', { class: 'text-muted small mb-0' }, `No hay ${{ venta: 'propiedades en venta', renta: 'propiedades en renta', vacacional: 'casas por noche' }[categoria]} que coincidan. Puedes crearla con «Nueva propiedad».`));
 		};
 		buscar.addEventListener('input', dibujar);
 		dibujar();
-		const ventana = modal({ title: 'Elegir propiedad', size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas),
+		pintarAgregar();
+		const ventana = modal({ title: 'Elegir propiedades', footer: agregar, size: 'modal-lg', body: h('div', {}, h('div', { class: 'btn-group w-100 mb-2', role: 'group', 'aria-label': 'Categoría' }, pestanas),
 			h('div', { class: 'd-flex gap-2 mb-2' }, buscar, h('button', { type: 'button', class: 'btn btn-outline-primary text-nowrap', title: 'Nueva propiedad', 'aria-label': 'Nueva propiedad',
 				onclick: () => { creando = true; ventana.close(); crearPropiedad(categoria, (casaId) => { item.propertyId = casaId; form.refresh(); }); } },
 				h('span', { class: 'icon-plus', 'aria-hidden': 'true' }), h('span', { class: 'd-none d-sm-inline' }, ' Nueva propiedad'))), lista),

@@ -26,4 +26,5 @@
 - [x] 2026-11-26 «Confirma tu correo (jarriola@eqinmobiliario.gt) para activar la verificación en dos pasos.» → explicado: botón del aviso manda el correo; abrir enlace y volver a entrar.
 - [~] 2026-11-26 «ese enlace se ve feo puedes mejorarlo?» → correo «Confirma tu correo» con el diseño de la empresa; en pruebas y segunda revisión.
 - [~] 2026-11-26 «lo que madnas en el email» → mismo pedido: el correo de confirmación con el diseño de la empresa.
-- [~] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → propuesta en fichas (asignar dueño en lote; elegir varias en «Elegir propiedad»); espera su sí.
+- [~] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → aprobado («según el diseño»): asignar propietario en «Más» y marcar varias con «Agregar (n)»; programado, en pruebas.
+- [~] 2026-11-26 «por que tineen diferente tamaño y diseño diferente texto con boton sin texto. como activo skill para esto=» → barra de seleccionadas toda con íconos del mismo tamaño (skill diseno-minimo); en pruebas.

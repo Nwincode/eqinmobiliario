@@ -419,7 +419,7 @@ export async function render(container, [id]) {
 	if (id === 'importar') return (await import('./importar.js')).render(container);
 	if (id && id !== 'incompletos') return renderEditor(container, id);
 
-	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
+	const [props, agents, duenos] = await Promise.all([loadAll(), loadAgents(), session.isAdmin ? loadPropietarios() : []]);
 	if (session.isAdmin) {
 		const conAsesor = props.filter((p) => esVacacional(p) && p.agentId);
 		// (Sus páginas llevan el asesor en el formulario: hay que volver a publicar.)
@@ -581,7 +581,7 @@ export async function render(container, [id]) {
 	});
 	const nSel = h('strong', {});
 	const selMasaEstado = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Cambiar estado de las seleccionadas' },
-		h('option', { value: '' }, 'Cambiar estado a…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+		h('option', { value: '' }, 'Estado…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
 	const barra = h('div', { class: 'barra-masa', role: 'region', 'aria-label': 'Acciones con las seleccionadas', hidden: true });
 
 	const nombreDe = (l) => (l.length === 1 ? `«${l[0].titulo || 'la propiedad'}»` : `${l.length} propiedades`);
@@ -642,14 +642,37 @@ export async function render(container, [id]) {
 		seleccion.clear();
 		selMasaAsesor.value = '';
 	});
-	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+	// El dueño de varias a la vez (solo el administrador): el mismo cambio de dueño que la ficha de la casa (asignarDueno),
+	// con la misma pregunta si alguna ya tenía otro (confirmarCambioDeDueno).
+	const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es');
+	const selMasaDueno = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar propietario o colaborador a las seleccionadas' },
+		h('option', { value: '' }, 'Asignar propietario…'),
+		h('option', { value: '=ninguno' }, 'Sin propietario'),
+		h('optgroup', { label: 'Propietarios' }, duenos.filter((d) => d.tipo !== 'colaborador').sort(porNombre).map((d) => h('option', { value: d.id }, d.nombre || d.email || d.id))),
+		h('optgroup', { label: 'Colaboradores' }, duenos.filter((d) => d.tipo === 'colaborador').sort(porNombre).map((d) => h('option', { value: d.id }, `${d.nombre || d.email || d.id}${d.empresa ? ` · ${d.empresa}` : ''}`))));
+	selMasaDueno.addEventListener('change', async () => {
+		const v = selMasaDueno.value;
+		if (!v) return;
+		const nuevo = v === '=ninguno' ? '' : v;
+		const nombre = nuevo ? (duenos.find((d) => d.id === nuevo)?.nombre || 'su propietario') : 'sin propietario';
+		const lista = elegidas().filter((p) => (p.propietarioId || '') !== nuevo);
+		if (lista.length && await confirmarCambioDeDueno(lista.map((casa) => ({ casa, a: nuevo })), duenos)) {
+			await enMasa(async (p) => {
+				await asignarDueno({ id: p.id, propietarioId: p.propietarioId || '', operacion: p.operacion, titulo: p.titulo }, nuevo, { duenos, casas: props });
+				p.propietarioId = nuevo;
+			}, `Propietario asignado: ${nombre}`, (n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`, lista);
+			seleccion.clear();
+		}
+		selMasaDueno.value = '';
+		draw();
+	});
+	// La barra de las seleccionadas: todo con ícono (mismo tamaño, 44 px, con su nombre al pasar el dedo o el mouse).
+	const btnMostrar = iconoBtn('icon-eye', 'Mostrar en la página', {
 		onclick: () => enMasa(async (p) => { await revisarPublicar({ ...p, publicado: true }); await guardarMasa({ publicado: true }, { publicado: true })(p); }, 'Visibles en la página',
-			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) },
-		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
-	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) });
+	const btnOcultar = iconoBtn('icon-eye-slash', 'Ocultar de la página', {
 		onclick: () => enMasa(guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
-			(n) => `${n} oculta${n === 1 ? '' : 's'}. ${trasGuardar()}`) },
-		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
+			(n) => `${n} oculta${n === 1 ? '' : 's'}. ${trasGuardar()}`) });
 	const mejorar = async (lista) => {
 		const l = lista || elegidas();
 		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Queda el párrafo de presentación y la nota de lo que no incluye el precio; se quitan las listas copiadas de la ficha (habitaciones, amenidades, estadía), que la página ya muestra de sus campos. El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
@@ -763,22 +786,21 @@ export async function render(container, [id]) {
 		for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
 		draw();
 	};
-	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', onclick: () => eliminar() },
-		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
+	const btnEliminar = iconoBtn('icon-trash-o', 'Eliminar las seleccionadas', { class: 'btn-toque btn-icono btn btn-sm btn-outline-danger', onclick: () => eliminar() });
 	// Lo de todos los días queda a la vista; el resto se abre con «Más».
 	const masAcciones = h('div', { class: 'barra-masa-mas', id: 'barra-masa-mas', hidden: true },
 		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
+		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaDueno) : null,
 		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca);
-	const btnMas = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-expanded': 'false', 'aria-controls': 'barra-masa-mas',
-		onclick: () => { masAcciones.hidden = !masAcciones.hidden; btnMas.setAttribute('aria-expanded', String(!masAcciones.hidden)); } },
-		h('span', { class: 'icon-ellipsis-h', 'aria-hidden': 'true' }), ' Más');
+	const btnMas = iconoBtn('icon-ellipsis-h', 'Más acciones', { 'aria-expanded': 'false', 'aria-controls': 'barra-masa-mas',
+		onclick: () => { masAcciones.hidden = !masAcciones.hidden; btnMas.setAttribute('aria-expanded', String(!masAcciones.hidden)); } });
 	barra.append(
 		h('span', { class: 'barra-masa-n' },
 			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
 		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
-		session.isAdmin ? btnEliminar : null,
 		iconoBtn('icon-download', 'Exportar seleccionadas (CSV)', { onclick: (e) => exportarCsv(elegidas(), agentName, e.currentTarget) }),
+		session.isAdmin ? btnEliminar : null,
 		btnMas, masAcciones);
 	// «Elegir varias»: cada fila muestra su casilla y tocarla la marca; al terminar se suelta la selección.
 	const btnElegir = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0',

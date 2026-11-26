@@ -1489,6 +1489,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
 	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => x === 'venta' || x === 'renta') && enVenta.length > 0 && enVenta.every((x) => x === 'venta') && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
 	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click();
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Agregar' }).click();
 	await espera(600);
 	const titulos = await operaciones('.list-field .casa-fila');
 	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.includes('vacacional') && titulos.includes('venta')
@@ -1508,8 +1509,9 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const halladas = await admin.p.locator('.modal.show .casa-fila .casa-titulo').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
 	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click().catch(() => {});
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Agregar' }).click().catch(() => {});
 	await espera(600);
-	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
+	paso('Al propietario le ofrece solo venta y renta; busca, se marca la ficha y «Agregar» la suma', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
 		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '')), halladas.join(' | '));
 	// Acuerdos anotados antes en la persona: al abrir Propietarios pasan a cada inmueble, sin escribir encima ni perder nada.
 	{
@@ -2044,7 +2046,7 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades', 3500);
 	await admin.p.locator('.lista-casas ~ * button, .admin-main button', { hasText: 'Elegir varias' }).first().click();
 	await admin.p.locator('.casa-fila', { hasText: 'Casa de prueba Monterrico' }).first().locator('.casa-sel input').check();
-	await admin.p.locator('.barra-masa button', { hasText: 'Más' }).click();
+	await admin.p.locator('.barra-masa button[aria-label="Más acciones"]').click();
 	await admin.p.locator('.barra-masa button', { hasText: 'Poner marca de agua' }).click();
 	await admin.p.locator('.modal.show button', { hasText: 'Poner marca' }).click();
 	await espera(3000);
