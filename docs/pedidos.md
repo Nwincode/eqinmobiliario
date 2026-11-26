@@ -38,3 +38,4 @@
 - [x] 2026-11-26 «perdona!» → sin problema.
 - [x] 2026-11-26 «me equivoque» → sin problema.
 - [~] 2026-11-26 Auditoría de los menús (sitio y panel) → aprobado: panel con grupos que se pliegan, Inicio primero, «Interesados», grupo «Personas»; sitio: submenú solo con 2 o más, sin «Ver todas», Contacto sin ícono, teclado. Programado aparte; falta probar y publicar.
+- [x] 2026-11-26 «es momento del /compact» → sí: todo guardado y subido.
