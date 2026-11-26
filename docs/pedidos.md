@@ -18,3 +18,4 @@
 - [x] 2026-11-26 «lee la captura y dice permisos excedidso» → explicado: «excedidos» = de sobra, no usados.
 - [x] 2026-11-26 «ya funciono» → anotado; pedí confirmar que la tarjeta diga «Listo».
 - [x] 2026-11-26 «Datos de antes Ya está todo en el formato nuevo.» → migración confirmada completa.
+- [x] 2026-11-26 «que prosigue?» → tarea 4: el código ya existe; faltan 2 pasos del dueño en Google Cloud (espera su sí).
