@@ -49,5 +49,5 @@
 - [~] 2026-11-26 «puedes crear una presentacion de la web para nuestros propietarios socios colaboradores una para cada uno y asi cumplir la funcion que cada uno amerita, a los propietarios apra mostrarles el producto, explicarles como es el manejo de la platarforma y ya sabes como fucniona todo.» → en pausa: primero la de propietarios (con capturas del panel de prueba) y se muestra antes de hacer las otras dos.
 - [~] 2026-11-26 «socio-1280-__solicitudes.png la tabla no deberia de sobrepasar la pantalla, aplica colocar un scroll.» → eligió «Plegar lo pasado» (no caja con scroll: rompe un solo scroll); espera su sí tras la explicación.
 - [x] 2026-11-26 «cómo asi plegar lo apsaro ? explica.» → explicado: arriba lo por hacer y próximas; abajo «Anteriores (N)» plegada.
-- [~] 2026-11-26 «boceta» → en curso: se rellenan las reservas de prueba para capturar el boceto de Solicitudes con «Anteriores» plegada.
+- [~] 2026-11-26 «boceta» → boceto enviado (capturas 390, 1280 y abierta); espera su sí para programarlo.
 - [x] 2026-11-26 «vos no hay una skill para instalar o instalada que evite esos problemas?» → ya están diseno-minimo, ux-ui-audit y design-critique; se agregó a diseno-minimo la regla de listas que crecen (plegar lo terminado, sin caja con scroll).
