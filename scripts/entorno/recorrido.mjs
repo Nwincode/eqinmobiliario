@@ -1961,7 +1961,7 @@ const duenos = [];
 		const out = [];
 		for (const boton of ['.btn-danger', '.btn-light']) {
 			const r = ui.confirmDialog('¿Prueba?', { okText: 'Sí' });
-			document.querySelector('.modal:last-of-type ' + boton).click();
+			[...document.querySelectorAll('.modal')].at(-1).querySelector(boton).click();
 			out.push(await r);
 			await new Promise((ok) => setTimeout(ok, 1200));
 			out.push(document.querySelectorAll('.modal').length);
