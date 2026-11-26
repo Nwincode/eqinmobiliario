@@ -154,6 +154,6 @@ export const botonVerificar = (user) => h('button', { type: 'button', class: 'bt
 		} catch { /* sin red hacia la función */ }
 		if (res && res.status !== 503 && !res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo enviar el correo.');
 		if (!res?.ok) await sendEmailVerification(user);
-		b.textContent = 'Te lo mandamos';
+		b.textContent = (await res?.json().catch(() => ({})))?.yaConfirmado ? 'Ya está confirmado: cierra sesión y vuelve a entrar' : 'Te lo mandamos';
 	} catch (err) { b.disabled = false; b.textContent = errorMessage(err); }
 } }, 'Mandarme el correo');

@@ -109,6 +109,6 @@ ${ayuda ? `  <table role="presentation" width="100%" cellpadding="0" cellspacing
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table>`;
-	const texto = `${x.titulo} (panel de Equipo Inmobiliario).\n\n${x.intro}\n\nTu usuario: ${email}\n\nAbre este enlace (${x.notaTexto}):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
+	const texto = `${x.titulo} (panel de Equipo Inmobiliario).\n\nTu usuario: ${email}\n\nAbre este enlace (${x.notaTexto}):\n${link}\n\nEntra siempre en eqinmobiliario.gt/admin. Nunca te pediremos tu contraseña por teléfono, WhatsApp ni correo. Si no esperabas este correo, ignóralo: nada cambia en tu cuenta.${ayuda ? `\n\n¿Necesitas ayuda? Escríbenos por WhatsApp: ${ayuda}` : ''}\nEquipo Inmobiliario S.A. · eqinmobiliario.gt`;
 	return { asunto: x.asunto, html, texto };
 }
