@@ -32,3 +32,4 @@
 - [~] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → la Calculadora usa la ventana común «Elegir propiedad» (elegir-casa.js); en pruebas. Pendiente avisado: la Cotización tiene su propio buscador.
 - [x] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → revisado con Fable: /frontend-design no es para esto; se usa diseno-minimo y la pieza común.
 - [x] 2026-11-26 «hay 2 ojitos en el menu de inicio! quita uno» → se oculta el ojo propio de Edge; queda el del panel.
+- [x] 2026-11-26 «terminaste ?» → no: falta la prueba completa y unir; informe de estado dado.
