@@ -17,3 +17,4 @@
 - [x] 2026-11-26 «esto aparece ene stadisticas y seguridad de mi correo: https://console.cloud.google.com/active-assist/details/projects/239655630069/locations/global/insightTypes/google.iam.policy.Insight/insights/981c0749-e6b1-47a5-b8c3-94f1021195ae;source=webSubtask?project=239655630069» → explicado: es la sugerencia de Google sobre permisos sin usar del Propietario; no aplicarla.
 - [x] 2026-11-26 «lee la captura y dice permisos excedidso» → explicado: «excedidos» = de sobra, no usados.
 - [x] 2026-11-26 «ya funciono» → anotado; pedí confirmar que la tarjeta diga «Listo».
+- [x] 2026-11-26 «Datos de antes Ya está todo en el formato nuevo.» → migración confirmada completa.
