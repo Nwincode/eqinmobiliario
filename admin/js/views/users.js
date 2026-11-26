@@ -12,7 +12,7 @@ import { correoValido } from '../formato.js';
 // Aquí se crean solo cuentas del equipo, con la misma pieza que da acceso a los dueños (admin/js/acceso.js): nadie
 // escribe una contraseña; la persona recibe un correo para poner la suya. Propietarios y colaboradores entran con
 // «Dar acceso» en su ficha (Propietarios). Sus usuarios se listan aquí con el nombre que les corresponde.
-const ROLES = [['asesor', 'Asesor (sus propiedades y leads)'], ['admin', 'Administrador (acceso total)']];
+const ROLES = [['asesor', 'Asesor (sus propiedades e interesados)'], ['admin', 'Administrador (acceso total)']];
 const NOMBRE_ROL = { admin: ['Administrador', 'primary'], asesor: ['Asesor', 'info'] };
 
 function userForm(agents, user = {}) {

@@ -117,6 +117,9 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 	top: 0;
 	height: 100vh;
 }
+.admin-brand-fila { display: flex; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--eq-white) 8%, transparent); }
+.admin-brand-fila .admin-brand { flex: 1; min-width: 0; border-bottom: 0; }
+.admin-menu-cerrar { margin-right: 12px; }
 .admin-brand {
 	display: flex;
 	align-items: center;
@@ -136,46 +139,73 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .admin-brand strong {
 	display: block;
-	font-size: .95rem;
+	font-size: 1rem;
 	font-weight: 600;
 	line-height: 1.2;
 }
 .admin-brand small {
 	display: block;
-	font-size: .72rem;
+	font-size: .75rem;
 	color: var(--adm-nav-muted);
 	letter-spacing: .02em;
 }
 .admin-nav {
-	padding: 10px 12px 16px;
+	padding: 8px 12px 16px;
 	flex: 1;
 	overflow-y: auto;
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--eq-white) 20%, transparent) transparent;
 }
 .admin-nav-group + .admin-nav-group {
-	margin-top: 14px;
+	margin-top: 4px;
 }
+/* Título de grupo: un botón que pliega el grupo (44 px de toque, letra de 12). */
 .admin-nav-title {
-	font-size: .68rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	min-height: 44px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 8px;
+	background: none;
+	font-size: .75rem;
+	line-height: 1rem;
 	font-weight: 600;
-	letter-spacing: .1em;
+	letter-spacing: .08em;
 	text-transform: uppercase;
 	color: var(--adm-nav-muted);
-	padding: 0 12px 6px;
+	text-align: left;
+}
+.admin-nav-title:hover { background: var(--adm-nav-hover); color: var(--eq-white); }
+.admin-nav-title:focus-visible { outline: 2px solid var(--adm-cyan); outline-offset: 2px; }
+.admin-nav-title [class^="icon-"] { font-size: 1rem; transition: transform .15s ease; }
+.admin-nav-title[aria-expanded="true"] [class^="icon-"] { transform: rotate(180deg); }
+/* Grupo plegado con algo por atender: un punto en su título. */
+.admin-nav-title:has(+ [hidden] .nav-aviso)::before {
+	content: "";
+	order: 1;
+	margin-left: auto;
+	margin-right: 8px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--eq-warning);
 }
 .admin-nav a {
 	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 8px 12px;
+	min-height: 44px;
+	padding: 12px;
 	border-radius: 8px;
 	color: var(--adm-nav-text);
 	text-decoration: none;
-	font-size: .9rem;
-	font-weight: 500;
-	margin-bottom: 1px;
+	font-size: .875rem;
+	line-height: 1.25rem;
+	font-weight: 400;
 	transition: background-color .15s ease, color .15s ease;
 }
 .admin-nav a span {
@@ -240,7 +270,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 .admin-user-name {
 	color: var(--eq-white);
-	font-size: .85rem;
+	font-size: .875rem;
 	font-weight: 600;
 	white-space: nowrap;
 	overflow: hidden;

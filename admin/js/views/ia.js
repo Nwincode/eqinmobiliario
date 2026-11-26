@@ -16,7 +16,7 @@ import { telefonoValido } from '../formato.js';
 const TABS = [
 	['buscar', 'Buscar para un cliente', 'icon-search'],
 	['redactar', 'Redactar ficha y redes', 'icon-pencil'],
-	['seguimiento', 'Seguimiento de leads', 'icon-clock-o'],
+	['seguimiento', 'Seguimiento de interesados', 'icon-clock-o'],
 	['clientes', 'Clientes que buscan', 'icon-users']
 ];
 
@@ -219,7 +219,7 @@ function tabRedactar(cont, props, idInicial) {
 
 function tabSeguimiento(cont, props, leads, idInicial) {
 	if (!leads.length) {
-		mount(cont, emptyState('No tienes leads todavía.'));
+		mount(cont, emptyState('No tienes interesados todavía.'));
 		return;
 	}
 	const pendientes = leads.filter((l) => !['cerrado', 'descartado'].includes(l.estado));
@@ -255,7 +255,7 @@ function tabSeguimiento(cont, props, leads, idInicial) {
 				r.propiedadesSugeridas?.length ? h('div', { class: 'mt-3' },
 					h('div', { class: 'form-label fw-semibold' }, 'Otras opciones para ofrecerle'),
 					r.propiedadesSugeridas.map((s) => byId[s.id] ? propiedadMini(byId[s.id], h('div', { class: 'small' }, s.motivo)) : null)) : null,
-				h('a', { href: '#/leads', class: 'btn btn-link px-0 mt-2' }, 'Actualizar estado del lead →'))));
+				h('a', { href: '#/leads', class: 'btn btn-link px-0 mt-2' }, 'Actualizar estado del interesado →'))));
 		} catch (err) {
 			out.replaceChildren(h('div', { class: 'alert alert-danger' }, errorMessage(err)));
 		}

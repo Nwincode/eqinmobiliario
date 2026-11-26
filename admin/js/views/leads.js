@@ -170,7 +170,7 @@ export async function render(container) {
 	]);
 
 	mount(container, 
-		pageHeader('Leads', leads.length ? iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: exportCsv }) : null),
+		pageHeader('Interesados', leads.length ? iconoBtn('icon-download', 'Exportar a Excel (CSV)', { onclick: exportCsv }) : null),
 		leads.length ? h('div', {},
 			h('div', { class: 'row g-2 mb-3' },
 				h('div', { class: 'col-md-6' }, search),

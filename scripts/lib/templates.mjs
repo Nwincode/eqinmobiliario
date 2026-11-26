@@ -264,20 +264,23 @@ function nav(ctx, active) {
 	// El enlace de contacto se muestra como el botón de acción de la barra.
 	const items = (site.navegacion || []).filter((it) => visible(ctx, it.enlace)).map((it) => {
 		const cls = [it.enlace === active ? 'active' : '', /#conta/.test(it.enlace || '') ? 'nav-cta' : '', it.enlace === rt(ctx).inicio ? 'nav-home' : ''].filter(Boolean).join(' ');
-		const icono = /#conta/.test(it.enlace || '') ? ic('comments') : '';
-		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${icono}${esc(it.texto)}</a></li>`;
+		// Todos los enlaces del menú, solo con texto (Contacto se distingue por ser botón).
+		return `<li${cls ? ` class="${cls}"` : ''}><a href="${esc(it.enlace)}"${it.enlace === active ? ' aria-current="page"' : ''}>${esc(it.texto)}</a></li>`;
 	});
 	const t = tr(ctx);
 	const r = rt(ctx);
 	const propActive = active && active.startsWith(r.propiedades) ? ' active' : '';
-	const propMenu = `<li class="has-children${propActive}">
+	// Submenú de Propiedades solo con dos opciones o más (Comprar, Rentar, Renta vacacional, VIP): con una sola,
+	// «Propiedades» lleva directo al listado, que ya tiene filtros. «Ver todas» no va: repetía «Propiedades».
+	const opciones = [...operaciones(ctx), ...(hasVip ? [`<a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a>`] : [])];
+	const propMenu = opciones.length > 1
+		? `<li class="has-children${propActive}">
 								<a href="${r.propiedades}">${t.propiedades}</a>
 								<ul class="dropdown">
-									${operaciones(ctx).map((a) => `<li>${a}</li>`).join('')}
-									${hasVip ? `<li><a href="${r.vip}">${ic('diamond')}${t.propiedadesVip}</a></li>` : ''}
-									<li><a href="${r.propiedades}" aria-label="${esc(t.verTodasPropiedades)}">${ic('th-large')}${t.verTodas}</a></li>
+									${opciones.map((a) => `<li>${a}</li>`).join('')}
 								</ul>
-							</li>`;
+							</li>`
+		: `<li${propActive ? ' class="active"' : ''}><a href="${r.propiedades}"${active === r.propiedades ? ' aria-current="page"' : ''}>${t.propiedades}</a></li>`;
 	items.splice(Math.min(1, items.length), 0, propMenu);
 	// Selector de idioma segmentado: el idioma actual queda marcado y el otro enlaza a la página equivalente.
 	// Va fuera del menú para que en el celular se vea siempre junto a las tres rayas.
