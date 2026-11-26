@@ -1,7 +1,9 @@
 // Calculadora de renta del panel: análisis completo de inversión (año 1, escenarios, flujo a largo plazo, TIR y VPN).
 // El motor es el mismo del sitio (js/calc-renta.js → window.EQRenta), así los números coinciden con la ficha pública.
 import '/js/calc-renta.js';
-import { h, statCard, mount, pageHeader, toast, cajaTabla } from '../ui.js';
+import { h, statCard, mount, pageHeader, toast, cajaTabla, iconoBtn } from '../ui.js';
+import { filaCasa } from '../ficha-casa.js';
+import { elegirCasas } from '../elegir-casa.js';
 import { dinero } from '../formato.js';
 
 const R = window.EQRenta;
@@ -116,11 +118,27 @@ export async function render(container) {
 		h('div', { class: 'card-body' }, h('div', { class: 'row g-3' }, hijos)));
 
 	// Propiedad del inventario (opcional).
-	const selProp = h('select', { class: 'form-select', id: 'calc-prop', onchange: (e) => elegir(e.target.value) },
-		h('option', { value: '' }, 'Ingreso manual'));
+	// Se elige con la ventana común «Elegir propiedad» (venta y renta, con foto); elegida, se ve su ficha con una ✕ para
+	// volver al ingreso manual.
+	let elegidaId = '';
+	const selProp = h('div', { id: 'calc-prop' });
+	const abrirSelector = async () => {
+		const [id] = await elegirCasas(props, { categorias: ['venta', 'renta'], categoria: props.find((x) => x.id === elegidaId)?.operacion, marcadas: elegidaId ? [elegidaId] : [] });
+		if (id) elegir(id);
+	};
+	const pintarProp = () => {
+		const p = props.find((x) => x.id === elegidaId);
+		selProp.replaceChildren(p
+			? filaCasa(p, { alTocar: abrirSelector, titulo: 'Cambiar la propiedad', der: iconoBtn('icon-close', 'Quitar la propiedad (ingreso manual)', { onclick: (e) => { e.stopPropagation(); elegidaId = ''; pintarProp(); } }) })
+			: h('button', { type: 'button', class: 'btn btn-light border w-100 text-start btn-toque justify-content-start', onclick: abrirSelector },
+				h('span', { class: 'icon-search me-2', 'aria-hidden': 'true' }), 'Elegir propiedad…'));
+	};
+	pintarProp();
 	function elegir(pid) {
 		const p = props.find((x) => x.id === pid);
 		if (!p) return;
+		elegidaId = pid;
+		pintarProp();
 		const uso = R.usoPorTipo(p.tipo);
 		const sug = R.rentaSugerida(Number(p.precio), p.tipo, { vacancia: num(estado.vacancia), gastosOperativos: num(estado.gastosOperativos) }, paramValores());
 		setCampos({ tipo: p.tipo || 'casa', moneda: p.moneda === 'GTQ' ? 'GTQ' : 'USD', precio: p.precio || '', uso, regimenIVA: 'auto', valorFiscal: '', capSalida: '',
@@ -419,7 +437,7 @@ export async function render(container) {
 
 	// ── Armado ─────────────────────────────────────────────
 	const header = pageHeader('Calculadora de renta',
-		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); anioER = 1; sincronizar('restarImpuestoVenta'); sincronizar('vendedorExento'); selProp.value = ''; calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
+		h('button', { type: 'button', class: 'btn btn-outline-secondary no-print', onclick: () => { setCampos(DEF); anioER = 1; sincronizar('restarImpuestoVenta'); sincronizar('vendedorExento'); elegidaId = ''; pintarProp(); calcular(); } }, h('span', { class: 'icon-eraser me-1', 'aria-hidden': 'true' }), 'Limpiar'),
 		h('button', { type: 'button', class: 'btn btn-primary no-print', onclick: () => window.print() }, h('span', { class: 'icon-file-pdf-o me-1', 'aria-hidden': 'true' }), 'Descargar PDF'));
 
 	const tituloCard = (icono, t, ...extra) => h('div', { class: 'card-header d-flex align-items-center justify-content-between gap-2' }, h('h2', { class: 'h6 mb-0' }, h('span', { class: `${icono} me-2`, 'aria-hidden': 'true' }), t), extra);
@@ -433,7 +451,7 @@ export async function render(container) {
 		h('div', { class: 'row g-4 calc-layout' },
 			h('div', { class: 'col-xl-5 calc-entradas no-print' },
 				grupo('icon-home', 'Propiedad',
-					h('div', { class: 'col-12' }, h('label', { class: 'form-label', for: 'calc-prop' }, 'Propiedad del inventario'), selProp, h('div', { class: 'form-text' }, 'Opcional: llena tipo, moneda, precio y una renta sugerida.')),
+					h('div', { class: 'col-12' }, h('div', { class: 'form-label' }, 'Propiedad del inventario'), selProp, h('div', { class: 'form-text' }, 'Opcional: llena tipo, moneda, precio y una renta sugerida. De una en renta se usa solo la renta.')),
 					campo('tipo', 'Tipo', { opciones: TIPOS_DEF }),
 					campo('uso', 'Uso', { opciones: USOS }),
 					campo('moneda', 'Moneda', { opciones: [['USD', 'Dólares (US$)'], ['GTQ', 'Quetzales (Q)']] }),
@@ -526,10 +544,7 @@ export async function render(container) {
 		const { loadAll } = await import('./properties.js');
 		// Solo venta y renta: el precio de una casa por noche es de una noche, no de compra.
 		props = (await loadAll()).filter((p) => Number(p.precio) > 0 && p.operacion !== 'vacacional');
-		const op = (p) => h('option', { value: p.id }, [p.codigo, p.titulo, p.zona].filter(Boolean).join(' · '));
-		selProp.append(
-			h('optgroup', { label: 'En venta' }, props.filter((p) => p.operacion !== 'renta').map(op)),
-			h('optgroup', { label: 'En renta (solo la renta)' }, props.filter((p) => p.operacion === 'renta').map(op)));
+
 	} catch (err) {
 		console.warn('Calculadora: no se pudo leer el inventario', err);
 	}

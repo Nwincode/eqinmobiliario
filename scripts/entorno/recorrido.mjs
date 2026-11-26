@@ -1489,6 +1489,7 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-pestanas-1280.png` });
 	paso('El selector abre al socio en «Por noche» y cada pestaña (venta, renta, por noche) muestra solo su categoría', !delSocio.some((x) => x === 'venta' || x === 'renta') && enVenta.length > 0 && enVenta.every((x) => x === 'venta') && await admin.p.locator('.modal.show .btn-group button').count() === 3, `${delSocio.join(' | ')} // ${enVenta.join(' | ')}`);
 	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click();
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Agregar' }).click();
 	await espera(600);
 	const titulos = await operaciones('.list-field .casa-fila');
 	paso('La misma ficha muestra sus casas por noche y la de venta, y pide datos de pago y el asesor que la atiende', titulos.includes('vacacional') && titulos.includes('venta')
@@ -1508,8 +1509,9 @@ paso('El asesor no puede abrir Solicitudes de otros', !/Ana Prueba/.test(await a
 	const halladas = await admin.p.locator('.modal.show .casa-fila .casa-titulo').allInnerTexts();
 	await admin.p.screenshot({ path: `${CAPTURAS}/selector-1280.png` });
 	await admin.p.locator('.modal.show .casa-fila', { hasText: 'Mirabel' }).first().click().catch(() => {});
+	await admin.p.locator('.modal.show .modal-footer button', { hasText: 'Agregar' }).click().catch(() => {});
 	await espera(600);
-	paso('Al propietario le ofrece solo venta y renta; busca y al tocar una ficha queda elegida', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
+	paso('Al propietario le ofrece solo venta y renta; busca, se marca la ficha y «Agregar» la suma', delDueno.length > 0 && !delDueno.includes('vacacional') && halladas.length === 1
 		&& /Mirabel/.test(await admin.p.locator('.list-field-item').last().locator('.casa-titulo').innerText().catch(() => '')), halladas.join(' | '));
 	// Acuerdos anotados antes en la persona: al abrir Propietarios pasan a cada inmueble, sin escribir encima ni perder nada.
 	{
@@ -1773,6 +1775,12 @@ const duenos = [];
 	const r8 = await api({ aviso: 'cambiada' }, { Authorization: `Bearer ${intruso.idToken}` });
 	paso('Una cuenta creada por fuera del panel no recibe el correo de la empresa ni puede pedir el aviso de cambio (la respuesta no lo delata)',
 		r7.status === 200 && [200, 401].includes(r8.status) && !todos().slice(antes2).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), `${r7.status} ${r8.status}`);
+	// «Confirma tu correo» (paso previo a los dos pasos): con el diseño de la empresa, solo a la propia cuenta del panel.
+	const v1 = await api({ verificar: true });
+	const antes3 = todos().length;
+	const v2 = await api({ verificar: true }, { Authorization: `Bearer ${intruso.idToken}` });
+	paso('«Confirma tu correo» sin sesión da 401 y una cuenta de fuera del panel no recibe nada (404)',
+		v1.status === 401 && v2.status === 404 && !todos().slice(antes3).some((c) => JSON.stringify(c.to || '').includes('intruso@example.com')), `${v1.status} ${v2.status}`);
 	// Muchos pedidos seguidos del mismo correo se frenan (429), pero no dejan bloqueado al dueño para siempre.
 	const seguidos = [];
 	for (let i = 0; i < 5; i++) seguidos.push((await api({ email: 'limite@example.com' })).status);
@@ -2038,7 +2046,7 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades', 3500);
 	await admin.p.locator('.lista-casas ~ * button, .admin-main button', { hasText: 'Elegir varias' }).first().click();
 	await admin.p.locator('.casa-fila', { hasText: 'Casa de prueba Monterrico' }).first().locator('.casa-sel input').check();
-	await admin.p.locator('.barra-masa button', { hasText: 'Más' }).click();
+	await admin.p.locator('.barra-masa button[aria-label="Más acciones"]').click();
 	await admin.p.locator('.barra-masa button', { hasText: 'Poner marca de agua' }).click();
 	await admin.p.locator('.modal.show button', { hasText: 'Poner marca' }).click();
 	await espera(3000);
@@ -2478,6 +2486,14 @@ const duenos = [];
 	await ir(admin.p, '#/propiedades', 3000);
 	const verificar = (await admin.p.locator('#aviso-dos-pasos').innerText().catch(() => '')).replace(/\s+/g, ' ');
 	paso('Dos pasos: sin el correo confirmado, cada pantalla lo dice con el botón para mandarlo', /Confirma tu correo/.test(verificar) && /Mandarme el correo/.test(verificar), verificar);
+	// El botón manda el correo con el diseño de la empresa (/api/contrasena { verificar }), no el de Firebase.
+	const correosAntes = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).length;
+	await admin.p.locator('#aviso-dos-pasos button', { hasText: 'Mandarme el correo' }).click();
+	await admin.p.locator('#aviso-dos-pasos button', { hasText: 'Te lo mandamos' }).waitFor({ timeout: 10000 }).catch(() => {});
+	const confirma = readFileSync(`${DIR}/correos.jsonl`, 'utf8').split('\n').filter(Boolean).slice(correosAntes).map((l) => JSON.parse(l))
+		.filter((c) => JSON.stringify(c.to || '').includes('admin@example.com') && c.subject === 'Confirma tu correo').pop();
+	paso('«Mandarme el correo» manda «Confirma tu correo» con el diseño de la empresa y el enlace al panel',
+		Boolean(confirma) && /Confirmar mi correo/.test(confirma.htmlbody) && /admin\/#mode=verifyEmail&amp;oobCode=/.test(confirma.htmlbody), confirma ? confirma.subject : 'no salió');
 	const sin = await persona(1280);
 	await sin.p.route('**/mfaEnrollment:start**', (r) => r.request().method() === 'OPTIONS' ? r.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' } })
 		: r.fulfill({ status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' }, body: JSON.stringify({ error: { code: 400, message: 'OPERATION_NOT_ALLOWED' } }) }));
@@ -2719,6 +2735,19 @@ console.log(`\nCorreos que habrían salido:\n  ${resumen.join('\n  ')}`);
 		borrada.status === 404 && ventaLista.publicado?.booleanValue === true && Boolean(ventaLista.en?.mapValue?.fields?.titulo?.stringValue) && quedan === 0,
 		`borrada ${borrada.status} · inglés «${ventaLista.en?.mapValue?.fields?.titulo?.stringValue || ''}» · tarjetas ${quedan} · ${await avisos(eq.p)}`);
 	for (const x of [col, so, eq]) await x.p.context().close();
+}
+// Calculadora de renta: la propiedad se elige con la misma ventana «Elegir propiedad» (con foto) y llena el precio.
+{
+	await ir(admin.p, '#/calculadora', 3500);
+	await admin.p.locator('#calc-prop button', { hasText: 'Elegir propiedad' }).click();
+	await admin.p.locator('.modal.show .casa-fila').first().waitFor({ timeout: 8000 }).catch(() => {});
+	const fichas = await admin.p.locator('.modal.show .casa-fila').count();
+	await admin.p.locator('.modal.show .casa-fila').first().click().catch(() => {});
+	await espera(800);
+	const precio = await admin.p.locator('#calc-precio').inputValue().catch(() => '');
+	const elegida = await admin.p.locator('#calc-prop .casa-fila').count();
+	await admin.p.screenshot({ path: `${CAPTURAS}/calculadora-propiedad-1280.png` });
+	paso('Calculadora: «Elegir propiedad» abre la ventana común con fichas, y al tocar una queda su ficha y se llena el precio', fichas > 0 && elegida === 1 && Number(precio) > 0, `${fichas} fichas · precio ${precio}`);
 }
 {
 	const csp = (await fetch(`${SITIO}/admin/`)).headers.get('content-security-policy') || '';

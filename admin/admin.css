@@ -1283,8 +1283,7 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 .barra-masa[hidden] { display: none; }
 .barra-masa-mas:not([hidden]) { display: contents; }
 .barra-masa-n { display: inline-flex; align-items: center; gap: .25rem; color: var(--adm-text); font-weight: 600; margin-right: .25rem; }
-.barra-masa-estado { min-width: 11rem; }
-.barra-masa .btn { min-height: 36px; }
+.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 
 /* Datos del inmueble con ícono (habitaciones, baños, parqueos, m²). */
 .prop-datos {
@@ -1319,7 +1318,9 @@ body:has(.sticky-actions:not([hidden])) #toasts { bottom: 4.5rem !important; }
 	body:has(.barra-masa:not([hidden])) #toasts { bottom: 3.75rem !important; } /* los avisos no tapan la barra */
 	#toasts, #toasts .toast { pointer-events: none; } /* ni estorban el toque de lo que queda debajo */
 	#toasts .btn-close { pointer-events: auto; }
-	.barra-masa-estado { width: 10.5rem; } /* deja asomar la acción siguiente: se nota que la fila se desliza */
+	.barra-masa-estado { width: 6.5rem; } /* con «Estado…» caben todas las acciones sin deslizar la fila */
+	.barra-masa { gap: 4px; }
+	.barra-masa-estado .form-select { padding-left: 8px; padding-right: 24px; background-position: right 6px center; }
 	.barra-masa .btn, .barra-masa .form-select { min-height: 44px; }
 }
 /* Interruptor con fila completa tocable (al menos 44 px de alto) y tamaño legible. */
@@ -3713,3 +3714,7 @@ div.aviso-enlace:hover { background: none; }
 .msj-pasos .ya { color: var(--eq-dark); font-weight: 600; }
 .msj-pasos .ya i { background: var(--eq-warning); }
 /* ===== Fin Mensajes ===== */
+
+/* El ojo propio del navegador (Edge) se oculta: el panel ya pone el suyo junto a la contraseña. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear { display: none; }

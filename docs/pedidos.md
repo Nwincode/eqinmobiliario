@@ -23,3 +23,17 @@
 - [x] 2026-11-26 «exactamente esto pegaré: curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" -H "X-Goog-User-Project: eqinmobiliariobd" "https://identitytoolkit.googleapis.com/admin/v2/projects/eqinmobiliariobd/config?updateMask=mfa" -d '{"mfa":{"state":"ENABLED","providerConfigs":[{"state":"ENABLED","totpProviderConfig":{"adjacentIntervals":1}}]}}'» → confirmado: la línea es correcta.
 - [x] 2026-11-26 «ahora» → le pedí la captura de la respuesta y el paso 3.
 - [x] 2026-11-26 Respuesta de Cloud Shell: mfa ENABLED → dos pasos encendido; falta inscribir su teléfono (paso 3).
+- [x] 2026-11-26 «Confirma tu correo (su correo) para activar la verificación en dos pasos.» → explicado: botón del aviso manda el correo; abrir enlace y volver a entrar.
+- [~] 2026-11-26 «ese enlace se ve feo puedes mejorarlo?» → correo «Confirma tu correo» con el diseño de la empresa; en pruebas y segunda revisión.
+- [~] 2026-11-26 «lo que madnas en el email» → mismo pedido: el correo de confirmación con el diseño de la empresa.
+- [~] 2026-11-26 «se puede colocar a asignacion a propietario colaborador ?? y en el segundo foto se puede selecciona varios ?» → aprobado («según el diseño»): asignar propietario en «Más» y marcar varias con «Agregar (n)»; programado, en pruebas.
+- [~] 2026-11-26 «por que tineen diferente tamaño y diseño diferente texto con boton sin texto. como activo skill para esto=» → barra de seleccionadas toda con íconos del mismo tamaño (skill diseno-minimo); en pruebas.
+- [x] 2026-11-26 «que toras skills de diseño tenemos?» → lista de skills de diseño dada.
+- [~] 2026-11-26 «porque este menu desplegable se ve asi cuando ya se tienen normas para estos casos? /frontend-design:frontend-design» → la Calculadora usa la ventana común «Elegir propiedad» (elegir-casa.js); en pruebas. Pendiente avisado: la Cotización tiene su propio buscador.
+- [x] 2026-11-26 «revisa fable si estoy haciendo bien en colocar esta skill» → revisado con Fable: /frontend-design no es para esto; se usa diseno-minimo y la pieza común.
+- [x] 2026-11-26 «hay 2 ojitos en el menu de inicio! quita uno» → se oculta el ojo propio de Edge; queda el del panel.
+- [x] 2026-11-26 «terminaste ?» → no: falta la prueba completa y unir; informe de estado dado.
+- [x] 2026-11-26 «no te ando apresurando solo quiero saber como vas» → avance dado.
+- [-] 2026-11-26 «oye no es posible cambiar la foto de la flota?» → parece de ptg (flota de carros); eqinmobiliario no tiene carros. Preguntado.
+- [x] 2026-11-26 «perdona!» → sin problema.
+- [x] 2026-11-26 «me equivoque» → sin problema.

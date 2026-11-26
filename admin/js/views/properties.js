@@ -23,7 +23,7 @@ import { filaCasa, publicUrl } from '../ficha-casa.js';
 import { sinTildes, REGIMENES, MODOS } from '../cotizacion.js';
 import { acuerdoDe, acuerdoHeredado, camposDelAcuerdo, CAMPOS_ACUERDO } from '../acuerdo.js';
 import { loadPropietarios } from '../crm.js';
-import { asignarDueno, confirmarCambioDeDueno } from '../enlace-dueno.js';
+import { asignarDueno, confirmarCambioDeDueno, revisarSinDueno } from '../enlace-dueno.js';
 import { deLaCasa, porVenir, avisoPorVenir, refContacto, alDiaEnLaWeb } from '../reservas.js';
 import { faltaDireccion } from '../reservas-calculo.js';
 import { tieneCasasPorNoche } from '../duenos.js';
@@ -419,7 +419,7 @@ export async function render(container, [id]) {
 	if (id === 'importar') return (await import('./importar.js')).render(container);
 	if (id && id !== 'incompletos') return renderEditor(container, id);
 
-	const [props, agents] = await Promise.all([loadAll(), loadAgents()]);
+	const [props, agents, duenos] = await Promise.all([loadAll(), loadAgents(), session.isAdmin ? loadPropietarios() : []]);
 	if (session.isAdmin) {
 		const conAsesor = props.filter((p) => esVacacional(p) && p.agentId);
 		// (Sus páginas llevan el asesor en el formulario: hay que volver a publicar.)
@@ -581,8 +581,9 @@ export async function render(container, [id]) {
 	});
 	const nSel = h('strong', {});
 	const selMasaEstado = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Cambiar estado de las seleccionadas' },
-		h('option', { value: '' }, 'Cambiar estado a…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
+		h('option', { value: '' }, 'Estado…'), ESTADOS.map(([v, l]) => h('option', { value: v }, l)));
 	const barra = h('div', { class: 'barra-masa', role: 'region', 'aria-label': 'Acciones con las seleccionadas', hidden: true });
+	const progresoMasa = h('span', { class: 'small text-muted', role: 'status' });
 
 	const nombreDe = (l) => (l.length === 1 ? `«${l[0].titulo || 'la propiedad'}»` : `${l.length} propiedades`);
 	// Aplica una acción a una lista: la de la selección (barra) o una sola propiedad (menú ⋮).
@@ -642,14 +643,47 @@ export async function render(container, [id]) {
 		seleccion.clear();
 		selMasaAsesor.value = '';
 	});
-	const btnMostrar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
+	// El dueño de varias a la vez (solo el administrador): el mismo cambio de dueño que la ficha de la casa (asignarDueno),
+	// con la misma pregunta si alguna ya tenía otro (confirmarCambioDeDueno).
+	const porNombre = (a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es');
+	const selMasaDueno = h('select', { class: 'form-select form-select-sm', 'aria-label': 'Asignar propietario o colaborador a las seleccionadas' },
+		h('option', { value: '' }, 'Asignar propietario…'),
+		h('option', { value: '=ninguno' }, 'Sin propietario'),
+		h('optgroup', { label: 'Propietarios' }, duenos.filter((d) => d.tipo !== 'colaborador').sort(porNombre).map((d) => h('option', { value: d.id }, d.nombre || d.email || d.id))),
+		h('optgroup', { label: 'Colaboradores' }, duenos.filter((d) => d.tipo === 'colaborador').sort(porNombre).map((d) => h('option', { value: d.id }, `${d.nombre || d.email || d.id}${d.empresa ? ` · ${d.empresa}` : ''}`))));
+	selMasaDueno.addEventListener('change', async () => {
+		const v = selMasaDueno.value;
+		if (!v) return;
+		const nuevo = v === '=ninguno' ? '' : v;
+		const nombre = nuevo ? (duenos.find((d) => d.id === nuevo)?.nombre || 'su propietario') : 'sin propietario';
+		// Con «Sin propietario» también las de antes que no dicen su dueño pero están en la lista de alguien.
+		const enLista = (p) => duenos.some((d) => (d.propiedades || []).some((x) => x.propertyId === p.id));
+		const lista = elegidas().filter((p) => (p.propietarioId || '') !== nuevo || (!nuevo && enLista(p)));
+		// Antes de escribir nada: si alguna casa por noche tiene huéspedes por venir, no se suelta ninguna.
+		if (!nuevo && lista.length) {
+			try { await revisarSinDueno(lista); } catch (err) { toast(err.message, 'danger'); selMasaDueno.value = ''; return; }
+		}
+		// Quitarles el dueño a varias borra sus acuerdos: se pregunta siempre, con cuántas son.
+		const seguir = !lista.length ? false : nuevo
+			? await confirmarCambioDeDueno(lista.map((casa) => ({ casa, a: nuevo })), duenos)
+			: await confirmDialog(`¿Dejar sin propietario ${nombreDe(lista)}? Se borra el acuerdo de cada una con su dueño actual.`, { okText: 'Quitar propietario' });
+		if (seguir) {
+			await enMasa(async (p) => {
+				await asignarDueno({ id: p.id, propietarioId: p.propietarioId || '', operacion: p.operacion, titulo: p.titulo }, nuevo, { duenos, casas: props });
+				p.propietarioId = nuevo;
+			}, `Propietario asignado: ${nombre}`, (n) => `${n} asignada${n === 1 ? '' : 's'} a ${nombre}.`, lista);
+			seleccion.clear();
+		}
+		selMasaDueno.value = '';
+		draw();
+	});
+	// La barra de las seleccionadas: todo con ícono (mismo tamaño, 44 px, con su nombre al pasar el dedo o el mouse).
+	const btnMostrar = iconoBtn('icon-eye', 'Mostrar en la página', {
 		onclick: () => enMasa(async (p) => { await revisarPublicar({ ...p, publicado: true }); await guardarMasa({ publicado: true }, { publicado: true })(p); }, 'Visibles en la página',
-			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) },
-		h('span', { class: 'icon-eye', 'aria-hidden': 'true' }), ' Mostrar');
-	const btnOcultar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary',
+			(n) => `${n} visible${n === 1 ? '' : 's'} en la página. ${trasGuardar()}`) });
+	const btnOcultar = iconoBtn('icon-eye-slash', 'Ocultar de la página', {
 		onclick: () => enMasa(guardarMasa({ publicado: false }, { publicado: false }), 'Ocultas de la página',
-			(n) => `${n} oculta${n === 1 ? '' : 's'}. ${trasGuardar()}`) },
-		h('span', { class: 'icon-eye-slash', 'aria-hidden': 'true' }), ' Ocultar');
+			(n) => `${n} oculta${n === 1 ? '' : 's'}. ${trasGuardar()}`) });
 	const mejorar = async (lista) => {
 		const l = lista || elegidas();
 		if (!(await confirmDialog(`¿Mejorar la descripción de ${nombreDe(l)}? Queda el párrafo de presentación y la nota de lo que no incluye el precio; se quitan las listas copiadas de la ficha (habitaciones, amenidades, estadía), que la página ya muestra de sus campos. El texto anterior queda guardado como respaldo.`, { okText: 'Mejorar', danger: false }))) return;
@@ -737,19 +771,16 @@ export async function render(container, [id]) {
 		} },
 		h('span', { class: 'icon-pencil', 'aria-hidden': 'true' }), ' Poner textos preparados');
 	const btnMarca = h('button', { type: 'button', class: 'btn btn-sm btn-outline-primary',
-		onclick: async (e) => {
-			// El botón se toma antes de esperar: después del «await» el evento ya no lo trae (currentTarget = null).
-			const boton = e.currentTarget;
+		onclick: async () => {
 			const n = seleccion.size;
 			if (!(await confirmDialog(`¿Poner la marca de agua a las fotos de ${n} propiedad${n === 1 ? '' : 'es'}? Las que ya la tienen se saltan. Puede tardar unos minutos; no cierres esta página.`, { okText: 'Poner marca', danger: false }))) return;
-			const txt = boton.lastChild.textContent;
 			let hecha = 0;
 			await enMasa(async (p) => {
-				const fotos = await marcarFotos(p, (i, t) => { boton.lastChild.textContent = ` Propiedad ${hecha + 1} de ${n}: foto ${i} de ${t}…`; });
+				const fotos = await marcarFotos(p, (i, t) => { progresoMasa.textContent = `Marca de agua: propiedad ${hecha + 1} de ${n}, foto ${i} de ${t}…`; });
 				hecha++;
 				if (fotos) await guardarMasa({ fotos }, { fotos })(p);
 			}, 'Marca de agua en fotos', (k) => `Fotos de ${k} propiedad${k === 1 ? '' : 'es'} con marca de agua. ${trasGuardar()}`);
-			boton.lastChild.textContent = txt;
+			progresoMasa.textContent = '';
 		} },
 		h('span', { class: 'icon-image', 'aria-hidden': 'true' }), ' Poner marca de agua');
 	const eliminar = async (lista) => {
@@ -763,23 +794,35 @@ export async function render(container, [id]) {
 		for (let i = props.length - 1; i >= 0; i--) if (borradas.has(props[i].id)) props.splice(i, 1);
 		draw();
 	};
-	const btnEliminar = h('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', onclick: () => eliminar() },
-		h('span', { class: 'icon-trash-o', 'aria-hidden': 'true' }), ' Eliminar');
-	// Lo de todos los días queda a la vista; el resto se abre con «Más».
-	const masAcciones = h('div', { class: 'barra-masa-mas', id: 'barra-masa-mas', hidden: true },
-		session.isAdmin ? h('div', { class: 'barra-masa-estado' }, selMasaAsesor) : null,
-		btnMejorar, btnDeshacer, btnCompletar, btnClaude, btnTraducir, btnMarca);
-	const btnMas = h('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', 'aria-expanded': 'false', 'aria-controls': 'barra-masa-mas',
-		onclick: () => { masAcciones.hidden = !masAcciones.hidden; btnMas.setAttribute('aria-expanded', String(!masAcciones.hidden)); } },
-		h('span', { class: 'icon-ellipsis-h', 'aria-hidden': 'true' }), ' Más');
+	// Lo de todos los días queda a la vista, solo con íconos; lo demás va en un solo ⋮ y «Eliminar», al final y en rojo
+	// (skill diseno-minimo). Asesor y propietario se eligen en una ventana; el progreso largo (marca de agua) se ve en
+	// la barra.
+	const elegirYAplicar = async (sel, titulo) => {
+		const ops = [...sel.options].filter((o) => o.value);
+		const texto = await elegirOpcion(titulo, ops.map((o) => o.textContent));
+		const op = ops.find((o) => o.textContent === texto);
+		if (!op) return;
+		sel.value = op.value;
+		sel.dispatchEvent(new Event('change'));
+	};
+	const btnMas = menuMas('Más acciones', [
+		session.isAdmin ? { icono: 'icon-user', texto: 'Asignar asesor', onclick: () => elegirYAplicar(selMasaAsesor, 'Asignar asesor') } : null,
+		session.isAdmin ? { icono: 'icon-key', texto: 'Asignar propietario', onclick: () => elegirYAplicar(selMasaDueno, 'Asignar propietario o colaborador') } : null,
+		{ icono: 'icon-list-ul', texto: 'Mejorar descripción', onclick: () => btnMejorar.click() },
+		{ icono: 'icon-undo', texto: 'Volver a la anterior', onclick: () => btnDeshacer.click() },
+		{ icono: 'icon-search', texto: 'Completar SEO', onclick: () => btnCompletar.click() },
+		{ icono: 'icon-pencil', texto: 'Poner textos preparados', onclick: () => btnClaude.click() },
+		{ icono: 'icon-globe', texto: 'Traducir al inglés', onclick: () => btnTraducir.click() },
+		{ icono: 'icon-image', texto: 'Poner marca de agua', onclick: () => btnMarca.click() },
+		session.isAdmin ? { icono: 'icon-trash-o', texto: 'Eliminar', peligro: true, onclick: () => eliminar() } : null
+	], { icono: 'icon-ellipsis-v', cls: 'btn-outline-secondary' });
 	barra.append(
 		h('span', { class: 'barra-masa-n' },
 			iconoBtn('icon-close', 'Quitar selección', { onclick: () => { seleccion.clear(); draw(); } }), nSel, h('span', { class: 'd-none d-md-inline' }, ' seleccionada(s)')),
 		btnMostrar, btnOcultar,
 		h('div', { class: 'barra-masa-estado' }, selMasaEstado),
-		session.isAdmin ? btnEliminar : null,
 		iconoBtn('icon-download', 'Exportar seleccionadas (CSV)', { onclick: (e) => exportarCsv(elegidas(), agentName, e.currentTarget) }),
-		btnMas, masAcciones);
+		btnMas, progresoMasa);
 	// «Elegir varias»: cada fila muestra su casilla y tocarla la marca; al terminar se suelta la selección.
 	const btnElegir = h('button', { type: 'button', class: 'btn btn-sm btn-link p-0',
 		onclick: () => { if (!lista.classList.toggle('eligiendo')) seleccion.clear(); draw(); } }, 'Elegir varias');
