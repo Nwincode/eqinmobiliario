@@ -15,3 +15,4 @@
 - [~] 2026-11-26 «La cuenta de servicio no tiene permiso para las fotos o la base (roles de Storage en Google Cloud).» → el aviso ahora dice cuenta y rol (PR); falta que el usuario dé el rol en Google Cloud.
 - [~] 2026-11-26 «te mando copia hay varias» → espero la captura de las cuentas.
 - [x] 2026-11-26 «esto aparece ene stadisticas y seguridad de mi correo: https://console.cloud.google.com/active-assist/details/projects/239655630069/locations/global/insightTypes/google.iam.policy.Insight/insights/981c0749-e6b1-47a5-b8c3-94f1021195ae;source=webSubtask?project=239655630069» → explicado: es la sugerencia de Google sobre permisos sin usar del Propietario; no aplicarla.
+- [x] 2026-11-26 «lee la captura y dice permisos excedidso» → explicado: «excedidos» = de sobra, no usados.
