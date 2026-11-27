@@ -72,3 +72,4 @@
 - [x] 2026-11-27 «puedes tomar el control de la pc y colocar los datos de la propiedad?» → no puedo controlar su PC (sesión en la nube, sin su navegador); le di los 4 pasos con el importador.
 - [x] 2026-11-27 «dame el texto si no puedes. por favor.» → texto de cada campo de la casa de San Miguel Dueñas listo para copiar.
 - [x] 2026-11-27 «esta tiene 10% enganche» → recalculado el párrafo de financiamiento con 10% de enganche (seguros proporcionales al monto: supuesto dicho).
+- [x] 2026-11-27 «haz la descripcion completa» → descripción completa con 10% de enganche, lista para copiar.
