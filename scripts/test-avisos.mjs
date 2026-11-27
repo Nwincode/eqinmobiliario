@@ -78,8 +78,8 @@ prueba('exclusiva: de 30 días antes a 30 después; renovada (otra fecha) vuelve
 
 prueba('socio: su pago a EQ vencido', () => {
 	const a = armarAvisos({ ahora: AHORA, comisiones: [{ codigo: 'EQ-5', casa: 'Chalet 3', nivel: 1, vence: '2026-11-15' }, { codigo: 'EQ-6', nivel: 3, vence: '2026-11-10' }] });
-	assert.equal(a[0].titulo, 'Tu pago a EQ tiene más de 72 h de atraso');
-	assert.equal(a[1].titulo, 'Tu pago a EQ ya venció');
+	assert.equal(a[0].titulo, 'Tu comisión tiene más de 72 h de atraso');
+	assert.equal(a[1].titulo, 'Tu comisión ya venció');
 });
 
 prueba('solo se buscan los «Listo» que pueden salir', () => {

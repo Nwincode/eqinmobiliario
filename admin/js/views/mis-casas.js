@@ -421,7 +421,7 @@ async function casa(container, id) {
 			h('p', { class: 'small text-muted my-2' },
 				h('span', { class: 'icon-lock', 'aria-hidden': 'true' }), ' Bloqueado  ·  ', h('span', { class: 'icon-bed', 'aria-hidden': 'true' }), ' Reservado  ·  ',
 				e.externas.length ? [h('span', { class: 'icon-globe', 'aria-hidden': 'true' }), ' Airbnb, Booking o VRBO  ·  '] : null,
-				h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin el margen de EQ.'),
+				h('span', { class: 'icon-clock-o', 'aria-hidden': 'true' }), ' Solicitado  ·  El precio es el tuyo, sin la comisión.'),
 			barra());
 	}
 

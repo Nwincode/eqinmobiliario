@@ -2163,7 +2163,7 @@ const duenos = [];
 		const sinSesion = (await fetch(`${SITIO}/api/foto`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reserva: reservaId }) })).status;
 		const storage = (await fetch(`http://127.0.0.1:9199/v0/b/eqinmobiliariobd.firebasestorage.app/o/${encodeURIComponent(recibo)}?alt=media`)).status;
 		const [delSocio, delEquipo] = [await conSesion(socio.p), await conSesion(admin.p)];
-		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), delMas(socio.p.locator('.card', { hasText: codigo }).first(), 'Ver comprobante del pago a EQ')]);
+		const [pestana] = await Promise.all([socio.p.context().waitForEvent('page', { timeout: 10000 }).catch(() => null), delMas(socio.p.locator('.card', { hasText: codigo }).first(), 'Ver comprobante de la comisión')]);
 		await espera(2000);
 		const abre = pestana ? /^blob:/.test(pestana.url()) : false;
 		await pestana?.close();
@@ -2342,7 +2342,7 @@ const duenos = [];
 	await ir(socio.p, '#/solicitudes', 4000);
 	const inicio = await aviso().innerText().catch(() => '');
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-inicio-390.png` });
-	paso('Socio: antes de sembrar deudas, el aviso dice lo que ya debe (o no hay aviso)', !inicio || /^Debes a EQ/.test(inicio.trim()), inicio.replace(/\s+/g, ' ').slice(0, 140) || 'sin aviso');
+	paso('Socio: antes de sembrar deudas, el aviso dice lo que ya debe (o no hay aviso)', !inicio || /^Debes a Equipo Inmobiliario/.test(inicio.trim()), inicio.replace(/\s+/g, ' ').slice(0, 140) || 'sin aviso');
 
 	// Debe sin atraso (la comisión se paga en 3 días): una línea sin rojo con el monto y el botón.
 	await deuda('EQ-DEB0K1', 3, 'USD', 30);
@@ -2350,7 +2350,7 @@ const duenos = [];
 	const neutro = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
 	const rojo0 = await socio.p.locator('.admin-main .alert-danger').count();
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-sin-atraso-390.png` });
-	paso('Socio con una deuda sin atraso: una línea sin rojo con el monto, cuándo se paga y «Ver lo que debo»', /Debes a EQ US\$ ?\d/.test(neutro) && /se paga el/.test(neutro) && rojo0 === 0, neutro);
+	paso('Socio con una deuda sin atraso: una línea sin rojo con el monto, cuándo se paga y «Ver lo que debo»', /Debes a Equipo Inmobiliario US\$ ?\d/.test(neutro) && /se paga el/.test(neutro) && rojo0 === 0, neutro);
 
 	// Con atraso en dos monedas (US$ más de 72 h, Q más de 24 h) y 25 solicitudes más del socio.
 	await deuda('EQ-DEB072', -5, 'USD', 44);
@@ -2369,7 +2369,7 @@ const duenos = [];
 	const medida = await banda.evaluate((el) => ({ alto: el.getBoundingClientRect().height, arriba: el.getBoundingClientRect().top, lado: document.documentElement.scrollWidth - innerWidth })).catch(() => ({}));
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-390.png` });
 	paso('Socio con atraso en dos monedas: el aviso rojo dice cuánto debe y cuánto con atraso, en US$ y en Q por separado, y qué le pasa',
-		(await banda.getAttribute('class').catch(() => '')).includes('alert-danger') && /Debes a EQ .*US\$.*Q /.test(textoRojo) && /con atraso/.test(textoRojo) && /72 horas/.test(textoRojo) && !/US\$ ?3[0-9]{2}/.test(textoRojo),
+		(await banda.getAttribute('class').catch(() => '')).includes('alert-danger') && /Debes a Equipo Inmobiliario .*US\$.*Q /.test(textoRojo) && /con atraso/.test(textoRojo) && /72 horas/.test(textoRojo) && !/US\$ ?3[0-9]{2}/.test(textoRojo),
 		textoRojo);
 	paso('Socio: «Ver lo que debo» mide 44 px o más, arriba de la lista (sin bajar entre 25+ tarjetas) y sin scroll de lado',
 		boton && boton.height >= 44 && medida.arriba < 400 && medida.lado <= 0 && tarjetas >= 25, `${boton ? Math.round(boton.height) : '—'} px · arriba ${Math.round(medida.arriba)} · ${tarjetas} tarjetas · alto ${Math.round(medida.alto)}`);
@@ -2387,8 +2387,8 @@ const duenos = [];
 	await ir(socio.p, '#/solicitudes/cobrar', 5000);
 	const avisoSC = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
 	// Lo que dice cada tarjeta que se le debe a EQ, sumado por moneda, contra lo que dice el aviso.
-	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Le pagas a EQ (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
-	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a EQ ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
+	const deLista = await socio.p.locator('.admin-main .card.mb-2').evaluateAll((l) => { const t = {}; for (const x of l) { const m = x.innerText.match(/Comisión (US\$|Q) ?([\d,]+\.\d{2})/); if (m) t[m[1]] = Math.round(((t[m[1]] || 0) + Number(m[2].replace(/,/g, ''))) * 100) / 100; } return t; });
+	const delAviso = Object.fromEntries([...(avisoSC.match(/^Debes a Equipo Inmobiliario ([^(.]*?\.\d{2}(?: · [^(.]*?\.\d{2})?)/)?.[1] || '').matchAll(/(US\$|Q) ?([\d,]+\.\d{2})/g)].map((m) => [m[1], Number(m[2].replace(/,/g, ''))]));
 	const codigosSC = await socio.p.locator('.admin-main .card.mb-2[data-codigo]').evaluateAll((l) => l.map((x) => x.dataset.codigo));
 	const conSinChat = await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]', { hasText: 'Huésped' }).count();
 	const lado = await socio.p.evaluate(() => document.documentElement.scrollWidth - innerWidth);
@@ -2409,10 +2409,10 @@ const duenos = [];
 	await socio.p.setViewportSize({ width: 1280, height: 900 });
 	await ir(socio.p, '#/solicitudes', 5000);
 	await socio.p.screenshot({ path: `${TANDA}/socio-deuda-atraso-1280.png` });
-	// El administrador llega por la misma dirección: su filtro «Ganancia de EQ por cobrar» ya elegido.
+	// El administrador llega por la misma dirección: su filtro «Comisión por cobrar» ya elegido.
 	await ir(admin.p, '#/solicitudes/cobrar', 5000);
 	const elegido = await admin.p.locator('select[aria-label="Todos los estados"]').inputValue().catch(() => '');
-	paso('El administrador abre #/solicitudes/cobrar con «Ganancia de EQ por cobrar» elegido', elegido === 'cobrar', elegido);
+	paso('El administrador abre #/solicitudes/cobrar con «Comisión por cobrar» elegido', elegido === 'cobrar', elegido);
 	// El administrador marca pagada la de la reserva sin chat: sale de la lista del socio y el aviso baja US$ 77.
 	const antesPagada = (await (async () => { await ir(socio.p, '#/solicitudes/cobrar', 5000); return (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' '); })());
 	await admin.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"] button', { hasText: 'Pagada' }).click();
@@ -2421,7 +2421,7 @@ const duenos = [];
 	const pagadaSC = (await leer('reservas/res-SINCHAT1')).fields?.comision?.mapValue?.fields?.pagada?.booleanValue === true;
 	await ir(socio.p, '#/solicitudes/cobrar', 5000);
 	const despuesPagada = (await aviso().innerText().catch(() => '')).replace(/\s+/g, ' ');
-	const usd = (t) => Number((t.match(/^Debes a EQ US\$ ?([\d,]+\.\d{2})/) || [0, 'NaN'])[1].replace(/,/g, ''));
+	const usd = (t) => Number((t.match(/^Debes a Equipo Inmobiliario US\$ ?([\d,]+\.\d{2})/) || [0, 'NaN'])[1].replace(/,/g, ''));
 	paso('El administrador marca «Pagada» la reserva sin chat: sale de «Ver lo que debo» y el aviso del socio baja US$ 77',
 		pagadaSC && await socio.p.locator('.admin-main .card.mb-2[data-codigo="res-SINCHAT1"]').count() === 0 && Math.round((usd(antesPagada) - usd(despuesPagada)) * 100) === 7700,
 		`${antesPagada.slice(0, 60)} → ${despuesPagada.slice(0, 60)}`);

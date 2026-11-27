@@ -921,7 +921,7 @@ function schema(agentOpts, isNew, socioOpts, ajeno = false, casaId = '', paraSoc
 const SOLO_EQUIPO = new Set(['slug', 'codigo', 'condominioSiglas', 'estado', 'propietarioId', 'orden', 'publicado', 'destacada', 'vip', 'video',
 	'socio.codigoSocio', 'socio.margen', 'vacacional.bloqueos', ...V.CALENDARIOS.map((c) => `socio.${c.campo}`)]);
 const SECCIONES_EQUIPO = ['Acuerdo con el dueño', 'Landing page VIP', 'Versión en inglés (mercado de EE. UU.)', 'SEO (opcional)'];
-const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de EQ (pégalo en Airbnb, Booking y VRBO)'];
+const CUSTOM_EQUIPO = ['Ganancia y precio al público', 'Así se verá en Google', 'Calendario de Equipo Inmobiliario (pégalo en Airbnb, Booking y VRBO)'];
 const OBLIGATORIOS_SOCIO = new Set(['zona', 'ciudad']);
 const PARA_EL_SOCIO = {
 	// Con nombre 1 a 40 (storage.rules: la carpeta de la casa nueva no admite más).

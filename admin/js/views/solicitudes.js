@@ -86,20 +86,20 @@ export async function render(container, [codigo] = []) {
 	const botonComprobante = (com, res) => (SUBIENDO.has(res.id)
 		? h('button', { type: 'button', class: 'btn-toque btn btn-sm btn-outline-secondary', disabled: true, 'aria-live': 'polite' },
 			h('span', { class: 'spinner-border spinner-border-sm me-1', 'aria-hidden': 'true' }), 'Subiendo…')
-		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', { onclick: () => subirComprobante(res) }));
+		: iconoBtn('icon-upload', com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', { onclick: () => subirComprobante(res) }));
 
 	// La alerta de cada mañana: confirmada, llegada pasada y sin «Pago recibido». Si el equipo supo que el cliente pagó,
 	// «Cobrar comisión»: desde ahí su atraso cuenta para apagarle los permisos al socio (permisos-socio.js cuentaParaCorte).
 	async function cobrar(l, res) {
-		if (!(await confirmDialog(`${l.reserva.codigo}: ¿el cliente sí pagó? Se cobra la ganancia de EQ (${money(res.comision.monto, res.moneda)}) y, si el socio se atrasa ${DIAS_CORTE} días, se le apagan los permisos.`, { okText: 'Cobrar comisión', danger: false }))) return;
+		if (!(await confirmDialog(`${l.reserva.codigo}: ¿el cliente sí pagó? Se cobra la comisión (${money(res.comision.monto, res.moneda)}) y, si el socio se atrasa ${DIAS_CORTE} días, se le apagan los permisos.`, { okText: 'Cobrar comisión', danger: false }))) return;
 		await hacer(async () => { await cobrarComision(res); toast('Comisión por cobrar.'); });
 	}
 
 	async function pagada(res, nivel, titulo) {
-		if (!(await confirmDialog(`${res.codigo || titulo}: ¿ya recibiste la ganancia de EQ (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
+		if (!(await confirmDialog(`${res.codigo || titulo}: ¿ya recibiste la comisión (${money(res.comision.monto, res.moneda)})?`, { okText: 'Marcar pagada', danger: false }))) return;
 		await hacer(async () => {
 			await comisionPagada({ ...res, propertyTitulo: res.propertyTitulo || titulo }, nivel);
-			toast('Ganancia de EQ pagada.');
+			toast('Comisión pagada.');
 		});
 	}
 
@@ -168,7 +168,7 @@ export async function render(container, [codigo] = []) {
 	// pagada). Lo mismo en la tarjeta de una solicitud y en la de una reserva sin solicitud (tarjetaReserva).
 	const icono = (i) => h('span', { class: `icon-${i} me-1`, 'aria-hidden': 'true' });
 	const boton = (texto, clase, onclick, i) => h('button', { type: 'button', class: `btn-toque btn btn-sm ${clase}`, onclick }, icono(i), texto);
-	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Ganancia de EQ: se paga el ${dia(com.vence)}`),
+	const lineaComision = (com, nivel) => h('div', { class: 'small d-flex flex-wrap align-items-center gap-2' }, h('span', {}, icono('money'), `Comisión: se paga el ${dia(com.vence)}`),
 		com.pagada ? badge('Pagada', 'success') : [badge(...ATRASO[nivel]), com.comprobante ? badge('Comprobante enviado', 'info') : null]);
 	// A la vista, lo que se hace con la ganancia de EQ: «Pagada» (equipo) y, mientras sube, «Subiendo…» apagado (un segundo
 	// toque no sube otra). Ver y subir el comprobante van en el ⋮ de la tarjeta (masComision).
@@ -176,8 +176,8 @@ export async function render(container, [codigo] = []) {
 		!com.pagada && !admin && SUBIENDO.has(res.id) ? botonComprobante(com, res) : null,
 		!com.pagada && session.isAdmin ? boton('Pagada', 'btn-success', () => pagada(res, nivel, titulo), 'money') : null];
 	const masComision = (com, res) => [
-		com.comprobante ? { icono: 'icon-file-image-o', texto: 'Ver comprobante del pago a EQ', onclick: () => verComprobante(res) } : null,
-		!com.pagada && !admin && !SUBIENDO.has(res.id) ? { icono: 'icon-upload', texto: com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante del pago a EQ', onclick: () => subirComprobante(res) } : null];
+		com.comprobante ? { icono: 'icon-file-image-o', texto: 'Ver comprobante de la comisión', onclick: () => verComprobante(res) } : null,
+		!com.pagada && !admin && !SUBIENDO.has(res.id) ? { icono: 'icon-upload', texto: com.comprobante ? 'Cambiar comprobante' : 'Subir comprobante de la comisión', onclick: () => subirComprobante(res) } : null];
 	// Una sola fila de botones: lo secundario en un ⋮ al final (borrar o anular, al final y en rojo).
 	const mas = (titulo, items) => menuMas(`Más acciones: ${titulo}`, items, { cls: 'btn-outline-secondary' });
 
@@ -189,7 +189,7 @@ export async function render(container, [codigo] = []) {
 			nombreYDatos((admin ? res.huesped : primerNombre(res.huesped)) || 'Reserva sin chat', [res.codigo, res.propertyTitulo, admin && propietarios.find((p) => p.id === res.propietarioId)?.nombre].filter(Boolean).join(' · '),
 				[badge(...ESTADOS.confirmada)], { envuelve: true }),
 			h('div', {}, `${fechasReserva(res)} · ${nNoches(res.noches)}`),
-			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · ${admin ? 'Ganancia de EQ' : 'Le pagas a EQ'} ${money(res.comision.monto, res.moneda)}`),
+			h('div', { class: 'small' }, `${admin ? 'Socio' : 'Tu parte'} ${money(res.costoSocio, res.moneda)} · Comisión ${money(res.comision.monto, res.moneda)}`),
 			lineaComision(res.comision, nivel),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' }, botonesComision(res.comision, res, nivel, res.propertyTitulo), mas(res.codigo || res.propertyTitulo, masComision(res.comision, res)))));
 	}
@@ -241,7 +241,7 @@ export async function render(container, [codigo] = []) {
 			// Con impuestos: por eso la parte del socio y la de EQ no suman ese total. En el celular, lo que se reparte baja a
 			// su propia línea (sin que un monto quede solo en otra); en la computadora, todo en una.
 			h('div', { class: 'small' }, `Cliente paga ${money(r.total, r.moneda)} con impuestos`,
-				c ? h('span', { class: 'd-block d-md-inline' }, h('span', { class: 'd-none d-md-inline' }, ' · '), `${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · ${admin ? 'Ganancia de EQ' : 'Le pagas a EQ'} ${money(c.ganancia, mon)}`) : null),
+				c ? h('span', { class: 'd-block d-md-inline' }, h('span', { class: 'd-none d-md-inline' }, ' · '), `${admin ? 'Socio' : 'Tu parte'} ${money(c.costoSocio, mon)} · Comisión ${money(c.ganancia, mon)}`) : null),
 			com ? lineaComision(com, nivel) : null,
 			noConfirma ? h('div', { class: 'small text-danger' }, h('span', { class: 'icon-exclamation-triangle me-1', 'aria-hidden': 'true' }), noConfirma) : null,
 			// La revisión del comprobante con la IA: solo un aviso (nunca decide); la de la foto que está vigente. Lo que el socio
@@ -266,14 +266,14 @@ export async function render(container, [codigo] = []) {
 			plazo(l),
 			// Hasta cuándo vale «No me llegó»: después, sin pago marcado, la ganancia de EQ cuenta como cobrada (V.cobrable).
 			!admin && est === 'confirmada' && res && puedeNoMeLlego(l) ? h('div', { class: 'small text-muted' }, icono('clock-o'),
-				`Si no te pagó, toca «No me llegó» antes del ${dia(V.sumarDias(V.ultimoDiaNoLlego(res), 1))}; después la ganancia de EQ cuenta como cobrada.`) : null,
+				`Si no te pagó, toca «No me llegó» antes del ${dia(V.sumarDias(V.ultimoDiaNoLlego(res), 1))}; después la comisión cuenta como cobrada.`) : null,
 			historial(sol),
 			h('div', { class: 'd-flex flex-wrap align-items-center gap-2 mt-2' },
 				// Con el cliente solo habla el equipo por WhatsApp; el socio le escribe por el chat y al equipo, por WhatsApp.
 				!admin ? (equipo ? iconoBtn('icon-whatsapp', `WhatsApp a ${equipo.nombre}`, { href: whatsappUrl(equipo.whatsapp,
 					`Hola, soy ${session.dueno?.nombre || session.profile?.nombre || 'el socio'}. Te escribo por la solicitud ${r.codigo} de ${l.propertyTitulo} (${fechasReserva(r)}).`), target: '_blank', rel: 'noopener' }) : null)
 					: est === 'no'
-					? wa(`Hola ${l.nombre}, te escribimos de EQ Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechasReserva(r)}?`)
+					? wa(`Hola ${l.nombre}, te escribimos de Equipo Inmobiliario. ¿Pudiste reservar ${l.propertyTitulo} para ${fechasReserva(r)}?`)
 					: wa(`Hola ${l.nombre}, te escribo por tu solicitud ${r.codigo} de ${l.propertyTitulo} (${fechasReserva(r)}).`),
 				// La conversación vive en Mensajes (una sola: el hilo con sus acciones).
 				chats[r.codigo] ? iconoBtn('icon-comments', 'Chat con el cliente', { href: `#/mensajes/${encodeURIComponent(r.codigo)}` }) : null,
@@ -311,7 +311,7 @@ export async function render(container, [codigo] = []) {
 		// se ve y está confirmada (así lleva su ganancia y sus botones); si no, con la tarjeta de la reserva.
 		if (filtro.estado === 'cobrar') {
 			const deber = debidas.filter(delSocio);
-			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l && estado(l) === 'confirmada' ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay ganancia de EQ por cobrar.'));
+			return lista.replaceChildren(deber.length ? deber.map((res) => ((l) => (l && estado(l) === 'confirmada' ? tarjeta(l) : tarjetaReserva(res)))(solicitudDe(res))) : emptyState('No hay comisiones por cobrar.'));
 		}
 		const ver = leads.filter((l) => delSocio(l) && (!filtro.estado || (filtro.estado === 'alerta' ? alerta(l) : estado(l) === filtro.estado)));
 		if (!ver.length) return lista.replaceChildren(emptyState('No hay solicitudes.'));
@@ -339,10 +339,10 @@ export async function render(container, [codigo] = []) {
 		if (!debidas.length) return null;
 		const peor = Math.max(...debidas.map(moraDe));
 		const todo = suma(debidas), atrasado = suma(debidas.filter((r) => moraDe(r) >= 1));
-		const deuda = `Debes a EQ ${todo}${!peor ? '' : atrasado === todo ? ', con atraso' : ` (con atraso: ${atrasado})`}`;
-		const texto = peor === 3 ? `${deuda}. Con más de 72 horas de atraso, tus casas salieron del sitio hasta que EQ lo marque pagado.`
-			: peor === 2 ? `${deuda}. Con más de 24 horas de atraso, los clientes de tus casas le escriben a EQ hasta que lo marque pagado.`
-			: peor === 1 ? `${deuda}. A las 24 horas de atraso, los clientes de tus casas le escriben a EQ.`
+		const deuda = `Debes a Equipo Inmobiliario ${todo}${!peor ? '' : atrasado === todo ? ', con atraso' : ` (con atraso: ${atrasado})`}`;
+		const texto = peor === 3 ? `${deuda}. Con más de 72 horas de atraso, tus casas salieron del sitio hasta que Equipo Inmobiliario lo marque pagado.`
+			: peor === 2 ? `${deuda}. Con más de 24 horas de atraso, los clientes de tus casas le escriben a Equipo Inmobiliario hasta que lo marque pagado.`
+			: peor === 1 ? `${deuda}. A las 24 horas de atraso, los clientes de tus casas le escriben a Equipo Inmobiliario.`
 			: `${deuda}: se paga el ${dia(debidas.map((r) => r.comision.vence).sort()[0])}.`;
 		const ver = filtro.estado === 'cobrar'
 			? h('a', { class: 'btn-toque btn btn-sm btn-outline-secondary', href: '#/solicitudes' }, h('span', { class: 'icon-list me-1', 'aria-hidden': 'true' }), 'Ver todas')
@@ -398,7 +398,7 @@ export async function render(container, [codigo] = []) {
 				numero('icon-money', suma(debidas) || '—', 'Por cobrar')),
 			h('div', { class: 'd-flex flex-wrap gap-2 mb-3' },
 				elegir('socio', 'Todos los socios', conSolicitud.map((p) => [p.id, p.nombre])),
-				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Ganancia de EQ por cobrar'], ['alerta', 'Con alerta']]))
+				elegir('estado', 'Todos los estados', [...Object.entries(ESTADOS).map(([v, [t]]) => [v, t]), ['cobrar', 'Comisión por cobrar'], ['alerta', 'Con alerta']]))
 		] : avisoDeuda,
 		lista);
 }

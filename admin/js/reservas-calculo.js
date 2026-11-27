@@ -183,7 +183,7 @@ export function montosDeConfirmacion(montos, hoy, modo = 'cotizado') {
 // ¿Lo cotizado y los precios de hoy difieren en más de 1 %? (entonces el administrador elige con cuál se registra).
 export const difierenMontos = (m) => m.cotizado > 0 && Math.abs(m.cotizado - m.deHoy) > 0.01 * Math.max(m.cotizado, m.deHoy);
 // Las opciones que se le ofrecen al administrador: nunca una con la ganancia de EQ negativa (se dice por qué en una línea).
-export const SIN_GANANCIA_NEGATIVA = 'No se ofrece registrar con una ganancia de EQ negativa (la parte del socio sería mayor que lo cobrado).';
+export const SIN_GANANCIA_NEGATIVA = 'No se ofrece registrar con una comisión negativa (la parte del socio sería mayor que lo cobrado).';
 
 // La reserva que nace al confirmar la solicitud `l` (l.id, l.propertyId, l.propertyTitulo, l.nombre y
 // l.reserva { codigo, llegada, salida }) de la casa `casa` (con su id; de ella sale la moneda) con los montos `m`
@@ -297,7 +297,7 @@ export function motivoParaNoMeLlego(reserva, chat, token, ahora = Date.now()) {
 	if (!reserva || reserva.estado !== 'confirmada') return 'Esta reserva ya no está confirmada.';
 	if (!reserva.chat || reserva.chat !== token || !chat) return 'Esta reserva es de antes (sin su chat guardado): avísale al administrador.';
 	if (chat.estado !== 'confirmada') return 'Ya marcaste «Pago recibido»: avísale al administrador.';
-	if (reserva.comision?.pagada) return 'La ganancia de EQ de esta reserva ya está pagada: avísale al administrador.';
+	if (reserva.comision?.pagada) return 'La comisión de esta reserva ya está pagada: avísale al administrador.';
 	if (antesDeLlegar(reserva.llegada, ahora)) {
 		if (!chat.comprobanteCliente) return 'El cliente todavía no manda su comprobante: si ya no viene, usa «Cancelar».';
 		// Antes de la llegada se reabre una sola vez (el equipo ya se enteró): la segunda, la decide el administrador.

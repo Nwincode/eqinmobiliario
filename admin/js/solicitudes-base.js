@@ -222,8 +222,8 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 		let nota = '';
 		if (admin && hoyC && difierenMontos(base)) {
 			// El administrador decide con qué se registra (nunca con una ganancia de EQ negativa).
-			const cot = `Registrar lo cotizado (ganancia de EQ ${money(base.gananciaCotizada, mon)})`;
-			const deHoyT = `Registrar con los precios de hoy (ganancia de EQ ${money(base.hoy, mon)})`;
+			const cot = `Registrar lo cotizado (comisión ${money(base.gananciaCotizada, mon)})`;
+			const deHoyT = `Registrar con los precios de hoy (comisión ${money(base.hoy, mon)})`;
 			const opciones = [[cot, base.gananciaCotizada], [deHoyT, base.hoy]].filter(([, g]) => g >= 0).map(([t]) => t);
 			if (opciones.length < 2) nota = ` ${SIN_GANANCIA_NEGATIVA}`;
 			const elegida = opciones.length === 2
@@ -234,9 +234,9 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 		}
 		const m = montosDeConfirmacion(montos, hoyC, modo);
 		const distinto = !admin && cambioElPrecio(montos, hoyC) ? ` ${TEXTO_PRECIO_CAMBIO}: se registra lo que se le cotizó.` : '';
-		// Cotizado por debajo del precio de la casa: EQ conserva su margen completo y el socio recibe el resto (se dice).
-		if (admin && modo === 'cotizado' && bajoElPlan(montos)) nota += ' Se le cotizó menos que el precio de la casa: EQ conserva su margen completo y el socio recibe el resto.';
-		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechasReserva(r)} quedan ocupadas en la web. ${admin ? 'Socio' : 'Tu parte'} ${money(m.costoSocio, mon)} · ganancia de EQ ${money(m.ganancia, mon)}, que se paga el día de llegada.${distinto}${nota}`, { okText: 'Confirmar reserva', danger: false }))) return;
+		// Cotizado por debajo del precio de la casa: Equipo Inmobiliario conserva su comisión completa y el socio recibe el resto (se dice).
+		if (admin && modo === 'cotizado' && bajoElPlan(montos)) nota += ' Se le cotizó menos que el precio de la casa: Equipo Inmobiliario conserva su comisión completa y el socio recibe el resto.';
+		if (!(await confirmDialog(`${r.codigo}: las fechas ${fechasReserva(r)} quedan ocupadas en la web. ${admin ? 'Socio' : 'Tu parte'} ${money(m.costoSocio, mon)} · comisión ${money(m.ganancia, mon)}, que se paga el día de llegada.${distinto}${nota}`, { okText: 'Confirmar reserva', danger: false }))) return;
 		await hacer(async () => {
 			try {
 				const confirmarYa = (revisado) => confirmarSolicitud(l, { ...m, moneda: montos.moneda }, { chat: chatDe(l), pago, revisado });
@@ -272,12 +272,12 @@ export async function cargarSolicitudes({ mensajes = 'todos', recargar = async (
 	async function noMeLlego(l) {
 		const reabre = noLlegoReabre(reservaDe(l));
 		const texto = reabre ? `${l.reserva.codigo}: ¿no te llegó el pago? Se le pide al cliente que lo revise y vuelva a mandar su comprobante, con un plazo nuevo; si no paga, se cancela sola.`
-			: `${l.reserva.codigo}: ¿no te llegó el pago? La reserva se cancela sin ganancia de EQ, las fechas quedan libres y el equipo recibe el aviso.`;
+			: `${l.reserva.codigo}: ¿no te llegó el pago? La reserva se cancela sin comisión, las fechas quedan libres y el equipo recibe el aviso.`;
 		if (!(await confirmDialog(texto, { okText: 'No me llegó', danger: !reabre }))) return;
 		await hacer(async () => {
 			try {
 				const hecho = await marcarNoMeLlego(l.id);
-				toast(hecho.reabierta ? 'Listo: el cliente tiene un plazo nuevo para pagar.' : 'Reserva cancelada sin ganancia de EQ.');
+				toast(hecho.reabierta ? 'Listo: el cliente tiene un plazo nuevo para pagar.' : 'Reserva cancelada sin comisión.');
 			} catch (err) { if (err?.servidor && !err.yaRespondida) toast(err.message, 'warning'); else throw err; }
 		});
 	}

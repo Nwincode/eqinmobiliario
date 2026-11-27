@@ -7,17 +7,17 @@ import { session } from './session.js';
 export function campoCalendarioEq(casaId, { when } = {}) {
 	let pedido = false;
 	return {
-		type: 'custom', label: 'Calendario de EQ (pégalo en Airbnb, Booking y VRBO)', cols: 12, when,
+		type: 'custom', label: 'Calendario de Equipo Inmobiliario (pégalo en Airbnb, Booking y VRBO)', cols: 12, when,
 		update: (el) => {
 			if (pedido) return;
 			pedido = true;
 			if (!casaId) { el.replaceChildren(h('p', { class: 'small text-muted mb-0' }, 'Guarda la casa primero: después aparece aquí su enlace.')); return; }
-			const campo = h('input', { class: 'form-control form-control-sm', readonly: true, value: 'Cargando…', 'aria-label': 'Enlace del calendario de EQ' });
+			const campo = h('input', { class: 'form-control form-control-sm', readonly: true, value: 'Cargando…', 'aria-label': 'Enlace del calendario de Equipo Inmobiliario' });
 			const copiar = iconoBtn('icon-copy', 'Copiar el enlace', { onclick: async () => {
 				try { await navigator.clipboard.writeText(campo.value); toast('Enlace copiado.'); } catch { campo.select(); }
 			} });
 			copiar.disabled = true;
-			const ayuda = h('div', { class: 'form-text' }, 'Las plataformas leen de aquí las reservas confirmadas de EQ, sin datos del huésped. Es privado: no lo compartas.');
+			const ayuda = h('div', { class: 'form-text' }, 'Las plataformas leen de aquí las reservas confirmadas en nuestro sitio, sin datos del huésped. Es privado: no lo compartas.');
 			el.replaceChildren(h('div', { class: 'd-flex gap-2 align-items-center' }, campo, copiar), ayuda);
 			(async () => {
 				const token = await session.user.getIdToken();

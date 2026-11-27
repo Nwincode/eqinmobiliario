@@ -42,7 +42,7 @@ await t('en la ficha: solo lo que cambió, en palabras, con el dueño por su nom
 	assert.deepEqual(d, [
 		{ clave: 'propietarioId', campo: 'Dueño', antes: 'Ana', despues: 'Luis' },
 		{ clave: 'precioBase', campo: 'Precio del dueño por noche', antes: 'US$ 100', despues: 'US$ 120' },
-		{ clave: 'margen', campo: 'Margen de EQ', antes: '20 %', despues: '25 %' }]);
+		{ clave: 'margen', campo: 'Margen', antes: '20 %', despues: '25 %' }]);
 });
 
 await t('permisos de un socio: con el nombre de su interruptor (no «para todos») y «Devueltos hasta que pague»', () => {

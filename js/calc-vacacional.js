@@ -387,7 +387,7 @@
 		var lineas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Equipo Inmobiliario//Reservas//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
 		(estancias || []).filter(function (e) { return e && esFecha(e.desde) && esFecha(e.hasta) && e.hasta > e.desde; }).forEach(function (e, i) {
 			lineas.push('BEGIN:VEVENT', 'UID:' + String(e.id || i).replace(/[^A-Za-z0-9_-]/g, '') + '@eqinmobiliario.gt', 'DTSTAMP:' + sello,
-				'DTSTART;VALUE=DATE:' + sin(e.desde), 'DTEND;VALUE=DATE:' + sin(e.hasta), 'SUMMARY:Reservado (EQ)', 'TRANSP:OPAQUE', 'END:VEVENT');
+				'DTSTART;VALUE=DATE:' + sin(e.desde), 'DTEND;VALUE=DATE:' + sin(e.hasta), 'SUMMARY:Reservado (Equipo Inmobiliario)', 'TRANSP:OPAQUE', 'END:VEVENT');
 		});
 		lineas.push('END:VCALENDAR');
 		return lineas.join('\r\n') + '\r\n';

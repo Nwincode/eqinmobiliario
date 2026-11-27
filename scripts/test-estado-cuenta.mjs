@@ -121,11 +121,11 @@ await t('el día 1: un correo por socio con reservas o con deuda; el que no debe
 	assert.equal(await mandarEstadosDeCuenta(S.reloj), 3);
 	assert.deepEqual(S.salida.map((m) => m.para).sort(), ['ana@correo.com', 'luis@correo.com', 'marta@correo.com']);
 	const ana = S.salida.find((m) => m.para === 'ana@correo.com').texto;
-	assert.match(ana, /^Tu estado de cuenta de octubre de 2026\n\nHola Ana, esto es lo que llevas con EQ\./);
-	assert.match(ana, /Por pagar a EQ: US\$ 105\.00 · Q 160\.00/);
+	assert.match(ana, /^Tu estado de cuenta de octubre de 2026\n\nHola Ana, esto es lo que llevas con Equipo Inmobiliario\./);
+	assert.match(ana, /Por pagar a Equipo Inmobiliario: US\$ 105\.00 · Q 160\.00/);
 	assert.match(ana, /Ya vencido: US\$ 55\.00 · Q 160\.00/);
 	assert.match(ana, /Subir comprobante: https:\/\/eqinmobiliario\.gt\/admin\/#\/solicitudes/);
-	assert.match(ana, /\nOctubre\nReservas: 4 · 9 noches\nTu parte: US\$ 300\.00 · Q 800\.00\nGanancia de EQ: US\$ 90\.00 · Q 160\.00\nYa pagaste: US\$ 20\.00\n/);
+	assert.match(ana, /\nOctubre\nReservas: 4 · 9 noches\nTu parte: US\$ 300\.00 · Q 800\.00\nComisión: US\$ 90\.00 · Q 160\.00\nYa pagaste: US\$ 20\.00\n/);
 	assert.match(ana, /Casa Lago · 5 – 7 oct: US\$ 20\.00 · pagada/);
 	// En el texto plano la casa va completa (en el correo, si no cabe junto a «por confirmar pago», sale).
 	assert.match(ana, /Casa Lago · 31 oct – 2 nov: US\$ 40\.00 · por confirmar pago/);
@@ -134,11 +134,11 @@ await t('el día 1: un correo por socio con reservas o con deuda; el que no debe
 	assert.doesNotMatch(ana, /18 – 20 oct/, 'la cancelada no sale');
 	assert.match(ana, /\nPróximas\nCasa Lago · 20 – 23 dic: US\$ 50\.00 · vence 20 dic$/, 'la de diciembre, que ya suma, con su fila');
 	const luis = S.salida.find((m) => m.para === 'luis@correo.com').texto;
-	assert.match(luis, /Por pagar a EQ: US\$ 70\.00/);
+	assert.match(luis, /Por pagar a Equipo Inmobiliario: US\$ 70\.00/);
 	assert.doesNotMatch(luis, /\nOctubre\n|Reservas:/, 'sin reservas en el mes, sin el bloque del mes');
 	assert.match(luis, /De meses anteriores\nCasa Lago · 2 – 4 ago: US\$ 70\.00 · vencida/);
 	const marta = S.salida.find((m) => m.para === 'marta@correo.com').texto;
-	assert.match(marta, /Por pagar a EQ: Nada\nYa vencido: Nada: estás al día/);
+	assert.match(marta, /Por pagar a Equipo Inmobiliario: Nada\nYa vencido: Nada: estás al día/);
 	assert.match(marta, /Abrir mi panel: https:\/\/eqinmobiliario\.gt\/admin\//);
 	assert.doesNotMatch(marta, /Ya pagaste: US\$ 0|De meses anteriores/);
 	assert.equal(leer('estadosCuenta/p1_2026-10').enviado, true);
