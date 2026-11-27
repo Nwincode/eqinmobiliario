@@ -52,3 +52,4 @@
 - [x] 2026-11-26 «boceta» → boceto enviado; aprobado.
 - [x] 2026-11-26 «vos no hay una skill para instalar o instalada que evite esos problemas?» → ya están diseno-minimo, ux-ui-audit y design-critique; se agregó a diseno-minimo la regla de listas que crecen (plegar lo terminado, sin caja con scroll).
 - [x] 2026-11-26 «si hazlo» → programado, recorrido 291/291; PR #159 se publica al salir verde.
+- [x] 2026-11-26 «una pregunta, como centralizas la información o cada pantalla calcula u obtiene la infor por si sola?» → respondido: datos en Firebase, cálculos en piezas comunes; Mis propiedades y la ficha leen reservas por su cuenta (sin comprobar si calculan distinto): revisión propuesta, espera su sí.
