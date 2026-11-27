@@ -11,7 +11,7 @@ import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
-import { tituloEn, tituloEnViejo } from '../reglas.js';
+import { tituloEn, tituloEnViejo, enCorregido } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
@@ -95,7 +95,8 @@ export async function traducirEn(d) {
 		amenidadesDe: [...(d.amenidades || [])],
 		seo: {
 			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
-			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
+			// Vacía: el sitio arma la de Google al publicar, con el precio de ese día (templates.mjs seoDescription).
+			descripcion: r.seoDescripcion || ''
 		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		vacacional: Object.fromEntries(TEXTOS_VAC.map((k) => [k, r[k] || ''])),
@@ -728,11 +729,9 @@ export async function render(container, [id]) {
 			const d = { ...p };
 			const cambios = {};
 			if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
-			if (!d.vip) {
-				const antes = JSON.stringify(d.seo || {});
-				llenarSeo(d);
-				if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
-			}
+			const antes = JSON.stringify(d.seo || {});
+			llenarSeo(d);
+			if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
 			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 			const en = d.en || {};
 			if (faltaIngles(d)) cambios.en = await traducirEn(d);
@@ -755,7 +754,7 @@ export async function render(container, [id]) {
 				const d = { ...p, descripcion: t.descripcion };
 				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
 				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
-				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
+				llenarSeo(d); cambios.seo = d.seo;
 				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
@@ -874,11 +873,11 @@ export async function render(container, [id]) {
 		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. ${trasGuardar()}`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
 	const tituloMalo = props.filter((p) => canEdit(p) && p.en?.titulo && p.en?.descripcion && !p.en.manual && !sinIngles.includes(p)
-		&& p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p));
+		&& ((p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p)) || enCorregido(p)));
 	traducidas.then(() => enMasa(async (p) => {
 		const titulo = tituloEn(p);
 		const vip = p.en.vipLanding;
-		const en = { ...p.en, titulo, slugsAnteriores: titulosEnAnteriores(p.en, titulo),
+		const en = enCorregido(p) || { ...p.en, titulo, slugsAnteriores: titulosEnAnteriores(p.en, titulo),
 			...(vip?.titular === p.en.titulo ? { vipLanding: { ...vip, titular: titulo } } : {}) };
 		await guardarMasa({ en }, { en })(p);
 	}, 'Títulos en inglés corregidos',
@@ -1073,12 +1072,12 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
 		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
 
-		{ type: 'section', label: 'Landing page VIP', help: 'Solo para propiedades marcadas como VIP. Se publica en /vip/…', when: vip },
-		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },
-		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Agendar visita privada' },
-		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
+		{ type: 'section', label: 'Landing page VIP', help: 'Se publica en /vip/… y queda completa aunque no escribas nada aquí: usa el título, la primera foto, los datos, la descripción y las amenidades de la casa.', when: vip },
+		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Vacío = el título de la casa' },
+		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Vacío = «Agendar visita privada»' },
+		{ name: 'vipLanding.subtitular', label: 'Subtítulo (opcional)', type: 'textarea', rows: 2, when: vip, help: 'Si lo dejas vacío no sale: la página ya muestra los datos, la descripción y las amenidades.' },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
-		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
+		{ name: 'vipLanding.puntosClave', label: 'Puntos clave (opcional)', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)', help: 'Lo que más vende, en frases cortas. Lo que ya está en las amenidades no se repite aquí; si queda vacío, no sale.' },
 		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 
@@ -1100,9 +1099,11 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70, cols: 12 },
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
-			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
+			// VIP o no, Google ve el título de la casa y su descripción automática (lo que la gente busca: tipo, operación,
+			// lugar y precio); el titular y el subtítulo VIP son para la portada de su página.
+			title: (d) => d.seo?.titulo || autoTitle(d),
 			// La misma regla del sitio (templates.mjs seoDescription): la escrita, si tiene 70 letras o más.
-			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
+			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || autoDescription(conPrecio(d)),
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
@@ -1414,7 +1415,7 @@ async function renderEditor(container, id, emb = null) {
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
 		const traducirAhora = forzarIngles || faltaIngles(d);
 		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
-		if (!d.vip && d.titulo) {
+		if (d.titulo) {
 			const conPublico = esVacacional(d) ? { ...d, ...vacacionalPublico({ ...d, socio }) } : d;
 			llenarSeo(conPublico);
 			d.seo = conPublico.seo;

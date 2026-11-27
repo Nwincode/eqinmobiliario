@@ -50,30 +50,44 @@
 	font-weight: 600;
 	/* Texto chico sobre una foto: con su propio fondo oscuro el contraste no depende de la foto (≥ 4.5:1). */
 	background: var(--eq-dark);
-	padding: 4px 10px;
+	padding: 4px 8px;
 	border-radius: 4px;
 	margin-bottom: 1rem;
 }
 .vip-hero h1 {
 	color: var(--eq-white);
-	font-size: clamp(2.2rem, 5vw, 4.2rem);
+	/* Escala de diseno-minimo: 36 en celular; 48 desde 992 px (la portada). */
+	font-size: 36px;
 	font-weight: 600;
-	line-height: 1.1;
+	line-height: 40px;
 	max-width: 900px;
 	margin-bottom: 1rem;
 }
 .vip-sub {
-	font-size: clamp(1rem, 1.6vw, 1.25rem);
+	font-size: 16px;
+	line-height: 24px;
 	max-width: 640px;
 	color: color-mix(in srgb, var(--eq-white) 85%, transparent);
 }
 .vip-price {
-	font-size: 1.6rem;
-	font-weight: 600;
+	font-size: 24px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
 	color: var(--eq-white);
-	margin: 1.5rem 0 2rem;
+	margin: 24px 0;
 }
 
+
+@media (min-width: 992px) {
+	.vip-hero h1 {
+		font-size: 48px;
+		line-height: 52px;
+	}
+	.vip-sub {
+		font-size: 20px;
+		line-height: 28px;
+	}
+}
 
 .vip-facts {
 	background: var(--vip-ink);
@@ -82,75 +96,75 @@
 .vip-facts ul {
 	list-style: none;
 	margin: 0;
-	padding: 28px 0;
-	display: grid;
-	/* Sin celdas sueltas: en celular 2 columnas y la última, si queda sola, a lo ancho; desde 768 px, todos en una fila
+	padding: 16px 0;
+	/* Celular: 3 por fila y la fila corta, centrada (sin celdas sueltas); desde 768 px, todos en una fila
 	   (--n = cuántos datos, scripts/lib/templates.mjs; son 6 como mucho). */
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 20px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 12px 0;
 	text-align: center;
 }
-.vip-facts li:last-child:nth-child(odd) {
-	grid-column: 1 / -1;
+.vip-facts li {
+	flex: 0 0 calc(100% / 3);
+	padding: 0 4px;
 }
 @media (min-width: 768px) {
 	.vip-facts ul {
-		grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
+		padding: 24px 0;
 	}
-	.vip-facts li:last-child:nth-child(odd) {
-		grid-column: auto;
+	.vip-facts li {
+		flex-basis: calc(100% / var(--n, 4));
 	}
 }
 .vip-facts li span {
 	display: block;
-	font-size: 22px;
+	font-size: 20px;
+	line-height: 24px;
 	color: var(--vip-gold);
-	margin-bottom: 6px;
 }
 .vip-facts strong {
 	display: block;
-	font-size: 1.25rem;
+	font-size: 16px;
+	line-height: 24px;
+	font-variant-numeric: tabular-nums;
 }
 .vip-facts small {
+	display: block;
 	color: color-mix(in srgb, var(--eq-white) 65%, transparent);
-	text-transform: uppercase;
-	letter-spacing: .08em;
-	font-size: 11px;
+	font-size: 12px;
+	line-height: 16px;
+}
+@media (min-width: 768px) {
+	.vip-facts strong {
+		font-size: 20px;
+		line-height: 28px;
+	}
 }
 
+/* Entre secciones, 32 px (diseno-minimo): el cambio de fondo ya las separa. */
 .vip-section {
-	padding: 100px 0;
-}
-.vip-kicker {
-	display: block;
-	text-transform: uppercase;
-	letter-spacing: .2em;
-	font-size: 12px;
-	color: var(--vip-gold-ink);
-	margin-bottom: .75rem;
+	padding: 32px 0;
 }
 .vip-h2 {
-	font-size: clamp(1.75rem, 3vw, 2.6rem);
+	font-size: 28px;
+	line-height: 32px;
 	font-weight: 600;
 	color: var(--vip-ink);
-	margin-bottom: 1.5rem;
+	margin-bottom: 16px;
 }
 .vip-text p {
-	font-size: 1.05rem;
-	line-height: 1.85;
+	font-size: 16px;
+	line-height: 24px;
 	color: var(--vip-texto);
+	margin-bottom: 12px;
 }
 
-.vip-highlights {
-	background: var(--vip-crema);
-	border-left: 3px solid var(--vip-gold);
-	padding: 32px;
-	border-radius: 4px;
-}
 .vip-highlights h3 {
-	font-size: 1.1rem;
+	font-size: 20px;
+	line-height: 28px;
 	color: var(--vip-ink);
-	margin-bottom: 1rem;
+	margin-bottom: 8px;
 }
 .vip-highlights ul,
 .vip-amenities {
@@ -161,7 +175,7 @@
 .vip-highlights li {
 	display: flex;
 	gap: 12px;
-	padding: 10px 0;
+	padding: 8px 0;
 	border-bottom: 1px solid color-mix(in srgb, var(--eq-dark) 6%, transparent);
 }
 .vip-highlights li span,
@@ -175,9 +189,6 @@
 }
 .vip-dark .vip-h2 {
 	color: var(--eq-white);
-}
-.vip-dark .vip-kicker {
-	color: var(--vip-gold);
 }
 /* Galería sin huecos con cualquier número de fotos: cuántas columnas ocupa cada celda lo decide
    celdaGaleriaVip (scripts/lib/templates.mjs). Celular: 2 columnas; desde 768 px: 4, la primera foto 2×2. */
@@ -272,7 +283,7 @@
 .vip-amenities {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-	gap: 14px 24px;
+	gap: 12px 24px;
 }
 .vip-amenities li {
 	display: flex;

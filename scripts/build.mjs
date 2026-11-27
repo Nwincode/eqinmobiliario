@@ -16,7 +16,7 @@ import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
 import { visibilidadDe } from '../admin/js/estados.js';
 import { conEmojis, sinBloquesGenerados } from '../admin/js/descripcion.js';
-import { seoEnViejo } from '../admin/js/reglas.js';
+import { seoEnViejo, enCorregido } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
@@ -104,6 +104,7 @@ function normalizeProperties(list) {
 				// Formato viejo de «Mejorar descripción»: sin las listas copiadas de los campos (ver descripcion.js).
 				descripcion: sinBloquesGenerados(p.descripcion),
 				seo: seoPropio(p.seo),
+				en: enCorregido(p) || p.en,
 				slug,
 				fechaOrden: toMillis(p.createdAt) || (1e13 - (p.orden || 0))
 			};
@@ -141,7 +142,7 @@ function propiedadEn(p) {
 		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
 		amenidades: amenidadesEnDe(p),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
-		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
+		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo, e.manual)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
 		vacacional: p.vacacional && { ...p.vacacional, ...Object.fromEntries(Object.entries(e.vacacional || {}).filter(([, x]) => x)) },
 		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
@@ -149,9 +150,14 @@ function propiedadEn(p) {
 	};
 }
 
-function seoTraducido(p, seo) {
+// Descripción para Google que armaba el traductor sin IA («House for sale in …: 3 bedrooms…. Q1,250,000.»): llevaba el
+// precio de ese día y se quedaba viejo al cambiarlo. Se reconoce por su forma (hubo varias) y sale la automática.
+const SEO_EN_PLANTILLA = /^[A-Z][A-Za-z ]* for (sale|rent|vacation rental) in .+\.\s+((US\$|\$|Q)\s?[\d,]+(\.\d{2})?(\/(month|night))?|Price on request)\.$/i;
+// Una escrita a mano (`en.manual`) no se toca aunque se parezca.
+function seoTraducido(p, seo, manual = false) {
 	const s = seo || {}, viejo = seoEnViejo(p);
-	return { ...s, titulo: s.titulo === viejo.titulo ? '' : s.titulo || '', descripcion: s.descripcion === viejo.descripcion ? '' : s.descripcion || '' };
+	const plantilla = (d) => d === viejo.descripcion || (!manual && SEO_EN_PLANTILLA.test(String(d || '').trim()));
+	return { ...s, titulo: s.titulo === viejo.titulo ? '' : s.titulo || '', descripcion: plantilla(s.descripcion) ? '' : s.descripcion || '' };
 }
 
 // Une cada página con su traducción (campo "traduccion" = slug de la otra versión).

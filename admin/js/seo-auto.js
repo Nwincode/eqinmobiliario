@@ -32,6 +32,14 @@ export const nombra = (a, b) => Boolean(sinAcentos(b).trim()) && new RegExp(`(^|
 export const sinRepetir = (partes) => partes.map((x) => String(x || '').trim()).filter(Boolean)
 	.filter((x, i, a) => !a.some((y, j) => j !== i && nombra(y, x) && (j < i || !nombra(x, y))));
 
+// La dirección sirve como lugar (en el título en inglés y para Google) solo si es un lugar: «Residencial Villa Capri,
+// km 25.5». Una frase escrita ahí («A 13 minutos del casco de Antigua, dentro de residencial») no se traduce y no
+// es una calle: quedaría en español en la URL en inglés y como calle en los datos de Google.
+export const direccionEsLugar = (d) => {
+	const t = String(d || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+	return Boolean(t) && t.length <= 70 && !/\b(minutos?|dentro|cerca|frente|ideal|vista|ubicad[ao]s?|pocos|con)\b/.test(t);
+};
+
 // Largo máximo de un título: Google corta los de más de ~60 caracteres.
 export const TITULO_MAX = 60;
 // Un título largo se acorta quitando lo que va después de la última coma; si no tiene comas, se corta en una palabra.
