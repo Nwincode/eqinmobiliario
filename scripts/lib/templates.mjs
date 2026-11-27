@@ -1607,7 +1607,8 @@ export function vipLandingPage(ctx, p) {
 		['icon-car', p.parqueos, t.fParqueos],
 		['icon-construccion', p.m2Construccion && area(p.m2Construccion, ctx.lang), t.fConstruccion],
 		['icon-terreno', p.m2Terreno && areaTerreno(p.m2Terreno, ctx.lang), t.fTerreno],
-		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
+		// La ciudad debajo de la zona solo si dice algo más (San Miguel Dueñas / San Miguel Dueñas no).
+		['icon-map-marker', p.zona, (p.ciudad && p.ciudad !== p.zona && p.ciudad) || t.ubicacion]
 	].filter(([, val]) => val);
 	// «Lo que la hace única» no repite las amenidades: sale el punto que dice algo que la lista de abajo no dice.
 	const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
