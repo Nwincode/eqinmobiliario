@@ -1609,6 +1609,10 @@ export function vipLandingPage(ctx, p) {
 		['icon-terreno', p.m2Terreno && areaTerreno(p.m2Terreno, ctx.lang), t.fTerreno],
 		['icon-map-marker', p.zona, p.ciudad || t.ubicacion]
 	].filter(([, val]) => val);
+	// «Lo que la hace única» no repite las amenidades: sale el punto que dice algo que la lista de abajo no dice.
+	const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+	const ams = (p.amenidades || []).map(norm).filter((a) => a.length > 3);
+	const puntos = (v.puntosClave || []).filter((x) => !ams.some((a) => norm(x).includes(a)));
 
 	const body = `
 	<header class="vip-header">
@@ -1647,14 +1651,13 @@ export function vipLandingPage(ctx, p) {
 		<div class="container">
 			<div class="row g-4 g-lg-5 align-items-start">
 				<div class="col-lg-7" data-aos="fade-up">
-					<span class="vip-kicker">${ic('home')}${t.laPropiedad}</span>
-					<h2 class="vip-h2">${esc(p.titulo)}</h2>
+					<h2 class="vip-h2">${t.laPropiedad}</h2>
 					<div class="vip-text">${md(ctx, p.descripcion, 3)}</div>
 				</div>
-				${(v.puntosClave || []).length ? `<div class="col-lg-5" data-aos="fade-up" data-aos-delay="150">
+				${puntos.length ? `<div class="col-lg-5" data-aos="fade-up" data-aos-delay="150">
 					<div class="vip-highlights">
 						<h3>${ic('star')}${t.unica}</h3>
-						<ul>${v.puntosClave.map((h) => `<li><span class="icon-check"></span>${esc(h)}</li>`).join('')}</ul>
+						<ul>${puntos.map((h) => `<li><span class="icon-check"></span>${esc(h)}</li>`).join('')}</ul>
 					</div>
 				</div>` : ''}
 			</div>
@@ -1663,8 +1666,7 @@ export function vipLandingPage(ctx, p) {
 
 	${fotos.length > 1 ? `<section class="vip-section vip-dark">
 		<div class="container">
-			<span class="vip-kicker">${ic('camera')}${t.galeria}</span>
-			<h2 class="vip-h2 mb-4">${t.recorre}</h2>
+			<h2 class="vip-h2">${t.galeria}</h2>
 			<div class="vip-gallery">
 				${fotos.map((f, i) => `<button type="button" class="vip-gallery-item${celdaGaleriaVip(i, fotos.length)}" data-index="${i}" aria-label="${t.verFoto} ${i + 1}">${imgFoto(f.url, { alt: photoAlt(p, i), sizes: i ? '(max-width: 767px) 50vw, 33vw' : '(max-width: 767px) 100vw, 67vw' })}</button>`).join('\n')}
 			</div>
@@ -1679,24 +1681,21 @@ export function vipLandingPage(ctx, p) {
 
 	${video ? `<section class="vip-section">
 		<div class="container">
-			<span class="vip-kicker">${ic('play-circle')}${t.video}</span>
-			<h2 class="vip-h2 mb-4">${t.enMovimiento}</h2>
+			<h2 class="vip-h2">${t.video}</h2>
 			<div class="ratio ratio-16x9 vip-video"><iframe src="${esc(video)}" title="${t.videoDe} ${esc(p.titulo)}" loading="lazy" allowfullscreen></iframe></div>
 		</div>
 	</section>` : ''}
 
 	${(p.amenidades || []).length ? `<section class="vip-section bg-light">
 		<div class="container">
-			<span class="vip-kicker">${ic('check-square-o')}${t.amenidades}</span>
-			<h2 class="vip-h2 mb-4">${t.todoIncluye}</h2>
+			<h2 class="vip-h2">${t.amenidades}</h2>
 			<ul class="vip-amenities">${p.amenidades.map((a) => `<li><span class="icon-check"></span>${esc(a)}</li>`).join('')}</ul>
 		</div>
 	</section>` : ''}
 
 	${mapa ? `<section class="vip-section">
 		<div class="container">
-			<span class="vip-kicker">${ic('map-marker')}${t.ubicacion}</span>
-			<h2 class="vip-h2 mb-4">${esc(lugarDe(p))}</h2>
+			<h2 class="vip-h2">${esc(lugarDe(p))}</h2>
 			<div class="ratio ratio-21x9 vip-map"><iframe src="${esc(mapa)}" title="${t.mapaDe} ${esc(p.titulo)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
 		</div>
 	</section>` : ''}
@@ -1705,7 +1704,6 @@ export function vipLandingPage(ctx, p) {
 		<div class="container">
 			<div class="row g-4 g-lg-5 align-items-center">
 				<div class="col-lg-5">
-					<span class="vip-kicker">${ic('calendar')}${t.visitaPrivada}</span>
 					<h2 class="vip-h2">${esc(cta)}</h2>
 					<p class="mb-4">${t.vipContactoTexto}</p>
 					${agent ? `<div class="vip-agent">

@@ -203,6 +203,7 @@ Cada cadena va en el orden en que conviene revisarla.
 
 **Asesor de un formulario** → `scripts/lib/templates.mjs` (`data-agent-id` de la casa al publicar) → `js/site.js` (si las reglas lo rechazan porque la casa cambió de asesor y no se ha vuelto a publicar, reintenta con `agentId` `''`: la recibe el administrador; después, sin `propietarioId`) → `firestore.rules` (`leads`: el asesor de hoy de la casa o `''`) → `scripts/emulador/test-reglas.mjs`.
 
+**Landing VIP** → `scripts/lib/templates.mjs` `vipLandingPage` (un título por sección, sin etiquetas encima; «Lo que la hace única» quita los puntos que ya dicen las amenidades) → `css/vip.css` (letras y espacios de `diseno-minimo`: secciones a 32 px) → textos en `scripts/lib/i18n.mjs` (y su lista de Contenido → Textos) → ayuda de «Puntos clave» en `admin/js/views/properties.js`.
 **Enlace a una casa en el sitio (panel)** → `admin/js/firebase.js` `SITIO` (la dirección del sitio, de `site.config.json`) + `admin/js/ficha-casa.js` `publicUrl` (`/propiedad/…` o `/vip/…`): los usan Propiedades, el listado en PDF, Google, difusión, sitemap y los resúmenes del dueño. Nunca una dirección escrita a mano.
 
 **Enlace de WhatsApp** → `admin/js/formato.js` `telefonoWa` / `whatsappUrl` → `scripts/lib/util.mjs` `whatsappLink` → `scripts/build.mjs` (config del sitio) → `admin/js/portal.js`.

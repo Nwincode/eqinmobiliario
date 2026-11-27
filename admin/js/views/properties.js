@@ -1078,7 +1078,7 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Vacío = «Agendar visita privada»' },
 		{ name: 'vipLanding.subtitular', label: 'Subtítulo (opcional)', type: 'textarea', rows: 2, when: vip, help: 'Si lo dejas vacío no sale: la página ya muestra los datos, la descripción y las amenidades.' },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
-		{ name: 'vipLanding.puntosClave', label: 'Puntos clave (opcional)', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)', help: 'Lo que más vende, en frases cortas. Si lo dejas vacío, ese recuadro no sale.' },
+		{ name: 'vipLanding.puntosClave', label: 'Puntos clave (opcional)', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)', help: 'Lo que más vende, en frases cortas. Lo que ya está en las amenidades no se repite aquí; si queda vacío, no sale.' },
 		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 

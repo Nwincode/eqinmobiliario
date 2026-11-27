@@ -77,3 +77,4 @@
 - [~] 2026-11-27 «el precio entregada es de 300K y preventa 275K» → texto de hoy con preventa 275K y entregada 300K; «Condición» por programar (falta la fecha de entrega).
 - [~] 2026-11-27 «ok, analiza el enlace de vip que no lo encuentro como lo veo» → explicado: ⋮ «Ver en el sitio» (solo con la casa visible y publicada), dirección /vip/…; propuesto mostrar el enlace dentro de la sección VIP; espera su sí.
 - [~] 2026-11-27 «https://eqinmobiliario.gt/vip/casa-en-venta-a-13-minutos-de-antigua-guatemala-con-vista-al-volcan-de-fuego/ analiza el diseño con la skill mas cercana de maquetación cual es?» → revisada con diseno-minimo a 390 y 1280; 6 hallazgos y propuesta; espera su sí.
+- [~] 2026-11-27 «hazlo, despues dame los pendientes y la prsentación» → VIP rediseñada (sin etiquetas, un título, puntos sin repetir amenidades, datos 3 por fila, secciones a 32 px, letras en escala); pendientes dados; presentación de propietarios en curso.
