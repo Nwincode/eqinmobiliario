@@ -728,11 +728,9 @@ export async function render(container, [id]) {
 			const d = { ...p };
 			const cambios = {};
 			if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
-			if (!d.vip) {
-				const antes = JSON.stringify(d.seo || {});
-				llenarSeo(d);
-				if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
-			}
+			const antes = JSON.stringify(d.seo || {});
+			llenarSeo(d);
+			if (JSON.stringify(d.seo) !== antes) cambios.seo = d.seo;
 			if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 			const en = d.en || {};
 			if (faltaIngles(d)) cambios.en = await traducirEn(d);
@@ -755,7 +753,7 @@ export async function render(container, [id]) {
 				const d = { ...p, descripcion: t.descripcion };
 				const cambios = { descripcion: t.descripcion, descripcionAnterior: p.descripcion || '' };
 				if (!String(d.ciudad || '').trim() && /^zona\s*\d+/i.test(String(d.zona || '').trim())) cambios.ciudad = d.ciudad = 'Guatemala';
-				if (!d.vip) { llenarSeo(d); cambios.seo = d.seo; }
+				llenarSeo(d); cambios.seo = d.seo;
 				if (llenarAltFotos(d)) cambios.fotos = d.fotos;
 				cambios.en = {
 					titulo: t.en.titulo, descripcion: t.en.descripcion, amenidades: amenidadesEnDe({ amenidades: d.amenidades, en: t.en }), amenidadesDe: [...(d.amenidades || [])],
@@ -874,7 +872,7 @@ export async function render(container, [id]) {
 		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. ${trasGuardar()}`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
 	const tituloMalo = props.filter((p) => canEdit(p) && p.en?.titulo && p.en?.descripcion && !p.en.manual && !sinIngles.includes(p)
-		&& p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p));
+		&& (p.en.titulo === tituloEnViejo(p) || p.en.titulo === tituloEn(p, true)) && p.en.titulo !== tituloEn(p));
 	traducidas.then(() => enMasa(async (p) => {
 		const titulo = tituloEn(p);
 		const vip = p.en.vipLanding;
@@ -1100,9 +1098,11 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'seo.titulo', label: 'Título para Google', maxlength: 70, cols: 12 },
 		{ name: 'seo.descripcion', label: 'Descripción para Google', type: 'textarea', rows: 2, maxlength: 160 },
 		seoPreviewField({
-			title: (d) => (d.vip ? d.seo?.titulo || `${d.vipLanding?.titular || d.titulo || ''} | Propiedad exclusiva` : d.seo?.titulo || autoTitle(d)),
+			// VIP o no, Google ve el título de la casa y su descripción automática (lo que la gente busca: tipo, operación,
+			// lugar y precio); el titular y el subtítulo VIP son para la portada de su página.
+			title: (d) => d.seo?.titulo || autoTitle(d),
 			// La misma regla del sitio (templates.mjs seoDescription): la escrita, si tiene 70 letras o más.
-			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || (d.vip && d.vipLanding?.subtitular) || autoDescription(conPrecio(d)),
+			description: (d) => (propiaCorta(d.seo?.descripcion) ? '' : d.seo?.descripcion) || autoDescription(conPrecio(d)),
 			path: (d) => `${d.vip ? '/vip/' : '/propiedad/'}${slugify(d.slug || d.titulo || '')}/`,
 			checks: (d) => [
 				[(d.fotos || []).length >= 5, `${(d.fotos || []).length} fotos (recomendado: 5 o más).`],
@@ -1414,7 +1414,7 @@ async function renderEditor(container, id, emb = null) {
 		if (d.en.titulo && textoEn(d.en) !== textoEn(enAuto)) d.en.manual = true;
 		const traducirAhora = forzarIngles || faltaIngles(d);
 		// El SEO lleva el precio que verá el cliente (el de una casa por noche sale del precio del socio).
-		if (!d.vip && d.titulo) {
+		if (d.titulo) {
 			const conPublico = esVacacional(d) ? { ...d, ...vacacionalPublico({ ...d, socio }) } : d;
 			llenarSeo(conPublico);
 			d.seo = conPublico.seo;

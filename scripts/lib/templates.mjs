@@ -9,7 +9,7 @@ import { cssTema, colorTema } from '../../admin/js/tema-def.js';
 import { estadoDe, precioVisible, esDePrueba } from '../../admin/js/estados.js';
 import { puntosConIcono } from '../../admin/js/puntos.js';
 import { CODIGOS_PAIS, enUSD, piesCuadrados } from '../../admin/js/formato.js';
-import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX } from '../../admin/js/seo-auto.js';
+import { autoSeoTitle as autoSeoTitleBase, autoSeoDescripcion, huespedesDe, recortar, TITULO_MAX, direccionEsLugar } from '../../admin/js/seo-auto.js';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { fotoCdn, pasaPorCdn } from './foto-cdn.mjs';
@@ -1157,7 +1157,7 @@ function listingLd(ctx, p) {
 			].filter(Boolean),
 			geo: porNoche(p) ? undefined : geoDe(p.mapa),
 			// Departamento según el municipio (util.mjs departamentoDe); si no se conoce, no se pone.
-			address: { '@type': 'PostalAddress', streetAddress: (!porNoche(p) && p.direccion) || undefined, addressLocality: lugarDe(p), addressRegion: departamentoDe(p) || undefined, addressCountry: 'GT' }
+			address: { '@type': 'PostalAddress', streetAddress: (!porNoche(p) && direccionEsLugar(p.direccion) && p.direccion) || undefined, addressLocality: lugarDe(p), addressRegion: departamentoDe(p) || undefined, addressCountry: 'GT' }
 		}
 	};
 }
@@ -1735,8 +1735,10 @@ export function vipLandingPage(ctx, p) {
 		path: propertyUrl(p),
 		alternates: p._alternates,
 		preloadImage: portada,
-		title: (p.seo && p.seo.titulo) || `${v.titular || p.titulo} | ${t.propiedadExclusiva}`,
-		description: (p.seo && p.seo.descripcion && p.seo.descripcion.length >= 70 && p.seo.descripcion) || v.subtitular || seoDescription(p),
+		// Para Google, lo mismo que una ficha: el título de la casa y la descripción con precio y datos (el titular es
+		// para la portada y no dice qué se vende ni dónde).
+		title: seoTitle(p),
+		description: seoDescription(p),
 		noindex: esDePrueba(p),
 		image: portada,
 		ogType: 'article',

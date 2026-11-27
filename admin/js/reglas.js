@@ -2,7 +2,7 @@
 // Devuelven lo mismo que devolvía la IA, para que las vistas no cambien.
 import { piesCuadrados, dinero, decimales, precioTexto, TIPO_CAMBIO as TC, enUSD, plural } from './formato.js';
 import { enOperacion, operacionHashtag, amenidadesEn, precioVisible } from './estados.js';
-import { sinRepetir, autoSeoTitle } from './seo-auto.js';
+import { sinRepetir, autoSeoTitle, direccionEsLugar } from './seo-auto.js';
 
 const TIPOS = ['casa', 'apartamento', 'terreno', 'oficina', 'local', 'bodega', 'finca'];
 const TIPO_ES = { casa: 'Casa', apartamento: 'Apartamento', terreno: 'Terreno', oficina: 'Oficina', local: 'Local comercial', bodega: 'Bodega', finca: 'Finca' };
@@ -319,11 +319,12 @@ const opEn = (p) => OP_EN[p.operacion] || 'for Sale';
 // Sin precio a la vista (precio oculto o sin precio): «Price on request».
 const precioEn = (p) => (precioVisible(p) ? `${p.moneda === 'GTQ' ? 'Q' : '$'}${decimales(precioVisible(p))}${{ renta: '/month', vacacional: '/night' }[p.operacion] || ''}` : 'Price on request');
 
-// Título en inglés: tipo + operación + lugar, sin repetir la zona ni cortar palabras.
-export function tituloEn(p) {
+// Título en inglés: tipo + operación + lugar, sin repetir la zona ni cortar palabras. La dirección entra solo si es un
+// lugar (`direccionEsLugar`); `cualquierDireccion` arma el de antes, para reconocerlo guardado y corregirlo.
+export function tituloEn(p, cualquierDireccion = false) {
 	// La dirección a veces empieza con el tipo en español ("Terreno camino…"): ya lo dice el título.
 	const es = (TIPO_ES[p.tipo] || '').split(' ')[0];
-	let sitio = sinRepetir([p.direccion, p.zona]).join(', ') || p.ciudad || 'Guatemala';
+	let sitio = sinRepetir([cualquierDireccion || direccionEsLugar(p.direccion) ? p.direccion : '', p.zona]).join(', ') || p.ciudad || 'Guatemala';
 	if (es) sitio = sitio.replace(new RegExp(`^[${es[0]}${es[0].toLowerCase()}]${es.slice(1)}\\s+(?=[a-záéíóúñ])`), '').replace(/^en\s+/, '');
 	const base = `${TIPO_EN[p.tipo] || 'Property'} ${opEn(p)} in `;
 	const partes = capital(sitio).split(/,\s*/);
@@ -434,7 +435,9 @@ async function traducir({ propiedad: p }) {
 		titulo, descripcion, amenidades, comoLlegar, reglas, cancelacion,
 		// El mismo título automático que el sitio (admin/js/seo-auto.js), con el título ya traducido.
 		seoTitulo: autoSeoTitle({ ...p, titulo }, true),
-		seoDescripcion: `${tipo} ${op.toLowerCase()} in ${sinRepetir([p.zona, p.ciudad, 'Guatemala']).join(', ')}${d.length ? `: ${d.slice(0, 3).join(', ')}` : ''}. ${precioEn(p)}.`.slice(0, 155),
+		// Sin descripción para Google guardada: la del sitio sale al publicar con el precio de ese día (una guardada con
+		// el precio se quedaba vieja al cambiarlo). Ver build.mjs `seoTraducido`.
+		seoDescripcion: '',
 		vipTitular: vip.titular ? titulo : '',
 		vipSubtitular: vip.subtitular ? `${tipo} ${op.toLowerCase()} in ${p.zona || 'Guatemala'}${d.length ? ` with ${unirEn(d.slice(0, 2))}` : ''}.` : '',
 		puntosClave: (vip.puntosClave || []).length ? [...d.slice(0, 4), ...amenidades.slice(0, 2)].slice(0, 6) : [],
