@@ -99,4 +99,4 @@
 - [x] 2026-11-27 «no explicas bien si el costo del 20 o 25% es anidado a nuestro cobro de plataforma? explicame bien ami» → explicado: no se suman, cada reserva paga uno solo (sitio 20% o Airbnb 20%/25%). Agregado a la lámina de Airbnb (propietarios y socios).
 - [x] 2026-11-27 «buenoe xplica eso ya que a mi me dio confusion!» → franja «No se suma al 20% del sitio» en la lámina de Airbnb de propietarios y socios.
 - [~] 2026-11-27 «la pagina esta lista para que los propietarios, socios coloquen sus propiedades, estas salgan el todos lados y no presente problemas en las reservas?» → respondido: pruebas en verde (npm test y reglas); falta el recorrido completo como socio en el emulador antes de decir «listo»; propuesto, espera su sí.
-- [~] 2026-11-27 «haz la prueba revisa con agentes y skills.» → en curso: recorrido completo en el emulador y dos agentes revisando reservas y publicación.
+- [~] 2026-11-27 «haz la prueba revisa con agentes y skills.» → hecho: recorrido 291 de 291 pasos bien; 2 agentes hallaron 6 fallas de reservas y 6 de publicación (reproducidas) y 4 decisiones; arreglo espera su sí.
