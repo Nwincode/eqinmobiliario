@@ -47,11 +47,11 @@
 - [x] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; aprobó el ⋮ y quedó programado.
 - [x] 2026-11-26 «hay skills de diseño para instalar que haga eso?» → sí: tarjeta de «UI Design Review»; ya hay ux-ui-audit, design-critique y diseno-minimo.
 - [~] 2026-11-26 «puedes crear una presentacion de la web para nuestros propietarios socios colaboradores una para cada uno y asi cumplir la funcion que cada uno amerita, a los propietarios apra mostrarles el producto, explicarles como es el manejo de la platarforma y ya sabes como fucniona todo.» → en pausa: primero la de propietarios (con capturas del panel de prueba) y se muestra antes de hacer las otras dos.
-- [x] 2026-11-26 «socio-1280-__solicitudes.png la tabla no deberia de sobrepasar la pantalla, aplica colocar un scroll.» → hecho: «Anteriores (N)» plegada al final (PR #159; se publica con las pruebas en verde).
+- [x] 2026-11-26 «socio-1280-__solicitudes.png la tabla no deberia de sobrepasar la pantalla, aplica colocar un scroll.» → hecho: «Anteriores (N)» plegada al final (PR #159, publicado).
 - [x] 2026-11-26 «cómo asi plegar lo apsaro ? explica.» → explicado: arriba lo por hacer y próximas; abajo «Anteriores (N)» plegada.
 - [x] 2026-11-26 «boceta» → boceto enviado; aprobado.
 - [x] 2026-11-26 «vos no hay una skill para instalar o instalada que evite esos problemas?» → ya están diseno-minimo, ux-ui-audit y design-critique; se agregó a diseno-minimo la regla de listas que crecen (plegar lo terminado, sin caja con scroll).
-- [x] 2026-11-26 «si hazlo» → programado, recorrido 291/291; PR #159 se publica al salir verde.
+- [x] 2026-11-26 «si hazlo» → programado, recorrido 291/291; PR #159 publicado.
 - [x] 2026-11-26 «una pregunta, como centralizas la información o cada pantalla calcula u obtiene la infor por si sola?» → respondido: datos en Firebase, cálculos en piezas comunes; Mis propiedades y la ficha leen reservas por su cuenta (sin comprobar si calculan distinto): revisión propuesta, espera su sí.
 - [x] 2026-11-26 «cmo llevas la contabilidad?» → respondido: montos fijos por reserva, ganancia de EQ con estado, estado de cuenta mensual; sin FEL/IVA/ISR/gastos. Propuesto «Descargar para el contador» (Excel por mes), espera su sí.
 - [x] 2026-11-26 «solo quiero saber tambien si estas usando skill, reutilizas codigo?» → sí: diseno-minimo y sistema de diseño EQ; «Anteriores» reutiliza calc-detalle, debidas, puedePagoRecibido y la tarjeta de siempre.
