@@ -94,3 +94,4 @@
 - [x] 2026-11-27 «Si gracias» → «Equipo Inmobiliario» y «comisión» en el panel: PR #161 unido (CI en verde). Presentaciones de socios (https://claude.ai/artifact/TMcQvEzFcu19yvzMe444eQ) y colaboradores (https://claude.ai/artifact/2Jk592T4u6HfSxF8feTCTX) terminadas; colaboradores espera los % de comisión.
 - [~] 2026-11-27 «En los colaboradores no he definido ayudame» → propuesta de reparto con colaboradores (venta y renta 50/50; 70/30 si trae al comprador; por noche: su precio + 20%); espera su sí para ponerlo en la presentación.
 - [x] 2026-11-27 «en la ficha de propiedades hablas en plural y solo pones 1» → colaboradores, diapositiva 4: captura nueva de «Mis propiedades» con dos casas (entorno de prueba).
+- [~] 2026-11-27 «haz un analisis de los porcentajes que propones» → análisis entregado (Airbnb: bajar a 20% anuncio / 25% completa; comisión con IVA; colaboradores 50/50 y 70/30); espera su decisión.
