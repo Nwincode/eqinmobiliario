@@ -54,3 +54,4 @@
 - [x] 2026-11-26 «si hazlo» → programado, recorrido 291/291; PR #159 se publica al salir verde.
 - [x] 2026-11-26 «una pregunta, como centralizas la información o cada pantalla calcula u obtiene la infor por si sola?» → respondido: datos en Firebase, cálculos en piezas comunes; Mis propiedades y la ficha leen reservas por su cuenta (sin comprobar si calculan distinto): revisión propuesta, espera su sí.
 - [x] 2026-11-26 «cmo llevas la contabilidad?» → respondido: montos fijos por reserva, ganancia de EQ con estado, estado de cuenta mensual; sin FEL/IVA/ISR/gastos. Propuesto «Descargar para el contador» (Excel por mes), espera su sí.
+- [x] 2026-11-26 «solo quiero saber tambien si estas usando skill, reutilizas codigo?» → sí: diseno-minimo y sistema de diseño EQ; «Anteriores» reutiliza calc-detalle, debidas, puedePagoRecibido y la tarjeta de siempre.
