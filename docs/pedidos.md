@@ -75,3 +75,4 @@
 - [x] 2026-11-27 «haz la descripcion completa» → descripción completa con 10% de enganche, lista para copiar.
 - [~] 2026-11-27 «en este caso la preventa da un precio más economico y debe de tener fecha de entrega, esto va de la mano si el inmueble es nuevo, si es usado no, pero investiga como catalogarlo.» → investigado (Encuentra24, Zillow); propuesto campo «Condición» (usada, nueva, en construcción, preventa) con fecha de entrega y precio al entregar; espera su sí.
 - [~] 2026-11-27 «el precio entregada es de 300K y preventa 275K» → texto de hoy con preventa 275K y entregada 300K; «Condición» por programar (falta la fecha de entrega).
+- [~] 2026-11-27 «ok, analiza el enlace de vip que no lo encuentro como lo veo» → explicado: ⋮ «Ver en el sitio» (solo con la casa visible y publicada), dirección /vip/…; propuesto mostrar el enlace dentro de la sección VIP; espera su sí.
