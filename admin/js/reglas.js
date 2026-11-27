@@ -333,6 +333,24 @@ export function tituloEn(p, cualquierDireccion = false) {
 	return t.length <= 90 ? t : t.slice(0, 90).replace(/\s+\S*$/, '');
 }
 
+// Inglés con un título armado con una frase de la dirección («House for Sale in A 13 minutos del casco…»): el mismo
+// arreglo para el panel (lo guarda al abrir Propiedades) y para build.mjs (lo publica aunque nadie abra el panel): el
+// título automático de hoy, el anterior en `slugsAnteriores` (su 301), el título para Google y el titular VIP que
+// salían de él, de nuevo automáticos. Devuelve null si no hay nada que corregir; uno escrito a mano no se toca.
+export function enCorregido(p) {
+	const e = p.en;
+	if (!e || !e.titulo || e.manual || e.titulo !== tituloEn(p, true)) return null;
+	const titulo = tituloEn(p);
+	if (titulo === e.titulo) return null;
+	const vip = e.vipLanding;
+	return {
+		...e, titulo, slug: '',
+		slugsAnteriores: [...new Set([...(e.slugsAnteriores || []), e.slug || e.titulo])].filter((t) => t && t !== titulo),
+		seo: { ...(e.seo || {}), titulo: e.seo?.titulo === autoSeoTitle({ ...p, titulo: e.titulo }, true) ? '' : e.seo?.titulo || '' },
+		...(vip?.titular === e.titulo ? { vipLanding: { ...vip, titular: titulo } } : {})
+	};
+}
+
 // Traductor automático gratuito (sin clave). Si falla, se usa la plantilla y no se le vuelve a
 // preguntar por unos minutos: así una importación larga no espera en cada fila.
 let traductorCaidoHasta = 0;

@@ -16,8 +16,7 @@ import { aplicarTextos, textosPorDefecto } from './lib/i18n.mjs';
 import { buildAssets } from './lib/assets.mjs';
 import { visibilidadDe } from '../admin/js/estados.js';
 import { conEmojis, sinBloquesGenerados } from '../admin/js/descripcion.js';
-import { seoEnViejo, tituloEn } from '../admin/js/reglas.js';
-import { autoSeoTitle } from '../admin/js/seo-auto.js';
+import { seoEnViejo, enCorregido } from '../admin/js/reglas.js';
 import { datosConfigurados } from '../netlify/lib/firestore.mjs';
 import { sociosEnMora, pausados } from '../netlify/lib/comisiones.mjs'; // (también deja listo globalThis.EQVacacional)
 import { urlsCambiadas } from '../netlify/lib/indexnow.mjs';
@@ -105,29 +104,12 @@ function normalizeProperties(list) {
 				// Formato viejo de «Mejorar descripción»: sin las listas copiadas de los campos (ver descripcion.js).
 				descripcion: sinBloquesGenerados(p.descripcion),
 				seo: seoPropio(p.seo),
-				en: enAlDia(p),
+				en: enCorregido(p) || p.en,
 				slug,
 				fechaOrden: toMillis(p.createdAt) || (1e13 - (p.orden || 0))
 			};
 		})
 		.sort((a, b) => (b.destacada === true) - (a.destacada === true) || byOrder(a, b) || b.fechaOrden - a.fechaOrden);
-}
-
-// Título en inglés armado con una frase de la dirección («House for Sale in A 13 minutos del casco…»): se publica el
-// automático de hoy (reglas.js `tituloEn`), con la dirección anterior en `slugsAnteriores` para su 301. Lo mismo hace el
-// panel al abrir Propiedades (lo guarda); esto lo arregla aunque nadie lo abra. Uno escrito a mano no se toca.
-function enAlDia(p) {
-	const e = p.en;
-	if (!e || !e.titulo || e.manual || e.titulo !== tituloEn(p, true)) return e;
-	const titulo = tituloEn(p);
-	if (titulo === e.titulo) return e;
-	const vip = e.vipLanding;
-	return {
-		...e, titulo, slug: '',
-		slugsAnteriores: [...new Set([...(e.slugsAnteriores || []), e.slug || e.titulo])],
-		seo: { ...(e.seo || {}), titulo: e.seo?.titulo === autoSeoTitle({ ...p, titulo: e.titulo }, true) ? '' : e.seo?.titulo || '' },
-		...(vip?.titular === e.titulo ? { vipLanding: { ...vip, titular: titulo } } : {})
-	};
 }
 
 // El SEO que el panel puso solo (igual a seo.auto) se vuelve a calcular aquí con la regla de hoy: así un cambio en
@@ -160,7 +142,7 @@ function propiedadEn(p) {
 		descripcion: conPiesCuadrados(sinBloquesGenerados(e.descripcion)),
 		amenidades: amenidadesEnDe(p),
 		// El que armaba la regla anterior del traductor («Lot for Sale Guatemala») se reemplaza por el automático.
-		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo)),
+		seo: (({ descripcion, ...seo }) => ({ ...seo, descripcion: conPiesCuadrados(descripcion).length <= 160 ? conPiesCuadrados(descripcion) : descripcion }))(seoTraducido(p, e.seo, e.manual)),
 		// Cómo llegar, reglas y cancelación: en inglés si ya se tradujeron; si no, el original.
 		vacacional: p.vacacional && { ...p.vacacional, ...Object.fromEntries(Object.entries(e.vacacional || {}).filter(([, x]) => x)) },
 		vipLanding: { ...(p.vipLanding || {}), titular: '', subtitular: '', puntosClave: [], ctaTexto: '', ...(e.vipLanding || {}) },
@@ -171,9 +153,10 @@ function propiedadEn(p) {
 // Descripción para Google que armaba el traductor sin IA («House for sale in …: 3 bedrooms…. Q1,250,000.»): llevaba el
 // precio de ese día y se quedaba viejo al cambiarlo. Se reconoce por su forma (hubo varias) y sale la automática.
 const SEO_EN_PLANTILLA = /^[A-Z][A-Za-z ]* for (sale|rent|vacation rental) in .+\.\s+((US\$|\$|Q)\s?[\d,]+(\.\d{2})?(\/(month|night))?|Price on request)\.$/i;
-function seoTraducido(p, seo) {
+// Una escrita a mano (`en.manual`) no se toca aunque se parezca.
+function seoTraducido(p, seo, manual = false) {
 	const s = seo || {}, viejo = seoEnViejo(p);
-	const plantilla = (d) => d === viejo.descripcion || SEO_EN_PLANTILLA.test(String(d || '').trim());
+	const plantilla = (d) => d === viejo.descripcion || (!manual && SEO_EN_PLANTILLA.test(String(d || '').trim()));
 	return { ...s, titulo: s.titulo === viejo.titulo ? '' : s.titulo || '', descripcion: plantilla(s.descripcion) ? '' : s.descripcion || '' };
 }
 

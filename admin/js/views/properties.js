@@ -11,7 +11,7 @@ import { campoCalendarioEq } from '../calendario-eq.js';
 import { seoPreviewField, stripMd } from '../seo.js';
 import { autoSeoTitle, autoSeoDescripcion, huespedesDe, recortar, resumenSeo } from '../seo-auto.js';
 import { pedirIA } from '../ia.js';
-import { tituloEn, tituloEnViejo } from '../reglas.js';
+import { tituloEn, tituloEnViejo, enCorregido } from '../reglas.js';
 import { updateDoc, SITIO } from '../firebase.js';
 import { ESTADOS_PROPIEDAD, amenidadesPara, amenidadesEnDe, precioVisible, textosConPrecioOculto, mascotasUnaVez, estadosPara, tipoAplica, incoherencia, OPERACIONES, TIPOS, operacionDe, estadoDe, visibilidadDe } from '../estados.js';
 import { generarCodigo, normalizarCodigo, siglasCondominio, PLANTILLA } from '../importar.js';
@@ -95,7 +95,8 @@ export async function traducirEn(d) {
 		amenidadesDe: [...(d.amenidades || [])],
 		seo: {
 			titulo: r.seoTitulo || (r.titulo ? autoSeoTitle({ ...d, titulo: r.titulo }, true) : ''),
-			descripcion: r.seoDescripcion || recortar(resumenSeo(r.descripcion), 155)
+			// Vacía: el sitio arma la de Google al publicar, con el precio de ese día (templates.mjs seoDescription).
+			descripcion: r.seoDescripcion || ''
 		},
 		vipLanding: { titular: r.vipTitular || '', subtitular: r.vipSubtitular || '', puntosClave: r.puntosClave || [], ctaTexto: r.ctaTexto || '' },
 		vacacional: Object.fromEntries(TEXTOS_VAC.map((k) => [k, r[k] || ''])),
@@ -872,11 +873,11 @@ export async function render(container, [id]) {
 		(k) => `${k === 1 ? '1 propiedad sin inglés se tradujo sola' : `${k} propiedades sin inglés se tradujeron solas`}. ${trasGuardar()}`, sinIngles);
 	// Títulos en inglés que la regla anterior dejó repetidos o cortados: se corrigen solos, una vez.
 	const tituloMalo = props.filter((p) => canEdit(p) && p.en?.titulo && p.en?.descripcion && !p.en.manual && !sinIngles.includes(p)
-		&& (p.en.titulo === tituloEnViejo(p) || p.en.titulo === tituloEn(p, true)) && p.en.titulo !== tituloEn(p));
+		&& ((p.en.titulo === tituloEnViejo(p) && p.en.titulo !== tituloEn(p)) || enCorregido(p)));
 	traducidas.then(() => enMasa(async (p) => {
 		const titulo = tituloEn(p);
 		const vip = p.en.vipLanding;
-		const en = { ...p.en, titulo, slugsAnteriores: titulosEnAnteriores(p.en, titulo),
+		const en = enCorregido(p) || { ...p.en, titulo, slugsAnteriores: titulosEnAnteriores(p.en, titulo),
 			...(vip?.titular === p.en.titulo ? { vipLanding: { ...vip, titular: titulo } } : {}) };
 		await guardarMasa({ en }, { en })(p);
 	}, 'Títulos en inglés corregidos',
