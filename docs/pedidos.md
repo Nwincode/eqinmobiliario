@@ -96,3 +96,4 @@
 - [x] 2026-11-27 «en la ficha de propiedades hablas en plural y solo pones 1» → colaboradores, diapositiva 4: captura nueva de «Mis propiedades» con dos casas (entorno de prueba).
 - [x] 2026-11-27 «haz un analisis de los porcentajes que propones» → análisis entregado (Airbnb: bajar a 20% anuncio / 25% completa; comisión con IVA; colaboradores 50/50 y 70/30); espera su decisión.
 - [x] 2026-11-27 «1. me parece bien! 2. ya incluye iva 5% y 12%, 3. si es buen precio. 4. que recomiendas?» → Airbnb 20%/25% sobre lo depositado, IVA incluido; colaboradores 50% (70% si trae al comprador); impuestos del huésped a cargo del propietario también en socios. Publicado en las 3 presentaciones.
+- [~] 2026-11-27 «no explicas bien si el costo del 20 o 25% es anidado a nuestro cobro de plataforma? explicame bien ami» → explicado: no se suman, cada reserva paga uno solo (sitio 20% o Airbnb 20%/25%). Espera su sí para agregar esa línea a la lámina de Airbnb.
