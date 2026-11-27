@@ -1,67 +1,57 @@
 # Formato del inventario de propiedades (para Cowork u otra herramienta)
 
-Objetivo: armar el inventario **sin escribir en la base de datos**. El resultado es una hoja
-(CSV / Excel) que se revisa a mano y luego se carga desde el panel (Propiedades → Nueva).
+Objetivo: armar el inventario **sin escribir en la base de datos**. El resultado es una hoja (CSV) con una carpeta
+de fotos por propiedad (en un .zip), que se revisa a mano y se carga en el panel: **Propiedades → Importar**. Las
+columnas son las del importador (`admin/js/importar.js` `PLANTILLA`); la plantilla lista sale de ahí mismo:
+`docs/plantilla-inventario-propiedades.csv` (venta y renta) y `docs/plantilla-casas-por-noche.csv` (por noche). El
+importador también la descarga («Plantilla»).
 
 ## Reglas para no contaminar la base de datos
 1. **Solo lectura.** No crear, cambiar ni borrar nada en Firebase (`eqinmobiliariobd`). Nunca tocar el proyecto "ptg".
-2. **Una fila por propiedad.** Antes de agregar una, buscar si ya existe (misma dirección/residencial + zona + tipo). Si existe, se marca en la columna `accion` como `actualizar` con su `id`; si no, `nueva`.
-3. **Ignorar las de prueba:** todo lo que tenga `demo = true` o un id que empiece con `prueba-`.
-4. **Valores exactos** en las columnas con lista cerrada (abajo). Nada de "Casa grande", "venta/renta", "$", "aprox.".
-5. **Números sin símbolos:** `1291000`, no `$1,291,000`. Si no se sabe un dato, dejar la celda **vacía** (no 0, no "N/D").
-6. **Sin datos privados en columnas públicas:** el nombre, teléfono y comisión del dueño van solo en las columnas `propietario_*`, nunca en la descripción.
-7. **Sin nombres de bancos ni de otras empresas** en título o descripción.
-8. Todo entra como `publicado = no`. Se publica a mano desde el panel después de revisar.
-9. Fotos: solo enlaces o nombres de archivo; se suben desde el panel (máx. 10 MB cada una).
+2. **Una fila por propiedad.** Una que ya existe se actualiza con su `codigo` (el que muestra el panel); sin código, es nueva.
+3. **Valores exactos** en las columnas con lista cerrada (abajo). Nada de "Casa grande", "venta/renta", "$", "aprox.".
+4. **Números sin símbolos:** `1291000`, no `$1,291,000`. Si no se sabe un dato, dejar la celda **vacía** (no 0, no "N/D").
+5. **Nada privado en lo que se publica.** Título, descripción, zona, ciudad y dirección salen en la página y en Google:
+   - sin nombre ni teléfono del dueño o del colaborador (van solo en `propietario`);
+   - sin el nombre del residencial ni la dirección exacta si el cliente podría ir directo: `direccion` vacía;
+   - sin nombres de bancos ni de otras empresas.
+6. **Fotos:** una carpeta por propiedad con el nombre de la columna `carpeta` (`casa-vista-lomas/1.jpg, 2.jpg…`),
+   todas en un .zip. La primera es la portada. Al menos 800 px por lado, hasta 10 MB cada una.
+7. Todo entra sin publicar. Se publica a mano desde el panel después de revisar.
 
-10. **No hace falta conectarse a Firebase.** Para saber qué propiedades ya existen se usa la lista de abajo
-    ("Propiedades que ya están en el sitio"). Si una no se puede comprobar, `accion = revisar` y se explica en `notas`.
-
-## De dónde sale la información (Google Drive)
-- **"1. Propiedades"**: carpetas por zona (Ciudad Capital y sus zonas, Mixco, Villa Nueva, etc.). Son propiedades del equipo.
-- **"10. Corredores asociados"**: carpetas de agencias/corredores aliados. Toda propiedad de aquí lleva el nombre
-  de la agencia en `aliada`, y en `asesor` el asesor del equipo que la atiende (si no se sabe, `accion = revisar`).
-- Las fotos **no se copian ni se suben**: en `fotos` van los enlaces de Drive separados por `;`.
-- En `notas` se escribe siempre la carpeta de Drive de donde salió la fila y lo que haya que confirmar.
-
-## Propiedades que ya están en el sitio
-Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar esta lista cuando se carguen más en el panel.
-
-| id | título | tipo | operación | zona |
-|---|---|---|---|---|
-| residencial-san-antonio | Casa en Residencial San Antonio | casa | venta | Zona 16 |
-| jardines-de-mirabel | Casa en Residencial Jardines de Mirabel | casa | venta | Zona 16 |
+## Quién es quién
+- `propietario`: el dueño, socio o **asesor colaborador** que nos pasó el inmueble. Tiene que existir antes su ficha
+  en Propietarios (el importador no la crea); se escribe su nombre, teléfono o correo. Si nos la pasó un colaborador
+  y no conocemos al dueño, va el colaborador.
+- `asesor`: el asesor **de EQ** que la atiende (nombre como sale en Usuarios). Vacío si aún no tiene. Un colaborador
+  de otra empresa nunca va aquí: el importador diría «Asesor no encontrado».
 
 ## Columnas
-
 | Columna | Obligatoria | Valores permitidos / ejemplo |
 |---|---|---|
-| accion | sí | `nueva` · `actualizar` · `revisar` (si hay duda de duplicado) |
-| id | solo si `actualizar` | id actual en el panel, ej. `residencial-san-antonio` |
-| titulo | sí | `Casa en Residencial San Antonio` |
-| operacion | sí | `venta` · `renta` |
+| codigo | solo para actualizar | el código del panel; vacío en una nueva (se crea solo) |
+| carpeta | sí, si hay fotos | nombre de su carpeta de fotos en el .zip, ej. `casa-vista-lomas` |
+| titulo | sí | `Casa con jardín en Vista de las Lomas` |
+| operacion | sí | `venta` · `renta` · `vacacional` (por noche) |
 | tipo | sí | `casa` · `apartamento` · `terreno` · `oficina` · `local` · `bodega` · `finca` |
-| estado | sí | `disponible` · `proximamente` · `reservada` · `vendida` · `rentada` · `pausada` · `retirada` (ver «Estados» abajo). Vacío = `disponible` |
-| precio | sí | número entero, ej. `1291000` |
+| estado | no | `disponible` · `proximamente` · `reservada` · `vendida` · `rentada` · `pausada` · `retirada` (ver «Estados»). Vacío = `disponible` |
+| asesor | no | asesor de EQ (ver «Quién es quién») |
+| propietario | por noche, sí | nombre, teléfono (`+502 5555 5555`) o correo de una ficha que **ya existe** en Propietarios |
+| precio | sí (venta y renta) | número, ej. `350000`; vacío = «Precio a consultar» |
 | moneda | sí | `USD` · `GTQ` |
-| zona | sí | `Zona 16` (así: "Zona" + número) o nombre del municipio |
-| ciudad | sí | `Guatemala`, `Mixco`, `Santa Catarina Pinula`… |
-| direccion | no | residencial / colonia, sin número de casa |
-| habitaciones | no | número |
-| banos | no | número (medio baño = `0.5`) |
-| parqueos | no | número |
-| m2Construccion | no | número en m² |
-| m2Terreno | no | número en m² (si viene en varas², multiplicar por 0.6987) |
-| amenidades | no | separadas por `;` ej. `Piscina; Garita; Jardín` |
-| descripcion | sí | 2–5 frases, español |
-| asesor | sí | id de un asesor del panel (Asesores), ej. `joaquin-arriola`. Si el asesor aún no está en el panel, escribir su nombre y marcar `accion = revisar` |
-| aliada | no | nombre de la agencia aliada si la propiedad es de una aliada (no se publica). En ese caso `asesor` = el asesor del equipo que la atiende |
-| destacada | no | `si` · `no` |
-| fotos | no | enlaces de Drive separados por `;` |
-| propietario | en renta por noche, sí | teléfono (`+502 5555 5555`), correo o nombre de una ficha que **ya existe** en Propietarios (el panel no crea dueños desde el CSV). Con él la casa queda enlazada a su dueño. También se aceptan los encabezados `propietario_telefono` o `propietario_nombre` |
-| exclusiva_hasta | no | fecha `AAAA-MM-DD` |
-| comision_pct | no | número, ej. `5` |
-| notas | no | lo que haya que verificar |
+| zona | sí | `Zona 16` en la capital (y municipios con zonas); fuera de ella, el municipio: `San Miguel Dueñas` |
+| ciudad | sí | el municipio: `Guatemala`, `Mixco`, `San Miguel Dueñas`… |
+| direccion | no | mejor vacía (se publica; ver regla 5) |
+| condominio_siglas | no | siglas del residencial para el código, ej. `VLM`; vacío = se toman del residencial o `IND` |
+| habitaciones · banos · parqueos | no | números (medio baño = `0.5`) |
+| m2_construccion · m2_terreno | no | números en m² (varas² × 0.6987) |
+| niveles · anio_construccion · mantenimiento | no | números; mantenimiento al mes, en la moneda del precio |
+| amenidades | no | separadas por `;` ej. `Piscina; Garita de seguridad; Jardín` |
+| descripcion | sí | 2–5 párrafos en español; se traduce sola al inglés |
+| video | no | enlace de YouTube o Vimeo |
+| socio_noche · socio_finde · margen · limpieza · deposito · noches_min · huespedes_max · ical_airbnb · ical_booking · ical_vrbo | solo por noche | ver `docs/plantilla-casas-por-noche.csv` |
+
+La landing VIP no va en el CSV: se marca en la ficha de la casa después de importar.
 
 ## Estados
 
@@ -78,4 +68,3 @@ Si se encuentra una de estas, `accion = actualizar` con este `id`. Actualizar es
 Aparte del estado, el interruptor «Visible en la página» del panel (campo `publicado`) apagado oculta la propiedad por completo, como un borrador.
 Cada cambio de estado guarda la fecha (`estadoFecha`) y queda en el historial de la propiedad (`historialEstado`: estado, fecha y quién lo cambió).
 
-Plantilla lista: `docs/plantilla-inventario-propiedades.csv`.

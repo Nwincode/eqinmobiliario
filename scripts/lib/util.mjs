@@ -78,7 +78,7 @@ const DEPARTAMENTOS = {
 		'san jose pinula', 'fraijanes', 'san miguel petapa', 'amatitlan', 'chinautla', 'san juan sacatepequez', 'san pedro sacatepequez',
 		'san pedro ayampuc', 'palencia', 'chuarrancho', 'san raymundo'],
 	'Sacatepéquez': ['antigua', 'antigua guatemala', 'la antigua guatemala', 'jocotenango', 'ciudad vieja', 'san lucas sacatepequez',
-		'santiago sacatepequez', 'sumpango', 'pastores', 'santa maria de jesus', 'san antonio aguas calientes', 'alotenango', 'sacatepequez'],
+		'santiago sacatepequez', 'sumpango', 'pastores', 'santa maria de jesus', 'san antonio aguas calientes', 'alotenango', 'san miguel duenas', 'sacatepequez'],
 	'Santa Rosa': ['monterrico', 'taxisco', 'chiquimulilla', 'cuilapa', 'santa rosa', 'barberena'],
 	Escuintla: ['escuintla', 'puerto san jose', 'san jose', 'iztapa', 'puerto de iztapa', 'el paredon', 'sipacate', 'palin'],
 	'Sololá': ['solola', 'panajachel', 'san pedro la laguna', 'san marcos la laguna', 'santa cruz la laguna', 'san juan la laguna', 'santiago atitlan', 'lago de atitlan', 'atitlan'],

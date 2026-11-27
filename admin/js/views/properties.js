@@ -1073,12 +1073,12 @@ function camposDeLaFicha(agentOpts, isNew, socioOpts, ajeno = false, casaId = ''
 		{ name: 'acuerdo.notasImpuestos', label: 'Notas de impuestos', cols: 4, when: (d) => conDueno(d) && d.operacion === 'venta', placeholder: 'IUSI al día, ISR, gastos de escritura…' },
 		{ name: 'acuerdo.contrato', label: 'Enlace al contrato (Drive, Dropbox…)', type: 'url', cols: 12, when: conDueno, placeholder: 'https://…' },
 
-		{ type: 'section', label: 'Landing page VIP', help: 'Solo para propiedades marcadas como VIP. Se publica en /vip/…', when: vip },
-		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Ej. Vive frente al bosque, a 10 minutos de todo' },
-		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Agendar visita privada' },
-		{ name: 'vipLanding.subtitular', label: 'Subtítulo', type: 'textarea', rows: 2, when: vip },
+		{ type: 'section', label: 'Landing page VIP', help: 'Se publica en /vip/… y queda completa aunque no escribas nada aquí: usa el título, la primera foto, los datos, la descripción y las amenidades de la casa.', when: vip },
+		{ name: 'vipLanding.titular', label: 'Titular', cols: 6, when: vip, placeholder: 'Vacío = el título de la casa' },
+		{ name: 'vipLanding.ctaTexto', label: 'Texto del botón', cols: 6, when: vip, placeholder: 'Vacío = «Agendar visita privada»' },
+		{ name: 'vipLanding.subtitular', label: 'Subtítulo (opcional)', type: 'textarea', rows: 2, when: vip, help: 'Si lo dejas vacío no sale: la página ya muestra los datos, la descripción y las amenidades.' },
 		{ name: 'vipLanding.portada', label: 'Imagen de portada (opcional)', type: 'image', marca: true, when: vip, help: 'Si no eliges una, se usa la primera foto de la galería.' },
-		{ name: 'vipLanding.puntosClave', label: 'Puntos clave', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)' },
+		{ name: 'vipLanding.puntosClave', label: 'Puntos clave (opcional)', type: 'tags', when: vip, placeholder: 'Vista panorámica, acabados importados… (Enter para agregar)', help: 'Lo que más vende, en frases cortas. Si lo dejas vacío, ese recuadro no sale.' },
 		// Mientras esté marcada se ve, aunque la casa deje de ser VIP: así se puede desmarcar (el precio sigue oculto).
 		{ name: 'vipLanding.ocultarPrecio', label: 'Ocultar precio ("Precio a consultar")', type: 'checkbox', when: (d) => vip(d) || Boolean(d.vipLanding?.ocultarPrecio && !esVacacional(d)) },
 
