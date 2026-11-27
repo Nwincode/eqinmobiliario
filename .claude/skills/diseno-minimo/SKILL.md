@@ -37,8 +37,9 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
 | Entre bloques de una pieza | 8 o 12 px |
 | Entre secciones | 24 o 32 px |
 | Margen lateral en celular | 12 o 16 px |
-| Tamaños de letra por pantalla | 12, 14 y 16 px; uno más grande solo para el título de la página |
-| Pesos | Dos: normal y seminegrita |
+| Tamaños de letra | Texto: 12 (pies, códigos), 14 (secundario, etiquetas) y 16 (base). Títulos: 20 (tarjeta y ficha), 24 (precio destacado), 28 (sección), 36 (página); 48 solo la portada del sitio |
+| Pesos | 400 texto, 500 etiquetas, 600 botones y títulos, 700 precios y títulos de página |
+| Dinero | Siempre con 2 decimales (US$ 285,000.00, Q 120.00): precios, cuentas, totales y correos (`dinero`, `montoPrecio`, `precioTexto` de `admin/js/formato.js`). Única excepción: la casilla de un día del calendario, sin decimales (`dineroCorto`) |
 | Área de toque | 44 px como mínimo, aunque el ícono se vea de 16 a 20 px |
 | Listas del panel en celular | Al menos 3.5 registros por pantalla |
 
@@ -59,6 +60,8 @@ De dónde sale cada regla (Müller-Brockmann, Rams, Nielsen, Krug, sus libros y 
   con «…», la etiqueta no. Pieza común: `nombreYDatos` (`admin/js/ui.js`).
 - Un botón o ícono no agranda su fila: su área de toque se monta sobre una línea que ya existe.
 - Cero scroll de lado. Un nombre largo usa dos líneas como máximo; después, «…».
+- Una lista que crece con el tiempo (reservas, solicitudes, mensajes) muestra arriba solo lo que sigue activo y
+  pliega lo terminado en una fila «Anteriores (N)» que se abre al tocarla. Nunca una caja con scroll propio.
 - Lo más importante, arriba y a la izquierda. Lo que más se toca, al alcance del pulgar (abajo a la derecha
   en celular).
 

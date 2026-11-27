@@ -2130,6 +2130,17 @@ const duenos = [];
 			noches: { integerValue: '2' }, huespedes: { integerValue: '2' }, total: { doubleValue: 300 }, moneda: sv('USD'), idioma: sv('es'), createdAt: { timestampValue: '2026-01-01T12:00:00Z' } } }) });
 	const antes = socio.errores.length;
 	await ir(socio.p, '#/solicitudes', 4000);
+	// Lo terminado (cancelada, «No se dio», ya pasada) va plegado al final en «Anteriores (N)»; lo activo, arriba.
+	const plegado = await socio.p.evaluate((c3) => {
+		const d = document.querySelector('.admin-main details.calc-detalle');
+		const dentro = (t) => [...(d?.querySelectorAll('.card') || [])].some((x) => x.textContent.includes(t));
+		const fuera = [...document.querySelectorAll('.admin-main .card')].filter((x) => !x.closest('details.calc-detalle'));
+		return { cerrado: Boolean(d) && !d.open, titulo: d?.querySelector('summary').textContent || '', ajena: dentro('EQ-AJENA'), c3: dentro(c3),
+			activasSinTerminadas: fuera.every((x) => !/Cancelada|No se dio/.test(x.querySelector('.fila-marcas')?.textContent || '')) };
+	}, codigo3);
+	paso('Solicitudes del socio: lo terminado va plegado al final en «Anteriores (N)»',
+		plegado.cerrado && /^Anteriores \(\d+\)/.test(plegado.titulo) && plegado.ajena && plegado.c3 && plegado.activasSinTerminadas, JSON.stringify(plegado));
+	await socio.p.locator('.admin-main details.calc-detalle > summary').click();
 	const pantalla = await socio.p.locator('.admin-main').innerText().catch(() => '');
 	const ajena = socio.p.locator('.card', { hasText: 'EQ-AJENA' }).first();
 	const sinChat = await ajena.locator('[aria-label="Chat con el cliente"]').count() === 0 && await ajena.locator('button', { hasText: /Cancelar|Pago recibido|Confirmada/ }).count() === 0;

@@ -62,7 +62,7 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
     espera su respuesta; el estado de cada PR y de la rama; los enlaces de las propuestas; lo que quedó sin
     guardar y quién lo está haciendo. Lo ya unido y cerrado va en una línea.
 - Gastar menos tokens: juntar en una respuesta lo que se pueda; pocas rondas de capturas (se aprueba el
-  diseño en la maqueta antes de programar); lo chico se hace directo, sin agentes.
+  diseño en la maqueta antes de programar); lo chico se hace directo, sin agentes (lo grande y el diseño, con su revisor: ver 5).
 
 ## 4. Código
 - Quién hace qué: el usuario elige el modelo de la sesión. Con Opus en la sesión, Opus programa y consulta
@@ -71,8 +71,9 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   haya corrido, medido y mirado en capturas.
 - Respaldo: antes de un cambio grande (un rediseño, una pantalla entera), Claude anota el commit anterior de
   `main` y guarda capturas de cómo estaba, para poder regresar en un paso. Se lo dice al usuario al entregar.
-- Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa y qué archivos se tocan juntos
-  (las «cadenas»). Se lee antes de un cambio que cruza partes del sistema y se actualiza en el mismo commit.
+- Mapa del sistema: `docs/mapa-del-sistema.md` dice dónde vive cada cosa, dónde se hace cada cambio y qué
+  archivos se tocan juntos (las «cadenas»). Se lee antes de **cualquier** cambio y se actualiza en el mismo
+  commit, siempre: un cambio sin su línea en el mapa no está terminado.
 - Lo encadenado, en cada cambio: antes de tocar un código, Claude revisa si está anidado, unido o si depende
   de otro (quién lo llama, qué usa, qué pantallas, correos, reglas y pruebas lo comparten) y cambia todo lo
   que va junto en el mismo cambio. Lo busca en el mapa y en el código, no de memoria.
@@ -90,8 +91,11 @@ Orden, limpieza de código, simplicidad, minimalismo y sencillez de uso.
   un campo nuevo, Claude revisa qué puede escribir ahí alguien de otro país u otro caso.
 
 ## 5. Diseño
-- Lo hace Claude directo, sin agentes de diseño ni agentes revisores, y antes de diseñar o mostrar algo usa
-  la skill `diseno-minimo` (`.claude/skills/diseno-minimo/SKILL.md`). Ahí están las medidas y la revisión.
+- Antes de diseñar o mostrar algo, Claude usa la skill del proyecto `diseno-minimo`
+  (`.claude/skills/diseno-minimo/SKILL.md`: medidas, letras, dinero y la revisión) y el sistema de diseño
+  «EQ Inmobiliario». Además usa las skills que correspondan a lo pedido (p. ej. `ux-ui-audit` para medir una
+  pantalla, `design-critique`, `interaction-design`, `ux-writing`) y, en un diseño grande o nuevo, un agente
+  revisor independiente antes de mostrarlo al usuario.
 - Diseño grande o nuevo (página, sección, tarjeta, panel, correo): primero la propuesta, a tamaño real en
   celular y computadora; con el sí del usuario se programa, y solo lo aprobado.
 - Revisión: Claude usa el sitio como cliente, en celular (390 px) y computadora (1280 px), corrige lo que

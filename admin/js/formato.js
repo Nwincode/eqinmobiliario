@@ -66,10 +66,8 @@ export function slugLibre(titulo, usados) {
 	usados.add(s);
 	return s;
 }
-// Precio de una propiedad a la vista (no una cuenta): sin centavos cuando es entero y de 1,000 o más
-// («US$ 350,000», «Q 5,000»); con centavos si los tiene o es menor («US$ 120.00», «US$ 1,250.50»).
-// Lo que se cobra o se suma (reservas, cotizaciones, impuestos, comisiones) sigue con `dinero`.
-// Decisión del dueño: los precios llevan siempre centavos («US$ 350,000.00», «US$ 120.00»), igual que las cuentas.
+// Precio de una propiedad: siempre con centavos («US$ 350,000.00», «US$ 120.00»), igual que las cuentas (decisión
+// del dueño). Solo la casilla de un día del calendario va sin centavos (`dineroCorto`).
 export const montoPrecio = (n, moneda) => dinero(Number(n) || 0, moneda);
 // Precio de una propiedad según su operación, en español o inglés: «US$ 250,000.00», «Q 5,000.00 /mes»,
 // «US$ 120.00 por noche» (sin «desde»: el precio no se negocia; el de fin de semana va aparte en la ficha); sin precio, «Precio a consultar». Lo usan el panel (ui.js `formatPrice`), la difusión,

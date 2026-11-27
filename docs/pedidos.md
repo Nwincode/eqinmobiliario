@@ -43,6 +43,18 @@
 - [x] 2026-11-26 «que hay pendiente?» → misma lista; prueba de menús a punto de terminar.
 - [x] 2026-11-26 «que mas pendientes tienes?» → lista completa enviada.
 - [x] 2026-11-26 «ponle orden de prioridad! debo de tener el panel de socios y propietarios listo sin fallos.» → orden nuevo: primero el panel de socios y propietarios sin fallos (1–10), después lo demás.
-- [~] 2026-11-26 «ve en orden.» → en curso: 1 (Guardar tapado al cambiar de dueño).
+- [~] 2026-11-26 «ve en orden.» → 1 hecho y publicado (PR #158); 2 sin cifras distintas; 3 en curso (recorrido como socio).
 - [x] 2026-11-26 «oye que una skill de diseño revise lo que estas proponiendo en diseño?» → revisado con diseno-minimo; aprobó el ⋮ y quedó programado.
 - [x] 2026-11-26 «hay skills de diseño para instalar que haga eso?» → sí: tarjeta de «UI Design Review»; ya hay ux-ui-audit, design-critique y diseno-minimo.
+- [~] 2026-11-26 «puedes crear una presentacion de la web para nuestros propietarios socios colaboradores una para cada uno y asi cumplir la funcion que cada uno amerita, a los propietarios apra mostrarles el producto, explicarles como es el manejo de la platarforma y ya sabes como fucniona todo.» → en pausa: primero la de propietarios (con capturas del panel de prueba) y se muestra antes de hacer las otras dos.
+- [x] 2026-11-26 «socio-1280-__solicitudes.png la tabla no deberia de sobrepasar la pantalla, aplica colocar un scroll.» → hecho: «Anteriores (N)» plegada al final (PR #159; se publica con las pruebas en verde).
+- [x] 2026-11-26 «cómo asi plegar lo apsaro ? explica.» → explicado: arriba lo por hacer y próximas; abajo «Anteriores (N)» plegada.
+- [x] 2026-11-26 «boceta» → boceto enviado; aprobado.
+- [x] 2026-11-26 «vos no hay una skill para instalar o instalada que evite esos problemas?» → ya están diseno-minimo, ux-ui-audit y design-critique; se agregó a diseno-minimo la regla de listas que crecen (plegar lo terminado, sin caja con scroll).
+- [x] 2026-11-26 «si hazlo» → programado, recorrido 291/291; PR #159 se publica al salir verde.
+- [x] 2026-11-26 «una pregunta, como centralizas la información o cada pantalla calcula u obtiene la infor por si sola?» → respondido: datos en Firebase, cálculos en piezas comunes; Mis propiedades y la ficha leen reservas por su cuenta (sin comprobar si calculan distinto): revisión propuesta, espera su sí.
+- [x] 2026-11-26 «cmo llevas la contabilidad?» → respondido: montos fijos por reserva, ganancia de EQ con estado, estado de cuenta mensual; sin FEL/IVA/ISR/gastos. Propuesto «Descargar para el contador» (Excel por mes), espera su sí.
+- [x] 2026-11-26 «solo quiero saber tambien si estas usando skill, reutilizas codigo?» → sí: diseno-minimo y sistema de diseño EQ; «Anteriores» reutiliza calc-detalle, debidas, puedePagoRecibido y la tarjeta de siempre.
+- [x] 2026-11-27 «hay contradicciones en los md o se pueden mejorar? estas teniendo problemas con seguir las reglas? te las saltas?» → respondido con contradicciones encontradas y faltas propias; mapa del sistema puesto al día (faltaba en el PR #159). Unificar reglas de diseño espera su sí.
+- [x] 2026-11-27 «analiza que se contradice y que te ha servido, lo que usas o terminaste usando sobre el otro, quitalo, con las letras igual, pesos si es en 2 decimales, sobre todo en temas de dinero, salvo si es en calendarios, ene se lugar no es necesario. no esa parte del md esta re mal, agrega usar skills referentes a lo solicitado, agentes revisores y hay una skill importante de diseño que hemos credado, no r…» → hecho: dinero siempre con 2 decimales salvo la casilla del calendario (el código ya lo hacía; quedaban comentarios y docs viejos); letras y pesos en una sola tabla en diseno-minimo; CLAUDE.md §5: skills según lo pedido, diseno-minimo, sistema EQ y agente revisor; el mapa se lee y actualiza en cada cambio.
+- [x] 2026-11-27 «hay cosas pendientes contigo?» → respondido con la lista de lo que espera su sí, lo de él y lo que sigue.
