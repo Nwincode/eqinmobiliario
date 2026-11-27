@@ -16,7 +16,7 @@ importador también la descarga («Plantilla»).
    - sin el nombre del residencial ni la dirección exacta si el cliente podría ir directo: `direccion` vacía;
    - sin nombres de bancos ni de otras empresas.
 6. **Fotos:** una carpeta por propiedad con el nombre de la columna `carpeta` (`casa-vista-lomas/1.jpg, 2.jpg…`),
-   todas en un .zip. La primera es la portada. Al menos 800 px por lado, hasta 10 MB cada una.
+   todas en un .zip. La primera es la portada. Al menos 800 px en su lado mayor (una vertical de 720 × 1280 sirve), hasta 10 MB cada una.
 7. Todo entra sin publicar. Se publica a mano desde el panel después de revisar.
 
 ## Quién es quién
